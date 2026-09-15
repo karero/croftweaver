@@ -413,15 +413,31 @@ if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
     echo "note: 'ollama list' failed — cannot auto-detect a cloud model (check the ollama install/daemon, or set OLLAMA_MODEL explicitly). The ollama tier will be skipped this run." >&2
   else
     cloud_tags="$(printf '%s\n' "$list_out" | awk 'NR>1 {print $1}' | grep ':cloud$' || true)"
-    OLLAMA_MODEL="$(head -n 1 <<<"$cloud_tags")"
+    # Prefer the documented default over pull-recency order, if it's in this account's
+    # list at all. `ollama list` orders by recency of pull, not quality -- blindly taking
+    # the first tag let `glm-5.3:cloud` (the FULL variant, documented in
+    # ollama-review/SKILL.md as unreliable for real review work: ~3 empty-response
+    # failures out of 4 real attempts) silently become this pick for ~8 days across every
+    # apreet repo once a routine `ollama pull` put it ahead of `glm-5.3-flash:cloud` by
+    # pull time (2026-09-05 to 09-13, found and fixed 2026-09-15 -- see that file's
+    # history for the full trail). Falls through to "first tag" if the preferred default
+    # isn't pulled at all, so this never blocks the ollama tier outright.
+    preferred_model="glm-5.3-flash:cloud"
+    if printf '%s\n' "$cloud_tags" | grep -qx "$preferred_model"; then
+      OLLAMA_MODEL="$preferred_model"
+    else
+      OLLAMA_MODEL="$(printf '%s\n' "$cloud_tags" | head -1)"
+    fi
     if [ -z "$OLLAMA_MODEL" ]; then
       echo "note: no OLLAMA_MODEL set and no ':cloud' model in 'ollama list' — the ollama tier will be skipped ('ollama signin' plus a cloud model enables it, or set OLLAMA_MODEL explicitly)." >&2
     else
-      # Say which tag was picked — silently switching reviewers when a second
+      # Say which tag was picked, and why — silently switching reviewers when a second
       # cloud tag appears would defeat the trail's record of who reviewed.
       n_cloud="$(printf '%s\n' "$cloud_tags" | grep -c . || true)"
-      if [ "$n_cloud" -gt 1 ]; then
-        echo "note: $n_cloud ':cloud' models in 'ollama list' — auto-using the first, '$OLLAMA_MODEL'. Set OLLAMA_MODEL to choose a different one." >&2
+      if [ "$OLLAMA_MODEL" = "$preferred_model" ] && [ "$n_cloud" -gt 1 ]; then
+        echo "note: $n_cloud ':cloud' models in 'ollama list' — auto-using the documented default, '$OLLAMA_MODEL', not necessarily the most-recently-pulled tag. Set OLLAMA_MODEL to choose a different one." >&2
+      elif [ "$n_cloud" -gt 1 ]; then
+        echo "note: $n_cloud ':cloud' models in 'ollama list', none matching the documented default ('$preferred_model') — auto-using the most-recently-pulled, '$OLLAMA_MODEL'. Set OLLAMA_MODEL to choose a different one." >&2
       else
         echo "note: auto-detected ollama-cloud model '$OLLAMA_MODEL' from 'ollama list' (set OLLAMA_MODEL to override)." >&2
       fi
