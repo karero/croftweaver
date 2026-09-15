@@ -142,6 +142,19 @@
 #   AGY_MODEL      (unset)           Antigravity CLI model override — unset runs the
 #                                    CLI's own default model. Used only when
 #                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
+#                                    Designated choice for this tier, 2026-09-15: gemini-3.1-pro-high
+#                                    (--model gemini-3.1-pro-high) -- a third model family alongside
+#                                    Claude/Codex, reserved for special cases per Antigravity's own
+#                                    opt-in-only policy above, not a standing default. Mechanism
+#                                    confirmed working (real repo exploration via --add-dir + a
+#                                    scoped permissions.allow in ~/.gemini/antigravity-cli/settings.json:
+#                                    command(git diff/status/show/log/pwd/ls/find/cat), read_file(*);
+#                                    see that file for the full deny list) -- genuinely independent,
+#                                    repo-access review from this specific model NOT yet completed:
+#                                    every attempt so far has hit infrastructure errors (503 "no
+#                                    capacity", network errors) before finishing, pending Daniel
+#                                    purchasing additional Antigravity credits. Do not treat as a
+#                                    proven-reliable tier until a real review actually completes.
 #   WITH_ANTIGRAVITY (0)             set to 1 (or pass --with-antigravity) to include
 #                                    the Antigravity/agy tier for this run. Off by default.
 #   INDEPENDENT_REVIEW_CHECKS_ONLY (unset)  TEST ONLY (test_round_checks.sh): 1 makes the script
