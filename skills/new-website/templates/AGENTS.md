@@ -123,13 +123,11 @@ applies there; instead of steps 2 to 4, only this:
   "thanks" are not a request). When asked:
   - Check the conditions again now, on GitHub, not from an earlier check:
     `gh pr view <number> --json headRefOid,isDraft,author` and `gh pr checks <number>`
-    (exit code 0 = no check failed and none is still running, skipped ones count as
-    on the green tick; 8 = still running; anything else: do not merge). Whose pull
-    request it is
-    decides which half of the merge rule in §5 applies: compare its author with the
-    signed-in account (`gh api user --jq .login`). Which pull request: the one the
-    person means; if that is not clear, ask. If a condition does not hold, do not
-    merge: say which one.
+    (it must exit 0 and list no failing or pending check; exit 8 means still running:
+    wait; anything else: do not merge). Whose pull request it is decides which half of
+    the merge rule in §5 applies: compare its author with the signed-in account
+    (`gh api user --jq .login`). Which pull request: the one the person means; if that
+    is not clear, ask. If a condition does not hold, do not merge: say which one.
   - Merge with `gh pr merge <number> --merge --match-head-commit <headRefOid>`
     (`--squash` instead if the repository allows only that). Never `--admin`, which
     skips the branch rules, and never `--auto`, which merges later, unasked, on checks
@@ -137,8 +135,8 @@ applies there; instead of steps 2 to 4, only this:
   - Then say what the merge did on this site, as "What a merge means" below describes
     it: the preview rebuilds, the live site rebuilds, or nothing is published until the
     deploy command runs.
-  - No signed-in GitHub CLI, or `gh` cannot reach GitHub (Codex in the cloud cannot,
-    see §1): say so and ask the person to press the button.
+  - No signed-in GitHub CLI, or `gh` cannot reach GitHub: say so and ask the person to
+    press the button.
 - **Preview before merging:** once the repo is connected to Cloudflare by git
   integration (`website-team-setup` §6 does that), every pull request gets its own
   preview address from Cloudflare, listed under the pull request's checks. Look at the
