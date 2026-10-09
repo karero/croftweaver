@@ -253,7 +253,7 @@ name blocks every merge, because a check that never reports never passes.
 
 No bypass list: the rule applies to the owner too, which is the point. Dashboard
 path: **Settings → Rules → Rulesets → New branch ruleset**. An approving review count of
-0 keeps the gate "green CI + a human pressed merge", matching §1's merge rule; raise it
+0 keeps the gate "green CI + a human decided to merge", matching §1's merge rule; raise it
 only if the owner wants a second pair of eyes on every change.
 
 **B. The refusal.** On a **private repo on a free plan** the request comes back
@@ -443,7 +443,8 @@ per task, when to ask.
   invited, which settings are on, how CI was proven, which push block is active and
   what it covers, the Cloudflare project and its addresses, the rights level, the
   publish rule. Note the `scripts/` and `AGENTS.md` changes explicitly (`AGENTS.md` §5).
-- The owner merges it per the new rule (the assistant never merges), then tells the
+- The owner merges it per the new rule, on GitHub or by telling the assistant to (this
+  skill does not merge it unasked), then tells the
   collaborators to accept the invitation and read
   `TEAM-GUIDE.md`. Their first task: something small, so the whole loop (fetch, branch,
   pull request, green checks, preview, merge) is exercised once with the owner around.

@@ -109,16 +109,33 @@ applies there; instead of steps 2 to 4, only this:
     print a warning for each one and still pass, so the branch can be pushed; on
     GitHub the check stays red until they are filled. Any other leftover (an unfilled
     slot, filler text, a `TODO`) fails the tests everywhere.
-- **Merging on GitHub:** a pull request may be merged, with the "Merge pull request"
-  button on GitHub, only when
+- **Merging:** a pull request may be merged only when
   - the automatic checks on GitHub are green (green tick on the pull request; while
     they run: wait; red: do not merge, report it instead),
   - no `"[MISSING: …]"` placeholder is left (CI greps `src/` and `public/` for it and
     turns red) and the pull request is not a draft,
-  - and the person pressing the button may do so per the merge rule in §5 (default:
-    the author merges their own pull request; other people's only after asking).
+  - and the person merging may do so per the merge rule in §5 (default: the author
+    merges their own pull request; other people's only after asking).
 
-  The assistant never merges; the person does that on GitHub.
+  The person merges either with the "Merge pull request" button on GitHub or by telling
+  the assistant to ("merge", "merge it"). The assistant merges only on such a request:
+  never on its own, and never because the work looks finished ("looks good" and
+  "thanks" are not a request). When asked:
+  - Check the conditions again now, on GitHub, not from an earlier check:
+    `gh pr view <number> --json headRefOid,isDraft,author` and `gh pr checks <number>`
+    (exit code 0 = all green, 8 = still running, 1 = red). Whose pull request it is
+    decides which half of the merge rule in §5 applies: compare its author with the
+    signed-in account (`gh api user --jq .login`). Which pull request: the one the
+    person means; if that is not clear, ask. If a condition does not hold, do not
+    merge: say which one.
+  - Merge with `gh pr merge <number> --merge --match-head-commit <headRefOid>`
+    (`--squash` instead if the repository allows only that). Never `--admin`, which
+    skips the branch rules, and never `--auto`, which merges later, unasked, on checks
+    that were not looked at.
+  - Then say what the merge did, as the publish model below describes it: the preview
+    is rebuilding, or the live site is.
+  - No signed-in GitHub CLI (Codex in the cloud has none), or `gh` cannot reach
+    GitHub: say so and ask the person to press the button.
 - **Preview before merging:** once the repo is connected to Cloudflare by git
   integration (`website-team-setup` §6 does that), every pull request gets its own
   preview address from Cloudflare, listed under the pull request's checks. Look at the
