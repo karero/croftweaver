@@ -123,7 +123,9 @@ applies there; instead of steps 2 to 4, only this:
   "thanks" are not a request). When asked:
   - Check the conditions again now, on GitHub, not from an earlier check:
     `gh pr view <number> --json headRefOid,isDraft,author` and `gh pr checks <number>`
-    (exit code 0 = all green, 8 = still running, 1 = red). Whose pull request it is
+    (exit code 0 = no check failed and none is still running, skipped ones count as
+    on the green tick; 8 = still running; anything else: do not merge). Whose pull
+    request it is
     decides which half of the merge rule in §5 applies: compare its author with the
     signed-in account (`gh api user --jq .login`). Which pull request: the one the
     person means; if that is not clear, ask. If a condition does not hold, do not
@@ -132,10 +134,11 @@ applies there; instead of steps 2 to 4, only this:
     (`--squash` instead if the repository allows only that). Never `--admin`, which
     skips the branch rules, and never `--auto`, which merges later, unasked, on checks
     that were not looked at.
-  - Then say what the merge did, as the publish model below describes it: the preview
-    is rebuilding, or the live site is.
-  - No signed-in GitHub CLI (Codex in the cloud has none), or `gh` cannot reach
-    GitHub: say so and ask the person to press the button.
+  - Then say what the merge did on this site, as "What a merge means" below describes
+    it: the preview rebuilds, the live site rebuilds, or nothing is published until the
+    deploy command runs.
+  - No signed-in GitHub CLI, or `gh` cannot reach GitHub (Codex in the cloud cannot,
+    see §1): say so and ask the person to press the button.
 - **Preview before merging:** once the repo is connected to Cloudflare by git
   integration (`website-team-setup` §6 does that), every pull request gets its own
   preview address from Cloudflare, listed under the pull request's checks. Look at the
