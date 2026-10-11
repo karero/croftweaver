@@ -19,7 +19,9 @@ name: clean
 # (check_prompt_sync.sh), whether its Perl programs need no newer Perl than they declare
 # (check_perl_minimum.sh, with Perl::MinimumVersion from apt), and whether the claims sweep
 # sees the sentences a per-line grep misses (test_sweep_claims.sh). It also runs the check that neither installer clobbers a skill
-# someone pinned to another worktree of this repo (scripts/test_install_pin.sh), and the check
+# someone pinned to another worktree of this repo (scripts/test_install_pin.sh), that whats-new.sh
+# marks a bundled skill the suite has removed and names the two ways out
+# (scripts/test_whats_new_removed_skill.sh), and the check
 # that the handoff zip's leak guard still fires on a leak too big for a pipe buffer
 # (scripts/test_package_leak.sh), and that the site template's pre-push hook gates, skips
 # and blocks the right pushes and is wired only where the site is the root of its repo,
@@ -28,11 +30,16 @@ name: clean
 # (scripts/test_verify.sh), and that the private-name check
 # runs in a linked worktree too and that CI's masked mode prints no scanned text
 # (scripts/test_clean_denylist.sh), and that the site's Claude Code
-# sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh), and
+# sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh), that
+# whats-new marks a frozen template file the site lacks as MISSING (scripts/test_whats_new.sh), that
+# each script listed in scripts/test_mktemp_guard.sh stops with an error when mktemp fails and leaves
+# the folder it ran from alone, with a new script that calls mktemp forced onto its list or its
+# exemptions, and
 # that every text file checks out LF even where Git converts to CRLF
 # (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
 # for the shell scripts, the site hook and the Makefile. And it runs the
-# search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
+# search-console-insights unit and end-to-end tests (`make test`), which need `requests`,
+# and the facts-check tests (`make test-facts`), which need nothing beyond python3.
 on:
   push:
     branches: [main]
@@ -171,6 +178,12 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check the installers keep a skill pinned to another worktree
         run: bash scripts/test_install_pin.sh
+  whats-new-removed-skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check whats-new says when a bundled skill was removed from the suite
+        run: bash scripts/test_whats_new_removed_skill.sh
   package-leak:
     runs-on: ubuntu-latest
     steps:
@@ -210,6 +223,23 @@ jobs:
         run: |
           command -v node >/dev/null || { echo "::error::no node here: the test would skip"; exit 1; }
           bash scripts/test_git_stand_hook.sh
+  whats-new:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check whats-new marks a frozen template file the site lacks as MISSING
+        run: bash scripts/test_whats_new.sh
+  mktemp-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # A listed script that skips (no git, node or python3 on the machine) is not tested; this job
+      # must not stay green having tried fewer scripts, so REQUIRE_EVERY_SCRIPT=1 makes a skip a
+      # failure, as REQUIRE_PERL_MINIMUM does for the Perl check above.
+      - name: Check the scripts listed in test_mktemp_guard.sh stop with an error, and leave the folder they ran from alone, when mktemp fails
+        env:
+          REQUIRE_EVERY_SCRIPT: "1"
+        run: bash scripts/test_mktemp_guard.sh
   lf-checkout:
     runs-on: ubuntu-latest
     steps:
@@ -286,6 +316,20 @@ jobs:
         run: python -m pip install -r skills/search-console-insights/requirements.txt
       - name: Run the tracker + AI-check tests (stub servers, no real API calls)
         run: make test PYTHON=python
+  facts-check-tests:
+    # Standard library only, so nothing is installed: the job then also proves the script
+    # runs on a bare python3. 3.9 is macOS's stock python3.
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run the facts-check tests (stub site on 127.0.0.1, no real requests)
+        run: make test-facts PYTHON=python
   macos-stock-tools:
     # Every job above runs on Ubuntu (bash 5, GNU awk/sed/tr). A zip recipient on a Mac runs
     # the same guards under /bin/bash 3.2 and BSD tools, and v0.27's pre-release review found

@@ -39,6 +39,9 @@ const {
   schemas = [],
   alternates = [],
 } = Astro.props;
+// The page's language, for components inside it that speak to the visitor in it (the
+// website-contact-form skill's MailForm), so a German page gets a German form by itself.
+Astro.locals.lang = lang;
 
 const site = Astro.site ?? new URL(SITE.url);
 // `build.format: 'file'` makes build-time pathnames end in .html (/privacy.html),

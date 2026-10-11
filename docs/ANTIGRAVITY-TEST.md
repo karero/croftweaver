@@ -51,7 +51,7 @@ echo "$SKILLS_ROOT"                   # expect: .../.gemini/config/skills
 > point the scaffold at it with `export SKILLS_ROOT="$PWD/.agents/skills"`.
 
 ### 4. Trigger the orchestrator
-In a **fresh, empty** folder, say `new website` (or "I want to build a new website").
+In your websites folder (for example `Documents/Websites`; it doesn't need to be empty), say `new website` (or "I want to build a new website").
 **Expected:** the stack-decision interview starts.
 
 ### 5. Scaffold copies resolve
@@ -59,14 +59,18 @@ Let the orchestrator run the scaffold (steps 0–3). Watch the `cp "$SKILLS_ROOT
 commands.
 **Expected:** `.gitignore`, `SETUP.md`, `PUBLISHING.md`, `AGENTS.md`, `CLAUDE.md`, and the
 bundled sibling skills copy into the new
-project with **no "No such file or directory"** errors. `.claude/settings.json` is Claude
-Code-only and is skipped under Antigravity (it uses its own sandbox approval model). The
-bundled skills land in `$PROJECT_SKILLS_DIR` — `.agents/skills` for an Antigravity install
-(`export PROJECT_SKILLS_DIR=.agents/skills` to force it).
+project with **no "No such file or directory"** errors. The project is a new folder inside
+your websites folder, everything that was already in the websites folder is untouched, and
+the path Antigravity gives when you ask for it points at the new folder.
+`.claude/settings.json` is Claude Code-only and is skipped under Antigravity (it uses its
+own sandbox approval model). The bundled skills land in `$PROJECT_SKILLS_DIR` —
+`.agents/skills` for an Antigravity install (`export PROJECT_SKILLS_DIR=.agents/skills`
+to force it).
 
 ### 6. (Optional) build the generated site
 ```bash
-npm install && npm run build && npm test
+cd <site> && npm install && npm run build && npm test
+# <site> = the new folder inside your websites folder
 ```
 **Expected:** green (the bundled Playwright gate: a11y, seo, positioning, etc.).
 

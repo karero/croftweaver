@@ -11,18 +11,77 @@ on:
 
 # One run per branch at a time: a newer push to the same branch cancels the run it
 # supersedes. Saves Actions minutes (a private repo has 2 000 free per month; the Actions
-# tab shows what a run here takes) and means the green tick always belongs to the latest
+# tab shows what a run here takes; past that see website-team-setup §3b) and means the green tick always belongs to the latest
 # commit.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Whether this change is more than documentation. A change that touches only `docs/`,
+  # `.claude/` or a Markdown file in the repo root skips the `test` job below and saves
+  # its 4-5 minutes. Not a `paths-ignore:` filter: a workflow left out by one never
+  # reports, and a required check that never reports blocks every merge, while a job
+  # skipped by its `if:` counts as passed. Markdown deeper in the tree (src/content/...)
+  # is site content, so it still runs the tests. Anything this step cannot work out (a
+  # failed diff, a new branch, a manual start) runs them: a failed `changes` job would
+  # skip `test` and let the required check pass with nothing tested.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          # --no-renames: a moved file counts at both its old and its new path.
+          # core.quotePath=false: an accented name is listed as written; a name git
+          # still quotes (a quote mark or control character) runs the tests.
+          all=false files=
+          case "$EVENT" in
+            pull_request) files="$(git -c core.quotePath=false diff --no-renames --name-only "$PR_BASE...$PR_HEAD")" || all=true ;;
+            push)
+              # A push with no commit before it (a new branch) has nothing to compare with.
+              if [ -z "${PUSH_BEFORE//0/}" ]; then all=true
+              else files="$(git -c core.quotePath=false diff --no-renames --name-only "$PUSH_BEFORE" "$PUSH_AFTER")" || all=true; fi ;;
+            *) all=true ;;
+          esac
+          run=$all n=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            n=$((n + 1))
+            case "$f" in
+              docs/*|.claude/*) ;;
+              */*|\"*) run=true ;;
+              *.md) ;;
+              *) run=true ;;
+            esac
+          done <<EOF
+          $files
+          EOF
+          # An empty change list (no files) tests nothing, so it runs the tests too.
+          [ "$n" -gt 0 ] || run=true
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+          echo "$EVENT: $n changed path(s); tests run: $run"
+          printf '%s\n' "$files"
+
   # The job id `test` is the check name a branch ruleset requires (website-team-setup
   # §5-A: required_status_checks context "test"). Renaming or splitting this job
   # without updating the ruleset blocks every merge — a check that never reports
   # never passes.
   test:
+    needs: changes
+    # Skipped only when `changes` succeeded and said docs-only. If `changes` itself fails
+    # (a checkout error), `test` still runs: a skipped job counts as passed.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

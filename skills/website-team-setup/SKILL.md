@@ -122,7 +122,7 @@ the current value first, change only what differs, and say what you changed.
 | **Collaborator permission** | **write**, never maintain or admin | Write can push branches, open and merge pull requests; admin could change the settings this skill sets, or delete the repo. | §2 |
 | **Visibility** | **private** (client work) | A public repo exposes drafts, `"[MISSING: …]"` placeholders and client photos before they are meant to be seen. Note: this is also what decides whether §5-A's ruleset is available for free. | `gh repo view --json visibility` |
 | **Actions permissions** | **Allow all**, or narrow to **GitHub-owned and verified** | The kit's `ci.yml` uses only `actions/checkout` and `actions/setup-node`, so the narrow setting costs nothing and stops a collaborator's future workflow pulling an unvetted action. | Settings → Actions → General |
-| **Actions minutes** (private repos) | know the budget: 2 000 free minutes/month on GitHub Free; the repo's **Actions** tab shows what each run takes. With **no payment method** on the account, GitHub blocks Actions once they are used up and charges nothing. With a payment method, extra minutes are billed unless a budget for Actions with **Stop usage when budget limit is reached** caps them; check **Budgets and alerts** for one first, and add one if the owner wants a hard stop and none is there ([GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [budgets](https://docs.github.com/en/billing/how-tos/set-up-budgets)) | Every push to a pull request or to `main` starts a run, and the minutes add up; at the limit CI either starts costing money or silently stops, and then "green before merge" stops meaning anything. The `concurrency` block in the kit's `ci.yml` cancels a superseded run on the same branch, so a quick second push stops the first run instead of letting it finish. | https://github.com/settings/billing → **Budgets and alerts**; usage on the same billing pages |
+| **Actions minutes** (private repos) | know the budget: 2 000 free minutes/month on GitHub Free; the repo's **Actions** tab shows what each run takes. With **no payment method** on the account, GitHub blocks Actions once they are used up and charges nothing. **A $0 Actions budget with Stop usage already on the account blocks private-repo jobs the same way, payment method or not**, with a message that reads like a failed payment ("recent account payments have failed or your spending limit needs to be increased") and jobs that start zero steps. Check **Budgets and alerts** for an existing **Actions** budget. If the owner wants CI to keep running past the free minutes, edit it to a small cap they choose (say $10) with **Stop usage when budget limit is reached** kept on; create one only if none is there. Do not pick the "Copilot AI Credits" budget, a different product that the list may show first. Whether CI starts again after the change is confirmed only by the next push ([GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [budgets](https://docs.github.com/en/billing/how-tos/set-up-budgets)) | Every push to a pull request or to `main` starts a run, and the minutes add up; at the limit CI either starts costing money or silently stops, and then "green before merge" stops meaning anything. The `concurrency` block in the kit's `ci.yml` cancels a superseded run on the same branch, so a quick second push stops the first run instead of letting it finish. | https://github.com/settings/billing → **Budgets and alerts**; usage on the same billing pages |
 | **Fork workflows** | leave the default (require approval for first-time contributors) | Collaborators push branches, not forks, so this never triggers for them; it only guards against a stranger's fork running CI on your minutes. | Settings → Actions → General |
 | **Workflow token** | leave **read-only** (default) | The kit's CI writes nothing to the repo. | Settings → Actions → General |
 | **Dependabot** | **security updates on**; version updates off unless the owner wants weekly dependency pull requests | Security updates arrive as ordinary pull requests that CI checks; version updates are noise for a non-technical team. | Settings → Code security |
@@ -253,7 +253,7 @@ name blocks every merge, because a check that never reports never passes.
 
 No bypass list: the rule applies to the owner too, which is the point. Dashboard
 path: **Settings → Rules → Rulesets → New branch ruleset**. An approving review count of
-0 keeps the gate "green CI + a human pressed merge", matching §1's merge rule; raise it
+0 keeps the gate "green CI + a human decided to merge", matching §1's merge rule; raise it
 only if the owner wants a second pair of eyes on every change.
 
 **B. The refusal.** On a **private repo on a free plan** the request comes back
@@ -421,7 +421,10 @@ Rewrite the four lines at the top of §5 from the §1 answers: collaborators (Gi
 usernames only, no emails), rights level, merge rule, and who publishes live
 (two-stage) — or delete the publish line on a single-stage site. If §5-B enabled the
 hook, add one sentence to §2 saying the block is local, with the bypasses quoted
-from the hook's own comment block (§5-B). Read the whole
+from the hook's own comment block (§5-B). If §2 still says "The assistant never
+merges" (a site scaffolded before the assistant could merge on request), replace that
+bullet with the template's "Merging" bullet, or the guide in §8 promises what
+`AGENTS.md` forbids. Read the whole
 file once more: no `[BRACKET]` slot and no scaffold note may remain, and the publish
 model block must match Cloudflare's production branch (§6.5).
 
@@ -443,7 +446,8 @@ per task, when to ask.
   invited, which settings are on, how CI was proven, which push block is active and
   what it covers, the Cloudflare project and its addresses, the rights level, the
   publish rule. Note the `scripts/` and `AGENTS.md` changes explicitly (`AGENTS.md` §5).
-- The owner merges it per the new rule (the assistant never merges), then tells the
+- The owner merges it per the new rule, on GitHub or by telling the assistant to (this
+  skill does not merge it unasked), then tells the
   collaborators to accept the invitation and read
   `TEAM-GUIDE.md`. Their first task: something small, so the whole loop (fetch, branch,
   pull request, green checks, preview, merge) is exercised once with the owner around.

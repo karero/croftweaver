@@ -19,7 +19,8 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-T="$(mktemp -d "${TMPDIR:-/tmp}/install-pin-test.XXXXXX")"
+T="$(mktemp -d "${TMPDIR:-/tmp}/install-pin-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
 # Hermetic: a developer's global commit.gpgsign, hooksPath or templateDir must not decide
 # whether this test passes (round 3, both reviewers).

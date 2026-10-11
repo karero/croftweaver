@@ -67,6 +67,10 @@ Lighthouse scores); it runs only when the owner asks for it.
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
 in `AGENTS.md`); a single owner never needs it.
+A private repo gets 2 000 free CI minutes a month on GitHub Free (about 400 runs of the kit's
+`ci.yml`); past that, jobs stop with a message that reads like a failed payment. Tell the
+owner to check **Budgets and alerts** for an Actions budget (`website-team-setup` §3b has
+the steps).
 
 ## 1. Decision interview (answer before any code)
 
@@ -93,13 +97,14 @@ non-expert can answer, and record the answers in the project `README.md`.
 2. **Any dynamic/backend behaviour — what must a server actually do?**
    *Decides: the Cloudflare tier. Pick the LOWEST tier that fits — going higher
    is the classic mistake. Tier tree + limits: `references/WEBSITE_ARCHITECTURE.md`.*
-   - Visitors only read; contact is `mailto:` or a form service → **Tier 1
-     static** (~90% of sites).
-   - Exactly one small server task — a form that emails you, site search,
-     hiding a third-party API key, one live widget (e.g. a next-event box fed
-     by an API) → **Tier 2** (one Pages Function or server island). A contact
-     form that emails the owner: run **`website-forms`** (it checks first
-     whether the site meets what Cloudflare's email sending needs).
+   - Visitors only read; contact is an email link, or a contact form that
+     opens the visitor's own mail program → **Tier 1 static** (~90% of sites).
+     A contact form: run **`website-contact-form`**, our suggestion (no server,
+     no account, no setting).
+   - Exactly one small server task — site search, hiding a third-party API
+     key, one live widget (e.g. a next-event box fed by an API), a form that
+     must send through a server → **Tier 2** (one Pages Function or server
+     island). No skill builds such a form.
    - State per user — accounts/login, a database, checkout, user-generated
      content → **Tier 3** (SSR + D1). Rare; challenge the requirement first.
 
@@ -243,7 +248,14 @@ device's fingerprint or face unlock. Recommend, never require: GitHub makes it m
 for some accounts, and Cloudflare leaves it optional unless an account's administrator
 enforces it for members.
 
-Assemble the project at `<site>/` so it travels without any global setup:
+Assemble the project at `<site>/` so it travels without any global setup. `<site>` is a new
+folder inside the owner's websites folder, which is the folder this session was opened in
+(never that folder itself). Before step 0, unless the owner has already confirmed it in this
+session, say which folder you are in and ask whether it is their websites folder. If it is
+not, or it already holds a site (an `astro.config.*` or `index.html` file) or is the toolkit
+folder (it has `skills/new-website/SKILL.md`), ask which folder is their websites folder
+instead. Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
+full path (the output of `pwd` inside it):
 
 0. **Git first, before any code:**
    ```bash
@@ -376,12 +388,11 @@ Assemble the project at `<site>/` so it travels without any global setup:
    the frozen handoff set.
 
    **Conditional setup skills** — run the matching line ONLY when the interview
-   selected it (they don't ship with a declared one-language, CMS-free site without a form;
+   selected it (they don't ship with a declared one-language, CMS-free site without a
+   contact form;
    a multilingual-PHASED site is single-locale at scaffold time and still
    gets astro-i18n-setup):
    ```bash
-   # If Q2 = "a form that emails you" (a contact form):
-   cp -RL "$SKILLS_ROOT"/website-forms "$PROJECT_SKILLS_DIR"/
    # If Q3 = "non-technical editor" (Keystatic):
    cp -RL "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
    # If Q4 = "2+ languages at launch" OR "multilingual, one language first"
@@ -389,6 +400,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    # its Phase 2 instruction is "run astro-i18n-setup when translations are
    # ready", which can't resolve if the skill was never copied.
    cp -RL "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
+   # If Q2 = a contact form:
+   cp -RL "$SKILLS_ROOT"/website-contact-form "$PROJECT_SKILLS_DIR"/
    ```
 
    **Sanity check** (always, once all copying above — the primary batch AND
@@ -402,7 +415,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```
 
    **Stamp the copies** (always, after ALL skills are copied) — records which suite
-   state they came from, so `make whats-new PROJECT=<site>` in the suite repo can later
+   state they came from, so `make whats-new PROJECT=<site-dir>` (the site's full path) in the suite repo can later
    report which bundled skills have upstream updates:
    ```bash
    # The suite's scripts/whats-new.sh is the ONLY writer of the stamp format. Resolve

@@ -28,9 +28,9 @@ export function germanFunctionWordDensity(text: string): number {
 }
 
 // The tone rules (see tone.spec.ts and the website-content-guide skill), here so that
-// every spec holding text to them uses one copy: tone.spec.ts for the pages, and the
-// website-forms skill's forms.spec.ts for the sentences its form shows only after a
-// visitor presses Send. A new banned word or an ALLOWLIST entry goes here.
+// every spec holding text to them uses one copy: tone.spec.ts for the pages, and any
+// other spec that checks text a page shows only after a click. A new banned word or an
+// ALLOWLIST entry goes here.
 //
 // Language-aware: contraction/buzzword rules are ENGLISH rules. German gets its own
 // enforced ruleset (GERMAN_RULES below) — buzzwords and AI-tell phrases — but

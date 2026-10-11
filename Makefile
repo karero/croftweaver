@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -15,7 +15,7 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/croftweaver.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## run every suite guard: no personal data or credentials, every script locating itself CDPATH-safely, no pipe into an early-exit consumer (head, grep -q, …) under pipefail, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator, prompt-sync and claims-sweep self-checks green, its Perl programs within the Perl they declare (needs Perl::MinimumVersion; skipped without it), no installer clobbering a pinned skill, the handoff zip's leak check catching a large leak, the site pre-push hook gating and blocking the right pushes and being wired only at a repo's root by a line that holds no shell syntax, the site's verify script reinstalling only on a changed package.json or lockfile and stopping at the first red step, the private-name check running in a worktree too and CI's masked mode printing no scanned text, the site's Claude Code sync hook reporting news, failures and retries correctly, every text file checking out LF even where Git converts to CRLF (each script's header says what it checks; the installer and hook tests need git, the hook test's wiring cases node and npm too, the verify test node, the claims-sweep test git and python3, the sync-hook test git and node)
+check:     ## run every suite guard: no personal data or credentials, every script locating itself CDPATH-safely, no pipe into an early-exit consumer (head, grep -q, …) under pipefail, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator, prompt-sync and claims-sweep self-checks green, its Perl programs within the Perl they declare (needs Perl::MinimumVersion; skipped without it), no installer clobbering a pinned skill, the handoff zip's leak check catching a large leak, the site pre-push hook gating and blocking the right pushes and being wired only at a repo's root by a line that holds no shell syntax, the site's verify script reinstalling only on a changed package.json or lockfile and stopping at the first red step, the private-name check running in a worktree too and CI's masked mode printing no scanned text, the site's Claude Code sync hook reporting news, failures and retries correctly, whats-new marking a frozen template file the site lacks as MISSING, the throwaway-folder scripts the mktemp test lists stopping with an error when mktemp fails (a new script that calls mktemp must be listed or exempted there), every text file checking out LF even where Git converts to CRLF (each script's header says what it checks; the installer and hook tests need git, the hook test's wiring cases node and npm too, the verify test node, the claims-sweep test git and python3, the sync-hook test git and node, the whats-new test git, the mktemp test git, node and python3 to reach every script it runs)
 	@bash scripts/check_clean.sh
 	@bash scripts/check_cdpath_safe.sh
 	@bash scripts/check_pipefail_pipes.sh
@@ -28,16 +28,22 @@ check:     ## run every suite guard: no personal data or credentials, every scri
 	@bash skills/independent-review/scripts/check_perl_minimum.sh
 	@bash skills/independent-review/scripts/test_sweep_claims.sh
 	@bash scripts/test_install_pin.sh
+	@bash scripts/test_whats_new_removed_skill.sh
 	@bash scripts/test_package_leak.sh
 	@bash scripts/test_pre_push_hook.sh
 	@bash scripts/test_verify.sh
 	@bash scripts/test_clean_denylist.sh
 	@bash scripts/test_git_stand_hook.sh
+	@bash scripts/test_whats_new.sh
+	@bash scripts/test_mktemp_guard.sh
 	@bash scripts/check_lf_checkout.sh
 
 PYTHON ?= python3
 test:      ## run the search-console-insights tests (tracker + AI check; needs `requests`; stub servers, no real API calls). Not part of check/package, which must run on a stock python3
 	@$(PYTHON) -m unittest discover -s skills/search-console-insights/scripts/tests
+
+test-facts: ## run the facts-check tests (standard library only; a stub site on 127.0.0.1, no real requests)
+	@$(PYTHON) -m unittest discover -s skills/facts-check/scripts/tests
 
 # A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.
 # It runs in the C locale, as check_clean.sh does, so both read "the names" byte for byte alike

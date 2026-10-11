@@ -193,7 +193,7 @@ For pages with frequently asked questions.
 
 ## HowTo
 
-For instructional content and tutorials.
+For instructional content and tutorials. Google has shown no HowTo rich results since September 2023 ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)); the markup only describes the steps to machines.
 
 ```json
 {

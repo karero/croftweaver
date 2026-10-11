@@ -41,3 +41,29 @@ test.describe('without JavaScript', () => {
     });
   }
 });
+
+// encodeEmail lets a % through (an old but valid address character), and a mailto: link
+// must carry it as %25, or "a%41@…" opens a mail to "aA@…". A page that shows an address
+// is served with one such link added, and EmailLink's own script turns it into the link.
+test('email — a % in an address reaches the mail program unchanged', async ({ page, request, baseURL }) => {
+  // The first page whose HTML carries an EmailLink, so its script is on the page too.
+  let path: string | undefined;
+  for (const p of PAGES) {
+    if ((await (await request.get(new URL(p, baseURL!).href)).text()).includes('data-email=')) { path = p; break; }
+  }
+  test.skip(!path, 'no page shows an address through EmailLink');
+  const address = 'a%41@example.com';
+  const data = Buffer.from(address.split('').reverse().join(''), 'utf-8').toString('base64');
+  const url = new URL(path!, baseURL!).href;
+  await page.route(url, async (route) => {
+    const response = await route.fetch();
+    const html = (await response.text()).replace(/<body([^>]*)>/, `<body$1><a class="email-link" href="#" data-email="${data}" data-test-percent>a [at] example [dot] com</a>`);
+    await route.fulfill({ response, body: html });
+  });
+  await page.goto(url);
+  const link = page.locator('[data-test-percent]');
+  await expect(link).toHaveText(address);
+  const href = (await link.getAttribute('href')) ?? '';
+  expect(href).toBe('mailto:a%2541@example.com');
+  expect(decodeURIComponent(href.slice('mailto:'.length))).toBe(address);
+});

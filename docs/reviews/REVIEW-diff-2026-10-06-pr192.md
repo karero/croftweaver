@@ -1,6 +1,6 @@
 # DIFF review — karero/website-builder#192 — SETUP: turn on Dependabot alerts and security updates for a new site
 
-Base `origin/main` · depth: **Normal** (owner-facing setup commands that change repo settings; no code) · verdict: **CLEAN — no BUG or RISK open** after round 5's NIT was fixed; rounds 1, 2 and 4 were one-model rounds, and the settings change was never run on a real site repo.
+Base `origin/main` · depth: **Normal** (owner-facing setup commands that change repo settings; no code) · verdict: **CLEAN — no BUG or RISK open** after round 5's NIT was fixed; rounds 1, 2 and 4 were one-model rounds.
 
 | Round | Head | Artifact | Reviewers | BUG/RISK/NIT |
 |---|---|---|---|---|
@@ -29,6 +29,6 @@ Base `origin/main` · depth: **Normal** (owner-facing setup commands that change
 | R4-1 | RISK | codex | 4 | R3-3 still lacks a parent-bump example | fixed `3d9a907` | the promise is qualified rather than proven |
 | R5-1 | NIT | glm-5.3 | 5 | the alerts read-back prints only gh's raw 404 when off, never `off` | fixed | `\|\| echo "alerts: off"`; run on an on repo (`on`) and an off private repo (`off`) |
 
-Waivers: none. Deferrals: R3-2 (owner). Follow-ups: R3-2; the flaky `merge_link` case (BUGLOG); a live run on one real site repo (needs the owner's OK).
+Waivers: none. Deferrals: R3-2 (owner). Follow-ups: R3-2; the flaky `merge_link` case (BUGLOG); the live run on a real site repo, done 2026-10-08 with the owner's OK: the lines named the repo and turned both settings on, the first alerts appeared within seconds, and Dependabot opened lockfile-only fix pull requests within two minutes, which the site's CI ran. An advisory with no patched version got an alert but no pull request, as SETUP.md says.
 
 Notes: rounds 1 and 4 are degraded (the second seat failed); round 2 was Codex alone by choice; round 5 is the final full read by a second model, GLM 5.3 (owner's consent to send this repo to melious, this session).

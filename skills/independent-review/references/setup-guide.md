@@ -156,7 +156,8 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
 - **Run:** set `MELIOUS_MODEL=<id>` and run the pair as usual; the seat stands in when ollama did
   not count. `--seat melious` runs it alone (the wording pass, a re-gate); `--seat ollama` never
   falls back to it, and `--local-only` never calls it. The cost log records the seat as `melious` with
-  the model in its own column.
+  the model in its own column. To make Melious the second seat and ollama its fallback, add
+  `SECOND_SEAT=melious` (and an `OLLAMA_MODEL` for the fallback, or the first `:cloud` tag is used).
 - **First use per repo:** ask the owner before a repo's content goes to melious.ai the first time
   (SKILL.md, Procedure step 1).
 

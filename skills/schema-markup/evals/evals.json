@@ -19,12 +19,13 @@
     {
       "id": 2,
       "prompt": "We have a FAQ page with 20 questions about our product. How do I add FAQ schema to get the rich results in Google?",
-      "expected_output": "Should implement FAQPage schema in JSON-LD format. Should show the correct structure: FAQPage as mainEntity containing Question items, each with acceptedAnswer. Should provide a complete code example with 2-3 sample questions. Should explain that FAQ schema can enable rich results showing questions/answers directly in search. Should note Google's guidelines for FAQ schema (factual answers, not promotional). Should recommend validation approach.",
+      "expected_output": "Should implement FAQPage schema in JSON-LD format. Should show the correct structure: FAQPage as mainEntity containing Question items, each with acceptedAnswer. Should provide a complete code example with 2-3 sample questions. Should explain that since August 2023 Google shows FAQ rich results only for well-known, authoritative government and health sites, so for most sites the markup describes the Q&A to machines but brings no rich result, and should not promise one. Should note Google's guidelines for FAQ schema (factual answers, not promotional). Should recommend validation approach.",
       "assertions": [
         "Implements FAQPage schema in JSON-LD",
         "Shows correct nested structure (FAQPage > Question > Answer)",
         "Provides complete code example",
-        "Explains rich result benefits",
+        "Explains that Google shows FAQ rich results only for well-known, authoritative government and health sites",
+        "Does not promise a Google FAQ rich result",
         "Notes Google's FAQ schema guidelines",
         "Recommends validation"
       ],

@@ -19,6 +19,7 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 """
 import json
 import os
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -31,6 +32,11 @@ FIX = Path(__file__).parent / "fixtures"
 
 def load(name):
     return json.loads((FIX / name).read_text(encoding="utf-8"))
+
+
+def marks_in(msg):
+    """The [n] marks in an OpenRouter answer that point into its annotation list ("[2024]" does not)."""
+    return {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(msg["annotations"])}
 
 
 class RealResponses(unittest.TestCase):
@@ -89,6 +95,97 @@ class RealResponses(unittest.TestCase):
         # {} is what remains of a response without an ai_overview block once trimmed (synthetic).
         text, *_ = self.parse("google-overview", "google-overview-finds-absent.json")
         self.assertEqual(text, geo_check.NO_OVERVIEW)
+
+
+class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
+    """The evidence geo_check.RESULTS_ONLY rests on, read from the captured answers (re-take them
+    with fixtures/capture.py). Perplexity is worded "in its results" because its captures show a
+    source list longer than what the answer marks. ChatGPT and Claude on their own keys tag what
+    they quote, shown below. Claude through OpenRouter and Google's AI Overview come with a list
+    nothing can check against the text, and Google's AI Mode tags only some blocks; they keep
+    "cited", unverified either way, and the tests below pin those captures so a refresh brings the
+    question back. These tests check those conditions in the captured answers; they do not
+    catch every other way an answer could name its sources. If a refresh changes one of them, a
+    test here fails and the wording must be revisited; do not bend the test."""
+
+    def test_direct_perplexity_returns_results_with_no_sign_of_which_it_quotes(self):
+        d = load("perplexity-finds.json")
+        results = [r for it in d["output"] if it["type"] == "search_results" for r in it["results"]]
+        content = [c for it in d["output"] if it["type"] == "message" for c in it["content"]]
+        text = " ".join(c["text"] for c in content)
+        plain = re.sub(r"\\([()\[\]])", r"\1", text)       # an escaped \( \) \[ \] reads the same
+        self.assertGreater(len(results), 1)
+        self.assertFalse([c for c in content if c.get("annotations")])     # no tagged citations
+        self.assertFalse(re.search(r"\[\d+\]", plain))                      # no [n] markers
+        self.assertFalse(re.search(r"\]\(https?://", plain))                 # no inline [label](url) links
+        self.assertIn("perplexity", geo_check.RESULTS_ONLY)
+
+    def test_openrouter_perplexity_lists_more_sources_than_its_text_marks(self):
+        msg = load("openrouter-perplexity-finds.json")["choices"][0]["message"]
+        notes = msg["annotations"]
+        urls = {a["url_citation"]["url"] for a in notes}
+        marked = marks_in(msg)
+        self.assertTrue(marked)                                    # the text does mark what it quotes...
+        self.assertTrue(0 < len(marked) < len(urls))               # ...and the list is longer than the marks
+        # and no entry is tied to a place in the text: an anchored span ends after position 0, so a 0
+        # in an offset field is the empty placeholder (the capture holds 0 and 0), not an anchor
+        offsets = [a.get(k) or a["url_citation"].get(k) for a in notes for k in ("start_index", "end_index")]
+        self.assertFalse(any(offsets))
+
+    def test_claude_through_openrouter_comes_with_a_list_and_no_offsets(self):
+        msg = load("openrouter-anthropic-finds.json")["choices"][0]["message"]
+        notes = [a["url_citation"] for a in msg["annotations"]]
+        self.assertGreater(len(notes), len({n["url"] for n in notes}))   # entries repeat pages
+        self.assertFalse(any(n.get(k) for n in notes for k in ("start_index", "end_index")))   # none is tied to the text
+        # Kept as "cited", unverified: a fresh capture with offsets would settle it, so revisit then.
+        self.assertNotIn("anthropic", geo_check.RESULTS_ONLY)
+
+    def test_google_ai_mode_tags_some_blocks_and_ai_overview_none(self):
+        def blocks(bs):                  # the children geo_check._flatten_blocks follows
+            for b in bs or []:
+                if not isinstance(b, dict):
+                    continue
+                yield b
+                for child in ("list", "text_blocks"):
+                    yield from blocks(b.get(child) if isinstance(b.get(child), list) else [])
+        mode = load("google-ai-mode-finds.json")
+        mode_blocks = list(blocks(mode["text_blocks"]))
+        tagged = [b for b in mode_blocks if b.get("reference_indexes")]
+        self.assertTrue(tagged and len(tagged) < len(mode_blocks))       # some, not all
+        self.assertTrue(all(i < len(mode["references"]) for b in tagged for i in b["reference_indexes"]))
+        overview = load("google-overview-finds.json")["ai_overview"]
+        self.assertTrue(overview["references"])
+        self.assertFalse([b for b in blocks(overview["text_blocks"]) if b.get("reference_indexes")])
+
+    def test_only_perplexity_is_worded_as_results(self):
+        # The set is a decision, not a default: Claude through OpenRouter and Google's AI answers come
+        # with a source list we cannot check, and keep "cited". Change this only with new evidence.
+        self.assertEqual(geo_check.RESULTS_ONLY, {"perplexity"})
+
+    def test_the_docs_quote_the_numbers_of_the_capture_they_rest_on(self):
+        msg = load("openrouter-perplexity-finds.json")["choices"][0]["message"]
+        urls = {a["url_citation"]["url"] for a in msg["annotations"]}
+        marked = marks_in(msg)
+        doc = " ".join((Path(__file__).resolve().parents[2] / "references" / "geo-check.md").read_text(encoding="utf-8").split())
+        self.assertIn(f"({len(urls)} pages, {len(marked)} marked)", doc,
+                      "a fresh capture changed the pages and marks geo-check.md quotes: update that line and "
+                      "the numbers in the RESULTS_ONLY comment in geo_check.py")
+
+    def test_chatgpt_tags_each_citation_to_a_place_in_its_text(self):
+        d = load("openai-finds.json")
+        ann = [a for it in d["output"] if it.get("type") == "message"
+               for c in it["content"] for a in c.get("annotations", [])]
+        self.assertTrue(ann)
+        self.assertTrue(all(a["end_index"] > 0 for a in ann))
+        self.assertNotIn("openai", geo_check.RESULTS_ONLY)
+
+    def test_claude_cites_a_selection_not_the_whole_search(self):
+        d = load("anthropic-finds.json")
+        results = {r["url"] for b in d["content"] if b.get("type") == "web_search_tool_result"
+                   for r in (b.get("content") or []) if isinstance(r, dict)}
+        cited = {c["url"] for b in d["content"] if b.get("type") == "text" for c in b.get("citations", []) or []}
+        self.assertTrue(cited and cited < results)    # citations are a selection of what it searched
+        self.assertNotIn("anthropic", geo_check.RESULTS_ONLY)
 
 
 if __name__ == "__main__":

@@ -47,11 +47,14 @@ NOT_RUN=(
   scripts/install-codex.sh                                      # writes symlinks into ~/.agents/skills
   scripts/package.sh                                            # builds dist/, and runs check itself
   scripts/test_install_pin.sh                                   # builds throwaway repos; needs git
+  scripts/test_whats_new_removed_skill.sh                       # builds a throwaway suite and sites; needs git
   scripts/test_package_leak.sh                                  # runs package.sh in a throwaway dir with stub zip/unzip
   scripts/test_pre_push_hook.sh                                 # builds a throwaway repo; needs git
   scripts/test_verify.sh                                        # builds a throwaway site with a stub npm; needs node
   scripts/test_clean_denylist.sh                                # builds a throwaway repo and worktree; needs git
   scripts/test_git_stand_hook.sh                                # builds throwaway repos; needs git and node
+  scripts/test_whats_new.sh                                     # builds a throwaway suite repo and site; needs git
+  scripts/test_mktemp_guard.sh                                  # runs other scripts with mktemp stubbed to fail
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself
@@ -91,9 +94,11 @@ if [ -n "$stale" ]; then
 fi
 
 # --- behavioural case: CDPATH must change nothing --------------------------------------------
-decoy="$(mktemp -d)"
-proj="$(mktemp -d)"
-trap 'rm -rf "$decoy" "$proj"' EXIT
+# One folder holds both: a second mktemp would be a second status to check and a second folder
+# to clean up when it fails.
+tmp="$(mktemp -d)" || { echo "FAIL — could not create a temp dir."; exit 1; }
+trap 'rm -rf "$tmp"' EXIT
+decoy="$tmp/decoy" proj="$tmp/proj"
 # The decoy must contain the first path segment of each subject, or cd never resolves into it.
 mkdir -p "$decoy/scripts" "$decoy/skills/independent-review/scripts"
 

@@ -1,0 +1,69 @@
+---
+// Mail-app contact form (the website-contact-form skill). The visitor fills in the
+// fields and presses the button; their own email program opens with a message to the
+// owner, ready to send. The site sends nothing and stores nothing. The work is done by
+// public/js/mail-form.js, a file of the site's own rather than an inline script, so a
+// strict Content-Security-Policy (script-src 'self') lets it run.
+//
+//   <MailForm to="hello@your-domain.example" subject="Project enquiry" />
+//
+// `to`:      the address the messages go to. Never in the HTML as plain text: it is
+//            encoded as EmailLink encodes it and decoded in the visitor's browser.
+//            Also shown under the form, through EmailLink. Required.
+// `subject`: the mail's subject line, chosen for this site: what the visitor comes for,
+//            in their words ("Project enquiry", "Anfrage Bauvorhaben"). Also the
+//            subject of the plain address under the form. Required.
+// `lang`:    overrides the language. Default: the page's own, which Base.astro hands
+//            down (a page built with <Base lang="de"> gets a German form by itself),
+//            else the page's locale on a site with several languages.
+//
+// Without JavaScript the form stays hidden, since it could do nothing, and the line
+// under it with the address is what a visitor sees. Once per page: its ids are fixed.
+import EmailLink from './EmailLink.astro';
+import { encodeEmail } from '../lib/obfuscate';
+import { LIMITS, TEXT, hasText } from './mail-form-text';
+
+interface Props { to: string; subject: string; lang?: string }
+const { to, subject } = Astro.props;
+if (!to) {
+  throw new Error('MailForm: pass to="…", the address the messages go to (the website-contact-form skill, §2).');
+}
+if (!subject) {
+  throw new Error('MailForm: pass subject="…", the subject line of the visitor\'s mail: what they come for, in their words, e.g. "Project enquiry" (the website-contact-form skill, §2 step 2).');
+}
+const pageLang = Astro.props.lang ?? Astro.locals.lang ?? Astro.currentLocale;
+if (!pageLang) {
+  throw new Error('MailForm: no language for this page. Add `Astro.locals.lang = lang;` after the props in src/layouts/Base.astro, as the starter has it, or pass lang="…" (the website-contact-form skill, §2 step 3).');
+}
+const language = pageLang.toLowerCase().split('-')[0];
+// A language with no texts stops the build: an English form on a page in another
+// language would otherwise go out unnoticed.
+if (!hasText(language)) {
+  throw new Error(`MailForm: no texts for the language "${language}". Add it to src/components/mail-form-text.ts (the website-contact-form skill, "Add a language").`);
+}
+const t = TEXT[language];
+---
+<form id="mail-form" class="mail-form" lang={language} data-mail-form data-to={encodeEmail(to)} data-subject={subject} hidden>
+  <p>
+    <label for="mail-form-message">{t.message}</label>
+    <textarea id="mail-form-message" name="message" rows="6" required maxlength={LIMITS.message}></textarea>
+  </p>
+  <p class="mail-form-note">{t.note}</p>
+  <p><button type="submit">{t.send}</button></p>
+  {/* The line a screen reader is told to read out once the button was pressed. */}
+  <p class="mail-form-status" role="status" aria-live="polite" data-mail-form-status data-opened={t.opened}></p>
+</form>
+{/* Outside the form and never hidden: a visitor without JavaScript, or without a mail
+     program set up, still finds the address here. */}
+<p class="mail-form-direct" lang={language}>{t.direct} <EmailLink address={to} subject={subject} lang={language} /></p>
+<script is:inline src="/js/mail-form.js" defer></script>
+
+<style>
+  .mail-form label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+  .mail-form input:not([type='checkbox']):not([type='radio']), .mail-form textarea {
+    width: 100%; max-width: 36rem; padding: 0.5rem; font: inherit; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--muted); border-radius: 6px;
+  }
+  .mail-form button { font: inherit; padding: 0.6rem 1.2rem; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
+  .mail-form-note { color: var(--muted); max-width: 36rem; }
+</style>

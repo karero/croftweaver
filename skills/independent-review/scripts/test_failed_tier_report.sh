@@ -18,7 +18,8 @@
 set -u
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$HERE/independent_review.sh"
-T="$(mktemp -d "${TMPDIR:-/tmp}/ir-test.XXXXXX")"
+T="$(mktemp -d "${TMPDIR:-/tmp}/ir-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/u/.codex"
 : >"$T/u/.codex/auth.json"
@@ -75,6 +76,11 @@ case "${CODEX_STUB:-ok}" in
   diskquota) # a local setup failure that merely contains the word "quota"
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
+  meet)  # a reviewer that waits (30s or more) to see ollama start, and notes if it did: run
+         # side by side, each sees the other; one after the other, the first never can
+         i=0; while [ ! -e "$STUB_MARKS/ollama-ran" ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done
+         [ -e "$STUB_MARKS/ollama-ran" ] && : >"$STUB_MARKS/codex-saw-ollama"
+         printf '%s\n' '- BUG: stub finding one' ;;
   slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
   waitmelious) # finishes only once Melious has started (10s cap), then marks itself done
         i=0; while [ ! -e "$STUB_MARKS/melious-started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
@@ -112,6 +118,8 @@ case "$1" in
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
+  stubborn) # ignores SIGTERM, as a CLI mid-request might; records its pid
+          trap '' TERM; echo $$ >"$STUB_MARKS/ollama-pid"; sleep 30; : >"$STUB_MARKS/ollama-slept" ;;
   think)  # a reasoning model, as the real CLI prints it: the trace only without --hidethinking.
           # Its trace quotes the prompt's "could not read" advice (2026-09-27).
           if [ ! -e "$STUB_MARKS/ollama-hidethinking" ]; then
@@ -146,6 +154,10 @@ case "${OLLAMA_STUB:-ok}" in
             'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
   reply)  printf '%s\n' "$STUB_REPLY" ;;   # as in the codex stub: the whole reply is $STUB_REPLY
   slow)   sleep 2; printf '%s\n' '- RISK: stub ollama finding' ;;
+  meet)   # as in the codex stub, the other way round
+          i=0; while [ ! -e "$STUB_MARKS/codex-ran" ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done
+          [ -e "$STUB_MARKS/codex-ran" ] && : >"$STUB_MARKS/ollama-saw-codex"
+          printf '%s\n' '- RISK: stub ollama finding' ;;
 esac
 EOF
 cat >"$T/bin/agy" <<'EOF'
@@ -310,7 +322,7 @@ mkdir -p "$T/bin2"; cp "$T/bin/codex" "$T/bin/curl" "$T/bin2/"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -592,14 +604,14 @@ check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
 check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
 check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
 
-# 24. The default pair runs at once (2026-09-26): two reviewers that take 2s each finish in
-#     well under the 4s they took one after the other, and the sections still print in tier
-#     order, codex first. A timings line follows the reviewers line.
-start=$SECONDS
-run parallel CODEX_STUB=slow OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff"
-elapsed=$((SECONDS - start))
+# 24. The default pair runs at once (2026-09-26): each reviewer sees the other start before
+#     it finishes, and the sections still print in tier order, codex first. A timings line
+#     follows the reviewers line. The proof is the order of events, not a clock: a 4s
+#     threshold on two 2s reviewers failed under heavy load (2026-10-04, `make check` twice).
+run parallel CODEX_STUB=meet OLLAMA_STUB=meet bash "$SCRIPT" "$T/change.diff"
 check "parallel: both counted" has parallel.out "reviewers: codex OK, ollama-cloud OK"
-check "parallel: took ${elapsed}s, under the 4s of a sequential run" [ "$elapsed" -lt 4 ]
+check "parallel: the two reviewers' runs overlapped" \
+  sh -c '[ -e "$1/codex-saw-ollama" ] && [ -e "$1/ollama-saw-codex" ]' _ "$T/parallel.marks"
 check "parallel: codex's section prints before ollama's" \
   sh -c 'c=$(grep -n "^## Independent review — codex" "$1" | cut -d: -f1); o=$(grep -n "^## Independent review — ollama" "$1" | cut -d: -f1); [ -n "$c" ] && [ -n "$o" ] && [ "$c" -lt "$o" ]' _ "$T/parallel.out"
 check "parallel: a timings line names both tiers" \
@@ -738,6 +750,15 @@ inrepo gate2a bash "$SCRIPT" "$T/change.diff" --depth normal --round 1
 inrepo gate2b bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
 inrepo gate2c bash "$SCRIPT" "$T/change.diff" --depth normal --round 3
 inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
+# A wording pass, a final full read or a re-gate is not a round and leaves --round off (SKILL.md step 2):
+# the open gate's id is what it must carry, and it must not start a gate of its own.
+rows_join_gate() {   # rows_join_gate <log> <lines before> <gate id>: there are new rows, and each carries the id
+  tail -n +"$(($2 + 1))" "$1" | awk -F'\t' -v g="$3" 'NF { n++; if (g == "" || $14 != g) bad = 1 } END { exit (n > 0 && !bad) ? 0 : 1 }'
+}
+gate_before="$(cat "$G/.git/independent-review-gate")"; lines_before="$(wc -l <"$GL")"
+inrepo gatenr bash "$SCRIPT" "$T/change.diff" --depth normal
+check "gates: a run with no --round is logged, under the open gate's id" rows_join_gate "$GL" "$lines_before" "$gate_before"
+check "gates: a run with no --round starts no gate" [ "$(cat "$G/.git/independent-review-gate")" = "$gate_before" ]
 check "gates: --round 1 leaves an id in the repo's git dir" [ -s "$G/.git/independent-review-gate" ]
 check "gates: every line carries a gate id" awk -F'\t' 'NR > 1 && ($14 == "" || $14 == "-") {bad=1} END {exit bad}' "$GL"
 check "gates: two ids, the late host seat in the second" \
@@ -1046,7 +1067,7 @@ check "mparallel: Melious started while codex was still running" \
   sh -c '[ -e "$1/codex-done" ] && [ ! -e "$1/melious-after-codex" ]' _ "$T/mparallel.marks"
 # Stopping the script stops a fallback started after ollama failed, as it does the pair.
 mkdir -p "$T/mstop.marks"
-env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
+env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
   PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
   CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=stubborn MELIOUS_API_KEY=stub-stopkey \
   bash "$SCRIPT" "$T/change.diff" >"$T/mstop.out" 2>"$T/mstop.err" &
@@ -1073,6 +1094,63 @@ check "mlocalonly: --local-only never calls Melious" \
 run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --local-only --seat melious
 check "mlocalseat: --local-only refuses --seat melious, exit 2" \
   sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
+
+# 32b. SECOND_SEAT=melious (2026-10-06): Melious holds the second seat and ollama is its fallback,
+#      the other way round from section 32. A refused Melious seat must still hand over, or the
+#      round lands with one reviewer.
+run sfirst SECOND_SEAT=melious MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "sfirst: Melious runs with Codex and counts" has sfirst.out "reviewers: codex OK, melious OK"
+check "sfirst: ollama is not run while Melious counts" [ ! -e "$T/sfirst.marks/ollama-ran" ]
+check "sfirst: two counted, so no fewer-than-2 note" lacks sfirst.out "fewer than the 2"
+run sfall SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "sfall: Melious out of credits, ollama stands in and counts" \
+  has sfall.out "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud OK"
+check "sfall: ollama ran" [ -e "$T/sfall.marks/ollama-ran" ]
+run sparallel CODEX_STUB=waitmelious SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
+check "sparallel: Melious started while codex was still running" \
+  sh -c 'grep -qF "melious OK" "$1/sparallel.out" && [ -e "$1/sparallel.marks/codex-done" ] && [ ! -e "$1/sparallel.marks/melious-after-codex" ]' _ "$T"
+run sfirstsucc CODEX_STUB=auth SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --first-success
+check "sfirstsucc: --first-success tries Melious before ollama" \
+  has sfirstsucc.out "reviewers: codex FAILED (exit 1), melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud OK"
+run snomodel SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff"
+check "snomodel: SECOND_SEAT=melious without a model stops before any call, exit 2" \
+  sh -c '[ "$(cat "$1/snomodel.rc")" = 2 ] && grep -qF "needs MELIOUS_MODEL" "$1/snomodel.err" && [ ! -e "$1/snomodel.marks/codex-ran" ]' _ "$T"
+run sbad SECOND_SEAT=gpt MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "sbad: an unknown SECOND_SEAT is refused, exit 2" \
+  sh -c '[ "$(cat "$1/sbad.rc")" = 2 ] && grep -qF "expected ollama or melious" "$1/sbad.err" && [ ! -e "$1/sbad.marks/codex-ran" ]' _ "$T"
+run sseat SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --seat codex
+check "sseat: --seat runs without SECOND_SEAT's model" \
+  sh -c 'grep -qF "reviewers: codex OK" "$1/sseat.out" && [ "$(cat "$1/sseat.rc")" = 0 ]' _ "$T"
+run sbadseat SECOND_SEAT=gpt bash "$SCRIPT" "$T/change.diff" --seat codex
+check "sbadseat: a typo is refused under --seat too, exit 2" \
+  sh -c '[ "$(cat "$1/sbadseat.rc")" = 2 ] && [ ! -e "$1/sbadseat.marks/codex-ran" ]' _ "$T"
+run sbadlocal SECOND_SEAT=gpt OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --local-only
+check "sbadlocal: a typo is refused under --local-only too, exit 2" \
+  sh -c '[ "$(cat "$1/sbadlocal.rc")" = 2 ] && grep -qF "expected ollama or melious" "$1/sbadlocal.err" && [ ! -e "$1/sbadlocal.marks/ollama-ran" ]' _ "$T"
+run sboth SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "sboth: both seats refused, so the round is marked short" \
+  sh -c 'grep -qF "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud FAILED" "$1" && grep -qF "fewer than the 2" "$1"' _ "$T/sboth.out"
+# A reused raw dir: run 1's Melious OK must not stop run 2's fallback.
+run sreuse1 SECOND_SEAT=melious MELIOUS_MODEL=stub-melious REVIEW_RAW_DIR="$T/sreuse.raw" bash "$SCRIPT" "$T/change.diff"
+run sreuse2 SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 REVIEW_RAW_DIR="$T/sreuse.raw" bash "$SCRIPT" "$T/change.diff"
+check "sreuse: a stale Melious OK in a reused raw dir does not hold ollama back" \
+  sh -c 'grep -qF "reviewers: codex OK, melious OK" "$1/sreuse1.out" && grep -qF "melious FAILED (HTTP 429" "$1/sreuse2.out" && [ -e "$1/sreuse2.marks/ollama-ran" ]' _ "$T"
+# Stopping the script stops an ollama fallback started after Melious failed.
+mkdir -p "$T/sstop.marks"
+env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
+  PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/sstop.raw" STUB_MARKS="$T/sstop.marks" STUB_TAG="$STUB_TAG" \
+  CODEX_STUB=slow SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 OLLAMA_STUB=stubborn \
+  bash "$SCRIPT" "$T/change.diff" >"$T/sstop.out" 2>"$T/sstop.err" &
+spid=$!
+i=0; while [ ! -s "$T/sstop.marks/ollama-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+kill -TERM "$spid"; wait "$spid"; echo $? >"$T/sstop.rc"
+check "sstop: the script exits 130" rc_is sstop 130
+check "sstop: the TERM-ignoring ollama fallback is gone" \
+  sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/sstop.marks/ollama-pid"
+check "sstop: it was killed, not left to finish (a foreground fallback would finish)" [ ! -e "$T/sstop.marks/ollama-slept" ]
+run slocal SECOND_SEAT=melious OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --local-only
+check "slocal: --local-only never calls Melious, whatever SECOND_SEAT says" \
+  sh -c '! grep -qF melious "$1/slocal.out" && [ ! -e "$1/slocal.marks/melious-url" ]' _ "$T"
 
 # 33. (2026-10-06) The Perl programs' minimum versions: check_perl_minimum.sh, which reads perl/*.pl
 #     with Perl::MinimumVersion. It replaced the one-construct guards that stood here (no r-flag
@@ -1284,6 +1362,26 @@ check "nocurl: no curl: both API tiers skipped, curl named" \
 run noperl PATH="$T/bin3:$T/noperl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
 check "noperl: no perl at all: named as missing, not as too old" \
   has noperl.out "ollama-cloud SKIPPED (perl not found), melious SKIPPED (perl not found)"
+
+# 37. (2026-10-09) Past round 8 the script prints a notice and nothing else changes (SKILL.md step 6):
+#     the exit code, the reviewers line and the cost log's outcome column are as at round 8. A
+#     13-round gate had no owner decision recorded past round 8; a refusal would stop the process,
+#     so this is a line the caller reads in the round's own output.
+run round8 REVIEW_LOG="$T/round8.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 8
+run round9 REVIEW_LOG="$T/round9.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 9
+run round12 bash "$SCRIPT" "$T/change.diff" --depth normal --round 12
+run noround bash "$SCRIPT" "$T/change.diff"
+check "round 8: no past-round-8 notice" lacks round8.out "is past round 8"
+check "round 9: the notice names the round, the step and the owner" \
+  has round9.out "⚠ Round 9 is past round 8 (SKILL.md step 6): each round from here on is the owner's decision, one at a time."
+check "round 9: the notice also reaches stderr" has round9.err "Round 9 is past round 8"
+check "round 9: exit code as at round 8" [ "$(cat "$T/round9.rc")" = "$(cat "$T/round8.rc")" ]
+check "round 9: the reviewers line is the one round 8 prints" \
+  sh -c 'a="$(grep "^reviewers:" "$1/round9.out")"; [ -n "$a" ] && [ "$a" = "$(grep "^reviewers:" "$1/round8.out")" ]' _ "$T"
+check "round 9: the cost log's outcome column is as at round 8, and says OK" \
+  sh -c 'a="$(awk -F"\t" "NR>1{print \$13}" "$1/round9.tsv")"; [ -n "$a" ] && [ "$a" = "$(awk -F"\t" "NR>1{print \$13}" "$1/round8.tsv")" ] && ! printf "%s" "$a" | grep -qv OK' _ "$T"
+check "round 12: a two-digit round gets the notice" has round12.out "⚠ Round 12 is past round 8"
+check "no --round: no notice (a limit; SKILL.md step 6 still applies)" lacks noround.out "is past round 8"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

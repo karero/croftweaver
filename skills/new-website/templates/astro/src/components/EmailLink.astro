@@ -7,7 +7,7 @@
 //
 //   <EmailLink address="hello@example.com" />
 //   <EmailLink address="hello@example.com" subject="Project enquiry" text="Email us" />
-//   <EmailLink address="hello@example.com" subject="Kontakt" lang="de" />
+//   <EmailLink address="hello@example.com" subject="Anfrage" lang="de" />
 import { encodeEmail, emailHint } from '../lib/obfuscate';
 import { SITE } from '../config';
 
@@ -31,7 +31,8 @@ const label = text ?? emailHint(address, lang);
     try {
       const addr = atob(a.dataset.email!).split('').reverse().join('');
       const q = a.dataset.subject ? `?subject=${a.dataset.subject}` : '';
-      a.href = `mailto:${addr}${q}`;
+      // encodeEmail allows a % in the address, which a mailto: link must escape.
+      a.href = `mailto:${addr.replace(/%/g, '%25')}${q}`;
       if (a.textContent && a.textContent.includes('[at]')) a.textContent = addr;
       a.removeAttribute('data-email');
       a.removeAttribute('data-subject');

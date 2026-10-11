@@ -183,14 +183,15 @@ plan offers:
   UTC. That suits a Function that guards something; the kit's does not. If a site later
   gets one that does, choose again.
 
-Either way, any other Function stops until midnight UTC too: on a site with the
-`website-forms` contact form, the form cannot send.
+Either way, any other Function the site has stops until midnight UTC too.
 
 Set it once, right after the first deploy: dashboard → **Workers & Pages** → the project →
-**Settings → Runtime → Fail open / closed**. Cloudflare's docs once called Fail open the
-default but no longer say, and the setting was missing from the dashboard for a while in
-2024–25, so look rather than assume. Workers Paid ($5/month) removes the daily limit (10 million
-requests a month included, then billed per million).
+**Settings → Runtime → Fail open / closed** (path checked in the dashboard 2026-10-07). A
+project created with `wrangler pages project create` started on Fail open that day. One
+made in the dashboard or connected to GitHub was not checked, Cloudflare's docs no longer
+name a default (they once said Fail open), and the setting was missing from the dashboard
+for a while in 2024–25: look rather than assume. Workers Paid ($5/month) removes the daily
+limit (10 million requests a month included, then billed per million).
 
 Sources, read 2026-10-07: Cloudflare's
 [Functions pricing](https://developers.cloudflare.com/pages/functions/pricing/),

@@ -133,10 +133,6 @@ which makes Google ignore the pair) — now fails the build. Also add a visible
 `<a href="/ai-treffen-muenchen" lang="de" hreflang="de">Deutsch</a>` near the
 nav/footer: `alternates` only talks to crawlers, not visitors.
 
-A twin of the page that carries `<ContactForm>`: pass it `lang` and `privacy`
-yourself, since no build error reminds you on this path, and give the twin its own
-copy of `tests/forms.spec.ts`: see `website-forms` §3.
-
 Pick the heavy path (everything above this section) when most of the site is
 translated and you want prefixed routing + a language switcher; pick this light
 path for a few one-off translated pages. Don't mix both on the same SITE: a
@@ -187,6 +183,8 @@ The template's LIGHT-path pieces are superseded on a heavy site: **delete the
 `references/heavy-path-code.md` §3 replaces it) — the
 `alternates` prop and `altHref` helper then sit unused; remove them too or leave
 them, but never feed both emission paths on one page.
+The starter's `Astro.locals.lang = lang;` line becomes `Astro.locals.lang = currentLocale;`
+(in the §3 code), so a contact form on the page speaks the page's language.
 Keep the `ogLocale` line (config.ts's shared `ogLocaleFor` maps `lang → og:locale`);
 optionally add `og:locale:alternate` for the non-current locales. `inLanguage` in the
 WebPage/WebSite schema should use `currentLocale`.
@@ -228,7 +226,7 @@ export const PAGES = ROUTES.flatMap((r) =>
 ```
 Only the PAGES export changes — KEEP the rest of the file (`THEMES`,
 `germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`, and `toneViolations` with the
-tone rules it reads): the tone and i18n specs, and a contact form's spec, import
+tone rules it reads): the tone and i18n specs import
 them, and replacing the whole file with just this snippet breaks the suite at compile
 time.
 With no `locales` overrides this yields the identical set as before — `/`,
@@ -256,11 +254,6 @@ const isCardExempt = (p: string) =>
 ```
 (import `neutralPath` from `../src/config`; replace the two `OWN_CARD_EXEMPT.has(path)`
 call sites with `isCardExempt(path)`.)
-
-### A site with a contact form (`website-forms`)
-Each language's form page passes `privacy="…"` to `<ContactForm>` (the build stops
-without it) and gets its own copy of `tests/forms.spec.ts` with that language's `PAGE`
-and `PRIVACY`: one copy guards one form and one privacy page (`website-forms` §3).
 
 ### `tests/i18n.spec.ts` (new) — hreflang contract
 Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `tests/`).

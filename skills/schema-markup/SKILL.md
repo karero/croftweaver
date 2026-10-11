@@ -73,8 +73,8 @@ references/schema-examples.md shows the full shape (incl. `vatID`,
 | Article | Blog posts, news | headline, image, datePublished, author |
 | Product | Product pages | name, image, offers |
 | SoftwareApplication | SaaS/app pages | name, offers |
-| FAQPage | FAQ content | mainEntity (Q&A array) |
-| HowTo | Tutorials | name, step |
+| FAQPage | FAQ content (no Google rich result for most sites, see below) | mainEntity (Q&A array) |
+| HowTo | Tutorials (no Google rich result since September 2023, see below) | name, step |
 | BreadcrumbList | Any page with breadcrumbs | itemListElement |
 | LocalBusiness | Local business pages | name, address |
 | Event | Events, webinars | name, startDate, location |
@@ -99,6 +99,11 @@ Recommended: sku, brand, aggregateRating, review
 
 ### FAQPage
 Required: mainEntity (array of Question/Answer pairs)
+Note: since August 2023 Google shows FAQ rich results only for well-known, authoritative government and health sites ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes), [FAQPage docs](https://developers.google.com/search/docs/appearance/structured-data/faqpage)). The markup still describes the Q&A to machines and does no harm, but for most sites it gives no rich result in Google. Don't promise one.
+
+### HowTo
+Required: name, step
+Note: since September 2023 Google shows no HowTo rich results at all ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)). The markup still describes the steps to machines; don't promise a rich result.
 
 ### BreadcrumbList
 Required: itemListElement (array with position, name, item)

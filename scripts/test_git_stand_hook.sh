@@ -20,7 +20,8 @@ done
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 TPL="$HERE/../skills/new-website/templates/claude"
 HOOK="$TPL/hooks/git-stand.mjs"
-T="$(mktemp -d "${TMPDIR:-/tmp}/git-stand-test.XXXXXX")"
+T="$(mktemp -d "${TMPDIR:-/tmp}/git-stand-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT   # u+w: a kill mid read-only case
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 export TMPDIR="$T"   # the hook's fallback marker (read-only .git) stays inside the throwaway dir

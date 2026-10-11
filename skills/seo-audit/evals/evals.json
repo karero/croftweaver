@@ -123,12 +123,12 @@
     {
       "id": 8,
       "prompt": "I want to add FAQ schema to my product pages. Can you help me set that up?",
-      "expected_output": "Should recognize this is a schema markup implementation task, not an SEO audit. Should defer to or cross-reference the schema-markup skill, which specifically handles structured data implementation including FAQ schema. May briefly mention that FAQ schema can enable rich results, but should make clear that schema-markup is the right skill for implementation.",
+      "expected_output": "Should recognize this is a schema markup implementation task, not an SEO audit. Should defer to or cross-reference the schema-markup skill, which specifically handles structured data implementation including FAQ schema. If it mentions rich results, should say that since August 2023 Google shows FAQ rich results only for well-known government and health sites, and should make clear that schema-markup is the right skill for implementation.",
       "assertions": [
         "Recognizes this as schema markup implementation",
         "References or defers to schema-markup skill",
         "Does not attempt a full SEO audit",
-        "May briefly mention FAQ schema benefits"
+        "Does not promise a Google FAQ rich result"
       ],
       "files": []
     }

@@ -17,7 +17,7 @@ it; a row is only as good as its evidence.
 | A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: probe repo created 2026-10-06, probe not run yet | the owner's `webcroft-production-gate-probe` repo |
 | A3 | Checks: deeper message checks | not built: rules chosen 2026-10-06 | — |
 | B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
-| C | Forms: a contact form with a submission test (`website-forms`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change. Not yet sent a real email: that needs an owner's Cloudflare account | the pull request that carries this row, and its `forms-skill` check |
+| C | Forms: a contact form with a submission test (`website-forms`) | **dropped 2026-10-08**: the skill and its CI job were removed; a mail-app contact form skill replaces it, planned separately. Section C below is kept as the record of what was built | the pull request that removed it |
 | D | Import: bring an existing site under the gate | scenarios only | — |
 | E | Install: one-line install, marketplace listing | blocked on the rename; both names claimed on npm 2026-10-06 with placeholder packages | `npm view webcroft`, `npm view create-webcroft` |
 

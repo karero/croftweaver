@@ -5,7 +5,8 @@ geo_check.py — weekly "does AI name you?" check (GEO), next to the GSC + Bing 
 Asks up to four AI engines — plus, if switched on per site, Google's AI Mode and AI Overview
 via SerpApi — the owner's confirmed buyer questions, in two modes:
   knows  — no web tools: what the model learned in training (the long-term goal)
-  finds  — web search on: what a buyer gets today, plus which sites were cited
+  finds  — web search on: what a buyer gets today, plus which sites were cited (Perplexity: which
+          search results it returned)
 and counts, in code, how often the business is named. Each answer is saved verbatim;
 one row per engine x mode x question lands in geo_history.csv; --trend prints the
 week-over-week movement and --report a readable page. The plan and its review trail:
@@ -70,6 +71,27 @@ ENGINES = ["gemini", "openai", "anthropic", "perplexity", "google-ai-mode", "goo
 # Google's two AI surfaces come through SerpApi and share the key the skill's Top-10 check
 # (serp_check.py) already uses; the chat engines get GEO_* names of their own.
 SERP_ENGINES = {"google-ai-mode", "google-overview"}
+# Engines whose captured answers come with a source list longer than what the answer marks, so
+# that "cited" would overstate (tests/fixtures/perplexity-finds.json, openrouter-perplexity-finds.json):
+# Perplexity's own API sends 15 search results with no annotations, no [n] markers and no source
+# links in the text; through OpenRouter the text marks 10 sources with [n] (they index the list)
+# while the annotation list holds 18 different pages, none with an offset into the text. Their
+# count is how often the owner's site was among the results, and is worded that way. The others
+# keep "cited": ChatGPT's annotations all point into the text, and Claude's own-key citations are
+# a selection of what it searched. Claude through OpenRouter (13 entries over 6 pages, every offset
+# 0) and Google's AI Overview (8 references, no block tagged) come with a source list nothing can
+# check against the text, and Google's AI Mode tags only 2 of its 6 blocks with the references
+# they use. Whether those lists hold only quoted sources is unverified either way: they keep the
+# old wording, the docs say so, and a paired capture would settle it. test_real_responses.py pins
+# the captures behind all of this (not every other way an answer could name its sources); if a
+# refresh changes one, a test fails: revisit this set.
+RESULTS_ONLY = {"perplexity"}
+
+
+def cite_word(engine: str) -> str:
+    return "in its results" if engine in RESULTS_ONLY else "cited"
+
+
 KEY_VARS = {e: ("SERPAPI_KEY" if e in SERP_ENGINES else f"GEO_{e.upper()}_API_KEY") for e in ENGINES}
 CHAT_ENGINES = [e for e in ENGINES if e not in SERP_ENGINES]
 # The default route: one OpenRouter key and one prepaid balance for all four chat assistants.
@@ -579,7 +601,8 @@ def parse_response(engine, data):
                    for r in item.get("results", []) or [] if r.get("url")]
         calls = (((data.get("usage") or {}).get("tool_calls_details") or {})
                  .get("search_web") or {}).get("invocation", 0)
-        # Its citations are inline [n] markers into these results, so the results stand in.
+        # The answer says nothing about which of these results it quotes (no annotations, no [n]
+        # markers in the captured answers), so they are results, not citations: see RESULTS_ONLY.
         return "\n".join(_output_texts(data)), data.get("model", ""), results, bool(results or calls)
     if engine == "google-ai-mode":
         text = data.get("reconstructed_markdown") or "\n".join(_flatten_blocks(data.get("text_blocks")))
@@ -1032,7 +1055,7 @@ def trend(domain: str) -> int:
         if now.get("status") in NO_GOOGLE_ANSWER.values():
             print(f"{head} {NO_ANSWER_SAYS[now['status']]} ({now['date']}){note}")
             continue
-        cite = f", cited {now['cited_own']}/{_ok(now)}" if now.get("cited_own") not in ("", None) else ""
+        cite = f", {cite_word(now['engine'])} {now['cited_own']}/{_ok(now)}" if now.get("cited_own") not in ("", None) else ""
         if now.get("searched") not in ("", None) and int(now["searched"]) < _ok(now):
             cite += f", searched only {now['searched']}/{_ok(now)}"
         if len(good) == 1:
@@ -1185,7 +1208,8 @@ def _cell(r, engine, mode, route=None):
     notes = [x for x in [failed_note] if x]
     if r.get("cited_own") not in ("", None) and int(r["cited_own"]):
         c = int(r["cited_own"])
-        notes.append("your website was a source" + (f" ({c} of {ok})" if planned > 1 else ""))
+        notes.append(("your website was among its search results" if engine in RESULTS_ONLY
+                      else "your website was a source") + (f" ({c} of {ok})" if planned > 1 else ""))
     if r.get("searched") not in ("", None) and int(r["searched"]) < ok:
         notes.append(f"it only searched {r['searched']} of {ok} times")
     return cls, main, "; ".join(notes)
@@ -1236,8 +1260,16 @@ def build_report(domain: str, run_id=None):
         parts = []
         for i, fp in enumerate(files, 1):
             _, text, sources = read_answer(fp)
-            uniq = list(dict.fromkeys(sources))[:12]      # a reply may cite the same page several times
-            src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in uniq) + "</div>") if uniq else ""
+            uniq = list(dict.fromkeys(sources))           # a reply may cite the same page several times
+            # The owner's own pages first: the note above this list says whether the site was in it,
+            # so the list must show it even when the cap cuts the rest.
+            own = [s for s in uniq if host_matches(norm_host(s), cfg.get("domains", []))]
+            shown = (own + [s for s in uniq if s not in own])[:12]
+            caption = "Search results returned" if r["engine"] in RESULTS_ONLY else "Sources"
+            if len(uniq) > len(shown):
+                caption += f" (first {len(shown)} of {len(uniq)})"
+            uniq = shown
+            src = (f"<div class='sources'>{caption}: " + " ".join(_link(s) for s in uniq) + "</div>") if uniq else ""
             label = f"Answer {i} of {len(files)}" if len(files) > 1 else "The answer"
             parts.append(f"<details><summary>{label}</summary>"
                          f"<div class='answer'>{_mark_names(_light_markdown(text), names)}</div>{src}</details>")

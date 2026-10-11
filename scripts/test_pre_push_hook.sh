@@ -24,7 +24,8 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 HOOK="$HERE/../skills/new-website/templates/astro/scripts/hooks/pre-push"
-T="$(mktemp -d "${TMPDIR:-/tmp}/pre-push-test.XXXXXX")"
+T="$(mktemp -d "${TMPDIR:-/tmp}/pre-push-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 unset ALLOW_MAIN_PUSH

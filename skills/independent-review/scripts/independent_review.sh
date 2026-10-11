@@ -10,7 +10,8 @@
 # not count (no model or CLI, a failure such as a quota refusal, or a local sanity pass), the same
 # text-only prompt goes to Melious's OpenAI-compatible API instead, so the pair still has its second
 # reviewer. No MELIOUS_MODEL, no call: the script names no model. `--seat melious` runs it alone;
-# `--seat ollama` never falls back to it.
+# `--seat ollama` never falls back to it. SECOND_SEAT=melious swaps the two: Melious runs with
+# Codex, and ollama stands in only when Melious did not count.
 #
 # Antigravity (`agy`/Gemini) is OPT-IN ONLY — pass --with-antigravity or set
 # WITH_ANTIGRAVITY=1. It does NOT run by default and is never used as a silent
@@ -90,7 +91,12 @@
 #                                    set, else none is sent — in a cloud session an environment
 #                                    API credential for ollama.com is added by the proxy.
 #   MELIOUS_MODEL  (unset)           Melious model for the fallback seat (see above), as its
-#                                    /v1/models lists it. Unset = no Melious call at all.
+#                                    /v1/models lists it. Unset = no Melious call at all
+#                                    (and SECOND_SEAT=melious refuses to run).
+#   SECOND_SEAT    (ollama)          which host holds the second seat: ollama, with Melious as its
+#                                    fallback, or melious, with ollama as its fallback. melious
+#                                    needs MELIOUS_MODEL. --seat and --local-only do not use it;
+#                                    a value other than ollama or melious is refused in every mode.
 #   MELIOUS_API_KEY (unset)          sent as a Bearer token when set, else the MELIOUS_API_KEY=
 #                                    line of MELIOUS_ENV_FILE (default
 #                                    ~/.config/reviewers/melious.env; parsed, never sourced), else
@@ -176,6 +182,13 @@ if [ -n "$SEAT" ] && { [ "$FIRST_SUCCESS" = 1 ] || { [ "$WITH_ANTIGRAVITY" = 1 ]
 fi
 if [ -n "$SEAT" ] && [ "$LOCAL_ONLY" = "1" ] && [ "$SEAT" != ollama ]; then
   echo "--local-only runs local ollama only; --seat $SEAT would send content out — refusing." >&2; exit 2
+fi
+case "${SECOND_SEAT:-ollama}" in
+  ollama|melious) SECOND_SEAT="${SECOND_SEAT:-ollama}" ;;
+  *) echo "SECOND_SEAT=\"$SECOND_SEAT\" — expected ollama or melious" >&2; exit 2 ;;
+esac
+if [ "$SECOND_SEAT" = melious ] && [ -z "${MELIOUS_MODEL:-}" ] && [ -z "$SEAT" ] && [ "$LOCAL_ONLY" != 1 ]; then
+  echo "SECOND_SEAT=melious needs MELIOUS_MODEL=<model> (an id from Melious's /v1/models)." >&2; exit 2
 fi
 if [ "$LOCAL_ONLY" = "1" ] && [ "$WITH_ANTIGRAVITY" = "1" ]; then
   echo "note: --local-only + --with-antigravity given together — Antigravity is an external cloud call and will be skipped; local-only wins." >&2
@@ -1157,12 +1170,19 @@ report_round() {
       esac
     fi
   fi
+  # Past round 8 the owner decides (SKILL.md step 6). A notice only: the exit code, the cost log
+  # and the rest of this summary are the same as at round 8. ROUND is 1-99 or empty (parsed above).
+  local capnote=""
+  if [ -n "$ROUND" ] && [ "$ROUND" -ge 9 ]; then
+    capnote="⚠ Round $ROUND is past round 8 (SKILL.md step 6): each round from here on is the owner's decision, one at a time. Record this round's grant and the next one's, with the owner's words, in the trail."
+  fi
   printf '\n---\n%s\n' "$line"
   printf '%s\n' "$line" >&2
   # Wall-clock seconds per attempted tier (they overlap in the default parallel run). Recorded
   # in the trail, it is the data for judging what a round costs.
   if [ -n "$TIMINGS" ]; then printf 'timings: %s\n' "$TIMINGS"; printf 'timings: %s\n' "$TIMINGS" >&2; fi
   if [ -n "$note" ]; then printf '%s\n' "$note"; printf '%s\n' "$note" >&2; fi
+  if [ -n "$capnote" ]; then printf '%s\n' "$capnote"; printf '%s\n' "$capnote" >&2; fi
   # The trail must name the depth (SKILL.md, Review depth), and a run without --depth is where
   # that gets forgotten.
   if [ -z "$DEPTH" ]; then
@@ -1185,6 +1205,7 @@ OK=0 ; SUCCESS_COUNT=0
 # The Melious fallback stands in for the ollama seat whenever that seat did not count: its staged
 # status (run_tier) reads anything but 0 — skipped, failed, or a local sanity pass.
 ollama_counted() { [ "$(head -n 1 "$RAW_DIR/ollama.status" 2>/dev/null)" = 0 ]; }
+melious_counted() { [ "$(head -n 1 "$RAW_DIR/melious.status" 2>/dev/null)" = 0 ]; }   # SECOND_SEAT=melious
 if [ "$LOCAL_ONLY" = "1" ]; then
   # nothing leaves the machine: codex/agy/paste are all external. Local ollama only,
   # and the result is an explicitly DEGRADED gate (owner's privacy trade).
@@ -1199,8 +1220,13 @@ elif [ -n "$SEAT" ]; then
   esac
 elif [ "$FIRST_SUCCESS" = "1" ]; then
   attempt codex codex run_codex                                                  # 1. OpenAI Codex CLI
-  [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                     # 2. ollama-cloud
-  [ $OK -eq 1 ] || { [ -n "${MELIOUS_MODEL:-}" ] && attempt melious melious run_melious; }  # 2b. its fallback
+  if [ "$SECOND_SEAT" = melious ]; then
+    [ $OK -eq 1 ] || attempt melious melious run_melious                         # 2. Melious, by choice
+    [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                   # 2b. its fallback
+  else
+    [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                   # 2. ollama-cloud
+    [ $OK -eq 1 ] || { [ -n "${MELIOUS_MODEL:-}" ] && attempt melious melious run_melious; }  # 2b. its fallback
+  fi
   [ $OK -eq 1 ] || { [ "$WITH_ANTIGRAVITY" = "1" ] && attempt antigravity agy run_agy; }   # 3. agy, opt-in only
 else
   # All attempted tiers at once: they share nothing but RAW_DIR, where each writes its own files.
@@ -1227,17 +1253,27 @@ else
     return 0
   }
   trap 'stop_tiers; exit 130' INT TERM
+  MELIOUS_RAN=0 ; OLLAMA_RAN=0
   run_tier codex run_codex &                                                     # 1. OpenAI Codex CLI
-  run_tier ollama run_ollama &                                                   # 2. ollama cloud/local
-  ollama_pid=$!
+  if [ "$SECOND_SEAT" = melious ]; then
+    run_tier melious run_melious &                                               # 2. Melious, by choice
+    melious_pid=$!
+  else
+    run_tier ollama run_ollama &                                                 # 2. ollama cloud/local
+    ollama_pid=$! ; OLLAMA_RAN=1
+  fi
   if [ "$WITH_ANTIGRAVITY" = "1" ]; then
     run_tier agy run_agy &                                                       # 3. agy, opt-in only
   fi
   # 2b. Melious, for the ollama seat. With no ollama model at all the seat is known to be out from
   # the start, so the fallback runs with the pair; otherwise it waits for ollama ALONE (not codex
   # or agy) and starts the moment ollama did not count. Always a job, so stop_tiers reaches it.
-  MELIOUS_RAN=0
-  if [ -n "${MELIOUS_MODEL:-}" ]; then
+  # With SECOND_SEAT=melious the roles swap: ollama waits for Melious alone, and runs only when
+  # Melious did not count.
+  if [ "$SECOND_SEAT" = melious ]; then
+    wait "$melious_pid"
+    if ! melious_counted; then run_tier ollama run_ollama & OLLAMA_RAN=1; fi
+  elif [ -n "${MELIOUS_MODEL:-}" ]; then
     if [ -z "${OLLAMA_MODEL:-}" ]; then
       run_tier melious run_melious & MELIOUS_RAN=1
     else
@@ -1248,8 +1284,13 @@ else
   wait
   trap - INT TERM
   report_tier codex codex
-  report_tier "$OLLAMA_LABEL" ollama
-  if [ $MELIOUS_RAN -eq 1 ]; then report_tier melious melious; fi
+  if [ "$SECOND_SEAT" = melious ]; then
+    report_tier melious melious
+    if [ $OLLAMA_RAN -eq 1 ]; then report_tier "$OLLAMA_LABEL" ollama; fi
+  else
+    report_tier "$OLLAMA_LABEL" ollama
+    if [ $MELIOUS_RAN -eq 1 ]; then report_tier melious melious; fi
+  fi
   if [ "$WITH_ANTIGRAVITY" = "1" ]; then report_tier antigravity agy; fi
 fi
 report_round
@@ -1268,6 +1309,7 @@ cat >&2 <<'EOF'
 #                   # already reads ~/.codex config (model + reasoning effort) + auth.json
 #   ollama          # local daemon + `ollama signin` — your first ':cloud' tag auto-serves as the default
 #   MELIOUS_MODEL=  # fallback for the ollama seat: Melious's OpenAI-compatible API (api.melious.ai)
+#   SECOND_SEAT=melious  # with MELIOUS_MODEL: Melious holds the seat, ollama is its fallback
 # Antigravity is opt-in only (owner's credits are scarce) — add --with-antigravity
 # (or WITH_ANTIGRAVITY=1) to spend one this run:
 #   brew install antigravity-cli    # `agy` — Gemini-family models, free Antigravity login

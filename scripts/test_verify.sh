@@ -17,11 +17,13 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 VERIFY="$HERE/../skills/new-website/templates/astro/scripts/verify.mjs"
-T="$(mktemp -d "${TMPDIR:-/tmp}/verify-test.XXXXXX")"
+T="$(mktemp -d "${TMPDIR:-/tmp}/verify-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
 # The physical path: the stub npm logs `pwd` as the shell finds it, and where the temp folder
 # sits behind a symlink (macOS: /var -> /private/var) the two spellings would never match.
-T="$(CDPATH= cd -- "$T" && pwd -P)"
+phys="$(CDPATH= cd -- "$T" && pwd -P)" || exit 1
+T="$phys"
 # Run through `npm run`, npm would hand verify.mjs its own entry point in npm_execpath; this
 # test starts it with node directly, as the hook does, so the stub below is what runs.
 unset npm_execpath

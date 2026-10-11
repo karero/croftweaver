@@ -419,7 +419,7 @@ the AI check aren't either (see `references/geo-check.md`).
 Buyers ask ChatGPT and friends instead of Google. `geo_check.py` asks up to four AI engines
 (Gemini, OpenAI, Anthropic, Perplexity), plus Google's AI Mode and AI Overview via SerpApi, the owner's own buyer questions — without naming the
 business — twice: **"knows you"** (no web search: what the model learned) and **"finds you"**
-(web search on: what a buyer gets today, plus which sites were cited). Code counts the
+(web search on: what a buyer gets today, plus which sites were cited; for Perplexity, which search results it returned). Code counts the
 mentions; every answer is saved verbatim; `track.sh` runs it weekly after Bing and prints its
 trend under the keyword trend.
 

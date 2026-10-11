@@ -16,6 +16,8 @@ cd "$REPO_DIR"
 # scripts LF for a recipient who commits the unzipped folder to a new repo and later clones it on
 # Windows: the zip itself has no checkout to convert, but that repo would.
 # docs/reviews/ holds internal review trails + plan artifacts — never handoff material.
+# docs/BUGLOG.md and docs/DECISIONS_PENDING.md are the maintainer's own trackers: they cite
+# docs/reviews/ files the zip does not hold, and a recipient has no use for them.
 # docs/local/ is excluded from git entirely (.git/info/exclude) for private, never-shipped
 # notes — but zip -r is git-agnostic and would sweep it in anyway if it exists on disk.
 # node_modules/, .astro/, __pycache__/, and test-results/ are the same class of leak: all
@@ -30,11 +32,12 @@ zip -r -X "$OUT/croftweaver.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md SECURITY.md Makefile .gitattributes \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
-  scripts/test_install_pin.sh scripts/check_template_coverage.sh scripts/check_cdpath_safe.sh \
+  scripts/test_install_pin.sh scripts/test_whats_new_removed_skill.sh scripts/check_template_coverage.sh scripts/check_cdpath_safe.sh \
   scripts/test_package_leak.sh scripts/check_pipefail_pipes.sh \
-  scripts/test_pre_push_hook.sh scripts/test_verify.sh scripts/test_clean_denylist.sh scripts/test_git_stand_hook.sh \
-  scripts/check_lf_checkout.sh scripts/list_shell_scripts.sh \
+  scripts/test_pre_push_hook.sh scripts/test_verify.sh scripts/test_clean_denylist.sh scripts/test_git_stand_hook.sh scripts/test_whats_new.sh \
+  scripts/test_mktemp_guard.sh scripts/check_lf_checkout.sh scripts/list_shell_scripts.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
+     'docs/BUGLOG.md' 'docs/DECISIONS_PENDING.md' \
      '*/.astro/*' '*/__pycache__/*' '*/test-results/*' >/dev/null
 
 echo "built $OUT/croftweaver.zip"
@@ -59,6 +62,7 @@ REQUIRED=(
   scripts/check_model_agnostic.sh
   scripts/check_skill_budgets.sh
   scripts/test_install_pin.sh
+  scripts/test_whats_new_removed_skill.sh
   scripts/check_template_coverage.sh
   scripts/check_cdpath_safe.sh
   scripts/test_package_leak.sh
@@ -67,6 +71,8 @@ REQUIRED=(
   scripts/test_verify.sh
   scripts/test_clean_denylist.sh
   scripts/test_git_stand_hook.sh
+  scripts/test_whats_new.sh
+  scripts/test_mktemp_guard.sh
   scripts/check_lf_checkout.sh
   scripts/list_shell_scripts.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
@@ -123,6 +129,7 @@ leak_check() {
 }
 # Internal artifacts must never ship: fail loud if any slip past the exclusions.
 leak_check '^docs/reviews/|^REVIEW-|^SKILL-PLAN-' "internal review/plan artifact(s)"
+leak_check '^docs/(BUGLOG|DECISIONS_PENDING)[.]md$' "maintainer tracker file(s)"
 # Belt-and-suspenders on the node_modules exclusion above: catch it here too rather than
 # trusting the -x glob alone (the docs/reviews/local exclusions get this same double-check).
 leak_check '/node_modules/' "node_modules path(s)" \

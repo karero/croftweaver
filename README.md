@@ -63,13 +63,21 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 
 **Copy-paste starter prompt:**
 
+<!-- This prompt is also in docs/GETTING-STARTED.md. If you change one copy, change the other to match. -->
+
 > I want to use the Croftweaver skill suite (https://github.com/karero/croftweaver)
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the Croftweaver skills, tell me when to restart or
-> reopen you so the skills load, and continue from there — starting a fresh site by running
-> `new website` in a new, empty folder.
+> actually needed. My websites live in one folder: check which folder you're open in and
+> ask me whether that's it; if not, ask me which one it is (suggest Documents/Websites
+> unless I already keep my projects somewhere else, or my Documents folder syncs to iCloud
+> or OneDrive — then suggest a Websites folder in my home folder). Put the downloaded
+> Croftweaver files in a folder of their own and leave them there: for example a
+> folder called croftweaver in my home folder, not Downloads and not my websites
+> folder. Then install the Croftweaver skills. Tell me when to restart or reopen you
+> so the skills load — in my websites folder — then start `new website` there. When the
+> site has its own folder, tell me where it is on my computer (its full path).
 
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
@@ -131,10 +139,12 @@ from it.
 ### Quick start — build your first site
 
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
-Console/API account). Then, **four steps**:
+Console/API account). Then, **three steps**:
 
 ```bash
-# 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo:
+# 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo.
+#    Do it in a place of its own, not in your websites folder or Downloads: step 2 links
+#    your skills to this folder, so it has to stay where it is.
 unzip croftweaver.zip -d croftweaver && cd croftweaver
 #   from source instead:  git clone https://github.com/karero/croftweaver.git && cd croftweaver
 
@@ -148,13 +158,13 @@ unzip croftweaver.zip -d croftweaver && cd croftweaver
 ```
 
 ```
-# 3. Restart Claude Code so it discovers the new skills.
-
-# 4. Open Claude Code in a FRESH, EMPTY folder for your new site, and say:
+# 3. Restart Claude Code so it discovers the new skills, opening it in your websites
+#    folder — Documents/Websites, or wherever you keep your projects — and say:
        new website
 ```
 
-The `new-website` orchestrator takes over from there: it runs the stack-decision
+The scaffold makes a new folder for the site inside the one you opened, so that folder
+doesn't need to be empty. The `new-website` orchestrator takes over from there: it runs the stack-decision
 interview, scaffolds a git-first repo (Astro overlay + test suite + permission
 allowlist), then sequences the sibling skills through **positioning → content → SEO/GEO
 → design → QA → review → launch**. It also walks you through the one-time build tools
@@ -180,7 +190,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > and `--refresh` will never touch it — reports mark it "(pinned)". Plain
 > `make whats-new` shows the suite's recent skill changes.
 > Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
-> `AGENTS.md`, `playwright.config.ts`, `functions/_middleware.ts`, `.github/workflows/ci.yml`,
+> `AGENTS.md`, `PUBLISHING.md`, `SETUP.md`, `playwright.config.ts`,
+> `functions/_middleware.ts`, `.github/workflows/ci.yml`,
 > `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
@@ -190,7 +201,10 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
-> `./scripts/whats-new.sh --stamp-tests <site>/tests`.
+> `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. A changed file the site has no copy
+> of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.
+> `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
+> never marked MISSING.
 >
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
@@ -258,6 +272,11 @@ skills/            the suite skills (canonical)
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
   search-console-setup, business-listings-setup   (bundled deps)
+  facts-check      (read-only, any live site on any stack: one approved facts list
+                   in, every page in the sitemap compared with it, each differing
+                   figure and retired phrase out; plus the positioning check, each
+                   page against the term it owns per audience; runs weekly beside
+                   the AI check)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
   website-story    (optional story layer — the home page as the customer's story:
@@ -273,7 +292,7 @@ skills/            the suite skills (canonical)
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
                    consistency audit, trap-test → wedge → guard-tests method)
-  astro-i18n-setup, keystatic-setup, website-forms   (opt-in setup skills — see below)
+  astro-i18n-setup, keystatic-setup, website-contact-form   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
@@ -288,19 +307,24 @@ scripts/
   list_shell_scripts.sh     every shell script in the suite, found by shebang (the two guards above use it)
   test_clean_denylist.sh    the private-name check also runs in a linked worktree, which has no copy of the name list, and CI's masked mode prints no scanned text (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
+  test_whats_new_removed_skill.sh  whats-new marks a bundled skill the suite removed, names the two ways out, and reads as before otherwise (make check)
   test_git_stand_hook.sh    the site template's Claude Code sync hook reports news, failures and retries correctly (make check)
-  test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
+  test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer, and fails the build when a maintainer tracker (docs/BUGLOG.md, docs/DECISIONS_PENDING.md) is in the zip (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
   test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
+  test_whats_new.sh         whats-new marks a frozen template file the site lacks as MISSING, and shows and checks the same site path for every tracked file with a fixed one (all but PUBLISHING.md) (make check)
+  test_mktemp_guard.sh      each script it lists that builds a throwaway folder stops with an error, and leaves the folder it ran from alone, when mktemp fails; a new script that calls mktemp must be listed or exempted in it (make check)
   check_lf_checkout.sh      every text file checks out LF, even where Git converts to CRLF (make check)
-docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
+docs/          (these ship in the zip, except the two marked repo only; docs/reviews/ and docs/local/ do not ship either)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
   CODEX-TEST.md    testing the suite itself with Codex
-  DECISIONS_PENDING.md  maintainer-internal: open questions on the toolkit itself
+  DECISIONS_PENDING.md  repo only, maintainer-internal: open questions on the toolkit itself
+  BUGLOG.md             repo only, maintainer-internal: small bugs and follow-ups kept for a later sweep (a few shipped comments name it; read it in the repo)
+  PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 ```
@@ -323,13 +347,14 @@ site (like `website-motion`) but runs only when a team forms:
   documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
   to the repo, no dev server). Run at scaffold time when interview Q3 = *a non-technical
   person edits content*; don't install speculatively.
-- **`website-forms`** — adds a **contact form** that mails each message to the owner
-  through the site's own Cloudflare account, with no third company in between: a form
-  component in English and German (another language is one file to translate and a few
-  words for its test), one small server function, a privacy paragraph in English and
-  German, and a test of the submission. It stores nothing. Needs the domain's DNS at
-  Cloudflare and four settings only the owner can create. Run when interview Q2 = *a form that emails
-  you*, or later when the owner asks for a form.
+- **`website-contact-form`** — our suggestion for a **contact form**: the visitor writes a
+  message, presses a button, and their own email program opens with the message
+  to the owner, ready to send. No server, no account, no setting and no company in between,
+  so it works on any host and the privacy page needs nothing new. Adds a form component
+  with its texts in English and German, one small script of the site's own (so a strict
+  Content-Security-Policy holds) and a test of the link the button opens. The owner's
+  address always shows under the form, for visitors without a mail program set up. Run
+  when interview Q2 = *a contact form*, or later when the owner asks for one.
 - **`website-team-setup`** — turns a one-person repo into one several people and several
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
   collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI

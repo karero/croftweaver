@@ -125,6 +125,9 @@ if (cleanPath !== '/' && cleanPath.endsWith('/')) cleanPath = cleanPath.slice(0,
 const canonical = new URL(cleanPath, site).href;
 
 const currentLocale = Astro.currentLocale ?? DEFAULT_LOCALE;
+// Replaces the starter's `Astro.locals.lang = lang;`: components inside the page
+// (the contact form) speak the page's language.
+Astro.locals.lang = currentLocale;
 let neutral = cleanPath;
 if (currentLocale !== DEFAULT_LOCALE) {
   neutral = cleanPath.replace(new RegExp('^/' + currentLocale + '(?=/|$)'), '');

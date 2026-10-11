@@ -1368,5 +1368,78 @@ class LinkToGoogleReport(GeoTestCase):
         self.assertEqual(len(stub.STATE["hits"]), hits_before)    # the rebuild made no AI request
 
 
+class ResultsAreNotCitations(GeoTestCase):
+    """Perplexity's API returns the search results it retrieved, not which of them the answer
+    quotes. Saying the owner's site was "cited" because it was among them overstated the
+    result; the trend, the report and the saved-answer captions must say "results" for such an
+    engine and keep "cited" and "a source" for the others (geo_check.RESULTS_ONLY says what is
+    known about each)."""
+
+    OWN = "https://www.example-bakery.de/brot"
+
+    def setUp(self):
+        super().setUp()
+        self.setup_site()
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        os.environ["GEO_PERPLEXITY_API_KEY"] = "test-pplx-placeholder"
+        stub.engine_reply("openai", "Bäckerei Example.", sources=[self.OWN])
+        stub.engine_reply("perplexity", "Bäckerei Example.", sources=[self.OWN, "https://other.example/"])
+        rc, out = self.cli("--engines", "openai,perplexity")
+        self.assertEqual(rc, 0, out)
+
+    def finds_line(self, out, engine):
+        return next(l for l in out.splitlines() if l.strip().startswith(engine) and "finds you" in l)
+
+    def test_the_count_is_unchanged_only_the_word_differs(self):
+        by_engine = {r["engine"]: r for r in self.history() if r["mode"] == "finds"}
+        self.assertEqual(by_engine["perplexity"]["cited_own"], "3")      # still: own site among the results
+        self.assertEqual(by_engine["openai"]["cited_own"], "3")
+
+    def test_trend_calls_perplexity_results_and_openai_citations(self):
+        rc, out = self.cli("--trend")
+        self.assertIn("in its results 3/3", self.finds_line(out, "perplexity"))
+        self.assertNotIn("cited", self.finds_line(out, "perplexity"))
+        self.assertIn("cited 3/3", self.finds_line(out, "openai"))
+
+    def report_page(self):
+        rc, out = self.cli("--report")
+        return html.unescape(Path(out.split("Report: ")[1].strip()).read_text())
+
+    def part(self, page, pattern):
+        m = re.search(pattern, page, re.S)
+        self.assertTrue(m, pattern)
+        return m.group(0)
+
+    def test_report_says_results_for_perplexity_and_source_for_chatgpt_in_their_own_places(self):
+        page = self.report_page()
+        for engine, here, other in (("Perplexity", "among its search results", "was a source"),
+                                    ("ChatGPT", "was a source", "among its search results")):
+            row = self.part(page, rf"<tr><td><strong>{engine}</strong>.*?</tr>")
+            self.assertIn(here, row)
+            self.assertNotIn(other, row)
+        pplx = self.part(page, r"<summary>Perplexity · [^<]*</summary>.*?</details>")
+        gpt = self.part(page, r"<summary>ChatGPT · [^<]*</summary>.*?</details>")
+        self.assertIn("Search results returned:", pplx)
+        self.assertNotIn("Sources:", pplx)
+        self.assertIn("Sources:", gpt)
+        self.assertNotIn("Search results returned", gpt)
+
+    def test_the_owners_site_shows_in_the_list_even_past_the_twelve_link_cap(self):
+        others = [f"https://other{i}.example/" for i in range(14)]
+        stub.engine_reply("perplexity", "Bäckerei Example.", sources=others + [self.OWN])   # own site is no. 15
+        rc, out = self.cli("--engines", "perplexity")
+        self.assertEqual(rc, 0, out)
+        pplx = self.part(self.report_page(), r"<summary>Perplexity · [^<]*</summary>.*?</details>")
+        self.assertIn("example-bakery.de", pplx)          # the note above the list says it was there
+        self.assertIn("first 12 of 15", pplx)             # and the caption says the list is cut
+
+    def test_site_missing_from_the_results_reads_zero_in_its_results(self):
+        stub.engine_reply("perplexity", "Bäckerei Example.", sources=["https://other.example/"])
+        rc, out = self.cli("--engines", "perplexity")
+        self.assertEqual(rc, 0, out)
+        rc, out = self.cli("--trend")
+        self.assertIn("in its results 0/3", self.finds_line(out, "perplexity"))
+
+
 if __name__ == "__main__":
     unittest.main()

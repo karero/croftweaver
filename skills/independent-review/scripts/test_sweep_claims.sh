@@ -33,7 +33,8 @@ done
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$HERE/sweep_claims.sh"
 tmp="${TMPDIR:-/tmp}"   # macOS ends TMPDIR with "/"; the sweep prints paths normalised
-T="$(mktemp -d "${tmp%/}/sweep-claims-test.XXXXXX")"
+T="$(mktemp -d "${tmp%/}/sweep-claims-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
 # Hermetic: a developer's global hooks or signing must not decide whether this passes, and
 # the "not a repository" case must not find a repo above $T.

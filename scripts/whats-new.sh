@@ -52,6 +52,13 @@ suite_dirty() {  # tracked, uncommitted changes under skills/
   [ -n "$(git -C "$REPO_DIR" status --porcelain -uno -- skills/)" ]
 }
 
+# Does the suite still have this skill? Read from the committed tree (HEAD), the tree the list
+# of changes comes from, not from the working tree: an untracked leftover folder is not the
+# suite's skill, and a refresh that copied it would stamp HEAD over content matching no commit.
+suite_has() {  # $1 = skill name
+  git -C "$REPO_DIR" cat-file -e "HEAD:skills/$1" 2>/dev/null
+}
+
 write_stamp() {  # $1 = skills dir
   printf 'suite_commit: %s\ncopied: %s\n' \
     "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/SUITE-VERSION"
@@ -63,7 +70,12 @@ write_stamp() {  # $1 = skills dir
 # exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
 # scripts/check_template_coverage.sh enforces that so a new template file can no longer
 # go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs'
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/PUBLISHING.md skills/new-website/templates/SETUP.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs'
+# The guard scans templates/astro/ only, so the root templates beside it are added here
+# by hand and nothing checks the choice. AGENTS.md, PUBLISHING.md and SETUP.md are
+# tracked because a site's assistants follow them or its skills point into them:
+# PUBLISHING.md's "For AI assistants" section holds the deploy rules, and website-qa and
+# website-team-setup cite SETUP.md. The other root templates have no recorded decision yet.
 
 # Upstream template files that scaffolded sites are EXPECTED to hand-edit — deliberately NOT
 # drift-tracked, for two different reasons:
@@ -217,11 +229,20 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     return 0
   fi
 
+  # A skill the suite no longer has cannot be refreshed: --refresh stops on it and keeps the
+  # stamp, so the report would repeat. Say so here, where a reader looks, not only after a
+  # failed --refresh. A pinned one is left alone by --refresh, so it is not "gone". "Removed"
+  # is suite_has: the committed tree, so the report and --refresh always agree.
+  gone=""; n_stale=0; n_gone=0
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
     echo
+    n_stale=$((n_stale + 1))
     if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
+    elif ! suite_has "$s"; then
+      echo "  $s   (removed upstream — delete its copy, or list it in REFRESH-KEEP to keep it)"
+      gone="$gone $s"; n_gone=$((n_gone + 1))
     else
       echo "  $s"
     fi
@@ -230,8 +251,19 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo
 
   if [ "$MODE" != refresh ]; then
-    echo "Refresh them (re-copies the skills above and re-stamps; OVERWRITES any local"
-    echo "edits to those copies) with:"
+    if [ "$n_gone" -gt 0 ]; then
+      echo "Removed upstream:$gone. --refresh stops on a removed skill and keeps the stamp"
+      echo "where it is, so this list comes back until its copy is deleted from $skills_dir,"
+      echo "or its name is added to $skills_dir/REFRESH-KEEP and --refresh is run. Files the"
+      echo "site took from it stay in the site, unmaintained."
+      [ "$n_stale" -gt "$n_gone" ] || return 0
+      echo
+      echo "Once those are dealt with, refresh the rest (re-stamps, and re-copies the skills"
+      echo "above that are not pinned; OVERWRITES any local edits to those copies) with:"
+    else
+      echo "Refresh them (re-copies the skills above, except any pinned, and re-stamps; OVERWRITES"
+      echo "any local edits to those copies) with:"
+    fi
     echo "  scripts/whats-new.sh --refresh $PROJECT"
     return 0
   fi
@@ -262,14 +294,14 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
       echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
       continue
     fi
-    if [ -d "$REPO_DIR/skills/$s" ]; then
+    if suite_has "$s"; then
       rm -rf "${skills_dir:?}/$s"
       cp -R "$REPO_DIR/skills/$s" "$skills_dir/"
       find "$skills_dir/$s" -name .DS_Store -delete 2>/dev/null || true
       echo "refreshed $s"
     else
       echo "✗ $s was removed upstream — its copy in $skills_dir is now unmaintained;" >&2
-      echo "  delete it (or keep it knowingly), then re-run --refresh to advance the stamp." >&2
+      echo "  delete it, or list it in $skills_dir/REFRESH-KEEP, then re-run --refresh to advance the stamp." >&2
       missing=1
     fi
   done
@@ -281,8 +313,21 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "stamp updated → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 }
 
+# Must agree with the "(site copy: ...)" arms in process_tests_stamp: test_whats_new.sh checks
+# every TEMPLATE_TRACKED file against both. PUBLISHING.md has no fixed site path (an owner's
+# translation may be saved as PUBLISHING.de.md), so it is never marked MISSING.
+site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, or nothing if unknown
+  case "$1" in
+    skills/new-website/templates/content-guide.md) echo "CONTENT_GUIDE.md" ;;
+    skills/new-website/templates/AGENTS.md) echo "AGENTS.md" ;;
+    skills/new-website/templates/SETUP.md) echo "SETUP.md" ;;
+    skills/new-website/templates/astro/*) echo "${1#skills/new-website/templates/astro/}" ;;
+    skills/new-website/templates/claude/*) echo ".claude/${1#skills/new-website/templates/claude/}" ;;
+  esac
+}
+
 process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline source label
-  local tests_dir="$1" base="$2" src="$3" short_base changed f
+  local tests_dir="$1" base="$2" src="$3" short_base changed f site_rel missing=""
   if [ -z "$base" ] || [ "$base" = "unknown" ]; then
     echo "error: the tests baseline ($src) has no usable commit (zip install?). Compare by" >&2
     echo "hand, then set a fresh baseline with:  scripts/whats-new.sh --stamp-tests $tests_dir" >&2
@@ -315,11 +360,15 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
     [ -n "$f" ] || continue
     case "$f" in
       skills/new-website/templates/astro/tests/*)
-        echo "  ${f#skills/new-website/templates/astro/} (site copy: tests/$(basename "$f"))" ;;
+        echo "  ${f#skills/new-website/templates/astro/} (site copy: ${f#skills/new-website/templates/astro/})" ;;
       skills/new-website/templates/content-guide.md)
         echo "  templates/content-guide.md (site copy: CONTENT_GUIDE.md)" ;;
       skills/new-website/templates/AGENTS.md)
         echo "  templates/AGENTS.md (site copy: AGENTS.md — rules the assistants execute; merge by hand, the site's copy carries filled slots and §5)" ;;
+      skills/new-website/templates/PUBLISHING.md)
+        echo "  templates/PUBLISHING.md (site copy: PUBLISHING.md, or the owner's translation — deploy rules the assistants execute; merge by hand, keeping its \"For AI assistants\" section)" ;;
+      skills/new-website/templates/SETUP.md)
+        echo "  templates/SETUP.md (site copy: SETUP.md — setup steps the site's skills point into; copied unchanged at scaffold, so unless the site edited it, take the new version)" ;;
       skills/new-website/templates/astro/playwright.config.ts)
         echo "  templates/astro/playwright.config.ts (site copy: playwright.config.ts)" ;;
       skills/new-website/templates/astro/functions/_middleware.ts)
@@ -361,16 +410,33 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
       *)
         echo "  $f" ;;
     esac
+    # A file the site never had (or deleted) is not drift: merging "changes" into nothing
+    # reads as optional, and for verify.mjs or the pre-push hook it means no local gate.
+    # A file deleted upstream is left alone; so is one with no known site path.
+    site_rel="$(site_copy_of "$f")"
+    if [ -n "$site_rel" ] && [ ! -e "$(dirname "$tests_dir")/$site_rel" ] &&
+       git -C "$REPO_DIR" cat-file -e "HEAD:$f" 2>/dev/null; then
+      echo "    MISSING: the site has no $site_rel"
+      missing="$missing  $site_rel
+"
+    fi
     git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "$f" | sed 's/^/    /'
   done <<CHANGED
 $changed
 CHANGED
+  if [ -n "$missing" ]; then
+    echo
+    echo "MISSING from the site — not drift, there is no copy to merge into. Copy each one in"
+    echo "from the template (the notes above say what else it needs), or note why the site"
+    echo "does without it:"
+    printf '%s' "$missing"
+  fi
   echo
   echo "Review + merge each by hand, e.g.:"
   echo "  git -C $REPO_DIR diff $short_base HEAD -- $(head -n 1 <<<"$changed")"
   if grep -q '_helpers\.ts$' <<<"$changed"; then
     echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, i18n.spec.ts on"
-    echo "multilingual sites, forms.spec.ts with a contact form), so merge the helpers together"
+    echo "multilingual sites, mail-form.spec.ts with a contact form), so merge the helpers together"
     echo "with any spec that uses the new exports, or the import breaks loudly."
   fi
   echo "When the site's copies are current again, advance the baseline:"

@@ -1,7 +1,8 @@
 # Close-out and the clerk procedure (Procedure step 9)
 
 Read this when a round is ready to close out — BEFORE writing the trail, posting to the PR/MR, or
-stamping the consolidated marker. "Step N" means SKILL.md's Procedure. The permission table below
+stamping the consolidated marker (the round-claim paragraph in (b) is read earlier, before a round
+launches, step 2). "Step N" means SKILL.md's Procedure. The permission table below
 is the ONLY place that grants or denies a close-out action; the incidents behind it are in
 `rationale.md`.
 
@@ -25,6 +26,7 @@ append rows rather than renumbering.
 | Create or edit the trail file in a worktree — 9(a) | **WORKTREE-WRITE AUTHORITY** | Write the same content where THIS session's own work durably lives — **not** a temp dir that gets cleaned, since the trail is the permanent record. If nowhere durable exists, hand it to the owner inline and say plainly that no durable trail was written. |
 | Commit or push the trail onto a branch — clerk item 3 | **BRANCH-COMMIT AUTHORITY** | Leave it uncommitted in your own durable location and record in the trail that no in-repo copy was committed. **Never in their worktree.** |
 | Stamp the consolidated marker — clerk item 2 | **GATED-THIS-DIFF** | Do not stamp. Re-gate per clerk item 2 (which bounds the retries), or block. |
+| Add, replace or delete the round-claim line in the gate's PR/MR comment — 9(b) | **POST AUTHORITY** | Skip the line, without asking the owner for atom B: it is advisory (a gate with no PR/MR has no comment for it either). Name the claim in this session's report and go on. |
 
 **Evidence — exactly two kinds.**
 - **Atom A — a record of the creating action itself:** this session created that exact PR/MR (POST
@@ -63,8 +65,9 @@ narrative — raw reviewer text lives in the PR comment:
 # <GATE> review — <PR/MR or branch> — <the change, one line>
 Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OPEN · authority used: <property — atom>
 | Round | Head | Artifact (full / delta since <sha>) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
-| id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote |
-Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction.
+| id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote (a parser or validator fix: the invariant and the variants or comparison, step 5; optionally `caused-by: F<id>`, step 7) |
+Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction;
+the owner's grant for each round past 8, quoted.
 Follow-ups: one line each. Notes: at most five lines (degraded seats, rounds past 3 and the BUG
 that earned each, final full read, wording pass, stops).
 ```
@@ -74,6 +77,11 @@ AUTHORITY). The trail is the permanent record for someone who knows to look; the
 the owner and teammates actually see. Post it even when the repo's convention is "no human
 reviewers" — that governs who approves, not whether the review is visible. Check it off like "did
 the tests pass"; a gate that exists only in a file is not satisfied.
+
+**A round claim (advisory).** Before launching a round (step 2), read the comment's current
+status; two sessions once ran the same round at once. With POST AUTHORITY, add one line (at the
+top while the comment has no marker, below the marker after): session, commit under review,
+scope, seats. Delete it when the round's findings are posted. It names no exclusive owner.
 
 ## The clerk procedure — who posts what (explain this to the user)
 

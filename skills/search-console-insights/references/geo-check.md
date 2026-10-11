@@ -8,12 +8,27 @@ comes up in the answer. It is the AI-age twin of "where do I rank on Google".
 Script: `scripts/geo_check.py`. The weekly `track.sh` runs it after Google and Bing.
 The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the Croftweaver repo.
 
+**Quick path** (a site that is already set up). Run these with `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> …`:
+
+1. `--check-drift`: is the question still right? (see "Every session")
+2. no flag: ask the engines (a few minutes); `--engines google-ai-mode,gemini` asks only the listed engines.
+3. `--report`: the owner's page. `--trend`: week over week.
+
+Three rules that are easy to miss: say **"N of M"** with the numbers from the report, because not
+every assistant is asked both ways; never answer the questions yourself or through a coding
+assistant (see "Why the engines are asked blind"); commit results only to a **private** repo.
+
+**Contents** (the sections of this file, in order, with shortened names): What it measures · The engines, and how to pay for them
+(costs, HTTP 402) · Setting it up · Every session: is the question still right? · Reading the
+results (why 0 from memory, stray copies, handing over) · Why the engines are asked "blind" ·
+Engines: request shapes (for maintenance).
+
 ## What it measures — two columns per engine
 
 | Column | How it asks | What it tells the owner |
 |---|---|---|
 | **Knows you** | no web search — the model answers from what it learned in training | Whether the AI already "knows" the business. The long-term goal. Judge it over several weeks, not from one week to the next: a single run is only 3 answers per question. |
-| **Finds you** | web search switched on | What a buyer actually gets today, and which sites the engine cited. Can move week to week. If it cites directories or review sites instead of the owner's site, that is the next job (see `business-listings-setup`). |
+| **Finds you** | web search switched on | What a buyer actually gets today, and which sites the engine cited (for Perplexity, the check can only tell which search results it returned, not which of them it quoted). Can move week to week. If it cites directories or review sites instead of the owner's site, that is the next job (see `business-listings-setup`). |
 
 Each engine gets up to three questions:
 
@@ -51,11 +66,20 @@ by default.
   stays on OpenRouter). Reasons to name one: Gemini's free direct key instead of paid credit, and
   Perplexity's "from memory" column plus the site's country sent with its search. The report says which route each assistant went through, and a switch
   between routes is marked in the trend.
-- **Through OpenRouter, the web searches don't know the site's country.** OpenRouter has no way to
-  pass it on (checked 2026-09-26), while the direct keys send it. For a local business this
-  barely matters, because its questions name the place ("… in Munich-Schwabing"). A business that
-  sells everywhere gets search results without a country, which can lean towards the US; if that
-  matters, use direct keys or name the market in the question.
+- **Through OpenRouter, this check sends no country with the web searches.** For ChatGPT and Claude
+  it asks OpenRouter's `web` plugin (engine `native`) to search, and OpenRouter's documentation
+  (openrouter.ai/docs/guides/features/plugins/web-search) shows no location setting for that
+  plugin; Perplexity's model searches by itself, with no plugin. The direct keys send the country.
+  OpenRouter's documentation, read 2026-10-09
+  (openrouter.ai/docs/guides/features/server-tools/web-search), describes a newer web search
+  server tool, `openrouter:web_search`, still in beta, whose `user_location` takes a country, city,
+  region and timezone. It works only with a provider's own search and is ignored with OpenRouter's
+  Exa, Firecrawl, Parallel and Perplexity search. This check does not use it: it is in beta, and
+  nobody has captured a request showing that it changes the results.
+  For a local business this barely matters, because its questions name the place
+  ("… in Munich-Schwabing"). A business that sells everywhere gets search results without a
+  country, which can lean towards the US; if that matters, use direct keys or name the market in
+  the question.
 - **Perplexity through OpenRouter only answers "with web search on".** Its model always searches
   by itself, so there is no "from memory" answer to collect on that route (checked: even "What is
   2 + 2?" came back with 20 web sources).
@@ -92,6 +116,26 @@ Economic Area, Switzerland, or the United Kingdom." Whether an owner running thi
 for themselves counts is unclear. So tell owners there: **turn on billing for the Gemini
 key**. At this volume that should cost next to nothing, but check the pricing page.
 
+**When prepaid credit runs out (HTTP 402).** What happens and what to top up depends on the route
+(see "The simple way" above):
+
+| Route | What stops | Top up | Rerun |
+|---|---|---|---|
+| **Gemini on its own key** (no OpenRouter key, or `GEO_DIRECT_ENGINES` names it) | Gemini only; the other assistants run normally | Google AI Studio, the project **the key belongs to**, then its billing page | `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --engines gemini` |
+| **Through OpenRouter** (the default for the four chat assistants) | **All** assistants on that route, for the run | openrouter.ai, Credits | the same command without `--engines`, or `--engines` naming the assistants that failed |
+
+The own-key run prints `gemini FAILED: HTTP 402: Your prepayment credits are depleted.` (seen on a
+real run, 2026-10). The top-up pages, taken from that error text, are https://ai.studio/projects and
+Google's explanation at https://ai.google.dev/gemini-api/docs/billing#prepay (button names may
+differ from what is on screen).
+
+What the history keeps: a failed engine writes its rows, marked failed ("N of M failed"), and the
+trend shows "latest attempt failed" next to the last good numbers. History keeps one row per
+engine, mode, question and settings per day, and never swaps a better row for a worse one. So a
+rerun **on the same day with the same settings** replaces the failed rows, and a failure that
+comes **after a good run on the same day** (same settings) is not recorded at all (the run's own "FAILED" line is then the only trace). A
+rerun on a later day leaves the earlier day's failed row in place. None of this needs editing by hand.
+
 ### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
 
 A full weekly check for **one site** asks ChatGPT, Claude, Gemini and Perplexity 42 times in total.
@@ -127,7 +171,7 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
 1. 🤖 **Draft the questions.**
    - Read the live homepage and `POSITIONING.md` (if the site repo has one).
    - Write a **broad** and a **narrow** buyer question in the site's language, the way a real customer would type it.
-   - For a **local** business, **name the place** in both: engines without location settings (Gemini) otherwise answer for anywhere. A business that sells everywhere (an app, an online shop) leaves the place out.
+   - For a **local** business, **name the place** in both: engines without location settings (Gemini, and any assistant asked through OpenRouter) otherwise answer for anywhere. A business that sells everywhere (an app, an online shop) leaves the place out.
    - Never put the business name in them.
    - Also write the **branded** question.
    - Show all three to the owner and ask them to confirm or change the wording.
@@ -201,7 +245,7 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
      `--confirm --expect <page code>`. It saves only if the page still matches that preview.
 5. 🤖 **Run it once** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
    (`--report`) and walk the owner through it. It takes a few minutes with every engine on. If an engine shows FAILED, read its
-   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit.
+   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit; "HTTP 402" means prepaid credit ran out (see "When prepaid credit runs out" above; on OpenRouter it stops every assistant that goes through it).
 6. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
 
 ## Every session: is the question still right?
@@ -246,7 +290,8 @@ for the owner, so let it speak first, then add two or three sentences of your ow
   each question is asked 3 times: an assistant can write a different answer each time.
 - **One table per question:** ✓ named in every answer, ◐ sometimes, ✗ not named, ! no answer this
   time (the weekly log says why), — Google showed no AI answer, — not asked (with the reason),
-  plus whether their own website was a source and how many answers failed. `*` marks an answer
+  plus whether their own website was a source (for Perplexity, among its search results) and how
+  many answers failed. `*` marks an answer
   to an earlier version of the question. The answers are folded away under "Read what they said".
 - **"Do they describe you correctly?":** the branded answers, to read, never counted.
 
@@ -264,8 +309,24 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 ```
 
 - **named 2/3**: the business was named in 2 of the 3 answers.
-- **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. (For Perplexity
-  this means "among the search results it used": its API doesn't say which of them it quoted.)
+- **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. For ChatGPT, and for
+  Claude on its own key, the captured answers tie each citation to the text. For Claude through
+  OpenRouter and for Google's AI Overview the captures show a source list with no offsets or marks
+  to check it against, and Google's AI Mode tags only some of its blocks with the references they
+  use. Whether those lists hold only the sources the answer quotes is not verified, so "cited"
+  there means "listed as a source". A paired capture would settle it: the same question through
+  OpenRouter and through Claude's own key, or Google's references next to the answer as Google
+  shows them.
+- **in its results 2/3**: what the trend says for Perplexity instead of "cited". In the captured
+  answer from its own key, Perplexity returned the search results it retrieved with no annotations
+  and no [n] markers, so this check cannot tell which of them the answer quotes. Through
+  OpenRouter the captured text marks the quoted ones with [1], [2]…, which index the list, but the
+  list it came with is longer than the marks (18 pages, 10 marked), no entry carries an offset
+  into the text, and this check does not read the marks. Either way the number is how often the owner's site was among the
+  results (once per answer, however often it appears). Because the results include more than
+  the quoted ones, it can be higher than a citation count would be. The report words it the
+  same way ("your website was among its search results") and captions the list "Search results
+  returned".
 - **searched only 1/3**: the engine answered from memory in the other two, even with search on. Those answers are closer to "knows you".
 - **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, the settings (names, domain, country), or the route (direct key ↔ OpenRouter).
 - **latest attempt failed**: the last run for that line didn't get an answer. The numbers shown are the last good ones, with their dates.
@@ -273,6 +334,64 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 Every answer is saved verbatim with its sources under
 `~/.config/gsc-insights/geo/answers/<domain>/<run>/`. Quote from those files when explaining a
 result, and read the branded answers for accuracy.
+
+**Why "from memory" is usually 0 at first, and what to tell the owner.** A model is
+much more likely to "remember" a name it saw in many independent places before it was trained:
+press, listings, other people's pages. Wikipedia is one such source, not the only one, and the
+owner's own site is one among many. These are general explanations, not something this check
+measures, so offer them as the usual reasons, not as proof. Two usual reasons for 0, and a third
+that says how long to wait:
+
+- **A young site.** If the website launched recently, most models were trained before it existed.
+  Ask the owner when it went live; a business can be years old and its site still new to the models.
+- **Small models.** The cheaper, faster model of an assistant tends to know fewer niche names. The
+  first line of each saved answer file names the model that answered (for example `model=…-flash-lite`).
+- **Retraining is slow.** This column mostly moves when a new model is released, so judge it over
+  months, not weeks. Never promise the owner a date for being "in the models".
+
+A sentence the owner can use as is, with the numbers from the latest report: *"[N] of [M] assistants
+named us from memory. That is normal for a business this size. An assistant only 'remembers' a
+name that appeared in many places before it was trained. [Only if true in the latest run: When the
+same assistants can search the web, all of them find us.]"* Take every number from the report, not
+from this text: not every assistant is asked both ways. Gemini is never asked with search.
+Perplexity through OpenRouter is only ever asked with search (no "from memory" answer exists on
+that route). So count the assistants actually asked each way, and keep the last sentence only if
+every one of them was asked with search and found the business. A hand-asked Gemini answer can
+back the claim for Gemini; say that it was asked once by hand.
+
+**Look for stray copies of the owner's site.** The listed sources can reveal an address the owner
+may have forgotten: a hosting preview such as `*.workers.dev`, `*.pages.dev`, `*.vercel.app`,
+`*.netlify.app` or `*.github.io` that serves the same site. Cheap check over the saved answers:
+
+```
+rg -o -N --no-filename -i -P '[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)(?![a-z0-9-]|\.[a-z0-9-])(/[^ )"<>,;]*)?' \
+  ~/.config/gsc-insights/geo/answers/<domain>/ | sort | uniq -c
+```
+
+`-P` needs a ripgrep built with PCRE2; if it says so, drop `-P` and the `(?!…)` part (you then get a
+few false matches such as `foo.github.io.example.com`).
+
+The counts only show how often an address was listed (the same answers repeat it), not how many
+copies exist. It also lists other people's addresses (another business's site on `vercel.app`);
+look only at ones that carry the owner's name, and strip a trailing `.` before opening one. Open the
+full URL from the saved answer. An engine citing an address shows that it exists, not that it
+still works, so say nothing until you have opened it. If it serves the site, **ask the owner**
+whether that copy is meant to exist before suggesting any change; it may be intentional.
+
+**Hand the results over as files in the owner's repo.** The reports and answers sit in the hidden
+`~/.config/gsc-insights/` folder, which the Claude desktop app may not open (links into it did not
+open when tried once), so a link to a path there may do nothing for the owner. Copy the report
+page(s) and the answers of the run into the site's repo (for example `docs/geo/<date>/`), put the
+readable summary next to them, and send the files to the owner.
+
+- **Keep them out of a public repo.** The reports and answers hold the questions, the answers
+  word for word, and every listed source. Commit them only to a **private** repo; for a public one,
+  send the files to the owner and commit nothing, or commit only a summary you wrote.
+- **The "Also see" link breaks in a copy.** A report page may link to the Google page by a relative
+  path (`../../../reports/<domain>/google.html`). In the copy that link does not work; tell the
+  owner so, rather than letting them find a dead link.
+- **Before moving or deleting a file** another session or a note might point at, search for its
+  path first.
 
 When the broad question has named nobody for about four weeks, suggest the owner focus on
 the narrow one. The owner decides.
@@ -304,7 +423,8 @@ Checked against the providers' docs on 2026-09-26:
   `max_tokens: 4000` (without it OpenRouter reserves credit for 65k tokens and refuses small
   balances) and `usage: {"include": true}` (the reply carries its real cost). Citations are
   `choices[0].message.annotations[type=url_citation]`, else the top-level `citations` (some
-  replies list their sources only there).
+  replies list their sources only there). For Perplexity the list is every source it came with,
+  not only the ones its text marks.
   "No credit" arrives as HTTP 402 and stops the whole route for that run.
 
 - **Gemini:** `POST …/v1beta/models/{model}:generateContent`, key in the `x-goog-api-key` header; the answer is in `candidates[0].content.parts[].text` and the model in `modelVersion`. No tools (see the terms above).

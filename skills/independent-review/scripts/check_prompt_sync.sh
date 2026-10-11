@@ -84,7 +84,8 @@ check() {  # $1 script, $2 SKILL.md; prints each problem, returns 1 if there is 
   return $bad
 }
 
-t="$(mktemp -d)"; trap 'rm -rf "$t"' EXIT
+t="$(mktemp -d)" || { echo "FAIL — could not create a temp dir."; exit 1; }
+trap 'rm -rf "$t"' EXIT
 fires() {  # $1 what was changed, $2 script, $3 SKILL.md: the check must fail on them
   check "$2" "$3" >/dev/null && { echo "FAIL: self-test: $1 went unnoticed"; exit 1; }
   return 0
