@@ -75,7 +75,7 @@ new address, and the badge answers 200.
 | F11 | RISK | fresh-eyes, melious | 3 | between the merge and the 0.31 release the README names a `croftweaver.zip` that the latest release does not have | open for the owner: closed by releasing straight after the merge, as the merge order says | `README.md` "Prefer a download?" and the manual install; the old-name download link keeps working in that window |
 | F12 | RISK | fresh-eyes | 3 | the README's new tagline and its sentence on weekly SEO and GEO are copy changes, not a rename | fixed in text: the pull request says so; the owner was asked whether the tagline ships | same finding as F5, which was refuted as part of #147's reviewed edits; the owner's answer is recorded in the pull request |
 | F13 | NIT | fresh-eyes | 3 | `skills/website-story/evals/files/POSITIONING.md` says "the website builder itself" | refuted | a generic noun in a fixture comment, lower case and unhyphenated, as F7 ruled |
-| F14 | NIT | fresh-eyes | 3 | `karero/croftweaver..` followed by a dot is no longer blanked; no test for an ellipsis | refuted | intended: the `..private` case must fail, and the tests assert it; the reviewer asked for no fix |
+| F14 | NIT | fresh-eyes | 3 | a self-link followed by two dots and nothing else (an ellipsis) is no longer blanked; no test for that case | refuted | intended: the `..private` case must fail, and the tests assert it; the reviewer asked for no fix |
 | F15 | NIT | melious | 3 | `make package` deletes a `dist/website-builder.zip`, so the hand-made copy for 0.31 must be made last | fixed in text | the pull request's merge order says the copy is made right before the upload; `package.sh` is unchanged |
 
 Round 3: 5 findings (0 BUG, 2 RISK, 3 NIT): 2 fixed in text, 2 refuted, 1 open for the owner
@@ -88,3 +88,5 @@ trackers the old name remains only in the places the pull request lists.
 
 The commit that adds this section changes nothing outside `docs/reviews/`; the stamp names it,
 and the reviewed scope is the one at `b027165`.
+
+After round 3, `main` gained #262 (one doc file and its trail). It is merged in at `ae9a125`; the merge link over the change's own files is empty, so the reviewed scope is unchanged. My first wording of row F14 quoted the two-dot form with the account name in front, and the private-name check reported it, as it should: caught by `scripts/check_clean.sh`, reworded.
