@@ -201,9 +201,9 @@ Structure claims for easy AI extraction with clear attribution.
 [Topic] [verb: is/has/requires/involves] [clear, specific claim]. [Source] [confirms/reports/found] that [supporting evidence]. This [explains/means/suggests] [implication or action].
 ```
 
-**Example:**
+**Example** (made up: the source and figure are placeholders; use a source you have checked):
 ```markdown
-E-E-A-T is the cornerstone of Google's content quality evaluation. Google's Search Quality Rater Guidelines confirm that trust is the most critical factor, stating that "untrustworthy pages have low E-E-A-T no matter how experienced, expert, or authoritative they may seem." This means content creators must prioritize transparency and accuracy above all other optimization tactics.
+Bread stays fresh longer when it is stored cool and dry. The Example Bakers' Guild's 2025 storage guide reports that a loaf kept in a paper bag stayed fresh for two days. That is why the shop sells paper bags with every loaf.
 ```
 
 ### Self-Contained Answer Block

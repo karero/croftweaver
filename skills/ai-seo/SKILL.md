@@ -42,18 +42,18 @@ Gather this context (ask if not provided):
 
 ### The AI Search Landscape
 
-Each row is what the company's own page lets you act on; Step 4 of the audit has the bots in full.
+Each row with a link is what that company's page lets you act on; the Copilot row is unchecked. Step 4 of the audit has the bots in full.
 
 | Platform | What you can act on | The company's page |
 |----------|---------------------|--------------------|
 | **Google AI Overviews and AI Mode** | Be indexed and eligible to be shown in Google Search with a snippet; Google lists no other technical requirement | [Google](https://developers.google.com/search/docs/appearance/ai-features) |
 | **ChatGPT (with search)** | Allow OAI-SearchBot | [OpenAI](https://developers.openai.com/api/docs/bots) |
 | **Perplexity** | Allow PerplexityBot | [Perplexity](https://docs.perplexity.ai/guides/bots) |
-| **Gemini** | Keep Google Search access open; Google-Extended also covers grounding in Gemini Apps (content from the Google Search index given to the model at prompt time) | [Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) |
+| **Gemini** | Decide Google-Extended on its own: it covers Gemini training and grounding (content from the Google Search index given to the model at prompt time), and Google says it does not affect Search (Step 4) | [Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) |
 | **Copilot** | Allow Bingbot (not checked against Microsoft's pages) | — |
 | **Claude** | Allow Claude-SearchBot | [Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) |
 
-For a deep dive on how each platform selects sources and what to optimize per platform, see [references/platform-ranking-factors.md](references/platform-ranking-factors.md).
+For what each company's page says and what to do for each platform, see [references/platform-ranking-factors.md](references/platform-ranking-factors.md).
 
 ### Non-English Content
 
@@ -65,7 +65,7 @@ The worked content-pattern examples in [references/content-patterns.md](referenc
 
 Traditional SEO gets you ranked. AI SEO gets you **cited**.
 
-Google says a page must be indexed and eligible to be shown in Google Search with a snippet to appear as a supporting link in AI Overviews or AI Mode, and lists no other technical requirement ([Google](https://developers.google.com/search/docs/appearance/ai-features)). So ordinary SEO is the base, and the structure, authority and presence work below is what you add on top.
+Google says a page must be indexed and eligible to be shown in Google Search with a snippet to appear as a supporting link in AI Overviews or AI Mode, and lists no other technical requirement ([Google](https://developers.google.com/search/docs/appearance/ai-features)). Google adds that specific optimization isn't required for AI Overviews and AI Mode and that its existing SEO fundamentals stay worthwhile. So ordinary SEO is the base, and the structure, authority and presence work below is what the studies and company pages point to for being cited.
 
 **Critical stats:**
 - AI Overviews appear on about 45% of the queries BrightEdge tracks ([BrightEdge](https://www.brightedge.com/resources/weekly-ai-search-insights/ai-overviews-one-year-presence-size-citing), late 2025)
@@ -117,7 +117,7 @@ For each priority page, verify:
 | FAQ section with natural-language questions? | |
 | Schema markup (FAQ, HowTo, Article, Product)? | |
 | Expert attribution (author name, credentials)? | |
-| Recently updated (within 6 months)? | |
+| Recently updated (see the freshness note in Pillar 2)? | |
 | Heading structure matches query patterns? | |
 | Search and user bots allowed in robots.txt? | |
 
@@ -129,7 +129,7 @@ Each AI company runs more than one bot, and each bot has a main job. Look at the
 - **Anthropic** — **Claude-SearchBot** indexes pages for Claude's search results, **Claude-User** fetches a page when a user asks, and **ClaudeBot** gathers content for training. Anthropic's page names these three and no `anthropic-ai` ([Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler))
 - **Perplexity** — **PerplexityBot** shows your pages in its search results and is not used for training, and **Perplexity-User** fetches a page when a user asks (Perplexity says Perplexity-User generally ignores robots.txt) ([Perplexity](https://docs.perplexity.ai/guides/bots))
 - **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `data-nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers training of Gemini models and grounding (providing content from the Google Search index to the model at prompt time) in Gemini Apps and in Grounding with Google Search on Vertex AI, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers))
-- **Bingbot** — Microsoft Copilot (via Bing); not checked against Microsoft's pages for this change
+- **Bingbot** — Microsoft Copilot (via Bing); not checked against Microsoft's pages for this guide
 
 Check your robots.txt for `Disallow` rules aimed at any of these. Blocking a search bot can keep your pages out of that company's search answers: OpenAI says a site opted out of OAI-SearchBot is not shown in ChatGPT search answers, Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search, and Perplexity recommends allowing PerplexityBot so your site appears. Training is a separate choice. OpenAI says its OAI-SearchBot and GPTBot settings are independent, and Anthropic lists its three bots apart, so you can block GPTBot and ClaudeBot and still allow the search bots. Google-Extended covers grounding in Gemini apps as well as training, so decide it on its own. CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls; its page shows how to block CCBot to keep future crawls out, and mentions an Opt-out Registry ([Common Crawl](https://commoncrawl.org/ccbot)). OpenAI and Perplexity also recommend allowing their published IP ranges, so check that a firewall or CDN is not blocking a bot that robots.txt allows.
 
@@ -163,7 +163,7 @@ For detailed templates for each block type, see [references/content-patterns.md]
 
 **Structural rules:**
 - Lead every section with a direct answer (don't bury it)
-- Keep key answer passages short, so each one stands alone (a rule of thumb is 40-60 words)
+- Keep key answer passages short, so each one stands alone
 - Use H2/H3 headings that match how people phrase queries
 - Use tables for comparison content
 - Use numbered lists for process content
@@ -203,7 +203,7 @@ Give a reader, human or machine, reasons to trust the page. Build citation-worth
 
 **Freshness signals**
 - "Last updated: [date]" prominently displayed
-- Refresh content on a regular schedule, for example quarterly for competitive topics (in one study ChatGPT cited pages updated within three months more often, 6.0 against 3.6 citations on average; [SE Ranking](https://seranking.com/blog/chatgpt-citation-factors/), a link and not a tested cause)
+- Refresh content on a regular schedule, for example quarterly for competitive topics (in one study ChatGPT cited pages updated within three months more often, 6.0 against 3.6 citations on average; [SE Ranking](https://seranking.com/blog/chatgpt-citation-factors/), a correlation, not a tested cause)
 - Current year references and recent statistics
 - Remove or update outdated information
 
@@ -282,13 +282,13 @@ Add these machine-readable files to your site root:
 
 **`/llms.txt`** — Context file for AI systems (see [llmstxt.org](https://llmstxt.org))
 
-If you don't have one yet, add an `llms.txt` that gives AI systems a quick overview of what your product does, who it's for, and links to key pages (including your pricing).
+If you don't have one yet, add an `llms.txt` that gives AI systems a quick overview of what your product does, who it's for, and links to key pages (including your pricing). None of the company pages linked in Step 4 says its assistant reads llms.txt, and Google says you don't need to create AI text files to appear in AI Overviews or AI Mode ([Google](https://developers.google.com/search/docs/appearance/ai-features)).
 
 ### Schema Markup for AI
 
-Structured data helps AI systems understand your content. Key schemas:
+Structured data describes your content to machines. Google says there is no special schema.org structured data you need to add to appear in AI Overviews or AI Mode ([Google](https://developers.google.com/search/docs/appearance/ai-features)); these are the common types:
 
-| Content Type | Schema | Why It Helps |
+| Content Type | Schema | What it describes |
 |-------------|--------|-------------|
 | Articles/Blog posts | `Article`, `BlogPosting` | Author, date, topic identification |
 | How-to content | `HowTo` | Steps in machine-readable form |
@@ -308,7 +308,7 @@ For implementation, use the **schema-markup** skill.
 
 Not all content is equally citable. Prioritize these formats, in no particular order:
 
-| Content Type | What Makes It Citable |
+| Content Type | What to put in it |
 |-------------|----------------|
 | **Comparison articles** | Structured, balanced, high-intent |
 | **Definitive guides** | Comprehensive, authoritative |
@@ -422,13 +422,13 @@ citations in code, and trends them next to your Google rankings.
 
 ## Common Mistakes
 
-- **Ignoring AI search entirely** — AI Overviews now show on about 45% of the queries BrightEdge tracks
+- **Ignoring AI search entirely** — AI Overviews showed on about 45% of the queries BrightEdge tracked in late 2025
 - **Treating AI SEO as separate from SEO** — Good traditional SEO is the foundation; AI SEO adds structure and authority on top
 - **Writing for AI, not humans** — Write for the reader first: content that reads like it was written to game an algorithm is hard to trust
 - **No freshness signals** — Show when content was last updated, and update it (see the freshness note in Pillar 2)
-- **Gating all content** — A crawler cannot get past a login or a form, so keep your most authoritative content open
+- **Gating all content** — Keep your most authoritative content open, outside any login or form
 - **Ignoring third-party presence** — Run your key queries (Step 1 of the audit), note which sites the answers cite, and be present on the ones you can reach instead of relying on your own blog alone
-- **No structured data** — Schema markup gives AI systems structured context about your content
+- **No structured data** — Schema markup describes your content to machines; Google says no special schema is needed to appear in AI Overviews, so treat it as good hygiene
 - **Keyword stuffing** — It lowered visibility by about 8% on the Princeton GEO study's main measure, the only method that did
 - **Hiding pricing behind "contact sales" or JS-rendered pages** — Software reading your site for a buyer can only use what it can read. Add a `/pricing.md` file
 - **Blocking the search bots** — OpenAI says a site that blocks OAI-SearchBot is not shown in ChatGPT's search answers, though it can still appear as a link; Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search; Perplexity recommends allowing PerplexityBot so your site appears. Blocking the training bots (GPTBot, ClaudeBot) is a separate choice
