@@ -248,7 +248,9 @@ device's fingerprint or face unlock. Recommend, never require: GitHub makes it m
 for some accounts, and Cloudflare leaves it optional unless an account's administrator
 enforces it for members.
 
-Assemble the project at `<site>/` so it travels without any global setup:
+Assemble the project at `<site>/` so it travels without any global setup. `<site>` is a new
+folder inside the folder this session was opened in (never that folder itself); once it
+exists, tell the owner its full path:
 
 0. **Git first, before any code:**
    ```bash

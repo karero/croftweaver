@@ -81,7 +81,9 @@ Copy this into the chat and send it:
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills. My websites live in one
+> actually needed. Then install the website-builder skills. Keep the downloaded files in a
+> folder of their own, outside my websites folder, and don't move or delete them later (for
+> example a folder called website-builder in my home folder). My websites live in one
 > folder: check which folder you're open in and ask me whether that's it; if not, ask me
 > which one it is (suggest Documents/Websites unless I already keep my projects somewhere
 > else, or my Documents folder syncs to iCloud or OneDrive — then suggest a Websites

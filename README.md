@@ -62,7 +62,9 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills. My websites live in one
+> actually needed. Then install the website-builder skills. Keep the downloaded files in a
+> folder of their own, outside my websites folder, and don't move or delete them later (for
+> example a folder called website-builder in my home folder). My websites live in one
 > folder: check which folder you're open in and ask me whether that's it; if not, ask me
 > which one it is (suggest Documents/Websites unless I already keep my projects somewhere
 > else, or my Documents folder syncs to iCloud or OneDrive — then suggest a Websites
@@ -133,7 +135,9 @@ You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude pla
 Console/API account). Then, **three steps**:
 
 ```bash
-# 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo:
+# 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo.
+#    Do it in a place of its own, not in your websites folder or Downloads: step 2 links
+#    your skills to this folder, so it has to stay where it is.
 unzip website-builder.zip && cd website-builder
 #   from source instead:  git clone https://github.com/karero/website-builder.git && cd website-builder
 
