@@ -58,13 +58,21 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 
 **Copy-paste starter prompt:**
 
+<!-- This prompt is also in docs/GETTING-STARTED.md. If you change one copy, change the other to match. -->
+
 > I want to use the website-builder skill suite (https://github.com/karero/website-builder)
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills, tell me when to restart or
-> reopen you so the skills load, and continue from there — starting a fresh site by running
-> `new website` in a new, empty folder.
+> actually needed. My websites live in one folder: check which folder you're open in and
+> ask me whether that's it; if not, ask me which one it is (suggest Documents/Websites
+> unless I already keep my projects somewhere else, or my Documents folder syncs to iCloud
+> or OneDrive — then suggest a Websites folder in my home folder). Put the downloaded
+> website-builder files in a folder of their own and leave them there: for example a
+> folder called website-builder in my home folder, not Downloads and not my websites
+> folder. Then install the website-builder skills. Tell me when to restart or reopen you
+> so the skills load — in my websites folder — then start `new website` there. When the
+> site has its own folder, tell me where it is on my computer (its full path).
 
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
@@ -126,11 +134,13 @@ from it.
 ### Quick start — build your first site
 
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
-Console/API account). Then, **four steps**:
+Console/API account). Then, **three steps**:
 
 ```bash
-# 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo:
-unzip website-builder.zip && cd website-builder
+# 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo.
+#    Do it in a place of its own, not in your websites folder or Downloads: step 2 links
+#    your skills to this folder, so it has to stay where it is.
+unzip website-builder.zip -d website-builder && cd website-builder
 #   from source instead:  git clone https://github.com/karero/website-builder.git && cd website-builder
 
 # 2. From that folder, install the skills globally. Claude only loads skills from
@@ -143,13 +153,13 @@ unzip website-builder.zip && cd website-builder
 ```
 
 ```
-# 3. Restart Claude Code so it discovers the new skills.
-
-# 4. Open Claude Code in a FRESH, EMPTY folder for your new site, and say:
+# 3. Restart Claude Code so it discovers the new skills, opening it in your websites
+#    folder — Documents/Websites, or wherever you keep your projects — and say:
        new website
 ```
 
-The `new-website` orchestrator takes over from there: it runs the stack-decision
+The scaffold makes a new folder for the site inside the one you opened, so that folder
+doesn't need to be empty. The `new-website` orchestrator takes over from there: it runs the stack-decision
 interview, scaffolds a git-first repo (Astro overlay + test suite + permission
 allowlist), then sequences the sibling skills through **positioning → content → SEO/GEO
 → design → QA → review → launch**. It also walks you through the one-time build tools
@@ -186,7 +196,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
-> `./scripts/whats-new.sh --stamp-tests <site>/tests`. A changed file the site has no copy
+> `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. A changed file the site has no copy
 > of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.
 > `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
 > never marked MISSING.
@@ -257,6 +267,11 @@ skills/            the suite skills (canonical)
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
   search-console-setup, business-listings-setup   (bundled deps)
+  facts-check      (read-only, any live site on any stack: one approved facts list
+                   in, every page in the sitemap compared with it, each differing
+                   figure and retired phrase out; plus the positioning check, each
+                   page against the term it owns per audience; runs weekly beside
+                   the AI check)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
   website-story    (optional story layer — the home page as the customer's story:

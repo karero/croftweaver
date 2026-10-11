@@ -281,6 +281,28 @@ day by the round budget; see the next section for why.)
    itself be `locally_verified`. Record both per
    finding; a trail that says only "fixed" does not say which.
 
+Codified 2026-10-09 from a 13-round DIFF gate on a new tool that reads other sites (PR #230; its
+trail, `docs/reviews/REVIEW-diff-2026-10-09-pr230.md` on that PR's branch, counts 77 findings and
+29 confirmed BUGs as of round 13). By the trail's own notes 8 BUGs came from the first Codex read
+of the whole change, 13 or 14 from an earlier round's fix (caused or left half done) and 7 or 8
+from older code of the same change, found late. Rounds 4 to 13 each cite the finding that earned
+them under 6(b) — all BUGs but one, a NIT that proved to be a real bug — and 6(b) calls a chain of
+fixes that each expose the next real defect the gate working; the trail records neither a
+convergence assessment nor the owner's decision past round 8. Three components made most of the
+chains (split numbers, address checks, robots.txt), each guessing at or copying another
+component's behaviour. At round 13 the robots.txt code was replaced by one written from the RFC,
+tests first, instead of another patch; whether that ends the chain was not yet known. What came
+of that: a notice past round 8, an optional `caused-by` note and a mention to the owner at a
+chain of three, a fix standard for parsers and validators, refuted rows carried into `--verify`,
+and a round claim. All are non-blocking, the owner's preference: nothing here stops a run or a merge. A
+refusal at round 9 was considered and left out for that reason. Also left out: a realism filter
+that demotes BUGs found only with constructed inputs (a byte-order mark, filed as a NIT, was a real
+bug, and the author who wants rounds to stop is the wrong judge of "realistic"); a second full
+read up front (about 8 of the 29 were older code found late — a retrospective candidate set, not a
+measured yield); and older-code BUGs as follow-ups (step 5 allows deferral only with a merge-base
+reproduction, and a new tool has none). None of it is measured: judge it by rounds per gate
+(`scripts/review_log.sh summary`) on the next gate that runs past round 3.
+
 ## Step 7 — the convergence detector, in full
 
 7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy

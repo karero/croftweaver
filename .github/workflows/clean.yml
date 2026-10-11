@@ -38,7 +38,8 @@ name: clean
 # that every text file checks out LF even where Git converts to CRLF
 # (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
 # for the shell scripts, the site hook and the Makefile. And it runs the
-# search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
+# search-console-insights unit and end-to-end tests (`make test`), which need `requests`,
+# and the facts-check tests (`make test-facts`), which need nothing beyond python3.
 on:
   push:
     branches: [main]
@@ -315,6 +316,20 @@ jobs:
         run: python -m pip install -r skills/search-console-insights/requirements.txt
       - name: Run the tracker + AI-check tests (stub servers, no real API calls)
         run: make test PYTHON=python
+  facts-check-tests:
+    # Standard library only, so nothing is installed: the job then also proves the script
+    # runs on a bare python3. 3.9 is macOS's stock python3.
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run the facts-check tests (stub site on 127.0.0.1, no real requests)
+        run: make test-facts PYTHON=python
   macos-stock-tools:
     # Every job above runs on Ubuntu (bash 5, GNU awk/sed/tr). A zip recipient on a Mac runs
     # the same guards under /bin/bash 3.2 and BSD tools, and v0.27's pre-release review found

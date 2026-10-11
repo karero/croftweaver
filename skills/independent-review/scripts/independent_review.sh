@@ -1170,12 +1170,19 @@ report_round() {
       esac
     fi
   fi
+  # Past round 8 the owner decides (SKILL.md step 6). A notice only: the exit code, the cost log
+  # and the rest of this summary are the same as at round 8. ROUND is 1-99 or empty (parsed above).
+  local capnote=""
+  if [ -n "$ROUND" ] && [ "$ROUND" -ge 9 ]; then
+    capnote="⚠ Round $ROUND is past round 8 (SKILL.md step 6): each round from here on is the owner's decision, one at a time. Record this round's grant and the next one's, with the owner's words, in the trail."
+  fi
   printf '\n---\n%s\n' "$line"
   printf '%s\n' "$line" >&2
   # Wall-clock seconds per attempted tier (they overlap in the default parallel run). Recorded
   # in the trail, it is the data for judging what a round costs.
   if [ -n "$TIMINGS" ]; then printf 'timings: %s\n' "$TIMINGS"; printf 'timings: %s\n' "$TIMINGS" >&2; fi
   if [ -n "$note" ]; then printf '%s\n' "$note"; printf '%s\n' "$note" >&2; fi
+  if [ -n "$capnote" ]; then printf '%s\n' "$capnote"; printf '%s\n' "$capnote" >&2; fi
   # The trail must name the depth (SKILL.md, Review depth), and a run without --depth is where
   # that gets forgotten.
   if [ -z "$DEPTH" ]; then

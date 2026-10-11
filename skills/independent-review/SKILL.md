@@ -125,11 +125,16 @@ Codex's effort for any run.
    instruction written in the repo carries to a later session, which otherwise asks again. Content
    that must stay local: `--local-only` (local ollama only; the script refuses a cloud tag or a
    non-loopback `OLLAMA_HOST`) plus the fresh-eyes pass, no paste — a DEGRADED verdict; say so.
-2. **Run the external half** (Normal and High; Light runs its one seat instead). Set Codex's
+2. **Run the external half** (Normal and High; Light runs its one seat instead). First read the
+   gate's PR/MR comment for a round already running (`references/closeout.md`, "A round claim";
+   advisory). Set Codex's
    effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
    verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
    [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
-   directory; depth and round feed the cost log, and a run with no `--depth` says so). Type is
+   directory; depth and round feed the cost log, and a run with no `--depth` says so; the notice
+   past round 8 needs `--round` on every round, a redesign restarts at 1; a wording pass, final
+   full read or re-gate is not a round: leave `--round` off, the cost log still attaches it to
+   the gate). Type is
    auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
@@ -142,7 +147,7 @@ Codex's effort for any run.
    with the change.
    Over 117 KB: split it. Output: one section per attempted
    reviewer (its review, or a `— FAILED` section with the error and remedy), then a `reviewers:`
-   and a `timings:` line. Exit 0 means at least one reviewer counted, not the pair — read the
+   and a `timings:` line (past round 8, also a ⚠ notice). Exit 0 means at least one reviewer counted, not the pair — read the
    reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
    TOP (the list is ranked); never through `tail`.
 
@@ -184,6 +189,12 @@ Codex's effort for any run.
      access path (auth, routing, permissions), not the type's shape. A claim that can't be checked
      now (missing environment, credentials) stays OPEN with the missing prerequisite named — a
      RISK/NIT there may still be waived.
+     For a fix to a parser, validator or normaliser, name the invariant the BUG broke ("a split
+     number reads like the unsplit one") and test variants of that kind of input (two of the
+     thing, three pieces, padded, empty), or compare with the real component or a spec table; the
+     row's Evidence says which. A note on the row, not a finding: a missing note is no NIT and no
+     prerequisite, and adds no round (the fix itself owes its round as step 6 says). Advice only:
+     fix the BUGs that share an invariant together, before the next round.
    - **The one exception — a BUG the change did not introduce** (DIFF gate only). The owner may
      defer it when all three hold: (1) every wrong input the row quotes goes wrong at the
      merge-base, through an entry point the target branch already used; (2) a row in the repo's
@@ -223,7 +234,11 @@ Codex's effort for any run.
      suggestions to check, never added. PLAN: the whole plan, with the changed sections named in the
      prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
-     BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
+     BUG's tracker row, merge-base reproduction and KNOWN WRONG test names, plus every row refuted
+     in an earlier round with its one-line evidence, so the reviewer can check that evidence
+     (the record stays the author's claim to check; step 4's coverage
+     rule applies the same way: a carried row closes a re-raise only where its evidence covers the
+     reasoning raised). Pass it with
      `--verify <file>`: the script sends it with the round's scope (`PROMPT_VERIFY`; at High
      depth the fresh-eyes pass gets the same text, file and artifact) — confirm each fix landed in full and each
      deferral meets step 5's conditions, check what changed for new problems, list the rest under
@@ -296,6 +311,13 @@ Codex's effort for any run.
    owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
    only under step 5). "Stopped: not converging" goes in the trail. Long form:
    `references/rationale.md`.
+   *Fix chains (optional).* A trail row may carry `caused-by: F12 (partial)`: the id of the earlier
+   finding whose fix caused this one, and how — `introduced`, `partial` (left it half done) or
+   `regression` (a verified fix re-broke what an earlier round fixed: the stop above applies as
+   written). When three rows chain (F12, then F18, then F31), the owner update (step 8) says so
+   once and names the option: replace the code by the real component or a spec-first rewrite.
+   Within the budget (step 6) rounds go on unless the owner says otherwise. No rule depends on
+   the note: it changes neither when a round is owed nor the stop above.
 8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,
    fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost
    (the `timings:` line; the host seats' duration and tokens) and any follow-ups.
