@@ -98,13 +98,13 @@ in Cloudflare's docs.
 | Today on Pages | On Workers | Where in the kit |
 |---|---|---|
 | No config file; settings live in the dashboard | `wrangler.jsonc` with `name`, `compatibility_date`, `assets.directory`, and `not_found_handling: "404-page"` (Pages finds `404.html` by itself; Workers must be told) | new template file |
-| Build variables `CF_PAGES_BRANCH`, `CF_PAGES_COMMIT_SHA` | `WORKERS_CI_BRANCH`, `WORKERS_CI_COMMIT_SHA` | `src/config.ts` (analytics on the live site only), `scripts/build-marker.mjs` (`build.txt`), `tests/check_analytics_gate.sh`, four docs. Missed, analytics stays off on the live site and nothing says so |
+| Build variables `CF_PAGES_BRANCH`, `CF_PAGES_COMMIT_SHA` | `WORKERS_CI_BRANCH`, `WORKERS_CI_COMMIT_SHA` | `src/config.ts` (analytics on the live site only), `scripts/build-marker.mjs` (`build.txt`; it falls back to git), `tests/check_analytics_gate.sh`, four docs. Missed, analytics stays off on the live site and nothing says so |
 | Preview at `main.<project>.pages.dev` | `<preview-name>-<worker>.<subdomain>.workers.dev`; the preview name defaults to the branch name | 15 files name `pages.dev`: nine in `new-website` (the middleware, its test, `ship.sh`, `PUBLISHING.md`, `AGENTS.md`, four more docs) and one each in six other skills |
 | `wrangler pages project create`, `pages deploy`, `pages deployment list`; a token that may edit Pages | `wrangler deploy`, `wrangler preview` (Wrangler 4.135.0 or later); a token that may edit Workers | 7 files name a `wrangler pages` command: `CLOUDFLARE_FIRST_DEPLOY.md`, `WEBSITE_ARCHITECTURE.md`, `PUBLISHING.md`, `SETUP.md`, `website-team-setup`, `website-permissions`, `templates/claude/settings.json` |
 | Git: "Connect to Git", production branch chosen in that form | Workers Builds: production branch under Settings → Build → Branch control, plus "Enable Preview Builds" for every other branch | the same docs. `npm run ship` pushes `main:production` with git and should not care, but its messages name Pages |
 | A subdomain can point at Pages from another DNS provider (CNAME) | "Workers does not support any domain whose nameservers are not managed by Cloudflare" | a site that kept its DNS elsewhere cannot move until its DNS does |
 | `_headers`, `_redirects` | supported, same files | no change expected |
-| `about.html` served at `/about` | the default does the same, and sends `/about.html` to `/about` with a 307 | the navigation tests would show any difference |
+| `about.html` served at `/about` | the default does the same, and sends `/about.html` to `/about` with a 307 | none expected. The site's tests cannot confirm it: they run against a local Astro server, never against Cloudflare |
 | 20,000 files, 25 MiB a file (free) | the same | none |
 
 And every live site needs its own one-time move: a new Worker, the domain attached to it,
@@ -165,14 +165,17 @@ Each line is something to look at, not an outcome to expect:
 2. Which response headers do a Preview URL and a Deployment URL carry? Is
    `X-Robots-Tag: noindex` on both, on pages and on files?
 3. Do the headers from `public/_headers` arrive on the live domain and on a Preview?
-4. Does the site's own test suite pass against a Preview, the navigation and redirect
-   tests included?
+4. Ask the deployed Preview directly; the site's tests run against a local Astro server and
+   cannot. What do `/about`, `/about.html`, `/about/`, an entry from `public/_redirects` and
+   a path that does not exist answer, and with which status?
 5. With `production` as the production branch and preview builds on, what does a push to
    `main` produce, and at which address? What does `npm run ship` then do?
 6. What do `WORKERS_CI_BRANCH` and `WORKERS_CI_COMMIT_SHA` hold in a production build and in
    a preview build?
 7. Before a domain is attached: with the live `workers.dev` address on, which headers does
    it carry?
+8. After a day with traffic, which requests does the dashboard count against the daily
+   limit?
 
 ## Sources
 
