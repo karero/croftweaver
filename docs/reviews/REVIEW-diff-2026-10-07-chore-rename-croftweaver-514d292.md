@@ -44,3 +44,47 @@ Antigravity (2026-10-08, the owner asked for it): no findings. Its open question
 here: the exact two-rule `sed` chain on macOS `/usr/bin/sed` blanks both self-links and keeps
 `..x`; CI's `clean` job ran `scripts/test_clean_denylist.sh` on ubuntu (GNU sed) for this
 branch and passed; `unzip croftweaver.zip -d croftweaver` creates the folder (exit 0).
+
+## Round 3, 2026-10-11: the change on today's main, after the GitHub rename
+
+Taken over by the session that released 0.30, on the owner's word ("yes to: May I take over
+#212?", 2026-10-11): the session that wrote rounds 1 and 2 was no longer running. Authority
+used for this section: POST, WORKTREE-WRITE and BRANCH-COMMIT — atom B, that sentence;
+GATED-THIS-DIFF — atom A, the full round below.
+
+Why a full round and not a merge link: `main` had gained about 50 pull requests since round 2
+(old merge-base `f812647`, new `cf2955b`). The merge link came to 75 KB, the whole change against
+today's `main` to 37 KB, so every seat read the whole change. `b027165` merges `main`; three
+conflicts were resolved by hand (the starter prompt in `README.md` and
+`docs/GETTING-STARTED.md`, and the README's unzip line), each taking main's newer text with the
+new name. The repository was renamed on GitHub that day, before the round.
+
+| Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens | BUG/RISK/NIT |
+|---|---|---|---|---|---|
+| 3 | `b027165` | full: `origin/main...b027165` (`docs/reviews/` left out), 19 files, with context excerpts and the live link checks | codex-cli 0.162.1, gpt-6.1-sol, config effort, read-only; melious glm-5.3, HTTP API, text only; fresh-eyes: Claude Sonnet through the Agent tool, read-only by instruction, ran the two test scripts and HEAD requests | codex 205 s / 85,952; melious 488 s / 38,632; fresh-eyes 141 s / 112,128 | 0/0/0 (codex), 0/1/1 (melious), 0/2/2 (fresh-eyes); 0/2/3 after dedup |
+
+`reviewers: codex OK, melious OK`. Unverifiable entries: 10 asked, none confirmed as a finding.
+The ones about GitHub were looked at: the old web address answers 301 to the new one, `git
+fetch` over the old address works from a clone that still uses it, the old
+`latest/download/website-builder.zip` link delivers the 0.30 zip, the security link reaches the
+new address, and the badge answers 200.
+
+| id | Sev | Source | Round | Finding — one line | Status | Evidence |
+|---|---|---|---|---|---|---|
+| F2 | RISK | all three, round 1 | 1 | the links hold only after the rename | closed: checked live after the rename | the checks above; `latest/download/croftweaver.zip` answers 404 until 0.31 exists, which is F11 |
+| F11 | RISK | fresh-eyes, melious | 3 | between the merge and the 0.31 release the README names a `croftweaver.zip` that the latest release does not have | open for the owner: closed by releasing straight after the merge, as the merge order says | `README.md` "Prefer a download?" and the manual install; the old-name download link keeps working in that window |
+| F12 | RISK | fresh-eyes | 3 | the README's new tagline and its sentence on weekly SEO and GEO are copy changes, not a rename | fixed in text: the pull request says so; the owner was asked whether the tagline ships | same finding as F5, which was refuted as part of #147's reviewed edits; the owner's answer is recorded in the pull request |
+| F13 | NIT | fresh-eyes | 3 | `skills/website-story/evals/files/POSITIONING.md` says "the website builder itself" | refuted | a generic noun in a fixture comment, lower case and unhyphenated, as F7 ruled |
+| F14 | NIT | fresh-eyes | 3 | `karero/croftweaver..` followed by a dot is no longer blanked; no test for an ellipsis | refuted | intended: the `..private` case must fail, and the tests assert it; the reviewer asked for no fix |
+| F15 | NIT | melious | 3 | `make package` deletes a `dist/website-builder.zip`, so the hand-made copy for 0.31 must be made last | fixed in text | the pull request's merge order says the copy is made right before the upload; `package.sh` is unchanged |
+
+Round 3: 5 findings (0 BUG, 2 RISK, 3 NIT): 2 fixed in text, 2 refuted, 1 open for the owner
+(F11). No fix changed what runs, so no further round is owed. Whole gate: 3 rounds and a prose
+re-check, 20 findings, no BUG.
+
+Checked by the author at `b027165`: `make smoke` passes and builds `dist/croftweaver.zip` (329
+files); the two starter-prompt copies are identical; outside `docs/reviews/` and the two
+trackers the old name remains only in the places the pull request lists.
+
+The commit that adds this section changes nothing outside `docs/reviews/`; the stamp names it,
+and the reviewed scope is the one at `b027165`.
