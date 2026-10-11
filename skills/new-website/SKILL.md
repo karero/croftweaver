@@ -248,7 +248,14 @@ device's fingerprint or face unlock. Recommend, never require: GitHub makes it m
 for some accounts, and Cloudflare leaves it optional unless an account's administrator
 enforces it for members.
 
-Assemble the project at `<site>/` so it travels without any global setup:
+Assemble the project at `<site>/` so it travels without any global setup. `<site>` is a new
+folder inside the owner's websites folder, which is the folder this session was opened in
+(never that folder itself). Before step 0, unless the owner has already confirmed it in this
+session, say which folder you are in and ask whether it is their websites folder. If it is
+not, or it already holds a site (an `astro.config.*` or `index.html` file) or is the toolkit
+folder (it has `skills/new-website/SKILL.md`), ask which folder is their websites folder
+instead. Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
+full path (the output of `pwd` inside it):
 
 0. **Git first, before any code:**
    ```bash
@@ -408,7 +415,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```
 
    **Stamp the copies** (always, after ALL skills are copied) — records which suite
-   state they came from, so `make whats-new PROJECT=<site>` in the suite repo can later
+   state they came from, so `make whats-new PROJECT=<site-dir>` (the site's full path) in the suite repo can later
    report which bundled skills have upstream updates:
    ```bash
    # The suite's scripts/whats-new.sh is the ONLY writer of the stamp format. Resolve
