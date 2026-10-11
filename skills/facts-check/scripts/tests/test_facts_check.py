@@ -141,12 +141,105 @@ class FindMentions(unittest.TestCase):
         self.assertEqual(self.statuses("35 languages spoken", f), [("OK", 35)])
         self.assertEqual(self.statuses("35 languages", f), [])
 
+    # Live run on a large site (2026-10-11): rows of figures, German compounds and US dates
+    # tied numbers to the wrong fact.
+    def test_the_nearest_term_after_the_number_wins(self):
+        talent = fact(id="talent", terms=["talent", "agent"])
+        countries = fact(id="countries", value=70, terms=["countries", "Länder"])
+        languages = fact(id="languages", value=35, terms=["languages", "Sprachen"])
+        clients = fact(id="clients", value=150, terms=["clients", "Kunden"])
+        every = [talent, countries, languages, clients]
+
+        def tied(text, f):
+            return [(h["status"], h["found_value"]) for h in
+                    fc.find_mentions(text, f, others=[o for o in every if o is not f])]
+
+        strip = "27,000+ vetted Talents 35+ languages 70+ countries in the Talent pool 150+ clients worldwide"
+        self.assertEqual(tied(strip, talent), [("OK", 27000)])
+        self.assertEqual(tied(strip, countries), [("OK", 70)])
+        self.assertEqual(tied(strip, languages), [("OK", 35)])
+        self.assertEqual(tied(strip, clients), [("OK", 150)])
+        self.assertEqual(tied("35+ languages with Talents based in 70+ countries", talent), [])
+        self.assertEqual(tied("35+ Sprachen 70+ Länder im Talent-Pool", talent), [])
+        self.assertEqual(tied("Der Talent-Pool umfasst 35+ Sprachen und Talents in 70+ Ländern", talent), [])
+        # without the other facts the old rule holds: the term within the window ties
+        self.assertEqual(self.statuses("35+ languages with Talents", talent), [("MISMATCH", 35)])
+        # the fact's own term first still ties, whatever follows
+        self.assertEqual(tied("27,000 agents in 70 countries", talent), [("OK", 27000)])
+        self.assertEqual(tied("27,000 agents in 70 countries", countries), [("OK", 70)])
+        # two facts whose terms start at the same word both tie: the report shows both
+        agents2 = fact(id="agents2", value=500, terms=["agent"])
+        self.assertEqual(tied("500 agents", talent), [("MISMATCH", 500)])
+        self.assertEqual([h["found_value"] for h in fc.find_mentions("500 agents", agents2, others=[talent])], [500])
+        # another fact claims only numbers of its own unit: a percentage fact does not
+        # take a plain number, nor a plain fact a percentage
+        share = fact(id="share", value=8, unit="%", terms=["countries"])
+        self.assertEqual(fc.find_mentions("70+ countries in the Talent pool", talent, others=[share])[0]["found_value"], 70)
+        pct_talent = fact(id="pt", value=8, unit="%", terms=["talent"])
+        self.assertEqual([h["found_value"] for h in fc.find_mentions("8% countries in the Talent pool", pct_talent, others=[countries])], [8])
+        # another fact's whole-word term only claims a whole word
+        exact = fact(id="exact", value=3, terms=["countries"], whole_words=True)
+        self.assertEqual([h["found_value"] for h in fc.find_mentions("70+ countrieswide Talents", talent, others=[exact])], [70])
+        self.assertEqual(fc.find_mentions("70+ countries Talents", talent, others=[exact]), [])
+        # a rival's term that starts first wins even where it runs past this fact's term
+        pool = fact(id="pool", terms=["pool"])
+        talent_pool = fact(id="tp", value=9, terms=["talent pool"])
+        self.assertEqual(fc.find_mentions("27,000 talent pool", pool, others=[talent_pool]), [])
+        # a before phrase is not affected: it names the number directly
+        nps = fact(id="nps", value=72, terms=[], before=["NPS of"])
+        self.assertEqual([h["found_value"] for h in fc.find_mentions("an NPS of 72 clients said", nps, others=[clients])], [72])
+
+    def test_whole_words_terms_match_only_whole_words(self):
+        prefix = fact(value=150, terms=["Kunde", "Kunden"])
+        whole = fact(value=150, terms=["Kunde", "Kunden"], whole_words=True)
+        text = "Am 4. September 2026 150 Kundenservice-Teams und 150 Kunden"
+        self.assertEqual(self.statuses(text, prefix), [("OK", 150), ("OK", 150)])
+        self.assertEqual(self.statuses(text, whole), [("OK", 150)])
+        self.assertEqual(self.statuses("1 Kunde", fact(value=1, terms=["Kunde"], whole_words=True)), [("OK", 1)])
+        # every word of a multi-word term must be whole; case does not matter
+        multi = fact(value=35, terms=["languages spoken"], whole_words=True)
+        self.assertEqual(self.statuses("35 Languages Spoken", multi), [("OK", 35)])
+        self.assertEqual(self.statuses("35 languages spokenly", multi), [])
+        # a hyphenated word is one word: "Talent-Pool" is not the whole word "Talent"
+        self.assertEqual(self.statuses("27,000 Talent-Pool", fact(terms=["Talent"], whole_words=True)), [])
+        self.assertEqual(self.statuses("27,000 Talent-Pool", fact(terms=["Talent"])), [("OK", 27000)])
+        # whole_words: false is the default
+        self.assertEqual(self.statuses("150 Kundenservice", fact(value=150, terms=["Kunde"], whole_words=False)),
+                         [("OK", 150)])
+
+    def test_a_year_after_month_and_day_is_a_year(self):
+        f = fact(value=120, terms=["Kunde", "client"])
+        for text in ("Blog Article | September 4, 2026 Fachkräftemangel im Kundenservice",
+                     "September 4 2026 clients",
+                     "Sept. 4, 2026 clients",
+                     "Sep 30, 2025 clients",
+                     "on 4 September 2026 clients",
+                     "am 4. September 2026 Kunden"):
+            with self.subTest(text=text):
+                self.assertEqual(self.statuses(text, f), [])
+        # not a date: the number before it is no day, or no month comes before that
+        self.assertEqual(self.statuses("September 40, 2026 clients", f), [("MISMATCH", 2026)])
+        self.assertEqual(self.statuses("over 4, 2026 clients", f), [("MISMATCH", 2026)])
+        self.assertEqual(self.statuses("September 4.5, 2026 clients", f), [("MISMATCH", 2026)])
+        # a fact that is itself a year still reads it
+        launch = fact(value=2026, terms=["launch"])
+        self.assertEqual(self.statuses("September 4, 2026 launch", launch), [("OK", 2026)])
+
     def test_snippet_marks_the_number(self):
         hit = fc.find_mentions("We work with 30,000 agents worldwide.", fact())[0]
         self.assertIn("**30,000**", hit["snippet"])
 
 
 class CheckPage(unittest.TestCase):
+    def test_each_fact_yields_to_the_others_terms(self):
+        # live run 2026-10-11: a row of figures tied 70+ countries to the talent pool
+        p = fc.PageText()
+        p.feed("<p>27,000+ vetted Talents 35+ languages 70+ countries in the Talent pool</p>")
+        facts = [fact(id="talent", terms=["talent"]), fact(id="countries", value=60, terms=["countries"])]
+        rows = fc.check_page("u", p.locations(), facts, [])
+        self.assertEqual(sorted((r["fact"], r["status"], r["found_value"]) for r in rows),
+                         [("countries", "MISMATCH", 70), ("talent", "OK", 27000)])
+
     def test_a_repeated_description_is_one_finding(self):
         html = ('<html><head><meta property="og:description" content="We have 30,000 agents.">'
                 '<meta name="twitter:description" content="We have 30,000 agents."></head></html>')
@@ -770,6 +863,17 @@ class LoadFacts(unittest.TestCase):
         path = self.write({"site": "https://x.com", "pages": ["   "], "retired_phrases": [{"text": "Old Name"}]})
         with self.assertRaises(fc.FactsError):
             fc.load_facts(path)
+
+    def test_whole_words_is_true_or_false(self):
+        base = {"site": "https://x.com", "facts": [{"id": "a", "value": 5, "terms": ["Kunde"]}]}
+        base["facts"][0]["whole_words"] = True
+        self.assertTrue(fc.load_facts(self.write(base))["facts"][0]["whole_words"])
+        for bad in ("yes", 1, None):
+            with self.subTest(bad=bad):
+                base["facts"][0]["whole_words"] = bad
+                with self.assertRaises(fc.FactsError) as cm:
+                    fc.load_facts(self.write(base))
+                self.assertIn('"whole_words" is true or false', str(cm.exception))
 
     def test_problems_are_listed_together(self):
         path = self.write({"site": "example.com", "facts": [

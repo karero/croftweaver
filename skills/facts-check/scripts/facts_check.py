@@ -25,13 +25,18 @@ How a number is tied to a fact (the rules SKILL.md explains to the owner):
   - after:  one of the fact's `terms` follows the number within `window` words
             (default 4), with no other number or sentence end in between:
             "27,000+ vetted agents" -> term "agent".
-            A term matches any word that starts with it ("agent" matches "agents").
+            A term matches any word that starts with it ("agent" matches "agents"),
+            or with `whole_words` only the whole word ("Kunde" not "Kundenservice").
+            When another fact's term comes first, the number is that fact's:
+            "35+ languages 70+ countries in the Talent pool" ties 70 to countries,
+            not to the talent pool, once the facts file has a countries fact.
   - before: one of the fact's `before` phrases ends right before the number:
             "an NPS of 72" -> before phrase "NPS of".
   - unit:   "%" ties only percentages to the fact; "" (default) only plain numbers.
   - A comma, full stop or other sentence mark ends the search, so "in 60 countries,
     clients ..." does not tie 60 to clients.
-  - A plain year (1900 to 2100 right after "in", "since", "seit", "founded", a month, ... or ©)
+  - A plain year (1900 to 2100 right after "in", "since", "seit", "founded", a month,
+    a month and a day ("September 4, 2026"), ... or ©)
     is ignored for a fact whose own value is not a year, and a zero for a fact whose own
     value is not 0, so "founded in 2016 clients ..." and a count-up that starts at 0 are
     not client numbers; "über 2000 Kunden" is.
@@ -109,16 +114,18 @@ TOKEN_RE = re.compile(
 # A plain number from 1900 to 2100 right after one of these words (or after ©) is read
 # as a year and not tied to a fact that is not itself a year: "founded in 2016",
 # "seit 2010". Without such a word it is a count: "über 2000 Kunden".
-YEAR_CUES = {
-    "in", "since", "until", "till", "founded", "established", "est", "year", "copyright",
-    "im", "seit", "bis", "ab", "jahr", "gegründet", "gegruendet",
-    # a date: "27 March 2026", "im Herbst 2025"
+MONTHS = {
     "january", "february", "march", "april", "may", "june", "july", "august",
     "september", "october", "november", "december",
     "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
     "januar", "jänner", "februar", "märz", "mai", "juni", "juli", "oktober", "dezember",
-    "spring", "summer", "autumn", "fall", "winter", "frühjahr", "frühling", "sommer", "herbst",
 }
+YEAR_CUES = {
+    "in", "since", "until", "till", "founded", "established", "est", "year", "copyright",
+    "im", "seit", "bis", "ab", "jahr", "gegründet", "gegruendet",
+    # a date: "27 March 2026", "im Herbst 2025"
+    "spring", "summer", "autumn", "fall", "winter", "frühjahr", "frühling", "sommer", "herbst",
+} | MONTHS
 
 MULTIPLIERS = {
     "k": 1e3, "K": 1e3, "Tsd.": 1e3,
@@ -275,6 +282,8 @@ def load_facts(path: str) -> dict:
         w = fact.get("window", DEFAULT_WINDOW)
         if not isinstance(w, int) or isinstance(w, bool) or not 1 <= w <= 12:
             problems.append('%s: "window" must be a whole number from 1 to 12' % where)
+        if not isinstance(fact.get("whole_words", False), bool):
+            problems.append('%s: "whole_words" is true or false' % where)
     phrases = data.get("retired_phrases", []) or []
     if not isinstance(phrases, list):
         problems.append('"retired_phrases" must be a list of phrases, each with a "text"')
@@ -351,21 +360,53 @@ def _phrase_words(phrase: str) -> List[str]:
     return [w.lower() for w in re.findall(WORD_RE, phrase)]
 
 
-def _word_matches(word: str, term: str) -> bool:
-    return word.startswith(term)
+def _word_matches(word: str, term: str, whole: bool = False) -> bool:
+    return word == term if whole else word.startswith(term)
+
+
+def _term_rules(fact: dict) -> Tuple[List[List[str]], bool]:
+    terms = [_phrase_words(t) for t in fact.get("terms", [])]
+    return [t for t in terms if t], bool(fact.get("whole_words", False))
+
+
+def _first_term_at(words: List[str], terms: List[List[str]], whole: bool) -> Optional[int]:
+    """Where the first of `terms` starts in `words`, or None."""
+    for s in range(len(words)):
+        for t in terms:
+            if s + len(t) <= len(words) and all(
+                    _word_matches(words[s + k], t[k], whole) for k in range(len(t))):
+                return s
+    return None
+
+
+def _is_day_after_month(tokens, j: int) -> bool:
+    """Whether token j is a plain day (1 to 31) right after a month: "September 4",
+    "Sept. 4". The year in "September 4, 2026" follows it."""
+    if j < 1 or tokens[j][0] != "num":
+        return False
+    day, plain = parse_number(tokens[j][1])
+    if not plain or not 1 <= day <= 31:
+        return False
+    k = j - 1
+    if tokens[k][0] == "stop" and tokens[k][1].group(0) == "." and k > 0:
+        k -= 1  # "Sept. 4"
+    return tokens[k][0] == "word" and tokens[k][1].group(0).lower() in MONTHS
 
 
 def tokenize(text: str):
     return [(m.lastgroup, m) for m in TOKEN_RE.finditer(text)]
 
 
-def find_mentions(text: str, fact: dict) -> List[dict]:
-    """Every number in `text` that the fact's rules tie to it."""
+def find_mentions(text: str, fact: dict, others=()) -> List[dict]:
+    """Every number in `text` that the fact's rules tie to it. `others` are the other
+    facts of the list: when one of their terms comes before this fact's term after a
+    number, the number is theirs."""
     value = float(fact["value"])
     unit = fact.get("unit", "")
     window = fact.get("window", DEFAULT_WINDOW)
-    terms = [_phrase_words(t) for t in fact.get("terms", [])]
-    terms = [t for t in terms if t]
+    terms, whole = _term_rules(fact)
+    rivals = [_term_rules(o) for o in others if o.get("unit", "") == unit]
+    rivals = [r for r in rivals if r[0]]
     befores = [_phrase_words(p) for p in fact.get("before", [])]
     befores = [b for b in befores if b]
     fact_is_year = 1900 <= value <= 2100
@@ -382,22 +423,26 @@ def find_mentions(text: str, fact: dict) -> List[dict]:
             prev = tokens[i - 1][1].group(0).lower() if i > 0 and tokens[i - 1][0] == "word" else ""
             if prev in YEAR_CUES or text[max(0, m.start() - 3):m.start()].strip().endswith("\u00a9"):
                 continue
+            j = i - 1
+            if j > 0 and tokens[j][0] == "stop" and tokens[j][1].group(0) == ",":
+                j -= 1  # "September 4, 2026"
+            if _is_day_after_month(tokens, j):
+                continue
         if num == 0 and value != 0:
             continue
         tied = False
-        # after: a term within `window` words, before another number or a stop
+        # after: a term within `window` words, before another number or a stop, and
+        # before any other fact's term ("35+ languages with Talents" is a language count)
         after_words: List[str] = []
         j = i + 1
         while j < len(tokens) and tokens[j][0] == "word" and len(after_words) < window:
             after_words.append(tokens[j][1].group(0).lower())
             j += 1
-        for t in terms:
-            for s in range(0, len(after_words) - len(t) + 1):
-                if all(_word_matches(after_words[s + k], t[k]) for k in range(len(t))):
-                    tied = True
-                    break
-            if tied:
-                break
+        at = _first_term_at(after_words, terms, whole)
+        if at is not None:
+            tied = not any(
+                r is not None and r < at
+                for r in (_first_term_at(after_words, t, w) for t, w in rivals))
         # before: a phrase that ends right before the number
         if not tied and befores:
             before_words: List[str] = []
@@ -1127,10 +1172,11 @@ def check_page(url: str, locations: Dict[str, str], facts: List[dict],
     rows = []
     seen = set()
     for fact in facts:
+        others = [o for o in facts if o is not fact]
         for where, text in locations.items():
             if where == "link addresses":  # "/blog/2024/10-tips" states no fact
                 continue
-            for hit in find_mentions(text, fact):
+            for hit in find_mentions(text, fact, others):
                 key = (fact["id"], where, hit["snippet"])
                 if key in seen:
                     continue
