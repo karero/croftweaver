@@ -318,6 +318,7 @@ docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do n
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
   CODEX-TEST.md    testing the suite itself with Codex
   DECISIONS_PENDING.md  maintainer-internal: open questions on the toolkit itself
+  PAGES-OR-WORKERS.md   maintainer-internal: what moving the kit from Cloudflare Pages to Workers would change
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 ```
