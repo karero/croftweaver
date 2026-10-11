@@ -31,7 +31,7 @@ Google AI Overviews pull from Google's own index and lean heavily on E-E-A-T sig
 - Build topical authority through content clusters with strong internal linking
 - Include named, sourced citations in your content (not just claims)
 - Author bios with real credentials matter — E-E-A-T is weighted heavily
-- Get into Google's Knowledge Graph where possible (if your business has a Wikipedia article, keep it accurate)
+- Get into Google's Knowledge Graph where possible
 - Target "how to" and "what is" query patterns — these trigger AI Overviews most often
 
 ---
