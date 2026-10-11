@@ -93,16 +93,18 @@ Cloudflare-managed domain.
 Newer Cloudflare zones add a **Security → Bots → Control AI crawlers** panel. For the
 open, maximally-indexable posture this kit wants, confirm BOTH (the defaults can block):
 
-- **Block AI training bots → "Do not block (allow crawlers)"** — Cloudflare's page says
-  this switch blocks bots that crawl for AI training and, from 15 September 2026, also
-  crawlers that combine search and training
-  ([Cloudflare](https://developers.cloudflare.com/bots/additional-configurations/block-ai-bots/),
-  read 2026-10-11). So a block here is more than the training choice `ai-seo` describes
-  (Step 4): it can shut out a crawler that is also used for search. This kit leaves them
-  allowed. The same page marks the switch as being retired. Where the dashboard shows
-  **Configure AI bot policies** instead, with one setting each for Search, Agent and
-  Training, set all three to "Allow (do not block)": the page says new domains start
-  with Training and Agent blocked on pages that show ads.
+- **Block AI training bots → "Do not block (allow crawlers)"** — Cloudflare's page calls
+  the setting **Block AI bots**; the name in your dashboard may differ, and this section's
+  names were not re-checked there. The page (last updated 1 July 2026, read 2026-10-11)
+  says the setting blocks bots that crawl for AI training, and that from 15 September
+  2026 a training block would also cover crawlers that combine search and training
+  ([Cloudflare](https://developers.cloudflare.com/bots/additional-configurations/block-ai-bots/)).
+  So a block here can be more than the training choice `ai-seo` describes (Step 4): it
+  can shut out a crawler that is also used for search. This kit leaves them allowed. The
+  same page marks the setting as being retired. Where the dashboard shows **Configure AI
+  bot policies** instead, with one setting each for Search, Agent and Training, this kit
+  leaves all three on "Allow (do not block)". The page says new domains would start with
+  Training and Agent blocked on pages that show ads, so look at what yours shows.
 - **Manage your robots.txt → "Disable robots.txt configuration"** — leaves the repo's
   own open `public/robots.txt` authoritative, instead of a Cloudflare-managed file that
   can inject AI-bot `Disallow` rules behind your back.

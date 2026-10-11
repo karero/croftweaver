@@ -304,7 +304,7 @@ scripts/
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
   test_whats_new_removed_skill.sh  whats-new marks a bundled skill the suite removed, names the two ways out, and reads as before otherwise (make check)
   test_git_stand_hook.sh    the site template's Claude Code sync hook reports news, failures and retries correctly (make check)
-  test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
+  test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer, and fails the build when a maintainer tracker (docs/BUGLOG.md, docs/DECISIONS_PENDING.md) is in the zip (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
   test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
   test_whats_new.sh         whats-new marks a frozen template file the site lacks as MISSING, and shows and checks the same site path for every tracked file with a fixed one (all but PUBLISHING.md) (make check)
@@ -318,7 +318,7 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
   CODEX-TEST.md    testing the suite itself with Codex
   DECISIONS_PENDING.md  repo only, maintainer-internal: open questions on the toolkit itself
-  BUGLOG.md             repo only, maintainer-internal: small bugs and follow-ups kept for a later sweep
+  BUGLOG.md             repo only, maintainer-internal: small bugs and follow-ups kept for a later sweep (a few shipped comments name it; read it in the repo)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 ```
