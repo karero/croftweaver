@@ -144,6 +144,20 @@ def decode(data):
     return w, h, bytes(out)
 
 
+def _chunk(kind, body):
+    return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+
+
+def encode(width, height, rgba):
+    """An 8-bit RGBA PNG (no filtering): for the preview sheet, which is put together here."""
+    if len(rgba) != width * height * 4 or width < 1 or height < 1:
+        raise ValueError("the pixels do not fill a %d x %d picture" % (width, height))
+    stride = width * 4
+    raw = b"".join(b"\x00" + rgba[y * stride:(y + 1) * stride] for y in range(height))
+    return (SIGNATURE + _chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+            + _chunk(b"IDAT", zlib.compress(raw, 6)) + _chunk(b"IEND", b""))
+
+
 # --- looking at a decoded picture --------------------------------------------------------
 
 def at(picture, x, y):

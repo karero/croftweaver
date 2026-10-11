@@ -96,6 +96,21 @@ class Decoding(unittest.TestCase):
         self.assertEqual(cm.exception.code, "png-bad")
 
 
+class Encoding(unittest.TestCase):
+    def test_what_is_encoded_decodes_to_the_same_picture(self):
+        import random
+        rnd = random.Random(3)
+        rgba = bytes(rnd.randrange(256) for _ in range(5 * 3 * 4))
+        data = _png.encode(5, 3, rgba)
+        self.assertEqual(_png.decode(data), (5, 3, rgba))
+        self.assertEqual(_png.size(data), (5, 3))
+
+    def test_a_wrong_length_is_refused_not_padded(self):
+        for n in (0, 59, 61):
+            with self.assertRaises(ValueError):
+                _png.encode(5, 3, bytes(n))
+
+
 class Looking(unittest.TestCase):
     def picture(self):
         # 4 x 4: left half opaque red, right half transparent, one half-see-through blue pixel
