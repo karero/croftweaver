@@ -270,7 +270,7 @@ Add these machine-readable files to your site root:
 ```
 
 **Why a plain file:**
-- A markdown file needs no rendering, no JavaScript and no login
+- A markdown file at a public URL can be read without rendering, JavaScript or a login
 - Same principle as `robots.txt` (for crawlers), `llms.txt` (for AI context), and `AGENTS.md` (for agent capabilities)
 
 **Best practices:**
