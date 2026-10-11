@@ -62,15 +62,15 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills. Keep the downloaded files in a
-> folder of their own, outside my websites folder, and don't move or delete them later (for
-> example a folder called website-builder in my home folder). My websites live in one
-> folder: check which folder you're open in and ask me whether that's it; if not, ask me
-> which one it is (suggest Documents/Websites unless I already keep my projects somewhere
-> else, or my Documents folder syncs to iCloud or OneDrive — then suggest a Websites
-> folder in my home folder). Tell me when to restart or reopen you in that folder so the
-> skills load, then start `new website` there. When the site has its own folder, tell me
-> where it is on my computer (its full path).
+> actually needed. My websites live in one folder: check which folder you're open in and
+> ask me whether that's it; if not, ask me which one it is (suggest Documents/Websites
+> unless I already keep my projects somewhere else, or my Documents folder syncs to iCloud
+> or OneDrive — then suggest a Websites folder in my home folder). Put the downloaded
+> website-builder files in a folder of their own and leave them there: for example a
+> folder called website-builder in my home folder, not Downloads and not my websites
+> folder. Then install the website-builder skills. Tell me when to restart or reopen you
+> in my websites folder so the skills load, then start `new website` there. When the site
+> has its own folder, tell me where it is on my computer (its full path).
 
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
@@ -138,7 +138,7 @@ Console/API account). Then, **three steps**:
 # 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo.
 #    Do it in a place of its own, not in your websites folder or Downloads: step 2 links
 #    your skills to this folder, so it has to stay where it is.
-unzip website-builder.zip && cd website-builder
+unzip website-builder.zip -d website-builder && cd website-builder
 #   from source instead:  git clone https://github.com/karero/website-builder.git && cd website-builder
 
 # 2. From that folder, install the skills globally. Claude only loads skills from
@@ -194,7 +194,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
-> `./scripts/whats-new.sh --stamp-tests <site>/tests`. A changed file the site has no copy
+> `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. A changed file the site has no copy
 > of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.
 > `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
 > never marked MISSING.
