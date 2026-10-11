@@ -1,5 +1,5 @@
 # DIFF review — PR #244 — Match line 49 to the new Profound wording, log the other follow-ups
-Base `fb25ad7` (where the branch left main; main has since moved on) · depth: Normal (line 49 sits in a reference file agents load, and a mixed diff takes the riskier file's depth) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #244); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch)
+Base `fb25ad7` (where the branch left main; merge-base `0af174e` after main was merged in at merge time, see the merge-link row) · depth: Normal (line 49 sits in a reference file agents load, and a mixed diff takes the riskier file's depth) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #244); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch). For the branch update, the re-stamp and the merge: BRANCH-COMMIT and POST AUTHORITY — atom B (the owner's answer of 2026-10-11 to "which one do you mean by push open Merge?": "PR #244", given in another session, which took the PR over)
 
 Data consent: the owner's instruction earlier in this session named the pair for PR #241's gate: "Codex + GLM 5.3 on melious (SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3 OLLAMA_MODEL=glm-5.3:cloud; ...)". For this PR the owner said "go" (2026-10-11) to a plan that named the full review: two reviewers and a fresh-eyes pass. `grep -c SECOND_SEAT` on the script run from this worktree found 15. A grep of every brief for keys, tokens, passwords and secrets found nothing, and none names anything on the private-name list; they add only public source text. ollama-cloud received nothing (melious counted in both rounds); Antigravity was not used. The fresh-eyes agent was allowed to fetch four public Profound pages and nothing else.
 
@@ -8,6 +8,7 @@ Data consent: the owner's instruction earlier in this session named the pair for
 | 1 | `8568550` | full: `fb25ad7...8568550`, 2 files, plus source excerpts | codex-cli 0.162.0, gpt-6.1-sol, effort from config, read-only; melious glm-5.3, HTTP API, text only; fresh-eyes: Claude Sonnet through the Agent tool, read-only by instruction, no shared context | codex 141 s / 60,316; melious 288 s / 23,516; fresh-eyes 849 s / 260,756 | 1/3/9 after dedup (17 raw: 1/3/13) |
 | 2 | `93f5a50` | delta `8568550..93f5a50`, plus source excerpts and the author's record of round 1 | codex medium; melious glm-5.3 | codex 76 s / 41,811; melious 118 s / 23,355 | 0/1/2 (the RISK repeats F2) |
 | wording pass | `432e336` | delta `93f5a50..432e336`, prose only (the closing edits after round 2) | codex medium, `--seat codex` | codex 50 s / 29,352 | 0/0/0 |
+| merge link | main `0af174e` | `merge_link.sh fb25ad7 6775f0d 0af174e`: empty (main brought PR #243, README and docs only; no file in common; the diff against main is still the same three files). Not sent to a seat: nothing to read | — | — | — |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -36,7 +37,7 @@ Follow-ups (outside the changed rows; one line each):
 - `SKILL.md` line 216 ("AI systems don't just cite your website — they cite where you appear"): a behaviour claim under the heading that row 2 covers.
 - `references/platform-ranking-factors.md` line 34 ("an accurate Wikipedia entry helps"): assumes an entry exists.
 - No BUGLOG rows were added for these three: the owner approved three rows. A fourth is one decision away.
-- Main moved on while this PR was in review (PR #243: README and docs only, no file in common with this change). The branch has not been updated; at merge time it needs `main` merged in, and the merge link should be empty.
+- Main moved on while this PR was in review (PR #243: README and docs only, no file in common with this change). At merge time `main` was merged in (head `6775f0d` plus that merge); the merge link was empty, as expected.
 
 Notes: UNVERIFIABLE entries asked / confirmed: round 1 codex 3 / 1 (F5), melious 5 / 1 (F9), fresh-eyes 5 / 1 (F8); round 2 codex 2 / 0, melious 3 / 0; wording pass codex 2 / 0. Round 1 had a substantive BUG (F1, a wrong claim in a row), so round 2 was owed; round 2 found no BUG and its one RISK repeated F2, so the rounds stopped. The closing edits after round 2 got one narrow pass by codex (`--seat codex`), which found nothing.
 The claims sweep ran before round 1 (nine sentences; two narrowed on the spot), after round 1's fixes (eleven) and on the closing edits. Every sentence was checked against the pages and files.
