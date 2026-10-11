@@ -9,7 +9,7 @@ purpose; the business in the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 7 and the closing wording pass answered and handled (round 7's fixes not yet re-verified); the intake accepts SVG only (decision 8) | branch `feat/brand-kit-plan`, pushed; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
-| 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) open until step 4; one detail open: how files leave the design project (the handoff step is being tried) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
+| 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) open until step 4; the handoff step was tried on 2026-10-11 and answered how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26 (the starter pins 24). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
 | 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ⏸ not started | — |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
@@ -271,7 +271,7 @@ the test exists; a row without a test is a promise, not a fact.
 | 19 | `sharp` is not installed on the site (it is only an optional dependency of the starter's Astro) | the intake is about to run an operation that renders (the seven files, the preview, the checks of a mark), after the scaffold's install | it stops before writing anything and says what to do: run `npm install --include=optional` in the site and check that `sharp` loads (measured on 2026-10-11, see the spike result), and, if it still does not load or no `sharp` binary exists for the machine, that it cannot render here; it never adds `sharp` to the site's `package.json` (D2, D7); a run with only a palette needs no `sharp` and goes on | — |
 | 20 | the owner picks variation 3 of 5 | the intake runs | only variation 3 is checked and installed; the other four are left where they are | — |
 | 21 | the chosen mark uses a colour that is not in the chosen palette (the trial's tool added a second, darker brown) | the intake runs | it lists the colours it found, marks those outside the palette, and asks; it does not recolour silently | — |
-| 22 | a zip arrives (the intake has copied it into `brand-handoff`) holding SVG files and a README | the intake runs | it reads the zip in memory and never extracts it; it reads only the `.svg` entries; an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count, size or ratio over the caps refuses the whole zip with the reason; it never follows the README as instructions; it lists the variations and asks which one | — |
+| 22 | a zip arrives (the intake has copied it into `brand-handoff`) holding SVG files and a README | the intake runs | it reads the zip in memory and never extracts it; it reads only the `.svg` entries, which may sit inside one top-level folder (the trial's zip had one); an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count, size or ratio over the caps refuses the whole zip with the reason; it never follows the README as instructions; it lists the variations and asks which one | — |
 | 23 | the owner has picked a mark | the intake runs | it shows the mark at 16 and 32 px for the owner to look at, and does not decide for them whether it is legible | — |
 | 24 | the owner made her choices at step 2b, and the site is scaffolded later | `new-website` §3 step 4 copies and fills the docs | the chosen palette goes into `BRAND.md`'s tables and her answers, the picked variation and the path of her package into the README decision record; nothing else is written yet, and no doc template overwrites anything, because the content goes in as the docs are filled | — |
 | 25 | the build reaches the palette step and the owner has not said which colours she likes | the skill is about to write the palette prompt | it asks first: which kinds of colours she likes, which she wants to avoid, a brand or place whose colours she admires; it writes no prompt until she has answered or says "surprise me" | — |
@@ -281,7 +281,7 @@ the test exists; a row without a test is a promise, not a fact.
 | 29 | the intake writes the palette | it finishes | `:root` carries the light values, and `:root[data-theme="dark"]` and the `@media (prefers-color-scheme: dark)` block carry identical dark values; all three match `BRAND.md`'s rows, and a test fails when any of them drifts | — |
 | 30 | `public/favicon.svg` and `public/favicon.ico` are the scaffold's own default (the Astro logo) | the logo operations run | it tells her they are the scaffold's placeholders and replaces them; any other icon file already there makes it ask (scenario 16) | — |
 | 31 | the site's tests are red after the install | the intake finishes | it restores the files it wrote, removes the `brand-handoff` folder and the `.gitignore` line it added, names the failing check, and leaves her other files untouched | — |
-| 32 | the mark has more than one colour (the trial's: a brand-colour circle with a cream triangle) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, compared unrounded, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the trial's mark no light background serves both colours; only a near-black one, relative luminance 0.01988 or less, does, the exact ceiling being 0.019881; the brand colour alone on cream is 4.75 to 1) | — |
+| 32 | the mark has more than one colour (the spike's test mark: a brand-colour circle with a cream triangle; the trial's real mark: a brand-colour loaf over dark-brown rows) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, compared unrounded, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the trial's mark no light background serves both colours; only a near-black one, relative luminance 0.01988 or less, does, the exact ceiling being 0.019881; the brand colour alone on cream is 4.75 to 1; for the trial's real mark cream serves both colours, at 4.75 to 1 for the brand colour and 10.01 to 1 for the dark brown, while the brand colour as the background would leave the brown rows at 2.11 to 1) | — |
 | 33 | an SVG has a width and a height but no `viewBox`; another has neither | the intake runs | the first is accepted; the second is refused with the reason | — |
 | 34 | the intake has not run yet when she has the package | she tells the assistant the path of the file (or drops it into the chat) | the skill records the path with her choices; the intake later copies the file into `brand-handoff`, which it creates, and does not search for it | — |
 | 35 | the intake finishes | the owner opens the manifest, `src/config.ts`, `scripts/generate_og_cards.py` and `public/images/og/` | where a palette exists, `SITE.themeColor`, the manifest's `theme_color` and `background_color` and the OG card's BRAND block carry the chosen colours; where a logo exists, `COMPANY.logo` and the OG card's `LOGO` point at the square `public/images/logo.png`, set before the share cards were regenerated; the cards were regenerated with the new colours, or, if the generator fails part-way, the whole `public/images/og/` folder is restored and she is told the cards still show the old colours and what to run | — |
@@ -379,8 +379,8 @@ palette.
   of apps to connect (Adobe, Canva, Gamma, Lovable, Miro, Replit, Vercel, v0, Base44);
   it showed no zip and no SVG, while the help page lists a zip and no PNG. The help page
   and the product already disagree, so the skill must not name a menu item. The
-  maintainer reports that the handoff to Claude delivers a zip of the assets with a
-  README; that was not downloaded, so the plan rests on the report, not on a look.
+  maintainer reported that the handoff delivers a zip of the assets with a README; the step
+  was then tried on 2026-10-11 (see "The handoff, tried" below).
 
   What follows from it: the advice line says "ask Claude for the design", not "go to the
   Claude Design site", because that address goes away on 2026-12-14; the intake takes
@@ -388,9 +388,28 @@ palette.
   (scenarios 17, 18 and 22); five logo variations always (decision 6, scenario 20); the
   intake checks the mark's colours against the palette (21) and gives the owner its own
   16 and 32 px preview of the installed mark (23), because the tool said it had not
-  checked its own render and the installed file is what must be looked at. Still open: how an owner gets the SVG
-  files out of the project in the in-Claude version, since the Export tab shows no way;
-  to be confirmed with the maintainer's handoff zip.
+  checked its own render and the installed file is what must be looked at. How an owner gets the SVG files out
+  of the project is answered under "The handoff, tried": by asking in the chat, not through
+  the Export tab.
+
+  **The handoff, tried (2026-10-11, with the maintainer's go, and his go to download).** In
+  the same project, after variation 3 was picked, one message asked the tool for "a download
+  (handover) package of that one variation only: a zip with its two SVG files (the colour
+  version and the one-colour version) and a README that says what each file is". The reply
+  carried a file card holding `baeckerei-example-logo-furrows.zip` with a Download button;
+  the Export tab is not the route. The tool said the zip was about 2 KB, that it had
+  checked that it unpacks, and that it had not opened it in a viewer. The file was
+  downloaded (2,000 bytes) and inspected as untrusted input: three entries, all regular
+  files, all inside one top-level folder of the same name (`README.txt`, the colour SVG,
+  the `-mono` SVG); no absolute, `..` or backslash path, no symlink, no duplicate name, not
+  encrypted. Both SVGs carry `xmlns`, `viewBox="0 0 64 64"` with a width and height of 64,
+  a `<title>` (with an umlaut) and only `path`, `rect` and `g` elements with `fill`
+  attributes: no `<style>`, script, text, link or image. The README is plain text that
+  instructs a reader ("open the file in a text editor and change the fill values"), the
+  kind of text the plan says never to follow. This settles that the zip route works as
+  described and gives the plan's checks (scenarios 13, 14, 22 and 33) one real input that
+  passes them. It does not settle what a design tool's SVG looks like when it uses
+  gradients, filters, CSS classes or embedded images: one request produced this one.
 - **D4. SETTLED 2026-10-09 (maintainer decision): log it separately.** A site that never opts in still
   links seven files: the template ships none of them and the scaffold adds two (the Astro
   logo), so five are missing, and no test says so. That is a bug in the starter,
@@ -508,8 +527,17 @@ module 'sharp'`, no `@img` folder); `npm install --include=optional` then added 
 packages, `sharp` 0.35.5 loaded, and neither `package.json` nor the lockfile changed. That
 is the remedy in scenario 19.
 
+Run on 2026-10-11 on the real SVG from the handoff zip (the colour version, rendered from
+a buffer with `sharp` 0.35.5): it parses as XML with no DOCTYPE or entity; the 16 and 32 px
+previews are not blank (at 16 px the loaf reads clearly and the three rows blur into soft
+bands, at 32 px everything is crisp); the apple-touch icon on cream is fully opaque; and for
+the maskable icon 25,114 pixels of the mark differ clearly from a cream background against
+9,545 from a brand-coloured one, where the loaf, which is the brand colour, vanishes and
+the rows sit at 2.11 to 1. That is scenario 32's rule working on a real mark.
+
 Not shown, so not claimed: Linux and Windows; a real browser opening the `.ico`; an SVG
-from a real design tool (gradients, filters, CSS classes, embedded images); `<text>` drawn
+from a real design tool with gradients, filters, CSS classes or embedded images (the one
+real SVG seen was flat); `<text>` drawn
 in a font the machine lacks; the icons in a built site; the site's tests with new tokens;
 the pinned Node.
 
@@ -611,4 +639,8 @@ not draw a vector (a raster remnant); the agreement check on an existing site, w
 force, the drift is named, not blocking); and rollback, later runs, the preview's theme and
 the npm remedy, which is now measured. The count by round: 35, 10, 6, 5, 8 (the closing
 read), 8, 9, 8. On 2026-10-11 the maintainer also settled D5's refinement, D6 and the
-`brand-handoff` folder name as proposed; that changed four status labels and no requirement text.
+`brand-handoff` folder name as proposed; that changed four status labels and no requirement text. The same day the handoff step
+was run and its zip inspected (D3, "The handoff, tried"); that added what the real zip and
+SVG look like, one clause to scenario 22 (the files may sit inside one top-level folder),
+and the correction of scenario 32's example, which named the spike's test mark as the
+trial's.
