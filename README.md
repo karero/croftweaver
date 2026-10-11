@@ -62,9 +62,13 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills, tell me when to restart or
-> reopen you so the skills load, and continue from there — starting a fresh site by running
-> `new website` in a new, empty folder.
+> actually needed. Then install the website-builder skills. My websites live in one
+> folder: check which folder you're open in and ask me whether that's it; if not, ask me
+> which one it is (suggest Documents/Websites unless I already keep my projects somewhere
+> else, or my Documents folder syncs to iCloud or OneDrive — then suggest a Websites
+> folder in my home folder). Tell me when to restart or reopen you in that folder so the
+> skills load, then start `new website` there. When the site has its own folder, tell me
+> where it is on my computer (its full path).
 
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
@@ -126,7 +130,7 @@ from it.
 ### Quick start — build your first site
 
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
-Console/API account). Then, **four steps**:
+Console/API account). Then, **three steps**:
 
 ```bash
 # 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo:
@@ -143,13 +147,13 @@ unzip website-builder.zip && cd website-builder
 ```
 
 ```
-# 3. Restart Claude Code so it discovers the new skills.
-
-# 4. Open Claude Code in a FRESH, EMPTY folder for your new site, and say:
+# 3. Restart Claude Code so it discovers the new skills, opening it in your websites
+#    folder — Documents/Websites, or wherever you keep your projects — and say:
        new website
 ```
 
-The `new-website` orchestrator takes over from there: it runs the stack-decision
+The scaffold makes a new folder for the site inside the one you opened, so that folder
+doesn't need to be empty. The `new-website` orchestrator takes over from there: it runs the stack-decision
 interview, scaffolds a git-first repo (Astro overlay + test suite + permission
 allowlist), then sequences the sibling skills through **positioning → content → SEO/GEO
 → design → QA → review → launch**. It also walks you through the one-time build tools

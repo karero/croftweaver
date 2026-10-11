@@ -216,8 +216,8 @@ AI systems prefer sources they can trust. Build citation-worthiness.
 AI systems don't just cite your website — they cite where you appear.
 
 **Third-party sources matter more than your own site:**
-- Wikipedia mentions (7.8% of all ChatGPT citations)
-- Reddit discussions (1.8% of ChatGPT citations)
+- Wikipedia (7.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
+- Reddit (1.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
 - Industry publications and guest posts
 - Review sites (G2, Capterra, TrustRadius for B2B SaaS)
 - YouTube (frequently cited by Google AI Overviews)
@@ -306,17 +306,23 @@ For implementation, use the **schema-markup** skill.
 
 ## Content Types That Get Cited Most
 
-Not all content is equally citable. Prioritize these formats:
+Not all content is equally citable. Prioritize these formats, in no particular order:
 
-| Content Type | Citation Share | Why AI Cites It |
-|-------------|:------------:|----------------|
-| **Comparison articles** | ~33% | Structured, balanced, high-intent |
-| **Definitive guides** | ~15% | Comprehensive, authoritative |
-| **Original research/data** | ~12% | Unique, citable statistics |
-| **Best-of/listicles** | ~10% | Clear structure, entity-rich |
-| **Product pages** | ~10% | Specific details AI can extract |
-| **How-to guides** | ~8% | Step-by-step structure |
-| **Opinion/analysis** | ~10% | Expert perspective, quotable |
+| Content Type | What Makes It Citable |
+|-------------|----------------|
+| **Comparison articles** | Structured, balanced, high-intent |
+| **Definitive guides** | Comprehensive, authoritative |
+| **Original research/data** | Unique, citable statistics |
+| **Best-of/listicles** | Clear structure, entity-rich |
+| **Product pages** | Specific details AI can extract |
+| **How-to guides** | Step-by-step structure |
+| **Opinion/analysis** | Expert perspective, quotable |
+
+**What the numbers say:** two studies count which kinds of pages AI answers cite. They sort pages differently, so don't line their lists up one by one. In Profound's April table and in Peec's, list pages come first among the named types.
+- Profound, an AI-visibility company, sorted 177 million citations by page type in an April 2025 talk that covered over 41 million AI search results from ChatGPT, Google AI Overviews, Perplexity and Microsoft Copilot. "Comparative listicles" made up 32.5% and blog and opinion posts 9.91% ([Profound](https://speakerdeck.com/joshbly/josh-blyskal-profound-we-analyed-10000-000-ai-search-results-dot-dot-dot), BrightonSEO, April 2025). A September 2025 talk counted 2.6 billion citations, with "Comparative/Listicle" at 25.37% ([Profound](https://speakerdeck.com/joshbly/josh-blyskal-profound-i-analyzed-40-million-search-results-heres-what-i-found), BrightonSEO, September 2025). These are two separate counts of different sizes, so don't read the drop as a trend.
+- Peec AI, an AI search analytics company, counted 1,056,727 citations from 75,000 AI answers to non-branded prompts in five industries, on ChatGPT, Google AI Mode and Perplexity. Listicles made up 21.9%, articles 16.7% and product pages 13.7%, the three largest; how-to guides made up 6.2% and comparison pages 2.2% ([Peec AI's Tom Wells](https://www.wix.com/studio/ai-search-lab/research/content-types-most-cited-by-llms), on Wix's AI Search Lab, March 2026).
+
+Profound's April table and Peec's table have no row for definitive guides or original research, so this skill quotes no share for them. These numbers show what was cited at the time, not that a format causes citations.
 
 **Underperformers for AI citation:**
 - Generic blog posts without structure
