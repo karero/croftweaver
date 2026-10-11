@@ -253,11 +253,14 @@ test('twin-page hreflang alternates are self-consistent and reciprocal', async (
 // Google-Extended) is the owner's choice and does not fail the guard below.
 const SEARCH_CRAWLERS = ['*', 'googlebot', 'bingbot', 'oai-searchbot', 'claude-searchbot', 'perplexitybot'];
 
-// The search crawlers a robots.txt closes the whole site to. A group is one or more User-agent
-// lines followed by its Allow and Disallow rules (RFC 9309), and its rules count only for the
-// agents of that group. A rule that covers the whole site is `/` or `/*`; the longer pattern
-// wins, and an Allow wins a tie (RFC 9309, section 2.2.2). A line that is neither a User-agent
-// nor a rule (Sitemap) is skipped and does not end the group.
+// The search crawlers a robots.txt closes the whole site to. Lines end at CR, LF or CRLF (RFC
+// 9309). A group is one or more User-agent lines followed by its Allow and Disallow rules, and
+// its rules count only for the agents of that group. This is a best-effort smoke test: it
+// recognises the two usual whole-site rules, `/` and `/*` (not every spelling that closes the
+// site, such as `/**`), and it weighs each group on its own, so a robots.txt that repeats an
+// agent in two groups is read as two. Of two whole-site rules the longer pattern wins, and an
+// Allow wins a tie (RFC 9309, section 2.2.2). A line that is neither a User-agent nor a rule
+// (Sitemap) is skipped and does not end the group.
 function wholeSiteBlockedFor(robotsTxt: string): string[] {
   const blocked = new Set<string>();
   let agents: string[] = [];
