@@ -1,4 +1,4 @@
-# What Each AI Platform's Own Page Says, and What the Studies Found
+# What the Companies' Pages and the Studies Say About Getting Cited
 
 This guide collects what each company's own page and the studies say about getting cited, and what to do about it. Where nothing is cited, the line is advice.
 
@@ -11,7 +11,7 @@ Sources cited throughout: [Princeton GEO study](https://arxiv.org/abs/2311.09735
 Three things to do for every platform:
 
 1. **Get your content indexed** — for Google, being indexed and eligible to be shown in Google Search with a snippet is the technical requirement for AI Overviews and AI Mode ([Google](https://developers.google.com/search/docs/appearance/ai-features)). For the other platforms, see their sections below.
-2. **Your content must be crawlable** — each platform's search bot needs access via robots.txt (see "Allowing AI Bots in robots.txt" below for which bot does what).
+2. **Let the search bots in** — allow each company's search bot in robots.txt (see "Allowing AI Bots in robots.txt" below for which bot does what; Microsoft's is unchecked).
 3. **Your content should read well in pieces** — use clear structure and self-contained paragraphs, so a passage makes sense without the page around it.
 
 Where a company's page or a study backs a statement, the source is beside it; the rest is advice.
@@ -49,7 +49,7 @@ An SE Ranking analysis of 129,000 domains found backlinks were the strongest sig
 **Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations across ChatGPT, Google AI Overviews and Perplexity (August 2024 to June 2025), Wikipedia was 7.8% of the ChatGPT citations Profound counted, Reddit 1.8% and Forbes 1.1%.
 
 **What to focus on:**
-- Allow OAI-SearchBot in robots.txt (it decides whether you appear in ChatGPT's search answers; GPTBot is the training bot)
+- Allow OAI-SearchBot in robots.txt (OpenAI says a site opted out of it is not shown in ChatGPT's search answers; GPTBot is the training bot)
 - Earn backlinks and build domain authority (the strongest signal in the SE Ranking study)
 - Update competitive content at least every three months
 - Structure your content the way ChatGPT structures its answers (conversational, direct, well-organized)
@@ -150,7 +150,7 @@ Order the platforms by where your own audience searches: ask your customers, or 
 
 **Then ChatGPT** — Allow OAI-SearchBot, then work on freshness, backlinks and matching your content structure to how ChatGPT formats its responses (the studies above).
 
-**Then Perplexity** — Allow PerplexityBot. Add FAQ schema, publish PDF resources, and write in clear, self-contained paragraphs.
+**Then Perplexity** — Allow PerplexityBot. Add FAQ schema if you have Q&A to describe, publish PDFs where you have authoritative ones, and write in clear, self-contained paragraphs.
 
 **Then Copilot and Claude** — The same fundamentals (structured content, cited sources, schema markup), plus each one's search bot (Claude-SearchBot; Bingbot for Copilot, not checked against Microsoft's pages).
 
