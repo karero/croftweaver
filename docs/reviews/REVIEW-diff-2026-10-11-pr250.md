@@ -1,0 +1,32 @@
+# DIFF review — PR #250 — ai-seo: say what the Presence section can support, and give the rest as advice
+Base `dbd6134` · depth: Normal (an instruction file an agent loads, plus the log rows that close three of its rows) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #250); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — captured reviewer input against `(base, head)` pairs that match, by the verification chain below; opening the PR — atom B (the owner's "Do 1-5" and "Start with a, then B, then 5", 2026-10-11)
+
+Data consent: the owner's standing instruction in his global CLAUDE.md names the pair, quoted: "The second seat is GLM 5.3 on melious.ai" (2026-10-06); earlier PRs of this repo (#241, #244) went to Codex and melious with his OK. Not a fresh yes for this PR: it relied on that standing instruction. The artifact is a public diff plus public page text. A grep of the brief for keys, tokens and passwords found nothing, `check_clean.sh` passed, and nothing names anything on the private-name list. ollama-cloud received nothing.
+
+| Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
+|---|---|---|---|---|---|
+| 1 | `c0d3dc5` | full: `dbd6134...c0d3dc5`, 2 files, plus excerpts copied from three Profound pages | codex-cli 0.162.0, gpt-6.1-sol, effort from config, read-only; melious glm-5.3, HTTP API, text only; fresh-eyes: Claude Sonnet through the Agent tool, read-only by instruction, no shared context, leave to fetch four public pages | codex 154 s / 47,854; melious 192 s / 11,398; fresh-eyes 273 s / 146,995 (21 tool calls) | 0/4/6 after dedup (raw: codex 0/2/0, melious 0/0/2, fresh-eyes 0/2/6) |
+| wording pass | `0366816` | delta `c0d3dc5..0366816`: prose only (two skill files and three BUGLOG rows) | codex medium, `--seat codex` | codex 87 s / 32,308 | 0/0/0 |
+
+| id | Sev | Source | Round | Finding — one line | Status | Evidence |
+|---|---|---|---|---|---|---|
+| F1 | RISK | fresh-eyes | 1 | `SKILL.md` line 58 said the Profound page "does not say which countries or languages its data covers"; the page names country domains (.uk, .au, .br, .ca) and calls them "global", and the search behind the claim was four strings | fixed, externally_reverified (wording pass) | `0366816`: "does not say which countries or languages its prompts or users came from", all five searched strings listed (`English`, `language`, `U.S.`, `US-based`, `United States`: 0 hits in the raw text, re-run by the author and by the fresh-eyes seat), and what "global" refers to |
+| F2 | RISK | fresh-eyes | 1 | The Knowledge Graph bullet (reference line 34) still hinted a Wikipedia article is a route into it; no source in the skill says so | fixed, externally_reverified (wording pass) | `0366816`: parenthetical dropped; "keep it accurate" stays at `SKILL.md` line 227. The glossary names Wikidata, not Wikipedia, as "a common input to knowledge graphs" |
+| F3 | RISK | codex | 1 | "you can't write your own article" is an absolute restriction without the full glossary entry | refuted | The fresh-eyes seat read the live glossary: "You can't buy it, you can't write your own article", under the entry "Notability"; the diff attributes it to Profound's glossary, not to Wikipedia policy. Codex had only the author's excerpt |
+| F4 | RISK | codex | 1 | The AirOps 85% and about 13% figures in new line 216 have no retained source | refuted | The fresh-eyes seat read the live AirOps page: 85% of brand mentions from external domains, 13.2% from the brand's own domain, dated 17 Oct 2025, GPT-5, Claude Sonnet 4.5 and Perplexity Sonar. The figures were already in line 71 |
+| F5 | NIT | fresh-eyes, melious | 1 | Line 216 dropped the scope line 71 carries ("best tools"-style discovery queries in ChatGPT, Claude and Perplexity) | fixed, externally_reverified (wording pass) | `0366816` |
+| F6 | NIT | fresh-eyes | 1 | "Steps 1 and 2 of the audit" is half right: Step 1 runs the queries, Step 2 asks about competitors | fixed, externally_reverified (wording pass) | `0366816`: "Run your key queries (Step 1 of the audit), note which sites the answers cite, ..." |
+| F7 | NIT | fresh-eyes | 1 | The February-study sentence read as a fragment that carries its scope over to the earlier dataset | fixed, externally_reverified (wording pass) | `0366816`: "separate February 2026 study ... says its ChatGPT.com data came from U.S.-based, English-language users" |
+| F8 | NIT | fresh-eyes, melious | 1 | The search-term list in line 58 omitted `US-based`; the dated parenthetical is an audit trail inside a loaded file | fixed (list completed), externally_reverified (wording pass) | `0366816`: all five terms. The parenthetical stays: earlier rounds on this skill re-raised an absence claim until the search was in the text |
+| F9 | NIT | fresh-eyes | 1 | BUGLOG rows 2 to 4 still read "open" | fixed, externally_reverified (wording pass) | `0366816`: the three rows end "#250 (...)" |
+| F10 | NIT | fresh-eyes | 1 | Line 227 could cite the February study's "Wikipedia hygiene" sentence | no change | Optional; the line already carries a source for its one claim |
+
+10 findings (0 BUG, 4 RISK, 6 NIT): 7 fixed, 2 refuted (F3 and F4), 1 no change (F10). No waiver or deferral, and no finding left as a follow-up.
+
+Waivers and deferrals: none.
+
+Follow-ups (outside the changed rows; one line each):
+- BUGLOG row 1 of 2026-10-10 (the 7.8% and 1.8% figures are dated) stays open for the owner's decision.
+- The other unsourced behaviour claims in these sections (for example "YouTube (frequently cited by Google AI Overviews)") belong to the next change in this sweep.
+
+Notes: no BUG in round 1, so no second round was owed (step 6: a round after the first is owed only by a fix that changes what runs or what someone acts on); the fixes are claims narrowed or removed and went to the wording pass, which Codex alone ran over the delta. Codex called the wording pass's scope sentence and melious called the brief's "context, not under review" labels prompt injection (low); they are the author's own and were treated as data. Codex and melious could not fetch pages: Codex's two UNVERIFIABLE RISKs were settled by the fresh-eyes seat's live reads, which is why the fresh-eyes seat was given leave to fetch. The claims sweep ran before round 1 and after the fixes.

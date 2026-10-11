@@ -55,7 +55,7 @@ For a deep dive on how each platform selects sources and what to optimize per pl
 
 ### Non-English Content
 
-This skill's platform-ranking-factors data and citation-share statistics (Wikipedia/Reddit citation shares, the Princeton GEO study, content-type citation shares, etc., cited throughout this skill and in references/platform-ranking-factors.md) are sourced from English-language, US-centric research. Treat those specific numbers as directional, not literal, for German-market (or other non-English) content — platform market share, the citation-source ecosystem, and query phrasing all differ by language and market, not just vocabulary.
+Not every study behind this skill's platform-ranking-factors data and citation-share statistics (Wikipedia/Reddit citation shares, the Princeton GEO study, content-type citation shares, etc., cited throughout this skill and in references/platform-ranking-factors.md) says where its data comes from. The Wikipedia and Reddit shares come from a [Profound study page](https://www.tryprofound.com/blog/ai-platform-citation-patterns) that does not say which countries or languages its prompts or users came from (as read on 2026-10-11, a search of its text for English, language, U.S., US-based and United States finds nothing; its word "global" is about the endings of cited domains such as .uk and .au). Profound's separate [February 2026 study](https://www.tryprofound.com/blog/chatgpt-citation-sources) says its ChatGPT.com data came from U.S.-based, English-language users. Treat those specific numbers as directional, not literal, for German-market (or other non-English) content, and check platform market share, the citation-source ecosystem and query phrasing in your own language and market, not just vocabulary.
 
 The worked content-pattern examples in [references/content-patterns.md](references/content-patterns.md) (Definition Block, Step-by-Step Block, Statistic/Expert Quote/Authoritative Claim blocks, etc.) are structural templates, and the structure does generalize across languages — only the example wording shown is English. Don't read the English wording as meaning the patterns themselves are English-only.
 
@@ -213,9 +213,9 @@ AI systems prefer sources they can trust. Build citation-worthiness.
 
 ### Pillar 3: Presence — Be Where AI Looks
 
-AI systems don't just cite your website — they cite where you appear.
+AI answers cite more than your own website, so be present where they look. One measurement is the AirOps figure under "Critical stats" above: on "best tools"-style discovery queries in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site.
 
-**Third-party sources matter more than your own site:**
+**Places worth being present:**
 - Wikipedia (7.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
 - Reddit (1.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
 - Industry publications and guest posts
@@ -224,15 +224,15 @@ AI systems don't just cite your website — they cite where you appear.
 - Quora answers
 
 **Actions:**
-- Ensure your Wikipedia page is accurate and current
+- If your business has a Wikipedia article, keep it accurate and current (Profound's [glossary](https://www.tryprofound.com/blog/ai-search-glossary) says Wikipedia judges a subject by independent coverage and that you can't write your own article)
 - Participate authentically in Reddit communities
 - Get featured in industry roundups and comparison articles
 - Maintain updated profiles on relevant review platforms
 - Create YouTube content for key how-to queries
 - Answer relevant Quora questions with depth
 
-**DACH / German-market equivalents** (the sources above are US/English; German
-answers cite German sources — see also customer-research's DACH watering-hole
+**DACH / German-market equivalents** (check which German sites show up in the
+answers to your own German queries; see also customer-research's DACH watering-hole
 list for the research-workflow view):
 - de.wikipedia.org (its own article ecosystem, not a translation of en.wiki)
 - gutefrage.net (the Quora analogue), German subreddits (r/de, r/Finanzen, trade-specific)
@@ -425,7 +425,7 @@ citations in code, and trends them next to your Google rankings.
 - **Writing for AI, not humans** — If content reads like it was written to game an algorithm, it won't get cited or convert
 - **No freshness signals** — Undated content loses to dated content because AI systems weight recency heavily. Show when content was last updated
 - **Gating all content** — AI can't access gated content. Keep your most authoritative content open
-- **Ignoring third-party presence** — You may get more AI citations from a Wikipedia mention than from your own blog
+- **Ignoring third-party presence** — Run your key queries (Step 1 of the audit), note which sites the answers cite, and be present on the ones you can reach instead of relying on your own blog alone
 - **No structured data** — Schema markup gives AI systems structured context about your content
 - **Keyword stuffing** — Unlike traditional SEO where it's just ineffective, keyword stuffing lowered visibility by about 8% on the Princeton GEO study's main measure, the only method that did
 - **Hiding pricing behind "contact sales" or JS-rendered pages** — AI agents evaluating your product on behalf of buyers can't parse what they can't read. Add a `/pricing.md` file
