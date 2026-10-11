@@ -198,7 +198,7 @@ line per tool as advice ("if you use Claude, ask the assistant for the palette r
 then take the logo to Claude Design"), a "checked on" date, nothing about what a tool does in
 general. This plan names Claude where it records what was tried. A tool is listed only after
 what it returns has been seen: Claude Design's logo output has been seen (D3); its handoff
-package has not. See D3.
+package has been seen too (D3, "The handoff, tried").
 
 **Not in this skill:** a tagline (planned separately as `website-tagline`), the font
 choice, raster logos (a PNG, JPG or PDF; decision 8), generating raster images through an
@@ -280,8 +280,8 @@ the test exists; a row without a test is a promise, not a fact.
 | 28 | the owner's assistant is Claude | the palette step | she can ask the assistant itself for the three palettes, in the conversation, each as the `BRAND.md` token table; the contrast check runs on them like on any pasted palette (scenarios 7 to 10); the logo prompt then carries the chosen hex values to Claude Design | — |
 | 29 | the intake writes the palette | it finishes | `:root` carries the light values, and `:root[data-theme="dark"]` and the `@media (prefers-color-scheme: dark)` block carry identical dark values; all three match `BRAND.md`'s rows, and a test fails when any of them drifts | — |
 | 30 | `public/favicon.svg` and `public/favicon.ico` are the scaffold's own default (the Astro logo) | the logo operations run | it tells her they are the scaffold's placeholders and replaces them; any other icon file already there makes it ask (scenario 16) | — |
-| 31 | the site's tests are red after the install | the intake finishes | it restores the files it wrote, removes the `brand-handoff` folder and the `.gitignore` line it added, names the failing check, and leaves her other files untouched | — |
-| 32 | the mark has more than one colour (the spike's test mark: a brand-colour circle with a cream triangle; the trial's real mark: a brand-colour loaf over dark-brown rows) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, compared unrounded, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the trial's mark no light background serves both colours; only a near-black one, relative luminance 0.01988 or less, does, the exact ceiling being 0.019881; the brand colour alone on cream is 4.75 to 1; for the trial's real mark cream serves both colours, at 4.75 to 1 for the brand colour and 10.01 to 1 for the dark brown, while the brand colour as the background would leave the brown rows at 2.11 to 1) | — |
+| 31 | the site's tests are red after the install | the intake finishes | it restores the files it wrote, removes what this run created (the `brand-handoff` folder and the `.gitignore` line, only if this run added them, never a folder that was already there or what it holds), names the failing check, and leaves her other files untouched | — |
+| 32 | the mark has more than one colour (the spike's test mark: a brand-colour circle with a cream triangle; the trial's real mark: a brand-colour loaf over dark-brown rows) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, compared unrounded, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the spike's test mark no light background serves both colours; only a near-black one, relative luminance 0.01988 or less, does, the exact ceiling being 0.019881; the brand colour alone on cream is 4.75 to 1; for the trial's real mark cream serves both colours, at 4.75 to 1 for the brand colour and 10.01 to 1 for the dark brown, while the brand colour as the background would leave the brown rows at 2.11 to 1) | — |
 | 33 | an SVG has a width and a height but no `viewBox`; another has neither | the intake runs | the first is accepted; the second is refused with the reason | — |
 | 34 | the intake has not run yet when she has the package | she tells the assistant the path of the file (or drops it into the chat) | the skill records the path with her choices; the intake later copies the file into `brand-handoff`, which it creates, and does not search for it | — |
 | 35 | the intake finishes | the owner opens the manifest, `src/config.ts`, `scripts/generate_og_cards.py` and `public/images/og/` | where a palette exists, `SITE.themeColor`, the manifest's `theme_color` and `background_color` and the OG card's BRAND block carry the chosen colours; where a logo exists, `COMPANY.logo` and the OG card's `LOGO` point at the square `public/images/logo.png`, set before the share cards were regenerated; the cards were regenerated with the new colours, or, if the generator fails part-way, the whole `public/images/og/` folder is restored and she is told the cards still show the old colours and what to run | — |
@@ -397,7 +397,9 @@ palette.
   (handover) package of that one variation only: a zip with its two SVG files (the colour
   version and the one-colour version) and a README that says what each file is". The reply
   carried a file card holding `baeckerei-example-logo-furrows.zip` with a Download button;
-  the Export tab is not the route. The tool said the zip was about 2 KB, that it had
+  the Export tab is not the route. The reply read, in part: "The handover package is
+  ready as baeckerei-example-logo-furrows.zip (about 2 KB). You can download it from the
+  file card in this conversation." The tool said the zip was about 2 KB, that it had
   checked that it unpacks, and that it had not opened it in a viewer. The file was
   downloaded (2,000 bytes) and inspected as untrusted input: three entries, all regular
   files, all inside one top-level folder of the same name (`README.txt`, the colour SVG,
@@ -407,7 +409,7 @@ palette.
   attributes: no `<style>`, script, text, link or image. The README is plain text that
   instructs a reader ("open the file in a text editor and change the fill values"), the
   kind of text the plan says never to follow. This settles that the zip route works as
-  described and gives the plan's checks (scenarios 13, 14, 22 and 33) one real input that
+  described and gives the plan's checks (scenarios 11, 13, 14 and 22) one real input that
   passes them. It does not settle what a design tool's SVG looks like when it uses
   gradients, filters, CSS classes or embedded images: one request produced this one.
 - **D4. SETTLED 2026-10-09 (maintainer decision): log it separately.** A site that never opts in still
@@ -525,7 +527,11 @@ Measured on 2026-10-11 (npm 11.20.0, macOS arm64, the starter's copy with a proj
 `.npmrc` that says `omit=optional`, scripts off): `npm ci` left `sharp` out (`Cannot find
 module 'sharp'`, no `@img` folder); `npm install --include=optional` then added 10
 packages, `sharp` 0.35.5 loaded, and neither `package.json` nor the lockfile changed. That
-is the remedy in scenario 19.
+is the remedy in scenario 19. The commands, in a copy of the starter: `printf 'omit=optional\n'
+> .npmrc`; `npm ci --ignore-scripts`; `node -e "require('sharp')"` (fails); `npm install
+--include=optional --ignore-scripts`; `node -e "require('sharp')"` (loads); then a
+comparison of `package.json` and `package-lock.json` with the starter's committed files
+(no difference).
 
 Run on 2026-10-11 on the real SVG from the handoff zip (the colour version, rendered from
 a buffer with `sharp` 0.35.5): it parses as XML with no DOCTYPE or entity; the 16 and 32 px
@@ -643,4 +649,10 @@ read), 8, 9, 8. On 2026-10-11 the maintainer also settled D5's refinement, D6 an
 was run and its zip inspected (D3, "The handoff, tried"); that added what the real zip and
 SVG look like, one clause to scenario 22 (the files may sit inside one top-level folder),
 and the correction of scenario 32's example, which named the spike's test mark as the
-trial's.
+trial's. Round 8 (head `8a7fd83`, Codex at its own effort 346 s/86,061 tokens, GLM 142
+s/58,700 tokens; it verified round 7's fixes and the amendment): 3 BUG, 2 RISK and 1 NIT after
+merging duplicates, all fixed here and not re-verified. Both seats found round 7's fixes landed
+except one, whose cleanup would have removed a `brand-handoff` folder that was already there;
+both found the scenario 32 correction only half done (its Then cell still called the spike's
+mark the trial's) and one stale sentence saying the handoff package had not been seen; and
+they asked for the npm commands and the handoff reply to be on record, which they now are.
