@@ -46,7 +46,7 @@ ChatGPT's web search draws from a Bing-based index. It combines this with its tr
 
 **The most important signal is content-answer fit** — a Sellm analysis of 400,000 pages found that how well your content's style and structure matches ChatGPT's own response format carried about 55% of the weight in its model predicting which pages get cited. That is far more than domain authority (12%) or on-page structure (14%). The study shows a link, not a tested cause, but writing the way ChatGPT answers is a cheap bet.
 
-**Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations (August 2024 to June 2025), Wikipedia accounted for 7.8% of all ChatGPT citations, Reddit for 1.8%, and Forbes for 1.1%. Brand official sites are cited frequently but third-party mentions carry significant weight.
+**Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations across ChatGPT, Google AI Overviews and Perplexity (August 2024 to June 2025), Wikipedia was 7.8% of the ChatGPT citations Profound counted, Reddit 1.8% and Forbes 1.1%.
 
 **What to focus on:**
 - Invest in backlinks and domain authority — it's the strongest baseline signal
