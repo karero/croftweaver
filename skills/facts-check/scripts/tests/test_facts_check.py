@@ -181,6 +181,11 @@ class FindMentions(unittest.TestCase):
         exact = fact(id="exact", value=3, terms=["countries"], whole_words=True)
         self.assertEqual([h["found_value"] for h in fc.find_mentions("70+ countrieswide Talents", talent, others=[exact])], [70])
         self.assertEqual(fc.find_mentions("70+ countries Talents", talent, others=[exact]), [])
+        # round 1 (fresh eyes): a rival claims a number only within its own window, so a
+        # number it would not tie itself stays with this fact
+        narrow = fact(id="narrow", value=9, terms=["countries"], window=1)
+        self.assertEqual([h["found_value"] for h in fc.find_mentions("500 vetted countries agents", talent, others=[narrow])], [500])
+        self.assertEqual(fc.find_mentions("500 countries agents", talent, others=[narrow]), [])
         # a rival's term that starts first wins even where it runs past this fact's term
         pool = fact(id="pool", terms=["pool"])
         talent_pool = fact(id="tp", value=9, terms=["talent pool"])
@@ -220,6 +225,10 @@ class FindMentions(unittest.TestCase):
                      # round 1 (GLM): an ordinal day, and a day before the month
                      "September 4th, 2026 clients", "September 1st 2026 clients",
                      "March 22nd, 2026 clients", "10 March, 2026 clients",
+                     # round 1 (fresh eyes): a range of days, a British date with a comma,
+                     # a German abbreviated month
+                     "September 4-6, 2026 clients", "4 September, 2026 clients",
+                     "4. Sept. 2026 Kunden", "Sept. 2026 clients",
                      "am 4. September 2026 Kunden"):
             with self.subTest(text=text):
                 self.assertEqual(self.statuses(text, f), [])

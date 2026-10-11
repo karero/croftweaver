@@ -36,7 +36,7 @@ How a number is tied to a fact (the rules SKILL.md explains to the owner):
   - A comma, full stop or other sentence mark ends the search, so "in 60 countries,
     clients ..." does not tie 60 to clients.
   - A plain year (1900 to 2100 right after "in", "since", "seit", "founded", a month,
-    a month and a day ("September 4, 2026"), ... or ©)
+    a date such as "September 4th, 2026" or "4. Sept. 2026", ... or ©)
     is ignored for a fact whose own value is not a year, and a zero for a fact whose own
     value is not 0, so "founded in 2016 clients ..." and a count-up that starts at 0 are
     not client numbers; "über 2000 Kunden" is.
@@ -364,9 +364,9 @@ def _word_matches(word: str, term: str, whole: bool = False) -> bool:
     return word == term if whole else word.startswith(term)
 
 
-def _term_rules(fact: dict) -> Tuple[List[List[str]], bool]:
+def _term_rules(fact: dict) -> Tuple[List[List[str]], bool, int]:
     terms = [_phrase_words(t) for t in fact.get("terms", [])]
-    return [t for t in terms if t], bool(fact.get("whole_words", False))
+    return [t for t in terms if t], bool(fact.get("whole_words", False)), fact.get("window", DEFAULT_WINDOW)
 
 
 def _first_term_at(words: List[str], terms: List[List[str]], whole: bool) -> Optional[int]:
@@ -392,13 +392,35 @@ def _before_ends_at(tokens, i: int, befores: List[List[str]]) -> bool:
     return any(len(before_words) >= len(b) and before_words[-len(b):] == b for b in befores)
 
 
+def _is_month(tokens, j: int) -> bool:
+    return j >= 0 and tokens[j][0] == "word" and tokens[j][1].group(0).lower() in MONTHS
+
+
+def _ends_a_date(tokens, j: int) -> bool:
+    """Whether tokens up to j are a date that a year follows: "September 4,", "September 4th",
+    "September 4-6,", "4 September,", "Sept." (as in "4. Sept. 2026")."""
+    if j > 0 and tokens[j][0] == "stop" and tokens[j][1].group(0) in (",", "."):
+        if tokens[j][1].group(0) == "." and not _is_month(tokens, j - 1):
+            return False
+        j -= 1
+    if j > 0 and tokens[j][0] == "word" and tokens[j][1].group(0).lower() in ORDINALS:
+        j -= 1
+    if _is_month(tokens, j) or _is_day_after_month(tokens, j):
+        return True
+    return _is_day(tokens, j) and _is_day_after_month(tokens, j - 1)  # "September 4-6"
+
+
+def _is_day(tokens, j: int) -> bool:
+    if j < 0 or tokens[j][0] != "num":
+        return False
+    day, plain = parse_number(tokens[j][1])
+    return plain and 1 <= day <= 31
+
+
 def _is_day_after_month(tokens, j: int) -> bool:
     """Whether token j is a plain day (1 to 31) right after a month: "September 4",
     "Sept. 4". The year in "September 4, 2026" follows it."""
-    if j < 1 or tokens[j][0] != "num":
-        return False
-    day, plain = parse_number(tokens[j][1])
-    if not plain or not 1 <= day <= 31:
+    if j < 1 or not _is_day(tokens, j):
         return False
     k = j - 1
     if tokens[k][0] == "stop" and tokens[k][1].group(0) == "." and k > 0:
@@ -417,7 +439,7 @@ def find_mentions(text: str, fact: dict, others=()) -> List[dict]:
     value = float(fact["value"])
     unit = fact.get("unit", "")
     window = fact.get("window", DEFAULT_WINDOW)
-    terms, whole = _term_rules(fact)
+    terms, whole, _ = _term_rules(fact)
     others = [o for o in others if o.get("unit", "") == unit]
     rivals = [r for r in (_term_rules(o) for o in others) if r[0]]
     rival_befores = [b for o in others for b in (_phrase_words(p) for p in o.get("before", [])) if b]
@@ -437,13 +459,7 @@ def find_mentions(text: str, fact: dict, others=()) -> List[dict]:
             prev = tokens[i - 1][1].group(0).lower() if i > 0 and tokens[i - 1][0] == "word" else ""
             if prev in YEAR_CUES or text[max(0, m.start() - 3):m.start()].strip().endswith("\u00a9"):
                 continue
-            j = i - 1
-            if j > 0 and tokens[j][0] == "stop" and tokens[j][1].group(0) == ",":
-                j -= 1  # "September 4, 2026", "10 March, 2026"
-            if j > 0 and tokens[j][0] == "word" and tokens[j][1].group(0).lower() in ORDINALS:
-                j -= 1  # "September 4th, 2026"
-            if j >= 0 and (_is_day_after_month(tokens, j) or (
-                    tokens[j][0] == "word" and tokens[j][1].group(0).lower() in MONTHS)):
+            if _ends_a_date(tokens, i - 1):
                 continue
         if num == 0 and value != 0:
             continue
@@ -460,7 +476,7 @@ def find_mentions(text: str, fact: dict, others=()) -> List[dict]:
             # another fact's before phrase names the number outright ("an NPS of 72 clients")
             tied = not any(
                 r is not None and r < at
-                for r in (_first_term_at(after_words, t, w) for t, w in rivals)
+                for r in (_first_term_at(after_words[:win], t, w) for t, w, win in rivals)
             ) and not _before_ends_at(tokens, i, rival_befores)
         # before: a phrase that ends right before the number
         if not tied and befores:

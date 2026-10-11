@@ -225,8 +225,9 @@ starter site, copy the `POSITIONING` map of `tests/positioning.spec.ts`: each ke
   day" next to the term `agent` is tied to an agent count. The rules are kept narrow by
   default: terms after the number, a short window, a comma or full stop ends the search,
   a zero is ignored unless the fact is 0, and so is a plain year right after "in", "since",
-  "seit", "founded", a month, a month and a day ("September 4, 2026"), © and the like unless the fact is itself a year (a four-digit
-  count such as "über 2000 Kunden" is still read). Every
+  "seit", "founded", a date ("March 2026", "September 4th, 2026", "4. Sept. 2026"), © and
+  the like unless the fact is itself a year (a four-digit count such as "über 2000 Kunden"
+  is still read). Every
   finding shows its sentence, so a person decides.
 - **It checks numbers and exact phrases**, not paraphrased claims ("market leader").
   Retire such claims as phrases, or leave them to the content review.
