@@ -227,7 +227,9 @@ class FindMentions(unittest.TestCase):
                      "March 22nd, 2026 clients", "10 March, 2026 clients",
                      # round 1 (fresh eyes): a range of days, a British date with a comma,
                      # a German abbreviated month
-                     "September 4-6, 2026 clients", "4 September, 2026 clients",
+                     # (the tokenizer drops the hyphen between digits: month, 4, 6, comma, 2026)
+                     "September 4-6, 2026 clients", "September 4 \u2013 6, 2026 clients",
+                     "4-6 September 2026 clients", "4 September, 2026 clients",
                      "4. Sept. 2026 Kunden", "Sept. 2026 clients",
                      "am 4. September 2026 Kunden"):
             with self.subTest(text=text):

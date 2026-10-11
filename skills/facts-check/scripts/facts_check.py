@@ -384,6 +384,8 @@ ORDINALS = {"st", "nd", "rd", "th"}
 
 def _before_ends_at(tokens, i: int, befores: List[List[str]]) -> bool:
     """Whether one of the `before` phrases ends right before token i."""
+    if not befores:
+        return False
     before_words: List[str] = []
     j = i - 1
     while j >= 0 and tokens[j][0] == "word" and len(before_words) < 8:
