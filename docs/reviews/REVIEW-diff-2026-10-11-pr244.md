@@ -1,5 +1,5 @@
 # DIFF review — PR #244 — Match line 49 to the new Profound wording, log the other follow-ups
-Base `fb25ad7` (where the branch left main; main has since moved on) · depth: Normal (line 49 sits in a reference file agents load, and a mixed diff takes the riskier file's depth) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #244); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch)
+Base `fb25ad7` (merge-base `0af174e` after merging main once, at `45efba8`) · depth: Normal (line 49 sits in a reference file agents load, and a mixed diff takes the riskier file's depth) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #244); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch); the fourth row and the merge of main into the branch — atom B (the owner's word "Do it", 2026-10-11)
 
 Data consent: the owner's instruction earlier in this session named the pair for PR #241's gate: "Codex + GLM 5.3 on melious (SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3 OLLAMA_MODEL=glm-5.3:cloud; ...)". For this PR the owner said "go" (2026-10-11) to a plan that named the full review: two reviewers and a fresh-eyes pass. `grep -c SECOND_SEAT` on the script run from this worktree found 15. A grep of every brief for keys, tokens, passwords and secrets found nothing, and none names anything on the private-name list; they add only public source text. ollama-cloud received nothing (melious counted in both rounds); Antigravity was not used. The fresh-eyes agent was allowed to fetch four public Profound pages and nothing else.
 
@@ -8,6 +8,9 @@ Data consent: the owner's instruction earlier in this session named the pair for
 | 1 | `8568550` | full: `fb25ad7...8568550`, 2 files, plus source excerpts | codex-cli 0.162.0, gpt-6.1-sol, effort from config, read-only; melious glm-5.3, HTTP API, text only; fresh-eyes: Claude Sonnet through the Agent tool, read-only by instruction, no shared context | codex 141 s / 60,316; melious 288 s / 23,516; fresh-eyes 849 s / 260,756 | 1/3/9 after dedup (17 raw: 1/3/13) |
 | 2 | `93f5a50` | delta `8568550..93f5a50`, plus source excerpts and the author's record of round 1 | codex medium; melious glm-5.3 | codex 76 s / 41,811; melious 118 s / 23,355 | 0/1/2 (the RISK repeats F2) |
 | wording pass | `432e336` | delta `93f5a50..432e336`, prose only (the closing edits after round 2) | codex medium, `--seat codex` | codex 50 s / 29,352 | 0/0/0 |
+| merge link 1 | `45efba8` | `merge_link.sh fb25ad7 432e336 0af174e`: one added table row (row 4) and nothing else; main's new commits (PR #243) change README.md and docs files only, none of this change's. Sent to codex as wording pass 2 (next row) | — | — | — |
+| wording pass 2 | `45efba8` | the merge link above (row 4, prose only) | codex medium, `--seat codex` | codex 92 s / 34,125 | 2/0/0 |
+| confirmation | `65f9bba` | delta `45efba8..65f9bba` (the fix to row 4) | codex medium, `--seat codex` | codex 64 s / 29,841 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -26,19 +29,18 @@ Data consent: the owner's instruction earlier in this session named the pair for
 | F13 | NIT | fresh-eyes | 1 | row 2 did not say that Profound's nearer figures do not back "matter more than" | fixed, externally_reverified (r2) | `93f5a50`: "neither confirm nor refute it", with the any-company definition and the glossary's "as much as" |
 | F14 | NIT | melious | 2 | row 1's "add a line under the two bullets" left line 49 out | fixed, externally_reverified (wording pass) | `432e336`: "and a matching note at line 49" |
 | F15 | NIT | melious | 2 | row 2 fused the July study's overall ranking with its ChatGPT figure | fixed, externally_reverified (wording pass) | `432e336`: "the biggest source of AI citations overall, with 47% of ChatGPT's citations going to them" |
+| F16 | BUG | codex | wording pass 2 | row 4 said line 34 of the reference "assumes the business has, or can have, an entry", which overstates a line that says "where possible" | fixed, externally_reverified (confirmation) | `65f9bba`: the row now says only that the line has no source |
+| F17 | BUG | codex | wording pass 2 | row 4 put quotation marks around "An accurate Wikipedia entry helps", changing the source's lowercase "an" | fixed, externally_reverified (confirmation) | `65f9bba`: quoted as written; a script checked every quoted string in the row against its source line |
 
-15 findings (1 BUG, 3 RISK, 11 NIT): 14 fixed, 1 refuted. No waiver or deferral.
+17 findings (3 BUG, 3 RISK, 11 NIT): 16 fixed, 1 refuted. No waiver or deferral. F16 and F17 are wording defects in the row added last, not claims about code, so they earned no further round; the same seat confirmed the fix.
 
 Waivers and deferrals: none.
 
 Follow-ups (outside the changed rows; one line each):
-- `SKILL.md` lines 232 to 233 ("the sources above are US/English; German answers cite German sources"): the same US/English premise as row 3, plus a claim about how assistants behave.
-- `SKILL.md` line 216 ("AI systems don't just cite your website — they cite where you appear"): a behaviour claim under the heading that row 2 covers.
-- `references/platform-ranking-factors.md` line 34 ("an accurate Wikipedia entry helps"): assumes an entry exists.
-- No BUGLOG rows were added for these three: the owner approved three rows. A fourth is one decision away.
-- Main moved on while this PR was in review (PR #243: README and docs only, no file in common with this change). The branch has not been updated; at merge time it needs `main` merged in, and the merge link should be empty.
+- Row 4 of the BUGLOG, added at the owner's word ("Do it", 2026-10-11), covers three more sentences the reviewers noticed: `SKILL.md` line 216, `SKILL.md` lines 234 to 236 (the German-market sentence; an earlier version of this note, the PR comment and the PR description said 232 to 233, which was wrong) and `references/platform-ranking-factors.md` line 34.
+- Main was merged into the branch once, at `45efba8` (PR #243 had landed: README and docs only, none of this change's files). The merge link held only row 4. If `main` moves again before this merges, the branch needs another merge first.
 
-Notes: UNVERIFIABLE entries asked / confirmed: round 1 codex 3 / 1 (F5), melious 5 / 1 (F9), fresh-eyes 5 / 1 (F8); round 2 codex 2 / 0, melious 3 / 0; wording pass codex 2 / 0. Round 1 had a substantive BUG (F1, a wrong claim in a row), so round 2 was owed; round 2 found no BUG and its one RISK repeated F2, so the rounds stopped. The closing edits after round 2 got one narrow pass by codex (`--seat codex`), which found nothing.
+Notes: UNVERIFIABLE entries asked / confirmed: round 1 codex 3 / 1 (F5), melious 5 / 1 (F9), fresh-eyes 5 / 1 (F8); round 2 codex 2 / 0, melious 3 / 0; wording pass codex 2 / 0, wording pass 2 codex 3 / 0, confirmation codex 3 / 0. Round 1 had a substantive BUG (F1, a wrong claim in a row), so round 2 was owed; round 2 found no BUG and its one RISK repeated F2, so the rounds stopped. The closing edits after round 2 got one narrow pass by codex (`--seat codex`), which found nothing. Row 4, added afterwards at the owner's word, got a second narrow pass, which found two wording defects in the row (F16, F17); the same seat confirmed their fix.
 The claims sweep ran before round 1 (nine sentences; two narrowed on the spot), after round 1's fixes (eleven) and on the closing edits. Every sentence was checked against the pages and files.
 Codex and melious called the brief's scope sentences prompt injection (low); they are the author's own and were treated as data. One line of the fresh-eyes report, about commit metadata, names a person and a company, so it is left out of the public comment.
-Judgment calls the owner may reverse: cutting rather than sourcing the last sentence of line 49; three rows grouped by where the problem sits; the clause in row 2 about Profound's nearer figures; naming the searches in rows 1 and 3; no rows for the three new out-of-scope items.
+Judgment calls the owner may reverse: cutting rather than sourcing the last sentence of line 49; three rows grouped by where the problem sits; the clause in row 2 about Profound's nearer figures; naming the searches in rows 1 and 3; one row for the three added sentences, not one each.
