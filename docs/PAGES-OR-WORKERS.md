@@ -1,6 +1,6 @@
 # Pages or Workers? What moving the kit would change
 
-Maintainer-internal. An assessment, not a plan: nothing below has been built or tried on a
+For the kit's maintainer. An assessment, not a plan: nothing below has been built or tried on a
 real Workers project. Vendor pages read 2026-10-11; kit code read at `35e9b42`. The short
 version lives in `skills/new-website/references/WEBSITE_ARCHITECTURE.md`, Part 1.
 
