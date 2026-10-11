@@ -11,7 +11,7 @@ Sources cited throughout: [Princeton GEO study](https://arxiv.org/abs/2311.09735
 Every AI platform shares three baseline requirements:
 
 1. **Your content must be in their index** — Each platform uses a different search backend (Google, Bing, Brave, or their own). If you're not indexed, you can't be cited.
-2. **Your content must be crawlable** — AI bots need access via robots.txt. Block the bot, lose the citation.
+2. **Your content must be crawlable** — each platform's search bot needs access via robots.txt (see "Allowing AI Bots in robots.txt" below for which bot does what).
 3. **Your content must be extractable** — AI systems pull passages, not pages. Clear structure and self-contained paragraphs win.
 
 Beyond these basics, each platform weights different signals. Here's what matters and where.
@@ -103,7 +103,7 @@ Claude uses Brave Search as its search backend when web search is enabled — no
 
 **What to focus on:**
 - Verify your content appears in Brave Search results (search for your brand and key terms at search.brave.com)
-- Allow ClaudeBot and anthropic-ai user agents in robots.txt
+- Allow Claude-SearchBot and Claude-User in robots.txt (ClaudeBot is the training bot; see "Allowing AI Bots in robots.txt" below)
 - Maximize factual density — specific numbers, named sources, dated statistics
 - Use clear, extractable structure with descriptive headings
 - Cite authoritative sources within your content
@@ -113,20 +113,31 @@ Claude uses Brave Search as its search backend when web search is enabled — no
 
 ## Allowing AI Bots in robots.txt
 
-If your robots.txt blocks an AI bot, that platform can't cite your content. Here are the user agents to allow:
+The companies' own pages (read on 2026-10-11; links in the Step 4 list of `SKILL.md`) split their bots by job, so allow the search and user bots by name:
 
 ```
-User-agent: GPTBot           # OpenAI — powers ChatGPT search
-User-agent: ChatGPT-User     # ChatGPT browsing mode
-User-agent: PerplexityBot    # Perplexity AI search
-User-agent: ClaudeBot        # Anthropic Claude
-User-agent: anthropic-ai     # Anthropic Claude (alternate)
-User-agent: Google-Extended   # Google Gemini and AI Overviews
-User-agent: Bingbot          # Microsoft Copilot (via Bing)
+User-agent: OAI-SearchBot     # OpenAI: shows your pages in ChatGPT search
+User-agent: ChatGPT-User      # OpenAI: fetches a page when a ChatGPT user asks
+User-agent: Claude-SearchBot  # Anthropic: indexes pages for Claude's search
+User-agent: Claude-User       # Anthropic: fetches a page when a Claude user asks
+User-agent: PerplexityBot     # Perplexity: shows your pages in its search results
+User-agent: Perplexity-User   # Perplexity: fetches a page when a user asks
+User-agent: Bingbot           # Microsoft Copilot (via Bing)
 Allow: /
 ```
 
-**Training vs. search:** Some AI bots are used for both model training and search citation. If you want to be cited but don't want your content used for training, your options are limited — GPTBot handles both for OpenAI. However, you can safely block **CCBot** (Common Crawl) without affecting any AI search citations, since it's only used for training dataset collection.
+Google Search, including AI Overviews and AI Mode, follows your rules for Googlebot, so keep Googlebot allowed.
+
+**Training vs. search:** each company's training bot is a separate choice. OpenAI says GPTBot and OAI-SearchBot are independent settings, Anthropic lists ClaudeBot apart from its two other bots, and Google says Google-Extended does not affect inclusion in Google Search. To stay in search answers but opt out of training, leave the lines above as they are and add:
+
+```
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: Google-Extended
+Disallow: /
+```
+
+CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls ([Common Crawl](https://commoncrawl.org/ccbot)). Add `CCBot` to that group if you don't want your pages in it.
 
 ---
 
@@ -143,7 +154,7 @@ If you're optimizing for AI search for the first time, focus your effort where y
 **Copilot and Claude are lower priority** unless your audience skews enterprise/Microsoft (Copilot) or developer/analyst (Claude). But the fundamentals — structured content, cited sources, schema markup — help across all platforms.
 
 **Actions that help everywhere:**
-1. Allow all AI bots in robots.txt
+1. Allow the search and user bots in robots.txt (the training bots are your call)
 2. Implement schema markup (FAQPage, Article, Organization at minimum)
 3. Include statistics with named sources in your content
 4. Update content regularly — at least every three months for competitive topics

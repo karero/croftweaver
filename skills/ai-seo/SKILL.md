@@ -121,15 +121,15 @@ For each priority page, verify:
 
 ### Step 4: AI Bot Access Check
 
-Verify your robots.txt allows AI crawlers. Each AI platform has its own bot, and blocking it means that platform can't cite you:
+Each AI company runs more than one bot, and each bot has one job. Look at the job before you allow or block a bot. This is what the companies' own pages say (read on 2026-10-11):
 
-- **GPTBot** and **ChatGPT-User** — OpenAI (ChatGPT)
-- **PerplexityBot** — Perplexity
-- **ClaudeBot** and **anthropic-ai** — Anthropic (Claude)
-- **Google-Extended** — Google Gemini and AI Overviews
+- **OpenAI** — **OAI-SearchBot** decides whether you appear in ChatGPT's search answers, **GPTBot** gathers content for training, and **ChatGPT-User** fetches a page when a user asks (OpenAI says robots.txt rules may not apply to it) ([OpenAI](https://developers.openai.com/api/docs/bots))
+- **Anthropic** — **Claude-SearchBot** indexes pages for Claude's search results, **Claude-User** fetches a page when a user asks, and **ClaudeBot** gathers content for training. Anthropic's page names these three and no `anthropic-ai` ([Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler))
+- **Perplexity** — **PerplexityBot** shows your pages in its search results and is not used for training, and **Perplexity-User** fetches a page when a user asks (Perplexity says it generally ignores robots.txt) ([Perplexity](https://docs.perplexity.ai/guides/bots))
+- **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers Gemini training and grounding, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers))
 - **Bingbot** — Microsoft Copilot (via Bing)
 
-Check your robots.txt for `Disallow` rules targeting any of these. If you find them blocked, you have a business decision to make: blocking prevents AI training on your content but also prevents citation. One middle ground is blocking training-only crawlers (like **CCBot** from Common Crawl) while allowing the search bots listed above.
+Check your robots.txt for `Disallow` rules aimed at any of these. A blocked search bot keeps your pages out of that company's search answers: OpenAI says so for OAI-SearchBot, Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search, and Perplexity recommends allowing PerplexityBot so your site appears. Training is a separate choice. OpenAI says its two bots are independent, and Anthropic lists its three apart, so you can block GPTBot, ClaudeBot and Google-Extended and still allow the search bots. CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls ([Common Crawl](https://commoncrawl.org/ccbot)); block CCBot if you don't want your pages in it.
 
 See [references/platform-ranking-factors.md](references/platform-ranking-factors.md) for the full robots.txt configuration.
 
@@ -429,7 +429,7 @@ citations in code, and trends them next to your Google rankings.
 - **No structured data** — Schema markup gives AI systems structured context about your content
 - **Keyword stuffing** — Unlike traditional SEO where it's just ineffective, keyword stuffing lowered visibility by about 8% on the Princeton GEO study's main measure, the only method that did
 - **Hiding pricing behind "contact sales" or JS-rendered pages** — AI agents evaluating your product on behalf of buyers can't parse what they can't read. Add a `/pricing.md` file
-- **Blocking AI bots** — If GPTBot, PerplexityBot, or ClaudeBot are blocked in robots.txt, those platforms can't cite you
+- **Blocking the search bots** — OpenAI says a site that blocks OAI-SearchBot is not shown in ChatGPT's search answers, though it can still appear as a link; Claude-SearchBot and PerplexityBot are Anthropic's and Perplexity's search bots. Blocking the training bots (GPTBot, ClaudeBot) is a separate choice
 - **Generic content without data** — "We're the best" won't get cited. "Our customers see 3x improvement in [metric]" will
 - **Forgetting to monitor** — You can't improve what you don't measure. Check AI visibility monthly at minimum
 

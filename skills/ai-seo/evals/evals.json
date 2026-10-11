@@ -19,14 +19,15 @@
     {
       "id": 2,
       "prompt": "Should we block AI crawlers like GPTBot and PerplexityBot in our robots.txt? We're worried about content theft.",
-      "expected_output": "Should address the AI bot access question directly. Should explain the tradeoff: blocking AI bots prevents training on your content but also prevents AI platforms from citing and recommending you. Should reference the specific bots and their purposes (GPTBot, Google-Extended, PerplexityBot, ClaudeBot, etc.). Should provide the recommended robots.txt configuration. Should explain that blocking may hurt AI visibility more than it protects content. Should provide a nuanced recommendation based on business goals.",
+      "expected_output": "Should address the AI bot access question directly. Should explain that each company's bots have separate jobs: GPTBot and ClaudeBot gather content for training, while OAI-SearchBot, Claude-SearchBot and PerplexityBot show a site in that company's search answers (PerplexityBot is not a training bot). So the content-theft worry can be met by blocking the training bots while the search bots stay allowed, and blocking a search bot can keep the site out of that company's search answers (OpenAI says it does for OAI-SearchBot). Should say Google-Extended covers Gemini training and grounding and does not affect Google Search. Should name the bots and what each does, and provide the robots.txt configuration from references/platform-ranking-factors.md. Should give a recommendation based on business goals.",
       "assertions": [
-        "Addresses the blocking tradeoff directly",
-        "Explains impact on AI visibility vs content protection",
-        "Lists specific AI bot user agents",
+        "Separates the training bots from the search bots",
+        "Says blocking a search bot can keep the site out of that company's search answers",
+        "Says PerplexityBot is a search bot, not a training bot",
+        "Says Google-Extended does not affect Google Search",
+        "Lists specific AI bot user agents and what each does",
         "Provides recommended robots.txt configuration",
-        "Gives nuanced recommendation based on business goals",
-        "Explains what each bot does"
+        "Gives nuanced recommendation based on business goals"
       ],
       "files": []
     },
