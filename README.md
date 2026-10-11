@@ -319,6 +319,7 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   CODEX-TEST.md    testing the suite itself with Codex
   DECISIONS_PENDING.md  repo only, maintainer-internal: open questions on the toolkit itself
   BUGLOG.md             repo only, maintainer-internal: small bugs and follow-ups kept for a later sweep (a few shipped comments name it; read it in the repo)
+  PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 ```
