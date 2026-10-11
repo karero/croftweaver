@@ -49,6 +49,7 @@ ChatGPT's web search draws from a Bing-based index. It combines this with its tr
 **Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations across ChatGPT, Google AI Overviews and Perplexity (August 2024 to June 2025), Wikipedia was 7.8% of the ChatGPT citations Profound counted, Reddit 1.8% and Forbes 1.1%.
 
 **What to focus on:**
+- Allow OAI-SearchBot in robots.txt (it decides whether you appear in ChatGPT's search answers; GPTBot is the training bot)
 - Invest in backlinks and domain authority — it's the strongest baseline signal
 - Update competitive content at least every three months
 - Structure your content the way ChatGPT structures its answers (conversational, direct, well-organized)
@@ -117,27 +118,35 @@ The companies' own pages (read on 2026-10-11; links in the Step 4 list of `SKILL
 
 ```
 User-agent: OAI-SearchBot     # OpenAI: shows your pages in ChatGPT search
-User-agent: ChatGPT-User      # OpenAI: fetches a page when a ChatGPT user asks
+User-agent: ChatGPT-User      # OpenAI: fetches a page when a ChatGPT user asks (robots.txt may not apply)
 User-agent: Claude-SearchBot  # Anthropic: indexes pages for Claude's search
 User-agent: Claude-User       # Anthropic: fetches a page when a Claude user asks
 User-agent: PerplexityBot     # Perplexity: shows your pages in its search results
-User-agent: Perplexity-User   # Perplexity: fetches a page when a user asks
+User-agent: Perplexity-User   # Perplexity: fetches a page when a user asks (generally ignores robots.txt)
 User-agent: Bingbot           # Microsoft Copilot (via Bing)
 Allow: /
 ```
 
 Google Search, including AI Overviews and AI Mode, follows your rules for Googlebot, so keep Googlebot allowed.
 
-**Training vs. search:** each company's training bot is a separate choice. OpenAI says GPTBot and OAI-SearchBot are independent settings, Anthropic lists ClaudeBot apart from its two other bots, and Google says Google-Extended does not affect inclusion in Google Search. To stay in search answers but opt out of training, leave the lines above as they are and add:
+A bot that has a group of its own obeys only that group: under RFC 9309, crawlers use the `*` group only when no group matches them ([RFC 9309](https://www.rfc-editor.org/rfc/rfc9309)). If your `User-agent: *` group has `Disallow` lines for private paths (`/admin/`, a cart), copy them into the group above. Several `User-agent` lines in a row share the rules under them, as the block above does.
+
+**Training vs. search:** each company's training bot is a separate choice. OpenAI says GPTBot and OAI-SearchBot are independent settings, and Anthropic lists ClaudeBot apart from its two other bots. To stay in search answers but opt out of training, leave the lines above as they are and add:
 
 ```
 User-agent: GPTBot
 User-agent: ClaudeBot
+Disallow: /
+```
+
+Google-Extended is its own choice. Google says it does not affect inclusion in Google Search, and it also covers grounding in Gemini Apps (providing content from the Google Search index to the model at prompt time), so blocking it opts you out of that too:
+
+```
 User-agent: Google-Extended
 Disallow: /
 ```
 
-CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls ([Common Crawl](https://commoncrawl.org/ccbot)). Add `CCBot` to that group if you don't want your pages in it.
+CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls ([Common Crawl](https://commoncrawl.org/ccbot)). Add `CCBot` to the training group if you don't want future crawls of your pages in it.
 
 ---
 

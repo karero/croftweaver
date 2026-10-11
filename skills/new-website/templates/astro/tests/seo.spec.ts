@@ -248,19 +248,69 @@ test('twin-page hreflang alternates are self-consistent and reciprocal', async (
   }
 });
 
+// The crawlers a whole-site `Disallow: /` shuts the site to search for: everyone (`*`), the
+// search engines and the AI search bots. A group for training bots only (GPTBot, ClaudeBot,
+// Google-Extended) is the owner's choice and does not fail the guard below.
+const SEARCH_CRAWLERS = ['*', 'googlebot', 'bingbot', 'oai-searchbot', 'claude-searchbot', 'perplexitybot'];
+
+// The search crawlers a robots.txt closes the whole site to. A group is one or more User-agent
+// lines followed by its Allow and Disallow rules (RFC 9309); a Disallow of `/` counts only for
+// the agents of its own group.
+function wholeSiteBlockedFor(robotsTxt: string): string[] {
+  const blocked = new Set<string>();
+  let agents: string[] = [];
+  let inRules = false;
+  for (const raw of robotsTxt.split(/\r?\n/)) {
+    const m = raw.replace(/#.*/, '').trim().match(/^([A-Za-z-]+)\s*:\s*(.*)$/);
+    if (!m) continue;
+    const field = m[1].toLowerCase();
+    const value = m[2].trim();
+    if (field === 'user-agent') {
+      if (inRules) { agents = []; inRules = false; }
+      agents.push(value.toLowerCase());
+    } else if (field === 'allow' || field === 'disallow') {
+      inRules = true;
+      if (field === 'disallow' && value === '/') for (const a of agents) if (SEARCH_CRAWLERS.includes(a)) blocked.add(a);
+    }
+  }
+  return [...blocked];
+}
+
+test('robots.txt guard — a whole-site Disallow closes the site for a search crawler, not for a training bot', () => {
+  const open = 'User-agent: *\nAllow: /\n';
+  expect(wholeSiteBlockedFor(open), 'open').toEqual([]);
+  expect(wholeSiteBlockedFor('User-agent: *\nDisallow: /\n'), 'blanket').toEqual(['*']);
+  expect(
+    wholeSiteBlockedFor(`${open}\nUser-agent: GPTBot\nUser-agent: ClaudeBot\nUser-agent: Google-Extended\nDisallow: /\n`),
+    'training bots only',
+  ).toEqual([]);
+  expect(
+    wholeSiteBlockedFor(`${open}\nUser-agent: GPTBot\nUser-agent: OAI-SearchBot\nDisallow: /\n`),
+    'a search bot in the group',
+  ).toEqual(['oai-searchbot']);
+  expect(wholeSiteBlockedFor('User-agent: Googlebot\r\nDisallow: / # closed\r\n'), 'CRLF and a comment').toEqual(['googlebot']);
+  expect(wholeSiteBlockedFor('User-agent: *\nDisallow: /private/\n'), 'a sub-path').toEqual([]);
+  expect(wholeSiteBlockedFor('User-agent: *\nDisallow:\n'), 'an empty Disallow').toEqual([]);
+  // A rule line ends the group: the Disallow below belongs to GPTBot, not to the * above it.
+  expect(wholeSiteBlockedFor('User-agent: *\nAllow: /\nUser-agent: GPTBot\nDisallow: /\n'), 'a new group').toEqual([]);
+  // A Sitemap line sits outside the groups and does not end one.
+  expect(wholeSiteBlockedFor('User-agent: *\nSitemap: https://example.com/s.xml\nDisallow: /\n'), 'a Sitemap line').toEqual(['*']);
+});
+
 // Indexability guard: the site is useless if a future edit silently closes it to
 // crawlers. Cloudflare's "Disable robots.txt configuration" leaves THIS file
 // authoritative, so it must stay open and point at the real domain. A blanket
-// `Disallow: /` (or a llms.txt that 404s) is the failure we refuse to ship.
+// `Disallow: /` for everyone or for a search crawler (or a llms.txt that 404s) is the
+// failure we refuse to ship; a `Disallow: /` for training bots alone is allowed.
 test('robots.txt stays open and llms.txt exists', async ({ request, baseURL }) => {
   const robots = await request.get(`${baseURL}/robots.txt`);
   expect(robots.status(), 'public/robots.txt must be served').toBe(200);
   const body = await robots.text();
 
   expect(
-    /^\s*Disallow:\s*\/\s*$/m.test(body),
-    'robots.txt blocks the whole site (Disallow: /) — crawlers and AI engines can\'t index it',
-  ).toBe(false);
+    wholeSiteBlockedFor(body),
+    'robots.txt blocks the whole site (Disallow: /) for these search crawlers — crawlers and AI engines can\'t index it',
+  ).toEqual([]);
 
   // Two sources of truth (SITE.url and the static Sitemap line) must agree, or the
   // declared sitemap 404s — the classic "forgot to set the domain before launch".
