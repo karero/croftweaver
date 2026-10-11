@@ -7,6 +7,7 @@ Data consent: the owner's standing instruction in his global CLAUDE.md names the
 |---|---|---|---|---|---|
 | 1 | `c0d3dc5` | full: `dbd6134...c0d3dc5`, 2 files, plus excerpts copied from three Profound pages | codex-cli 0.162.0, gpt-6.1-sol, effort from config, read-only; melious glm-5.3, HTTP API, text only; fresh-eyes: Claude Sonnet through the Agent tool, read-only by instruction, no shared context, leave to fetch four public pages | codex 154 s / 47,854; melious 192 s / 11,398; fresh-eyes 273 s / 146,995 (21 tool calls) | 0/4/6 after dedup (raw: codex 0/2/0, melious 0/0/2, fresh-eyes 0/2/6) |
 | wording pass | `0366816` | delta `c0d3dc5..0366816`: prose only (two skill files and three BUGLOG rows) | codex medium, `--seat codex` | codex 87 s / 32,308 | 0/0/0 |
+| merge link | `1682d0c` | `main` merged in after #249 landed (`d204c75`). `merge_link.sh dbd6134 93fce3f d204c75` is not empty, because main's new hunks in the same two skill files are #249's, already gated in its own trail. Checked by diff of diffs instead of a seat: the added and removed lines of this change against the old base and against the new base hash alike (`e68b1d88...`), and main's effect on the files is the same stat as #249's own diff (4 files, 126 insertions, 31 deletions) | no model seat: mechanical check | — | — |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
