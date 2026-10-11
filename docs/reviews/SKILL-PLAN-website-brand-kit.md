@@ -4,12 +4,12 @@ Requirements record for a skill that does not exist yet. Where this plan and the
 files disagree, the files win. Names of sites and people stay out of this public repo on
 purpose; the business in the scenarios is made up.
 
-## Status — 2026-10-10 · branch base origin/main 938e625; claims about the repo re-checked on 2026-10-10 against origin/main 7c22680, the newest tip then
+## Status — 2026-10-11 · branch base origin/main 938e625; claims about the repo re-checked on 2026-10-10 against origin/main 7c22680, the newest tip then; every line citation of a file in this repo re-checked on 2026-10-11 against origin/main dbd6134
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 7 and the closing wording pass answered and handled (round 7's fixes not yet re-verified); the intake accepts SVG only (decision 8) | branch `feat/brand-kit-plan`, pushed; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
-| 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) open until step 4; the handoff step was tried on 2026-10-11 and answered how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
+| 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 9 and the closing wording pass answered and handled (round 9 verified round 8's fixes; round 9's own are not re-verified); the intake accepts SVG only (decision 8) | branch `feat/brand-kit-plan`, pushed; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
+| 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) open until step 4; the handoff step was tried on 2026-10-11 and one trial showed how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26 (the starter pins 24). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
 | 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ⏸ not started | — |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
@@ -389,15 +389,16 @@ palette.
   intake checks the mark's colours against the palette (21) and gives the owner its own
   16 and 32 px preview of the installed mark (23), because the tool said it had not
   checked its own render and the installed file is what must be looked at. How an owner gets the SVG files out
-  of the project is answered under "The handoff, tried": by asking in the chat, not through
+  of the project was shown, in one trial, under "The handoff, tried": by asking in the chat, not through
   the Export tab.
 
   **The handoff, tried (2026-10-11, with the maintainer's go, and his go to download).** In
   the same project, after variation 3 was picked, one message asked the tool for "a download
   (handover) package of that one variation only: a zip with its two SVG files (the colour
-  version and the one-colour version) and a README that says what each file is". The reply
-  carried a file card holding `baeckerei-example-logo-furrows.zip` with a Download button;
-  the Export tab is not the route. The reply read, in part: "The handover package is
+  version and the one-colour version) and a README that says what each file is". The author
+  read the reply as carrying a file card holding `baeckerei-example-logo-furrows.zip` with a
+  Download button (no screenshot of it was kept); the Export tab was not the route. The reply
+  read, in part: "The handover package is
   ready as baeckerei-example-logo-furrows.zip (about 2 KB). You can download it from the
   file card in this conversation." The tool said the zip was about 2 KB, that it had
   checked that it unpacks, and that it had not opened it in a viewer. The file was
@@ -408,9 +409,11 @@ palette.
   a `<title>` (with an umlaut) and only `path`, `rect` and `g` elements with `fill`
   attributes: no `<style>`, script, text, link or image. The README is plain text that
   instructs a reader ("open the file in a text editor and change the fill values"), the
-  kind of text the plan says never to follow. This settles that the zip route works as
-  described and gives the plan's checks (scenarios 11, 13, 14 and 22) one real input that
-  passes them. It does not settle what a design tool's SVG looks like when it uses
+  kind of text the plan says never to follow. This shows one zip, made by the chat when asked,
+  and gives the plan's scenarios 13, 14 and 22 one real input that passes them. The real mark is
+  also of the kind scenario 11 describes (a `viewBox` with a width and height); the previews
+  and the maskable measurement under "Spike result" were run on it, the seven files only on
+  the spike's test mark. It does not settle what a design tool's SVG looks like when it uses
   gradients, filters, CSS classes or embedded images: one request produced this one.
 - **D4. SETTLED 2026-10-09 (maintainer decision): log it separately.** A site that never opts in still
   links seven files: the template ships none of them and the scaffold adds two (the Astro
@@ -441,11 +444,11 @@ palette.
 
   **Refined after review round 1; SETTLED 2026-10-11 (maintainer decision).** All three seats found, each on
   its own, that nothing written at 2b can reach the site: §3 step 0 (`mkdir <site> &&
-  git init`, `new-website/SKILL.md:278`) creates the project after the pipeline's step 2b, and
-  §3 step 4 (line 434) says only "copy" for all three doc templates, with no "if absent",
+  git init`, in `new-website/SKILL.md`) creates the project after the pipeline's step 2b, and
+  §3 step 4 says only "copy" for all three doc templates, with no "if absent",
   `POSITIONING.md` included. So the step is two moments. At 2b the owner's answers and picks are held in the
   conversation. At §3 step 4, where `new-website` already copies the doc templates and
-  fills their slots from what steps 2 and 3 decided (`new-website/SKILL.md:434`), the
+  fills their slots from what steps 2 and 3 decided, the
   chosen palette goes into `BRAND.md`'s tables, and the answers, the picked variation and
   the path of her package go into the README decision record (§2a point 5). Those are
   docs, and the only thing written before the green baseline. `global.css`, the manifest,
@@ -656,3 +659,13 @@ except one, whose cleanup would have removed a `brand-handoff` folder that was a
 both found the scenario 32 correction only half done (its Then cell still called the spike's
 mark the trial's) and one stale sentence saying the handoff package had not been seen; and
 they asked for the npm commands and the handoff reply to be on record, which they now are.
+Round 9 (head `dbd6134`, Codex at its own effort 277 s/97,820 tokens, GLM 456 s/59,809
+tokens; the maintainer granted it on 2026-10-11; it verified round 8's fixes): 2 BUG, 1 RISK
+and 2 NIT after merging duplicates, all answered here and not re-verified. Both seats found Z1,
+Z2, Z3 and Z5 landed. What they found: two citations into `new-website/SKILL.md` that the
+merge of #248 had moved by seven lines (the author had found them first; the plan now names
+the step instead of a line); a status row that still called round 7's fixes unverified; the
+file card, which rests on the author's reading of one page (the text now says so); and one
+clause that claimed more of scenario 11 than was run. A fifth finding, a package count
+missing from the capture, was true and was measured again. The count by round: 35, 10, 6, 5,
+8 (the closing read), 8, 9, 8, 6, 5.
