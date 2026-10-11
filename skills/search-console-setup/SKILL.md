@@ -93,8 +93,14 @@ Cloudflare-managed domain.
 Newer Cloudflare zones add a **Security → Bots → Control AI crawlers** panel. For the
 open, maximally-indexable posture this kit wants, confirm BOTH (the defaults can block):
 
-- **Block AI training bots → "Do not block (allow crawlers)"** — blocking here stops
-  ChatGPT / Perplexity / Claude / Gemini from reading and *citing* you (see `ai-seo`).
+- **Block AI training bots → "Do not block (allow crawlers)"** — Cloudflare says this
+  switch blocks bots that crawl for AI training
+  ([Cloudflare](https://developers.cloudflare.com/bots/additional-configurations/block-ai-bots/),
+  read 2026-10-11). Keeping training bots out is a choice of its own, separate from the
+  search bots that show your pages in AI answers (see `ai-seo`, Step 4); this kit leaves
+  them allowed. The same page says the switch is being replaced by **Configure AI bot
+  policies**, with one setting each for Search, Agent and Training: there, set all three
+  to "Allow (do not block)".
 - **Manage your robots.txt → "Disable robots.txt configuration"** — leaves the repo's
   own open `public/robots.txt` authoritative, instead of a Cloudflare-managed file that
   can inject AI-bot `Disallow` rules behind your back.

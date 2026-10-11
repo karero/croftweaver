@@ -310,14 +310,15 @@ scripts/
   test_whats_new.sh         whats-new marks a frozen template file the site lacks as MISSING, and shows and checks the same site path for every tracked file with a fixed one (all but PUBLISHING.md) (make check)
   test_mktemp_guard.sh      each script it lists that builds a throwaway folder stops with an error, and leaves the folder it ran from alone, when mktemp fails; a new script that calls mktemp must be listed or exempted in it (make check)
   check_lf_checkout.sh      every text file checks out LF, even where Git converts to CRLF (make check)
-docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
+docs/          (these ship in the zip, except the two marked repo only; docs/reviews/ and docs/local/ do not ship either)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
   CODEX-TEST.md    testing the suite itself with Codex
-  DECISIONS_PENDING.md  maintainer-internal: open questions on the toolkit itself
+  DECISIONS_PENDING.md  repo only, maintainer-internal: open questions on the toolkit itself
+  BUGLOG.md             repo only, maintainer-internal: small bugs and follow-ups kept for a later sweep
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 ```

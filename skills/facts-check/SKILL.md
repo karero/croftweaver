@@ -43,10 +43,12 @@ and never decides which of two figures is right.
 ## Step 1: the facts list
 
 ```bash
-python3 skills/facts-check/scripts/facts_check.py --init facts.json
+python3 <skill-dir>/scripts/facts_check.py --init facts.json
 ```
 
-writes a starter file. Fill it **with the owner**, never from the pages themselves:
+writes a starter file. `<skill-dir>` is the folder this `SKILL.md` is in (in a checkout of
+the toolkit, `skills/facts-check`); give its full path, and run the commands in the folder
+where the facts list and the reports should live. Fill it **with the owner**, never from the pages themselves:
 copying today's figures off the site would approve whichever one happened to be read
 first. Each fact:
 
@@ -83,7 +85,7 @@ term `employee` ties it.
 ## Step 2: run it
 
 ```bash
-python3 skills/facts-check/scripts/facts_check.py facts.json \
+python3 <skill-dir>/scripts/facts_check.py facts.json \
     --out facts-report.md --json facts-report.json --history facts-history.csv
 ```
 
