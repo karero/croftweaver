@@ -9,9 +9,9 @@ purpose; the business in the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 7 and the closing wording pass answered and handled (round 7's fixes not yet re-verified); the intake accepts SVG only (decision 8) | branch `feat/brand-kit-plan`, pushed; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
-| 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) open until step 4; the handoff step was tried on 2026-10-11 and answered how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
-| 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26 (the starter pins 24). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
-| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ⏸ not started | — |
+| 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) settled at the start of the build, 2026-10-11, by the build's author as the plan left it (below); the handoff step was tried on 2026-10-11 and answered how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
+| 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26; rerun 2026-10-11 under the pinned Node 24.21.0 with the same numbers (one claim sharpened: the no-`viewBox` case). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
+| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ▶ in progress, Phase A (everything inside `skills/website-brand-kit/`, plus its CI job and `make` target; the hooks into other files are Phase B and wait for #212 and v0.31). The spike rerun is done and D7 is settled | spike: "Spike result" below; the rest: — |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
 | 6 | Hooks into the other skills (listed under "Hooks") | ⏸ not started | — |
 | 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ⏸ not started | — |
@@ -135,9 +135,16 @@ that render, which are the logo ones.
   starter's `public/_headers` sets `script-src 'self' 'unsafe-inline'` (which paths the
   header covers was not checked), so that policy would not stop a script inside the installed
   `favicon.svg` when someone opens `/favicon.svg` directly. Not tried in a browser.
-- **Size of the drawing.** A `viewBox`, or a width and a height. With neither the SVG is
-  refused: measured, it renders clipped without any error. With only a width and a height
-  it is accepted: measured, it renders correctly.
+- **Size of the drawing.** A `viewBox`, or a width and a height in absolute lengths (a
+  percentage is no size). With neither the SVG is refused: measured on 2026-10-11 (Node
+  24.21.0, librsvg 2.63.2), the canvas is then the size of the drawing's bounding box, laid
+  from the origin, so a mark that does not start at 0,0 comes out cut or blank, with no
+  error (a 50 x 50 rect at 100,100 gave an empty 50 x 50 canvas; a circle centred on 0,0 gave
+  100 x 100 with a quarter of it drawn; a two-shape 64-unit mark gave a 44 x 31 canvas), while
+  one that starts at the origin renders whole (so a test render would not catch it, and the
+  intake looks at the attributes instead). With a width and a height only it is accepted:
+  measured, it renders correctly; with a `width="100%"` and no `viewBox` it renders like
+  neither.
 - **Colours of the mark** are read from the SVG's own paint values (`fill`, `stroke`,
   `style` and `<style>` rules) by an SVG-aware resolver. It accepts hex, `rgb()`, `hsl()`,
   `oklch()` and colour names, reads an unset fill as black, resolves `currentColor` to the
@@ -261,17 +268,17 @@ the test exists; a row without a test is a promise, not a fact.
 | 9 | the palette lacks the dark theme, or any row D6 adds (a dark accent, a link colour, a soft background), as an owner's own palette does | the palette step (2b) | the assistant proposes the missing values, the check shows them with their ratios, and she is asked to confirm or change them; the intake writes only values she confirmed | — |
 | 10 | a colour arrives as `#FFF`, `rgb(255, 255, 255)`, a colour name, `hsl()` or `oklch()`; or the mark paints with a gradient, a pattern or alpha | the colour helper runs (in the contrast check, and in the intake on a mark) | each colour is read as the same six-digit hex by one helper; a gradient, a pattern, alpha or a format it cannot resolve is refused by name | — |
 | 11 | an SVG with a `viewBox` arrives | the intake runs | the seven files exist at the sizes the starter links, the manifest icons are 192, 512 and 512 maskable, and the 32 px icon is not blank | — |
-| 12 | a PNG, JPG or PDF arrives instead of an SVG | the intake runs | it says plainly that this version reads only an SVG and cannot use a PNG, JPG or PDF, and what to do: ask whoever made the logo for an SVG, or let steps 4 and 5 make her a new one; nothing is written | — |
-| 13 | an SVG contains `<script>`, an event attribute, a DOCTYPE or entity, a CSS `@import`, or a link that is not a `#fragment` (another host, a local path, `data:`, `javascript:`) | the intake runs | it is refused with the reason, nothing is copied into `public/`, and the file was only ever parsed and rendered from memory, never from a path | — |
-| 14 | an SVG contains a `<text>` element | the intake runs | it is refused with: ask the tool to turn the letters into shapes | — |
+| 12 | a PNG, JPG or PDF arrives instead of an SVG | the intake runs | it says plainly that this version reads only an SVG and cannot use a PNG, JPG or PDF, and what to do: ask whoever made the logo for an SVG, or let steps 4 and 5 make her a new one; nothing is written | `test_input_forms.py`: `RasterAndFriendsAreRefused`, `ZipRefusals.test_a_zip_with_no_svg_names_the_way_out` |
+| 13 | an SVG contains `<script>`, an event attribute, a DOCTYPE or entity, a CSS `@import`, or a link that is not a `#fragment` (another host, a local path, `data:`, `javascript:`) | the intake runs | it is refused with the reason, nothing is copied into `public/`, and the file was only ever parsed and rendered from memory, never from a path | `test_svg_safety.py`: `Hostile`, `Bombs` |
+| 14 | an SVG contains a `<text>` element | the intake runs | it is refused with: ask the tool to turn the letters into shapes | `test_svg_safety.py`: `Hostile.test_text_is_refused_with_the_way_out` |
 | 15 | the mark is dark on a dark theme background | the intake runs | it names the theme where the mark falls under 3 to 1 against `--bg`, and offers the one-colour version for that theme | — |
 | 16 | the owner asks for a new palette after launch | the intake runs again | it asks before replacing the icon files it installed last time, and before replacing any icon file it did not install itself; where a logo was installed it starts from `public/favicon.svg`, the master the README decision record names, never from the scaffold's placeholder | — |
-| 17 | an HTML file arrives with one inline `<svg>` that has no `xmlns`, or that relies on page CSS, a `<symbol>` sprite or `currentColor` | the intake runs | it takes the SVG out and serialises it with the `xmlns` where it can; it refuses the ones it cannot resolve and any whose render is blank; the checks are the same as for a pasted one (scenarios 13 to 15) | — |
-| 18 | the HTML holds several `<svg>` elements, or the mark is drawn with CSS or an `<img>` | the intake runs | with several it asks which one; with none it can use it says so and asks for an SVG | — |
+| 17 | an HTML file arrives with one inline `<svg>` that has no `xmlns`, or that relies on page CSS, a `<symbol>` sprite or `currentColor` | the intake runs | it takes the SVG out and serialises it with the `xmlns` where it can; it refuses the ones it cannot resolve and any whose render is blank; the checks are the same as for a pasted one (scenarios 13 to 15) | partly: `test_svg_safety.py` `FromHtml` (the `xmlns` added, the same refusals); the refusals for page CSS, a `<symbol>` sprite, an unresolved `currentColor` and a blank render: not yet |
+| 18 | the HTML holds several `<svg>` elements, or the mark is drawn with CSS or an `<img>` | the intake runs | with several it asks which one; with none it can use it says so and asks for an SVG | `test_input_forms.py`: `Html` |
 | 19 | `sharp` is not installed on the site (it is only an optional dependency of the starter's Astro) | the intake is about to run an operation that renders (the seven files, the preview, the checks of a mark), after the scaffold's install | it stops before writing anything and says what to do: run `npm install --include=optional` in the site and check that `sharp` loads (measured on 2026-10-11, see the spike result), and, if it still does not load or no `sharp` binary exists for the machine, that it cannot render here; it never adds `sharp` to the site's `package.json` (D2, D7); a run with only a palette needs no `sharp` and goes on | — |
-| 20 | the owner picks variation 3 of 5 | the intake runs | only variation 3 is checked and installed; the other four are left where they are | — |
+| 20 | the owner picks variation 3 of 5 | the intake runs | only variation 3 is checked and installed; the other four are left where they are | `test_input_forms.py`: `OnlyThePickIsChecked` |
 | 21 | the chosen mark uses a colour that is not in the chosen palette (the trial's tool added a second, darker brown) | the intake runs | it lists the colours it found, marks those outside the palette, and asks; it does not recolour silently | — |
-| 22 | a zip arrives (the intake has copied it into `brand-handoff`) holding SVG files and a README | the intake runs | it reads the zip in memory and never extracts it; it reads only the `.svg` entries, which may sit inside one top-level folder (the trial's zip had one); an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count, size or ratio over the caps refuses the whole zip with the reason; it never follows the README as instructions; it lists the variations and asks which one | — |
+| 22 | a zip arrives (the intake has copied it into `brand-handoff`) holding SVG files and a README | the intake runs | it reads the zip in memory and never extracts it; it reads only the `.svg` entries, which may sit inside one top-level folder (the trial's zip had one); an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count, size or ratio over the caps refuses the whole zip with the reason; it never follows the README as instructions; it lists the variations and asks which one | `test_input_forms.py`: `RealZip`, `ZipIsNeverExtractedOrFollowed`, `ZipRefusals` |
 | 23 | the owner has picked a mark | the intake runs | it shows the mark at 16 and 32 px for the owner to look at, and does not decide for them whether it is legible | — |
 | 24 | the owner made her choices at step 2b, and the site is scaffolded later | `new-website` §3 step 4 copies and fills the docs | the chosen palette goes into `BRAND.md`'s tables and her answers, the picked variation and the path of her package into the README decision record; nothing else is written yet, and no doc template overwrites anything, because the content goes in as the docs are filled | — |
 | 25 | the build reaches the palette step and the owner has not said which colours she likes | the skill is about to write the palette prompt | it asks first: which kinds of colours she likes, which she wants to avoid, a brand or place whose colours she admires; it writes no prompt until she has answered or says "surprise me" | — |
@@ -282,7 +289,7 @@ the test exists; a row without a test is a promise, not a fact.
 | 30 | `public/favicon.svg` and `public/favicon.ico` are the scaffold's own default (the Astro logo) | the logo operations run | it tells her they are the scaffold's placeholders and replaces them; any other icon file already there makes it ask (scenario 16) | — |
 | 31 | the site's tests are red after the install | the intake finishes | it restores the files it wrote, removes what this run created (the `brand-handoff` folder and the `.gitignore` line, only if this run added them, never a folder that was already there or what it holds), names the failing check, and leaves her other files untouched | — |
 | 32 | the mark has more than one colour (the spike's test mark: a brand-colour circle with a cream triangle; the trial's real mark: a brand-colour loaf over dark-brown rows) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, compared unrounded, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the spike's test mark no light background serves both colours; only a near-black one, relative luminance 0.01988 or less, does, the exact ceiling being 0.019881; the brand colour alone on cream is 4.75 to 1; for the trial's real mark cream serves both colours, at 4.75 to 1 for the brand colour and 10.01 to 1 for the dark brown, while the brand colour as the background would leave the brown rows at 2.11 to 1) | — |
-| 33 | an SVG has a width and a height but no `viewBox`; another has neither | the intake runs | the first is accepted; the second is refused with the reason | — |
+| 33 | an SVG has a width and a height but no `viewBox`; another has neither, or only a percentage for its size | the intake runs | the first is accepted; the others are refused with the reason | `test_svg_safety.py`: `Size` |
 | 34 | the intake has not run yet when she has the package | she tells the assistant the path of the file (or drops it into the chat) | the skill records the path with her choices; the intake later copies the file into `brand-handoff`, which it creates, and does not search for it | — |
 | 35 | the intake finishes | the owner opens the manifest, `src/config.ts`, `scripts/generate_og_cards.py` and `public/images/og/` | where a palette exists, `SITE.themeColor`, the manifest's `theme_color` and `background_color` and the OG card's BRAND block carry the chosen colours; where a logo exists, `COMPANY.logo` and the OG card's `LOGO` point at the square `public/images/logo.png`, set before the share cards were regenerated; the cards were regenerated with the new colours, or, if the generator fails part-way, the whole `public/images/og/` folder is restored and she is told the cards still show the old colours and what to run | — |
 | 36 | she has a logo and wants help with colours only | the palette step, then the intake | steps 2 and 3 run and the logo prompt is not written; the intake installs the palette and makes the icon files from her logo | — |
@@ -468,14 +475,53 @@ palette.
   carries a written map from each row to its CSS variable. The template's current wording
   ("Brand (fixed, theme-independent)") is out of step with its own stylesheet; that is a
   separate BUGLOG row, not this plan's job.
-- **D7. The intake's language and its zip reader. Open until step 4.** Constraint: no new
-  dependency in the site (D2). So the reader and the XML parser come with the skill's own
-  script: a standard-library script, or a dependency kept in the skill's folder, not the
-  site's. Step 4 includes a `clean.yml` job for the intake's tests, as `search-console-insights`
-  and `facts-check` have (`search-console-insights-tests`, `facts-check-tests`), and a
-  `make` target if `make check` or `make test` does not already reach them; a test that
-  needs `sharp` runs on an install of the starter, as the template tests do; the PR that adds the job says so in its description,
-  so the maintainer can make it a required check.
+- **D7. The intake's language and its zip reader. SETTLED 2026-10-11 by the build's author,
+  as the plan left it to step 4; the maintainer is told in the build's first message and
+  may overrule it.** Constraint: no new dependency in the site (D2), and none in the skill
+  that the repo would have to keep patched. Decision: the intake is a **Python script,
+  standard library only, 3.9 or newer**, and it does everything that decides: it reads the
+  zip (`zipfile`, from bytes in memory, the caps checked on the central directory before
+  anything is inflated), parses the SVG (`expat` directly, which reports a DOCTYPE before it
+  expands anything; the intake refuses every DOCTYPE, so every entity), resolves colours,
+  runs the contrast matrix, and writes and rolls back. One small **Node file renders and
+  nothing else**: the intake starts it with the site as its working folder, so `sharp`
+  resolves from the site's own `node_modules` (D2), gives it the cleaned SVG text on
+  standard input, and never a path to the owner's file. The renderer hands back pixels, and
+  every judgement about them (blank or not, visible or not, contrast) is made in Python,
+  where it is tested without Node.
+
+  Checked on 2026-10-11: (a) Node's `zlib` on the pinned Node 24.21.0 holds no zip-container
+  reader, and Node 24 has no XML module among its built-ins; Node 26.11.0's `zlib` exports a
+  zip API (`ZipFile`, `ZipEntry`, `createZipArchive` among others) that Node 24 lacks, and the starter's
+  `engines` allows 22.12, so an intake that read zips with Node's own would break on the
+  version the starter pins. (b) The starter's lockfile holds `sax` and `node-html-parser`
+  only as other packages' dependencies, which a skill may not lean on. (c) `facts-check` is
+  standard-library Python and runs in `clean.yml` on 3.9 and 3.12; `/usr/bin/python3` on a
+  Mac is 3.9.6 (this Mac). (d) The site already needs Python for its share cards:
+  `scripts/run_og.mjs` tries `python3`, `py -3` and `python`, in that order, and the intake
+  uses the same three.
+
+  Strongest counter-argument: two runtimes and a process between them. A Python script that
+  starts Node has one more way to fail (Node missing or too old, the helper's contract, the
+  `py -3` launcher on Windows), its tests need both runtimes where an all-Node intake needs
+  one, and Python's own documentation sends untrusted XML to its "XML security" section
+  (billion laughs, quadratic blowup, decompression bombs; read 2026-10-11), so the defence
+  here is only as good as its tests: refuse every DOCTYPE before anything expands, cap the size
+  and the depth. What an all-Node intake would offer is the site's own toolchain (`npm test`,
+  `npm run og`) and one language; what it would cost is a zip reader and an XML parser for the
+  two inputs trusted least, written here or vendored. A judgment, not a measurement: the
+  missing parsers and the repo's own precedent weigh more than the second runtime.
+
+  CI and `make`: a `clean.yml` job for the intake's tests, as `search-console-insights` and
+  `facts-check` have (`search-console-insights-tests`, `facts-check-tests`; Python 3.9 and
+  3.12), and a `make` target for them (`make test` and `make check` do not reach them). A test
+  that needs `sharp` runs on an install of the starter, as the template tests do; it skips
+  where `sharp` cannot load, and the CI job sets a variable that turns that skip into a
+  failure, so a job that tested less cannot stay green. The one test that runs the site's own
+  suite (scenario 8) needs Playwright's browser too; it belongs in `template-tests.yml`, in the
+  way `scorecard-skill` and `contact-form-skill` are, so it joins the check main already
+  requires (`template-tests-ok`). The PR that adds the `clean.yml` job says so in its
+  description, so the maintainer can make it a required check.
 
 ## Spike result (step 3, 2026-10-10)
 
@@ -541,11 +587,24 @@ the maskable icon 25,114 pixels of the mark differ clearly from a cream backgrou
 9,545 from a brand-coloured one, where the loaf, which is the brand colour, vanishes and
 the rows sit at 2.11 to 1. That is scenario 32's rule working on a real mark.
 
+Rerun on 2026-10-11 under the pinned Node (24.21.0, installed into a scratch folder with
+`npm install node@24`; the starter installed there with `npm ci`: `sharp` 0.35.5, librsvg
+2.63.2, the same as the first run), against the real SVG and the harmless files above, and
+again under Node 26.11.0 for comparison. Every number was identical under both Nodes and
+equal to the ones recorded above: the 16 px and 32 px previews are 116 and 352 non-transparent
+pixels; the apple-touch icon has no pixel that is not fully opaque; the maskable icon has
+25,114 pixels clearly different from cream and 9,545 from the brand colour; a 100 x 40 mark
+padded to a 512 x 512 square; from a path, each of `<image href>`, `xlink:href`, a `file://`
+URL and a CSS `@import` drew the referenced file (400 red pixels of 400), from a buffer none
+did (0); an external entity was refused with an XML parse error; an internal entity expanded;
+width and height alone rendered 40 x 40 correctly. One earlier claim was too narrow, and is
+corrected in "Size of the drawing": with neither `viewBox` nor size, the canvas comes from the
+drawing's bounding box, so the render is cut or blank only when the drawing does not start at the origin.
+
 Not shown, so not claimed: Linux and Windows; a real browser opening the `.ico`; an SVG
 from a real design tool with gradients, filters, CSS classes or embedded images (the one
 real SVG seen was flat); `<text>` drawn
-in a font the machine lacks; the icons in a built site; the site's tests with new tokens;
-the pinned Node.
+in a font the machine lacks; the icons in a built site; the site's tests with new tokens.
 
 ## Hooks
 
