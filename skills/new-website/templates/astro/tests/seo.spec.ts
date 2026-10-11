@@ -248,31 +248,46 @@ test('twin-page hreflang alternates are self-consistent and reciprocal', async (
   }
 });
 
-// The crawlers a whole-site `Disallow: /` shuts the site to search for: everyone (`*`), the
-// search engines and the AI search bots. A group for training bots only (GPTBot, ClaudeBot,
+// The crawlers a whole-site block shuts the site to search for: everyone (`*`), the search
+// engines and the AI search bots. A group for training bots only (GPTBot, ClaudeBot,
 // Google-Extended) is the owner's choice and does not fail the guard below.
 const SEARCH_CRAWLERS = ['*', 'googlebot', 'bingbot', 'oai-searchbot', 'claude-searchbot', 'perplexitybot'];
 
 // The search crawlers a robots.txt closes the whole site to. A group is one or more User-agent
-// lines followed by its Allow and Disallow rules (RFC 9309); a Disallow of `/` counts only for
-// the agents of its own group.
+// lines followed by its Allow and Disallow rules (RFC 9309), and its rules count only for the
+// agents of that group. A rule that covers the whole site is `/` or `/*`; the longer pattern
+// wins, and an Allow wins a tie (RFC 9309, section 2.2.2). A line that is neither a User-agent
+// nor a rule (Sitemap) is skipped and does not end the group.
 function wholeSiteBlockedFor(robotsTxt: string): string[] {
   const blocked = new Set<string>();
   let agents: string[] = [];
+  let allowLen = 0;
+  let disallowLen = 0;
   let inRules = false;
-  for (const raw of robotsTxt.split(/\r?\n/)) {
+  const endGroup = () => {
+    if (disallowLen > allowLen) for (const a of agents) if (SEARCH_CRAWLERS.includes(a)) blocked.add(a);
+    agents = [];
+    allowLen = 0;
+    disallowLen = 0;
+    inRules = false;
+  };
+  for (const raw of robotsTxt.split(/\r\n|\r|\n/)) {
     const m = raw.replace(/#.*/, '').trim().match(/^([A-Za-z-]+)\s*:\s*(.*)$/);
     if (!m) continue;
     const field = m[1].toLowerCase();
     const value = m[2].trim();
     if (field === 'user-agent') {
-      if (inRules) { agents = []; inRules = false; }
+      if (inRules) endGroup();
       agents.push(value.toLowerCase());
     } else if (field === 'allow' || field === 'disallow') {
       inRules = true;
-      if (field === 'disallow' && value === '/') for (const a of agents) if (SEARCH_CRAWLERS.includes(a)) blocked.add(a);
+      if (value === '/' || value === '/*') {
+        if (field === 'allow') allowLen = Math.max(allowLen, value.length);
+        else disallowLen = Math.max(disallowLen, value.length);
+      }
     }
   }
+  endGroup();
   return [...blocked];
 }
 
@@ -289,12 +304,18 @@ test('robots.txt guard — a whole-site Disallow closes the site for a search cr
     'a search bot in the group',
   ).toEqual(['oai-searchbot']);
   expect(wholeSiteBlockedFor('User-agent: Googlebot\r\nDisallow: / # closed\r\n'), 'CRLF and a comment').toEqual(['googlebot']);
+  expect(wholeSiteBlockedFor('User-agent: Googlebot\rDisallow: /\r'), 'CR only').toEqual(['googlebot']);
   expect(wholeSiteBlockedFor('User-agent: *\nDisallow: /private/\n'), 'a sub-path').toEqual([]);
   expect(wholeSiteBlockedFor('User-agent: *\nDisallow:\n'), 'an empty Disallow').toEqual([]);
   // A rule line ends the group: the Disallow below belongs to GPTBot, not to the * above it.
   expect(wholeSiteBlockedFor('User-agent: *\nAllow: /\nUser-agent: GPTBot\nDisallow: /\n'), 'a new group').toEqual([]);
-  // A Sitemap line sits outside the groups and does not end one.
   expect(wholeSiteBlockedFor('User-agent: *\nSitemap: https://example.com/s.xml\nDisallow: /\n'), 'a Sitemap line').toEqual(['*']);
+  // `/*` covers the whole site too; of two whole-site rules the longer pattern wins, an Allow wins a tie.
+  expect(wholeSiteBlockedFor('User-agent: *\nDisallow: /*\n'), 'a wildcard').toEqual(['*']);
+  expect(wholeSiteBlockedFor('User-agent: *\nDisallow: /\nAllow: /\n'), 'a tie, Disallow first').toEqual([]);
+  expect(wholeSiteBlockedFor('User-agent: *\nAllow: /\nDisallow: /\n'), 'a tie, Allow first').toEqual([]);
+  expect(wholeSiteBlockedFor('User-agent: *\nAllow: /\nDisallow: /*\n'), 'the longer Disallow').toEqual(['*']);
+  expect(wholeSiteBlockedFor('User-agent: *\nAllow: /*\nDisallow: /\n'), 'the longer Allow').toEqual([]);
 });
 
 // Indexability guard: the site is useless if a future edit silently closes it to

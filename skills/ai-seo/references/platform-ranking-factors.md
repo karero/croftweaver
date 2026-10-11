@@ -114,7 +114,7 @@ Claude uses Brave Search as its search backend when web search is enabled — no
 
 ## Allowing AI Bots in robots.txt
 
-The companies' own pages (read on 2026-10-11; links in the Step 4 list of `SKILL.md`) split their bots by job, so allow the search and user bots by name:
+The companies' own pages (read on 2026-10-11, except the Bingbot line, which was not checked against Microsoft's pages; links in the Step 4 list of `SKILL.md`) split their bots by job, so allow the search and user bots by name:
 
 ```
 User-agent: OAI-SearchBot     # OpenAI: shows your pages in ChatGPT search
