@@ -9,7 +9,7 @@ purpose; the business in the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 7 and the closing wording pass answered and handled (round 7's fixes not yet re-verified); the intake accepts SVG only (decision 8) | branch `feat/brand-kit-plan`, pushed; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
-| 2 | Close the open decisions below | ▶ D1 to D4 settled; D5 settled, its refinement after review proposed; D6 (the `BRAND.md` table) proposed; D7 (intake language, zip reader) open until step 4; two details open: the `brand-handoff` folder name, and how files leave the design project (waits for the handoff zip) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
+| 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) open until step 4; one detail open: how files leave the design project (the handoff step is being tried) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26 (the starter pins 24). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
 | 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ⏸ not started | — |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
@@ -324,7 +324,7 @@ palette.
    skill gives her, and saves it wherever she likes, then tells the assistant the path
    (scenarios 26, 27, 34). When the intake runs it creates the project's `brand-handoff`
    folder, adds it to the site's `.gitignore` and copies the package in, so the package is
-   not committed. The folder name is the plan's proposal, not yet confirmed.
+   not committed. The folder name `brand-handoff` was confirmed by the maintainer on 2026-10-11.
 8. **Raster logos are out of version 1** (the maintainer, 2026-10-11, after review round 6).
    Only an SVG is read; a PNG, JPG or PDF is refused with a plain explanation and what to do
    (scenario 12). About half of the findings of rounds 5 and 6 concerned the raster branch,
@@ -418,7 +418,7 @@ palette.
   voice from step 3 could shape a logo's personality, serious or playful; only the owner's
   mood words cover that.
 
-  **Refined after review round 1; proposed, waits for a yes.** All three seats found, each on
+  **Refined after review round 1; SETTLED 2026-10-11 (maintainer decision).** All three seats found, each on
   its own, that nothing written at 2b can reach the site: §3 step 0 (`mkdir <site> &&
   git init`, `new-website/SKILL.md:278`) creates the project after the pipeline's step 2b, and
   §3 step 4 (line 434) says only "copy" for all three doc templates, with no "if absent",
@@ -436,7 +436,7 @@ palette.
   decision record at step 4 is one of the hooks below. "Copy `brand.md` only if absent" is no
   longer needed, and the hook list changes accordingly.
 
-- **D6. The `BRAND.md` table. Proposed 2026-10-10; waits for a yes.** The template's table
+- **D6. The `BRAND.md` table. SETTLED 2026-10-11 (maintainer decision); proposed 2026-10-10.** The template's table
   cannot serve the stylesheet. It has one "fixed" Accent and no dark accent, link or soft
   background, while `global.css` overrides `--accent` in the dark theme, adds `--link` and
   `--bg-soft`, and writes the dark values twice. No single accent reaches 4.5 to 1 on both
@@ -610,4 +610,5 @@ not draw a vector (a raster remnant); the agreement check on an existing site, w
 `BRAND.md` may lack D6's rows or drift from the stylesheet (the stylesheet is the palette in
 force, the drift is named, not blocking); and rollback, later runs, the preview's theme and
 the npm remedy, which is now measured. The count by round: 35, 10, 6, 5, 8 (the closing
-read), 8, 9, 8.
+read), 8, 9, 8. On 2026-10-11 the maintainer also settled D5's refinement, D6 and the
+`brand-handoff` folder name as proposed; that changed four status labels and no requirement text.
