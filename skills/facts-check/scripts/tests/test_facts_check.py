@@ -215,6 +215,12 @@ class FindMentions(unittest.TestCase):
         self.assertEqual(self.statuses("150 Kundenservice", fact(value=150, terms=["Kunde"], whole_words=False)),
                          [("OK", 150)])
 
+    def test_a_day_range_is_two_numbers_with_no_token_for_the_hyphen(self):
+        # round 3 (GLM): the date guard for "September 4-6, 2026" rests on this token stream
+        for text in ("September 4-6, 2026", "September 4 \u2013 6, 2026"):
+            with self.subTest(text=text):
+                self.assertEqual([k for k, _ in fc.tokenize(text)], ["word", "num", "num", "stop", "num"])
+
     def test_a_year_after_month_and_day_is_a_year(self):
         f = fact(value=120, terms=["Kunde", "client"])
         for text in ("Blog Article | September 4, 2026 Fachkräftemangel im Kundenservice",
