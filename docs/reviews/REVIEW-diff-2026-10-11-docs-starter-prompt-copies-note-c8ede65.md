@@ -17,4 +17,5 @@ What Codex reported clean: each note names the other copy correctly (`README.md:
 
 Notes:
 - Light gate: one seat by the owner's standing choice for prose no assistant loads as instructions and no person runs. The script warned that one seat is fewer than the standard pair; that is the choice, not a degraded round.
+- Main moved while the branch waited (7 commits, none in `README.md` or `docs/GETTING-STARTED.md`). It was merged in as `1ea3065` before the PR opened. The diff against the new base `d204c75`, trail excluded, is byte-identical to round 1's, so no new round was owed and the stamp covers the merged head (closeout, clerk item 2: only the SHA moved).
 - No check script was added. The two copies never differed across the last 60 commits that touched either file; the first time they differ, add one.
