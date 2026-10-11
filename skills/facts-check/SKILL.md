@@ -141,7 +141,9 @@ On a large site, most false ties come from three places:
 
 - **Rows of figures** ("27,000+ talents 35+ languages 70+ countries in the talent pool"):
   give each figure in the row a fact of its own. The term that comes first after a number
-  decides which fact it belongs to, so a countries fact keeps 70 away from the talent pool.
+  decides which fact it belongs to, so a countries fact keeps 70 away from the talent pool
+  (two terms that start at the same word tie both facts; another fact's `before` phrase
+  right before the number claims it too).
 - **German compounds**: a term matches every word that starts with it, so `Kunde` also
   matches `Kundenservice`. Set `whole_words` and list the forms you mean.
 - **Blog posts** use the same words in passing ("300 agents in a contact center", "45 euros

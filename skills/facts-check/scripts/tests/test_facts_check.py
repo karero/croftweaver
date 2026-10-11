@@ -188,6 +188,9 @@ class FindMentions(unittest.TestCase):
         # a before phrase is not affected: it names the number directly
         nps = fact(id="nps", value=72, terms=[], before=["NPS of"])
         self.assertEqual([h["found_value"] for h in fc.find_mentions("an NPS of 72 clients said", nps, others=[clients])], [72])
+        # round 1 (GLM): and another fact's before phrase claims the number from the terms
+        self.assertEqual(fc.find_mentions("an NPS of 72 clients said", clients, others=[nps]), [])
+        self.assertEqual([h["found_value"] for h in fc.find_mentions("of 72 clients said", clients, others=[nps])], [72])
 
     def test_whole_words_terms_match_only_whole_words(self):
         prefix = fact(value=150, terms=["Kunde", "Kunden"])
@@ -214,6 +217,9 @@ class FindMentions(unittest.TestCase):
                      "Sept. 4, 2026 clients",
                      "Sep 30, 2025 clients",
                      "on 4 September 2026 clients",
+                     # round 1 (GLM): an ordinal day, and a day before the month
+                     "September 4th, 2026 clients", "September 1st 2026 clients",
+                     "March 22nd, 2026 clients", "10 March, 2026 clients",
                      "am 4. September 2026 Kunden"):
             with self.subTest(text=text):
                 self.assertEqual(self.statuses(text, f), [])
