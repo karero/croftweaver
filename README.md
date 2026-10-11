@@ -58,6 +58,8 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 
 **Copy-paste starter prompt:**
 
+<!-- This prompt is also in docs/GETTING-STARTED.md. If you change one copy, change the other to match. -->
+
 > I want to use the website-builder skill suite (https://github.com/karero/website-builder)
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
