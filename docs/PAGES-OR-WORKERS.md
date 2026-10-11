@@ -166,8 +166,10 @@ Each line is something to look at, not an outcome to expect:
    `X-Robots-Tag: noindex` on both, on pages and on files?
 3. Do the headers from `public/_headers` arrive on the live domain and on a Preview?
 4. Ask the deployed Preview directly; the site's tests run against a local Astro server and
-   cannot. What do `/about`, `/about.html`, `/about/`, an entry from `public/_redirects` and
-   a path that does not exist answer, and with which status?
+   cannot. The starter ships no `public/_redirects`, so add one entry for the trial. Then,
+   for a page the site has (the starter ships `/privacy`): what do `/privacy`,
+   `/privacy.html`, `/privacy/`, the redirect entry and a path that does not exist answer,
+   and with which status?
 5. With `production` as the production branch and preview builds on, what does a push to
    `main` produce, and at which address? What does `npm run ship` then do?
 6. What do `WORKERS_CI_BRANCH` and `WORKERS_CI_COMMIT_SHA` hold in a production build and in
