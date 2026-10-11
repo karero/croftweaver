@@ -6,7 +6,9 @@ The words that matter, so the rest reads easily:
   palette  read-only. Checks a pasted palette (or a site's BRAND.md) for contrast in both themes
            and names every failing pair and every missing row. Writes nothing. It runs at step
            2b, before the project exists, and again before the intake writes.
-  (more commands are added with their tests: mark, install)
+  install  puts the palette and the logo into a site, or stops and says why. Every check and every
+           file is made before the site is touched; if the site's own tests are red afterwards,
+           everything is put back.
 
 Every check that decides something is plain Python (standard library only, 3.9 or newer); the one
 small Node file that renders pictures runs later, with the site's own `sharp`. Nothing here asks a
@@ -18,6 +20,7 @@ unreadable or refused), 3 it needs the owner to decide something first.
 Usage:
   python3 brand_intake.py palette BRAND.md [--css src/styles/global.css] [--json]
   python3 brand_intake.py palette -            # the palette on standard input
+  python3 brand_intake.py install --site my-site [--input logo.zip --pick a.svg --mono a-mono.svg] [--dry-run]
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import _colour  # noqa: E402
+import _install  # noqa: E402
 import _palette  # noqa: E402
 from _refusal import Ask, Refusal  # noqa: E402
 
@@ -134,6 +138,17 @@ def cmd_palette(args, out):
     return code
 
 
+def cmd_install(args, out):
+    lines = []
+    code, status, data = _install.install(args, lines)
+    if args.json:
+        data = dict(data, status=status, exit=code, report=lines)
+        out.append(json.dumps(data, ensure_ascii=True))
+    else:
+        out.extend(lines)
+    return code
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="brand_intake.py", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
@@ -141,6 +156,20 @@ def main(argv=None):
     p.add_argument("file", help="BRAND.md or a pasted palette; - for standard input")
     p.add_argument("--css", help="the site's global.css, to compare it with the palette")
     p.add_argument("--json", action="store_true", help="machine-readable output")
+    i = sub.add_parser("install", help="put a palette and a logo into a site (checks everything first; puts everything back if the site's tests go red)")
+    i.add_argument("--site", required=True, help="the site's folder")
+    i.add_argument("--palette", help="the palette to apply (default: BRAND.md, or docs/BRAND.md, in the site)")
+    i.add_argument("--input", help="the logo: an SVG file, a page with an inline SVG, a zip of SVG files, or a folder holding one of them")
+    i.add_argument("--pick", help="which file of a zip (or which inline SVG of a page) is the mark")
+    i.add_argument("--mono", help="which file of the zip is the mark's one-colour version")
+    i.add_argument("--with-colours", action="store_true", help="stop unless a complete palette is applied")
+    i.add_argument("--with-logo", action="store_true", help="stop unless a logo is applied")
+    i.add_argument("--accept-colours", action="store_true", help="use the mark's colours even where the palette does not hold them")
+    i.add_argument("--accept-low-contrast", default="", help="light, dark or both: use the mark although it falls under 3 to 1 on that theme's background")
+    i.add_argument("--replace-icons", action="store_true", help="replace icon files that are already in the site and are not the scaffold's placeholders")
+    i.add_argument("--test-command", help="what to run to see that the site is still green (default: npm run build && npm test)")
+    i.add_argument("--dry-run", action="store_true", help="check everything and say what would be written; write nothing")
+    i.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -149,7 +178,7 @@ def main(argv=None):
             pass
     out = []
     try:
-        code = {"palette": cmd_palette}[args.command](args, out)
+        code = {"palette": cmd_palette, "install": cmd_install}[args.command](args, out)
     except Ask as a:
         out.append(str(a))
         out.extend("  - %s" % o for o in a.options)

@@ -103,10 +103,13 @@ def edit_css(text, palette):
 # --- src/config.ts -----------------------------------------------------------------------
 
 def edit_config(text, primary, logo=False):
-    """SITE.themeColor is the primary; with a logo, COMPANY.logo is the derived square PNG."""
-    new, n = re.subn(r"""(?m)^([ \t]*themeColor:[ \t]*)(['"])#[0-9a-fA-F]{3,8}\2""", lambda m: m.group(1) + m.group(2) + primary + m.group(2), text, count=1)
-    if not n:
-        raise Refusal("config-layout", "src/config.ts has no `themeColor: '#...'` line in SITE. Set it by hand to %s." % primary)
+    """SITE.themeColor is the primary (None: the colours are not being changed); with a logo,
+    COMPANY.logo is the derived square PNG."""
+    new = text
+    if primary is not None:
+        new, n = re.subn(r"""(?m)^([ \t]*themeColor:[ \t]*)(['"])#[0-9a-fA-F]{3,8}\2""", lambda m: m.group(1) + m.group(2) + primary + m.group(2), text, count=1)
+        if not n:
+            raise Refusal("config-layout", "src/config.ts has no `themeColor: '#...'` line in SITE. Set it by hand to %s." % primary)
     if logo:
         block = re.search(r"export const COMPANY\s*=\s*\{.*?\n\}", new, re.S)
         inner = re.search(r"""(?m)^([ \t]*logo:[ \t]*)(['"])[^'"\n]*\2""", block.group(0)) if block else None
@@ -142,11 +145,13 @@ OG_LOGO = 'ROOT / "public/images/logo.png"'
 
 
 def edit_og(text, palette, logo):
+    """The share-card generator's BRAND block: the dark theme's colours (palette None: the colours are
+    not being changed) and, with a logo, the emblem."""
     import _palette as P
-    for name, key in OG_COLOURS:
+    for name, key in (OG_COLOURS if palette is not None else ()):
         if key not in palette.dark:
             raise Refusal("palette-incomplete", "The share cards need the dark theme's %s colour, which the palette does not give." % P.LABEL[key])
-    for name, key in OG_COLOURS:
+    for name, key in (OG_COLOURS if palette is not None else ()):
         h = palette.dark[key]
         rgb = "(%d, %d, %d)" % tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
         text, n = re.subn(r"(?m)^(%s[ \t]*=[ \t]*)\([ \t]*\d+[ \t]*,[ \t]*\d+[ \t]*,[ \t]*\d+[ \t]*\)" % name, lambda m: m.group(1) + rgb, text, count=1)

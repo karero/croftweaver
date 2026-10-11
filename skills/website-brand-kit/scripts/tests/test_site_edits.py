@@ -124,6 +124,12 @@ class Config(unittest.TestCase):
         self.assertIn("logo: '/images/logo.png',", new)
         self.assertEqual(_site.edit_config(self.CONFIG, "#b4531a", logo=True), _site.edit_config(self.CONFIG, "#b4531a"))
 
+    def test_with_no_colours_to_set_the_theme_colour_stays(self):
+        new = _site.edit_config(self.CONFIG.replace("logo: '/images/logo.png',", "logo: '/images/x.png',"), None, logo=True)
+        self.assertIn("themeColor: '#000000'", new)
+        self.assertIn("logo: '/images/logo.png',", new)
+        self.assertEqual(_site.edit_config(self.CONFIG, None), self.CONFIG)
+
     def test_without_a_logo_company_logo_is_left_as_the_starter_has_it(self):
         other = self.CONFIG.replace("logo: '/images/logo.png',", "logo: '/images/other.png',")
         self.assertIn("logo: '/images/other.png',", _site.edit_config(other, "#b4531a"))
@@ -192,6 +198,13 @@ class ShareCards(unittest.TestCase):
         self.assertIn("LOGO = None", self.OG)
         self.assertIn("LOGO = None", _site.edit_og(self.OG, bakery(), logo=False))
         self.assertIn('LOGO = ROOT / "public/images/logo.png"', _site.edit_og(self.OG, bakery(), logo=True))
+
+    def test_with_no_colours_to_set_only_the_emblem_is_touched(self):
+        new = _site.edit_og(self.OG, None, logo=True)
+        self.assertEqual(len(changed_lines(self.OG, new)), 2)
+        self.assertIn('LOGO = ROOT / "public/images/logo.png"', new)
+        self.assertIn("BG_BOT = (10, 11, 30)", new)
+        self.assertEqual(_site.edit_og(self.OG, None, logo=False), self.OG)
 
     def test_an_emblem_already_wired_is_left_as_it_is_and_another_one_is_not_replaced(self):
         wired = self.OG.replace("LOGO = None", 'LOGO = ROOT / "public/images/logo.png"')

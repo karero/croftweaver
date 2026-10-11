@@ -47,6 +47,11 @@ def read(path):
         return f.read()
 
 
+def read_bytes(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+
 def starter_file(rel):
     return read(os.path.join(STARTER, *rel.split("/")))
 
@@ -154,3 +159,37 @@ def make_site(folder, node_modules=None):
     if node_modules:
         os.symlink(node_modules, os.path.join(folder, "node_modules"))
     return folder
+
+
+# --- a whole site, made from the starter ------------------------------------------------------
+
+TEMPLATES_GITIGNORE = os.path.join(REPO, "skills", "new-website", "templates", ".gitignore")
+
+
+def make_starter_site(folder, with_modules=True):
+    """The starter as a site folder: its files, the site's .gitignore, and (when there is one to borrow)
+    a link to an install's node_modules. No git, no npm run: the tests that need those say so."""
+    shutil.copytree(STARTER, folder, dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("node_modules", "dist", ".astro", "test-results", "playwright-report"))
+    shutil.copy(TEMPLATES_GITIGNORE, os.path.join(folder, ".gitignore"))
+    nm = node_modules_dir()
+    if with_modules and nm:
+        os.symlink(nm, os.path.join(folder, "node_modules"))
+    return folder
+
+
+def pillow_problem():
+    import importlib.util
+    py = shutil.which("python3") or shutil.which("python")
+    if not py:
+        return "no python3 on the path"
+    r = subprocess.run([py, "-c", "import PIL"], capture_output=True)
+    return None if r.returncode == 0 else "Pillow is not installed for %s" % py
+
+
+def require_pillow(testcase):
+    why = pillow_problem()
+    if why:
+        if os.environ.get("REQUIRE_SHARP"):
+            testcase.fail("REQUIRE_SHARP is set but the share-card tests cannot run: " + why)
+        testcase.skipTest(why)
