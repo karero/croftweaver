@@ -43,7 +43,7 @@ and never decides which of two figures is right.
 ## Step 1: the facts list
 
 The script is at `~/.claude/skills/facts-check/scripts/facts_check.py` (Codex:
-`~/.agents/skills/…`). Run the commands in the folder where the facts list and the
+`~/.agents/skills/facts-check/scripts/facts_check.py`). Run the commands in the folder where the facts list and the
 reports should live.
 
 ```bash
