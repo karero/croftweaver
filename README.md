@@ -69,8 +69,8 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 > website-builder files in a folder of their own and leave them there: for example a
 > folder called website-builder in my home folder, not Downloads and not my websites
 > folder. Then install the website-builder skills. Tell me when to restart or reopen you
-> in my websites folder so the skills load, then start `new website` there. When the site
-> has its own folder, tell me where it is on my computer (its full path).
+> so the skills load — in my websites folder — then start `new website` there. When the
+> site has its own folder, tell me where it is on my computer (its full path).
 
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
