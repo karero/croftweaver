@@ -96,9 +96,10 @@ in Cloudflare's docs.
 
 ## Pages and Workers side by side
 
-What Cloudflare's docs say about each product; none of it was tried on a deployment, which
-is what the trial list further down is for. The last column is a judgment, for a content
-site built with the kit.
+What Cloudflare's docs say about each product. The Workers column was not tried on a
+deployment; the trial list further down is for that. Of the Pages column, one thing was
+seen on live sites: the middleware runs in front of plain files ("What is checked and what
+is judgment"). The last column is a judgment, for a content site built with the kit.
 
 | Topic | Pages | Workers | Better for a kit site |
 |---|---|---|---|
