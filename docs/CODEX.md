@@ -24,7 +24,8 @@ cd website-builder
 What it does: symlinks `skills/*` into `~/.agents/skills/` (the equivalent of
 `make install-codex`). Re-running just refreshes the links — except one you pinned
 yourself into another worktree of this repo, which is kept and reported;
-`./scripts/install-codex.sh --force` relinks those too.
+`./scripts/install-codex.sh --force` relinks those too. Keep the unzipped or cloned folder
+where it is: the links point into it.
 
 ## Use
 
