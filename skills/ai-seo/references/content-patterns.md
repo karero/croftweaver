@@ -33,7 +33,7 @@ Answer Engine Optimization (AEO) is the practice of structuring content so AI-po
 
 ### Step-by-Step Block
 
-Use for "How to [X]" queries. Optimal for list snippets.
+Use for "How to [X]" queries.
 
 ```markdown
 ## How to [Action/Goal]
@@ -57,14 +57,14 @@ Earning featured snippets requires strategic formatting and direct answers to se
 
 1. **Identify snippet opportunities**: Use tools like Semrush or Ahrefs to find keywords where competitors have snippets you could capture.
 2. **Match the snippet format**: Analyze whether the current snippet is a paragraph, list, or table, and format your content accordingly.
-3. **Answer the question directly**: Provide a clear, concise answer (40-60 words for paragraph snippets) immediately after the question heading.
+3. **Answer the question directly**: Provide a clear, concise answer immediately after the question heading.
 4. **Add supporting context**: Expand on your answer with examples, data, and expert insights in the following paragraphs.
 5. **Use proper heading structure**: Place your target question as an H2 or H3, with the answer immediately following.
 ```
 
 ### Comparison Table Block
 
-Use for "[X] vs [Y]" queries. Optimal for table snippets.
+Use for "[X] vs [Y]" queries.
 
 ```markdown
 ## [Option A] vs [Option B]: [Brief Descriptor]
@@ -137,7 +137,7 @@ Use for topic pages with multiple common questions. Essential for FAQ schema.
   95 Euro." — a made-up price; use your own), details after.
 - Include question words: what, how, why, when, where, who, which
 - Match "People Also Ask" queries from search results
-- Keep answers between 50-100 words
+- Keep answers short: a few sentences
 
 ### Listicle Block
 
@@ -293,7 +293,7 @@ Voice queries are conversational and question-based. Optimize for these patterns
 - "Wer..." (Who...)
 
 ### Voice-Optimized Answer Structure
-- Lead with direct answer (under 30 words ideal)
+- Lead with a direct answer, in a sentence or two
 - Use natural, conversational language
 - Avoid jargon unless targeting expert audience
 - Include local context where relevant
