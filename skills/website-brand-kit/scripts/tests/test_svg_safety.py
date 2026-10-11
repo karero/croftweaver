@@ -176,6 +176,31 @@ class Size(unittest.TestCase):
             with self.subTest(vb=vb):
                 refused(self, ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s"><path d="M0 0"/></svg>' % vb).encode(), "bad-view-box")
 
+    def test_the_cleaned_file_says_its_size_by_its_viewbox_alone(self):
+        # width and height would give the renderer a second idea of the size; one is enough
+        for tag in ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">',
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="4cm" height="3cm">'):
+            clean = _svg.clean_svg((tag + '<path fill="#111111" d="M0 0h9v9z"/></svg>').encode())
+            root = clean.text.split(">", 1)[0]
+            self.assertIn("viewBox=", root)
+            self.assertNotIn("width=", root)
+            self.assertNotIn("height=", root)
+        self.assertIn('viewBox="0 0 151.181102 113.385827"', clean.text)
+
+    def test_a_box_too_small_or_too_big_to_be_a_logo_is_refused(self):
+        for vb in ("0 0 1e9 1e9", "0 0 0.0000001 0.0000001", "0 0 1e7 5"):
+            with self.subTest(vb=vb):
+                refused(self, ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s"><path fill="#111111" d="M0 0"/></svg>' % vb).encode(), "bad-view-box")
+
+    def test_a_box_far_wider_than_it_is_tall_is_no_logo(self):
+        # the renderer sizes a drawing in whole pixels: a hair-thin box would come out zero pixels tall
+        ok = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 5"><path fill="#111111" d="M0 0h9v9z"/></svg>'
+        _svg.clean_svg(ok.encode())
+        _svg.clean_svg(ok.replace("0 0 100 5", "0 0 5 100").encode())
+        for vb in ("0 0 100 4", "0 0 4 100", "0 0 1000 0.001"):
+            with self.subTest(vb=vb):
+                refused(self, ok.replace("0 0 100 5", vb).encode(), "bad-view-box")
+
     def test_a_viewbox_with_a_non_finite_number_is_refused(self):
         refused(self, b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 nan 10"><path d="M0 0"/></svg>', "bad-view-box")
 

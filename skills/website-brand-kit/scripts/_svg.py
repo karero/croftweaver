@@ -35,6 +35,8 @@ MAX_DEPTH = 32
 MAX_ELEMENTS = 5000
 MAX_ATTRIBUTES = 64
 MAX_STYLE_CHARS = 64 * 1024
+MAX_ASPECT = 20
+MIN_BOX, MAX_BOX = 1e-3, 1e6   # a viewBox outside this is no logo, and would make the renderer misjudge its density
 
 # --- elements --------------------------------------------------------------------------
 
@@ -416,6 +418,10 @@ def _box(root):
             nums = ()
         if len(nums) != 4 or not all(math.isfinite(x) for x in nums) or nums[2] <= 0 or nums[3] <= 0:
             raise Refusal("bad-view-box", "The viewBox is not four numbers with a width and a height above zero (%r)." % vb[:40])
+        if not all(MIN_BOX <= x <= MAX_BOX for x in nums[2:]) or not all(abs(x) <= MAX_BOX for x in nums[:2]):
+            raise Refusal("bad-view-box", "The viewBox (%r) is far too small or too large to be a logo." % vb[:40])
+        if max(nums[2:]) / min(nums[2:]) > MAX_ASPECT:
+            raise Refusal("bad-view-box", "The drawing is more than %d times wider than it is tall (or the other way round): not a logo." % MAX_ASPECT)
         return nums
     w, h = length_px(root.attrs.get("width")), length_px(root.attrs.get("height"))
     if w is None or h is None or w <= 0 or h <= 0:
@@ -424,6 +430,10 @@ def _box(root):
             "The drawing has no viewBox and no width and height in plain units (a percentage is no size), so it "
             "cannot be fitted into a square icon. Ask the tool for the SVG with a viewBox.",
         )
+    if not (MIN_BOX <= w <= MAX_BOX and MIN_BOX <= h <= MAX_BOX):
+        raise Refusal("bad-view-box", "The width and height are far too small or too large to be a logo.")
+    if max(w, h) / min(w, h) > MAX_ASPECT:
+        raise Refusal("bad-view-box", "The drawing is more than %d times wider than it is tall (or the other way round): not a logo." % MAX_ASPECT)
     return (0.0, 0.0, w, h)
 
 
@@ -436,9 +446,8 @@ def _emit(node, out, view_box=None):
     if node.tag == "svg":
         attrs.append(("xmlns", SVG_NS))
         attrs.append(("viewBox", " ".join(_fmt(x) for x in view_box)))
-        for k in ("width", "height", "preserveAspectRatio"):
-            if k in node.attrs:
-                attrs.append((k, node.attrs[k]))
+        if "preserveAspectRatio" in node.attrs:
+            attrs.append(("preserveAspectRatio", node.attrs["preserveAspectRatio"]))
     else:
         if node.id:
             attrs.append(("id", node.id))
