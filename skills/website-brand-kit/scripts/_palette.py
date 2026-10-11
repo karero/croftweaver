@@ -337,3 +337,28 @@ def drift(palette, css):
 def dark_blocks_disagree(css):
     """The two dark blocks must carry the same values: [(key, dark_block_hex, media_block_hex)]."""
     return [(k, css.dark[k], css.dark_media[k]) for k in KEYS if k in css.dark and k in css.dark_media and css.dark[k] != css.dark_media[k]]
+
+
+# --- a mark against the palette --------------------------------------------------------
+
+NEED_UI = 3.0  # a graphic (the mark) against the page behind it; BRAND.md's "3:1 large/UI"
+MarkReport = namedtuple("MarkReport", "colours outside low")
+
+
+def check_mark(colours, palette):
+    """The colours of a mark against the palette: `outside` are colours the palette does not hold
+    (never recoloured, the owner decides); `low` maps a theme to the (colour, ratio) pairs that
+    fall under 3 to 1 on that theme's background."""
+    held = {v for t in THEMES for v in palette.theme(t).values()}
+    if palette.brand:
+        held.add(palette.brand)
+    outside = [c for c in colours if c not in held]
+    low = {}
+    for theme in THEMES:
+        bg = palette.theme(theme).get("bg")
+        if not bg:
+            continue
+        bad = [(c, _colour.ratio(c, bg)) for c in colours if _colour.ratio(c, bg) < NEED_UI]
+        if bad:
+            low[theme] = bad
+    return MarkReport(list(colours), outside, low)

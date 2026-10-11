@@ -22,6 +22,7 @@ from xml.parsers import expat
 from xml.sax.saxutils import escape, quoteattr
 
 import _css
+import _paint
 from _refusal import Refusal  # noqa: F401  (re-exported: callers catch _svg.Refusal)
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -123,7 +124,7 @@ _KEYWORDS = {
 _TRANSFORM = re.compile(r"^(?:\s*(?:matrix|translate|scale|rotate|skewX|skewY)\s*\([0-9eE+\-.,\s]*\)\s*,?)*\s*$")
 _PATH_DATA = re.compile(r"^[MmZzLlHhVvCcSsQqTtAa0-9eE+\-.,\s]*$")
 _CLIP = re.compile(r"^(?:none|url\(\s*#[\w\-.:]+\s*\))$")
-_PAINT_CHARS = re.compile(r"^[#\w\s().,%+\-/]{1,200}$")
+_PAINT_CHARS = re.compile(r"""^[#\w\s().,%+\-/'"]{1,200}$""")
 
 
 def _bad(name, value):
@@ -194,11 +195,12 @@ class Node(object):
 class Clean(object):
     """The result: the cleaned text, the box, what was left out, and the tree for the next step."""
 
-    def __init__(self, text, view_box, notes, root):
+    def __init__(self, text, view_box, notes, root, colours):
         self.text = text
         self.view_box = view_box
         self.notes = notes
         self.root = root
+        self.colours = colours  # the colours the mark paints with, as hex, in the order first used
 
 
 def _split(name):
@@ -369,24 +371,27 @@ def _accept(prop, value, notes, where):
 
 
 def _cascade(root, notes):
+    """Apply the style rules and style attributes to every element's properties. Returns the set
+    of class names the rules mention."""
     rules = []
     for n in _walk(root):
         if n.tag == "style":
             rules.extend(_css.parse_stylesheet(n.text))
+    mentioned = {c for selectors, _d, _o in rules for _tag, _ids, classes in selectors for c in classes}
     for n in _walk(root):
         if n.tag == "style":
             continue
         fixed = {}
         matched = []
-        for selectors, decls, order in rules:
+        for selectors, decls, _order in rules:
             best = None
             for sel in selectors:
                 if _matches(sel, n):
                     sp = _css.specificity(sel)
                     best = sp if best is None or sp > best else best
             if best is not None:
-                matched.append((best, order, decls))
-        for _sp, _o, decls in sorted(matched, key=lambda t: (t[0], t[1])):
+                matched.append((best, decls))
+        for _sp, decls in sorted(matched, key=lambda t: t[0]):  # stable: equal specificity keeps source order
             for prop, value in decls:
                 v = _accept(prop, value, notes, "style rule")
                 if v is not None:
@@ -396,6 +401,7 @@ def _cascade(root, notes):
             if v is not None:
                 fixed[prop] = v
         n.props.update(fixed)
+    return mentioned
 
 
 # --- the result ------------------------------------------------------------------------
@@ -449,12 +455,13 @@ def _emit(node, out, view_box=None):
     out.append("</" + node.tag + ">")
 
 
-def _finish(root, notes):
+def _finish(root, notes, current=None, from_html=False):
     box = _box(root)
-    _cascade(root, notes)
+    mentioned = _cascade(root, notes)
+    colours = _paint.resolve_paints(root, DRAWING, current, mentioned if from_html else None)
     out = []
     _emit(root, out, box)
-    return Clean("".join(out), box, notes, root)
+    return Clean("".join(out), box, notes, root, colours)
 
 
 # --- HTML ------------------------------------------------------------------------------
@@ -543,11 +550,13 @@ def html_svgs(data):
 
 # --- entry point -----------------------------------------------------------------------
 
-def clean_svg(data, source="svg", pick=None):
+def clean_svg(data, source="svg", pick=None, current=None):
     """Check `data` (bytes) and return a Clean, or raise Refusal.
 
-    source "svg": an .svg file or pasted SVG code. source "html": a page whose inline <svg>
-    is taken out (`pick` is the index when the page holds several)."""
+    source "svg": an .svg file or pasted SVG code. source "html": a page whose inline <svg> is
+    taken out (`pick` is the index when the page holds several); "html-svg": one such <svg>
+    already taken out. A drawing from a page is held to the stricter rule that its colours must
+    come from the drawing itself. `current` is what `currentColor` means, if the caller says."""
     if len(data) > MAX_BYTES:
         raise Refusal("too-large", "The file is larger than %d KB, far more than a logo needs." % (MAX_BYTES // 1024))
     if source == "html":
@@ -565,4 +574,4 @@ def clean_svg(data, source="svg", pick=None):
         if len(data) > MAX_BYTES:
             raise Refusal("too-large", "The drawing is larger than %d KB, far more than a logo needs." % (MAX_BYTES // 1024))
     root, notes = _parse(data)
-    return _finish(root, notes)
+    return _finish(root, notes, current, from_html=source in ("html", "html-svg"))

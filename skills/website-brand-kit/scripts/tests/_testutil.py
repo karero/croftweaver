@@ -49,3 +49,10 @@ def read(path):
 
 def starter_file(rel):
     return read(os.path.join(STARTER, *rel.split("/")))
+
+
+# The made-up bakery's palette: warm cream and brown, one accent, passes the whole matrix.
+BAKERY_LIGHT = {"heading": "#3a1d0a", "ink": "#3a2a1e", "muted": "#6b5744", "accent": "#b4531a", "link": "#a14a14",
+                "line": "#e8d9c4", "bg": "#fff8ee", "bg_soft": "#fef5e8", "surface": "#ffffff"}
+BAKERY_DARK = {"heading": "#fbeedd", "ink": "#efe2d2", "muted": "#c4ae98", "accent": "#e2874a", "link": "#eaa072",
+               "line": "#3d2f24", "bg": "#1a120d", "bg_soft": "#231912", "surface": "#2a1f17"}
