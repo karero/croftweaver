@@ -8,6 +8,9 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "..")
 FIXTURES = os.path.join(HERE, "fixtures")
+REPO = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
+STARTER = os.path.join(REPO, "skills", "new-website", "templates", "astro")
+BRAND_TEMPLATE = os.path.join(REPO, "skills", "new-website", "templates", "brand.md")
 sys.path.insert(0, SCRIPTS)
 
 # A real handoff package from a design tool (2,000 bytes; a made-up bakery): one top-level
@@ -37,3 +40,12 @@ def build_zip(entries, compression=zipfile.ZIP_DEFLATED):
             else:
                 z.writestr(name, data)
     return buf.getvalue()
+
+
+def read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def starter_file(rel):
+    return read(os.path.join(STARTER, *rel.split("/")))
