@@ -96,7 +96,8 @@ in Cloudflare's docs.
 
 ## Pages and Workers side by side
 
-What Cloudflare's docs say about each product. The last column is a judgment, for a content
+What Cloudflare's docs say about each product; none of it was tried on a deployment, which
+is what the trial list further down is for. The last column is a judgment, for a content
 site built with the kit.
 
 | Topic | Pages | Workers | Better for a kit site |
@@ -104,7 +105,7 @@ site built with the kit.
 | Cloudflare's direction | on all plans; the docs name no end date | called the "primary platform": "Start new projects with Workers" | Workers |
 | Plain files | free, no limit | free, no limit | the same |
 | Code in front of every request | counts against 100,000 requests a day on the free plan; at the limit, Fail open keeps serving the files | counts the same; at the limit the request gets a 429 | Pages |
-| Previews kept out of search engines | noindex on every preview deployment | noindex on a Preview's `workers.dev` address | the same |
+| A noindex header on previews | on every preview deployment | on a Preview's `workers.dev` address | the same |
 | The project's own address | `<project>.pages.dev`; the docs offer a redirect and no way to turn it off | `<worker>.<subdomain>.workers.dev`; can be turned off | Workers |
 | DNS for the domain | a subdomain can point here from another provider; an apex domain needs Cloudflare's nameservers | Cloudflare's nameservers, always | Pages |
 | Setup | dashboard settings; finds `404.html` by itself | a config file in the repo; 404 handling must be set in it | Pages is simpler; Workers keeps the settings in the repo |
@@ -113,7 +114,7 @@ site built with the kit.
 | Free limits | 20,000 files, 25 MiB a file, 100 projects an account | 20,000 files, 25 MiB a file, 100 Workers an account | the same |
 | Logs for server code | real-time logs | real-time logs, Workers Logs, Logpush, source maps | Workers, once a site has server code |
 | Cron Triggers, Queue consumers, Email Workers, rate limiting | no | yes | Workers, if a site ever needs one |
-| Fit with the kit | the template, its tests and the docs are written for it | a move touches all of those and every live site | Pages |
+| Fit with the kit | the template, its tests and the docs are written for it | a move touches all of those, and each live site that follows needs its own switch | Pages |
 
 For serving a static site the two are equal. Pages is ahead on what exists today: the kit
 runs on it, Fail open keeps a site up at the free limit, and a subdomain's DNS can stay
@@ -136,8 +137,9 @@ has more rows; the ones left out here do not bear on a content site.
 | `about.html` served at `/about` | the default does the same, and sends `/about.html` to `/about` with a 307 | none expected. The site's tests cannot confirm it: they run against a local Astro server, never against Cloudflare |
 | 20,000 files, 25 MiB a file (free) | the same | none |
 
-And every live site needs its own one-time move: a new Worker, the domain attached to it,
-the Pages project deleted afterwards. How smooth that switch is for a live domain was not
+And each live site that follows needs its own one-time move: a new Worker, the domain
+attached to it, the Pages project deleted afterwards. A site can also stay on Pages for as
+long as Pages is offered. How smooth that switch is for a live domain was not
 looked at.
 
 ## What keeps working on Pages
@@ -167,8 +169,8 @@ header. So the middleware does run in front of plain files.
 **Judgment:** stay for now, because
 
 1. nothing is broken on Pages, and no end date is named;
-2. a move touches template code, its tests, docs in seven skills and every live site, for
-   no gain a site owner would see today;
+2. a move touches template code, its tests, docs in seven skills and each live site that
+   follows, for no gain a site owner would see today;
 3. the target is still moving. Cloudflare's guide marked custom branch aliases on Workers
    "Coming soon" when read on 2026-10-05, and supported when read on 2026-10-11 (the guide
    was updated on 2026-10-10). Waiting costs little, and what the kit would move to keeps
