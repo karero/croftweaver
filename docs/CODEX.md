@@ -28,7 +28,8 @@ yourself into another worktree of this repo, which is kept and reported;
 
 ## Use
 
-Restart Codex, open it in a **fresh, empty** folder for your new site, and say:
+Restart Codex, open it in your websites folder (`Documents/Websites`, or wherever you keep
+your projects), and say:
 
 ```text
 new website
@@ -40,8 +41,9 @@ or invoke the orchestrator explicitly:
 $new-website
 ```
 
-Codex runs the stack-decision interview, scaffolds the `templates/astro` overlay, and
-sequences the rest of the `website-*` skills.
+Codex runs the stack-decision interview, scaffolds the `templates/astro` overlay into a
+new folder for the site inside the folder you opened Codex in, and sequences the rest of
+the `website-*` skills.
 
 > With a large skill set, Codex itself notes it may not surface every skill automatically
 > when context is tight. Not a breakage — invoke any skill by name: `$og-images`, `$seo-audit`, etc.
@@ -58,7 +60,8 @@ sequences the rest of the `website-*` skills.
 - Codex reads user skills from **`~/.agents/skills`**, not `~/.claude/skills`. The
   installer above handles this; the `new-website` scaffold resolves the right source via
   `$SKILLS_ROOT`, so it works regardless of which tool installed the suite.
-- Codex can also read **repo-scoped** skills from `.agents/skills` within a project.
+- Codex can also read **repo-scoped** skills from `.agents/skills` within a project. If you
+  install them that way, open Codex in the folder that contains `.agents/skills`.
 - `templates/claude/settings.json` is Claude Code-specific (its command-allowlist model).
   For Codex, durable project instructions live in **`AGENTS.md`** — every scaffold ships
   one (`templates/AGENTS.md`: fetch the latest state first, pull request instead of a

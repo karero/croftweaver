@@ -42,16 +42,36 @@ protecting it the same way, with two-factor sign-in (your fingerprint or face un
 
 ## Step by step
 
-### 1. Open your AI assistant
+### 1. Choose a home for your websites
 
-Start the assistant you installed (for example, Claude Code). You'll get a chat box where
-you type to it in normal language — like texting a knowledgeable friend.
+Your website will live in a folder on your computer — a container for its files, like the
+folders you already know. We suggest one called **Websites**, inside your **Documents**
+folder. You can open Documents from your computer's file manager (Finder on a Mac, File
+Explorer on Windows), so your site stays easy to find. If you already have a folder where
+you keep your projects, use that one instead — it's yours to choose.
 
-### 2. Make a new, empty folder for your website
+If your Documents folder syncs to iCloud or OneDrive, pick a folder outside it, for example
+a Websites folder in your home folder (the one with your name on it). Your site's files are
+backed up on GitHub, in your own account — you set that up with your assistant — so you
+don't need iCloud or OneDrive for that. That backup only protects you when GitHub is
+properly synced: before you stop for the day, ask your assistant to make sure GitHub has
+your latest work.
 
-A "folder" is just like a folder on your desktop — a container for your website's files.
-Make a fresh, empty one so your new site starts clean and nothing gets mixed up. You can
-ask your assistant: *"Help me make a new empty folder for my website and open it."*
+This folder can hold as many websites as you like: each new site gets its own folder inside
+it, so it doesn't need to be empty. Please don't use Downloads — things get lost there.
+
+Don't have it yet? Make a new folder called **Websites** in the place you chose above.
+(Stuck? Start your assistant as in step 2 and ask it to make the folder for you.)
+
+### 2. Open your AI assistant in your websites folder
+
+Start the assistant you installed (for example, Claude Code) and have it work in the folder
+you chose in step 1. If you use an app, choose that folder as the one to work in. If you
+use a terminal, go to the folder first and start the assistant from there. Not sure how?
+Start it anywhere and ask: *"How do I open you in my websites folder?"*
+
+You'll get a chat box where you type to it in normal language — like texting a
+knowledgeable friend.
 
 ### 3. Paste the starter prompt
 
@@ -61,13 +81,19 @@ Copy this into the chat and send it:
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills, tell me when to restart or
-> reopen you so the skills load, and continue from there — starting a fresh site by running
-> `new website` in a new, empty folder.
+> actually needed. Then install the website-builder skills. My websites live in one
+> folder: check which folder you're open in and ask me whether that's it; if not, ask me
+> which one it is (suggest Documents/Websites unless I already keep my projects somewhere
+> else, or my Documents folder syncs to iCloud or OneDrive — then suggest a Websites
+> folder in my home folder). Tell me when to restart or reopen you in that folder so the
+> skills load, then start `new website` there. When the site has its own folder, tell me
+> where it is on my computer (its full path).
 
 The assistant will take it from there: it checks what's on your computer, installs the
 website-builder skills, and asks your approval before doing anything that changes your
-system.
+system. If it asks whether the folder it's in is your websites folder, say yes only if
+it's the one you chose in step 1; otherwise tell it which folder to use. If you land in an
+empty chat after it restarts, type `new website`.
 
 ### 4. Answer its questions
 
@@ -88,6 +114,11 @@ Answer in your own words. There are no wrong answers, and you can change your mi
 From your answers, the assistant creates the site, drafts the pages, adds the behind-the-
 scenes things that make a site fast and findable (SEO, accessibility checks, structured
 data), and runs its own quality tests. It'll show you what it made and help you adjust.
+
+**Where your site lives.** Your site gets its own folder inside the folder you chose in
+step 1. To see where it is on your computer, ask the assistant: *"Show me where my
+website's folder is."* Next time you want to work on that site, open your assistant in the
+site's own folder.
 
 ### 6. Publish when you're ready
 
