@@ -219,7 +219,9 @@ project's name (the first part of its `.pages.dev` address). Before you trust an
 make sure the domain in the command is yours: a placeholder left in can reach a stranger's
 site and print a clean-looking 200, and the robots.txt below must be your own file. An
 empty answer is never a pass either: it means curl could not reach the site. Your
-assistant can run them; on Windows use Git Bash or WSL.
+assistant can run them; on Windows use Git Bash or WSL. A script runs all of them at once,
+and lists the items that only the dashboard shows
+([`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md) says how).
 
 ```bash
 curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|report-to:|strict-transport-security:|set-cookie:)'
