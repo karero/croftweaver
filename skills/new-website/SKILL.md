@@ -62,7 +62,10 @@ from silently hiding content. `website-motion` is never run by default: ask for 
 `STORY.md` + a seven-section home page map); it is offered once at §2a, right after
 positioning, and never runs unasked. `website-scorecard` is an OPTIONAL public scorecard
 (a section that shows what the site's own test gate checked, dated, plus the owner's
-Lighthouse scores); it runs only when the owner asks for it.
+Lighthouse scores); it runs only when the owner asks for it. `website-tagline` is an
+OPTIONAL skill for the short line under the logo (it starts from the purpose in
+`POSITIONING.md`, shows the owner six to eight lines and lets them pick one →
+`TAGLINE.md` + `SITE.tagline`); it too runs only when the owner asks for it.
 `website-team-setup` is the other on-demand skill — run it once when a **second person**
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
@@ -353,7 +356,8 @@ full path (the output of `pwd` inside it):
    the recipient can opt in later; it never runs on its own), `website-story`
    (optional story layer — same rule: copied, never runs unasked; offered once at §2a),
    `website-scorecard` (optional public scorecard — same rule: copied, never runs
-   unasked), and `website-team-setup` (copied so the day a second person joins, the session that
+   unasked), `website-tagline` (optional line under the logo — same rule: copied,
+   never runs unasked), and `website-team-setup` (copied so the day a second person joins, the session that
    sets up the team finds it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
    symlinks each skill from this suite repo) — use `cp -RL` to dereference
@@ -385,6 +389,7 @@ full path (the output of `pwd` inside it):
          "$SKILLS_ROOT"/website-motion \
          "$SKILLS_ROOT"/website-story \
          "$SKILLS_ROOT"/website-scorecard \
+         "$SKILLS_ROOT"/website-tagline \
          "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
    ```
@@ -446,7 +451,8 @@ full path (the output of `pwd` inside it):
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3. `STORY.md` exists
    only if the owner opted in at §2a; `website-story` copies it from its own
-   `templates/story.md`.
+   `templates/story.md`. `TAGLINE.md` exists only if the owner asked for a tagline;
+   `website-tagline` copies it from its own `templates/tagline.md`.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware suite out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
