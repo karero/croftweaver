@@ -12,7 +12,7 @@
 # review. Kimi and every other model run on ollama (OLLAMA_MODEL), never here. Change the list
 # by a reviewed change to this file. It is the one file of this skill besides the setup guide
 # that scripts/check_model_agnostic.sh does not scan, so the others need no model's name.
-# Both ids answered on Melious on 2026-10-12. If Melious retires or renames one, the seat fails
-# with the API's own error: compare this list with GET https://api.melious.ai/v1/models then.
+# If Melious retires or renames an id, the seat fails with the API's own error: compare this
+# list with GET https://api.melious.ai/v1/models then.
 glm-5.3
 glm-5.3-flash light

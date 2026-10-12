@@ -1260,6 +1260,10 @@ listcase ltwice "$MELIOUS_LIGHT light$NL$MELIOUS_LIGHT$NL" MELIOUS_MODEL="$MELIO
 check "ltwice: listed twice, the first line decides: a later bare line does not lift light-only" refused ltwice "$LIGHT_ONLY --depth normal."
 check "ltwice: ...and the refusal lists the model once, as light-only" \
   has ltwice.err "Melious runs no model at any depth, and for a Light review (--depth light) $MELIOUS_LIGHT, and no other model"
+listcase ltwice2 "$MELIOUS_LIGHT$NL$MELIOUS_LIGHT light$NL" MELIOUS_MODEL="$MELIOUS_LIGHT" -- --seat melious --depth normal
+check "ltwice2: ...and the other way round: bare first, so a later light line does not narrow it" has ltwice2.out "reviewers: melious OK"
+listcase lglob "a*$NL${NL}ab light$NL" MELIOUS_MODEL=ab -- --seat melious --depth normal
+check "lglob: an id is compared as text: a* above does not swallow ab, which stays light-only" refused lglob "$LIGHT_ONLY --depth normal."
 listcase lnonl "# no newline at the end$NL$MELIOUS_OK" MELIOUS_MODEL="$MELIOUS_OK" -- --seat melious
 check "lnonl: a last line with no newline is still read" has lnonl.out "reviewers: melious OK"
 listcase lother "stub-other$NL" MELIOUS_MODEL=stub-other -- --seat melious
