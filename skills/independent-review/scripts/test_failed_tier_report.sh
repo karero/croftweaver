@@ -28,8 +28,9 @@ printf 'diff --git a/x b/x\n+retry on HTTP 429 after a pause\n' >"$T/change.diff
 printf '# Plan\n\nStep 1: do the thing.\n' >"$T/plan.md"
 # Built at runtime: check_model_agnostic.sh flags any literal "<word>:cloud" in this skill.
 STUB_TAG="stub-model"; STUB_TAG="${STUB_TAG}:cloud"
-# The one model the Melious seat runs. Pinned here, apart from the script's own copy; the same
-# check lets the name stand only as the value of a MELIOUS_ variable, hence this one.
+# The one model the Melious seat runs. Pinned here, apart from the script's own copy
+# (MELIOUS_ONLY_MODEL); check_model_agnostic.sh lets the name stand only as the value of that
+# variable, of MELIOUS_MODEL, or of this one.
 MELIOUS_OK="glm-5.3"
 
 # Stubs are plain sh with printf '%s\n' so they behave the same under dash (CI) and bash.

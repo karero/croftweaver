@@ -195,7 +195,9 @@ esac
 # Melious runs one model (the owner's rule, 2026-10-12: on 2026-10-11 and 2026-10-12 a session sent
 # Kimi there when ollama was over its limit). Refused here, before any reviewer starts and in
 # every mode, like a SECOND_SEAT typo: a refusal inside the seat would read as one more failed
-# tier, and the round would go on to the seat's fallback.
+# tier, and the round would go on to the seat's fallback. The name stands in two more places,
+# which change with it: scripts/check_model_agnostic.sh (the one name it lets through) and the
+# tests' MELIOUS_OK.
 MELIOUS_ONLY_MODEL="glm-5.3"
 if [ -n "${MELIOUS_MODEL:-}" ] && [ "$MELIOUS_MODEL" != "$MELIOUS_ONLY_MODEL" ]; then
   echo "MELIOUS_MODEL=\"$MELIOUS_MODEL\" refused, and nothing was sent: Melious runs $MELIOUS_ONLY_MODEL and no other model (the owner's rule, 2026-10-12). Kimi and every other model run on ollama: name the tag in OLLAMA_MODEL (--seat ollama runs it alone). If ollama is out of quota, that model has no seat this round: say so, and do not send it to Melious." >&2
