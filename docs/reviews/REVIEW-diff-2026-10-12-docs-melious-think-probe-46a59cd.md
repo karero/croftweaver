@@ -25,3 +25,5 @@ Follow-up, for the owner: the row's opening sentence, written on 2026-10-06 and 
 
 After the gate: `main` had moved to `08e1275` and the repository merges only an up-to-date branch, so `origin/main` was merged in as `8a69539`, no conflict. `main` changed neither of this change's two files, and `git diff origin/main 8a69539` is byte-identical to `git diff b8daa7e 1d8febc`, the diff the seat saw plus this trail (compared with `cmp`). No re-gate; the stamp moves to the head that records this.
 
+`main` moved once more (`4257b23`, PR #268) while the checks ran; merged in again as `23cf35a`, no conflict, and `git diff origin/main 23cf35a` is byte-identical to `git diff 08e1275 0351b1e` (`cmp`). No re-gate.
+
