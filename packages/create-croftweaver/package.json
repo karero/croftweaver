@@ -1,0 +1,25 @@
+{
+  "name": "create-croftweaver",
+  "version": "0.1.0",
+  "description": "Install the Croftweaver website skills for your AI coding assistant: npm create croftweaver",
+  "type": "module",
+  "bin": {
+    "create-croftweaver": "index.mjs"
+  },
+  "files": [
+    "index.mjs"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "license": "MIT",
+  "homepage": "https://croftweaver.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/karero/croftweaver.git",
+    "directory": "packages/create-croftweaver"
+  }
+}
