@@ -99,9 +99,9 @@ with a different purpose, rewrite it.
 
 Write **six to eight** lines, never fewer and never more: fewer gives the owner
 nothing to compare, more is a list nobody reads to the end. Spread them over
-**three or four directions**, two lines each, so that the owner's choice of
-direction means something. All four lead with purpose; they differ in which side
-of it they show:
+**three or four directions**, two or three lines each, so that the owner's choice
+of direction means something. Every direction leads with purpose; they differ in
+which side of it they show:
 
 | Direction | The line says | Leans on `POSITIONING.md` |
 |---|---|---|
@@ -155,7 +155,7 @@ directions in everyday words, with no table and no section numbers. The trace to
   > 6. Stop doing your books at midnight.
   >
   > **What you can count on**
-  > 7. Every deadline met. None on your mind.
+  > 7. Every return on time. None on your mind.
   > 8. One person who knows your books.
 
   Line 7 may say *every* only because the proof says every return was on time.
@@ -247,6 +247,10 @@ conversation ended.
 
 ## 6. Record it and place it
 
+**If the owner declined:** fill `TAGLINE.md` (the purpose sentence, "No tagline",
+the lines that were shown) and do step 5. Skip steps 2 to 4; `SITE.tagline` and
+the header stay as they are.
+
 1. **`TAGLINE.md`**: copy `templates/tagline.md` next to `POSITIONING.md` and fill
    it: the purpose sentence, the chosen line with its direction and the section it
    leans on, the owner's direction and feedback in their words, and every line not
@@ -262,7 +266,7 @@ conversation ended.
    the header at phone width as well.
 5. **Record the choice** in the project README next to the decision-interview
    answers ("tagline: see TAGLINE.md", or "tagline: declined"), so a later session
-   does not ask again.
+   knows the decision.
 
 ## 7. Gotchas
 
@@ -288,6 +292,8 @@ conversation ended.
 ## Done means
 
 The owner agreed to the purpose sentence, saw six to eight lines in three or four
-directions, named a direction, gave feedback, and picked one line themselves (or
-declined). `TAGLINE.md` is filled, `SITE.tagline` holds the line verbatim, the
-line shows under the logo where the site has one, and the site's tests are green.
+directions, named a direction, gave feedback, and picked one line themselves.
+`TAGLINE.md` is filled, `SITE.tagline` holds the line verbatim, the line shows
+under the logo where the site has one, and the site's tests are green. If the
+owner declined instead: `TAGLINE.md` and the project README say so, and nothing
+else changed.
