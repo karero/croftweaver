@@ -327,11 +327,15 @@ function sameAddress(location, base) {
 // ">" inside a value does not end a tag), and the text of its scripts. Comments are skipped.
 // It is not a browser. It is enough to tell what a page loads from what it says.
 const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
+const COMMENT_END = /--!?>/g;
 function readHtml(html) {
-  const lower = html.toLowerCase();
+  // Only A to Z are lower-cased: Unicode lower-casing can change a string's length, and the
+  // offsets found in this copy are used in the original.
+  const lower = html.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
   const n = html.length;
   const tags = [];
   const scripts = [];
+  let svg = 0; // depth of <svg>: inside it a <title> holds markup, as in a browser
   let i = 0;
   while (i < n) {
     const lt = html.indexOf('<', i);
@@ -343,8 +347,11 @@ function readHtml(html) {
         i = lt + abrupt[0].length;
         continue;
       }
-      const end = /--!?>/.exec(html.slice(lt + 4));
-      i = end ? lt + 4 + end.index + end[0].length : n;
+      // The first closer from here, found without copying the page and without looking for a
+      // second closer that may not exist (that scan would run to the end, for every comment).
+      COMMENT_END.lastIndex = lt + 4;
+      const end = COMMENT_END.exec(html);
+      i = end ? end.index + end[0].length : n;
       continue;
     }
     if (html[lt + 1] === '!' || html[lt + 1] === '?') {
@@ -392,9 +399,10 @@ function readHtml(html) {
       if (attr) attrs.push([attr, value]);
     }
     i = j;
+    if (name === 'svg') svg = Math.max(0, svg + (m[1] === '' ? 1 : -1));
     if (m[1] === '') {
       tags.push({ name, attrs });
-      if (RAW_TEXT.has(name)) {
+      if (RAW_TEXT.has(name) && !(name === 'title' && svg > 0)) {
         // The text of these elements is not markup. Its end tag is "</name" followed by
         // white space, "/" or ">": "</scripture>" does not end a script.
         let end = i;
@@ -416,7 +424,7 @@ function readHtml(html) {
 // numeric ones in full, and the few named ones that stand for a character of an address.
 const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", sol: '/', colon: ':', period: '.', lowbar: '_', hyphen: '-', num: '#', quest: '?', equals: '=', percnt: '%', comma: ',', semi: ';', nbsp: ' ' };
 function decodeReferences(v) {
-  return v.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));?/gi, (all, dec, hex, name) => {
+  return v.replace(/&(?:#(\d+);?|#x([0-9a-f]+);?|([a-z]+);)/gi, (all, dec, hex, name) => {
     const code = dec !== undefined ? Number(dec) : hex !== undefined ? parseInt(hex, 16) : null;
     if (code !== null) return Number.isFinite(code) && code > 0 && code < 0x110000 ? String.fromCodePoint(code) : all;
     return NAMED[name.toLowerCase()] ?? all;
@@ -429,7 +437,6 @@ function decodeReferences(v) {
 const POINTS_AT = new Set(['src', 'href', 'data-src', 'action', 'poster']);
 function scanPage(body, base) {
   const { tags, scripts } = readHtml(body);
-  const urls = [];
   const scriptHosts = new Set(); // the hosts a <script src> points at
   const attrNames = new Set();
   const address = (u) => {
@@ -447,7 +454,6 @@ function scanPage(body, base) {
       for (const u of list) {
         const a = address(u);
         if (!a) continue;
-        urls.push(a);
         if (t.name === 'script' && k === 'src') scriptHosts.add(a.hostname.toLowerCase());
         if (a.pathname.toLowerCase().startsWith('/cdn-cgi/')) paths.add(a.pathname.toLowerCase());
       }
@@ -509,8 +515,10 @@ function readRobots(body) {
     else if ((key === 'allow' || key === 'disallow') && current) current.rules.push([key, val]);
   }
   // "/", "/*" and "*" all name every path. When a group both disallows and allows such a
-  // pattern, the one with more octets is the more specific and wins, and a tie goes to allow
-  // (RFC 9309, 2.2.2): "Disallow: /*" beats "Allow: /", and "Disallow: /" with "Allow: /" is open.
+  // pattern, RFC 9309 2.2.2 decides: "The most specific match is the match that has the most
+  // octets ... If an "allow" rule and a "disallow" rule are equivalent, then the "allow" rule
+  // SHOULD be used." So "Disallow: /*" (two octets) beats "Allow: /" (one), and "Disallow: /"
+  // with "Allow: /" is open.
   const everything = (v) => v === '/' || /^\/?\*+$/.test(v);
   const longest = (g, kind) => g.rules.reduce((m, [k, v]) => (k === kind && everything(v) ? Math.max(m, v.length) : m), 0);
   const blocks = (g) => longest(g, 'disallow') > longest(g, 'allow');

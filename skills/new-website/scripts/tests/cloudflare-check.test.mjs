@@ -1121,6 +1121,38 @@ test('an empty Location header is said to be empty', () =>
     assert.match((await check(s.origin)).by.domain.detail, /an empty Location header/);
   }));
 
+// ---- what the fixes of round 5 must not break
+
+test('text that changes length when lower-cased does not move what is found after it', () =>
+  withSite(homeWith({}, `${'İstanbul '.repeat(12)}<textarea>x</textarea><script src="https://static.cloudflareinsights.com/beacon.min.js"></script>`), async (s) => {
+    assert.equal((await check(s.origin)).by.analytics.state, 'fail');
+  }));
+
+test('a page of a hundred thousand comments is read in linear time and what follows them is found', () =>
+  withSite(homeWith({}, `${'<!--x-->'.repeat(100_000)}<script src="https://static.cloudflareinsights.com/beacon.min.js"></script>`), async (s) => {
+    const started = Date.now();
+    const r = await check(s.origin);
+    assert.equal(r.by.analytics.state, 'fail');
+    assert.ok(Date.now() - started < 20_000, 'a quadratic reader would take minutes');
+  }));
+
+test('an SVG\'s title holds markup, as in a browser; an HTML title holds text', async () => {
+  const script = '<script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>';
+  await withSite(homeWith({}, `<svg><title>${script}</title></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'fail');
+  });
+  await withSite(homeWith({}, `<head><title>${script}</title></head><svg></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok');
+  });
+});
+
+test('a named character reference needs its semicolon, as in a browser: "&semi=" in an address is left alone', () =>
+  withSite(homeWith({}, '<img src="/cdn-cgi/image/a&semi=b.png"><img src="/cdn-cgi/image/c&semi;d.png">'), async (s) => {
+    const r = await check(s.origin);
+    assert.match(r.by.scripts.detail, /a&semi=b\.png/);
+    assert.match(r.by.scripts.detail, /c;d\.png/);
+  }));
+
 // ---- the command itself
 
 test('a wrong command is exit 2 with the usage text, and --help is exit 0', async () => {
