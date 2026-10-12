@@ -10,8 +10,11 @@ CDPATH= cd -- "$(dirname -- "$0")/.."
 
 SKILL_DIR="skills/independent-review"
 
-# Scan every regular file in the skill EXCEPT references/setup-guide.md (matched by
-# exact path, not basename) — the drift-prone helper that cites dated, concrete
+# Scan every regular file in the skill EXCEPT two, each matched by exact path, not basename.
+# scripts/melious_models.txt is the list of models the Melious seat may run (the owner's
+# rule of 2026-10-12): a limit on one seat, kept as data in one file so that no other file
+# needs a model's name, and no default for anyone. references/setup-guide.md is the
+# drift-prone helper that cites dated, concrete
 # local-model examples for the RAM table, and says so inline. The one known
 # tag-classification defect that exclusion hides is tracked as row B-TAGCLASS in
 # docs/reviews/OPEN-FINDINGS-independent-review.md. Files are discovered, not
@@ -20,7 +23,8 @@ SKILL_DIR="skills/independent-review"
 # genuinely binary file).
 FILES=()
 while IFS= read -r f; do FILES+=("$f"); done < <(
-  find "$SKILL_DIR" -type f ! -path "$SKILL_DIR/references/setup-guide.md" | sort
+  find "$SKILL_DIR" -type f ! -path "$SKILL_DIR/references/setup-guide.md" \
+    ! -path "$SKILL_DIR/scripts/melious_models.txt" | sort
 )
 if [ "${#FILES[@]}" -lt 2 ]; then
   echo "FAIL — only ${#FILES[@]} pipeline file(s) found under $SKILL_DIR; find/path breakage or a moved skill."
