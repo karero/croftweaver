@@ -8,9 +8,9 @@ purpose; the business in the scenarios is made up.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ▶ written; not reviewed. The PLAN gate waits for steps 2 and 3, so that it reviews a plan whose decisions stand still | this file |
+| 1 | Requirements and scenarios (this file) | ▶ written; not reviewed. The PLAN gate waits for step 2, because this plan takes its list of settings from that file | this file |
 | 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work, on a local branch `docs/cloudflare-checklist`, read at `7a665a0`, not on GitHub when this was written) | ⏸ not this plan's to do; this plan takes its list of settings from that file | — |
-| 3 | The maintainer closes the open decisions D1 to D7 below | ⏸ open | — |
+| 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended") | section "Decisions D1 to D7" |
 | 4 | Spike on a throwaway repository and project: the three things marked "not verified" under "What is known" | ⏸ not started | — |
 | 5 | The script and its tests against a stub of Cloudflare's API | ⏸ not started | — |
 | 6 | Hooks: `CLOUDFLARE_FIRST_DEPLOY.md` option B, `website-team-setup` §6, the checklist's section 6 | ⏸ not started | — |
@@ -169,36 +169,36 @@ checklist's, with that file's own sources.
    request from outside shows it, not when the API says so. The checklist records a case
    where the API reported a header off and the site still sent it.
 
-## Open decisions
+## Decisions D1 to D7
 
-For the maintainer. Each has a recommendation, what it rests on, and the best argument
-against it.
+Closed by the maintainer on 2026-10-12, each as recommended. The argument against each
+stays here as the record of what was weighed.
 
-- **D1. One yes or many.** *Recommended:* one yes for the whole list, a second for the
+- **D1. One yes or many.** *Decided:* one yes for the whole list, a second for the
   domain. *Rests on:* "the owner should not have to do anything". *Against:*
   `CLOUDFLARE_FIRST_DEPLOY.md`'s guardrail asks for a yes before each change to the
   account; one yes is weaker, and the list must be read carefully to be worth it.
-- **D2. What it is written in.** *Recommended:* Node, as one file in the site template,
+- **D2. What it is written in.** *Decided:* Node, as one file in the site template,
   because every site has Node and the starter already carries Node scripts. *Against:* the kit's own
   scripts are bash, and a file in the template is copied into every site, where it ages.
-- **D3. Where it lives.** *Recommended:* in the site template, called from
+- **D3. Where it lives.** *Decided:* in the site template, called from
   `CLOUDFLARE_FIRST_DEPLOY.md` B. *Against:* a script in the kit, run against a site's
   folder, is always the newest version; `whats-new` would otherwise have to track it.
-- **D4. Project steps only, or the checklist's settings too.** *Recommended:* both, the
+- **D4. Project steps only, or the checklist's settings too.** *Decided:* both, the
   project steps first and the settings as a second stage of the same script. *Against:*
   the settings touch the whole domain, not only this site, and two of them are judgment
   calls the checklist explains at length.
 - **D5. Previews behind a login.** Cloudflare can ask for a sign-in before a preview opens
-  (project → Settings → General → Enable access policy). *Recommended:* leave it out of
+  (project → Settings → General → Enable access policy). *Decided:* leave it out of
   the first version and name it in the report as an option. *Against:* previews are public
   to anyone who has the address, and an owner asked for hidden ones on the first day.
-- **D6. Creating the `production` branch.** *Recommended:* the script asks the assistant,
+- **D6. Creating the `production` branch.** *Decided:* the script asks the assistant,
   which does it on the owner's word. *Against:* one more stop in a
   flow meant to have none.
-- **D7. The first build to prove the connection.** *Recommended:* wait for Cloudflare's
+- **D7. The first build to prove the connection.** *Decided:* wait for Cloudflare's
   check on a real pull request (scenario 4). *Against:* a new site may have no open pull
   request; the script would have to ask for an empty one, which is noise in the history.
 
 ## Review trail
 
-None yet. The PLAN gate (Normal depth) runs when steps 2 and 3 are done.
+None yet. The PLAN gate (Normal depth) runs when step 2 is done.
