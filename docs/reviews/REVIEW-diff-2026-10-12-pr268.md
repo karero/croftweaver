@@ -1,5 +1,5 @@
 # DIFF review — PR #268 — `npm create croftweaver`, a one-line install of the skills
-Base `e58d3ae` · depth: Normal (an install script: it deletes and moves folders in the place an assistant takes its instructions from, and unpacks a download) · verdict: OPEN · authority used: POST AUTHORITY — atom A (this session opened #268); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch)
+Base `e58d3ae`, and `d382cbe` since the merge of main before round 2 · depth: Normal (an install script: it deletes and moves folders in the place an assistant takes its instructions from, and unpacks a download) · verdict: OPEN on one row, P8, which waits for the package to be on npm; every other row is fixed, refuted or waived · authority used: POST AUTHORITY — atom A (this session opened #268); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — atom A (codex's chain below, unbroken from round 1 to `5d05bf4`)
 
 Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fresh-eyes pass on a mid-tier model of the host's family. The owner's OK for both services, given in this session on 2026-10-12 to the question "shall I run the review pair (Codex and GLM 5.3 on melious, Normal depth), then push and open the PR?": "yes to all three, npm half is right".
 
@@ -8,6 +8,9 @@ Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fr
 | 1 | `60ae63e` | full: `e58d3ae...60ae63e` without `docs/reviews/`, plus the plan `docs/reviews/SKILL-PLAN-capability-gaps.md`; in front of it, marked as context, `scripts/install.sh`, the zip lines of `scripts/package.sh`, the suite lookup of `new-website`, live facts and the test records | codex-cli 0.162.1, gpt-6.1-sol, config effort, read-only · melious HTTP API, glm-5.3, text only · fresh-eyes: a sub-agent on the host family's mid-tier model, read-only by instruction | codex 470 s / 96,694 · melious 500 s / 41,214 · fresh-eyes 185 s / 137,750 | codex 3/3/0 · melious 0/2/4 · fresh-eyes 0/4/6 · after dedup 3/9/6 |
 | 2 | `9f5cee7` | merge link (`merge_link.sh e58d3ae 60ae63e d382cbe`: the change's own files since round 1's head, the merge of main included) plus the plan's delta `60ae63e..9f5cee7`, with round 1's dispositions (`--verify`); in front of it, as context, `index.mjs` whole and the test record | codex-cli 0.162.1, gpt-6.1-sol, medium, read-only · melious HTTP API, glm-5.3, text only | codex 249 s / 62,122 · melious 499 s / 50,151 | codex 1/1/0 · melious 0/0/1, and one NIT outside scope · after dedup 1/1/0 |
 | 3 | `c52c88c` | delta `9f5cee7..c52c88c` without `docs/reviews/` (two files, 42 lines), with round 2's dispositions (`--verify`); as context, `index.mjs` whole and the test record | same two seats, codex at medium | codex 181 s / 61,935 · melious 128 s / 20,542 | codex 1/0/0 · melious 0/0/0 |
+| 4 | `e7249b1` | delta `c52c88c..e7249b1` without `docs/reviews/`, with round 3's dispositions (`--verify`); context as before | same two seats, codex at medium | codex 82 s / 47,111 · melious 31 s / 11,210 | codex 0/0/0 · melious 0/0/1 |
+| wording pass | `fdb4da9` | delta `e7249b1..fdb4da9`: two prose lines (a code comment, a README sentence), scoped to contradictions with the code | codex-cli 0.162.1, gpt-6.1-sol, config effort, read-only | 177 s / 44,500 | one contradiction (labelled BUG), fixed |
+| confirmation | `5d05bf4` | delta `fdb4da9..5d05bf4`: the fix of that contradiction, two prose lines | same | 147 s / 32,777 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -31,11 +34,17 @@ Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fr
 | P18 | NIT | fresh-eyes | 1 | The new BUGLOG row has a sentence where the other rows have one word for Impact | fixed | `bb52aff` |
 | P19 | BUG | codex | 2 | The sweep added for P11 removes every other staging folder, so a second run started while a first is installing leaves the first with its skills removed and nothing to rename into place | fixed, then superseded by P21: the sweep is gone | `f07645b`: only a staging folder a day old is removed. Invariant: a run takes nothing another run may still need. Tested: a two-day-old folder goes, a fresh one stays with its files; the fresh-one case fails with round 1's sweep put back. No lock: two runs at once can still end with the second stopped part-way, which a further run finishes. caused-by: P11 (introduced) |
 | P20 | RISK | codex, melious (as NIT) | 2 | P12's rule still refused a space, a letter outside ASCII and a leading underscore, against its own comment | fixed — externally_reverified (round 3, both seats) | `f07645b`: any name with no slash, backslash or colon and no dot in front; a test installs `café`, `website tools`, `_helper` and `Odd_Name.v2` and runs twice. A name one system cannot hold fails the real-skills tests on that system's runner |
-| P21 | BUG | codex | 3 | Age does not show that a run is dead: after a pause of more than a day or a clock set forward, P19's sweep removes a live run's staging, its own included, and the run then removes skills it cannot replace | fixed — locally_verified | the sweep is removed: no run touches a staging folder that is not its own. Tested: an old and a fresh foreign staging folder both survive a run with their files. melious had judged the case outside any real run's length. caused-by: P19 (partial) |
+| P21 | BUG | codex | 3 | Age does not show that a run is dead: after a pause of more than a day or a clock set forward, P19's sweep removes a live run's staging, its own included, and the run then removes skills it cannot replace | fixed — externally_reverified (round 4, both seats) | `b100dff`: the sweep is removed: no run touches a staging folder that is not its own. Tested: an old and a fresh foreign staging folder both survive a run with their files. melious had judged the case outside any real run's length. caused-by: P19 (partial) |
+| P22 | NIT | melious | 4 | The comment and the README say a folder is left by a run killed "while it unpacks"; a kill during the renames leaves it too | fixed — locally_verified, then read by the wording pass | `fdb4da9`: "before it finishes" in the README, "once it has begun to unpack" in the comment |
+| P23 | wording | codex | wording pass | The comment said such a run "leaves" the folder, though one killed after its own cleanup leaves none; and whether a dot in front hides a folder on Windows was not shown | fixed — externally_reverified (the confirmation) | `5d05bf4`: "can leave", and "hidden" is gone from the comment and the README |
+
+23 findings in 4 rounds, a wording pass and its confirmation: 5 BUG, 10 RISK, 7 NIT and one wording contradiction. 17 fixed, 2 refuted (P7, P9), 3 waived by the owner (P3, P4, P11), 1 open on a prerequisite (P8).
 
 UNVERIFIABLE entries, round 1: 12 asked across the three seats, none became a finding. Looked at: `setup-node` with an empty `node-version` (the Windows job's log: "Resolved skills/new-website/templates/astro/.nvmrc as 24"), the junction claim (P7), npm's dispatch (P8); the rest (GitHub's redirect, the plugin documentation, the proxy sentence) rest on the author's records above and in the plan.
 
 UNVERIFIABLE entries, round 2: 8 asked, none became a finding. Looked at: `npm pack --dry-run` lists `LICENSE`, `README.md`, `index.mjs`, `package.json`; the pull request's text carries the four check names; codex ran the plan's `git grep` itself and got eleven.
+
+UNVERIFIABLE entries, round 4, the wording pass and the confirmation: 9 asked, one confirmed (a dot in front does not hide a folder on Windows: P23). The owner's answers behind the waivers are quoted in the rows; they were given in the authoring session, which a reviewer cannot open.
 
 UNVERIFIABLE entries, round 3: 7 asked, none became a finding. Looked at: the Windows job on `c52c88c` (run 38292842650, job 114956793935) passes "the real skills, zipped by git, arrive file for file" and the test with `café` and `website tools`; the sentence that nothing loads a staging folder is gone with the sweep.
 
@@ -43,6 +52,14 @@ Fix chain: P11 → P19 → P21, three rows on the staging cleanup. The owner was
 
 Follow-ups:
 - (melious, round 2, outside scope) On main, the workflow's header comment says the Cloudflare check's tests "need nothing beyond Node", while their job's own comment says they use openssl. Not this change's text.
+
+Notes:
+- Round 4 is the one round past 3. It was earned by P21, the BUG round 3 found in the staging cleanup.
+- Round 4 was clean in the sense of stop condition (a2): no BUG, no RISK. Its NIT (P22) was fixed without a further round and read by the wording pass.
+- Chains for the stamp: codex saw `e58d3ae...60ae63e` in full, then each delta to `9f5cee7` (a merge link over the merge of main), `c52c88c`, `e7249b1`, `fdb4da9` and `5d05bf4`. melious's chain ends at `e7249b1`, fresh-eyes' at `60ae63e`, by design.
+- No final full read: a DIFF gate at Normal depth on a change that is mostly code.
+- The commit that brings this file to its final state changes nothing else; the stamp names it, and the reviewed scope is the one at `5d05bf4`.
+- Still to do before the merge, in the order the owner chose: publish `packages/create-croftweaver` from the reviewed commit, then one real `npm create croftweaver -- --codex` run, which closes P8.
 
 ## Before round 1
 
