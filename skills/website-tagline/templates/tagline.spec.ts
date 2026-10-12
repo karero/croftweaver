@@ -1,0 +1,109 @@
+import { test, expect } from '@playwright/test';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { SITE } from '../src/config';
+
+// Guards the tagline (see TAGLINE.md): the line on the page is SITE.tagline word for
+// word, it is a paragraph and not a heading, it is typed in one place only, and it
+// keeps to the length a line under a logo can have. Hermetic checks, a sibling of
+// positioning.spec.ts: no network, no extraction library.
+//
+// This file lives in the website-tagline skill rather than the new-website Astro
+// overlay because a fresh scaffold shows no tagline. Copy it into tests/ once the
+// site shows the line, then set CONFIG.selector. While it is empty every test skips
+// with a stated reason, so an unconfigured copy reports "not applicable" instead of
+// failing like a product bug. It needs the site's src/config.ts, as the other specs do.
+
+// ── EDIT THIS BLOCK ──────────────────────────────────────────────────────────
+const CONFIG = {
+  /**
+   * CSS selector of the one element that shows the tagline (e.g. 'header .tagline').
+   * Empty = every test skips.
+   */
+  selector: '',
+  /** Pages to check. A header is shared, so the home page is usually enough. */
+  pages: ['/'],
+  /** The skill's limits for a line under a logo (website-tagline §3). */
+  maxWords: 8,
+  maxChars: 50,
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
+// What the starter ships in SITE.tagline. A site that still holds it has no tagline yet.
+const PLACEHOLDER = 'One-line positioning.';
+// Source files that can hold page copy. The line may appear in src/config.ts only.
+const COPY_FILES = /\.(astro|ts|tsx|js|jsx|mjs|md|mdx|html|json|ya?ml)$/;
+
+// Whitespace only: a line wrapped onto two lines in the source still counts as the
+// same line. Case and punctuation stay as they are, because the line is verbatim.
+const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+const line = norm(SITE.tagline);
+
+test.beforeEach(() => {
+  test.skip(!CONFIG.selector,
+    'CONFIG.selector is empty: set it to the element that shows the tagline to enable this guard');
+});
+
+test.describe('tagline', () => {
+  for (const path of CONFIG.pages) {
+    test(`the line on ${path} is SITE.tagline, word for word`, async ({ page }) => {
+      await page.goto(path);
+      const shown = page.locator(CONFIG.selector);
+      await expect(shown,
+        `"${CONFIG.selector}" should match exactly one element on ${path}: the tagline is shown once`)
+        .toHaveCount(1);
+      await expect(shown, `the tagline on ${path} is in the page but not visible`).toBeVisible();
+      // textContent, not innerText: small caps or uppercase styling does not change the words.
+      expect(norm((await shown.textContent()) ?? ''),
+        `${path} shows a different line than SITE.tagline in src/config.ts. ` +
+        `Read SITE.tagline in the page instead of typing the line there`)
+        .toBe(line);
+    });
+
+    test(`the line on ${path} is a paragraph, not a heading`, async ({ page }) => {
+      await page.goto(path);
+      const el = await page.locator(CONFIG.selector).first().evaluate((node) => ({
+        tag: node.tagName.toLowerCase(),
+        inHeading: !!node.closest('h1, h2, h3, h4, h5, h6'),
+      }));
+      expect(el,
+        `the tagline on ${path} is a <${el.tag}>${el.inHeading ? ' inside a heading' : ''}; ` +
+        `it belongs in a <p>, so the page keeps its one <h1> and its heading outline`)
+        .toEqual({ tag: 'p', inHeading: false });
+    });
+  }
+
+  test('the line is typed once: only src/config.ts holds it', () => {
+    const src = join(process.cwd(), 'src');
+    const copies: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const file = join(dir, entry.name);
+        if (entry.isDirectory()) walk(file);
+        else if (COPY_FILES.test(entry.name) && relative(src, file) !== 'config.ts'
+          && norm(readFileSync(file, 'utf8')).includes(line)) {
+          copies.push(relative(process.cwd(), file));
+        }
+      }
+    };
+    walk(src);
+    expect(copies,
+      `the tagline is typed again in ${copies.join(', ')}. Read SITE.tagline there instead, ` +
+      `or the two copies drift apart the next time the line changes`)
+      .toEqual([]);
+  });
+
+  test('SITE.tagline is a real line within the limits', () => {
+    expect(line, 'SITE.tagline in src/config.ts is empty').not.toBe('');
+    expect(line, "SITE.tagline still holds the starter's placeholder").not.toBe(PLACEHOLDER);
+    const words = line.split(' ').length;
+    expect(words,
+      `"${line}" has ${words} words; a line under a logo has at most ${CONFIG.maxWords}`)
+      .toBeLessThanOrEqual(CONFIG.maxWords);
+    // Counted in characters as a reader sees them, so an umlaut or an emoji counts once.
+    const chars = [...line].length;
+    expect(chars,
+      `"${line}" has ${chars} characters; a line under a logo has at most ${CONFIG.maxChars}`)
+      .toBeLessThanOrEqual(CONFIG.maxChars);
+  });
+});
