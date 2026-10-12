@@ -13,10 +13,10 @@ The kit puts every site on Cloudflare Pages. Cloudflare's
 [Pages docs](https://developers.cloudflare.com/pages/) now open with: Workers "is
 Cloudflare's primary platform for building applications. Start new projects with Workers."
 The same page still lists Pages as "Available on all plans", and the Pages docs name no end
-date. Cloudflare's [blog](https://blog.cloudflare.com/full-stack-development-on-cloudflare-workers/) gave
-the reason in April 2025: Pages stays supported, but "all of our investment, optimizations,
-and feature work" goes to Workers from then on. So: should the kit move, and what would
-that touch?
+date. Cloudflare's [blog](https://blog.cloudflare.com/full-stack-development-on-cloudflare-workers/)
+announced in April 2025 that Pages stays supported, while "all of our investment,
+optimizations, and feature work" would go to Workers. So: should the kit move, and what
+would that touch?
 
 ## Recommendation
 
@@ -106,7 +106,7 @@ is judgment"). The last column is a judgment, for a content site built with the 
 
 | Topic | Pages | Workers | Better for a kit site |
 |---|---|---|---|
-| Cloudflare's direction | on all plans; the docs name no end date; stays supported, says Cloudflare's blog (April 2025) | called the "primary platform": "Start new projects with Workers"; gets all new feature work, says the same blog post | Workers |
+| Cloudflare's direction | on all plans; the docs name no end date; stays supported, says Cloudflare's blog (April 2025) | called the "primary platform": "Start new projects with Workers"; is to get all new feature work, the same post announced | Workers |
 | Plain files | free, no limit | free, no limit | the same |
 | Code in front of every request | counts against 100,000 requests a day on the free plan; at the limit, Fail open keeps serving the files | counts the same; at the limit the request gets a 429 | Pages |
 | A noindex header on previews | on every preview deployment | on a Preview's `workers.dev` address | the same |
@@ -185,9 +185,9 @@ header. So the middleware does run in front of plain files.
 
 **The best argument against staying:** route B removes the daily limit that every request
 counts against on Pages today, and it deletes code and a setup step. Cloudflare calls
-Workers its primary platform and, since April 2025, puts all its new feature work there:
-Pages is kept running but gets no new features. And every site scaffolded on Pages from now
-on is one more site to move later, so waiting gets dearer with each new site.
+Workers its primary platform, and announced in April 2025 that all its new feature work
+would go there. And every site scaffolded on Pages from now on is one more site to move
+later, so waiting gets dearer with each new site.
 
 ## When to look again
 
