@@ -32,7 +32,7 @@ scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, whic
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,email,links,llms-coverage,middleware}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
-tests/check_analytics_gate.sh # four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH (the suite's own CI)
+tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -58,13 +58,18 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    `npm approve-scripts esbuild`. (sharp no longer has an install script — since 0.35 it
    ships prebuilt binaries, so it needs no approval.)
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
-   (`SITE.url`, name, theme color, analytics — and check `PROD_BRANCH` matches the
+   (`SITE.url`, name, theme color, analytics: `scriptHost` and the per-site `scriptId`
+   from Plausible's Site installation page — and check `PROD_BRANCH` matches the
    branch Cloudflare Pages will call "Production", or analytics never loads).
    Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
    block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
    1200×630 share cards (`public/images/og/`; the starter ships a default).
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
+   In Plausible's installer, untick the optional measurements (outbound links,
+   file downloads, form submissions), or keep the page's sentence for each one you leave ticked.
+   For a ticked one, click such a link on the live site once and look for its address in the
+   instance's report: the sentence says the address is sent and stored.
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +

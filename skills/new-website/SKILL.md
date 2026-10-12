@@ -145,15 +145,19 @@ non-expert can answer, and record the answers in the project `README.md`.
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
      script, no consent banner) is enough for search & referral traffic.
    - Real decisions from traffic data (campaigns, content strategy) →
-     **Plausible** (cookieless, privacy-friendly, no consent banner needed).
+     **Plausible** (cookieless; running it without a consent banner is a
+     position to have reviewed, see the header of `privacy.astro` and, for a
+     German-only site, `_datenschutz.astro`). In its installer, untick the
+     optional measurements (outbound links, file downloads, form submissions)
+     unless you keep the privacy page's slot sentence for each one you leave ticked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
-     banner is § 25 TDDDG (formerly TTDSG). Third-party additions kill the
-     banner-free claim by different routes: a YouTube iframe triggers § 25
-     itself (device storage/readout), while remote Google Fonts flip the
+     banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the
+     banner-free position at risk by different routes: a YouTube iframe triggers § 25
+     itself (device storage/readout), while remote Google Fonts change the
      answer via the GDPR instead (unconsented IP disclosure — LG München I,
      3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only. The
      privacy page must match whatever is chosen here.
