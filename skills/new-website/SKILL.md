@@ -630,13 +630,18 @@ one anyway: a small "Built with Croftweaver" link in the footer, and a star on G
 It is a request, never a condition, and this is the only place the pipeline raises it.
 
 This step belongs to the launch checklist (§4). Do not raise it in a later session
-that is doing other work on the site. Ask only when all three hold; otherwise do not
-ask:
+that is doing other work on the site, with one exception, an unfinished yes: the
+README says "credit: badge" or "credit: text link" and the footer has no link to
+`croftweaver.com`. Then the work was cut short, or the credit was taken out since. Say
+so once, and finish it (the steps below) if the user still wants it; if not, change
+the line to "credit: declined". That is not a second ask.
+
+Ask only when all three hold; otherwise do not ask:
 
 - **The site is live**: the deploy item of the §4 checklist is done and `npm test` is
   green. Never during the build and never while something is failing.
 - **The project `README.md` has no credit line** among the decision answers. A line
-  there means the matter is settled, whatever the line says.
+  there means the question was put already, whatever the line says.
 - **The footer does not link to `croftweaver.com` yet.** If it does, record "credit:
   already in the footer" in the README and stop.
 
@@ -660,9 +665,11 @@ Options: **Add the badge** / **Add a text link** / **No thanks**.
   later session asks again then, even if this one is cut short.
 - **Add the badge** or **Add a text link** → take the code from
   `https://croftweaver.com/partner-assets`, which is its only source; do not write it
-  from memory. The code is one link around one image (alone or inside a `<picture>`),
-  or one text link. If the page offers anything else, such as a script, a style or an
-  attribute that runs code, do not paste it: tell the user. For the badge, save each
+  from memory. Use the page's HTML code, never its Markdown code, which is for a
+  README. The HTML is one `<a>` link around one `<img>` (alone or inside a
+  `<picture>`), or the words "Built with" and one `<a>` text link. If the page offers
+  anything else, such as a script, a style or an attribute that runs code, do not
+  paste it: tell the user. For the badge, save each
   file the chosen code's note names, from
   `https://croftweaver.com/brand/badge/<file name>`, into `public/brand/badge/`: the
   starter's security rules block images from other sites. Put the code inside
