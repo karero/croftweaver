@@ -39,6 +39,29 @@ const COPY_FILES = /\.(astro|ts|tsx|js|jsx|mjs|md|mdx|html|json|ya?ml)$/;
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 const line = norm(SITE.tagline);
 
+// A copy in a source file may be written with a backslash before a quote
+// ('Freelancers\' evenings back.') or with an HTML entity (&amp;, &#39;). Both are
+// undone before the search, so an escaped copy is still a copy.
+const ENTITIES: Record<string, string> = {
+  '&amp;': '&', '&quot;': '"', '&#34;': '"', '&apos;': "'", '&#39;': "'",
+  '&rsquo;': '\u2019', '&lsquo;': '\u2018', '&nbsp;': ' ',
+};
+const unescaped = (source: string) => norm(source
+  .replace(/\\(['"`])/g, '$1')
+  .replace(/&(?:amp|quot|apos|rsquo|lsquo|nbsp|#34|#39);/g, (entity) => ENTITIES[entity]));
+
+// The line counts as typed in a text only where it stands on its own, with no letter
+// or digit directly before or after it. A short line inside a longer word is not a copy.
+const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
+const holds = (text: string, needle: string) => {
+  for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
+    const before = text[at - 1] ?? '';
+    const after = text[at + needle.length] ?? '';
+    if (!LETTER_OR_DIGIT.test(before) && !LETTER_OR_DIGIT.test(after)) return true;
+  }
+  return false;
+};
+
 test.beforeEach(() => {
   test.skip(!CONFIG.selector,
     'CONFIG.selector is empty: set it to the element that shows the tagline to enable this guard');
@@ -74,6 +97,8 @@ test.describe('tagline', () => {
   }
 
   test('the line is typed once: only src/config.ts holds it', () => {
+    // An empty line is "in" every file. The limits test below reports the empty config.
+    test.skip(line === '', 'SITE.tagline is empty: nothing to search for');
     const src = join(process.cwd(), 'src');
     const copies: string[] = [];
     const walk = (dir: string) => {
@@ -81,7 +106,7 @@ test.describe('tagline', () => {
         const file = join(dir, entry.name);
         if (entry.isDirectory()) walk(file);
         else if (COPY_FILES.test(entry.name) && relative(src, file) !== 'config.ts'
-          && norm(readFileSync(file, 'utf8')).includes(line)) {
+          && holds(unescaped(readFileSync(file, 'utf8')), line)) {
           copies.push(relative(process.cwd(), file));
         }
       }
@@ -100,8 +125,9 @@ test.describe('tagline', () => {
     expect(words,
       `"${line}" has ${words} words; a line under a logo has at most ${CONFIG.maxWords}`)
       .toBeLessThanOrEqual(CONFIG.maxWords);
-    // Counted in characters as a reader sees them, so an umlaut or an emoji counts once.
-    const chars = [...line].length;
+    // Counted as a reader sees them: an umlaut counts once however it is stored, and so
+    // does an emoji made of several code points.
+    const chars = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(line)].length;
     expect(chars,
       `"${line}" has ${chars} characters; a line under a logo has at most ${CONFIG.maxChars}`)
       .toBeLessThanOrEqual(CONFIG.maxChars);

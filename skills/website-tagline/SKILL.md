@@ -306,8 +306,12 @@ because a fresh scaffold shows no tagline. It reads `SITE.tagline` from
 |---|---|
 | The selected element is there once, is visible, and its text is `SITE.tagline` word for word | the line edited in the page and not in the config, or shown twice |
 | That element is a `<p>`, not a heading and not inside one | the tagline set as a second headline, which breaks the page's heading outline |
-| No file under `src/` except `config.ts` contains the line | the line typed a second time (a footer, a card, the home page copy), which drifts the next time it changes |
+| No file under `src/` except `config.ts` contains the line, also when the copy is written with an escaped quote or an HTML entity | the line typed a second time (a footer, a card, the home page copy), which drifts the next time it changes |
 | `SITE.tagline` is not empty, is not the starter's placeholder, and keeps to eight words and 50 characters | a later edit in the config that no longer fits under a logo |
+
+The search for a second copy counts the line only where it stands on its own, not
+inside a longer word. The test covers one line, `SITE.tagline`; a site that shows a
+different tagline per language is outside what it checks.
 
 Every test skips with a stated reason while `CONFIG.selector` is empty, so an
 unconfigured copy reports "not applicable". A site that stores the line and does not

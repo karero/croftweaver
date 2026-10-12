@@ -287,8 +287,8 @@ skills/            the suite skills (canonical)
                    copied to every site, never runs unasked)
   website-tagline  (optional line under the logo — starts from the purpose, shows
                    the owner six to eight lines, the owner picks one: TAGLINE.md +
-                   SITE.tagline + an opt-in tagline.spec.ts; copied to every site,
-                   never runs unasked)
+                   SITE.tagline, and an opt-in tagline.spec.ts for a site that shows
+                   the line; the skill is copied to every site, never runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
