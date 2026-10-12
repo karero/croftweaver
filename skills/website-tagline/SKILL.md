@@ -32,8 +32,8 @@ proposes.
 
 ## Explain it first (what to say to the owner)
 
-Most owners have never chosen a tagline and expect to be handed "the answer". Say
-how it will go before the first line, in the language the owner writes in (per
+Say how it will go before the first line, so the owner knows they will choose and
+does not wait to be handed "the answer". Use the language the owner writes in (per
 `new-website` §1), roughly:
 
 > A tagline is the short line under your logo. In a few words it says what you
@@ -53,8 +53,8 @@ how it will go before the first line, in the language the owner writes in (per
   positioning is a guess with good rhythm.
 - **Also read, when present:** `STORY.md` (the character's want, the success lines
   and the controlling idea are the closest neighbours of a tagline) and any
-  voice-of-customer notes from `customer-research`. The best lines are usually
-  words a customer already said.
+  voice-of-customer notes from `customer-research`. Look there first for words a
+  customer already said.
 
 ## 1. Outputs
 
@@ -98,7 +98,7 @@ with a different purpose, rewrite it.
 ## 3. Round one: six to eight variations
 
 Write **six to eight** lines, never fewer and never more: fewer gives the owner
-nothing to compare, more is a list nobody reads to the end. Spread them over
+too little to compare, more is too long a list to compare at all. Spread them over
 **three or four directions**, two or three lines each, so that the owner's choice
 of direction means something. Every direction leads with purpose; they differ in
 which side of it they show:
@@ -125,8 +125,8 @@ Rules for every line:
 - **Not a second headline.** It is not the `<title>`, not the `<h1>` and not the
   story one-liner; it may agree with the controlling idea in `STORY.md` and must
   never contradict it.
-- **Non-English builds:** write native lines. A translated English tagline is
-  the most common bad tagline.
+- **Non-English builds:** write native lines. Do not translate an English
+  tagline.
 
 Show the round to the owner as a plain numbered list, grouped under the
 directions in everyday words, with no table and no section numbers. The trace to
@@ -177,7 +177,7 @@ free answer for "none of these"), otherwise ask in chat. Then:
 - **Two lines from different directions** → round two combines what the owner
   liked about each. Ask what they liked if they did not say.
 - **"None"** → ask what is missing, and check the purpose sentence again before
-  writing more lines. Eight misses usually mean the purpose is off, not the wording.
+  writing more lines. After eight misses, suspect the purpose before the wording.
 - **No answer** → stop. Change nothing on the site.
 
 Round two: **four to six** new lines in that direction. Keep any line or phrase
@@ -221,9 +221,9 @@ again. The loop ends in one of three ways:
   quotation marks. If another business in the same market already uses it, say so
   and go back one round. This is a courtesy search, not a trademark check; say
   that too, and leave the legal question to the owner.
-- **Three rounds without a pick.** Stop and say so plainly. The purpose sentence
-  or the positioning is probably not settled; go back to §2 or to
-  `website-positioning`. More wording will not fix it.
+- **Three rounds without a pick.** Stop and say so plainly. Do not write a fourth
+  round; go back to the purpose sentence (§2), and to `website-positioning` if the
+  owner no longer agrees with it.
 - **The owner decides against a tagline.** A valid answer; a site does not need
   one. Record it (§6) and change nothing else.
 
@@ -284,8 +284,7 @@ the header stay as they are.
   beats a clever one that needs explaining.
 - Do not show more than eight lines "to be safe", and do not show three to save
   time. The count is the method.
-- Changing the tagline later is cheap; changing it every month teaches visitors
-  nothing. Rerun this skill when the positioning changes, not when the line feels old.
+- Rerun this skill when the positioning changes, not when the line feels old.
 - Answer the question that was asked. "Is this line too long?" wants a yes or no
   and a reason, not a new round.
 
