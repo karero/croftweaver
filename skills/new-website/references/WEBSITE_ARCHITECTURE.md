@@ -191,7 +191,8 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
   301 the project alias `<project>.pages.dev` to the live domain (Production variable
   `CANONICAL_URL`, see `CLOUDFLARE_FIRST_DEPLOY.md`).
 - **2-branch deploy:** `main` → Preview (noindex), `production` → live.
-- **Analytics (optional):** Plausible — cookieless, GDPR-clean — needs a paid license (from
+- **Analytics (optional):** Plausible — cookieless; running it without a consent banner is a
+  position to have reviewed (see the header of the privacy page) — needs a paid license (from
   €9/mo, https://plausible.io/#pricing). For many small sites, **Google Search Console** alone
   (free) covers search & referral traffic. Add it only if you'll act on the numbers; gate the
   script to production.
