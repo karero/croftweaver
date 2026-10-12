@@ -285,6 +285,9 @@ skills/            the suite skills (canonical)
   website-scorecard   (optional public scorecard — a dated section showing what the
                    site's own test gate checked, plus the owner's Lighthouse scores;
                    copied to every site, never runs unasked)
+  website-tagline  (optional line under the logo — starts from the purpose, shows
+                   the owner six to eight lines, the owner picks one: TAGLINE.md +
+                   SITE.tagline; copied to every site, never runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
@@ -318,6 +321,7 @@ scripts/
 docs/          (these ship in the zip, except the two marked repo only; docs/reviews/ and docs/local/ do not ship either)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
+  CLOUDFLARE-CHECKLIST.md  the Cloudflare settings a site relies on (HTTPS, privacy, search and AI visibility), each with its dashboard path, and an outside check where one exists
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
@@ -370,11 +374,11 @@ none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
-Four more skills are optional in a different way: `website-motion`, `website-story`,
-`website-scorecard` and `website-positioning-check` are **copied into every site** so the
-recipient can use them later, but **never run unless asked** (`website-story` is offered
-once, after positioning, with a plain-language explanation; the other three only on
-request).
+Five more skills are optional in a different way: `website-motion`, `website-story`,
+`website-scorecard`, `website-tagline` and `website-positioning-check` are **copied into
+every site** so the recipient can use them later, but **never run unless asked**
+(`website-story` is offered once, after positioning, with a plain-language explanation;
+the other four only on request).
 
 ### Use it locally
 
@@ -424,8 +428,9 @@ since those files ship in the zip; the generic catches leave `scripts/` out, bec
 files define their patterns. The name check skips only `LICENSE`, which carries the
 owner's name. A genuine false positive is fixed by tightening a pattern in the script —
 never by loosening it. The same `make check` (and the same CI workflow) also keeps
-`independent-review` free of concrete model names outside its setup guide
-(`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
+`independent-review` free of the model names and tags the pattern in
+`scripts/check_model_agnostic.sh` knows, outside its setup guide and its list of the models
+the Melious seat may run, and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 
 ### Merging stacked PRs
@@ -469,3 +474,8 @@ third-party text: `website-positioning` uses April Dunford's positioning compone
 by Donald Miller's StoryBrand framework
 ([*Building a StoryBrand 2.0*](https://storybrand.com/building-a-storybrand-book-new/));
 StoryBrand is a trademark of its owner and neither author endorses this project.
+
+If you built a site with Croftweaver, we would be glad of a link back to
+[croftweaver.com/partner-assets](https://croftweaver.com/partner-assets), with the badge or as
+plain text. It is a request, not a condition: the MIT license asks only that its notice stays
+with copies of the software.

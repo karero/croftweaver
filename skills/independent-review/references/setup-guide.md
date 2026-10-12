@@ -127,8 +127,13 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   `MELIOUS_API_KEY` works too. The host must be allowed under Network access, or every call fails
   with a proxy 403, which the FAILED section reports as "is the host allowed by the network
   policy?". Settings take effect in a NEW session.
-- **Model:** `MELIOUS_MODEL=<id>`, an id from `GET https://api.melious.ai/v1/models`. The seat
-  names no default.
+- **Model:** `MELIOUS_MODEL=<id>`, one of the ids in `scripts/melious_models.txt` (the owner's
+  rule, 2026-10-12): today `glm-5.3`, and `glm-5.3-flash` for a Light review only, which the run
+  must state with `--depth light`. Any other id is refused with exit 2 before any reviewer
+  starts, whatever else `GET https://api.melious.ai/v1/models` lists; Kimi and every other model
+  run on ollama. The script takes the run's word for its depth: it cannot tell whether the change
+  under review is one a Light review fits. To change what the seat may run, change that file.
+  The seat names no default: unset, it makes no call.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
   27 KB diff, and finished at 96000 in 296-1624 s; `MELIOUS_API_TIMEOUT` defaults to 3600 s). A
   model whose output cap is lower answers with an error, quoted in the FAILED section: lower the
