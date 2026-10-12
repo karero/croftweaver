@@ -269,15 +269,20 @@ full path (the output of `pwd` inside it):
    ```bash
    # Resolve where the suite is installed (the cp SOURCE). Per tool:
    #   ~/.claude/skills = Claude Code · ~/.agents/skills = Codex · ~/.gemini/config/skills = Antigravity
-   # Honour an explicit $SKILLS_ROOT; else auto-detect in priority order
-   # Claude Code → Antigravity → Codex (Claude is the default/primary). On a machine with
-   # more than one installed, set it yourself — e.g. `export SKILLS_ROOT=~/.agents/skills`
-   # (Codex) or `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
+   # Honour an explicit $SKILLS_ROOT; else auto-detect. First the folder this very skill was
+   # loaded from: in the first candidate of the loop below, Claude Code puts this skill's
+   # own folder where the name in braces stands, which also finds the suite when it is
+   # installed as a plugin and so sits in none of the three folders above. Another assistant
+   # leaves the name as it is, the shell reads it as an empty variable, and that candidate
+   # drops out. Then Claude Code → Antigravity → Codex
+   # (Claude is the default/primary). On a machine with more than one installed, set it
+   # yourself — e.g. `export SKILLS_ROOT=~/.agents/skills` (Codex) or
+   # `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
    # `export SKILLS_ROOT="$PWD/.agents/skills"`.
    if [ -z "${SKILLS_ROOT:-}" ]; then
      SKILLS_ROOT="$HOME/.claude/skills"
-     for d in "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
-       [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
+     for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
+       [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
      done
    fi
    # Where bundled skills go IN the generated project (the cp DESTINATION). Claude default

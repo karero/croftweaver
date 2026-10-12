@@ -152,6 +152,21 @@ It copies the skills of the latest release into `~/.claude/skills/` and tells yo
 step, which is step 3 below. To update, run it again. For Codex add `-- --codex`, for
 Antigravity `-- --antigravity`.
 
+**As a Claude Code plugin**, from release 0.32 on. Claude Code installs the suite itself:
+no Node, no script, no folder to keep.
+
+```bash
+claude plugin marketplace add karero/croftweaver
+claude plugin install croftweaver@croftweaver
+```
+
+Then go to step 3. As a plugin the skills carry its name in front
+(`/croftweaver:new-website`). You stay on the release you installed until you run
+`claude plugin update croftweaver@croftweaver`, or turn on auto-update for the marketplace
+under `/plugin`; what lands on main between releases does not reach you. In a site built
+with the suite, the skills the site carries then show up twice, once from the site and once
+from the plugin.
+
 **By hand**, in three steps:
 
 ```bash
@@ -237,6 +252,10 @@ stamps, `whats-new`) — a release just names a milestone. Versions step by **0.
 (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
+# First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
+# ("version": "0.11.0") and in .claude-plugin/marketplace.json ("ref": "v0.11"). The plugin
+# is installed from that tag, and the changed version is what tells Claude Code there is an
+# update; `make test-plugin` fails when the two disagree. Tag the commit that merge makes.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip
 git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
 gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \
@@ -349,6 +368,8 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
+.claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
+                   from the release tag the marketplace entry names (make test-plugin)
 packages/      (repo only: the zip does not hold it)
   create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
                    into the assistant's skills folder. The maintainer publishes it to npm (make test-create)

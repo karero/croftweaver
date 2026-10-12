@@ -1,0 +1,19 @@
+{
+  "name": "croftweaver",
+  "description": "Croftweaver: skills that build a small-business website end to end.",
+  "owner": {
+    "name": "Croftweaver",
+    "url": "https://croftweaver.com"
+  },
+  "plugins": [
+    {
+      "name": "croftweaver",
+      "description": "Skills that build a small-business website end to end with your AI coding assistant.",
+      "source": {
+        "source": "github",
+        "repo": "karero/croftweaver",
+        "ref": "v0.32"
+      }
+    }
+  ]
+}

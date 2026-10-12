@@ -24,12 +24,16 @@ keeps it that way as the project grows.
 ## 1. Install the bundled allowlist (the 90% fix)
 
 The `new-website` kit ships a curated `.claude/settings.json`. Copy it into the repo
-(this is also scaffold step 3.2 — do it here if it was skipped):
+(this is also scaffold step 3.2 — do it here if it was skipped). `${CLAUDE_SKILL_DIR}` below is the folder this SKILL.md is in. Claude Code
+fills it in; with another assistant, put that folder's path in its place.
+The `new-website` skill is the folder beside it wherever the whole suite is installed;
+the copy of this skill inside a site has no such neighbour, and a site already has both
+files.
 
 ```bash
 mkdir -p .claude/hooks
-cp ~/.claude/skills/new-website/templates/claude/settings.json .claude/settings.json
-cp ~/.claude/skills/new-website/templates/claude/hooks/git-stand.mjs .claude/hooks/
+cp "${CLAUDE_SKILL_DIR}/../new-website/templates/claude/settings.json" .claude/settings.json
+cp "${CLAUDE_SKILL_DIR}/../new-website/templates/claude/hooks/git-stand.mjs" .claude/hooks/
 ```
 
 The settings also register a sync hook (`.claude/hooks/git-stand.mjs`, `AGENTS.md` §1):

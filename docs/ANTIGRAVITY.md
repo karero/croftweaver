@@ -42,7 +42,7 @@ Because Antigravity and Claude Code handle permissions differently, you will not
 
 *   **Permissions & Sandboxing:** The `templates/claude/settings.json` file dictates allowed commands for Claude. Antigravity uses a different security model: it runs in a sandbox and asks for your manual approval on **every** shell command it proposes through its `run_command` tool (`mkdir`, `cp`, `npm install`, etc.) — not only ones that need network access. So the `.claude/settings.json` allowlist does nothing here; you can ignore the `.claude` folder entirely, and expect to approve the scaffold's commands as they run.
 *   **The `website-permissions` Skill:** This skill is bundled to help Claude safely extend its allowlist. It won't do anything for Antigravity, as Antigravity doesn't use the allowlist model.
-*   **Path references:** Wherever a skill shows a path under `~/.claude/skills/...`, read it as your Antigravity skills root (`~/.gemini/config/skills/...`). The scaffold's `new-website` skill resolves this automatically via `$SKILLS_ROOT`.
+*   **Path references:** A skill names its own files relative to its folder ("this skill's `templates/`"), and a command may show `${CLAUDE_SKILL_DIR}`: put the path of that skill's folder under your Antigravity skills root there (`~/.gemini/config/skills/<skill>`). The scaffold's `new-website` skill resolves this automatically via `$SKILLS_ROOT`.
 
 ## 4. Why Antigravity Excels Here
 

@@ -42,12 +42,12 @@ and never decides which of two figures is right.
 
 ## Step 1: the facts list
 
-The script is at `~/.claude/skills/facts-check/scripts/facts_check.py` (Codex:
-`~/.agents/skills/facts-check/scripts/facts_check.py`). Run the commands in the folder where the facts list and the
-reports should live.
+The script is this skill's `scripts/facts_check.py`. `${CLAUDE_SKILL_DIR}` in the commands below is the folder this SKILL.md is in. Claude Code
+fills it in; with another assistant, put that folder's path in its place. Run the
+commands in the folder where the facts list and the reports should live.
 
 ```bash
-python3 ~/.claude/skills/facts-check/scripts/facts_check.py --init facts.json
+python3 "${CLAUDE_SKILL_DIR}/scripts/facts_check.py" --init facts.json
 ```
 
 writes a starter file. Fill it **with the owner**, never from the pages themselves:
@@ -87,7 +87,7 @@ term `employee` ties it.
 ## Step 2: run it
 
 ```bash
-python3 ~/.claude/skills/facts-check/scripts/facts_check.py facts.json \
+python3 "${CLAUDE_SKILL_DIR}/scripts/facts_check.py" facts.json \
     --out facts-report.md --json facts-report.json --history facts-history.csv
 ```
 
