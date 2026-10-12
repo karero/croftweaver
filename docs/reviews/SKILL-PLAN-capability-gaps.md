@@ -20,7 +20,7 @@ it; a row is only as good as its evidence.
 | C | Forms: a contact form with a submission test (`website-forms`) | **dropped 2026-10-08**: the skill and its CI job were removed; a mail-app contact form skill replaces it, planned separately. Section C below is kept as the record of what was built | the pull request that removed it |
 | D | Import: bring an existing site under the gate | scenarios only | — |
 | E1 | Install: a plugin for Claude Code (marketplace listing) | not built, and no longer waiting for the name: the rename landed as Croftweaver (#212), and `croftweaver` is claimed on npm. What stands in the way is in the skills, see E1 below | `npm view croftweaver` |
-| E2 | Install: one line, `npm create croftweaver` | built and tested, not published: the package is `packages/create-croftweaver`; npm still serves the placeholder (0.0.1) until the owner publishes | the pull request that carries this row; `npm view create-croftweaver` |
+| E2 | Install: one line, `npm create croftweaver` | built, reviewed and published: the package is `packages/create-croftweaver`, on npm as `create-croftweaver` 0.1.0 since 2026-10-12 | karero/croftweaver#268; `npm view create-croftweaver version dist.shasum` gives 0.1.0 and `2394930488d0025bdfaede0b7026f2dc2fed251b`, the checksum of the reviewed commit's pack |
 
 ## Build order, and why
 
@@ -360,4 +360,8 @@ Known limits:
   next run, or removed once the release drops that skill, without a backup.
 
 Done when the owner has published the package and one run of `npm create croftweaver` on a
-computer without the skills ends at row 1.
+computer without the skills ends at row 1. Both happened on 2026-10-12: the owner published
+0.1.0, and `npm create croftweaver@latest`, once plain and once with `-- --codex`, each put
+the 34 skills of release 0.31 into the right folder of an empty home folder, the same files
+as `git archive v0.31 skills`. That was on macOS; rows 2 to 6 rest on the tests, row 7 on
+the Windows runner.
