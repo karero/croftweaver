@@ -34,6 +34,7 @@ NO_NODE = (
     "Node is not installed here, or is not on the path. The site needs it to build and test, so install it first "
     "(the version in the site's .nvmrc), then try again."
 )
+NO_SITE = "The site's folder (%s) is not there, so the icons cannot be drawn in it. Check the path to the site, then try again."
 
 
 def _bad_job(why):
@@ -42,13 +43,14 @@ def _bad_job(why):
 
 def check_job(job):
     f, size, scale, bg = job.get("file"), job.get("size"), job.get("scale"), job.get("background")
-    if not isinstance(f, str) or not _FILE.match(f):
+    if not isinstance(f, str) or not _FILE.fullmatch(f):
         raise _bad_job("file name %r" % str(f)[:40])
     if isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= 2048:
         raise _bad_job("size %r" % (size,))
     if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not 0 < scale <= 1:
         raise _bad_job("scale %r" % (scale,))
-    if bg is not None and not (isinstance(bg, str) and _HEX.match(bg)):
+    # the key itself must be there (None for a see-through picture): render.mjs asks the same
+    if "background" not in job or (bg is not None and not (isinstance(bg, str) and _HEX.fullmatch(bg))):
         raise _bad_job("background %r" % (bg,))
 
 
@@ -60,9 +62,12 @@ class Renderer(object):
     def _run(self, args, request=None, timeout=180):
         if not self.node:
             raise Refusal("no-node", NO_NODE)
+        if not os.path.isdir(self.site):
+            raise Refusal("no-site", NO_SITE % self.site)
         try:
+            # read as UTF-8 whatever the computer's own encoding is: a warning may name a path with any letters in it
             r = subprocess.run([self.node, HELPER] + args, input=None if request is None else json.dumps(request),
-                               cwd=self.site, capture_output=True, text=True, timeout=timeout)
+                               cwd=self.site, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout)
         except FileNotFoundError:
             raise Refusal("no-node", NO_NODE) from None
         except subprocess.TimeoutExpired:
@@ -70,6 +75,8 @@ class Renderer(object):
         lines = [l for l in r.stdout.splitlines() if l.strip()]
         try:
             answer = json.loads(lines[-1])
+            if not isinstance(answer, dict):
+                raise ValueError("the answer is not a JSON object")
         except (IndexError, ValueError):
             first = (r.stderr.strip().splitlines() or ["no answer"])[0][:200]
             raise Refusal("render-failed", "The renderer did not answer (%s)." % first) from None
@@ -90,12 +97,20 @@ class Renderer(object):
         """Draw the cleaned SVG once per job into `out_dir`; the list of {name, file, width, height}."""
         for job in jobs:
             check_job(job)
-        if not isinstance(svg_text, str) or not svg_text.lstrip().startswith("<svg"):
+        if not isinstance(svg_text, str) or not svg_text.lstrip().startswith("<svg "):
             raise Refusal("bad-job", "The renderer is only given cleaned SVG text.")
+        try:
+            vw, vh = float(view_box[2]), float(view_box[3])
+        except (TypeError, ValueError, IndexError):
+            vw = vh = 0.0
+        if not (0 < vw < float("inf") and 0 < vh < float("inf")):
+            raise Refusal("bad-job", "The renderer is only given a drawing whose box has a width and a height above zero.")
         # Measured 2026-10-11: a viewBox under one unit (0 0 0.5 0.25) is rounded to zero pixels
         # before the density can scale it ("bad dimensions"), so the drawing is given a size.
-        vw, vh = view_box[2], view_box[3]
         w, h = (INTRINSIC, INTRINSIC * vh / vw) if vw >= vh else (INTRINSIC * vw / vh, INTRINSIC)
         sized = svg_text.replace("<svg ", '<svg width="%s" height="%s" ' % (round(w, 4), round(h, 4)), 1)
         request = {"svg": sized, "viewBox": list(view_box), "intrinsic": INTRINSIC, "outDir": os.path.abspath(out_dir), "jobs": jobs}
-        return self._run([], request)["results"]
+        results = self._run([], request).get("results")
+        if not isinstance(results, list):
+            raise Refusal("render-failed", "The renderer did not say what it drew.")
+        return results

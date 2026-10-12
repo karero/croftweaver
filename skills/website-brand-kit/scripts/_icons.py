@@ -85,34 +85,69 @@ def _read(path):
         return f.read()
 
 
+def _solid(picture, colours, tolerance=3, min_alpha=250):
+    """How many solid pixels each colour has: {colour: count}. A pixel counts for one colour only, the
+    nearest of those within `tolerance` (the first listed where two are as near), so a shape wholly
+    covered by one a shade away is not taken for showing."""
+    _w, _h, rgba = picture
+    rgb = [_hex_rgb(c) for c in colours]
+    counts, owner = [0] * len(rgb), {}
+    for i in range(0, len(rgba), 4):
+        if rgba[i + 3] < min_alpha:
+            continue
+        px = bytes(rgba[i:i + 3])
+        if px not in owner:
+            near = [(sum(abs(a - b) for a, b in zip(px, c)), n) for n, c in enumerate(rgb)
+                    if all(abs(a - b) <= tolerance for a, b in zip(px, c))]
+            owner[px] = min(near)[1] if near else None
+        if owner[px] is not None:
+            counts[owner[px]] += 1
+    return dict(zip(colours, counts))
+
+
 def _visible(clean, renderer, workdir, label):
-    """The colours of `clean` that really show, and a note for each that does not."""
+    """The colours of `clean` that really show, and a note for each that hardly does."""
+    what, file = {"mono": ("The one-colour version of the mark", "the one-colour file")}.get(label, ("The mark", "the file"))
     renderer.render(clean.text, clean.view_box, [_job("probe-" + label, PROBE)], workdir)
     pic = _png.decode(_read(os.path.join(workdir, "probe-%s.png" % label)))
-    seen = [c for c in clean.colours if _png.count_colour(pic, c, tolerance=3) >= MIN_SOLID]
+    solid = _solid(pic, clean.colours)
+    seen = [c for c in clean.colours if solid[c] >= MIN_SOLID]
     if not seen:  # blank, or only faint edges: nothing solid of any colour
         raise Refusal(
             "blank-render",
-            "The mark is blank when it is drawn: nothing solid shows on the canvas (it may sit outside its own box, or be "
-            "too thin to see). Ask the tool for the SVG again.",
+            "%s is blank when it is drawn: nothing solid shows on the canvas (it may sit outside its own box, or be "
+            "too thin to see). Ask the tool for the SVG again." % what,
         )
-    notes = ["the colour %s is painted in the file but never shows (something is drawn over it), so it is left out of the checks" % c
-             for c in clean.colours if c not in seen]
+    notes = ["the colour %s is painted in %s but hardly shows when it is drawn (it is covered by another shape, too thin, or outside "
+             "the box); the checks still count it" % (c, file) for c in clean.colours if c not in seen]
     return seen, notes
 
 
 def build(clean, mono, palette, renderer, workdir):
     """Everything the intake installs under public/: {relative path: bytes}, which version the app
-    icons use and on what background, the colours that really show, and what to tell the owner."""
+    icons use and on what background, the colours of every version that is installed (for the check
+    against the palette), and what to tell the owner."""
     os.makedirs(workdir, exist_ok=True)
     seen, notes = _visible(clean, renderer, workdir, "colour")
-    sets = [("colour", seen)]
-    mono_seen = None
+    # Every colour a file paints with is counted, the ones that hardly show too: a hairline too thin to
+    # leave solid pixels at the probe's size still vanishes on a background of its own colour.
+    sets = [("colour", clean.colours)]
+    hardly = [c for c in clean.colours if c not in seen]
     if mono is not None:
         mono_seen, mono_notes = _visible(mono, renderer, workdir, "mono")
-        sets.append(("mono", mono_seen))
+        sets.append(("mono", mono.colours))
+        hardly += [c for c in mono.colours if c not in mono_seen and c not in hardly]
         notes += mono_notes
-    choice = choose_background(sets, backgrounds(palette))
+    try:
+        choice = choose_background(sets, backgrounds(palette))
+    except Ask as ask:
+        try:  # would the colours that show have had a background? Then say which colour stood in the way.
+            choose_background([(v, [c for c in colours if c not in hardly]) for v, colours in sets], backgrounds(palette))
+        except Ask:
+            raise ask from None
+        raise Ask(ask.code, "%s What stands in the way is %s: the file paints with it, although it hardly shows when the mark is "
+                            "drawn (it is covered by another shape, too thin, or outside the box). A version of the mark without "
+                            "it would do too." % (ask, " and ".join(hardly))) from None
     chosen = mono if choice.version == "mono" else clean
     if choice.version == "mono":
         notes.append("no background keeps every colour of the colour version at 3 to 1, so the app icons (apple-touch and "
@@ -123,13 +158,15 @@ def build(clean, mono, palette, renderer, workdir):
                                                    _job("maskable", 512, MASKABLE_SCALE, choice.background)], workdir)
     png = {n: _read(os.path.join(workdir, n + ".png")) for n in ("favicon-32", "icon-192", "icon-512", "apple-touch", "maskable")}
 
+    pictures = {}
     for name, side in (("favicon-32", 32), ("icon-192", 192), ("icon-512", 512), ("apple-touch", 180), ("maskable", 512)):
         if _png.size(png[name]) != (side, side):
             raise Refusal("icon-bad", "The %s icon did not come out %d x %d." % (name, side, side))
-    if _png.is_blank(_png.decode(png["favicon-32"])):
+        pictures[name] = _png.decode(png[name])  # all of it, not its header alone: a file cut short is not installed
+    if _png.is_blank(pictures["favicon-32"]):
         raise Refusal("blank-render", "The 32 pixel icon came out blank. Ask the tool for the SVG again.")
     for name in ("apple-touch", "maskable"):
-        if not _png.is_opaque(_png.decode(png[name])):
+        if not _png.is_opaque(pictures[name]):
             raise Refusal("icon-bad", "The %s icon is not fully opaque." % name)
 
     files = {
@@ -143,7 +180,10 @@ def build(clean, mono, palette, renderer, workdir):
         # (the share-card generator stretches whatever it loads to 460 x 460, so it must be square)
         "public/images/logo.png": png["icon-512"],
     }
-    return IconSet(files, choice.version, choice.background, seen, notes)
+    installed = list(clean.colours)
+    if choice.version == "mono":
+        installed += [c for c in mono.colours if c not in installed]
+    return IconSet(files, choice.version, choice.background, installed, notes)
 
 
 # --- the preview -----------------------------------------------------------------------
@@ -173,6 +213,9 @@ def preview(svg_text, view_box, palette, renderer, workdir):
     os.makedirs(workdir, exist_ok=True)
     renderer.render(svg_text, view_box, [_job("preview-16", 16), _job("preview-32", 32)], workdir)
     small = {s: _png.decode(_read(os.path.join(workdir, "preview-%d.png" % s))) for s in (16, 32)}
+    for s in (16, 32):
+        if small[s][:2] != (s, s):
+            raise Refusal("icon-bad", "The %d pixel picture for the preview did not come out %d x %d." % (s, s, s))
     themes = [t for t in ("light", "dark") if palette.theme(t).get("bg")]
     if not themes:
         raise Refusal("no-palette", "There is no background colour to show the mark on.")

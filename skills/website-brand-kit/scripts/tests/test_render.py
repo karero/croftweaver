@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -50,7 +51,9 @@ class JobsAreChecked(unittest.TestCase):
     BAD = [dict(file="../x.png"), dict(file="/tmp/x.png"), dict(file="a/b.png"), dict(file=""), dict(file=".hidden"),
            dict(file="x y.png"), dict(file=5), dict(size=0), dict(size=100000), dict(size=16.5), dict(size=True), dict(size="9"),
            dict(scale=0), dict(scale=1.5), dict(scale=-1), dict(scale="1"), dict(scale=True), dict(background="red"),
-           dict(background="#12"), dict(background="#12345g"), dict(background=5)]
+           dict(background="#12"), dict(background="#12345g"), dict(background=5),
+           # a line break after a good value: Python's "$" lets it by, the helper's does not
+           dict(file="a.png\n"), dict(background="#ffffff\n"), dict(file="a.png\n.."), dict(background="\n#ffffff")]
 
     def test_each_bad_field_is_refused_by_the_wrapper(self):
         for bad in self.BAD:
@@ -62,11 +65,92 @@ class JobsAreChecked(unittest.TestCase):
         _render.check_job(job("a", 2048, 1, "#aBcDeF"))
 
     def test_only_cleaned_svg_text_is_handed_over(self):
-        for bad in ("", "<?xml version='1.0'?><svg/>", "/etc/passwd", "file:///x.svg", b"<svg/>", None):
+        for bad in ("", "<?xml version='1.0'?><svg/>", "/etc/passwd", "file:///x.svg", b"<svg/>", None,
+                    "<svgfoo xmlns='http://www.w3.org/2000/svg'/>", "<svg/>", "<svg>", "<svg\txmlns='http://www.w3.org/2000/svg'/>"):
             with self.subTest(bad=bad):
                 with self.assertRaises(Refusal) as cm:
                     _render.Renderer("/nonexistent", node="/nonexistent/node").render(bad, (0, 0, 1, 1), [job("a", 16)], "/nonexistent/out")
                 self.assertEqual(cm.exception.code, "bad-job")
+
+    def test_a_box_without_a_width_and_a_height_is_refused_before_anything_is_divided_by_it(self):
+        for box in ((0, 0, 0, 5), (0, 0, 5, 0), (0, 0, -1, 5), (0, 0, 5, -1), (0, 0), (), None, (0, 0, "a", 1), (0, 0, None, 1),
+                    (0, 0, float("nan"), 1), (0, 0, 1, float("inf"))):
+            with self.subTest(box=box):
+                with self.assertRaises(Refusal) as cm:
+                    _render.Renderer("/nonexistent", node="/nonexistent/node").render(MARK, box, [job("a", 16)], "/nonexistent/out")
+                self.assertEqual(cm.exception.code, "bad-job")
+
+    def test_a_job_says_its_background_even_when_it_has_none(self):
+        # the helper refuses a job without the key; the wrapper let it through, so the two disagreed
+        without = dict(job("a", 16))
+        del without["background"]
+        with self.assertRaises(Refusal) as cm:
+            _render.check_job(without)
+        self.assertEqual(cm.exception.code, "bad-job")
+        self.assertIn("background", str(cm.exception))
+        _render.check_job(dict(without, background=None))
+
+    def test_a_site_folder_that_is_not_there_is_said_so_and_not_blamed_on_node(self):
+        with tempfile.TemporaryDirectory() as d:
+            a_file = os.path.join(d, "site.txt")
+            with open(a_file, "w") as f:
+                f.write("not a folder")
+            for site in (os.path.join(d, "no-such-site"), a_file):
+                with self.subTest(site=site):
+                    with self.assertRaises(Refusal) as cm:
+                        _render.Renderer(site, node=sys.executable).preflight()  # a program that is there, so only the folder is wrong
+                    self.assertEqual(cm.exception.code, "no-site")
+                    self.assertIn(site, str(cm.exception))
+                    self.assertNotIn("Node is not installed", str(cm.exception))
+
+
+class WhenTheHelperAnswersBadly(unittest.TestCase):
+    """What the wrapper makes of an answer it did not expect. A shell script stands in for node, so
+    these need neither node nor sharp."""
+
+    def setUp(self):
+        if os.name != "posix":
+            self.skipTest("the stand-in for node is a shell script")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def renderer(self, script):
+        path = os.path.join(self.tmp.name, "node")
+        with open(path, "w") as f:
+            f.write("#!/bin/sh\n" + script + "\n")
+        os.chmod(path, 0o755)
+        return _render.Renderer(self.tmp.name, node=path)
+
+    def test_bytes_that_are_not_utf8_in_the_answer_are_read_not_a_crash(self):
+        # a warning may name a path in the computer's own encoding (octal 374 is a Latin-1 u-umlaut)
+        good = self.renderer("printf 'warning: D:/sites/m\\374ller\\n' >&2; printf 'caf\\351\\n{\"ok\":true,\"sharp\":\"1\"}\\n'")
+        self.assertEqual(good.preflight(), {"ok": True, "sharp": "1"})
+        bad = self.renderer("printf '{\"ok\":false,\"error\":\"render-failed\",\"message\":\"in m\\374ller\"}\\n'")
+        with self.assertRaises(Refusal) as cm:
+            bad.preflight()
+        self.assertEqual(cm.exception.code, "render-failed")
+        self.assertIn("in m\ufffdller", str(cm.exception))
+        silent = self.renderer("printf 'm\\374ller broke\\n' >&2")
+        with self.assertRaises(Refusal) as cm:
+            silent.preflight()
+        self.assertIn("m\ufffdller broke", str(cm.exception))
+
+    def test_an_answer_that_is_json_but_not_an_object_is_a_refusal(self):
+        for answer in ("[1,2]", '"ok"', "3", "null", "true", '[{"ok":true}]'):
+            with self.subTest(answer=answer):
+                with self.assertRaises(Refusal) as cm:
+                    self.renderer("printf '%s\\n' '" + answer + "'").preflight()
+                self.assertEqual(cm.exception.code, "render-failed")
+        self.assertEqual(self.renderer("printf '%s\\n' '{\"ok\":true}'").preflight(), {"ok": True})
+
+    def test_an_answer_that_does_not_say_what_was_drawn_is_a_refusal(self):
+        for answer in ('{"ok":true}', '{"ok":true,"results":null}', '{"ok":true,"results":"a.png"}', '{"ok":true,"results":{}}'):
+            with self.subTest(answer=answer):
+                with self.assertRaises(Refusal) as cm:
+                    self.renderer("printf '%s\\n' '" + answer + "'").render(MARK, (0, 0, 64, 64), [job("a", 16)], self.tmp.name)
+                self.assertEqual(cm.exception.code, "render-failed")
+        drawn = self.renderer("printf '%s\\n' '{\"ok\":true,\"results\":[]}'").render(MARK, (0, 0, 64, 64), [job("a", 16)], self.tmp.name)
+        self.assertEqual(drawn, [])
 
 
 class WhenSharpIsMissing(unittest.TestCase):
@@ -177,10 +261,8 @@ class Drawing(unittest.TestCase):
         self.assertGreater(_png.count_colour(pic, "#b4531a"), 2000)
         self.assertGreater(_png.count_colour(pic, "#6b2c0b"), 500)
 
-    def test_a_reference_to_another_file_is_never_followed(self):
-        # measured on 2026-10-10 and again on 2026-10-11: from a PATH the renderer drew the
-        # referenced file (400 red pixels of 400); from a BUFFER, none. The intake only ever
-        # hands it a buffer, and these files are what a hostile SVG could ask for.
+    def references(self):
+        """Four drawings that each ask for another file, which is red: (name, svg text)."""
         red = os.path.join(self.site.dir, "red.png")
         with open(red, "wb") as f:
             f.write(T.make_png(20, 20, T.solid_rgba(20, 20, (255, 0, 0, 255))))
@@ -194,10 +276,30 @@ class Drawing(unittest.TestCase):
             "file url": '<image href="file://%s" width="20" height="20"/>' % red,
             "import": '<style>@import url("red.css");</style><rect width="20" height="20" fill="#0000ff"/>',
         }
-        for name, body in cases.items():
+        return [(name, base % body) for name, body in cases.items()]
+
+    def test_a_reference_to_another_file_is_never_followed(self):
+        # measured on 2026-10-10 and again on 2026-10-11: from a PATH the renderer drew the
+        # referenced file (400 red pixels of 400); from a BUFFER, none. The intake only ever
+        # hands it a buffer, and these files are what a hostile SVG could ask for.
+        for name, text in self.references():
             with self.subTest(name=name):
-                self.draw(base % body, (0, 0, 20, 20), [job("probe", 20)])
+                self.draw(text, (0, 0, 20, 20), [job("probe", 20)])
                 self.assertEqual(_png.count_colour(_png.decode(self.site.read("probe.png")), "#ff0000"), 0)
+
+    def test_given_a_path_the_same_renderer_does_follow_each_of_those_references(self):
+        # The control for the test above: without it, "no red pixel" could mean that this sharp never
+        # follows a reference at all, and the test would prove nothing about buffers. Here the same four
+        # drawings are read by the site's sharp from a file, the one thing render.mjs never does.
+        from_a_path = "require('sharp')(process.argv[1]).png().toFile(process.argv[2]).catch((e) => { console.error(e.message); process.exit(1); })"
+        for name, text in self.references():
+            with self.subTest(name=name):
+                probe, out = os.path.join(self.site.dir, "probe.svg"), os.path.join(self.site.dir, "followed.png")
+                with open(probe, "w") as f:
+                    f.write(text)
+                r = subprocess.run(["node", "-e", from_a_path, probe, out], cwd=self.site.dir, capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertGreater(_png.count_colour(_png.decode(T.read_bytes(out)), "#ff0000"), 300)
 
     def test_a_job_cannot_write_outside_the_folder_it_was_given(self):
         for bad in ("../x.png", "/tmp/x.png", "a/b.png", "x.png/..", "", ".hidden", "x y.png"):
@@ -227,6 +329,32 @@ class Drawing(unittest.TestCase):
             with self.subTest(extra=extra):
                 r = raw_request(self.site, [job("a", 16)], **extra)
                 self.assertIn("bad-job", r.stdout, r.stdout + r.stderr)
+
+    def test_a_job_without_a_background_is_refused_by_the_helper_as_by_the_wrapper(self):
+        without = dict(job("a", 16))
+        del without["background"]
+        r = raw_request(self.site, [without])
+        self.assertIn('"ok":false', r.stdout.replace(" ", ""), r.stdout + r.stderr)
+        self.assertIn("bad-job", r.stdout)
+
+    def test_the_mark_takes_the_share_of_its_square_that_was_asked_for_at_every_size(self):
+        # The square always comes out the size asked for, so its size says nothing about the mark inside it.
+        # Measured 2026-10-12 over 400 combinations: the mark's long side lands within half a pixel of
+        # size x scale, except where that is under 14 pixels (sharp draws nothing smaller), where it stayed
+        # 14 whatever the scale said. The helper now brings those down and fails if it ever misses by more than 1.
+        asked = ((16, 1.0), (32, 1.0), (48, 0.25), (64, 0.1), (64, 0.5), (20, 0.5), (180, 0.8), (192, 0.56))
+        for vb in ((0, 0, 64, 64), (0, 0, 100, 40), (0, 0, 3, 7)):
+            svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %s %s"><rect width="%s" height="%s" fill="#123456"/></svg>' % (vb[2:] + vb[2:])
+            self.draw(svg, vb, [job("fit%d" % i, size, scale) for i, (size, scale) in enumerate(asked)])
+            for i, (size, scale) in enumerate(asked):
+                with self.subTest(vb=vb, size=size, scale=scale):
+                    w, h, rgba = _png.decode(self.site.read("fit%d.png" % i))
+                    self.assertEqual((w, h), (size, size))
+                    # an edge pixel the mark half covers counts: a 100 x 40 mark at 16 is drawn 15 wide, centred
+                    xs = [p // 4 % w for p in range(3, len(rgba), 4) if rgba[p] > 64]
+                    ys = [p // 4 // w for p in range(3, len(rgba), 4) if rgba[p] > 64]
+                    long_side = max(max(xs) - min(xs), max(ys) - min(ys)) + 1
+                    self.assertAlmostEqual(long_side, size * scale, delta=1.5)
 
     def test_odd_shapes_always_fit_their_square(self):
         for vb in ((0, 0, 3, 7), (0, 0, 7, 3), (0, 0, 64.5, 64.5), (-5, -5, 33, 17), (0, 0, 0.5, 0.25), (0, 0, 1000, 999)):

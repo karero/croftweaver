@@ -62,7 +62,9 @@ def size(data):
 def decode(data):
     ihdr = plte = trns = None
     idat = []
-    for kind, body in _chunks(data):
+    for n, (kind, body) in enumerate(_chunks(data)):
+        if n == 0 and kind != b"IHDR":
+            raise _bad("no header")  # the header comes first, as `size` has it
         if kind == b"IHDR" and ihdr is None:
             ihdr = _header(body)
         elif kind == b"PLTE":
@@ -76,17 +78,26 @@ def decode(data):
     w, h, depth, colour, interlace = ihdr
     if depth != 8 or interlace != 0 or colour not in _CHANNELS:
         raise Refusal("png-unsupported", "A picture the renderer wrote is in a form this check does not read.")
-    if not (0 < w <= MAX_SIDE and 0 < h <= MAX_SIDE and w * h <= MAX_PIXELS):
+    if trns is not None and colour in (0, 2):
+        # one grey or one colour named as see-through: read as solid it would pass for an opaque picture
+        raise Refusal("png-unsupported", "A picture the renderer wrote marks one of its colours as see-through, a form this "
+                                         "check does not read.")
+    if w == 0 or h == 0:
+        raise _bad("it has no width or no height")
+    if not (w <= MAX_SIDE and h <= MAX_SIDE and w * h <= MAX_PIXELS):
         raise Refusal("png-too-large", "A picture the renderer wrote is far larger than an icon.")
     bpp = _CHANNELS[colour]
     stride = w * bpp
     expected = (stride + 1) * h
+    inflate = zlib.decompressobj()
     try:
-        raw = zlib.decompressobj().decompress(b"".join(idat), expected + 1)
+        raw = inflate.decompress(b"".join(idat), expected + 1)
     except zlib.error:
         raise _bad("the picture data is damaged") from None
     if len(raw) != expected:
         raise _bad("the picture data is the wrong length")
+    if not inflate.eof or inflate.unused_data:
+        raise _bad("the picture data is cut short, or something follows it")
     rows, prev = [], bytearray(stride)
     for y in range(h):
         f = raw[y * (stride + 1)]
@@ -180,7 +191,7 @@ def count_colour(picture, hex_colour, tolerance=0, min_alpha=250):
 
 
 def is_blank(picture, min_pixels=4, min_alpha=64):
-    """Nothing to see: fewer than `min_pixels` pixels are even half there."""
+    """Nothing to see: fewer than `min_pixels` pixels are even a quarter there."""
     _w, _h, rgba = picture
     n = 0
     for i in range(3, len(rgba), 4):

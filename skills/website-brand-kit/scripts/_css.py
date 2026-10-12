@@ -4,8 +4,9 @@ An SVG that comes from outside may style itself with a <style> element or a styl
 attribute. This reads those the way the intake needs: simple selectors (`*`, a tag, `.class`,
 `#id`, and those joined, in a comma list) with plain `property: value` declarations. It refuses,
 by name, everything that could fetch or run something (an @import or any other @-rule, a url()
-that is not a #fragment) and everything it does not read (a combinator, a pseudo-class, an
-attribute selector, !important). Standard library only.
+that is not a #fragment, an image(), image-set() or src()) and everything it does not read (a
+combinator, a pseudo-class, an attribute selector, !important, a backslash escape in a selector
+or a property name). Standard library only.
 """
 
 from __future__ import annotations
@@ -15,8 +16,11 @@ import re
 from _refusal import Refusal
 
 _ESCAPE = re.compile(r"\\([0-9a-fA-F]{1,6})[ \t\r\n\f]?|\\(.)", re.S)
-_COMMENT = re.compile(r"/\*.*?(\*/|\Z)", re.S)
+# An escaped character or a string (kept as it is: a `/*` inside quotes starts no comment), or a comment.
+_COMMENT = re.compile(r"""(\\.|"[^"\\\n]*(?:\\.[^"\\\n]*)*"?|'[^'\\\n]*(?:\\.[^'\\\n]*)*'?)|/\*.*?(?:\*/|\Z)""", re.S)
 _URL = re.compile(r"url\s*\(", re.I)
+_FRAGMENT = re.compile(r"""\s*(?:#[\w\-.:]*|"#[\w\-.:]*"|'#[\w\-.:]*')\s*\)""")
+_FETCH = re.compile(r"(?<![A-Za-z0-9_])(?:image-set|image|src)\(", re.I)
 _IDENT = r"-?[A-Za-z_][A-Za-z0-9_\-]*"
 _SIMPLE = re.compile(r"^(\*|%s)?((?:[.#]%s)*)$" % (_IDENT, _IDENT))
 _PART = re.compile(r"([.#])(%s)" % _IDENT)
@@ -34,18 +38,20 @@ def unescape(text):
     return _ESCAPE.sub(_chr, text)
 
 
+def _name_chr(m):
+    c = _chr(m)
+    return c if c.isalnum() or c in "-_" else "\ufffd"
+
+
 def strip_comments(text):
-    return _COMMENT.sub(" ", text)
+    return _COMMENT.sub(lambda m: m.group(1) or " ", text)
 
 
 def check_urls(text):
-    """Refuse any url() that is not a same-document #fragment. `text` is any CSS value."""
-    t = unescape(strip_comments(text))
-    for m in _URL.finditer(t):
-        rest = t[m.end():]
-        end = rest.find(")")
-        inner = (rest if end < 0 else rest[:end]).strip().strip("'\"").strip()
-        if end < 0 or not inner.startswith("#"):
+    """Refuse any url() that is not a same-document #fragment. `text` is any CSS value, with its
+    escapes already decoded."""
+    for m in _URL.finditer(text):
+        if not _FRAGMENT.match(text, m.end()):
             raise Refusal(
                 "css-url",
                 "A style in the file points to something outside the drawing (a url() that is not "
@@ -53,15 +59,29 @@ def check_urls(text):
             )
 
 
-def check_text(text, where="a style"):
-    """The checks every piece of CSS text passes, whatever it will be used for."""
-    t = unescape(strip_comments(text))
-    if re.search(r"@\s*import", t, re.I):
-        raise Refusal("css-import", "A style in the file imports another file (@import). Ask the tool for a plainer export.")
-    check_urls(t)
-    if re.search(r"expression\s*\(|javascript\s*:|-moz-binding|behaviou?r\s*:", t, re.I):
-        raise Refusal("css-script", "A style in the file can run code. Ask the tool for a plainer export.")
-    return t
+def check_text(text):
+    """The checks every piece of CSS text passes, whatever it will be used for. Returns the text
+    without its comments, its escapes still in place: a caller decodes the values it keeps, never
+    the text it is about to split."""
+    bare = strip_comments(text)
+    # Checked with the comments and without them: wherever a renderer thinks a comment starts
+    # (`"/*" url(x) "*/"`, `\2f * url(x)`), it sees no more than was checked. And each of those
+    # decoded two ways: every escape as the character it stands for, and as a renderer reads one
+    # (an escaped letter is that letter; an escaped bracket, quote or space opens and closes
+    # nothing, so `url(#a\29 x)` and `url(\22#a\22)` are not the fragments they decode to).
+    for t in (unescape(text), unescape(bare), _ESCAPE.sub(_name_chr, text), _ESCAPE.sub(_name_chr, bare)):
+        if re.search(r"@\s*import", t, re.I):
+            raise Refusal("css-import", "A style in the file imports another file (@import). Ask the tool for a plainer export.")
+        check_urls(t)
+        if _FETCH.search(t):
+            raise Refusal(
+                "css-url",
+                "A style in the file loads a picture from outside the drawing (image(), image-set() or src()). "
+                "Ask the tool for a plainer export.",
+            )
+        if re.search(r"expression\s*\(|javascript\s*:|-moz-binding|behaviou?r\s*:", t, re.I):
+            raise Refusal("css-script", "A style in the file can run code. Ask the tool for a plainer export.")
+    return bare
 
 
 def parse_declarations(text):
@@ -74,7 +94,7 @@ def parse_declarations(text):
         if ":" not in part:
             raise Refusal("css-unreadable", "A style in the file is not written as property: value.")
         prop, value = part.split(":", 1)
-        prop, value = prop.strip().lower(), value.strip()
+        prop, value = prop.strip().lower(), unescape(value).strip()
         if re.search(r"!\s*important", value, re.I):
             raise Refusal("css-unreadable", "A style in the file uses !important, which this check does not read.")
         if not re.match(r"^-?[a-z][a-z0-9\-]*$", prop) or not value:

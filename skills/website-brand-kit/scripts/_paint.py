@@ -16,7 +16,9 @@ import re
 import _colour
 from _refusal import Refusal
 
-_NUMBER = re.compile(r"^\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(%?)\s*$")
+# the same number as _svg._NUM (ASCII digits, no alternative that overlaps another), so the two cannot drift
+_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+_NUMBER = re.compile(r"^\s*(%s)(%%?)\s*$" % _NUM)
 
 
 def _is_one(value):
@@ -28,7 +30,7 @@ def _is_one(value):
 
 
 def _positive(width):
-    m = re.match(r"^\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)", width)
+    m = re.match(r"^\s*(%s)" % _NUM, width)
     return True if not m else float(m.group(1)) > 0
 
 
@@ -50,7 +52,8 @@ def resolve_paints(root, drawing, current=None, used_classes=None):
         if hex_colour not in colours:
             colours.append(hex_colour)
 
-    base = {"fill": "#000000", "stroke": "none", "stroke-width": "1", "color": None, "visibility": "visible"}
+    # "current": which of fill and stroke were written as currentColor on this element or one above it
+    base = {"fill": "#000000", "stroke": "none", "stroke-width": "1", "color": None, "visibility": "visible", "current": ()}
     stack = [(root, base, True)]
     while stack:
         node, inherited, painted = stack.pop()
@@ -76,19 +79,31 @@ def resolve_paints(root, drawing, current=None, used_classes=None):
             else:
                 props["color"] = eff["color"] = _colour.parse_colour(v, current=inherited["color"] or current)
         for k in ("fill", "stroke"):
-            if k not in props:
+            if k not in props or props[k].strip().lower() == "inherit":
+                props.pop(k, None)
+                # A paint handed down as currentColor was written out above as the colour it had there. A
+                # renderer may instead give it the colour `color` is changed to here (the site's own does):
+                # where the two differ the installed file would not look like the one that was checked.
+                if "color" in props and k in eff["current"] and eff["color"] != eff[k]:
+                    raise Refusal(
+                        "colour-current",
+                        "The mark paints a group with currentColor and then changes `color` inside that group. Which of "
+                        "the two colours the shapes inside get depends on the program that draws the file, so the mark's "
+                        "colours cannot be known from it. Ask for the SVG with every colour written out.",
+                    )
                 continue
             v = props[k].strip()
-            if v.lower() == "inherit":
-                del props[k]
-            elif v.lower() == "none":
+            eff["current"] = tuple(c for c in eff["current"] if c != k) + ((k,) if v.lower() == "currentcolor" else ())
+            if v.lower() == "none":
                 props[k] = eff[k] = "none"
             else:
                 props[k] = eff[k] = _colour.parse_colour(v, current=eff["color"] or current)
-        if "stroke-width" in props:
-            eff["stroke-width"] = props["stroke-width"]
-        if "visibility" in props:
-            eff["visibility"] = props["visibility"]
+        for k in ("stroke-width", "visibility"):
+            if k in props:
+                if props[k].strip().lower() == "inherit":
+                    del props[k]
+                else:
+                    eff[k] = props[k]
         shown = painted and props.get("display", "").strip() != "none"
         if shown and node.tag in drawing and eff["visibility"] not in ("hidden", "collapse"):
             if node.tag != "line" and eff["fill"] != "none":

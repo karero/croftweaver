@@ -137,6 +137,37 @@ class IcoContainer(unittest.TestCase):
             _icons.ico_from_png(b"not a png")
 
 
+class SolidPixels(unittest.TestCase):
+    """Which colour a solid pixel is counted for. The renderer may land a shade off the colour the file
+    names, so a pixel within 3 of a colour counts for it: for one colour, never for two."""
+
+    def picture(self, *pixels):
+        return _png.decode(T.make_png(len(pixels), 1, [b"".join(bytes(p) for p in pixels)]))
+
+    def test_a_pixel_between_two_near_colours_counts_for_the_nearer_one_only(self):
+        pic = self.picture(*[(3, 3, 3, 255)] * 5)
+        self.assertEqual(_icons._solid(pic, ["#000000", "#030303"]), {"#000000": 0, "#030303": 5},
+                         "five pixels of #030303 are not also five pixels of #000000")
+        self.assertEqual(_icons._solid(pic, ["#030303", "#000000"]), {"#030303": 5, "#000000": 0}, "whichever is listed first")
+        pic = self.picture((1, 1, 1, 255), (2, 2, 2, 255), (0, 0, 0, 255), (3, 3, 3, 255))
+        self.assertEqual(_icons._solid(pic, ["#000000", "#030303"]), {"#000000": 2, "#030303": 2})
+
+    def test_a_pixel_as_near_to_one_as_to_the_other_goes_to_the_first_listed_and_is_counted_once(self):
+        pic = self.picture(*[(2, 2, 2, 255)] * 4)
+        counts = _icons._solid(pic, ["#000000", "#040404"])
+        self.assertEqual(counts, {"#000000": 4, "#040404": 0})
+        self.assertEqual(sum(counts.values()), 4)
+
+    def test_a_pixel_near_no_colour_or_not_solid_counts_for_none(self):
+        pic = self.picture((9, 9, 9, 255), (0, 0, 0, 249), (0, 0, 4, 255), (0, 0, 0, 250))
+        self.assertEqual(_icons._solid(pic, ["#000000"]), {"#000000": 1})
+
+    def test_a_colour_on_its_own_is_counted_as_before(self):
+        pic = self.picture((0xb4, 0x53, 0x1a, 255), (0xb5, 0x52, 0x1c, 255), (0xb8, 0x53, 0x1a, 255))
+        self.assertEqual(_icons._solid(pic, ["#b4531a"]), {"#b4531a": _png.count_colour(pic, "#b4531a", tolerance=3)})
+        self.assertEqual(_icons._solid(pic, ["#b4531a"]), {"#b4531a": 2})
+
+
 class WithTheSitesSharp(unittest.TestCase):
     def setUp(self):
         T.require_sharp(self)
@@ -301,6 +332,20 @@ class WhatIsMadeIsLookedAt(WithTheSitesSharp):
         self.assertEqual(cm.exception.code, "icon-bad")
         self.assertIn("icon-192", str(cm.exception))
 
+    def test_an_icon_whose_file_stops_after_its_header_is_not_installed(self):
+        # the header alone says 192 x 192 (or 512 x 512, which is images/logo.png too): the size check passes on it
+        for name in ("icon-192", "icon-512", "apple-touch", "maskable", "favicon-32"):
+            for what, keep in (("the header and nothing else", lambda data: data[:33]), ("its end cut off", lambda data: data[:-20])):
+                with self.subTest(name=name, what=what):
+                    def wrong(job, path, name=name, keep=keep):
+                        if job["name"] == name:
+                            data = T.read_bytes(path)
+                            with open(path, "wb") as f:
+                                f.write(keep(data))
+                    with self.assertRaises(Refusal) as cm:
+                        self.lie(wrong)
+                    self.assertEqual(cm.exception.code, "png-bad")
+
     def test_a_blank_32_pixel_icon_is_not_installed(self):
         def wrong(job, path):
             if job["name"] == "favicon-32":
@@ -326,13 +371,64 @@ class WhatIsMadeIsLookedAt(WithTheSitesSharp):
 
 
 class WhatTheRenderShows(WithTheSitesSharp):
-    def test_a_colour_painted_but_never_visible_is_dropped_from_the_checks_with_a_note(self):
+    def test_a_colour_painted_but_hardly_showing_is_named_in_a_note_and_still_counted_in_the_checks(self):
+        # It may be covered (as here) or only too thin to leave a solid pixel at the probe's size, and the
+        # picture cannot tell the two apart: so it stays in what the palette check is handed, and she is told.
         covered = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#aa0000"/>'
                    b'<rect width="64" height="64" fill="#b4531a"/></svg>')
         clean, icons = self.build(covered)
         self.assertEqual(clean.colours, ["#aa0000", "#b4531a"], "the file paints with both")
-        self.assertEqual(icons.visible, ["#b4531a"])
-        self.assertTrue([n for n in icons.notes if "#aa0000" in n])
+        self.assertEqual(icons.visible, ["#aa0000", "#b4531a"])
+        note = [n for n in icons.notes if "#aa0000" in n]
+        self.assertEqual(len(note), 1)
+        for part in ("hardly shows", "covered", "too thin", "outside the box", "still count"):
+            self.assertIn(part, note[0])
+        self.assertFalse([n for n in icons.notes if "#b4531a" in n], "the colour that shows gets no note")
+
+    def test_a_shape_wholly_covered_by_one_a_shade_away_is_not_taken_for_showing(self):
+        # every pixel is the top shape's #030303, within the tolerance of the covered #000000 as well
+        for under, over in (("#000000", "#030303"), ("#030303", "#000000"), ("#b4531a", "#b5541b")):
+            with self.subTest(under=under, over=over):
+                data = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="%s"/>'
+                        '<rect width="64" height="64" fill="%s"/></svg>' % (under, over)).encode()
+                _clean, icons = self.build(data)
+                self.assertTrue([n for n in icons.notes if under in n and "hardly shows" in n], icons.notes)
+                self.assertFalse([n for n in icons.notes if over in n and "hardly shows" in n], icons.notes)
+
+    def test_a_hairline_too_thin_to_leave_solid_pixels_still_keeps_its_own_colour_from_being_the_background(self):
+        # the cream line is under a pixel wide at the probe's size: no solid pixel of it, and it is there all the same.
+        # Left out of the choice, the first candidate (the light background, cream) hid it in both app icons.
+        hairline = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#b4531a"/>'
+                    b'<path d="M0 32H64" stroke="#fff8ee" stroke-width="0.2" fill="none"/></svg>')
+        _clean, icons = self.build(hairline)
+        self.assertTrue([n for n in icons.notes if "#fff8ee" in n and "hardly shows" in n], icons.notes)
+        self.assertNotEqual(icons.background, "#fff8ee")
+        self.assertEqual((icons.version, icons.background), ("colour", "#1a120d"))
+        for c in ("#b4531a", "#fff8ee"):
+            self.assertGreaterEqual(_colour.ratio(c, icons.background), 3.0)
+        self.assertEqual(icons.visible, ["#b4531a", "#fff8ee"], "and the palette check is handed the hairline's colour too")
+
+    def test_where_only_a_colour_that_hardly_shows_stands_in_the_way_of_a_background_she_is_asked_and_told_which(self):
+        # dark brown has a background (cream), cream has one (near black), the two together have none
+        for name, extra in (("a hairline", '<path d="M0 32H64" stroke="#fff8ee" stroke-width="0.2" fill="none"/>'),
+                            ("outside the box", '<rect x="100" y="100" width="9" height="9" fill="#fff8ee"/>'),
+                            ("covered", "")):
+            with self.subTest(name=name):
+                body = '<rect width="64" height="64" fill="#6b2c0b"/>' + extra
+                if name == "covered":
+                    body = '<rect width="64" height="64" fill="#fff8ee"/>' + body
+                with self.assertRaises(Ask) as cm:
+                    self.build(('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">%s</svg>' % body).encode())
+                self.assertEqual(cm.exception.code, "no-background")
+                self.assertIn("#fff8ee", str(cm.exception))
+                self.assertIn("hardly shows", str(cm.exception))
+        # where the colours that show have no background either, nothing is blamed on a colour that hardly shows
+        grey3 = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="20" fill="#767676"/>'
+                 b'<rect y="22" width="64" height="20" fill="#cccccc"/><rect y="44" width="64" height="20" fill="#444444"/>'
+                 b'<rect x="100" y="100" width="9" height="9" fill="#fff8ee"/></svg>')
+        with self.assertRaises(Ask) as cm:
+            self.build(grey3)
+        self.assertNotIn("hardly shows", str(cm.exception))
 
     def test_a_mark_that_paints_but_draws_nothing_on_the_canvas_is_refused(self):
         # painted as far as the file says, but outside the box: the render is blank (scenario 17)
@@ -347,6 +443,47 @@ class WhatTheRenderShows(WithTheSitesSharp):
         with self.assertRaises(Refusal) as cm:
             self.build(thin)
         self.assertEqual(cm.exception.code, "blank-render")
+
+    def test_a_blank_one_colour_version_is_named_as_the_file_that_was_blank(self):
+        off = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="100" y="100" width="20" height="20" fill="#b4531a"/></svg>'
+        with self.assertRaises(Refusal) as cm:
+            self.build(mono=off)
+        self.assertEqual(cm.exception.code, "blank-render")
+        self.assertIn("one-colour version", str(cm.exception))
+        # and a blank colour version is not blamed on a one-colour file, given or not
+        for mono in (None, T.real_svg(T.REAL_MONO)):
+            with self.assertRaises(Refusal) as cm:
+                self.build(off, mono=mono)
+            self.assertEqual(cm.exception.code, "blank-render")
+            self.assertNotIn("one-colour", str(cm.exception))
+            self.assertTrue(str(cm.exception).startswith("The mark is blank"))
+
+
+class WhatThePaletteCheckIsHanded(WithTheSitesSharp):
+    """`visible` is what the intake checks against the palette: it must hold the colours of every
+    version that ends up in a file, the one-colour version's too when the app icons are drawn from it."""
+
+    GREY3 = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="20" fill="#767676"/>'
+             b'<rect y="22" width="64" height="20" fill="#cccccc"/><rect y="44" width="64" height="20" fill="#444444"/></svg>')
+    PURPLE = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#5b2d8e"/></svg>'
+
+    def test_the_one_colour_versions_colours_are_handed_over_when_the_app_icons_are_drawn_from_it(self):
+        _clean, icons = self.build(self.GREY3, mono=self.PURPLE)
+        self.assertEqual(icons.version, "mono")
+        self.assertGreater(_png.count_colour(_png.decode(icons.files["public/icon-maskable-512.png"]), "#5b2d8e"), 5000, "it is in a file")
+        self.assertEqual(icons.visible, ["#767676", "#cccccc", "#444444", "#5b2d8e"])
+        report = _palette.check_mark(icons.visible, bakery())
+        self.assertIn("#5b2d8e", report.outside, "a purple the palette does not hold is asked about, not installed unseen")
+
+    def test_a_colour_both_versions_share_is_handed_over_once(self):
+        _clean, icons = self.build(self.GREY3, mono=self.GREY3.replace(b"#cccccc", b"#767676").replace(b"#444444", b"#767676"))
+        self.assertEqual(icons.version, "mono")
+        self.assertEqual(icons.visible, ["#767676", "#cccccc", "#444444"])
+
+    def test_a_one_colour_version_that_is_given_but_not_drawn_into_any_file_is_not_handed_over(self):
+        _clean, icons = self.build(mono=self.PURPLE)
+        self.assertEqual(icons.version, "colour")
+        self.assertEqual(icons.visible, ["#b4531a", "#6b2c0b"])
 
 
 class ThePreview(WithTheSitesSharp):
@@ -380,6 +517,27 @@ class ThePreview(WithTheSitesSharp):
                     want = _png.at(pic, ax + px, ay + py)
                     for dy, dx in ((0, 0), (7, 7), (3, 5), (0, 7), (7, 0)):
                         self.assertEqual(_png.at(pic, mx + px * 8 + dx, my + py * 8 + dy), want, (size, px, py, dx, dy))
+
+    def test_a_preview_picture_of_the_wrong_size_is_refused_not_pasted_into_the_sheet(self):
+        clean = _svg.clean_svg(T.real_svg(T.REAL_COLOUR))
+        # too large for its place it used to end in a ValueError; too small, in a sheet with a hole in it
+        for name, size, side in (("preview-32", 64, 32), ("preview-16", 8, 16), ("preview-16", 32, 16), ("preview-32", 16, 32)):
+            with self.subTest(name=name, size=size):
+                def wrong(job, path, name=name, size=size):
+                    if job["name"] == name:
+                        with open(path, "wb") as f:
+                            f.write(T.make_png(size, size, T.solid_rgba(size, size, (1, 2, 3, 255))))
+                with self.assertRaises(Refusal) as cm:
+                    _icons.preview(clean.text, clean.view_box, bakery(), LyingRenderer(self.renderer, wrong), self.work)
+                self.assertEqual(cm.exception.code, "icon-bad")
+                self.assertIn("%d x %d" % (side, side), str(cm.exception))
+        with self.assertRaises(Refusal) as cm:  # not square either
+            def wide(job, path):
+                if job["name"] == "preview-16":
+                    with open(path, "wb") as f:
+                        f.write(T.make_png(16, 15, T.solid_rgba(16, 15, (1, 2, 3, 255))))
+            _icons.preview(clean.text, clean.view_box, bakery(), LyingRenderer(self.renderer, wide), self.work)
+        self.assertEqual(cm.exception.code, "icon-bad")
 
     def test_a_theme_without_a_background_gets_no_panel(self):
         clean = _svg.clean_svg(T.real_svg(T.REAL_COLOUR))

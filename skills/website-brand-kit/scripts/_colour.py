@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import re
+from decimal import ROUND_DOWN, Decimal
 
 from _refusal import Refusal
 
@@ -96,9 +97,16 @@ def _num(token, text, allow=("", "%")):
     return v, m.group(2) or ""
 
 
+def _finite(x, text):
+    """`x`, unless the arithmetic on a huge number overflowed: then it is no colour, and is refused."""
+    if not math.isfinite(x):
+        raise _unreadable(text, "a number in it is too large")
+    return x
+
+
 def _angle(token, text):
     v, unit = _num(token, text, ("", "deg", "grad", "rad", "turn"))
-    return (v * {"": 1.0, "deg": 1.0, "grad": 0.9, "rad": 180 / math.pi, "turn": 360.0}[unit]) % 360.0
+    return _finite(v * {"": 1.0, "deg": 1.0, "grad": 0.9, "rad": 180 / math.pi, "turn": 360.0}[unit], text) % 360.0
 
 
 def _check_alpha(token, text):
@@ -147,17 +155,21 @@ def _oklch(parts, text):
     C, unit = _num(parts[1], text)
     if unit == "%":
         C = C / 100.0 * 0.4
+    C = max(0.0, C)  # CSS Color 4: a chroma below zero is zero (a grey), not the opposite hue
     h = math.radians(_angle(parts[2], text))
     a, b = C * math.cos(h), C * math.sin(h)
-    l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
-    m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
-    s_ = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
-    lin = (
-        +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
-        -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
-        -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
-    )
-    if any(c < -_GAMUT_EPS or c > 1 + _GAMUT_EPS for c in lin) or not 0 <= L <= 1:
+    try:
+        l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+        m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+        s_ = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
+        lin = (
+            +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+            -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+            -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+        )
+    except OverflowError:  # a lightness or chroma so large that the arithmetic gives up: far outside any screen
+        lin = (math.inf,) * 3
+    if not all(-_GAMUT_EPS <= c <= 1 + _GAMUT_EPS for c in lin) or not 0 <= L <= 1:
         raise Refusal(
             "colour-gamut",
             "The colour %r lies outside the colours a screen can show (sRGB), so it has no exact hex. Ask for it again "
@@ -207,7 +219,7 @@ def parse_colour(text, current=None):
             ch = []
             for p in parts:
                 v, unit = _num(p, t)
-                ch.append(v * 255 / 100.0 if unit == "%" else v)
+                ch.append(_finite(v * 255 / 100.0, t) if unit == "%" else v)
             return _hex(*ch)
         if name in ("hsl", "hsla"):
             return _hsl(_split_args(body, t, True), t)
@@ -246,5 +258,5 @@ def passes(a, b, need):
 def shown(r):
     """The ratio as the owner reads it: cut, never rounded up, so a pair that fails never prints as
     the number it needed (4.4998 shows as 4.49)."""
-    cut = math.floor(r * 100 + 1e-9) / 100.0
-    return ("%.2f" % cut).rstrip("0").rstrip(".")
+    cut = Decimal(repr(float(r))).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    return ("%s" % cut).rstrip("0").rstrip(".")

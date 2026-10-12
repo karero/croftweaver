@@ -22,8 +22,10 @@ REQUIRED_FILES = ("src/styles/global.css", "src/config.ts", "public/manifest.web
 
 # The scaffold's own placeholder icons (the Astro logo). create-astro 5.2.6, `--template minimal`, run on
 # 2026-10-11, wrote exactly these two files; they are replaced with a word to the owner, and an icon that is
-# anything else is asked about. A newer create-astro that changes the logo makes them "something else",
-# which only means the owner is asked.
+# anything else is asked about. Nothing checks these hashes against a newer create-astro. One that changes
+# the logo makes its placeholders "something else": a run that installs a logo then asks before it replaces
+# them, instead of replacing them with a word, and a run that only changes colours leaves them alone and says
+# so (it redraws public/favicon.svg only when that file is one this tool wrote).
 SCAFFOLD_DEFAULTS = {
     "public/favicon.svg": {"2d7a310283d6f9cc753210d83224cd6db6348cb82a5536348884e5831d46203f"},
     "public/favicon.ico": {"09d2ac08d8cca9b6e1f90221f345a8c4dd0371c64a0dc52b6f96fc589b1e3d67"},
@@ -52,8 +54,18 @@ def _mask(text):
     return re.sub(r"/\*.*?(\*/|\Z)", lambda m: " " * len(m.group()), text, flags=re.S)
 
 
-def _body(masked, opener, start, what):
-    m = opener.search(masked, start)
+def _block_end(masked, o):
+    """Where the block that opened just before `o` closes (the end of the text when it never does)."""
+    depth = 1
+    for i in range(o, len(masked)):
+        depth += (masked[i] == "{") - (masked[i] == "}")
+        if not depth:
+            return i
+    return len(masked)
+
+
+def _body(masked, opener, start, what, end=None):
+    m = opener.search(masked, start, len(masked) if end is None else end)
     if not m:
         raise Refusal("css-layout", "src/styles/global.css has no %s, which the starter's stylesheet has. Edit the colours by hand, or restore that block." % what)
     o = m.end()
@@ -68,7 +80,8 @@ def _set(text, masked, span, values, what):
     o, c = span
     edits = []
     for var, value in values:
-        m = re.search(r"(?<![\w-])%s\s*:\s*(?P<v>[^;{}]*)(?=;)" % re.escape(var), masked[o:c])
+        # the value alone: a comment (blank in `masked`) or an `!important` between it and the `;` stays
+        m = re.search(r"(?<![\w-])%s\s*:\s*(?P<v>[^;{}]*?)\s*(?:!\s*(?i:important)\s*)?(?=;)" % re.escape(var), masked[o:c])
         if not m:
             raise Refusal("css-layout", "src/styles/global.css: %s sets no %s. Add the line, or edit the colours by hand." % (what, var))
         edits.append((o + m.start("v"), o + m.end("v"), value))
@@ -82,10 +95,13 @@ def edit_css(text, palette):
     masked = _mask(text)
     light = _body(masked, _ROOT, 0, "`:root` block (the light theme)")
     dark = _body(masked, _DARK, 0, "`:root[data-theme=\"dark\"]` block (the dark theme)")
-    media_open = _MEDIA.search(masked)
-    if not media_open:
+    # each such @media block from its opening brace to its closing one: the dark block is looked for inside
+    # one of them, never after it
+    medias = [(m.end(), _block_end(masked, m.end())) for m in _MEDIA.finditer(masked)]
+    if not medias:
         raise Refusal("css-layout", "src/styles/global.css has no `@media (prefers-color-scheme: dark)` block (the dark theme for visitors without JavaScript), which the starter's stylesheet has. Edit the colours by hand, or restore that block.")
-    media = _body(masked, _MEDIA_ROOT, media_open.end(), "`:root:not([data-theme])` block inside the `@media (prefers-color-scheme: dark)` block")
+    media_open, media_close = next(((o, c) for o, c in medias if _MEDIA_ROOT.search(masked, o, c)), medias[0])
+    media = _body(masked, _MEDIA_ROOT, media_open, "`:root:not([data-theme])` block inside the `@media (prefers-color-scheme: dark)` block", media_close)
     edits = []
     light_vals = [(P.VARIABLE[k], palette.light[k]) for k in P.KEYS if k in palette.light]
     if palette.brand:
@@ -102,21 +118,71 @@ def edit_css(text, palette):
 
 # --- src/config.ts -----------------------------------------------------------------------
 
+def _own_level(block):
+    """The same text (same length, same line breaks) with comments, strings and everything inside a nested
+    {...}, [...] or (...) blanked: what is left is the object's own keys, each where it stands."""
+    out, depth, i, n = [], 0, 0, len(block)
+    while i < n:
+        ch, j = block[i], i + 1
+        if block.startswith("//", i):
+            j = block.find("\n", i)
+            j = n if j < 0 else j
+        elif block.startswith("/*", i):
+            j = block.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+        elif ch in "'\"`":
+            while j < n and block[j] != ch:
+                j += 2 if block[j] == "\\" else 1
+            j = min(j + 1, n)
+        elif ch in "{[(":
+            depth += 1
+        elif ch in "}])":
+            depth -= 1
+        if j == i + 1 and depth <= 1 and ch not in "'\"`":
+            out.append(ch)
+        else:
+            out.append("".join("\n" if c == "\n" else " " for c in block[i:j]))
+        i = j
+    return "".join(out)
+
+
+def _own_value(text, const, key, value):
+    """Where the quoted value of `key` stands in `export const <const> = {...}`, as (start, end) without
+    the quotes, or None. Only the object's own line counts: not one of an object nested in it, of another
+    object, or in a comment. Two such lines are refused, because which one counts cannot be known."""
+    block = re.search(r"export const %s(?:[ \t]*:[^=\n]+)?\s*=\s*\{.*?\n\}" % const, text, re.S)
+    if not block:
+        return None
+    found = []
+    for k in re.finditer(r"(?m)^[ \t]*%s:" % key, _own_level(block.group(0))):
+        m = re.compile(r"""[ \t]*(['"])(%s)\1""" % value).match(block.group(0), k.end())
+        if m:
+            found.append((block.start() + m.start(2), block.start() + m.end(2)))
+    if len(found) > 1:
+        raise Refusal("config-layout", "src/config.ts sets `%s` twice in %s, so it cannot be known which line counts. Leave one of them, then run this again." % (key, const))
+    return found[0] if found else None
+
+
+def company_logo(text):
+    """What COMPANY.logo says now, or None when the line is not there."""
+    span = _own_value(text, "COMPANY", "logo", r"""[^'"\n]*""")
+    return text[span[0]:span[1]] if span else None
+
+
 def edit_config(text, primary, logo=False):
     """SITE.themeColor is the primary (None: the colours are not being changed); with a logo,
     COMPANY.logo is the derived square PNG."""
     new = text
     if primary is not None:
-        new, n = re.subn(r"""(?m)^([ \t]*themeColor:[ \t]*)(['"])#[0-9a-fA-F]{3,8}\2""", lambda m: m.group(1) + m.group(2) + primary + m.group(2), text, count=1)
-        if not n:
+        span = _own_value(new, "SITE", "themeColor", r"#[0-9a-fA-F]{3,8}")
+        if not span:
             raise Refusal("config-layout", "src/config.ts has no `themeColor: '#...'` line in SITE. Set it by hand to %s." % primary)
+        new = new[:span[0]] + primary + new[span[1]:]
     if logo:
-        block = re.search(r"export const COMPANY\s*=\s*\{.*?\n\}", new, re.S)
-        inner = re.search(r"""(?m)^([ \t]*logo:[ \t]*)(['"])[^'"\n]*\2""", block.group(0)) if block else None
-        if not inner:
+        span = _own_value(new, "COMPANY", "logo", r"""[^'"\n]*""")
+        if not span:
             raise Refusal("config-layout", "src/config.ts has no `logo: '...'` line in COMPANY. Set it by hand to '/images/logo.png'.")
-        a = block.start() + inner.start()
-        new = new[:a] + inner.group(1) + inner.group(2) + "/images/logo.png" + inner.group(2) + new[block.start() + inner.end():]
+        new = new[:span[0]] + "/images/logo.png" + new[span[1]:]
     return new
 
 
@@ -128,9 +194,13 @@ def edit_manifest(text, theme, background):
         if not n:
             raise Refusal("manifest-layout", "public/manifest.webmanifest has no \"%s\" line. Set it by hand to %s." % (key, value))
     try:
-        json.loads(text)
+        data = json.loads(text)
     except ValueError:
         raise Refusal("manifest-layout", "public/manifest.webmanifest is not valid JSON after the colours were set, so it was not changed.") from None
+    # each line above is the first of its name in the file, which need not be the manifest's own
+    if not isinstance(data, dict) or (data.get("theme_color"), data.get("background_color")) != (theme, background):
+        raise Refusal("manifest-layout", "public/manifest.webmanifest: its own \"theme_color\" and \"background_color\" could not be set, because the first line of "
+                                         "one of those names in the file belongs to another entry. Set the manifest's own two by hand to %s and %s." % (theme, background))
     return text
 
 
@@ -138,10 +208,29 @@ def edit_manifest(text, theme, background):
 
 # The share cards are dark cards (light text on a deep background): the dark theme's colours. Title, subtitle
 # and footer sit on a gradient between the dark surface and the dark background, and the palette check holds
-# every one of these text colours to 4.5 to 1 on both.
+# every one of these text colours to 4.5 to 1 on both. That says nothing of the rows in between (a grey that
+# passes on white and on black is unreadable on the grey half way), so og_low_contrast looks at every row.
 OG_COLOURS = (("BG_TOP", "surface"), ("BG_BOT", "bg"), ("TITLE_COL", "heading"), ("SUB_COL", "accent"),
               ("ACCENT", "accent"), ("FOOTER_COL", "muted"))
+OG_TEXT = ("heading", "accent", "muted")  # the keys of TITLE_COL, SUB_COL and FOOTER_COL: what the cards write with
+OG_ROWS = 630                             # the generator's H: its gradient has one colour per row of the card
 OG_LOGO = 'ROOT / "public/images/logo.png"'
+
+
+def og_low_contrast(palette):
+    """The cards' text colours that fall under 4.5 to 1 somewhere on the cards' background, as [(key, hex,
+    its lowest ratio)]. The background is worked out row by row the way the generator's vgradient() draws
+    it, from the dark surface at the top to the dark background at the bottom, and compared unrounded."""
+    import _colour
+    import _palette as P
+    top, bot = (tuple(int(palette.dark[k][i:i + 2], 16) for i in (1, 3, 5)) for k in ("surface", "bg"))
+    rows = {"#%02x%02x%02x" % tuple(round(top[i] + (bot[i] - top[i]) * y / (OG_ROWS - 1)) for i in range(3)) for y in range(OG_ROWS)}
+    low = []
+    for key in OG_TEXT:
+        worst = min(_colour.ratio(palette.dark[key], row) for row in rows)
+        if worst < P.NEED_TEXT:
+            low.append((key, palette.dark[key], worst))
+    return low
 
 
 def edit_og(text, palette, logo):
@@ -164,7 +253,7 @@ def edit_og(text, palette, logo):
         value = m.group("v").strip()
         if value == "None":
             text = text[:m.start("v")] + OG_LOGO + text[m.end("v"):]
-        elif re.sub(r"\s+", "", value) != re.sub(r"\s+", "", OG_LOGO).replace("'", '"'):
+        elif re.sub(r"\s+", "", value).replace("'", '"') != re.sub(r"\s+", "", OG_LOGO):
             raise Refusal("og-layout", "scripts/generate_og_cards.py already points LOGO somewhere else (%s). Change it by hand if the new logo should be the emblem." % value[:60])
     return text
 
@@ -172,10 +261,18 @@ def edit_og(text, palette, logo):
 # --- .gitignore --------------------------------------------------------------------------
 
 def add_ignore(text, line="brand-handoff/"):
-    """The text with the folder's line added, or None when it is already ignored."""
-    for existing in text.splitlines():
-        if re.fullmatch(r"/?brand-handoff(?:/\*?)?", existing.strip()):
-            return None
+    """The text with the folder's line added, or None when it is already ignored. In a .gitignore a later
+    line takes back an earlier one (`!brand-handoff/logo.svg`), so the folder's rule counts only when no
+    line after it that starts with `!` names the folder; otherwise the line goes at the end, where it wins."""
+    ignored = False
+    for existing in text.lstrip("﻿").splitlines():  # a byte order mark is not part of the first rule
+        rule = existing.strip()
+        if re.fullmatch(r"/?brand-handoff(?:/\*?)?", rule):
+            ignored = True
+        elif rule.startswith("!") and "brand-handoff" in rule:
+            ignored = False
+    if ignored:
+        return None
     if not text:
         return line + "\n"
     return (text if text.endswith("\n") else text + "\n") + line + "\n"
@@ -233,8 +330,27 @@ class Journal(object):
                 os.remove(tmp)
             raise
 
+    def check(self, rel):
+        """What can be known of a write before the first one is made: the path keeps the rules `write`
+        holds it to, no file stands where a folder is needed (nor a folder where the file goes), and this
+        account may write in the folder it goes into. Refuses in words; changes nothing."""
+        path = self._path(rel)
+        if os.path.isdir(path):
+            raise Refusal("site-path", "%s is a folder, so a file of that name cannot be written." % rel)
+        d = os.path.dirname(path)
+        while not os.path.isdir(d):
+            if os.path.lexists(d):
+                raise Refusal("site-path", "%s cannot be written: %s is a file, not a folder." % (rel, os.path.relpath(d, self.site).replace(os.sep, "/")))
+            d = os.path.dirname(d)
+        if not os.access(d, os.W_OK | os.X_OK):
+            where = os.path.relpath(d, self.site).replace(os.sep, "/")
+            raise Refusal("site-path", "%s cannot be written: this account is not allowed to write in %s. Change the folder's permissions, then run this again."
+                          % (rel, "the site's folder" if where == "." else where))
+
     def write(self, rel, data):
         path = self._path(rel)
+        # the original is kept before the write, so that a run stopped half way through one still knows
+        # it; rollback leaves alone a file that is as it was, so a write that failed costs nothing there
         if rel not in self._orig:
             self._orig[rel] = self.read(rel)
         mode = (os.stat(path).st_mode & 0o777) if os.path.exists(path) else 0o644
@@ -243,42 +359,69 @@ class Journal(object):
         self.written.append(rel)
 
     def snapshot_dir(self, rel):
+        """Keep a folder as it is: every file with its bytes and its mode, every folder (an empty one
+        too) with its mode. A link in it is refused: restoring would turn it into an ordinary file."""
         path = self._path(rel)
-        files = None
+        snap = None
         if os.path.isdir(path):
-            files = {}
-            for base, _dirs, names in os.walk(path):
+            dirs, files = {}, {}
+            for base, subdirs, names in os.walk(path):
+                for n in subdirs + names:
+                    if os.path.islink(os.path.join(base, n)):
+                        raise Refusal("site-path", "%s holds a link (%s). The share cards are made again in that folder, and nothing is written through a link: "
+                                                   "replace the link with the file itself, or take it out." % (rel, os.path.relpath(os.path.join(base, n), path).replace(os.sep, "/")))
+                dirs[os.path.relpath(base, path)] = os.stat(base).st_mode & 0o777
                 for n in names:
                     p = os.path.join(base, n)
                     with open(p, "rb") as f:
-                        files[os.path.relpath(p, path)] = f.read()
-        self._snapshots[rel] = files
+                        files[os.path.relpath(p, path)] = (f.read(), os.stat(p).st_mode & 0o777)
+            snap = (dirs, files)
+        self._snapshots[rel] = snap
 
     def restore_dir(self, rel):
         path = self._path(rel)
-        files = self._snapshots[rel]
+        snap = self._snapshots[rel]
         if os.path.isdir(path):
+            for base, subdirs, _names in os.walk(path):  # a folder kept read-only could not be emptied
+                for d in [base] + [os.path.join(base, s) for s in subdirs]:
+                    os.chmod(d, (os.stat(d).st_mode & 0o777) | 0o700)
             shutil.rmtree(path)
-        if files is not None:
-            os.makedirs(path)
-            for name, data in files.items():
-                p = os.path.join(path, name)
-                os.makedirs(os.path.dirname(p), exist_ok=True)
-                self._put(p, data)
+        if snap is not None:
+            dirs, files = snap
+            for d in sorted(dirs):
+                os.makedirs(os.path.join(path, d), exist_ok=True)
+            for name, (data, mode) in files.items():
+                self._put(os.path.join(path, name), data, mode)
+            for d in sorted(dirs, key=lambda d: (d != ".", d.count(os.sep)), reverse=True):  # the deepest first, the folder itself last
+                os.chmod(os.path.join(path, d), dirs[d])
 
     def rollback(self):
-        """Put every file back as it was, remove what the run made, leave the rest alone."""
+        """Put every file back as it was, remove what the run made, leave the rest alone. Every file is
+        tried, also after one could not be put back. Returns [(path, why)] for what could not be put back:
+        empty when the site is as it was."""
+        left = []
         for rel in list(self._snapshots):
-            self.restore_dir(rel)
+            try:
+                self.restore_dir(rel)
+            except (OSError, Refusal) as e:
+                left.append((rel, getattr(e, "strerror", None) or str(e)))
         for rel, orig in reversed(list(self._orig.items())):
-            path = self._path(rel)
-            if orig is None:
-                if os.path.isfile(path):
+            try:
+                path = self._path(rel)
+                gone = not os.path.isdir(os.path.dirname(path))
+                if (orig is None and gone) or (not gone and self.read(rel) == orig):
+                    continue  # as it was: never written, or already put back
+                if orig is None:
                     os.remove(path)
-            elif os.path.isdir(os.path.dirname(path)):
-                self._put(path, orig, (os.stat(path).st_mode & 0o777) if os.path.exists(path) else 0o644)
+                elif gone:
+                    left.append((rel, "its folder is no longer there"))
+                else:
+                    self._put(path, orig, (os.stat(path).st_mode & 0o777) if os.path.exists(path) else 0o644)
+            except (OSError, Refusal) as e:
+                left.append((rel, getattr(e, "strerror", None) or str(e)))
         for d in reversed(self._made):
             try:
                 os.rmdir(d)
             except OSError:
                 pass  # something that is not ours is in it, or it is gone
+        return left

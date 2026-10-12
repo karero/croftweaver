@@ -6,6 +6,7 @@ know) is refused by name, never guessed.
 Also the contrast arithmetic itself, because every other check stands on it.
 """
 
+import os
 import unittest
 
 import _testutil as T  # noqa: F401  (puts the scripts folder on the path)
@@ -70,6 +71,8 @@ class Formats(unittest.TestCase):
         try:
             from PIL import ImageColor
         except ImportError:
+            if os.environ.get("REQUIRE_SHARP"):
+                self.fail("REQUIRE_SHARP is set but Pillow is not installed for the Python that runs these tests")
             self.skipTest("Pillow is not installed here (the CI job installs it for the share-card test)")
         names = {n: c for n, c in ImageColor.colormap.items() if c.startswith("#") and len(c) == 7}
         self.assertGreaterEqual(len(names), 140)
@@ -113,6 +116,42 @@ class Refused(unittest.TestCase):
                 with self.assertRaises(Refusal):
                     _colour.parse_colour(text)
 
+    def test_a_number_so_large_that_the_arithmetic_overflows_is_refused_not_a_crash_and_not_a_colour(self):
+        # each of these is a finite number as written; it is the unit conversion that overflows
+        for text in ("hsl(1e308turn 50% 50%)", "hsl(1e308rad 50% 50%)", "hsl(-1e308turn 50% 50%)", "hsla(1e307turn, 50%, 50%, 1)",
+                     "rgb(1e308% 0 0)", "rgb(0 -1e308% 0)", "rgba(0, 0, 1e307%, 1)",
+                     "oklch(0.5 0.1 1e308turn)", "oklch(0.5 0.1 1e308rad)", "oklch(0.5 0 -1e308turn)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+                with self.assertRaises(Refusal) as cm:
+                    _colour.parse_colour(text)
+                self.assertIn("too large", str(cm.exception))
+
+    def test_an_oklch_lightness_or_chroma_far_beyond_any_screen_is_outside_the_gamut_not_a_crash(self):
+        for text in ("oklch(0.5 1e308 0)", "oklch(0.5 1e200 0)", "oklch(0.5 1e308% 0)", "oklch(1e308 0 0)", "oklch(1e200% 0 0)",
+                     "oklch(-1e308 0 0)", "oklch(0.5 1e308 270)", "oklch(1 1e308 0.5turn)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-gamut")
+
+    def test_no_chroma_however_large_and_no_hue_ever_gets_past_the_gamut_check_as_a_colour(self):
+        # around 1e102 the cubes are still finite and their sums are not (inf - inf is not a number):
+        # whichever way the arithmetic gives up, the answer is the named refusal
+        for exponent in range(3, 309, 5):
+            for hue in (0, 30, 90, 142, 180, 264, 270, 359):
+                for lightness in ("0", "0.5", "1"):
+                    text = "oklch(%s 1e%d %d)" % (lightness, exponent, hue)
+                    with self.subTest(text=text):
+                        refused(self, text, "colour-gamut")
+
+    def test_an_oklch_chroma_below_zero_is_zero_as_css_has_it_not_the_opposite_hue(self):
+        # CSS Color 4 clamps a negative chroma to 0 when the value is parsed: a browser shows a grey.
+        # Read as it stood, -0.1 at hue 210 came out as +0.1 at hue 30, a brown the owner never saw.
+        for text in ("oklch(0.5 -0.1 210)", "oklch(0.5 -0.1 30)", "oklch(50% -25% 30)", "oklch(0.5 -1e308 30)"):
+            with self.subTest(text=text):
+                self.assertEqual(_colour.parse_colour(text), _colour.parse_colour("oklch(0.5 0 0)"))
+        self.assertEqual(_colour.parse_colour("oklch(0.5 0.1 30)"), "#944b40", "a chroma above zero is left alone")
+        self.assertEqual(_colour.parse_colour("oklch(0.5 -0 30)"), _colour.parse_colour("oklch(0.5 0 30)"))
+
 
 class Contrast(unittest.TestCase):
     def test_the_two_ends_and_a_well_known_pair(self):
@@ -140,6 +179,26 @@ class Contrast(unittest.TestCase):
         self.assertEqual(_colour.shown(3.1), "3.1")
         self.assertEqual(_colour.shown(21.0), "21")
         self.assertEqual(_colour.shown(4.5601), "4.56")
+
+    def test_a_pair_a_hair_under_the_line_never_prints_as_the_number_it_needed(self):
+        # these fail by less than a billionth, and the line the owner reads said "is 4.5 to 1; text needs 4.5 to 1"
+        for fg, bg, need, want in (("#2671e5", "#060201", 4.5, "4.49"), ("#1c5f98", "#190102", 3.0, "2.99")):
+            with self.subTest(fg=fg, bg=bg):
+                r = _colour.ratio(fg, bg)
+                self.assertTrue(need - 1e-9 < r < need, r)
+                self.assertFalse(_colour.passes(fg, bg, need))
+                self.assertEqual(_colour.shown(r), want)
+                self.assertNotEqual(_colour.shown(r), _colour.shown(need))
+
+    def test_shown_cuts_the_number_as_written_so_a_ratio_of_exactly_two_places_keeps_them(self):
+        # 4.6 is stored as 4.5999999999999996...: cut from the float it would print as 4.59
+        for r, want in ((4.6, "4.6"), (4.56, "4.56"), (4.57, "4.57"), (1.15, "1.15"), (8.2, "8.2"), (16.99, "16.99"),
+                        (2.9999999999, "2.99"), (4.4999999999999, "4.49"), (4.999, "4.99"), (1.0, "1"), (3, "3"), (0.07, "0.07"),
+                        (1e-7, "0"), (20.999999999999996, "20.99")):
+            with self.subTest(r=r):
+                self.assertEqual(_colour.shown(r), want)
+        self.assertEqual(_colour.shown(_colour.ratio("#000000", "#ffffff")), "21")
+        self.assertEqual(_colour.shown(_colour.ratio("#123456", "#123456")), "1")
 
     def test_luminance_of_the_channels_below_the_cut(self):
         # 8-bit values never fall between 0.03928 and 0.04045, so the two published

@@ -53,13 +53,16 @@ try {
     if (!(typeof scale === 'number' && scale > 0 && scale <= 1)) fail('bad-job', `scale not allowed: ${scale}`);
     if (background !== null && !(typeof background === 'string' && HEX.test(background))) fail('bad-job', `background not allowed: ${String(background).slice(0, 20)}`);
     const target = size * scale;
+    const want = Math.max(1, Math.round(target)); // the mark's long side, in whole pixels
     // 72 dpi draws the svg at its own size; scale the density so its long side lands on `target`
     let mark = await sharp(svg, { density: Math.min(100000, Math.max(1, (72 * target) / long)) }).png().toBuffer();
     let { width: mw, height: mh } = await sharp(mark).metadata();
-    if (mw > size || mh > size) { // a rounding of one pixel past the square
-      mark = await sharp(mark).resize(size, size, { fit: 'inside' }).png().toBuffer();
+    if (mw > want || mh > want) { // a rounding of one pixel past it, or a target under the smallest picture sharp draws
+      mark = await sharp(mark).resize(want, want, { fit: 'inside' }).png().toBuffer();
       ({ width: mw, height: mh } = await sharp(mark).metadata());
     }
+    // measured 2026-10-12: the long side lands within half a pixel of `target`; anything else is not what was asked for
+    if (Math.abs(Math.max(mw, mh) - target) > 1) fail('render-failed', `the mark came out ${mw} by ${mh} pixels, not ${want} on its long side`);
     const bg = background === null ? { r: 0, g: 0, b: 0, alpha: 0 }
       : { r: parseInt(background.slice(1, 3), 16), g: parseInt(background.slice(3, 5), 16), b: parseInt(background.slice(5, 7), 16), alpha: 1 };
     let img = sharp({ create: { width: size, height: size, channels: 4, background: bg } })

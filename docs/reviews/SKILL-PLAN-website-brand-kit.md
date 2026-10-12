@@ -11,7 +11,7 @@ purpose; the business in the scenarios is made up.
 | 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 10 and the closing wording pass answered and handled (each round verified the one before; round 10's answers are not yet verified); the intake accepts SVG only (decision 8) | merged on main (#245, #246, #247), later rounds' answers by pull request; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
 | 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) settled at the start of the build, 2026-10-11, by the build's author as the plan left it (below); the handoff step was tried on 2026-10-11 and one trial showed how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26; rerun 2026-10-11 under the pinned Node 24.21.0 with the same numbers (one claim sharpened: the no-`viewBox` case). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
-| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 330 tests, a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
+| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 546 tests (after review round 1's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ✅ written, not yet reviewed (row 7) | branch `feat/website-brand-kit`, commit `b75db71` |
 | 6 | Hooks into the other skills (listed under "Hooks") | ✅ written 2026-10-12, not yet reviewed (row 7): `new-website` (the intro, a step 2b row and section, the copy list now twenty-six, §3 step 4 and step 5), `README.md` (layout, the optional-skills paragraph), `website-qa` (one row), `website-design-system` (the tokens paragraph), `website-content-guide` (the `BRAND.md` line), the `BRAND.md` template (D6's rows; a test holds it to the palette prompt row for row), the count comment in `check_skill_budgets.sh`. `check_model_agnostic.sh` re-run inside `make check`: still green | branch `feat/website-brand-kit` (local) |
 | 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ⏸ not started | — |
@@ -577,6 +577,39 @@ known to the build's authors. Each is a judgment the maintainer may overrule.
   `BRAND.md`, not a second installed file.
 - **`public/images/logo.png` is the same picture as `icon-512.png`**: the mark, proportions
   kept, on a transparent 512 by 512 square.
+- **Changed by review round 1 (2026-10-12; the trail is
+  `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md`):**
+  - A logo run no longer applies `BRAND.md`'s palette without asking: when the palette
+    would change the stylesheet it stops (exit 3), lists each value old and new, and takes
+    `--with-colours` or the new `--keep-colours` as the answer. Every report, the dry run
+    too, lists the stylesheet values that change.
+  - A run with only colours redraws the icons only from a `public/favicon.svg` this tool
+    installed (the file cleans to itself); any other favicon is left alone with a note.
+    `--with-logo` without `--input` redraws from the installed mark.
+  - Every check that can be made is made before the first write, the read-back of the
+    edited stylesheet included, so a dry run and a real run refuse alike. A file to edit
+    that is over 1 MB, not UTF-8 or a link is refused by name.
+  - A rollback tries every file and names any it could not put back (status
+    `rollback-incomplete`); a run stopped by SIGTERM or SIGHUP rolls back; a timeout stops
+    the whole process group; a file error is exit 2 in words, never a traceback.
+  - After red tests the report says what it saw with the install taken out again, and
+    claims nothing about before or about cause.
+  - The share cards keep their colours, with a note, when one of their text colours would
+    fall under 4.5 to 1 somewhere on the gradient between the two background colours.
+  - "Forms of input" says a page drawing is "refused when it relies on page CSS". As built
+    that holds for classes. Tag and id rules of the page cannot be seen without the page's
+    style sheet (which may be another file), so every drawing taken from a page carries a
+    note asking the owner to compare the preview with the page. The maintainer may ask for
+    a refusal instead.
+  - More is refused: a `transform` on the outer `svg`; a negative size; non-ASCII digits;
+    a `<style>` for another medium or language; an element inside a shape or a `<style>`;
+    more than 200 selectors or 1,000 declarations; a zip entry name over 120 characters
+    or with hidden characters; `image-set()`, `image()` and `src()` in CSS.
+  - The palette reader: a proposal is marked by the word anywhere in its row or in the
+    heading over its table, Primary included; two different values for one row are named,
+    never picked between; a colour name in a column beside the hex is not the value; a
+    Typography table beside the palette no longer makes it incomplete; the stylesheet
+    reader names each colour block it does not find.
 - **Not built:** a command that checks a logo file before a site exists. The contrast check
   on a palette is the only early check, as "Shape" says; a logo the intake will refuse
   (text, a gradient, a picture) is found out at the intake. Counter-argument: she would

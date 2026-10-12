@@ -10,9 +10,11 @@ Standard library only.
 from __future__ import annotations
 
 import io
+import re
 import stat
 import unicodedata
 import zipfile
+import zlib
 
 from _refusal import Refusal
 import _svg
@@ -24,14 +26,9 @@ MAX_TOTAL_BYTES = 128 * 1024 * 1024     # declared size of all entries together
 MAX_RATIO = 100                         # declared size over compressed size ...
 RATIO_FROM = 64 * 1024                  # ... for any entry this big (tiny files compress unevenly)
 _METHODS = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
-
-
-def _no_svg(names=None):
-    return Refusal(
-        "zip-no-svg",
-        "There is no SVG file in the package. This version reads only an SVG: ask whoever made the logo for one, "
-        "or ask the assistant for a new logo.",
-    )
+MAX_NAME = 120                          # characters in an entry's whole path: it is shown to the owner as it is
+# Control characters (C0, DEL, C1) and the marks that break a line or turn the reading order round.
+_UNSAFE_CHARS = re.compile("[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]")
 
 
 class ZipPackage(object):
@@ -49,7 +46,7 @@ class ZipPackage(object):
         try:
             with self._zf.open(info) as f:
                 data = f.read(info.file_size + 1)
-        except (zipfile.BadZipFile, EOFError, OSError, ValueError, NotImplementedError, RuntimeError):
+        except (zipfile.BadZipFile, zlib.error, EOFError, OSError, ValueError, NotImplementedError, RuntimeError):
             raise Refusal("zip-bad", "The package is damaged: %r cannot be read." % name[:80]) from None
         if len(data) != info.file_size:
             raise Refusal("zip-bad", "The package is damaged: %r is not the size it says." % name[:80])
@@ -79,11 +76,17 @@ def open_zip(data):
             not name
             or name.startswith("/")
             or "\\" in name
-            or ":" in name.split("/")[0]
-            or any(ord(c) < 32 or ord(c) == 127 for c in name)
+            or re.match(r"[A-Za-z]:", name)  # a drive letter
+            or _UNSAFE_CHARS.search(name)
             or ".." in name.split("/")
         ):
             raise Refusal("zip-path", "The package has a file with an unsafe path (%r), so the whole package is refused." % name[:60])
+        if len(name) > MAX_NAME:
+            raise Refusal(
+                "zip-name",
+                "The package has a file whose name is longer than %d characters (it starts %r), so the whole package "
+                "is refused. Ask for a package with short, plain file names." % (MAX_NAME, name[:40]),
+            )
         if stat.S_ISLNK(zi.external_attr >> 16):
             raise Refusal("zip-symlink", "The package holds a shortcut (symbolic link, %r), so the whole package is refused." % name[:60])
         if zi.flag_bits & 0x1:

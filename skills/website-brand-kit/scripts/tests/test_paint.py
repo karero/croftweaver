@@ -12,6 +12,7 @@ import unittest
 
 import _testutil as T
 import _colour
+import _paint
 import _palette
 import _svg
 from _refusal import Refusal
@@ -115,6 +116,31 @@ class Resolving(unittest.TestCase):
         self.assertEqual(colours('<path fill="#111111" %s/>' % D + body), ["#111111", "#222222"])
         self.assertEqual(colours('<path fill="#111111" %s/><path style="display:none" fill="#999999" %s/>' % (D, D)), ["#111111"])
 
+    def test_a_stroke_width_or_visibility_written_as_inherit_is_the_one_handed_down(self):
+        # _svg refuses `inherit` for these two before the paints are read (the first half); the reader
+        # itself must still take it for what it says, like fill, stroke and color (the second half)
+        for attr in ('visibility="inherit"', 'stroke-width="inherit"', 'style="visibility:inherit"', 'style="stroke-width:inherit"'):
+            with self.subTest(attr=attr):
+                refused(self, '<path %s fill="#111111" %s/>' % (attr, D), "bad-value")
+
+        def tree(group, shape):
+            root, g, path = _svg.Node("svg"), _svg.Node("g"), _svg.Node("path")
+            root.children, g.children = [g], [path]
+            g.props, path.props = dict(group), dict(shape)
+            return root, path
+
+        root, path = tree({"visibility": "hidden"}, {"visibility": "inherit", "fill": "#999999"})
+        with self.assertRaises(Refusal) as cm:
+            _paint.resolve_paints(root, _svg.DRAWING)
+        self.assertEqual(cm.exception.code, "blank-mark", "hidden, handed down: the shape paints nothing")
+        root, path = tree({"visibility": "hidden"}, {"visibility": "visible", "fill": "#999999"})
+        self.assertEqual(_paint.resolve_paints(root, _svg.DRAWING), ["#999999"])
+        root, path = tree({"stroke": "#222222", "stroke-width": "0"}, {"stroke-width": "inherit", "fill": "#111111"})
+        self.assertEqual(_paint.resolve_paints(root, _svg.DRAWING), ["#111111"], "a width of nothing, handed down, paints no stroke")
+        self.assertNotIn("stroke-width", path.props, "and the cleaned file does not carry the word on")
+        root, path = tree({"stroke": "#222222", "stroke-width": "3"}, {"stroke-width": " Inherit ", "fill": "#111111"})
+        self.assertEqual(_paint.resolve_paints(root, _svg.DRAWING), ["#111111", "#222222"])
+
     def test_shapes_that_only_clip_or_sit_in_defs_are_not_painted(self):
         body = ('<defs><clipPath id="c"><rect width="9" height="9" fill="#999999"/></clipPath><circle r="1" fill="#888888"/></defs>'
                 '<path clip-path="url(#c)" fill="#111111" %s/>' % D)
@@ -128,6 +154,17 @@ class Resolving(unittest.TestCase):
             self.assertEqual(once.colours, twice.colours)
             self.assertNotIn("<style", once.text)
             self.assertNotIn("class=", once.text)
+
+
+class Numbers(unittest.TestCase):
+    def test_the_number_this_file_reads_is_the_number_the_svg_check_lets_through(self):
+        # one pattern in two files: if they drift, a width the check passed could be read here as no width
+        self.assertEqual(_paint._NUM, _svg._NUM)
+        self.assertFalse(_paint._is_one("\u0661"), "an Arabic-Indic one is not the number 1")
+        self.assertTrue(_paint._is_one("1.0"))
+        self.assertTrue(_paint._is_one("100%"))
+        self.assertTrue(_paint._positive("0.5px"))
+        self.assertFalse(_paint._positive("-1"))
 
 
 class CurrentColour(unittest.TestCase):
@@ -150,6 +187,68 @@ class CurrentColour(unittest.TestCase):
     def test_with_no_meaning_given_it_is_refused(self):
         err = refused(self, '<path fill="currentColor" %s/>' % D, "colour-current")
         self.assertIn("currentColor", str(err))
+
+    def test_a_group_painted_with_currentcolor_whose_inside_changes_color_is_refused(self):
+        # The cleaned file writes the group's paint out as the colour it had on the group. The site's own
+        # renderer gives the shapes inside the colour `color` is changed to (see the render test below),
+        # so the installed mark would not look like the file that was checked: refused, not guessed.
+        R = '<rect width="64" height="64"%s/>'
+        for name, body in (
+                ("a shape changes color", '<g color="#ff0000" fill="currentColor">' + R % ' color="#0000ff"' + '</g>'),
+                ("a group in between changes it", '<g color="#ff0000" fill="currentColor"><g color="#0000ff">' + R % "" + '</g></g>'),
+                ("the stroke", '<g color="#ff0000" stroke="currentColor" fill="none">' + R % ' color="#0000ff"' + '</g>'),
+                ("in a style attribute", '<g style="color:#ff0000;fill:currentColor">' + R % ' style="color:#0000ff"' + '</g>'),
+                ("fill written as inherit", '<g color="#ff0000" fill="currentColor">' + R % ' color="#0000ff" fill="inherit"' + '</g>'),
+                ("on the root", R % ' color="#0000ff"')):
+            with self.subTest(name=name):
+                root = 'color="#ff0000" fill="currentColor"' if name == "on the root" else ""
+                err = refused(self, body, "colour-current", root=root)
+                self.assertIn("changes `color` inside", str(err))
+        # the colour the intake supplies is a colour like any other: one changed inside the group differs from it
+        err = refused(self, '<g fill="currentColor">' + R % ' color="#0000ff"' + '</g>', "colour-current", current="#b4531a")
+        self.assertIn("changes `color` inside", str(err))
+
+    def test_where_color_changes_and_the_paint_cannot_differ_the_mark_is_read_as_before(self):
+        R = '<rect width="64" height="64"%s/>'
+        cases = (
+            ("the same colour again", '<g color="#ff0000" fill="currentColor">' + R % ' color="#ff0000"' + '</g>', ["#ff0000"]),
+            ("the same colour in another spelling", '<g color="#ff0000" fill="currentColor">' + R % ' color="red"' + '</g>', ["#ff0000"]),
+            ("the shape has a fill of its own", '<g color="#ff0000" fill="currentColor">' + R % ' color="#0000ff" fill="#00ff00"' + '</g>', ["#00ff00"]),
+            ("the shape says currentColor itself", '<g color="#ff0000" fill="currentColor">' + R % ' color="#0000ff" fill="currentColor"' + '</g>', ["#0000ff"]),
+            ("a group in between takes a fill of its own", '<g color="#ff0000" fill="currentColor"><g fill="#00ff00">' + R % ' color="#0000ff"' + '</g></g>', ["#00ff00"]),
+            ("the group's paint is a colour, not currentColor", '<g color="#ff0000" fill="#123456">' + R % ' color="#0000ff"' + '</g>', ["#123456"]),
+            ("no shape changes color", '<g color="#ff0000" fill="currentColor">' + R % "" + R % "" + '</g>', ["#ff0000"]),
+        )
+        for name, body, want in cases:
+            with self.subTest(name=name):
+                self.assertEqual(colours(body), want)
+        # a group painted with the colour the intake supplies, and nothing inside changes it
+        self.assertEqual(colours('<g fill="currentColor">' + R % "" + '</g>', current="#b4531a"), ["#b4531a"])
+        self.assertEqual(colours('<g fill="currentColor">' + R % ' color="#b4531a"' + '</g>', current="#B4531A"), ["#b4531a"])
+
+
+class CurrentColourAsTheSitesRendererDrawsIt(unittest.TestCase):
+    """Why the refusal above is not caution for its own sake: what sharp draws for the file as it came."""
+
+    def test_the_renderer_gives_the_inside_shape_its_own_color_not_the_groups(self):
+        import os
+        import tempfile
+        import _png
+        import _render
+        T.require_sharp(self)
+        with tempfile.TemporaryDirectory() as tmp:
+            renderer = _render.Renderer(T.make_site(tmp, T.node_modules_dir()))
+            job = [{"name": "a", "file": "a.png", "size": 16, "scale": 1.0, "background": None}]
+            raw = ('<svg %s><g color="#ff0000" fill="currentColor"><rect width="64" height="64" color="#0000ff"/></g></svg>' % NS)
+            renderer.render(raw, (0, 0, 64, 64), job, tmp)
+            self.assertEqual(_png.at(_png.decode(T.read_bytes(os.path.join(tmp, "a.png"))), 8, 8), (0, 0, 255, 255),
+                             "blue: the rect's own color. Written out on the group as #ff0000 it would be installed red")
+            # and where the file is not refused, the cleaned file draws what the file as it came draws
+            same = raw.replace('color="#0000ff"', 'color="#0000ff" fill="currentColor"')
+            clean = _svg.clean_svg(same.encode())
+            for text in (same, clean.text):
+                renderer.render(text, (0, 0, 64, 64), job, tmp)
+                self.assertEqual(_png.at(_png.decode(T.read_bytes(os.path.join(tmp, "a.png"))), 8, 8), (0, 0, 255, 255))
 
 
 class Refusals(unittest.TestCase):

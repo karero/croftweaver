@@ -97,6 +97,8 @@ def cmd_palette(args, out):
             "proposed": [{"theme": t, "row": k, "hex": palette.theme(t)[k]} for t, k in proposed],
             "drift": [{"theme": t, "row": k, "document": d, "stylesheet": c} for t, k, d, c in drift],
             "dark_blocks_disagree": [{"row": k, "dark_block": a, "media_block": b} for k, a, b in disagree],
+            "stylesheet_problems": [{"block": b, "variable": v, "message": m} for b, v, m in (css.problems if css else [])],
+            "unused_rows": [{"label": label, "colours": colours} for label, colours in palette.unused],
         }, ensure_ascii=True))
         return code
 
@@ -116,6 +118,12 @@ def cmd_palette(args, out):
         out.append("The assistant can propose values for them; you confirm or change each one before anything is used.")
     for _t, _k, _c, m in problems:
         out.append("Could not read a value: %s" % m)
+    if palette.unused:
+        out.append("These rows hold a colour, but under a name this check does not know, so they were not used:")
+        for label, colours in palette.unused:
+            out.append("  %s (%s)" % (label, " and ".join(colours)))
+        out.append("The names it reads are: %s, and Primary. If one of them is meant, write the row under that name."
+                   % ", ".join(_palette.LABEL[k] for k in _palette.KEYS))
     if proposed:
         out.append("Proposed values, waiting for your confirmation (a proposal is shown, never written until you agree):")
         for t, k in proposed:
@@ -124,6 +132,8 @@ def cmd_palette(args, out):
                       if bg in palette.theme(t)] if k in _palette.TEXT else []
             if ratios:
                 line.append("(" + ", ".join("%s on %s" % (_colour.shown(r), _palette.LABEL[bg]) for bg, r in ratios) + ")")
+            if _palette.fixed_accent_note(palette, t, k):
+                line.append("(%s)" % _palette.fixed_accent_note(palette, t, k))
             out.append(" ".join(line))
         out.append("Ask the owner to confirm or change them, then check again without the (proposed) marks.")
     if drift:
@@ -134,6 +144,8 @@ def cmd_palette(args, out):
         out.append("The two dark blocks in the stylesheet disagree (they must carry the same values):")
         for k, a, b in disagree:
             out.append("  %s: %s in one, %s in the other" % (_palette.LABEL[k], a, b))
+    for block, variable, m in (css.problems if css else []):
+        out.append("Could not read the stylesheet: %s" % (m if variable is None else "%s in %s: %s" % (variable, _palette.BLOCK[block], m)))
     out.append("This check only reads files: nothing was written.")
     return code
 
@@ -162,8 +174,9 @@ def main(argv=None):
     i.add_argument("--input", help="the logo: an SVG file, a page with an inline SVG, a zip of SVG files, or a folder holding one of them")
     i.add_argument("--pick", help="which file of a zip (or which inline SVG of a page) is the mark")
     i.add_argument("--mono", help="which file of the zip is the mark's one-colour version")
-    i.add_argument("--with-colours", action="store_true", help="stop unless a complete palette is applied")
-    i.add_argument("--with-logo", action="store_true", help="stop unless a logo is applied")
+    i.add_argument("--with-colours", action="store_true", help="stop unless a complete palette is applied; with --input, also the answer that the palette should go in together with the logo")
+    i.add_argument("--keep-colours", action="store_true", help="leave the site's colours as they are, although BRAND.md holds a palette: the logo is installed against the colours the site has")
+    i.add_argument("--with-logo", action="store_true", help="stop unless a logo is applied; without --input, draw the icons again from the logo already installed")
     i.add_argument("--accept-colours", action="store_true", help="use the mark's colours even where the palette does not hold them")
     i.add_argument("--accept-low-contrast", default="", help="light, dark or both: use the mark although it falls under 3 to 1 on that theme's background")
     i.add_argument("--replace-icons", action="store_true", help="replace icon files that are already in the site and are not the scaffold's placeholders")

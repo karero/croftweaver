@@ -42,9 +42,10 @@ class ARealSite(unittest.TestCase):
             f.write(T.real_zip_bytes())
         self.addCleanup(os.remove, pack)
 
-        # no --test-command: the intake runs what the owner runs
+        # no --test-command: the intake runs what the owner runs. --with-colours: a logo and a palette that
+        # changes the site's colours go in together only when she has said so.
         code, out = run("install", "--site", SITE, "--input", pack, "--pick", T.REAL_COLOUR, "--mono", T.REAL_MONO,
-                        "--accept-colours", "--accept-low-contrast", "dark", "--json")
+                        "--with-colours", "--accept-colours", "--accept-low-contrast", "dark", "--json")
         data = json.loads(out)
         self.assertEqual((code, data["status"], data["tests"]), (0, "done", "passed"), "\n".join(data.get("report", [])) + str(data.get("failing")))
         self.assertEqual(data["cards"], "regenerated")
