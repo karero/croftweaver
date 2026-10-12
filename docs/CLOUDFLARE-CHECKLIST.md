@@ -219,7 +219,9 @@ project's name (the first part of its `.pages.dev` address). Before you trust an
 make sure the domain in the command is yours: a placeholder left in can reach a stranger's
 site and print a clean-looking 200, and the robots.txt below must be your own file. An
 empty answer is never a pass either: it means curl could not reach the site. Your
-assistant can run them; on Windows use Git Bash or WSL.
+assistant can run them; on Windows use Git Bash or WSL. A script runs all of them at once,
+and lists the items that only the dashboard shows
+([`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md) says how).
 
 ```bash
 curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|report-to:|strict-transport-security:|set-cookie:)'
@@ -227,8 +229,9 @@ curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|repor
 
 You want a 200 status line (`HTTP/2 200`, or `HTTP/1.1 200 OK` on an older curl) and
 nothing else until you switch HSTS on (section 2). A 3xx status line means something else
-is redirecting your live domain: find out what before you trust the rest. A `nel:` or
-`report-to:` line means NEL is still on. A `set-cookie:` line means
+is redirecting your live domain: find out what before you trust the rest. A `nel:` line
+means NEL is still on, and so does a `report-to:` line that names `cf-nel`; a `report-to:`
+line of your own is yours to judge. A `set-cookie:` line means
 something is setting a cookie: tell your assistant. Once HSTS is on you also want a
 `strict-transport-security:` line with `max-age=` followed by the seconds for the months
 you chose (for six months we saw 15552000), with `; includeSubDomains` after it only if you

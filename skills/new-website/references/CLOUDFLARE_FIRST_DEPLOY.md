@@ -213,7 +213,8 @@ and the AI crawler policies. `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver f
 them with their dashboard paths, and an outside check where one exists. Once the site is
 live, offer to go through it with the owner. Offer the token route too (section 6 of the
 checklist): the guardrails above apply to it, and the owner runs the checklist's section 5
-before the token is deleted.
+before the token is deleted. `scripts/cloudflare-check.mjs` runs that section, and lists the
+dashboard-only items, in one command; `CLOUDFLARE_CHECK.md` beside this file says how to read it.
 
 ---
 

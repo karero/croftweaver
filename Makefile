@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test test-facts smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts test-cloudflare-check smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -44,6 +44,10 @@ test:      ## run the search-console-insights tests (tracker + AI check; needs `
 
 test-facts: ## run the facts-check tests (standard library only; a stub site on 127.0.0.1, no real requests)
 	@$(PYTHON) -m unittest discover -s skills/facts-check/scripts/tests
+
+NODE ?= node
+test-cloudflare-check: ## run the Cloudflare check's tests (Node 18+, standard library only; stub sites on 127.0.0.1, no real requests)
+	@$(NODE) --test skills/new-website/scripts/tests/cloudflare-check.test.mjs
 
 # A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.
 # It runs in the C locale, as check_clean.sh does, so both read "the names" byte for byte alike
