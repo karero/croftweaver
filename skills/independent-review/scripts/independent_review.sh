@@ -6,12 +6,15 @@
 # ranked BUG/RISK/NIT reviews print. The skill ALSO runs a host fresh-eyes pass
 # (tier 3 — whatever model family the host agent is) and consolidates.
 #
-# MELIOUS FALLBACK for the ollama seat: when MELIOUS_MODEL names a model and the ollama seat does
+# MELIOUS FALLBACK for the ollama seat: when MELIOUS_MODEL is set and the ollama seat does
 # not count (no model or CLI, a failure such as a quota refusal, or a local sanity pass), the same
 # text-only prompt goes to Melious's OpenAI-compatible API instead, so the pair still has its second
-# reviewer. No MELIOUS_MODEL, no call: the script names no model. `--seat melious` runs it alone;
+# reviewer. No MELIOUS_MODEL, no call: the script sets no default. `--seat melious` runs it alone;
 # `--seat ollama` never falls back to it. SECOND_SEAT=melious swaps the two: Melious runs with
 # Codex, and ollama stands in only when Melious did not count.
+# Melious runs ONE model, glm-5.3 (the owner's rule, 2026-10-12). Any other MELIOUS_MODEL is
+# refused with exit 2 before any reviewer starts, in every mode: nothing is sent to Melious, and
+# no other reviewer runs in its place. Kimi and every other model run on ollama (OLLAMA_MODEL).
 #
 # Antigravity (`agy`/Gemini) is OPT-IN ONLY — pass --with-antigravity or set
 # WITH_ANTIGRAVITY=1. It does NOT run by default and is never used as a silent
@@ -90,9 +93,10 @@
 #                                    OLLAMA_HOST (default 127.0.0.1:11434). Auth: OLLAMA_API_KEY if
 #                                    set, else none is sent — in a cloud session an environment
 #                                    API credential for ollama.com is added by the proxy.
-#   MELIOUS_MODEL  (unset)           Melious model for the fallback seat (see above), as its
-#                                    /v1/models lists it. Unset = no Melious call at all
-#                                    (and SECOND_SEAT=melious refuses to run).
+#   MELIOUS_MODEL  (unset)           turns on the Melious fallback seat (see above). The one
+#                                    value allowed is glm-5.3; any other is refused, exit 2, in
+#                                    every mode. Unset = no Melious call at all (and
+#                                    SECOND_SEAT=melious refuses to run).
 #   SECOND_SEAT    (ollama)          which host holds the second seat: ollama, with Melious as its
 #                                    fallback, or melious, with ollama as its fallback. melious
 #                                    needs MELIOUS_MODEL. --seat and --local-only do not use it;
@@ -187,8 +191,17 @@ case "${SECOND_SEAT:-ollama}" in
   ollama|melious) SECOND_SEAT="${SECOND_SEAT:-ollama}" ;;
   *) echo "SECOND_SEAT=\"$SECOND_SEAT\" — expected ollama or melious" >&2; exit 2 ;;
 esac
+# Melious runs one model (the owner's rule, 2026-10-12: on 2026-10-11 and 2026-10-12 a session sent
+# Kimi there when ollama was over its limit). Refused here, before any reviewer starts and in
+# every mode, like a SECOND_SEAT typo: a refusal inside the seat would read as one more failed
+# tier, and the round would go on to the seat's fallback.
+MELIOUS_ONLY_MODEL="glm-5.3"
+if [ -n "${MELIOUS_MODEL:-}" ] && [ "$MELIOUS_MODEL" != "$MELIOUS_ONLY_MODEL" ]; then
+  echo "MELIOUS_MODEL=\"$MELIOUS_MODEL\" refused, and nothing was sent: Melious runs $MELIOUS_ONLY_MODEL and no other model (the owner's rule, 2026-10-12). Kimi and every other model run on ollama: name the tag in OLLAMA_MODEL (--seat ollama runs it alone). If ollama is out of quota, that model has no seat this round: say so, and do not send it to Melious." >&2
+  exit 2
+fi
 if [ "$SECOND_SEAT" = melious ] && [ -z "${MELIOUS_MODEL:-}" ] && [ -z "$SEAT" ] && [ "$LOCAL_ONLY" != 1 ]; then
-  echo "SECOND_SEAT=melious needs MELIOUS_MODEL=<model> (an id from Melious's /v1/models)." >&2; exit 2
+  echo "SECOND_SEAT=melious needs MELIOUS_MODEL=$MELIOUS_ONLY_MODEL (the one model Melious runs)." >&2; exit 2
 fi
 if [ "$LOCAL_ONLY" = "1" ] && [ "$WITH_ANTIGRAVITY" = "1" ]; then
   echo "note: --local-only + --with-antigravity given together — Antigravity is an external cloud call and will be skipped; local-only wins." >&2
@@ -229,9 +242,9 @@ if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
   if [ "$OLLAMA_VIA" = api ]; then
     # Without the CLI there is no `ollama list` to read the signed-in model from, and this script
     # names no model itself: the caller names it.
-    echo "note: no ollama CLI to auto-detect a model from — the ollama tier is skipped this run. Set OLLAMA_MODEL=<name>:cloud to review over ollama's HTTP API, or install ollama and 'ollama signin'; MELIOUS_MODEL=<model> sends the seat to Melious instead." >&2
+    echo "note: no ollama CLI to auto-detect a model from — the ollama tier is skipped this run. Set OLLAMA_MODEL=<name>:cloud to review over ollama's HTTP API, or install ollama and 'ollama signin'; MELIOUS_MODEL=$MELIOUS_ONLY_MODEL sends the seat to Melious instead." >&2
   elif ! command -v ollama >/dev/null 2>&1; then
-    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer; MELIOUS_MODEL=<model> sends the seat to Melious instead)." >&2
+    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer; MELIOUS_MODEL=$MELIOUS_ONLY_MODEL sends the seat to Melious instead)." >&2
   elif ! list_out="$(ollama list 2>/dev/null)"; then
     # A failed listing is NOT "no cloud model" — don't send the user to signin
     # for what is actually a broken CLI/daemon.
@@ -887,8 +900,8 @@ ollama_via_api() {
   looks_like_review "$(cat "$RAW_DIR/ollama.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
 }
 # FALLBACK for the ollama seat (2026-10-05): Melious, an OpenAI-compatible hosted API serving
-# open-weight models. It runs only when MELIOUS_MODEL names a model, and then only when the ollama
-# seat did not count, or as --seat melious (dispatch below). Text only, sent PROMPT_TEXTONLY like
+# open-weight models. It runs only when MELIOUS_MODEL is set (to the one model allowed, checked at
+# startup), and then only when the ollama seat did not count, or as --seat melious (dispatch below). Text only, sent PROMPT_TEXTONLY like
 # ollama. POST /v1/chat/completions, STREAMED for the same reason as ollama_via_api: each line is
 # "data: <JSON chunk>", ending "data: [DONE]". A stream with neither a finish_reason nor [DONE] is a
 # truncated review; only finish_reason "stop" is a finished one (length, a filter, an error or a
@@ -942,6 +955,8 @@ melious_marker() {   # prints a marker line the reviewed text does not contain
 }
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
+  # Startup has already refused any other model with exit 2; this stands at the send itself.
+  [ "$MELIOUS_MODEL" = "$MELIOUS_ONLY_MODEL" ] || { echo "Error: MELIOUS_MODEL=\"$MELIOUS_MODEL\" refused: Melious runs $MELIOUS_ONLY_MODEL only" >"$RAW_DIR/melious.err"; WHY="MELIOUS_MODEL refused"; return 1; }
   api_tools_ok || return 3
   local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc
@@ -1308,7 +1323,8 @@ cat >&2 <<'EOF'
 #   codex           # OpenAI Codex CLI (bundled in the ChatGPT VS Code extension) — preferred;
 #                   # already reads ~/.codex config (model + reasoning effort) + auth.json
 #   ollama          # local daemon + `ollama signin` — your first ':cloud' tag auto-serves as the default
-#   MELIOUS_MODEL=  # fallback for the ollama seat: Melious's OpenAI-compatible API (api.melious.ai)
+#   MELIOUS_MODEL=glm-5.3  # fallback for the ollama seat: Melious's OpenAI-compatible API
+#                   # (api.melious.ai); no other model is sent there
 #   SECOND_SEAT=melious  # with MELIOUS_MODEL: Melious holds the seat, ollama is its fallback
 # Antigravity is opt-in only (owner's credits are scarce) — add --with-antigravity
 # (or WITH_ANTIGRAVITY=1) to spend one this run:

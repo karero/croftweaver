@@ -299,7 +299,7 @@ scripts/
   package.sh       build dist/croftweaver.zip for handoff (+ verify its contents)
   whats-new.sh     skill changes since a project was scaffolded (--refresh re-copies them)
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
-  check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
+  check_model_agnostic.sh   keep independent-review free of concrete model names, bar the Melious seat's one model (make check)
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
@@ -424,8 +424,8 @@ since those files ship in the zip; the generic catches leave `scripts/` out, bec
 files define their patterns. The name check skips only `LICENSE`, which carries the
 owner's name. A genuine false positive is fixed by tightening a pattern in the script —
 never by loosening it. The same `make check` (and the same CI workflow) also keeps
-`independent-review` free of concrete model names outside its setup guide
-(`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
+`independent-review` free of concrete model names outside its setup guide, bar the one
+model its Melious seat is held to (`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 
 ### Merging stacked PRs

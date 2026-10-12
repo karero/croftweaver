@@ -4,7 +4,8 @@
 # use their own CLI-configured defaults, and the docs speak in families and generic tags.
 # A hardcoded default is exactly how the ollama tier once drifted out of sync with the
 # owner's real setup (this script's pre-2026-08-29 ancestor, check_model_defaults.sh,
-# managed that drift; this version prevents the class).
+# managed that drift; this version prevents the class). One name is let through, the model
+# the Melious seat is held to: see allow_melious_model below.
 set -uo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 
@@ -35,6 +36,15 @@ fi
 # model name; this bounds the common drift, it is not an exhaustive parser.
 PATTERN='[a-z0-9][a-z0-9._-]*:(cloud|[0-9]+b)\b|\bglm-[0-9]|\bgpt-[0-9]|\bgemini[- ][0-9]|\bclaude[- ][0-9]|\b(opus|sonnet|haiku|fable)[- ][0-9]'
 
+# ONE concrete name is let through: the model the Melious seat is held to (the owner's rule of
+# 2026-10-12; independent_review.sh refuses any other MELIOUS_MODEL). It is the limit on a seat,
+# not a default: the skill still picks no model for anyone. Only the bare id passes. Inside a
+# longer id or an ollama tag (a version, a suffix, ":cloud") it is still a violation, and so is
+# any other spelling of it.
+allow_melious_model() {
+  perl -pe 's/(?<![A-Za-z0-9._-])glm-5\.3(?![A-Za-z0-9_:-]|\.[A-Za-z0-9])/<the Melious model>/g'
+}
+
 # Self-test, both directions. A guard that cannot fire is worse than none — and one
 # that over-fires on the generic phrasing the header comment explicitly allows is
 # its mirror image. Herestrings, not `printf | grep -q`: under pipefail a large enough
@@ -53,6 +63,21 @@ for good in 'Gemini' 'gpt-class' "a ':cloud' mention" 'claude family' 'ollama-cl
   fi
 done
 
+# The same for the let-through: it must pass the bare id and nothing built on it. (With no perl
+# it prints nothing, and the first loop fails.)
+for bad in 'glm-5.3:cloud' 'glm-5.3-flash' 'glm-5.30' 'glm-5.3.1' 'glm-5.4' 'GLM-5.3' 'xglm-5.3:cloud'; do
+  grep -qiE "$PATTERN" <<<"$(allow_melious_model <<<"$bad")" || {
+    echo "FAIL — self-test: the Melious let-through hides '$bad'. Fix it before trusting the scan."
+    exit 1
+  }
+done
+for good in 'MELIOUS_MODEL=glm-5.3' 'runs glm-5.3.' '"glm-5.3"' 'glm-5.3 and glm-5.3, only'; do
+  if grep -qiE "$PATTERN" <<<"$(allow_melious_model <<<"$good")"; then
+    echo "FAIL — self-test: the Melious let-through still flags the allowed '$good'."
+    exit 1
+  fi
+done
+
 # grep is tri-state: 0 = matches (violation), 1 = clean, >1 = error. An I/O error
 # must not fall through to the OK line.
 mismatches=$(grep -nIiE "$PATTERN" "${FILES[@]}")
@@ -60,6 +85,17 @@ rc=$?
 if [ "$rc" -gt 1 ]; then
   echo "FAIL — grep errored (exit $rc) while scanning; the guard result is unreliable."
   exit 1
+fi
+
+# Second pass over the matched lines alone, with the Melious seat's model taken out: what still
+# matches is a violation. (A line that holds both shows the let-through as "<the Melious model>".)
+if [ -n "$mismatches" ]; then
+  mismatches=$(allow_melious_model <<<"$mismatches" | grep -iE "$PATTERN")
+  rc=$?
+  if [ "$rc" -gt 1 ]; then
+    echo "FAIL — the second pass errored (exit $rc) while scanning; the guard result is unreliable."
+    exit 1
+  fi
 fi
 
 if [ -n "$mismatches" ]; then
@@ -70,4 +106,4 @@ if [ -n "$mismatches" ]; then
   exit 1
 fi
 
-echo "OK — independent-review stays model-agnostic (no concrete model names/tags in its ${#FILES[@]} pipeline files)"
+echo "OK — independent-review stays model-agnostic (no concrete model names/tags in its ${#FILES[@]} pipeline files, bar the one model the Melious seat is held to)"

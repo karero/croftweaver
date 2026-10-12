@@ -57,10 +57,13 @@ skip silently. With a config diff, send the code that reads the config too.
    `OLLAMA_MODEL=<name>:cloud` and the script calls ollama's HTTP API instead, authenticated by
    `OLLAMA_API_KEY` or the environment's API credential for `ollama.com` (the network policy must
    allow that host); `OLLAMA_TRANSPORT=api|cli` forces one. The API path also logs tokens.
-   **Melious fallback:** with `MELIOUS_MODEL=<model>` set (a name from its `/v1/models`; the
-   script names none), a round whose ollama seat did not count — no model or CLI, a failure such
-   as a quota refusal, or a local sanity pass — sends the same text-only prompt to Melious's
-   OpenAI-compatible API (`api.melious.ai`) instead, so the pair keeps its second reviewer. Auth:
+   **Melious fallback:** with `MELIOUS_MODEL=glm-5.3` set (the one model Melious runs, by the
+   owner's rule of 2026-10-12: the script refuses any other name with exit 2 before any reviewer
+   starts, in every mode, and sets no default; Kimi and every other model run on ollama, and a
+   model ollama cannot serve has no seat that round), a round whose ollama seat did not count —
+   no model or CLI, a failure such as a quota refusal, or a local sanity pass — sends the same
+   text-only prompt to Melious's OpenAI-compatible API (`api.melious.ai`) instead, so the pair
+   keeps its second reviewer. Auth:
    `MELIOUS_API_KEY`, `~/.config/reviewers/melious.env`, or the environment's API credential for
    that host. A reasoning model can spend the whole reply budget (`MELIOUS_MAX_TOKENS`, 96000)
    thinking, and the provider can leak its reasoning into the reply: the seat keeps what follows
@@ -87,9 +90,8 @@ cross-model. The gate needs at least one successful cross-model reviewer; same-f
 degraded and needs an explicit owner waiver. Cross-model per host — Claude Code: Codex,
 ollama-cloud (by the family of the tag used), Gemini. Codex: ollama-cloud, Gemini, Claude.
 Antigravity: Codex, ollama-cloud, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
-same opt-in rule). Melious counts like ollama-cloud, by the family of `MELIOUS_MODEL` (a gpt-class
-model there is the Codex host's own family). A human round adds findings but never counts as
-cross-model. A Light-depth gate is the one exception, by the owner's standing choice (Review
+same opt-in rule). Melious counts like ollama-cloud, by the family of its one model (GLM). A
+human round adds findings but never counts as cross-model. A Light-depth gate is the one exception, by the owner's standing choice (Review
 depth).
 
 ## Onboarding — first use
