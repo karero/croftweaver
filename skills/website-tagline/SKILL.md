@@ -6,7 +6,8 @@ description: >
   what the business is there to do for its customer, taken from POSITIONING.md,
   not from clever wording. Shows the owner six to eight candidate lines in three
   or four different directions, asks which direction sounds like them, then
-  refines on the owner's feedback until they pick ONE. Records it in TAGLINE.md
+  refines on the owner's feedback, for at most three rounds, until they pick ONE
+  or stop. Records it in TAGLINE.md
   and writes SITE.tagline. Adds no claim POSITIONING.md lacks and loses every
   conflict with it. Never runs unasked. Trigger phrases: "tagline",
   "Claim", "strapline", "slogan", "motto", "the line under the logo", "a line
@@ -122,9 +123,9 @@ Rules for every line:
   time since 2019"), not promise it for the future ("always on time").
 - **Plain words the customer uses.** No word the owner would not say to a customer
   across a table.
-- **Passes the site's tone test.** The line will sit on every page, so the tone
-  test reads it. Read the rules for the site's language in `tests/_helpers.ts`
-  and check every line against them before showing it. In English that means no
+- **Passes the site's tone rules.** Read the rules for the site's language in
+  `tests/_helpers.ts` and check every line against them before showing it: where
+  the site shows the line, it sits on every page. In English that means no
   em dash, no contraction ("don't", "we'll", "it's") and none of the listed
   buzzwords. On a site without that file, keep to those three rules.
 - **Not a second headline.** It is not the `<title>`, not the `<h1>` and not the
@@ -283,9 +284,9 @@ header stay as they are.
    site with no logo or name in its header yet skips this item only: tell the
    owner the line is stored and not shown yet. Items 4 and 5 still apply.
 4. **Run the site's tests** (`npm test`). The accessibility test must be green in
-   light and dark, and the tone and positioning tests must still be green. Then
-   look at the line yourself in the header, in both themes and at phone width: a
-   test reports only what it could measure.
+   light and dark, and the tone and positioning tests must still be green. Where
+   the site shows the line, also look at it yourself in the header, in both themes
+   and at phone width: a test reports only what it could measure.
 5. **Record the choice** in the project README, next to the decision-interview
    answers where the README has them, otherwise where the project keeps its
    decisions ("tagline: see TAGLINE.md", "tagline: declined" or "tagline: none

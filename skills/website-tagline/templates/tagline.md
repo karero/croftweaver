@@ -26,7 +26,8 @@ From POSITIONING.md §4 Target customer and §3 Value. Agreed on [date].
 
 If the owner decided against a tagline, write "No tagline, decided on [date]"
 here and leave the rest of this section out. If three rounds ended without a
-pick, write "No tagline yet, [date]".
+pick, write "No tagline yet, [date]" instead, in the same way. In both cases the
+sections below still record what the owner said and the lines that were shown.
 
 ## What the owner said
 

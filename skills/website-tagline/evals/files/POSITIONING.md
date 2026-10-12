@@ -62,10 +62,11 @@ facts, not adjectives.
 - **Human version (optional):** It is still your garden. We do the heavy part,
   nearly always on the day we agreed and with a face you know at the gate.
 - **Core positioning term:** garden care for older homeowners
-- **One-line boilerplate (≤ 12 words):** Garden care for older homeowners, by a gardener you know.
+- **One-line boilerplate (≤ 12 words):** Garden care for older homeowners, with a regular gardener.
 - **~50-word boilerplate:** Greenlatch looks after small gardens for homeowners over 70.
-  A gardener you know comes every second week, on the agreed day for 97 visits in
-  100, for one fixed monthly price through the season. You keep the garden you are proud of, and nobody in the
+  A gardener comes every second week for one fixed monthly price through the season;
+  in 2025, 94% of visits were made by the customer's regular gardener and 97% fell
+  on the agreed day. You keep the garden you are proud of, and nobody in the
   family has to give up a Saturday for it.
 
 ## The positioning spine (per-page terms → tests/positioning.spec.ts)
