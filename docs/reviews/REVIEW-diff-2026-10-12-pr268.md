@@ -1,5 +1,5 @@
 # DIFF review — PR #268 — `npm create croftweaver`, a one-line install of the skills
-Base `e58d3ae`, `d382cbe` since the merge of main before round 2, and `4e5ff23` since the one before the merge link · depth: Normal (an install script: it deletes and moves folders in the place an assistant takes its instructions from, and unpacks a download) · verdict: CLEAN (every row is fixed, refuted or waived; P8 closed on 2026-10-12 by the real run after the owner published) · authority used: POST AUTHORITY — atom A (this session opened #268); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — atom A (codex's chain below, unbroken from round 1 to `e67676b`)
+Base `e58d3ae`, `d382cbe` since the merge of main before round 2, `4e5ff23` since the one before the merge link, and `b8daa7e` since the one before merge link 2 · depth: Normal (an install script: it deletes and moves folders in the place an assistant takes its instructions from, and unpacks a download) · verdict: CLEAN (every row is fixed, refuted or waived; P8 closed on 2026-10-12 by the real run after the owner published) · authority used: POST AUTHORITY — atom A (this session opened #268); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — atom A (codex's chain below, unbroken from round 1 to `5a31a86`)
 
 Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fresh-eyes pass on a mid-tier model of the host's family. The owner's OK for both services, given in this session on 2026-10-12 to the question "shall I run the review pair (Codex and GLM 5.3 on melious, Normal depth), then push and open the PR?": "yes to all three, npm half is right".
 
@@ -12,6 +12,7 @@ Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fr
 | wording pass | `fdb4da9` | delta `e7249b1..fdb4da9`: two prose lines (a code comment, a README sentence), scoped to contradictions with the code | codex-cli 0.162.1, gpt-6.1-sol, config effort, read-only | 177 s / 44,500 | one contradiction (labelled BUG), fixed |
 | confirmation | `5d05bf4` | delta `fdb4da9..5d05bf4`: the fix of that contradiction, two prose lines | same | 147 s / 32,777 | 0/0/0 |
 | merge link | `e67676b` | `merge_link.sh d382cbe b031d27 4e5ff23` (one README hunk the merge brought from main) plus the plan's delta `b031d27..e67676b` (the status row and "Done when"), scoped as prose | codex-cli 0.162.1, gpt-6.1-sol, config effort, read-only | 205 s / 75,413 | 0/1/0 |
+| merge link 2 | `5a31a86` | `merge_link.sh 4e5ff23 f1a558a b8daa7e`: one README hunk the third merge of main brought in (a request for a link back), scoped as prose | same | 118 s / 35,542 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -40,7 +41,7 @@ Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fr
 | P23 | wording | codex | wording pass | The comment said such a run "leaves" the folder, though one killed after its own cleanup leaves none; and whether a dot in front hides a folder on Windows was not shown | fixed — externally_reverified (the confirmation) | `5d05bf4`: "can leave", and "hidden" is gone from the comment and the README |
 | P24 | RISK | codex | merge link | The plan's new text says the package is published and that `-- --codex` reached it, on the author's word alone | fixed | the record below: versions, the registry's metadata, the reviewed pack's checksum, both commands with their output, and the comparisons |
 
-24 findings in 4 rounds, a wording pass, its confirmation and a merge link: 5 BUG, 11 RISK, 7 NIT and one wording contradiction. 19 fixed, 2 refuted (P7, P9), 3 waived by the owner (P3, P4, P11).
+24 findings in 4 rounds, a wording pass, its confirmation and two merge links: 5 BUG, 11 RISK, 7 NIT and one wording contradiction. 19 fixed, 2 refuted (P7, P9), 3 waived by the owner (P3, P4, P11).
 
 UNVERIFIABLE entries, round 1: 12 asked across the three seats, none became a finding. Looked at: `setup-node` with an empty `node-version` (the Windows job's log: "Resolved skills/new-website/templates/astro/.nvmrc as 24"), the junction claim (P7), npm's dispatch (P8); the rest (GitHub's redirect, the plugin documentation, the proxy sentence) rest on the author's records above and in the plan.
 
@@ -58,9 +59,9 @@ Follow-ups:
 Notes:
 - Round 4 is the one round past 3. It was earned by P21, the BUG round 3 found in the staging cleanup.
 - Round 4 was clean in the sense of stop condition (a2): no BUG, no RISK. Its NIT (P22) was fixed without a further round and read by the wording pass.
-- Chains for the stamp: codex saw `e58d3ae...60ae63e` in full, then each delta to `9f5cee7` (a merge link over the merge of main), `c52c88c`, `e7249b1`, `fdb4da9`, `5d05bf4` and, over a second merge of main, `e67676b` (between `5d05bf4` and `b031d27` only this file changed). melious's chain ends at `e7249b1`, fresh-eyes' at `60ae63e`, by design.
+- Chains for the stamp: codex saw `e58d3ae...60ae63e` in full, then each delta to `9f5cee7` (a merge link over the merge of main), `c52c88c`, `e7249b1`, `fdb4da9`, `5d05bf4` and, over a second merge of main, `e67676b` (between `5d05bf4` and `b031d27` only this file changed), and over a third, `5a31a86` (between `e67676b` and `f1a558a` only this file changed). melious's chain ends at `e7249b1`, fresh-eyes' at `60ae63e`, by design.
 - No final full read: a DIFF gate at Normal depth on a change that is mostly code.
-- The commit that brings this file to its final state changes nothing else; the stamp names it, and the reviewed scope is the one at `e67676b`.
+- The commit that brings this file to its final state changes nothing else; the stamp names it, and the reviewed scope is the one at `5a31a86`.
 - The order the owner chose was kept: published from the reviewed commit `b031d27`, then the real run (P8), then the merge of main and the merge link below, and only then the merge.
 
 ## Before round 1
