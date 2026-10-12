@@ -259,28 +259,40 @@ test('with every skill linked it says that no skill was changed, unless it remov
   assert.match(idle.stdout, /Left as it is: 1 skill linked from another folder/);
 });
 
-test('a skill folder may have any plain name: the installer is published once and must take later releases', async () => {
+test('a skill folder may have any name that is one folder name: the installer is published once and must take later releases', async () => {
   const home = tmp();
   const dest = path.join(home, '.claude', 'skills');
-  served = { status: 200, release: 'v9.1', zip: makeZip({ ...V1, 'skills/Odd_Name.v2/SKILL.md': 'named unlike today\'s skills' }) };
+  const odd = ['Odd_Name.v2', 'café', 'website tools', '_helper'];
+  served = { status: 200, release: 'v9.1', zip: makeZip({ ...V1, ...Object.fromEntries(odd.map((name) => [`skills/${name}/SKILL.md`, `this is ${name}`])) }) };
 
   const result = await run(home);
 
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(fs.readFileSync(path.join(dest, 'Odd_Name.v2', 'SKILL.md'), 'utf8'), 'named unlike today\'s skills');
+  for (const name of odd) assert.equal(fs.readFileSync(path.join(dest, name, 'SKILL.md'), 'utf8'), `this is ${name}`);
+  // And a second run knows them as its own: nothing is moved to a backup.
+  assert.equal((await run(home)).code, 0);
+  assert.deepEqual(backups(home), []);
 });
 
-test('a staging folder a killed run left behind is removed by the next run that installs', async () => {
+test('a staging folder a killed run left is removed once it is a day old; a fresh one may be another run\'s and stays', async () => {
   const home = tmp();
   const dest = path.join(home, '.claude', 'skills');
-  fs.mkdirSync(path.join(dest, '.croftweaver-staging-killed', 'alpha'), { recursive: true });
-  fs.writeFileSync(path.join(dest, '.croftweaver-staging-killed', 'alpha', 'SKILL.md'), 'half unpacked');
+  const killed = path.join(dest, '.croftweaver-staging-killed');
+  const running = path.join(dest, '.croftweaver-staging-running');
+  for (const dir of [killed, running]) {
+    fs.mkdirSync(path.join(dir, 'alpha'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'alpha', 'SKILL.md'), 'unpacked by another run');
+  }
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  fs.utimesSync(killed, twoDaysAgo, twoDaysAgo);
   served = { status: 200, release: 'v9.1', zip: makeZip(V1) };
 
   const result = await run(home);
 
   assert.equal(result.code, 0, result.stderr);
-  assert.deepEqual(fs.readdirSync(dest).sort(), ['.croftweaver.json', 'alpha', 'gone', 'new-website']);
+  assert.deepEqual(fs.readdirSync(dest).sort(), ['.croftweaver-staging-running', '.croftweaver.json', 'alpha', 'gone', 'new-website']);
+  // The other run can still finish: what it unpacked is all there.
+  assert.deepEqual(tree(running), { 'alpha/SKILL.md': 'unpacked by another run' });
 });
 
 test('where the skills folder is itself a link, the backup goes beside the real folder', async () => {

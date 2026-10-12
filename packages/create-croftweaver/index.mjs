@@ -22,9 +22,13 @@ const ZIP_URL = process.env.CROFTWEAVER_ZIP_URL
   || 'https://github.com/karero/croftweaver/releases/latest/download/croftweaver.zip';
 const MANIFEST = '.croftweaver.json';
 const STAGING = '.croftweaver-staging-';
-// One plain folder name, not hidden. Deliberately no stricter than that: this package is
-// published once, so a rule a later release's folder name broke would stop every install.
-const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const STALE = 24 * 60 * 60 * 1000;   // a run takes seconds; a staging folder a day old is dead
+// One folder name: no slash, backslash or colon in it, and no dot in front (which also rules
+// out '.' and '..'). Deliberately no stricter: this package is published once, so a rule a
+// later release's folder name broke would stop every install. A name one system cannot
+// hold (a reserved Windows name, two that differ only in case) fails the tests that
+// install the real skills, on that system's CI runner, before a release has it.
+const SKILL_NAME = /^[^./\\:][^/\\:]*$/;
 const RELEASE_NAME = /^v?[0-9][0-9A-Za-z.-]*$/;
 const USAGE = 'usage: npm create croftweaver [-- [--codex | --antigravity] [--force]]';
 const TIMEOUT = 300_000;   // npm's own default for a download; a slow line needs the room
@@ -152,10 +156,12 @@ function installedBefore(dest) {
 function install(staging, names, dest, release, force) {
   const before = installedBefore(dest);
   const result = { copied: [], kept: [], moved: [], removed: [], backup: null };
-  // A run that was killed could not remove its staging folder. Nothing loads it, but it stays.
+  // A run that was killed could not remove its staging folder. Nothing loads it, but it
+  // stays. Only an old one goes: a fresh one may belong to a run that is still going, and
+  // taking it away would leave that run with skills removed and nothing to put in their place.
   for (const name of fs.readdirSync(dest)) {
     const left = path.join(dest, name);
-    if (name.startsWith(STAGING) && left !== staging) fs.rmSync(left, { recursive: true, force: true });
+    if (name.startsWith(STAGING) && Date.now() - fs.statSync(left, { throwIfNoEntry: false })?.mtimeMs > STALE) fs.rmSync(left, { recursive: true, force: true });
   }
   for (const name of before) {
     const target = path.join(dest, name);
