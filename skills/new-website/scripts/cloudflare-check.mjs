@@ -328,7 +328,7 @@ function sameAddress(location, base) {
 // It is not a browser. It is enough to tell what a page loads from what it says.
 const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
 const COMMENT_END = /--!?>/g;
-function readHtml(html) {
+export function readHtml(html) {
   // Only A to Z are lower-cased: Unicode lower-casing can change a string's length, and the
   // offsets found in this copy are used in the original.
   const lower = html.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
@@ -338,11 +338,9 @@ function readHtml(html) {
   // Foreign content: inside an <svg> the elements that are raw text in HTML (script, style,
   // textarea, title) hold markup, as in a browser; a <foreignObject> inside it is HTML again.
   const ctx = []; // 'svg' or 'html', innermost last
-  let svgScripts = 0; // open <script> elements in svg: the text between tags is script text
   let i = 0;
   while (i < n) {
     const lt = html.indexOf('<', i);
-    if (svgScripts > 0 && i < (lt === -1 ? n : lt)) scripts.push(html.slice(i, lt === -1 ? n : lt));
     if (lt === -1) break;
     if (html.startsWith('<!--', lt)) {
       // A comment ends at "-->" or "--!>", and "<!-->" and "<!--->" are whole comments.
@@ -413,15 +411,15 @@ function readHtml(html) {
       ctx.pop();
     } else if (name === 'svg') {
       while (ctx.length && ctx.pop() !== 'svg');
-      if (ctx.at(-1) !== 'svg') svgScripts = 0; // an svg script left open ends with its svg
     }
     const foreign = ctx.at(-1) === 'svg';
-    if (m[1] === '' && foreign && name === 'script' && !selfClosing) svgScripts += 1;
-    else if (m[1] === '/' && foreign && name === 'script' && svgScripts > 0) svgScripts -= 1;
     if (m[1] === '') {
       tags.push({ name, attrs });
-      // Outside foreign content a self-closing slash on these elements is ignored, as in a browser.
-      if (RAW_TEXT.has(name) && !foreign) {
+      // The text of script, style, textarea and title is not markup in HTML, and a self-closing
+      // slash on them is ignored there, as in a browser. In an svg these hold markup, except a
+      // script, whose text is still read to its end tag (a CDATA section included), unless the
+      // script is self-closed ("<script href=.../>").
+      if (RAW_TEXT.has(name) && (!foreign || (name === 'script' && !selfClosing))) {
         // The text of these elements is not markup. Its end tag is "</name" followed by
         // white space, "/" or ">": "</scripture>" does not end a script.
         let end = i;

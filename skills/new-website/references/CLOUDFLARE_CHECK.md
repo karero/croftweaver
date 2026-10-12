@@ -86,7 +86,8 @@ the attributes Cloudflare adds (`data-cf-beacon`, `data-cfemail`), and the text 
 `/cdn-cgi/` paths. Comments, the words a person reads, the text of a `textarea` or `title`, and
 the values of descriptive attributes such as `title` or `alt` are left out, so a page that
 talks about these scripts is not taken for one that loads them (inside an `<svg>` a `title`
-holds markup, and is read as markup). It is not a browser: a page built to confuse an HTML
+holds markup, and is read as markup; a `script` there is still read as text to its end tag).
+It is not a browser: a page built to confuse an HTML
 reader can confuse this one. The headers of each answer on the way
 are read one answer at a time, and HSTS is the page's own. A page larger than 5 MB is read for its first 5 MB only, and then the source
 items are a `look`, never `ok`.

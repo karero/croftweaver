@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, rmSync, existsSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ITEMS, evaluate, parseProject, parseTarget, UsageError } from '../cloudflare-check.mjs';
+import { ITEMS, evaluate, parseProject, parseTarget, readHtml, UsageError } from '../cloudflare-check.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'cloudflare-check.mjs');
@@ -1189,18 +1189,36 @@ test('foreign content, edges: an svg\'s inline script is read, a slash inside a 
 
 // ---- what the second confirmation of round 6 asked for
 
-test('thousands of unclosed script starts inside an svg are read in linear time, and their text is still script text', async () => {
-  await withSite(homeWith({}, `<svg>${'<script>'.repeat(40_000)}var a="/cdn-cgi/challenge-platform/scripts/jsd/main.js";`), async (s) => {
-    const started = Date.now();
-    const r = await check(s.origin);
-    assert.equal(r.by.bot.state, 'fail', 'the text after the last start is script text');
-    assert.ok(Date.now() - started < 20_000, 'a reader that takes every suffix of the page is quadratic');
+test('thousands of unclosed script starts inside an svg: the text taken is bounded by the page, and it is script text', async () => {
+  const jsd = 'var a="/cdn-cgi/challenge-platform/scripts/jsd/main.js";';
+  const page = `<svg>${'<script>'.repeat(40_000)}${jsd}`;
+  const { scripts } = readHtml(page);
+  const taken = scripts.reduce((sum, text) => sum + text.length, 0);
+  assert.ok(taken <= page.length, `the script text taken (${taken}) is no more than the page (${page.length}): every character once`);
+  await withSite(homeWith({}, page), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'fail');
   });
-  await withSite(homeWith({}, '<svg><script>var a=1;</script></svg><p>cdn-cgi/challenge-platform is only a word here</p>'), async (s) => {
-    assert.equal((await check(s.origin)).by.bot.state, 'ok', 'the text after the svg is not script text');
+});
+
+test('an svg script is script text to its end tag: a CDATA section, a nested svg and a foreignObject inside it are part of it', async () => {
+  const p = '/cdn-cgi/challenge-platform/scripts/jsd/main.js';
+  const cases = [
+    `<svg><script><![CDATA[var a="${p}";]]></script></svg>`,
+    `<svg><script>var a=1;<foreignObject><svg></svg></foreignObject>var b="${p}";</script></svg>`,
+    `<svg><svg><script>var b="${p}";</script></svg><text>x</text></svg>`,
+  ];
+  for (const html of cases) {
+    await withSite(homeWith({}, html), async (s) => {
+      assert.equal((await check(s.origin)).by.bot.state, 'fail', html);
+    });
+  }
+  // the words after a closed svg script, in the svg's other elements, are not script text
+  await withSite(homeWith({}, `<svg><svg><script>safe</svg><script>safe</script><text>${p}</text></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok');
   });
-  await withSite(homeWith({}, '<svg><script>var a=1;</svg><p>/cdn-cgi/challenge-platform/scripts/jsd/main.js</p>'), async (s) => {
-    assert.equal((await check(s.origin)).by.bot.state, 'ok', 'an svg script left open ends with its svg');
+  // a self-closed svg script has no text: what follows it is markup
+  await withSite(homeWith({}, `<svg><script href="/x.js"/><text>${p}</text></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok');
   });
 });
 
