@@ -72,24 +72,25 @@ that true.
   a Pages site.
   *What it is:* the browser keeps a note for seven days (Chrome, Edge and other Chromium
   browsers). If it can't reach your site, it sends a short error report to Cloudflare.
-  *Why off:* your page doesn't need it, your privacy page doesn't mention it, and it
-  leaves a note on the visitor's device. In Germany, § 25 TDDDG asks for consent for that
-  unless it is strictly necessary. Nobody has ruled on NEL specifically, so this is a
-  risk, not a verdict, and this is not legal advice. Off avoids the question.
+  *Why off:* your page doesn't need it, the privacy page this kit writes doesn't mention
+  it, and it leaves a note on the visitor's device. In Germany, § 25 TDDDG asks for
+  consent for that unless it is strictly necessary. We found no ruling or guidance on NEL
+  specifically (searched October 2026), so this is a risk, not a verdict, and this is not
+  legal advice. Off avoids the question.
   *It can be on without you ever choosing it.* Check, don't assume (section 5).
   1. **The switch.** Cloudflare's guide: Account home → Network → Network Error Logging
      Monitoring. If your dashboard shows **Network** only after you open your domain, use
-     it there. On a Pages site this alone did not stop the header when we tried it: the
+     it there. When we tried this on a Pages site, it alone did not stop the header: the
      setting read "off" through Cloudflare's API, and the header was still served half an
      hour later.
   2. **A rule that removes the header.** Your domain → Rules → Overview → Create rule →
      **Response Header Transform Rule**. Name it "Remove NEL headers". Under *When incoming
      requests match*, choose **All incoming requests**. Under *Modify response header*,
      choose **Remove** and enter the header name `NEL`. Select **Set new header**, choose
-     **Remove** again and enter `Report-To`. **Deploy.** On a Pages site this removed both
+     **Remove** again and enter `Report-To`. **Deploy.** On the same site this removed both
      headers within seconds.
 
-  Visitors who came in the last seven days keep the old note until it expires. The
+  Visitors who came in the last seven days can keep the old note until it expires. The
   `<project>.pages.dev` address is outside your domain, so the rule doesn't reach it. The
   kit redirects that address to your live domain once `CANONICAL_URL` is set. If the header
   is still there after the rule, ask Cloudflare Support to disable the `nel___enable` flag
@@ -118,9 +119,10 @@ that true.
 - [ ] **Crawler Hints: On.**
   Your domain → Caching → Configuration → Crawler Hints.
   Bing and the other search engines that use IndexNow hear about new and changed pages
-  right away. Google doesn't use IndexNow. You don't need a key file. With a Bing Webmaster
-  Tools account ([`search-console-setup`](../skills/search-console-setup/SKILL.md) walks
-  you through it) you can watch the notifications arrive.
+  right away. Google learns about changes another way, which `search-console-setup`
+  covers. You don't need a key file. With a Bing Webmaster Tools account
+  ([`search-console-setup`](../skills/search-console-setup/SKILL.md) walks you through
+  it) you can watch the notifications arrive.
 - [ ] **AI crawlers: allow.**
   Your domain → Security → Settings → filter by **Bot traffic** → **Configure AI bot
   policies** → set **Search**, **Agent** and **Training** each to **Allow (do not block)**.
@@ -128,7 +130,8 @@ that true.
   domains, from 15 September 2026, block Training and Agent crawlers on pages that show
   ads. Look at what yours shows. If you still see the older **Block AI bots** setting,
   leave it Off. Cloudflare is retiring it.
-  With all three on Allow, Cloudflare adds nothing to your `robots.txt`.
+  Cloudflare's docs add rules to `robots.txt` only when at least one of the three is set
+  to a block. Section 5 checks the file.
 
 ## 5. Check your work
 
