@@ -8,7 +8,7 @@ description: >
   or four different directions, asks which direction sounds like them, then
   refines on the owner's feedback until they pick ONE. Records it in TAGLINE.md
   and writes SITE.tagline. Adds no claim POSITIONING.md lacks and loses every
-  conflict with it. Never runs unasked. Trigger phrases: "tagline", "claim",
+  conflict with it. Never runs unasked. Trigger phrases: "tagline",
   "Claim", "strapline", "slogan", "motto", "the line under the logo", "a line
   for under our logo", "what do we stand for in five words". Not for
   positioning itself, the page headline, or the story one-liner.
@@ -112,16 +112,21 @@ which side of it they show:
 
 Rules for every line:
 
-- **Short enough for its place.** At most eight words and about 50 characters. It
-  has to fit under a logo on a phone.
+- **Short enough for its place.** At most eight words and 50 characters. It has
+  to fit under a logo on a phone.
 - **Reads after the name.** Say "[Name]. [Line]." aloud. If it stumbles, or
   repeats a word from the name, rewrite it.
 - **No new claim.** Each line names the `POSITIONING.md` section it leans on. A
   number, a superlative or an "every" needs its proof in §3; without proof, the
-  line goes.
+  line goes. A record is not a promise: a line may say what the proof says ("on
+  time since 2019"), not promise it for the future ("always on time").
 - **Plain words the customer uses.** No word the owner would not say to a customer
-  across a table. No em dashes, so the line survives the tone test wherever it is
-  pasted.
+  across a table.
+- **Passes the site's tone test.** The line will sit on every page, so the tone
+  test reads it. Read the rules for the site's language in `tests/_helpers.ts`
+  and check every line against them before showing it. In English that means no
+  em dash, no contraction ("don't", "we'll", "it's") and none of the listed
+  buzzwords. On a site without that file, keep to those three rules.
 - **Not a second headline.** It is not the `<title>`, not the `<h1>` and not the
   story one-liner; it may agree with the controlling idea in `STORY.md` and must
   never contradict it.
@@ -156,10 +161,11 @@ so reuse the shape, not the words):
   > 6. Stop doing your books at midnight.
   >
   > **What you can count on**
-  > 7. Every return on time. None on your mind.
+  > 7. Deadlines are our worry, not yours.
   > 8. One person who knows your books.
 
-  Line 7 may say *every* only because the proof says every return was on time.
+  Line 7 does not say "Every return on time": the proof is a record since 2019,
+  and a record is not a promise.
 
 ## 4. Ask the owner for a direction
 
@@ -177,8 +183,12 @@ free answer for "none of these"), otherwise ask in chat. Then:
 - **Two lines from different directions** → round two combines what the owner
   liked about each. Ask what they liked if they did not say.
 - **"None"** → ask what is missing, and check the purpose sentence again before
-  writing more lines. After eight misses, suspect the purpose before the wording.
+  writing more lines. After a whole round of misses, suspect the purpose before
+  the wording.
 - **No answer** → stop. Change nothing on the site.
+
+A round is one list shown to the owner. Round one is the six to eight lines;
+whatever is shown next is round two, also after a "none"; there are at most three.
 
 Round two: **four to six** new lines in that direction. Keep any line or phrase
 the owner liked word for word, and drop every word they pushed back on. A line the
@@ -208,22 +218,24 @@ not dropping it.
 
 ## 5. Ask for feedback, refine, pick one
 
-After round two, and after every later round, ask for feedback with questions the
+After round two, and again after round three, ask for feedback with questions the
 owner can answer, never "what do you think?":
 
 > Read each line aloud after your business name. Which words would you really say
 > to a customer? Which word feels off? Is anything too bold, too modest or too long?
 
-Then change **only** what the feedback names, show at most four new lines, and ask
-again. The loop ends in one of three ways:
+Then change **only** what the feedback names and show round three: at most four
+new lines. There is no fourth round. The work ends in one of three ways:
 
 - **The owner picks one line.** Before it is final, search the exact line in
-  quotation marks. If another business in the same market already uses it, say so
-  and go back one round. This is a courtesy search, not a trademark check; say
-  that too, and leave the legal question to the owner.
-- **Three rounds without a pick.** Stop and say so plainly. Do not write a fourth
-  round; go back to the purpose sentence (§2), and to `website-positioning` if the
-  owner no longer agrees with it.
+  quotation marks; if you cannot search the web, say that the line was not
+  checked. If another business in the same market already uses it, say so and ask
+  the owner to pick again from the lines shown, or go on to the next round if one
+  is left. This is a courtesy search, not a trademark check; say that too, and
+  leave the legal question to the owner.
+- **Three rounds without a pick.** Stop and say so plainly. Record what was shown
+  (§6), then go back to the purpose sentence (§2), and to `website-positioning`
+  if the owner no longer agrees with it.
 - **The owner decides against a tagline.** A valid answer; a site does not need
   one. Record it (§6) and change nothing else.
 
@@ -255,9 +267,10 @@ conversation ended.
 
 ## 6. Record it and place it
 
-**If the owner declined:** fill `TAGLINE.md` (the purpose sentence, "No tagline",
-the lines that were shown) and do step 5. Skip steps 2 to 4; `SITE.tagline` and
-the header stay as they are.
+**If the owner declined, or three rounds ended without a pick:** fill `TAGLINE.md`
+(the purpose sentence, "No tagline" or "No tagline yet", the lines that were
+shown) and do item 5 of the list below. Skip items 2 to 4; `SITE.tagline` and the
+header stay as they are.
 
 1. **`TAGLINE.md`**: copy `templates/tagline.md` next to `POSITIONING.md` and fill
    it: the purpose sentence, the chosen line with its direction and the section it
@@ -267,14 +280,16 @@ the header stay as they are.
 3. **Under the logo.** Where the site's header shows the logo or the name, add the
    line beneath it as a `<p>` that reads `SITE.tagline`. Never type the line a
    second time, and never make it a heading: the page keeps its one `<h1>`. A
-   site with no logo or name in its header yet gets steps 1 and 2 only; tell the
-   owner the line is stored and not shown yet.
-4. **Run the site's tests** (`npm test`). The line must pass the contrast check in
-   light and dark, and the tone and positioning tests must still be green. Look at
-   the header at phone width as well.
-5. **Record the choice** in the project README next to the decision-interview
-   answers ("tagline: see TAGLINE.md", or "tagline: declined"), so a later session
-   knows the decision.
+   site with no logo or name in its header yet skips this item only: tell the
+   owner the line is stored and not shown yet. Items 4 and 5 still apply.
+4. **Run the site's tests** (`npm test`). The accessibility test must be green in
+   light and dark, and the tone and positioning tests must still be green. Then
+   look at the line yourself in the header, in both themes and at phone width: a
+   test reports only what it could measure.
+5. **Record the choice** in the project README, next to the decision-interview
+   answers where the README has them, otherwise where the project keeps its
+   decisions ("tagline: see TAGLINE.md", "tagline: declined" or "tagline: none
+   picked yet"), so a later session knows the decision.
 
 ## 7. Gotchas
 
@@ -294,7 +309,8 @@ the header stay as they are.
 - **The home page as the customer's story, the one-liner, the controlling idea**
   → `website-story`.
 - **Tone of voice, EEAT** → `website-content-guide`.
-- **Page headlines and body copy** → `copywriting`.
+- **Page headlines and body copy** → `copywriting` (it also answers to "tagline";
+  the line under the logo is this skill's).
 
 ## Done means
 
@@ -302,5 +318,5 @@ The owner agreed to the purpose sentence, saw six to eight lines in three or fou
 directions, named a direction, gave feedback, and picked one line themselves.
 `TAGLINE.md` is filled, `SITE.tagline` holds the line verbatim, the line shows
 under the logo where the site has one, and the site's tests are green. If the
-owner declined instead: `TAGLINE.md` and the project README say so, and nothing
-else changed.
+owner declined, or no line was picked in three rounds: `TAGLINE.md` and the
+project README say so, and nothing else changed.

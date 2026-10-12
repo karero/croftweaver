@@ -53,18 +53,19 @@ facts, not adjectives.
 ## Positioning statement (one paragraph)
 
 > For homeowners over 70 who are proud of a garden they can no longer manage alone,
-> Greenlatch is a garden care service that sends the same gardener every second
-> week on an agreed day at one fixed monthly price, unlike asking the family or
-> hiring a landscaping firm that only wants large jobs, because the whole service is
-> built around small gardens: 4,100 visits in 2025, 97% on the agreed day.
+> Greenlatch is a garden care service that comes every second week at one fixed
+> monthly price, with the customer's regular gardener where the rota allows,
+> unlike asking the family or hiring a landscaping firm that only wants large jobs,
+> because the whole service is built around small gardens: 4,100 visits in 2025,
+> 97% on the agreed day, 94% by the regular gardener.
 
-- **Human version (optional):** It is still your garden. We do the heavy part, on
-  the same day, with the same face at the gate.
+- **Human version (optional):** It is still your garden. We do the heavy part,
+  nearly always on the day we agreed and with a face you know at the gate.
 - **Core positioning term:** garden care for older homeowners
 - **One-line boilerplate (≤ 12 words):** Garden care for older homeowners, by a gardener you know.
 - **~50-word boilerplate:** Greenlatch looks after small gardens for homeowners over 70.
-  The same gardener comes every second week on a day you agree, for one fixed monthly
-  price through the season. You keep the garden you are proud of, and nobody in the
+  A gardener you know comes every second week, on the agreed day for 97 visits in
+  100, for one fixed monthly price through the season. You keep the garden you are proud of, and nobody in the
   family has to give up a Saturday for it.
 
 ## The positioning spine (per-page terms → tests/positioning.spec.ts)
