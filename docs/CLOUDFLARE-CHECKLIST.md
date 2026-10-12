@@ -210,14 +210,16 @@ cookies, scripts or tracking you didn't choose.
 
 Run these once your own domain serves this site: the production deployment shows
 **Active** (your project → Deployments), the custom domain is Active, and
-`https://yourdomain.com/build.txt` shows the current build. The first request a new domain
-sees is the one Cloudflare's edge keeps, so don't run them earlier. Replace
-`yourdomain.com` with your domain and `yourproject` with your Pages project's name (the
-first part of its `.pages.dev` address). Before you trust any answer, make sure the domain
-in the command is yours: a placeholder left in can reach a stranger's site and print a
-clean-looking 200, and the robots.txt below must be your own file. An empty answer is
-never a pass either: it means curl could not reach the site. Your assistant can run them;
-on Windows use Git Bash or WSL.
+`https://yourdomain.com/build.txt` shows the current build. Earlier, the live domain
+serves the previous deployment or an error, and the kit's notes describe such a 404 being
+cached at Cloudflare's edge ("Never request a page on the live domain before its build is
+Active" in [`PUBLISHING.md`](../skills/new-website/templates/PUBLISHING.md)). Don't run
+them earlier. Replace `yourdomain.com` with your domain and `yourproject` with your Pages
+project's name (the first part of its `.pages.dev` address). Before you trust any answer,
+make sure the domain in the command is yours: a placeholder left in can reach a stranger's
+site and print a clean-looking 200, and the robots.txt below must be your own file. An
+empty answer is never a pass either: it means curl could not reach the site. Your
+assistant can run them; on Windows use Git Bash or WSL.
 
 ```bash
 curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|report-to:|strict-transport-security:|set-cookie:)'
@@ -237,10 +239,11 @@ script, such as `cf_clearance`; the source search below covers that.
 curl -s https://yourdomain.com/robots.txt
 ```
 
-You want your own file: the starter's begins `User-agent: *` and ends with your sitemap
-line. It should have no AI-crawler `Disallow` lines you didn't write, other than ones from
-a policy you set to block or disallow. If Cloudflare's own lines for AI crawlers show and
-you didn't ask for them, tell your assistant: Cloudflare can add a managed `robots.txt`.
+You want your own file: the starter's begins `User-agent: *` and ends with a `Sitemap:`
+line that names your own domain, not the starter's `example.com`. It should have no
+AI-crawler `Disallow` lines you didn't write, other than ones from a policy you set to
+block or disallow. If Cloudflare's own lines for AI crawlers show and you didn't ask for
+them, tell your assistant: Cloudflare can add a managed `robots.txt`.
 
 ```bash
 curl -sI http://yourdomain.com/ | grep -iE '^(HTTP/|location:)'
@@ -294,7 +297,7 @@ look but not change anything):
 |---|---|
 | Zone → Zone Settings → Edit | Always Use HTTPS, Minimum TLS Version, Email Address Obfuscation, the NEL switch |
 | Zone → Transform Rules → Edit | the rule that removes the NEL headers |
-| Zone → Bot Management → Edit | Bot Fight Mode and the AI crawler policies |
+| Zone → Bot Management → Edit | Bot Fight Mode and the AI crawler policies, both on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
 | Zone → Zone → Read | finding your domain by name |
 | Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
 
