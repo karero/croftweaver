@@ -128,8 +128,10 @@ test.describe('tagline', () => {
       const box = document.createElement('textarea');
       return list.map((reference) => { box.innerHTML = reference; return box.value; });
     }, references);
-    expect(decoded.filter((value) => typeof value === 'string'),
-      'the browser did not return one text per character reference').toHaveLength(references.length);
+    expect(decoded, 'the browser did not return one answer per character reference')
+      .toHaveLength(references.length);
+    expect(decoded.every((value) => typeof value === 'string'),
+      'the browser returned something other than text for a character reference').toBe(true);
     const meaning = new Map(references.map((reference, i) => [reference, decoded[i]]));
     const plain = (source: string) => norm(unquoted(source)
       .replace(REFERENCE, (reference) => meaning.get(reference) ?? reference));
