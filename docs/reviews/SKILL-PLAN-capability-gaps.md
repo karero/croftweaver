@@ -19,7 +19,8 @@ it; a row is only as good as its evidence.
 | B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
 | C | Forms: a contact form with a submission test (`website-forms`) | **dropped 2026-10-08**: the skill and its CI job were removed; a mail-app contact form skill replaces it, planned separately. Section C below is kept as the record of what was built | the pull request that removed it |
 | D | Import: bring an existing site under the gate | scenarios only | — |
-| E | Install: one-line install, marketplace listing | blocked on the rename; both names claimed on npm 2026-10-06 with placeholder packages | `npm view webcroft`, `npm view create-webcroft` |
+| E1 | Install: a plugin for Claude Code (marketplace listing) | not built, and no longer waiting for the name: the rename landed as Croftweaver (#212), and `croftweaver` is claimed on npm. What stands in the way is in the skills, see E1 below | `npm view croftweaver` |
+| E2 | Install: one line, `npm create croftweaver` | built and tested, not published: the package is `packages/create-croftweaver`; npm still serves the placeholder (0.0.1) until the owner publishes | the pull request that carries this row; `npm view create-croftweaver` |
 
 ## Build order, and why
 
@@ -34,10 +35,11 @@ it; a row is only as good as its evidence.
    existing site has a contact form, and an import that drops it loses a working
    feature.
 4. **Import (D).** The largest piece. Needs A and C.
-5. **Install (E).** Last only because it is blocked, not because it matters least: the
-   package name depends on a rename that has not landed in this repo, and publishing
-   to a registry or a marketplace is the owner's own action. Once the name is settled
-   it is small, and worth pulling forward.
+5. **Install (E).** Last only because it was blocked, not because it matters least: the
+   package name depended on the rename, and publishing to a registry or a marketplace is
+   the owner's own action. The rename landed as Croftweaver (#212), and the one-line
+   install (E2) was pulled forward and built on 2026-10-12. The plugin (E1) is the larger
+   half and stays where it was.
 
 The strongest argument against this order: install first, because nobody benefits
 from better checks in a kit they did not install, and the packaging could ship under
@@ -296,7 +298,59 @@ Done when the imported site passes the whole suite with every old address accoun
 
 ## E. Install
 
+### E1. A plugin for Claude Code (not built)
+
 | # | Given | When | Then |
 |---|---|---|---|
 | 1 | Claude Code, nothing installed | the user adds the plugin with one command | all skills are available, no clone and no script |
-| 2 | no assistant-specific setup | the user runs the `npm create` command | the skills are installed and the first step is explained |
+
+What stands in the way, checked 2026-10-12 against Claude Code's documentation
+(https://code.claude.com/docs/en/skills and https://code.claude.com/docs/en/plugin-marketplaces):
+
+- A plugin's skills are kept in the plugin's own folder, not in `~/.claude/skills/`. Ten
+  files under `skills/` name that folder as the place to read templates or scripts from
+  (`git grep -l -E '(~|\$HOME)/\.claude/skills' -- skills`), and one of them is
+  `new-website`, which looks for the suite there before it copies anything into a new
+  site. Installed as a plugin, the scaffold finds nothing to copy.
+- A plugin's skills carry the plugin's name in front (`croftweaver:new-website`), while
+  the copies inside a site keep the short names.
+- Adding a marketplace and installing from it are two commands
+  (`claude plugin marketplace add`, then `claude plugin install`), so "one command" means
+  one pasted line.
+
+So E1 starts with the skills finding their own files wherever they are installed, for all
+three assistants. That is a change to those ten files and needs its own scenarios.
+
+### E2. One line: `npm create croftweaver` (built 2026-10-12)
+
+| # | Given | When | Then |
+|---|---|---|---|
+| 1 | a computer with Node 22.12 or newer and no Croftweaver skills | the user runs `npm create croftweaver` | every skill of the latest release is in `~/.claude/skills/` as a folder of its own; the output names the release, the number of skills and the next step: restart the assistant in the websites folder and say "new website" |
+| 2 | skills installed this way from 0.31; then 0.32 comes out, without one skill and with a new one | the user runs the command again | the folder matches 0.32: each skill is replaced whole, the new one is added, the one that left is removed |
+| 3 | a folder `copywriting` in the skills folder that the user got somewhere else | the command runs | that folder is moved to `skills-before-croftweaver-…` beside the skills folder, the output says where it went, and Croftweaver's `copywriting` is installed |
+| 4 | skills linked from a cloned or unzipped toolkit folder by `scripts/install.sh` | the command runs | the links stay and the output says they update from that folder; with `-- --force` each link becomes a copy, and the toolkit folder is not touched |
+| 5 | a Codex or an Antigravity user | the user adds `-- --codex` or `-- --antigravity` | the skills go to `~/.agents/skills/` or `~/.gemini/config/skills/` |
+| 6 | no connection, or a download that is cut short, damaged or not a Croftweaver release | the command runs | it says why, changes nothing in the skills folder, and ends with an error |
+| 7 | a Windows terminal without Git Bash or WSL | the user runs the command | the same as row 1 |
+
+How it works: the package holds no skills. It downloads `croftweaver.zip` from the latest
+GitHub release and unpacks it itself, so it is published once and every later release
+reaches users without a new npm version. It keeps a list of what it copied
+(`.croftweaver.json` in the skills folder), which is how it tells its own copies from a
+folder someone else put there.
+
+Known limits:
+
+- It needs Node, which the gentle guide (`docs/GETTING-STARTED.md`) does not ask for until
+  a site is built. So it is the route for someone at home in a terminal, and the starter
+  prompt stays the route for everyone else.
+- The download is trusted because it comes from the release page over HTTPS. Nothing else
+  checks it, as with a zip downloaded by hand.
+- Behind a company proxy the download can fail where `npm` itself works: Node's own
+  download does not read npm's proxy settings.
+- Row 7 is proven by the CI job on a Windows runner only, not on a person's machine. The
+  test that zips the real skills with the `zip` tool does not run there, because the runner
+  has no `zip`; the reader it tests is the same code.
+
+Done when the owner has published the package and one run of `npm create croftweaver` on a
+computer without the skills ends at row 1.

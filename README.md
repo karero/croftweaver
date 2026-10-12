@@ -139,7 +139,20 @@ from it.
 ### Quick start — build your first site
 
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
-Console/API account). Then, **three steps**:
+Console/API account).
+
+**The short way.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
+skills. It runs in any terminal, on Windows too:
+
+```bash
+npm create croftweaver
+```
+
+It copies the skills of the latest release into `~/.claude/skills/` and tells you the next
+step, which is step 3 below. To update, run it again. For Codex add `-- --codex`, for
+Antigravity `-- --antigravity`.
+
+**By hand**, in three steps:
 
 ```bash
 # 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo.
@@ -176,7 +189,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `~/.claude/skills/` directly, those are symlinks into the repo). If you cloned,
 > `git pull` therefore updates every installed skill at once — nothing to re-install;
 > to undo an update, `git revert` is equally live. From a zip, re-run
-> `./scripts/install.sh` in a newer unzipped copy.
+> `./scripts/install.sh` in a newer unzipped copy. After `npm create croftweaver` the
+> installed skills are copies, not symlinks: run the command again, and it replaces them
+> with the latest release.
 >
 > Sites already scaffolded by `new-website` hold frozen **copies** of the skills and
 > don't update with the suite. Each carries a `SUITE-VERSION` stamp recording the suite
@@ -206,7 +221,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
 > never marked MISSING.
 >
-> **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
+> **Windows:** `npm create croftweaver` (above) runs in any terminal. By hand, run
+> `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
 > (`Copy-Item -Recurse -Force .\skills\* "$env:USERPROFILE\.claude\skills\"`).
 
@@ -327,6 +343,9 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
+packages/      (repo only: the zip does not hold it)
+  create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
+                   into the assistant's skills folder. The maintainer publishes it to npm (make test-create)
 ```
 
 ### Opt-in and on-demand setup skills

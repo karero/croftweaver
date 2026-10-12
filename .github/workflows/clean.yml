@@ -39,7 +39,9 @@ name: clean
 # (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
 # for the shell scripts, the site hook and the Makefile. And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`,
-# and the facts-check tests (`make test-facts`), which need nothing beyond python3.
+# and the facts-check tests (`make test-facts`), which need nothing beyond python3, and the
+# tests of the `npm create croftweaver` installer (`make test-create`), which need nothing
+# beyond node, on Linux, macOS and Windows.
 on:
   push:
     branches: [main]
@@ -330,6 +332,28 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run the facts-check tests (stub site on 127.0.0.1, no real requests)
         run: make test-facts PYTHON=python
+  create-croftweaver-tests:
+    # The installer calls no other program, so that it runs in a Windows terminal, where the
+    # shell installers need Git Bash or WSL. Only a run on Windows shows that, so it runs on
+    # all three systems with the site template's node, and once on the oldest node its
+    # package.json accepts. An empty `node` leaves the choice to node-version-file.
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [""]
+        include:
+          - os: ubuntu-latest
+            node: "22.12.0"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Run the create-croftweaver tests (stub of the release download on 127.0.0.1, no real requests)
+        working-directory: packages/create-croftweaver
+        run: node --test
   macos-stock-tools:
     # Every job above runs on Ubuntu (bash 5, GNU awk/sed/tr). A zip recipient on a Mac runs
     # the same guards under /bin/bash 3.2 and BSD tools, and v0.27's pre-release review found

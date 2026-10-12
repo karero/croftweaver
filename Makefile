@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test test-facts smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts test-create smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -44,6 +44,9 @@ test:      ## run the search-console-insights tests (tracker + AI check; needs `
 
 test-facts: ## run the facts-check tests (standard library only; a stub site on 127.0.0.1, no real requests)
 	@$(PYTHON) -m unittest discover -s skills/facts-check/scripts/tests
+
+test-create: ## run the create-croftweaver tests (the `npm create croftweaver` installer; node only; a stub of the release download on 127.0.0.1, no real requests). Not part of check/package: the handoff zip does not hold packages/
+	@cd packages/create-croftweaver && node --test
 
 # A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.
 # It runs in the C locale, as check_clean.sh does, so both read "the names" byte for byte alike
