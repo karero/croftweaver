@@ -171,12 +171,13 @@ function install(staging, names, dest, release, force) {
   return result;
 }
 
-// Removes `from` and its parents up to `upTo`, as far as they are empty.
-function removeEmpty(from, upTo) {
-  for (let dir = from; dir !== path.dirname(dir); dir = path.dirname(dir)) {
-    try { fs.rmdirSync(dir); } catch { return; }
-    if (dir === upTo) return;
-  }
+// The folders that do not exist yet on the way to `dest`, deepest first. They are listed
+// before they are made: what mkdirSync returns is spelled differently from `dest` on Windows
+// (a short 8.3 name against a long one), so it cannot say where to stop removing.
+function missingFolders(dest) {
+  const missing = [];
+  for (let dir = dest; !fs.existsSync(dir); dir = path.dirname(dir)) missing.push(dir);
+  return missing;
 }
 
 function report({ copied, kept, moved, removed, backup }, dest, release, { label, flag }) {
@@ -202,13 +203,14 @@ if (major < 22 || (major === 22 && minor < 12)) {
 const { assistant, force } = parseArgs(process.argv.slice(2));
 const dest = path.resolve(ASSISTANTS[assistant].dir());
 let staging = null;
-let made;   // the topmost folder this run had to create for `dest`, if any
+let made = [];   // the folders this run had to create for `dest`
 let changing = false;
 try {
   const { release, zip } = await download(ZIP_URL).catch((e) => {
     throw new Error(`the download from ${ZIP_URL} failed (${e.cause?.code ?? e.message}). Check your internet connection, then run the command again.`);
   });
-  made = fs.mkdirSync(dest, { recursive: true });
+  made = missingFolders(dest);
+  fs.mkdirSync(dest, { recursive: true });
   staging = fs.mkdtempSync(path.join(dest, '.croftweaver-staging-'));
   let names;
   try {
@@ -228,5 +230,7 @@ try {
 } finally {
   if (staging) fs.rmSync(staging, { recursive: true, force: true });
   // "Nothing was changed" holds on a computer without the skills too: no empty folder stays.
-  if (made && !changing) removeEmpty(dest, made);
+  // rmdirSync removes an empty folder only, so after a run that installed something this
+  // stops at the first folder.
+  try { for (const dir of made) fs.rmdirSync(dir); } catch { /* not empty: it stays */ }
 }

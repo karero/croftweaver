@@ -336,8 +336,11 @@ jobs:
     # The installer calls no other program, so that it runs in a Windows terminal, where the
     # shell installers need Git Bash or WSL. Only a run on Windows shows that, so it runs on
     # all three systems with the site template's node, and once on the oldest node its
-    # package.json accepts. An empty `node` leaves the choice to node-version-file.
+    # package.json accepts. An empty `node` leaves the choice to node-version-file. Each
+    # system reports for itself: with fail-fast, one failing cancels the others, and a
+    # cancelled job reads as failed.
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node: [""]
