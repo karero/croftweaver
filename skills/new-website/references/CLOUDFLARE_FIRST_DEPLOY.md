@@ -204,6 +204,17 @@ setting's history, the cloudflare-docs pull requests that
 [removed](https://github.com/cloudflare/cloudflare-docs/pull/17200) (2024) and
 [restored](https://github.com/cloudflare/cloudflare-docs/pull/22331) (2025) its docs.
 
+## After the first deploy: the Cloudflare settings checklist
+
+The kit's promises (no cookies, no tracking the owner didn't choose, open to search engines
+and AI assistants) also rest on a few Cloudflare settings that live in the dashboard, such
+as HTTPS and TLS, HSTS, Network Error Logging, Bot Fight Mode, Web Analytics, Crawler Hints
+and the AI crawler policies. `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder lists
+them with their dashboard paths, and an outside check where one exists. Once the site is
+live, offer to go through it with the owner. Offer the token route too (section 6 of the
+checklist): the guardrails above apply to it, and the owner runs the checklist's section 5
+before the token is deleted.
+
 ---
 
 ## Going live: moving an existing domain's DNS to Cloudflare — verify twice
