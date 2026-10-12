@@ -105,12 +105,12 @@ in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FI
   - **No-Sniff Header:** Off. The starter already sends `X-Content-Type-Options: nosniff`.
 
   HSTS also leaves a note in the browser. Its only job is to keep the visitor's own
-  connection on HTTPS, and it sends nothing anywhere. If your privacy page says nothing at
-  all is stored on the visitor's device, that is then no longer literally true: ask your
-  assistant to add a line about it. That is our judgment, not a ruling. Once HSTS is on,
-  don't switch the domain's records to "DNS only", pause Cloudflare, move the nameservers
-  away or turn SSL off: if your site then has no working HTTPS, browsers refuse it until
-  the max age runs out.
+  connection on HTTPS, and it sends nothing anywhere. If your privacy page says that
+  nothing at all is stored on the visitor's device, that is then no longer literally true:
+  ask your assistant to add a line about it. That is our judgment, not a ruling. Once HSTS
+  is on, don't switch the domain's records to "DNS only", pause Cloudflare, move the
+  nameservers away or turn SSL off: if your site then has no working HTTPS, browsers
+  refuse it until the max age runs out.
 
 ## 3. Keep the privacy page true: no cookies, scripts or tracking you didn't choose
 
@@ -118,8 +118,8 @@ Your privacy page says what the site sets and runs: no cookies, and at most the 
 measurement tool you chose when the site was built. These settings stop Cloudflare adding
 cookies, scripts or tracking you didn't choose.
 
-- [ ] **Network Error Logging (NEL): Off.** A switch, a check, and a rule if the header is
-  still there.
+- [ ] **Network Error Logging (NEL): Off.** A look, a switch, a check, and a rule if the
+  header is still there.
   *What it is:* the browser keeps a note, and if it can't reach your site it sends a short
   error report to Cloudflare. Chrome, Edge and other Chromium browsers do this; Firefox
   and Safari don't. When we looked on 12 October 2026, Cloudflare's header set the note to
@@ -132,14 +132,15 @@ cookies, scripts or tracking you didn't choose.
   NEL is untested. This is a risk, not a verdict, and this is not legal advice. Off avoids
   the question.
   *It can be on without you ever choosing it.* Check, don't assume (section 5).
-  1. **The switch.** Cloudflare's guide: Account home → Network → Network Error Logging
+  1. **Look first.** Run the first command in section 5. If it shows a `nel:` line, note
+     the `max_age` number in it: it is how many seconds visitors keep the note.
+  2. **The switch.** Cloudflare's guide: Account home → Network → Network Error Logging
      Monitoring. If your dashboard shows **Network** only after you open your domain, use
      it there. Switch it **Off**. Any zone administrator can switch it back on. If the
-     switch is missing or greyed out, go straight to step 3.
-  2. **Check.** Run the first command in section 5. The `nel:` and `report-to:` lines
-     should be gone. If the `nel:` line is there, note the `max_age` number in it: it is
-     how many seconds visitors keep the note.
-  3. **If they are still there, add a rule that removes them.** When we tried this on a
+     switch is missing or greyed out, go straight to step 4.
+  3. **Check.** Run the same command again. The `nel:` and `report-to:` lines should be
+     gone.
+  4. **If they are still there, add a rule that removes them.** When we tried this on a
      Pages site, the switch alone did not stop the header: the setting read "off" through
      Cloudflare's API, and the header was still served half an hour later. Your domain →
      Rules → Overview → Create rule → **Response Header Transform Rule**. Name it "Remove
@@ -152,10 +153,12 @@ cookies, scripts or tracking you didn't choose.
 
   Visitors who came in before can keep the old note until that many seconds have passed
   (604800 seconds is seven days). The `<project>.pages.dev` address is outside your domain,
-  so the rule doesn't reach it: send that address to your live domain (section 1). If the
-  header is still there after the rule, tell your assistant or ask Cloudflare Support.
-  Cloudflare's support article describes a flag, `nel___enable`, that stops NEL being
-  enabled on a zone.
+  so the rule can't reach it, and we have found no way to remove the headers there.
+  Sending that address to your live domain (section 1) moves visitors on; it removes
+  nothing. The last command in section 5 shows whether that address still sends them. If
+  the header is still there on your own domain after the rule, tell your assistant or ask
+  Cloudflare Support. Cloudflare's support article describes a flag, `nel___enable`, that
+  stops NEL being enabled on a zone.
 - [ ] **Bot Fight Mode: Off.**
   Your domain → Security → Settings → filter by **Bot traffic** → Bot fight mode.
   *Why:* Cloudflare says JavaScript detections come with it and can't be switched off.
@@ -178,8 +181,8 @@ cookies, scripts or tracking you didn't choose.
   Your domain → Security → Settings → filter by **Client-side abuse** → Email Address
   Obfuscation.
   *Why:* Cloudflare turns it on when you sign up. It rewrites the plain email addresses it
-  finds in your page text and adds a script (`email-decode.min.js`). The kit already hides
-  addresses.
+  finds in your pages, mail links included, and adds a script (`email-decode.min.js`). The
+  kit already hides addresses.
 
 ## 4. Be found, by search engines and AI assistants
 
@@ -205,19 +208,25 @@ cookies, scripts or tracking you didn't choose.
 
 ## 5. Check your work
 
-Run these once the production deployment shows **Active** (your project → Deployments).
-The first request a new domain sees is the one Cloudflare's edge keeps, so don't run them
-earlier. Replace `yourdomain.com` with your domain and `yourproject` with your Pages
-project's name (the first part of its `.pages.dev` address). An empty answer is never a
-pass: it means curl could not reach the site, or a placeholder is still in the command.
-Your assistant can run them; on Windows use Git Bash or WSL.
+Run these once your own domain serves this site: the production deployment shows
+**Active** (your project → Deployments), the custom domain is Active, and
+`https://yourdomain.com/build.txt` shows the current build. The first request a new domain
+sees is the one Cloudflare's edge keeps, so don't run them earlier. Replace
+`yourdomain.com` with your domain and `yourproject` with your Pages project's name (the
+first part of its `.pages.dev` address). Before you trust any answer, make sure the domain
+in the command is yours: a placeholder left in can reach a stranger's site and print a
+clean-looking 200, and the robots.txt below must be your own file. An empty answer is
+never a pass either: it means curl could not reach the site. Your assistant can run them;
+on Windows use Git Bash or WSL.
 
 ```bash
 curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|report-to:|strict-transport-security:|set-cookie:)'
 ```
 
-You want a status line, `HTTP/2 200`, and nothing else until you switch HSTS on (section
-2). A `nel:` or `report-to:` line means NEL is still on. A `set-cookie:` line means
+You want a 200 status line (`HTTP/2 200`, or `HTTP/1.1 200 OK` on an older curl) and
+nothing else until you switch HSTS on (section 2). A 3xx status line means something else
+is redirecting your live domain: find out what before you trust the rest. A `nel:` or
+`report-to:` line means NEL is still on. A `set-cookie:` line means
 something is setting a cookie: tell your assistant. Once HSTS is on you also want a
 `strict-transport-security:` line with `max-age=` followed by the seconds for the months
 you chose (for six months we saw 15552000), with `; includeSubDomains` after it only if you
@@ -248,10 +257,12 @@ curl -sI "https://yourproject.pages.dev/?cb=$(date +%s)" | grep -iE '^(HTTP/|loc
 Run this one only after you set `CANONICAL_URL` and published again (section 1). You want a
 301 and a `location:` line that starts `https://yourdomain.com/`. A 200 means one of: the
 variable isn't under Production, it is misnamed, the deployment is older than the variable,
-the site predates the redirect, or the value isn't one the redirect accepts (it must start
-`https://` and must not be a pages.dev address). If `nel:` or `report-to:` lines show on
+the site predates the redirect, the value isn't one the redirect accepts (it must start
+`https://`, must not be a pages.dev address and must not have an empty part such as
+`example..com`), or the day's Functions allowance ran out and Fail open is serving the
+files without the redirect until midnight UTC. If `nel:` or `report-to:` lines show on
 this address, the rule in section 3 doesn't reach it: that address belongs to Cloudflare,
-not to your domain.
+not to your domain. Tell your assistant; we have found no way to remove them there.
 
 - **No scripts you didn't add:** open your home page, view the source, and search for
   `cdn-cgi`, `email-decode` and `cloudflareinsights`. None should be there.
@@ -272,7 +283,8 @@ API. A token only gives permission: the changes happen when your assistant makes
 calls, one at a time. If you would rather not click through the dashboard, make one token,
 hand it to your assistant for an afternoon, and delete it afterwards. HSTS is not part of
 that afternoon: switch it on a few days after go-live (section 2), with a second token or
-by hand.
+by hand. Setting `CANONICAL_URL` waits too, until your own domain serves the site (section
+1).
 
 **Make the token.** My Profile → API Tokens → Create Token → Create Custom Token. Add these
 permission rows, each set to **Edit** except the Zone → Read row (a read-only token can
@@ -300,10 +312,11 @@ environment variable for the session, or a file the repository ignores. Don't pa
 into email, a document or a chat other people can read. Never commit it, and never put it
 in a file the repository tracks or in the README. Ask the assistant to look before it
 writes, to tell you each change before it makes it, and to read each setting back
-afterwards. Some changes replace a whole list, as the Transform Rules do, and a change to
-one variable may replace the project's others, so it must list what is there before and
-after, and stop if there is something it would overwrite. If the API refuses a setting
-(some are limited to certain plans), do that item by hand from sections 1 to 4.
+afterwards. Some changes replace a whole list, as the Transform Rules do: it must read
+what is there and send it back with the change. A change to one variable may replace the
+project's others: it must list them before and after, and put back any that went missing.
+If the API refuses a setting (some are limited to certain plans), do that item by hand
+from sections 1 to 4.
 
 **Then check it yourself.** Before you delete the token, run the commands in section 5 and
 look at the output. An API can say a setting is off while the site still sends the header,
