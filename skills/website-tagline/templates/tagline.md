@@ -33,8 +33,16 @@ here and leave the rest of this section out.
 - **Words to keep:** [words they liked]
 - **Words to avoid:** [words they pushed back on]
 
-## Lines not chosen (do not propose these again)
+## Liked, not picked (worth showing again if the tagline is ever reworked)
+
+Lines the owner liked as a whole and never dropped.
+
+| Line | Direction | Leans on POSITIONING.md |
+|---|---|---|
+| [line] | [direction] | §[n] |
+
+## Other lines shown (do not propose these again)
 
 | Line | Direction | Leans on POSITIONING.md | Why not |
 |---|---|---|---|
-| [line] | [direction] | §[n] | [the owner's reason, or "not picked"] |
+| [line] | [direction] | §[n] | [dropped by the owner: their reason, or "not picked"] |

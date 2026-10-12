@@ -60,8 +60,8 @@ how it will go before the first line, in the language the owner writes in (per
 
 - **`TAGLINE.md`** (from this skill's `templates/tagline.md`), next to
   `POSITIONING.md`: the purpose sentence, the chosen line, what the owner said
-  about direction and wording, and the lines not chosen, so a later session does
-  not propose them again.
+  about direction and wording, the lines the owner liked but did not pick, and the
+  other lines shown, so a later session does not propose those again.
 - **`SITE.tagline`** in `src/config.ts`: the chosen line, verbatim.
 - **The line on the site**, under the logo, read from `SITE.tagline` (§6).
 
@@ -132,7 +132,8 @@ Show the round to the owner as a plain numbered list, grouped under the
 directions in everyday words, with no table and no section numbers. The trace to
 `POSITIONING.md` goes into `TAGLINE.md`, not into the chat.
 
-**Worked example** (a made-up business; reuse the shape, not the words):
+**Worked example** (a made-up business; the evals use a different one on purpose,
+so reuse the shape, not the words):
 
 - From `POSITIONING.md`: target = freelancers who dread the quarterly tax return;
   alternatives = doing the books themselves at night, a large accountancy firm;
@@ -181,8 +182,10 @@ free answer for "none of these"), otherwise ask in chat. Then:
 
 Round two: **four to six** new lines in that direction. Keep any line or phrase
 the owner liked word for word, and drop every word they pushed back on. A line the
-owner liked as a whole stays in the running: show it again, unchanged, beside the
-new lines of the next round. It does not count towards their number.
+owner liked as a whole stays in the running until the owner drops it or picks a
+line: show it again, unchanged, beside the new lines of every later round. It does
+not count towards their number. Only the owner drops a line; not mentioning it is
+not dropping it.
 
 **Worked example, continued:**
 
@@ -231,19 +234,24 @@ conversation ended.
 
 - Asked the three feedback questions, the owner says: "The fourth new one is
   nearly it. I would say 'Sunday evenings', not 'Sunday nights'. Can it be
-  shorter? And 'gone' in the third sounds like an advert."
-- Only those three things change. The owner liked no line as a whole this time, so
-  none is carried over. Round three is two lines:
+  shorter? 'Gone' in the third sounds like an advert. And you can drop 'No more
+  Sunday-night spreadsheets'."
+- Only those things change. That line leaves the list because the owner dropped
+  it; the other liked line stays, although the owner did not mention it:
 
+  > **Still in the running**
+  > - Your books done. Your evenings back.
+  >
+  > **New**
   > 1. Your books done. Your Sunday evenings back.
   > 2. Books done. Sunday evenings back.
 
-- The owner picks line 1: "The short one sounds like a telegram." A search for the
+- The owner picks new line 1: "The short one sounds like a telegram." A search for the
   exact line in quotation marks finds no other bookkeeper using it, and the owner
   is told that this was a courtesy search, not a trademark check.
 - `TAGLINE.md` records the line, "evenings back" as words to keep, "dread" and
-  "gone" as words to avoid, and the thirteen lines not chosen. `SITE.tagline` gets
-  the line verbatim.
+  "gone" as words to avoid, the one line that was liked but not picked, and the
+  twelve other lines shown. `SITE.tagline` gets the line verbatim.
 
 ## 6. Record it and place it
 
@@ -253,8 +261,8 @@ the header stay as they are.
 
 1. **`TAGLINE.md`**: copy `templates/tagline.md` next to `POSITIONING.md` and fill
    it: the purpose sentence, the chosen line with its direction and the section it
-   leans on, the owner's direction and feedback in their words, and every line not
-   chosen.
+   leans on, the owner's direction and feedback in their words, the lines liked
+   but not picked, and every other line shown.
 2. **`SITE.tagline`** in `src/config.ts`: the chosen line, verbatim.
 3. **Under the logo.** Where the site's header shows the logo or the name, add the
    line beneath it as a `<p>` that reads `SITE.tagline`. Never type the line a
