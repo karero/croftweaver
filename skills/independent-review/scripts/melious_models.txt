@@ -3,8 +3,10 @@
 #
 # One model id per line, as Melious's /v1/models lists it. The word "light" after an id means
 # that model runs only in a Light review: the run must say --depth light, and with any other
-# depth, or none, it is refused. Blank lines and lines that start with # are skipped; any
-# other line stops every run that sets MELIOUS_MODEL, so a typo cannot widen the list.
+# depth, or none, it is refused. Blank lines and lines that start with # are skipped. A line
+# of any other shape (a misspelt "light", a third word, a comment after an id) stops every run
+# that sets MELIOUS_MODEL, so a slip in the second word cannot read as "any depth". If an id
+# stands on two lines, the first decides.
 #
 # The owner's rule, 2026-10-12: GLM 5.3 and no other model, and GLM 5.3 Flash for a Light
 # review. Kimi and every other model run on ollama (OLLAMA_MODEL), never here. Change the list
