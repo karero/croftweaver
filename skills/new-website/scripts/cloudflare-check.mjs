@@ -240,12 +240,12 @@ async function getHome(url, t, stamp) {
     try {
       next = new URL(header(r, 'location'), r.url);
     } catch {
-      break;
+      break; // no Location, or one that is not an address
     }
-    if (!header(r, 'location') || next.href === r.url) break; // nowhere to go, or to here
     if (next.origin !== new URL(url).origin) break; // another address: a person decides
-    hops.push({ status: r.status, location: header(r, 'location') });
     next.searchParams.set('cb', String(stamp));
+    if (next.href === r.url) break; // to the page we are on
+    hops.push({ status: r.status, location: header(r, 'location') });
     r = await get(next.href, t);
     if (!r.error) chain.push(r.headers);
   }
@@ -311,39 +311,122 @@ function leadsTo(location, base, wanted) {
   }
 }
 
-function sameAddress(location, base) {
+function addressOf(location, base) {
   try {
-    return new URL(location, base).origin === new URL(base).origin;
+    return location ? new URL(location, base) : null;
   } catch {
-    return false;
+    return null;
   }
 }
+function sameAddress(location, base) {
+  return addressOf(location, base)?.origin === new URL(base).origin;
+}
 
-// What a browser would act on in a page: its tags and the text of its scripts. Comments and
-// the words a person reads are left out, so a page that talks about these things is not
-// taken for one that loads them.
-const POINTS_AT = new Set(['src', 'href', 'data-src', 'srcset', 'action', 'poster']);
-function scanPage(body) {
-  const clean = body.replace(/<!--[\s\S]*?-->/g, ' ');
-  const urls = []; // what a tag points at
-  const added = []; // attributes Cloudflare adds, by name
-  for (const tag of clean.match(/<[a-z][^>]*>/gi) ?? []) {
-    for (const m of tag.matchAll(/\s([a-z][a-z0-9:_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi)) {
-      const name = m[1].toLowerCase();
-      if (POINTS_AT.has(name)) urls.push(m[2] ?? m[3] ?? m[4] ?? '');
+// A small reader of HTML: the tags of a page with their attributes (quotes respected, so a
+// ">" inside a value does not end a tag), and the text of its scripts. Comments are skipped.
+// It is not a browser. It is enough to tell what a page loads from what it says.
+function readHtml(html) {
+  const lower = html.toLowerCase();
+  const n = html.length;
+  const tags = [];
+  const scripts = [];
+  let i = 0;
+  while (i < n) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) break;
+    if (html.startsWith('<!--', lt)) {
+      const end = html.indexOf('-->', lt + 4);
+      i = end === -1 ? n : end + 3;
+      continue;
     }
-    for (const m of tag.matchAll(/\s(data-cf-beacon|data-cfemail)(?=[\s=/>])/gi)) added.push(m[1]);
+    const m = /^<(\/?)([a-z][a-z0-9:-]*)/i.exec(html.slice(lt, lt + 64));
+    if (!m) {
+      i = lt + 1;
+      continue;
+    }
+    const name = m[2].toLowerCase();
+    let j = lt + m[0].length;
+    const attrs = [];
+    while (j < n) {
+      while (j < n && /[\s/]/.test(html[j])) j++;
+      if (j >= n) break;
+      if (html[j] === '>') {
+        j++;
+        break;
+      }
+      let k = j;
+      while (k < n && !/[\s=>/]/.test(html[k])) k++;
+      const attr = html.slice(j, k).toLowerCase();
+      j = k === j ? j + 1 : k;
+      while (j < n && /\s/.test(html[j])) j++;
+      let value = '';
+      if (html[j] === '=') {
+        j++;
+        while (j < n && /\s/.test(html[j])) j++;
+        const q = html[j];
+        if (q === '"' || q === "'") {
+          const end = html.indexOf(q, j + 1);
+          value = html.slice(j + 1, end === -1 ? n : end);
+          j = end === -1 ? n : end + 1;
+        } else {
+          let e = j;
+          while (e < n && !/[\s>]/.test(html[e])) e++;
+          value = html.slice(j, e);
+          j = e;
+        }
+      }
+      if (attr) attrs.push([attr, value]);
+    }
+    i = j;
+    if (m[1] === '') {
+      tags.push({ name, attrs });
+      if (name === 'script' || name === 'style') {
+        const close = lower.indexOf(`</${name}`, i);
+        const end = close === -1 ? n : close;
+        if (name === 'script') scripts.push(html.slice(i, end));
+        i = end;
+      }
+    }
   }
-  const scripts = [...clean.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map((m) => m[1]);
-  return { code: [...urls, ...added, ...scripts].join('\n').toLowerCase() };
+  return { tags, scripts };
 }
 
-// The paths Cloudflare's three named features use, anchored: a longer path that merely
-// contains one of these words is something else.
+// What a page loads, as addresses: the paths under /cdn-cgi/ that its tags and scripts use,
+// the hosts its tags point at, and the attribute names Cloudflare adds. Comments, the words a
+// person reads, and descriptive attributes such as title or alt are not in it.
+const POINTS_AT = new Set(['src', 'href', 'data-src', 'action', 'poster']);
+function scanPage(body) {
+  const { tags, scripts } = readHtml(body);
+  const urls = [];
+  const attrNames = new Set();
+  for (const t of tags) {
+    for (const [k, v] of t.attrs) {
+      attrNames.add(k);
+      if (k === 'srcset') urls.push(...v.split(',').map((x) => x.trim().split(/\s+/)[0]).filter(Boolean));
+      else if (POINTS_AT.has(k)) urls.push(v.trim());
+    }
+  }
+  const paths = new Set();
+  const hosts = new Set();
+  for (const u of urls) {
+    try {
+      const a = new URL(u, 'https://page.invalid');
+      hosts.add(a.hostname.toLowerCase());
+      if (a.pathname.toLowerCase().startsWith('/cdn-cgi/')) paths.add(a.pathname.toLowerCase());
+    } catch { /* not an address */ }
+  }
+  for (const text of scripts) {
+    for (const m of text.matchAll(/\/cdn-cgi\/[^\s"'<>)\\?#]+/gi)) paths.add(m[0].toLowerCase());
+  }
+  return { paths: [...paths], hosts, attrNames };
+}
+
+// The paths of Cloudflare's three named features, whole and anchored: a longer path that
+// only contains one of these words is something else.
 const KNOWN_CDN_CGI = [
   /^\/cdn-cgi\/challenge-platform\//,
-  /^\/cdn-cgi\/l\/email-protection/,
-  /^\/cdn-cgi\/scripts\/[^/]+\/cloudflare-static\/email-decode\.min\.js/,
+  /^\/cdn-cgi\/l\/email-protection$/,
+  /^\/cdn-cgi\/scripts\/[^/]+\/cloudflare-static\/email-decode\.min\.js$/,
 ];
 
 // A report-to header is a list of JSON objects. Is Cloudflare's NEL group among them?
@@ -387,11 +470,12 @@ function readRobots(body) {
     else if (key === 'content-signal') signals = true;
     else if ((key === 'allow' || key === 'disallow') && current) current.rules.push([key, val]);
   }
-  // "/", "/*" and "*" all name every path. A group that disallows it and allows it too leaves
-  // it open: the least restrictive rule wins when two are equally specific (RFC 9309).
+  // "/", "/*" and "*" all name every path. When a group both disallows and allows such a
+  // pattern, the one with more octets is the more specific and wins, and a tie goes to allow
+  // (RFC 9309, 2.2.2): "Disallow: /*" beats "Allow: /", and "Disallow: /" with "Allow: /" is open.
   const everything = (v) => v === '/' || /^\/?\*+$/.test(v);
-  const blocks = (g) => g.rules.some(([k, v]) => k === 'disallow' && everything(v))
-    && !g.rules.some(([k, v]) => k === 'allow' && everything(v));
+  const longest = (g, kind) => Math.max(0, ...g.rules.filter(([k, v]) => k === kind && everything(v)).map(([, v]) => v.length));
+  const blocks = (g) => longest(g, 'disallow') > longest(g, 'allow');
   const named = groups.flatMap((g) => g.agents).filter((a) => a !== '*');
   return {
     hasStar: groups.some((g) => g.agents.includes('*')),
@@ -438,14 +522,15 @@ export function evaluate(obs, target, opts) {
     ? ` It answered ${home.hops[0].status} first and sent us to ${home.hops[0].location}${home.hops.length > 1 ? ' and on' : ''}; the page is judged where that ends.`
     : '';
   const where = bare(home.url);
-  // A header counts if any answer on the way carried it. HSTS: the page's own first.
-  const hdr = (name) => [...new Set((home.chain ?? []).map((h) => [].concat(h[name] ?? []).join(', ')).filter(Boolean))].join(', ');
+  // The headers of each answer on the way, the page's own last. Each is read by itself: two
+  // values joined are not one value.
+  const values = (name) => (home.chain ?? []).map((h) => [].concat(h[name] ?? []).join(', ')).filter(Boolean);
 
   if (home.error) put('domain', 'fail', noAnswer(home), `Is the domain attached to the project, and are its DNS records on Cloudflare? ${section(1)}`);
   else if (challenged) put('domain', 'fail', `Cloudflare answered ${home.status} with a challenge page, so the site itself was not seen. Bot Fight Mode, or a rule, is challenging requests like this one.`, section(3));
   else if (home.status >= 400) put('domain', 'fail', `${where} answered ${home.status}${cloudflareError[home.status] ? `: ${cloudflareError[home.status]}` : ''}.`, section(1));
-  else if (home.status >= 300 && !header(home, 'location')) put('domain', 'look', `${where} answered ${home.status} with no Location header, so the page was not judged.`);
-  else if (home.status >= 300 && sameAddress(header(home, 'location'), home.url)) put('domain', 'look', `${where} redirected ${home.hops.length + 1} times on this address and was still redirecting (to ${header(home, 'location')}), so the page was not judged.`);
+  else if (home.status >= 300 && !addressOf(header(home, 'location'), home.url)) put('domain', 'look', `${where} answered ${home.status} with ${header(home, 'location') ? `a Location that is not an address (${header(home, 'location').slice(0, 60)})` : 'no Location header'}, so the page was not judged.`);
+  else if (home.status >= 300 && sameAddress(header(home, 'location'), home.url)) put('domain', 'look', `${where} redirected ${home.hops.length + 1 === 1 ? 'once' : `${home.hops.length + 1} times`} on this address and was still redirecting (to ${header(home, 'location')}), so the page was not judged.`);
   else if (home.status >= 300) put('domain', 'look', `${where} answered ${home.status} and sends visitors to ${header(home, 'location')}. That is another address, so the page was not judged: run the check on it.`, 'Is that redirect yours (www, another language)? Run the check against the address it leads to.');
   else if (home.status !== 200) put('domain', 'look', `${where} answered ${home.status}, not a 200 page, so the page was not judged.`);
   else if (empty) put('domain', 'fail', `${where} answered 200 with nothing in it: an empty page is not your site.`, section(1));
@@ -468,7 +553,7 @@ export function evaluate(obs, target, opts) {
   // 3. HSTS
   if (!seen) skip('hsts', notChecked);
   else {
-    const sts = header(home, 'strict-transport-security') || hdr('strict-transport-security');
+    const sts = values('strict-transport-security').at(-1) ?? '';
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
     if (!sts) {
       if (opts.hstsOn) put('hsts', 'fail', `you said HSTS is on, but the answer has no strict-transport-security header${via}.`, section(2));
@@ -490,18 +575,22 @@ export function evaluate(obs, target, opts) {
   // 4. NEL
   if (!seen) skip('nel', notChecked);
   else {
-    const nel = hdr('nel');
-    const rt = hdr('report-to');
-    let policy = null;
-    try { policy = JSON.parse(nel); } catch { /* not JSON: say nothing about it */ }
-    const age = Number.isFinite(policy?.max_age) ? ` (max_age ${policy.max_age} seconds)` : '';
+    const policies = values('nel').map((v) => {
+      try { return JSON.parse(v); } catch { return null; } // not JSON is still a nel header
+    });
+    const live = policies.find((p) => p === null || p.max_age !== 0); // a policy that is not a withdrawal
+    const withdrawn = policies.length > 0 && !live;
+    const reports = values('report-to');
+    const cfReport = reports.some((v) => cloudflareGroup(v) === true);
+    const nel = policies.length > 0;
+    const age = Number.isFinite(live?.max_age) ? ` (max_age ${live.max_age} seconds)` : '';
     const aliasNel = alias && !alias.error && (header(alias, 'nel') || header(alias, 'report-to'))
       ? ' The pages.dev address still sends them; the header rule cannot reach it, and no way to remove them there has been found.' : '';
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
-    if (nel && policy?.max_age === 0) put('nel', 'look', `the nel header says max_age 0, which tells browsers to forget the policy${via}.${aliasNel}`, section(3));
-    else if (nel) put('nel', 'fail', `the answer carries a nel header${age}: Network Error Logging is on${via}.`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
-    else if (rt && cloudflareGroup(rt)) put('nel', 'fail', `the answer carries Cloudflare's NEL reporting group in a report-to header${via}.`, `Remove it with the header rule. ${section(3)}`);
-    else if (rt) put('nel', 'look', `no nel header, but a report-to header is sent${via}. If it is not yours, remove it with the header rule; if your site sets its own reporting groups, leave it.${aliasNel}`, section(3));
+    if (nel && live !== undefined) put('nel', 'fail', `the answer carries a nel header${age}: Network Error Logging is on${via}.`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
+    else if (cfReport) put('nel', 'fail', `the answer carries Cloudflare's NEL reporting group in a report-to header${via}.`, `Remove it with the header rule. ${section(3)}`);
+    else if (withdrawn) put('nel', 'look', `the nel header says max_age 0, which tells browsers to forget the policy${via}.${aliasNel}`, section(3));
+    else if (reports.length) put('nel', 'look', `no nel header, but a report-to header is sent${via}. If it is not yours, remove it with the header rule; if your site sets its own reporting groups, leave it.${aliasNel}`, section(3));
     else if (offPage) put('nel', 'look', `no nel and no report-to header, judged from the ${home.status} answer, not the page.${aliasNel}`);
     else put('nel', 'ok', `no nel and no report-to header on the home page.${aliasNel}`);
   }
@@ -514,9 +603,9 @@ export function evaluate(obs, target, opts) {
   const cookies = seen ? [...new Set((home.chain ?? []).flatMap((h) => [].concat(h['set-cookie'] ?? [])).map((c) => c.split('=')[0].trim()))] : [];
   const cfCookies = cookies.filter((c) => CF_COOKIE.test(c));
   const found = {
-    bot: scanned?.code.includes('/cdn-cgi/challenge-platform') ?? false,
-    analytics: (scanned?.code.includes('cloudflareinsights') || scanned?.code.includes('data-cf-beacon')) ?? false,
-    email: scanned ? /email-decode|\/cdn-cgi\/l\/email-protection|data-cfemail/.test(scanned.code) : false,
+    bot: scanned?.paths.some((p) => KNOWN_CDN_CGI[0].test(p)) ?? false,
+    analytics: scanned ? scanned.attrNames.has('data-cf-beacon') || scanned.hosts.has('static.cloudflareinsights.com') : false,
+    email: scanned ? scanned.attrNames.has('data-cfemail') || scanned.paths.some((p) => KNOWN_CDN_CGI[1].test(p) || KNOWN_CDN_CGI[2].test(p)) : false,
   };
   const judgeSource = (id, hit, hitText, okText) => {
     if (hit) put(id, 'fail', hitText, section(3));
@@ -533,13 +622,12 @@ export function evaluate(obs, target, opts) {
     put('bot', 'look', `the home page sets ${cookies.length === 1 ? 'a cookie' : 'cookies'} that ${cookies.length === 1 ? 'is' : 'are'} not Cloudflare's own: ${cookies.join(', ')}. The privacy page promises none: find out what sets ${cookies.length === 1 ? 'it' : 'them'}.`, section(3));
   } else judgeSource('bot', false, '', 'no cookie and no bot-detection script in the page we received. A browser can see more: view the source once.');
 
-  judgeSource('analytics', found.analytics, 'the page loads Cloudflare\'s measurement script (cloudflareinsights).', 'no cloudflareinsights script in the page we received.');
-  judgeSource('email', found.email, 'the page carries Cloudflare\'s address hiding (the email-decode script, a protected link, or data-cfemail).', 'no email-decode script, protected link or data-cfemail in the page we received.');
+  judgeSource('analytics', found.analytics, 'the page loads Cloudflare\'s measurement script (static.cloudflareinsights.com, or a data-cf-beacon attribute).', 'no Cloudflare measurement script in the page we received.');
+  judgeSource('email', found.email, 'the page carries Cloudflare\'s address hiding (its email-decode script, a /cdn-cgi/l/email-protection link, or data-cfemail).', 'no Cloudflare address hiding (email-decode script, protected link or data-cfemail) in the page we received.');
 
   // Anything else from /cdn-cgi/: Rocket Loader, Zaraz, image resizing, whatever comes next.
   if (scanned) {
-    const others = [...new Set(scanned.code.match(/\/cdn-cgi\/[^\s"'<>)\\]+/g) ?? [])]
-      .filter((p) => !KNOWN_CDN_CGI.some((re) => re.test(p)));
+    const others = scanned.paths.filter((p) => !KNOWN_CDN_CGI.some((re) => re.test(p)));
     if (others.length) put('scripts', 'look', `the page uses ${others.slice(0, 4).join(', ')}${others.length > 4 ? ` and ${others.length - 4} more` : ''}. These are Cloudflare features (Rocket Loader, Zaraz, image resizing and the like). Did you switch them on?`, section(5));
     else if (partial) put('scripts', 'look', `nothing found, but ${partialNote}.`);
     else put('scripts', 'ok', 'no other /cdn-cgi/ path in the page we received.');

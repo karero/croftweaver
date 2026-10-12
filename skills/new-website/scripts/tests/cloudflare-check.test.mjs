@@ -938,6 +938,108 @@ test('a silent crawler is named in the list of requests that got no answer', () 
     assert.deepEqual(r.parsed.unanswered.map((u) => u.split(' ')[0]), ['GPTBot']);
   }));
 
+// ---- what the fixes of round 3 must not break
+
+test('a ">" inside an attribute value does not end the tag: what follows it is still read', () =>
+  withSite(homeWith({}, '<p title="a > b" data-cfemail="abc">Hi</p><img src="/cdn-cgi/image/width=1/x.png">'), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.email.state, 'fail');
+    assert.equal(r.by.scripts.state, 'look');
+  }));
+
+test('an attribute\'s value is not an attribute: a title that names data-cfemail or data-cf-beacon is not one', () =>
+  withSite(homeWith({}, '<p title="Explains data-cfemail here">Hi</p><img src="/a.png" alt="Explains data-cf-beacon here">'), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.email.state, 'ok');
+    assert.equal(r.by.analytics.state, 'ok');
+  }));
+
+test('headers are read one answer at a time: two withdrawn policies, and two HSTS values, are not corrupted by joining', async () => {
+  const twoHops = (first, last) => (req, res, url) => {
+    if (isHome(url)) { res.writeHead(301, { location: '/en/', ...first }); res.end(); return true; }
+    if (url.pathname === '/en/') { send(res, 200, 'text/html', '<p>Page</p>', last); return true; }
+    return false;
+  };
+  await withSite(twoHops({ nel: '{"max_age":0}' }, { nel: '{"max_age":0}' }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look', 'two withdrawals are two withdrawals, not an unreadable header');
+  });
+  await withSite(twoHops({ 'strict-transport-security': 'max-age=15552000' }, { 'strict-transport-security': 'max-age=31536000; includeSubDomains' }), async (s) => {
+    const r = await check(s.origin, '--hsts-on');
+    assert.match(r.by.hsts.detail, /max-age 31536000 \(about 12 months\), subdomains on/);
+    assert.notEqual(r.by.hsts.state, 'fail');
+  });
+});
+
+test('a path that only starts like one of Cloudflare\'s three is another path', () =>
+  withSite(homeWith({}, '<img src="/cdn-cgi/l/email-protection-custom.png"><script src="/cdn-cgi/scripts/x/cloudflare-static/email-decode.min.js.backup"></script>'), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.email.state, 'ok');
+    assert.equal(r.by.scripts.state, 'look');
+    assert.match(r.by.scripts.detail, /email-protection-custom\.png/);
+    assert.match(r.by.scripts.detail, /email-decode\.min\.js\.backup/);
+  }));
+
+test('the longer pattern wins in a robots group: "Disallow: /*" beats "Allow: /", and "Allow: /*" beats "Disallow: /"', async () => {
+  const cases = [
+    ['User-agent: *\nDisallow: /*\nAllow: /\n', 'fail'],
+    ['User-agent: *\nDisallow: /\nAllow: /*\n', 'ok'],
+    ['User-agent: *\nDisallow: /\nAllow: /\n', 'ok'],
+  ];
+  for (const [body, state] of cases) {
+    await withSite((req, res, url) => {
+      if (url.pathname === '/robots.txt') {
+        send(res, 200, 'text/plain', `${body}Sitemap: https://${req.headers.host}/sitemap.xml\n`);
+        return true;
+      }
+      return false;
+    }, async (s) => {
+      assert.equal((await check(s.origin)).by.robots.state, state, JSON.stringify(body));
+    });
+  }
+});
+
+test('a first-party file or a note in a script that happens to contain the word is not Cloudflare\'s', () =>
+  withSite(homeWith({}, '<img src="/img/email-decode.png"><script>// we removed cloudflareinsights last year\nvar x = 1;</script>'), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.email.state, 'ok');
+    assert.equal(r.by.analytics.state, 'ok');
+    assert.equal(r.by.scripts.state, 'ok');
+  }));
+
+test('Cloudflare\'s beacon is found by its address, written with or without a scheme', async () => {
+  for (const src of ['https://static.cloudflareinsights.com/beacon.min.js', '//static.cloudflareinsights.com/beacon.min.js']) {
+    await withSite(homeWith({}, `<script defer src="${src}"></script>`), async (s) => {
+      assert.equal((await check(s.origin)).by.analytics.state, 'fail', src);
+    });
+  }
+});
+
+test('a redirect to the page itself is asked once and said so; a Location that is not an address is said so', async () => {
+  let asked = 0;
+  await withSite((req, res, url) => {
+    if (isHome(url) && /croftweaver-cloudflare-check\/1\)$/.test(req.headers['user-agent'])) {
+      asked += 1;
+      res.writeHead(301, { location: '/' });
+      res.end();
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.match(r.by.domain.detail, /redirected once on this address and was still redirecting/);
+    assert.equal(asked, 1, 'the page itself is not asked for again');
+  });
+  await withSite((req, res, url) => {
+    if (isHome(url)) { res.writeHead(302, { location: 'http://[::1' }); res.end(); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.match(r.by.domain.detail, /Location that is not an address/);
+    assert.doesNotMatch(r.by.domain.detail, /run the check on it/);
+  });
+});
+
 // ---- the command itself
 
 test('a wrong command is exit 2 with the usage text, and --help is exit 0', async () => {
