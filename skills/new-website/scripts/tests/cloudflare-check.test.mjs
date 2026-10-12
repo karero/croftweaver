@@ -1153,6 +1153,24 @@ test('a named character reference needs its semicolon, as in a browser: "&semi="
     assert.match(r.by.scripts.detail, /c;d\.png/);
   }));
 
+// ---- what the fixes of round 6 must not break
+
+test('foreign content is read as a browser reads it: a self-closed svg changes nothing, a foreignObject is HTML again, an svg\'s textarea holds markup', async () => {
+  const script = '<script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>';
+  await withSite(homeWith({}, `<svg/><title>${script}</title>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok', 'after <svg/> a title is HTML text');
+  });
+  await withSite(homeWith({}, `<svg><foreignObject><title>${script}</title></foreignObject></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok', 'a foreignObject holds HTML');
+  });
+  await withSite(homeWith({}, `<svg><foreignObject></foreignObject><title>${script}</title></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'fail', 'after the foreignObject it is svg again');
+  });
+  await withSite(homeWith({}, `<svg><textarea>${script}</textarea></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'fail', 'in svg a textarea holds markup');
+  });
+});
+
 // ---- the command itself
 
 test('a wrong command is exit 2 with the usage text, and --help is exit 0', async () => {

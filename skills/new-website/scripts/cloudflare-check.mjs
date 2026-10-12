@@ -335,7 +335,9 @@ function readHtml(html) {
   const n = html.length;
   const tags = [];
   const scripts = [];
-  let svg = 0; // depth of <svg>: inside it a <title> holds markup, as in a browser
+  // Foreign content: inside an <svg> the elements that are raw text in HTML (script, style,
+  // textarea, title) hold markup, as in a browser; a <foreignObject> inside it is HTML again.
+  const ctx = []; // 'svg' or 'html', innermost last
   let i = 0;
   while (i < n) {
     const lt = html.indexOf('<', i);
@@ -398,11 +400,19 @@ function readHtml(html) {
       }
       if (attr) attrs.push([attr, value]);
     }
+    const selfClosing = html[j - 1] === '>' && html[j - 2] === '/';
     i = j;
-    if (name === 'svg') svg = Math.max(0, svg + (m[1] === '' ? 1 : -1));
+    if (m[1] === '') {
+      if (name === 'svg' && !selfClosing) ctx.push('svg');
+      else if (name === 'foreignobject' && ctx.at(-1) === 'svg' && !selfClosing) ctx.push('html');
+    } else if (name === 'foreignobject' && ctx.at(-1) === 'html') {
+      ctx.pop();
+    } else if (name === 'svg') {
+      while (ctx.length && ctx.pop() !== 'svg');
+    }
     if (m[1] === '') {
       tags.push({ name, attrs });
-      if (RAW_TEXT.has(name) && !(name === 'title' && svg > 0)) {
+      if (RAW_TEXT.has(name) && ctx.at(-1) !== 'svg') {
         // The text of these elements is not markup. Its end tag is "</name" followed by
         // white space, "/" or ">": "</scripture>" does not end a script.
         let end = i;
@@ -518,7 +528,9 @@ function readRobots(body) {
   // pattern, RFC 9309 2.2.2 decides: "The most specific match is the match that has the most
   // octets ... If an "allow" rule and a "disallow" rule are equivalent, then the "allow" rule
   // SHOULD be used." So "Disallow: /*" (two octets) beats "Allow: /" (one), and "Disallow: /"
-  // with "Allow: /" is open.
+  // with "Allow: /" is open. The length is that of the pattern, as in Google's published parser;
+  // read as the octets a URI matches, "Disallow: /*" would leave "/" itself open. Either way
+  // every other page is blocked, which is what the verdict says.
   const everything = (v) => v === '/' || /^\/?\*+$/.test(v);
   const longest = (g, kind) => g.rules.reduce((m, [k, v]) => (k === kind && everything(v) ? Math.max(m, v.length) : m), 0);
   const blocks = (g) => longest(g, 'disallow') > longest(g, 'allow');
