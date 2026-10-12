@@ -91,8 +91,8 @@ degraded and needs an explicit owner waiver. Cross-model per host — Claude Cod
 ollama-cloud (by the family of the tag used), Gemini. Codex: ollama-cloud, Gemini, Claude.
 Antigravity: Codex, ollama-cloud, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
 same opt-in rule). Melious counts like ollama-cloud, by the family of its one model (GLM). A
-human round adds findings but never counts as cross-model. A Light-depth gate is the one exception, by the owner's standing choice (Review
-depth).
+human round adds findings but never counts as cross-model. A Light-depth gate is the one
+exception, by the owner's standing choice (Review depth).
 
 ## Onboarding — first use
 

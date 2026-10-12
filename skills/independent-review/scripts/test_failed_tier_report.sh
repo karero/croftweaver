@@ -1016,7 +1016,7 @@ check "mkey: never in any output" sh -c '! grep -rqF stub-msecret "$1/mkey.out" 
 run m429 OLLAMA_STUB=429 MELIOUS_MODEL=glm-5.3 MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "m429: read as quota" has m429.out "melious FAILED (HTTP 429; quota/rate limit: wait or add credits)"
 check "m429: the API's message is quoted" has m429.out "Rate limit exceeded for your plan"
-check "m429: the FAILED section names the model" has m429.out "Model: glm-5.3"
+check "m429: the Melious FAILED section names the model" has m429.out "Model: glm-5.3"
 run mtrunc OLLAMA_STUB=429 MELIOUS_MODEL=glm-5.3 MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff"
 check "mtrunc: a stream with no finish_reason or [DONE] fails the tier, named as truncated" \
   sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "a truncated review" "$1"' _ "$T/mtrunc.out"
@@ -1179,8 +1179,8 @@ run rlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/chan
 check "rlocal: ...and under --local-only" refused rlocal
 # The slip to expect: ollama's tag for the same model, pasted into MELIOUS_MODEL. The name must
 # match whole. Built at runtime, like STUB_TAG above.
-NEAR_TAG="glm-5.3"; NEAR_TAG="${NEAR_TAG}:cloud"
-run rnear MELIOUS_MODEL="$NEAR_TAG" bash "$SCRIPT" "$T/change.diff" --seat melious
+MELIOUS_NEAR="glm-5.3"; MELIOUS_NEAR="${MELIOUS_NEAR}:cloud"
+run rnear MELIOUS_MODEL="$MELIOUS_NEAR" bash "$SCRIPT" "$T/change.diff" --seat melious
 check "rnear: the allowed name with a tag suffix is refused too" refused rnear
 run rallow MELIOUS_MODEL=glm-5.3 bash "$SCRIPT" "$T/change.diff" --seat melious
 check "rallow: the one allowed model passes, runs and counts" \

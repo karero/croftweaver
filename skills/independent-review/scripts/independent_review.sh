@@ -93,9 +93,9 @@
 #                                    OLLAMA_HOST (default 127.0.0.1:11434). Auth: OLLAMA_API_KEY if
 #                                    set, else none is sent — in a cloud session an environment
 #                                    API credential for ollama.com is added by the proxy.
-#   MELIOUS_MODEL  (unset)           turns on the Melious fallback seat (see above). The one
-#                                    value allowed is glm-5.3; any other is refused, exit 2, in
-#                                    every mode. Unset = no Melious call at all (and
+#   MELIOUS_MODEL  (unset)           turns on the Melious fallback seat (see above). One value
+#                                    is allowed, Melious's glm-5.3; any other is refused, exit
+#                                    2, in every mode. Unset = no Melious call at all (and
 #                                    SECOND_SEAT=melious refuses to run).
 #   SECOND_SEAT    (ollama)          which host holds the second seat: ollama, with Melious as its
 #                                    fallback, or melious, with ollama as its fallback. melious
@@ -954,9 +954,8 @@ melious_marker() {   # prints a marker line the reviewed text does not contain
   printf '%s' "$m"
 }
 run_melious() {
-  [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
-  # Startup has already refused any other model with exit 2; this stands at the send itself.
-  [ "$MELIOUS_MODEL" = "$MELIOUS_ONLY_MODEL" ] || { echo "Error: MELIOUS_MODEL=\"$MELIOUS_MODEL\" refused: Melious runs $MELIOUS_ONLY_MODEL only" >"$RAW_DIR/melious.err"; WHY="MELIOUS_MODEL refused"; return 1; }
+  [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly; startup refused any
+                                                   # name but MELIOUS_ONLY_MODEL with exit 2
   api_tools_ok || return 3
   local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc

@@ -424,8 +424,9 @@ since those files ship in the zip; the generic catches leave `scripts/` out, bec
 files define their patterns. The name check skips only `LICENSE`, which carries the
 owner's name. A genuine false positive is fixed by tightening a pattern in the script —
 never by loosening it. The same `make check` (and the same CI workflow) also keeps
-`independent-review` free of concrete model names outside its setup guide, bar the one
-model its Melious seat is held to (`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
+`independent-review` free of concrete model names outside its setup guide
+(`scripts/check_model_agnostic.sh`; the one name let through is the model its Melious seat is
+held to), and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 
 ### Merging stacked PRs

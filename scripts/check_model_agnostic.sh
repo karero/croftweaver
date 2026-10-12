@@ -38,11 +38,19 @@ PATTERN='[a-z0-9][a-z0-9._-]*:(cloud|[0-9]+b)\b|\bglm-[0-9]|\bgpt-[0-9]|\bgemini
 
 # ONE concrete name is let through: the model the Melious seat is held to (the owner's rule of
 # 2026-10-12; independent_review.sh refuses any other MELIOUS_MODEL). It is the limit on a seat,
-# not a default: the skill still picks no model for anyone. Only the bare id passes. Inside a
-# longer id or an ollama tag (a version, a suffix, ":cloud") it is still a violation, and so is
-# any other spelling of it.
+# not a default: the skill still picks no model for anyone. Two conditions, both needed:
+#   - the line's own text names Melious (the file's name does not count). The same id as
+#     another seat's default is the drift this guard exists for, and stays a violation.
+#   - the id stands bare. Bare is defined by what MAY stand around it, so a spelling nobody
+#     listed fails: before it the start of the text, a space or one of = " ' ` ( and after it
+#     the end, a space, one of " ' ` ) , ; or a full stop that ends there. Anything else keeps
+#     it a violation: a version, a suffix, ":cloud", and a prose colon too (reword the sentence).
+# Reads grep's "file:line:text" lines, or bare text (the self-test).
 allow_melious_model() {
-  perl -pe 's/(?<![A-Za-z0-9._-])glm-5\.3(?![A-Za-z0-9_:-]|\.[A-Za-z0-9])/<the Melious model>/g'
+  perl -pe 'my ($pre, $text) = /^((?:[^:\s]+:[0-9]+:)?)(.*)$/s;
+            $text =~ s/(?:^|(?<=[\s=("\x27`]))glm-5\.3(?=$|[\s)"\x27`,;]|\.(?:$|[\s)"\x27`]))/<the Melious model>/g
+              if $text =~ /melious/i;
+            $_ = $pre . $text'
 }
 
 # Self-test, both directions. A guard that cannot fire is worse than none — and one
@@ -65,13 +73,21 @@ done
 
 # The same for the let-through: it must pass the bare id and nothing built on it. (With no perl
 # it prints nothing, and the first loop fails.)
-for bad in 'glm-5.3:cloud' 'glm-5.3-flash' 'glm-5.30' 'glm-5.3.1' 'glm-5.4' 'GLM-5.3' 'xglm-5.3:cloud'; do
+for bad in 'MELIOUS_MODEL=glm-5.3:cloud' 'melious glm-5.3-flash' 'melious glm-5.30' \
+           'melious glm-5.3.1' 'melious glm-5.4' 'melious GLM-5.3' 'melious xglm-5.3:cloud' \
+           'melious glm-5.3._preview' 'melious glm-5.3..preview' 'melious glm-5.3+flash' \
+           'melious glm-5.3/latest' 'melious glm-5.3~x' 'melious/glm-5.3' 'Melious glm-5.3: prose' \
+           'OLLAMA_MODEL=glm-5.3' 'a default of glm-5.3 for another seat' \
+           'skills/x/perl/melious_request.pl:12:model glm-5.3' \
+           'MELIOUS_MODEL=glm-5.3 OLLAMA_MODEL=glm-5.3:cloud'; do
   grep -qiE "$PATTERN" <<<"$(allow_melious_model <<<"$bad")" || {
     echo "FAIL — self-test: the Melious let-through hides '$bad'. Fix it before trusting the scan."
     exit 1
   }
 done
-for good in 'MELIOUS_MODEL=glm-5.3' 'runs glm-5.3.' '"glm-5.3"' 'glm-5.3 and glm-5.3, only'; do
+for good in 'MELIOUS_MODEL=glm-5.3' 'Melious runs glm-5.3.' 'melious ("glm-5.3")' \
+            'Melious: glm-5.3 and glm-5.3, only' 'a/b.sh:7:`MELIOUS_MODEL=glm-5.3` set (the' \
+            'a/b.sh:7:glm-5.3; Melious' "melious 'glm-5.3'."; do
   if grep -qiE "$PATTERN" <<<"$(allow_melious_model <<<"$good")"; then
     echo "FAIL — self-test: the Melious let-through still flags the allowed '$good'."
     exit 1
@@ -89,8 +105,14 @@ fi
 
 # Second pass over the matched lines alone, with the Melious seat's model taken out: what still
 # matches is a violation. (A line that holds both shows the let-through as "<the Melious model>".)
+# Two steps, not a pipe: a filter that died would leave grep an empty input, grep's "no match"
+# would be the pipe's status, and the scan would read as clean.
 if [ -n "$mismatches" ]; then
-  mismatches=$(allow_melious_model <<<"$mismatches" | grep -iE "$PATTERN")
+  if ! filtered=$(allow_melious_model <<<"$mismatches"); then
+    echo "FAIL — the Melious let-through's filter (perl) failed; the guard result is unreliable."
+    exit 1
+  fi
+  mismatches=$(grep -iE "$PATTERN" <<<"$filtered")
   rc=$?
   if [ "$rc" -gt 1 ]; then
     echo "FAIL — the second pass errored (exit $rc) while scanning; the guard result is unreliable."
