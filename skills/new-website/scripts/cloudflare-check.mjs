@@ -236,11 +236,12 @@ async function getHome(url, t, stamp) {
   let r = await get(url, t);
   if (!r.error) chain.push(r.headers);
   while (!r.error && r.status >= 300 && r.status < 400 && hops.length < MAX_HOPS) {
+    if (!header(r, 'location')) break; // nowhere to go
     let next;
     try {
       next = new URL(header(r, 'location'), r.url);
     } catch {
-      break; // no Location, or one that is not an address
+      break; // a Location that is not an address
     }
     if (next.origin !== new URL(url).origin) break; // another address: a person decides
     next.searchParams.set('cb', String(stamp));
@@ -325,6 +326,7 @@ function sameAddress(location, base) {
 // A small reader of HTML: the tags of a page with their attributes (quotes respected, so a
 // ">" inside a value does not end a tag), and the text of its scripts. Comments are skipped.
 // It is not a browser. It is enough to tell what a page loads from what it says.
+const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
 function readHtml(html) {
   const lower = html.toLowerCase();
   const n = html.length;
@@ -335,8 +337,20 @@ function readHtml(html) {
     const lt = html.indexOf('<', i);
     if (lt === -1) break;
     if (html.startsWith('<!--', lt)) {
-      const end = html.indexOf('-->', lt + 4);
-      i = end === -1 ? n : end + 3;
+      // A comment ends at "-->" or "--!>", and "<!-->" and "<!--->" are whole comments.
+      const abrupt = /^<!--(?:-?>)/.exec(html.slice(lt, lt + 8));
+      if (abrupt) {
+        i = lt + abrupt[0].length;
+        continue;
+      }
+      const end = /--!?>/.exec(html.slice(lt + 4));
+      i = end ? lt + 4 + end.index + end[0].length : n;
+      continue;
+    }
+    if (html[lt + 1] === '!' || html[lt + 1] === '?') {
+      // <!doctype>, <![CDATA[...]]> and <?...?> are not tags: skip to the next ">".
+      const end = html.indexOf('>', lt + 2);
+      i = end === -1 ? n : end + 1;
       continue;
     }
     const m = /^<(\/?)([a-z][a-z0-9:-]*)/i.exec(html.slice(lt, lt + 64));
@@ -380,9 +394,16 @@ function readHtml(html) {
     i = j;
     if (m[1] === '') {
       tags.push({ name, attrs });
-      if (name === 'script' || name === 'style') {
-        const close = lower.indexOf(`</${name}`, i);
-        const end = close === -1 ? n : close;
+      if (RAW_TEXT.has(name)) {
+        // The text of these elements is not markup. Its end tag is "</name" followed by
+        // white space, "/" or ">": "</scripture>" does not end a script.
+        let end = i;
+        for (;;) {
+          end = lower.indexOf(`</${name}`, end);
+          if (end === -1 || /[\s/>]/.test(lower[end + 2 + name.length] ?? '>')) break;
+          end += 2;
+        }
+        if (end === -1) end = n;
         if (name === 'script') scripts.push(html.slice(i, end));
         i = end;
       }
@@ -391,34 +412,51 @@ function readHtml(html) {
   return { tags, scripts };
 }
 
+// The character references an address is likely to be written with. Not the whole table:
+// numeric ones in full, and the few named ones that stand for a character of an address.
+const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", sol: '/', colon: ':', period: '.', lowbar: '_', hyphen: '-', num: '#', quest: '?', equals: '=', percnt: '%', comma: ',', semi: ';', nbsp: ' ' };
+function decodeReferences(v) {
+  return v.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));?/gi, (all, dec, hex, name) => {
+    const code = dec !== undefined ? Number(dec) : hex !== undefined ? parseInt(hex, 16) : null;
+    if (code !== null) return Number.isFinite(code) && code > 0 && code < 0x110000 ? String.fromCodePoint(code) : all;
+    return NAMED[name.toLowerCase()] ?? all;
+  });
+}
+
 // What a page loads, as addresses: the paths under /cdn-cgi/ that its tags and scripts use,
 // the hosts its tags point at, and the attribute names Cloudflare adds. Comments, the words a
 // person reads, and descriptive attributes such as title or alt are not in it.
 const POINTS_AT = new Set(['src', 'href', 'data-src', 'action', 'poster']);
-function scanPage(body) {
+function scanPage(body, base) {
   const { tags, scripts } = readHtml(body);
   const urls = [];
+  const scriptHosts = new Set(); // the hosts a <script src> points at
   const attrNames = new Set();
+  const address = (u) => {
+    try {
+      return new URL(decodeReferences(u.trim()), base);
+    } catch {
+      return null; // not an address
+    }
+  };
+  const paths = new Set();
   for (const t of tags) {
     for (const [k, v] of t.attrs) {
       attrNames.add(k);
-      if (k === 'srcset') urls.push(...v.split(',').map((x) => x.trim().split(/\s+/)[0]).filter(Boolean));
-      else if (POINTS_AT.has(k)) urls.push(v.trim());
+      const list = k === 'srcset' ? v.split(',').map((x) => x.trim().split(/\s+/)[0]).filter(Boolean) : POINTS_AT.has(k) ? [v] : [];
+      for (const u of list) {
+        const a = address(u);
+        if (!a) continue;
+        urls.push(a);
+        if (t.name === 'script' && k === 'src') scriptHosts.add(a.hostname.toLowerCase());
+        if (a.pathname.toLowerCase().startsWith('/cdn-cgi/')) paths.add(a.pathname.toLowerCase());
+      }
     }
   }
-  const paths = new Set();
-  const hosts = new Set();
-  for (const u of urls) {
-    try {
-      const a = new URL(u, 'https://page.invalid');
-      hosts.add(a.hostname.toLowerCase());
-      if (a.pathname.toLowerCase().startsWith('/cdn-cgi/')) paths.add(a.pathname.toLowerCase());
-    } catch { /* not an address */ }
-  }
   for (const text of scripts) {
-    for (const m of text.matchAll(/\/cdn-cgi\/[^\s"'<>)\\?#]+/gi)) paths.add(m[0].toLowerCase());
+    for (const m of text.matchAll(/\/cdn-cgi\/[^\s"'`<>)\\?#;,]+/gi)) paths.add(m[0].toLowerCase());
   }
-  return { paths: [...paths], hosts, attrNames };
+  return { paths: [...paths], scriptHosts, attrNames };
 }
 
 // The paths of Cloudflare's three named features, whole and anchored: a longer path that
@@ -474,7 +512,7 @@ function readRobots(body) {
   // pattern, the one with more octets is the more specific and wins, and a tie goes to allow
   // (RFC 9309, 2.2.2): "Disallow: /*" beats "Allow: /", and "Disallow: /" with "Allow: /" is open.
   const everything = (v) => v === '/' || /^\/?\*+$/.test(v);
-  const longest = (g, kind) => Math.max(0, ...g.rules.filter(([k, v]) => k === kind && everything(v)).map(([, v]) => v.length));
+  const longest = (g, kind) => g.rules.reduce((m, [k, v]) => (k === kind && everything(v) ? Math.max(m, v.length) : m), 0);
   const blocks = (g) => longest(g, 'disallow') > longest(g, 'allow');
   const named = groups.flatMap((g) => g.agents).filter((a) => a !== '*');
   return {
@@ -529,7 +567,7 @@ export function evaluate(obs, target, opts) {
   if (home.error) put('domain', 'fail', noAnswer(home), `Is the domain attached to the project, and are its DNS records on Cloudflare? ${section(1)}`);
   else if (challenged) put('domain', 'fail', `Cloudflare answered ${home.status} with a challenge page, so the site itself was not seen. Bot Fight Mode, or a rule, is challenging requests like this one.`, section(3));
   else if (home.status >= 400) put('domain', 'fail', `${where} answered ${home.status}${cloudflareError[home.status] ? `: ${cloudflareError[home.status]}` : ''}.`, section(1));
-  else if (home.status >= 300 && !addressOf(header(home, 'location'), home.url)) put('domain', 'look', `${where} answered ${home.status} with ${header(home, 'location') ? `a Location that is not an address (${header(home, 'location').slice(0, 60)})` : 'no Location header'}, so the page was not judged.`);
+  else if (home.status >= 300 && !addressOf(header(home, 'location'), home.url)) put('domain', 'look', `${where} answered ${home.status} with ${header(home, 'location') ? `a Location that is not an address (${header(home, 'location').slice(0, 60)})` : home.headers.location === undefined ? 'no Location header' : 'an empty Location header'}, so the page was not judged.`);
   else if (home.status >= 300 && sameAddress(header(home, 'location'), home.url)) put('domain', 'look', `${where} redirected ${home.hops.length + 1 === 1 ? 'once' : `${home.hops.length + 1} times`} on this address and was still redirecting (to ${header(home, 'location')}), so the page was not judged.`);
   else if (home.status >= 300) put('domain', 'look', `${where} answered ${home.status} and sends visitors to ${header(home, 'location')}. That is another address, so the page was not judged: run the check on it.`, 'Is that redirect yours (www, another language)? Run the check against the address it leads to.');
   else if (home.status !== 200) put('domain', 'look', `${where} answered ${home.status}, not a 200 page, so the page was not judged.`);
@@ -553,11 +591,13 @@ export function evaluate(obs, target, opts) {
   // 3. HSTS
   if (!seen) skip('hsts', notChecked);
   else {
-    const sts = values('strict-transport-security').at(-1) ?? '';
+    const sts = header(home, 'strict-transport-security');
+    const earlierOnly = !sts && values('strict-transport-security').length > 0;
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
     if (!sts) {
-      if (opts.hstsOn) put('hsts', 'fail', `you said HSTS is on, but the answer has no strict-transport-security header${via}.`, section(2));
-      else put('hsts', 'look', `not on yet${via}. Switch it on a few days after go-live, then run this check again with --hsts-on.`);
+      const note = earlierOnly ? ' (only the redirect before it carried one)' : '';
+      if (opts.hstsOn) put('hsts', 'fail', `you said HSTS is on, but the answer has no strict-transport-security header${note}${via}.`, section(2));
+      else put('hsts', 'look', `not on yet${note}${via}. Switch it on a few days after go-live, then run this check again with --hsts-on.`);
     } else {
       const age = Number(/(?:^|;)\s*max-age\s*=\s*"?(\d+)"?\s*(?:;|$)/i.exec(sts)?.[1] ?? NaN);
       const sub = /(?:^|;)\s*includesubdomains\s*(?:;|$)/i.test(sts);
@@ -596,7 +636,7 @@ export function evaluate(obs, target, opts) {
   }
 
   // 5. What Cloudflare adds to the page: cookies and scripts.
-  const scanned = page ? scanPage(home.body) : null;
+  const scanned = page ? scanPage(home.body, home.url) : null;
   const partial = page && home.truncated;
   const partialNote = 'the page is larger than 5 MB and only the first 5 MB were read';
   const unseenPage = !seen ? notChecked : `not checked: ${whyNot}, so its source was not read`;
@@ -604,7 +644,7 @@ export function evaluate(obs, target, opts) {
   const cfCookies = cookies.filter((c) => CF_COOKIE.test(c));
   const found = {
     bot: scanned?.paths.some((p) => KNOWN_CDN_CGI[0].test(p)) ?? false,
-    analytics: scanned ? scanned.attrNames.has('data-cf-beacon') || scanned.hosts.has('static.cloudflareinsights.com') : false,
+    analytics: scanned ? scanned.attrNames.has('data-cf-beacon') || scanned.scriptHosts.has('static.cloudflareinsights.com') : false,
     email: scanned ? scanned.attrNames.has('data-cfemail') || scanned.paths.some((p) => KNOWN_CDN_CGI[1].test(p) || KNOWN_CDN_CGI[2].test(p)) : false,
   };
   const judgeSource = (id, hit, hitText, okText) => {

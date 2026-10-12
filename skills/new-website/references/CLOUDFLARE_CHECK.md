@@ -71,21 +71,23 @@ nowhere to go, is said so and the page is not judged.
 | HSTS (2) | The `strict-transport-security` header, read as directives: max-age in months, subdomains, preload | Missing, with `--hsts-on` |
 | NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look` |
 | Bot Fight Mode off (3) | No Cloudflare cookie, and no `/cdn-cgi/challenge-platform/` address in the page's tags or scripts | Either is there. A cookie of your own is a `look` |
-| Web Analytics off (3) | No `static.cloudflareinsights.com` address and no `data-cf-beacon` attribute | It is there |
+| Web Analytics off (3) | No `<script src>` at `static.cloudflareinsights.com` and no `data-cf-beacon` attribute | It is there |
 | Email Address Obfuscation off (3) | No `email-decode.min.js` at Cloudflare's path, no `/cdn-cgi/l/email-protection` link and no `data-cfemail` attribute | Any is there |
 | AI crawlers allow (4) | Six requests that carry AI crawler names are not refused; `robots.txt` has no rules for named crawlers | Never `FAIL`: a refusal is a `look` (blocking Training may be your choice), and the policy itself is `by hand` |
-| Your own robots.txt (5) | A robots file with a `Sitemap:` line that names your domain, not the starter's `example.com` | It is a web page, tells every crawler to stay out (`Disallow: /`, `/*` or `*` for `User-agent: *`, unless the group has an `Allow` of the same kind that is as long or longer), or the sitemap host is the placeholder |
+| Your own robots.txt (5) | A robots file with a `Sitemap:` line that names your domain, not the starter's `example.com` | It is a web page, tells every crawler to stay out (`Disallow: /`, `/*` or `*` for `User-agent: *`, unless the same group has an `Allow` of that kind that is as long or longer: RFC 9309, 2.2.2, "the match that has the most octets", a tie to allow), or the sitemap host is the placeholder |
 | The build that is live (5) | `/build.txt` is a full commit id; with `--build`, the one you gave | A different commit than `--build` |
 | No scripts you didn't add (5) | No `/cdn-cgi/` path in the page other than the three above | Never `FAIL`: another path (Rocket Loader, Zaraz, image resizing) is a `look` that names it |
 
 The checklist says what to do about each. The script's own lines name the section.
 
 The script reads a page as HTML, with quotes respected: the addresses in `src`, `href` and
-the like, the names of the attributes Cloudflare adds (`data-cf-beacon`, `data-cfemail`), and
-the text of scripts, for `/cdn-cgi/` paths. Comments, the words a person reads, and the values
-of descriptive attributes such as `title` or `alt` are left out, so a page that talks about
-these scripts is not taken for one that loads them. The headers of each answer on the way are
-read one answer at a time. A page larger than 5 MB is read for its first 5 MB only, and then the source
+the like (read against the page's own address, with character references decoded), the names of
+the attributes Cloudflare adds (`data-cf-beacon`, `data-cfemail`), and the text of scripts, for
+`/cdn-cgi/` paths. Comments, the words a person reads, the text of a `textarea` or `title`, and
+the values of descriptive attributes such as `title` or `alt` are left out, so a page that
+talks about these scripts is not taken for one that loads them. It is not a browser: a page
+built to confuse an HTML reader can confuse this one. The headers of each answer on the way
+are read one answer at a time, and HSTS is the page's own. A page larger than 5 MB is read for its first 5 MB only, and then the source
 items are a `look`, never `ok`.
 
 ## What it cannot see

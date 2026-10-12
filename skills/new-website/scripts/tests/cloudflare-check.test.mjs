@@ -1040,6 +1040,87 @@ test('a redirect to the page itself is asked once and said so; a Location that i
   });
 });
 
+// ---- what the fixes of round 4 must not break
+
+test('HSTS on a redirect before the page does not stand for the page: with --hsts-on it fails, and says so', async () => {
+  const handler = (req, res, url) => {
+    if (isHome(url)) { res.writeHead(301, { location: '/en/', 'strict-transport-security': 'max-age=15552000' }); res.end(); return true; }
+    if (url.pathname === '/en/') { send(res, 200, 'text/html', '<p>Page</p>'); return true; }
+    return false;
+  };
+  await withSite(handler, async (s) => {
+    const r = await check(s.origin, '--hsts-on');
+    assert.equal(r.by.hsts.state, 'fail');
+    assert.match(r.by.hsts.detail, /only the redirect before it carried one/);
+  });
+  await withSite(handler, async (s) => {
+    assert.equal((await check(s.origin)).by.hsts.state, 'look');
+  });
+});
+
+test('an address written in a script between backticks, with a semicolon after it, is read whole', () =>
+  withSite(homeWith({}, '<script>var s=document.createElement("script");s.src=`/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js`;document.head.append(s);</script>'), async (s) => {
+    assert.equal((await check(s.origin)).by.email.state, 'fail');
+  }));
+
+test('a robots.txt with two hundred thousand blanket rules is read, not a crash', () =>
+  withSite((req, res, url) => {
+    if (url.pathname === '/robots.txt') {
+      send(res, 200, 'text/plain', `User-agent: *\n${'Disallow: /*\n'.repeat(200_000)}Sitemap: https://${req.headers.host}/sitemap.xml\n`);
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.ok(r.parsed, `the report was lost: ${r.stderr.slice(0, 200)}`);
+    assert.equal(r.by.robots.state, 'fail', 'two hundred thousand ways of saying "stay out" say it');
+  }));
+
+test('what the HTML says it is: the text of a textarea or a title is text, a reference is decoded, "</scripture>" does not end a script', async () => {
+  await withSite(homeWith({}, '<textarea><script src="/cdn-cgi/scripts/x/cloudflare-static/email-decode.min.js"></script></textarea><title><img src="/cdn-cgi/image/w=1/a.png"></title>'), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.email.state, 'ok', 'markup inside a textarea is not a script');
+    assert.equal(r.by.scripts.state, 'ok');
+  });
+  await withSite(homeWith({}, '<script defer src="https://static.&#99;loudflareinsights.com/beacon.min.js"></script>'), async (s) => {
+    assert.equal((await check(s.origin)).by.analytics.state, 'fail', 'an address written with a character reference');
+  });
+  await withSite(homeWith({}, '<script>var a="</scripture>"; var b=document.createElement("script"); b.src="/cdn-cgi/challenge-platform/scripts/jsd/main.js";</script>'), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'fail', 'the script goes on past "</scripture>"');
+  });
+});
+
+test('what is not a tag is skipped, and a comment that ends abruptly does not swallow the page', async () => {
+  await withSite(homeWith({}, '<![CDATA[<script src="/cdn-cgi/zaraz/i.js"></script>]]><?xml-note <img src="/cdn-cgi/image/a.png"> ?><p>Hi</p>'), async (s) => {
+    assert.equal((await check(s.origin)).by.scripts.state, 'ok');
+  });
+  for (const closer of ['<!-->', '<!--->', '<!-- a --!>']) {
+    await withSite(homeWith({}, `${closer}<script src="/cdn-cgi/zaraz/i.js"></script>`), async (s) => {
+      assert.equal((await check(s.origin)).by.scripts.state, 'look', closer);
+    });
+  }
+});
+
+test('an address is read against the page it is on, and a link to the beacon is not the beacon', async () => {
+  await withSite((req, res, url) => {
+    if (isHome(url)) { res.writeHead(301, { location: '/blog/' }); res.end(); return true; }
+    if (url.pathname === '/blog/') { send(res, 200, 'text/html', '<img src="cdn-cgi/image/a.png"><a href="https://static.cloudflareinsights.com/beacon.min.js">the beacon</a>'); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.scripts.state, 'ok', 'cdn-cgi/image/a.png on /blog/ is /blog/cdn-cgi/image/a.png');
+    assert.equal(r.by.analytics.state, 'ok', 'a link in the text is not a script');
+  });
+});
+
+test('an empty Location header is said to be empty', () =>
+  withSite((req, res, url) => {
+    if (isHome(url)) { res.writeHead(301, { location: '' }); res.end(); return true; }
+    return false;
+  }, async (s) => {
+    assert.match((await check(s.origin)).by.domain.detail, /an empty Location header/);
+  }));
+
 // ---- the command itself
 
 test('a wrong command is exit 2 with the usage text, and --help is exit 0', async () => {
