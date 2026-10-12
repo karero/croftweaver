@@ -314,9 +314,10 @@ in a file the repository tracks or in the README. Ask the assistant to look befo
 writes, to tell you each change before it makes it, and to read each setting back
 afterwards. Some changes replace a whole list, as the Transform Rules do: it must read
 what is there and send it back with the change. A change to one variable may replace the
-project's others: it must list them before and after, and put back any that went missing.
-If the API refuses a setting (some are limited to certain plans), do that item by hand
-from sections 1 to 4.
+project's others: it must list the variables before and after, and stop and tell you if
+any is missing, because it may not be able to put them back. If the API refuses a setting
+(some are limited to certain plans), or it can't be sure the project's other variables are
+kept, do that item by hand from sections 1 to 4.
 
 **Then check it yourself.** Before you delete the token, run the commands in section 5 and
 look at the output. An API can say a setting is off while the site still sends the header,
