@@ -3,17 +3,19 @@
 //
 // Every test that judges a site starts a small web server on 127.0.0.1 and runs the script as
 // a program against it, the way a person or an assistant does: real requests, real exit
-// status, real output. The server plays a site behind Cloudflare, and the script is given its
-// address as an origin ("http://127.0.0.1:PORT").
+// status, real output. The server plays a site behind Cloudflare (it sends a cf-ray header),
+// and the script is given its address as an origin ("http://127.0.0.1:PORT"). One test serves
+// real TLS with a certificate made for the run, so the https path is exercised too.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { execFile } from 'node:child_process';
-import { readFileSync, mkdtempSync, symlinkSync, existsSync } from 'node:fs';
+import https from 'node:https';
+import { execFile, execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ITEMS, parseTarget, UsageError } from '../cloudflare-check.mjs';
+import { ITEMS, evaluate, parseProject, parseTarget, UsageError } from '../cloudflare-check.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'cloudflare-check.mjs');
@@ -27,9 +29,11 @@ function send(res, status, type, body, extra = {}) {
   res.end(body);
 }
 
-// A clean site: nothing Cloudflare adds. `tweak(req, res, url)` may answer first (return true).
-async function site(tweak = () => false) {
-  const server = http.createServer((req, res) => {
+// A site that is right, behind Cloudflare. `tweak(req, res, url)` may answer first (return true).
+async function site(tweak = () => false, { secure } = {}) {
+  const handler = (req, res) => {
+    res.setHeader('server', 'cloudflare');
+    res.setHeader('cf-ray', '8a1b2c3d4e5f6071-AMS');
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (tweak(req, res, url)) return;
     const host = req.headers.host;
@@ -45,20 +49,22 @@ async function site(tweak = () => false) {
     } else {
       send(res, 200, 'text/html; charset=utf-8', '<!doctype html><title>Site</title><p>Hello</p>');
     }
-  });
+  };
+  const server = secure ? https.createServer(secure, handler) : http.createServer(handler);
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address();
+  const scheme = secure ? 'https' : 'http';
   return {
     port,
     host: `127.0.0.1:${port}`,
-    origin: `http://127.0.0.1:${port}`,
+    origin: `${scheme}://127.0.0.1:${port}`,
     close: () => { server.closeAllConnections(); return new Promise((r) => server.close(r)); },
   };
 }
 
-function run(args, script = SCRIPT) {
+function run(args, { script = SCRIPT, env, nodeArgs = [] } = {}) {
   return new Promise((resolve) => {
-    execFile(process.execPath, [script, ...args], { timeout: 60_000 }, (err, stdout, stderr) => {
+    execFile(process.execPath, [...nodeArgs, script, ...args], { timeout: 60_000, env: { ...process.env, ...env } }, (err, stdout, stderr) => {
       resolve({ code: err ? err.code : 0, stdout, stderr });
     });
   });
@@ -80,20 +86,41 @@ async function withSite(tweak, fn) {
   }
 }
 
+const isHome = (url) => url.pathname === '/' && url.searchParams.has('cb');
+const isProbe = (url) => url.pathname === '/' && !url.searchParams.has('cb');
+const homeWith = (extraHeaders, body = '<p>Hi</p>', type = 'text/html') => (req, res, url) => {
+  if (isHome(url)) { send(res, 200, type, body, extraHeaders); return true; }
+  return false;
+};
+
 // ---- a site that is right
 
-test('a clean site passes every check that can be made from outside, and says what is by hand', () =>
+test('a clean site: everything an outside request can judge is ok, the rest says what is left', () =>
   withSite(undefined, async (s) => {
-    const r = await check(s.origin);
+    const r = await check(s.origin, '--build', SHA.slice(0, 9));
     assert.equal(r.code, 0, r.stdout);
-    for (const id of ['domain', 'https', 'nel', 'bot', 'analytics', 'email', 'ai', 'robots', 'build']) {
+    for (const id of ['domain', 'https', 'nel', 'bot', 'analytics', 'email', 'scripts', 'robots', 'build']) {
       assert.equal(r.by[id].state, 'ok', `${id}: ${r.by[id].detail}`);
     }
-    for (const id of ['build-settings', 'fail-open', 'tls', 'hints']) assert.equal(r.by[id].state, 'hand', id);
+    for (const id of ['build-settings', 'fail-open', 'tls', 'hints', 'ai']) assert.equal(r.by[id].state, 'hand', id);
+    assert.match(r.by.ai.detail, /none of 6 AI crawler names was refused/);
     assert.equal(r.by.hsts.state, 'look', 'HSTS is not on yet, which is not a failure');
     assert.equal(r.by.pages.state, 'skip');
     assert.equal(r.by.canonical.state, 'skip');
+    assert.deepEqual(r.parsed.unanswered, []);
+    assert.deepEqual(r.parsed.couldNotJudge, []);
     assert.deepEqual(r.parsed.results.map((x) => x.id), ITEMS.map((i) => i.id), 'every item, in the checklist\'s order');
+    for (const x of r.parsed.results) {
+      if (x.state === 'ok' || x.state === 'skip' || x.state === 'hand') assert.equal('fix' in x, false, `${x.id} carries a fix it never shows`);
+    }
+  }));
+
+test('without --build the live build is only a look: nothing was compared', () =>
+  withSite(undefined, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.build.state, 'look');
+    assert.match(r.by.build.detail, /pass --build/);
+    assert.equal(r.code, 0);
   }));
 
 test('the plain-text report names every item and ends with a result line', () =>
@@ -101,23 +128,17 @@ test('the plain-text report names every item and ends with a result line', () =>
     const r = await run([s.origin, '--timeout', '5']);
     assert.equal(r.code, 0);
     for (const item of ITEMS) assert.ok(r.stdout.includes(item.title.replace(/`/g, '')), `missing: ${item.title}`);
-    assert.match(r.stdout, /Result: \d+ ok, 0 FAIL, \d+ look, 4 by hand, 2 not run\./);
+    assert.match(r.stdout, /Result: \d+ ok, 0 FAIL, \d+ look, 5 by hand, 2 not run\./);
     assert.match(r.stdout, /Nothing was changed\./);
   }));
 
 // ---- Network Error Logging
 
 test('NEL still on: the item fails and shows how long browsers keep the note', () =>
-  withSite((req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb')) {
-      send(res, 200, 'text/html', '<p>Hi</p>', {
-        nel: '{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}',
-        'report-to': '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4"}]}',
-      });
-      return true;
-    }
-    return false;
-  }, async (s) => {
+  withSite(homeWith({
+    nel: '{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}',
+    'report-to': '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4"}]}',
+  }), async (s) => {
     const r = await check(s.origin);
     assert.equal(r.code, 1);
     assert.equal(r.by.nel.state, 'fail');
@@ -125,37 +146,85 @@ test('NEL still on: the item fails and shows how long browsers keep the note', (
     assert.equal(r.by.https.state, 'ok', 'a failing item does not spoil the others');
   }));
 
-test('a report-to header alone is a "look", not a pass and not a failure', () =>
-  withSite((req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb')) {
-      send(res, 200, 'text/html', '<p>Hi</p>', { 'report-to': '{"group":"mine"}' });
-      return true;
-    }
-    return false;
-  }, async (s) => {
+test('Cloudflare\'s reporting group alone still fails; a group of your own is a "look"', async () => {
+  await withSite(homeWith({ 'report-to': '{"group":"cf-nel","max_age":604800}' }), async (s) => {
+    assert.equal((await check(s.origin)).by.nel.state, 'fail');
+  });
+  await withSite(homeWith({ 'report-to': '{"group":"mine"}' }), async (s) => {
     const r = await check(s.origin);
     assert.equal(r.by.nel.state, 'look');
     assert.equal(r.code, 0);
+  });
+});
+
+test('a nel header with max_age 0 is the way a policy is withdrawn: a "look", not "on"', () =>
+  withSite(homeWith({ nel: '{"max_age":0}' }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.match(r.by.nel.detail, /max_age 0/);
   }));
 
 // ---- an empty answer is never a pass
 
-test('no answer at all: the domain fails and nothing that needs the page reads "ok"', async () => {
+test('no answer at all: the domain fails, nothing that needs the page reads "ok", exit 1', async () => {
   const s = await site();
   await s.close(); // the port is now closed
   const r = await check(s.origin);
   assert.equal(r.code, 1);
   assert.equal(r.by.domain.state, 'fail');
   assert.equal(r.by.https.state, 'fail');
-  for (const id of ['hsts', 'nel', 'bot', 'analytics', 'email', 'ai', 'robots', 'build']) {
+  for (const id of ['hsts', 'nel', 'bot', 'analytics', 'email', 'scripts', 'ai', 'robots', 'build']) {
     assert.equal(r.by[id].state, 'skip', `${id} must not pass on a dead request`);
   }
   assert.match(r.by.domain.detail, /connection was refused/);
+  assert.ok(r.parsed.unanswered.length >= 5, 'the requests that got no answer are listed');
 });
+
+test('an answer that is cut off is no answer, whatever its first bytes said', () =>
+  withSite((req, res, url) => {
+    if (isHome(url)) {
+      res.writeHead(200, { 'content-type': 'text/html', 'content-length': '100000' });
+      res.write('<html><body><p>partial');
+      setTimeout(() => res.socket.destroy(), 50);
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.domain.state, 'fail');
+    assert.match(r.by.domain.detail, /cut off/);
+    for (const id of ['nel', 'bot', 'analytics', 'email', 'scripts']) assert.equal(r.by[id].state, 'skip', id);
+    assert.equal(r.code, 1);
+  }));
+
+test('an answer that starts and then stalls times out as no answer', () =>
+  withSite((req, res, url) => {
+    if (isHome(url)) {
+      res.writeHead(200, { 'content-type': 'text/html', 'content-length': '5000' });
+      res.write('<html><body>partial'); // and nothing more
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin, '--timeout', '1');
+    assert.equal(r.by.domain.state, 'fail');
+    assert.match(r.by.domain.detail, /no answer within 1 second\b/);
+    assert.equal(r.by.analytics.state, 'skip');
+  }));
+
+test('a page larger than what is read is never "ok" on what was read', () =>
+  withSite(homeWith({}, `<!doctype html><body>${'x'.repeat(5_200_000)}<script defer src="https://static.cloudflareinsights.com/beacon.min.js"></script></body>`), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.domain.state, 'ok');
+    for (const id of ['bot', 'analytics', 'email', 'scripts']) {
+      assert.equal(r.by[id].state, 'look', id);
+      assert.match(r.by[id].detail, /larger than 5 MB/);
+    }
+  }));
 
 test('an error page is not judged as the site: a 522 fails the domain and the privacy items are not run', () =>
   withSite((req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb')) {
+    if (isHome(url)) {
       send(res, 522, 'text/html', '<p>Connection timed out</p>', { 'report-to': '{"group":"cf-nel"}' });
       return true;
     }
@@ -166,11 +235,12 @@ test('an error page is not judged as the site: a 522 fails the domain and the pr
     assert.match(r.by.domain.detail, /522.*not attached/);
     assert.equal(r.by.nel.state, 'skip');
     assert.equal(r.by.bot.state, 'skip');
+    assert.equal(r.code, 1);
   }));
 
 test('a challenge page is named as such, and the site is not judged from it', () =>
   withSite((req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb')) {
+    if (isHome(url)) {
       send(res, 403, 'text/html', '<p>Just a moment...</p>', { 'cf-mitigated': 'challenge' });
       return true;
     }
@@ -182,13 +252,76 @@ test('a challenge page is named as such, and the site is not judged from it', ()
     assert.equal(r.by.analytics.state, 'skip');
   }));
 
+test('an answer that is not a 200 page cannot be judged: 204 is a look and the items are not run, exit 1', () =>
+  withSite((req, res, url) => {
+    if (isHome(url)) { res.writeHead(204); res.end(); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.domain.state, 'look');
+    assert.match(r.by.domain.detail, /204, not a 200/);
+    for (const id of ['bot', 'analytics', 'email', 'scripts']) assert.equal(r.by[id].state, 'skip', id);
+    assert.equal(r.code, 1, 'an assistant reading only the exit status must not take this for a pass');
+  }));
+
+test('an answer that did not come through Cloudflare is a "look": any 200 is not the site', () =>
+  withSite((req, res) => {
+    res.removeHeader('cf-ray');
+    res.removeHeader('server');
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.domain.state, 'look');
+    assert.match(r.by.domain.detail, /not through Cloudflare/);
+  }));
+
+// ---- redirects on the home page
+
+test('a redirect to the same address is followed and the page is judged where it ends', () =>
+  withSite((req, res, url) => {
+    if (isHome(url)) {
+      res.writeHead(301, { location: '/en/' });
+      res.end();
+      return true;
+    }
+    if (url.pathname === '/en/') {
+      send(res, 200, 'text/html', '<script defer src="https://static.cloudflareinsights.com/beacon.min.js"></script>', { nel: '{"max_age":604800}' });
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.domain.state, 'look');
+    assert.match(r.by.domain.detail, /answered 301 first and sent us to \/en\//);
+    assert.equal(r.by.analytics.state, 'fail', 'the page it leads to was read');
+    assert.equal(r.by.nel.state, 'fail');
+    assert.deepEqual(r.parsed.couldNotJudge, []);
+  }));
+
+test('a redirect to another address is not followed: the items are not run, exit 1', () =>
+  withSite((req, res, url) => {
+    if (isHome(url)) {
+      res.writeHead(301, { location: 'https://www.elsewhere.invalid/', nel: '{"max_age":604800}' });
+      res.end('<html><head><title>301 Moved Permanently</title></head><body>cloudflare</body></html>');
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.domain.state, 'look');
+    assert.match(r.by.domain.detail, /elsewhere\.invalid/);
+    for (const id of ['bot', 'analytics', 'email', 'scripts']) assert.equal(r.by[id].state, 'skip', id);
+    assert.equal(r.by.nel.state, 'fail', 'the header of a redirect still counts');
+    assert.match(r.by.nel.detail, /judged from the 301 answer/);
+    assert.equal(r.code, 1);
+  }));
+
 // ---- http:// goes to https://
 
-test('the https redirect must start with the whole address: a longer host is not it', () =>
+test('the https redirect must lead to the whole address: a longer host is not it', () =>
   withSite((req, res, url) => {
-    if (url.pathname === '/' && !url.searchParams.has('cb')) {
-      // the same prefix, one digit longer: the ".com.au" slip, on a port
-      res.writeHead(301, { location: `https://${req.headers.host}9/` });
+    if (isProbe(url)) {
+      res.writeHead(301, { location: `https://${req.headers.host}9/` }); // one digit longer: the ".com.au" slip, on a port
       res.end();
       return true;
     }
@@ -199,12 +332,33 @@ test('the https redirect must start with the whole address: a longer host is not
     assert.match(r.by.https.detail, /not to https:\/\//);
   }));
 
-test('http:// answering 200 is a failure: Always Use HTTPS is not reaching it', () =>
+test('the https redirect is judged as an address: another host that quotes ours in a query does not pass', () =>
   withSite((req, res, url) => {
-    if (url.pathname === '/' && !url.searchParams.has('cb')) {
-      send(res, 200, 'text/html', '<p>Hi</p>');
+    if (isProbe(url)) {
+      res.writeHead(301, { location: `https://evil.invalid/?u=https://${req.headers.host}/` });
+      res.end();
       return true;
     }
+    return false;
+  }, async (s) => {
+    assert.equal((await check(s.origin)).by.https.state, 'fail');
+  }));
+
+test('the same address written another way is still the https redirect', () =>
+  withSite((req, res, url) => {
+    if (isProbe(url)) {
+      res.writeHead(308, { location: `https://${req.headers.host}` }); // no trailing slash
+      res.end();
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    assert.equal((await check(s.origin)).by.https.state, 'ok');
+  }));
+
+test('http:// answering 200 is a failure: Always Use HTTPS is not reaching it', () =>
+  withSite((req, res, url) => {
+    if (isProbe(url)) { send(res, 200, 'text/html', '<p>Hi</p>'); return true; }
     return false;
   }, async (s) => {
     const r = await check(s.origin);
@@ -214,32 +368,27 @@ test('http:// answering 200 is a failure: Always Use HTTPS is not reaching it', 
 
 test('a 302 to the right place is a "look": visitors arrive, but it is not Always Use HTTPS', () =>
   withSite((req, res, url) => {
-    if (url.pathname === '/' && !url.searchParams.has('cb')) {
+    if (isProbe(url)) {
       res.writeHead(302, { location: `https://${req.headers.host}/` });
       res.end();
       return true;
     }
     return false;
   }, async (s) => {
-    const r = await check(s.origin);
-    assert.equal(r.by.https.state, 'look');
+    assert.equal((await check(s.origin)).by.https.state, 'look');
   }));
 
 // ---- what Cloudflare adds to the page
 
-test('scripts and cookies Cloudflare adds are found, one item each', () =>
-  withSite((req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb')) {
-      send(res, 200, 'text/html; charset=utf-8', `<!doctype html><html><body>
-        <a href="/cdn-cgi/l/email-protection#ab">[email&#160;protected]</a>
-        <script src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
-        <script defer src="https://static.cloudflareinsights.com/beacon.min.js"></script>
-        <script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>
-      </body></html>`, { 'set-cookie': '__cf_bm=abc; path=/; HttpOnly' });
-      return true;
-    }
-    return false;
-  }, async (s) => {
+const INJECTED = `<!doctype html><html><body><p>Hello</p>
+  <a href="/cdn-cgi/l/email-protection#ab12">[email&#160;protected]</a>
+  <script src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+  <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "abc"}'></script>
+  <script>(function(){var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.head.appendChild(a);})();</script>
+</body></html>`;
+
+test('what Cloudflare injects is found: the bot script (inline), the beacon, the address hiding', () =>
+  withSite(homeWith({ 'set-cookie': '__cf_bm=abc; path=/; HttpOnly' }, INJECTED), async (s) => {
     const r = await check(s.origin);
     assert.equal(r.code, 1);
     assert.equal(r.by.bot.state, 'fail');
@@ -249,33 +398,37 @@ test('scripts and cookies Cloudflare adds are found, one item each', () =>
   }));
 
 test('the bot script alone is found when no cookie was set', () =>
-  withSite((req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb')) {
-      send(res, 200, 'text/html', '<script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>');
-      return true;
-    }
-    return false;
-  }, async (s) => {
+  withSite(homeWith({}, '<script>var a=document.createElement("script");a.src="/cdn-cgi/challenge-platform/scripts/jsd/main.js";</script>'), async (s) => {
     const r = await check(s.origin);
     assert.equal(r.by.bot.state, 'fail');
     assert.match(r.by.bot.detail, /challenge-platform/);
     assert.equal(r.by.analytics.state, 'ok');
   }));
 
-test('a redirecting home page is not scanned: the source items are "not run", never "ok"', () =>
-  withSite((req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb')) {
-      // Cloudflare's own redirect pages carry a small HTML body: it must not read as the site.
-      res.writeHead(302, { location: '/en/', 'content-type': 'text/html', nel: '{"max_age":604800}' });
-      res.end('<html><head><title>302 Found</title></head><body><center><h1>302 Found</h1></center><hr><center>cloudflare</center></body></html>');
-      return true;
-    }
-    return false;
-  }, async (s) => {
+test('words about these scripts are not the scripts: a comment, a paragraph and a code sample pass', () =>
+  withSite(homeWith({}, `<!doctype html><body>
+    <!-- static.cloudflareinsights.com and /cdn-cgi/challenge-platform and email-decode -->
+    <p>We switched off cloudflareinsights and email-decode.min.js, and cdn-cgi/challenge-platform too.</p>
+    <pre><code>&lt;script src="/cdn-cgi/scripts/x/email-decode.min.js"&gt;</code></pre></body>`), async (s) => {
     const r = await check(s.origin);
-    assert.equal(r.by.domain.state, 'look');
-    for (const id of ['bot', 'analytics', 'email']) assert.equal(r.by[id].state, 'skip', id);
-    assert.equal(r.by.nel.state, 'fail', 'headers of a redirect still count');
+    for (const id of ['bot', 'analytics', 'email', 'scripts']) assert.equal(r.by[id].state, 'ok', `${id}: ${r.by[id].detail}`);
+  }));
+
+test('another /cdn-cgi/ feature is a "look" that names it, not a pass', () =>
+  withSite(homeWith({}, '<script src="/cdn-cgi/zaraz/i.js"></script><script src="/cdn-cgi/scripts/7d0fa10a/cloudflare-static/rocket-loader.min.js"></script>'), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.scripts.state, 'look');
+    assert.match(r.by.scripts.detail, /zaraz\/i\.js/);
+    assert.match(r.by.scripts.detail, /rocket-loader/);
+    assert.equal(r.by.bot.state, 'ok');
+    assert.equal(r.code, 0);
+  }));
+
+test('a cookie that is not Cloudflare\'s is a "look" that does not blame Bot Fight Mode', () =>
+  withSite(homeWith({ 'set-cookie': 'theme=dark; path=/' }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.bot.state, 'look');
+    assert.match(r.by.bot.detail, /not Cloudflare's own: theme/);
   }));
 
 // ---- HSTS
@@ -288,42 +441,76 @@ test('HSTS: missing is a "look" until --hsts-on says it should be there', () =>
     assert.equal(r.code, 1);
   }));
 
-test('HSTS: a six-month header is read in months; preload is a "look"', async () => {
-  const withHeader = (value) => (req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb')) {
-      send(res, 200, 'text/html', '<p>Hi</p>', { 'strict-transport-security': value });
-      return true;
-    }
-    return false;
-  };
-  await withSite(withHeader('max-age=15552000; includeSubDomains'), async (s) => {
-    const r = await check(s.origin, '--hsts-on');
-    assert.equal(r.by.hsts.state, 'ok');
-    assert.match(r.by.hsts.detail, /\(about 6 months\), subdomains on, preload off/);
-  });
-  await withSite(withHeader('max-age=31536000; includeSubDomains; preload'), async (s) => {
-    const r = await check(s.origin);
-    assert.equal(r.by.hsts.state, 'look');
-    assert.match(r.by.hsts.detail, /preload/);
-  });
+test('HSTS: read as directives: months, subdomains, preload; a lookalike or a short age is not "on"', async () => {
+  const cases = [
+    ['max-age=15552000; includeSubDomains', 'ok', /\(about 6 months\), subdomains on, preload off/],
+    ['max-age="15552000"', 'ok', /about 6 months\), subdomains off/],
+    ['max-age=31536000; includeSubDomains; preload', 'look', /preload/],
+    ['not-max-age=15552000; max-age=0', 'look', /max-age of 0/],
+    ['x-max-age=15552000', 'look', /max-age of 0, or none/],
+    ['max-age=60', 'look', /shorter than the one month/],
+  ];
+  for (const [value, state, detail] of cases) {
+    await withSite(homeWith({ 'strict-transport-security': value }), async (s) => {
+      const r = await check(s.origin, '--hsts-on');
+      assert.equal(r.by.hsts.state, state, value);
+      assert.match(r.by.hsts.detail, detail, value);
+    });
+  }
 });
 
 // ---- robots.txt and AI crawlers
 
-test('robots.txt that still names example.com is a failure', () =>
-  withSite((req, res, url) => {
-    if (url.pathname === '/robots.txt') {
-      send(res, 200, 'text/plain', 'User-agent: *\nAllow: /\n\n# Set to the real production domain before launch.\nSitemap: https://example.com/sitemap-index.xml\n');
-      return true;
-    }
-    return false;
-  }, async (s) => {
+const robotsWith = (body) => (req, res, url) => {
+  if (url.pathname === '/robots.txt') { send(res, 200, 'text/plain', body); return true; }
+  return false;
+};
+
+test('robots.txt that still names the starter\'s example.com is a failure', () =>
+  withSite(robotsWith('User-agent: *\nAllow: /\n\n# Set to the real production domain before launch.\nSitemap: https://example.com/sitemap-index.xml\n'), async (s) => {
     const r = await check(s.origin);
     assert.equal(r.by.robots.state, 'fail');
     assert.match(r.by.robots.detail, /example\.com/);
   }));
 
-test('rules for named crawlers in robots.txt are a "look"', () =>
+test('a sitemap on another host is not the placeholder because its name contains "example.com"', async () => {
+  await withSite(robotsWith('User-agent: *\nAllow: /\nSitemap: https://myexample.com/sitemap.xml\n'), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.robots.state, 'look');
+    assert.match(r.by.robots.detail, /names myexample\.com/);
+  });
+  await withSite((req, res, url) => {
+    if (url.pathname === '/robots.txt') {
+      send(res, 200, 'text/plain', `User-agent: *\nAllow: /\nSitemap: https://${req.headers.host}/sitemap.xml?ref=example.com\n`);
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    assert.equal((await check(s.origin)).by.robots.state, 'ok');
+  });
+});
+
+test('robots.txt that tells every crawler to stay out fails; a private folder does not', async () => {
+  await withSite(robotsWith('User-agent: *\nDisallow: /\n'), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.robots.state, 'fail');
+    assert.match(r.by.robots.detail, /every crawler to stay out/);
+    assert.equal(r.by.ai.state, 'look');
+  });
+  await withSite((req, res, url) => {
+    if (url.pathname === '/robots.txt') {
+      send(res, 200, 'text/plain', `User-agent: *\nDisallow: /private/\n\nSitemap: https://${req.headers.host}/sitemap.xml\n`);
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.robots.state, 'ok');
+    assert.equal(r.by.ai.state, 'hand');
+  });
+});
+
+test('rules for named crawlers in robots.txt make the AI item a "look"', () =>
   withSite((req, res, url) => {
     if (url.pathname === '/robots.txt') {
       send(res, 200, 'text/plain', `User-agent: *\nAllow: /\n\nUser-agent: GPTBot\nDisallow: /\n\nSitemap: https://${req.headers.host}/sitemap-index.xml\n`);
@@ -337,21 +524,50 @@ test('rules for named crawlers in robots.txt are a "look"', () =>
     assert.match(r.by.ai.detail, /GPTBot/);
   }));
 
-test('a robots.txt that is a web page is a failure, not a file', () =>
-  withSite((req, res, url) => {
+test('robots.txt that is a web page fails; a comment that mentions html does not', async () => {
+  await withSite(robotsWith('<!doctype html><title>Home</title>'), async (s) => {
+    assert.equal((await check(s.origin)).by.robots.state, 'fail');
+  });
+  await withSite((req, res, url) => {
     if (url.pathname === '/robots.txt') {
-      send(res, 200, 'text/html', '<!doctype html><title>Home</title>');
+      send(res, 200, 'text/plain', `# generated for the <html> pages\nUser-agent: *\nAllow: /\nSitemap: https://${req.headers.host}/sitemap.xml\n`);
       return true;
     }
     return false;
   }, async (s) => {
+    assert.equal((await check(s.origin)).by.robots.state, 'ok');
+  });
+});
+
+test('robots.txt that cannot be had: 404 is a look, 500 a failure, no answer a failure and exit 1', async () => {
+  await withSite((req, res, url) => {
+    if (url.pathname === '/robots.txt') { res.writeHead(404); res.end(); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.robots.state, 'look');
+    assert.equal(r.by.ai.state, 'hand');
+    assert.match(r.by.ai.detail, /robots\.txt could not be read/);
+  });
+  await withSite((req, res, url) => {
+    if (url.pathname === '/robots.txt') { res.writeHead(500); res.end(); return true; }
+    return false;
+  }, async (s) => {
+    assert.equal((await check(s.origin)).by.robots.state, 'fail');
+  });
+  await withSite((req, res, url) => {
+    if (url.pathname === '/robots.txt') { req.socket.destroy(); return true; }
+    return false;
+  }, async (s) => {
     const r = await check(s.origin);
     assert.equal(r.by.robots.state, 'fail');
-  }));
+    assert.equal(r.code, 1);
+  });
+});
 
 test('an AI crawler name that is refused is a "look" that names it and its status', () =>
   withSite((req, res, url) => {
-    if (url.pathname === '/' && url.searchParams.has('cb') && /ClaudeBot/.test(req.headers['user-agent'])) {
+    if (isHome(url) && /ClaudeBot/.test(req.headers['user-agent'])) {
       send(res, 403, 'text/html', '<p>Blocked</p>');
       return true;
     }
@@ -363,34 +579,63 @@ test('an AI crawler name that is refused is a "look" that names it and its statu
     assert.equal(r.by.domain.state, 'ok', 'a browser-like request is not refused');
   }));
 
+test('crawler requests that got no answer are not "none refused": a look, and exit 1', () =>
+  withSite((req, res, url) => {
+    if (isHome(url) && /PerplexityBot|CCBot/.test(req.headers['user-agent'])) { req.socket.destroy(); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.ai.state, 'look');
+    assert.match(r.by.ai.detail, /2 of 6 crawler requests got no answer \(PerplexityBot, CCBot\)/);
+    assert.equal(r.parsed.unanswered.length, 2);
+    assert.equal(r.code, 1);
+  }));
+
 // ---- build.txt
 
-test('--build: the same commit passes, another one fails, and "dev" is only a look', async () => {
-  await withSite(undefined, async (s) => {
+const buildWith = (body, type = 'text/plain') => (req, res, url) => {
+  if (url.pathname === '/build.txt') { send(res, 200, type, body); return true; }
+  return false;
+};
+
+test('--build: the same commit passes, another one fails', () =>
+  withSite(undefined, async (s) => {
     const same = await check(s.origin, '--build', SHA.slice(0, 10));
     assert.equal(same.by.build.state, 'ok');
     assert.match(same.by.build.detail, /the one you expected/);
     const other = await check(s.origin, '--build', '1234567');
     assert.equal(other.by.build.state, 'fail');
     assert.equal(other.code, 1);
-  });
-  await withSite((req, res, url) => {
-    if (url.pathname === '/build.txt') { send(res, 200, 'text/plain', 'dev\n'); return true; }
-    return false;
-  }, async (s) => {
+  }));
+
+test('a build marker that is not a full commit id proves nothing: "dev", a page, a short id', async () => {
+  await withSite(buildWith('dev\n'), async (s) => {
     assert.equal((await check(s.origin)).by.build.state, 'look');
   });
-  await withSite((req, res, url) => {
-    if (url.pathname === '/build.txt') { send(res, 200, 'text/html', '<!doctype html><p>app</p>'); return true; }
-    return false;
-  }, async (s) => {
+  await withSite(buildWith('<!doctype html><p>app</p>', 'text/html'), async (s) => {
     assert.equal((await check(s.origin, '--build', SHA.slice(0, 7))).by.build.state, 'look', 'a page is not a build marker');
+  });
+  await withSite(buildWith(`${SHA.slice(0, 7)}\n`), async (s) => {
+    const r = await check(s.origin, '--build', SHA);
+    assert.equal(r.by.build.state, 'look', 'seven characters cannot confirm forty');
+    assert.match(r.by.build.detail, /7 characters/);
   });
 });
 
+test('build.txt that got no answer, with the domain fine, is a look and a non-zero exit', () =>
+  withSite((req, res, url) => {
+    if (url.pathname === '/build.txt') { req.socket.destroy(); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.build.state, 'look');
+    assert.equal(r.code, 1);
+    assert.equal(r.parsed.unanswered.length, 1);
+  }));
+
 // ---- the pages.dev address
 
-test('--project: the alias that forwards to the domain passes, and keeps the NEL note out of the domain\'s result', async () => {
+test('--project: the alias that forwards to the domain passes the forward, and its NEL note stays beside the domain\'s result', async () => {
   await withSite(undefined, async (live) => {
     await withSite((req, res) => {
       res.writeHead(301, { location: `https://${live.host}/?cb=1`, nel: '{"max_age":604800}', 'report-to': '{"group":"cf-nel"}' });
@@ -398,8 +643,8 @@ test('--project: the alias that forwards to the domain passes, and keeps the NEL
       return true;
     }, async (alias) => {
       const r = await check(live.origin, '--project', alias.origin);
-      assert.equal(r.by.pages.state, 'ok');
       assert.equal(r.by.canonical.state, 'ok');
+      assert.equal(r.by.pages.state, 'look', 'a local address is not known to be a pages.dev project');
       assert.equal(r.by.nel.state, 'ok');
       assert.match(r.by.nel.detail, /pages\.dev address still sends them/);
       assert.equal(r.code, 0);
@@ -418,7 +663,7 @@ test('--project: an alias that answers 200 means the forward is not set, and the
   });
 });
 
-test('--project: a forward to another address fails, and a name that does not exist is named', async () => {
+test('--project: a forward to another address fails, and a name that does not answer is named', async () => {
   await withSite(undefined, async (live) => {
     await withSite((req, res) => { res.writeHead(301, { location: 'https://elsewhere.invalid/' }); res.end(); return true; }, async (alias) => {
       const r = await check(live.origin, '--project', alias.origin);
@@ -432,13 +677,82 @@ test('--project: a forward to another address fails, and a name that does not ex
     const r = await check(live.origin, '--project', gone.origin);
     assert.equal(r.by.pages.state, 'fail');
     assert.equal(r.by.canonical.state, 'skip');
+    assert.equal(r.code, 1);
   });
+});
+
+test('an alias that answers 404, 500 or a challenge is not "a Pages project, ok"', () => {
+  const target = parseTarget('example.com');
+  const base = (alias) => ({
+    home: { url: 'https://example.com/?cb=1', status: 200, headers: { 'content-type': 'text/html', 'cf-ray': 'x' }, body: '<p>Hi</p>', hops: [] },
+    robots: { url: 'https://example.com/robots.txt', status: 404, headers: {}, body: '' },
+    httpProbe: { url: 'http://example.com/', status: 301, headers: { location: 'https://example.com/' }, body: '' },
+    build: { url: 'https://example.com/build.txt?cb=1', status: 404, headers: {}, body: '' },
+    crawlers: [], alias, aliasIsPagesDev: true,
+  });
+  const by = (alias) => Object.fromEntries(evaluate(base(alias), target, { timeoutMs: 5000 }).map((r) => [r.id, r]));
+  const at = (status, headers = {}) => ({ url: 'https://shop.pages.dev/?cb=1', status, headers, body: '' });
+  assert.equal(by(at(200)).pages.state, 'ok');
+  assert.equal(by(at(404)).pages.state, 'fail');
+  assert.equal(by(at(500)).pages.state, 'fail');
+  assert.equal(by(at(403, { 'cf-mitigated': 'challenge' })).pages.state, 'fail');
+  assert.equal(by(at(301, { location: 'https://example.com/?cb=1' })).canonical.state, 'ok');
+});
+
+test('--project takes a Pages project, not any address', () => {
+  assert.equal(parseProject('shop').origin, 'https://shop.pages.dev');
+  assert.equal(parseProject('Shop.pages.dev').host, 'Shop.pages.dev');
+  assert.equal(parseProject('https://shop.pages.dev').pagesDev, true);
+  assert.equal(parseProject('http://127.0.0.1:8788').pagesDev, false);
+  for (const bad of ['https://worker.example', 'http://worker.test.example.com', 'no good!', 'a/b', 'https://x.workers.dev']) {
+    assert.throws(() => parseProject(bad), UsageError, bad);
+  }
+});
+
+// ---- https, for real
+
+test('https: a closed port is "connection refused" through the https path', async () => {
+  const s = await site();
+  await s.close();
+  const r = await check(`https://127.0.0.1:${s.port}`);
+  assert.equal(r.by.domain.state, 'fail');
+  assert.match(r.by.domain.detail, /connection was refused/);
+  assert.equal(r.code, 1);
+});
+
+test('https: a site behind a certificate is read over TLS, and an untrusted one is named', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'cfcheck-tls-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const cnf = path.join(dir, 'openssl.cnf');
+  writeFileSync(cnf, '[req]\ndistinguished_name = dn\nx509_extensions = v3\nprompt = no\n[dn]\nCN = 127.0.0.1\n[v3]\nsubjectAltName = IP:127.0.0.1,DNS:localhost\n');
+  const key = path.join(dir, 'key.pem');
+  const cert = path.join(dir, 'cert.pem');
+  try {
+    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-config', cnf], { stdio: 'ignore' });
+  } catch {
+    t.skip('openssl is not available to make a certificate for this run');
+    return;
+  }
+  const s = await site(undefined, { secure: { key: readFileSync(key), cert: readFileSync(cert) } });
+  try {
+    const r = await run([s.origin, '--json', '--timeout', '5', '--hsts-on'], { env: { NODE_EXTRA_CA_CERTS: cert } });
+    const by = Object.fromEntries(JSON.parse(r.stdout).results.map((x) => [x.id, x]));
+    assert.equal(by.domain.state, 'ok', by.domain.detail);
+    assert.equal(by.nel.state, 'ok');
+    assert.equal(by.hsts.state, 'fail', 'the server sends no HSTS and --hsts-on says it should');
+    const untrusted = await run([s.origin, '--json', '--timeout', '5'], { env: { NODE_EXTRA_CA_CERTS: '' } });
+    const u = Object.fromEntries(JSON.parse(untrusted.stdout).results.map((x) => [x.id, x]));
+    assert.equal(u.domain.state, 'fail');
+    assert.match(u.domain.detail, /certificate cannot be trusted/);
+  } finally {
+    await s.close();
+  }
 });
 
 // ---- the command itself
 
 test('a wrong command is exit 2 with the usage text, and --help is exit 0', async () => {
-  for (const args of [[], ['a.example', 'b.example'], ['a.example', '--nope'], ['a.example/about'], ['a.example', '--build', 'xyz'], ['a.example', '--timeout', '0'], ['a.example', '--project', 'no good!']]) {
+  for (const args of [[], ['a.example', 'b.example'], ['a.example', '--nope'], ['a.example/about'], ['a.example', '--build', 'xyz'], ['a.example', '--timeout', '0'], ['a.example', '--project', 'no good!'], ['http://shop.example.com'], ['a.example', '--project', 'https://worker.example']]) {
     const r = await run(args);
     assert.equal(r.code, 2, JSON.stringify(args));
     assert.match(r.stderr, /Usage: node cloudflare-check\.mjs/);
@@ -449,23 +763,43 @@ test('a wrong command is exit 2 with the usage text, and --help is exit 0', asyn
   assert.match(help.stdout, /Usage: node cloudflare-check\.mjs/);
 });
 
-test('it runs when started through a symlink, as an installed skill is', async () => {
+test('a fractional timeout is accepted, and a server that never answers fails within it', () =>
+  withSite((req, res, url) => (isHome(url) ? true : false), async (s) => {
+    const started = Date.now();
+    // 1.0001 seconds is 1000.1 milliseconds: not a whole number of them.
+    const r = await check(s.origin, '--timeout', '1.0001');
+    assert.equal(r.code, 1, r.stderr);
+    assert.equal(r.by.domain.state, 'fail');
+    assert.match(r.by.domain.detail, /no answer within 1 second\b/);
+    assert.ok(Date.now() - started < 10_000);
+  }));
+
+test('it runs when started through a symlink, as an installed skill is, also with symlinks kept', async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), 'cfcheck-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
   const link = path.join(dir, 'cloudflare-check.mjs');
-  symlinkSync(SCRIPT, link);
-  const r = await run(['--help'], link);
-  assert.equal(r.code, 0);
-  assert.match(r.stdout, /Usage: node cloudflare-check\.mjs/, 'a script that does nothing when linked would print nothing');
+  try {
+    symlinkSync(SCRIPT, link);
+  } catch (e) {
+    if (e.code === 'EPERM') { t.skip('this machine does not let a plain user make symlinks'); return; }
+    throw e;
+  }
+  const plain = await run(['--help'], { script: link });
+  assert.equal(plain.code, 0);
+  assert.match(plain.stdout, /Usage: node cloudflare-check\.mjs/, 'a script that does nothing when linked would print nothing');
+  const kept = await run(['--help'], { script: link, nodeArgs: ['--preserve-symlinks', '--preserve-symlinks-main'] });
+  assert.match(kept.stdout, /Usage: node cloudflare-check\.mjs/);
 });
 
-test('parseTarget takes a domain or an origin and refuses a path', () => {
+test('parseTarget takes a domain or a local page and refuses a path or a live http:// address', () => {
   assert.deepEqual(parseTarget('Example.com'), {
     host: 'example.com', origin: 'https://example.com',
-    httpProbe: 'http://example.com/', httpsPrefix: 'https://example.com/',
+    httpProbe: 'http://example.com/', httpsOrigin: 'https://example.com',
   });
-  assert.equal(parseTarget('http://127.0.0.1:4321').httpsPrefix, 'https://127.0.0.1:4321/');
+  assert.equal(parseTarget('http://127.0.0.1:4321').httpsOrigin, 'https://127.0.0.1:4321');
+  assert.equal(parseTarget('http://site.localhost:4321').host, 'site.localhost:4321');
   assert.equal(parseTarget('https://www.example.com:8443').httpProbe, 'http://www.example.com/');
-  for (const bad of ['example.com/about', 'https://example.com/?q=1', 'ftp://example.com', 'user@example.com']) {
+  for (const bad of ['example.com/about', 'https://example.com/?q=1', 'ftp://example.com', 'user@example.com', 'http://example.com', 'http://shop.example.org:8080']) {
     assert.throws(() => parseTarget(bad), UsageError, bad);
   }
 });
@@ -474,8 +808,8 @@ test('parseTarget takes a domain or an origin and refuses a path', () => {
 
 test('the items are the checklist\'s items, and the paths are its paths', (t) => {
   if (!existsSync(CHECKLIST)) {
-    // A site's bundled copy of the skill has no docs folder. In the toolkit repo it is there,
-    // and CI runs this file there, so the comparison is made where it counts.
+    // A copy of the skill outside the toolkit has no docs folder. In the toolkit repo it is
+    // there, and CI runs this file there, so the comparison is made where it counts.
     t.skip('docs/CLOUDFLARE-CHECKLIST.md is not next to this skill');
     return;
   }
@@ -489,4 +823,5 @@ test('the items are the checklist\'s items, and the paths are its paths', (t) =>
     const want = item.path.replace(/`/g, '').replace(/\s+/g, ' ');
     assert.ok(flat.includes(want), `the checklist does not say "${want}"`);
   }
+  assert.ok(text.includes('**No scripts you didn\'t add:**'), 'section 5 still has the source-search bullet the "scripts" item stands for');
 });

@@ -332,16 +332,28 @@ jobs:
       - name: Run the facts-check tests (stub site on 127.0.0.1, no real requests)
         run: make test-facts PYTHON=python
   cloudflare-check-tests:
-    # Node's standard library only, so nothing is installed. It runs on the Node a site is
-    # built with (the template pins it), since that is the Node the script meets in use.
-    runs-on: ubuntu-latest
+    # Node's standard library only, so nothing is installed. 18 is the oldest Node the script
+    # promises, 24 is the one the template pins and a site is built with; Windows runs the same
+    # file, since the script is started by a path there too. The tests make their own
+    # certificate with openssl, which bash on the Windows runner has.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, node: '18' }
+          - { os: ubuntu-latest, node: '20' }
+          - { os: ubuntu-latest, node: '22' }
+          - { os: ubuntu-latest, node: '24' }
+          - { os: windows-latest, node: '24' }
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version-file: skills/new-website/templates/astro/.nvmrc
+          node-version: ${{ matrix.node }}
       - name: Run the Cloudflare check's tests (stub sites on 127.0.0.1, no real requests)
-        run: make test-cloudflare-check
+        shell: bash
+        run: node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs
   macos-stock-tools:
     # Every job above runs on Ubuntu (bash 5, GNU awk/sed/tr). A zip recipient on a Mac runs
     # the same guards under /bin/bash 3.2 and BSD tools, and v0.27's pre-release review found

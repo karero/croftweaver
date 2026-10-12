@@ -10,15 +10,20 @@
 // in references/CLOUDFLARE_CHECK.md next to this folder.
 import http from 'node:http';
 import https from 'node:https';
+import path from 'node:path';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const UA = 'Mozilla/5.0 (compatible; croftweaver-cloudflare-check/1)';
 const MONTH = 2629800; // seconds in an average month; the dashboard offers whole months
+const MAX_BODY = 5_000_000; // bytes of a page read before judging what we have
+const MAX_HOPS = 3; // redirects followed on the home page, to the same address only
 const CF_COOKIE = /^(__cf_bm|cf_clearance|__cflb|_cfuvid)$/; // the names Cloudflare's own cookies carry
+// http:// is for a page on this machine or a test name, never for a live domain.
+const LOCAL_HOST = /^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\]|[^.]+\.localhost|.+\.test)$/i;
 
-// Crawler names the AI-crawler item sends. A spoofed name is not the real crawler, so a 200
-// here is consistent with "Allow" and a refusal shows that some block is on.
+// Crawler names the AI-crawler item sends. Cloudflare may tell the real crawlers from a
+// request that only carries their name, so a 200 here is a hint and not a proof.
 const CRAWLERS = [
   ['GPTBot', 'Mozilla/5.0 (compatible; GPTBot/1.1; +https://openai.com/gptbot)'],
   ['OAI-SearchBot', 'Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)'],
@@ -38,7 +43,7 @@ export const SECTIONS = {
   2: 'Safe connections',
   3: 'Keep the privacy page true',
   4: 'Be found, by search engines and AI assistants',
-  5: 'The files the checks rely on',
+  5: 'Check your work',
 };
 export const ITEMS = [
   { id: 'pages', section: 1, title: 'Create a Pages project, not a Worker' },
@@ -62,9 +67,12 @@ export const ITEMS = [
   { id: 'hints', section: 4, title: 'Crawler Hints: On',
     path: 'Your domain → Caching → Configuration → Crawler Hints',
     lookFor: 'there is no outside check for this one' },
-  { id: 'ai', section: 4, title: 'AI crawlers: allow' },
+  { id: 'ai', section: 4, title: 'AI crawlers: allow',
+    path: 'Your domain → Security → Settings → filter by Bot traffic → Configure AI bot policies',
+    lookFor: 'Search, Agent and Training each set to Allow (do not block)' },
   { id: 'robots', section: 5, title: 'Your own robots.txt' },
   { id: 'build', section: 5, title: 'The build that is live' },
+  { id: 'scripts', section: 5, title: 'No scripts you didn\'t add' },
 ];
 
 // ---------------------------------------------------------------- what was asked for
@@ -74,12 +82,13 @@ const USAGE = `Usage: node cloudflare-check.mjs <domain> [options]
   <domain>            your live domain, for example example.com (no https://, no path)
   --project <name>    your Pages project, to check that <name>.pages.dev forwards to the domain
   --hsts-on           you have switched HSTS on: a missing header is then a failure
-  --build <sha>       the build you expect the live domain to serve (from /build.txt)
+  --build <sha>       the commit you expect the live domain to serve (from /build.txt)
   --json              print the results as JSON
-  --timeout <s>       seconds to wait for each answer (default 15)
+  --timeout <s>       seconds to wait for each answer, 1 to 120 (default 15)
   -h, --help          this text
 
-Exit status: 0 nothing failed, 1 something failed or did not answer, 2 the command was wrong.
+Exit status: 0 nothing failed and everything was asked and judged; 1 something failed, did
+not answer or could not be judged (the report says which); 2 the command was wrong.
 `;
 
 export function parseArgs(argv) {
@@ -99,7 +108,7 @@ export function parseArgs(argv) {
     else if (a === '--timeout') {
       const n = Number(value());
       if (!(n >= 1 && n <= 120)) throw new UsageError('--timeout takes a number of seconds from 1 to 120');
-      opts.timeoutMs = n * 1000;
+      opts.timeoutMs = Math.round(n * 1000);
     } else if (a === '-h' || a === '--help') opts.help = true;
     else if (a.startsWith('-')) throw new UsageError(`unknown option ${a}`);
     else rest.push(a);
@@ -113,8 +122,8 @@ export function parseArgs(argv) {
   return { opts, domain: rest[0] };
 }
 
-// A bare domain means https://<domain>. An origin ("http://127.0.0.1:4321") is taken as given,
-// which is how a local preview, or the script's own tests, are checked.
+// A bare domain means https://<domain>. A page on this machine ("http://127.0.0.1:4321") is
+// taken as given: that is how a local preview, or the script's own tests, are checked.
 export function parseTarget(arg) {
   const raw = String(arg).trim();
   let url;
@@ -124,6 +133,9 @@ export function parseTarget(arg) {
     throw new UsageError(`"${raw}" is not a domain`);
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new UsageError(`"${raw}" is not a web address`);
+  if (url.protocol === 'http:' && !LOCAL_HOST.test(url.hostname)) {
+    throw new UsageError(`"${raw}": http:// is for a page on this machine. Give your domain without a scheme: ${url.hostname}`);
+  }
   if (url.username || url.password || url.search || url.hash || url.pathname !== '/') {
     throw new UsageError(`give the domain only, with no path: "${url.hostname}", not "${raw}"`);
   }
@@ -131,35 +143,41 @@ export function parseTarget(arg) {
     host: url.host,
     origin: url.origin,
     httpProbe: `http://${url.protocol === 'http:' ? url.host : url.hostname}/`,
-    httpsPrefix: `https://${url.host}/`,
+    httpsOrigin: `https://${url.host}`,
   };
 }
 
-function parseProject(arg) {
-  const raw = arg.trim();
+export function parseProject(arg) {
+  const raw = String(arg).trim();
+  const nameOk = (n) => /^[a-z0-9][a-z0-9-]{0,57}$/i.test(n);
   if (/^https?:\/\//i.test(raw)) {
-    try {
-      const u = new URL(raw);
-      return { origin: u.origin, host: u.host };
-    } catch {
-      throw new UsageError(`"${raw}" is not a web address`);
+    let u;
+    try { u = new URL(raw); } catch { throw new UsageError(`"${raw}" is not a web address`); }
+    const pagesDev = u.protocol === 'https:' && /^[a-z0-9-]+\.pages\.dev$/i.test(u.hostname);
+    if (!pagesDev && !(u.protocol === 'http:' && LOCAL_HOST.test(u.hostname))) {
+      throw new UsageError(`"${raw}" is not a pages.dev address: give the project's name, for example my-project`);
     }
+    return { origin: u.origin, host: u.host, pagesDev };
   }
   const name = raw.replace(/\.pages\.dev$/i, '');
-  if (!/^[a-z0-9][a-z0-9-]{0,57}$/i.test(name)) {
-    throw new UsageError(`"${raw}" is not a Pages project name (letters, digits and hyphens)`);
-  }
-  return { origin: `https://${name}.pages.dev`, host: `${name}.pages.dev` };
+  if (!nameOk(name)) throw new UsageError(`"${raw}" is not a Pages project name (letters, digits and hyphens)`);
+  return { origin: `https://${name}.pages.dev`, host: `${name}.pages.dev`, pagesDev: true };
 }
 
 // ---------------------------------------------------------------- asking
 
-// One GET, never followed, never rejected: an error is part of the answer. The body is
-// read up to a megabyte.
+// One GET, never followed, never rejected: an error is part of the answer. A body is read up
+// to MAX_BODY bytes (a page of the kit is a few hundred kilobytes); an answer that ends
+// early, or does not end in time, is an error, never a page.
 function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xml,*/*;q=0.8' }) {
   return new Promise((resolve) => {
     const signal = AbortSignal.timeout(timeoutMs);
-    const finish = (extra) => resolve({ url, ...extra });
+    let done = false;
+    const finish = (extra) => {
+      if (done) return;
+      done = true;
+      resolve({ url, ...extra });
+    };
     let u;
     try {
       u = new URL(url);
@@ -175,17 +193,28 @@ function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xm
     }, (res) => {
       const chunks = [];
       let size = 0;
+      let capped = false;
       res.on('data', (c) => {
         size += c.length;
-        if (size <= 1_000_000) chunks.push(c);
-        else res.destroy();
+        if (size <= MAX_BODY) chunks.push(c);
+        else if (!capped) {
+          capped = true;
+          res.destroy();
+        }
       });
       res.on('error', () => {});
-      res.on('close', () => finish({
-        status: res.statusCode,
-        headers: res.headers,
-        body: Buffer.concat(chunks).toString('utf8'),
-      }));
+      res.on('close', () => {
+        if (signal.aborted) return finish({ error: { code: 'ETIMEDOUT', message: 'timed out' } });
+        if (!res.complete && !capped) {
+          return finish({ error: { code: 'EINCOMPLETE', message: 'the answer was cut off' } });
+        }
+        return finish({
+          status: res.statusCode,
+          headers: res.headers,
+          body: Buffer.concat(chunks).toString('utf8'),
+          truncated: capped,
+        });
+      });
     });
     req.on('error', (e) => finish({
       error: { code: signal.aborted ? 'ETIMEDOUT' : (e.code || e.name), message: e.message },
@@ -194,13 +223,38 @@ function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xm
   });
 }
 
+const header = (r, name) => {
+  const v = r.headers?.[name];
+  return Array.isArray(v) ? v.join(', ') : (v ?? '');
+};
+
+// The home page: a redirect to the same address is followed (a language redirect, say), so
+// the page is judged where it ends. `hops` says what was followed.
+async function getHome(url, t, stamp) {
+  const hops = [];
+  let r = await get(url, t);
+  while (!r.error && r.status >= 300 && r.status < 400 && hops.length < MAX_HOPS) {
+    let next;
+    try {
+      next = new URL(header(r, 'location'), r.url);
+    } catch {
+      break;
+    }
+    if (next.origin !== new URL(url).origin) break; // another address: a person decides
+    hops.push({ status: r.status, location: header(r, 'location') });
+    next.searchParams.set('cb', String(stamp));
+    r = await get(next.href, t);
+  }
+  return { ...r, hops };
+}
+
 export async function observe(target, { timeoutMs, alias }) {
   const stamp = Math.floor(Date.now() / 1000);
   const t = { timeoutMs };
   const text = { timeoutMs, accept: 'text/plain,*/*;q=0.8' };
   const homeUrl = `${target.origin}/?cb=${stamp}`;
   const [home, robots, httpProbe, build, aliasHome, ...crawlers] = await Promise.all([
-    get(homeUrl, t),
+    getHome(homeUrl, t, stamp),
     get(`${target.origin}/robots.txt`, text),
     get(target.httpProbe, t),
     get(`${target.origin}/build.txt?cb=${stamp}`, text),
@@ -213,21 +267,25 @@ export async function observe(target, { timeoutMs, alias }) {
   };
 }
 
+// Every request that got no answer at all.
+export function unanswered(obs) {
+  return [obs.home, obs.robots, obs.httpProbe, obs.build, obs.alias, ...obs.crawlers]
+    .filter((r) => r && r.error)
+    .map((r) => bare(r.url));
+}
+
 // ---------------------------------------------------------------- judging
 
-const header = (r, name) => {
-  const v = r.headers?.[name];
-  return Array.isArray(v) ? v.join(', ') : (v ?? '');
-};
 const bare = (url) => url.replace(/\?cb=\d+$/, '');
 
 function whyNoAnswer(err, timeoutMs) {
   const known = {
-    ENOTFOUND: 'the name does not exist',
+    ENOTFOUND: 'the name could not be looked up (it may not exist, or this network blocks it)',
     EAI_AGAIN: 'the name could not be looked up',
     ECONNREFUSED: 'the connection was refused',
     ECONNRESET: 'the connection was reset',
-    ETIMEDOUT: `no answer within ${timeoutMs / 1000} seconds`,
+    EINCOMPLETE: 'the answer was cut off before it was complete',
+    ETIMEDOUT: `no answer within ${timeoutMs / 1000} second${timeoutMs === 1000 ? '' : 's'}`,
     CERT_HAS_EXPIRED: 'its certificate has expired',
     ERR_TLS_CERT_ALTNAME_INVALID: 'its certificate is for another name',
     DEPTH_ZERO_SELF_SIGNED_CERT: 'its certificate cannot be trusted',
@@ -237,178 +295,295 @@ function whyNoAnswer(err, timeoutMs) {
   return known[err.code] ?? err.message;
 }
 
+// Do two addresses name the same page? Compared as addresses, not as text: "https://host"
+// and "https://host:443/" are the page "https://host/".
+function leadsTo(location, base, wanted) {
+  try {
+    const a = new URL(location, base);
+    const b = new URL(wanted);
+    return a.origin === b.origin && a.pathname === b.pathname;
+  } catch {
+    return false;
+  }
+}
+
+// What a browser would act on in a page: its tags and the text of its scripts. Comments and
+// the words a person reads are left out, so a page that talks about these things is not
+// taken for one that loads them.
+function scanPage(body) {
+  const clean = body.replace(/<!--[\s\S]*?-->/g, ' ');
+  const tags = clean.match(/<[a-z!/][^>]*>/gi) ?? [];
+  const scripts = [...clean.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map((m) => m[1]);
+  const text = clean.replace(/<script\b[\s\S]*?<\/script\s*>/gi, ' ').replace(/<[^>]*>/g, ' ');
+  return { code: [...tags, ...scripts].join('\n').toLowerCase(), text: text.toLowerCase() };
+}
+
+// robots.txt, read the way a crawler reads it: groups of User-agent lines with their rules.
+function readRobots(body) {
+  const groups = [];
+  const sitemaps = [];
+  let signals = false;
+  let current = null;
+  let lastWasAgent = false;
+  for (const raw of body.split(/\r?\n/)) {
+    const m = /^([a-z-]+)\s*:\s*(.*)$/i.exec(raw.replace(/#.*/, '').trim());
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    const val = m[2].trim();
+    if (key === 'user-agent') {
+      if (!current || !lastWasAgent) {
+        current = { agents: [], rules: [] };
+        groups.push(current);
+      }
+      current.agents.push(val);
+      lastWasAgent = true;
+      continue;
+    }
+    lastWasAgent = false;
+    if (key === 'sitemap') sitemaps.push(val);
+    else if (key === 'content-signal') signals = true;
+    else if ((key === 'allow' || key === 'disallow') && current) current.rules.push([key, val]);
+  }
+  const blocks = (g) => g.rules.some(([k, v]) => k === 'disallow' && v === '/')
+    && !g.rules.some(([k, v]) => k === 'allow' && v === '/');
+  const named = groups.flatMap((g) => g.agents).filter((a) => a !== '*');
+  return {
+    hasStar: groups.some((g) => g.agents.includes('*')),
+    blocksAll: groups.some((g) => g.agents.includes('*') && blocks(g)),
+    blockedNames: groups.filter((g) => !g.agents.includes('*') && blocks(g)).flatMap((g) => g.agents),
+    named,
+    signals,
+    sitemaps,
+  };
+}
+
 export function evaluate(obs, target, opts) {
   const out = new Map();
-  const put = (id, state, detail, fix) => out.set(id, fix ? { state, detail, fix } : { state, detail });
+  const blocked = new Set(); // "not run" because something could not be judged, not because it was not asked for
+  const put = (id, state, detail, fix) => {
+    const r = { state, detail };
+    if (fix && (state === 'fail' || state === 'look')) r.fix = fix;
+    out.set(id, r);
+  };
+  const skip = (id, detail, { couldNot = true } = {}) => {
+    put(id, 'skip', detail);
+    if (couldNot) blocked.add(id);
+  };
   const { home, robots, httpProbe, build, alias, crawlers } = obs;
   const noAnswer = (r) => `no answer from ${bare(r.url)}: ${whyNoAnswer(r.error, opts.timeoutMs)}`;
   const section = (n) => `See section ${n} of the Cloudflare checklist.`;
 
-  // 1. The domain answers. Everything about the home page hangs on this one.
+  // 1. The domain answers, and the answer is the site's. Everything about the page hangs on it.
   const challenged = !home.error && header(home, 'cf-mitigated') === 'challenge';
-  const seen = !home.error && !challenged && home.status < 400; // headers of the home page can be judged
+  const seen = !home.error && !challenged && home.status < 400; // its headers can be judged
+  const offPage = seen && home.status !== 200; // ... but a redirect, a 204 and the like are not the page
   const page = seen && home.status === 200 && /html/i.test(header(home, 'content-type'));
   const whyNot = home.error ? noAnswer(home)
     : challenged ? `Cloudflare answered ${home.status} with a challenge page, so the site itself was not seen`
-      : `the home page answered ${home.status}`;
+      : `the home page answered ${home.status}${page ? '' : ', not a 200 page of HTML'}`;
   const notChecked = `not checked: ${whyNot}`;
-  const cloudflareError = { 522: 'Cloudflare cannot reach your Pages project: the domain is probably not attached to it',
-    523: 'Cloudflare cannot reach the origin', 525: 'the secure connection to the origin failed',
-    526: 'the origin certificate is not valid' };
+  const cloudflareError = {
+    522: 'Cloudflare cannot reach your Pages project: the domain is probably not attached to it',
+    523: 'Cloudflare cannot reach the origin',
+    525: 'the secure connection to the origin failed',
+    526: 'the origin certificate is not valid',
+  };
+  const hopsNote = home.hops?.length
+    ? ` It answered ${home.hops[0].status} first and sent us to ${home.hops[0].location}${home.hops.length > 1 ? ' and on' : ''}; the page is judged where that ends.`
+    : '';
+  const where = bare(home.url);
 
   if (home.error) put('domain', 'fail', noAnswer(home), `Is the domain attached to the project, and are its DNS records on Cloudflare? ${section(1)}`);
   else if (challenged) put('domain', 'fail', `Cloudflare answered ${home.status} with a challenge page, so the site itself was not seen. Bot Fight Mode, or a rule, is challenging requests like this one.`, section(3));
-  else if (home.status >= 400) put('domain', 'fail', `${bare(home.url)} answered ${home.status}${cloudflareError[home.status] ? `: ${cloudflareError[home.status]}` : ''}.`, section(1));
-  else if (home.status >= 300) put('domain', 'look', `${bare(home.url)} answered ${home.status} and sends visitors to ${header(home, 'location') || 'another address'}. Something redirects your live domain (a language or www redirect is fine): find out what before you trust the rest.`);
-  else put('domain', 'ok', `${bare(home.url)} answered ${home.status}.`);
+  else if (home.status >= 400) put('domain', 'fail', `${where} answered ${home.status}${cloudflareError[home.status] ? `: ${cloudflareError[home.status]}` : ''}.`, section(1));
+  else if (home.status >= 300) put('domain', 'look', `${where} answered ${home.status} and sends visitors to ${header(home, 'location') || 'another address'}. That is another address, so the page was not judged: run the check on it.`, 'Is that redirect yours (www, another language)? Run the check against the address it leads to.');
+  else if (home.status !== 200) put('domain', 'look', `${where} answered ${home.status}, not a 200 page, so the page was not judged.`);
+  else if (!header(home, 'cf-ray')) put('domain', 'look', `${where} answered 200, but not through Cloudflare (no cf-ray header). Are this domain's DNS records moved to Cloudflare, and is this your site?${hopsNote}`, section(1));
+  else if (home.hops?.length) put('domain', 'look', `${where} answered 200.${hopsNote}`);
+  else put('domain', 'ok', `${where} answered 200.`);
 
   // 2. http:// goes to https://
   if (httpProbe.error) put('https', 'fail', noAnswer(httpProbe), section(2));
   else {
     const loc = header(httpProbe, 'location');
-    const to = loc.toLowerCase().startsWith(target.httpsPrefix.toLowerCase());
+    const to = leadsTo(loc, httpProbe.url, `${target.httpsOrigin}/`);
     const s = httpProbe.status;
     if ((s === 301 || s === 308) && to) put('https', 'ok', `http:// answers ${s} and sends visitors to ${loc}.`);
-    else if (s >= 300 && s < 400 && to) put('https', 'look', `http:// answers ${s}, a temporary redirect, to ${loc}. Visitors arrive on https, but Always Use HTTPS sends a 301.`);
-    else if (s >= 300 && s < 400) put('https', 'fail', `http:// sends visitors to ${loc || 'another address'}, not to ${target.httpsPrefix}`, section(2));
+    else if (s >= 300 && s < 400 && to) put('https', 'look', `http:// answers ${s}, a temporary redirect, to ${loc}. Visitors arrive on https, but Always Use HTTPS sends a 301.`, section(2));
+    else if (s >= 300 && s < 400) put('https', 'fail', `http:// sends visitors to ${loc || 'another address'}, not to ${target.httpsOrigin}/`, section(2));
     else put('https', 'fail', `http:// answers ${s} with no redirect: Always Use HTTPS is off, or does not reach this address.`, section(2));
   }
 
   // 3. HSTS
-  if (!seen) put('hsts', 'skip', notChecked);
+  if (!seen) skip('hsts', notChecked);
   else {
     const sts = header(home, 'strict-transport-security');
+    const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
     if (!sts) {
-      if (opts.hstsOn) put('hsts', 'fail', 'you said HSTS is on, but the home page has no strict-transport-security header.', section(2));
-      else put('hsts', 'look', 'not on yet. Switch it on a few days after go-live, then run this check again with --hsts-on.');
+      if (opts.hstsOn) put('hsts', 'fail', `you said HSTS is on, but the answer has no strict-transport-security header${via}.`, section(2));
+      else put('hsts', 'look', `not on yet${via}. Switch it on a few days after go-live, then run this check again with --hsts-on.`);
     } else {
-      const age = Number((/max-age=(\d+)/i.exec(sts) ?? [])[1] ?? NaN);
-      const sub = /includesubdomains/i.test(sts);
-      const pre = /preload/i.test(sts);
+      const age = Number(/(?:^|;)\s*max-age\s*=\s*"?(\d+)"?\s*(?:;|$)/i.exec(sts)?.[1] ?? NaN);
+      const sub = /(?:^|;)\s*includesubdomains\s*(?:;|$)/i.test(sts);
+      const pre = /(?:^|;)\s*preload\s*(?:;|$)/i.test(sts);
       const months = Math.round(age / MONTH);
       const shown = `on: max-age ${age} (about ${months} month${months === 1 ? '' : 's'}), subdomains ${sub ? 'on' : 'off'}, preload ${pre ? 'on' : 'off'}.`;
       if (!(age > 0)) put('hsts', 'look', `${sts}: a max-age of 0, or none, switches HSTS off in browsers.`, section(2));
+      else if (age < MONTH) put('hsts', 'look', `${shown} That is shorter than the one month the checklist starts with.`, section(2));
       else if (pre) put('hsts', 'look', `${shown} The checklist says preload Off: it needs 12 months and can lock visitors out if HTTPS ever breaks.`, section(2));
+      else if (offPage) put('hsts', 'look', `${shown} Judged from the ${home.status} answer, not the page.`);
       else put('hsts', 'ok', shown);
     }
   }
 
   // 4. NEL
-  if (!seen) put('nel', 'skip', notChecked);
+  if (!seen) skip('nel', notChecked);
   else {
     const nel = header(home, 'nel');
     const rt = header(home, 'report-to');
-    let age = '';
-    try { age = ` (max_age ${JSON.parse(nel).max_age} seconds)`; } catch { /* not JSON: say nothing */ }
+    let policy = null;
+    try { policy = JSON.parse(nel); } catch { /* not JSON: say nothing about it */ }
+    const age = Number.isFinite(policy?.max_age) ? ` (max_age ${policy.max_age} seconds)` : '';
     const aliasNel = alias && !alias.error && (header(alias, 'nel') || header(alias, 'report-to'))
       ? ' The pages.dev address still sends them; the header rule cannot reach it, and no way to remove them there has been found.' : '';
-    if (nel) put('nel', 'fail', `the home page sends a nel header${age}: Network Error Logging is on.`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
-    else if (rt) put('nel', 'look', `no nel header, but a report-to header is sent. If it is Cloudflare's reporting group, remove it with the header rule; if your site sets its own reporting groups, leave it.${aliasNel}`, section(3));
+    const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
+    if (nel && policy?.max_age === 0) put('nel', 'look', `the nel header says max_age 0, which tells browsers to forget the policy${via}.${aliasNel}`, section(3));
+    else if (nel) put('nel', 'fail', `the answer carries a nel header${age}: Network Error Logging is on${via}.`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
+    else if (rt && /cf-nel|nel\.cloudflare\.com/i.test(rt)) put('nel', 'fail', `the answer carries Cloudflare's NEL reporting group in a report-to header${via}.`, `Remove it with the header rule. ${section(3)}`);
+    else if (rt) put('nel', 'look', `no nel header, but a report-to header is sent${via}. If it is not yours, remove it with the header rule; if your site sets its own reporting groups, leave it.${aliasNel}`, section(3));
+    else if (offPage) put('nel', 'look', `no nel and no report-to header, judged from the ${home.status} answer, not the page.${aliasNel}`);
     else put('nel', 'ok', `no nel and no report-to header on the home page.${aliasNel}`);
   }
 
   // 5. What Cloudflare adds to the page: cookies and scripts.
-  const html = page ? home.body.toLowerCase() : null;
+  const scanned = page ? scanPage(home.body) : null;
+  const partial = page && home.truncated;
+  const partialNote = 'the page is larger than 5 MB and only the first 5 MB were read';
+  const unseenPage = !seen ? notChecked : `not checked: ${whyNot}, so its source was not read`;
   const cookies = seen ? [].concat(home.headers['set-cookie'] ?? []).map((c) => c.split('=')[0].trim()) : [];
-  const unseenPage = !seen ? notChecked : 'not checked: the home page did not answer 200 with HTML, so its source was not read';
-  if (cookies.length) {
-    const cf = cookies.filter((c) => CF_COOKIE.test(c));
-    put('bot', 'fail', `the home page sets ${cookies.length === 1 ? 'a cookie' : 'cookies'}: ${cookies.join(', ')}${cf.length ? ' (Cloudflare\'s bot cookie)' : ''}.`, section(3));
-  } else if (html?.includes('cdn-cgi/challenge-platform')) {
-    put('bot', 'fail', 'the HTML loads Cloudflare\'s bot-detection script (/cdn-cgi/challenge-platform/).', section(3));
-  } else if (html) {
-    put('bot', 'ok', 'no cookie and no bot-detection script in the page we received. A browser can see more: view the source once.');
-  } else put('bot', 'skip', unseenPage);
+  const cfCookies = cookies.filter((c) => CF_COOKIE.test(c));
+  const found = {
+    bot: scanned?.code.includes('/cdn-cgi/challenge-platform') ?? false,
+    analytics: (scanned?.code.includes('cloudflareinsights') || scanned?.code.includes('data-cf-beacon')) ?? false,
+    email: scanned ? (/email-decode|\/cdn-cgi\/l\/email-protection|data-cfemail/.test(scanned.code)
+      || /\[email(?:&#160;|&nbsp;| | )protected\]/.test(scanned.text)) : false,
+  };
+  const judgeSource = (id, hit, hitText, okText) => {
+    if (hit) put(id, 'fail', hitText, section(3));
+    else if (partial) put(id, 'look', `nothing found, but ${partialNote}.`);
+    else if (scanned) put(id, 'ok', okText);
+    else skip(id, unseenPage);
+  };
 
-  if (html?.includes('cloudflareinsights')) put('analytics', 'fail', 'the HTML loads Cloudflare\'s measurement script (cloudflareinsights).', section(3));
-  else if (html) put('analytics', 'ok', 'no cloudflareinsights script in the page we received.');
-  else put('analytics', 'skip', unseenPage);
+  if (cfCookies.length) {
+    put('bot', 'fail', `the home page sets ${cfCookies.length === 1 ? 'a cookie' : 'cookies'} that belong${cfCookies.length === 1 ? 's' : ''} to Cloudflare: ${cfCookies.join(', ')}.`, section(3));
+  } else if (found.bot) {
+    put('bot', 'fail', 'the page loads Cloudflare\'s bot-detection script (/cdn-cgi/challenge-platform/).', section(3));
+  } else if (cookies.length) {
+    put('bot', 'look', `the home page sets ${cookies.length === 1 ? 'a cookie' : 'cookies'} that ${cookies.length === 1 ? 'is' : 'are'} not Cloudflare's own: ${cookies.join(', ')}. The privacy page promises none: find out what sets ${cookies.length === 1 ? 'it' : 'them'}.`, section(3));
+  } else judgeSource('bot', false, '', 'no cookie and no bot-detection script in the page we received. A browser can see more: view the source once.');
 
-  if (html && /email-decode|cdn-cgi\/l\/email-protection|data-cfemail|\[email(&#160;|&nbsp;| )protected\]/.test(html)) {
-    put('email', 'fail', 'the HTML carries Cloudflare\'s address hiding (email-decode or [email protected]).', section(3));
-  } else if (html) put('email', 'ok', 'no email-decode script and no [email protected] in the page we received.');
-  else put('email', 'skip', unseenPage);
+  judgeSource('analytics', found.analytics, 'the page loads Cloudflare\'s measurement script (cloudflareinsights).', 'no cloudflareinsights script in the page we received.');
+  judgeSource('email', found.email, 'the page carries Cloudflare\'s address hiding (email-decode, a protected link, or [email protected]).', 'no email-decode script and no [email protected] in the page we received.');
+
+  // Anything else from /cdn-cgi/: Rocket Loader, Zaraz, image resizing, whatever comes next.
+  if (scanned) {
+    const others = [...new Set(scanned.code.match(/\/cdn-cgi\/[^\s"'<>)\\]+/g) ?? [])]
+      .filter((p) => !/challenge-platform|email-decode|\/l\/email-protection/.test(p));
+    if (others.length) put('scripts', 'look', `the page uses ${others.slice(0, 4).join(', ')}${others.length > 4 ? ` and ${others.length - 4} more` : ''}. These are Cloudflare features (Rocket Loader, Zaraz, image resizing and the like). Did you switch them on?`, section(5));
+    else if (partial) put('scripts', 'look', `nothing found, but ${partialNote}.`);
+    else put('scripts', 'ok', 'no other /cdn-cgi/ path in the page we received.');
+  } else skip('scripts', unseenPage);
 
   // 6. robots.txt, and what the AI crawlers get.
-  let agents = [];
-  let robotsFile = null; // 'ok' | 'look' | 'fail' with detail, computed below
-  // A dead domain is one failure, said once above; robots.txt then is not checked, not a second failure.
-  if (robots.error) robotsFile = home.error ? ['skip', notChecked] : ['fail', noAnswer(robots)];
-  else if (robots.status === 404) robotsFile = ['look', 'no robots.txt (404). The starter ships one; without it search engines crawl everything.'];
-  else if (robots.status !== 200) robotsFile = ['fail', `robots.txt answered ${robots.status}.`];
-  else if (/<html|<!doctype/i.test(robots.body)) robotsFile = ['fail', 'robots.txt answers with a web page, not a robots file.'];
-  else {
-    const lines = robots.body.split(/\r?\n/).map((l) => l.replace(/#.*/, '').trim()).filter(Boolean);
-    const field = (name) => lines.filter((l) => l.toLowerCase().startsWith(`${name}:`)).map((l) => l.slice(name.length + 1).trim());
-    agents = field('user-agent').filter((a) => a !== '*');
-    const sitemaps = field('sitemap');
-    const signals = field('content-signal').length > 0;
+  let rb = null; // what could be read of robots.txt
+  let robotsRead = false;
+  if (robots.error) {
+    if (home.error) skip('robots', notChecked);
+    else put('robots', 'fail', noAnswer(robots), 'The starter\'s robots.txt, with your own domain in the Sitemap line.');
+  } else if (robots.status === 404) {
+    put('robots', 'look', 'no robots.txt (404). The starter ships one; without it search engines crawl everything.', 'The starter\'s robots.txt, with your own domain in the Sitemap line.');
+  } else if (robots.status !== 200) {
+    put('robots', 'fail', `robots.txt answered ${robots.status}.`, 'The starter\'s robots.txt, with your own domain in the Sitemap line.');
+  } else if (/^\s*<(?:!doctype|html|head|body)\b/i.test(robots.body)) {
+    put('robots', 'fail', 'robots.txt answers with a web page, not a robots file.', 'The starter\'s robots.txt, with your own domain in the Sitemap line.');
+  } else {
+    rb = readRobots(robots.body);
+    robotsRead = true;
     const hostOf = (u) => { try { return new URL(u).host; } catch { return ''; } };
-    if (!field('user-agent').includes('*')) robotsFile = ['look', 'no "User-agent: *" group: is this your own file?'];
-    else if (sitemaps.some((s) => /example\.(com|org|net)/i.test(s))) robotsFile = ['fail', `the Sitemap line still names the starter's placeholder (${sitemaps.find((s) => /example\./i.test(s))}). Set your real domain.`];
-    else if (!sitemaps.length) robotsFile = ['look', 'no Sitemap line.'];
-    else if (!sitemaps.some((s) => hostOf(s).replace(/^www\./, '') === target.host.replace(/^www\./, ''))) robotsFile = ['look', `the Sitemap line names ${hostOf(sitemaps[0]) || sitemaps[0]}, not ${target.host}.`];
-    else robotsFile = ['ok', `a robots file with a Sitemap line that names ${target.host}.`];
-    if (signals) agents.push('(content-signal lines)');
+    const stripWww = (h) => h.replace(/^www\./i, '').toLowerCase();
+    const placeholder = rb.sitemaps.find((s) => /^(?:www\.)?example\.(?:com|org|net)$/i.test(hostOf(s)) && stripWww(hostOf(s)) !== stripWww(target.host));
+    const fix = 'The starter\'s robots.txt, with your own domain in the Sitemap line.';
+    if (rb.blocksAll) put('robots', 'fail', 'robots.txt tells every crawler to stay out (Disallow: /): search engines and AI assistants will not read your pages.', section(4));
+    else if (!rb.hasStar) put('robots', 'look', 'no "User-agent: *" group: is this your own file?', fix);
+    else if (placeholder) put('robots', 'fail', `the Sitemap line still names the starter's placeholder (${placeholder}). Set your real domain.`, fix);
+    else if (!rb.sitemaps.length) put('robots', 'look', 'no Sitemap line.', fix);
+    else if (!rb.sitemaps.some((s) => stripWww(hostOf(s)) === stripWww(target.host))) put('robots', 'look', `the Sitemap line names ${hostOf(rb.sitemaps[0]) || rb.sitemaps[0]}, not ${target.host}.`, fix);
+    else put('robots', 'ok', `a robots file with a Sitemap line that names ${target.host}.`);
   }
-  put('robots', robotsFile[0], robotsFile[1], robotsFile[0] === 'ok' ? undefined : 'The starter\'s robots.txt, with your own domain in the Sitemap line.');
 
+  // AI crawlers: the policy is a dashboard setting. Outside, there is a hint and a robots file.
   const refused = seen ? crawlers.filter((c) => !c.error && c.status >= 400).map((c) => `${c.name} (${c.status})`) : [];
-  const failed = crawlers.filter((c) => c.error).length;
-  const dashboard = 'The setting itself is in the dashboard (Security → Settings → Configure AI bot policies) and cannot be read from outside.';
-  if (!seen) put('ai', 'skip', notChecked);
+  const silent = crawlers.filter((c) => c.error).map((c) => c.name);
+  const named = [...(rb?.named ?? []), ...(rb?.signals ? ['(content-signal lines)'] : [])];
+  const aiPath = ITEMS.find((i) => i.id === 'ai').path;
+  const aiHand = `The policy itself is in the dashboard (${aiPath}) and cannot be read from outside.`;
+  if (!seen) skip('ai', notChecked);
   else if (refused.length) put('ai', 'look', `these crawler names were refused: ${refused.join(', ')}. If you chose to block Training that is expected; otherwise set Search, Agent and Training to Allow.`, section(4));
-  else if (failed === crawlers.length) put('ai', 'skip', 'not checked: no crawler request got an answer.');
-  else if (agents.length) put('ai', 'look', `no crawler name was refused, but robots.txt has rules for ${agents.join(', ')}. Confirm you wrote them or chose them in Cloudflare.`, section(4));
-  else put('ai', 'ok', `none of ${crawlers.length} AI crawler names was refused, and robots.txt names no crawler. ${dashboard}`);
+  else if (rb?.blocksAll) put('ai', 'look', 'robots.txt tells every crawler to stay out, AI crawlers included.', section(4));
+  else if (silent.length === crawlers.length) skip('ai', 'not checked: no crawler request got an answer.');
+  else if (silent.length) put('ai', 'look', `${silent.length} of ${crawlers.length} crawler requests got no answer (${silent.join(', ')}), so they were not all tried. ${aiHand}`, section(4));
+  else if (named.length) put('ai', 'look', `no crawler name was refused, but robots.txt has rules for ${named.join(', ')}. Confirm you wrote them or chose them in Cloudflare. ${aiHand}`, section(4));
+  else put('ai', 'hand', `outside evidence: none of ${crawlers.length} AI crawler names was refused${robotsRead ? ', and robots.txt names no crawler' : ' (robots.txt could not be read)'}. A name alone may not be treated as the real crawler, so this is a hint. ${aiHand}`);
 
   // 7. build.txt: which build is live.
-  if (build.error && home.error) put('build', 'skip', notChecked);
+  if (build.error && home.error) skip('build', notChecked);
   else if (build.error) put('build', 'look', `could not read build.txt: ${whyNoAnswer(build.error, opts.timeoutMs)}.`);
-  else if (build.status !== 200) put('build', 'look', `no build.txt (${build.status}). Sites made with the kit write one at build time, so a pass here says nothing about which build is live.`);
+  else if (build.status !== 200) put('build', 'look', `no build.txt (${build.status}). Sites made with the kit write one at build time, so this says nothing about which build is live.`);
   else {
     const sha = build.body.trim();
     if (sha === 'dev') put('build', 'look', 'build.txt says "dev": that build was not made by Cloudflare or from a git checkout.');
-    else if (!/^[0-9a-f]{7,40}$/i.test(sha)) put('build', 'look', 'build.txt is not a build marker (the answer is not a commit id).');
-    else if (!opts.build) put('build', 'ok', `serves build ${sha.slice(0, 12)}. Pass --build <sha> to compare it with the one you expect.`);
-    else {
-      const a = sha.toLowerCase();
-      const b = opts.build.toLowerCase();
-      if (a.startsWith(b) || b.startsWith(a)) put('build', 'ok', `serves build ${sha.slice(0, 12)}, the one you expected.`);
-      else put('build', 'fail', `serves build ${sha.slice(0, 12)}, but you expected ${b.slice(0, 12)}: the live domain is on another build. Wait for the deploy, or look at Deployments.`);
-    }
+    else if (!/^[0-9a-f]{40}$/i.test(sha)) put('build', 'look', /^[0-9a-f]+$/i.test(sha) ? `build.txt holds ${sha.length} characters: the kit writes the full 40-character commit id.` : 'build.txt is not a build marker (the answer is not a commit id).');
+    else if (!opts.build) put('build', 'look', `serves build ${sha.slice(0, 12)}. Nothing was compared: pass --build <commit you deployed> to check that it is the live one.`);
+    else if (sha.toLowerCase().startsWith(opts.build.toLowerCase())) put('build', 'ok', `serves build ${sha.slice(0, 12)}, the one you expected.`);
+    else put('build', 'fail', `serves build ${sha.slice(0, 12)}, but you expected ${opts.build.toLowerCase().slice(0, 12)}: the live domain is on another build. Wait for the deploy, or look at Deployments.`, section(5));
   }
 
   // 8. The pages.dev address (only when --project is given).
   if (!alias) {
-    put('pages', 'skip', 'not checked: give --project <name> to check that <name>.pages.dev answers (a Worker answers on workers.dev).');
-    put('canonical', 'skip', 'not checked: give --project <name> to check that <name>.pages.dev forwards to your domain.');
+    skip('pages', 'not checked: give --project <name> to check that <name>.pages.dev answers (a Worker answers on workers.dev).', { couldNot: false });
+    skip('canonical', 'not checked: give --project <name> to check that <name>.pages.dev forwards to your domain.', { couldNot: false });
   } else if (alias.error) {
-    const missing = alias.error.code === 'ENOTFOUND';
-    put('pages', 'fail', `${noAnswer(alias)}${missing ? '. Check the project name: a Worker would answer on a workers.dev address, not pages.dev.' : ''}`, section(1));
-    put('canonical', 'skip', 'not checked: the pages.dev address did not answer.');
+    const gone = alias.error.code === 'ENOTFOUND';
+    put('pages', 'fail', `${noAnswer(alias)}${gone ? '. Check the project name: a Worker would answer on a workers.dev address, not pages.dev.' : ''}`, section(1));
+    skip('canonical', 'not checked: the pages.dev address did not answer.');
   } else {
-    put('pages', 'ok', `${bare(alias.url)} answers ${alias.status}: this is a Pages project.`);
+    const aliasChallenged = header(alias, 'cf-mitigated') === 'challenge';
+    if (aliasChallenged) put('pages', 'fail', `${bare(alias.url)} answered ${alias.status} with a challenge page, so the project was not seen.`, section(1));
+    else if (alias.status >= 400) put('pages', 'fail', `${bare(alias.url)} answers ${alias.status}: the project has no live deployment, or something is wrong with it.`, section(1));
+    else if (!obs.aliasIsPagesDev) put('pages', 'look', `${bare(alias.url)} answers ${alias.status}, but it is not a pages.dev address, so it is not known to be a Pages project.`);
+    else put('pages', 'ok', `${bare(alias.url)} answers ${alias.status}: this is a Pages project.`);
     const loc = header(alias, 'location');
-    const to = loc.toLowerCase().startsWith(target.httpsPrefix.toLowerCase());
+    const to = leadsTo(loc, alias.url, `${target.httpsOrigin}/`);
     if (alias.status === 301 && to) put('canonical', 'ok', `answers 301 and sends visitors to ${loc}.`);
     else if (alias.status >= 300 && alias.status < 400 && to) put('canonical', 'look', `answers ${alias.status}, not 301, to ${loc}.`, section(1));
-    else if (alias.status >= 300 && alias.status < 400) put('canonical', 'fail', `sends visitors to ${loc || 'another address'}, not to ${target.httpsPrefix}`, section(1));
+    else if (alias.status >= 300 && alias.status < 400) put('canonical', 'fail', `sends visitors to ${loc || 'another address'}, not to ${target.httpsOrigin}/`, section(1));
     else if (alias.status === 200) put('canonical', 'fail', 'answers 200: CANONICAL_URL is not under Production, is misnamed or malformed, the deployment is older than the variable, or the day\'s Functions allowance ran out with Fail open on.', section(1));
     else put('canonical', 'fail', `answers ${alias.status}.`, section(1));
   }
 
-  // The items nothing from outside can see.
-  for (const item of ITEMS.filter((i) => i.path)) {
-    const where = item.path.startsWith('your project') ? `Workers & Pages → ${item.path}` : item.path;
-    put(item.id, 'hand', `${where}: ${item.lookFor}.`);
+  // The items nothing from outside can see (the AI policy was settled above).
+  for (const item of ITEMS.filter((i) => i.path && i.id !== 'ai')) {
+    const place = item.path.startsWith('your project') ? `Workers & Pages → ${item.path}` : item.path;
+    put(item.id, 'hand', `${place}: ${item.lookFor}.`);
   }
 
-  return ITEMS.map((item) => {
+  const results = ITEMS.map((item) => {
     const r = out.get(item.id);
     if (!r) throw new Error(`cloudflare-check: no result for "${item.id}"`);
-    return { id: item.id, section: item.section, title: item.title, ...r };
+    return { id: item.id, section: item.section, title: item.title, ...r, ...(blocked.has(item.id) ? { blocked: true } : {}) };
   });
+  return results;
 }
 
 // ---------------------------------------------------------------- saying it
@@ -421,7 +596,7 @@ export function summarize(results) {
   return n;
 }
 
-export function render(results, target, when) {
+export function render(results, target, when, silent = []) {
   const lines = [`Cloudflare check for ${target.host}`, `Looked from outside with plain GET requests, ${when}. Nothing was changed.`];
   let section = 0;
   for (const r of results) {
@@ -431,23 +606,27 @@ export function render(results, target, when) {
     }
     lines.push(`  ${WORD[r.state].padEnd(8)} ${r.title.replace(/`/g, '')}`);
     lines.push(`           ${r.detail}`);
-    if (r.fix && (r.state === 'fail' || r.state === 'look')) lines.push(`           → ${r.fix}`);
+    if (r.fix) lines.push(`           → ${r.fix}`);
   }
   const n = summarize(results);
+  const stuck = results.filter((r) => r.blocked).length;
   lines.push('', `Result: ${n.ok} ok, ${n.fail} FAIL, ${n.look} look, ${n.hand} by hand, ${n.skip} not run.`);
+  if (silent.length) lines.push(`${silent.length} request${silent.length === 1 ? '' : 's'} got no answer, which counts as a failure: ${silent.join(', ')}`);
+  if (stuck) lines.push(`${stuck} item${stuck === 1 ? '' : 's'} could not be judged, which counts as a failure: they are the "not run" lines that say "not checked".`);
   if (n.fail) lines.push('FAIL means the checklist is not met and it is worth fixing first. The checklist says how.');
   if (n.look) lines.push('"look" means the answer is not wrong on its face but needs a person to say whether it is what you meant.');
-  if (n.hand) lines.push('"by hand" items have no outside check: open the dashboard path shown.');
+  if (n.hand) lines.push('"by hand" items have no outside check, or only a hint: open the dashboard path shown.');
   return `${lines.join('\n')}\n`;
 }
 
 export async function main(argv, now = () => new Date()) {
+  const fail = (e) => ({ code: 2, stdout: '', stderr: `cloudflare-check: ${e.message}\n\n${USAGE}` });
   let parsed;
   try {
     parsed = parseArgs(argv);
   } catch (e) {
     if (!(e instanceof UsageError)) throw e;
-    return { code: 2, stdout: '', stderr: `cloudflare-check: ${e.message}\n\n${USAGE}` };
+    return fail(e);
   }
   if (parsed.opts.help) return { code: 0, stdout: USAGE, stderr: '' };
   let target;
@@ -457,23 +636,31 @@ export async function main(argv, now = () => new Date()) {
     if (parsed.opts.project) alias = parseProject(parsed.opts.project);
   } catch (e) {
     if (!(e instanceof UsageError)) throw e;
-    return { code: 2, stdout: '', stderr: `cloudflare-check: ${e.message}\n\n${USAGE}` };
+    return fail(e);
   }
   const obs = await observe(target, { timeoutMs: parsed.opts.timeoutMs, alias });
+  obs.aliasIsPagesDev = alias?.pagesDev ?? false;
   const results = evaluate(obs, target, parsed.opts);
   const n = summarize(results);
-  const code = n.fail ? 1 : 0;
+  const silent = unanswered(obs);
+  const stuck = results.filter((r) => r.blocked).map((r) => r.id);
+  const code = n.fail || silent.length || stuck.length ? 1 : 0;
   const when = now().toISOString().replace(/\.\d+Z$/, 'Z');
   if (parsed.opts.json) {
-    return { code, stderr: '', stdout: `${JSON.stringify({ domain: target.host, checkedAt: when, summary: n, results }, null, 2)}\n` };
+    const body = { domain: target.host, checkedAt: when, summary: n, unanswered: silent, couldNotJudge: stuck, results };
+    return { code, stderr: '', stdout: `${JSON.stringify(body, null, 2)}\n` };
   }
-  return { code, stderr: '', stdout: render(results, target, when) };
+  return { code, stderr: '', stdout: render(results, target, when, silent) };
 }
 
-// Run as a program. Skills are symlinked into place, so compare real paths.
+// Run as a program. Skills are symlinked into place, so compare real paths; and if the
+// runtime was told to keep symlinks, the file's own name still says it was run directly.
 const isMain = (() => {
   try {
-    return process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+    const argv1 = process.argv[1];
+    if (!argv1) return false;
+    return import.meta.url === pathToFileURL(realpathSync(argv1)).href
+      || path.basename(argv1) === 'cloudflare-check.mjs';
   } catch {
     return false;
   }
