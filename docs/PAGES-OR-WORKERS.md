@@ -13,7 +13,10 @@ The kit puts every site on Cloudflare Pages. Cloudflare's
 [Pages docs](https://developers.cloudflare.com/pages/) now open with: Workers "is
 Cloudflare's primary platform for building applications. Start new projects with Workers."
 The same page still lists Pages as "Available on all plans", and the Pages docs name no end
-date. So: should the kit move, and what would that touch?
+date. Cloudflare's [blog](https://blog.cloudflare.com/full-stack-development-on-cloudflare-workers/) gave
+the reason in April 2025: Pages stays supported, but "all of our investment, optimizations,
+and feature work" goes to Workers from then on. So: should the kit move, and what would
+that touch?
 
 ## Recommendation
 
@@ -103,7 +106,7 @@ is judgment"). The last column is a judgment, for a content site built with the 
 
 | Topic | Pages | Workers | Better for a kit site |
 |---|---|---|---|
-| Cloudflare's direction | on all plans; the docs name no end date | called the "primary platform": "Start new projects with Workers" | Workers |
+| Cloudflare's direction | on all plans; the docs name no end date; stays supported, says Cloudflare's blog (April 2025) | called the "primary platform": "Start new projects with Workers"; gets all new feature work, says the same blog post | Workers |
 | Plain files | free, no limit | free, no limit | the same |
 | Code in front of every request | counts against 100,000 requests a day on the free plan; at the limit, Fail open keeps serving the files | counts the same; at the limit the request gets a 429 | Pages |
 | A noindex header on previews | on every preview deployment | on a Preview's `workers.dev` address | the same |
@@ -150,12 +153,14 @@ Everything the kit uses is in Cloudflare's docs today: Git integration and direc
 [Fail open / closed](https://developers.cloudflare.com/pages/functions/routing/),
 [noindex on previews](https://developers.cloudflare.com/pages/configuration/preview-deployments/),
 `_headers` and `_redirects`, custom domains. Cloudflare's sentence is about new projects,
-and its migration guide sets no deadline.
+its April 2025 blog post says Pages stays supported, and its migration guide sets no
+deadline.
 
 ## What is checked and what is judgment
 
 **Checked in Cloudflare's docs (2026-10-11):** every quoted sentence above, the address
-shapes, the build variable names, the limits, the DNS rule.
+shapes, the build variable names, the limits, the DNS rule. The blog post was read on
+2026-10-12.
 
 **Checked in the kit (`35e9b42`):** what the middleware does, which files read `CF_PAGES_*`,
 which files name `pages.dev` or a `wrangler pages` command.
@@ -169,7 +174,8 @@ header. So the middleware does run in front of plain files.
 
 **Judgment:** stay for now, because
 
-1. nothing is broken on Pages, and no end date is named;
+1. nothing is broken on Pages, no end date is named, and Cloudflare says Pages stays
+   supported;
 2. a move touches template code, its tests, docs in seven skills and each live site that
    follows, for no gain a site owner would see today;
 3. the target is still moving. Cloudflare's guide marked custom branch aliases on Workers
@@ -178,8 +184,10 @@ header. So the middleware does run in front of plain files.
    getting more complete.
 
 **The best argument against staying:** route B removes the daily limit that every request
-counts against on Pages today, and it deletes code and a setup step. Cloudflare calls Workers its primary platform. And every site scaffolded on Pages
-from now on is one more site to move later, so waiting gets dearer with each new site.
+counts against on Pages today, and it deletes code and a setup step. Cloudflare calls
+Workers its primary platform and, since April 2025, puts all its new feature work there:
+Pages is kept running but gets no new features. And every site scaffolded on Pages from now
+on is one more site to move later, so waiting gets dearer with each new site.
 
 ## When to look again
 
@@ -230,3 +238,7 @@ Cloudflare, read 2026-10-11:
 [Pages Functions pricing](https://developers.cloudflare.com/pages/functions/pricing/),
 [Pages preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/),
 [Pages limits](https://developers.cloudflare.com/pages/platform/limits/).
+
+Cloudflare's blog, read 2026-10-12:
+[Your frontend, backend, and database — now in one Cloudflare Worker](https://blog.cloudflare.com/full-stack-development-on-cloudflare-workers/)
+(2025-04-08).
