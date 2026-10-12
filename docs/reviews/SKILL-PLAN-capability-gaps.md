@@ -349,8 +349,15 @@ Known limits:
 - Behind a company proxy the download can fail where `npm` itself works: Node's own
   download does not read npm's proxy settings.
 - Row 7 is proven by the CI job on a Windows runner only, not on a person's machine. The
-  test that zips the real skills with the `zip` tool does not run there, because the runner
-  has no `zip`; the reader it tests is the same code.
+  real skills are installed there from a zip that git writes. The test that zips them with
+  the `zip` tool, as `scripts/package.sh` does for a release, runs on Linux and macOS only:
+  the Windows runner has no `zip`.
+- A site scaffolded from these copies is stamped `suite_commit: unknown`, as one from a zip
+  is (`skills/new-website/SKILL.md`, the step that writes `SUITE-VERSION`), so
+  `make whats-new` has no baseline for it.
+- The command tells its own copies from other folders by name (`.croftweaver.json`), not by
+  content. A folder the user puts under the name of a skill it installed is replaced at the
+  next run, or removed once the release drops that skill, without a backup.
 
 Done when the owner has published the package and one run of `npm create croftweaver` on a
 computer without the skills ends at row 1.

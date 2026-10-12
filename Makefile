@@ -45,7 +45,7 @@ test:      ## run the search-console-insights tests (tracker + AI check; needs `
 test-facts: ## run the facts-check tests (standard library only; a stub site on 127.0.0.1, no real requests)
 	@$(PYTHON) -m unittest discover -s skills/facts-check/scripts/tests
 
-test-create: ## run the create-croftweaver tests (the `npm create croftweaver` installer; node only; a stub of the release download on 127.0.0.1, no real requests). Not part of check/package: the handoff zip does not hold packages/
+test-create: ## run the create-croftweaver tests (the `npm create croftweaver` installer; needs node and a git checkout, and on macOS and Linux zip and tar for one test; a stub of the release download on 127.0.0.1, no real requests). Not part of check/package: the handoff zip does not hold packages/
 	@cd packages/create-croftweaver && node --test
 
 # A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.

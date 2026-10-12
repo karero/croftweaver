@@ -21,7 +21,10 @@ import zlib from 'node:zlib';
 const ZIP_URL = process.env.CROFTWEAVER_ZIP_URL
   || 'https://github.com/karero/croftweaver/releases/latest/download/croftweaver.zip';
 const MANIFEST = '.croftweaver.json';
-const SKILL_NAME = /^[a-z0-9][a-z0-9-]*$/;
+const STAGING = '.croftweaver-staging-';
+// One plain folder name, not hidden. Deliberately no stricter than that: this package is
+// published once, so a rule a later release's folder name broke would stop every install.
+const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const RELEASE_NAME = /^v?[0-9][0-9A-Za-z.-]*$/;
 const USAGE = 'usage: npm create croftweaver [-- [--codex | --antigravity] [--force]]';
 const TIMEOUT = 300_000;   // npm's own default for a download; a slow line needs the room
@@ -111,9 +114,14 @@ function unpackSkills(zip, staging) {
     const parts = entry.name.split('/');
     if (parts[0] !== 'skills' || parts.length < 3) continue;
     const out = path.resolve(staging, ...parts.slice(1));
-    // Nothing is written outside `staging`. A backslash separates folders on Windows only, so
-    // it is refused everywhere: a release must not unpack on one system and fail on another.
-    if (!SKILL_NAME.test(parts[1]) || entry.name.includes('\\') || !out.startsWith(staging + path.sep)) {
+    // Nothing is written outside `staging`, and every file lands in the skill its path names:
+    // no '.', '..' or empty step (a folder's own entry ends in '/', hence the last one). A
+    // backslash separates folders and a colon names a drive on Windows only, so both are
+    // refused everywhere: a release must not unpack on one system and fail on another. With
+    // those rules the last test cannot fire; it stays as the statement of what they are for.
+    const steps = entry.name.endsWith('/') ? parts.slice(0, -1) : parts;
+    if (!SKILL_NAME.test(parts[1]) || steps.some((step) => step === '' || step === '.' || step === '..')
+      || /[\\:]/.test(entry.name) || !out.startsWith(staging + path.sep)) {
       throw new Error(`${JSON.stringify(entry.name)} does not belong in a Croftweaver release`);
     }
     names.add(parts[1]);
@@ -121,7 +129,8 @@ function unpackSkills(zip, staging) {
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, entry.read(), { mode: entry.mode || 0o644 });
   }
-  if (!fs.existsSync(path.join(staging, 'new-website', 'SKILL.md'))) {
+  // statSync, not existsSync: a folder called SKILL.md is not an orchestrator.
+  if (!fs.statSync(path.join(staging, 'new-website', 'SKILL.md'), { throwIfNoEntry: false })?.isFile()) {
     throw new Error('it holds no Croftweaver skills');
   }
   return [...names].sort();
@@ -143,6 +152,11 @@ function installedBefore(dest) {
 function install(staging, names, dest, release, force) {
   const before = installedBefore(dest);
   const result = { copied: [], kept: [], moved: [], removed: [], backup: null };
+  // A run that was killed could not remove its staging folder. Nothing loads it, but it stays.
+  for (const name of fs.readdirSync(dest)) {
+    const left = path.join(dest, name);
+    if (name.startsWith(STAGING) && left !== staging) fs.rmSync(left, { recursive: true, force: true });
+  }
   for (const name of before) {
     const target = path.join(dest, name);
     const found = fs.lstatSync(target, { throwIfNoEntry: false });
@@ -160,7 +174,9 @@ function install(staging, names, dest, release, force) {
     } else if (found && before.includes(name)) {
       fs.rmSync(target, { recursive: true });
     } else if (found) {
-      result.backup ??= fs.mkdtempSync(path.join(path.dirname(dest), 'skills-before-croftweaver-'));
+      // Beside the real folder: where `dest` is a link to another disk, a folder beside the
+      // link could not take a rename.
+      result.backup ??= fs.mkdtempSync(path.join(path.dirname(fs.realpathSync(dest)), 'skills-before-croftweaver-'));
       fs.renameSync(target, path.join(result.backup, name));
       result.moved.push(name);
     }
@@ -183,7 +199,7 @@ function missingFolders(dest) {
 function report({ copied, kept, moved, removed, backup }, dest, release, { label, flag }) {
   const count = (list) => `${list.length} skill${list.length === 1 ? '' : 's'}`;
   if (copied.length) console.log(`Croftweaver ${release ?? '(latest release)'} is installed: ${count(copied)} in ${dest}`);
-  else console.log(`Nothing was changed in ${dest}`);
+  else if (!removed.length) console.log(`No skill was changed in ${dest}`);
   if (removed.length) console.log(`Removed, no longer part of Croftweaver: ${removed.join(', ')}`);
   if (moved.length) console.log(`Moved aside, not put there by this installer: ${moved.join(', ')}\n  Moved to ${backup}`);
   if (kept.length) {
@@ -211,7 +227,7 @@ try {
   });
   made = missingFolders(dest);
   fs.mkdirSync(dest, { recursive: true });
-  staging = fs.mkdtempSync(path.join(dest, '.croftweaver-staging-'));
+  staging = fs.mkdtempSync(path.join(dest, STAGING));
   let names;
   try {
     names = unpackSkills(zip, staging);

@@ -26,8 +26,10 @@ macOS, Linux and Windows, in any terminal.
 
 ## What happens to what is already there
 
-- **Skills this command installed before** are replaced by the new release. Change a skill
-  in the toolkit, not in that folder: the next run overwrites it.
+- **Skills this command installed before** are replaced by the new release. It knows them by
+  their folder names, which it keeps in `.croftweaver.json`, not by their contents. So change
+  a skill in the toolkit, not in that folder: the next run overwrites an edit, and it also
+  replaces a folder of your own that you put there under the same name.
 - **A skill that is a link to another folder**, which is what the toolkit's own
   `scripts/install.sh` sets up, is left alone. It updates from that folder. Add `--force`
   (`npm create croftweaver -- --force`) to replace each link with a copy; the other folder
@@ -35,6 +37,7 @@ macOS, Linux and Windows, in any terminal.
 - **Any other folder that has the name of a Croftweaver skill** is moved to a
   `skills-before-croftweaver-…` folder next to the skills folder. The command tells you
   where it went.
-- **A skill Croftweaver no longer has** is removed, if this command installed it.
+- **A skill Croftweaver no longer has** is removed, if this command installed it. The same
+  holds here: a folder of your own under that name goes with it.
 
 If the download fails or cannot be read, the command says why and changes nothing.

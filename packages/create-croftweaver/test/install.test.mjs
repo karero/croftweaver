@@ -6,6 +6,7 @@
 // copies.
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -40,7 +41,9 @@ after(() => {
 });
 
 function tmp() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'create-croftweaver-test-'));
+  // The real path: the installer names the backup folder by it, and the temp folder is
+  // reached through a link on macOS and by a short name on Windows runners.
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'create-croftweaver-test-')));
   scratch.push(dir);
   return dir;
 }
@@ -217,6 +220,7 @@ test('skills linked from a toolkit folder are left alone, and --force swaps the 
   assert.deepEqual(manifest(dest).skills, ['gone', 'new-website']);
   assert.match(kept.stdout, /Left as it is: 1 skill linked from another folder/);
   assert.match(kept.stdout, /is installed: 2 skills/);
+  assert.doesNotMatch(kept.stdout, /No skill was changed/);
   assert.match(kept.stdout, /npm create croftweaver -- --force/);
 
   const forced = await run(home, ['--force']);
@@ -226,6 +230,77 @@ test('skills linked from a toolkit folder are left alone, and --force swaps the 
   assert.equal(fs.readFileSync(path.join(dest, 'alpha', 'SKILL.md'), 'utf8'), 'alpha, 9.1');
   assert.equal(fs.readFileSync(path.join(toolkit, 'SKILL.md'), 'utf8'), 'alpha from the toolkit folder');
   assert.deepEqual(backups(home), []);
+});
+
+test('with every skill linked it says that no skill was changed, unless it removed one', async () => {
+  const home = tmp();
+  const dest = path.join(home, '.claude', 'skills');
+  const only = { 'skills/new-website/SKILL.md': 'orchestrator, 9.1' };
+  served = { status: 200, release: 'v9.1', zip: makeZip({ ...only, 'skills/gone/SKILL.md': 'dropped after 9.1' }) };
+  assert.equal((await run(home)).code, 0);
+  // The owner switches to a cloned toolkit: the orchestrator becomes a link.
+  const toolkit = path.join(home, 'toolkit', 'skills', 'new-website');
+  fs.mkdirSync(toolkit, { recursive: true });
+  fs.writeFileSync(path.join(toolkit, 'SKILL.md'), 'orchestrator from the toolkit folder');
+  fs.rmSync(path.join(dest, 'new-website'), { recursive: true });
+  link(toolkit, path.join(dest, 'new-website'));
+  served = { status: 200, release: 'v9.2', zip: makeZip(only) };
+
+  const removing = await run(home);
+
+  assert.equal(removing.code, 0, removing.stderr);
+  assert.match(removing.stdout, /Removed, no longer part of Croftweaver: gone/);
+  assert.doesNotMatch(removing.stdout, /No skill was changed|is installed/);
+
+  const idle = await run(home);
+
+  assert.equal(idle.code, 0, idle.stderr);
+  assert.match(idle.stdout, /^No skill was changed in /);
+  assert.match(idle.stdout, /Left as it is: 1 skill linked from another folder/);
+});
+
+test('a skill folder may have any plain name: the installer is published once and must take later releases', async () => {
+  const home = tmp();
+  const dest = path.join(home, '.claude', 'skills');
+  served = { status: 200, release: 'v9.1', zip: makeZip({ ...V1, 'skills/Odd_Name.v2/SKILL.md': 'named unlike today\'s skills' }) };
+
+  const result = await run(home);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(fs.readFileSync(path.join(dest, 'Odd_Name.v2', 'SKILL.md'), 'utf8'), 'named unlike today\'s skills');
+});
+
+test('a staging folder a killed run left behind is removed by the next run that installs', async () => {
+  const home = tmp();
+  const dest = path.join(home, '.claude', 'skills');
+  fs.mkdirSync(path.join(dest, '.croftweaver-staging-killed', 'alpha'), { recursive: true });
+  fs.writeFileSync(path.join(dest, '.croftweaver-staging-killed', 'alpha', 'SKILL.md'), 'half unpacked');
+  served = { status: 200, release: 'v9.1', zip: makeZip(V1) };
+
+  const result = await run(home);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(fs.readdirSync(dest).sort(), ['.croftweaver.json', 'alpha', 'gone', 'new-website']);
+});
+
+test('where the skills folder is itself a link, the backup goes beside the real folder', async () => {
+  const home = tmp();
+  const real = path.join(home, 'elsewhere', 'skills');
+  fs.mkdirSync(path.join(real, 'alpha'), { recursive: true });
+  fs.writeFileSync(path.join(real, 'alpha', 'SKILL.md'), 'my own alpha');
+  fs.mkdirSync(path.join(home, '.claude'));
+  link(real, path.join(home, '.claude', 'skills'));
+  served = { status: 200, release: 'v9.1', zip: makeZip(V1) };
+
+  const result = await run(home);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(fs.readFileSync(path.join(real, 'alpha', 'SKILL.md'), 'utf8'), 'alpha, 9.1');
+  const [backup, ...more] = fs.readdirSync(path.join(home, 'elsewhere')).filter((n) => n.startsWith('skills-before-croftweaver-'));
+  assert.deepEqual(more, []);
+  assert.deepEqual(tree(path.join(home, 'elsewhere', backup)), { 'alpha/SKILL.md': 'my own alpha' });
+  // Beside the link there is only the link.
+  assert.deepEqual(fs.readdirSync(path.join(home, '.claude')), ['skills']);
 });
 
 test('a link whose folder is gone is replaced: keeping it would keep a skill that cannot load', async () => {
@@ -286,6 +361,10 @@ test('a download that cannot be used changes nothing in an install that works', 
     'a path climbs out of the skills folder': { status: 200, zip: makeZip({ ...V2, 'skills/alpha/../../../escaped.txt': 'out' }) },
     'a path climbs out the Windows way': { status: 200, zip: makeZip({ ...V2, 'skills/alpha/..\\..\\..\\escaped.txt': 'out' }) },
     'a skill name is not a plain name': { status: 200, zip: makeZip({ ...V2, 'skills/.croftweaver.json/x': 'out' }) },
+    'a path names a Windows drive': { status: 200, zip: makeZip({ ...V2, 'skills/alpha/D:escaped.txt': 'out' }) },
+    'a path steps sideways into another folder': { status: 200, zip: makeZip({ ...V2, 'skills/alpha/../ghost/SKILL.md': 'x' }) },
+    'a skill is named but has no folder': { status: 200, zip: makeZip({ ...V2, 'skills/empty/./x/../../late/SKILL.md': 'x' }) },
+    'the orchestrator\'s SKILL.md is a folder': { status: 200, zip: makeZip({ 'skills/alpha/SKILL.md': 'a', 'skills/new-website/SKILL.md/x': 'not a file' }) },
     'the zip holds a link': { status: 200, zip: makeZip({ ...V2, 'skills/alpha/link': { data: '/etc', mode: 0o120777 } }) },
     'the zip is not a Croftweaver release': { status: 200, zip: makeZip({ 'skills/alpha/SKILL.md': 'no orchestrator' }) },
   };
@@ -347,34 +426,51 @@ test('an argument it does not know stops it before anything is downloaded or wri
 });
 
 // The cases above read zips this file wrote itself, so a mistake shared by its writer and
-// the installer's reader would pass. This one reads what the release's own tool writes, over
-// the real skills: scripts/package.sh builds the release with `zip -r -X`.
+// the installer's reader would pass. These two read the real skills from zips other programs
+// wrote, and compare each installed file with git's own record of it: its blob id and
+// whether it is executable.
+function gitBlobId(data) {
+  return crypto.createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex');
+}
+
+async function installsHeadExactly(zip) {
+  const home = tmp();
+  const dest = path.join(home, '.claude', 'skills');
+  served = { status: 200, release: 'v9.9', zip };
+
+  const result = await run(home);
+
+  assert.equal(result.code, 0, result.stderr);
+  // "100755 blob <id>\tskills/<file>", one line per file at HEAD.
+  const recorded = execFileSync('git', ['ls-tree', '-r', 'HEAD', 'skills'], { cwd: REPO, encoding: 'utf8' })
+    .split('\n').filter(Boolean).map((line) => /^(\d+) blob ([0-9a-f]+)\tskills\/(.+)$/.exec(line));
+  assert.ok(recorded.length > 100 && recorded.every(Boolean), 'git ls-tree did not list the skills as expected');
+  const installed = fs.readdirSync(dest, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.relative(dest, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
+    .filter((file) => file !== '.croftweaver.json')
+    .sort();
+  assert.deepEqual(installed, recorded.map(([, , , file]) => file).sort());
+  for (const [, mode, id, file] of recorded) {
+    const to = path.join(dest, file);
+    assert.equal(gitBlobId(fs.readFileSync(to)), id, `${file} differs`);
+    if (POSIX) assert.equal((fs.statSync(to).mode & 0o111) !== 0, mode === '100755', `${file}: executable bit`);
+  }
+  assert.deepEqual(manifest(dest).skills, [...new Set(recorded.map(([, , , file]) => file.split('/')[0]))].sort());
+}
+
+// git writes zips too, on every system, so this one also runs on Windows.
+test('the real skills, zipped by git, arrive file for file', async () => {
+  await installsHeadExactly(execFileSync('git', ['archive', '--format=zip', 'HEAD', 'skills'], { cwd: REPO, maxBuffer: 256 * 1024 * 1024 }));
+});
+
+// scripts/package.sh builds the release with `zip -r -X`; this is that tool's output.
 test('the real skills, zipped the way a release is, arrive file for file with their executable bits',
-  { skip: POSIX ? false : 'Windows runners have no zip tool; the reader is the same code there' }, async () => {
+  { skip: POSIX ? false : 'Windows runners have no zip tool; the test above reads the real skills there' }, async () => {
     const source = tmp();
     const tar = execFileSync('git', ['archive', '--format=tar', 'HEAD', 'skills'], { cwd: REPO, maxBuffer: 256 * 1024 * 1024 });
     execFileSync('tar', ['-x', '-f', '-', '-C', source], { input: tar });
     const zipFile = path.join(tmp(), 'croftweaver.zip');
     execFileSync('zip', ['-r', '-X', '-q', zipFile, 'skills'], { cwd: source });
-    const home = tmp();
-    const dest = path.join(home, '.claude', 'skills');
-    served = { status: 200, release: 'v9.9', zip: fs.readFileSync(zipFile) };
-
-    const result = await run(home);
-
-    assert.equal(result.code, 0, result.stderr);
-    const files = (dir) => fs.readdirSync(dir, { recursive: true, withFileTypes: true })
-      .filter((entry) => entry.isFile())
-      .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
-      .sort();
-    const shipped = files(path.join(source, 'skills'));
-    assert.ok(shipped.length > 100, `only ${shipped.length} files in skills/: the export went wrong`);
-    assert.deepEqual(files(dest).filter((file) => file !== '.croftweaver.json'), shipped);
-    for (const file of shipped) {
-      const from = path.join(source, 'skills', file);
-      const to = path.join(dest, file);
-      assert.ok(fs.readFileSync(from).equals(fs.readFileSync(to)), `${file} differs`);
-      assert.equal(fs.statSync(to).mode & 0o111, fs.statSync(from).mode & 0o111, `${file}: executable bit`);
-    }
-    assert.deepEqual(manifest(dest).skills, fs.readdirSync(path.join(source, 'skills')).sort());
+    await installsHeadExactly(fs.readFileSync(zipFile));
   });

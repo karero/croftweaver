@@ -40,8 +40,9 @@ name: clean
 # for the shell scripts, the site hook and the Makefile. And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`,
 # and the facts-check tests (`make test-facts`), which need nothing beyond python3, and the
-# tests of the `npm create croftweaver` installer (`make test-create`), which need nothing
-# beyond node, on Linux, macOS and Windows.
+# tests of the `npm create croftweaver` installer (`make test-create`), on Linux, macOS and
+# Windows. The installer needs nothing beyond node; its tests also need git, and zip and
+# tar where the runner has them.
 on:
   push:
     branches: [main]
@@ -336,7 +337,8 @@ jobs:
     # The installer calls no other program, so that it runs in a Windows terminal, where the
     # shell installers need Git Bash or WSL. Only a run on Windows shows that, so it runs on
     # all three systems with the site template's node, and once on the oldest node its
-    # package.json accepts. An empty `node` leaves the choice to node-version-file. Each
+    # package.json accepts. The tests themselves call git on every system (one zips the real
+    # skills with it), and zip and tar on Linux and macOS. An empty `node` leaves the choice to node-version-file. Each
     # system reports for itself: with fail-fast, one failing cancels the others, and a
     # cancelled job reads as failed.
     strategy:
