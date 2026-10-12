@@ -63,6 +63,10 @@ from silently hiding content. `website-motion` is never run by default: ask for 
 positioning, and never runs unasked. `website-scorecard` is an OPTIONAL public scorecard
 (a section that shows what the site's own test gate checked, dated, plus the owner's
 Lighthouse scores); it runs only when the owner asks for it.
+`website-brand-kit` is OPTIONAL help with colours and a logo for an owner who is not a
+designer (three prompts for the design tool she likes, then a checked install of the
+palette and the seven icon files); the owner is asked once at §2b, right after
+positioning and the story, and it never runs unasked.
 `website-team-setup` is the other on-demand skill — run it once when a **second person**
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
@@ -191,7 +195,8 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 1 | Insights: ICP, voice-of-customer, competitor scan | `customer-research` |
 | 2 | Positioning: what you offer, for whom, market category → `POSITIONING.md` (Dunford) | **`website-positioning`** |
 | 2a | Optional: the home page as the customer's story → `STORY.md` (offered once, §2a; positioning stays the source of truth) | `website-story` |
-| 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` | **`website-content-guide`** |
+| 2b | Optional: colours and a logo (asked once, §2b; her choices are made here, the install waits for the green baseline of §3 step 5) | `website-brand-kit` |
+| 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` (its palette and logo come from step 2b when the owner took the help) | **`website-content-guide`** |
 | 4 | Pages, clean URLs, nav, internal links | `site-architecture` |
 | 5 | Decision interview + scaffold the repo | **this skill** §1, §3 |
 | 6 | Build: mobile graphics, dark mode, theme tokens | **`website-design-system`** |
@@ -237,6 +242,30 @@ before asking. Once `POSITIONING.md` is filled (step 2) and before the content g
    standard, story layer declined") with the decision-interview answers when §3 writes
    the project README, so a later session knows the offer was made and does not ask
    again.
+
+Ask exactly once per build. Never run it unasked.
+
+## 2b. Colours and logo — ask once, after positioning and the story
+
+`website-brand-kit` is optional. It is a plain question, not an offer to explain. Once
+`POSITIONING.md` is filled (and §2a is answered) and before the content guide (step 3):
+
+1. Read **"The question"** in `website-brand-kit/SKILL.md` and ask it in the language
+   the owner writes in: which of a logo and brand colours she already has, and for each
+   part she lacks, whether she wants help.
+2. **She has a part and wants it used** → note it (her logo must be an SVG file; her
+   colours as hex values). No prompt is written for that part.
+3. **She wants help with a part** → run `website-brand-kit` §2 to §5 now, before step 3,
+   so the palette exists when `BRAND.md`'s "Brand in one line" is written. These steps
+   are a conversation: nothing is written into a project yet (there is none).
+4. **She lacks a part and wants no help with it** → say nothing more about it. The site
+   keeps the starter's colours and the scaffold's placeholder icons for that part. The
+   skill still travels with the repo (§3 step 3).
+5. **Record the answers either way** with the decision-interview answers (what she has,
+   what she wanted help with, and, where she took the help, the palette and the
+   variation she picked and the path of her package), so a later session knows the
+   question was asked and does not ask again. §3 step 4 writes them down.
+6. **The install comes later:** §3 step 5, on the green baseline.
 
 Ask exactly once per build. Never run it unasked.
 
@@ -334,7 +363,7 @@ full path (the output of `pwd` inside it):
    rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
    skills: agents read it, and its Language rule has them reply in the person's
    language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
-3. **Skills travel with the repo** — copy the twenty-five always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-six always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -353,7 +382,8 @@ full path (the output of `pwd` inside it):
    the recipient can opt in later; it never runs on its own), `website-story`
    (optional story layer — same rule: copied, never runs unasked; offered once at §2a),
    `website-scorecard` (optional public scorecard — same rule: copied, never runs
-   unasked), and `website-team-setup` (copied so the day a second person joins, the session that
+   unasked), `website-brand-kit` (optional colours and logo — same rule: copied, never
+   runs unasked; asked about once at §2b), and `website-team-setup` (copied so the day a second person joins, the session that
    sets up the team finds it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
    symlinks each skill from this suite repo) — use `cp -RL` to dereference
@@ -385,6 +415,7 @@ full path (the output of `pwd` inside it):
          "$SKILLS_ROOT"/website-motion \
          "$SKILLS_ROOT"/website-story \
          "$SKILLS_ROOT"/website-scorecard \
+         "$SKILLS_ROOT"/website-brand-kit \
          "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
    ```
@@ -446,12 +477,19 @@ full path (the output of `pwd` inside it):
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3. `STORY.md` exists
    only if the owner opted in at §2a; `website-story` copies it from its own
-   `templates/story.md`.
+   `templates/story.md`. If the owner answered §2b: write her answers into the project
+   README's decision record, and, where she chose or brought a palette, fill `BRAND.md`'s
+   colour tables with it (`website-brand-kit` §5a says what goes where). These documents
+   are all that step 2b writes before the tests are green.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware suite out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
+   **If the owner has a palette or a logo from §2b**, run `website-brand-kit` §6 (the
+   intake) now, on the green baseline and before the first page: it checks the palette
+   and the logo, writes them into the site, runs these same tests again and puts every
+   file back if they go red. Commit once it is green.
 
 ## 3a. Outgoing-link sweep — ask, but only if the site links out
 

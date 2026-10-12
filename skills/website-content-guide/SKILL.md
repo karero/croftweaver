@@ -31,7 +31,9 @@ not this guide — it's a read-only diagnostic, not a voice/EEAT audit.
 - **`POSITIONING.md`** is owned by `website-positioning`; this guide consumes it
   and must not restate the positioning (single source of truth).
 - **`BRAND.md`** is owned by `website-design-system`, but its positioning line
-  comes from `POSITIONING.md` — keep them consistent.
+  comes from `POSITIONING.md` — keep them consistent. Its palette and logo come from
+  the optional `website-brand-kit` when the owner took that help (`new-website` §2b);
+  do not choose colours here.
 - **`STORY.md`** (optional, owned by `website-story`): when present, the home page's
   section order in the per-page-type copy template comes from its seven-section map.
   The voice rules here apply unchanged.

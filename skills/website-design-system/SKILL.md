@@ -92,8 +92,13 @@ checks this. Same idea for any phone number you don't want harvested.
 ## Brand tokens
 
 Mirror `BRAND.md`'s palette into the token block and keep them in sync. Define:
-brand/accent (fixed), and per-theme heading/ink/muted/line/bg/surface. The accent
-used for links must pass AA on the background in both themes.
+brand (fixed), and per-theme heading/ink/muted/accent/link/line/bg/bg-soft/surface. The
+accent and the link colour must pass AA on the background in both themes, which is why
+each theme has its own. The optional `website-brand-kit` does the mirroring with a
+check: its intake reads `BRAND.md`'s tables, holds every text colour to 4.5:1 on every
+background in both themes, and writes the values into all three colour blocks of
+`global.css` (light, dark, and the dark block for visitors without JavaScript). By hand,
+change all three blocks together.
 
 ## Done means
 

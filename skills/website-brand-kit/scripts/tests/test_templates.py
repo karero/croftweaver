@@ -62,6 +62,14 @@ class Palette(unittest.TestCase):
         rows = re.findall(r"(?m)^\| ([A-Z][^|]*?) \| `#\.\.\.` \|", self.prompt)
         self.assertEqual(rows, [_palette.LABEL["brand"]] + [_palette.LABEL[k] for k in _palette.KEYS] * 2)
 
+    def test_the_doc_template_an_owner_fills_has_the_same_tables_row_for_row(self):
+        # BRAND.md is where the chosen palette is pasted, and what the intake reads
+        template = T.read(T.BRAND_TEMPLATE)
+        rows = re.findall(r"(?m)^\| ([A-Z][^|]*?) \| `#\[…\]` \|", template)
+        self.assertEqual(rows, [_palette.LABEL["brand"]] + [_palette.LABEL[k] for k in _palette.KEYS] * 2)
+        headings = re.findall(r"(?m)^### (.+)$", template[template.index("## Colour palette"):template.index("## Typography")])
+        self.assertEqual(headings, re.findall(r"(?m)^### (.+)$", self.prompt))
+
     def test_the_prompt_states_the_threshold_the_check_holds_it_to(self):
         self.assertIn("at least 4.5 to 1", self.prompt)
         self.assertEqual(_palette.NEED_TEXT, 4.5)

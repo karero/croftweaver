@@ -112,6 +112,7 @@ Feature → the high-value test to add:
 | Copy/brand rules | extend the tone rules in `tests/_helpers.ts` to ban the new off-brand phrasing (`tone.spec.ts` holds the pages to them). |
 | New/changed positioning | add the page's term to the `POSITIONING` map in `positioning.spec.ts`; the page must carry it in `<title>`/`<meta description>`/`<h1>` (see `website-positioning`). |
 | Public scorecard (`website-scorecard`) | install the skill by its §2 (three files and the package script; the spec needs the script, so never copy it alone), then set `PAGE` in `tests/scorecard.spec.ts`: the page must show the numbers in `scorecard.json`, and the file must add up. |
+| Colours or a logo from `website-brand-kit` | nothing to copy: its intake runs this suite itself after it writes, and puts every file back if the suite goes red. After a run with a logo, the seven icon files the pages and the manifest link exist under `public/` (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `images/logo.png`). |
 | Story-led home page (`website-story`) | copy that skill's `templates/story.spec.ts` into `tests/` and fill its `CONFIG` from the values listed at the end of `STORY.md` (the rest have defaults); `positioning.spec.ts` stays untouched. |
 | Exposed email/phone | it's rendered via `EmailLink` — assert the built HTML has **no plaintext `mailto:` or literal `@`-address** (crawler/spam protection; see `website-design-system`). |
 
