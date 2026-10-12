@@ -473,5 +473,5 @@ StoryBrand is a trademark of its owner and neither author endorses this project.
 
 If you built a site with Croftweaver, we would be glad of a link back to
 [croftweaver.com/partner-assets](https://croftweaver.com/partner-assets), with the badge or as
-plain text. It is a request, not a condition: the MIT licence asks only that its notice stays
+plain text. It is a request, not a condition: the MIT license asks only that its notice stays
 with copies of the software.
