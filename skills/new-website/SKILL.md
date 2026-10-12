@@ -631,10 +631,12 @@ It is a request, never a condition, and this is the only place the pipeline rais
 
 This step belongs to the launch checklist (§4). Do not raise it in a later session
 that is doing other work on the site, with one exception, an unfinished yes: the
-README says "credit: badge" or "credit: text link" and the footer has no link to
-`croftweaver.com`. Then the work was cut short, or the credit was taken out since. Say
-so once, and finish it (the steps below) if the user still wants it; if not, change
-the line to "credit: declined". That is not a second ask.
+README says "credit: badge" or "credit: text link" and the footer in the site's source
+has no link to `croftweaver.com`. Then the work was cut short, or the credit was taken
+out since. Say so once, and finish it (the steps below) if the user says yes; on any
+other answer, or none, change the line to "credit: declined". That is not a second
+ask. A credit that is in the source but was never saved to git is an unsaved change
+like any other: the site's `AGENTS.md` §1 makes every session stop and report those.
 
 Ask only when all three hold; otherwise do not ask:
 
@@ -642,7 +644,8 @@ Ask only when all three hold; otherwise do not ask:
   green. Never during the build and never while something is failing.
 - **The project `README.md` has no credit line** among the decision answers. A line
   there means the question was put already, whatever the line says.
-- **The footer does not link to `croftweaver.com` yet.** If it does, record "credit:
+- **The footer in the site's source does not link to `croftweaver.com` yet** (the
+  starter keeps it in `src/layouts/Base.astro`). If it does, record "credit:
   already in the footer" in the README and stop.
 
 Then ask once, in one message — a structured user-input tool if the platform offers
