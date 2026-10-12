@@ -147,7 +147,7 @@ directions in everyday words, with no table and no section numbers. The trace to
   > 2. Tax season without the dread.
   >
   > **Who it is for**
-  > 3. Bookkeeping for people who work alone.
+  > 3. Work for yourself, not for your books.
   > 4. For freelancers who would rather be working.
   >
   > **What you can stop doing**
@@ -155,10 +155,10 @@ directions in everyday words, with no table and no section numbers. The trace to
   > 6. Stop doing your books at midnight.
   >
   > **What you can count on**
-  > 7. Filed on time, every time.
+  > 7. Every deadline met. None on your mind.
   > 8. One person who knows your books.
 
-  Line 7 is allowed only because the proof says *every* return was on time.
+  Line 7 may say *every* only because the proof says every return was on time.
 
 ## 4. Ask the owner for a direction
 
