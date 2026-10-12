@@ -18,7 +18,12 @@
 //      "- [Datenschutz](https://<domain>/datenschutz): Datenschutzerklärung (DSGVO)."
 //      Also update the README's privacy.astro mentions (docs, not gates).
 //   3. Fill every [BRACKET] slot; make section 3 match the real analytics
-//      setup (or delete it); adjust the date. Then delete '/datenschutz' from
+//      setup (or delete it); adjust the date. Section 3 has three slots to
+//      settle: the hosting choice; the sentence on clicks, downloads and form
+//      submissions (keep it only if those are ticked in Plausible's installer,
+//      which ticks all three by default); and the storage period. Self-hosted:
+//      confirm that your web server, reverse proxy or CDN keeps no IP addresses
+//      in access logs for the measurement host, or say so there. Then delete '/datenschutz' from
 //      UNFILLED_UNTIL_LAUNCH (the test turns red until you do).
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
 //   your German privacy page lives at the locale-prefixed route
@@ -27,20 +32,28 @@
 // § 25 TDDDG (formerly TTDSG) is Germany's consent statute for device access
 // (cookies, storage, reading). This page states no consent conclusion on
 // purpose. Running without a banner is a position, not a settled fact. The
-// script sets no cookies and writes nothing to the device, but it reads the
-// page address and the referrer in the browser and sends them to the
-// measurement server (and reads one local-storage flag, plausible_ignore, that
-// lets you exclude your own visits). The EDPB (Guidelines 2/2023 v2.0, paras
-// 33 and 53) treats JavaScript that makes the browser send information as
-// "gaining access" under Art. 5(3) ePrivacy. § 25 TDDDG has no analytics
-// exception, and the DSK's OH Digitale Dienste v1.2 (Nov 2024, Rz. 87 to 90)
-// says reach measurement is not consent-free as such. Plausible's own legal
-// assessment argues from "stores nothing" and does not address access. Have
-// the position reviewed. ANY third-party embed (YouTube iframe, remote Google
-// Fonts), another analytics tool, or wider measurement (optional measurements
-// such as outbound links, file downloads or form submissions; custom
-// properties) changes the answer AND the text: re-check this page BEFORE
-// shipping such an addition.
+// script sets no cookies and writes nothing to the device. It sends the page
+// address and the referrer, scroll depth and engaged time (and, if ticked in
+// Plausible, the address of clicked outbound links and downloaded files). It
+// also reads one local-storage flag (plausible_ignore, which lets you exclude
+// your own visits) and navigator.webdriver (a bot check); neither is sent. The
+// EDPB (Guidelines 2/2023 v2.0, para 33) says JavaScript that instructs the
+// browser to send information "clearly falls within the scope of Article
+// 5(3)"; para 53 treats information that client-side code sends back to a
+// server as a gaining of access; para 56 adds that this does not by itself
+// make consent necessary. § 25 TDDDG has two exceptions in Abs. 2 and none for
+// statistics. The DSK (OH Digitale Dienste v1.2, Nov 2024) makes no statement
+// that reach measurement is consent-free (Rz. 87 to 89), at most for a
+// precisely defined configuration that stops holding when more information is
+// added, and says even simple counting is not automatically part of the basic
+// service (Rz. 90). Plausible's own legal assessment concludes from "does not
+// store any information on the user's device" and does not discuss the script
+// reading the page address or the referrer. This tag measures more than bare
+// counting. Have the position reviewed and record who accepted it. ANY
+// third-party embed (YouTube iframe, remote Google Fonts), another analytics
+// tool, or wider measurement (optional measurements such as outbound links,
+// file downloads or form submissions; custom properties) needs this position
+// AND the text re-checked BEFORE you ship such an addition.
 // Base.astro also reads a 'theme' key from local storage, and nothing in the
 // template writes it. If you add a toggle that stores the choice, say so in
 // section 3 (storage the visitor asked for can fall under § 25 Abs. 2 Nr. 2).
@@ -62,8 +75,7 @@ import { SITE } from '../config';
     <p>
       Stand: [DATUM]. Diese Seite erklärt, welche personenbezogenen Daten diese
       Website verarbeitet, auf welcher Rechtsgrundlage nach der DSGVO
-      (EU 2016/679), und welche Rechte Ihnen zustehen; für Zugriffe auf Ihr
-      Endgerät gilt daneben § 25 TDDDG.
+      (EU 2016/679), und welche Rechte Ihnen zustehen.
     </p>
 
     <h2>1. Verantwortlicher</h2>
@@ -99,30 +111,40 @@ import { SITE } from '../config';
     </p>
     <p>
       Zur Nutzungsanalyse setzen wir <strong>Plausible Analytics</strong> ein,
-      ein datenschutzfreundliches Messwerkzeug
+      ein Werkzeug zur Webanalyse
       [AUSWÄHLEN: selbst gehostet auf unserem eigenen Server / betrieben für uns als
       Auftragsverarbeiter (Art. 28 DSGVO) von Plausible Insights OÜ, Västriku tn 2,
       50403 Tartu, Estland (EU)].
-      Das Skript setzt keine Cookies und schreibt nichts auf Ihr Endgerät.
-      Beim Aufruf einer Seite sendet es die Adresse dieser Seite und die Seite,
-      von der Sie kamen, an den Messserver, zusammen mit den technischen Daten,
-      die Ihr Browser bei jeder Anfrage übermittelt (Browser, Betriebssystem,
-      Gerätetyp, IP-Adresse). Beim Verlassen der Seite sendet es zusätzlich, wie
-      weit Sie gescrollt haben und wie lange die Seite im Vordergrund war. Aus
-      der IP-Adresse leitet das Werkzeug Ihren ungefähren Standort (Land, Region
-      und Stadt) ab; die IP-Adresse selbst speichert es nicht. Aus diesen Daten
-      bildet es eine kurzlebige Kennung, die alle 24 Stunden ersetzt wird. So
-      wird ein Besuch einmal pro Tag gezählt und lässt sich weder über mehrere
-      Tage noch über mehrere Websites hinweg verfolgen. Die Ergebnisse sind
-      aggregierte Zählungen, zum Beispiel Seitenaufrufe, Verweisquellen und
-      Länder. Eine Weitergabe an Dritte zu deren eigenen Zwecken findet nicht
-      statt.
+      Das Skript von Plausible setzt keine Cookies und schreibt nichts auf Ihr
+      Endgerät. Es prüft eine Einstellung in Ihrem Browser, mit der Sie Ihre
+      eigenen Besuche ausnehmen können, und ob der Browser automatisiert gesteuert
+      wird; beides wird nicht an den Server gesendet. Beim Aufruf einer Seite
+      sendet es die Adresse dieser Seite und die Seite oder Website, von der Sie
+      kamen, an den Messserver, zusammen mit den technischen Daten, die Ihr
+      Browser bei jeder Anfrage übermittelt (Browser, Betriebssystem, Gerätetyp,
+      IP-Adresse). Beim Verlassen der Seite sendet es zusätzlich, wie weit Sie
+      gescrollt haben und wie lange die Seite im Vordergrund war.
+      [SATZ LÖSCHEN, WENN DIES IN PLAUSIBLE NICHT ANGEKREUZT IST: Es zählt außerdem
+      Klicks auf Links zu anderen Websites, Dateidownloads und
+      Formularübermittlungen und sendet die Adresse des angeklickten Links oder
+      der Datei.] Aus der IP-Adresse leitet das Werkzeug Ihren ungefähren
+      Standort ab; die IP-Adresse selbst speichert es nicht. Aus Ihrer
+      IP-Adresse, Ihren Browserdaten und der Domain dieser Website bildet es
+      zusammen mit einem Wert, der alle 24 Stunden ersetzt wird, eine Kennung.
+      Innerhalb eines Tages kann das Werkzeug denselben Browser daher
+      wiedererkennen und zählt ihn als einen Besucher; an einem anderen Tag oder
+      auf einer anderen Website erkennt es ihn nicht wieder. Die einzelnen
+      Seitenaufrufe werden mit dieser Kennung, dem Standort und den Gerätedaten
+      gespeichert und als aggregierte Zählungen angezeigt, zum Beispiel
+      Seitenaufrufe, Verweisquellen und Länder.
     </p>
     <p>
       Rechtsgrundlage ist unser berechtigtes Interesse daran, zu verstehen, wie
       die Website genutzt wird, und sie zu verbessern (Art. 6 Abs. 1 lit. f
-      DSGVO). Sie können die Messung verhindern, indem Sie das Analyse-Skript
-      in Ihrem Browser blockieren.
+      DSGVO).
+      [SPEICHERDAUER ANGEBEN, zum Beispiel: Wir bewahren diese Daten 24 Monate
+      auf und löschen sie danach.] Sie können die Messung verhindern, indem Sie
+      das Analyse-Skript in Ihrem Browser blockieren.
     </p>
 
     <h2>4. Kontakt per E-Mail</h2>

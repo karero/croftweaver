@@ -48,14 +48,15 @@ export const KNOWS_ABOUT: string[] = [];
 // https://plausible.io for the paid cloud version). Fire only on the production
 // deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built.
 //
-// scriptId is the per-site script Plausible's installer shows (Settings > Site
-// installation): in <script src=".../js/pa-AbC123.js"> it is the part between "/js/"
-// and ".js", here 'pa-AbC123'. The domain and the optional measurements (outbound
-// links, file downloads, form submissions) are switched in Plausible, not here. The
-// privacy page describes page views and engagement only: leave the optional
-// measurements unticked, or add them to its section 3. A scriptHost or scriptId left as
-// the placeholder loads nothing and says nothing. Changing scriptHost also means
-// changing script-src and connect-src in public/_headers.
+// scriptId is the per-site script Plausible's installer shows (Settings > General >
+// Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is
+// the part between "/js/" and ".js", here 'pa-AbC123'. The domain and the optional
+// measurements (outbound links, file downloads, form submissions) are switched in
+// Plausible, not here. Section 3 of the privacy page has a slot sentence for them:
+// keep it only if they are ticked. A scriptHost or scriptId left as the placeholder
+// loads nothing (the browser reports a failed request; the build does not).
+// Changing scriptHost also means changing script-src and connect-src in
+// public/_headers; tests/check_analytics_gate.sh checks both against this file.
 // Base.astro writes two tags: the script, and the short stub that calls
 // plausible.init(); without the stub the script never starts.
 //

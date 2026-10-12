@@ -66,6 +66,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    1200×630 share cards (`public/images/og/`; the starter ships a default).
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
+   In Plausible's installer, untick the optional measurements (outbound links,
+   file downloads, form submissions), or keep the page's sentence for them.
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +

@@ -1,6 +1,8 @@
 # Cloudflare Pages security headers. CSP allows the inlined stylesheet
 # (astro.config `inlineStylesheets: 'always'`) via style-src 'unsafe-inline' and
-# the inline theme/analytics scripts. Widen script-src/connect-src only as needed.
+# the inline theme script and analytics stub; the analytics host is listed in script-src
+# and connect-src (the analytics gate test checks both against config.ts). Widen
+# script-src/connect-src only as needed.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
