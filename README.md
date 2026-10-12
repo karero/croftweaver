@@ -163,9 +163,10 @@ claude plugin install croftweaver@croftweaver
 Then go to step 3. As a plugin the skills carry its name in front
 (`/croftweaver:new-website`). You stay on the release you installed until you run
 `claude plugin update croftweaver@croftweaver`, or turn on auto-update for the marketplace
-under `/plugin`; what lands on main between releases does not reach you. In a site built
-with the suite, the skills the site carries then show up twice, once from the site and once
-from the plugin.
+under `/plugin`; what lands on main between releases does not reach you. Use one route:
+with the plugin and a copy in `~/.claude/skills/` (from `npm create croftweaver` or
+`install.sh`), every skill is listed twice. The same holds in a site built with the suite,
+for the skills the site carries.
 
 **By hand**, in three steps:
 
@@ -255,7 +256,10 @@ stamps, `whats-new`) — a release just names a milestone. Versions step by **0.
 # First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
 # ("version": "0.11.0") and in .claude-plugin/marketplace.json ("ref": "v0.11"). The plugin
 # is installed from that tag, and the changed version is what tells Claude Code there is an
-# update; `make test-plugin` fails when the two disagree. Tag the commit that merge makes.
+# update; `make test-plugin` fails when the two disagree. Tag the commit that merge makes,
+# in the same sitting: from the merge until the tag is pushed, main names a tag that does
+# not exist, and installing or updating the plugin fails. The release-tag workflow then
+# checks the pushed tag against both values; a red run there means this step was missed.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip
 git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
 gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \

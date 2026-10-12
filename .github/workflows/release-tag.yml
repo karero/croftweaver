@@ -1,0 +1,23 @@
+name: release-tag
+# Runs when a release tag is pushed. The Claude Code plugin is installed from the tag that
+# .claude-plugin/marketplace.json names, and plugin.json's version is what tells Claude Code
+# that there is an update. The checks on pull requests only compare those two values with
+# each other, so a release that forgets to set them passes there, and plugin users stay on
+# the release before. Here the pushed tag is compared with both. It runs after the tag
+# exists and stops nothing: a red run is the notice to set the two values and tag again.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  plugin-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Check that the plugin's manifests name this tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: make test-plugin

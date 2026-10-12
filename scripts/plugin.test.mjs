@@ -1,11 +1,12 @@
 // Tests for the Claude Code plugin (.claude-plugin/) and for what makes the skills work
 // from a plugin's folder: no skill may send the assistant to ~/.claude/skills/<name>/ for
-// its files, because a plugin's skills are not there. Run: make test-plugin (needs node and bash).
+// its files, because a plugin's skills are not there. Run: make test-plugin (needs node 20
+// or newer, git and bash).
 //
 // Claude Code puts a skill's own folder in place of the name CLAUDE_SKILL_DIR in braces,
 // in SKILL.md only. Other assistants leave it as written. The cases below hold both.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,18 +14,18 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SKILLS = path.join(REPO, 'skills');
 const VAR = '${CLAUDE_SKILL_DIR}';
 const read = (...parts) => fs.readFileSync(path.join(REPO, ...parts), 'utf8');
 const scratch = [];
 after(() => { for (const dir of scratch) fs.rmSync(dir, { recursive: true, force: true }); });
 
-// Every text file under skills/, as [path relative to the repo, content].
+// Every tracked text file under skills/, whatever its name, as [path, content].
 function skillFiles() {
-  return fs.readdirSync(SKILLS, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile() && /\.(md|sh|mjs|js|ts|py|json|astro|txt|ya?ml)$/.test(entry.name))
-    .map((entry) => path.join(entry.parentPath, entry.name))
-    .map((file) => [path.relative(REPO, file).split(path.sep).join('/'), fs.readFileSync(file, 'utf8')]);
+  return execFileSync('git', ['ls-files', '-z', 'skills'], { cwd: REPO, encoding: 'utf8' })
+    .split('\0').filter(Boolean)
+    .map((file) => [file, fs.readFileSync(path.join(REPO, file))])
+    .filter(([, data]) => !data.includes(0))
+    .map(([file, data]) => [file, data.toString('utf8')]);
 }
 
 test('the plugin and the marketplace entry name the same plugin and the same release', () => {
@@ -45,11 +46,19 @@ test('the plugin and the marketplace entry name the same plugin and the same rel
   assert.equal(entry.version, undefined);
 });
 
+// The two values agreeing with each other says nothing about the release being cut: both
+// can be left at the last one. The release-tag workflow runs this with the pushed tag.
+test('a release tag is the one the marketplace entry installs from',
+  { skip: process.env.RELEASE_TAG ? false : 'no RELEASE_TAG: this runs when a release tag is pushed' }, () => {
+    const market = JSON.parse(read('.claude-plugin', 'marketplace.json'));
+    assert.equal(market.plugins[0].source.ref, process.env.RELEASE_TAG);
+  });
+
 test('no file of a skill sends the reader to the home skills folder for a skill\'s files', () => {
   const found = [];
   for (const [file, text] of skillFiles()) {
     text.split('\n').forEach((line, i) => {
-      if (/(~|\$HOME)\/\.(claude|agents|gemini\/config)\/skills\/[A-Za-z]/.test(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
+      if (/(~|\$\{?HOME\}?)\/\.(claude|agents|gemini\/config)\/skills\//.test(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
     });
   }
   assert.deepEqual(found, [], 'a plugin\'s skills are not in that folder: name the file relative to the skill ("this skill\'s templates/…")');
@@ -63,7 +72,8 @@ test('the name Claude Code fills in stands only where it is filled in, and every
     // Only a skill's SKILL.md is rewritten: anywhere else the name would reach the reader as it is.
     if (!/^skills\/[^/]+\/SKILL\.md$/.test(file)) { misplaced.push(file); continue; }
     const skillDir = path.join(REPO, path.dirname(file));
-    for (const [, rest] of text.matchAll(/\$\{CLAUDE_SKILL_DIR\}((?:\/[A-Za-z0-9._-]+)*)/g)) {
+    // The path runs to the next quote, backtick, bracket or space.
+    for (const [, rest] of text.matchAll(/\$\{CLAUDE_SKILL_DIR\}([^\s"'`)]*)/g)) {
       if (!fs.existsSync(path.join(skillDir, rest))) missing.push(`${file}: ${VAR}${rest}`);
     }
   }
@@ -71,23 +81,35 @@ test('the name Claude Code fills in stands only where it is filled in, and every
   assert.deepEqual(missing, []);
 });
 
-// The lines new-website tells the assistant to run to find the installed suite, taken from
-// SKILL.md itself: from the SKILLS_ROOT test to the end of the PROJECT_SKILLS_DIR one.
-function lookup() {
-  const lines = read('skills', 'new-website', 'SKILL.md').split('\n');
-  const from = lines.findIndex((line) => line.includes('if [ -z "${SKILLS_ROOT:-}" ]; then'));
-  const to = lines.findIndex((line, i) => i > from && line.trim() === 'mkdir <site> && cd <site> && git init');
-  assert.ok(from > 0 && to > from, 'the lookup block in new-website/SKILL.md was not found');
-  return lines.slice(from, to).join('\n');
+// Lines of a SKILL.md from the one holding `first` to the one before the one holding `end`.
+// Each marker must be there exactly once, so the test cannot run a different block.
+function block(file, first, end) {
+  const lines = read(...file).split('\n');
+  const at = (marker) => {
+    const hits = lines.map((line, i) => (line.includes(marker) ? i : -1)).filter((i) => i >= 0);
+    assert.equal(hits.length, 1, `${file.join('/')}: ${JSON.stringify(marker)} is there ${hits.length} times`);
+    return hits[0];
+  };
+  return lines.slice(at(first), at(end)).join('\n');
 }
 
-// Runs the lookup as an assistant would: `filled` is what stands in place of the name in
-// braces (Claude Code), or null to leave the text as written (any other assistant).
-function runLookup({ filled, home, env = {} }) {
-  const script = `${filled === null ? lookup() : lookup().replaceAll(VAR, filled)}\nprintf '%s\\n%s\\n' "$SKILLS_ROOT" "$PROJECT_SKILLS_DIR"\n`;
-  const clean = { PATH: process.env.PATH, HOME: home, ...env };
-  const out = execFileSync('bash', ['-c', script], { env: clean, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  const [root, project] = out.trim().split('\n');
+// The lines new-website tells the assistant to run to find the installed suite, taken from
+// SKILL.md itself: from the SKILLS_ROOT test to the end of the PROJECT_SKILLS_DIR one.
+const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'if [ -z "${SKILLS_ROOT:-}" ]; then', 'mkdir <site> && cd <site> && git init');
+
+// Runs lines of a skill as an assistant would: `filled` is what stands in place of the name
+// in braces (Claude Code), or null to leave the text as written (any other assistant).
+// `strict` runs the shell with unset variables as errors.
+function bash(script, { filled, home, env = {}, cwd, strict = false }) {
+  const text = filled === null ? script : script.replaceAll(VAR, filled);
+  return spawnSync('bash', [...(strict ? ['-u'] : []), '-c', text], { env: { PATH: process.env.PATH, HOME: home, ...env }, cwd, encoding: 'utf8' });
+}
+
+function runLookup(options) {
+  const run = bash(`${lookup()}\nprintf '%s\\n%s\\n' "$SKILLS_ROOT" "$PROJECT_SKILLS_DIR"\n`, options);
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stderr, '');
+  const [root, project] = run.stdout.trim().split('\n');
   return { root, project };
 }
 
@@ -96,7 +118,15 @@ function tmp() {
   scratch.push(dir);
   return dir;
 }
-const suiteAt = (skillsDir) => fs.mkdirSync(path.join(skillsDir, 'new-website', 'templates'), { recursive: true });
+
+// A stand-in for an installed suite: the folders and the two files the cases need.
+function suiteAt(skillsDir, mark = 'suite') {
+  const claude = path.join(skillsDir, 'new-website', 'templates', 'claude');
+  fs.mkdirSync(path.join(claude, 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(claude, 'settings.json'), `settings from ${mark}`);
+  fs.writeFileSync(path.join(claude, 'hooks', 'git-stand.mjs'), `hook from ${mark}`);
+  fs.mkdirSync(path.join(skillsDir, 'website-permissions'), { recursive: true });
+}
 
 test('new-website finds the suite where it was loaded from: a plugin\'s folder, which is none of the home folders', () => {
   const home = tmp();
@@ -122,10 +152,19 @@ test('an assistant that fills nothing in still finds its own install, and the un
   suiteAt(path.join(home, '.agents', 'skills'));
 
   assert.deepEqual(runLookup({ filled: null, home }), { root: path.join(home, '.agents', 'skills'), project: '.agents/skills' });
+  // Also in a shell that takes an unset variable as an error: the name must not be read as one.
+  assert.deepEqual(runLookup({ filled: null, home, strict: true }), { root: path.join(home, '.agents', 'skills'), project: '.agents/skills' });
 
   // Claude Code's own folder still comes before the other two, as before.
   suiteAt(path.join(home, '.claude', 'skills'));
   assert.deepEqual(runLookup({ filled: null, home }), { root: path.join(home, '.claude', 'skills'), project: '.claude/skills' });
+});
+
+test('left as written, the first candidate is a folder name and not a variable: in single quotes', () => {
+  // In double quotes an unset name would vanish and leave "/..", the root of the disk: the
+  // lookup would then take a folder /new-website for the suite, and stop in a strict shell.
+  assert.match(lookup(), /for d in '\$\{CLAUDE_SKILL_DIR\}\/\.\.' "\$HOME\/\.claude\/skills"/);
+  assert.equal(lookup().split(VAR).length, 2, 'the name stands in the lookup more than once');
 });
 
 test('an explicit SKILLS_ROOT is honoured, and with nothing installed the default is unchanged', () => {
@@ -135,4 +174,56 @@ test('an explicit SKILLS_ROOT is honoured, and with nothing installed the defaul
 
   assert.equal(runLookup({ filled: path.join(plugin, 'new-website'), home, env: { SKILLS_ROOT: '/somewhere/else' } }).root, '/somewhere/else');
   assert.equal(runLookup({ filled: null, home }).root, path.join(home, '.claude', 'skills'));
+  assert.equal(runLookup({ filled: null, home, strict: true }).root, path.join(home, '.claude', 'skills'));
+});
+
+test('the two guides that repeat the lookup for testers repeat it as it is', () => {
+  const loop = lookup().split('\n').filter((line) => /^\s*(for d in|\[ -d "\$d\/new-website" \])/.test(line)).map((line) => line.trim());
+  assert.equal(loop.length, 2);
+  for (const guide of ['CODEX-TEST.md', 'ANTIGRAVITY-TEST.md']) {
+    const lines = read('docs', guide).split('\n').map((line) => line.trim());
+    for (const line of loop) assert.ok(lines.includes(line), `docs/${guide} lacks: ${line}`);
+  }
+});
+
+// The lines website-permissions gives to copy the allowlist and its hook into a site.
+const copySettings = () => block(['skills', 'website-permissions', 'SKILL.md'], "src='${CLAUDE_SKILL_DIR}/../new-website/templates/claude'", 'If both `cp` lines fail');
+
+function runCopy(options) {
+  const site = tmp();
+  const run = bash(copySettings().replace(/^```\s*$/m, ''), { cwd: site, ...options });
+  const got = (file) => (fs.existsSync(path.join(site, file)) ? fs.readFileSync(path.join(site, file), 'utf8') : null);
+  return { status: run.status, settings: got('.claude/settings.json'), hook: got('.claude/hooks/git-stand.mjs') };
+}
+
+test('website-permissions copies the allowlist from the suite it is part of', () => {
+  const plugin = path.join(tmp(), 'cache', 'with space', 'skills');
+  suiteAt(plugin, 'the plugin');
+
+  const copied = runCopy({ filled: path.join(plugin, 'website-permissions'), home: tmp() });
+
+  assert.deepEqual(copied, { status: 0, settings: 'settings from the plugin', hook: 'hook from the plugin' });
+});
+
+test('from the copy inside a site, which has no new-website beside it, it takes the installed suite', () => {
+  const home = tmp();
+  suiteAt(path.join(home, '.claude', 'skills'), 'the home install');
+  const siteCopy = path.join(tmp(), '.claude', 'skills', 'website-permissions');
+  fs.mkdirSync(siteCopy, { recursive: true });
+
+  assert.deepEqual(runCopy({ filled: siteCopy, home }), { status: 0, settings: 'settings from the home install', hook: 'hook from the home install' });
+
+  // And where SKILLS_ROOT says where the suite is, that one, in a strict shell too.
+  const elsewhere = path.join(tmp(), 'skills');
+  suiteAt(elsewhere, 'SKILLS_ROOT');
+  for (const strict of [false, true]) {
+    assert.deepEqual(runCopy({ filled: null, home, env: { SKILLS_ROOT: elsewhere }, strict }), { status: 0, settings: 'settings from SKILLS_ROOT', hook: 'hook from SKILLS_ROOT' });
+  }
+});
+
+test('with no suite to copy from it fails, and writes neither file', () => {
+  const copied = runCopy({ filled: null, home: tmp(), strict: true });
+
+  assert.notEqual(copied.status, 0);
+  assert.deepEqual([copied.settings, copied.hook], [null, null]);
 });

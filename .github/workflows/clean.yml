@@ -44,7 +44,8 @@ name: clean
 # runs the tests of the `npm create croftweaver` installer (`make test-create`), on Linux,
 # macOS and Windows. The installer needs nothing beyond node; its tests also need git, and
 # zip and tar where the runner has them. And the tests of the Claude Code plugin
-# (`make test-plugin`), which need node and bash.
+# (`make test-plugin`), which need node, git and bash; release-tag.yml runs them again
+# when a release tag is pushed, with the tag to compare.
 on:
   push:
     branches: [main]
@@ -387,7 +388,8 @@ jobs:
   plugin-tests:
     # The plugin's two manifests, and the rule that lets the skills run from a plugin's
     # folder: no skill sends the assistant to ~/.claude/skills/<name>/ for its files. One of
-    # the tests runs, in bash, the lines new-website gives the assistant to find the suite.
+    # the tests runs, in bash, the lines new-website gives the assistant to find the suite,
+    # another the lines website-permissions gives to copy the allowlist.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

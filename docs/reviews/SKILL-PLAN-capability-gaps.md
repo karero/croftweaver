@@ -331,17 +331,26 @@ https://code.claude.com/docs/en/plugins/host-marketplace):
   folder: 35 skills, and every folder and file the scaffold copies is there, the
   templates' `.gitignore` included. The files land under
   `plugins/cache/croftweaver/croftweaver/<version>/`.
-- The lines `new-website` gives the assistant to find the suite are run by a test, with
-  the skill's folder filled in as Claude Code does and left as written as another
-  assistant would (`make test-plugin`).
+- The lines `new-website` gives the assistant to find the suite, and the lines
+  `website-permissions` gives to copy the allowlist, are run by tests, with the skill's
+  folder filled in as Claude Code does and left as written as another assistant would,
+  also in a shell that takes an unset variable as an error (`make test-plugin`).
 
 Known limits:
 
 - No live session has loaded the plugin yet. That Claude Code replaces the name by the
   skill's folder is its documentation's word and not something this change observed: the
   session that built it could not start a signed-in one.
-- Nothing can be installed from GitHub before the tag `v0.32` exists, and the release's
-  pull request has to set the two values; no check notices a release that forgets them.
+- Nothing can be installed from GitHub before the tag `v0.32` exists.
+- Each release's pull request has to set the two values. From its merge until the tag is
+  pushed, main names a tag that does not exist, and installing or updating the plugin
+  fails; the README says to tag in the same sitting. A release that forgets the two values
+  passes every check on its pull request. The `release-tag` workflow compares the pushed
+  tag with them, after the fact: a red run on the tag is the notice.
+- A copy of `website-permissions` inside a site has no `new-website` beside it. Its
+  commands then take the two files from the installed suite (`SKILLS_ROOT`, or
+  `~/.claude/skills`); with the suite installed only as a plugin, that needs `SKILLS_ROOT`
+  set by hand.
 - Row 5: the doubled listing costs context in every session in such a site.
 - A site scaffolded from the plugin is stamped `suite_commit: unknown`, as from a zip.
 - The documentation names a single command that adds the marketplace and installs
