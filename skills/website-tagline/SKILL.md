@@ -180,16 +180,24 @@ free answer for "none of these"), otherwise ask in chat. Then:
 - **No answer** → stop. Change nothing on the site.
 
 Round two: **four to six** new lines in that direction. Keep any line or phrase
-the owner liked word for word, and drop every word they pushed back on.
+the owner liked word for word, and drop every word they pushed back on. A line the
+owner liked as a whole stays in the running: show it again, unchanged, beside the
+new lines of the next round. It does not count towards their number.
 
 **Worked example, continued:**
 
 - The owner answers: "1 and 5. 'Evenings back' is what my clients say to me, and
   the Sunday-night spreadsheet is exactly their week. Not 2: 'dread' is too dark
   for us."
-- Two lines from different directions, so round two combines them. Every line is
-  built from the words the owner liked, and none says "dread":
+- Two lines from different directions, so round two combines them. Lines 1 and 5
+  stay in the running. Every new line is built from the words the owner liked,
+  and none says "dread":
 
+  > **Still in the running**
+  > - Your books done. Your evenings back.
+  > - No more Sunday-night spreadsheets.
+  >
+  > **New**
   > 1. No Sunday-night spreadsheets. Your evenings back.
   > 2. Your evenings back from the spreadsheet.
   > 3. Evenings back. Spreadsheets gone.
@@ -203,7 +211,7 @@ owner can answer, never "what do you think?":
 > Read each line aloud after your business name. Which words would you really say
 > to a customer? Which word feels off? Is anything too bold, too modest or too long?
 
-Then change **only** what the feedback names, show at most four lines, and ask
+Then change **only** what the feedback names, show at most four new lines, and ask
 again. The loop ends in one of three ways:
 
 - **The owner picks one line.** Before it is final, search the exact line in
@@ -221,10 +229,11 @@ conversation ended.
 
 **Worked example, the end:**
 
-- Asked the three feedback questions, the owner says: "The fourth is nearly it. I
-  would say 'Sunday evenings', not 'Sunday nights'. Can it be shorter? And 'gone'
-  in the third sounds like an advert."
-- Only those three things change. Round three is two lines:
+- Asked the three feedback questions, the owner says: "The fourth new one is
+  nearly it. I would say 'Sunday evenings', not 'Sunday nights'. Can it be
+  shorter? And 'gone' in the third sounds like an advert."
+- Only those three things change. The owner liked no line as a whole this time, so
+  none is carried over. Round three is two lines:
 
   > 1. Your books done. Your Sunday evenings back.
   > 2. Books done. Sunday evenings back.
