@@ -1262,8 +1262,11 @@ check "ltwice: ...and the refusal lists the model once, as light-only" \
   has ltwice.err "Melious runs no model at any depth, and for a Light review (--depth light) $MELIOUS_LIGHT, and no other model"
 listcase ltwice2 "$MELIOUS_LIGHT$NL$MELIOUS_LIGHT light$NL" MELIOUS_MODEL="$MELIOUS_LIGHT" -- --seat melious --depth normal
 check "ltwice2: ...and the other way round: bare first, so a later light line does not narrow it" has ltwice2.out "reviewers: melious OK"
-listcase lglob "a*$NL${NL}ab light$NL" MELIOUS_MODEL=ab -- --seat melious --depth normal
-check "lglob: an id is compared as text: a* above does not swallow ab, which stays light-only" refused lglob "$LIGHT_ONLY --depth normal."
+# An id is compared as text. Read as a pattern, "a*" would match the "ab" already seen, be
+# taken for a second listing of it and dropped, and the run below would be refused.
+listcase lglob "ab$NL${NL}a* light$NL" MELIOUS_MODEL='a*' -- --seat melious --depth light
+check "lglob: an id with a glob character is listed in its own right, after an id it would match" \
+  sh -c '[ "$(cat "$1/lglob.rc")" = 0 ] && grep -qF "reviewers: melious OK" "$1/lglob.out"' _ "$T"
 listcase lnonl "# no newline at the end$NL$MELIOUS_OK" MELIOUS_MODEL="$MELIOUS_OK" -- --seat melious
 check "lnonl: a last line with no newline is still read" has lnonl.out "reviewers: melious OK"
 listcase lother "stub-other$NL" MELIOUS_MODEL=stub-other -- --seat melious
