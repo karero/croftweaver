@@ -338,9 +338,11 @@ function readHtml(html) {
   // Foreign content: inside an <svg> the elements that are raw text in HTML (script, style,
   // textarea, title) hold markup, as in a browser; a <foreignObject> inside it is HTML again.
   const ctx = []; // 'svg' or 'html', innermost last
+  let svgScripts = 0; // open <script> elements in svg: the text between tags is script text
   let i = 0;
   while (i < n) {
     const lt = html.indexOf('<', i);
+    if (svgScripts > 0 && i < (lt === -1 ? n : lt)) scripts.push(html.slice(i, lt === -1 ? n : lt));
     if (lt === -1) break;
     if (html.startsWith('<!--', lt)) {
       // A comment ends at "-->" or "--!>", and "<!-->" and "<!--->" are whole comments.
@@ -411,11 +413,15 @@ function readHtml(html) {
       ctx.pop();
     } else if (name === 'svg') {
       while (ctx.length && ctx.pop() !== 'svg');
+      if (ctx.at(-1) !== 'svg') svgScripts = 0; // an svg script left open ends with its svg
     }
+    const foreign = ctx.at(-1) === 'svg';
+    if (m[1] === '' && foreign && name === 'script' && !selfClosing) svgScripts += 1;
+    else if (m[1] === '/' && foreign && name === 'script' && svgScripts > 0) svgScripts -= 1;
     if (m[1] === '') {
       tags.push({ name, attrs });
-      const foreign = ctx.at(-1) === 'svg';
-      if (RAW_TEXT.has(name) && !selfClosing && (!foreign || name === 'script')) {
+      // Outside foreign content a self-closing slash on these elements is ignored, as in a browser.
+      if (RAW_TEXT.has(name) && !foreign) {
         // The text of these elements is not markup. Its end tag is "</name" followed by
         // white space, "/" or ">": "</scripture>" does not end a script.
         let end = i;
@@ -426,9 +432,7 @@ function readHtml(html) {
         }
         if (end === -1) end = n;
         if (name === 'script') scripts.push(html.slice(i, end));
-        // In HTML the text is skipped. An svg's elements hold markup, so what is inside is
-        // still read; its script's text was taken above all the same.
-        if (!foreign) i = end;
+        i = end;
       }
     }
   }
@@ -534,7 +538,7 @@ function readRobots(body) {
   // octets ... If an "allow" rule and a "disallow" rule are equivalent, then the "allow" rule
   // SHOULD be used." So "Disallow: /*" (two octets) beats "Allow: /" (one), and "Disallow: /"
   // with "Allow: /" is open. The length is that of the pattern, as in Google's published parser
-  // (github.com/google/robotstxt, robots.cc: MatchAllow and MatchDisallow return
+  // (github.com/google/robotstxt at 50a0dac, robots.cc: MatchAllow and MatchDisallow return
   // pattern.length() as the priority, and a path is disallowed only when the disallow priority
   // is greater than the allow priority). Read as the octets a URI matches, "Disallow: /*" would
   // leave "/" itself open. Either way every other page is blocked, which is what the verdict

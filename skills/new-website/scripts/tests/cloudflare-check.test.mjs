@@ -1187,6 +1187,33 @@ test('foreign content, edges: an svg\'s inline script is read, a slash inside a 
   });
 });
 
+// ---- what the second confirmation of round 6 asked for
+
+test('thousands of unclosed script starts inside an svg are read in linear time, and their text is still script text', async () => {
+  await withSite(homeWith({}, `<svg>${'<script>'.repeat(40_000)}var a="/cdn-cgi/challenge-platform/scripts/jsd/main.js";`), async (s) => {
+    const started = Date.now();
+    const r = await check(s.origin);
+    assert.equal(r.by.bot.state, 'fail', 'the text after the last start is script text');
+    assert.ok(Date.now() - started < 20_000, 'a reader that takes every suffix of the page is quadratic');
+  });
+  await withSite(homeWith({}, '<svg><script>var a=1;</script></svg><p>cdn-cgi/challenge-platform is only a word here</p>'), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok', 'the text after the svg is not script text');
+  });
+  await withSite(homeWith({}, '<svg><script>var a=1;</svg><p>/cdn-cgi/challenge-platform/scripts/jsd/main.js</p>'), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok', 'an svg script left open ends with its svg');
+  });
+});
+
+test('a self-closing slash on script or title does not stop raw text in HTML, as in a browser', async () => {
+  const jsd = '/cdn-cgi/challenge-platform/scripts/jsd/main.js';
+  await withSite(homeWith({}, `<script/>var a=document.createElement("script");a.src="${jsd}";</script>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'fail', '<script/> still opens a script in HTML');
+  });
+  await withSite(homeWith({}, `<title/><script src="${jsd}"></script></title>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok', '<title/> still opens a title in HTML');
+  });
+});
+
 // ---- the command itself
 
 test('a wrong command is exit 2 with the usage text, and --help is exit 0', async () => {
