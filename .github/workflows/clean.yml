@@ -330,6 +330,37 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run the facts-check tests (stub site on 127.0.0.1, no real requests)
         run: make test-facts PYTHON=python
+  website-brand-kit-tests:
+    # The intake is standard-library Python; 3.9 is macOS's stock python3. The tests that draw
+    # icons borrow `sharp` from an install of the starter, which is where a real site has it,
+    # and the share-card tests need Pillow, as the site's own `npm run og` does. REQUIRE_SHARP
+    # turns "skipped, no sharp" and "skipped, no Pillow" into failures: a job that tested less
+    # must not stay green.
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: An install of the starter, to borrow its sharp from
+        run: |
+          cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"
+          cd "$RUNNER_TEMP/starter"
+          npm ci --no-audit --no-fund
+          node -e "require('sharp')"
+      - name: Pillow, for the share cards
+        run: python -m pip install Pillow
+      - name: Run the website-brand-kit tests (no network; every site is a throwaway copy of the starter)
+        env:
+          REQUIRE_SHARP: "1"
+          BRAND_KIT_NODE_MODULES: ${{ runner.temp }}/starter/node_modules
+        run: make test-brand-kit PYTHON=python
   macos-stock-tools:
     # Every job above runs on Ubuntu (bash 5, GNU awk/sed/tr). A zip recipient on a Mac runs
     # the same guards under /bin/bash 3.2 and BSD tools, and v0.27's pre-release review found

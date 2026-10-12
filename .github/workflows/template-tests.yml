@@ -67,7 +67,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # whats-new.sh: verify-windows runs the recovery command it prints.
-              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
+              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-brand-kit/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
               \"*) run=true ;;
             esac
           done <<EOF
@@ -471,11 +471,50 @@ jobs:
           if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form in a language with no texts was built'; exit 1; fi
           grep -q 'MailForm: no texts for the language "xx"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing texts'; exit 1; }
 
+  # website-brand-kit puts colours and icons into a site and then runs the site's own
+  # `npm run build && npm test`. Its other tests (clean.yml, website-brand-kit-tests) stand
+  # a command in for those; this job is the one run that uses the real ones: green before,
+  # the install, green after, and the built site serving the new mark and colours. A starter
+  # change that the intake's edits no longer fit (global.css's three colour blocks, config.ts,
+  # the manifest, the share-card generator) turns red here.
+  brand-kit-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: A site from the starter, installed, with Playwright's browser and Pillow
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site
+          cp "$GITHUB_WORKSPACE/skills/new-website/templates/.gitignore" site/.gitignore
+          cd site
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          python -m pip install Pillow
+      - name: Green before, the palette and the logo go in, green after, by the site's own tests
+        working-directory: .
+        shell: bash   # named, so the step runs with pipefail: a failing test run is not hidden by tee
+        env:
+          BRAND_KIT_E2E_SITE: ${{ runner.temp }}/site
+          BRAND_KIT_NODE_MODULES: ${{ runner.temp }}/site/node_modules
+          REQUIRE_SHARP: "1"
+        run: |
+          python -m unittest discover -v -s skills/website-brand-kit/scripts/tests -p 'test_e2e_site.py' 2>&1 | tee e2e.log
+          # One check per line. A skipped test is not a pass: the run must name it "ok".
+          grep -q 'test_scenario_8_.* ok$' e2e.log
+
   # The one check main's ruleset requires from this workflow. It passes when every job
   # above passed (the change touched their paths) or every job was skipped (it did not),
   # and fails on anything else: a failure, a cancel, a skip where a run was due.
   template-tests-ok:
-    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill]
+    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, brand-kit-skill]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -483,9 +522,9 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           RUN: ${{ needs.changes.outputs.run }}
-          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }}
+          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }} ${{ needs.brand-kit-skill.result }}
         run: |
-          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill: $RESULTS"
+          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, brand-kit-skill: $RESULTS"
           [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
           case "$RUN" in
             true) want=success ;;
