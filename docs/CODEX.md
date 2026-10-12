@@ -1,6 +1,6 @@
-# Using website-builder with OpenAI Codex
+# Using Croftweaver with OpenAI Codex
 
-The `website-builder` skill suite was developed and used with Claude Code, but the skills
+The Croftweaver skill suite was developed and used with Claude Code, but the skills
 are plain Markdown (`SKILL.md` + templates), so Codex can run the same suite through a
 small adaptation layer. **`skills/*` stays the single source of truth** — nothing is
 duplicated for Codex.
@@ -11,8 +11,8 @@ duplicated for Codex.
 
 **From a clone:**
 ```bash
-git clone https://github.com/karero/website-builder.git
-cd website-builder
+git clone https://github.com/karero/croftweaver.git
+cd croftweaver
 ./scripts/install-codex.sh
 ```
 

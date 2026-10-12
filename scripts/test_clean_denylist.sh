@@ -10,8 +10,9 @@
 # checkout's list, that a copy with no git still skips (and says so, on its OK line too),
 # that CI's masked mode (CLEAN_MASK_NAMES=1) fails on a name without printing it,
 # that scripts/ is scanned for names without the list matching itself, and that this repo's
-# own short name in an issue or PR reference is not a leak. The names are made up; the
-# real list never appears in this repo.
+# own short name in an issue or PR reference is not a leak, under the name it has now and
+# under the one it had before the rename. The names are made up; the real list never
+# appears in this repo.
 #
 # Usage: bash scripts/test_clean_denylist.sh
 set -u
@@ -68,16 +69,26 @@ rm "$R/scripts/tool.sh"
 
 # In the main checkout, where the list is read either way, so only the self-reference
 # allowance decides these cases.
-printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\nkarero/website-builder karero/website-builder,karero/website-builder\n' >"$R/docs/notes.md"
-expect "this repo's own name in a reference: passes" 0 "OK —" "$R"
-printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.md"
-expect "a listed name beside a self-reference: still fails" 1 "zorblequux" "$R"
 # The org name is split so this file, which the real check scans, holds no bare copy of it.
 org="kar""ero"
-printf 'see %s/website-builder-private\n' "$org" >"$R/docs/notes.md"
-expect "a longer name that starts like this repo: fails" 1 "website-builder-private" "$R"
-printf 'see other-%s/website-builder\n' "$org" >"$R/docs/notes.md"
-expect "a longer name that ends like this repo: fails" 1 "other-$org" "$R"
+# Each name the repo has had: what it is called now, and what docs/reviews/ still links to.
+for repo in croftweaver website-builder; do
+  printf 'fixed in %s/%s#131\nsee https://github.com/%s/%s.\ngit clone https://github.com/%s/%s.git\n%s/%s %s/%s,%s/%s\n' \
+    "$org" "$repo" "$org" "$repo" "$org" "$repo" "$org" "$repo" "$org" "$repo" "$org" "$repo" >"$R/docs/notes.md"
+  expect "$repo, this repo's name in a reference: passes" 0 "OK —" "$R"
+  printf 'ran zorblequux; fixed in %s/%s#131\n' "$org" "$repo" >"$R/docs/notes.md"
+  expect "$repo, a listed name beside a self-reference: still fails" 1 "zorblequux" "$R"
+  printf 'see %s/%s-private\n' "$org" "$repo" >"$R/docs/notes.md"
+  expect "$repo, a longer name that starts like this repo: fails" 1 "$repo-private" "$R"
+  printf 'see other-%s/%s\n' "$org" "$repo" >"$R/docs/notes.md"
+  expect "$repo, a longer name that ends like this repo: fails" 1 "other-$org" "$R"
+  printf 'see %s/%s..private\n' "$org" "$repo" >"$R/docs/notes.md"
+  expect "$repo, a longer name joined by two dots: fails" 1 "$repo..private" "$R"
+  # The character after a reference must survive the blanking: without it the next word runs
+  # into SELF-REPO and the listed name after it is no longer a word of its own.
+  printf 'see %s/%s zorblequux\n' "$org" "$repo" >"$R/docs/notes.md"
+  expect "$repo, a listed name right after a self-reference: still fails" 1 "zorblequux" "$R"
+done
 printf 'plain notes\n' >"$R/docs/notes.md"
 # GNU grep (CI's) reports a matching binary file on stderr, which the check used to discard.
 printf 'ran zorblequux\0\n' >"$R/docs/blob.bin"

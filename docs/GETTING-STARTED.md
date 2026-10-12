@@ -1,7 +1,7 @@
 # Getting started — the gentle version
 
 Never opened a terminal? Never installed a developer tool? **You're in the right place.**
-This page walks you through your very first website with website-builder, in plain
+This page walks you through your very first website with Croftweaver, in plain
 language. You won't need to understand the whole toolchain — your AI assistant handles the
 technical parts and explains each step as it goes.
 
@@ -79,7 +79,7 @@ Copy this into the chat and send it:
 
 <!-- This prompt is also in README.md. If you change one copy, change the other to match. -->
 
-> I want to use the website-builder skill suite (https://github.com/karero/website-builder)
+> I want to use the Croftweaver skill suite (https://github.com/karero/croftweaver)
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
@@ -87,14 +87,14 @@ Copy this into the chat and send it:
 > ask me whether that's it; if not, ask me which one it is (suggest Documents/Websites
 > unless I already keep my projects somewhere else, or my Documents folder syncs to iCloud
 > or OneDrive — then suggest a Websites folder in my home folder). Put the downloaded
-> website-builder files in a folder of their own and leave them there: for example a
-> folder called website-builder in my home folder, not Downloads and not my websites
-> folder. Then install the website-builder skills. Tell me when to restart or reopen you
+> Croftweaver files in a folder of their own and leave them there: for example a
+> folder called croftweaver in my home folder, not Downloads and not my websites
+> folder. Then install the Croftweaver skills. Tell me when to restart or reopen you
 > so the skills load — in my websites folder — then start `new website` there. When the
 > site has its own folder, tell me where it is on my computer (its full path).
 
 The assistant will take it from there: it checks what's on your computer, installs the
-website-builder skills, and asks your approval before doing anything that changes your
+Croftweaver skills, and asks your approval before doing anything that changes your
 system. If it asks whether the folder it's in is your websites folder, say yes only if
 it's the one you chose in step 1; otherwise tell it which folder to use. If you land in an
 empty chat after it restarts, type `new website`.

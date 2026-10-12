@@ -218,14 +218,18 @@ if [ -f "$DENYLIST_FILE" ]; then
   elif [ -z "${CI:-}" ] && [ -z "${CLEAN_INNER:-}" ]; then
     echo "· the name list has not been pushed from this checkout (no .pushed file beside it): if CI checks names, it may hold an older list; maintainers: make push-denylist"
   fi
-  # karero/website-builder is this project's OWN public repo — self-links to it (README
-  # badges, clone instructions, the security policy) and its short form in issue and PR
-  # references (karero/website-builder#131) are the point, not a leak. Blank out exactly that
+  # karero/croftweaver is this project's OWN public repo, and karero/website-builder is what
+  # it was called before the rename — self-links to either (README badges, clone
+  # instructions, the security policy) and the short form in issue and PR references
+  # (karero/croftweaver#131) are the point, not a leak. The old name stays allowed for good:
+  # docs/reviews/ keeps its historical links, and docs/ is scanned. The allowance goes by
+  # name, not by what the link leads to: a different repo later created under the old name
+  # would pass too. That is accepted, to keep the history readable. Blank out exactly that
   # reference, in lowercase, and not inside a longer name (one with an extra prefix like
   # `other-` or suffix like `-x`), then look again: dropping every line that held one also hid
   # any private name beside it. One reference at a time, until none is left: a global
   # replace consumes the character after one reference that the next needs before it
-  # (karero/website-builder,karero/website-builder). Binary-file lines pass through for
+  # (karero/croftweaver,karero/croftweaver). Binary-file lines pass through for
   # filter_ignored. A scan error (g's "✗ scan error" block, first in its output) goes to
   # report whole: the filter would compile the same broken pattern, fail too, and turn the
   # error into a clean pass. The list itself sits in the scanned scripts/ and holds every
@@ -250,7 +254,9 @@ if [ -f "$DENYLIST_FILE" ]; then
       # gf() never fails, so under pipefail a failure here is sed's, and its hits are lost.
       *) hits="$(printf '%s\n' "$hits" \
            | gf -vE "$self" \
-           | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
+           | sed -E -e ':a' \
+               -e 's#(^|[^A-Za-z0-9_.-])karero/croftweaver(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
+               -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
            | gf -iE "^✗ scan error|^Binary file |:[0-9]+:((.*$E)?(${NAMES})($E|\$)|.*\\b(${NAMES})\\b)")" \
            || hits="✗ scan error (the name filter failed) — hits may be missing" ;;
     esac

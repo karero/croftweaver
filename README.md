@@ -1,13 +1,18 @@
-# website-builder
+# Croftweaver
 
-[![Latest release](https://img.shields.io/github/v/release/karero/website-builder?label=latest%20release&color=2ea44f)](https://github.com/karero/website-builder/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/karero/croftweaver?label=latest%20release&color=2ea44f)](https://github.com/karero/croftweaver/releases/latest)
 
-**Build a fast, mobile-friendly, SEO-ready website with help from an AI coding assistant.**
+**Build for search and AI.**
 
-website-builder is an open-source skill suite for **Claude Code**, **OpenAI Codex**, and
+Croftweaver is an open-source suite of website skills for **Claude Code**, **OpenAI Codex**, and
 **Google Antigravity**. It turns a short brief into a complete website — content, mobile-first
 responsive design, SEO, accessibility checks, schema markup, tests, and launch support — on a
-modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages).
+modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages). After launch, it helps you
+keep improving SEO and GEO (how your site shows up in AI answers), week by week.
+
+> **Formerly website-builder.** Same project, new name. GitHub redirects old repository links
+> and existing clones here. To point a clone at the new address, run
+> `git remote set-url origin https://github.com/karero/croftweaver.git`.
 
 You can use it even if you're not deeply technical. Whether you're a founder, a community
 organiser, a solo builder, a small team, or a developer, **the easiest way to start is to
@@ -60,7 +65,7 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 
 <!-- This prompt is also in docs/GETTING-STARTED.md. If you change one copy, change the other to match. -->
 
-> I want to use the website-builder skill suite (https://github.com/karero/website-builder)
+> I want to use the Croftweaver skill suite (https://github.com/karero/croftweaver)
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
@@ -68,9 +73,9 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 > ask me whether that's it; if not, ask me which one it is (suggest Documents/Websites
 > unless I already keep my projects somewhere else, or my Documents folder syncs to iCloud
 > or OneDrive — then suggest a Websites folder in my home folder). Put the downloaded
-> website-builder files in a folder of their own and leave them there: for example a
-> folder called website-builder in my home folder, not Downloads and not my websites
-> folder. Then install the website-builder skills. Tell me when to restart or reopen you
+> Croftweaver files in a folder of their own and leave them there: for example a
+> folder called croftweaver in my home folder, not Downloads and not my websites
+> folder. Then install the Croftweaver skills. Tell me when to restart or reopen you
 > so the skills load — in my websites folder — then start `new website` there. When the
 > site has its own folder, tell me where it is on my computer (its full path).
 
@@ -78,8 +83,8 @@ You don't have to memorise any of this — the assistant runs the real commands 
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
 below.)
 
-> 📦 **Prefer a download?** Grab the newest `website-builder.zip` from the
-> [Releases page](https://github.com/karero/website-builder/releases/latest) — each release
+> 📦 **Prefer a download?** Grab the newest `croftweaver.zip` from the
+> [Releases page](https://github.com/karero/croftweaver/releases/latest) — each release
 > also tells you, in plain language, what's new.
 
 ## What you need
@@ -117,7 +122,7 @@ Once you run `new website`, the assistant will:
 *If you already know your way around a terminal, here are the exact commands. Everything
 below is also what the AI assistant runs on your behalf.*
 
-This repository is the **single source of truth** for the website-builder skill suite — an
+This repository is the **single source of truth** for the Croftweaver skill suite — an
 orchestrated set of agent skills that build a new website end-to-end (insights →
 positioning → content → SEO/GEO → design → QA → review → launch), on the house stack
 **Astro → GitHub → Cloudflare Pages**.
@@ -140,8 +145,8 @@ Console/API account). Then, **three steps**:
 # 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo.
 #    Do it in a place of its own, not in your websites folder or Downloads: step 2 links
 #    your skills to this folder, so it has to stay where it is.
-unzip website-builder.zip -d website-builder && cd website-builder
-#   from source instead:  git clone https://github.com/karero/website-builder.git && cd website-builder
+unzip croftweaver.zip -d croftweaver && cd croftweaver
+#   from source instead:  git clone https://github.com/karero/croftweaver.git && cd croftweaver
 
 # 2. From that folder, install the skills globally. Claude only loads skills from
 #    ~/.claude/skills/, so this one command is the whole setup — no copying by hand.
@@ -165,7 +170,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 → design → QA → review → launch**. It also walks you through the one-time build tools
 (Node, git, `gh`, `wrangler`, image tools) the first time you actually build.
 
-> **Updating later:** git is the version — tagged [releases](https://github.com/karero/website-builder/releases)
+> **Updating later:** git is the version — tagged [releases](https://github.com/karero/croftweaver/releases)
 > mark the human-readable milestones on top (see *Releases & versioning* below).
 > Skills are changed only in this repo (branch → edit → review → merge; never edit
 > `~/.claude/skills/` directly, those are symlinks into the repo). If you cloned,
@@ -207,16 +212,16 @@ allowlist), then sequences the sibling skills through **positioning → content 
 
 ### Releases & versioning
 
-Every version is a git tag + a [GitHub Release](https://github.com/karero/website-builder/releases)
+Every version is a git tag + a [GitHub Release](https://github.com/karero/croftweaver/releases)
 whose notes are the human-readable "what's new", with the handoff zip attached as the
 download asset. Underneath, updates stay commit-based (`git pull`, `SUITE-VERSION`
 stamps, `whats-new`) — a release just names a milestone. Versions step by **0.01**
 (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
-make smoke                        # clean-check + build + verify dist/website-builder.zip
-git tag -a v0.11 -m "website-builder 0.11" && git push origin v0.11
-gh release create v0.11 dist/website-builder.zip --title "0.11" --latest \
+make smoke                        # clean-check + build + verify dist/croftweaver.zip
+git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
+gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \
   --generate-notes                # or write the notes by hand
 ```
 
@@ -291,7 +296,7 @@ skills/            the suite skills (canonical)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
-  package.sh       build dist/website-builder.zip for handoff (+ verify its contents)
+  package.sh       build dist/croftweaver.zip for handoff (+ verify its contents)
   whats-new.sh     skill changes since a project was scaffolded (--refresh re-copies them)
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
   check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
@@ -384,7 +389,7 @@ symlink, not a copy). Restart your session to pick up new/renamed skills.
 ### Hand it off
 
 ```bash
-make package     # → dist/website-builder.zip  (runs `make check` first)
+make package     # → dist/croftweaver.zip  (runs `make check` first)
 ```
 
 A recipient unzips it and runs `scripts/install.sh` (Claude Code),
@@ -413,7 +418,8 @@ anywhere else a missing secret, or one with no names, fails the job.
 The script runs in CI on every pull request and every push to `main`
 (`.github/workflows/clean.yml`) and is a prerequisite of `make package`: in a checkout
 that has the list, a listed name in a file the script scans stops the build, unless the
-file is gitignored or the match is this repo's own `karero/website-builder` reference. The name check also covers `scripts/`,
+file is gitignored or the match is this repo's own `karero/croftweaver` reference (or its former
+name, `karero/website-builder`). The name check also covers `scripts/`,
 since those files ship in the zip; the generic catches leave `scripts/` out, because its
 files define their patterns. The name check skips only `LICENSE`, which carries the
 owner's name. A genuine false positive is fixed by tightening a pattern in the script —

@@ -14,7 +14,7 @@ You are an expert conversion copywriter. Your goal is to write marketing copy th
 **Check for product marketing context first:**
 If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
 
-**On a website-builder site, read `POSITIONING.md` first** (what is claimed, for whom, in
+**On a Croftweaver site, read `POSITIONING.md` first** (what is claimed, for whom, in
 which category), then `CONTENT_GUIDE.md` (voice), and `STORY.md` when it exists (each in
 the repo root or `docs/`): for the
 home page its seven-section map replaces the Page Structure Framework below (see

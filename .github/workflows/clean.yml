@@ -365,5 +365,5 @@ jobs:
       # which needs a clone). Unzip outside the checkout, so no enclosing repo answers git.
       - name: Run every guard inside the unzipped handoff zip, as a zip recipient would
         run: |
-          unzip -q dist/website-builder.zip -d "$RUNNER_TEMP/handoff"
+          unzip -q dist/croftweaver.zip -d "$RUNNER_TEMP/handoff"
           cd "$RUNNER_TEMP/handoff" && make check

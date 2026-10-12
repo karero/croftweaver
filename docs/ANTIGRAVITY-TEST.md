@@ -1,4 +1,4 @@
-# Testing website-builder with Google Antigravity
+# Testing Croftweaver with Google Antigravity
 
 A validation checklist to confirm the suite runs end-to-end under **Google Antigravity**.
 For normal install/usage, see [ANTIGRAVITY.md](ANTIGRAVITY.md). This doc lists what was

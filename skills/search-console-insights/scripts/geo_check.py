@@ -10,7 +10,7 @@ via SerpApi — the owner's confirmed buyer questions, in two modes:
 and counts, in code, how often the business is named. Each answer is saved verbatim;
 one row per engine x mode x question lands in geo_history.csv; --trend prints the
 week-over-week movement and --report a readable page. The plan and its review trail:
-docs/reviews/SKILL-PLAN-geo-check.md in the website-builder repo.
+docs/reviews/SKILL-PLAN-geo-check.md in the Croftweaver repo.
 
   geo_check.py <domain>                          weekly run (track.sh calls this)
   geo_check.py <domain> --init --name N --domain D --lang de --country DE [--legal-name L] [--alias A]...
@@ -461,7 +461,7 @@ def _openrouter_request(engine, mode, question, key):
         body["plugins"] = [{"id": "web", "engine": "native"}]
     return ("POST", f"{base}/api/v1/chat/completions",
             {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
-             "X-Title": "website-builder AI check"}, body)
+             "X-Title": "Croftweaver AI check"}, body)
 
 
 def _openrouter_parse(data):

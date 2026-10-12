@@ -1,6 +1,6 @@
-# Using website-builder with Google Antigravity
+# Using Croftweaver with Google Antigravity
 
-The `website-builder` skill suite was originally designed for Claude Code, but its underlying architecture (Markdown files with YAML frontmatter, sibling directories, and template folders) is **100% compatible with Google Antigravity**.
+The Croftweaver skill suite was originally designed for Claude Code, but its underlying architecture (Markdown files with YAML frontmatter, sibling directories, and template folders) is **100% compatible with Google Antigravity**.
 
 Antigravity natively understands the `SKILL.md` format and can seamlessly orchestrate the pipeline from insights to launch.
 
@@ -11,9 +11,9 @@ Antigravity natively understands the `SKILL.md` format and can seamlessly orches
 Antigravity automatically discovers skills placed in its customization roots. You have two options for installation:
 
 ### Option A: Global Install (Recommended)
-To make the website-builder suite available to Antigravity no matter what directory you are in:
+To make the Croftweaver suite available to Antigravity no matter what directory you are in:
 ```bash
-# From the root of this website-builder repository:
+# From the root of this repository:
 mkdir -p ~/.gemini/config/skills
 cp -R skills/* ~/.gemini/config/skills/
 ```
@@ -23,7 +23,7 @@ cp -R skills/* ~/.gemini/config/skills/
 If you only want these skills active within a specific project folder:
 ```bash
 mkdir -p .agents/skills
-cp -R path/to/website-builder/skills/* .agents/skills/
+cp -R path/to/croftweaver/skills/* .agents/skills/
 ```
 
 ## 2. Usage
