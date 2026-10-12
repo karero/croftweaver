@@ -1,0 +1,14 @@
+# The models the Melious seat may run. independent_review.sh reads this file and refuses any
+# other MELIOUS_MODEL with exit 2, before any reviewer starts and in every mode.
+#
+# One model id per line, as Melious's /v1/models lists it. The word "light" after an id means
+# that model runs only in a Light review: the run must say --depth light, and with any other
+# depth, or none, it is refused. Blank lines and lines that start with # are skipped; any
+# other line stops every run that sets MELIOUS_MODEL, so a typo cannot widen the list.
+#
+# The owner's rule, 2026-10-12: GLM 5.3 and no other model, and GLM 5.3 Flash for a Light
+# review. Kimi and every other model run on ollama (OLLAMA_MODEL), never here. Change the list
+# by a reviewed change to this file. It is the one file of this skill besides the setup guide
+# that scripts/check_model_agnostic.sh does not scan, so model names stay out of the others.
+glm-5.3
+glm-5.3-flash light

@@ -62,7 +62,7 @@ the reading code in the artifact, or expect to spend the round refuting.
    auto-detects your signed-in `:cloud` model from `ollama list`. The skill
    prescribes no specific model — set `OLLAMA_MODEL` to pick a different
    cloud or local tag if a specific case warrants it. **Melious fallback**
-   (`MELIOUS_MODEL`, opt-in by setting it to the one model Melious runs; the
+   (`MELIOUS_MODEL`, opt-in by naming a model from `scripts/melious_models.txt`; the
    script refuses any other): when the ollama seat does not
    count — no model or CLI, a failure such as a quota refusal, or a local
    sanity pass — the script sends the same text-only prompt to Melious's

@@ -1,7 +1,9 @@
-# DIFF review — branch `fix/melious-glm-only` — the Melious seat refuses every model but the one allowed
-Base `896e3c5` · depth: Normal (the diff changes the logic of the gate script and of a check script, and an instruction file agents load) · verdict: OPEN, stopped after round 5: not converging on one part (Notes) · authority used: WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); POST AUTHORITY — none yet: no PR, and the owner's task says not to push or open one without his OK
+# DIFF review — branch `fix/melious-glm-only` — the Melious seat refuses every model its list does not allow
+Base `896e3c5` · depth: Normal (the diff changes the logic of the gate script and of a check script, and an instruction file agents load) · verdict: OPEN (artifact 2 under review; artifact 1 stopped after round 5 and was replaced, see the owner's decisions) · authority used: WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); POST AUTHORITY — none yet: no PR, and the owner's task says not to push or open one without his OK
 
 Data consent: the owner's task for this change (2026-10-12) names the gate: "the review gate is Normal at least (Codex + GLM 5.3 on melious via the independent-review skill)". The repo is public. A grep of the round-1 artifact for keys, tokens, passwords and secrets found only the tests' stub values (`stub-msecret`, `stub-stopkey`, `real-curl-key`). ollama-cloud received nothing (Melious counted in all five rounds); Antigravity was not used. The script was run from this worktree (`grep -c SECOND_SEAT` found 16), so each round also exercised the changed script with the allowed model.
+
+## Artifact 1 — the model's name in the script, with an exception in the model-name check (replaced)
 
 | Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
@@ -45,3 +47,14 @@ Notes:
 - Melious's reply in round 1 came with its final-review marker at the end, so the script printed the whole reply with its "no usable marker" notice; it reads as a finished review and was counted.
 - Codex could not run the check script or the test file in its sandbox (here-strings need temp files); it ran their cases through pipes. The author's full runs (`make check`: exit 0, 1062 ok lines, at each head) are not externally reproduced.
 - Raw reviewer output is not yet posted anywhere (no PR): it is in this session's scratch folder until a PR comment holds it.
+
+## The owner's decisions, 2026-10-12, after artifact 1's round 5
+
+Asked in this session with the round-5 state and the changed rule in front of him; his answers, as he picked them:
+- Where the list of models Melious may run lives: "List file in the repo (Recommended)". The option read: one short file inside the review skill lists the allowed models, the script reads it and refuses the rest, and the check skips that one file, the way it already skips the setup guide.
+- How the script treats GLM 5.3 Flash, which his instructions allow in a Light review since that day: "Only with --depth light (Recommended)". The option read: with normal, high, or no depth stated, it is refused.
+- F9, the missing think-tag measurement: "Accept for now, keep it listed (Recommended)". This is the waiver for F9 on this change; the tracker row R-MELIOUS-THINK stays open and says so.
+
+So artifact 1's let-through is gone and K1, K2 and K3 with it: `scripts/check_model_agnostic.sh` is the base's file plus one more exact-path exclusion, and no file it scans holds a model's name. Artifact 2 is a new artifact with a new round count.
+
+## Artifact 2 — the allowed models in `scripts/melious_models.txt`, a light-only mark, the check skips that file

@@ -127,10 +127,12 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   `MELIOUS_API_KEY` works too. The host must be allowed under Network access, or every call fails
   with a proxy 403, which the FAILED section reports as "is the host allowed by the network
   policy?". Settings take effect in a NEW session.
-- **Model:** `MELIOUS_MODEL=glm-5.3`, the one model this seat runs (the owner's rule,
-  2026-10-12). Any other name is refused with exit 2 before any reviewer starts, whatever else
-  `GET https://api.melious.ai/v1/models` lists; Kimi and every other model run on ollama. The
-  seat sets no default: unset, it makes no call.
+- **Model:** `MELIOUS_MODEL=<id>`, one of the ids in `scripts/melious_models.txt` (the owner's
+  rule, 2026-10-12): today `glm-5.3`, and `glm-5.3-flash` for a Light review only, which the run
+  must state with `--depth light`. Any other id is refused with exit 2 before any reviewer
+  starts, whatever else `GET https://api.melious.ai/v1/models` lists; Kimi and every other model
+  run on ollama. To change what the seat may run, change that file. The seat names no default:
+  unset, it makes no call.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
   27 KB diff, and finished at 96000 in 296-1624 s; `MELIOUS_API_TIMEOUT` defaults to 3600 s). A
   model whose output cap is lower answers with an error, quoted in the FAILED section: lower the
@@ -155,7 +157,7 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   of notes with no marker was seen; size alone does not tell). A leak can also run on with no marker until the connection drops (seen once,
   after 38 minutes): the seat fails with "reply cut off" and keeps what came in `melious.resp`;
   run it again. The seat and its tests build think tags at runtime, so this repo's files carry none.
-- **Run:** set `MELIOUS_MODEL=glm-5.3` and run the pair as usual; the seat stands in when ollama did
+- **Run:** set `MELIOUS_MODEL=<id>` and run the pair as usual; the seat stands in when ollama did
   not count. `--seat melious` runs it alone (the wording pass, a re-gate); `--seat ollama` never
   falls back to it, and `--local-only` never calls it. The cost log records the seat as `melious` with
   the model in its own column. To make Melious the second seat and ollama its fallback, add
