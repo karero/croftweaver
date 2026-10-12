@@ -104,7 +104,7 @@ Feature → the high-value test to add:
 |---|---|
 | New page/route | add it to `PAGES`; baseline a11y+SEO+links now assert it (returns 200, one `<h1>`, title/desc in range). Then **link it from a related page** — `orphans.spec.ts` fails if it's reachable from no internal link. |
 | Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. The mail-app contact form: install `website-contact-form`, whose `tests/mail-form.spec.ts` covers exactly this (set its `PAGE` and `TO`). The skill is bundled with a site only when it was scaffolded with a form; otherwise it comes from the toolkit the site was built with. |
-| Theme toggle / dark mode | toggling persists across reload; run a11y in **both** themes (`THEMES=['light','dark']`). |
+| Theme toggle / dark mode | toggling persists across reload; run a11y in **both** themes (`THEMES=['light','dark']`). A toggle that stores the choice is storage the privacy page must disclose (section 3). |
 | Site search | a known query returns the expected result; empty query handled. |
 | Redirects (`_redirects`) | each legacy URL 301s to the new clean URL. |
 | Images / new media | every `<img>` has `alt` + `width`/`height`; raster sources are WebP/AVIF; LCP image not lazy (see `website-design-system`). |
@@ -164,7 +164,7 @@ into the starters / `website-design-system`:
 - Render-blocking CSS: Astro inlines it (`inlineStylesheets: 'always'`).
 - Fonts: self-hosted woff2, `font-display: swap`, preload only above-the-fold.
 - Layout shift (CLS): explicit `width`/`height` on media.
-- Defer non-critical JS (analytics is `defer`, production-only).
+- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only).
 
 For deeper technical SEO (crawl, indexability, Core Web Vitals strategy), run the
 existing **`seo-audit`** skill — do not duplicate it here.
