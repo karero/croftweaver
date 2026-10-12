@@ -21,3 +21,5 @@ Both SVG files should be plain: a square drawing with a viewBox, flat shapes wit
 Tell her, in her language: ask for the package with the words above, save the file wherever she likes (the Desktop is fine), and tell you the full path of the file (or drag the file into the conversation). Then wait: nothing is checked or installed until the file is there.
 
 If she says it is saved but the path holds nothing, say so, and ask her for the path again. Never search her Downloads folder, or any other folder, on your own.
+
+If the tool gives her no package, or she cannot find it, ask her to paste the code of that one variation's SVG files instead. Save each, unchanged, as a file ending in `.svg`, and use that path.

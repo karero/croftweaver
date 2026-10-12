@@ -175,7 +175,7 @@ class OnlyColours(SiteCase):
         self.assertIn("a11y.spec.ts", out)
         self.assertIn("put back", out)
         # the same suite is red without the install, and the report says so
-        self.assertIn("without", out.lower())
+        self.assertIn("already red before this run", out)
 
     def test_when_the_tests_are_green_before_and_red_only_after_the_report_says_the_install_did_it(self):
         self.brand_md()
@@ -200,6 +200,61 @@ class OnlyColours(SiteCase):
         self.assertIn("still show the old colours", out)
         self.assertIn("npm run og", out)
         self.assertEqual(_palette.read_css(self.read("src/styles/global.css")).light, T.BAKERY_LIGHT, "the colours themselves are in")
+
+    def test_a_palette_alone_leaves_the_scaffolds_placeholder_icons_where_they_are(self):
+        # scenario 38: the placeholder is not a logo, so a run with only colours makes no icons from it
+        # (without sharp, as here, it could not; it must not even try)
+        placeholder = b"<svg>placeholder</svg>"
+        with open(self.p("public/favicon.svg"), "wb") as f:
+            f.write(placeholder)
+        old = _site.SCAFFOLD_DEFAULTS
+        _site.SCAFFOLD_DEFAULTS = {"public/favicon.svg": {hashlib.sha256(placeholder).hexdigest()}}
+        try:
+            code, out = self.intake()
+        finally:
+            _site.SCAFFOLD_DEFAULTS = old
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.bytes("public/favicon.svg"), placeholder)
+        self.assertFalse(self.exists("public/images/logo.png"))
+        self.assertIn("LOGO = None", self.read("scripts/generate_og_cards.py"))
+
+    def test_a_palette_without_a_primary_row_uses_the_accent_as_the_theme_colour_and_says_so(self):
+        self.brand_md(BAKERY_BRAND_MD.replace("| Primary | `#b4531a` | buttons, brand surfaces |\n", ""))
+        code, out = self.intake()
+        self.assertEqual(code, 0, out)
+        self.assertIn("no Primary row", out)
+        self.assertIn("themeColor: '%s'" % T.BAKERY_LIGHT["accent"], self.read("src/config.ts"))
+
+    def test_scenario_29_a_stylesheet_that_does_not_carry_the_palette_in_all_three_places_is_not_kept(self):
+        # the check on the file the intake wrote: here the edit is broken on purpose, so that the block for
+        # visitors without JavaScript (which the site's own a11y test never exercises) keeps an old value
+        self.brand_md()
+        before = self.snapshot()
+        real = _site.edit_css
+
+        def broken(text, palette):
+            out = real(text, palette)
+            head, sep, media = out.partition("@media (prefers-color-scheme: dark)")
+            self.assertTrue(sep)
+            return head + sep + media.replace("--bg: %s;" % T.BAKERY_DARK["bg"], "--bg: #0a0b1e;", 1)
+        _site.edit_css = broken
+        try:
+            code, out = self.intake()
+        finally:
+            _site.edit_css = real
+        self.assertEqual(code, 2, out)
+        self.assertIn("all three places", out)
+        self.assertIn("put back", out)
+        self.assertNotIn("Nothing was written", out)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_asking_for_a_logo_when_there_is_none_stops_and_says_so(self):
+        self.brand_md()
+        before = self.snapshot()
+        code, out = self.intake("--with-logo")
+        self.assertEqual(code, 2, out)
+        self.assertIn("no logo to apply", out)
+        self.assertEqual(self.snapshot(), before)
 
     def test_a_site_that_is_not_the_starters_layout_is_refused_whole(self):
         self.brand_md()
@@ -385,6 +440,69 @@ class OnlyALogo(SiteCase):
         code, out = self.intake(*args, brand=False)
         self.assertEqual(code, 0, out)
         self.assertEqual(self.snapshot(), after_first)
+
+    def test_a_later_run_with_no_palette_and_no_file_has_nothing_to_do(self):
+        # the installed mark alone starts nothing: the logo is redone only when a file is given or the colours change
+        args = ("--input", self.package(), "--pick", T.REAL_COLOUR, "--accept-colours", "--accept-low-contrast", "both")
+        self.assertEqual(self.intake(*args, brand=False)[0], 0)
+        after_first = self.snapshot()
+        code, out = self.intake(brand=False)
+        self.assertEqual(code, 2, out)
+        self.assertIn("nothing to do", out.lower())
+        self.assertEqual(self.snapshot(), after_first)
+
+    def test_a_package_already_in_brand_handoff_is_not_copied_a_second_time(self):
+        # its name has a space, which a copy would turn into an underscore: a second file would show
+        os.makedirs(self.p("brand-handoff"))
+        kept = self.p("brand-handoff/my logo.zip")
+        with open(kept, "wb") as f:
+            f.write(T.real_zip_bytes())
+        code, out = self.intake("--input", kept, "--pick", T.REAL_COLOUR, "--accept-colours", "--accept-low-contrast", "both", brand=False)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(sorted(os.listdir(self.p("brand-handoff"))), ["my logo.zip", "preview.png"])
+        self.assertNotIn("is kept in", out)
+        self.assertEqual(self.read(".gitignore").splitlines()[-1], "brand-handoff/", "the preview alone is reason to ignore the folder")
+
+    def test_a_different_file_of_the_same_name_in_brand_handoff_is_kept_and_the_new_one_gets_its_own_name(self):
+        os.makedirs(self.p("brand-handoff"))
+        with open(self.p("brand-handoff/logo.zip"), "wb") as f:
+            f.write(b"an earlier package")
+        code, out = self.intake("--input", self.package("logo.zip"), "--pick", T.REAL_COLOUR, "--accept-colours", "--accept-low-contrast", "both", brand=False)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.bytes("brand-handoff/logo.zip"), b"an earlier package")
+        self.assertEqual(self.bytes("brand-handoff/logo-2.zip"), T.real_zip_bytes())
+        self.assertIn("brand-handoff/logo-2.zip", out)
+
+    def test_an_unknown_theme_to_accept_is_refused_not_ignored(self):
+        before = self.snapshot()
+        code, out = self.intake("--input", self.package(), "--pick", T.REAL_COLOUR, "--accept-colours", "--accept-low-contrast", "purple", brand=False)
+        self.assertEqual(code, 2, out)
+        self.assertIn("purple", out)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a_half_filled_palette_beside_a_logo_is_named_and_the_colours_stay(self):
+        # never silent: she may think her colours went in with the logo
+        self.brand_md(BAKERY_BRAND_MD.replace("| Soft background | `#fef5e8` |\n", ""))
+        css_before = self.read("src/styles/global.css")
+        code, out = self.intake("--input", self.package(), "--pick", T.REAL_COLOUR, "--accept-colours", "--accept-low-contrast", "both")
+        self.assertEqual(code, 0, out)
+        self.assertIn("the colours were not changed", out)
+        self.assertIn("Soft background", out)
+        self.assertEqual(self.read("src/styles/global.css"), css_before)
+
+    def test_a_logo_alone_leaves_the_theme_colour_and_the_share_cards_colours_as_the_site_has_them(self):
+        # scenario 39, on a site whose config and card colours no longer match the stylesheet's
+        for rel, old, new in (("src/config.ts", "themeColor: '#000000'", "themeColor: '#123456'"),
+                              ("scripts/generate_og_cards.py", "BG_TOP = (30, 33, 64)", "BG_TOP = (1, 2, 3)")):
+            text = self.read(rel)
+            self.assertIn(old, text)
+            with open(self.p(rel), "w", encoding="utf-8") as f:
+                f.write(text.replace(old, new))
+        code, out = self.intake("--input", self.package(), "--pick", T.REAL_COLOUR, "--accept-colours", "--accept-low-contrast", "both", brand=False)
+        self.assertEqual(code, 0, out)
+        self.assertIn("themeColor: '#123456'", self.read("src/config.ts"))
+        self.assertIn("BG_TOP = (1, 2, 3)", self.read("scripts/generate_og_cards.py"))
+        self.assertIn('LOGO = ROOT / "public/images/logo.png"', self.read("scripts/generate_og_cards.py"))
 
     def test_scenario_31_red_tests_remove_the_package_copy_the_ignore_line_and_the_folder(self):
         before = self.snapshot()

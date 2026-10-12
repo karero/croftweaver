@@ -176,7 +176,7 @@ def install(a, out):
         return 3, "needs-decision", data
     except Refusal as r:
         out.append(str(r))
-        out.append("Nothing was written." if not data["written"] else "Everything it had written was put back.")
+        out.append("Everything it had written was put back." if data.get("rolled_back") else "Nothing was written.")
         data.update({"code": r.code, "message": str(r)})
         return 2, "refused", data
 
@@ -400,6 +400,7 @@ def _apply(a, site, out, data, plan, would, want_colours, want_logo, pal, parsed
         raise
     except BaseException:
         j.rollback()
+        data["rolled_back"] = bool(j.written)
         raise
 
     data["written"] = sorted(set(j.written))
