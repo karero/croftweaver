@@ -307,7 +307,7 @@ Done when the imported site passes the whole suite with every old address accoun
 What stands in the way, checked 2026-10-12 against Claude Code's documentation
 (https://code.claude.com/docs/en/skills and https://code.claude.com/docs/en/plugin-marketplaces):
 
-- A plugin's skills are kept in the plugin's own folder, not in `~/.claude/skills/`. Ten
+- A plugin's skills are kept in the plugin's own folder, not in `~/.claude/skills/`. Eleven
   files under `skills/` name that folder as the place to read templates or scripts from
   (`git grep -l -E '(~|\$HOME)/\.claude/skills' -- skills`), and one of them is
   `new-website`, which looks for the suite there before it copies anything into a new
@@ -319,7 +319,7 @@ What stands in the way, checked 2026-10-12 against Claude Code's documentation
   one pasted line.
 
 So E1 starts with the skills finding their own files wherever they are installed, for all
-three assistants. That is a change to those ten files and needs its own scenarios.
+three assistants. That is a change to those files and needs its own scenarios.
 
 ### E2. One line: `npm create croftweaver` (built 2026-10-12)
 
