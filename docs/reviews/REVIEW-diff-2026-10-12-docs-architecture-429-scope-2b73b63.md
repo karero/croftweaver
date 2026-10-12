@@ -1,11 +1,12 @@
 # DIFF review — docs/architecture-429-scope — `WEBSITE_ARCHITECTURE.md`: the 429 reason for staying on Pages holds only if code stays in front of every request
 
-Base `origin/main` (`b8daa7e`) · depth: **Normal** (the file is a skill reference that agents load, so the Light default for prose does not apply) · verdict: **CLEAN** · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A, this session created the worktree and the branch; POST AUTHORITY — atom A once this session opens the PR.
+Base `origin/main` (`b8daa7e`; `6905a21` after the merge of #270, which main's up-to-date rule required) · depth: **Normal** (the file is a skill reference that agents load, so the Light default for prose does not apply) · verdict: **CLEAN** · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A, this session created the worktree and the branch; POST AUTHORITY — atom A once this session opens the PR.
 
 | Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `2b73b63` | full, `origin/main...2b73b63` | codex-cli 0.162.1, `gpt-6.1-sol`, config effort, read-only · melious `glm-5.3`, HTTP API, text only · fresh-eyes: Claude Sonnet sub-agent, read-only, no shared context | codex 91 s, 58,498 · melious 10 s, 2,610 · fresh-eyes 161 s, 117,381 | 0 / 1 / 3 |
 | wording pass (not a round) | `f90e680` | delta since `2b73b63`, prose only | codex, medium, read-only | 74 s, 34,425 | 0 / 1 / 0 |
+| merge link (not a round) | `077a206` | `merge_link.sh b8daa7e f90e680 6905a21` printed nothing: the merge of #270 changed none of this change's files | no reviewer run, nothing to send | — | — |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
