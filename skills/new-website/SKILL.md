@@ -157,7 +157,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      cookie-consent banner — for German-market sites the statute behind that
      banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the
      banner-free position at risk by different routes: a YouTube iframe triggers § 25
-     itself (device storage/readout), while remote Google Fonts flip the
+     itself (device storage/readout), while remote Google Fonts change the
      answer via the GDPR instead (unconsented IP disclosure — LG München I,
      3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only. The
      privacy page must match whatever is chosen here.

@@ -104,7 +104,7 @@ Feature → the high-value test to add:
 |---|---|
 | New page/route | add it to `PAGES`; baseline a11y+SEO+links now assert it (returns 200, one `<h1>`, title/desc in range). Then **link it from a related page** — `orphans.spec.ts` fails if it's reachable from no internal link. |
 | Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. The mail-app contact form: install `website-contact-form`, whose `tests/mail-form.spec.ts` covers exactly this (set its `PAGE` and `TO`). The skill is bundled with a site only when it was scaffolded with a form; otherwise it comes from the toolkit the site was built with. |
-| Theme toggle / dark mode | toggling persists across reload; run a11y in **both** themes (`THEMES=['light','dark']`). A toggle that stores the choice is a storage the privacy page must say so about (section 3). |
+| Theme toggle / dark mode | toggling persists across reload; run a11y in **both** themes (`THEMES=['light','dark']`). A toggle that stores the choice is storage the privacy page must disclose (section 3). |
 | Site search | a known query returns the expected result; empty query handled. |
 | Redirects (`_redirects`) | each legacy URL 301s to the new clean URL. |
 | Images / new media | every `<img>` has `alt` + `width`/`height`; raster sources are WebP/AVIF; LCP image not lazy (see `website-design-system`). |

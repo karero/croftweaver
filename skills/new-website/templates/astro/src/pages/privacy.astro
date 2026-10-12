@@ -6,12 +6,13 @@
 //   2. Make section 3 match reality: pick the self-hosted OR cloud Plausible
 //      wording, or delete the analytics paragraphs entirely if the site ships
 //      without analytics (then also trim the meta description below). It has
-//      three slots to settle: the hosting choice; the sentence on clicks, file
-//      downloads and form submissions (keep it only if those are ticked in
-//      Plausible's installer, which ticks all three by default; the page then
-//      describes exactly what the instance does); and the storage period.
-//      Self-hosted: confirm that your web server, reverse proxy or CDN keeps no IP
-//      addresses in access logs for the measurement host, or say so here.
+//      slots to settle: the hosting choice (self-hosted: first confirm that your
+//      web server, reverse proxy or CDN keeps no IP addresses in access logs for
+//      the measurement host, or say so here); one sentence each for outbound links,
+//      file downloads and form submissions (keep a sentence only if that
+//      measurement is ticked in Plausible's installer, which ticks all three by
+//      default; the page then describes exactly what the instance does); and the
+//      storage period.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
@@ -96,27 +97,33 @@ import { SITE } from '../config';
     <p>
       To understand how the site is used, we run <strong>Plausible
       Analytics</strong>, a web analytics tool
-      [CHOOSE ONE: self-hosted on our own server / operated for us as our processor
+      [CHOOSE ONE: self-hosted on our own server (first confirm that no web server,
+      proxy or CDN log keeps IP addresses, or say so here) / operated for us as our processor
       (Art. 28 GDPR) by Plausible Insights O&Uuml;, V&auml;striku tn 2, 50403 Tartu,
       Estonia (EU)]. Its script sets no cookies and writes nothing to your
       device. It checks one setting in your browser, which lets you exclude your
       own visits, and whether the browser is automated; neither is sent to the
-      server. When you open a page, it sends the address of that page and the
+      measurement server. When you open a page, it sends the address of that page and the
       page or site you came from to the measurement server, together with the
       technical data your browser sends with every request (browser, operating
       system, device type, IP address). When you leave the page, it also sends
-      how far you scrolled and how long the page was in the foreground.
-      [DELETE THIS SENTENCE IF THESE ARE UNTICKED IN PLAUSIBLE: It also counts
-      clicks on links to other websites, file downloads and form submissions, and
-      sends the address of the link or file you clicked.] The tool derives your
+      how far you scrolled and how long the page was visible and in focus.
+      [DELETE UNLESS OUTBOUND LINKS IS TICKED IN PLAUSIBLE: It counts clicks on
+      links to other websites and sends the address of the link you clicked.]
+      [DELETE UNLESS FILE DOWNLOADS IS TICKED IN PLAUSIBLE: It counts clicks on
+      links to files, such as PDFs, and sends the address of the file.]
+      [DELETE UNLESS FORM SUBMISSIONS IS TICKED IN PLAUSIBLE: It counts
+      submissions of forms on the site.] The tool derives your
       approximate location from the IP address and does not store the IP address
       itself. From your IP address, your browser data and this website's domain,
       plus a value that is replaced every 24 hours, it forms an identifier.
-      Within one day the tool can therefore recognise the same browser and counts
-      it as one visitor; it cannot recognise that browser on another day or on
-      another website. The individual page views are stored with this
-      identifier, the location and the device data, and are shown as aggregated
-      counts, for example page views, referrers and countries.
+      Within one day, as long as those inputs stay the same, the tool can
+      therefore recognise the same browser and counts it as one visitor; it
+      cannot recognise that browser on another day or on another website. The
+      individual events (each page view, with its scroll depth and engaged time)
+      and the session records are stored with this identifier, the location and
+      the device data, and are shown as aggregated counts, for example page
+      views, referrers and countries.
     </p>
     <p>
       The legal basis is our legitimate interest in understanding how the

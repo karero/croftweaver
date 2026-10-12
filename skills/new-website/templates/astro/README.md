@@ -32,7 +32,7 @@ scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, whic
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,email,links,llms-coverage,middleware}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
-tests/check_analytics_gate.sh # four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH (the suite's own CI)
+tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.

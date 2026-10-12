@@ -18,12 +18,13 @@
 //      "- [Datenschutz](https://<domain>/datenschutz): Datenschutzerklärung (DSGVO)."
 //      Also update the README's privacy.astro mentions (docs, not gates).
 //   3. Fill every [BRACKET] slot; make section 3 match the real analytics
-//      setup (or delete it); adjust the date. Section 3 has three slots to
-//      settle: the hosting choice; the sentence on clicks, downloads and form
-//      submissions (keep it only if those are ticked in Plausible's installer,
-//      which ticks all three by default); and the storage period. Self-hosted:
-//      confirm that your web server, reverse proxy or CDN keeps no IP addresses
-//      in access logs for the measurement host, or say so there. Then delete '/datenschutz' from
+//      setup (or delete it); adjust the date. Section 3 has slots to settle: the
+//      hosting choice (self-hosted: first confirm that your web server, reverse
+//      proxy or CDN keeps no IP addresses in access logs for the measurement
+//      host, or say so there); one sentence each for outbound links, file
+//      downloads and form submissions (keep a sentence only if that measurement
+//      is ticked in Plausible's installer, which ticks all three by default);
+//      and the storage period. Then delete '/datenschutz' from
 //      UNFILLED_UNTIL_LAUNCH (the test turns red until you do).
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
 //   your German privacy page lives at the locale-prefixed route
@@ -56,7 +57,8 @@
 // AND the text re-checked BEFORE you ship such an addition.
 // Base.astro also reads a 'theme' key from local storage, and nothing in the
 // template writes it. If you add a toggle that stores the choice, say so in
-// section 3 (storage the visitor asked for can fall under § 25 Abs. 2 Nr. 2).
+// section 3 (storage the visitor asked for AND that is strictly necessary for
+// that function can fall under § 25 Abs. 2 Nr. 2).
 //
 // The copy passes the a11y / seo / tone suites incl. the German rules: one
 // <h1>, description in the 120-160 window, no em dashes, Sie-register
@@ -112,31 +114,39 @@ import { SITE } from '../config';
     <p>
       Zur Nutzungsanalyse setzen wir <strong>Plausible Analytics</strong> ein,
       ein Werkzeug zur Webanalyse
-      [AUSWÄHLEN: selbst gehostet auf unserem eigenen Server / betrieben für uns als
+      [AUSWÄHLEN: selbst gehostet auf unserem eigenen Server (zuerst klären, dass
+      kein Webserver, Proxy oder CDN-Protokoll IP-Adressen speichert, oder das hier
+      sagen) / betrieben für uns als
       Auftragsverarbeiter (Art. 28 DSGVO) von Plausible Insights OÜ, Västriku tn 2,
       50403 Tartu, Estland (EU)].
       Das Skript von Plausible setzt keine Cookies und schreibt nichts auf Ihr
       Endgerät. Es prüft eine Einstellung in Ihrem Browser, mit der Sie Ihre
       eigenen Besuche ausnehmen können, und ob der Browser automatisiert gesteuert
-      wird; beides wird nicht an den Server gesendet. Beim Aufruf einer Seite
+      wird; beides wird nicht an den Messserver gesendet. Beim Aufruf einer Seite
       sendet es die Adresse dieser Seite und die Seite oder Website, von der Sie
       kamen, an den Messserver, zusammen mit den technischen Daten, die Ihr
       Browser bei jeder Anfrage übermittelt (Browser, Betriebssystem, Gerätetyp,
       IP-Adresse). Beim Verlassen der Seite sendet es zusätzlich, wie weit Sie
-      gescrollt haben und wie lange die Seite im Vordergrund war.
-      [SATZ LÖSCHEN, WENN DIES IN PLAUSIBLE NICHT ANGEKREUZT IST: Es zählt außerdem
-      Klicks auf Links zu anderen Websites, Dateidownloads und
-      Formularübermittlungen und sendet die Adresse des angeklickten Links oder
-      der Datei.] Aus der IP-Adresse leitet das Werkzeug Ihren ungefähren
+      gescrollt haben und wie lange die Seite sichtbar und im Fokus war.
+      [SATZ LÖSCHEN, WENN AUSGEHENDE LINKS IN PLAUSIBLE NICHT ANGEKREUZT SIND: Es
+      zählt Klicks auf Links zu anderen Websites und sendet die Adresse des
+      angeklickten Links.]
+      [SATZ LÖSCHEN, WENN DATEIDOWNLOADS IN PLAUSIBLE NICHT ANGEKREUZT SIND: Es
+      zählt Klicks auf Links zu Dateien, etwa PDFs, und sendet die Adresse der
+      Datei.]
+      [SATZ LÖSCHEN, WENN FORMULARÜBERMITTLUNGEN IN PLAUSIBLE NICHT ANGEKREUZT
+      SIND: Es zählt abgeschickte Formulare auf der Website.] Aus der IP-Adresse leitet das Werkzeug Ihren ungefähren
       Standort ab; die IP-Adresse selbst speichert es nicht. Aus Ihrer
       IP-Adresse, Ihren Browserdaten und der Domain dieser Website bildet es
       zusammen mit einem Wert, der alle 24 Stunden ersetzt wird, eine Kennung.
-      Innerhalb eines Tages kann das Werkzeug denselben Browser daher
-      wiedererkennen und zählt ihn als einen Besucher; an einem anderen Tag oder
-      auf einer anderen Website erkennt es ihn nicht wieder. Die einzelnen
-      Seitenaufrufe werden mit dieser Kennung, dem Standort und den Gerätedaten
-      gespeichert und als aggregierte Zählungen angezeigt, zum Beispiel
-      Seitenaufrufe, Verweisquellen und Länder.
+      Innerhalb eines Tages kann das Werkzeug denselben Browser daher,
+      solange diese Angaben gleich bleiben, wiedererkennen und zählt ihn als
+      einen Besucher; an einem anderen Tag oder auf einer anderen Website
+      erkennt es ihn nicht wieder. Die einzelnen Ereignisse (jeder Seitenaufruf
+      mit Scrolltiefe und aktiver Zeit) und die Sitzungsdatensätze werden mit
+      dieser Kennung, dem Standort und den Gerätedaten gespeichert und als
+      aggregierte Zählungen angezeigt, zum Beispiel Seitenaufrufe,
+      Verweisquellen und Länder.
     </p>
     <p>
       Rechtsgrundlage ist unser berechtigtes Interesse daran, zu verstehen, wie
