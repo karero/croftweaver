@@ -40,7 +40,10 @@ name: clean
 # for the shell scripts, the site hook and the Makefile. And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`,
 # the facts-check tests (`make test-facts`), which need nothing beyond python3, and the
-# Cloudflare check's tests (`make test-cloudflare-check`), which need nothing beyond Node.
+# Cloudflare check's tests (`make test-cloudflare-check`), which need nothing beyond Node. And it
+# runs the tests of the `npm create croftweaver` installer (`make test-create`), on Linux,
+# macOS and Windows. The installer needs nothing beyond node; its tests also need git, and
+# zip and tar where the runner has them.
 on:
   push:
     branches: [main]
@@ -354,6 +357,32 @@ jobs:
       - name: Run the Cloudflare check's tests (stub sites on 127.0.0.1, no real requests)
         shell: bash
         run: node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs
+  create-croftweaver-tests:
+    # The installer calls no other program, so that it runs in a Windows terminal, where the
+    # shell installers need Git Bash or WSL. Only a run on Windows shows that, so it runs on
+    # all three systems with the site template's node, and once on the oldest node its
+    # package.json accepts. The tests themselves call git on every system (one zips the real
+    # skills with it), and zip and tar on Linux and macOS. An empty `node` leaves the choice
+    # to node-version-file. Each system reports for itself: with fail-fast, one failing
+    # cancels the others, and a cancelled job reads as failed.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [""]
+        include:
+          - os: ubuntu-latest
+            node: "22.12.0"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Run the create-croftweaver tests (stub of the release download on 127.0.0.1, no real requests)
+        working-directory: packages/create-croftweaver
+        run: node --test
   macos-stock-tools:
     # Every job above runs on Ubuntu (bash 5, GNU awk/sed/tr). A zip recipient on a Mac runs
     # the same guards under /bin/bash 3.2 and BSD tools, and v0.27's pre-release review found
