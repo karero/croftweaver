@@ -63,9 +63,11 @@ build() {
   fi
 }
 
-# The tag Base.astro writes: <script defer data-domain="…" src="<scriptHost>/js/script.js">.
-# For each page, prints "<full> <part> <path>": how many <script> tags carry both
-# attributes with a value (a working analytics tag) and how many carry either one at all.
+# The tags Base.astro writes: <script async src="<scriptHost>/js/pa-<id>.js"> and, after it,
+# an inline stub that calls plausible.init() (the per-site script starts only on that call).
+# For each page, prints "<full> <part> <path>": how many working tags it has (the script AND
+# the stub) and how many pieces of a tag it has at all (the script, the stub, or a leftover
+# of the older script.js / data-domain form, which this template no longer writes).
 # HTML comments are dropped first, and attributes are read one at a time, so text inside a
 # quoted value never counts as an attribute and <script-x> is not a script. It reads the
 # markup Astro emits from this template; it is not an HTML parser, so a script tag spelled
@@ -79,15 +81,18 @@ for my $file (@ARGV) {
   $_ = '' unless defined;
   s/<!--.*?-->//gs;
   my ($full, $part) = (0, 0);
+  my $init = /plausible\.init\(\)/ ? 1 : 0;
   while (/<script(?=[\s\/>])/gi) {
     my %a;
     while (/\G\s*([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gc) {
       $a{lc $1} = defined $2 ? $2 : defined $3 ? $3 : defined $4 ? $4 : '';
     }
-    my $src = exists $a{src} && $a{src} =~ m{/js/script\.js(?:[?#]|$)};
-    $full++ if $src && exists $a{'data-domain'} && $a{'data-domain'} ne '';
-    $part++ if $src || exists $a{'data-domain'};
+    my $src = exists $a{src} && $a{src} =~ m{/js/pa-[\w-]+\.js(?:[?#]|$)};
+    my $old = exists $a{src} && $a{src} =~ m{/js/script(?:\.[\w.-]+)?\.js(?:[?#]|$)};
+    $full++ if $src && $init;
+    $part++ if $src || $old || exists $a{'data-domain'};
   }
+  $part += $init;
   print "$full $part $file\n";
 }
 PERL

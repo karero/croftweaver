@@ -145,7 +145,8 @@ non-expert can answer, and record the answers in the project `README.md`.
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
      script, no consent banner) is enough for search & referral traffic.
    - Real decisions from traffic data (campaigns, content strategy) →
-     **Plausible** (cookieless, privacy-friendly, no consent banner needed).
+     **Plausible** (cookieless, privacy-friendly; running it without a consent
+     banner is a position to have reviewed, see the header of `privacy.astro`).
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.

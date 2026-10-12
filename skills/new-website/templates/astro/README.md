@@ -58,7 +58,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    `npm approve-scripts esbuild`. (sharp no longer has an install script — since 0.35 it
    ships prebuilt binaries, so it needs no approval.)
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
-   (`SITE.url`, name, theme color, analytics — and check `PROD_BRANCH` matches the
+   (`SITE.url`, name, theme color, analytics: `scriptHost` and the per-site `scriptId`
+   from Plausible's Site installation page — and check `PROD_BRANCH` matches the
    branch Cloudflare Pages will call "Production", or analytics never loads).
    Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
    block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
