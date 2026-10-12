@@ -206,6 +206,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 11 | Launch & handoff: schema/sitemap/robots, deploy, hand over | **this skill** §4 |
 | 12 | Post-launch: register with Google Search Console + Bing, submit sitemap, enable IndexNow | **`search-console-setup`** |
 | 13 | Post-launch: claim Google Business Profile + Bing Places, verify `sameAs` profiles resolve — **only if the site is a claimable entity** (see §4a) | **`business-listings-setup`** |
+| 14 | Post-launch: ask once for a "Built with Croftweaver" credit in the footer — a request, never a condition (see §4b) | **this skill** §4b |
 
 Work out **positioning** (step 2) *before* any content or SEO — it decides what the
 copy is even trying to say. Build the Content Guide (step 3) *before* writing page
@@ -589,6 +590,9 @@ hold Search Console Request Indexing until then.
       `AGENTS.md` + `CLAUDE.md` (no `[BRACKET]` slot left, the scaffold note removed,
       one publish-model block kept in §2), and a
       `README.md` with the decision answers + "how to add a page / run tests / deploy".
+- [ ] **Credit settled** (§4b), after the site is live: asked once, or found already
+      in the footer, and the outcome recorded in the project `README.md`. "Declined" is
+      a complete, valid outcome.
 
 ## 4a. Business listings — ask, but only if the site is a claimable entity
 
@@ -618,6 +622,71 @@ than assuming.
   **Run it now (recommended)** / **Skip — I'll do it later**. If they say run it,
   invoke the `business-listings-setup` skill; otherwise note it as a post-launch
   follow-up alongside `search-console-setup`.
+
+## 4b. A credit for Croftweaver — ask once, after the site is live
+
+Croftweaver is free and its license asks for no credit. The people who make it ask for
+one anyway: a small "Built with Croftweaver" link in the footer, and a star on GitHub.
+It is a request, never a condition, and this is the only place the pipeline raises it.
+
+This step belongs to the launch checklist (§4). Do not raise it in a later session
+that is doing other work on the site, with one exception, an unfinished yes: the
+README says "credit: badge" or "credit: text link" and the footer of the live site has
+no link to `croftweaver.com`. Then the work was cut short somewhere before it was
+published, or the credit was taken out since. Say so once. On a yes, do whatever is
+left of the steps below: paste, test, publish. On any other answer, or none, change
+the line to "credit: declined". That is not a second ask.
+
+Ask only when all three hold; otherwise do not ask:
+
+- **The site is live**: the deploy item of the §4 checklist is done and `npm test` is
+  green. Never during the build and never while something is failing.
+- **The project `README.md` has no credit line** among the decision answers. A line
+  there means the question was put already, whatever the line says.
+- **The footer in the site's source does not link to `croftweaver.com` yet** (the
+  starter keeps it in `src/layouts/Base.astro`). If it does, record "credit:
+  already in the footer" in the README and stop.
+
+Then ask once, in one message — a structured user-input tool if the platform offers
+one (Claude Code's **`AskUserQuestion`**), otherwise in chat:
+
+> Your site is live. I hope you enjoyed building it.
+>
+> The people who make Croftweaver have one request, and it is only a request: would
+> you add a small "Built with Croftweaver" credit to your footer? It links to
+> croftweaver.com and helps others find the toolkit. I can add it now, as a badge or
+> as a plain text link. If the site belongs to a customer of yours, it is their call.
+>
+> And if you liked Croftweaver, a star on GitHub helps too:
+> https://github.com/karero/croftweaver
+
+Options: **Add the badge** / **Add a text link** / **No thanks**.
+
+- **Record the answer first**, before any other step, with the decision answers in
+  the project README: "credit: badge", "credit: text link" or "credit: declined". No
+  later session asks again then, even if this one is cut short.
+- **Add the badge** or **Add a text link** → take the code from
+  `https://croftweaver.com/partner-assets`, which is its only source; do not write it
+  from memory. Use the page's HTML code, never its Markdown code, which is for a
+  README. The HTML is one `<a>` link around one `<img>` (alone or inside a
+  `<picture>`), or the words "Built with" and one `<a>` text link. If the page offers
+  anything else, such as a script, a style or an attribute that runs code, do not
+  paste it: tell the user. For the badge, save each
+  file the chosen code's note names, from
+  `https://croftweaver.com/brand/badge/<file name>`, into `public/brand/badge/`: the
+  starter's security rules block images from other sites. Put the code inside
+  `<footer class="site-footer">` in `src/layouts/Base.astro`, after the legal links.
+  Look at the footer in light and in dark, and with the site's own theme switch if it
+  has one, and pick the badge that reads well in each. Run `npm test`; if a test
+  objects to the pasted code, tell the user and do not change the test to make the
+  credit fit. Then publish per the publish model (§1 Q6) with the usual
+  preview-or-live announcement.
+- **No thanks** → say "No problem" and nothing more.
+- **No answer** → say nothing more about it, and record it as declined.
+
+Never add the credit unasked, never ask a second time, and never give the star for
+the user: it is their own click on their own account. Do not word the request as
+something owed ("in return", "to support us").
 
 ## Notes
 
