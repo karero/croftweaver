@@ -1,5 +1,5 @@
 # DIFF review — PR #268 — `npm create croftweaver`, a one-line install of the skills
-Base `e58d3ae`, and `d382cbe` since the merge of main before round 2 · depth: Normal (an install script: it deletes and moves folders in the place an assistant takes its instructions from, and unpacks a download) · verdict: CLEAN (every row is fixed, refuted or waived; P8 closed on 2026-10-12 by the real run after the owner published) · authority used: POST AUTHORITY — atom A (this session opened #268); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — atom A (codex's chain below, unbroken from round 1 to `5d05bf4`)
+Base `e58d3ae`, `d382cbe` since the merge of main before round 2, and `4e5ff23` since the one before the merge link · depth: Normal (an install script: it deletes and moves folders in the place an assistant takes its instructions from, and unpacks a download) · verdict: CLEAN (every row is fixed, refuted or waived; P8 closed on 2026-10-12 by the real run after the owner published) · authority used: POST AUTHORITY — atom A (this session opened #268); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — atom A (codex's chain below, unbroken from round 1 to `e67676b`)
 
 Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fresh-eyes pass on a mid-tier model of the host's family. The owner's OK for both services, given in this session on 2026-10-12 to the question "shall I run the review pair (Codex and GLM 5.3 on melious, Normal depth), then push and open the PR?": "yes to all three, npm half is right".
 
@@ -11,6 +11,7 @@ Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fr
 | 4 | `e7249b1` | delta `c52c88c..e7249b1` without `docs/reviews/`, with round 3's dispositions (`--verify`); context as before | same two seats, codex at medium | codex 82 s / 47,111 · melious 31 s / 11,210 | codex 0/0/0 · melious 0/0/1 |
 | wording pass | `fdb4da9` | delta `e7249b1..fdb4da9`: two prose lines (a code comment, a README sentence), scoped to contradictions with the code | codex-cli 0.162.1, gpt-6.1-sol, config effort, read-only | 177 s / 44,500 | one contradiction (labelled BUG), fixed |
 | confirmation | `5d05bf4` | delta `fdb4da9..5d05bf4`: the fix of that contradiction, two prose lines | same | 147 s / 32,777 | 0/0/0 |
+| merge link | `e67676b` | `merge_link.sh d382cbe b031d27 4e5ff23` (one README hunk the merge brought from main) plus the plan's delta `b031d27..e67676b` (the status row and "Done when"), scoped as prose | codex-cli 0.162.1, gpt-6.1-sol, config effort, read-only | 205 s / 75,413 | 0/1/0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -37,8 +38,9 @@ Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fr
 | P21 | BUG | codex | 3 | Age does not show that a run is dead: after a pause of more than a day or a clock set forward, P19's sweep removes a live run's staging, its own included, and the run then removes skills it cannot replace | fixed — externally_reverified (round 4, both seats) | `b100dff`: the sweep is removed: no run touches a staging folder that is not its own. Tested: an old and a fresh foreign staging folder both survive a run with their files. melious had judged the case outside any real run's length. caused-by: P19 (partial) |
 | P22 | NIT | melious | 4 | The comment and the README say a folder is left by a run killed "while it unpacks"; a kill during the renames leaves it too | fixed — locally_verified, then read by the wording pass | `fdb4da9`: "before it finishes" in the README, "once it has begun to unpack" in the comment |
 | P23 | wording | codex | wording pass | The comment said such a run "leaves" the folder, though one killed after its own cleanup leaves none; and whether a dot in front hides a folder on Windows was not shown | fixed — externally_reverified (the confirmation) | `5d05bf4`: "can leave", and "hidden" is gone from the comment and the README |
+| P24 | RISK | codex | merge link | The plan's new text says the package is published and that `-- --codex` reached it, on the author's word alone | fixed | the record below: versions, the registry's metadata, the reviewed pack's checksum, both commands with their output, and the comparisons |
 
-23 findings in 4 rounds, a wording pass and its confirmation: 5 BUG, 10 RISK, 7 NIT and one wording contradiction. 18 fixed, 2 refuted (P7, P9), 3 waived by the owner (P3, P4, P11).
+24 findings in 4 rounds, a wording pass, its confirmation and a merge link: 5 BUG, 11 RISK, 7 NIT and one wording contradiction. 19 fixed, 2 refuted (P7, P9), 3 waived by the owner (P3, P4, P11).
 
 UNVERIFIABLE entries, round 1: 12 asked across the three seats, none became a finding. Looked at: `setup-node` with an empty `node-version` (the Windows job's log: "Resolved skills/new-website/templates/astro/.nvmrc as 24"), the junction claim (P7), npm's dispatch (P8); the rest (GitHub's redirect, the plugin documentation, the proxy sentence) rest on the author's records above and in the plan.
 
@@ -56,9 +58,9 @@ Follow-ups:
 Notes:
 - Round 4 is the one round past 3. It was earned by P21, the BUG round 3 found in the staging cleanup.
 - Round 4 was clean in the sense of stop condition (a2): no BUG, no RISK. Its NIT (P22) was fixed without a further round and read by the wording pass.
-- Chains for the stamp: codex saw `e58d3ae...60ae63e` in full, then each delta to `9f5cee7` (a merge link over the merge of main), `c52c88c`, `e7249b1`, `fdb4da9` and `5d05bf4`. melious's chain ends at `e7249b1`, fresh-eyes' at `60ae63e`, by design.
+- Chains for the stamp: codex saw `e58d3ae...60ae63e` in full, then each delta to `9f5cee7` (a merge link over the merge of main), `c52c88c`, `e7249b1`, `fdb4da9`, `5d05bf4` and, over a second merge of main, `e67676b` (between `5d05bf4` and `b031d27` only this file changed). melious's chain ends at `e7249b1`, fresh-eyes' at `60ae63e`, by design.
 - No final full read: a DIFF gate at Normal depth on a change that is mostly code.
-- The commit that brings this file to its final state changes nothing else; the stamp names it, and the reviewed scope is the one at `5d05bf4`.
+- The commit that brings this file to its final state changes nothing else; the stamp names it, and the reviewed scope is the one at `e67676b`.
 - The order the owner chose was kept: published from the reviewed commit `b031d27`, then the real run (P8), then the merge of main and the merge link below, and only then the merge.
 
 ## Before round 1
@@ -67,6 +69,63 @@ Found by the author's own checks and by CI, before any reviewer ran; both are in
 
 - A failed first run left an empty skills folder behind, against the README's "changes nothing" (found by the claims sweep; `9b51b4d`).
 - That fix removed one folder too many on Windows, where `fs.mkdirSync`'s return value is spelled differently from the destination; the new test failed on the Windows runner (run 38275840632, job 114900979567) and `75b3e19` fixed it. The same run's macOS and Node 22.12.0 legs were cancelled by fail-fast, not failed; `75b3e19` turns fail-fast off.
+
+## The real run through npm, 2026-10-12 (P8, P24)
+
+After the owner published. `<HOME>` is an empty scratch folder, `<git archive v0.31 skills>` an export of the tag. `diff` exits 1 because of the one extra file it names.
+
+```
+$ node --version; npm --version
+v26.11.1
+11.20.0
+$ npm view create-croftweaver version dist.shasum dist.fileCount --prefer-online
+version = '0.1.0'
+dist.shasum = '2394930488d0025bdfaede0b7026f2dc2fed251b'
+dist.fileCount = 4
+$ npm pack --dry-run --json <the checkout at e67676b>/packages/create-croftweaver   (the shasum and entryCount lines)
+    "shasum": "2394930488d0025bdfaede0b7026f2dc2fed251b",
+    "entryCount": 4,
+$ HOME=<empty folder> npm create --yes croftweaver@latest -- --codex
+
+> npx
+> 'create-croftweaver' --codex
+
+Croftweaver v0.31 is installed: 34 skills in <HOME>/.agents/skills
+
+Next: restart Codex and open it in your websites folder (Documents/Websites, or
+wherever you keep your projects). Then say:
+
+    new website
+
+To update later, run this command again.
+exit status of the filter that drops npm's notice lines: 0 (npm's own status is in the note below)
+$ ls <HOME>; ls <HOME>/.agents/skills | wc -l; find <HOME>/.agents/skills -type f | wc -l
+.agents
+      34
+     205
+$ diff -rq <git archive v0.31 skills> <HOME>/.agents/skills
+Only in <HOME>/.agents/skills: .croftweaver.json
+exit status: 1
+$ HOME=<the same folder> npm create --yes croftweaver@latest
+
+> npx
+> 'create-croftweaver'
+
+Croftweaver v0.31 is installed: 34 skills in <HOME>/.claude/skills
+
+Next: restart Claude Code and open it in your websites folder (Documents/Websites, or
+wherever you keep your projects). Then say:
+
+    new website
+
+To update later, run this command again.
+exit status of the filter that drops npm's notice lines: 0 (npm's own status is in the note below)
+$ diff -rq <git archive v0.31 skills> <HOME>/.claude/skills
+Only in <HOME>/.claude/skills: .croftweaver.json
+exit status: 1
+```
+
+Note: in this record the two `npm create` commands ran through a filter that drops npm's notice lines, so the status printed after them is the filter's. npm's own status was read in the run before this one, where the same two commands wrote to a file unfiltered: 0 for both, with the same output.
 
 ## Test records
 
