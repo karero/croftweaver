@@ -99,10 +99,12 @@ const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'if [ -z "${SK
 
 // Runs lines of a skill as an assistant would: `filled` is what stands in place of the name
 // in braces (Claude Code), or null to leave the text as written (any other assistant).
-// `strict` runs the shell with unset variables as errors.
+// `strict` runs the lines with unset variables as errors. That is set in the script, not
+// by `bash -u`: Debian's bash reads /etc/bash.bashrc when its input is a socket, as it is
+// here on a CI runner, and that file itself trips over an unset PS1 under -u.
 function bash(script, { filled, home, env = {}, cwd, strict = false }) {
-  const text = filled === null ? script : script.replaceAll(VAR, filled);
-  return spawnSync('bash', [...(strict ? ['-u'] : []), '-c', text], { env: { PATH: process.env.PATH, HOME: home, ...env }, cwd, encoding: 'utf8' });
+  const text = `${strict ? 'set -u\n' : ''}${filled === null ? script : script.replaceAll(VAR, filled)}`;
+  return spawnSync('bash', ['-c', text], { env: { PATH: process.env.PATH, HOME: home, ...env }, cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
 function runLookup(options) {
