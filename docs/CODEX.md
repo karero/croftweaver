@@ -1,6 +1,6 @@
-# Using website-builder with OpenAI Codex
+# Using Croftweaver with OpenAI Codex
 
-The `website-builder` skill suite was developed and used with Claude Code, but the skills
+The Croftweaver skill suite was developed and used with Claude Code, but the skills
 are plain Markdown (`SKILL.md` + templates), so Codex can run the same suite through a
 small adaptation layer. **`skills/*` stays the single source of truth** — nothing is
 duplicated for Codex.
@@ -11,8 +11,8 @@ duplicated for Codex.
 
 **From a clone:**
 ```bash
-git clone https://github.com/karero/website-builder.git
-cd website-builder
+git clone https://github.com/karero/croftweaver.git
+cd croftweaver
 ./scripts/install-codex.sh
 ```
 
@@ -24,7 +24,8 @@ cd website-builder
 What it does: symlinks `skills/*` into `~/.agents/skills/` (the equivalent of
 `make install-codex`). Re-running just refreshes the links — except one you pinned
 yourself into another worktree of this repo, which is kept and reported;
-`./scripts/install-codex.sh --force` relinks those too.
+`./scripts/install-codex.sh --force` relinks those too. Keep the unzipped or cloned folder
+where it is: the links point into it.
 
 ## Use
 

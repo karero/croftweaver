@@ -114,7 +114,7 @@ check_astro_version() {  # $1 = project dir; report-only, never mutates
   if [ "$site_major" -lt "$suite_major" ]; then
     echo "Astro version: this site pins astro major $site_major; the suite's current template"
     echo "pins major $suite_major. Ask your AI assistant to follow docs/UPGRADING.md (in the"
-    echo "website-builder clone) to upgrade — it walks through the version bump, the known"
+    echo "suite clone) to upgrade — it walks through the version bump, the known"
     echo "gotchas, and what to verify, so nothing gets silently skipped."
     echo
   fi

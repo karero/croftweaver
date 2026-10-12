@@ -82,6 +82,18 @@ for m in $modes; do
   check "20,000 docs/reviews paths: counted$sfx" has "$r" "FAIL — 20000 internal review/plan artifact(s) leaked"
 done
 
+# The maintainer's trackers are repo-only: either one in the listing fails the build.
+for f in BUGLOG DECISIONS_PENDING; do
+  { cat "$T/required"; echo "docs/$f.md"; } >"$T/tracker-$f.list"
+  run "tracker-$f"
+  check "docs/$f.md in the zip: exit 1" rc_is "tracker-$f" 1
+  check "docs/$f.md in the zip: named" has "tracker-$f" "FAIL — 1 maintainer tracker file(s) leaked"
+done
+# A shipped doc whose name only starts like a tracker's is not one.
+{ cat "$T/required"; echo "docs/BUGLOG.md.html"; echo "skills/x/docs/BUGLOG.md"; } >"$T/lookalike.list"
+run lookalike
+check "look-alike names are not trackers: exit 0" rc_is lookalike 0
+
 # A scan that errors must fail, not read as "nothing leaked": awk stubbed to fail, on a clean listing.
 mkdir -p "$T/badawk"
 printf '#!/bin/sh\nexit 2\n' >"$T/badawk/awk"; chmod +x "$T/badawk/awk"

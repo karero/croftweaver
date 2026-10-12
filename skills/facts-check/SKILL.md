@@ -42,8 +42,12 @@ and never decides which of two figures is right.
 
 ## Step 1: the facts list
 
+The script is at `~/.claude/skills/facts-check/scripts/facts_check.py` (Codex:
+`~/.agents/skills/facts-check/scripts/facts_check.py`). Run the commands in the folder where the facts list and the
+reports should live.
+
 ```bash
-python3 skills/facts-check/scripts/facts_check.py --init facts.json
+python3 ~/.claude/skills/facts-check/scripts/facts_check.py --init facts.json
 ```
 
 writes a starter file. Fill it **with the owner**, never from the pages themselves:
@@ -56,6 +60,7 @@ first. Each fact:
 | `value` | The approved number, written as a number: `27000`, not `"27,000+"` |
 | `unit` | `""` (plain numbers, default) or `"%"` (only percentages are tied to it) |
 | `terms` | Words that follow the number when a page states the fact: `["client", "customer", "Kunden"]`. A term matches every word that starts with it, so `client` covers `clients` |
+| `whole_words` | `true` makes the fact's terms match whole words only, so `Kunde` no longer matches `Kundenservice` (then list `Kunde` and `Kunden`). Default `false` |
 | `before` | Phrases that come right before the number: `["NPS of", "founded in"]` |
 | `window` | How many words after the number to look for a term (default 4, 1 to 12) |
 | `also_accept` | Other numbers that are true too, e.g. a rounded `100` for `120` ("100+ clients") |
@@ -82,7 +87,7 @@ term `employee` ties it.
 ## Step 2: run it
 
 ```bash
-python3 skills/facts-check/scripts/facts_check.py facts.json \
+python3 ~/.claude/skills/facts-check/scripts/facts_check.py facts.json \
     --out facts-report.md --json facts-report.json --history facts-history.csv
 ```
 
@@ -135,6 +140,19 @@ prints each fact's source, owner and last-confirmed date next to its findings.
 A false tie (a number that is not about the fact) means the rules were too loose: shorten
 `window`, make a term more specific, or move it to `before`. Fix the list; never ignore a
 finding without saying so in the report you hand over.
+
+On a large site, most false ties come from three places:
+
+- **Rows of figures** ("27,000+ talents 35+ languages 70+ countries in the talent pool"):
+  give each figure in the row a fact of its own. The term that comes first after a number
+  decides which fact it belongs to, so a countries fact keeps 70 away from the talent pool
+  (two terms that start at the same word tie both facts; another fact's `before` phrase
+  right before the number claims it too).
+- **German compounds**: a term matches every word that starts with it, so `Kunde` also
+  matches `Kundenservice`. Set `whole_words` and list the forms you mean.
+- **Blog posts** use the same words in passing ("300 agents in a contact center", "45 euros
+  per agent hour"). Prefer terms only the fact uses ("vetted", "freelance", "talents") and
+  a window of 2, and check the blog with `--only` once before the weekly run.
 
 ## Step 4: fix, then keep it fixed
 
@@ -211,8 +229,9 @@ starter site, copy the `POSITIONING` map of `tests/positioning.spec.ts`: each ke
   day" next to the term `agent` is tied to an agent count. The rules are kept narrow by
   default: terms after the number, a short window, a comma or full stop ends the search,
   a zero is ignored unless the fact is 0, and so is a plain year right after "in", "since",
-  "seit", "founded", a month, © and the like unless the fact is itself a year (a four-digit
-  count such as "über 2000 Kunden" is still read). Every
+  "seit", "founded", a date ("March 2026", "September 4th, 2026", "4. Sept. 2026"), © and
+  the like unless the fact is itself a year (a four-digit count such as "über 2000 Kunden"
+  is still read). Every
   finding shows its sentence, so a person decides.
 - **It checks numbers and exact phrases**, not paraphrased claims ("market leader").
   Retire such claims as phrases, or leave them to the content review.

@@ -29,7 +29,8 @@ enforces them. For generating image assets, use the `image` skill.
   for no-JS visitors. The starter ships this exact structure.
 - **No-FOUC script** in `<head>` sets `data-theme` from `localStorage.theme` or
   the system preference *before first paint* (already wired in `Base.astro`).
-  The toggle writes `localStorage.theme`.
+  The toggle writes `localStorage.theme` (the starter ships none; if you add one,
+  say so in the privacy page's section 3).
 - **Contrast both themes:** every text/background pair passes WCAG AA (4.5:1
   body, 3:1 large/UI). A colour that passes in light often fails in dark — the
   a11y test runs the full light+dark matrix, so check both.

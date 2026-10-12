@@ -19,26 +19,27 @@
     {
       "id": 2,
       "prompt": "Should we block AI crawlers like GPTBot and PerplexityBot in our robots.txt? We're worried about content theft.",
-      "expected_output": "Should address the AI bot access question directly. Should explain the tradeoff: blocking AI bots prevents training on your content but also prevents AI platforms from citing and recommending you. Should reference the specific bots and their purposes (GPTBot, Google-Extended, PerplexityBot, ClaudeBot, etc.). Should provide the recommended robots.txt configuration. Should explain that blocking may hurt AI visibility more than it protects content. Should provide a nuanced recommendation based on business goals.",
+      "expected_output": "Should address the AI bot access question directly. Should explain that each company's bots have separate jobs: GPTBot and ClaudeBot gather content for training, while OAI-SearchBot, Claude-SearchBot and PerplexityBot show a site in that company's search answers (PerplexityBot is not a training bot). So the training worry can be addressed by blocking the training bots while the search bots stay allowed (as each company's stated opt-out, not a guarantee against copying), and blocking a search bot can keep the site out of that company's search answers (OpenAI says it does for OAI-SearchBot). Should say Google-Extended covers Gemini training and grounding and does not affect Google Search, and mention CCBot as a separate crawler of an open archive. Should name the bots and what each does, and provide the robots.txt configuration from references/platform-ranking-factors.md. Should give a recommendation based on business goals.",
       "assertions": [
-        "Addresses the blocking tradeoff directly",
-        "Explains impact on AI visibility vs content protection",
-        "Lists specific AI bot user agents",
+        "Separates the training bots from the search bots",
+        "Says blocking a search bot can keep the site out of that company's search answers",
+        "Says PerplexityBot is a search bot, not a training bot",
+        "Says Google-Extended does not affect Google Search",
+        "Lists specific AI bot user agents and what each does",
         "Provides recommended robots.txt configuration",
-        "Gives nuanced recommendation based on business goals",
-        "Explains what each bot does"
+        "Gives nuanced recommendation based on business goals"
       ],
       "files": []
     },
     {
       "id": 3,
       "prompt": "What kind of content gets cited most by AI systems? We want to create content specifically optimized for AI search.",
-      "expected_output": "Should reference the content types that get cited most, including what two studies found: in Profound's April 2025 count, \"comparative listicles\" were the biggest named group (32.5% of 177 million citations) and blog and opinion posts made up 9.91%; in Peec AI's March 2026 count, listicles were 21.9%, articles 16.7%, product pages 13.7%, how-to guides 6.2% and comparison pages 2.2%. Should not invent percentages for formats with no source, such as definitive guides or original research. Should explain why these formats work (they provide the structured, extractable, authoritative information AI systems need). Should provide specific recommendations for creating AI-optimized content: clear definitions, structured data, original statistics, comparison tables, expert quotes. Should reference the Princeton GEO research on what increases visibility in AI answers.",
+      "expected_output": "Should reference the content types that get cited most, including what two studies found: in Profound's April 2025 count, \"comparative listicles\" were the biggest named group (32.5% of 177 million citations) and blog and opinion posts made up 9.91%; in Peec AI's March 2026 count, listicles were 21.9%, articles 16.7%, product pages 13.7%, how-to guides 6.2% and comparison pages 2.2%. Should not invent percentages for formats with no source, such as definitive guides or original research. Should say the shares show what was cited at the time, not why. Should provide specific recommendations for creating AI-optimized content: clear definitions, structured data, original statistics, comparison tables, expert quotes. Should reference the Princeton GEO research on what increases visibility in AI answers.",
       "assertions": [
         "References specific content types; gives a percentage only with its study, date and what was counted",
         "Names comparative listicles as the biggest named group in Profound's count, and says Peec AI's count sorts pages differently",
         "Says the shares show what was cited, not that a format causes citations",
-        "Explains why these formats work for AI",
+        "Gives structure and clarity as advice, not as a measured cause",
         "Provides specific content creation recommendations",
         "References Princeton GEO research",
         "Mentions structured data, statistics, and clear definitions"
@@ -48,11 +49,11 @@
     {
       "id": 4,
       "prompt": "we noticed our competitors are showing up in google AI overviews but we're not. what do we need to change?",
-      "expected_output": "Should trigger on casual phrasing. Should focus specifically on Google AI Overviews visibility. Should explain how AI Overviews selects sources (authoritative, well-structured, directly answers queries). Should run through the Structure pillar checklist: content extractability, heading hierarchy, answer-first format, structured data. Should check Authority signals: domain authority, citations, E-E-A-T. Should recommend specific content structure changes. Should suggest monitoring approach.",
+      "expected_output": "Should trigger on casual phrasing. Should focus specifically on Google AI Overviews visibility. Should give Google's own eligibility requirement for AI Overviews (indexed and eligible to be shown in Search with a snippet; no additional technical requirements) and say specific optimization isn't required. Should run through the Structure pillar checklist: content extractability, heading hierarchy, answer-first format, structured data. Should check Authority signals: domain authority, citations, E-E-A-T. Should recommend specific content structure changes. Should suggest monitoring approach.",
       "assertions": [
         "Triggers on casual phrasing",
         "Focuses on Google AI Overviews specifically",
-        "Explains how AI Overviews selects sources",
+        "States Google's eligibility requirement for AI Overviews",
         "Checks Structure pillar (extractability, headings, answer-first)",
         "Checks Authority signals",
         "Recommends specific content structure changes",

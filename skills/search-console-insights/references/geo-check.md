@@ -6,7 +6,7 @@ question every week, **without naming the business**, and counts how often the b
 comes up in the answer. It is the AI-age twin of "where do I rank on Google".
 
 Script: `scripts/geo_check.py`. The weekly `track.sh` runs it after Google and Bing.
-The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the website-builder repo.
+The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the Croftweaver repo.
 
 **Quick path** (a site that is already set up). Run these with `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> …`:
 

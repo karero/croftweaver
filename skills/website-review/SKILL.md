@@ -76,7 +76,7 @@ has a guided onboarding wizard for getting Codex or ollama-cloud running
 In a scaffolded site the skill isn't shipped at all: check that the
 `independent-review` folder actually exists before offering this escalation
 as ready-to-run. If it doesn't, either vendor it first (copy
-`skills/independent-review/` from the website-builder suite — the same kit
+`skills/independent-review/` from the Croftweaver suite — the same kit
 this skill was copied from — into the site's `.claude/skills/`) or frame the
 offer honestly as "available after a one-time setup step".
 
@@ -94,7 +94,7 @@ recommendation, never to pick unasked.
 - Run **`/code-review`** on the branch/diff (correctness bugs + reuse/simplification).
   `/code-review` is Claude Code-only — under another host, review the diff by
   hand against this pass's checklist, or vendor the generic `double-knuth`
-  skill from the website-builder suite.
+  skill from the Croftweaver suite.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
 - `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it. `placeholders.spec.ts` goes in with its `UNFILLED_UNTIL_LAUNCH` as shipped, on a launched site too: the first run names each entry to delete, and its check for lower-case slots, which runs on listed pages only, finds the one older starters carried on the privacy page.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.

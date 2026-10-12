@@ -48,6 +48,19 @@ export const KNOWS_ABOUT: string[] = [];
 // https://plausible.io for the paid cloud version). Fire only on the production
 // deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built.
 //
+// scriptId is the per-site script Plausible's installer shows (Settings > General >
+// Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is
+// the part between "/js/" and ".js", here 'pa-AbC123'. The domain and the optional
+// measurements (outbound links, file downloads, form submissions) are switched in
+// Plausible, not here. Section 3 of the privacy page has one slot sentence for each:
+// keep a sentence only if its own measurement is ticked. A scriptHost or scriptId left
+// as the placeholder loads nothing (the browser reports a failed request; the build
+// does not).
+// Changing scriptHost also means changing script-src and connect-src in
+// public/_headers; tests/check_analytics_gate.sh checks both against this file.
+// Base.astro writes two tags: the script, and the short stub that calls
+// plausible.init(); without the stub the script never starts.
+//
 // IMPORTANT: PROD_BRANCH must equal the branch Cloudflare Pages calls "Production"
 // for THIS project (house convention: 'production'; Cloudflare's default is 'main').
 // A mismatch means analytics silently never loads — no error, no data.
@@ -55,6 +68,6 @@ export const PROD_BRANCH = 'production';
 
 export const ANALYTICS = {
   enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,
-  domain: 'example.com',
   scriptHost: 'https://analytics.example.com',
+  scriptId: 'pa-XXXXXXXXXXXXXXXXXXXX',
 } as const;

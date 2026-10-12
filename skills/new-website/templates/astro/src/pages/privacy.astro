@@ -5,7 +5,14 @@
 //      tests/placeholders.spec.ts (the test turns red until you do).
 //   2. Make section 3 match reality: pick the self-hosted OR cloud Plausible
 //      wording, or delete the analytics paragraphs entirely if the site ships
-//      without analytics (then also trim the meta description below).
+//      without analytics (then also trim the meta description below). It has
+//      slots to settle: the hosting choice (self-hosted: first confirm that your
+//      web server, reverse proxy or CDN keeps no IP addresses in access logs for
+//      the measurement host, or say so here); one sentence each for outbound links,
+//      file downloads and form submissions (keep a sentence only if that
+//      measurement is ticked in Plausible's installer, which ticks all three by
+//      default; the page then describes what the instance does); and the
+//      storage period.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
@@ -13,14 +20,34 @@
 //      this page — never ship both). Multilingual site via astro-i18n-setup →
 //      the German privacy page lives at the locale-prefixed route (/de/privacy)
 //      instead; use the German draft as its content.
-//   4. Consent law: the "no consent banner" reasoning in section 3 rests on the
-//      stack being cookieless AND touching no device storage — under the GDPR
-//      and, for Germany, § 25 TDDDG (formerly TTDSG; the served copy's § 25
-//      mention is a German-market lean — other EU markets have their own
-//      ePrivacy transpositions, drop or adapt the cite if it reads odd there). ANY third-party embed or
-//      non-cookieless analytics (YouTube iframe, remote Google Fonts, GA) flips
-//      that answer: re-check this page and add a consent solution BEFORE
-//      shipping such an addition.
+//   4. Consent law: this page states no consent conclusion on purpose. Running
+//      without a banner is a position, not a settled fact. The script sets no
+//      cookies and writes nothing to the device. It sends the page address and the
+//      referrer, scroll depth and engaged time (and, if ticked in Plausible, the
+//      address of clicked outbound links and downloaded files). It also reads one
+//      local-storage flag (plausible_ignore, which lets you exclude your own
+//      visits) and navigator.webdriver (a bot check); neither is sent. The EDPB
+//      (Guidelines 2/2023 v2.0, para 33) says JavaScript that instructs the browser
+//      to send information "clearly falls within the scope of Article 5(3)"; para
+//      53 treats information that client-side code sends back to a server as a
+//      gaining of access; para 56 adds that this does not by itself make consent
+//      necessary. § 25 TDDDG (formerly TTDSG) has two exceptions in Abs. 2 and none
+//      for statistics. The DSK (OH Digitale Dienste v1.2, Nov 2024) makes no
+//      statement that reach measurement is consent-free (Rz. 87 to 89), at most for
+//      a precisely defined configuration that stops holding when more information
+//      is added, and says even simple counting is not automatically part of the
+//      basic service (Rz. 90). Plausible's own legal assessment concludes from
+//      "does not store any information on the user's device" and does not discuss
+//      the script reading the page address or the referrer. This tag measures more
+//      than bare counting. Other EU markets have their own ePrivacy transpositions.
+//      Have the position reviewed for your market and record who accepted it.
+//      ANY third-party embed (YouTube iframe, remote Google Fonts), another
+//      analytics tool, or wider measurement (optional measurements such as outbound
+//      links, file downloads or form submissions; custom properties) needs this
+//      position AND the text re-checked BEFORE you ship such an addition.
+//      Base.astro also reads a 'theme' key from local storage, and nothing in the
+//      template writes it. If you add a toggle that stores the choice, say so in
+//      section 3.
 //   5. A solid baseline, not legal advice. When in doubt, have it reviewed.
 // The copy below already passes the a11y / seo / tone / email suites: keep one
 // <h1>, the description in the 120-160 char window, no em dashes or banned
@@ -69,21 +96,46 @@ import { SITE } from '../config';
     </p>
     <p>
       To understand how the site is used, we run <strong>Plausible
-      Analytics</strong>, a privacy-friendly measurement tool
-      [CHOOSE ONE: self-hosted on our own server / operated for us by Plausible Insights
-      O&Uuml;, V&auml;striku tn 2, 50403 Tartu, Estonia (EU)]. It is cookieless
-      and stores no personal data. It does not track you across websites or
-      over time, and no data is shared with third parties. Visitor IP addresses
-      are processed only transiently to derive anonymous, aggregated counts and
-      are never stored. The resulting metrics (such as page views, referrers and
-      countries) are aggregated and cannot be traced back to an individual.
+      Analytics</strong>, a web analytics tool
+      [CHOOSE ONE: self-hosted on our own server (first confirm that no web server,
+      proxy or CDN log keeps IP addresses, or say so here) / operated for us as our processor
+      (Art. 28 GDPR) by Plausible Insights O&Uuml;, V&auml;striku tn 2, 50403 Tartu,
+      Estonia (EU)]. Its script sets no cookies and writes nothing to your
+      device. It checks one setting in your browser, which lets you exclude your
+      own visits, and whether the browser is automated; neither is sent to the
+      measurement server. When you open a page, it sends the address of that page and the
+      page or site you came from to the measurement server, together with the
+      technical data your browser sends with every request (browser, operating
+      system, device type, IP address). When you leave the page or switch to
+      another tab or window, it also sends
+      how far you scrolled and how long the page was visible and in focus.
+      [DELETE UNLESS OUTBOUND LINKS IS TICKED IN PLAUSIBLE: It counts clicks on
+      links to other websites and sends and stores the address of the link you clicked.]
+      [DELETE UNLESS FILE DOWNLOADS IS TICKED IN PLAUSIBLE: It counts clicks on
+      links to files, such as PDFs, and sends and stores the address of the file.]
+      [DELETE UNLESS FORM SUBMISSIONS IS TICKED IN PLAUSIBLE: It counts
+      submissions of forms on the site, but not what you enter.]
+      The tool derives your
+      approximate location from the IP address and does not keep the IP
+      address in its own records. From your IP address, your browser data
+      and this website's domain,
+      plus a value that is replaced every 24 hours, it forms an identifier.
+      While that value lasts, and as long as those inputs stay the same, the
+      tool therefore recognises the same browser and counts it as one
+      visitor. Once the value is replaced, it can no longer recognise that
+      browser, and it cannot recognise it on another website. The individual
+      events (for example each page view, and the scroll depth and engaged
+      time sent when you leave a page or switch away from it) and the
+      session records are stored with this identifier, the page address, the
+      referrer, the location and the device data, and are shown as
+      aggregated counts, for example page views, referrers and countries.
     </p>
     <p>
-      The legal basis for this aggregated measurement is our legitimate interest
-      in operating and improving the website (Art. 6(1)(f) GDPR). Because the
-      measurement is cookieless, accesses no information on your device (§ 25
-      TDDDG), and stores no personal data, no consent banner is required. You can prevent the measurement entirely by blocking the
-      analytics script in your browser.
+      The legal basis is our legitimate interest in understanding how the
+      website is used and in improving it (Art. 6(1)(f) GDPR).
+      [STATE THE STORAGE PERIOD, for example: We keep these records for 24
+      months and then delete them.] You can prevent the measurement by blocking
+      the analytics script in your browser.
     </p>
 
     <h2>4. Contact by email</h2>

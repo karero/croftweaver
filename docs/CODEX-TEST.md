@@ -1,4 +1,4 @@
-# Testing website-builder with OpenAI Codex
+# Testing Croftweaver with OpenAI Codex
 
 A validation checklist to confirm the suite runs end-to-end under **OpenAI Codex**.
 For normal install/usage, see [CODEX.md](CODEX.md). This doc lists what was adapted, gives

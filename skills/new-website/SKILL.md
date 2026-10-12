@@ -145,15 +145,19 @@ non-expert can answer, and record the answers in the project `README.md`.
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
      script, no consent banner) is enough for search & referral traffic.
    - Real decisions from traffic data (campaigns, content strategy) →
-     **Plausible** (cookieless, privacy-friendly, no consent banner needed).
+     **Plausible** (cookieless; running it without a consent banner is a
+     position to have reviewed, see the header of `privacy.astro` and, for a
+     German-only site, `_datenschutz.astro`). In its installer, untick the
+     optional measurements (outbound links, file downloads, form submissions)
+     unless you keep the privacy page's slot sentence for each one you leave ticked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
-     banner is § 25 TDDDG (formerly TTDSG). Third-party additions kill the
-     banner-free claim by different routes: a YouTube iframe triggers § 25
-     itself (device storage/readout), while remote Google Fonts flip the
+     banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the
+     banner-free position at risk by different routes: a YouTube iframe triggers § 25
+     itself (device storage/readout), while remote Google Fonts change the
      answer via the GDPR instead (unconsented IP disclosure — LG München I,
      3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only. The
      privacy page must match whatever is chosen here.
@@ -248,7 +252,14 @@ device's fingerprint or face unlock. Recommend, never require: GitHub makes it m
 for some accounts, and Cloudflare leaves it optional unless an account's administrator
 enforces it for members.
 
-Assemble the project at `<site>/` so it travels without any global setup:
+Assemble the project at `<site>/` so it travels without any global setup. `<site>` is a new
+folder inside the owner's websites folder, which is the folder this session was opened in
+(never that folder itself). Before step 0, unless the owner has already confirmed it in this
+session, say which folder you are in and ask whether it is their websites folder. If it is
+not, or it already holds a site (an `astro.config.*` or `index.html` file) or is the toolkit
+folder (it has `skills/new-website/SKILL.md`), ask which folder is their websites folder
+instead. Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
+full path (the output of `pwd` inside it):
 
 0. **Git first, before any code:**
    ```bash
@@ -408,7 +419,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```
 
    **Stamp the copies** (always, after ALL skills are copied) — records which suite
-   state they came from, so `make whats-new PROJECT=<site>` in the suite repo can later
+   state they came from, so `make whats-new PROJECT=<site-dir>` (the site's full path) in the suite repo can later
    report which bundled skills have upstream updates:
    ```bash
    # The suite's scripts/whats-new.sh is the ONLY writer of the stamp format. Resolve
