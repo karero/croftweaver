@@ -22,3 +22,6 @@ What Codex verified against the captured runs: the counts (glm-5.3 3 of 3, glm-5
 The measurement itself, for the record: `MELIOUS_MODEL=<model> independent_review.sh <plan> --plan --seat melious --depth <normal for glm-5.3, light for glm-5.3-flash>`, the installed script at `4e5ff23`, 2026-10-12, eight runs, 4 to 29 s and 995 to 1,845 tokens each.
 
 Follow-up, for the owner: the row's opening sentence, written on 2026-10-06 and not part of this change, states a provider mechanism ("reads think tags … as reasoning markers") that no capture establishes. Codex raised it in both confirmations as outside their scope.
+
+After the gate: `main` had moved to `08e1275` and the repository merges only an up-to-date branch, so `origin/main` was merged in as `8a69539`, no conflict. `main` changed neither of this change's two files, and `git diff origin/main 8a69539` is byte-identical to `git diff b8daa7e 1d8febc`, the diff the seat saw plus this trail (compared with `cmp`). No re-gate; the stamp moves to the head that records this.
+
