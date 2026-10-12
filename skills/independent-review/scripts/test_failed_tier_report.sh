@@ -28,6 +28,9 @@ printf 'diff --git a/x b/x\n+retry on HTTP 429 after a pause\n' >"$T/change.diff
 printf '# Plan\n\nStep 1: do the thing.\n' >"$T/plan.md"
 # Built at runtime: check_model_agnostic.sh flags any literal "<word>:cloud" in this skill.
 STUB_TAG="stub-model"; STUB_TAG="${STUB_TAG}:cloud"
+# The one model the Melious seat runs. Pinned here, apart from the script's own copy; the same
+# check lets the name stand only as the value of a MELIOUS_ variable, hence this one.
+MELIOUS_OK="glm-5.3"
 
 # Stubs are plain sh with printf '%s\n' so they behave the same under dash (CI) and bash.
 cat >"$T/bin/codex" <<'EOF'
@@ -987,15 +990,15 @@ run mfall OLLAMA_STUB=429 MELIOUS_MODEL=glm-5.3 REVIEW_LOG="$T/mfall.tsv" bash "
 check "mfall: ollama refused, melious stands in and counts" \
   has mfall.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
 check "mfall: two counted, so no fewer-than-2 note" lacks mfall.out "fewer than the 2"
-check "mfall: its section header" has mfall.out "## Independent review — melious (glm-5.3, HTTP API)"
+check "mfall: its section header" has mfall.out "## Independent review — melious ($MELIOUS_OK, HTTP API)"
 check "mfall: the streamed pieces are joined" has mfall.out "- BUG: melious finding one"
 check "mfall: the reasoning trace is not the answer" lacks mfall.out "Thinking: I could not read"
 check "mfall: Melious's chat completions endpoint" grep -qxF "https://api.melious.ai/v1/chat/completions" "$T/mfall.marks/melious-url"
 check "mfall: the model, streamed, the text-only prompt" \
-  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "glm-5.3" && $j->{stream} && $j->{messages}[0]{content} =~ /You have NO tools/ && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/mfall.marks/melious-body"
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq $ARGV[1] && $j->{stream} && $j->{messages}[0]{content} =~ /You have NO tools/ && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/mfall.marks/melious-body" "$MELIOUS_OK"
 check "mfall: no key set, no Authorization header sent" not_in "$T/mfall.marks/melious-hdr" "Authorization"
 check "mfall: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s, melious [0-9]+s \(600 tokens\)$' "$T/mfall.out"
-check "mfall: tokens in the cost log" awk -F'\t' '$8=="melious" && $9=="glm-5.3" && $12=="600" && $13=="OK" {f=1} END {exit !f}' "$T/mfall.tsv"
+check "mfall: tokens in the cost log" awk -F'\t' -v m="$MELIOUS_OK" '$8=="melious" && $9==m && $12=="600" && $13=="OK" {f=1} END {exit !f}' "$T/mfall.tsv"
 run mnomodel OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "mnomodel: no MELIOUS_MODEL, no Melious seat and no call" \
   sh -c '! grep -qF melious "$1/mnomodel.out" && [ ! -e "$1/mnomodel.marks/melious-url" ]' _ "$T"
@@ -1016,7 +1019,7 @@ check "mkey: never in any output" sh -c '! grep -rqF stub-msecret "$1/mkey.out" 
 run m429 OLLAMA_STUB=429 MELIOUS_MODEL=glm-5.3 MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "m429: read as quota" has m429.out "melious FAILED (HTTP 429; quota/rate limit: wait or add credits)"
 check "m429: the API's message is quoted" has m429.out "Rate limit exceeded for your plan"
-check "m429: the Melious FAILED section names the model" has m429.out "Model: glm-5.3"
+check "m429: the FAILED section names the model" has m429.out "Model: $MELIOUS_OK"
 run mtrunc OLLAMA_STUB=429 MELIOUS_MODEL=glm-5.3 MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff"
 check "mtrunc: a stream with no finish_reason or [DONE] fails the tier, named as truncated" \
   sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "a truncated review" "$1"' _ "$T/mtrunc.out"
@@ -1158,11 +1161,11 @@ check "slocal: --local-only never calls Melious, whatever SECOND_SEAT says" \
 #      or the refused model's round would land looking like an ordinary one. Each case is a
 #      command line a caller types, with the model swapped.
 refused() {   # refused <name>: exit 2, the rule on stderr, nothing on stdout, and no reviewer or curl ran
-  sh -c '[ "$(cat "$1/$2.rc")" = 2 ] && [ ! -s "$1/$2.out" ] \
-    && grep -qF "refused, and nothing was sent: Melious runs glm-5.3 and no other model (the owner'"'"'s rule, 2026-10-12)" "$1/$2.err" \
-    && grep -qF "Kimi and every other model run on ollama" "$1/$2.err" \
-    && [ ! -e "$1/$2.marks/curl-argv-any" ] && [ ! -e "$1/$2.marks/melious-url" ] \
-    && [ ! -e "$1/$2.marks/codex-ran" ] && [ ! -e "$1/$2.marks/ollama-ran" ]' _ "$T" "$1"
+  [ "$(cat "$T/$1.rc")" = 2 ] && [ ! -s "$T/$1.out" ] \
+    && grep -qF "refused, and nothing was sent: Melious runs $MELIOUS_OK and no other model (the owner's rule, 2026-10-12)" "$T/$1.err" \
+    && grep -qF "Kimi and every other model run on ollama" "$T/$1.err" \
+    && [ ! -e "$T/$1.marks/curl-argv-any" ] && [ ! -e "$T/$1.marks/melious-url" ] \
+    && [ ! -e "$T/$1.marks/codex-ran" ] && [ ! -e "$T/$1.marks/ollama-ran" ]
 }
 run rfall OLLAMA_STUB=429 MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff"
 check "rfall: Kimi as the fallback's model is refused, exit 2, nothing sent and no reviewer run" refused rfall
@@ -1179,14 +1182,14 @@ run rlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/chan
 check "rlocal: ...and under --local-only" refused rlocal
 # The slip to expect: ollama's tag for the same model, pasted into MELIOUS_MODEL. The name must
 # match whole. Built at runtime, like STUB_TAG above.
-MELIOUS_NEAR="glm-5.3"; MELIOUS_NEAR="${MELIOUS_NEAR}:cloud"
+MELIOUS_NEAR="${MELIOUS_OK}:cloud"
 run rnear MELIOUS_MODEL="$MELIOUS_NEAR" bash "$SCRIPT" "$T/change.diff" --seat melious
 check "rnear: the allowed name with a tag suffix is refused too" refused rnear
 run rallow MELIOUS_MODEL=glm-5.3 bash "$SCRIPT" "$T/change.diff" --seat melious
 check "rallow: the one allowed model passes, runs and counts" \
   sh -c '[ "$(cat "$1/rallow.rc")" = 0 ] && grep -qF "reviewers: melious OK" "$1/rallow.out" && ! grep -qF refused "$1/rallow.err"' _ "$T"
 check "rallow: ...and it is the model sent" \
-  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{model} eq "glm-5.3")' "$T/rallow.marks/melious-body"
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{model} eq $ARGV[1])' "$T/rallow.marks/melious-body" "$MELIOUS_OK"
 
 # 33. (2026-10-06) The Perl programs' minimum versions: check_perl_minimum.sh, which reads perl/*.pl
 #     with Perl::MinimumVersion. It replaced the one-construct guards that stood here (no r-flag

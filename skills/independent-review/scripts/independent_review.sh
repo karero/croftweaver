@@ -12,9 +12,10 @@
 # reviewer. No MELIOUS_MODEL, no call: the script sets no default. `--seat melious` runs it alone;
 # `--seat ollama` never falls back to it. SECOND_SEAT=melious swaps the two: Melious runs with
 # Codex, and ollama stands in only when Melious did not count.
-# Melious runs ONE model, glm-5.3 (the owner's rule, 2026-10-12). Any other MELIOUS_MODEL is
-# refused with exit 2 before any reviewer starts, in every mode: nothing is sent to Melious, and
-# no other reviewer runs in its place. Kimi and every other model run on ollama (OLLAMA_MODEL).
+# Melious runs ONE model (the owner's rule, 2026-10-12): MELIOUS_MODEL=glm-5.3 is the only
+# value that passes. Any other is refused with exit 2 before any reviewer starts, in every mode:
+# nothing is sent to Melious, and no other reviewer runs in its place. Kimi and every other
+# model run on ollama (OLLAMA_MODEL).
 #
 # Antigravity (`agy`/Gemini) is OPT-IN ONLY — pass --with-antigravity or set
 # WITH_ANTIGRAVITY=1. It does NOT run by default and is never used as a silent
@@ -94,8 +95,8 @@
 #                                    set, else none is sent — in a cloud session an environment
 #                                    API credential for ollama.com is added by the proxy.
 #   MELIOUS_MODEL  (unset)           turns on the Melious fallback seat (see above). One value
-#                                    is allowed, Melious's glm-5.3; any other is refused, exit
-#                                    2, in every mode. Unset = no Melious call at all (and
+#                                    is allowed, MELIOUS_MODEL=glm-5.3; any other is refused,
+#                                    exit 2, in every mode. Unset = no Melious call at all (and
 #                                    SECOND_SEAT=melious refuses to run).
 #   SECOND_SEAT    (ollama)          which host holds the second seat: ollama, with Melious as its
 #                                    fallback, or melious, with ollama as its fallback. melious

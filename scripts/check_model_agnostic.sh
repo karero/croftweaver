@@ -38,19 +38,15 @@ PATTERN='[a-z0-9][a-z0-9._-]*:(cloud|[0-9]+b)\b|\bglm-[0-9]|\bgpt-[0-9]|\bgemini
 
 # ONE concrete name is let through: the model the Melious seat is held to (the owner's rule of
 # 2026-10-12; independent_review.sh refuses any other MELIOUS_MODEL). It is the limit on a seat,
-# not a default: the skill still picks no model for anyone. Two conditions, both needed:
-#   - the line's own text names Melious (the file's name does not count). The same id as
-#     another seat's default is the drift this guard exists for, and stays a violation.
-#   - the id stands bare. Bare is defined by what MAY stand around it, so a spelling nobody
-#     listed fails: before it the start of the text, a space or one of = " ' ` ( and after it
-#     the end, a space, one of " ' ` ) , ; or a full stop that ends there. Anything else keeps
-#     it a violation: a version, a suffix, ":cloud", and a prose colon too (reword the sentence).
-# Reads grep's "file:line:text" lines, or bare text (the self-test).
+# not a default: the skill still picks no model for anyone. It passes in ONE shape only: as the
+# whole value given to a variable whose name starts with MELIOUS_ (MELIOUS_MODEL=..., quoted or
+# not). Everywhere else it stays a violation: in prose, as any other seat's value, inside a
+# longer id or an ollama tag (a version, a suffix, ":cloud"), and with a colon after it. So the
+# skill's files write the name as that assignment and nothing else, and what the line or the
+# file is called never matters. After the value may stand the end of the line, a space, one of
+# ) ` , ; " ' or a full stop that ends there.
 allow_melious_model() {
-  perl -pe 'my ($pre, $text) = /^((?:[^:\s]+:[0-9]+:)?)(.*)$/s;
-            $text =~ s/(?:^|(?<=[\s=("\x27`]))glm-5\.3(?=$|[\s)"\x27`,;]|\.(?:$|[\s)"\x27`]))/<the Melious model>/g
-              if $text =~ /melious/i;
-            $_ = $pre . $text'
+  perl -pe 's/(?<![A-Za-z0-9_])(MELIOUS_[A-Z0-9_]*=)(["\x27]?)glm-5\.3\2(?=$|[\s)`,;"\x27]|\.(?:$|[\s)`"\x27]))/$1<the Melious model>/g'
 }
 
 # Self-test, both directions. A guard that cannot fire is worse than none — and one
@@ -71,23 +67,28 @@ for good in 'Gemini' 'gpt-class' "a ':cloud' mention" 'claude family' 'ollama-cl
   fi
 done
 
-# The same for the let-through: it must pass the bare id and nothing built on it. (With no perl
-# it prints nothing, and the first loop fails.)
-for bad in 'MELIOUS_MODEL=glm-5.3:cloud' 'melious glm-5.3-flash' 'melious glm-5.30' \
-           'melious glm-5.3.1' 'melious glm-5.4' 'melious GLM-5.3' 'melious xglm-5.3:cloud' \
-           'melious glm-5.3._preview' 'melious glm-5.3..preview' 'melious glm-5.3+flash' \
-           'melious glm-5.3/latest' 'melious glm-5.3~x' 'melious/glm-5.3' 'Melious glm-5.3: prose' \
-           'OLLAMA_MODEL=glm-5.3' 'a default of glm-5.3 for another seat' \
-           'skills/x/perl/melious_request.pl:12:model glm-5.3' \
-           'MELIOUS_MODEL=glm-5.3 OLLAMA_MODEL=glm-5.3:cloud'; do
+# The same for the let-through: it must pass that one shape and nothing else. (With no perl it
+# prints nothing, and the first loop fails.)
+for bad in 'Melious runs glm-5.3' 'OLLAMA_MODEL=glm-5.3' 'a default of glm-5.3 for another seat' \
+           'MELIOUS_MODEL=glm-5.3 OLLAMA_MODEL=glm-5.3' 'OLLAMA_MODEL=glm-5.3 MELIOUS_MODEL=glm-5.3' \
+           'MELIOUS_MODEL=glm-5.3 OLLAMA_MODEL="glm-5.3"' \
+           'skills/x/melious notes.md:12:OLLAMA_MODEL=glm-5.3' 'skills/x/MELIOUS_A=b.md:3:glm-5.3' \
+           'XMELIOUS_MODEL=glm-5.3' 'melious_model=glm-5.3' 'MELIOUS_MODEL= glm-5.3' \
+           'MELIOUS_MODEL="glm-5.3' "MELIOUS_MODEL=\"glm-5.3'" 'MELIOUS_MODEL=${X:-glm-5.3}' \
+           'MELIOUS_MODEL=glm-5.3:cloud' 'MELIOUS_MODEL=glm-5.3: prose' 'MELIOUS_MODEL=glm-5.3-flash' \
+           'MELIOUS_MODEL=glm-5.30' 'MELIOUS_MODEL=glm-5.3.1' 'MELIOUS_MODEL=glm-5.4' \
+           'MELIOUS_MODEL=GLM-5.3' 'MELIOUS_MODEL=xglm-5.3:cloud' 'MELIOUS_MODEL=glm-5.3._preview' \
+           'MELIOUS_MODEL=glm-5.3..preview' 'MELIOUS_MODEL=glm-5.3+flash' \
+           'MELIOUS_MODEL=glm-5.3/latest' 'MELIOUS_MODEL=glm-5.3~x' 'MELIOUS_MODEL=glm-5.3_x'; do
   grep -qiE "$PATTERN" <<<"$(allow_melious_model <<<"$bad")" || {
     echo "FAIL — self-test: the Melious let-through hides '$bad'. Fix it before trusting the scan."
     exit 1
   }
 done
-for good in 'MELIOUS_MODEL=glm-5.3' 'Melious runs glm-5.3.' 'melious ("glm-5.3")' \
-            'Melious: glm-5.3 and glm-5.3, only' 'a/b.sh:7:`MELIOUS_MODEL=glm-5.3` set (the' \
-            'a/b.sh:7:glm-5.3; Melious' "melious 'glm-5.3'."; do
+for good in 'MELIOUS_MODEL=glm-5.3' 'MELIOUS_ONLY_MODEL="glm-5.3"' "MELIOUS_OK='glm-5.3'; next" \
+            'with `MELIOUS_MODEL=glm-5.3` set (the' 'Set MELIOUS_MODEL=glm-5.3.' \
+            'a/b c.sh:7:run x MELIOUS_MODEL=glm-5.3 bash' '"MELIOUS_MODEL=glm-5.3", then' \
+            'MELIOUS_MODEL=glm-5.3 MELIOUS_MODEL=glm-5.3'; do
   if grep -qiE "$PATTERN" <<<"$(allow_melious_model <<<"$good")"; then
     echo "FAIL — self-test: the Melious let-through still flags the allowed '$good'."
     exit 1
@@ -103,8 +104,8 @@ if [ "$rc" -gt 1 ]; then
   exit 1
 fi
 
-# Second pass over the matched lines alone, with the Melious seat's model taken out: what still
-# matches is a violation. (A line that holds both shows the let-through as "<the Melious model>".)
+# Second pass over the matched lines alone, with the Melious seat's own assignments taken out:
+# what still matches is a violation. (Such a line shows them as "<the Melious model>".)
 # Two steps, not a pipe: a filter that died would leave grep an empty input, grep's "no match"
 # would be the pipe's status, and the scan would read as clean.
 if [ -n "$mismatches" ]; then
