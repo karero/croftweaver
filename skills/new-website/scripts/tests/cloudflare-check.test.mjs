@@ -1171,6 +1171,22 @@ test('foreign content is read as a browser reads it: a self-closed svg changes n
   });
 });
 
+// ---- what the confirmation of round 6 asked for
+
+test('foreign content, edges: an svg\'s inline script is read, a slash inside a value is not a self-closing one, a nested foreignObject end does not end the outer', async () => {
+  const jsd = 'var a=document.createElement("script");a.src="/cdn-cgi/challenge-platform/scripts/jsd/main.js";';
+  await withSite(homeWith({}, `<svg><script>${jsd}</script></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'fail', 'the text of an svg script is still script text');
+  });
+  const script = '<script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>';
+  await withSite(homeWith({}, `<svg id=x/><title>${script}</title></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'fail', '"id=x/" does not close the svg: its title is still markup');
+  });
+  await withSite(homeWith({}, `<svg><foreignObject><foreignObject></foreignObject><title>${script}</title></foreignObject></svg>`), async (s) => {
+    assert.equal((await check(s.origin)).by.bot.state, 'ok', 'the inner end tag does not leave the outer foreignObject');
+  });
+});
+
 // ---- the command itself
 
 test('a wrong command is exit 2 with the usage text, and --help is exit 0', async () => {

@@ -370,10 +370,13 @@ function readHtml(html) {
     const name = m[2].toLowerCase();
     let j = lt + m[0].length;
     const attrs = [];
+    let selfClosing = false;
     while (j < n) {
-      while (j < n && /[\s/]/.test(html[j])) j++;
+      let last = '';
+      while (j < n && /[\s/]/.test(html[j])) last = html[j++];
       if (j >= n) break;
       if (html[j] === '>') {
+        selfClosing = last === '/'; // "<svg/>", not "<svg id=x/>" (there the slash is the value's)
         j++;
         break;
       }
@@ -400,11 +403,10 @@ function readHtml(html) {
       }
       if (attr) attrs.push([attr, value]);
     }
-    const selfClosing = html[j - 1] === '>' && html[j - 2] === '/';
     i = j;
     if (m[1] === '') {
       if (name === 'svg' && !selfClosing) ctx.push('svg');
-      else if (name === 'foreignobject' && ctx.at(-1) === 'svg' && !selfClosing) ctx.push('html');
+      else if (name === 'foreignobject' && !selfClosing) ctx.push('html'); // every start is paired with its end
     } else if (name === 'foreignobject' && ctx.at(-1) === 'html') {
       ctx.pop();
     } else if (name === 'svg') {
@@ -412,7 +414,8 @@ function readHtml(html) {
     }
     if (m[1] === '') {
       tags.push({ name, attrs });
-      if (RAW_TEXT.has(name) && ctx.at(-1) !== 'svg') {
+      const foreign = ctx.at(-1) === 'svg';
+      if (RAW_TEXT.has(name) && !selfClosing && (!foreign || name === 'script')) {
         // The text of these elements is not markup. Its end tag is "</name" followed by
         // white space, "/" or ">": "</scripture>" does not end a script.
         let end = i;
@@ -423,7 +426,9 @@ function readHtml(html) {
         }
         if (end === -1) end = n;
         if (name === 'script') scripts.push(html.slice(i, end));
-        i = end;
+        // In HTML the text is skipped. An svg's elements hold markup, so what is inside is
+        // still read; its script's text was taken above all the same.
+        if (!foreign) i = end;
       }
     }
   }
@@ -528,9 +533,12 @@ function readRobots(body) {
   // pattern, RFC 9309 2.2.2 decides: "The most specific match is the match that has the most
   // octets ... If an "allow" rule and a "disallow" rule are equivalent, then the "allow" rule
   // SHOULD be used." So "Disallow: /*" (two octets) beats "Allow: /" (one), and "Disallow: /"
-  // with "Allow: /" is open. The length is that of the pattern, as in Google's published parser;
-  // read as the octets a URI matches, "Disallow: /*" would leave "/" itself open. Either way
-  // every other page is blocked, which is what the verdict says.
+  // with "Allow: /" is open. The length is that of the pattern, as in Google's published parser
+  // (github.com/google/robotstxt, robots.cc: MatchAllow and MatchDisallow return
+  // pattern.length() as the priority, and a path is disallowed only when the disallow priority
+  // is greater than the allow priority). Read as the octets a URI matches, "Disallow: /*" would
+  // leave "/" itself open. Either way every other page is blocked, which is what the verdict
+  // says.
   const everything = (v) => v === '/' || /^\/?\*+$/.test(v);
   const longest = (g, kind) => g.rules.reduce((m, [k, v]) => (k === kind && everything(v) ? Math.max(m, v.length) : m), 0);
   const blocks = (g) => longest(g, 'disallow') > longest(g, 'allow');
