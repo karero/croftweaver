@@ -52,9 +52,10 @@ export const KNOWS_ABOUT: string[] = [];
 // Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is
 // the part between "/js/" and ".js", here 'pa-AbC123'. The domain and the optional
 // measurements (outbound links, file downloads, form submissions) are switched in
-// Plausible, not here. Section 3 of the privacy page has a slot sentence for them:
-// keep it only if they are ticked. A scriptHost or scriptId left as the placeholder
-// loads nothing (the browser reports a failed request; the build does not).
+// Plausible, not here. Section 3 of the privacy page has one slot sentence for each:
+// keep a sentence only if its own measurement is ticked. A scriptHost or scriptId left
+// as the placeholder loads nothing (the browser reports a failed request; the build
+// does not).
 // Changing scriptHost also means changing script-src and connect-src in
 // public/_headers; tests/check_analytics_gate.sh checks both against this file.
 // Base.astro writes two tags: the script, and the short stub that calls

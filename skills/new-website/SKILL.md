@@ -149,7 +149,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      position to have reviewed, see the header of `privacy.astro` and, for a
      German-only site, `_datenschutz.astro`). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
-     unless you keep the privacy page's slot sentence for them.
+     unless you keep the privacy page's slot sentence for each one you leave ticked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.

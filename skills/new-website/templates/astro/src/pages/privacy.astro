@@ -106,24 +106,18 @@ import { SITE } from '../config';
       measurement server. When you open a page, it sends the address of that page and the
       page or site you came from to the measurement server, together with the
       technical data your browser sends with every request (browser, operating
-      system, device type, IP address). When you leave the page, it also sends
+      system, device type, IP address). When you leave the page or switch to another tab or window, it also sends
       how far you scrolled and how long the page was visible and in focus.
       [DELETE UNLESS OUTBOUND LINKS IS TICKED IN PLAUSIBLE: It counts clicks on
       links to other websites and sends the address of the link you clicked.]
       [DELETE UNLESS FILE DOWNLOADS IS TICKED IN PLAUSIBLE: It counts clicks on
       links to files, such as PDFs, and sends the address of the file.]
       [DELETE UNLESS FORM SUBMISSIONS IS TICKED IN PLAUSIBLE: It counts
-      submissions of forms on the site.] The tool derives your
-      approximate location from the IP address and does not store the IP address
-      itself. From your IP address, your browser data and this website's domain,
+      submissions of forms on the site, but not what you enter.]
+      The tool derives your
+      approximate location from the IP address and does not keep the IP address in its own records. From your IP address, your browser data and this website's domain,
       plus a value that is replaced every 24 hours, it forms an identifier.
-      Within one day, as long as those inputs stay the same, the tool can
-      therefore recognise the same browser and counts it as one visitor; it
-      cannot recognise that browser on another day or on another website. The
-      individual events (each page view, with its scroll depth and engaged time)
-      and the session records are stored with this identifier, the location and
-      the device data, and are shown as aggregated counts, for example page
-      views, referrers and countries.
+      While that value lasts, and as long as those inputs stay the same, the tool therefore recognises the same browser and counts it as one visitor. Once the value is replaced, it can no longer recognise that browser, and it cannot recognise it on another website. The individual events (for example each page view, and the scroll depth and engaged time sent when you leave a page) and the session records are stored with this identifier, the page address, the referrer, any link or file address sent with the event, the location and the device data, and are shown as aggregated counts, for example page views, referrers and countries.
     </p>
     <p>
       The legal basis is our legitimate interest in understanding how the

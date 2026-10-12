@@ -14,24 +14,33 @@
 #
 # What it checks, in order:
 #   1. Its own counter, on hand-made pages (a tag mentioned in a paragraph is not a tag), and
-#      the check that runs the init stub (a stub in a comment or a string does not start it).
-#   2. That public/_headers lists the script's host in script-src and connect-src, as whole
-#      tokens, and lets script-src run the inline stub. `astro preview` does not apply
-#      _headers, so no other test sees a script the browser would block.
+#      the check that runs an init stub (a stub in a comment or a string does not start it).
+#   2. That public/_headers lists the script's host as a whole token in script-src and
+#      connect-src (and in script-src-elem when that is written out). `astro preview` does
+#      not apply _headers, so no other test sees a script the browser would block.
 #   3. Four builds: on for the live build, with exactly one script tag and one init stub on
-#      every page and a stub that runs; off for the other three, with no tag, no half of one
-#      and no mention of the script's path.
+#      every page, every stub running (a spy on plausible.init is called), and a CSP that
+#      lets the stub run: 'unsafe-inline' alone in the directive, or the stub's own sha256
+#      hash. Off for the other three, with no tag, no half of one and no mention of the
+#      script's path or id.
 # What it cannot check: it compares the build with src/config.ts, so a wrong scriptId typed
-# INTO config.ts passes. Only the installer's "Verify" step (and, for the host, check 2)
-# catches that.
+# INTO config.ts passes. Only the installer's "Verify" step catches that. It does not
+# evaluate a CSP the way a browser does: a policy that leans on default-src, a nonce, or
+# 'strict-dynamic' for these directives fails here, on purpose, and needs this check
+# extended first.
 #
 # It runs `astro build`, the step of `npm run build` that renders the pages and so decides
 # the tag, into a temporary folder: the site's own dist/ is left alone. The two post-build
 # steps after it touch heading ids and dist/build.txt only.
 #
-# Needs `npm ci` first (and Node, which the build needs anyway). Each build takes a few seconds.
+# Needs `npm ci` first, and Node (which the build needs anyway). Each build takes a few seconds.
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "✗ analytics gate: node is not on the PATH; the init-stub check needs it."
+  exit 1
+fi
 
 # The production branch as this site names it ('production', or 'main' on a single-stage
 # site), read from the line the gate compares against.
@@ -155,20 +164,43 @@ count_tags() {
   printf '%s\n' "$out"
 }
 
-# stub_runs <page>: runs the page's first init stub in a bare JavaScript context and checks
-# that it defines plausible and calls plausible.init(). The counter above would count a stub
-# that sits in a comment or a string; that stub never starts the script.
+# stub_runs <page>: extracts the page's first init stub and runs it twice in a bare
+# JavaScript context (document, location, navigator and the storage objects are inert
+# stand-ins). First with a spy already installed as plausible.init: the spy must be called,
+# so a call in a comment or a string, or a stub that never reaches the call, fails. Then
+# with nothing installed: the stub must define plausible and plausible.init itself.
+# What it prints on failure is the first line of the error, if the code threw.
 stub_runs() {
-  local page="$1" out="$work/stub.js"
-  rm -f "$out"
+  local page="$1" out="$work/stub.js" err="$work/stub.err"
+  rm -f "$out" "$err"
   ANALYTICS_STUB_OUT="$out" perl -e "$(tags_program)" "$page" >/dev/null || return 1
   [ -s "$out" ] || return 1
   node -e '
     const vm = require("node:vm"), fs = require("node:fs");
-    const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
-    vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), ctx, { timeout: 2000 });
-    process.exit(typeof ctx.plausible === "function" && typeof ctx.plausible.init === "function" && ctx.plausible.o !== undefined ? 0 : 1);
-  ' "$out" >/dev/null 2>&1
+    const code = fs.readFileSync(process.argv[1], "utf8");
+    function run(seedSpy) {
+      let calls = 0;
+      const ctx = {
+        document: { documentElement: { lang: "en", getAttribute() { return null; } }, referrer: "", cookie: "",
+                    addEventListener() {}, querySelector() { return null; } },
+        location: { hostname: "example.com", host: "example.com", href: "https://example.com/", pathname: "/", search: "", protocol: "https:" },
+        navigator: { userAgent: "analytics-gate", webdriver: false },
+        localStorage: { getItem() { return null; }, setItem() {} },
+        sessionStorage: { getItem() { return null; }, setItem() {} },
+      };
+      ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;
+      if (seedSpy) { const f = function () {}; f.init = function () { calls++; }; ctx.plausible = f; }
+      vm.createContext(ctx);
+      vm.runInContext(code, ctx, { timeout: 2000 });
+      return { ctx, calls };
+    }
+    try {
+      const seeded = run(true), plain = run(false);
+      const ok = seeded.calls >= 1 && typeof plain.ctx.plausible === "function" && typeof plain.ctx.plausible.init === "function";
+      if (!ok) console.error("the stub did not call plausible.init, or did not define plausible and plausible.init");
+      process.exit(ok ? 0 : 1);
+    } catch (e) { console.error(String(e).split("\n")[0]); process.exit(1); }
+  ' "$out" >/dev/null 2>"$err"
 }
 
 # The counter's own check: each hand-made page below must read as the counts beside it,
@@ -196,10 +228,13 @@ selftest() {
   fixture twice      "$s$s$i" ''
   fixture jscomment  "$s<script>// plausible.init()</script>" ''
   fixture jsstring   "$s<script>var s = \"plausible.init()\";</script>" ''
+  fixture fakeinit   "$s<script>window.plausible=function(){};plausible.init=function(){};plausible.o={};// plausible.init()</script>" ''
+  fixture usesdoc    "$s<script>window.plausible=window.plausible||function(){};plausible.init=plausible.init||function(o){plausible.o=o||{}};plausible.init({customProperties:{lang:document.documentElement.lang}})</script>" ''
   # name:expected counts "<script> <stub> <other>"
   for expect in both:'1 1 0' script:'1 0 0' stub:'0 1 0' none:'0 0 0' mention:'1 0 0' options:'1 1 0' \
                 spaced:'1 1 0' upper:'1 1 0' jsonld:'0 0 0' comment:'0 0 0' oldform:'0 0 1' oldext:'0 0 1' \
-                wrongid:'0 1 1' queryform:'0 1 1' twice:'2 1 0' jscomment:'1 1 0' jsstring:'1 1 0'; do
+                wrongid:'0 1 1' queryform:'0 1 1' twice:'2 1 0' jscomment:'1 1 0' jsstring:'1 1 0' \
+                fakeinit:'1 1 0' usesdoc:'1 1 0'; do
     name="${expect%%:*}"; want_line="${expect#*:}"
     n=$((n + 1))
     got="$(perl -e "$(tags_program)" "$dir/$name.html" | awk '{print $1, $2, $3}')"
@@ -208,7 +243,7 @@ selftest() {
       fail=1
     fi
   done
-  for expect in both:yes options:yes jscomment:no jsstring:no stub:yes script:no; do
+  for expect in both:yes options:yes usesdoc:yes jscomment:no jsstring:no fakeinit:no stub:yes script:no; do
     name="${expect%%:*}"; want_line="${expect#*:}"
     got=no
     if stub_runs "$dir/$name.html"; then got=yes; fi
@@ -221,20 +256,39 @@ selftest() {
   echo "✓ analytics gate: the counter reads its $n fixture pages as expected, and the stub check tells a running stub from a mention"
 }
 
-# csp_tokens <policy> <directive>: the directive's source tokens, one per line. The name
-# must match exactly, so script-src-elem is not script-src.
+# csp_tokens <policy> <directive>: the directive's source tokens, one per line. The name is
+# compared in lower case and must match exactly, so script-src-elem is not script-src. A
+# directive written twice counts once: the first wins in a browser.
 csp_tokens() {
   awk -v dir="$2" 'BEGIN { RS = ";" }
     { n = split($0, t, /[ \t\r\n]+/); i = 1
       while (i <= n && t[i] == "") i++
-      if (i <= n && t[i] == dir) for (j = i + 1; j <= n; j++) if (t[j] != "") print t[j] }' <<<"$1"
+      if (i <= n && tolower(t[i]) == dir && !seen) { seen = 1; for (j = i + 1; j <= n; j++) if (t[j] != "") print t[j] } }' <<<"$1"
 }
 
-# Every Content-Security-Policy line in public/_headers must list the script's origin, as a
-# whole token, in script-src and connect-src, and let script-src run the inline stub
-# ('unsafe-inline', a hash or a nonce). Without them the browser blocks the script or the
-# stub, and nothing says so. A policy that leans on default-src for these must say so here
-# first: the check wants the directives written out.
+# host_listed <tokens>: true when the script's origin is among the source tokens, spelled
+# as the config has it, scheme-less, with :443, with a trailing slash, or as a wildcard
+# subdomain of the same domain. A token with a path below "/" would block the script or its
+# POST, so it does not count.
+host_listed() {
+  local tokens="$1" token bare="${host#https://}" suffix
+  while IFS= read -r token; do
+    [ -n "$token" ] || continue
+    token="${token%/}"
+    case "$token" in
+      "$host"|"$host:443"|"$bare"|"$bare:443") return 0 ;;
+      https://\*.*|\*.*)
+        suffix="${token#https://}"; suffix="${suffix#\*}"
+        case "$bare" in *"$suffix") return 0 ;; esac ;;
+    esac
+  done <<<"$tokens"
+  return 1
+}
+
+# Every Content-Security-Policy line in public/_headers must list the script's origin in
+# script-src and connect-src, and in script-src-elem when that is written out (it governs
+# <script> elements). Whether the inline stub may run is checked after the live build,
+# against the stub's real text: csp_inline_check.
 csp_check() {
   local lines line policy dir tokens
   if [ ! -f public/_headers ]; then
@@ -250,21 +304,48 @@ csp_check() {
   fi
   while IFS= read -r line; do
     policy="${line#*:}"
-    for dir in script-src connect-src; do
+    for dir in script-src connect-src script-src-elem; do
       tokens="$(csp_tokens "$policy" "$dir")"
       if [ -z "$tokens" ]; then
-        echo "✗ analytics gate: a Content-Security-Policy in public/_headers has no $dir directive written out."
-        fail=1
-      elif grep -qxF -- "$host" <<<"$tokens"; then
+        if [ "$dir" != script-src-elem ]; then
+          echo "✗ analytics gate: this Content-Security-Policy in public/_headers has no $dir directive written out: ${policy:0:90}…"
+          fail=1
+        fi
+      elif host_listed "$tokens"; then
         echo "✓ analytics gate: public/_headers lists $host in $dir"
       else
-        echo "✗ analytics gate: $dir in public/_headers does not list $host as a token: the browser would block the analytics script."
+        echo "✗ analytics gate: $dir in public/_headers does not list $host as a token, so the browser would block the analytics script: ${policy:0:90}…"
         fail=1
       fi
     done
-    tokens="$(csp_tokens "$policy" script-src)"
-    if ! grep -qE "^'(unsafe-inline|sha(256|384|512)-[^']+|nonce-[^']+)'$" <<<"$tokens"; then
-      echo "✗ analytics gate: script-src in public/_headers allows no inline script ('unsafe-inline', a hash or a nonce): the init stub would be blocked."
+  done <<<"$lines"
+}
+
+# csp_inline_check <stub-file>: the directive that governs <script> elements (script-src-elem
+# if written out, else script-src) must let the built stub run: 'unsafe-inline' with no hash
+# and no nonce in the same directive (a browser ignores 'unsafe-inline' next to either), or
+# the sha256 hash of the stub's exact text. A nonce cannot match in a static _headers file.
+csp_inline_check() {
+  local stub="$1" lines line policy tokens dir hash
+  hash="$(node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(require("node:fs").readFileSync(process.argv[1])).digest("base64"))' "$stub")"
+  lines="$(grep -E '^[[:space:]]*Content-Security-Policy:' public/_headers || true)"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    policy="${line#*:}"
+    dir=script-src-elem
+    tokens="$(csp_tokens "$policy" script-src-elem)"
+    if [ -z "$tokens" ]; then dir=script-src; tokens="$(csp_tokens "$policy" script-src)"; fi
+    if grep -qiE "^'(sha(256|384|512)|nonce)-" <<<"$tokens"; then
+      if grep -qF -- "'sha256-$hash'" <<<"$tokens"; then
+        echo "✓ analytics gate: $dir carries the sha256 hash of the init stub"
+      else
+        echo "✗ analytics gate: $dir in public/_headers has a hash or nonce but not 'sha256-$hash', the hash of the built init stub, so the browser would block the stub. Change the stub and the hash together."
+        fail=1
+      fi
+    elif grep -qiF -- "'unsafe-inline'" <<<"$tokens"; then
+      echo "✓ analytics gate: $dir allows inline scripts, so the init stub runs"
+    else
+      echo "✗ analytics gate: $dir in public/_headers allows no inline script ('unsafe-inline', or the stub's sha256 hash): the init stub would be blocked."
       fail=1
     fi
   done <<<"$lines"
@@ -272,7 +353,7 @@ csp_check() {
 
 # On means on for every page: every page is built from Base.astro.
 expect_on() {
-  local name="$1" what="$2" counts missing
+  local name="$1" what="$2" counts missing page bad=""
   checked=$((checked + 1))
   counts="$(count_tags "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
   missing="$(printf '%s\n' "$counts" | awk '$1 != 1 || $2 != 1 || $3 > 0 {
@@ -293,29 +374,34 @@ expect_on() {
     fail=1
     return
   fi
-  if stub_runs "$work/$name/index.html"; then
-    echo "✓ $what: the init stub on the home page runs and calls plausible.init()"
+  # Every page's stub must run, not only the home page's.
+  while IFS= read -r page; do
+    if ! stub_runs "$page"; then bad="$bad"$'\n'"    ${page#"$work/$name/"}: $(cat "$work/stub.err" 2>/dev/null)"; fi
+  done < <(find "$work/$name" -name '*.html' | sort)
+  if [ -z "$bad" ]; then
+    echo "✓ $what: the init stub on every page runs and calls plausible.init()"
+    stub_runs "$work/$name/index.html" || true
   else
-    echo "✗ $what: the init stub on the home page does not define plausible and call plausible.init() when run."
+    echo "✗ $what: the init stub does not run and call plausible.init() (in a bare JavaScript context) on these pages:$bad"
     fail=1
   fi
 }
 
 # Off means no analytics tag, nor half of one, on any page, and no mention of the script's
-# path anywhere in the build (a preload link, a script made at runtime). The path is
-# specific; the host alone may be a site's own origin or a service it links to. _headers is
-# skipped: it names the host in the CSP on purpose.
+# path or id anywhere in the build (a preload link, a script made at runtime). The path and
+# the id are specific; the host alone may be a site's own origin or a service it links to.
+# _headers is skipped: it names the host in the CSP on purpose.
 expect_off() {
   local name="$1" what="$2" counts hits extra
   checked=$((checked + 1))
   counts="$(count_tags "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
   hits="$(printf '%s\n' "$counts" | awk '$1 > 0 || $2 > 0 || $3 > 0 { path = $0; sub(/^[^ ]* [^ ]* [^ ]* /, "", path); print path }')"
-  extra="$(grep -rlF --exclude=_headers -- "/js/${id}.js" "$work/$name" 2>/dev/null || true)"
+  extra="$(grep -rlF --exclude=_headers -e "/js/${id}.js" -e "$id" "$work/$name" 2>/dev/null || true)"
   hits="$(awk 'NF && !seen[$0]++' <<<"$hits"$'\n'"$extra")"
   if [ -z "$hits" ]; then
     echo "✓ $what: no analytics script on any page"
   else
-    echo "✗ $what: an analytics tag, half of one, or the script's path, in these files."
+    echo "✗ $what: an analytics tag, half of one, or the script's path or id, in these files."
     echo "  (A full tag counts every visit to this build as real.)"
     while IFS= read -r page; do printf '    %s\n' "${page#"$work/$name/"}"; done <<< "$hits"
     fail=1
@@ -327,6 +413,7 @@ csp_check
 
 build live set "$prod"
 expect_on live "CF_PAGES_BRANCH=$prod (the live build)"
+if [ -s "$work/stub.js" ]; then csp_inline_check "$work/stub.js"; fi
 
 build unset unset
 expect_off unset "CF_PAGES_BRANCH unset (a plain npm run build)"
