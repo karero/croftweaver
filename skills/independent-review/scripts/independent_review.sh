@@ -203,27 +203,30 @@ esac
 MELIOUS_MODELS_FILE="$SCRIPT_DIR/melious_models.txt"
 if [ -n "${MELIOUS_MODEL:-}" ]; then
   melious_refuse() {   # <why>
-    echo "MELIOUS_MODEL=\"$MELIOUS_MODEL\" refused, and nothing was sent: $1 Kimi and every other model run on ollama: name the tag in OLLAMA_MODEL (--seat ollama runs it alone). If ollama is out of quota, that model has no seat this round: say so, and do not send it to Melious." >&2
+    echo "MELIOUS_MODEL=\"$MELIOUS_MODEL\" refused, and nothing was sent: $1" >&2
     exit 2
   }
   [ -f "$MELIOUS_MODELS_FILE" ] && [ -r "$MELIOUS_MODELS_FILE" ] \
     || melious_refuse "the list of models Melious may run is missing ($MELIOUS_MODELS_FILE), so none is allowed."
-  melious_rule="" ; melious_any="" ; melious_light=""
+  melious_rule="" ; melious_any="" ; melious_light="" ; melious_seen=" "
   while read -r m_id m_when m_rest || [ -n "$m_id" ]; do
     case "$m_id" in ''|'#'*) continue ;; esac
     case "$m_when${m_rest:+ $m_rest}" in
-      '')    melious_any="${melious_any:+$melious_any, }$m_id" ; m_when=any ;;
-      light) melious_light="${melious_light:+$melious_light, }$m_id" ;;
-      *)     melious_refuse "the list of models Melious may run ($MELIOUS_MODELS_FILE) has a line this script cannot read (\"$m_id $m_when${m_rest:+ $m_rest}\"), so none is allowed." ;;
+      ''|light) ;;
+      *) melious_refuse "the list of models Melious may run ($MELIOUS_MODELS_FILE) has a line this script cannot read (\"$m_id $m_when${m_rest:+ $m_rest}\"), so none is allowed." ;;
     esac
-    # The first line that names the model decides; a later one cannot loosen it.
-    if [ "$m_id" = "$MELIOUS_MODEL" ] && [ -z "$melious_rule" ]; then melious_rule="$m_when"; fi
+    # The first line that names a model decides; a later one cannot loosen it, and is not listed twice.
+    case "$melious_seen" in *" $m_id "*) continue ;; esac
+    melious_seen="$melious_seen$m_id "
+    if [ -z "$m_when" ]; then m_when=any; melious_any="${melious_any:+$melious_any, }$m_id"
+    else melious_light="${melious_light:+$melious_light, }$m_id"; fi
+    if [ "$m_id" = "$MELIOUS_MODEL" ]; then melious_rule="$m_when"; fi
   done <"$MELIOUS_MODELS_FILE"
   melious_listed="Melious runs ${melious_any:-no model at any depth}${melious_light:+, and for a Light review (--depth light) $melious_light,} and no other model (the owner's rule, 2026-10-12; the list is $MELIOUS_MODELS_FILE)."
   case "$melious_rule" in
     any)   ;;
     light) [ "$DEPTH" = light ] || melious_refuse "on Melious that model is for a Light review only, and this run says ${DEPTH:+--depth }${DEPTH:-no --depth}. $melious_listed" ;;
-    *)     melious_refuse "$melious_listed" ;;
+    *)     melious_refuse "$melious_listed Kimi and every other model run on ollama: name the tag in OLLAMA_MODEL (--seat ollama runs it alone). If ollama is out of quota, that model has no seat this round: say so, and do not send it to Melious." ;;
   esac
 fi
 if [ "$SECOND_SEAT" = melious ] && [ -z "${MELIOUS_MODEL:-}" ] && [ -z "$SEAT" ] && [ "$LOCAL_ONLY" != 1 ]; then
@@ -927,7 +930,8 @@ ollama_via_api() {
 }
 # FALLBACK for the ollama seat (2026-10-05): Melious, an OpenAI-compatible hosted API serving
 # open-weight models. It runs only when MELIOUS_MODEL names a model (one of those the startup
-# check allows), and then only when the ollama seat did not count, or as --seat melious (dispatch below). Text only, sent PROMPT_TEXTONLY like
+# check allows), and then only when the ollama seat did not count, or as --seat melious
+# (dispatch below). Text only, sent PROMPT_TEXTONLY like
 # ollama. POST /v1/chat/completions, STREAMED for the same reason as ollama_via_api: each line is
 # "data: <JSON chunk>", ending "data: [DONE]". A stream with neither a finish_reason nor [DONE] is a
 # truncated review; only finish_reason "stop" is a finished one (length, a filter, an error or a

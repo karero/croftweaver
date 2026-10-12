@@ -29,8 +29,8 @@ printf '# Plan\n\nStep 1: do the thing.\n' >"$T/plan.md"
 # Built at runtime: check_model_agnostic.sh flags any literal "<word>:cloud" in this skill.
 STUB_TAG="stub-model"; STUB_TAG="${STUB_TAG}:cloud"
 # The Melious seat runs only the models in melious_models.txt, beside the script. The cases
-# read their model from that list, as a caller would (check_model_agnostic.sh keeps model names
-# out of this file): the first id allowed at any depth, and the first one marked "light".
+# read their model from that list, as a caller would, so that a change to the list needs no
+# edit here: the first id allowed at any depth, and the first one marked "light".
 MELIOUS_OK="$(awk '!/^#/ && NF == 1 { print $1; exit }' "$HERE/melious_models.txt")"
 MELIOUS_LIGHT="$(awk '!/^#/ && NF == 2 && $2 == "light" { print $1; exit }' "$HERE/melious_models.txt")"
 [ -n "$MELIOUS_OK" ] && [ -n "$MELIOUS_LIGHT" ] && [ "$MELIOUS_OK" != "$MELIOUS_LIGHT" ] \
@@ -1167,14 +1167,16 @@ check "slocal: --local-only never calls Melious, whatever SECOND_SEAT says" \
 refused() {   # refused <name> <text on stderr>: exit 2, that text, nothing on stdout, no reviewer or curl ran
   [ "$(cat "$T/$1.rc")" = 2 ] && [ ! -s "$T/$1.out" ] \
     && grep -qF "refused, and nothing was sent: " "$T/$1.err" && grep -qF -- "$2" "$T/$1.err" \
-    && grep -qF "Kimi and every other model run on ollama" "$T/$1.err" \
     && [ ! -e "$T/$1.marks/curl-argv-any" ] && [ ! -e "$T/$1.marks/melious-url" ] \
     && [ ! -e "$T/$1.marks/codex-ran" ] && [ ! -e "$T/$1.marks/ollama-ran" ]
 }
-NOT_LISTED="Melious runs $MELIOUS_OK, and for a Light review (--depth light) $MELIOUS_LIGHT, and no other model (the owner's rule, 2026-10-12"
+# Not the whole sentence: it names every listed model, and a longer list must not fail these.
+NOT_LISTED="and no other model (the owner's rule, 2026-10-12; the list is $HERE/melious_models.txt). Kimi and every other model run on ollama: name the tag in OLLAMA_MODEL"
 run rfall OLLAMA_STUB=429 MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff"
 check "rfall: Kimi as the fallback's model is refused, exit 2, nothing sent and no reviewer run" refused rfall "$NOT_LISTED"
 check "rfall: the refusal names the model it was given" has rfall.err 'MELIOUS_MODEL="kimi-k3" refused'
+check "rfall: ...and the models Melious does run" \
+  sh -c 'grep -qF "Melious runs $2" "$1" && grep -qF "for a Light review (--depth light) $3" "$1"' _ "$T/rfall.err" "$MELIOUS_OK" "$MELIOUS_LIGHT"
 run rseat MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --seat melious
 check "rseat: --seat melious with Kimi is refused the same way" refused rseat "$NOT_LISTED"
 run rsecond SECOND_SEAT=melious MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff"
@@ -1218,6 +1220,8 @@ run lsecond SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$
 check "lsecond: beside Codex at --depth light, both count" has lsecond.out "reviewers: codex OK, melious OK"
 run lnodepth MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --seat melious
 check "lnodepth: with no --depth it is refused, nothing sent" refused lnodepth "$LIGHT_ONLY no --depth."
+check "lnodepth: the refusal says what Melious runs at any depth, not where Kimi runs" \
+  sh -c 'grep -qF "Melious runs $2" "$1" && ! grep -qF Kimi "$1"' _ "$T/lnodepth.err" "$MELIOUS_OK"
 run lnormal SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --depth normal
 check "lnormal: at --depth normal it is refused, and neither Codex nor ollama runs" refused lnormal "$LIGHT_ONLY --depth normal."
 run lhigh MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --seat melious --depth high
@@ -1254,6 +1258,8 @@ listcase lcomment "$MELIOUS_OK # the default$NL" MELIOUS_MODEL="$MELIOUS_OK" -- 
 check "lcomment: a trailing comment is a line the script cannot read" refused lcomment "has a line this script cannot read"
 listcase ltwice "$MELIOUS_LIGHT light$NL$MELIOUS_LIGHT$NL" MELIOUS_MODEL="$MELIOUS_LIGHT" -- --seat melious --depth normal
 check "ltwice: listed twice, the first line decides: a later bare line does not lift light-only" refused ltwice "$LIGHT_ONLY --depth normal."
+check "ltwice: ...and the refusal lists the model once, as light-only" \
+  has ltwice.err "Melious runs no model at any depth, and for a Light review (--depth light) $MELIOUS_LIGHT, and no other model"
 listcase lnonl "# no newline at the end$NL$MELIOUS_OK" MELIOUS_MODEL="$MELIOUS_OK" -- --seat melious
 check "lnonl: a last line with no newline is still read" has lnonl.out "reviewers: melious OK"
 listcase lother "stub-other$NL" MELIOUS_MODEL=stub-other -- --seat melious
