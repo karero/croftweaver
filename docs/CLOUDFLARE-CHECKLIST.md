@@ -68,9 +68,8 @@ in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FI
 Your privacy page says the site sets no cookies and runs no analytics. These settings keep
 that true.
 
-- [ ] **Network Error Logging (NEL): Off.**
-  Cloudflare's guide: Account home → Network → Network Error Logging Monitoring. If your
-  dashboard shows **Network** only after you open your domain, use it there.
+- [ ] **Network Error Logging (NEL): Off.** Two steps, because the first is not enough on
+  a Pages site.
   *What it is:* the browser keeps a note for seven days (Chrome, Edge and other Chromium
   browsers). If it can't reach your site, it sends a short error report to Cloudflare.
   *Why off:* your page doesn't need it, your privacy page doesn't mention it, and it
@@ -78,9 +77,23 @@ that true.
   unless it is strictly necessary. Nobody has ruled on NEL specifically, so this is a
   risk, not a verdict, and this is not legal advice. Off avoids the question.
   *It can be on without you ever choosing it.* Check, don't assume (section 5).
-  Visitors who came in the last seven days keep the old note until it expires.
-  If the header is still there after ten minutes, ask Cloudflare Support to disable the
-  `nel___enable` flag for your zone.
+  1. **The switch.** Cloudflare's guide: Account home → Network → Network Error Logging
+     Monitoring. If your dashboard shows **Network** only after you open your domain, use
+     it there. On a Pages site this alone did not stop the header when we tried it: the
+     setting read "off" through Cloudflare's API, and the header was still served half an
+     hour later.
+  2. **A rule that removes the header.** Your domain → Rules → Overview → Create rule →
+     **Response Header Transform Rule**. Name it "Remove NEL headers". Under *When incoming
+     requests match*, choose **All incoming requests**. Under *Modify response header*,
+     choose **Remove** and enter the header name `NEL`. Select **Set new header**, choose
+     **Remove** again and enter `Report-To`. **Deploy.** On a Pages site this removed both
+     headers within seconds.
+
+  Visitors who came in the last seven days keep the old note until it expires. The
+  `<project>.pages.dev` address is outside your domain, so the rule doesn't reach it. The
+  kit redirects that address to your live domain once `CANONICAL_URL` is set. If the header
+  is still there after the rule, ask Cloudflare Support to disable the `nel___enable` flag
+  for your zone.
 - [ ] **Bot Fight Mode: Off.**
   Your domain → Security → Settings → filter by **Bot traffic** → Bot fight mode.
   *Why:* Cloudflare says JavaScript detections come with it and can't be switched off.
@@ -157,6 +170,7 @@ Sources, read 2026-10-12: Cloudflare's
 [HSTS](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/http-strict-transport-security/),
 [Network Error Logging](https://developers.cloudflare.com/network-error-logging/get-started/),
 [turning NEL off](https://developers.cloudflare.com/support/network/understanding-network-error-logging/),
+[Response Header Transform Rules](https://developers.cloudflare.com/rules/transform/response-header-modification/create-dashboard/),
 [Bot Fight Mode](https://developers.cloudflare.com/use-cases/application-security/bots/stop-malicious-bots/),
 [JavaScript detections](https://developers.cloudflare.com/bots/additional-configurations/javascript-detections/),
 [Cloudflare cookies](https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/),
