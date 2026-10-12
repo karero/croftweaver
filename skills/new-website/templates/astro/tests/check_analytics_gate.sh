@@ -129,7 +129,7 @@ for my $file (@ARGV) {
   local $_ = do { local $/; <$fh> };
   close($fh) or die "cannot finish reading $file: $!\n";
   $_ = '' unless defined;
-  s/<!--.*?-->//gs;
+  s{(<script\b.*?</script\s*>)|<!--.*?-->}{defined $1 ? $1 : ''}gise;
   my ($script, $stub, $other) = (0, 0, 0);
   while (/<script(?=[\s\/>])/gi) {
     my %a;
@@ -176,11 +176,13 @@ count_tags() {
 # JavaScript context (document, location, navigator, the storage objects, addEventListener,
 # setTimeout and matchMedia are inert stand-ins; anything else a stub touches throws, and
 # the first line of the error is kept in $work/stub.err). First with a spy already
-# installed as plausible.init: the spy must be called, so a call in a comment or a string,
-# or a stub that never reaches the call, fails. Then with nothing installed: the stub must
-# define plausible and plausible.init itself AND call it (the assignment is watched, so the
-# stub's own init is counted), so a stub that only calls plausible.init(), or one whose
-# own definition branch never calls it, fails.
+# installed as plausible.init: THAT spy must be called, so a call in a comment or a string,
+# a stub that never reaches the call, or one that overwrites the installed init, fails (in a
+# page where the script loads first, overwriting its init breaks it). Then with nothing
+# installed: the stub must define plausible and plausible.init itself AND call it (reads of
+# init are watched, so the stub's own init is counted), so a stub that only calls
+# plausible.init(), or one whose own definition branch never calls it, fails. Not supported:
+# a stub that defines plausible with Object.defineProperty (extend this check first).
 stub_runs() {
   local page="$1" out="$work/stub.js" err="$work/stub.err"
   rm -f "$out" "$err"
@@ -190,7 +192,7 @@ stub_runs() {
     const vm = require("node:vm"), fs = require("node:fs");
     const code = fs.readFileSync(process.argv[1], "utf8");
     function run(seedSpy) {
-      let calls = 0, store;
+      let calls = 0, seedCalls = 0, store;
       const ctx = {
         document: { documentElement: { lang: "en", getAttribute() { return null; } }, referrer: "", cookie: "",
                     addEventListener() {}, querySelector() { return null; } },
@@ -201,23 +203,26 @@ stub_runs() {
         addEventListener() {}, setTimeout() { return 0; }, matchMedia() { return { matches: false, addEventListener() {} }; },
       };
       ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;
-      // Whatever the stub installs as plausible.init is wrapped as it is assigned, so a call
-      // is counted whether the stub or the seed provided the function.
+      // Whatever is stored as plausible is wrapped, and reading its init returns a counting
+      // wrapper: a call is counted whoever defined the function, and whenever the stub did it
+      // (before or after assigning plausible).
       Object.defineProperty(ctx, "plausible", { configurable: true, enumerable: true,
         get() { return store; },
         set(v) {
-          store = typeof v === "function" ? new Proxy(v, { set(t, k, val) {
-            t[k] = (k === "init" && typeof val === "function") ? function () { calls++; return val.apply(this, arguments); } : val;
-            return true; } }) : v;
+          store = typeof v === "function" ? new Proxy(v, {
+            get(t, k) {
+              const val = t[k];
+              return (k === "init" && typeof val === "function") ? function () { calls++; return val.apply(this, arguments); } : val;
+            } }) : v;
         } });
-      if (seedSpy) { const f = function () {}; f.init = function () { calls++; }; ctx.plausible = f; }
+      if (seedSpy) { const f = function () {}; f.init = function () { seedCalls++; }; ctx.plausible = f; }
       vm.createContext(ctx);
       vm.runInContext(code, ctx, { timeout: 2000 });
-      return { ctx, calls };
+      return { ctx, calls, seedCalls };
     }
     try {
       const seeded = run(true), plain = run(false);
-      const ok = seeded.calls >= 1 && plain.calls >= 1 && typeof plain.ctx.plausible === "function" && typeof plain.ctx.plausible.init === "function";
+      const ok = seeded.seedCalls >= 1 && plain.calls >= 1 && typeof plain.ctx.plausible === "function" && typeof plain.ctx.plausible.init === "function";
       if (!ok) console.error("the stub did not call plausible.init, or did not define plausible and plausible.init");
       process.exit(ok ? 0 : 1);
     } catch (e) { console.error(String(e).split("\n")[0]); process.exit(1); }
@@ -354,11 +359,14 @@ selftest() {
   fixture usesdoc    "$s<script>window.plausible=window.plausible||function(){};plausible.init=plausible.init||function(o){plausible.o=o||{}};plausible.init({customProperties:{lang:document.documentElement.lang}})</script>" ''
   fixture callonly   "$s<script>plausible.init()</script>" ''
   fixture branchy    "$s<script>if(window.plausible){plausible.init()}else{window.plausible=function(){};plausible.init=function(){}}</script>" ''
+  fixture replaced   "$s<script>window.plausible=window.plausible||function(){};plausible.init=function(o){plausible.o=o||{}};plausible.init()</script>" ''
+  fixture preassign  "$s<script>var p=window.plausible||function(){};p.init=p.init||function(o){p.o=o||{}};window.plausible=p;plausible.init()</script>" ''
+  fixture commentstr "$s<script>var m=\"<!--x-->\";window.plausible=window.plausible||function(){};plausible.init=plausible.init||function(o){plausible.o=o||{}};plausible.init()</script>" ''
   # name:expected counts "<script> <stub> <other>"
   for expect in both:'1 1 0' script:'1 0 0' stub:'0 1 0' none:'0 0 0' mention:'1 0 0' options:'1 1 0' \
                 spaced:'1 1 0' upper:'1 1 0' jsonld:'0 0 0' comment:'0 0 0' oldform:'0 0 1' oldext:'0 0 1' \
                 wrongid:'0 1 1' queryform:'0 1 1' twice:'2 1 0' jscomment:'1 1 0' jsstring:'1 1 0' \
-                fakeinit:'1 1 0' usesdoc:'1 1 0' callonly:'1 1 0' branchy:'1 1 0'; do
+                fakeinit:'1 1 0' usesdoc:'1 1 0' callonly:'1 1 0' branchy:'1 1 0' replaced:'1 1 0' preassign:'1 1 0' commentstr:'1 1 0'; do
     name="${expect%%:*}"; want_line="${expect#*:}"
     n=$((n + 1))
     got="$(perl -e "$(tags_program)" "$dir/$name.html" | awk '{print $1, $2, $3}')"
@@ -367,7 +375,7 @@ selftest() {
       fail=1
     fi
   done
-  for expect in both:yes options:yes usesdoc:yes jscomment:no jsstring:no fakeinit:no callonly:no branchy:no stub:yes script:no; do
+  for expect in both:yes options:yes usesdoc:yes jscomment:no jsstring:no fakeinit:no callonly:no branchy:no replaced:no preassign:yes commentstr:yes stub:yes script:no; do
     name="${expect%%:*}"; want_line="${expect#*:}"
     got=no
     if stub_runs "$dir/$name.html"; then got=yes; fi
@@ -491,12 +499,15 @@ report_problems "$(csp_host_problems public/_headers)" "public/_headers lists $h
 build live set "$prod"
 expect_on live "CF_PAGES_BRANCH=$prod (the live build)"
 # The CSP is judged against every distinct stub the live build wrote (the pages normally share one).
-seen_sums=""
+kept=()
 for stubfile in "$work"/stubs/*.js; do
   [ -f "$stubfile" ] || continue
-  sum="$(cksum <"$stubfile")"
-  case " $seen_sums " in *" ${sum%% *} "*) continue ;; esac
-  seen_sums="$seen_sums ${sum%% *}"
+  dup=0
+  for other in ${kept[@]+"${kept[@]}"}; do
+    if cmp -s "$stubfile" "$other"; then dup=1; break; fi
+  done
+  [ "$dup" -eq 0 ] || continue
+  kept+=("$stubfile")
   report_problems "$(csp_inline_problems public/_headers "$stubfile")" "the CSP lets the built init stub run ($(basename "$stubfile"))"
 done
 
