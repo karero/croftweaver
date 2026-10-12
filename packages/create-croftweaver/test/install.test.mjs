@@ -425,6 +425,11 @@ test('an argument it does not know stops it before anything is downloaded or wri
   assert.deepEqual(fs.readdirSync(home), []);
 });
 
+// npm puts the package's own LICENSE into the tarball. It is a copy, and a copy drifts.
+test('the LICENSE that ships to npm is the repo\'s', () => {
+  assert.ok(fs.readFileSync(path.join(HERE, '..', 'LICENSE')).equals(fs.readFileSync(path.join(REPO, 'LICENSE'))));
+});
+
 // The cases above read zips this file wrote itself, so a mistake shared by its writer and
 // the installer's reader would pass. These two read the real skills from zips other programs
 // wrote, and compare each installed file with git's own record of it: its blob id and
