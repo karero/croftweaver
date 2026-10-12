@@ -8,7 +8,7 @@ description: >
   or four different directions, asks which direction sounds like them, then
   refines on the owner's feedback, for at most three rounds, until they pick ONE
   or stop. Records it in TAGLINE.md
-  and writes SITE.tagline. Adds no claim POSITIONING.md lacks and loses every
+  and writes SITE.tagline; ships an opt-in tests/tagline.spec.ts. Adds no claim POSITIONING.md lacks and loses every
   conflict with it. Never runs unasked. Trigger phrases: "tagline",
   "Claim", "strapline", "slogan", "motto", "the line under the logo", "a line
   for under our logo", "what do we stand for in five words". Not for
@@ -65,6 +65,7 @@ does not wait to be handed "the answer". Use the language the owner writes in (p
   other lines shown, so a later session does not propose those again.
 - **`SITE.tagline`** in `src/config.ts`: the chosen line, verbatim.
 - **The line on the site**, under the logo, read from `SITE.tagline` (§6).
+- Optional **`tests/tagline.spec.ts`** (from `templates/tagline.spec.ts`), see §7.
 
 Explicitly **not** touched: `POSITIONING.md`, `tests/positioning.spec.ts`, any
 `<title>` or `<h1>`, and `STORY.md`. The positioning term stays where the
@@ -282,7 +283,8 @@ header stay as they are.
    line beneath it as a `<p>` that reads `SITE.tagline`. Never type the line a
    second time, and never make it a heading: the page keeps its one `<h1>`. A
    site with no logo or name in its header yet skips this item only: tell the
-   owner the line is stored and not shown yet. Items 4 and 5 still apply.
+   owner the line is stored and not shown yet. Items 4 and 5 still apply. A site
+   that uses the guard (§7) sets its selector to this element.
 4. **Run the site's tests** (`npm test`). The accessibility test must be green in
    light and dark, and the tone and positioning tests must still be green. Where
    the site shows the line, also look at it yourself in the header, in both themes
@@ -292,7 +294,32 @@ header stay as they are.
    decisions ("tagline: see TAGLINE.md", "tagline: declined" or "tagline: none
    picked yet"), so a later session knows the decision.
 
-## 7. Gotchas
+## 7. `tagline.spec.ts`: the opt-in guard
+
+Copy this skill's `templates/tagline.spec.ts` into the site's `tests/` once the site
+shows the line, and set `CONFIG.selector` to the element that shows it (for example
+`header .tagline`). It lives here rather than in the `new-website` Astro overlay
+because a fresh scaffold shows no tagline. It reads `SITE.tagline` from
+`src/config.ts`, as the site's other specs do.
+
+| assertion | the bug it catches |
+|---|---|
+| The selected element is there once, is visible, and its text is `SITE.tagline` word for word | the line edited in the page and not in the config, or shown twice |
+| That element is a `<p>`, not a heading and not inside one | the tagline set as a second headline, which breaks the page's heading outline |
+| No file under `src/` except `config.ts` contains the line, also when the copy is written with an escaped quote or with character references (`&#39;`, `&rsquo;`), which the browser decodes for the test | the line typed a second time (a footer, a card, the home page copy), which drifts the next time it changes |
+| `SITE.tagline` is not empty, is not the starter's placeholder, and keeps to eight words and 50 characters | a later edit in the config that no longer fits under a logo |
+
+The search for a second copy counts the line only where it stands on its own, not
+inside a longer word. The test covers one line, `SITE.tagline`; a site that shows a
+different tagline per language is outside what it checks.
+
+Every test skips with a stated reason while `CONFIG.selector` is empty, so an
+unconfigured copy reports "not applicable". A site that stores the line and does not
+show it yet does not need the file. The suite's `template-tests.yml` runs this
+template in its own job (`tagline-skill`): unconfigured, on a correct site, and on
+each of the mistakes above.
+
+## 8. Gotchas
 
 - A line the assistant likes is not a line the owner would say. When they
   disagree, the owner is right.
@@ -318,6 +345,7 @@ header stay as they are.
 The owner agreed to the purpose sentence, saw six to eight lines in three or four
 directions, named a direction, gave feedback, and picked one line themselves.
 `TAGLINE.md` is filled, `SITE.tagline` holds the line verbatim, the line shows
-under the logo where the site has one, and the site's tests are green. If the
+under the logo where the site has one, and the site's tests are green, with
+`tagline.spec.ts` configured among them if the site adopted it. If the
 owner declined, or no line was picked in three rounds: `TAGLINE.md` and the
 project README say so, and nothing else changed.
