@@ -171,6 +171,14 @@ function install(staging, names, dest, release, force) {
   return result;
 }
 
+// Removes `from` and its parents up to `upTo`, as far as they are empty.
+function removeEmpty(from, upTo) {
+  for (let dir = from; dir !== path.dirname(dir); dir = path.dirname(dir)) {
+    try { fs.rmdirSync(dir); } catch { return; }
+    if (dir === upTo) return;
+  }
+}
+
 function report({ copied, kept, moved, removed, backup }, dest, release, { label, flag }) {
   const count = (list) => `${list.length} skill${list.length === 1 ? '' : 's'}`;
   if (copied.length) console.log(`Croftweaver ${release ?? '(latest release)'} is installed: ${count(copied)} in ${dest}`);
@@ -194,12 +202,13 @@ if (major < 22 || (major === 22 && minor < 12)) {
 const { assistant, force } = parseArgs(process.argv.slice(2));
 const dest = path.resolve(ASSISTANTS[assistant].dir());
 let staging = null;
+let made;   // the topmost folder this run had to create for `dest`, if any
 let changing = false;
 try {
   const { release, zip } = await download(ZIP_URL).catch((e) => {
     throw new Error(`the download from ${ZIP_URL} failed (${e.cause?.code ?? e.message}). Check your internet connection, then run the command again.`);
   });
-  fs.mkdirSync(dest, { recursive: true });
+  made = fs.mkdirSync(dest, { recursive: true });
   staging = fs.mkdtempSync(path.join(dest, '.croftweaver-staging-'));
   let names;
   try {
@@ -218,4 +227,6 @@ try {
   process.exitCode = 1;
 } finally {
   if (staging) fs.rmSync(staging, { recursive: true, force: true });
+  // "Nothing was changed" holds on a computer without the skills too: no empty folder stays.
+  if (made && !changing) removeEmpty(dest, made);
 }

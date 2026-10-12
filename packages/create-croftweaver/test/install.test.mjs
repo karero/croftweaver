@@ -303,6 +303,22 @@ test('a download that cannot be used changes nothing in an install that works', 
     });
   }
 
+  await t.test('on a computer without the skills, a failed run leaves no empty folder behind', async () => {
+    const fresh = tmp();
+    served = { status: 200, release: 'v9.2', zip: makeZip({ 'skills/alpha/SKILL.md': 'no orchestrator' }) };
+
+    const result = await run(fresh);
+
+    assert.equal(result.code, 1, result.stdout);
+    assert.deepEqual(fs.readdirSync(fresh), []);
+    // The same with part of the way already there: only what this run created goes.
+    fs.mkdirSync(path.join(fresh, '.claude'));
+    fs.writeFileSync(path.join(fresh, '.claude', 'settings.json'), '{}');
+    assert.equal((await run(fresh)).code, 1);
+    assert.deepEqual(tree(fresh), { '.claude/settings.json': '{}' });
+    assert.deepEqual(fs.readdirSync(path.join(fresh, '.claude')), ['settings.json']);
+  });
+
   await t.test('nothing answers at the address', async () => {
     const closed = http.createServer();
     await new Promise((done) => closed.listen(0, '127.0.0.1', done));
