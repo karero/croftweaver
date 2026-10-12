@@ -1,11 +1,11 @@
 # DIFF review — PR #270 — website-tagline: an optional skill for the short line under the logo
-Base `d382cbe`, after the merge of the base branch `4e5ff23` · depth: Normal (a new instruction file an agent loads, and edits to three other skills' instruction files) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened #270); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — atom A (the chain below, unbroken for Codex)
+Base `d382cbe`, after two merges of the base branch (`4e5ff23`, then `b8daa7e`) · depth: Normal (a new instruction file an agent loads, and edits to three other skills' instruction files) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened #270); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — atom A (the chain below, unbroken for Codex)
 
 Normal gate: Codex and GLM 5.3 on melious.ai as the pair, and a fresh-eyes pass on a mid-tier host-family model in round 1.
 
 Data check before round 1: the diff holds no key, token or password (searched for `api key`, `secret`, `token`, `passw`, `PRIVATE`; no hit). Destinations: Codex and melious.ai. The owner approved a plan in this session whose third step read "run the Normal review (Codex plus GLM 5.3 on melious)", with the words "go with steps 1 and 2 then push & merge".
 
-Test record: `make check`, exit status 0 each time (1,084 lines of output on the first two runs, 1,126 on the third), ending `all checks passed` / `LF checkout OK — every text file checks out LF even with core.autocrlf=true`. Run three times: at `169ad0a` before round 1, at `9d4390f` after the last fix, and at `ae97807` after the merge of the base branch. The whole output of the last run is in a comment on the PR. The three evals in `skills/website-tagline/evals/` are written and have not been run; nothing in the Makefile or in CI runs evals.
+Test record: `make check`, exit status 0 each time (1,084 lines of output on the first two runs, 1,126 on the third and the fourth), ending `all checks passed` / `LF checkout OK — every text file checks out LF even with core.autocrlf=true`. Run four times: at `169ad0a` before round 1, at `9d4390f` after the last fix, at `ae97807` after the first merge of the base branch (that output is in a comment on the PR), and at `2d452da` after the second. The three evals in `skills/website-tagline/evals/` are written and have not been run; nothing in the Makefile or in CI runs evals.
 
 Before the gate, not a round: Codex and a second model each answered four design questions on head `1f26d1f` (offer or on request, how long a liked line stays, evals now or later, scope). Four defects they named were fixed in `ae82914`; their answers changed two decisions (`d6b78d4`). A claims sweep (`sweep_claims.sh --base origin/main`) then led to `169ad0a`, which turns seven general claims the skill could not back into instructions.
 
@@ -16,6 +16,7 @@ Before the gate, not a round: Codex and a second model each answered four design
 | 3 | `1803919` | delta `c6e9457..1803919`, with round 2's dispositions | codex at medium · melious | 75 s / 75,046 · 47 s / 9,450 | 1/0/1 |
 | confirmation, not a round | `9d4390f` | delta `1803919..9d4390f`, one assertion string | codex at medium | 38 s / 34,629 | 0/0/0 |
 | merge link, not a round | `ae97807` | `merge_link.sh d382cbe 9d4390f 4e5ff23`: one README hunk, the base branch's | codex at medium | 70 s / 50,405 | 0/0/0 |
+| second merge link, not a round | `2d452da` | `merge_link.sh 4e5ff23 ae97807 b8daa7e`: hunks in `README.md` and `skills/new-website/SKILL.md`, all the base branch's (PR 271) | codex at medium | 99 s / 57,055 | 0/0/0 |
 
 Round 1's count is after merging duplicates; as filed: Codex 4/2/0, melious 0/1/4, fresh-eyes 0/1/6.
 
@@ -59,5 +60,5 @@ Follow-ups:
 Notes:
 - Rounds 2 and 3 were owed by fixes to instruction text and to eval files. No round ran past 3.
 - The round 2 and round 3 BUGs were a fixture sentence, a step nobody could carry out, and the wording of an assertion; none changed what the skill tells an assistant to do. That is the host's reading.
-- Chain for the stamp: Codex saw the full pair in round 1, each delta since up to `9d4390f`, and the merge link to `ae97807` (the base branch moved by 16 commits; the merge touched one of the change's files, `README.md`, outside the lines this change added). The melious chain ends at `1803919`; the fresh-eyes chain ends at round 1, by design at Normal depth.
-- The commits that write this file change nothing else; the reviewed scope is the one at `ae97807`.
+- Chain for the stamp: Codex saw the full pair in round 1, each delta since up to `9d4390f`, the merge link to `ae97807` (the base branch moved by 16 commits; the merge touched `README.md` outside the lines this change added) and the second merge link to `2d452da` (11 more commits, PR 271; hunks in `README.md` and `skills/new-website/SKILL.md`, none in the lines this change added). The melious chain ends at `1803919`; the fresh-eyes chain ends at round 1, by design at Normal depth.
+- The commits that write this file change nothing else; the reviewed scope is the one at `2d452da`.
