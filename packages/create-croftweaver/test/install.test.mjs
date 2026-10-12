@@ -274,25 +274,25 @@ test('a skill folder may have any name that is one folder name: the installer is
   assert.deepEqual(backups(home), []);
 });
 
-test('a staging folder a killed run left is removed once it is a day old; a fresh one may be another run\'s and stays', async () => {
+test('a staging folder that is not this run\'s is left alone, however old: it may be a live run\'s', async () => {
   const home = tmp();
   const dest = path.join(home, '.claude', 'skills');
-  const killed = path.join(dest, '.croftweaver-staging-killed');
-  const running = path.join(dest, '.croftweaver-staging-running');
-  for (const dir of [killed, running]) {
+  const old = path.join(dest, '.croftweaver-staging-old');
+  const fresh = path.join(dest, '.croftweaver-staging-fresh');
+  for (const dir of [old, fresh]) {
     fs.mkdirSync(path.join(dir, 'alpha'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'alpha', 'SKILL.md'), 'unpacked by another run');
   }
   const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-  fs.utimesSync(killed, twoDaysAgo, twoDaysAgo);
+  fs.utimesSync(old, twoDaysAgo, twoDaysAgo);
   served = { status: 200, release: 'v9.1', zip: makeZip(V1) };
 
   const result = await run(home);
 
   assert.equal(result.code, 0, result.stderr);
-  assert.deepEqual(fs.readdirSync(dest).sort(), ['.croftweaver-staging-running', '.croftweaver.json', 'alpha', 'gone', 'new-website']);
-  // The other run can still finish: what it unpacked is all there.
-  assert.deepEqual(tree(running), { 'alpha/SKILL.md': 'unpacked by another run' });
+  assert.deepEqual(fs.readdirSync(dest).sort(), ['.croftweaver-staging-fresh', '.croftweaver-staging-old', '.croftweaver.json', 'alpha', 'gone', 'new-website']);
+  // The other runs can still finish: what they unpacked is all there.
+  for (const dir of [old, fresh]) assert.deepEqual(tree(dir), { 'alpha/SKILL.md': 'unpacked by another run' });
 });
 
 test('where the skills folder is itself a link, the backup goes beside the real folder', async () => {

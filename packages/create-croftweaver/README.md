@@ -41,3 +41,7 @@ macOS, Linux and Windows, in any terminal.
   holds here: a folder of your own under that name goes with it.
 
 If the download fails or cannot be read, the command says why and changes nothing.
+
+If the command is killed in the moment it unpacks, a hidden folder named
+`.croftweaver-staging-…` can stay in the skills folder. Delete it once no install is
+running.
