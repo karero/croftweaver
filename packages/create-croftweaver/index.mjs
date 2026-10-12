@@ -21,7 +21,7 @@ import zlib from 'node:zlib';
 const ZIP_URL = process.env.CROFTWEAVER_ZIP_URL
   || 'https://github.com/karero/croftweaver/releases/latest/download/croftweaver.zip';
 const MANIFEST = '.croftweaver.json';
-// A run killed once it has begun to unpack leaves its staging folder behind, hidden, in the skills
+// A run killed once it has begun to unpack can leave its staging folder behind in the skills
 // folder. No later run removes it: nothing in the folder says whether its run is still going,
 // and taking a live run's staging away leaves that run with skills removed and nothing to
 // put in their place.
