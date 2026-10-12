@@ -97,3 +97,11 @@ Notes on artifact 2:
 - Codex could not run the test file or the check script in its sandbox (they write temp files) and ran their cases through pipes instead; the full runs above are the author's.
 - Raw reviewer output: posted on PR #269, artifact 2's under the consolidated comment and artifact 1's five rounds in a further comment linked from it. The consolidated comment is stamped at the head that added this trail, which changes nothing outside `docs/reviews/`.
 
+## After the gate: `main` merged into the branch (2026-10-12)
+
+The repository merges only a branch that is up to date with `main`, which had moved to `d382cbe` (PRs #264, #266, #267). `origin/main` was merged into the branch as `69cafaf`: no conflict. The commits between the last reviewed head `5d7b4dd` and that merge change only this trail.
+
+Merge link, not a round: `skills/independent-review/scripts/merge_link.sh --suggest-callees 896e3c5 5d7b4dd d382cbe` gives one hunk, a line `main` added to the README's list of docs. Codex (codex-cli 0.162.1, gpt-6.1-sol, effort medium, read-only; 139 s, 77,069 tokens) read it with `--verify --seat codex` and verified by blob comparison that the merge leaves the change's seven other files identical to `5d7b4dd`, and that its README sentence is untouched. It raised one BUG, against the record it was handed and not the change: that record gave the script's path as `scripts/merge_link.sh` and counted eleven suggested files where the script lists 12. Both are corrected here; none of the 12 files (the CI workflow, BUGLOG, docs, website skills) is called by this change's code, which Codex also verified.
+
+Seen pair from here on: merge-base `d382cbe`, head `69cafaf`; Codex's chain holds through the link. Author's run on `69cafaf`: `make check` exits 0 with 1094 ok lines, the same two skips.
+
