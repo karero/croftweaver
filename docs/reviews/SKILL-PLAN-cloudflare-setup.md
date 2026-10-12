@@ -8,8 +8,8 @@ purpose; the business in the scenarios is made up.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ▶ written; not reviewed. The PLAN gate waits for step 2, because this plan takes its list of settings from that file | this file |
-| 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work, on a local branch `docs/cloudflare-checklist`, read at `7a665a0`, not on GitHub when this was written) | ⏸ not this plan's to do; this plan takes its list of settings from that file | — |
+| 1 | Requirements and scenarios (this file) | ▶ written; not reviewed. Step 2 is done, so the PLAN gate can run. Before it runs, read this file against the two things that reached `main` after it was written: the checklist as merged (this plan read it at `7a665a0`; its section 5 and one token row changed since), and `skills/new-website/scripts/cloudflare-check.mjs`, which already checks a live site from outside and lives in the `new-website` skill, not in a site (compare steps 6, 7 and 9 of "Shape" and decision D3) | this file |
+| 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work) | ✅ merged 2026-10-12. The script that runs its outside checks followed the same day | karero/croftweaver#266 (`7642954`); the check script: karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended") | section "Decisions D1 to D7" |
 | 4 | Spike on a throwaway repository and project: the three things marked "not verified" under "What is known" | ⏸ not started | — |
 | 5 | The script and its tests against a stub of Cloudflare's API | ⏸ not started | — |
