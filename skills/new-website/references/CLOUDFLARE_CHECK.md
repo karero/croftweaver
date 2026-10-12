@@ -55,8 +55,10 @@ wrong. "Not run" because you did not give `--project` does not change it. **An e
 never a pass.**
 
 A home page that redirects to the same address (a language redirect, for instance) is
-followed up to three times and judged where it ends. A redirect to another address (`www`,
-say) is not followed: the line names it, and you run the check on that address.
+followed up to three times and judged where it ends; a header or cookie on any answer on the
+way counts. A redirect to another address (`www`, say) is not followed: the line names it,
+and you run the check on that address. A redirect that goes on after three, or that has
+nowhere to go, is said so and the page is not judged.
 
 ## What each item looks at
 
@@ -68,19 +70,20 @@ say) is not followed: the line names it, and you run the check on that address.
 | Always Use HTTPS (2) | `http://domain/` answers 301 or 308 to `https://domain/`, as an address | No redirect, or one to another address |
 | HSTS (2) | The `strict-transport-security` header, read as directives: max-age in months, subdomains, preload | Missing, with `--hsts-on` |
 | NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look` |
-| Bot Fight Mode off (3) | No Cloudflare cookie and no `/cdn-cgi/challenge-platform/` in the page's tags or scripts | Either is there |
-| Web Analytics off (3) | No `cloudflareinsights` or `data-cf-beacon` in the page's tags or scripts | It is there |
-| Email Address Obfuscation off (3) | No `email-decode`, protected link or `data-cfemail`, and no `[email protected]` | Any is there |
+| Bot Fight Mode off (3) | No Cloudflare cookie and no `/cdn-cgi/challenge-platform/` in what the page loads or runs | Either is there. A cookie of your own is a `look` |
+| Web Analytics off (3) | No `cloudflareinsights` address and no `data-cf-beacon` attribute in the page | It is there |
+| Email Address Obfuscation off (3) | No `email-decode` script, no `/cdn-cgi/l/email-protection` link and no `data-cfemail` attribute | Any is there |
 | AI crawlers allow (4) | Six requests that carry AI crawler names are not refused; `robots.txt` has no rules for named crawlers | Never `FAIL`: a refusal is a `look` (blocking Training may be your choice), and the policy itself is `by hand` |
-| Your own robots.txt (5) | A robots file with a `Sitemap:` line that names your domain, not the starter's `example.com` | It is a web page, tells every crawler to stay out (`Disallow: /`), or the sitemap host is the placeholder |
+| Your own robots.txt (5) | A robots file with a `Sitemap:` line that names your domain, not the starter's `example.com` | It is a web page, tells every crawler to stay out (`Disallow: /` or `/*` for `*`), or the sitemap host is the placeholder |
 | The build that is live (5) | `/build.txt` is a full commit id; with `--build`, the one you gave | A different commit than `--build` |
 | No scripts you didn't add (5) | No `/cdn-cgi/` path in the page other than the three above | Never `FAIL`: another path (Rocket Loader, Zaraz, image resizing) is a `look` that names it |
 
 The checklist says what to do about each. The script's own lines name the section.
 
-"In the page's tags or scripts" means what a browser would act on: comments and the words a
-person reads are left out, so a page that talks about these scripts is not taken for one that
-loads them. A page larger than 5 MB is read for its first 5 MB only, and then the source
+What the script reads of a page is what a browser would act on: the addresses in `src`,
+`href` and the like, the attributes Cloudflare adds, and the text of scripts. Comments, the
+words a person reads, and descriptive attributes such as `title` or `alt` are left out, so a
+page that talks about these scripts is not taken for one that loads them. A page larger than 5 MB is read for its first 5 MB only, and then the source
 items are a `look`, never `ok`.
 
 ## What it cannot see
