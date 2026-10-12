@@ -111,8 +111,9 @@ build() {
 #   stub:   inline JavaScript <script> tags whose code mentions a call plausible.init(...);
 #   other:  tags of an analytics script that is not that one: the older script.js form, a
 #           per-site script with another address, or a data-domain attribute.
-# HTML comments are dropped first, and attributes are read one at a time, so text inside a
-# quoted value never counts as an attribute and <script-x> is not a script. The stub is read
+# HTML comments are dropped first (never inside a script element, whose opening tag is read
+# with its quoted values), and attributes are read one at a time, so text inside a quoted
+# value never counts as an attribute and <script-x> is not a script. The stub is read
 # only inside an inline script tag, so a paragraph, a <code> block or a JSON-LD string that
 # mentions plausible.init() does not count. A mention inside the script's own code (a
 # comment, a string) does count here; stub_runs below is what catches that. With
@@ -129,7 +130,7 @@ for my $file (@ARGV) {
   local $_ = do { local $/; <$fh> };
   close($fh) or die "cannot finish reading $file: $!\n";
   $_ = '' unless defined;
-  s{(<script\b.*?</script\s*>)|<!--.*?-->}{defined $1 ? $1 : ''}gise;
+  s{(<script(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*>.*?</script\s*>)|<!--.*?-->}{defined $1 ? $1 : ''}gise;
   my ($script, $stub, $other) = (0, 0, 0);
   while (/<script(?=[\s\/>])/gi) {
     my %a;
@@ -179,10 +180,13 @@ count_tags() {
 # installed as plausible.init: THAT spy must be called, so a call in a comment or a string,
 # a stub that never reaches the call, or one that overwrites the installed init, fails (in a
 # page where the script loads first, overwriting its init breaks it). Then with nothing
-# installed: the stub must define plausible and plausible.init itself AND call it (reads of
-# init are watched, so the stub's own init is counted), so a stub that only calls
-# plausible.init(), or one whose own definition branch never calls it, fails. Not supported:
-# a stub that defines plausible with Object.defineProperty (extend this check first).
+# installed: the stub must define plausible and plausible.init itself AND call it (the init
+# property of whatever is stored as plausible is watched, so the stub's own init is counted,
+# also when it is called through a variable that holds the same function), so a stub that
+# only calls plausible.init(), or one whose own definition branch never calls it, fails.
+# Not supported: a stub that defines plausible or its init with Object.defineProperty (an
+# init defined as non-configurable cannot be watched, so such a stub fails; extend this
+# check first).
 stub_runs() {
   local page="$1" out="$work/stub.js" err="$work/stub.err"
   rm -f "$out" "$err"
@@ -203,18 +207,30 @@ stub_runs() {
         addEventListener() {}, setTimeout() { return 0; }, matchMedia() { return { matches: false, addEventListener() {} }; },
       };
       ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;
-      // Whatever is stored as plausible is wrapped, and reading its init returns a counting
-      // wrapper: a call is counted whoever defined the function, and whenever the stub did it
-      // (before or after assigning plausible).
+      // Whatever is stored as plausible is instrumented: its init property becomes an accessor
+      // that wraps any function assigned to it, so a call is counted whoever defined the
+      // function, whenever the stub did it (before or after assigning plausible), and through
+      // any variable that holds it. A function gets one wrapper, so plausible.init stays equal
+      // to itself. An init defined as non-configurable cannot be watched: nothing is counted
+      // and the check fails, the safe way to be wrong.
+      const wrappers = new WeakMap(), wrapped = new WeakSet();
+      const wrap = (f) => {
+        if (typeof f !== "function" || wrapped.has(f)) return f;
+        let w = wrappers.get(f);
+        if (!w) { w = function () { calls++; return f.apply(this, arguments); }; wrappers.set(f, w); wrapped.add(w); }
+        return w;
+      };
+      const watch = (v) => {
+        if (typeof v !== "function") return;
+        const d = Object.getOwnPropertyDescriptor(v, "init");
+        if (d && (!d.configurable || !("value" in d))) return;
+        let cur = d ? wrap(d.value) : undefined;
+        Object.defineProperty(v, "init", { configurable: true, enumerable: true,
+          get() { return cur; }, set(f) { cur = wrap(f); } });
+      };
       Object.defineProperty(ctx, "plausible", { configurable: true, enumerable: true,
         get() { return store; },
-        set(v) {
-          store = typeof v === "function" ? new Proxy(v, {
-            get(t, k) {
-              const val = t[k];
-              return (k === "init" && typeof val === "function") ? function () { calls++; return val.apply(this, arguments); } : val;
-            } }) : v;
-        } });
+        set(v) { store = v; watch(v); } });
       if (seedSpy) { const f = function () {}; f.init = function () { seedCalls++; }; ctx.plausible = f; }
       vm.createContext(ctx);
       vm.runInContext(code, ctx, { timeout: 2000 });
@@ -362,11 +378,18 @@ selftest() {
   fixture replaced   "$s<script>window.plausible=window.plausible||function(){};plausible.init=function(o){plausible.o=o||{}};plausible.init()</script>" ''
   fixture preassign  "$s<script>var p=window.plausible||function(){};p.init=p.init||function(o){p.o=o||{}};window.plausible=p;plausible.init()</script>" ''
   fixture commentstr "$s<script>var m=\"<!--x-->\";window.plausible=window.plausible||function(){};plausible.init=plausible.init||function(o){plausible.o=o||{}};plausible.init()</script>" ''
+  local qbody="var m=\"<!--x-->\";window.plausible=window.plausible||function(){};plausible.init=plausible.init||function(o){plausible.o=o||{}};plausible.init()"
+  fixture scriptx    "$s" "<script-x><!--<script async src=\"$ANALYTICS_SRC\"></script>--></script-x>"
+  fixture quotedtag  "$s<script data-text=\"</script>\">$qbody</script>" ''
+  fixture alias      "$s<script>var p=window.plausible||function(){};p.init=p.init||function(o){p.o=o||{}};window.plausible=p;if(0){plausible.init()}p.init()</script>" ''
+  fixture identity   "$s<script>window.plausible=window.plausible||function(){};plausible.init=plausible.init||function(o){plausible.o=o||{}};if(plausible.init!==plausible.init){throw new Error('x')};plausible.init()</script>" ''
+  fixture defprop    "$s<script>window.plausible=window.plausible||function(){};Object.defineProperty(plausible,'init',{value:function(o){plausible.o=o||{}}});plausible.init()</script>" ''
   # name:expected counts "<script> <stub> <other>"
   for expect in both:'1 1 0' script:'1 0 0' stub:'0 1 0' none:'0 0 0' mention:'1 0 0' options:'1 1 0' \
                 spaced:'1 1 0' upper:'1 1 0' jsonld:'0 0 0' comment:'0 0 0' oldform:'0 0 1' oldext:'0 0 1' \
                 wrongid:'0 1 1' queryform:'0 1 1' twice:'2 1 0' jscomment:'1 1 0' jsstring:'1 1 0' \
-                fakeinit:'1 1 0' usesdoc:'1 1 0' callonly:'1 1 0' branchy:'1 1 0' replaced:'1 1 0' preassign:'1 1 0' commentstr:'1 1 0'; do
+                fakeinit:'1 1 0' usesdoc:'1 1 0' callonly:'1 1 0' branchy:'1 1 0' replaced:'1 1 0' preassign:'1 1 0' commentstr:'1 1 0' \
+                scriptx:'1 0 0' quotedtag:'1 1 0' alias:'1 1 0' identity:'1 1 0' defprop:'1 1 0'; do
     name="${expect%%:*}"; want_line="${expect#*:}"
     n=$((n + 1))
     got="$(perl -e "$(tags_program)" "$dir/$name.html" | awk '{print $1, $2, $3}')"
@@ -375,7 +398,8 @@ selftest() {
       fail=1
     fi
   done
-  for expect in both:yes options:yes usesdoc:yes jscomment:no jsstring:no fakeinit:no callonly:no branchy:no replaced:no preassign:yes commentstr:yes stub:yes script:no; do
+  for expect in both:yes options:yes usesdoc:yes jscomment:no jsstring:no fakeinit:no callonly:no branchy:no replaced:no preassign:yes commentstr:yes stub:yes script:no \
+                alias:yes identity:yes quotedtag:yes defprop:no; do
     name="${expect%%:*}"; want_line="${expect#*:}"
     got=no
     if stub_runs "$dir/$name.html"; then got=yes; fi
@@ -384,6 +408,14 @@ selftest() {
       fail=1
     fi
   done
+  # The stub is read byte for byte: a quoted '>' or '</script>' in the opening tag, and a
+  # comment-like string in the code, must not change it (the CSP hash is of these bytes).
+  printf '%s' "$qbody" >"$dir/quotedtag.body"
+  stub_runs "$dir/quotedtag.html" || true
+  if ! cmp -s "$work/stub.js" "$dir/quotedtag.body"; then
+    echo "✗ analytics gate: its counter changed the code of a stub whose opening tag holds a quoted '>'."
+    fail=1
+  fi
   # CSP policies: name:expected host verdict:expected inline verdict (ok or bad)
   stubjs='window.plausible=window.plausible||function(){};plausible.init=plausible.init||function(o){plausible.o=o||{}};plausible.init()'
   printf '%s' "$stubjs" >"$dir/fixture-stub.js"
