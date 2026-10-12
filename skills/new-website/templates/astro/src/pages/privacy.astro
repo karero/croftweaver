@@ -11,7 +11,7 @@
 //      the measurement host, or say so here); one sentence each for outbound links,
 //      file downloads and form submissions (keep a sentence only if that
 //      measurement is ticked in Plausible's installer, which ticks all three by
-//      default; the page then describes exactly what the instance does); and the
+//      default; the page then describes what the instance does); and the
 //      storage period.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
@@ -106,18 +106,29 @@ import { SITE } from '../config';
       measurement server. When you open a page, it sends the address of that page and the
       page or site you came from to the measurement server, together with the
       technical data your browser sends with every request (browser, operating
-      system, device type, IP address). When you leave the page or switch to another tab or window, it also sends
+      system, device type, IP address). When you leave the page or switch to
+      another tab or window, it also sends
       how far you scrolled and how long the page was visible and in focus.
       [DELETE UNLESS OUTBOUND LINKS IS TICKED IN PLAUSIBLE: It counts clicks on
-      links to other websites and sends the address of the link you clicked.]
+      links to other websites and sends and stores the address of the link you clicked.]
       [DELETE UNLESS FILE DOWNLOADS IS TICKED IN PLAUSIBLE: It counts clicks on
-      links to files, such as PDFs, and sends the address of the file.]
+      links to files, such as PDFs, and sends and stores the address of the file.]
       [DELETE UNLESS FORM SUBMISSIONS IS TICKED IN PLAUSIBLE: It counts
       submissions of forms on the site, but not what you enter.]
       The tool derives your
-      approximate location from the IP address and does not keep the IP address in its own records. From your IP address, your browser data and this website's domain,
+      approximate location from the IP address and does not keep the IP
+      address in its own records. From your IP address, your browser data
+      and this website's domain,
       plus a value that is replaced every 24 hours, it forms an identifier.
-      While that value lasts, and as long as those inputs stay the same, the tool therefore recognises the same browser and counts it as one visitor. Once the value is replaced, it can no longer recognise that browser, and it cannot recognise it on another website. The individual events (for example each page view, and the scroll depth and engaged time sent when you leave a page) and the session records are stored with this identifier, the page address, the referrer, any link or file address sent with the event, the location and the device data, and are shown as aggregated counts, for example page views, referrers and countries.
+      While that value lasts, and as long as those inputs stay the same, the
+      tool therefore recognises the same browser and counts it as one
+      visitor. Once the value is replaced, it can no longer recognise that
+      browser, and it cannot recognise it on another website. The individual
+      events (for example each page view, and the scroll depth and engaged
+      time sent when you leave a page or switch away from it) and the
+      session records are stored with this identifier, the page address, the
+      referrer, the location and the device data, and are shown as
+      aggregated counts, for example page views, referrers and countries.
     </p>
     <p>
       The legal basis is our legitimate interest in understanding how the

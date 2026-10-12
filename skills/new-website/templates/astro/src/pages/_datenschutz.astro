@@ -24,7 +24,7 @@
 //      host, or say so there); one sentence each for outbound links, file
 //      downloads and form submissions (keep a sentence only if that measurement
 //      is ticked in Plausible's installer, which ticks all three by default;
-//      the page then describes exactly what the instance does); and the
+//      the page then describes what the instance does); and the
 //      storage period. Then delete '/datenschutz' from
 //      UNFILLED_UNTIL_LAUNCH (the test turns red until you do).
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
@@ -127,20 +127,31 @@ import { SITE } from '../config';
       sendet es die Adresse dieser Seite und die Seite oder Website, von der Sie
       kamen, an den Messserver, zusammen mit den technischen Daten, die Ihr
       Browser bei jeder Anfrage übermittelt (Browser, Betriebssystem, Gerätetyp,
-      IP-Adresse). Beim Verlassen der Seite oder beim Wechsel zu einem anderen Tab oder Fenster sendet es zusätzlich, wie weit Sie
+      IP-Adresse). Beim Verlassen der Seite oder beim Wechsel zu einem
+      anderen Tab oder Fenster sendet es zusätzlich, wie weit Sie
       gescrollt haben und wie lange die Seite sichtbar und im Fokus war.
       [SATZ LÖSCHEN, WENN AUSGEHENDE LINKS IN PLAUSIBLE NICHT ANGEKREUZT SIND: Es
-      zählt Klicks auf Links zu anderen Websites und sendet die Adresse des
-      angeklickten Links.]
+      zählt Klicks auf Links zu anderen Websites und sendet und speichert
+      die Adresse des angeklickten Links.]
       [SATZ LÖSCHEN, WENN DATEIDOWNLOADS IN PLAUSIBLE NICHT ANGEKREUZT SIND: Es
-      zählt Klicks auf Links zu Dateien, etwa PDFs, und sendet die Adresse der
-      Datei.]
+      zählt Klicks auf Links zu Dateien, etwa PDFs, und sendet und speichert die Adresse der Datei.]
       [SATZ LÖSCHEN, WENN FORMULARÜBERMITTLUNGEN IN PLAUSIBLE NICHT ANGEKREUZT
       SIND: Es zählt abgeschickte Formulare auf der Website, aber nicht, was Sie eingeben.]
-      Aus der IP-Adresse leitet das Werkzeug Ihren ungefähren Standort ab und speichert die IP-Adresse nicht in seinen eigenen Datensätzen. Aus Ihrer
+      Aus der IP-Adresse leitet das Werkzeug Ihren ungefähren Standort ab
+      und speichert die IP-Adresse nicht in seinen eigenen Datensätzen. Aus
+      Ihrer
       IP-Adresse, Ihren Browserdaten und der Domain dieser Website bildet es
       zusammen mit einem Wert, der alle 24 Stunden ersetzt wird, eine Kennung.
-      Solange dieser Wert gilt und diese Angaben gleich bleiben, erkennt das Werkzeug daher denselben Browser wieder und zählt ihn als einen Besucher. Ist der Wert ersetzt, erkennt es diesen Browser nicht mehr wieder; auf einer anderen Website erkennt es ihn ebenfalls nicht. Die einzelnen Ereignisse (zum Beispiel jeder Seitenaufruf sowie Scrolltiefe und aktive Zeit, die beim Verlassen einer Seite gesendet werden) und die Sitzungsdatensätze werden mit dieser Kennung, der Seitenadresse, der Herkunftsseite, gegebenenfalls einer mitgesendeten Link- oder Dateiadresse, dem Standort und den Gerätedaten gespeichert und als aggregierte Zählungen angezeigt, zum Beispiel Seitenaufrufe, Verweisquellen und Länder.
+      Solange dieser Wert gilt und diese Angaben gleich bleiben, erkennt das
+      Werkzeug daher denselben Browser wieder und zählt ihn als einen
+      Besucher. Ist der Wert ersetzt, erkennt es diesen Browser nicht mehr
+      wieder; auf einer anderen Website erkennt es ihn ebenfalls nicht. Die
+      einzelnen Ereignisse (zum Beispiel jeder Seitenaufruf sowie
+      Scrolltiefe und aktive Zeit, die beim Verlassen einer Seite oder beim
+      Wechsel zu etwas anderem gesendet werden) und die Sitzungsdatensätze
+      werden mit dieser Kennung, der Seitenadresse, der Herkunftsseite, dem
+      Standort und den Gerätedaten gespeichert und als aggregierte Zählungen
+      angezeigt, zum Beispiel Seitenaufrufe, Verweisquellen und Länder.
     </p>
     <p>
       Rechtsgrundlage ist unser berechtigtes Interesse daran, zu verstehen, wie
