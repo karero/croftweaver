@@ -3,8 +3,9 @@
 Your Croftweaver site runs on Cloudflare Pages. Most of it works out of the box. A handful
 of settings decide whether your privacy page stays true, whether search engines and AI
 assistants can reach your pages, and whether visitors connect safely. Go through this list
-once after the first deploy, and again whenever Cloudflare redesigns its dashboard. One
-item, HSTS, waits a few days.
+once after the first deploy, and again whenever Cloudflare redesigns its dashboard. Two
+items wait: HSTS waits a few days, and the `.pages.dev` forward waits until your own domain
+serves the site.
 
 **Fastest way.** Your assistant can make most of these changes for you with one
 short-lived token. Section 6 shows how.
@@ -17,9 +18,10 @@ a filter box: pick the filter, then find the setting by name.
 
 The paths come from Cloudflare's own documentation, read on 2026-10-12, and from
 [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
-for the two project steps in section 1. None was re-checked in a dashboard for this list.
-Cloudflare moves things around. If a name differs, search the dashboard for the setting's
-name.
+for three project steps in section 1 (attach the domain, Fail open, and the
+`CANONICAL_URL` variable under Production). None was re-checked in a dashboard for this
+list. Cloudflare moves things around. If a name differs, search the dashboard for the
+setting's name.
 
 ---
 
@@ -56,22 +58,24 @@ name.
   [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
   has the history.
 
-**Once your own domain works (Active, and the site loads on it):**
+**Once your own domain serves this site** (Active, and `https://yourdomain.com/build.txt`
+shows the current build):
 
 - [ ] **Send the `<project>.pages.dev` address to your live domain (301).**
-  Workers & Pages → your project → Settings → Variables and Secrets → **Production** →
-  add a plain-text variable `CANONICAL_URL` with your live address,
-  `https://yourdomain.com`: no path, no trailing slash. Production only, so previews keep
-  working. Then **redeploy with a new commit**: a variable reaches only deployments made
-  after it was set.
+  Ask your assistant to do this. It sets a plain-text variable `CANONICAL_URL` to your live
+  address, `https://` and your own domain with nothing after it, under your project →
+  Settings → Variables and Secrets → **Production**. Then it publishes the production site
+  again: a variable reaches only deployments made after it was set, and a plain commit
+  does not publish production on a two-stage site or a Direct Upload project. "After
+  go-live" in
+  [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
+  has the steps for each kind of project. Browsers remember a 301, so a wrong address
+  keeps sending visitors to the wrong place after you correct it: the assistant opens
+  `build.txt` on that address first, as that section says.
   *Why:* without it the same site answers on two addresses, and the kit's notes say AI
-  search engines have been seen citing the `.pages.dev` one. Don't set it before your own
-  domain works: until then the `.pages.dev` address may be the only one that does. A site
-  scaffolded before this redirect existed needs the newer `functions/_middleware.ts`
-  first ("After go-live" in
-  [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md));
-  your assistant does that. Preview deployments keep answering 200 with `noindex`. That is
-  meant.
+  search engines have been seen citing the `.pages.dev` one. A site scaffolded before this
+  redirect existed needs the newer `functions/_middleware.ts` first (same section of that
+  file). Preview deployments keep answering 200 with `noindex`. That is meant.
   *Check:* the last command in section 5.
 
 Moving an existing domain, with its mail, to Cloudflare is a bigger job: see "Going live"
@@ -101,8 +105,8 @@ in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FI
   - **No-Sniff Header:** Off. The starter already sends `X-Content-Type-Options: nosniff`.
 
   HSTS also leaves a note in the browser. Its only job is to keep the visitor's own
-  connection on HTTPS, and it sends nothing anywhere. A privacy page that says nothing at
-  all is stored on the visitor's device is then no longer literally true: ask your
+  connection on HTTPS, and it sends nothing anywhere. If your privacy page says nothing at
+  all is stored on the visitor's device, that is then no longer literally true: ask your
   assistant to add a line about it. That is our judgment, not a ruling. Once HSTS is on,
   don't switch the domain's records to "DNS only", pause Cloudflare, move the nameservers
   away or turn SSL off: if your site then has no working HTTPS, browsers refuse it until
@@ -119,8 +123,7 @@ cookies, scripts or tracking you didn't choose.
   *What it is:* the browser keeps a note, and if it can't reach your site it sends a short
   error report to Cloudflare. Chrome, Edge and other Chromium browsers do this; Firefox
   and Safari don't. When we looked on 12 October 2026, Cloudflare's header set the note to
-  seven days (604800 seconds) and asked for failures only. Your own `nel:` line (section 5)
-  shows yours.
+  seven days (604800 seconds) and asked for failures only.
   *Why off:* your page doesn't need it, the privacy page this kit writes doesn't mention
   it, and it makes the visitor's browser send reports to Cloudflare. In Germany, § 25
   TDDDG asks for consent for storing information on a visitor's device or reading it back,
@@ -133,8 +136,9 @@ cookies, scripts or tracking you didn't choose.
      Monitoring. If your dashboard shows **Network** only after you open your domain, use
      it there. Switch it **Off**. Any zone administrator can switch it back on. If the
      switch is missing or greyed out, go straight to step 3.
-  2. **Check.** Run the first command in section 5. The `nel` and `report-to` lines
-     should be gone.
+  2. **Check.** Run the first command in section 5. The `nel:` and `report-to:` lines
+     should be gone. If the `nel:` line is there, note the `max_age` number in it: it is
+     how many seconds visitors keep the note.
   3. **If they are still there, add a rule that removes them.** When we tried this on a
      Pages site, the switch alone did not stop the header: the setting read "off" through
      Cloudflare's API, and the header was still served half an hour later. Your domain →
@@ -146,12 +150,12 @@ cookies, scripts or tracking you didn't choose.
      `Report-To` from every response, so if your site later sets reporting groups of its
      own, narrow the rule first.
 
-  Visitors who came in before can keep the old note until the `max_age` in your `nel:`
-  line runs out (604800 seconds is seven days). The `<project>.pages.dev` address is
-  outside your domain, so the rule doesn't reach it: send that address to your live domain
-  (section 1). If the header is still there after the rule, tell your assistant or ask
-  Cloudflare Support. Cloudflare's support article describes a flag, `nel___enable`, that
-  stops NEL being enabled on a zone.
+  Visitors who came in before can keep the old note until that many seconds have passed
+  (604800 seconds is seven days). The `<project>.pages.dev` address is outside your domain,
+  so the rule doesn't reach it: send that address to your live domain (section 1). If the
+  header is still there after the rule, tell your assistant or ask Cloudflare Support.
+  Cloudflare's support article describes a flag, `nel___enable`, that stops NEL being
+  enabled on a zone.
 - [ ] **Bot Fight Mode: Off.**
   Your domain → Security → Settings → filter by **Bot traffic** → Bot fight mode.
   *Why:* Cloudflare says JavaScript detections come with it and can't be switched off.
@@ -173,8 +177,9 @@ cookies, scripts or tracking you didn't choose.
 - [ ] **Email Address Obfuscation: Off.**
   Your domain → Security → Settings → filter by **Client-side abuse** → Email Address
   Obfuscation.
-  *Why:* Cloudflare turns it on when you sign up. It rewrites any plain email address in
-  your pages and adds a script (`email-decode.min.js`). The kit already hides addresses.
+  *Why:* Cloudflare turns it on when you sign up. It rewrites the plain email addresses it
+  finds in your page text and adds a script (`email-decode.min.js`). The kit already hides
+  addresses.
 
 ## 4. Be found, by search engines and AI assistants
 
@@ -196,51 +201,57 @@ cookies, scripts or tracking you didn't choose.
   still see the older **Block AI bots** setting, make sure it is Off. Cloudflare is
   retiring it. (`search-console-setup` still shows the older names, Security → Bots →
   Control AI crawlers. This list is the newer one.)
-  Cloudflare adds rules to `robots.txt` only when at least one of the three is set to a
-  block. Section 5 checks the file.
+  Cloudflare can also add its own managed `robots.txt` rules. Section 5 shows the file.
 
 ## 5. Check your work
 
 Run these once the production deployment shows **Active** (your project → Deployments).
 The first request a new domain sees is the one Cloudflare's edge keeps, so don't run them
-earlier. Replace `yourdomain.com` with your domain. Your assistant can run them; on
-Windows use Git Bash or WSL.
+earlier. Replace `yourdomain.com` with your domain and `yourproject` with your Pages
+project's name (the first part of its `.pages.dev` address). An empty answer is never a
+pass: it means curl could not reach the site, or a placeholder is still in the command.
+Your assistant can run them; on Windows use Git Bash or WSL.
 
 ```bash
-curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(nel|report-to|strict-transport-security|set-cookie):'
+curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|report-to:|strict-transport-security:|set-cookie:)'
 ```
 
-A `nel` or `report-to` line means NEL is still on. A `set-cookie` line means something is
-setting a cookie: tell your assistant. The `strict-transport-security` line is absent until
-you switch HSTS on (section 2). Once it is on you want `max-age=` followed by the seconds
-for the months you chose (for six months we saw 15552000), with `; includeSubDomains` after
-it only if you turned that option on. This check can't see cookies a browser receives only
-after it runs a script, such as `cf_clearance`; the source search below covers that.
+You want a status line, `HTTP/2 200`, and nothing else until you switch HSTS on (section
+2). A `nel:` or `report-to:` line means NEL is still on. A `set-cookie:` line means
+something is setting a cookie: tell your assistant. Once HSTS is on you also want a
+`strict-transport-security:` line with `max-age=` followed by the seconds for the months
+you chose (for six months we saw 15552000), with `; includeSubDomains` after it only if you
+turned that option on. This check can't see cookies a browser receives only after it runs a
+script, such as `cf_clearance`; the source search below covers that.
 
 ```bash
 curl -s https://yourdomain.com/robots.txt
 ```
 
-You want only your own file: no AI-crawler `Disallow` lines you didn't write, other than
-ones from a policy you set to block.
+You want your own file: the starter's begins `User-agent: *` and ends with your sitemap
+line. It should have no AI-crawler `Disallow` lines you didn't write, other than ones from
+a policy you set to block or disallow. If Cloudflare's own lines for AI crawlers show and
+you didn't ask for them, tell your assistant: Cloudflare can add a managed `robots.txt`.
 
 ```bash
 curl -sI http://yourdomain.com/ | grep -iE '^(HTTP/|location:)'
 ```
 
 You want a redirect (301 or 308) and a `location:` line that starts
-`https://yourdomain.com`. A status line with no `location:` line means there is no
-redirect. No output at all means curl could not reach the site: try again before you trust
-anything else here.
+`https://yourdomain.com/`. The slash matters: `https://yourdomain.com.au/` is a different
+site. A status line with no `location:` line means there is no redirect.
 
 ```bash
-curl -sI "https://yourproject.pages.dev/?cb=$(date +%s)" | grep -iE '^(HTTP/|location:)'
+curl -sI "https://yourproject.pages.dev/?cb=$(date +%s)" | grep -iE '^(HTTP/|location:|nel:|report-to:)'
 ```
 
-Run this one only after you set `CANONICAL_URL` and redeployed (section 1). You want a 301
-and a `location:` line that starts `https://yourdomain.com`. A 200 means the variable isn't
-under Production, the deployment is older than the variable, or the value was refused (it
-must start `https://` and must not be a pages.dev address).
+Run this one only after you set `CANONICAL_URL` and published again (section 1). You want a
+301 and a `location:` line that starts `https://yourdomain.com/`. A 200 means one of: the
+variable isn't under Production, it is misnamed, the deployment is older than the variable,
+the site predates the redirect, or the value isn't one the redirect accepts (it must start
+`https://` and must not be a pages.dev address). If `nel:` or `report-to:` lines show on
+this address, the rule in section 3 doesn't reach it: that address belongs to Cloudflare,
+not to your domain.
 
 - **No scripts you didn't add:** open your home page, view the source, and search for
   `cdn-cgi`, `email-decode` and `cloudflareinsights`. None should be there.
@@ -273,7 +284,10 @@ look but not change anything):
 | Zone → Transform Rules → Edit | the rule that removes the NEL headers |
 | Zone → Bot Management → Edit | Bot Fight Mode and the AI crawler policies |
 | Zone → Zone → Read | finding your domain by name |
-| Account → Cloudflare Pages → Edit | only if it also creates the project, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)) |
+| Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
+
+Cloudflare documents these calls. We have run only the Transform Rules call on live sites,
+so for the others the assistant should read each setting back, and you run section 5.
 
 Then set **Zone Resources** to your one domain and **Account Resources** to your account
 only (Pages Edit covers the whole account). Set **TTL** to an end date of tomorrow, a week
@@ -286,9 +300,10 @@ environment variable for the session, or a file the repository ignores. Don't pa
 into email, a document or a chat other people can read. Never commit it, and never put it
 in a file the repository tracks or in the README. Ask the assistant to look before it
 writes, to tell you each change before it makes it, and to read each setting back
-afterwards. Some changes replace a whole list, as the Transform Rules do, so it must stop
-if there is something it would overwrite. If the API refuses a setting (some are limited
-to certain plans), do that item by hand from sections 2 to 4.
+afterwards. Some changes replace a whole list, as the Transform Rules do, and a change to
+one variable may replace the project's others, so it must list what is there before and
+after, and stop if there is something it would overwrite. If the API refuses a setting
+(some are limited to certain plans), do that item by hand from sections 1 to 4.
 
 **Then check it yourself.** Before you delete the token, run the commands in section 5 and
 look at the output. An API can say a setting is off while the site still sends the header,
@@ -324,8 +339,9 @@ Sources, read 2026-10-12: Cloudflare's
 [managed robots.txt](https://developers.cloudflare.com/bots/additional-configurations/managed-robots-txt/),
 [creating an API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/),
 [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/),
-the API reference for [zone settings](https://developers.cloudflare.com/api/resources/zones/subresources/settings/methods/edit/)
-and [Bot Management](https://developers.cloudflare.com/api/resources/bot_management/methods/update/);
+the API reference for [zone settings](https://developers.cloudflare.com/api/resources/zones/subresources/settings/methods/edit/),
+[Bot Management](https://developers.cloudflare.com/api/resources/bot_management/methods/update/)
+and [editing a Pages project](https://developers.cloudflare.com/api/resources/pages/subresources/projects/methods/edit/);
 MDN's [Network Error Logging](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Network_Error_Logging)
 and its [browser compatibility data](https://github.com/mdn/browser-compat-data/blob/main/http/headers/NEL.json);
 [RFC 6797](https://www.rfc-editor.org/rfc/rfc6797) (HSTS) and
