@@ -661,7 +661,8 @@ Options: **Add the badge** / **Add a text link** / **No thanks**.
   Look at the footer in light and in dark, and with the site's own theme switch if it
   has one, and pick the badge that reads well in each. Run `npm test`, then publish per
   the publish model (§1 Q6) with the usual preview-or-live announcement.
-- **No thanks, or no answer** → say "No problem" and nothing more.
+- **No thanks** → say "No problem" and nothing more.
+- **No answer** → say nothing more about it, and record it as declined.
 - **Record the answer either way** with the decision answers in the project README
   ("credit: badge", "credit: text link" or "credit: declined"), so no later session
   asks again.
