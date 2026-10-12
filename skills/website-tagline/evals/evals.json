@@ -1,0 +1,53 @@
+{
+  "skill_name": "website-tagline",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We need a tagline for under the logo.",
+      "expected_output": "Reads POSITIONING.md before writing anything. Says in plain words how the work will go (the purpose first, then six to eight lines in a few directions, then the owner names a direction, then feedback until the owner picks one line; nothing goes on the site until the owner says so; the positioning does not change). Writes ONE purpose sentence of the form 'We are here so that [customer] can [value]', with the customer from section 4 (homeowners over 70 with a small garden they have looked after themselves) and the value from section 3 (the garden never gets away from them; someone they know at the gate), which may be said in the words of section 4's 'why they care most' (the garden they are proud of). Asks the owner to agree to that sentence or to say it in their own words. Stops there: shows no candidate tagline, writes no TAGLINE.md, and edits no site file.",
+      "assertions": [
+        "Quotes or cites POSITIONING.md for the purpose sentence (evidence the file was read, not a transcript check)",
+        "Explains how the work will go before any line is shown: purpose first, six to eight lines, the owner names a direction, feedback, the owner picks",
+        "Gives exactly one purpose sentence that names the customer from section 4 and a value from section 3",
+        "Asks the owner to agree to the purpose sentence or to reword it",
+        "Shows no candidate tagline before the owner has agreed to the purpose sentence",
+        "Does not create TAGLINE.md and does not edit src/config.ts, POSITIONING.md or any page"
+      ],
+      "files": ["evals/files/POSITIONING.md"]
+    },
+    {
+      "id": 2,
+      "prompt": "Yes, that is what we are here for: so that older homeowners can keep the garden they are proud of without having to ask anyone for help. Show me the lines.",
+      "expected_output": "Shows six to eight candidate lines, no fewer and no more, spread over three or four directions (what the customer has afterwards, who it is for, what they can stop doing, what they can count on) with two or three lines in each. Every line is at most eight words and 50 characters, contains no em dash and no contraction (don't, we'll, it's), reads after the name Greenlatch, and is a shorter way of saying the agreed purpose. No line leads with the category ('Garden care for...'), with adjectives, or with the company. No line promises the same gardener or the agreed day 'every' time or 'always', because the proof for those is 94% and 97%; no line uses a superlative; any number used comes from section 3. The lines are a plain numbered list grouped under the directions in everyday words, with no table and no section numbers. The reply ends by asking which one or two lines the owner is drawn to and what they like about them, says the final line need not be chosen yet, and invites 'none: tell me what is missing'. It does not name a winner and edits nothing.",
+      "assertions": [
+        "Shows at least six and at most eight candidate lines",
+        "Groups the lines under three or four directions, each with two or three lines",
+        "Every line is eight words or fewer and 50 characters or fewer",
+        "No line opens with the market category, a list of adjectives, or 'we'",
+        "No line promises the same gardener or the agreed day 'every' time or 'always' (the proof is 94% and 97%), no line uses a superlative, and no line uses a number that is absent from POSITIONING.md section 3",
+        "No line contains an em dash or a contraction (don't, we'll, it's)",
+        "No line shares its wording with the skill's worked example (reusing its shape is expected)",
+        "The lines are shown as a plain numbered list, with no table and no POSITIONING.md section numbers",
+        "Ends by asking for a direction (the one or two lines the owner is drawn to, and why), not for the final choice",
+        "Does not recommend or pick a line, and does not edit src/config.ts or any other file"
+      ],
+      "files": ["evals/files/POSITIONING.md"]
+    },
+    {
+      "id": 3,
+      "prompt": "Earlier we agreed on the purpose (older homeowners keep the garden they are proud of without having to ask anyone for help) and you showed me these six lines:\n1. Your garden, kept the way you kept it.\n2. Still your garden, without the heavy part.\n3. A garden that is no burden to anyone.\n4. Stay proud of your own garden.\n5. No more asking the family to mow.\n6. A gardener you know at the gate.\nI like number 2 as it is. I also like 'your own garden' in number 4. 'Burden' in number 3 is too sad for us.",
+      "expected_output": "Writes round two: four to six NEW lines. Because the owner liked a whole line and a phrase from another, the new lines combine what the owner liked about each. Line 2, 'Still your garden, without the heavy part.', is shown again word for word, set apart as still in the running, and is not counted among the four to six new lines. Every new line that builds on line 4 keeps the phrase 'your own garden' word for word. No line contains 'burden'. All line rules still hold (eight words, 50 characters, no em dash or contraction, no promise beyond the proof, no new claim). The reply then asks for feedback with questions the owner can answer (read each aloud after the name; which words would you really say to a customer; which word feels off; too bold, too modest or too long), not 'what do you think?'. It does not pick a line, does not drop line 2 on the owner's behalf, and edits nothing.",
+      "assertions": [
+        "Shows four to six new lines",
+        "Shows 'Still your garden, without the heavy part.' again, word for word, marked as still in the running and not counted among the new lines",
+        "At least one new line contains the phrase 'your own garden' word for word",
+        "No line contains the word 'burden'",
+        "Every new line is eight words or fewer and 50 characters or fewer, contains no em dash or contraction, and says nothing POSITIONING.md does not say",
+        "Asks for feedback with concrete questions (which words the owner would really say, which word feels off, too bold, too modest or too long), not with 'what do you think?'",
+        "Does not pick a line for the owner and does not treat any line as dropped unless the owner dropped it",
+        "Does not create TAGLINE.md and does not edit src/config.ts or any page"
+      ],
+      "files": ["evals/files/POSITIONING.md"]
+    }
+  ]
+}
