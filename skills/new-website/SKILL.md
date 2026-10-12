@@ -247,24 +247,28 @@ Ask exactly once per build. Never run it unasked.
 
 ## 2b. Colours and logo — ask once, after positioning and the story
 
-`website-brand-kit` is optional. It is a plain question, not an offer to explain. Once
+`website-brand-kit` is optional. It is a plain question, not a pitch. Once
 `POSITIONING.md` is filled (and §2a is answered) and before the content guide (step 3):
 
-1. Read **"The question"** in `website-brand-kit/SKILL.md` and ask it in the language
-   the owner writes in: which of a logo and brand colours she already has, and for each
-   part she lacks, whether she wants help.
-2. **She has a part and wants it used** → note it (her logo must be an SVG file; her
-   colours as hex values). No prompt is written for that part.
-3. **She wants help with a part** → run `website-brand-kit` §2 to §5 now, before step 3,
-   so the palette exists when `BRAND.md`'s "Brand in one line" is written. These steps
-   are a conversation: nothing is written into a project yet (there is none).
+1. Read **"The question"** in `website-brand-kit/SKILL.md` and ask it, as it stands
+   there, in the language the owner writes in.
+2. **She has a part and wants it used** → note it (her logo must be an SVG file, and
+   its path; her colours as hex values). No prompt is written for that part. Her own
+   colours still go through the skill's check (its §3 step 3) now.
+3. **She wants help with a part** → run now, before step 3, the steps that
+   `website-brand-kit` §0's table names for her answer, and only those (help with
+   colours alone does not start the logo steps, and the other way round), so the
+   palette exists when `BRAND.md`'s "Brand in one line" is written. These steps are a
+   conversation: nothing is written into a project yet (there is none).
 4. **She lacks a part and wants no help with it** → say nothing more about it. The site
    keeps the starter's colours and the scaffold's placeholder icons for that part. The
    skill still travels with the repo (§3 step 3).
 5. **Record the answers either way** with the decision-interview answers (what she has,
-   what she wanted help with, and, where she took the help, the palette and the
-   variation she picked and the path of her package), so a later session knows the
-   question was asked and does not ask again. §3 step 4 writes them down.
+   what she wanted help with, the path of her own logo file or of her package, and,
+   where she took the help, the palette and the variation she picked), so a later
+   session knows the question was asked and does not ask again. Until §3 step 4 writes
+   them into the project they live in this conversation: do that step in the same
+   session, or write them into a note in the folder you are working in.
 6. **The install comes later:** §3 step 5, on the green baseline.
 
 Ask exactly once per build. Never run it unasked.
@@ -478,7 +482,7 @@ full path (the output of `pwd` inside it):
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3. `STORY.md` exists
    only if the owner opted in at §2a; `website-story` copies it from its own
    `templates/story.md`. If the owner answered §2b: write her answers into the project
-   README's decision record, and, where she chose or brought a palette, fill `BRAND.md`'s
+   README beside the decision-interview answers, and, where she chose or brought a palette, fill `BRAND.md`'s
    colour tables with it (`website-brand-kit` §5a says what goes where). These documents
    are all that step 2b writes before the tests are green.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the

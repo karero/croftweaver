@@ -114,6 +114,26 @@ class ChoosingABackground(unittest.TestCase):
         c = self.choose(colours, mono=[self.brand])
         self.assertEqual((c.version, c.background), ("mono", self.cream))
 
+    def test_of_the_colours_that_hardly_show_only_those_that_block_a_background_are_named(self):
+        # every one of them used to be named, also one that stood in the way of nothing
+        black, grey3 = "#000000", ["#767676", "#cccccc", "#444444"]
+        candidates = _icons.backgrounds(bakery())
+        way = lambda sets, hardly: _icons.in_the_way(sets, hardly, candidates)  # noqa: E731
+        # dark brown shows and would sit on cream; cream hardly shows and vanishes on cream; black hardly shows and is plain on cream
+        self.assertEqual(way([("colour", [self.brown, self.cream, black])], {"colour": [self.cream, black]}), [self.cream])
+        self.assertEqual(way([("colour", [self.brown, black, self.cream])], {"colour": [black, self.cream]}), [self.cream])
+        # two that both vanish on it are both named
+        self.assertEqual(way([("colour", [self.brown, self.cream, "#fffdf5"])], {"colour": [self.cream, "#fffdf5"]}), [self.cream, "#fffdf5"])
+        # the background is the one the colours that show would have had: of the one-colour version here, and only its own colour is named
+        self.assertEqual(way([("colour", grey3 + [black]), ("mono", [self.brand, self.cream])], {"colour": [black], "mono": [self.cream]}), [self.cream])
+        # a colour that hardly shows in one version and shows in the other is only left out of the first
+        self.assertIsNone(way([("colour", grey3), ("mono", grey3 + [self.cream])], {"mono": [self.cream]}))
+        # where the colours that show have no background either, nothing is named
+        self.assertIsNone(way([("colour", grey3 + [self.cream])], {"colour": [self.cream]}))
+        for sets, hardly in (([("colour", [self.brown, self.cream, black])], {"colour": [self.cream, black]}),):
+            with self.assertRaises(Ask):
+                _icons.choose_background(sets, candidates)  # the question is asked; in_the_way only says of what
+
     def test_an_answer_that_still_serves_nothing_is_not_accepted(self):
         with self.assertRaises(Ask):
             self.choose(["#767676", "#cccccc", "#444444"], mono=["#767676", "#cccccc", "#444444"])
@@ -422,6 +442,14 @@ class WhatTheRenderShows(WithTheSitesSharp):
                 self.assertEqual(cm.exception.code, "no-background")
                 self.assertIn("#fff8ee", str(cm.exception))
                 self.assertIn("hardly shows", str(cm.exception))
+        # a second colour that hardly shows and stands in the way of no background is not named with it
+        body = ('<rect width="64" height="64" fill="#6b2c0b"/><rect x="100" y="100" width="9" height="9" fill="#fff8ee"/>'
+                '<rect x="120" y="100" width="9" height="9" fill="#000000"/>')
+        with self.assertRaises(Ask) as cm:
+            self.build(('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">%s</svg>' % body).encode())
+        self.assertIn("What stands in the way is #fff8ee: the file paints with it", str(cm.exception))
+        self.assertNotIn("#000000", str(cm.exception))
+        self.assertIn("A version of the mark without it would do too.", str(cm.exception))
         # where the colours that show have no background either, nothing is blamed on a colour that hardly shows
         grey3 = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="20" fill="#767676"/>'
                  b'<rect y="22" width="64" height="20" fill="#cccccc"/><rect y="44" width="64" height="20" fill="#444444"/>'

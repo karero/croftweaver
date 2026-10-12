@@ -69,6 +69,18 @@ def choose_background(colour_sets, candidates):
     )
 
 
+def in_the_way(colour_sets, hardly, candidates):
+    """The colours that hardly show and that keep a version of the mark from a background: `hardly` maps a
+    version to its colours that hardly show. Taken away, the colours that do show have a background (the first
+    that serves, as choose_background picks it); the ones named are those of that version that fall under 3 to 1
+    on it, and no other. None when the colours that show have no background either."""
+    try:
+        choice = choose_background([(v, [c for c in colours if c not in hardly.get(v, ())]) for v, colours in colour_sets], candidates)
+    except Ask:
+        return None
+    return [c for c in hardly.get(choice.version, ()) if _colour.ratio(c, choice.background) < NEED]
+
+
 def ico_from_png(png):
     """A .ico holding one 32 x 32 PNG: a 22-byte header, then the PNG as it is."""
     if _png.size(png) != (32, 32):
@@ -132,22 +144,22 @@ def build(clean, mono, palette, renderer, workdir):
     # Every colour a file paints with is counted, the ones that hardly show too: a hairline too thin to
     # leave solid pixels at the probe's size still vanishes on a background of its own colour.
     sets = [("colour", clean.colours)]
-    hardly = [c for c in clean.colours if c not in seen]
+    hardly = {"colour": [c for c in clean.colours if c not in seen]}
     if mono is not None:
         mono_seen, mono_notes = _visible(mono, renderer, workdir, "mono")
         sets.append(("mono", mono.colours))
-        hardly += [c for c in mono.colours if c not in mono_seen and c not in hardly]
+        hardly["mono"] = [c for c in mono.colours if c not in mono_seen]
         notes += mono_notes
     try:
         choice = choose_background(sets, backgrounds(palette))
     except Ask as ask:
-        try:  # would the colours that show have had a background? Then say which colour stood in the way.
-            choose_background([(v, [c for c in colours if c not in hardly]) for v, colours in sets], backgrounds(palette))
-        except Ask:
-            raise ask from None
+        # would the colours that show have had a background? Then say which colour stood in the way of it, and only that one
+        blocking = in_the_way(sets, hardly, backgrounds(palette))
+        if not blocking:
+            raise
         raise Ask(ask.code, "%s What stands in the way is %s: the file paints with it, although it hardly shows when the mark is "
                             "drawn (it is covered by another shape, too thin, or outside the box). A version of the mark without "
-                            "it would do too." % (ask, " and ".join(hardly))) from None
+                            "%s would do too." % (ask, " and ".join(blocking), "it" if len(blocking) == 1 else "them")) from None
     chosen = mono if choice.version == "mono" else clean
     if choice.version == "mono":
         notes.append("no background keeps every colour of the colour version at 3 to 1, so the app icons (apple-touch and "

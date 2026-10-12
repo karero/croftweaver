@@ -91,7 +91,10 @@ def cmd_palette(args, out):
             "status": status,
             "exit": code,
             "pairs": [{"theme": p.theme, "fg": p.fg, "bg": p.bg, "fg_hex": p.fg_hex, "bg_hex": p.bg_hex,
-                       "ratio": p.ratio, "need": p.need, "ok": p.ok} for p in pairs],
+                       "ratio": p.ratio, "need": p.need, "ok": p.ok, "note": p.note} for p in pairs],
+            # every value as it was read, the ones no pair shows too (Primary, Hairline)
+            "values": {"brand": palette.theme("brand"), "light": palette.light, "dark": palette.dark},
+            "form": "" if palette.rows_found else _palette.FORM,
             "missing": [{"theme": t, "row": k, "label": _palette.LABEL[k]} for t, k in missing],
             "problems": [{"theme": t, "row": k, "code": c, "message": m} for t, k, c, m in problems],
             "proposed": [{"theme": t, "row": k, "hex": palette.theme(t)[k]} for t, k in proposed],
@@ -107,7 +110,9 @@ def cmd_palette(args, out):
     for p in bad:
         out.append(_palette.describe(p))
     out.append("%d of %d pairs pass." % (len(pairs) - len(bad), len(pairs)) if pairs else "No pair could be checked.")
-    if missing:
+    if not palette.rows_found:
+        out.append("No row of a palette was found where this check looks for one. %s" % _palette.FORM)
+    elif missing:
         by = {}
         for t, k in missing:
             by.setdefault(t, []).append(_palette.LABEL[k])
@@ -116,8 +121,8 @@ def cmd_palette(args, out):
             if t in by:
                 out.append("  %s: %s" % (_theme_name(t), ", ".join(by[t])))
         out.append("The assistant can propose values for them; you confirm or change each one before anything is used.")
-    for _t, _k, _c, m in problems:
-        out.append("Could not read a value: %s" % m)
+    for problem in problems:  # said of one row's value, or of a whole table or line
+        out.append(("Could not read a value: %s" if _palette.is_about_a_value(problem) else "Not read: %s") % problem[3])
     if palette.unused:
         out.append("These rows hold a colour, but under a name this check does not know, so they were not used:")
         for label, colours in palette.unused:
@@ -139,11 +144,14 @@ def cmd_palette(args, out):
     if drift:
         out.append("BRAND.md and the stylesheet disagree (the stylesheet is what the site uses):")
         for t, k, d, c in drift:
-            out.append("  %s, %s: BRAND.md says %s, the stylesheet has %s" % (_theme_name(t), _palette.LABEL[k], d, c))
+            has = "the stylesheet has %s" % c if c != _palette.MISSING else "%s of the stylesheet does not set it" % _palette.BLOCK["dark" if t == "dark" else "light"]
+            out.append("  %s, %s: BRAND.md says %s, %s" % (_theme_name(t), _palette.LABEL[k], d, has))
     if disagree:
         out.append("The two dark blocks in the stylesheet disagree (they must carry the same values):")
         for k, a, b in disagree:
-            out.append("  %s: %s in one, %s in the other" % (_palette.LABEL[k], a, b))
+            sides = ["%s in %s" % (v, _palette.BLOCK[block]) if v != _palette.MISSING else "not set in %s" % _palette.BLOCK[block]
+                     for v, block in ((a, "dark"), (b, "dark_media"))]
+            out.append("  %s: %s" % (_palette.LABEL[k], ", ".join(sides)))
     for block, variable, m in (css.problems if css else []):
         out.append("Could not read the stylesheet: %s" % (m if variable is None else "%s in %s: %s" % (variable, _palette.BLOCK[block], m)))
     out.append("This check only reads files: nothing was written.")
@@ -171,8 +179,8 @@ def main(argv=None):
     i = sub.add_parser("install", help="put a palette and a logo into a site (checks everything first; puts everything back if the site's tests go red)")
     i.add_argument("--site", required=True, help="the site's folder")
     i.add_argument("--palette", help="the palette to apply (default: BRAND.md, or docs/BRAND.md, in the site)")
-    i.add_argument("--input", help="the logo: an SVG file, a page with an inline SVG, a zip of SVG files, or a folder holding one of them")
-    i.add_argument("--pick", help="which file of a zip (or which inline SVG of a page) is the mark")
+    i.add_argument("--input", help="the logo: an SVG file, a zip of SVG files, or a folder holding one of them")
+    i.add_argument("--pick", help="which file of a zip is the mark")
     i.add_argument("--mono", help="which file of the zip is the mark's one-colour version")
     i.add_argument("--with-colours", action="store_true", help="stop unless a complete palette is applied; with --input, also the answer that the palette should go in together with the logo")
     i.add_argument("--keep-colours", action="store_true", help="leave the site's colours as they are, although BRAND.md holds a palette: the logo is installed against the colours the site has")

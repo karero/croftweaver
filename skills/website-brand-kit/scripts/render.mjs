@@ -11,30 +11,33 @@
 //   node render.mjs < request.json     {svg, viewBox, intrinsic, outDir, jobs:[{name,file,size,scale,background}]}
 //   The svg has a width and height whose long side is `intrinsic` pixels; each job scales that to its icon.
 //
-// It always answers with one JSON line: {"ok":true,...} or {"ok":false,"error":...,"message":...}.
+// It always answers with one JSON line: {"ok":true,...} or {"ok":false,"error":...,"message":...},
+// and then ends by itself. It never calls process.exit(): on Windows a line written to a pipe
+// is still on its way when write() returns, and an exit right behind it would cut the answer off.
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 
-const reply = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
-const fail = (error, message) => { reply({ ok: false, error, message: String(message).split('\n')[0].slice(0, 300) }); process.exit(0); };
+const reply = (obj) => { process.exitCode = 0; process.stdout.write(JSON.stringify(obj) + '\n'); };
+// A refusal stops the work where it stands: it is thrown, and answered once at the end.
+class Refused extends Error { constructor(error, message) { super(String(message)); this.error = error; } }
+const fail = (error, message) => { throw new Refused(error, message); };
 
-const require = createRequire(join(process.cwd(), 'package.json'));
-let sharp;
-try { sharp = require('sharp'); } catch (e) { fail('sharp-missing', e && e.message ? e.message : e); }
-sharp.cache(false);
-sharp.concurrency(1);
-
-const versions = () => ({ sharp: sharp.versions.sharp, rsvg: sharp.versions.rsvg, node: process.version });
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,60}$/;
 
-try {
+async function main() {
+  const require = createRequire(join(process.cwd(), 'package.json'));
+  let sharp;
+  try { sharp = require('sharp'); } catch (e) { fail('sharp-missing', e && e.message ? e.message : e); }
+  sharp.cache(false);
+  sharp.concurrency(1);
+  const versions = () => ({ sharp: sharp.versions.sharp, rsvg: sharp.versions.rsvg, node: process.version });
+
   if (process.argv.includes('--check')) {
     const tiny = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="#000"/></svg>');
     await sharp(tiny).png().toBuffer();
-    reply({ ok: true, ...versions() });
-    process.exit(0);
+    return { ok: true, ...versions() };
   }
 
   const req = JSON.parse(readFileSync(0, 'utf8'));
@@ -72,7 +75,12 @@ try {
     writeFileSync(join(outDir, file), png);
     results.push({ name, file, width: size, height: size });
   }
-  reply({ ok: true, ...versions(), results });
+  return { ok: true, ...versions(), results };
+}
+
+try {
+  reply(await main());
 } catch (e) {
-  fail('render-failed', e && e.message ? e.message : e);
+  const message = e && e.message ? e.message : e;
+  reply({ ok: false, error: e instanceof Refused ? e.error : 'render-failed', message: String(message).split('\n')[0].slice(0, 300) });
 }

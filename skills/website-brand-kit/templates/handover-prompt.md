@@ -13,13 +13,13 @@ I have chosen variation [N]. Please give me a download package (a zip file) of t
 - its SVG file in a single colour,
 - and a short README that says what each file is.
 
-Both SVG files should be plain: a square drawing with a viewBox, flat shapes with their colours written directly on them, no gradients, no scripts, no embedded pictures and no text that depends on a font.
+Both SVG files should be plain: a square drawing with a viewBox, flat shapes each written out with its colour directly on it, no gradients, no masks, no reused shapes, no scripts, no embedded pictures and no text that depends on a font.
 <!-- prompt:end -->
 
 ## Words for the owner
 
-Tell her, in her language: ask for the package with the words above, save the file wherever she likes (the Desktop is fine), and tell you the full path of the file (or drag the file into the conversation). Then wait: nothing is checked or installed until the file is there.
+Tell her, in her language: ask for the package with the words above, save the file wherever she likes (the Desktop is fine), and tell you the full path of the file (or drag the file into the conversation). Then wait for it. The file is checked when it is put into the site, so she should keep the conversation with the tool open until then.
 
 If she says it is saved but the path holds nothing, say so, and ask her for the path again. Never search her Downloads folder, or any other folder, on your own.
 
-If the tool gives her no package, or she cannot find it, ask her to paste the code of that one variation's SVG files instead. Save each, unchanged, as a file ending in `.svg`, and use that path.
+If the tool gives her no package, or she cannot find it, ask her to paste the code of that one variation's two SVG files instead. Save each, unchanged, as a file ending in `.svg`, and put the two into one zip (SKILL.md §5 has the command): the one-colour version can only be handed over inside a package.

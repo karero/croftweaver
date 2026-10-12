@@ -7,6 +7,11 @@ the same dark values again inside `@media (prefers-color-scheme: dark)`). This r
 what is missing or unreadable, names where they disagree, and runs the matrix: every text colour
 on every background colour, in both themes, at WCAG AA's 4.5 to 1 for body text. Nothing here
 writes a file. Standard library only.
+
+Both readers read ONE form, the one this skill itself defines, and name everything else: the three
+tables of templates/palette-prompt.md, and the three blocks of the starter's stylesheet as the
+intake's own editor finds them. Neither guesses. An owner's colours in any other form are written
+into this form by the assistant, not worked out here.
 """
 
 from __future__ import annotations
@@ -42,24 +47,20 @@ BACKGROUNDS = ("bg", "bg_soft", "surface")
 NEED_TEXT = 4.5  # WCAG AA, body text; BRAND.md's "4.5:1 body, 3:1 large"
 THEMES = ("light", "dark")
 
-_ALIASES = {
-    "heading": ("heading", "headings", "heading text"),
-    "ink": ("body", "body (ink)", "ink", "text", "body text"),
-    "muted": ("muted", "muted text", "secondary text"),
-    "accent": ("accent", "accent colour", "accent color"),
-    "link": ("link", "links", "link colour", "link color"),
-    "line": ("hairline", "line", "border", "borders", "divider"),
-    "bg": ("background", "bg", "page background", "background (page)"),
-    "bg_soft": ("soft background", "background soft", "soft bg", "bg soft", "background (soft)", "alt background"),
-    "surface": ("surface", "surface (cards)", "cards", "card", "card surface"),
-    "brand": ("primary", "brand", "brand primary", "primary colour", "primary color"),
-}
-_KEY_OF_ALIAS = {a: k for k, names in _ALIASES.items() for a in names}
+MISSING = "not set in this block"  # stands where a hex would, in drift() and dark_blocks_disagree(), when one side has none
 
-_PROPOSED = re.compile(r"\(?\s*\bpropos(?:ed|al)\b\s*\)?", re.I)  # "(proposed)", "proposed", "(proposal)"
-_PLACEHOLDER = re.compile(r"^#?\[[^\]]*\]$")  # "#[...]", "[hex]": the template's not-filled-in-yet
-_INNER = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch)\([^)]*\)", re.I)
-MISSING = "no value"  # stands where a hex would, in drift() and dark_blocks_disagree(), when one side has none
+MAX_LINE = 2000  # a table row longer than this is not a palette row, and is not read
+HEADING = {"brand": "### Brand", "light": "### Light theme", "dark": "### Dark theme"}
+# The names a row may have: the template's ten, and the two short forms the old template had. No others.
+ROW_KEY = {label.lower(): key for key, label in LABEL.items()}
+ROW_KEY.update({"body": "ink", "surface": "surface"})
+# What `brand_intake.py palette` says when it found no palette row at all (rule 11).
+FORM = (
+    "This check reads the colours from three tables, each under its own heading on a line of its own: `### Brand` (one "
+    "row, Primary), `### Light theme` and `### Dark theme` (the rows %s). Each table starts with the two lines "
+    "`| Token | Hex |` and `|---|---|`, and each row is `| the row's name | the colour |`. The assistant can write "
+    "your colours in that form." % ", ".join(t[1] for t in TOKENS)
+)
 
 
 class Palette(object):
@@ -68,10 +69,11 @@ class Palette(object):
         self.dark = {}
         self.brand = None
         self.proposed = set()   # {(theme, key)} values marked "(proposed)": shown, never written
-        self.problems = []      # [(theme, key, code, message)] cells that could not be read
-        self.ignored = []       # row labels this check has no use for
-        self.unused = []        # [(label, [hex])] rows that hold a colour under a label this check does not know
+        self.problems = []      # [(theme, key or None, code, message)]: what could not be read, and why; key None: said of a whole table or line
+        self.ignored = []       # names of palette rows that hold no colour and stand in a table that is not a table of colours
+        self.unused = []        # [(label, [what its cells hold])] rows that hold a colour under a name this check does not know
         self.fixed_accent = set()  # themes whose Accent is the Brand table's one fixed Accent (the old layout)
+        self.rows_found = 0     # palette rows found where they are read, filled in or not
 
     def theme(self, name):
         if name == "brand":  # the Primary is no theme's row; a proposed one is listed as ("brand", "brand")
@@ -84,241 +86,454 @@ class Palette(object):
 
 # --- reading BRAND.md or a pasted palette ----------------------------------------------
 
-def _key(label):
-    t = re.sub(r"[`*_]", "", label).strip().lower()
-    t = re.sub(r"\s+", " ", t)
-    if t in _KEY_OF_ALIAS:
-        return _KEY_OF_ALIAS[t]
-    return _KEY_OF_ALIAS.get(re.sub(r"\s*\(.*?\)\s*", "", t).strip())
+_SECTION = re.compile(r"(brand|light theme|dark theme)(?: ?\(([^()]*)\))?")
+_MARK = re.compile(r"\bpropos(?:ed|al)\b", re.I)
+_MARK_AFTER = re.compile(r"(?: ?\( ?propos(?:ed|al) ?\)| propos(?:ed|al))$", re.I)
+_SEPARATOR = re.compile(r":?-+:?")
+_PLACEHOLDER = re.compile(r"#?\[([^\[\]#0-9]*)\]|#?(?:\.\.\.|…)|[-–—]")
+# What looks like a colour inside a longer text: a # with letters or digits after it, a colour function, six or eight hex digits.
+_COLOUR_LIKE = re.compile(r"#[0-9a-z]{3}|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|hwb|color)\(|(?<![0-9a-z#])[0-9a-f]{6}(?:[0-9a-f]{2})?(?![0-9a-z])", re.I)
+_VALUE_FORM = re.compile(r"#|[A-Za-z-]+\(")
+
+# What one cell holds. kind: "colour" (exactly one colour: `value` is its hex, `named` says it was written as a colour
+# name, `form` that it was written as a hex or a function), "refused" (exactly one colour that is not taken: `err` says
+# why), "like" (something that looks like a colour, with something else or misspelt), "words", "empty", "placeholder".
+Look = namedtuple("Look", "kind value text marked named form err")
+Row = namedtuple("Row", "line label key cells looks above_separator long")
 
 
-def _cell(cell):
-    """(hex or None, proposed, refusal or None, kind) for one table cell. `kind` is "colour" (a hex or
-    a functional colour, alone or among words), "name" (a bare colour name), "empty", "placeholder"
-    (not filled in yet) or "unread"."""
-    t = re.sub(r"[`*]", "", cell).strip()
-    proposed = bool(_PROPOSED.search(t))
-    t = _PROPOSED.sub("", t).strip()
-    if not t:
-        return None, proposed, None, "empty"
-    if t in ("-", "—", "–") or (_PLACEHOLDER.match(t) and not _INNER.search(t)):
-        return None, proposed, None, "placeholder"
+_EMPHASIS = re.compile(r"[*_`]")
+
+
+def _plain(text):
+    """A heading or a first cell as it is compared: without emphasis marks and backticks, in lower case."""
+    return " ".join(_EMPHASIS.sub("", text).split()).lower()
+
+
+def _quoted(text, most=60):
+    return '"%s"' % (text if len(text) <= most else text[:most] + "...")
+
+
+def _listed(names):
+    names = list(dict.fromkeys(names))
+    return names[0] if len(names) == 1 else "%s and %s" % (", ".join(names[:-1]), names[-1])
+
+
+def _unwrap(text):
+    if len(text) >= 2 and text[0] == "`" == text[-1] and "`" not in text[1:-1]:
+        return text[1:-1].strip()
+    return text
+
+
+def _is_placeholder(text):
+    m = _PLACEHOLDER.fullmatch(text)
+    if not m:
+        return False
+    inner = (m.group(1) or "").strip().lower()
+    return inner not in _colour.NAMES and not re.fullmatch(r"[0-9a-f]{3,8}", inner)
+
+
+def _look(cell):
+    """What one cell holds (see Look). A colour is a colour only when it is the whole cell: backticks may stand
+    around it and the mark `(proposed)` after it, and nothing else."""
+    marked = bool(_MARK.search(cell))
+    text = _unwrap(cell)
+    after = _MARK_AFTER.search(text)
+    if after:
+        text = _unwrap(text[:after.start()].strip())
+    if not text:
+        return Look("empty", None, cell, marked, False, False, None)
+    if _is_placeholder(text):
+        return Look("placeholder", None, cell, marked, False, False, None)
+    form = bool(_VALUE_FORM.match(text))
     try:
-        return _colour.parse_colour(t), proposed, None, "name" if t.lower() in _colour.NAMES else "colour"
-    except Refusal as first:
-        inner = None
-        for m in _INNER.finditer(t):
-            try:
-                return _colour.parse_colour(m.group(0)), proposed, None, "colour"
-            except Refusal as e:
-                inner = inner or e  # a see-through colour among words is named as that, not as unknown words
-        return None, proposed, inner or first, "unread"
+        return Look("colour", _colour.parse_colour(text), text, marked, text.lower() in _colour.NAMES, form, None)
+    except Refusal as e:
+        if e.code != "colour-unreadable":
+            return Look("refused", None, text, marked, False, form, e)
+        return Look("like" if _COLOUR_LIKE.search(cell) else "words", None, cell, marked, False, form, e)
 
 
-def _same_but_rounded(a, b):
-    """Two six-digit hex colours no more than two steps apart in any channel."""
-    return all(abs(int(a[i:i + 2], 16) - int(b[i:i + 2], 16)) <= 2 for i in (1, 3, 5))
+_EMPTY = Look("empty", None, "", False, False, False, None)
 
 
-def _row(cells):
-    """What the value cells of one row hold: (hex or None, proposed, refusal or None, clash). A cell
-    with a hex or a functional colour is taken before one with a bare colour name (a "Name" column
-    beside the value). Where two such cells hold different colours none is picked: `clash` is those
-    colours. Reading stops at a placeholder: the row is not filled in yet, which is not a mistake."""
-    exact, named, err, proposed = [], [], None, False
-    for c in cells:
-        v, pr, e, kind = _cell(c)
-        proposed = proposed or pr
-        if v:
-            (named if kind == "name" else exact).append(v)
-        elif kind == "placeholder":
-            if not exact and not named:
-                err = None
-            break
-        else:
-            err = err or e
-    values = list(dict.fromkeys(exact or named))
-    if len(values) > 1 and all(_same_but_rounded(values[0], v) for v in values[1:]):
-        values = values[:1]  # one colour written twice (a hex beside its rgb or hsl), a rounding step apart
-    if len(values) > 1:
-        return None, proposed, None, values
-    if values:
-        return values[0], proposed, None, []
-    return None, proposed, err, []
+def _holds_a_colour(row):
+    """Does any cell after the first hold a colour, or something that looks like one?"""
+    return any(look.kind in ("colour", "refused", "like") for look in row.looks)
+
+
+def _written_as_a_value(look):
+    """A colour in a cell after the value cell that was written the way a value is (a hex or a function), read or
+    refused. A colour name there is a note ("white", "navy")."""
+    return look.form and (look.kind == "colour" or (look.kind == "refused" and look.err.code in ("colour-alpha", "colour-gamut")))
 
 
 def _cells(line):
-    parts = line.strip().strip("|").split("|")
-    return [c.strip() for c in parts]
+    line = line[1:]
+    if line.endswith("|"):
+        line = line[:-1]
+    return [c.strip() for c in line.split("|")]
 
 
-def _section_of(text):
-    """The theme (or the Brand table) a heading names, by whole words: "Highlights" names no theme."""
-    t = re.sub(r"[#*_`:]", " ", text).lower()
-    light, dark = bool(re.search(r"\blight\b", t)), bool(re.search(r"\bdark\b", t))
-    if light and not dark:
-        return "light"
-    if dark and not light:
-        return "dark"
-    if re.search(r"\bbrand\b", t) and not light and not dark:
-        return "brand"
-    return None
+class _Reader(object):
+    """parse_tables at work: the lines of one document, taken one at a time."""
 
+    def __init__(self):
+        self.p = Palette()
+        self.fixed = {}       # the Brand table's rows: {"brand" or "accent": (hex, proposed)}
+        self.section = None   # "brand", "light", "dark": the heading the lines stand under, or None
+        self.marked = False   # that heading says (proposed)
+        self.heading = None   # the last heading as written, when it is none of the three
+        self.tables = 0       # how many tables have stood under this section's heading
+        self.closed = None    # the line of text that followed a table of this section: no later table is filed under it
+        self.caption = None   # the last line of text above the table being collected
+        self.loose = False    # a line that looks like a table row without its first | has been named under this heading
+        self.above = []       # [(level, heading)]: headings above that hold the word "proposed" and name no section
+        self.rows = []        # the table being collected
 
-_LABEL_LINE = re.compile(r"(?:^|[\s,;:/-])(?:light|dark|brand)(?:[ -](?:theme|mode|palette|colours|colors|scheme|table|version))?$")
+    # -- lines --
 
+    def read(self, text):
+        for number, raw in enumerate(text.splitlines(), 1):
+            line = " ".join(raw.split())
+            if line.startswith("|"):
+                self.table_line(number, line)
+                continue
+            self.end_table()
+            if line.startswith("#"):
+                self.heading_line(line)
+            elif line:
+                self.text_line(line)
+        self.end_table()
+        p = self.p
+        if "brand" in self.fixed:
+            p.brand = self.fixed["brand"][0]
+            if self.fixed["brand"][1]:
+                p.proposed.add(("brand", "brand"))
+        if "accent" in self.fixed:
+            for theme in THEMES:
+                if "accent" not in p.theme(theme):
+                    self.put(theme, "accent", self.fixed["accent"][0], self.fixed["accent"][1])
+                    p.fixed_accent.add(theme)
+        return p
 
-def _label_of(line):
-    """The theme a line that is not a heading names, when the whole line is a label for the table
-    under it: without its emphasis marks, a closing colon and a bracketed remark, it ends in the
-    theme's name ("**Palette 2, light theme**", "Dark theme:", "Brand (fixed)"). A sentence that only
-    mentions a theme ("(pairs with the dark theme below)") is not a label."""
-    t = re.sub(r"[*_`]", "", line).strip().lower().rstrip(":").strip()
-    t = re.sub(r"\s*\([^()]*\)$", "", t).rstrip(":").strip()
-    if len(t) > 60 or not _LABEL_LINE.search(t):
-        return None
-    return _section_of(t)
+    def heading_line(self, line):
+        level = len(line) - len(line.lstrip("#"))
+        text = line.lstrip("#").strip().rstrip("#").strip()
+        m = _SECTION.fullmatch(_plain(text[:MAX_LINE]))
+        self.above = [(l, t) for l, t in self.above if l < level]
+        if m:
+            section = m.group(1).split()[0]  # "brand", "light", "dark"
+            for _level, other in self.above:
+                self.mark_not_read("The heading %s, above `%s`," % (_quoted(other), HEADING[section]))
+            self.above = []
+            self.section, self.marked, self.heading = section, bool(m.group(2) and _MARK.search(m.group(2))), None
+        else:
+            if _MARK.search(text):
+                self.above.append((level, line))
+            self.section, self.marked, self.heading = None, False, line
+        self.tables, self.closed, self.caption, self.loose = 0, None, None, False
 
+    def text_line(self, line):
+        self.caption = line
+        if not self.section:
+            return
+        if self.tables and self.closed is None:
+            self.closed = line
+        if _MARK.search(line):
+            self.mark_not_read("The line %s, under `%s`," % (_quoted(line), HEADING[self.section]))
+        if "|" in line and not self.loose and _COLOUR_LIKE.search(line):
+            self.loose = True
+            self.problem("?", None, "palette-not-a-row",
+                         "The line %s, under `%s`, holds a | and what looks like a colour, but it does not start with |, so it is "
+                         "no row of a table and was not read (nor any line like it under that heading). Write each row as "
+                         "`| the row's name | the colour |`, starting at the beginning of the line." % (_quoted(line), HEADING[self.section]))
 
-def parse_tables(text):
-    """The palette in a BRAND.md, or in whatever the owner pasted. Raises Refusal("palette-ambiguous")
-    when it holds two different values for one row (two palettes pasted together)."""
-    p = Palette()
-    fixed = {}           # the rows that are one colour in both themes: {"brand" or "accent": (hex, proposed)}
-    section = None
-    marked = False       # the heading or label over the table says "proposed": so is every row under it
-    columns = None       # None: a plain Token | Hex table; else {"light": i, "dark": j}
-    header_marked = False  # the table's own header row says "proposed"
-    in_table = False
-    # This table: has it begun; does any row hold a colour; its rows that hold none; is it the table a
-    # heading or label announced by naming a theme (or the Brand table); and was that a heading naming
-    # light or dark, whose table no line of text may file elsewhere.
-    table = {"begun": False, "colour": False, "unread": [], "named": False, "heading": False}
+    def table_line(self, number, line):
+        if len(line) > MAX_LINE:
+            self.rows.append(Row(number, line[:40], None, [], [], False, True))
+            return
+        cells = _cells(line)
+        if all(_SEPARATOR.fullmatch(c) for c in cells):
+            if self.rows and self.rows[-1].line == number - 1 and not self.rows[-1].long:
+                self.rows[-1] = self.rows[-1]._replace(above_separator=True)
+            return
+        self.rows.append(Row(number, cells[0], ROW_KEY.get(_plain(cells[0])), cells, [_look(c) for c in cells[1:]], False, False))
 
-    def clash(label, where, old, new):
+    # -- what is said --
+
+    def problem(self, theme, key, code, message):
+        self.p.problems.append((theme, key, code, message))
+
+    def mark_not_read(self, what):
+        self.problem("?", None, "palette-mark-not-read",
+                     "%s holds the word \"proposed\" (or \"proposal\"). This check reads that mark only in a row (`#a6abce (proposed)`) "
+                     "or in the heading of a table (`### Dark theme (proposed)`), so it marked no value. Put the mark in one of those "
+                     "places if the colours are still proposals, or take the word out of that line." % what)
+
+    def where(self):
+        """Where the table being read stands, in words."""
+        if self.section and self.closed is None:
+            return "under `%s`" % HEADING[self.section]
+        if self.section:
+            return "after the line %s, further down under `%s`" % (_quoted(self.caption or self.closed), HEADING[self.section])
+        if self.caption:
+            return "under the line %s, which is not a heading (a heading starts with #)" % _quoted(self.caption)
+        if self.heading is None:
+            return "above the first heading"
+        return "under the heading %s" % _quoted(self.heading)
+
+    def clash(self, label, where, old, new):
         return Refusal(
             "palette-ambiguous",
             "The palette gives two different values for %s%s (%s and %s). Two palettes look to have "
             "been pasted together: paste only the one you chose." % (label, where, old, new),
         )
 
-    def put(theme, key, value, proposed):
-        target = p.theme(theme)
+    def put(self, theme, key, value, proposed):
+        target = self.p.theme(theme)
         if key in target and target[key] != value:
-            raise clash(LABEL[key], " in the %s theme" % theme, target[key], value)
+            raise self.clash(LABEL[key], " in the %s theme" % theme, target[key], value)
         target[key] = value
         if proposed:
-            p.proposed.add((theme, key))
+            self.p.proposed.add((theme, key))
 
-    def put_fixed(key, value, proposed):
+    def put_fixed(self, key, value, proposed):
+        fixed = self.fixed
         if key in fixed and fixed[key][0] != value:
-            raise clash(LABEL[key], ", the one colour both themes share", fixed[key][0], value)
+            raise self.clash(LABEL[key], ", the one colour both themes share", fixed[key][0], value)
         fixed[key] = (value, proposed or (key in fixed and fixed[key][1]))
 
-    def unread(theme, key, code, message, label, err):
-        # A cell that is no colour at all ("700", "Inter") is a mistake in a table of colours and nothing
-        # in any other table (type sizes, spacing). Which it is shows when the table ends.
-        if err.code == "colour-unreadable":
-            table["unread"].append(((theme, key, code, message), label))
-        else:
-            table["colour"] = True
-            p.problems.append((theme, key, code, message))
+    # -- tables --
 
-    def end_table():
-        if not table["begun"]:
+    def end_table(self):
+        rows, self.rows = self.rows, []
+        if not rows:
             return
-        if table["colour"] or table["named"]:  # a table of colours: one a row shows to be, or one a heading says is
-            p.problems.extend(entry for entry, _label in table["unread"])
-        else:
-            p.ignored.extend(label for _entry, label in table["unread"])
-        table.update(begun=False, colour=False, unread=[], named=False, heading=False)
-
-    for line in text.splitlines():
-        s = line.strip()
-        if not s.startswith("|"):
-            in_table = False
-            if not s:
-                continue  # a blank line inside a table does not end it: its columns stay as they were
-            end_table()
-            columns, header_marked = None, False
-            if s.startswith("#"):
-                section, marked = _section_of(s), bool(_PROPOSED.search(s))
-                table.update(named=section is not None, heading=section in THEMES)
-            elif _label_of(s) and not table["heading"]:
-                section, marked = _label_of(s), bool(_PROPOSED.search(s))
-                table.update(named=True)
-            continue
-        cells = _cells(s)
-        if all(re.match(r"^:?-{2,}:?$|^$", c) for c in cells):
-            continue
-        if not in_table:
-            in_table = True
-            if not any(_cell(c)[0] for c in cells[1:]):  # the header row; a first row that holds a colour is a row
-                end_table()  # after a blank line, a header starts another table
-                table["begun"] = True
-                li = next((i for i, c in enumerate(cells) if i > 0 and _section_of(c) == "light"), None)
-                di = next((i for i, c in enumerate(cells) if i > 0 and _section_of(c) == "dark"), None)
-                columns = {"light": li, "dark": di} if li is not None and di is not None else None
-                header_marked = any(_PROPOSED.search(c) for c in cells)
+        for row in rows:
+            if row.long:
+                self.problem("?", None, "palette-long-line",
+                             "Line %d, a table row that begins %s, is longer than %d characters, far longer than any row of a palette. "
+                             "It was not read." % (row.line, _quoted(row.label), MAX_LINE))
+        filed = self.section if self.closed is None else None
+        parts = []  # [(header row or None, rows)]: a table, or several that stand together without a blank line
+        for row in rows:
+            if row.long:
                 continue
-        table["begun"] = True
-        label = re.sub(r"[`*]", "", cells[0]).strip()
-        key = _key(_PROPOSED.sub("", cells[0]))
-        aside = marked or header_marked or bool(_PROPOSED.search(cells[0]))  # "proposed" said of the whole row
-        if key is None:
-            found, _proposed, _err, both = _row(cells[1:])
-            p.ignored.append(label)
-            if found or both:
-                table["colour"] = True
-                p.unused.append((label, [found] if found else both))
-            continue
-        if columns and key != "brand":
-            aside = aside or any(_PROPOSED.search(c) for i, c in enumerate(cells) if i > 0 and i not in columns.values())
-            for theme in THEMES:
-                v, proposed, err, _kind = _cell(cells[columns[theme]] if columns[theme] < len(cells) else "")
-                if v:
-                    table["colour"] = True
-                    put(theme, key, v, proposed or aside)
-                elif err:
-                    unread(theme, key, err.code, "%s (%s theme): %s" % (LABEL[key], theme, err), label, err)
-            continue
-        found, proposed, err, both = _row(cells[1:])
-        proposed = proposed or aside
-        one = key == "brand" or (section == "brand" and key == "accent")  # a colour that is the same in both themes
-        theme = "brand" if one else section if section in THEMES else "?"
-        name = LABEL[key] + (" (brand table)" if section == "brand" else "" if one or theme == "?" else " (%s theme)" % theme)
-        if found or both:
-            table["colour"] = True
-        if both:
-            p.problems.append((theme, key, "palette-two-values", "%s: the row holds two different colours (%s). Leave only the one "
-                               "you mean in it." % (name, " and ".join(both))))
-        elif one:  # the Primary wherever it stands, and the Brand table's Accent
-            if found:
-                put_fixed(key, found, proposed)
-            elif err:
-                unread(theme, key, err.code, "%s: %s" % (name, err), label, err)
-        elif section in THEMES:
-            if found:
-                put(section, key, found, proposed)
-            elif err:
-                unread(theme, key, err.code, "%s: %s" % (name, err), label, err)
-        elif section != "brand" and (found or err):
-            no_theme = "%s has a value but no heading says which theme it belongs to (light or dark)." % LABEL[key]
-            if found:
-                p.problems.append(("?", key, "palette-no-theme", no_theme))
+            if row.above_separator and row.key is None:
+                parts.append((row, []))
             else:
-                unread("?", key, "palette-no-theme", no_theme, label, err)
-    end_table()
-    if "brand" in fixed:
-        p.brand = fixed["brand"][0]
-        if fixed["brand"][1]:
-            p.proposed.add(("brand", "brand"))
-    if "accent" in fixed:
-        for theme in THEMES:
-            if "accent" not in p.theme(theme):
-                put(theme, "accent", fixed["accent"][0], fixed["accent"][1])
-                p.fixed_accent.add(theme)
-    return p
+                if not parts:
+                    parts.append((None, []))
+                parts[-1][1].append(row)
+        for header, body in parts:
+            self.part(header, body, filed)
+        self.caption = None
+        if self.section:
+            self.tables += 1
+
+    def part(self, header, body, filed):
+        p = self.p
+        for row in ([header] if header else []) + body:
+            if row.key is None and _holds_a_colour(row):
+                p.unused.append((row.label, list(dict.fromkeys(l.value if l.kind == "colour" and l.form else l.text[:40]
+                                                               for l in row.looks if l.kind in ("colour", "refused", "like")))))
+        known = [row for row in body if row.key]
+        claims = [row for row in known if _holds_a_colour(row)]
+        names = _listed([LABEL[row.key] for row in claims]) if claims else ""
+        second = header.cells[1] if header and len(header.cells) > 1 else ""
+        hex_header = header is not None and _plain(second) == "hex"
+        wrong_header = header is not None and not hex_header
+        if header and claims and any(_MARK.search(c) for c in header.cells):
+            self.mark_not_read("The header row %s of the table %s" % (_quoted(" | ".join(header.cells)), self.where()))
+        if wrong_header and re.search(r"\blight\b", _plain(" ".join(header.cells))) and re.search(r"\bdark\b", _plain(" ".join(header.cells))):
+            if claims:
+                self.problem("?", None, "palette-combined-table",
+                             "The table with colours for %s, %s, has a header row that names both themes (%s). This check reads one "
+                             "theme from one table: give each theme its own table, one under `### Light theme` and one under `### Dark "
+                             "theme`, each starting with the header row `| Token | Hex |`. The table was not read."
+                             % (names, self.where(), _quoted(" | ".join(header.cells))))
+            p.ignored.extend(row.label for row in known if row not in claims)
+            return
+        if claims and filed is None:
+            if self.section:
+                advice = ("A line of text is not a heading, and this check does not guess whether it was meant as one. If the table "
+                          "belongs to another theme, write that theme's heading above it; if it carries on the table before it, take "
+                          "the line out from between the two.")
+            else:
+                advice = "Write the heading the table belongs to on a line of its own above it."
+            if wrong_header:
+                advice += (" (Its header row also calls the second column %s: this check reads the colours from the second column, "
+                           "and only when the header row calls it \"Hex\".)" % _quoted(second))
+            self.problem("?", None, "palette-no-section",
+                         "A table with colours for %s stands %s. This check reads a table only under one of the three headings "
+                         "`### Brand`, `### Light theme` and `### Dark theme`, so those colours were not used. %s" % (names, self.where(), advice))
+        elif claims and wrong_header:
+            self.problem("?", None, "palette-header",
+                         "The table with colours for %s, %s, has a header row that calls its second column %s. This check reads each "
+                         "colour from the second column, and only when the header row calls that column \"Hex\" (`| Token | Hex |`), "
+                         "so the table was not read. Put the colours in the second column and head it \"Hex\"."
+                         % (names, self.where(), _quoted(second)))
+        if filed is None or wrong_header:
+            p.ignored.extend(row.label for row in known if row not in claims)
+            return
+        for row in known:
+            self.row(row, filed, hex_header)
+
+    def row(self, row, section, hex_header):
+        p, key = self.p, row.key
+        fits = section == "brand" if key == "brand" else (key == "accent" or section in THEMES)
+        if not fits:
+            if not _holds_a_colour(row):
+                p.ignored.append(row.label)
+            elif key == "brand":
+                self.problem(section, key, "palette-wrong-section",
+                             "Primary: this row stands under `%s` (%s). Primary is the one colour both themes share, and it is read "
+                             "only under `### Brand`, so it was not used." % (HEADING[section], self.shown(row)))
+            else:
+                self.problem(section, key, "palette-wrong-section",
+                             "%s: this row stands under `### Brand` (%s). Under that heading this check reads Primary; %s is read "
+                             "under `### Light theme` and under `### Dark theme`, so it was not used."
+                             % (LABEL[key], self.shown(row), LABEL[key]))
+            return
+        p.rows_found += 1
+        name = LABEL[key] if key == "brand" else "%s (%s)" % (LABEL[key], "brand table" if section == "brand" else "%s theme" % section)
+        value, rest = (row.looks[0] if row.looks else _EMPTY), row.looks[1:]
+        further = next((look for look in rest if _written_as_a_value(look)), None)
+        if value.kind in ("empty", "placeholder"):  # not filled in yet, which is not a mistake
+            if further:
+                self.problem(section, key, "palette-wrong-cell",
+                             "%s: the second cell is empty or still the placeholder, and a colour (%s) stands further along the row. "
+                             "This check reads the colour from the second cell: write it there." % (name, further.text))
+            return
+        if value.kind == "refused":
+            said = {"colour-current": "The second cell says currentColor, which is whatever colour the text around it has and no colour of "
+                                      "its own. Write the colour itself, as #rrggbb.",
+                    "colour-gradient": "The second cell holds a gradient or a pattern (%s). This check reads one flat colour: write it "
+                                       "as #rrggbb." % _quoted(value.text, 40)}.get(value.err.code, str(value.err))
+            self.problem(section, key, value.err.code, "%s: %s" % (name, said))
+            return
+        if value.kind != "colour":
+            self.problem(section, key, "palette-not-one-colour" if value.kind == "like" else "colour-unreadable",
+                         "%s: the second cell holds %s. This check reads exactly one colour there, written as #rrggbb (rgb(), hsl(), "
+                         "oklch() and, under a `| Token | Hex |` header row, a CSS colour name are read too), with nothing beside it "
+                         "but the mark (proposed). A note belongs in a third cell.%s"
+                         % (name, _quoted(value.text),
+                            "" if value.kind == "like" else " If this row is part of another table (type sizes, say), give that table a "
+                                                            "heading of its own."))
+            return
+        other = next((look for look in rest if _written_as_a_value(look) and look.value != value.value), None)
+        if other:
+            self.problem(section, key, "palette-two-colours",
+                         "%s: the row holds two different colours, %s in the second cell and %s further along. This check reads the "
+                         "second cell and does not choose between two: leave one colour in the row." % (name, value.text, other.text))
+            return
+        if value.named and not hex_header:
+            self.problem(section, key, "palette-name-no-header",
+                         "%s: the second cell holds the colour name %s, and the table has no header row that says the second column "
+                         "holds the colours. Write the colour as #rrggbb, or start the table with the two lines `| Token | Hex |` and "
+                         "`|---|---|`." % (name, _quoted(value.text)))
+            return
+        proposed = self.marked or any(look.marked for look in row.looks)
+        if section == "brand":
+            self.put_fixed(key, value.value, proposed)
+        else:
+            self.put(section, key, value.value, proposed)
+
+    def shown(self, row):
+        return "it holds %s" % _listed([l.value if l.kind == "colour" and l.form else _quoted(l.text, 40)
+                                        for l in row.looks if l.kind in ("colour", "refused", "like")])
+
+
+def parse_tables(text):
+    """The palette in a BRAND.md, or in what the owner pasted. It reads ONE form, the three tables of
+    templates/palette-prompt.md, by the rules below, and names everything else. A value it returns is
+    the value written in the value cell of a row with a known name under one of the three headings:
+    nothing is guessed, and nothing that holds a colour is passed over without a word.
+
+    1. LINES. Runs of spaces and tabs are made one space before anything is looked at, so no input makes
+       a pattern slow. A table row longer than 2,000 characters is not read, and a problem names it.
+
+    2. SECTIONS. Only a heading line (one that starts with `#`) names a section, and only when its text
+       (emphasis marks and backticks taken out, case ignored) is exactly `Brand`, `Light theme` or `Dark
+       theme`, optionally followed by one bracketed remark (`(fixed, theme-independent)`, `(proposed)`).
+       Every other heading ends the section. No other line names a section: no label, no bold line, no
+       sentence.
+
+    3. TABLES. A table is a run of lines that start with `|`; a blank line, or any other line, ends it.
+       Separator rows (`|---|`) are skipped. The first table under a section's heading belongs to that
+       section, and so does each table that follows it with only blank lines between. A table that comes
+       after a line of text further down belongs to NO section (the line may have been meant as a label
+       for another theme, and labels are not read): rule 7 says what happens to it. A line under one of
+       the three headings that holds a `|` and something that looks like a colour, but does not start
+       with `|` (a row without its first `|`, a quoted table), is no row: a problem quotes the first.
+
+    4. ROWS. The first cell is the row's name: with emphasis marks and backticks taken out and case
+       ignored, it must be exactly one of the template's (`Primary`; `Heading`, `Body (ink)`, `Muted`,
+       `Accent`, `Link`, `Hairline`, `Background`, `Soft background`, `Surface (cards)`) or one of the two
+       short forms the old template had (`Body`, `Surface`). No other names. The SECOND cell is the value,
+       always. The cells after it are notes: no value is ever taken from them.
+
+    5. THE VALUE CELL holds exactly one colour and nothing else: backticks may stand around it, and the
+       mark `(proposed)` after it. The colour is what `_colour.parse_colour` reads as a whole (a hex,
+       rgb(), hsl(), oklch(), a CSS colour name).
+       - Empty, or a placeholder (`#[…]`, `#...`, `[hex]`, a dash): the row is not filled in, which is
+         not a mistake.
+       - Anything else (two colours, a colour among words, a colour that is refused, such as a
+         see-through one): a problem that names the row, the theme and what the cell holds. The row has
+         no value.
+       - A colour NAME is a value only in a table whose header row calls the second column `Hex` (rule
+         6). Without that header a name might stand in a column of names: a problem, no value.
+       - A later cell that itself holds a second, different colour written the way a value is (a hex or
+         a function), or one so written that is refused (see-through, outside the screen's colours): a
+         problem ("two different colours"), no value; neither is chosen. Where the value cell is empty
+         and such a colour stands further along: a problem too, and the colour is not taken from there.
+         A colour NAME in a later cell is a note ("white", "navy").
+
+    6. HEADER ROWS, AND ROWS UNDER OTHER NAMES. The row directly above a separator row is the table's
+       header row, unless its first cell is a row name. It is how the owner says which column holds the
+       colours: its second cell must be `Hex` (case ignored). Under any other header the table is not
+       read: if a row of it holds a colour, a problem says what the header calls the second column (or,
+       for a header that names both themes, rule 10's problem); if none does, it is no table of colours
+       (type sizes, spacing) and is passed over. A table with no header row is read (rule 5 keeps colour
+       names out of it). Any other row whose first cell is not a row name: if a cell of it holds a
+       colour, it goes to `unused` and is printed, so that a missing row explains itself; if none does,
+       it is passed over without a word.
+
+    7. WHERE A ROW MAY STAND. `Primary` under `Brand` only. The nine theme rows under `Light theme` or
+       `Dark theme` only. One exception, the old layout: an `Accent` row under `Brand` is the accent of
+       each theme that has none of its own, and the check says so wherever it shows that value. A table
+       that belongs to no section and holds a colour under a row name: one problem that names the rows,
+       says where the table stands and what the check reads instead. A row with a colour under the
+       wrong heading (a `Primary` in a theme's table, a `Heading` in the Brand table): a problem on that
+       row; the rest is read. Never dropped silently, never filed by guess. A named row WITHOUT a colour
+       in such a place is passed over (a type table's `| Heading | 700 |`) and listed in `ignored`.
+
+    8. THE SAME ROW TWICE in one section with two different values: Refusal("palette-ambiguous") (two
+       palettes pasted together), for the nine theme rows, for Primary and for the Brand table's Accent
+       alike. The same value twice is fine.
+
+    9. PROPOSALS. A row is a proposal when the word `proposed` or `proposal` (a whole word, case ignored)
+       stands in its value cell or in any later cell of it, or in the bracketed remark of its section's
+       heading (then every row under that heading is one, in every table of the section). Every cell of
+       the row is looked at. The check errs towards asking: "not proposed" marks too. The mark is read
+       nowhere else; where the word stands in a place it is not read from (a line of text under one of
+       the three headings, a heading above them that names no section, the header row of a table of
+       colours), a problem quotes the line, so a mark is never lost without a word.
+
+    10. NOTHING IS READ FROM ANYWHERE ELSE. No table with a Light and a Dark column (a table whose header
+        row names both themes is a problem: give each theme its own table). No column of names. No
+        tolerance between two spellings of one colour. No labels. No names beyond rule 4's.
+
+    11. WHEN NO ROW WAS FOUND AT ALL (no section heading, or no row under any), `rows_found` is 0 and
+        `brand_intake.py palette` prints FORM: one plain sentence on the form this check reads.
+    """
+    return _Reader().read(text)
+
+
+def is_about_a_value(problem):
+    """Is this entry of `Palette.problems` about one row's value (and not about a whole table or a line)?"""
+    return problem[1] is not None
 
 
 # --- the matrix ------------------------------------------------------------------------
@@ -360,8 +575,8 @@ class Css(object):
     def __init__(self):
         self.light, self.dark, self.dark_media = {}, {}, {}
         self.brand = None
-        self.problems = []   # [(block, variable or None, message)]: a value it cannot read, or a block it did not find
-        self.found = set()   # which of "light", "dark", "dark_media" the stylesheet has
+        self.problems = []   # [(block, variable or None, message)]: a value it cannot read, or a block it did not find or did not take
+        self.found = set()   # which of "light", "dark", "dark_media" the stylesheet has in the starter's form, once
 
 
 def _unpaired():
@@ -372,53 +587,106 @@ def _unpaired():
     )
 
 
-def _after_string(css, j):
-    """The index after the string that opens at css[j]."""
+def _mask(text):
+    """The same text with comments blanked (same length), as the intake's editor sees it."""
+    return re.sub(r"/\*.*?(\*/|\Z)", lambda m: " " * len(m.group()), text, flags=re.S)
+
+
+def _after_string(css, j, end):
+    """The index after the string that opens at css[j]. A line break ends a string that was never closed."""
     quote, j = css[j], j + 1
-    while j < len(css) and css[j] != quote:
+    while j < end and css[j] != quote:
+        if css[j] == "\n":
+            return j
         j += 2 if css[j] == "\\" else 1
-    return j + 1
+    return min(j + 1, end)
 
 
-def _blocks(css, depth=0):
-    """[(selector, body, children)] for the top level of `css`; nested blocks (an @media) in children.
-    A brace inside a string is text, not a brace; braces that do not pair up are refused."""
+# One block: its selector (or at-rule), where that starts, where its { and its } stand, and the blocks inside it.
+Rule = namedtuple("Rule", "selector start open close children")
+
+
+def _rules(css, lo, hi, depth=0):
+    """The blocks of css[lo:hi] at one level. A brace inside a string is text, not a brace; braces that do not
+    pair up are refused."""
     if depth > 6:
         raise Refusal("css-unreadable", "The stylesheet nests its blocks too deeply for this check to read.")
-    out, i, n = [], 0, len(css)
-    while i < n:
-        o = i
-        while o < n and css[o] != "{":
+    out, i = [], lo
+    while i < hi:
+        o, start = i, i
+        while o < hi and css[o] != "{":
             if css[o] == "}":
                 raise _unpaired()
-            o = _after_string(css, o) if css[o] in "\"'" else o + 1
-        if o >= n:
+            if css[o] in "\"'":
+                o = _after_string(css, o, hi)
+                continue
+            if css[o] == ";":
+                start = o + 1  # what stands before the block and ends in ; is a statement (@import, @charset) or a declaration
+            o += 1
+        if o >= hi:
             break
         level, j = 1, o + 1
-        while j < n and level:
+        while j < hi and level:
             if css[j] in "\"'":
-                j = _after_string(css, j)
+                j = _after_string(css, j, hi)
                 continue
             level += (css[j] == "{") - (css[j] == "}")
             j += 1
         if level:
             raise _unpaired()
-        body = css[o + 1:j - 1]
-        selector = css[i:o].rsplit(";", 1)[-1].strip()  # what stands before it and ends in ; is a statement (@import, @charset)
-        children = _blocks(body, depth + 1) if "{" in body else []
-        out.append((selector, "" if children else body, children))
+        while start < o and css[start].isspace():
+            start += 1
+        out.append(Rule(css[start:o].strip(), start, o, j - 1, _rules(css, o + 1, j - 1, depth + 1)))
         i = j
     return out
 
 
-_DECL = re.compile(r"(--[\w-]+)\s*:\s*([^;{}]*)")
-_ROOT = re.compile(r"^(?i::root)$")
-_ROOT_DARK = re.compile(r"""^(?i::root\[\s*data-theme)\s*=\s*["']dark["']\s*\]$""")
-_ROOT_MEDIA = re.compile(r"^(?i::root:not\(\s*\[\s*data-theme\s*\]\s*\))$")
-_MEDIA_DARK = re.compile(r"^(?i:@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\))$")
-# The three places the stylesheet keeps the palette: what each is called, and what is said when it is not found.
+def _declarations(css, rule):
+    """[(custom property, its value as written)] for the lines the block itself holds, in order."""
+    body = list(css[rule.open + 1:rule.close])
+    for child in rule.children:
+        for i in range(child.start - rule.open - 1, child.close - rule.open):
+            body[i] = " "
+    body = "".join(body)
+    pieces, depth, last, i = [], 0, 0, 0
+    while i < len(body):
+        ch = body[i]
+        if ch in "\"'":
+            i = _after_string(body, i, len(body))
+            continue
+        depth += (ch == "(") - (ch == ")")
+        if ch == ";" and depth <= 0:
+            pieces.append(body[last:i])
+            last, depth = i + 1, 0
+        i += 1
+    pieces.append(body[last:])
+    out = []
+    for piece in pieces:
+        m = re.match(r"\s*(--[\w-]+)\s*:(.*)\Z", piece, re.S)
+        if m:
+            out.append((m.group(1), " ".join(m.group(2).split())))
+    return out
+
+
+# The three blocks exactly as the intake's editor finds them (_site.py: _ROOT, _DARK, _MEDIA, _MEDIA_ROOT). The first two
+# start a line; a test (tests/test_palette.py) holds these to the editor's own patterns and to what the editor does.
+_EDIT_ROOT = re.compile(r"[ \t]*:root[ \t\n]*\{")
+_EDIT_DARK = re.compile(r"""[ \t]*:root\[\s*data-theme\s*=\s*["']dark["']\s*\][ \t\n]*\{""")
+_EDIT_MEDIA = re.compile(r"@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)\s*\{")
+_EDIT_MEDIA_ROOT = re.compile(r":root:not\(\s*\[\s*data-theme\s*\]\s*\)\s*\{")
+_VAR = re.compile(r"var\(\s*(--[\w-]+)\s*\)")
+_IMPORTANT = re.compile(r"!\s*important$", re.I)
+_DARK_MEDIA_LIKE = re.compile(r"@media\b.*prefers-color-scheme\s*:\s*dark", re.I | re.S)
+_DARK_LIKE = re.compile(r"data-theme\s*=\s*[\"']?dark", re.I)
+
+# The three places the stylesheet keeps the palette: what each is called, what it holds, how the starter writes it,
+# and what is said when it is not found.
 BLOCK = {"light": "the :root block", "dark": 'the :root[data-theme="dark"] block',
          "dark_media": "the @media (prefers-color-scheme: dark) block"}
+_HOLDS = {"light": "the light theme's colours", "dark": "the dark theme's colours",
+          "dark_media": "the dark colours for visitors without JavaScript"}
+_STARTER = {"light": "`:root {` at the start of a line", "dark": '`:root[data-theme="dark"] {` at the start of a line',
+            "dark_media": "`:root:not([data-theme]) {` inside `@media (prefers-color-scheme: dark) {`"}
 _NOT_FOUND = (
     ("light", "The stylesheet has no :root { ... } block that this check can find. That is where the light theme's colours are "
               "kept, so they could not be read."),
@@ -430,59 +698,142 @@ _NOT_FOUND = (
 )
 
 
-def _declared(body):
-    return {m.group(1): m.group(2).strip() for m in _DECL.finditer(body)}
+def _is(pattern, css, rule, starts_a_line=False):
+    """Is this block written the way the editor's pattern finds it?"""
+    at = css.rfind("\n", 0, rule.start) + 1 if starts_a_line else rule.start
+    m = pattern.match(css, at)
+    return bool(m) and m.end() == rule.open + 1
 
 
-def _names(pattern, selector):
-    """Is one of the selectors of a rule (`:root, html`) the one looked for?"""
-    return any(pattern.match(part.strip()) for part in selector.split(","))
-
-
-def _resolve(value, declared, fallback):
-    m = re.match(r"^var\(\s*(--[\w-]+)\s*\)$", value.strip())
-    if m:
-        name = m.group(1)
-        value = declared.get(name, fallback.get(name, ""))
-        if re.match(r"^var\(", value.strip()):
-            return value
-    return value
+def _colours_set(css, rule):
+    return [var for var, _value in _declarations(css, rule) if var in KEY_OF_VARIABLE]
 
 
 def read_css(text):
-    """The colour tokens of a stylesheet's three blocks, as hex. A block it does not find is named in
-    `problems`; a stylesheet whose braces do not pair up is refused."""
-    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    """The colour tokens of a stylesheet's three blocks, as hex. It reads what the intake's editor
+    (_site.edit_css) can write to, and names the rest in `problems`:
+
+    - The three blocks are read in the starter's form only, which is the form the editor finds: `:root {`
+      and `:root[data-theme="dark"] {`, each at the start of a line and at the top level, and
+      `:root:not([data-theme]) {` inside a top-level `@media (prefers-color-scheme: dark) {`. A rule that
+      names `:root` in any other form and sets one of the colours (`:root, html {`, `:ROOT {`, a rule that
+      names both `:root` and `:root[data-theme="dark"]`, a block inside another at-rule) is not read: a
+      problem says which block it would be and that it is written in another way than the starter writes it.
+    - A block that stands more than once is not read, and neither is one that holds another block inside
+      it: a problem names it. Nothing is merged, and no later line is taken to win.
+    - In a block, a colour variable set more than once, or marked `!important`, has no value: a problem
+      names the variable.
+    - A block that is not there is named. `found` holds the blocks that were read.
+    - A comment is not text. A brace inside a string is not a brace. A statement before a block (`@import
+      ...;`, `@charset ...;`) does not hide it. Braces that do not pair up are refused."""
+    masked = _mask(text)
+    rules = _rules(masked, 0, len(masked))
     css = Css()
-    raw = {"light": {}, "dark": {}, "dark_media": {}}  # a block written twice is one block: the later lines win, as in a browser
+    taken = {"light": [], "dark": [], "dark_media": []}
+    elsewhere = []  # [(rule, in a block for the dark preference?, the blocks it stands inside)]: every other rule, at any depth
 
-    def take(block, body):
-        css.found.add(block)
-        raw[block].update(_declared(body))
+    def others(rule, in_dark_media, inside=()):
+        if rule.selector.startswith("@"):
+            in_dark_media = in_dark_media or bool(_DARK_MEDIA_LIKE.match(rule.selector))
+        else:
+            elsewhere.append((rule, in_dark_media, inside))
+        for child in rule.children:
+            others(child, in_dark_media, inside + (rule.selector,))
 
-    for selector, body, children in _blocks(text):
-        if _names(_ROOT, selector):
-            take("light", body)
-        elif _names(_ROOT_DARK, selector):
-            take("dark", body)
-        elif _MEDIA_DARK.match(selector):
-            for sel2, body2, _ in children:
-                if _names(_ROOT_MEDIA, sel2):
-                    take("dark_media", body2)
-    _fill(css, "light", css.light, raw["light"], {})
-    _fill(css, "dark", css.dark, raw["dark"], raw["light"])
-    _fill(css, "dark_media", css.dark_media, raw["dark_media"], raw["light"])
-    css.problems.extend((block, None, message) for block, message in _NOT_FOUND if block not in css.found)
+    for rule in rules:
+        if _is(_EDIT_ROOT, masked, rule, True):
+            taken["light"].append(rule)
+        elif _is(_EDIT_DARK, masked, rule, True):
+            taken["dark"].append(rule)
+        elif _is(_EDIT_MEDIA, masked, rule):
+            for child in rule.children:
+                if _is(_EDIT_MEDIA_ROOT, masked, child):
+                    taken["dark_media"].append(child)
+                else:
+                    others(child, True, (rule.selector,))
+        else:
+            others(rule, False)
+
+    said = set()  # the blocks something has been said about: not also "not found"
+    for rule, in_dark_media, inside in elsewhere:
+        if ":root" not in rule.selector.lower() or not _colours_set(masked, rule):
+            continue
+        blocks = []
+        for part in rule.selector.split(","):
+            if ":root" in part.lower():
+                blocks.append("dark_media" if in_dark_media else "dark" if _DARK_LIKE.search(part) else "light")
+        shown = " ".join(" { ".join(inside + (rule.selector,)).split())
+        shown = (shown if len(shown) <= 100 else shown[:100] + "...") + " { ... }" + " }" * len(inside)
+        for block in dict.fromkeys(blocks):
+            said.add(block)
+            css.problems.append((block, None, "The rule `%s` sets %s, but it is written in another way than the starter "
+                                              "writes it (%s, and inside no other block), so this check did not read it and the intake "
+                                              "does not write to it. Write it as the starter does, or set the colours by hand."
+                                 % (shown, _HOLDS[block], _STARTER[block])))
+
+    raw = {}
+    for block in ("light", "dark", "dark_media"):
+        found = taken[block]
+        if len(found) > 1:
+            said.add(block)
+            again = [v for rule in found[1:] for v in _colours_set(masked, rule)]
+            css.problems.append((block, None, "The stylesheet has %d blocks of the kind that holds %s (%s), and a later one sets %s. "
+                                              "This check reads each of the three colour blocks only where it stands once, as in the "
+                                              "starter's stylesheet: the intake writes to the first, and a browser lets a later one win. "
+                                              "Fold them into one block." % (len(found), _HOLDS[block], BLOCK[block],
+                                                                             _listed(again) if again else "no colour")))
+        elif found and found[0].children:
+            said.add(block)
+            inner = " ".join(found[0].children[0].selector.split())
+            css.problems.append((block, None, "%s holds another block inside it (`%s { ... }`), which the starter's does not. This "
+                                              "check reads a colour block only as a plain list of lines, so it was not read."
+                                 % (BLOCK[block][0].upper() + BLOCK[block][1:], inner[:60])))
+        elif found:
+            css.found.add(block)
+            raw[block] = _own(css, block, _declarations(masked, found[0]))
+    for block, target in (("light", css.light), ("dark", css.dark), ("dark_media", css.dark_media)):
+        if block in raw:
+            _fill(css, block, target, raw[block], {} if block == "light" else raw.get("light", {}))
+    css.problems.extend((block, None, message) for block, message in _NOT_FOUND if block not in css.found and block not in said)
     css.brand = css.light.pop("brand", None)
     return css
 
 
+def _own(css, block, declarations):
+    """{variable: value as written} for the lines of one block that can be taken as they stand. A colour variable
+    set more than once, or marked !important, is named and left out."""
+    written = {}
+    for var, value in declarations:
+        written.setdefault(var, []).append(value)
+    out = {}
+    for var, values in written.items():
+        if len(values) > 1:
+            if var in KEY_OF_VARIABLE:
+                css.problems.append((block, var, "It is set %d times in this block (%s). This check does not pick one of them: "
+                                                 "leave one line." % (len(values), _listed(values))))
+        elif _IMPORTANT.search(values[0]):
+            if var in KEY_OF_VARIABLE:
+                css.problems.append((block, var, "The colour %r is not one this check can read: it is marked !important, and this "
+                                                 "check does not work out which line wins where one is. Take the !important off."
+                                     % values[0][:40]))
+        else:
+            out[var] = values[0]
+    return out
+
+
 def _fill(css, block, target, declared, fallback):
-    for var, raw in declared.items():
+    for var, value in declared.items():
         key = KEY_OF_VARIABLE.get(var)
         if key is None:
             continue
-        value = _resolve(raw, declared, fallback)
+        m = _VAR.fullmatch(value)
+        if m:
+            name = m.group(1)
+            if name not in declared and name not in fallback:
+                css.problems.append((block, var, "It is written as var(%s), and %s has no one value that this check can read "
+                                                 "here." % (name, name)))
+                continue
+            value = declared.get(name, fallback.get(name))
         try:
             target[key] = _colour.parse_colour(value)
         except Refusal as e:
@@ -497,7 +848,7 @@ def _said(css, block, key):
 def drift(palette, css):
     """Where BRAND.md and the stylesheet say different things: [(theme, key, doc_hex, css_hex)]. A row
     BRAND.md has and the block lacks counts, with MISSING for the stylesheet's side. What css.problems
-    names is not said again here: a block that is not there at all, a value that could not be read."""
+    names is not said again here: a block that is not there or was not read, a value that could not be read."""
     out = []
     for theme, c in (("light", css.light), ("dark", css.dark)):
         for key in KEYS:
@@ -512,7 +863,7 @@ def drift(palette, css):
 def dark_blocks_disagree(css):
     """The two dark blocks must carry the same values: [(key, dark_block_hex, media_block_hex)], with
     MISSING on the side that lacks a variable the other has. What css.problems names (a block that is
-    not there, a value that could not be read) is not said again here."""
+    not there or was not read, a value that could not be read) is not said again here."""
     if not {"dark", "dark_media"} <= css.found:
         return []
     return [(k, css.dark.get(k, MISSING), css.dark_media.get(k, MISSING)) for k in KEYS

@@ -286,8 +286,8 @@ skills/            the suite skills (canonical)
                    site's own test gate checked, plus the owner's Lighthouse scores;
                    copied to every site, never runs unasked)
   website-brand-kit   (optional colours and logo — three prompts for the owner's own
-                   design tool, then a checked install: contrast of every colour pair
-                   in both themes, a safety check of the SVG, the seven icon files;
+                   design tool, then a checked install: every text colour on every
+                   background in both themes, a safety check of the SVG, the seven icon files;
                    asked about once after positioning, copied to every site, never
                    runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
@@ -379,9 +379,8 @@ Five more skills are optional in a different way: `website-motion`, `website-sto
 `website-brand-kit`, `website-scorecard` and `website-positioning-check` are **copied into
 every site** so the recipient can use them later, but **never run unless asked**
 (`website-story` is offered once, after positioning, with a plain-language explanation;
-`website-brand-kit` is asked about once, right after it: do you already have a logo and
-brand colours, and do you want help with what is missing; the other three only on
-request).
+`website-brand-kit` is asked about once, right after it, with one plain question; the
+other three only on request).
 
 ### Use it locally
 

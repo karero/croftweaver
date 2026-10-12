@@ -16,7 +16,8 @@ import tempfile
 import unittest
 
 import _testutil as T
-from test_palette import LABELS, STARTER_DARK, STARTER_LIGHT, brand_md, table
+import _palette
+from test_palette import EVALS, HEAD, LABELS, STARTER_DARK, STARTER_LIGHT, brand_md, plain, table
 
 SCRIPT = os.path.join(T.SCRIPTS, "brand_intake.py")
 
@@ -158,8 +159,32 @@ class PaletteCommand(unittest.TestCase):
         self.assertEqual(len(data["pairs"]), 30)
         bad = [p for p in data["pairs"] if not p["ok"]]
         self.assertTrue(bad)
-        self.assertEqual({"theme", "fg", "bg", "fg_hex", "bg_hex", "ratio", "need", "ok"}, set(bad[0]))
+        self.assertEqual({"theme", "fg", "bg", "fg_hex", "bg_hex", "ratio", "need", "ok", "note"}, set(bad[0]))
         self.assertEqual(json.loads(run("palette", self.write(brand_md(dark={}), name="b.md"), "--json")[1])["status"], "incomplete")
+
+    def test_json_carries_every_value_as_it_was_read_also_the_ones_no_pair_shows(self):
+        # the Primary and the Hairline stand in no pair: whoever reads the JSON could not compare them with the file
+        light = dict(STARTER_LIGHT, line="rgb(227, 231, 242)")
+        data = json.loads(run("palette", self.write(brand_md(light=light, primary="#B4531A")), "--json")[1])
+        self.assertEqual(data["values"], {"brand": {"brand": "#b4531a"}, "light": STARTER_LIGHT, "dark": STARTER_DARK})
+        self.assertEqual((data["values"]["light"]["line"], data["form"]), ("#e3e7f2", ""))
+        data = json.loads(run("palette", T.BRAND_TEMPLATE, "--json")[1])
+        self.assertEqual(data["values"], {"brand": {}, "light": {}, "dark": {}})
+
+    def test_json_says_of_a_pair_that_its_accent_came_from_the_brand_table(self):
+        # the printed line said so; the JSON gave the same failing pair without the reason
+        old_light = {k: v for k, v in STARTER_LIGHT.items() if k != "accent"}
+        old_dark = {k: v for k, v in STARTER_DARK.items() if k != "accent"}
+        md = ("### Brand (fixed, theme-independent)\n| Token | Hex | Use |\n|---|---|---|\n| Primary | `#000000` | x |\n| Accent | `#2b50e0` | links |\n\n"
+              "### Light theme\n" + table([(l, old_light[k]) for k, l in LABELS if k in old_light])
+              + "\n### Dark theme\n" + table([(l, old_dark[k]) for k, l in LABELS if k in old_dark]))
+        data = json.loads(run("palette", self.write(md), "--json")[1])
+        bad = [p for p in data["pairs"] if not p["ok"]]
+        self.assertEqual({(p["theme"], p["fg"]) for p in bad}, {("dark", "accent")})
+        for p in data["pairs"]:
+            want = "taken from the Brand table's Accent; give the %s theme its own" % p["theme"] if p["fg"] == "accent" else ""
+            self.assertEqual(p["note"], want)
+        self.assertTrue(all(p["note"] == "" for p in json.loads(run("palette", self.write(brand_md(), name="own.md"), "--json")[1])["pairs"]))
 
     def test_a_palette_from_standard_input(self):
         code, out, _ = run("palette", "-", stdin=brand_md())
@@ -223,13 +248,21 @@ class PaletteCommand(unittest.TestCase):
         self.assertIn("is 4.49 to 1; text needs 4.5 to 1", line[0])
 
     def test_a_colour_name_beside_the_value_does_not_stand_in_for_it(self):
-        # | Background | Beige | #595959 |: read as beige it said 30 of 30 pass; the page would be dark grey
-        body = "\n".join("| %s | %s | %s |" % (l, "Beige" if k == "bg" else "Ours", "#595959" if k == "bg" else STARTER_LIGHT[k]) for k, l in LABELS)
-        md = "### Light theme\n| Token | Name | Hex |\n|---|---|---|\n" + body + "\n\n### Dark theme\n" + table([(l, STARTER_DARK[k]) for k, l in LABELS])
-        code, out, _ = run("palette", self.write(md))
-        self.assertEqual(code, 1, out)
-        self.assertIn("Background #595959", out)
-        self.assertNotIn("#f5f5dc", out)
+        # | Background | Beige | #595959 |: read as beige it said 30 of 30 pass; the page would be dark grey. With the hex
+        # left without its #, or see-through, the name was taken again. A column of names is now not read at all.
+        for hex_cell in ("#595959", "595959", "#595959cc"):
+            with self.subTest(hex_cell=hex_cell):
+                body = "\n".join("| %s | %s | %s |" % (l, "Beige" if k == "bg" else "Ours", hex_cell if k == "bg" else STARTER_LIGHT[k]) for k, l in LABELS)
+                md = "### Light theme\n| Token | Name | Hex |\n|---|---|---|\n" + body + "\n\n### Dark theme\n" + table([(l, STARTER_DARK[k]) for k, l in LABELS])
+                code, out, _ = run("palette", self.write(md))
+                self.assertEqual(code, 2, out)
+                self.assertIn("15 of 15 pairs pass", out, "the dark theme's; no pair of the light theme is made up")
+                self.assertNotIn("#f5f5dc", out)
+                said = [l for l in out.splitlines() if l.startswith("Not read: The table")]
+                self.assertEqual(len(said), 1, out)
+                for part in ("under `### Light theme`", 'calls its second column "Name"', '"Hex"'):
+                    self.assertIn(part, said[0])
+                self.assertIn("  Light theme: Heading, Body (ink), Muted, Accent, Link, Hairline, Background, Soft background, Surface (cards)", out)
 
     def test_a_type_table_beside_the_palette_does_not_make_the_palette_incomplete(self):
         md = brand_md() + "\n## Typography\n| Style | Weight | Tracking |\n|---|---|---|\n| Heading | 700 | -0.02em |\n| Body | 400 | 0 |\n"
@@ -320,10 +353,126 @@ class PaletteCommand(unittest.TestCase):
         at = whole.index("@media (prefers-color-scheme: dark)")
         code, out, _ = run("palette", self.write(brand_md()), "--css", self.css(whole[:at] + whole[at:].replace("    --surface: #161836;\n", "", 1)))
         self.assertIn("two dark", out.lower())
-        self.assertIn("  Surface (cards): #161836 in one, no value in the other", out)
+        self.assertIn('  Surface (cards): #161836 in the :root[data-theme="dark"] block, not set in the @media (prefers-color-scheme: dark) block', out)
         # and a row the document has that the stylesheet's block lacks
         code, out, _ = run("palette", self.write(brand_md()), "--css", self.css(whole.replace("  --surface: #ffffff;\n", "", 1), name="light.css"))
-        self.assertIn("Light theme, Surface (cards): BRAND.md says #ffffff, the stylesheet has no value", out)
+        self.assertIn("Light theme, Surface (cards): BRAND.md says #ffffff, the :root block of the stylesheet does not set it", out)
+        self.assertNotIn("no value", out)
+        data = json.loads(run("palette", self.write(brand_md()), "--css", os.path.join(self.dir, "light.css"), "--json")[1])
+        self.assertEqual(data["drift"], [{"theme": "light", "row": "surface", "document": "#ffffff", "stylesheet": "not set in this block"}])
+
+    # --- the one form the check reads, and what it says of everything else ---------------------
+
+    def test_the_eval_fixtures_end_as_the_skill_says_they_do(self):
+        code, out, err = run("palette", os.path.join(EVALS, "pasted-palette.md"))
+        self.assertEqual((code, err), (1, ""), out)
+        fails = [l for l in out.splitlines() if l.startswith("FAILS")]
+        self.assertEqual(len(fails), 3, out)
+        for line, ratio in zip(fails, ("3.58", "3.34", "3.11")):
+            self.assertIn("FAILS dark: Muted #7d6a58 on ", line)
+            self.assertIn("is %s to 1; text needs 4.5 to 1" % ratio, line)
+        self.assertIn("27 of 30 pairs pass.", out)
+        code, out, err = run("palette", os.path.join(EVALS, "own-colours.md"))
+        self.assertEqual((code, err), (2, ""), out)
+        self.assertIn("  Light theme: Link, Soft background\n", out)
+        self.assertIn("  Dark theme: Heading, Body (ink), Muted, Accent, Link, Hairline, Background, Soft background, Surface (cards)\n", out)
+        self.assertNotIn("Could not read", out)
+        self.assertNotIn("Not read", out)
+
+    def test_a_file_in_which_no_palette_row_was_found_is_told_the_form_once(self):
+        another = ("## Color Palette\n\n### Light Mode\n| Role | Color | Hex |\n|------|-------|-----|\n| Background | White | `#FFFFFF` |\n"
+                   "| Text | Near Black | `#16162A` |\n| Primary | Royal Blue | `#2B50E0` |\n")
+        for name, text in (("another tool's answer", another), ("a sentence", "Our colours are warm and brown.\n"), ("nothing", "")):
+            with self.subTest(name=name):
+                path = self.write(text)
+                before = snapshot(self.dir)
+                code, out, err = run("palette", path)
+                self.assertEqual((code, err), (2, ""), out)
+                said = [l for l in out.splitlines() if l.startswith("No row of a palette was found")]
+                self.assertEqual(len(said), 1, out)
+                for part in ("`### Brand`", "`### Light theme`", "`### Dark theme`", "`| Token | Hex |`", "Soft background", "The assistant can write your colours in that form"):
+                    self.assertIn(part, said[0])
+                self.assertNotIn("These rows are not filled in", out, "eighteen rows that are not there are not eighteen rows to fill in")
+                self.assertIn("nothing was written", out.lower())
+                self.assertEqual(snapshot(self.dir), before)
+                data = json.loads(run("palette", path, "--json")[1])
+                self.assertEqual((data["status"], data["exit"], data["form"]), ("incomplete", 2, _palette.FORM))
+        code, out, _ = run("palette", self.write(another))
+        self.assertIn('Not read: A table with colours for Background and Primary stands under the heading "### Light Mode".', out)
+        self.assertIn("  Text (#16162a)", out)
+        # the template has its rows, not filled in: that is said as before, and the form is not explained to it
+        self.assertNotIn("No row of a palette", run("palette", T.BRAND_TEMPLATE)[1])
+        self.assertEqual(json.loads(run("palette", self.write(brand_md(), name="full.md"), "--json")[1])["form"], "")
+
+    def test_a_mark_in_a_later_cell_of_the_row_waits_for_her(self):
+        # "| Primary | #000000 | - | proposed |" passed with exit 0
+        md = brand_md().replace("| Primary | `#000000` | buttons, brand surfaces |", "| Primary | #000000 | - | proposed |")
+        code, out, _ = run("palette", self.write(md))
+        self.assertEqual(code, 3, out)
+        self.assertIn("  Brand table, Primary: #000000", out)
+
+    def test_a_mark_where_the_check_does_not_read_one_stops_short_of_a_pass(self):
+        for name, md in (("a line under the heading", brand_md().replace("### Dark theme\n", "### Dark theme\n\n*Proposed, not yet confirmed*\n\n")),
+                         ("a heading above the tables", brand_md().replace("## Colour palette", "## Proposed palette"))):
+            with self.subTest(name=name):
+                code, out, _ = run("palette", self.write(md))
+                self.assertEqual(code, 2, out)
+                said = [l for l in out.splitlines() if l.startswith("Not read: ")]
+                self.assertEqual(len(said), 1, out)
+                self.assertIn('holds the word "proposed"', said[0])
+                self.assertIn("`### Dark theme (proposed)`", said[0])
+                self.assertIn("30 of 30", out)
+
+    def test_a_row_after_a_blank_line_that_cannot_be_read_is_said(self):
+        # a complete palette, a blank line, "| Accent | rgba(0,0,0,0.5) |": exit 0, and not a word
+        code, out, _ = run("palette", self.write(brand_md() + "\n| Accent | rgba(0,0,0,0.5) |\n"))
+        self.assertEqual(code, 2, out)
+        self.assertIn("Could not read a value: Accent (dark theme): The colour 'rgba(0,0,0,0.5)' is see-through.", out)
+
+    def test_a_sentence_under_a_heading_files_nothing_elsewhere_and_a_label_makes_no_second_palette(self):
+        md = "### Light theme\nNot for dark mode\n" + plain(STARTER_LIGHT) + "\n### Dark theme\nNote: this is our brand\n" + plain(STARTER_DARK)
+        code, out, _ = run("palette", self.write(md))
+        self.assertEqual(code, 0, out)
+        self.assertIn("30 of 30", out)
+        # a bold line is not a heading: the table under it is not the light theme's second table
+        code, out, _ = run("palette", self.write("### Light theme\n" + plain(STARTER_LIGHT) + "\n**Dark theme**\n" + plain(STARTER_DARK)))
+        self.assertEqual(code, 2, out)
+        self.assertNotIn("pasted together", out)
+        self.assertIn('Not read: A table with colours for Heading, Body (ink), Muted, Accent, Link, Hairline, Background, Soft background and Surface (cards) '
+                      'stands after the line "**Dark theme**", further down under `### Light theme`.', out)
+        self.assertIn("  Dark theme: Heading, Body (ink)", out)
+
+    def test_two_colours_in_one_row_are_not_chosen_between(self):
+        # "| Muted | #767676 | #777777 |" took the first, which passes on white where the second fails
+        md = brand_md().replace("| Muted | `#5a5a72` |", "| Muted | #767676 | #777777 |")
+        code, out, _ = run("palette", self.write(md))
+        self.assertEqual(code, 2, out)
+        self.assertIn("Could not read a value: Muted (light theme): the row holds two different colours, #767676 in the second cell and #777777 further along.", out)
+        self.assertIn("  Light theme: Muted", out)
+
+    def test_a_table_with_a_light_and_a_dark_column_is_told_what_to_do_instead(self):
+        md = "| Token | Light | Dark |\n|---|---|---|\n" + "\n".join("| %s | %s | %s |" % (l, STARTER_LIGHT[k], STARTER_DARK[k]) for k, l in LABELS) + "\n"
+        code, out, _ = run("palette", self.write(md))
+        self.assertEqual(code, 2, out)
+        self.assertIn("names both themes", out)
+        self.assertIn("give each theme its own table", out)
+        self.assertIn("No pair could be checked.", out)
+
+    def test_a_stylesheet_block_in_another_shape_or_twice_or_with_important_is_said_not_read_around(self):
+        whole = T.read(os.path.join(self.dir, "global.css"))
+        path = self.write(brand_md())
+        for name, text, parts in (("a selector list", whole.replace(":root {", ":root, html {", 1), ("The rule `:root, html { ... }`", "written in another way than the starter writes it")),
+                                  ("a second block", whole + "\n:root { --accent: #c0392b; }\n", ("The stylesheet has 2 blocks", "the light theme's colours", "a later one sets --accent")),
+                                  ("important", whole.replace("--bg: #ffffff;", "--bg: #ffffff !important;", 1), ("--bg in the :root block: The colour '#ffffff !important' is not one this check can read",)),
+                                  ("a colour set twice", whole.replace("  --bg: #ffffff;", "  --bg: #ffffff;\n  --bg: #fafafa;", 1), ("--bg in the :root block: It is set 2 times in this block (#ffffff and #fafafa)",))):
+            with self.subTest(name=name):
+                code, out, err = run("palette", path, "--css", self.css(text))
+                self.assertEqual((code, err), (0, ""), out)
+                said = [l for l in out.splitlines() if l.startswith("Could not read the stylesheet: ")]
+                self.assertEqual(len(said), 1, out)
+                for part in parts:
+                    self.assertIn(part, said[0])
+                self.assertNotIn("BRAND.md and the stylesheet disagree", out, "what was not read is not compared")
 
 
 if __name__ == "__main__":

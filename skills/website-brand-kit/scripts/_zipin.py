@@ -27,8 +27,13 @@ MAX_RATIO = 100                         # declared size over compressed size ...
 RATIO_FROM = 64 * 1024                  # ... for any entry this big (tiny files compress unevenly)
 _METHODS = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
 MAX_NAME = 120                          # characters in an entry's whole path: it is shown to the owner as it is
-# Control characters (C0, DEL, C1) and the marks that break a line or turn the reading order round.
-_UNSAFE_CHARS = re.compile("[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]")
+# What Unicode files as a control, a format mark (the ones that turn the reading order round, the
+# zero-width ones, the invisible "tag" letters), a private or unassigned character, half a pair, or
+# a line or paragraph break: none of it can be seen in a name, and a name is shown as it is.
+_UNSEEN = ("Cc", "Cf", "Co", "Cn", "Cs", "Zl", "Zp")
+# Drawn as nothing too, though Unicode files them as marks or letters: the variation selectors
+# (256 of them: enough to spell out a hidden text) and the blank fillers.
+_UNSEEN_TOO = re.compile("[\u034f\u115f\u1160\u17b4\u17b5\u180b-\u180f\u3164\ufe00-\ufe0f\uffa0\U000e0100-\U000e01ef]")
 
 
 class ZipPackage(object):
@@ -57,6 +62,10 @@ def _same_name(name):
     return unicodedata.normalize("NFC", name).casefold()
 
 
+def _unseen(name):
+    return _UNSEEN_TOO.search(name) or any(unicodedata.category(c) in _UNSEEN for c in name)
+
+
 def open_zip(data):
     if len(data) > MAX_ZIP_BYTES:
         raise Refusal("zip-too-large", "The package is larger than %d MB, far more than a logo needs." % (MAX_ZIP_BYTES // 1048576))
@@ -72,12 +81,17 @@ def open_zip(data):
     svg_names, other_names, ignored = [], [], []
     for zi in infos:
         name = zi.filename
+        if _unseen(name):  # first: every later message shows the name
+            raise Refusal(
+                "zip-path",
+                "The package has a file whose name holds a character that cannot be seen (spelled out, the name starts "
+                "%s), so the whole package is refused. Ask for a package with plain file names." % ascii(name[:60]),
+            )
         if (
             not name
             or name.startswith("/")
             or "\\" in name
             or re.match(r"[A-Za-z]:", name)  # a drive letter
-            or _UNSAFE_CHARS.search(name)
             or ".." in name.split("/")
         ):
             raise Refusal("zip-path", "The package has a file with an unsafe path (%r), so the whole package is refused." % name[:60])

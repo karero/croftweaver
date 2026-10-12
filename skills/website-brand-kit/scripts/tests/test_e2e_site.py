@@ -16,6 +16,7 @@ import subprocess
 import unittest
 
 import _testutil as T
+import _install
 import _palette
 from test_install import BAKERY_BRAND_MD, run
 
@@ -57,6 +58,8 @@ class ARealSite(unittest.TestCase):
             self.assertTrue(os.path.isfile(self.p(rel)), rel)
         # the build the tests ran against was made after the install: it serves the new mark and the new colours
         self.assertEqual(T.read_bytes(self.p("dist/favicon.svg")), T.read_bytes(self.p("public/favicon.svg")))
+        # the favicon starts with the line this tool knows its own file by, and the site's tests were green with it
+        self.assertTrue(T.read_bytes(self.p("dist/favicon.svg")).startswith(_install.MARK.encode("utf-8")))
         self.assertEqual(T.read_bytes(self.p("dist/icon-maskable-512.png")), T.read_bytes(self.p("public/icon-maskable-512.png")))
         built_css = "".join(T.read(os.path.join(d, n)) for d, _s, names in os.walk(self.p("dist")) for n in names if n.endswith((".css", ".html")))
         self.assertIn(T.BAKERY_LIGHT["bg"], built_css)

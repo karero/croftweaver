@@ -21,6 +21,14 @@ def refused(testcase, text, code, **kw):
     testcase.assertIn(text.strip()[:12], str(cm.exception), "a refusal names the colour it could not read")
 
 
+def _unreadable_message(text):
+    try:
+        _colour.parse_colour(text)
+    except Refusal as e:
+        return str(e)
+    return ""
+
+
 class Formats(unittest.TestCase):
     def test_the_same_colour_in_every_format_is_the_same_hex(self):
         white = ["#FFF", "#fff", "#FFFFFF", "#ffffff", "rgb(255, 255, 255)", "rgb(255 255 255)", "rgb(100%, 100%, 100%)",
@@ -109,6 +117,39 @@ class Refused(unittest.TestCase):
     def test_oklch_outside_the_screen_colours_is_refused_not_clipped(self):
         # chroma 0.4 at this hue has no sRGB equivalent: the hex would not be what the owner saw
         refused(self, "oklch(0.7 0.4 150)", "colour-gamut")
+
+    def test_an_rgb_that_mixes_percentages_and_plain_numbers_is_refused(self):
+        # the site's renderer draws black for these, so the hex this check would give is not what shows
+        for text in ("rgb(50%,0,0)", "rgb(255,0%,0)", "rgb(100% 0 0)", "rgba(0, 50%, 0, 1)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+        self.assertEqual(_colour.parse_colour("rgb(100%, 0%, 0%)"), "#ff0000")
+        self.assertEqual(_colour.parse_colour("rgb(255, 0, 0)"), "#ff0000")
+
+    def test_a_point_with_no_digit_after_it_is_not_a_number(self):
+        for text in ("rgb(255.,0,0)", "hsl(120. 50% 50%)", "oklch(0.5 0.1 30.)", "rgb(1.e2,0,0)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+        self.assertEqual(_colour.parse_colour("rgb(255.0, 0, 0)"), "#ff0000")
+        self.assertEqual(_colour.parse_colour("rgb(.5, 0, 0)"), _colour.parse_colour("rgb(0.5, 0, 0)"))
+
+    def test_digits_and_letters_of_another_script_are_not_read_as_plain_ones(self):
+        # \d took any script's digits and float() read them: rgb(١٢٣,0,0) was #7b0000, a colour nobody can see in the file.
+        # The Kelvin sign lower-cases to a plain k, so "blac" + that sign was black.
+        for text in ("rgb(١٢٣,0,0)", "rgb(１２, 0, 0)", "rgb(1२3 0 0)", "hsl(٢٤٠ 30% 12%)", "hsl(240 ３0% 12%)", "oklch(0.5 0.0٤ 280)", "rgb(1 2 3 / ١)",
+                     "rgb(1e٢ 0 0)", "blac\u212a", "dar\u212ablue", "#١٢٣٤٥٦", "#１２３", "ＲＧＢ(1,2,3)", "réd"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+        for text in ("rgb(1,\u00a02,3)", "rgb(1,2,3)\u200b", "#7b\u200b0000"):  # a space that is no plain space, inside the colour or stuck to it
+            with self.subTest(text=text):
+                with self.assertRaises(Refusal) as cm:
+                    _colour.parse_colour(text)
+                self.assertEqual(cm.exception.code, "colour-unreadable")
+        self.assertIn("not a plain one", _unreadable_message("rgb(١٢٣,0,0)"))
+        # the same in plain digits and letters is read, as before
+        self.assertEqual(_colour.parse_colour("rgb(123,0,0)"), "#7b0000")
+        self.assertEqual(_colour.parse_colour("BLACK"), "#000000")
+        self.assertEqual(_colour.parse_colour("\u00a0#7b0000\u2003"), "#7b0000", "a space of any kind around the colour is only a space")
 
     def test_nan_and_infinity_are_not_numbers(self):
         for text in ("rgb(nan, 0, 0)", "hsl(inf 50% 50%)", "oklch(nan 0 0)"):

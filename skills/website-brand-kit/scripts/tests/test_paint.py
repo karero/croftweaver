@@ -1,11 +1,10 @@
-"""Scenarios 10 (the mark's side), 15, 17 (what is left of it) and 21: which colours a mark paints
-with, read from the file's own paint values and not guessed from a picture.
+"""Scenarios 10 (the mark's side), 15 and 21: which colours a mark paints with, read from the
+file's own paint values and not guessed from a picture.
 
 A mark paints with `fill` and `stroke`, set as attributes, in a style attribute, or in a <style>
 rule, and inherited through groups. The reader applies the cascade a renderer does, turns every
 colour into one hex, and refuses by name what it cannot resolve: gradients and patterns, alpha,
-a colour it does not know, `currentColor` it was not told the meaning of, and (for a drawing taken
-out of a web page) class names that only the page's own CSS defines.
+a colour it does not know, and `currentColor` it was not told the meaning of.
 """
 
 import unittest
@@ -282,37 +281,6 @@ class Refusals(unittest.TestCase):
             with self.subTest(body=body):
                 err = refused(self, body, "blank-mark")
                 self.assertIn("drawn", str(err))
-
-
-class FromAPage(unittest.TestCase):
-    def page(self, inner):
-        return ('<!doctype html><html><head><style>.logo path{fill:#b4531a}</style></head><body>%s</body></html>' % inner).encode()
-
-    def test_a_class_only_the_pages_own_css_defines_is_refused(self):
-        with self.assertRaises(Refusal) as cm:
-            _svg.clean_svg(self.page('<svg viewBox="0 0 64 64"><path class="logo" %s/></svg>' % D), source="html")
-        self.assertEqual(cm.exception.code, "page-css")
-        self.assertIn("logo", str(cm.exception))
-
-    def test_the_same_class_with_the_rule_inside_the_svg_is_fine(self):
-        data = self.page('<svg viewBox="0 0 64 64"><style>.logo{fill:#b4531a}</style><path class="logo" %s/></svg>' % D)
-        self.assertEqual(_svg.clean_svg(data, source="html").colours, ["#b4531a"])
-
-    def test_a_plain_svg_file_may_carry_a_class_nothing_styles(self):
-        self.assertEqual(colours('<path class="leftover" fill="#111111" %s/>' % D), ["#111111"])
-
-    def test_the_inline_svg_of_a_page_taken_out_and_given_on_its_own_keeps_the_rule(self):
-        data = _svg.html_svgs(self.page('<svg viewBox="0 0 64 64"><path class="logo" %s/></svg>' % D))[0].encode()
-        with self.assertRaises(Refusal) as cm:
-            _svg.clean_svg(data, source="html-svg")
-        self.assertEqual(cm.exception.code, "page-css")
-
-    def test_currentcolor_in_a_page_is_refused_unless_told_what_it_means(self):
-        data = self.page('<svg viewBox="0 0 64 64"><path fill="currentColor" %s/></svg>' % D)
-        with self.assertRaises(Refusal) as cm:
-            _svg.clean_svg(data, source="html")
-        self.assertEqual(cm.exception.code, "colour-current")
-        self.assertEqual(_svg.clean_svg(data, source="html", current="#b4531a").colours, ["#b4531a"])
 
 
 def bakery():

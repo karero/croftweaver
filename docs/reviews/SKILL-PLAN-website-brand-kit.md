@@ -11,10 +11,10 @@ purpose; the business in the scenarios is made up.
 | 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 10 and the closing wording pass answered and handled (each round verified the one before; round 10's answers are not yet verified); the intake accepts SVG only (decision 8) | merged on main (#245, #246, #247), later rounds' answers by pull request; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
 | 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) settled at the start of the build, 2026-10-11, by the build's author as the plan left it (below); the handoff step was tried on 2026-10-11 and one trial showed how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26; rerun 2026-10-11 under the pinned Node 24.21.0 with the same numbers (one claim sharpened: the no-`viewBox` case). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
-| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 546 tests (after review round 1's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
+| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 696 tests (after review round 2's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ✅ written, not yet reviewed (row 7) | branch `feat/website-brand-kit`, commit `b75db71` |
 | 6 | Hooks into the other skills (listed under "Hooks") | ✅ written 2026-10-12, not yet reviewed (row 7): `new-website` (the intro, a step 2b row and section, the copy list now twenty-six, §3 step 4 and step 5), `README.md` (layout, the optional-skills paragraph), `website-qa` (one row), `website-design-system` (the tokens paragraph), `website-content-guide` (the `BRAND.md` line), the `BRAND.md` template (D6's rows; a test holds it to the palette prompt row for row), the count comment in `check_skill_budgets.sh`. `check_model_agnostic.sh` re-run inside `make check`: still green | branch `feat/website-brand-kit` (local) |
-| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ⏸ not started | — |
+| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ rounds 1 and 2 run (102 findings each, part 4's first read among round 2's), fixed; round 2's fixes not yet re-verified | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
 | 8 | Evals, with and without the skill, as `website-story` had | ▶ five evals written (`evals/evals.json`, three fixture files); not yet run with and without the skill | branch `feat/website-brand-kit`, commit `b75db71` |
 | 9 | Release note line in 0.32 | ⏸ waits for row 7 (#212 is merged and v0.31 is out) | — |
 
@@ -153,7 +153,7 @@ that render, which are the logo ones.
   that each resolved colour is visible (antialiased edge pixels are not colours) and that
   the render is not blank. The resolved colours are checked against the chosen palette:
   those outside it are listed and the owner decides; nothing is recoloured silently.
-- **Forms of input.** `.svg` files; pasted SVG code; an HTML page, taking an inline `<svg>`
+- **Forms of input.** (The HTML-page form in this paragraph was taken out by decision 9, 2026-10-12: a page is refused by name. The other three forms stand.) `.svg` files; pasted SVG code; an HTML page, taking an inline `<svg>`
   only (serialised with the `xmlns` it lacks, refused when it relies on page CSS, a
   `<symbol>` sprite or `currentColor` it cannot resolve, and refused when its render is
   blank); or a zip of SVG files with a README (see D3). The same checks for all four.
@@ -273,8 +273,8 @@ the test exists; a row without a test is a promise, not a fact.
 | 14 | an SVG contains a `<text>` element | the intake runs | it is refused with: ask the tool to turn the letters into shapes | `test_svg_safety.py`: `Hostile.test_text_is_refused_with_the_way_out` |
 | 15 | the mark is dark on a dark theme background | the intake runs | it names the theme where the mark falls under 3 to 1 against `--bg`, and offers the one-colour version for that theme | partly: `test_paint.py` `AgainstThePalette` (the theme and the ratio are named, at 3 to 1, unrounded); the theme, the ratio and the one-colour way out, through the intake: `test_install.py` `OnlyALogo.test_scenario_15_...` |
 | 16 | the owner asks for a new palette after launch | the intake runs again | it asks before replacing the icon files it installed last time, and before replacing any icon file it did not install itself; where a logo was installed it starts from `public/favicon.svg`, the master the README decision record names, never from the scaffold's placeholder | `test_install.py`: `OnlyALogo.test_scenario_16_...` (an icon that is not a placeholder is asked about, and replaced only with `--replace-icons`), `BothParts.test_a_palette_after_launch_...` (a later palette starts from the installed `public/favicon.svg`); as built the question covers any icon file that is not a scaffold placeholder, and no record of "installed last time" is kept (see "What the build changed") |
-| 17 | an HTML file arrives with one inline `<svg>` that has no `xmlns`, or that relies on page CSS, a `<symbol>` sprite or `currentColor` | the intake runs | it takes the SVG out and serialises it with the `xmlns` where it can; it refuses the ones it cannot resolve and any whose render is blank; the checks are the same as for a pasted one (scenarios 13 to 15) | `test_svg_safety.py` `FromHtml`, `test_paint.py` `FromAPage`, `test_icons.py` `WhatTheRenderShows` (blank by its geometry) |
-| 18 | the HTML holds several `<svg>` elements, or the mark is drawn with CSS or an `<img>` | the intake runs | with several it asks which one; with none it can use it says so and asks for an SVG | `test_input_forms.py`: `Html` |
+| 17 | an HTML file arrives with one inline `<svg>` that has no `xmlns`, or that relies on page CSS, a `<symbol>` sprite or `currentColor` | the intake runs | it takes the SVG out and serialises it with the `xmlns` where it can; it refuses the ones it cannot resolve and any whose render is blank; the checks are the same as for a pasted one (scenarios 13 to 15) | REMOVED by decision 9 (2026-10-12): a web page is refused by name (`test_input_forms.py`); the tests named here before are gone |
+| 18 | the HTML holds several `<svg>` elements, or the mark is drawn with CSS or an `<img>` | the intake runs | with several it asks which one; with none it can use it says so and asks for an SVG | REMOVED by decision 9 (2026-10-12): a web page is refused by name (`test_input_forms.py`); the tests named here before are gone |
 | 19 | `sharp` is not installed on the site (it is only an optional dependency of the starter's Astro) | the intake is about to run an operation that renders (the seven files, the preview, the checks of a mark), after the scaffold's install | it stops before writing anything and says what to do: run `npm install --include=optional` in the site and check that `sharp` loads (measured on 2026-10-11, see the spike result), and, if it still does not load or no `sharp` binary exists for the machine, that it cannot render here; it never adds `sharp` to the site's `package.json` (D2, D7); a run with only a palette needs no `sharp` and goes on | partly: `test_render.py` `WhenSharpIsMissing` (the command to run, `package.json` untouched, nothing written; Node itself missing) and `JobsAreChecked`; the intake stops before writing: `test_install.py` `NoSharp`; a palette-only run goes on without `sharp`: `OnlyColours` (it runs on a site with no `node_modules`) |
 | 20 | the owner picks variation 3 of 5 | the intake runs | only variation 3 is checked and installed; the other four are left where they are | `test_input_forms.py`: `OnlyThePickIsChecked` |
 | 21 | the chosen mark uses a colour that is not in the chosen palette (the trial's tool added a second, darker brown) | the intake runs | it lists the colours it found, marks those outside the palette, and asks; it does not recolour silently | partly: `test_paint.py` `AgainstThePalette` (the colours outside the palette are listed); the intake stops and asks, and installs her colours unchanged once she accepts: `test_install.py` `OnlyALogo.test_scenario_21_...` |
@@ -338,6 +338,15 @@ palette.
    which was not asked for and was added to answer a round-1 finding; they are closed by
    removing the branch, not by fixing it. Whether a later release reads a raster logo is a
    separate question.
+9. **Web-page input is out of version 1** (the maintainer, 2026-10-12, during review round
+   2 of the build). The intake reads an SVG file, pasted SVG code or a zip of SVG files; an
+   HTML page is refused by name with the way out (ask the tool for the SVG file, or copy
+   the drawing's own code and paste it). A drawing in a page can be coloured by the page's
+   own style sheet, which may be another file, so "refused when it relies on page CSS"
+   could not be kept for tag and id rules; and the page reader drew a steady share of both
+   review rounds' findings. As with decision 8, they are closed by removing the branch.
+   Scenarios 17 and 18 no longer apply; "Forms of input" above still lists the page form
+   and is superseded by this decision.
 
 ## Open decisions
 
@@ -391,8 +400,8 @@ palette.
 
   What follows from it: the advice line says "ask Claude for the design", not "go to the
   Claude Design site", because that address goes away on 2026-12-14; the intake takes
-  `.svg` files, pasted code, an HTML page with an inline `<svg>`, or a zip of SVG files
-  (scenarios 17, 18 and 22); five logo variations always (decision 6, scenario 20); the
+  `.svg` files, pasted code or a zip of SVG files (scenario 22; an HTML page with an inline
+  `<svg>`, scenarios 17 and 18, was planned here and taken out by decision 9); five logo variations always (decision 6, scenario 20); the
   intake checks the mark's colours against the palette (21) and gives the owner its own
   16 and 32 px preview of the installed mark (23), because the tool said it had not
   checked its own render and the installed file is what must be looked at. How an owner gets the SVG files out
@@ -596,11 +605,9 @@ known to the build's authors. Each is a judgment the maintainer may overrule.
     claims nothing about before or about cause.
   - The share cards keep their colours, with a note, when one of their text colours would
     fall under 4.5 to 1 somewhere on the gradient between the two background colours.
-  - "Forms of input" says a page drawing is "refused when it relies on page CSS". As built
-    that holds for classes. Tag and id rules of the page cannot be seen without the page's
-    style sheet (which may be another file), so every drawing taken from a page carries a
-    note asking the owner to compare the preview with the page. The maintainer may ask for
-    a refusal instead.
+  - "Forms of input" says a page drawing is "refused when it relies on page CSS". That
+    could be kept for classes only; the maintainer then took web-page input out of
+    version 1 (decision 9).
   - More is refused: a `transform` on the outer `svg`; a negative size; non-ASCII digits;
     a `<style>` for another medium or language; an element inside a shape or a `<style>`;
     more than 200 selectors or 1,000 declarations; a zip entry name over 120 characters
@@ -610,6 +617,28 @@ known to the build's authors. Each is a judgment the maintainer may overrule.
     never picked between; a colour name in a column beside the hex is not the value; a
     Typography table beside the palette no longer makes it incomplete; the stylesheet
     reader names each colour block it does not find.
+- **Changed by review round 2 (2026-10-12):**
+  - Web-page input is gone (decision 9).
+  - The palette check reads ONE form: the three tables under the headings `Brand`, `Light
+    theme`, `Dark theme`, each with a `| Token | Hex |` header, one colour in the second
+    cell of each named row. Everything else (bold labels, a table with a Light and a Dark
+    column, a column of colour names, a word such as "proposed" in a sentence) is named as
+    not read. The assistant copies an owner's own colours, or a tool's answer in another
+    shape, into that form (`SKILL.md` §3). The grammar is the docstring of
+    `_palette.parse_tables`. The stylesheet reader likewise reads only the three colour
+    blocks as the starter lays them out, and names anything else.
+  - The question before a logo run changes the site's colours covers all four files
+    (stylesheet, `src/config.ts`, manifest, share-card generator).
+  - The installed `public/favicon.svg` starts with a comment line saying this skill
+    installed it; only then does a colours run redraw the icons. A colours run never
+    fails for `sharp`: it applies the colours and says the icons wait.
+  - The share cards are made without the emblem, with a note, where the cards' text would
+    not read over it. The cards folder is put back file by file like every other file.
+  - Ctrl-C, SIGTERM and SIGHUP at any moment end in words, exit 2, with everything put
+    back; what a test command left running is stopped (POSIX).
+  - In an SVG: at most 8 names in one CSS selector; a backslash, or a quote that hides a
+    brace, in a style is refused; a number needs a digit after its point outside path
+    data; attributes that show a part only under a condition are refused by name.
 - **Not built:** a command that checks a logo file before a site exists. The contrast check
   on a palette is the only early check, as "Shape" says; a logo the intake will refuse
   (text, a gradient, a picture) is found out at the intake. Counter-argument: she would

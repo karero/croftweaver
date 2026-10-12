@@ -3,11 +3,13 @@
 
   The assistant fills every [BRACKET] and gives the owner ONLY the text between the two marker
   comments, to paste where she likes (references/where-to-paste.md). It writes the prompt in the
-  language the owner writes in. It names no tool and says nothing about what a tool can or cannot do.
+  language the owner writes in, EXCEPT the three table headings and the row names: those stay in
+  English exactly as below, because the check reads those words. It names no tool and says nothing
+  about what a tool can or cannot do.
 
   Where the slots come from:
     [WHAT THE BUSINESS DOES], [WHO IT IS FOR], [WHAT MAKES IT DIFFERENT]  POSITIONING.md (and STORY.md, if the owner chose it)
-    [THE FEEL], [COLOURS I LIKE], [COLOURS TO AVOID], [A BRAND OR PLACE]   the owner's own answers (SKILL.md, conversation step 2)
+    [THE FEEL], [COLOURS I LIKE], [COLOURS TO AVOID], [A BRAND OR PLACE]   the owner's own answers (SKILL.md §2)
   A slot she gave no answer for is left out with its line, never invented ("surprise me" is an answer).
 
   The table below is the one in BRAND.md. Its row names are what `brand_intake.py palette` reads,
@@ -30,7 +32,7 @@ The feel I want
 - A brand or place whose colours I admire: [A BRAND OR PLACE]
 
 How to answer
-Give each palette a short name and one sentence on the mood it carries. Then give each palette as exactly the three tables below, one table per heading, with every `#...` replaced by a hex colour. Keep the row names exactly as they are, so that I can copy the table I choose and paste it somewhere else.
+Give each palette a short name and one sentence on the mood it carries. Then give each palette as exactly the three tables below, one table per heading, with every `#...` replaced by a hex colour. Keep the three headings and the row names exactly as they are, in English, so that I can copy the tables of the palette I choose and paste them somewhere else.
 
 ### Brand (fixed, theme-independent)
 | Token | Hex | Use |
@@ -74,4 +76,4 @@ Rules for every palette
 
 ## Words for the owner
 
-When you hand her the prompt, say in a sentence or two what it does: it asks for three palettes, and she picks the one that feels like her business. Then, in her words: copy the table of the palette she likes best and paste it back here. The assistant checks the contrast of every colour pair and says plainly if one pair is too faint to read.
+When you hand her the prompt, say in a sentence or two what it does: it asks for three palettes, and she picks the one that feels like her business. Then tell her what to do with the answer: copy the three tables of the palette she likes best and paste them back here. You then check every text colour on every background and say plainly if one pair is too faint to read.

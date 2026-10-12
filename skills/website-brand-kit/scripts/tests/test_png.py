@@ -147,6 +147,21 @@ class Decoding(unittest.TestCase):
                     self.assertEqual(cm.exception.code, "png-bad")
                     self.assertIn("no header", str(cm.exception))
 
+    def test_a_second_header_is_refused_not_passed_over(self):
+        # the first was taken and the second ignored; another reader may take the second, and then the two see two pictures
+        good = T.make_png(2, 2, T.solid_rgba(2, 2, (1, 2, 3, 255)))
+        first_end = 8 + 12 + 13
+        header = good[8:first_end]
+        other = T.make_png(4, 4, T.solid_rgba(4, 4, (9, 9, 9, 255)))[8:8 + 12 + 13]
+        for name, second in (("the same header again", header), ("a header for another size", other)):
+            for where, data in (("right after the first", good[:first_end] + second + good[first_end:]), ("after the picture data", good[:-12] + second + good[-12:])):
+                with self.subTest(name=name, where=where):
+                    with self.assertRaises(Refusal) as cm:
+                        _png.decode(data)
+                    self.assertEqual(cm.exception.code, "png-bad")
+                    self.assertIn("two headers", str(cm.exception))
+        self.assertEqual(_png.decode(good)[:2], (2, 2))
+
     def test_a_picture_of_no_width_or_no_height_is_said_to_be_that_not_far_too_large(self):
         for w, h in ((0, 2), (2, 0), (0, 0)):
             with self.subTest(w=w, h=h):

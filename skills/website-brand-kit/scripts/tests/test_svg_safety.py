@@ -19,6 +19,7 @@ import unittest
 
 import _testutil as T
 import _css
+import _input
 import _svg
 
 NS = 'xmlns="http://www.w3.org/2000/svg"'
@@ -36,9 +37,9 @@ def bare(inner, root=""):
     return ('<svg %s %s viewBox="0 0 64 64" %s>%s</svg>' % (NS, XLINK, root, inner)).encode()
 
 
-def refused(testcase, data, code, source="svg"):
+def refused(testcase, data, code):
     with testcase.assertRaises(_svg.Refusal) as cm:
-        _svg.clean_svg(data, source=source)
+        _svg.clean_svg(data)
     testcase.assertEqual(cm.exception.code, code, "refused, but for %r: %s" % (cm.exception.code, cm.exception))
     testcase.assertTrue(len(str(cm.exception)) > 10, "a refusal must say why, in words")
     return cm.exception
@@ -46,7 +47,9 @@ def refused(testcase, data, code, source="svg"):
 
 # A check that hangs cannot be caught from inside its own process (a regular expression gone
 # wrong never hands control back), so the tests about time judge their documents in a child
-# process and stop it when the time is up.
+# process and stop it when the time is up. Each judgement is timed by the work it took (the
+# processor's seconds, not the clock's): on a machine busy with other things the clock ran five
+# times as long for the same work, and a judgement that hangs is busy the whole time anyway.
 _JUDGE = r"""
 import base64, json, sys, time
 sys.path.insert(0, sys.argv[1])
@@ -55,19 +58,18 @@ from _refusal import Ask, Refusal
 for line in sys.stdin:
     how, data = json.loads(line)
     data = base64.b64decode(data)
-    start = time.perf_counter()
+    start = time.process_time()
     try:
         if how == "intake":  # the way the intake reads what it is given: say what it is, take the mark out, check it
-            mark = _input.mark(_input.load(data))
-            clean = _svg.clean_svg(mark.colour, source="html-svg" if mark.source == "html" else "svg")
+            clean = _svg.clean_svg(_input.mark(_input.load(data)).colour)
         else:
-            clean = _svg.clean_svg(data, source=how)
+            clean = _svg.clean_svg(data)
         out = {"code": "ok", "text": clean.text, "notes": clean.notes}
     except (Refusal, Ask) as e:
         out = {"code": e.code}
     except Exception as e:
         out = {"code": "crash: %s: %s" % (type(e).__name__, e)}
-    out["seconds"] = time.perf_counter() - start
+    out["seconds"] = time.process_time() - start
     print(json.dumps(out), flush=True)
 """
 
@@ -79,7 +81,7 @@ def judged(testcase, documents, how="svg", each=2.0):
     lines = "".join(json.dumps([how, base64.b64encode(d).decode("ascii")]) + "\n" for d in documents)
     try:
         r = subprocess.run([sys.executable, "-c", _JUDGE, T.SCRIPTS], input=lines.encode("ascii"), capture_output=True,
-                           timeout=5 + each * len(documents))
+                           timeout=30 + 5 * each * len(documents))
     except subprocess.TimeoutExpired as e:
         done = len((e.stdout or b"").splitlines())
         testcase.fail("document %d of %d was still being judged when the time ran out" % (done + 1, len(documents)))
@@ -179,7 +181,8 @@ class Hostile(unittest.TestCase):
     def test_a_refusal_shows_what_it_found_without_the_files_hidden_characters(self):
         # the sentence goes to the owner's terminal: a mark that turns the line round, or a control
         # character, must arrive spelled out, never as itself
-        for hidden in ("&#x202e;", "&#x9b;", "&#x7f;", "&#x2066;", "\u200f"):
+        for hidden in ("&#x202e;", "&#x9b;", "&#x7f;", "&#x2066;", "\u200f", "\u200b", "\u200d", "\u2060", "\ufeff", "\u00ad", "\u2062",
+                       "\u180e", "\ufff9", "\ue000", "\U000e0041\U000e0042", "\u0378", "\u2028", "\u2029", "\U000f0000"):
             for attrs in ('href="%sgpj.elif//:ptth"', 'stroke-width="%s1"', 'transform="%s"', 'fill="%s"', 'style="fill:%s"'):
                 with self.subTest(hidden=hidden, attrs=attrs):
                     with self.assertRaises(_svg.Refusal) as cm:
@@ -291,10 +294,13 @@ class Size(unittest.TestCase):
         # a renderer reads none of these as a number, so the box this check works with would not be the renderer's
         doc = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s"><path fill="#111111" d="M0 0h9v9z"/></svg>'
         for vb in ("0 0 1_0 1_0", "0 0 \u0661\u0660 \u0661\u0660", "0 0 \uff11\uff10 10", "0 0 1e1_0 10", "0 0 0x10 10",
-                   "0 0 infinity 10", "0 0 Infinity 10", "0 0 1e999 10", "0 0 10 10 10", "0 0 10;10"):
+                   "0 0 infinity 10", "0 0 Infinity 10", "0 0 1e999 10", "0 0 10 10 10", "0 0 10;10",
+                   # a point with no digit after it, or a space that is not a plain one: the site's renderer then
+                   # drops the whole viewBox (measured 2026-10-12), so the box read here would not be the one drawn
+                   "+0 -0 10. 10", "0. 0 10 10", "0 0 10 10.e0", "0\u20030 10 10", "0 0\u00a010 10", "\u30000 0 10 10", "0 0 10 10\u2028"):
             with self.subTest(vb=vb):
                 refused(self, (doc % vb).encode("utf-8"), "bad-view-box")
-        for vb, box in (("0,0,10,10", (0, 0, 10, 10)), (" 0  0 1e1 .5e1 ", (0, 0, 10, 5)), ("+0 -0 10. 10", (0, 0, 10, 10)),
+        for vb, box in (("0,0,10,10", (0, 0, 10, 10)), (" 0  0 1e1 .5e1 ", (0, 0, 10, 5)), ("+0 -0 10.0 10", (0, 0, 10, 10)),
                         ("0 0\t10\n10", (0, 0, 10, 10)), ("-5 -5.5 2.5E1 25", (-5, -5.5, 25, 25))):
             with self.subTest(vb=vb):
                 self.assertEqual(_svg.clean_svg((doc % vb).encode("utf-8")).view_box, box)
@@ -345,7 +351,7 @@ class Numbers(unittest.TestCase):
     def test_numbers_written_the_ways_tools_write_them_are_still_read(self):
         # run together without a space, a bare dot, a sign, an exponent: all of it is SVG
         fine = ['points="10-20,3.5.5 1e2,4"', 'points=""', 'stroke-dasharray="4 2"', 'stroke-dasharray="4,2"', 'stroke-dasharray="none"',
-                'stroke-dasharray="50% 2"', 'width="1." height=".5"', 'x="+3" y="-3"', 'width="1e2"', 'width="4.5px"', 'rx="auto"',
+                'stroke-dasharray="50% 2"', 'width="1.0" height=".5"', 'x="+3" y="-3"', 'width="1e2"', 'width="4.5px"', 'rx="auto"',
                 'transform="translate(1,2) scale(2)"', 'transform="rotate(45 1 1),scale(2)"', 'transform="translate(-1.5e1-2)"',
                 'transform="matrix(1 0 0 1 0 0)"', 'stroke-miterlimit="4"', 'stroke-dashoffset="-2"']
         for attrs in fine:
@@ -361,6 +367,88 @@ class Numbers(unittest.TestCase):
                       'stroke-miterlimit="٤"', 'stroke-width="1٠"', 'width="1e٢"'):
             with self.subTest(attrs=attrs):
                 refused(self, self.shape(attrs + ' stroke="#ff0000"'), "bad-value")
+
+    def test_a_point_is_followed_by_a_digit_everywhere_but_in_path_data(self):
+        # Measured with the site's renderer on 2026-10-12: it reads `5.` as a number in path data only. A width or
+        # a radius of `5.` draws nothing, a stroke-width of `0.` (read here as "no stroke") draws one unit wide,
+        # a viewBox with one is dropped whole. So what a renderer does not read is not read here either.
+        for form in ("5.", "0.", "5.e0", "0.e0", "+5.", "5.px", "5.%", "-.", ".", "5..0", "5.e", ".e1"):
+            for attrs in ('stroke-width="%s"', 'style="stroke-width:%s"', 'width="%s"', 'height="%s"', 'x="%s"', 'y="%s"', 'rx="%s"',
+                          'stroke-miterlimit="%s"', 'stroke-dashoffset="%s"', 'style="stroke-dashoffset:%s"', 'pathLength="%s"',
+                          'opacity="%s"', 'fill-opacity="%s"', 'style="stroke-opacity:%s"', 'stroke-dasharray="%s"',
+                          'stroke-dasharray="4 %s"', 'style="stroke-dasharray:%s 4"', 'transform="translate(%s)"',
+                          'transform="rotate(45) scale(1 %s)"', 'transform="matrix(1 0 0 1 %s 0)"'):
+                with self.subTest(form=form, attrs=attrs):
+                    refused(self, self.shape(attrs % form + ' stroke="#ff0000"'), "bad-value")
+            for inner in ('<circle r="%s"/>', '<circle cx="%s" r="3"/>', '<ellipse rx="3" ry="%s"/>', '<line x2="%s"/>',
+                          '<polygon points="0,0 %s,0 9,9"/>', '<polyline points="%s,%s 9.,9."/>', "<style>rect{stroke-width:%s}</style><rect/>"):
+                with self.subTest(form=form, inner=inner):
+                    refused(self, svg(inner.replace("%s", form)), "bad-value")
+        refused(self, b'<svg xmlns="http://www.w3.org/2000/svg" width="40." height="30"><path d="M0 0h1v1z"/></svg>', "bad-value")
+        # in a colour as well: `rgb(255.,0,0)` was read as red, and the renderer paints it black
+        for value in ("rgb(255.,0,0)", "rgb(255. 0 0)", "rgb(100.%,0%,0%)", "rgba(255,0,0,1.)", "hsl(0.,100%,50%)", "rgb(0,0,255.)", "rgb(1.e2,0,0)", "red."):
+            for attrs in ('fill="%s"', 'stroke="%s"', 'color="%s"', 'style="fill:%s"'):
+                with self.subTest(value=value, attrs=attrs):
+                    refused(self, self.shape(attrs % value), "bad-value")
+        self.assertEqual(_svg.clean_svg(bare('<rect fill="rgb(255.0,.0,0.0)" width="9" height="9"/>')).colours, ["#ff0000"])
+        # in path data it is a number, to the renderer and so to this check, and is kept as it is written
+        self.assertIn('d="M0. 0.h5.v5.e0z"', _svg.clean_svg(svg('<path fill="#111111" d="M0. 0.h5.v5.e0z"/>')).text)
+        # and every other way of writing a number is still read
+        for attrs in ('width="5.0"', 'height="05"', 'stroke-width="5e0"', 'stroke-width=".5e1"', 'x="+5"', 'y="-.5"', 'transform="translate(5.0,.5)"',
+                      'stroke-dasharray="5.0 .5"', 'stroke-miterlimit="4.0"'):
+            with self.subTest(attrs=attrs):
+                self.assertIn(attrs, _svg.clean_svg(self.shape(attrs)).text)
+        _svg.clean_svg(self.shape('opacity="1.0" fill-opacity="100.0%"'))
+
+    def test_each_dash_is_a_number_or_a_percentage_of_its_own(self):
+        # every "%" used to be taken out before the list was read, so `5%10%` was checked as the number 510
+        for value in ("5%%", "%", "%5", "5 %", "5%%10", "1 2 %", "5%px", "%%", "5%.", "5.%"):
+            with self.subTest(value=value):
+                refused(self, self.shape('stroke-dasharray="%s" stroke="#ff0000"' % value), "bad-value")
+                refused(self, self.shape('style="stroke-dasharray:%s" stroke="#ff0000"' % value), "bad-value")
+        # the site's renderer reads `50%10%` as the two dashes it reads in `50% 10%` (measured 2026-10-12)
+        for value in ("5%10%", "5% 10%", "5%,10%", "50% 2", "1%2", ".5%", "4 2", "4,2", "none", ""):
+            with self.subTest(value=value):
+                self.assertIn('stroke-dasharray="%s"' % value, _svg.clean_svg(self.shape('stroke-dasharray="%s" stroke="#ff0000"' % value)).text)
+
+    def test_only_a_plain_space_is_a_space(self):
+        # Python's strip(), split() and \s take a no-break space, an em space, a line separator; a renderer does not.
+        # Taken off here, each of these gave a value the check read one way and the renderer another: a fill of
+        # "(no-break space)red" was read as red and is drawn black.
+        for space in ("\u00a0", "\u2003", "\u3000", "\u2028", "\u0085", "\u1680", "\u202f"):
+            for attrs in ('fill="%sred"', 'fill="red%s"', 'stroke="#ff0000%s"', 'fill="rgb(255,%s0,0)"', 'style="fill:%sred"',
+                          'style="fill:red%s"', 'stroke-width="%s2"', 'stroke-width="2%s"', 'width="9%s"', 'opacity="%s1"',
+                          'visibility="%shidden"', 'display="none%s"', 'fill-rule="%sevenodd"', 'clip-path="%snone"', 'stroke-dasharray="4%s2"',
+                          'transform="translate(1%s2)"', 'transform="%sscale(2)"', 'transform="scale%s(2)"', 'class="%sa"',
+                          'class="a%sb"', 'id="%sa"', 'id="a%s"', 'paint-order="stroke%sfill"'):
+                with self.subTest(space=ascii(space), attrs=attrs):
+                    refused(self, self.shape(attrs % space), "bad-value")
+            for inner in ('<polygon points="0,0%s9,0 9,9"/>', '<polygon points="%s0,0 9,0 9,9"/>', '<path d="M0%s0h9v9z"/>', '<path d="%sM0 0h9v9z"/>'):
+                with self.subTest(space=ascii(space), inner=inner):
+                    refused(self, svg(inner % space), "bad-value")
+            # inside url() such a space is part of an address: the link would no longer be one into the drawing
+            for attrs in ('clip-path="url(%s#c)"', 'clip-path="url(#c%s)"', 'style="clip-path:url(%s#c)"', 'fill="url(%s#c)"'):
+                with self.subTest(space=ascii(space), attrs=attrs):
+                    refused(self, self.shape(attrs % space), "css-url")
+        # the plain ones, around a value and inside it, are read as before
+        for attrs in ('fill=" red "', 'fill="rgb(255, 0,\t0)"', 'stroke-width=" 2 "', 'transform=" translate(1 2) "', 'class=" a  b "',
+                      'clip-path=" none "', 'visibility=" hidden "'):
+            with self.subTest(attrs=attrs):
+                _svg.clean_svg(self.shape(attrs))
+        refused(self, self.shape('fill=" &#10;&#13;&#9;"'), "bad-value")
+        self.assertEqual(_svg.clean_svg(bare('<rect fill="&#10;red&#13;&#9;" width="9" height="9"/>')).colours, ["#ff0000"])
+
+    def test_a_colour_is_written_in_ascii(self):
+        # Python's \w takes any script's letters and digits: `rgb(١٢٣,0,0)` reached the colour reader and came
+        # back as #7b0000, where the site's renderer reads no colour at all and paints black
+        for value in ("rgb(\u0661\u0662\u0663,0,0)", "rgb(\uff11,0,0)", "\uff52\uff45\uff44", "r\u00e9d", "#\uff11\uff12\uff13", "#12345\u0666",
+                      "re\u0434", "hsl(\u0968 50% 50%)", "\u00b2", "red\u0301", "\u212aed"):
+            for shape in ('fill="%s"', 'stroke="%s"', 'color="%s"', 'style="fill:%s"', 'style="stroke:%s"'):
+                with self.subTest(value=ascii(value), shape=shape):
+                    refused(self, self.shape(shape % value), "bad-value")
+            refused(self, svg("<style>rect{fill:%s}</style><rect/>" % value), "bad-value")
+        for value, colour in (("red", "#ff0000"), ("RED", "#ff0000"), ("rgb(1,2,3)", "#010203"), ("#123", "#112233")):
+            self.assertIn(colour, _svg.clean_svg(bare('<rect fill="%s" width="9" height="9"/>' % value)).colours)
 
     def test_a_size_below_zero_is_refused_by_name(self):
         for name in ("stroke-width", "r", "rx", "ry", "width", "height"):
@@ -386,8 +474,6 @@ class OuterSvg(unittest.TestCase):
                 err = refused(self, svg(root='transform="%s"' % value), "root-transform")
                 self.assertIn("outer", str(err))
                 self.assertIn(value.strip(), str(err))
-        page = ('<!doctype html><html><body><svg viewBox="0 0 64 64" transform="scale(2)">%s</svg></body></html>' % PATH).encode()
-        refused(self, page, "root-transform", source="html")
         # the same transform on a group inside is part of the drawing and is kept
         self.assertIn('<g transform="translate(20 20)">', _svg.clean_svg(svg('<g transform="translate(20 20)"><path d="M0 0h1v1z"/></g>')).text)
         # and an empty one loses nothing
@@ -492,6 +578,31 @@ class Css(unittest.TestCase):
             with self.subTest(text=text):
                 _css.check_text(text)
 
+    def test_a_carriage_return_with_its_line_feed_after_an_escape_is_one_blank(self):
+        # CSS takes CR LF for one line break, and one blank after a hex escape belongs to the escape. Read as
+        # "escape, CR" with a line feed left over, the word was cut in two here and whole to a renderer.
+        end = "\r\n"
+        for text, code in (("u\\72%sl(https://x.example/a)", "css-url"), ("@im\\70%sort 'https://x.example/a'", "css-import"),
+                           ("image-\\73%set('https://x.example/a' 1x)", "css-url"), ("java\\73%script:alert(1)", "css-script"),
+                           ("\\75%srl(https://x.example/a)", "css-url"), ("ur\\6c%s(https://x.example/a)", "css-url"),
+                           ("ur\\6C%s(https://x.example/a)", "css-url"), ("U\\52%sL(https://x.example/a)", "css-url"),
+                           ("u\\000072%sl(https://x.example/a)", "css-url"), ("u\\72%s\\6c%s(https://x.example/a)", "css-url"),
+                           ("@\\69%smport url(a.css)", "css-import"), ("@\\000049%sMPORT 'a.css'", "css-import"),
+                           ("s\\72%sc('a.png')", "css-url"), ("im\\61%sge('a.png')", "css-url"), ("-webkit-im\\000061%sge-set('a.png' 1x)", "css-url"),
+                           ("expr\\65%sssion(1)", "css-script"), ("-moz-bindin\\67%s:url(#a)", "css-script"), ("behavio\\72%s:x", "css-script"),
+                           ("url(#a\\29%shttps://x.example/a)", "css-url")):
+            for blank in (end, "\n", "\r", " ", "\t", "\f"):  # each of them is the one blank that belongs to the escape
+                with self.subTest(text=text, blank=ascii(blank)):
+                    self.css_refused(text.replace("%s", blank), code)
+        # through the whole check: a character reference is how a file carries a carriage return past the XML parser
+        refused(self, svg().replace(b"<path ", b'<path style="fill:u\\72&#13;&#10;l(https://x.example/a)" '), "css-url")
+        refused(self, svg("<style>path{fill:u\\72&#13;&#10;l(https://x.example/a)}</style>"), "css-url")
+        refused(self, svg("<style>@im\\70&#13;&#10;ort 'a.css';</style>"), "css-import")
+        # one blank, not two: a second line break does end the word
+        for text in ("@im\\70\r\n\nort 'a.css'", "java\\73\r\n\r\ncript:alert(1)", "url(#\\61\r\n)", "u\\72\r\nl(#a)"):
+            with self.subTest(text=ascii(text)):
+                _css.check_text(text)
+
     def test_a_picture_loaded_without_url_is_refused_by_name(self):
         for text in ('image-set("https://x.example/a" 1x)', "image(https://x.example/a)", 'src("https://x.example/a")', 'IMAGE-SET("a.png" 1x)',
                      '-webkit-image-set("a.png" 1x)', 'image\\28 "a.png")', 'i\\6d age("a.png")', 'fill:image("a.png")', "/* x */src('a')"):
@@ -503,6 +614,24 @@ class Css(unittest.TestCase):
         for text in ("Image (2)", "feImage", "an image, (old)", "mysrc(1)", "bgimage(2)", "src"):
             with self.subTest(text=text):
                 _css.check_text(text)
+        # nor is a longer word that ends in one: these were refused as "loads a picture", which they do not
+        for text in ("background-image(#a)", "mask-image(", "border-image(1)", "x-src(1)", "list-style-image(2)", "--image(1)",
+                     "-image(1)", "a-image-set(1)", "my_image(1)", "data-src(1)", "BACKGROUND-IMAGE(1)"):
+            with self.subTest(text=text):
+                _css.check_text(text)
+        # the three themselves stay refused wherever they stand, with a browser's own prefix too
+        for text in ("image(a)", " image-set(a 1x)", ":src(a)", ",image(a)", "(image(a))", "-webkit-image-set(a 1x)", "-moz-image-set(a)",
+                     "-webkit-image(a)", "-o-src(a)", "fill:-WEBKIT-IMAGE-SET(a)", "a -webkit-image-set(a)", "background-image:image(a)",
+                     "mask-image: image-set(a 1x)"):
+            with self.subTest(text=text):
+                self.css_refused(text, "css-url")
+
+    def test_a_comment_that_names_an_import_or_a_picture_is_refused_with_the_rest(self):
+        # kept, deliberately: it fails closed, and a logo's style sheet has no reason to say either
+        self.css_refused("/* @import */ fill:red", "css-import")
+        self.css_refused("/* image(x) */", "css-url")
+        refused(self, svg("<style>/* no @import here */ path{fill:#b4531a}</style>"), "css-import")
+        _css.check_text("/* a plain comment about the import of flour */")
 
     def test_a_rule_that_matches_no_element_is_checked_all_the_same(self):
         refused(self, svg("<style>.unused{behavior-x:1}</style>"), "css-property")
@@ -526,10 +655,81 @@ class Css(unittest.TestCase):
         for style in ("fi\\6cl:#f00", "fill\\3a #f00", "\\66ill:#f00", "fill:#f00;str\\6fke:#00f"):
             with self.subTest(style=style):
                 refused(self, bare('<rect style="%s" width="9" height="9"/>' % style), "css-unreadable")
-        # a ";" hidden in an escape ends no declaration: the value is refused whole, the second fill never applied
-        refused(self, bare('<style>rect{fill:red\\3b fill:#00f}</style><rect width="9" height="9"/>'), "bad-value")
-        # inside a value an escape is still decoded, as a renderer decodes it
-        self.assertEqual(_svg.clean_svg(bare('<rect style="fill:#\\66 00" width="9" height="9"/>')).colours, ["#ff0000"])
+        # a ";" hidden in an escape ends no declaration: the rule is refused whole, the second fill never applied
+        refused(self, bare('<style>rect{fill:red\\3b fill:#00f}</style><rect width="9" height="9"/>'), "css-unreadable")
+
+    def test_a_backslash_in_a_value_is_refused_not_decoded(self):
+        # Decoded, an escaped "#", bracket, comma or digit became structure: `fill:\23 f00` was read as #ff0000 and
+        # written into the cleaned file, where the site's renderer reads no colour in it and paints black (and
+        # `clip-path:url\28 #c\29 ` clipped a shape the original leaves whole). So no value is decoded any more.
+        clip = '<defs><clipPath id="c"><rect width="4" height="9"/></clipPath></defs>'
+        for value in ("fill:\\23 f00", "fill:rgb\\28 255,0,0\\29 ", "fill:rgb(255\\2c 0\\2c 0)", "stroke-width:\\30 ", "clip-path:url\\28 #c\\29 ",
+                      "fill:#\\66 00", "fill:r\\65 d", "fill:\\72 ed", "fill:red\\", "fill:re\\d", "fill:#f\\30 0", "opacity:\\31 ", "display:n\\6f ne",
+                      "visibility:hidd\\65 n", "stroke:#00f\\20 ", "stroke-dasharray:4\\20 2", "fill-rule:even\\6f dd", "color:\\23 f00",
+                      "paint-order:str\\6f ke", "font-family:Ari\\61 l", "cursor:\\70ointer", "fill:#f00;font-family:a\\,b"):
+            for doc in (bare(clip + "<style>rect{%s}</style>" % value + '<rect width="9" height="9"/>'),
+                        bare(clip + '<rect style="%s" width="9" height="9"/>' % value)):
+                with self.subTest(value=value, doc=doc[-60:]):
+                    self.assertIn("backslash", str(refused(self, doc, "css-unreadable")))
+        # inside quotes a backslash changes nothing this check reads: a font's name is left out as before
+        for value in ('font-family:"A\\42 C"', "font-family:'it\\'s'", 'font-family:"a\\\\"', '-inkscape-font-specification:"a\\"b"'):
+            with self.subTest(value=value):
+                clean = _svg.clean_svg(bare("<style>rect{%s;fill:#00f}</style>" % value + '<rect width="9" height="9"/>'))
+                self.assertEqual(clean.colours, ["#0000ff"])
+                self.assertEqual(_svg.clean_svg(bare("<rect style='%s;fill:#00f' width='9' height='9'/>" % value.replace("'", "&#39;"))).colours, ["#0000ff"])
+
+    def test_quotes_and_brackets_cannot_hide_where_a_rule_or_a_value_ends(self):
+        # This reader cuts a style sheet at every brace and a rule at every semicolon. A renderer does not cut inside
+        # quotes or brackets, so `g{font-family:"} path{fill:#f00} g{font-family:"}` is ONE rule on g to it (the path
+        # stays as it was) and was three rules here: the cleaned path came out red.
+        shape = '<g><rect width="9" height="9"/></g>'
+        sheets = ['g{font-family:"} rect{fill:#f00} g{font-family:"}', "g{font-family:'} rect{fill:#f00} g{font-family:'}",
+                  'g{font-family:"a\\"} rect{fill:#f00} g{font-family:"}', "g{font-family:'a\\'} rect{fill:#f00} g{font-family:'}",
+                  'rect{font-family:"a;fill:#f00;cursor:b"}', "rect{font-family:'a;fill:#f00;cursor:b'}", 'rect{font-family:"a\\";fill:#f00;cursor:"}',
+                  'g{font-family:"a&#13;/*"} rect{fill:#f00} g{font-family:"*/"}', 'g{font-family:"a&#10;"} rect{fill:#f00}',
+                  'rect{font-family:"abc;fill:#f00}', "rect{font-family:abc';fill:#f00}", 'g{font-family:"}"} rect{fill:#f00}',
+                  "g{cursor:x(} rect{fill:#f00} g{cursor:)}", "rect{cursor:x(a;fill:#f00;cursor:b)}", "rect{cursor:x((a);fill:#f00;cursor:b)}",
+                  "rect{cursor:[a;fill:#f00;cursor:b]}", "g{cursor:[} rect{fill:#f00} g{cursor:]}", "rect{cursor:x(a;fill:#f00}",
+                  "rect{cursor:a);fill:#f00}", "rect{fill:#f00;cursor:x(}", 'g{cursor:x("} rect{fill:#f00} g{cursor:")}']
+        for sheet in sheets:
+            with self.subTest(sheet=sheet):
+                refused(self, bare("<style>%s</style>" % sheet + shape), "css-unreadable")
+        styles = ['font-family:"a;fill:#f00;cursor:b"', "font-family:'a;fill:#f00;cursor:b'", 'font-family:"a\\";fill:#f00;cursor:"',
+                  'font-family:"a;fill:#f00', "font-family:a';fill:#f00", "cursor:x(a;fill:#f00;cursor:b)", "cursor:[a;fill:#f00;cursor:b]",
+                  "cursor:{a;fill:#f00;cursor:b}", "cursor:x(a;fill:#f00", "fill:#f00;cursor:a)", "cursor:a};fill:#f00", "cursor:{;fill:#f00",
+                  'font-family:"a{b"', "font-family:'a}b'"]
+        for style in styles:
+            with self.subTest(style=style):
+                attr = "style='%s'" % style.replace("'", "&#39;")
+                refused(self, bare("<rect %s width='9' height='9'/>" % attr), "css-unreadable")
+        # quotes and brackets that hide nothing are read as before: a font's name is left out and said, a colour is read
+        for style in ('font-family:"Helvetica Neue"', "-inkscape-font-specification:'DejaVu Sans, Bold'", 'font-family:"a:b (c) [d], e"',
+                      "font-family:'Caf\u00e9 \u2013 \u65e5\u672c'", 'font-family:""', "font-family:Arial, sans-serif"):
+            with self.subTest(style=style):
+                attr = "style='fill:rgb(0, 0, 255);%s'" % style.replace("'", "&#39;")
+                self.assertEqual(_svg.clean_svg(bare("<rect %s width='9' height='9'/>" % attr)).colours, ["#0000ff"])
+                clean = _svg.clean_svg(bare("<style>g{%s} rect{fill:rgb(0, 0, 255)}</style>" % style + shape))
+                self.assertEqual(clean.colours, ["#0000ff"])
+                self.assertEqual(len(clean.notes), 1, clean.notes)
+
+    def test_only_plain_letters_and_plain_spaces_make_a_property_or_a_selector(self):
+        # Python's strip() takes a no-break space and its lower() turns a Kelvin sign into a k: `(nbsp)fill` was read
+        # as fill and `stro(Kelvin)e` as stroke, where a renderer sees a property it does not know and paints nothing
+        for sheet in ("rect{\u00a0fill:#f00}", "rect{fill\u00a0:#f00}", "rect{stro\u212ae:#f00;stroke-width:3}", "\u00a0rect{fill:#f00}",
+                      "rect\u2003{fill:#f00}", "rect{fill:#00f;\u3000fill:#f00}", "rect,\u00a0g{fill:#f00}", "rect{FILL\u0131:#f00}"):
+            with self.subTest(sheet=ascii(sheet)):
+                refused(self, bare("<style>%s</style>" % sheet + '<rect width="9" height="9"/>'), "css-unreadable")
+        for style in ("\u00a0fill:#f00", "fill\u2003:#f00", "stro\u212ae:#f00", "fill:#00f;\u00a0fill:#f00"):
+            with self.subTest(style=ascii(style)):
+                refused(self, bare('<rect style="%s" width="9" height="9"/>' % style), "css-unreadable")
+        # nor capitals: a browser reads FILL as fill, the site's renderer does not read it at all (measured 2026-10-12)
+        for style in ("FILL:#f00", "Fill:#f00", "fill:#00f;strokE:#f00", "-Inkscape-font-specification:x"):
+            with self.subTest(style=style):
+                self.assertIn("capital", str(refused(self, bare('<rect style="%s" width="9" height="9"/>' % style), "css-unreadable")))
+                refused(self, bare("<style>rect{%s}</style>" % style + '<rect width="9" height="9"/>'), "css-unreadable")
+        for style in (" fill : #f00 ", "\tfill:#f00;\n", "fill:#F00", "fill:RED"):
+            with self.subTest(style=style):
+                self.assertEqual(_svg.clean_svg(bare('<rect style="%s" width="9" height="9"/>' % style)).colours, ["#ff0000"])
 
     def test_a_comment_opener_inside_a_string_does_not_swallow_the_rules_after_it(self):
         sheet = '<style>g{font-family:"/*"} rect{fill:#0000ff} g{font-family:"*/"}</style><rect width="9" height="9"/>'
@@ -562,9 +762,6 @@ class Styles(unittest.TestCase):
             self.assertIn('<clipPath id="c" clipPathUnits="%s">' % value, clean.text)
             self.assertEqual(clean.notes, [])
         refused(self, bare(inner % "somethingElse"), "bad-value")
-        # an HTML page gives the name in lower case
-        page = ('<!doctype html><html><body><svg viewBox="0 0 64 64">%s</svg></body></html>' % (inner % "objectBoundingBox")).encode()
-        self.assertIn('clipPathUnits="objectBoundingBox"', _svg.clean_svg(page, source="html").text)
         # on any other element it means nothing: left out, and said
         clean = _svg.clean_svg(bare(self.SHAPE % 'clipPathUnits="objectBoundingBox"'))
         self.assertNotIn("clipPathUnits", clean.text)
@@ -578,25 +775,16 @@ class Styles(unittest.TestCase):
         for kind in ("text/x-scss", "text/less", "text/javascript", "application/json"):
             with self.subTest(kind=kind):
                 self.assertIn(kind, str(refused(self, svg('<style type="%s">%s</style>' % (kind, rule)), "style-type")))
+        # a browser takes no blank off a type, and only plain blanks off a media: with one left on, it does not apply the style
+        for attrs, code in (('type=" text/css"', "style-type"), ('type="text/css "', "style-type"), ('type="\u00a0text/css"', "style-type"),
+                            ('type="text/css&#10;"', "style-type"), ('media="\u00a0all"', "style-media"), ('media="screen\u2003"', "style-media"),
+                            ('media="\u3000"', "style-media")):
+            with self.subTest(attrs=ascii(attrs)):
+                refused(self, svg("<style %s>%s</style>" % (attrs, rule)), code)
         for attrs in ("", 'media="all"', 'media="screen"', 'media=" Screen "', 'media=""', 'type="text/css"', 'type="TEXT/CSS"', 'type="text/css" media="all"'):
             with self.subTest(attrs=attrs):
                 clean = _svg.clean_svg(svg("<style %s>%s</style>" % (attrs, rule)))
                 self.assertEqual((clean.colours, clean.notes), (["#ff0000"], []))
-
-    def test_a_drawing_from_a_page_says_that_the_pages_own_styles_were_not_read(self):
-        # The page's style sheet may colour the drawing by tag or by id, and may sit in another file:
-        # the drawing alone cannot show it (a class no rule in the drawing names is refused, see
-        # test_paint.py). So the owner is told, every time, to compare the preview with the page.
-        page = (b'<!doctype html><html><head><style>path{fill:#ff0000} #m{fill:#00ff00}</style></head><body>'
-                b'<svg viewBox="0 0 8 8"><path id="m" d="M0 0h8v8z"/></svg></body></html>')
-        for clean in (_svg.clean_svg(page, source="html"), _svg.clean_svg(_svg.html_svgs(page)[0].encode(), source="html-svg")):
-            self.assertEqual(clean.colours, ["#000000"])
-            self.assertEqual(len([n for n in clean.notes if "web page" in n and "style sheet" in n and "compare" in n]), 1, clean.notes)
-        # and no number of other notes crowds it out
-        crowd = "".join('<g unread%d="1"></g>' % i for i in range(_svg.MAX_NOTES + 5))
-        clean = _svg.clean_svg(page.replace(b"<path ", crowd.encode() + b"<path "), source="html")
-        self.assertIn("web page", clean.notes[0])
-        self.assertEqual(_svg.clean_svg(svg()).notes, [], "an SVG file has no page around it")
 
     def test_all_the_styles_of_a_file_share_one_budget(self):
         half = "path{fill:#b4531a}" + " " * (_svg.MAX_STYLE_CHARS // 2)
@@ -614,6 +802,44 @@ class Styles(unittest.TestCase):
         refused(self, svg(sheet(1, _svg.MAX_DECLARATIONS // 2 + 1) * 2), "too-many-declarations")
         _svg.clean_svg(svg(sheet(_svg.MAX_SELECTORS, _svg.MAX_DECLARATIONS)))
 
+    def test_a_selector_joins_a_handful_of_names_and_each_of_them_counts(self):
+        # The caps counted selectors, not what one selector holds: 200 selectors of 155 names each stayed inside every
+        # cap and took 79 seconds to apply (and one selector of 32,000 names took 6).
+        def joined(parts, tag=""):
+            return "<style>%s%s{fill:#111111}</style>" % (tag, "".join(parts))
+
+        most = _css.MAX_PARTS
+        for parts in ([".k"] * (most + 1), ["#k"] * (most + 1), [".a", "#b"] * (most // 2) + [".c"], [".k%d" % i for i in range(most + 1)]):
+            for tag in ("", "path", "*"):
+                with self.subTest(parts="".join(parts), tag=tag):
+                    err = refused(self, svg(joined(parts, tag)), "selector-too-long")
+                    self.assertIn(str(most), str(err))
+                    self.assertIn("plainer export", str(err))
+        refused(self, svg("<style>.ok{fill:#111111} g, path%s, rect{fill:#222222}</style>" % (".k" * (most + 1))), "selector-too-long")
+        for parts in ([".k"] * most, ["#k"] * most, [".a", "#b"] * (most // 2), [".k"]):
+            for tag in ("", "path", "*"):
+                with self.subTest(parts="".join(parts), tag=tag):
+                    _svg.clean_svg(svg(joined(parts, tag)))
+        # every name is one look at every element, so every name counts toward the selectors a file may have
+        def many(selectors, names):
+            return "<style>%s{fill:#111111}</style>" % ",".join("".join(".c%d-%d" % (i, j) for j in range(names)) for i in range(selectors))
+
+        for names in (2, 5, most):
+            fit = _svg.MAX_SELECTORS // names
+            with self.subTest(names=names):
+                _svg.clean_svg(svg(many(fit, names)))
+                refused(self, svg(many(fit, names) + many(1, names)), "too-many-selectors")
+                refused(self, svg(many(fit + 1, names)), "too-many-selectors")
+        _svg.clean_svg(svg("<style>%s{fill:#111111}</style>" % ",".join(["path"] * _svg.MAX_SELECTORS)))  # a bare tag is one look
+        refused(self, svg("<style>%s{fill:#111111}</style>" % ",".join(["path"] * (_svg.MAX_SELECTORS + 1))), "too-many-selectors")
+
+    def test_a_name_written_twice_in_a_selector_still_counts_twice_as_a_renderer_counts_it(self):
+        # `.a.a` outranks `.b` (measured with the site's renderer, 2026-10-12): the names of a selector are capped, not merged
+        two = '<rect class="a b" width="9" height="9"/>'
+        self.assertEqual(_svg.clean_svg(bare("<style>.a.a{fill:#ff0000} .b{fill:#0000ff}</style>" + two)).colours, ["#ff0000"])
+        self.assertEqual(_svg.clean_svg(bare("<style>.a{fill:#ff0000} .b{fill:#0000ff}</style>" + two)).colours, ["#0000ff"])
+        self.assertEqual(_svg.clean_svg(bare("<style>#i#i{fill:#ff0000} #i.a.b{fill:#0000ff}</style>" + two.replace("<rect ", '<rect id="i" '))).colours, ["#ff0000"])
+
     def test_the_most_styles_a_file_may_carry_are_applied_in_bounded_time(self):
         # elements x selectors is the cost: 4,990 x 30,000 took most of a minute before the caps
         shapes = '<path class="k" d="M0 0"/>' * (_svg.MAX_ELEMENTS - 10)
@@ -625,6 +851,38 @@ class Styles(unittest.TestCase):
             self.assertEqual(out["code"], "ok")
         over = svg("<style>%s{fill:#111111}</style>" % ",".join(".c%d" % i for i in range(9000)) + shapes)
         self.assertEqual(judged(self, [over])[0]["code"], "too-many-selectors")
+
+    def test_no_selector_however_it_is_built_makes_the_styles_slow_to_apply(self):
+        most, names = _svg.MAX_ELEMENTS - 10, _css.MAX_PARTS
+        paths = '<path class="k" id="k" d="M0 0"/>' * most
+        # the very file that took 79 seconds: 200 selectors of 155 names on 2,230 groups of 94 classes each, and one rect
+        groups = '<g class="%s a"/>' % " ".join(["x"] * 93) * 2230 + '<rect width="9" height="9"/>'
+        slow = svg("<style>%s{fill:#f00}</style>" % ",".join([".a" * 155] * 200) + groups)
+        self.assertLess(len(slow), _svg.MAX_BYTES)
+        over = [
+            slow,
+            svg("<style>%s{fill:#111111}</style>" % (".k" * 32000) + paths),                      # one selector, 32,000 classes
+            svg("<style>%s{fill:#111111}</style>" % ("#k" * 20000) + paths),                      # the same with ids
+            svg("<style>path%s{fill:#111111}</style>" % (".k" * 20000) + paths),                  # a tag and a long chain
+            svg("<style>%s{fill:#111111}</style>" % ",".join(["#a" * 155] * 200) + '<g id="a"/>' * most),
+            svg("<style>%s{fill:#111111}</style>" % ",".join([".k" * (names + 1)] * 200) + paths),  # many short ones, one name too long
+        ]
+        for i, out in enumerate(judged(self, over)):
+            self.assertEqual(out["code"], "selector-too-long", i)
+        budget = svg("<style>%s{fill:#111111}</style>" % ",".join([".k.k.k"] * 200) + paths)        # each short enough, too many together
+        self.assertEqual(judged(self, [budget])[0]["code"], "too-many-selectors")
+        # and the most that IS allowed, built each way, is applied in bounded time
+        fit = _svg.MAX_SELECTORS // names
+        inside = [
+            svg("<style>%s</style>" % "".join("path%s{fill:#111111}" % (".k" * names) for _ in range(fit)) + paths),
+            svg("<style>%s</style>" % "".join("%s{fill:#111111}" % ("#k" * names) for _ in range(fit)) + paths),
+            svg("<style>%s{fill:#111111}</style>" % ",".join([".k"] * _svg.MAX_SELECTORS) + paths),
+            svg("<style>%s</style>" % "".join(".a{fill:#111111}" for _ in range(_svg.MAX_SELECTORS)) + groups),
+            svg("<style>%s</style>" % "".join("#a{fill:#111111}" for _ in range(_svg.MAX_SELECTORS)) + '<g id="a"/>' * most + '<rect width="9" height="9"/>'),
+            svg("<style>%s</style>" % "".join(".k{%s}" % ";".join(["fill:#111111"] * 5) for _ in range(_svg.MAX_SELECTORS)) + paths),
+        ]
+        for i, out in enumerate(judged(self, inside, each=5.0)):
+            self.assertEqual(out["code"], "ok", i)
 
 
 class Structure(unittest.TestCase):
@@ -664,6 +922,43 @@ class Structure(unittest.TestCase):
         self.assertEqual(_svg.clean_svg(pasted).colours, ["#111111"])
         self.assertEqual(_svg.clean_svg(pasted.replace(b"<path ", b'<path xmlns="http://www.w3.org/2000/svg" ')).colours, ["#111111"])
 
+    def test_a_class_nothing_styles_is_only_a_word(self):
+        clean = _svg.clean_svg(svg('<path class="leftover other" fill="#111111" d="M0 0h9v9z"/>'))
+        self.assertEqual((clean.colours, clean.notes), (["#111111", "#b4531a"], []))
+        self.assertNotIn("class", clean.text)
+
+    def test_an_id_is_the_id_as_it_is_written(self):
+        # a renderer takes no blank off an id: ` a` is not the `a` that `#a` names (measured 2026-10-12: the rect stays black)
+        for value in (" a", "a ", " a ", "&#9;a", "a&#10;", "a b", ""):
+            with self.subTest(value=value):
+                refused(self, bare('<style>#a{fill:#ff0000}</style><rect id="%s" width="9" height="9"/>' % value), "bad-value")
+        self.assertEqual(_svg.clean_svg(bare('<style>#a{fill:#ff0000}</style><rect id="a" width="9" height="9"/>')).colours, ["#ff0000"])
+
+    def test_what_changes_the_drawing_in_one_program_and_not_in_another_is_refused_by_name(self):
+        # Each of these was left out with the general note. A browser honours it and the site's renderer does not,
+        # so `<g systemLanguage="xx-none">` with a red rect inside came out with the red rect in it.
+        red = '<rect fill="#ff0000" width="9" height="9"/>'
+        for attr, code, word in (('systemLanguage="xx-none"', "conditional", "systemLanguage"), ('systemLanguage=""', "conditional", "systemLanguage"),
+                                 ('requiredExtensions="http://example.com/none"', "conditional", "requiredExtensions"),
+                                 ('requiredFeatures="http://example.com/none"', "conditional", "requiredFeatures"),
+                                 ('transform-origin="5 5"', "transform-origin", "transform-origin"), ('transform-origin="center"', "transform-origin", "flattened"),
+                                 ('vector-effect="non-scaling-stroke"', "vector-effect", "vector-effect"), ('vector-effect="none"', "vector-effect", "outlines into shapes")):
+            for doc in (svg("<g %s>%s</g>" % (attr, red)), svg(red.replace("<rect ", "<rect %s " % attr)), svg(red, root=attr),
+                        svg('<defs><clipPath id="c" %s><rect width="4" height="4"/></clipPath></defs>' % attr)):
+                with self.subTest(attr=attr, doc=doc[100:160]):
+                    err = refused(self, doc, code)
+                    self.assertIn(word, str(err))
+                    self.assertIn("Ask the tool", str(err))
+        for prop, code in (("transform-origin:5px 5px", "transform-origin"), ("vector-effect:non-scaling-stroke", "vector-effect")):
+            with self.subTest(prop=prop):
+                refused(self, svg(red.replace("<rect ", '<rect style="%s" ' % prop)), code)
+                refused(self, svg("<style>rect{%s}</style>" % prop + red), code)
+                refused(self, svg("<style>.unused{%s}</style>" % prop), code)
+        # with a prefix it is another program's attribute, left out and said as any such is; without the attribute the file is fine
+        clean = _svg.clean_svg(svg('<g x:systemLanguage="xx" xmlns:x="urn:editor">%s</g>' % red))
+        self.assertEqual((clean.colours, len(clean.notes)), (["#ff0000", "#b4531a"], 1))
+        self.assertEqual(_svg.clean_svg(svg("<g>%s</g>" % red)).notes, [])
+
     def test_an_attribute_with_a_prefix_is_not_the_plain_attribute(self):
         doc = '<svg %s xmlns:s="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><path %%s d="M0 0h9v9z"/></svg>' % NS
         for attrs in ('s:fill="#ff0000"', 's:style="fill:#ff0000"', 's:stroke="#ff0000" s:stroke-width="3"', 's:class="x" s:id="y"'):
@@ -678,119 +973,57 @@ class Structure(unittest.TestCase):
         refused(self, (doc % 's:href="https://x.example/a"').encode(), "external-link")
 
 
-class FromHtml(unittest.TestCase):
-    """The same checks apply to an inline <svg> taken out of an HTML page (scenario 17); the
-    hostile parts of the page around it are never run, only parsed."""
+class NoWebPages(unittest.TestCase):
+    """A drawing is no longer taken out of a web page (decided 2026-10-12): the page's own style sheet may colour
+    it, and that is nowhere in the drawing. A page is refused by name with the way out, and nothing of it is read.
+    The intake's side of this is in test_input_forms.py."""
 
-    def page(self, inner):
-        return ('<!doctype html><html><head><script>alert(1)</script></head><body>%s</body></html>' % inner).encode()
+    PAGE = ('<!doctype html><html><head><style>path{fill:#ff0000}</style></head><body>'
+            '<svg viewBox="0 0 8 8"><path d="M0 0h8v8z"/></svg></body></html>')
 
-    def test_an_inline_svg_without_xmlns_is_serialised_with_it(self):
-        html = self.page('<svg viewBox="0 0 64 64"><path fill="#b4531a" d="M10 34A22 22 0 0 1 54 34Z"/></svg>')
-        clean = _svg.clean_svg(html, source="html")
-        self.assertIn('xmlns="http://www.w3.org/2000/svg"', clean.text)
-        self.assertIn('viewBox="0 0 64 64"', clean.text)
+    def test_the_check_reads_an_svg_and_says_so_for_anything_else(self):
+        for data in (self.PAGE.encode(), svg()):
+            for source in ("html", "html-svg", "page", "zip", "", None, "SVG", 0):
+                with self.subTest(source=source, data=data[:20]):
+                    with self.assertRaises(_svg.Refusal) as cm:
+                        _svg.clean_svg(data, source=source)
+                    self.assertEqual(cm.exception.code, "web-page")
+                    for word in ("web page", "SVG file", "pasted", "zip", "<svg", "</svg>", "Ask the tool"):
+                        self.assertIn(word, str(cm.exception))
+        self.assertEqual(_svg.clean_svg(svg(), source="svg").colours, ["#b4531a"])
+        self.assertEqual(_svg.clean_svg(svg(), source="svg", current="#123456").colours, ["#b4531a"])
+        with self.assertRaises(TypeError):
+            _svg.clean_svg(self.PAGE.encode(), pick=0)  # there is nothing to pick from any more
 
-    def test_the_hostile_parts_inside_the_svg_are_still_refused(self):
-        refused(self, self.page('<svg viewBox="0 0 64 64"><script>alert(1)</script></svg>'), "script", source="html")
-        refused(self, self.page('<svg viewBox="0 0 64 64" onload="x()"><path d="M0 0"/></svg>'), "event-attribute", source="html")
-
-    def test_scripts_outside_the_svg_are_not_our_business(self):
-        # the page above already carries a <script> in <head>
-        _svg.clean_svg(self.page('<svg viewBox="0 0 64 64"><path d="M0 0h1v1z"/></svg>'), source="html")
-
-    SMALL = '<svg viewBox="0 0 8 8"><path fill="#111111" d="M0 0h8v8z"/></svg>'
-
-    def test_a_self_closed_svg_ends_where_it_stands(self):
-        # it used to stay open, and everything after it on the page was glued on
-        found = _svg.html_svgs(self.page('<svg viewBox="0 0 1 1"/><p>text</p>' + self.SMALL + "<svg/><SVG />"))
-        self.assertEqual(len(found), 4)
-        self.assertEqual(found[0], '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>')
-        self.assertNotIn("text", "".join(found))
-        self.assertEqual(_svg.clean_svg(found[1].encode(), source="html-svg").colours, ["#111111"])
-
-    def test_a_link_out_of_the_drawing_cannot_hide_behind_a_harmless_one(self):
-        # a page may write the link both ways, or twice; every value is checked, not only the first
-        for attrs in ('xlink:href="#a" href="https://x.example/a"', 'href="#a" xlink:href="https://x.example/a"',
-                      'href="#a" href="https://x.example/a"', 'href="https://x.example/a" href="#a"',
-                      'xlink:href="#a" XLINK:HREF="javascript:alert(1)"', 'href="#a" href', 'href="#a" xlink:href=" //x.example/a"'):
-            with self.subTest(attrs=attrs):
-                refused(self, self.page('<svg viewBox="0 0 64 64"><rect %s fill="#111111" width="8" height="8"/></svg>' % attrs), "external-link", source="html")
-        both = self.page('<svg viewBox="0 0 64 64"><rect xlink:href="#a" href=" #b" fill="#111111" width="8" height="8"/></svg>')
-        self.assertEqual(_svg.clean_svg(both, source="html").colours, ["#111111"])
-
-    def test_a_pick_that_is_not_on_the_page_is_refused_not_a_crash(self):
-        page = self.page(self.SMALL + self.SMALL.replace("#111111", "#222222"))
-        for pick in (2, 5, -1, -2, "1", True, 1.0):
-            with self.subTest(pick=pick):
+    def test_a_page_handed_to_the_check_itself_is_not_an_svg(self):
+        for page in (self.PAGE, self.PAGE.replace("<!doctype html>", ""), "<div>%s</div>" % self.PAGE.split("<body>")[1].split("</body>")[0]):
+            with self.subTest(page=page[:30]):
                 with self.assertRaises(_svg.Refusal) as cm:
-                    _svg.clean_svg(page, source="html", pick=pick)
-                self.assertEqual(cm.exception.code, "no-such-file")
-        self.assertEqual(_svg.clean_svg(page, source="html", pick=0).colours, ["#111111"])
-        self.assertEqual(_svg.clean_svg(page, source="html", pick=1).colours, ["#222222"])
+                    _svg.clean_svg(page.encode())
+                self.assertIn(cm.exception.code, ("doctype", "not-svg", "not-xml"))
 
-    def test_a_page_saved_as_utf16_is_read_as_utf16(self):
-        text = self.page(self.SMALL).decode("ascii")
-        for data in (b"\xff\xfe" + text.encode("utf-16-le"), b"\xfe\xff" + text.encode("utf-16-be")):
-            self.assertEqual(_svg.clean_svg(data, source="html").colours, ["#111111"])
-        self.assertEqual(_svg.clean_svg(b"\xef\xbb\xbf" + text.encode("utf-8"), source="html").colours, ["#111111"])
+    def test_the_drawings_own_code_copied_out_of_the_page_is_read(self):
+        # the way on: from <svg to </svg>, with no namespace named anywhere, as a page writes it
+        copied = self.PAGE.split("<body>")[1].split("</body>")[0].encode()
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(copied)).colour).colours, ["#000000"])
 
-    def test_a_drawing_past_a_cap_is_refused_for_that_cap_and_the_next_drawing_is_still_found(self):
-        # Past a cap a drawing is no longer collected (a page may be 10 MB; a drawing is at most 512 KB),
-        # but the text kept so far must still have it refused for the right reason if it is the one picked.
-        opened = '<svg viewBox="0 0 8 8">'
-        cases = {
-            "too-large": opened + '<path d="M0 0"/>' + "x" * (_svg.MAX_BYTES + 100) + "</svg>",
-            "too-many-elements": opened + '<path d="M0 0"/>' * (_svg.MAX_ELEMENTS + 100) + "</svg>",
-            "too-deep": opened + "<g>" * (_svg.MAX_DEPTH + 100) + '<svg><path d="M0 0"/></svg><svg/>' + "</g>" * (_svg.MAX_DEPTH + 100) + "</svg>",
-        }
-        cases["too-large "] = opened + '<path d="%s"/></svg>' % ("M0 0" * _svg.MAX_BYTES)
-        for code, big in cases.items():
-            with self.subTest(code=code):
-                found = _svg.html_svgs(self.page(big + self.SMALL))
-                self.assertEqual(len(found), 2)
-                self.assertLessEqual(len(found[0]), _svg.MAX_BYTES + 1)
-                refused(self, found[0].encode(), code.strip(), source="html-svg")
-                self.assertEqual(_svg.clean_svg(found[1].encode(), source="html-svg").colours, ["#111111"])
-
-    def test_a_page_built_to_be_slow_is_read_in_bounded_time(self):
-        # an end tag that closes nothing made the finder look through every open tag: 560 KB took 40 seconds
-        pages = [
-            "<html><body><svg>" + "<g>" * 40000 + "</b>" * 40000,
-            "<html><body><svg>" + "<g></b>" * 60000,
-            "<html><body><svg viewBox='0 0 1 1'>" + "<g>" * 150000,
-            "<html><body><svg viewBox='0 0 1 1'><path d='M0 0'/>" + "x" * 2000000 + "</svg>",
-            "<html><body><svg viewBox='0 0 1 1'>" + "<path d='M0 0'/>" * 60000,
-        ]
-        codes = [out["code"] for out in judged(self, [p.encode() for p in pages], how="intake")]
-        self.assertEqual(codes, ["too-deep", "too-deep", "too-deep", "too-large", "too-many-elements"])
-
-    def test_a_page_that_never_closes_what_it_opens_is_read_in_bounded_time_on_every_python(self):
-        # Not this check's own loop but the standard library's: the HTML parser of Python 3.9 goes back over
-        # the rest of a page for every "<" after the first tag that never closes (30 KB of "<a " took 7 seconds).
-        # On a newer Python this passes with or without the closing text html_svgs puts at the end of a page.
+    def test_a_page_built_to_be_slow_is_one_refusal_at_once_on_every_python(self):
+        # Each of these cost the page reader seconds or minutes (the parser of Python 3.9 goes back over the rest of a
+        # page for every "<" that never closes). Nothing of a page is read now beyond its first element's name.
         pieces = ("<a ", "<svg ", "<svg\n", '<svg a="', "<svg a='", '<a b="c" ', "<a b=c ", "<a/b ", "<!--", "<svg><!--", "</", "<?",
-                  "<![if x]", "<!doctype ")
+                  "<![if x]", "<!doctype ", "<svg/>", "<svg></svg>", "<g></b>", "<![ ", "<![CDATA[", "<!ENTITY % x>")
         pages = [("<html><body>" + piece * (300000 // len(piece))).encode() for piece in pieces]
-        for piece, out in zip(pieces, judged(self, pages, how="html")):
-            self.assertNotIn("crash", out["code"], piece)
-
-    def test_a_declaration_an_old_parser_cannot_read_is_a_refusal_on_every_python(self):
-        # Python 3.9's parser gives up on these with NotImplementedError; newer ones read past them
-        for broken in ("<![ ", "<![<", "<![1x]>", "<![", "<!DOCTYPE html [ <!ELEMENT % >", "<!DOCTYPE x [<!ATTLIST a b (c|d) #REQUIRED e>]>",
-                       "<!DOCTYPE x [<!NOTATION", "<!DOCTYPE x [ %", "<!ENTITY % x>", "<![CDATA["):
-            with self.subTest(broken=broken):
-                try:
-                    found = _svg.html_svgs(self.page(broken + self.SMALL))
-                except _svg.Refusal as e:
-                    self.assertEqual(e.code, "page-unreadable")
-                    self.assertIn("SVG file", str(e))
-                else:
-                    self.assertLessEqual(len(found), 1)
-
-    def test_a_drawing_the_page_never_closes_is_still_read(self):
-        cut = self.page(self.SMALL).split(b"</svg>")[0]
-        self.assertEqual(_svg.clean_svg(cut, source="html").colours, ["#111111"])
+        pages += [("<html><body><svg>" + "<g>" * 40000 + "</b>" * 40000).encode(), ("<html><body><svg viewBox='0 0 1 1'>" + "<g>" * 150000).encode(),
+                  ("<html><body><svg viewBox='0 0 1 1'><path d='M0 0'/>" + "x" * 2000000 + "</svg>").encode(),
+                  b"<html><body>" + b"<svg/>" * (10 * 1024 * 1024 // 6),                    # 10 MB, 1.7 million drawings
+                  b"<!--" + b"-" * 5000000 + b"--><!doctype html>" + b"<svg/>" * 800000,
+                  (u"\ufeff<html>" + "<svg/>" * 500000).encode("utf-16")]
+        for i, out in enumerate(judged(self, pages, how="intake")):
+            self.assertEqual(out["code"], "web-page", i)
+        # the same pieces with no page around them are not pages, and are still judged at once
+        bare_pieces = [(piece * (300000 // len(piece))).encode() for piece in pieces] + [b"<svg/>" * (10 * 1024 * 1024 // 6)]
+        for piece, out in zip(pieces + ("10 MB",), judged(self, bare_pieces, how="intake")):
+            self.assertIn(out["code"], ("web-page", "unknown-file", "not-xml", "too-large", "no-size"), piece)
 
 
 if __name__ == "__main__":

@@ -65,7 +65,9 @@ def decode(data):
     for n, (kind, body) in enumerate(_chunks(data)):
         if n == 0 and kind != b"IHDR":
             raise _bad("no header")  # the header comes first, as `size` has it
-        if kind == b"IHDR" and ihdr is None:
+        if kind == b"IHDR":
+            if ihdr is not None:
+                raise _bad("it has two headers")  # which one a reader takes is that reader's choice: no picture is read from such a file
             ihdr = _header(body)
         elif kind == b"PLTE":
             plte = body

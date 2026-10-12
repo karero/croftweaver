@@ -70,6 +70,14 @@ class Palette(unittest.TestCase):
         headings = re.findall(r"(?m)^### (.+)$", template[template.index("## Colour palette"):template.index("## Typography")])
         self.assertEqual(headings, re.findall(r"(?m)^### (.+)$", self.prompt))
 
+    def test_the_headings_and_row_names_stay_in_english_whatever_language_the_prompt_is_written_in(self):
+        # the check reads those words: with "Helles Design" for "Light theme" every row counts as missing
+        self.assertIn("Keep the three headings and the row names exactly as they are, in English", self.prompt)
+        self.assertIn("EXCEPT the three table headings and the row names", self.text)
+        self.assertIn("**Translate the sentences, never the table:**", skill_file("SKILL.md"))
+        german = self.prompt.replace("`#...`", "`#123456`").replace("### Light theme", "### Helles Design").replace("### Dark theme", "### Dunkles Design")
+        self.assertEqual(len(_palette.parse_tables(german).missing()), 18)
+
     def test_the_prompt_states_the_threshold_the_check_holds_it_to(self):
         self.assertIn("at least 4.5 to 1", self.prompt)
         self.assertEqual(_palette.NEED_TEXT, 4.5)
@@ -85,7 +93,20 @@ class Logo(unittest.TestCase):
     def test_scenario_5_five_variations_with_the_chosen_colours_inside(self):
         self.assertIn("FIVE different variations", self.prompt)
         self.assertLessEqual({"PRIMARY", "ACCENT", "LIGHT BACKGROUND", "DARK BACKGROUND"}, slots(self.prompt))
-        self.assertIn("Use only these colours and no others", self.prompt)
+        self.assertIn("Draw the mark with these colours and no others", self.prompt)
+
+    def test_the_two_pages_are_what_the_mark_sits_on_not_colours_to_paint_with(self):
+        # a shape painted in a page's own colour cannot be seen on that page: the intake would question it
+        draw, sits = self.prompt.split("The mark will sit on two pages")
+        self.assertIn("[PRIMARY]", draw)
+        self.assertIn("[ACCENT]", draw)
+        self.assertNotIn("BACKGROUND]", draw)
+        self.assertIn("Do not paint any shape in those two colours", sits)
+        self.assertIn("do not put a background shape behind the mark", sits)
+
+    def test_it_asks_for_what_the_intake_can_read_and_nothing_it_refuses(self):
+        for clause in ("each one written out", "no masks", "no reused shapes"):
+            self.assertIn(clause, self.prompt)
 
     def test_scenario_5_what_each_variation_must_be(self):
         for clause in ("SVG", "16 pixels", "a single colour", "viewBox", "No text of any kind", "no gradients", "no transparency"):
@@ -162,6 +183,13 @@ class TheSkillFile(unittest.TestCase):
                 self.assertIn('"%s"' % flag, source)
         for command in re.findall(r"brand_intake\.py (\w+)", self.text):
             self.assertIn(command, ("palette", "install"))
+
+    def test_every_command_names_the_script_where_it_is_not_in_the_sites_own_scripts_folder(self):
+        # the site has a scripts/ folder of its own, and the intake is not in it
+        calls = re.findall(r"(\S*)brand_intake\.py[`\"]? (?:palette|install)", self.text)
+        self.assertGreaterEqual(len(calls), 5)
+        for prefix in calls:
+            self.assertEqual(prefix, '"$KIT/scripts/', prefix)
 
     def test_the_seven_files_it_lists_are_the_seven_the_intake_makes(self):
         # the same seven test_icons.TheSevenFiles holds the intake to

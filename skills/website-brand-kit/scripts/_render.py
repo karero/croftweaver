@@ -77,7 +77,7 @@ class Renderer(object):
             answer = json.loads(lines[-1])
             if not isinstance(answer, dict):
                 raise ValueError("the answer is not a JSON object")
-        except (IndexError, ValueError):
+        except (IndexError, ValueError, RecursionError):  # no line, not JSON, or JSON nested too deep to read
             first = (r.stderr.strip().splitlines() or ["no answer"])[0][:200]
             raise Refusal("render-failed", "The renderer did not answer (%s)." % first) from None
         if not answer.get("ok"):

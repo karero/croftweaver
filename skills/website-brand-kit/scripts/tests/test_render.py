@@ -17,6 +17,7 @@ import unittest
 import _testutil as T
 import _png
 import _render
+import _svg
 from _refusal import Refusal
 
 MARK = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
@@ -152,6 +153,24 @@ class WhenTheHelperAnswersBadly(unittest.TestCase):
         drawn = self.renderer("printf '%s\\n' '{\"ok\":true,\"results\":[]}'").render(MARK, (0, 0, 64, 64), [job("a", 16)], self.tmp.name)
         self.assertEqual(drawn, [])
 
+    def test_an_answer_nested_too_deep_to_read_is_a_refusal(self):
+        # Python gives up on JSON nested this deep with a RecursionError, which is no ValueError: it came out as a traceback
+        many = "head -c %d /dev/zero | tr '\\0' '%s'"
+        for name, script in (("an array never closed", many % (200000, "[")),
+                             ("an array closed again", many % (100000, "[") + "; " + many % (100000, "]")),
+                             ("after a good line", "printf '%s\\n' '{\"ok\":true}'; " + many % (200000, "[")),
+                             ("objects", "i=0; while [ $i -lt 20000 ]; do printf '{\"a\":'; i=$((i+1)); done"),
+                             ("inside a good answer", "printf '{\"ok\":true,\"results\":'; " + many % (200000, "["))):
+            with self.subTest(name=name):
+                for call in (lambda r: r.preflight(), lambda r: r.render(MARK, (0, 0, 64, 64), [job("a", 16)], self.tmp.name)):
+                    with self.assertRaises(Refusal) as cm:
+                        call(self.renderer(script))
+                    self.assertEqual(cm.exception.code, "render-failed")
+                    self.assertIn("did not answer", str(cm.exception))
+        # nesting as deep as an honest answer goes is read
+        deep = self.renderer("printf '%s\\n' '{\"ok\":true,\"results\":[[[[[[[[]]]]]]]]}'")
+        self.assertEqual(deep.render(MARK, (0, 0, 64, 64), [job("a", 16)], self.tmp.name), [[[[[[[[]]]]]]]])
+
 
 class WhenSharpIsMissing(unittest.TestCase):
     """Scenario 19. These need node, not sharp."""
@@ -194,6 +213,72 @@ class WhenSharpIsMissing(unittest.TestCase):
             _render.Renderer(s.dir, node="/nonexistent/node").preflight()
         self.assertEqual(cm.exception.code, "no-node")
         self.assertIn("Node", str(cm.exception))
+
+
+class TheAnswerIsWholeBeforeTheHelperEnds(unittest.TestCase):
+    """On Windows a line written to a pipe is still on its way when write() returns, and the helper used to call
+    process.exit() right behind every answer. Here that delay is put on by hand (a small module loaded before the
+    helper holds every write back for a moment): each way the helper can answer must still arrive whole."""
+
+    SLOW_PIPE = ("const write = process.stdout.write.bind(process.stdout);\n"
+                 "process.stdout.write = (chunk) => { setTimeout(() => write(chunk), 200); return true; };\n")
+
+    def setUp(self):
+        if not shutil.which("node"):
+            self.skipTest("no node on this machine")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.slow = os.path.join(self.tmp.name, "slow-pipe.cjs")
+        with open(self.slow, "w") as f:
+            f.write(self.SLOW_PIPE)
+
+    def answer(self, site, args=(), request=None):
+        r = subprocess.run(["node", "--require", self.slow, _render.HELPER] + list(args), input=None if request is None else json.dumps(request),
+                           cwd=site.dir, capture_output=True, text=True, timeout=120)
+        lines = [line for line in r.stdout.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1, "one answer, whole: %r %r" % (r.stdout[:200], r.stderr[:300]))
+        self.assertEqual(r.returncode, 0, r.stderr[:300])
+        return json.loads(lines[0])
+
+    def request(self, site, jobs, svg=None, **extra):
+        req = {"svg": svg or MARK.replace("<svg ", '<svg width="1024" height="1024" ', 1), "viewBox": [0, 0, 64, 64], "intrinsic": 1024,
+               "outDir": site.out, "jobs": jobs}
+        req.update(extra)
+        return req
+
+    def test_the_helper_never_ends_itself(self):
+        with open(_render.HELPER, encoding="utf-8") as f:
+            code = "\n".join(line.split("//")[0] for line in f.read().splitlines())
+        for call in ("process.exit(", "process.abort(", "process.kill(", "process.reallyExit("):
+            self.assertNotIn(call, code)
+
+    def test_no_sharp_is_answered_whole(self):
+        s = Site(with_modules=False)
+        self.addCleanup(s.close)
+        for args, request in ((["--check"], None), ([], self.request(s, [job("a", 16)]))):
+            answer = self.answer(s, args, request)
+            self.assertEqual((answer["ok"], answer["error"]), (False, "sharp-missing"))
+
+    def test_every_other_answer_is_whole_too(self):
+        T.require_sharp(self)
+        s = Site()
+        self.addCleanup(s.close)
+        self.assertEqual(sorted(self.answer(s, ["--check"])), ["node", "ok", "rsvg", "sharp"])
+        drawn = self.answer(s, request=self.request(s, [job("a", 16), job("b", 32, 0.5, "#ffffff")]))
+        self.assertEqual([(d["file"], d["width"]) for d in drawn["results"]], [("a.png", 16), ("b.png", 32)])
+        self.assertTrue(os.path.exists(os.path.join(s.out, "b.png")))
+        for name, request, error in (("a bad file name", self.request(s, [dict(job("a", 16), file="../x.png")]), "bad-job"),
+                                     ("a bad size after a good job", self.request(s, [job("a", 16), dict(job("b", 16), size=0)]), "bad-job"),
+                                     ("a bad box", self.request(s, [job("a", 16)], viewBox=[0, 0, 0, 5]), "bad-job"),
+                                     ("a bad intrinsic size", self.request(s, [job("a", 16)], intrinsic=0), "bad-job"),
+                                     ("text that is no drawing", self.request(s, [job("a", 16)], svg="<svg this is not xml"), "render-failed"),
+                                     ("no jobs at all", self.request(s, None), "render-failed")):
+            with self.subTest(name=name):
+                answer = self.answer(s, request=request)
+                self.assertEqual((answer["ok"], answer["error"]), (False, error), answer)
+        # and a request that is not JSON at all
+        r = subprocess.run(["node", "--require", self.slow, _render.HELPER], input="not json", cwd=s.dir, capture_output=True, text=True, timeout=120)
+        self.assertEqual(json.loads(r.stdout)["error"], "render-failed")
 
 
 def raw_request(site, jobs, svg=None, **extra):
@@ -388,6 +473,195 @@ class Drawing(unittest.TestCase):
         with self.assertRaises(Refusal) as cm:
             self.draw("<svg", (0, 0, 64, 64), [job("a", 16)])
         self.assertIn(cm.exception.code, ("render-failed", "bad-job"))
+
+
+# Draws each SVG text it is given (a JSON list on standard input) from a Buffer, stretched onto 64 x 64 white, and
+# prints for each the colours that cover at least 1 % of it: {"#rrggbb": pixels}, or {"error": ...}.
+_COLOURS_DRAWN = r"""
+const sharp = require('sharp');
+(async () => {
+  const out = [];
+  for (const svg of JSON.parse(require('fs').readFileSync(0, 'utf8'))) {
+    try {
+      const data = await sharp(Buffer.from(svg, 'utf8')).resize(64, 64, { fit: 'fill' }).flatten({ background: '#ffffff' }).removeAlpha().raw().toBuffer();
+      const seen = {};
+      for (let i = 0; i < data.length; i += 3) {
+        const hex = '#' + [data[i], data[i + 1], data[i + 2]].map((x) => x.toString(16).padStart(2, '0')).join('');
+        seen[hex] = (seen[hex] || 0) + 1;
+      }
+      out.push(Object.fromEntries(Object.entries(seen).filter(([, n]) => n >= 41)));
+    } catch (e) { out.push({ error: String(e.message).split('\n')[0].slice(0, 100) }); }
+  }
+  console.log(JSON.stringify(out));
+})();
+"""
+
+
+class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
+    """The check reads a file with its own reader of numbers, colours and styles; the site draws it with a renderer
+    that has its own. Wherever the two could read a value differently the check must refuse, because it writes ITS
+    reading into the cleaned file and lists ITS colours. So for every way of writing a value: the file is refused, or
+    the cleaned file is drawn as the original was and no colour is drawn that the check did not list."""
+
+    BOX = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"'
+    RECT = '<rect width="10" height="10"/>'
+
+    def setUp(self):
+        T.require_sharp(self)
+        self.site = Site()
+        self.addCleanup(self.site.close)
+
+    def drawn(self, texts):
+        r = subprocess.run(["node", "-e", _COLOURS_DRAWN], input=json.dumps(texts), cwd=self.site.dir, capture_output=True, text=True, timeout=300)
+        self.assertEqual(r.returncode, 0, r.stderr[-400:])
+        return json.loads(r.stdout)
+
+    def judge(self, documents):
+        """{name: "refused: code" or "accepted"}, after holding every accepted document to the rule above."""
+        outcome, pairs = {}, []
+        for name, text in documents.items():
+            try:
+                clean = _svg.clean_svg(text.encode("utf-8"))
+            except Refusal as e:
+                outcome[name] = "refused: " + e.code
+            else:
+                outcome[name] = "accepted"
+                pairs.append((name, text, clean))
+        pictures = self.drawn([t for _n, text, clean in pairs for t in (text, clean.text)])
+        for i, (name, _text, clean) in enumerate(pairs):
+            was, now = pictures[2 * i], pictures[2 * i + 1]
+            with self.subTest(name=name):
+                self.assertNotIn("error", now, "the cleaned file must draw")
+                for colour in set(was) | set(now):
+                    self.assertLess(abs(was.get(colour, 0) - now.get(colour, 0)), 82, "%s: drawn %r, cleaned %r" % (colour, was, now))
+                for colour in now:
+                    self.assertTrue(any(self.a_tint_of(colour, listed) for listed in clean.colours),
+                                    "%s is drawn, and the check listed only %r" % (colour, clean.colours))
+        return outcome
+
+    @staticmethod
+    def a_tint_of(colour, listed):
+        """Is `colour` the listed colour, or that colour thinned towards the white paper (the soft edge of a shape)?"""
+        c, l = [int(colour[i:i + 2], 16) for i in (1, 3, 5)], [int(listed[i:i + 2], 16) for i in (1, 3, 5)]
+        if c == [255, 255, 255]:
+            return True
+        shares = [(255 - c[i]) / (255 - l[i]) for i in range(3) if l[i] != 255]
+        share = shares[0] if shares else 0
+        return 0 < share <= 1.01 and all(abs((255 - l[i]) * share - (255 - c[i])) <= 3 for i in range(3))
+
+    def test_every_way_of_writing_a_number(self):
+        b = self.BOX
+        forms = ["5", "5.0", ".5e1", "5e0", "+5", "05", "5.00e0", "5.", "5.e0", "+5.", "5.px", "5.0px", "5px", "5 ", " 5", "5\u00a0", "\u00a05", "\u0665", "5,"]
+        zeros = ["0", "0.0", ".0", "0e0", "-0", "0.", "0.e0", "0.px", "+0.", "\u0660"]
+        docs = {}
+        for f in forms:
+            docs["rect width=%r" % f] = '<svg %s><rect fill="#f00" width="%s" height="10"/></svg>' % (b, f)
+            docs["rect x=%r" % f] = '<svg %s><rect x="%s" fill="#f00" width="10" height="10"/></svg>' % (b, f)
+            docs["circle r=%r" % f] = '<svg %s><circle fill="#f00" cx="5" cy="5" r="%s"/></svg>' % (b, f)
+            docs["ellipse rx=%r" % f] = '<svg %s><ellipse fill="#f00" cx="5" cy="5" rx="%s" ry="5"/></svg>' % (b, f)
+            docs["line x2=%r" % f] = '<svg %s><line stroke="#f00" stroke-width="10" y1="5" y2="5" x2="%s"/></svg>' % (b, f)
+            docs["stroke-width=%r" % f] = '<svg %s><path stroke="#f00" stroke-width="%s" d="M0 5h10"/></svg>' % (b, f)
+            docs["style stroke-width:%r" % f] = '<svg %s><path stroke="#f00" style="stroke-width:%s" d="M0 5h10"/></svg>' % (b, f)
+            docs["rule stroke-width:%r" % f] = '<svg %s><style>path{stroke-width:%s}</style><path stroke="#f00" d="M0 5h10"/></svg>' % (b, f)
+            docs["points %r" % f] = '<svg %s><polygon fill="#f00" points="0,0 %s,0 %s,10 0,10"/></svg>' % (b, f, f)
+            docs["translate(%r)" % f] = '<svg %s><rect transform="translate(%s 0)" fill="#f00" width="10" height="10"/></svg>' % (b, f)
+            docs["scale(1 %r)" % f] = '<svg %s><rect transform="scale(.1 %s)" fill="#f00" width="100" height="1"/></svg>' % (b, f)
+            docs["dasharray %r" % f] = '<svg %s><path stroke="#f00" stroke-width="10" stroke-dasharray="%s" d="M0 5h10"/></svg>' % (b, f)
+            docs["dashoffset %r" % f] = '<svg %s><path stroke="#f00" stroke-width="10" stroke-dasharray="5" stroke-dashoffset="%s" d="M0 5h10"/></svg>' % (b, f)
+            docs["miterlimit %r" % f] = '<svg %s><path fill="none" stroke="#f00" stroke-width="3" stroke-miterlimit="%s" d="M1 9L5 2L9 9"/></svg>' % (b, f)
+            docs["viewBox width %r" % f] = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 %s 5"><rect fill="#f00" width="2.5" height="5"/></svg>' % f
+            docs["no viewBox, width %r" % f] = '<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="5"><rect fill="#f00" width="2.5" height="5"/></svg>' % f
+            docs["path data h%r" % f] = '<svg %s><path fill="#f00" d="M0 0h%sv10h-5z"/></svg>' % (b, f.replace("px", ""))
+        for z in zeros:
+            docs["no stroke: stroke-width=%r" % z] = '<svg %s><path stroke="#f00" stroke-width="%s" d="M0 5h10"/><rect fill="#00f" width="3" height="3"/></svg>' % (b, z)
+            docs["no stroke: style %r" % z] = '<svg %s><path stroke="#f00" style="stroke-width:%s" d="M0 5h10"/><rect fill="#00f" width="3" height="3"/></svg>' % (b, z)
+            docs["opacity %r" % z] = '<svg %s><rect fill="#f00" opacity="%s" width="10" height="10"/><rect fill="#00f" width="3" height="3"/></svg>' % (b, z)
+        for o in ["1", "1.0", "1.", "1.e0", "100%", "100.%", "+1", "1e0", "\u0661"]:
+            docs["opacity %r" % o] = '<svg %s><rect fill="#f00" opacity="%s" width="10" height="10"/></svg>' % (b, o)
+            docs["style fill-opacity %r" % o] = '<svg %s><rect fill="#f00" style="fill-opacity:%s" width="10" height="10"/></svg>' % (b, o)
+        for d in ["5 1", "5,1", "50% 10%", "50%10%", "5.0 1.0", "5. 1", "5 1.", "5%%", "5-1", "5.5.5", ""]:
+            docs["dasharray %r" % d] = '<svg %s><path stroke="#f00" stroke-width="10" stroke-dasharray="%s" d="M0 5h10"/></svg>' % (b, d)
+        outcome = self.judge(docs)
+        # the forms a renderer does not read as this check would are refused, not passed on
+        for f in ("5.", "5.e0", "+5.", "5.px", "5\u00a0", "\u00a05", "\u0665"):
+            for name in ("rect width=%r", "circle r=%r", "stroke-width=%r", "style stroke-width:%r", "rule stroke-width:%r", "points %r", "translate(%r)",
+                         "dasharray %r", "viewBox width %r", "no viewBox, width %r"):
+                self.assertTrue(outcome[name % f].startswith("refused"), (name % f, outcome[name % f]))
+        for z in ("0.", "0.e0", "0.px", "+0.", "\u0660"):
+            self.assertEqual(outcome["no stroke: stroke-width=%r" % z], "refused: bad-value")
+            self.assertEqual(outcome["no stroke: style %r" % z], "refused: bad-value")
+        # and the test is not empty-handed: the ordinary ways of writing a number are accepted and drawn alike
+        for f in ("5", "5.0", ".5e1", "5e0", "+5", "05"):
+            for name in ("rect width=%r", "rect x=%r", "circle r=%r", "stroke-width=%r", "style stroke-width:%r", "points %r", "translate(%r)",
+                         "dasharray %r", "dashoffset %r", "viewBox width %r", "no viewBox, width %r", "path data h%r"):
+                self.assertEqual(outcome[name % f], "accepted", name % f)
+        for f in ("5.", "5.e0"):
+            self.assertEqual(outcome["path data h%r" % f], "accepted", "in path data a renderer reads it, so it is kept")
+        self.assertGreater(list(outcome.values()).count("accepted"), 100)
+
+    def test_every_way_of_hiding_a_colour_from_the_check_or_from_the_renderer(self):
+        b, rect = self.BOX, self.RECT
+        sheets = {
+            "a plain rule": "rect{fill:#f00}", "a font's name in quotes": 'g{font-family:"Helvetica Neue"} rect{fill:#f00}',
+            "a comment": "/* red */ rect{fill:#f00}", "a rule in a quoted brace": 'g{font-family:"} rect{fill:#f00} g{font-family:"}',
+            "single quotes": "g{font-family:'} rect{fill:#f00} g{font-family:'}", "an escaped quote": 'g{font-family:"a\\"} rect{fill:#f00} g{font-family:"}',
+            "a line break in quotes": 'g{font-family:"a&#13;/*"} rect{fill:#f00} g{font-family:"*/"}',
+            "a value in quotes": 'rect{font-family:"a;fill:#f00;cursor:b"}', "brackets": "g{cursor:x(} rect{fill:#f00} g{cursor:)}",
+            "a value in brackets": "rect{cursor:x(a;fill:#f00;cursor:b)}", "square brackets": "rect{cursor:[a;fill:#f00;cursor:b]}",
+            "an escaped hash": "rect{fill:\\23 f00}", "an escaped letter in a hash": "rect{fill:#\\66 00}", "escaped brackets": "rect{fill:rgb\\28 255,0,0\\29 }",
+            "escaped commas": "rect{fill:rgb(255\\2c 0\\2c 0)}", "an escaped letter": "rect{fill:r\\65 d}", "an escaped property": "rect{f\\69ll:#f00}",
+            "a no-break space before the property": "rect{\u00a0fill:#f00}", "a Kelvin sign": "rect{stro\u212ae:#f00;stroke-width:6}",
+            "a no-break space before the selector": "\u00a0rect{fill:#f00}", "a no-break space before the value": "rect{fill:\u00a0red}",
+            "another script's digits": "rect{fill:rgb(\u0662\u0665\u0665,0,0)}", "a name twice": ".a.a{fill:#f00} .b{fill:#00f}",
+            "an id and a class": "#i{fill:#f00} .a.b{fill:#00f}", "the later of two": "rect{fill:#00f} rect{fill:#f00}",
+            "a carriage return after an escape": "rect{fi\\6c&#13;&#10;l:#f00}", "capitals": "RECT{FILL:#F00}", "a capital property": "rect{FILL:#f00}",
+        }
+        docs = {"sheet: " + name: '<svg %s><style>%s</style><g>%s</g></svg>' % (b, css, rect.replace("<rect ", '<rect id="i" class="a b" ')) for name, css in sheets.items()}
+        styles = {
+            "plain": "fill:#f00", "quotes": 'font-family:"a;fill:#f00;cursor:b"', "single quotes": "font-family:&#39;a;fill:#f00;cursor:b&#39;",
+            "an escaped quote": 'font-family:"a\\";fill:#f00;cursor:"', "brackets": "cursor:x(a;fill:#f00;cursor:b)", "square brackets": "cursor:[a;fill:#f00;cursor:b]",
+            "braces": "cursor:{a;fill:#f00;cursor:b}", "an escaped hash": "fill:\\23 f00", "an escaped semicolon": "fill:#00f\\3b fill:#f00",
+            "a no-break space": "fill:\u00a0red", "a no-break space before the property": "\u00a0fill:#f00", "a font's name": "font-family:&#39;Arial&#39;;fill:#f00", "capitals": "FILL:#f00",
+        }
+        for name, css in styles.items():
+            docs["style: " + name] = "<svg %s><rect style='%s' width='10' height='10'/></svg>" % (b, css)
+        attributes = {
+            "plain": 'fill="red"', "a point with a digit": 'fill="rgb(255.0,.0,0.0)"', "a bare point": 'fill="rgb(255.,0,0)"', "a bare point in hsl": 'fill="hsl(0.,100%,50%)"',
+            "a bare point before a percent": 'fill="rgb(100.%,0%,0%)"', "a name in capitals": 'fill="RED"', "a hex in capitals": 'fill="#F00"', "rgb in capitals": 'fill="RGB(255,0,0)"',
+            "none in capitals": 'fill="NONE" stroke="#f00" stroke-width="20"', "inherit in capitals": 'fill="INHERIT"', "hidden in capitals": 'fill="#f00" visibility="HIDDEN"',
+            "currentColor in small letters": 'fill="currentcolor" color="#f00"', "currentColor in capitals": 'fill="CURRENTCOLOR" color="#f00"',
+            "a stroke of none in capitals": 'fill="#f00" stroke="None" stroke-width="20"', "display none in capitals": 'fill="#f00" display="None"',
+            "a no-break space before": 'fill="\u00a0red"', "an em space after": 'fill="red\u2003"', "another script's digits": 'fill="rgb(\u0662\u0665\u0665,0,0)"',
+            "full-width letters": 'fill="\uff52\uff45\uff44"', "plain spaces": 'fill=" red "', "an id with a space": 'id=" i" class="x"', "an id": 'id="i" class="x"',
+            "a class after an em space": 'class="\u2003a" id="x"', "two classes round a no-break space": 'class="a\u00a0b" id="x"',
+            "a clip": 'fill="#f00" clip-path="url(#c)"', "a clip after an em space": 'fill="#f00" clip-path="url(\u2003#c)"', "a clip in quotes": 'fill="#f00" clip-path="url(&quot;#c&quot;)"',
+        }
+        for name, attrs in attributes.items():
+            docs["attribute: " + name] = ('<svg %s><style>#i{fill:#f00} .a{fill:#f00}</style><defs><clipPath id="c"><rect width="5" height="10"/></clipPath></defs>'
+                                          '<rect %s width="10" height="10"/></svg>' % (b, attrs))
+        boxes = {"plain": "0 0 20 20", "commas": "0,0,20,20", "an em space": "0\u20030 20 20", "a no-break space": "0 0\u00a020 20", "a point": "0 0 20. 20", "a tab": "0\t0 20 20"}
+        for name, box in boxes.items():
+            docs["viewBox: " + name] = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="%s"><rect fill="#f00" width="10" height="10"/></svg>' % box
+        outcome = self.judge(docs)
+        for name in ("sheet: a plain rule", "sheet: a font's name in quotes", "sheet: a comment", "sheet: a name twice", "sheet: an id and a class", "sheet: the later of two",
+                     "style: plain", "style: a font's name", "attribute: plain", "attribute: plain spaces", "attribute: an id", "attribute: a clip", "attribute: a point with a digit", "viewBox: plain",
+                     "viewBox: commas", "viewBox: a tab"):
+            self.assertEqual(outcome[name], "accepted", name)
+        for name in ("sheet: a rule in a quoted brace", "sheet: single quotes", "sheet: an escaped quote", "sheet: a line break in quotes", "sheet: a value in quotes",
+                     "sheet: brackets", "sheet: a value in brackets", "sheet: square brackets", "sheet: an escaped hash", "sheet: an escaped letter in a hash",
+                     "sheet: escaped brackets", "sheet: escaped commas", "sheet: an escaped letter", "sheet: an escaped property", "sheet: a no-break space before the property",
+                     "sheet: a Kelvin sign", "sheet: a no-break space before the selector", "sheet: a carriage return after an escape", "style: quotes",
+                     "style: single quotes", "style: an escaped quote", "style: brackets", "style: square brackets", "style: braces", "style: an escaped hash",
+                     "style: an escaped semicolon", "style: a no-break space before the property", "style: capitals", "sheet: a capital property"):
+            self.assertEqual(outcome[name], "refused: css-unreadable", name)
+        for name in ("sheet: a no-break space before the value", "sheet: another script's digits", "style: a no-break space", "attribute: a no-break space before",
+                     "attribute: an em space after", "attribute: another script's digits", "attribute: full-width letters", "attribute: an id with a space",
+                     "attribute: a class after an em space", "attribute: two classes round a no-break space", "attribute: a clip in quotes",
+                     "attribute: a bare point", "attribute: a bare point in hsl", "attribute: a bare point before a percent"):
+            self.assertEqual(outcome[name], "refused: bad-value", name)
+        self.assertEqual(outcome["attribute: a clip after an em space"], "refused: css-url")
+        for name in ("viewBox: an em space", "viewBox: a no-break space", "viewBox: a point"):
+            self.assertEqual(outcome[name], "refused: bad-view-box", name)
 
 
 if __name__ == "__main__":

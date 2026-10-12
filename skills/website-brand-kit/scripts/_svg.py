@@ -1,6 +1,6 @@
 """_svg.py: read an SVG that comes from outside, and hand back text that is safe to serve.
 
-The file may come from a design tool, a page the owner pasted, or a zip. It is served from the
+The file may come from a design tool, code the owner pasted, or a zip. It is served from the
 owner's own address once installed, so it is never copied: it is parsed as XML, checked
 against an allowlist of drawing elements and attributes, and a NEW file is written from the
 nodes that passed. Anything that could fetch or run something is refused by name, with the
@@ -17,9 +17,8 @@ from __future__ import annotations
 
 import math
 import re
-from html.parser import HTMLParser
 from xml.parsers import expat
-from xml.sax.saxutils import escape, quoteattr
+from xml.sax.saxutils import quoteattr
 
 import _css
 import _paint
@@ -35,7 +34,7 @@ MAX_DEPTH = 32
 MAX_ELEMENTS = 5000
 MAX_ATTRIBUTES = 64
 MAX_STYLE_CHARS = 64 * 1024   # all the <style> text of one file together
-MAX_SELECTORS = 200
+MAX_SELECTORS = 200           # counted with the class and id names in them: each is one look at every element
 MAX_DECLARATIONS = 1000
 MAX_NOTES = 40
 MAX_ASPECT = 20
@@ -80,11 +79,15 @@ REFUSED_ELEMENTS.update({
 # --- attributes ------------------------------------------------------------------------
 
 # ASCII digits only, and no part of a number can be read two ways: every pattern built from it
-# gives its answer in one pass, however long the value.
-_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+# gives its answer in one pass, however long the value. A point is followed by a digit: the
+# site's renderer reads `5.` as a number in path data only (measured 2026-10-12: a width of `5.`
+# draws nothing, a stroke-width of `0.` draws one unit wide), and `d` is not read with this.
+_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
 _NUMBER = re.compile(_NUM)
 _LEN = re.compile(r"^%s(?:px|pt|pc|mm|cm|in|em|ex|%%)?$" % _NUM)
-_LIST_ITEM = re.compile(r"[\s,]+|%s" % _NUM)
+_BLANKS = " \t\r\n"  # what XML and CSS call white space; Python's strip(), split() and \s also take a no-break space
+_LIST_ITEM = re.compile(r"[ \t\r\n,]+|%s" % _NUM)
+_DASH_ITEM = re.compile(r"[ \t\r\n,]+|%s%%?" % _NUM)  # each dash may be a percentage of its own
 _NOT_NEGATIVE = {"stroke-width", "r", "rx", "ry", "width", "height"}
 _ID = re.compile(r"^[A-Za-z_][\w\-.:]{0,99}$")
 _PX = {"": 1.0, "px": 1.0, "pt": 96 / 72, "pc": 16.0, "mm": 96 / 25.4, "cm": 96 / 2.54, "in": 96.0}
@@ -114,7 +117,15 @@ REFUSED_ATTRS = {
     "marker-mid": ("marker", "The mark uses markers. Ask the tool for flat shapes only."),
     "marker-end": ("marker", "The mark uses markers. Ask the tool for flat shapes only."),
     "mix-blend-mode": ("blend", "The mark uses a blend mode. Ask the tool for flat shapes only."),
+    "transform-origin": ("transform-origin", "The file turns or scales a shape around a point of its own (transform-origin), which not every "
+                                             "program reads, so the shape would land in different places. Ask the tool for the SVG with its "
+                                             "transforms applied to the shapes (flattened)."),
+    "vector-effect": ("vector-effect", "The file uses vector-effect (an outline that keeps its width however the drawing is scaled), which "
+                                       "not every program draws. Ask the tool to turn the outlines into shapes."),
 }
+for _n in ("systemLanguage", "requiredExtensions", "requiredFeatures"):
+    REFUSED_ATTRS[_n] = ("conditional", "A part of the drawing is shown only under a condition (%s), so one program draws it and another "
+                                        "leaves it out. Ask the tool for a plain SVG without it." % _n)
 
 _KEYWORDS = {
     "fill-rule": {"nonzero", "evenodd"},
@@ -127,21 +138,24 @@ _KEYWORDS = {
     "clipPathUnits": {"userSpaceOnUse", "objectBoundingBox"},
 }
 _PAINT_ORDER = {"fill", "stroke", "markers"}
-_TRANSFORM = re.compile(r"^\s*(?:(?:matrix|translate|scale|rotate|skewX|skewY)\s*\([0-9eE+\-.,\s]*\)\s*(?:,\s*)?)*$")
-_PATH_DATA = re.compile(r"^[MmZzLlHhVvCcSsQqTtAa0-9eE+\-.,\s]*$")
-_CLIP = re.compile(r"^(?:none|url\(\s*#[\w\-.:]+\s*\))$")
-_PAINT_CHARS = re.compile(r"""^[#\w\s().,%+\-/'"]{1,200}$""")
+_TRANSFORM = re.compile(r"^\s*(?:(?:matrix|translate|scale|rotate|skewX|skewY)\s*\([0-9eE+\-.,\s]*\)\s*(?:,\s*)?)*$", re.ASCII)
+_TRANSFORM_ARGS = re.compile(r"\(([^)]*)\)")
+_PATH_DATA = re.compile(r"^[MmZzLlHhVvCcSsQqTtAa0-9eE+\-.,\s]*$", re.ASCII)
+_CLIP = re.compile(r"^(?:none|url\([ \t\r\n]*#[\w\-.:]+[ \t\r\n]*\))$")
+# ASCII only: a renderer reads no other script's digits or letters in a colour, and no other kind of space
+_PAINT_CHARS = re.compile(r"""^[#A-Za-z0-9_ \t\r\n().,%+\-/'"]{1,200}$""")
+_BARE_POINT = re.compile(r"\.(?![0-9])")  # in a colour too, a point is followed by a digit: rgb(255.,0,0) is drawn black
 
 
 def _bad(name, value):
     return Refusal("bad-value", "The file has a value this check cannot read (%s=%r). Ask the tool for a plainer export." % (name, str(value)[:40]))
 
 
-def _number_list(text):
+def _number_list(text, item=_LIST_ITEM):
     """Numbers with spaces or commas between them (or nothing: `10-20` is two), read left to right."""
     pos = 0
     while pos < len(text):
-        m = _LIST_ITEM.match(text, pos)
+        m = item.match(text, pos)
         if not m:
             return False
         pos = m.end()
@@ -150,7 +164,7 @@ def _number_list(text):
 
 def _validate(name, value):
     """Syntax-level check of one kept attribute or property value (colours are read later)."""
-    v = value.strip()
+    v = value.strip(_BLANKS)
     if name == "d":
         ok = len(v) <= 200_000 and _PATH_DATA.match(v)
     elif name == "points":
@@ -166,9 +180,9 @@ def _validate(name, value):
                 "tool for a plainer export." % (name, v[:40]),
             )
     elif name == "stroke-dasharray":
-        ok = v == "none" or _number_list(v.replace("%", ""))
+        ok = v == "none" or _number_list(v, _DASH_ITEM)
     elif name == "transform":
-        ok = _TRANSFORM.match(v)
+        ok = _TRANSFORM.match(v) and all(_number_list(args) for args in _TRANSFORM_ARGS.findall(v))
     elif name == "preserveAspectRatio":
         ok = re.match(r"^[A-Za-z\s]{0,40}$", v)
     elif name in ("opacity", "fill-opacity", "stroke-opacity"):
@@ -176,14 +190,15 @@ def _validate(name, value):
     elif name in _KEYWORDS:
         ok = v in _KEYWORDS[name]
     elif name == "paint-order":
-        parts = v.split()
+        parts = [p for p in re.split("[%s]+" % _BLANKS, v) if p]
         ok = v == "normal" or (parts and len(set(parts)) == len(parts) and set(parts) <= _PAINT_ORDER)
     elif name == "clip-path":
         ok = _CLIP.match(v)
     elif name in ("fill", "stroke", "color"):
-        ok = _PAINT_CHARS.match(v)
+        ok = _PAINT_CHARS.match(v) and not _BARE_POINT.search(v)
     elif name == "id":
-        ok = _ID.match(v)
+        v = value  # as it is written: a renderer takes no blank off an id, so ` a` is not the `a` a rule names
+        ok = _ID.fullmatch(v)
     elif name == "class":
         ok = re.match(r"^[\w\-. ]{0,200}$", v)
     else:
@@ -210,7 +225,7 @@ class Node(object):
     def __init__(self, tag, parent=None):
         self.tag = tag
         self.attrs = {}        # kept geometry / root attributes
-        self.classes = []
+        self.classes = frozenset()
         self.id = None
         self.style_decls = []  # from the style attribute
         self.children = []
@@ -380,7 +395,7 @@ def _read_attrs(node, attrs, notes, is_root):
             if is_root:
                 _note(notes, "left out the id of the outer <svg> element")
         elif local == "class":
-            node.classes = _validate("class", value).split()
+            node.classes = frozenset(_validate("class", value).split())
         elif local in PROPS:
             node.props[local] = _validate(local, value)
         elif is_root and local == "transform" and value.strip():
@@ -395,14 +410,14 @@ def _read_attrs(node, attrs, notes, is_root):
             if is_root and local in ("x", "y"):
                 _note(notes, "left out %s of the outer <svg> element (where it is placed on a page, not part of the drawing)" % local)
         elif node.tag == "style" and local == "type":
-            if value.strip().lower() not in ("", "text/css"):
+            if value.lower() not in ("", "text/css"):  # as it is written: a browser takes no blank off it
                 raise Refusal(
                     "style-type",
                     "A style in the file is not written in CSS (type=%r), so this check cannot read it. Ask the "
                     "tool for a plainer export." % value.strip()[:40],
                 )
         elif node.tag == "style" and local == "media":
-            if value.strip().lower() not in ("", "all", "screen"):
+            if value.strip(_BLANKS).lower() not in ("", "all", "screen"):
                 raise Refusal(
                     "style-media",
                     "A style in the file is meant for some screens or for print only (media=%r), which this check "
@@ -448,23 +463,26 @@ def _accept(prop, value, notes):
 
 
 def _cascade(root, notes):
-    """Apply the style rules and style attributes to every element's properties. Returns the set
-    of class names the rules mention."""
+    """Apply the style rules and style attributes to every element's properties."""
     rules, selectors_seen, declarations_seen = [], 0, 0
     for n in _walk(root):
         if n.tag != "style":
             continue
         for selectors, decls, _order in _css.parse_stylesheet(n.text):
-            selectors_seen += len(selectors)
+            # what a selector costs is one look at every element for each name in it (_css caps the names of one)
+            selectors_seen += sum(max(1, len(ids) + len(classes)) for _tag, ids, classes in selectors)
             declarations_seen += len(decls)
             if selectors_seen > MAX_SELECTORS:
-                raise Refusal("too-many-selectors", "The styles in the file have more than %d selectors (the names their rules apply to), far more than a logo needs." % MAX_SELECTORS)
+                raise Refusal(
+                    "too-many-selectors",
+                    "The styles in the file name more than %d things for their rules to apply to (tags, classes and ids), "
+                    "far more than a logo needs. Ask the tool for a plainer export." % MAX_SELECTORS,
+                )
             if declarations_seen > MAX_DECLARATIONS:
                 raise Refusal("too-many-declarations", "The styles in the file set more than %d values, far more than a logo needs." % MAX_DECLARATIONS)
             # every rule is checked here, once, whether or not it matches an element
             kept = [(prop, _accept(prop, value, notes)) for prop, value in decls]
             rules.append((selectors, [(prop, v) for prop, v in kept if v is not None]))
-    mentioned = {c for selectors, _d in rules for _tag, _ids, classes in selectors for c in classes}
     for n in _walk(root):
         if n.tag == "style":
             continue
@@ -485,7 +503,6 @@ def _cascade(root, notes):
             if v is not None:
                 fixed[prop] = v
         n.props.update(fixed)
-    return mentioned
 
 
 # --- the result ------------------------------------------------------------------------
@@ -493,7 +510,7 @@ def _cascade(root, notes):
 def _box(root):
     vb = root.attrs.get("viewBox")
     if vb is not None:
-        parts = vb.replace(",", " ").split()
+        parts = [p for p in re.split(r"[ \t\r\n,]+", vb) if p]
         # plain numbers only: float() alone would also take 1_0, Arabic-Indic digits, "inf"
         nums = tuple(float(p) for p in parts) if all(_NUMBER.fullmatch(p) for p in parts) else ()
         if len(nums) != 4 or not all(math.isfinite(x) for x in nums) or nums[2] <= 0 or nums[3] <= 0:
@@ -544,188 +561,33 @@ def _emit(node, out, view_box=None):
     out.append("</" + node.tag + ">")
 
 
-def _finish(root, notes, current=None, from_html=False):
+def _finish(root, notes, current=None):
     box = _box(root)
-    mentioned = _cascade(root, notes)
-    if from_html:
-        # first, so that no number of other notes can crowd it out
-        notes.insert(0, "the drawing was taken out of a web page: only its own colours are read, not any the page's style "
-                        "sheet gives it by tag or id, so compare the preview with the page")
-    colours = _paint.resolve_paints(root, DRAWING, current, mentioned if from_html else None)
+    _cascade(root, notes)
+    colours = _paint.resolve_paints(root, DRAWING, current)
     out = []
     _emit(root, out, box)
     return Clean("".join(out), box, notes, root, colours)
 
 
-# --- HTML ------------------------------------------------------------------------------
-
-_HTML_CASE = {}
-for _n in ["clipPath", "foreignObject", "linearGradient", "radialGradient", "textPath", "animateTransform",
-           "animateMotion", "animateColor", "altGlyph", "feImage", "feBlend", "feColorMatrix", "feGaussianBlur",
-           "feOffset", "feMerge", "feMergeNode", "feFlood", "feComposite", "feDropShadow"]:
-    _HTML_CASE[_n.lower()] = _n
-_HTML_ATTR_CASE = {"viewbox": "viewBox", "preserveaspectratio": "preserveAspectRatio", "pathlength": "pathLength",
-                   "clippathunits": "clipPathUnits"}
-_XML_NAME = re.compile(r"^[A-Za-z_][\w\-.]*$")
-
-
-class _SvgFinder(HTMLParser):
-    """Collects each top-level <svg> of an HTML page as XML text. It only reads: nothing in the
-    page is run, and everything outside an <svg> is ignored. A drawing that passes one of the
-    SVG caps (size, elements, depth) is not collected any further: the text kept so far is
-    enough to have it refused for that cap if it is the one picked, and only its end is looked
-    for, so a page costs the same to read whatever it holds."""
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.found = []
-        self.parts = None
-        self.open = []
-        self.size = self.count = self.lost = 0
-
-    def _tag(self, tag):
-        tag = _HTML_CASE.get(tag, tag)
-        return tag if _XML_NAME.match(tag) else "foreign-element"
-
-    def _add(self, text):
-        text = text[:MAX_BYTES + 1 - self.size]  # one character past the cap says "too large"
-        self.parts.append(text)
-        self.size += len(text)
-        if self.size > MAX_BYTES or self.count > MAX_ELEMENTS or len(self.open) > MAX_DEPTH:
-            self.lost, self.open = self.open.count("svg"), []  # the <svg> elements still to be closed
-
-    def _done(self):
-        self.found.append("".join(self.parts))
-        self.parts = None
-
-    def _start(self, tag, attrs, selfclosing):
-        if self.parts is None:
-            if tag != "svg":
-                return
-            self.parts, self.open = [], []
-            self.size = self.count = self.lost = 0
-        if self.lost:
-            if tag == "svg" and not selfclosing:
-                self.lost += 1
-            return
-        out, seen, links = [], set(), []
-        for k, v in attrs:
-            k = _HTML_ATTR_CASE.get(k, k)
-            if k in ("href", "xlink:href"):
-                links.append(v if v is not None else "")
-                continue
-            if not _XML_NAME.match(k) or k in seen:
-                continue
-            seen.add(k)
-            out.append(" %s=%s" % (k, quoteattr(v if v is not None else "")))
-        if links:
-            # an element may carry both spellings, or one twice: a link that leaves the drawing is
-            # the one handed on, so it cannot hide behind a harmless one
-            outside = [v for v in links if not v.strip().startswith("#")]
-            out.append(" href=%s" % quoteattr((outside or links)[0]))
-        if tag == "svg" and not self.open and "xmlns" not in seen:
-            out.insert(0, ' xmlns="%s"' % SVG_NS)
-        name = self._tag(tag)
-        self.count += 1
-        if not selfclosing:
-            self.open.append(name)
-        self._add("<" + name + "".join(out) + ("/>" if selfclosing else ">"))
-        if not self.open and not self.lost:
-            self._done()  # a top-level <svg/> that closes itself
-
-    def handle_starttag(self, tag, attrs):
-        self._start(tag, attrs, False)
-
-    def handle_startendtag(self, tag, attrs):
-        self._start(tag, attrs, True)
-
-    def handle_endtag(self, tag):
-        if self.parts is None:
-            return
-        if self.lost:
-            if tag == "svg":
-                self.lost -= 1
-                if not self.lost:
-                    self._done()
-            return
-        name = self._tag(tag)
-        if name not in self.open:
-            return
-        closing = []
-        while self.open:
-            top = self.open.pop()
-            closing.append("</" + top + ">")
-            if top == name:
-                break
-        self._add("".join(closing))
-        if not self.open and not self.lost:
-            self._done()
-
-    def handle_data(self, data):
-        if self.parts is not None and self.open:
-            self._add(escape(data))
-
-
-def page_text(data):
-    """The text of a page or of pasted code: UTF-16 when it starts with that byte-order mark, UTF-8 otherwise."""
-    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        return data.decode("utf-16", "replace")
-    return data.decode("utf-8", "replace")
-
-
-# Closes whatever a page leaves open at its end (a quoted value, a tag, a comment, a marked
-# section). Without it the parser of an older Python goes back over the rest of the page once for
-# every "<" after the first tag that never closes (measured on Python 3.9.6: 30 KB of "<a " took
-# 7 seconds, 120 KB more than a minute; Python 3.13 reads either in milliseconds).
-_PAGE_END = "\"'-->]]>"
-
-
-def html_svgs(data):
-    """The inline <svg> elements of an HTML page, each as an XML string."""
-    finder = _SvgFinder()
-    try:
-        finder.feed(page_text(data) + _PAGE_END)
-        finder.close()
-    except (AssertionError, NotImplementedError):
-        # how the parser of Python 3.9 gives up on a declaration it cannot read (`<![ `, a broken DOCTYPE)
-        raise Refusal(
-            "page-unreadable",
-            "The page's code is broken in a place this check cannot read past. Ask whoever made the logo for the "
-            "SVG file itself.",
-        ) from None
-    if finder.parts is not None:
-        while finder.open:
-            finder.parts.append("</" + finder.open.pop() + ">")
-        finder.found.append("".join(finder.parts))
-    return finder.found
-
-
 # --- entry point -----------------------------------------------------------------------
 
-def clean_svg(data, source="svg", pick=None, current=None):
+WEB_PAGE = (
+    "This looks like a web page, or a piece of one, not an SVG drawing on its own. This version of the logo step "
+    "reads an SVG file, SVG code pasted as text, or a zip of SVG files: it does not take a drawing out of a page. "
+    "Ask the tool for the SVG file itself, or copy the drawing's own code, from <svg to </svg>, and paste that."
+)
+
+
+def clean_svg(data, source="svg", current=None):
     """Check `data` (bytes) and return a Clean, or raise Refusal.
 
-    source "svg": an .svg file or pasted SVG code. source "html": a page whose inline <svg> is
-    taken out (`pick` is the index when the page holds several); "html-svg": one such <svg>
-    already taken out. A drawing from a page is held to the stricter rule that its colours must
-    come from the drawing itself. `current` is what `currentColor` means, if the caller says."""
+    `data` is an .svg file or pasted SVG code, and `source` says so: "svg" is the one value there
+    is (a drawing is no longer taken out of a web page). `current` is what `currentColor` means,
+    if the caller says."""
+    if source != "svg":
+        raise Refusal("web-page", WEB_PAGE)
     if len(data) > MAX_BYTES:
         raise Refusal("too-large", "The file is larger than %d KB, far more than a logo needs." % (MAX_BYTES // 1024))
-    if source == "html":
-        found = html_svgs(data)
-        if not found:
-            raise Refusal(
-                "no-svg",
-                "The page holds no inline <svg>. If the mark is drawn with CSS or an <img>, ask whoever made it for the SVG file.",
-            )
-        if pick is None and len(found) > 1:
-            err = Refusal("several-svgs", "The page holds %d inline SVG drawings: say which one is the mark." % len(found))
-            err.count = len(found)
-            raise err
-        if pick is not None and (type(pick) is not int or not 0 <= pick < len(found)):
-            raise Refusal("no-such-file", "There is no inline SVG at index %r on the page (it holds %d, counted from 0)." % (str(pick)[:20], len(found)))
-        data = found[pick or 0].encode("utf-8")
-        if len(data) > MAX_BYTES:
-            raise Refusal("too-large", "The drawing is larger than %d KB, far more than a logo needs." % (MAX_BYTES // 1024))
     root, notes = _parse(data)
-    return _finish(root, notes, current, from_html=source in ("html", "html-svg"))
+    return _finish(root, notes, current)

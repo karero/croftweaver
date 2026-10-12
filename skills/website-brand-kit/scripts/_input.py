@@ -1,9 +1,9 @@
 """_input.py: what the owner handed over, decided by what the bytes ARE (never by the file name).
 
-Four forms are read: an SVG file or pasted SVG code, an HTML page with an inline <svg>, and a
-zip of SVG files. A PNG, JPG or PDF is refused in this version, with the two ways out. Nothing
-is written here, and only the one file the owner picked is ever handed on to be checked.
-Standard library only.
+Three forms are read: an SVG file, SVG code pasted as text, and a zip of SVG files. A web page
+is refused in this version (a drawing is not taken out of one), and so is a PNG, JPG or PDF,
+each with the way out. Nothing is written here, and only the one file the owner picked is ever
+handed on to be checked. Standard library only.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ RASTER_MESSAGE = (
 
 class Source(object):
     def __init__(self, kind, data, package=None):
-        self.kind = kind      # "svg", "html" or "zip"
+        self.kind = kind      # "svg" or "zip"
         self.data = data
         self.package = package
 
@@ -42,19 +42,36 @@ class Mark(object):
     def __init__(self, colour, mono, source, name):
         self.colour = colour  # the bytes of the mark that will be checked
         self.mono = mono      # the one-colour twin the owner named, or None
-        self.source = source  # "svg" or "html" (an inline svg: the stricter rules for a page)
+        self.source = source  # always "svg": kept for the caller that still reads it
         self.name = name
 
 
 _BLANK = re.compile(r"[\s\ufeff]*")
-_FIRST = re.compile(r"<(?:!doctype\s+)?(?:[a-z_][\w.\-]*:)?([a-z_][\w.\-]*)")
+# The first element's whole name, as XML reads one: everything up to a blank, a slash or the end
+# of the tag, whatever letters it is written in. Its prefix, if it has one, ends at the last colon.
+_FIRST = re.compile(r"<(?:!doctype[ \t\r\n]+)?([^ \t\r\n/>!?][^ \t\r\n/>]*)", re.I)
 _BMP_INFO_SIZES = (12, 40, 52, 56, 64, 108, 124)
 
 
 def _is_bmp(data):
     # "BM" alone also starts ordinary text: a BMP goes on with its size, four zero bytes, where
-    # the pixels start, and the size of its info header (one of a few known sizes)
-    return data.startswith(b"BM") and data[6:10] == b"\0\0\0\0" and int.from_bytes(data[14:18], "little") in _BMP_INFO_SIZES
+    # the pixels start, and the size of its info header (one of a few known sizes), so it is
+    # never shorter than the 18 bytes that hold those
+    return (len(data) >= 18 and data.startswith(b"BM") and data[6:10] == b"\0\0\0\0"
+            and int.from_bytes(data[14:18], "little") in _BMP_INFO_SIZES)
+
+
+def _text(data):
+    """The bytes as text, to find the first element in. UTF-16 is known the way the XML parser
+    knows it: by its byte-order mark, or by the zero byte beside the first character; anything
+    else is read as UTF-8 (in every encoding the parser reads, the tags are plain ASCII)."""
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16", "replace")
+    if data[:1] == b"\0":
+        return data.decode("utf-16-be", "replace")
+    if data[1:2] == b"\0":
+        return data.decode("utf-16-le", "replace")
+    return data.decode("utf-8", "replace")
 
 
 def _first_element(text):
@@ -84,17 +101,15 @@ def _kind(data):
         raise Refusal("raster-logo", RASTER_MESSAGE % "WebP")
     if data.startswith((b"PK\x03\x04", b"PK\x05\x06")):
         return "zip"
-    text = _svg.page_text(data)
-    start = _first_element(text)
-    low = text[start:start + 16384].lower()
-    first = _FIRST.match(low)
-    name = first.group(1) if first else ""  # the root's own name, whatever prefix it carries
-    if name in ("html", "head", "body"):
-        return "html"
-    if name == "svg":
+    text = _text(data)
+    first = _FIRST.match(text, _first_element(text))
+    name = first.group(1).lower() if first else ""
+    if name == "svg" or name.endswith(":svg"):  # the root's own name, whatever prefix it carries
         return "svg"
-    if "<svg" in low:
-        return "html"  # a piece of a page, not a whole one
+    if first or "<svg" in text.lower():
+        # another element comes first, or a drawing stands somewhere inside: a page, or a piece of one.
+        # Nothing of it is read beyond this.
+        raise Refusal("web-page", _svg.WEB_PAGE)
     return None
 
 
@@ -104,27 +119,9 @@ def load(data):
     if kind is None:
         raise Refusal(
             "unknown-file",
-            "This is not a file this check reads. Give it an SVG file, SVG code pasted as text, a web page that holds "
-            "the logo as an inline <svg>, or a zip of SVG files.",
+            "This is not a file this check reads. Give it an SVG file, SVG code pasted as text, or a zip of SVG files.",
         )
     return Source(kind, data, _zipin.open_zip(data) if kind == "zip" else None)
-
-
-def _which_svg(found, pick):
-    if pick is None:
-        if len(found) > 1:
-            # shown to the owner: no character that could move the cursor or turn the line round
-            options = ["%d: %s" % (i + 1, "".join(c if c.isprintable() else "?" for c in re.sub(r"\s+", " ", s)[:70]))
-                       for i, s in enumerate(found)]
-            raise Ask("which-svg", "The page holds %d inline SVG drawings: which one is the mark?" % len(found), options)
-        return 0
-    try:
-        i = int(str(pick).split(":")[0]) - 1
-    except ValueError:
-        i = -1
-    if not 0 <= i < len(found):
-        raise Refusal("no-such-file", "There is no inline SVG number %r on the page (it holds %d)." % (str(pick)[:20], len(found)))
-    return i
 
 
 def mark(source, pick=None, mono=None):
@@ -132,8 +129,8 @@ def mark(source, pick=None, mono=None):
     if mono and source.kind != "zip":
         raise Refusal(
             "mono-needs-zip",
-            "A one-colour version was named (%r), but this is %s, which holds no second file. Leave it out, or "
-            "put both SVG files into one zip." % (str(mono)[:40], "one SVG file" if source.kind == "svg" else "a web page"),
+            "A one-colour version was named (%r), but this is one SVG file, which holds no second file. Leave it out, or "
+            "put both SVG files into one zip." % str(mono)[:40],
         )
     if source.kind == "svg":
         if pick is not None:
@@ -143,16 +140,6 @@ def mark(source, pick=None, mono=None):
                 "out." % str(pick)[:40],
             )
         return Mark(source.data, None, "svg", "the SVG")
-    if source.kind == "html":
-        found = _svg.html_svgs(source.data)
-        if not found:
-            raise Refusal(
-                "no-svg",
-                "The page holds no inline <svg>. If the mark is drawn with CSS or an <img>, ask whoever made it for the "
-                "SVG file.",
-            )
-        i = _which_svg(found, pick)
-        return Mark(found[i].encode("utf-8"), None, "html", "inline SVG %d" % (i + 1))
     pkg = source.package
     names = pkg.svg_names
     if not names:

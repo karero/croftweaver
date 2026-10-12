@@ -9,16 +9,14 @@ does in general.
 
 ## If you use Claude
 
-- **The palette:** ask the assistant you are already talking to. It writes the three palettes right in this
-  conversation, each as the colour table, and the contrast check runs on them like on any palette you paste.
-  There is nothing to copy and paste.
-- **The logo:** ask Claude for the design: paste the logo prompt into a conversation with Claude and ask it to
-  design the logo. Describe what you want rather than looking for a particular menu or web address; Claude's
-  design feature is reached differently now than it was a few weeks ago (the separate design site is being
-  closed), so name the task and let Claude take it.
+- **The palette:** if the assistant you are talking to right now is Claude, ask it for the three palettes
+  here. It gives each as the colour tables, and the contrast check runs on them like on any palette you paste.
+- **The logo:** paste the logo prompt into a conversation with Claude and ask it to design the logo. Name the
+  task rather than looking for a particular menu or web address.
 - **The download package:** once you have picked your favourite, paste the handover words into the same
-  conversation. On 2026-10-11 the answer was a zip file with a Download button, holding the two SVG files and a
-  README. Save it where you like and tell your assistant the path.
+  conversation. In the one trial on 2026-10-11 the answer was a zip file to download, holding the two SVG
+  files and a README. Save it where you like and tell your assistant the path. If you get no file, paste the
+  code of the two SVG files instead.
 
 ## If you use another tool
 

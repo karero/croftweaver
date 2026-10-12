@@ -17,7 +17,7 @@ import _colour
 from _refusal import Refusal
 
 # the same number as _svg._NUM (ASCII digits, no alternative that overlaps another), so the two cannot drift
-_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
 _NUMBER = re.compile(r"^\s*(%s)(%%?)\s*$" % _NUM)
 
 
@@ -42,10 +42,8 @@ def _alpha():
     )
 
 
-def resolve_paints(root, drawing, current=None, used_classes=None):
-    """The colours of the painted shapes, in the order first used. `used_classes`, when given
-    (a drawing taken out of a web page), is the set of class names the drawing's own styles
-    mention: any other class is styled by the page, which this check cannot see."""
+def resolve_paints(root, drawing, current=None):
+    """The colours of the painted shapes, in the order first used."""
     colours = []
 
     def add(hex_colour):
@@ -63,14 +61,6 @@ def resolve_paints(root, drawing, current=None, used_classes=None):
                 if not _is_one(props[k]):
                     raise _alpha()
                 del props[k]
-        if used_classes is not None:
-            for name in node.classes:
-                if name not in used_classes:
-                    raise Refusal(
-                        "page-css",
-                        "The drawing is styled by the web page around it (the class %r has no rule inside the drawing), "
-                        "so its colours cannot be known from the drawing alone. Ask for the SVG file itself." % name[:30],
-                    )
         eff = dict(inherited)
         if "color" in props:
             v = props["color"].strip()

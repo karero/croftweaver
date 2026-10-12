@@ -51,7 +51,9 @@ _NAMES_TEXT = """
 """
 NAMES = dict(w.split(":") for w in _NAMES_TEXT.split())
 
-_NUM = r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?"
+# ASCII digits only (\d would take any script's digits), and a digit after the point: the site's renderer
+# does not read "255." as a number, so neither does this.
+_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
 _VALUE = re.compile(r"^(%s)(%%|deg|grad|rad|turn)?$" % _NUM)
 _HEX = re.compile(r"^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 _FUNC = re.compile(r"^([a-zA-Z]+)\((.*)\)$", re.S)
@@ -184,6 +186,9 @@ def parse_colour(text, current=None):
     t = (text or "").strip()
     if not t:
         raise _unreadable(text or "", "it is empty")
+    if not t.isascii():
+        # digits of another script would be read as numbers, and a letter such as the Kelvin sign lower-cases to a plain "k"
+        raise _unreadable(t, "it holds a letter, a digit or a space that is not a plain one")
     low = t.lower()
     if low == "currentcolor":
         if current:
@@ -217,9 +222,14 @@ def parse_colour(text, current=None):
         if name in ("rgb", "rgba"):
             parts = _split_args(body, t, True)
             ch = []
+            units = set()
             for p in parts:
                 v, unit = _num(p, t)
+                units.add(unit)
                 ch.append(_finite(v * 255 / 100.0, t) if unit == "%" else v)
+            if len(units) > 1:
+                # rgb(50%, 0, 0): the site's renderer draws black for it, so it is no colour to rely on
+                raise _unreadable(t, "it mixes percentages and plain numbers")
             return _hex(*ch)
         if name in ("hsl", "hsla"):
             return _hsl(_split_args(body, t, True), t)
