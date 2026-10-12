@@ -182,6 +182,19 @@ free answer for "none of these"), otherwise ask in chat. Then:
 Round two: **four to six** new lines in that direction. Keep any line or phrase
 the owner liked word for word, and drop every word they pushed back on.
 
+**Worked example, continued:**
+
+- The owner answers: "1 and 5. 'Evenings back' is what my clients say to me, and
+  the Sunday-night spreadsheet is exactly their week. Not 2: 'dread' is too dark
+  for us."
+- Two lines from different directions, so round two combines them. Every line is
+  built from the words the owner liked, and none says "dread":
+
+  > 1. No Sunday-night spreadsheets. Your evenings back.
+  > 2. Your evenings back from the spreadsheet.
+  > 3. Evenings back. Spreadsheets gone.
+  > 4. Your books done. Your Sunday nights back.
+
 ## 5. Ask for feedback, refine, pick one
 
 After round two, and after every later round, ask for feedback with questions the
@@ -205,6 +218,23 @@ again. The loop ends in one of three ways:
 
 Only the owner picks. Never choose for them, and never set a line because the
 conversation ended.
+
+**Worked example, the end:**
+
+- Asked the three feedback questions, the owner says: "The fourth is nearly it. I
+  would say 'Sunday evenings', not 'Sunday nights'. Can it be shorter? And 'gone'
+  in the third sounds like an advert."
+- Only those three things change. Round three is two lines:
+
+  > 1. Your books done. Your Sunday evenings back.
+  > 2. Books done. Sunday evenings back.
+
+- The owner picks line 1: "The short one sounds like a telegram." A search for the
+  exact line in quotation marks finds no other bookkeeper using it, and the owner
+  is told that this was a courtesy search, not a trademark check.
+- `TAGLINE.md` records the line, "evenings back" as words to keep, "dread" and
+  "gone" as words to avoid, and the thirteen lines not chosen. `SITE.tagline` gets
+  the line verbatim.
 
 ## 6. Record it and place it
 
