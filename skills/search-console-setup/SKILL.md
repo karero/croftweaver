@@ -92,8 +92,8 @@ Cloudflare-managed domain.
 
 Newer Cloudflare zones add a **Security → Bots → Control AI crawlers** panel. For the
 open, maximally-indexable posture this kit wants, confirm BOTH (the defaults can block).
-Where the names below differ from your dashboard, `docs/CLOUDFLARE-CHECKLIST.md` (section
-4) has the newer ones, read from Cloudflare's own pages on 2026-10-12:
+For the first bullet, `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder (section 4)
+has newer names, read from Cloudflare's own pages on 2026-10-12:
 
 - **Block AI training bots → "Do not block (allow crawlers)"** — Cloudflare's page calls
   the setting **Block AI bots**; the name in your dashboard may differ, and this section's

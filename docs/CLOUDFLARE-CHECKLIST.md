@@ -3,7 +3,8 @@
 Your Croftweaver site runs on Cloudflare Pages. Most of it works out of the box. A handful
 of settings decide whether your privacy page stays true, whether search engines and AI
 assistants can reach your pages, and whether visitors connect safely. Go through this list
-once, after the first deploy, and again whenever Cloudflare redesigns its dashboard.
+once after the first deploy, and again whenever Cloudflare redesigns its dashboard. One
+item, HSTS, waits a few days.
 
 **Fastest way.** Your assistant can make most of these changes for you with one
 short-lived token. Section 6 shows how.
@@ -31,14 +32,16 @@ name.
   As of October 2026 the create screen shows **Workers** in the big box and **Pages** only
   as a small line of text beneath it. That small line is the one you need. If you pick the
   big box you get a Worker, and the steps in this kit won't fit. The address tells you
-  which you have: a Pages site answers on `<project>.pages.dev`, a Worker on
-  `<name>.workers.dev`. If the screen looks different, look for the word Pages. (The other
-  ways to deploy are in
+  which you have: a Pages site answers on `<project>.pages.dev`, a Worker on a
+  `.workers.dev` address. If the screen looks different, look for the word Pages. (The
+  other ways to deploy are in
   [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).)
 - [ ] **Build settings:** framework preset **Astro**, build command `npm run build`, output
   directory `dist`. A two-stage site: set **Production branch** to `production` on this
   same form, or it publishes the preview first. To change it later: your project →
-  Settings → Builds & deployments → Configure Production deployments, then **Save**.
+  Settings → Builds & deployments → Configure Production deployments, then **Save**. That
+  path is for projects connected to Git. A Direct Upload project has no such option: ask
+  your assistant.
 
 **After the first deploy:**
 
@@ -52,6 +55,24 @@ name.
   and don't assume the site stays up: the section on Fail open in
   [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
   has the history.
+
+**Once your own domain works (Active, and the site loads on it):**
+
+- [ ] **Send the `<project>.pages.dev` address to your live domain (301).**
+  Workers & Pages → your project → Settings → Variables and Secrets → **Production** →
+  add a plain-text variable `CANONICAL_URL` with your live address,
+  `https://yourdomain.com`: no path, no trailing slash. Production only, so previews keep
+  working. Then **redeploy with a new commit**: a variable reaches only deployments made
+  after it was set.
+  *Why:* without it the same site answers on two addresses, and the kit's notes say AI
+  search engines have been seen citing the `.pages.dev` one. Don't set it before your own
+  domain works: until then the `.pages.dev` address may be the only one that does. A site
+  scaffolded before this redirect existed needs the newer `functions/_middleware.ts`
+  first ("After go-live" in
+  [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md));
+  your assistant does that. Preview deployments keep answering 200 with `noindex`. That is
+  meant.
+  *Check:* the last command in section 5.
 
 Moving an existing domain, with its mail, to Cloudflare is a bigger job: see "Going live"
 in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).
@@ -80,9 +101,12 @@ in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FI
   - **No-Sniff Header:** Off. The starter already sends `X-Content-Type-Options: nosniff`.
 
   HSTS also leaves a note in the browser. Its only job is to keep the visitor's own
-  connection on HTTPS, and it sends nothing anywhere. Once it is on, don't switch the
-  domain's records to "DNS only", pause Cloudflare, move the nameservers away or turn SSL
-  off: if your site then has no working HTTPS, browsers refuse it until the max age runs out.
+  connection on HTTPS, and it sends nothing anywhere. A privacy page that says nothing at
+  all is stored on the visitor's device is then no longer literally true: ask your
+  assistant to add a line about it. That is our judgment, not a ruling. Once HSTS is on,
+  don't switch the domain's records to "DNS only", pause Cloudflare, move the nameservers
+  away or turn SSL off: if your site then has no working HTTPS, browsers refuse it until
+  the max age runs out.
 
 ## 3. Keep the privacy page true: no cookies, scripts or tracking you didn't choose
 
@@ -95,7 +119,8 @@ cookies, scripts or tracking you didn't choose.
   *What it is:* the browser keeps a note, and if it can't reach your site it sends a short
   error report to Cloudflare. Chrome, Edge and other Chromium browsers do this; Firefox
   and Safari don't. When we looked on 12 October 2026, Cloudflare's header set the note to
-  seven days and asked for failures only. Your own `nel:` line (section 5) shows yours.
+  seven days (604800 seconds) and asked for failures only. Your own `nel:` line (section 5)
+  shows yours.
   *Why off:* your page doesn't need it, the privacy page this kit writes doesn't mention
   it, and it makes the visitor's browser send reports to Cloudflare. In Germany, § 25
   TDDDG asks for consent for storing information on a visitor's device or reading it back,
@@ -121,13 +146,12 @@ cookies, scripts or tracking you didn't choose.
      `Report-To` from every response, so if your site later sets reporting groups of its
      own, narrow the rule first.
 
-  Visitors who came in the last seven days can keep the old note until it expires. The
-  `<project>.pages.dev` address is outside your domain, so the rule doesn't reach it. Once
-  `CANONICAL_URL` is set (your assistant does that: "After go-live" in
-  [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)),
-  the kit redirects that address to your live domain. If the header is still there after
-  the rule, tell your assistant or ask Cloudflare Support. Cloudflare's support article
-  describes a flag, `nel___enable`, that stops NEL being enabled on a zone.
+  Visitors who came in before can keep the old note until the `max_age` in your `nel:`
+  line runs out (604800 seconds is seven days). The `<project>.pages.dev` address is
+  outside your domain, so the rule doesn't reach it: send that address to your live domain
+  (section 1). If the header is still there after the rule, tell your assistant or ask
+  Cloudflare Support. Cloudflare's support article describes a flag, `nel___enable`, that
+  stops NEL being enabled on a zone.
 - [ ] **Bot Fight Mode: Off.**
   Your domain → Security → Settings → filter by **Bot traffic** → Bot fight mode.
   *Why:* Cloudflare says JavaScript detections come with it and can't be switched off.
@@ -139,13 +163,13 @@ cookies, scripts or tracking you didn't choose.
 - [ ] **Cloudflare Web Analytics: Off.** This is Cloudflare's own measurement, separate
   from any tool you chose for the site. Two places, check both:
   - Workers & Pages → your project → Metrics → Web Analytics. This is where you would
-    switch it on, so it should offer **Enable**, not show data. A change reaches your site
-    with the next deployment.
+    switch it on, so it should offer **Enable**, not show data.
   - Web Analytics → Manage site → Disable. If your domain isn't listed there, there is
     nothing to disable.
 
   Cloudflare describes an "automatic setup" for sites that run through it, which adds a
-  measurement script to your pages.
+  measurement script to your pages. After you disable it, deploy again and check the page
+  source (section 5).
 - [ ] **Email Address Obfuscation: Off.**
   Your domain → Security → Settings → filter by **Client-side abuse** → Email Address
   Obfuscation.
@@ -183,33 +207,45 @@ earlier. Replace `yourdomain.com` with your domain. Your assistant can run them;
 Windows use Git Bash or WSL.
 
 ```bash
-curl -sI "https://yourdomain.com/?cb=1" | grep -iE '^(nel|report-to|strict-transport-security|set-cookie):'
+curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(nel|report-to|strict-transport-security|set-cookie):'
 ```
 
-You want one line, `strict-transport-security: max-age=15552000` (six months), with
-`; includeSubDomains` after it only if you turned that option on in section 2. A `nel` or
-`report-to` line means NEL is still on. A `set-cookie` line means something is setting a
-cookie: find out what. This check can't see cookies a browser receives only after it runs
-a script, such as `cf_clearance`; the source search below covers that.
+A `nel` or `report-to` line means NEL is still on. A `set-cookie` line means something is
+setting a cookie: tell your assistant. The `strict-transport-security` line is absent until
+you switch HSTS on (section 2). Once it is on you want `max-age=` followed by the seconds
+for the months you chose (for six months we saw 15552000), with `; includeSubDomains` after
+it only if you turned that option on. This check can't see cookies a browser receives only
+after it runs a script, such as `cf_clearance`; the source search below covers that.
 
 ```bash
-curl -s "https://yourdomain.com/robots.txt?cb=1"
+curl -s https://yourdomain.com/robots.txt
 ```
 
-You want only your own file: no AI-crawler `Disallow` lines you didn't write.
+You want only your own file: no AI-crawler `Disallow` lines you didn't write, other than
+ones from a policy you set to block.
 
 ```bash
-curl -sI http://yourdomain.com/ | grep -iE '^(HTTP|location):'
+curl -sI http://yourdomain.com/ | grep -iE '^(HTTP/|location:)'
 ```
 
 You want a redirect (301 or 308) and a `location:` line that starts
-`https://yourdomain.com`. No output at all means curl could not reach the site: try again
-before you trust anything else here.
+`https://yourdomain.com`. A status line with no `location:` line means there is no
+redirect. No output at all means curl could not reach the site: try again before you trust
+anything else here.
+
+```bash
+curl -sI "https://yourproject.pages.dev/?cb=$(date +%s)" | grep -iE '^(HTTP/|location:)'
+```
+
+Run this one only after you set `CANONICAL_URL` and redeployed (section 1). You want a 301
+and a `location:` line that starts `https://yourdomain.com`. A 200 means the variable isn't
+under Production, the deployment is older than the variable, or the value was refused (it
+must start `https://` and must not be a pages.dev address).
 
 - **No scripts you didn't add:** open your home page, view the source, and search for
-  `cdn-cgi` and `cloudflareinsights`. Neither should be there. `cdn-cgi/challenge-platform`
-  is Bot Fight Mode, `cdn-cgi/scripts` is email obfuscation, `cloudflareinsights` is Web
-  Analytics.
+  `cdn-cgi`, `email-decode` and `cloudflareinsights`. None should be there.
+  `cdn-cgi/challenge-platform` is Bot Fight Mode, `email-decode` is email obfuscation,
+  `cloudflareinsights` is Web Analytics.
 - **TLS:** run your domain through ssllabs.com/ssltest. TLS 1.0 and 1.1 should say "No".
 - **No outside check exists** for Crawler Hints (Caching → Configuration) or Fail open
   (your project → Settings → Runtime). Look at both in the dashboard.
@@ -220,31 +256,43 @@ and protecting your Cloudflare account (your site's `SETUP.md`).
 
 ## 6. Let your assistant do it: one short-lived token
 
-Most of sections 2 to 4 are settings an assistant can change for you through Cloudflare's
-API and read back to show they took. If you would rather not click through the dashboard,
-make one token, hand it to your assistant for an afternoon, and delete it afterwards.
+Most of sections 1 to 4 are settings an assistant can change for you through Cloudflare's
+API. A token only gives permission: the changes happen when your assistant makes the API
+calls, one at a time. If you would rather not click through the dashboard, make one token,
+hand it to your assistant for an afternoon, and delete it afterwards. HSTS is not part of
+that afternoon: switch it on a few days after go-live (section 2), with a second token or
+by hand.
 
 **Make the token.** My Profile → API Tokens → Create Token → Create Custom Token. Add these
-permission rows, each set to **Edit** (a read-only token can look but not change anything):
+permission rows, each set to **Edit** except the Zone → Read row (a read-only token can
+look but not change anything):
 
 | Permission row | What it lets the assistant set |
 |---|---|
-| Zone → Zone Settings → Edit | Always Use HTTPS, Minimum TLS Version, HSTS, Email Address Obfuscation |
+| Zone → Zone Settings → Edit | Always Use HTTPS, Minimum TLS Version, Email Address Obfuscation, the NEL switch |
 | Zone → Transform Rules → Edit | the rule that removes the NEL headers |
 | Zone → Bot Management → Edit | Bot Fight Mode and the AI crawler policies |
-| Zone → Zone → Read | finding your domain by name (**Read** is right for this one) |
-| Account → Cloudflare Pages → Edit | only if it also creates the project and deploys (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)) |
+| Zone → Zone → Read | finding your domain by name |
+| Account → Cloudflare Pages → Edit | only if it also creates the project, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)) |
 
-Then set **Zone Resources** to your one domain, and **TTL** to an end date of tomorrow with
-no start date: a start date in the future makes every call fail with "Authentication
-error". Create the token and copy it. Cloudflare shows it once.
+Then set **Zone Resources** to your one domain and **Account Resources** to your account
+only (Pages Edit covers the whole account). Set **TTL** to an end date of tomorrow, a week
+at most, with no start date: a start date in the future makes every call fail with
+"Authentication error". Create the token and copy it. Cloudflare shows it once.
 
 **Hand it over safely.** The rules in `CLOUDFLARE_FIRST_DEPLOY.md` ("Assistant guardrails")
-hold here too. Give the assistant the token as an environment variable for the session.
-Never commit it, and never put it in a file the repository tracks or in the README.
-Ask the assistant to look before it writes, to tell you each change before it makes it,
-and to read each setting back afterwards. Some changes replace a whole list, as the
-Transform Rules do, so it must stop if there is something it would overwrite.
+hold here too. Tell your assistant you have the token. It shows you where to put it: an
+environment variable for the session, or a file the repository ignores. Don't paste it
+into email, a document or a chat other people can read. Never commit it, and never put it
+in a file the repository tracks or in the README. Ask the assistant to look before it
+writes, to tell you each change before it makes it, and to read each setting back
+afterwards. Some changes replace a whole list, as the Transform Rules do, so it must stop
+if there is something it would overwrite. If the API refuses a setting (some are limited
+to certain plans), do that item by hand from sections 2 to 4.
+
+**Then check it yourself.** Before you delete the token, run the commands in section 5 and
+look at the output. An API can say a setting is off while the site still sends the header,
+as it did for NEL on the site we tried.
 
 **What stays by hand:** Crawler Hints (the kit's notes say Cloudflare has no API for it),
 the off switch for Cloudflare Web Analytics, and the Pages choice on the create screen if
@@ -264,6 +312,7 @@ Sources, read 2026-10-12: Cloudflare's
 [Network Error Logging](https://developers.cloudflare.com/network-error-logging/get-started/),
 [turning NEL off](https://developers.cloudflare.com/support/network/understanding-network-error-logging/),
 [Response Header Transform Rules](https://developers.cloudflare.com/rules/transform/response-header-modification/create-dashboard/),
+[updating a ruleset](https://developers.cloudflare.com/ruleset-engine/rulesets-api/update/),
 [Bot Fight Mode](https://developers.cloudflare.com/use-cases/application-security/bots/stop-malicious-bots/),
 [JavaScript detections](https://developers.cloudflare.com/bots/additional-configurations/javascript-detections/),
 [Cloudflare cookies](https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/),
@@ -276,5 +325,8 @@ Sources, read 2026-10-12: Cloudflare's
 [creating an API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/),
 [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/),
 the API reference for [zone settings](https://developers.cloudflare.com/api/resources/zones/subresources/settings/methods/edit/)
-and [Bot Management](https://developers.cloudflare.com/api/resources/bot_management/methods/update/),
-and MDN's [Network Error Logging](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Network_Error_Logging).
+and [Bot Management](https://developers.cloudflare.com/api/resources/bot_management/methods/update/);
+MDN's [Network Error Logging](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Network_Error_Logging)
+and its [browser compatibility data](https://github.com/mdn/browser-compat-data/blob/main/http/headers/NEL.json);
+[RFC 6797](https://www.rfc-editor.org/rfc/rfc6797) (HSTS) and
+[§ 25 TDDDG](https://www.gesetze-im-internet.de/ttdsg/__25.html).

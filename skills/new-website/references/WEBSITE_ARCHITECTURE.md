@@ -185,7 +185,7 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 - **`src/layouts/Base.astro`**: canonical, OG/Twitter, JSON-LD, analytics script.
 - **`src/components/`**: `Header`, `Footer`, `PageHero`, `Subnav`, `EmailLink` (build-time obfuscated).
 - **`src/content/`** (if blog/events/team): Content Collections + Zod schema.
-- **`public/_headers`**: CSP, `X-Content-Type-Options` and the other security headers, cache (`/_astro/* immutable`, `/images/* 30d`). HSTS is a Cloudflare dashboard setting, not in this file (`docs/CLOUDFLARE-CHECKLIST.md`, section 2).
+- **`public/_headers`**: CSP, `X-Content-Type-Options` and the other security headers. HSTS is a Cloudflare dashboard setting, not in this file (`docs/CLOUDFLARE-CHECKLIST.md`, section 2).
 - **`public/_redirects`**: legacy → clean-URL 301s.
 - **`functions/_middleware.ts`**: `noindex` the `*.pages.dev` preview deploys; after go-live,
   301 the project alias `<project>.pages.dev` to the live domain (Production variable

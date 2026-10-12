@@ -210,9 +210,10 @@ The kit's promises (no cookies, no tracking the owner didn't choose, open to sea
 and AI assistants) also rest on a few Cloudflare settings that live in the dashboard, such
 as HTTPS and TLS, HSTS, Network Error Logging, Bot Fight Mode, Web Analytics, Crawler Hints
 and the AI crawler policies. `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder lists
-them with their dashboard paths and, where the site can show it from outside, a command
-that checks each. Once the site is live, offer to go through it with the owner. Offer the
-token route too (section 6 of the checklist): the guardrails above apply to it.
+them with their dashboard paths, and an outside check where one exists. Once the site is
+live, offer to go through it with the owner. Offer the token route too (section 6 of the
+checklist): the guardrails above apply to it, and the owner runs the checklist's section 5
+before the token is deleted.
 
 ---
 
