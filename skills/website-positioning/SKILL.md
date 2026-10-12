@@ -139,6 +139,8 @@ genuinely term-free page, add it to `POSITIONING_EXEMPT`.
 - **The home page told as the customer's story** (one-liner, three-step plan, seven-section
   home page map) → `website-story` (optional; `new-website` offers it once after this
   skill; it reads this file and never edits it, and loses every conflict with it).
+- **The tagline (the short line under the logo)** → `website-tagline` (optional; it reads
+  this file, never edits it, and adds no claim this file lacks).
 - **Tone of voice, EEAT, page copy** → `website-content-guide` (reads this file).
 - **Keyword / SERP research** → `seo-audit`. Positioning leads; keywords follow and
   must not bend the spine into stuffing.

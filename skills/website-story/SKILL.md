@@ -72,7 +72,8 @@ This text lives here, once. `new-website` §2a reads it from here; do not restat
 
 Explicitly **not** touched: `POSITIONING.md`, `tests/positioning.spec.ts`,
 `SITE.tagline` in `src/config.ts`, and the "Brand in one line" in `BRAND.md`. Those
-are positioning surfaces and stay with `website-positioning`.
+are positioning surfaces and stay with `website-positioning`, except `SITE.tagline`,
+which belongs to `website-tagline`.
 
 ## 2. Derive the story from the positioning
 
@@ -224,8 +225,8 @@ the site's `npm test`.
   for everyone is a painkiller for someone.
 - Stakes that are overdone read as a threat and lose the reader; one true cost
   beats three invented ones.
-- The one-liner is not the `<title>` and not the tagline. Those stay with
-  positioning and SEO limits.
+- The one-liner is not the `<title>` and not the tagline. The `<title>` stays with
+  positioning and SEO limits; the tagline belongs to `website-tagline`.
 - Do not restate the positioning inside `STORY.md`; link to it. Two sources of
   truth drift.
 - No lead magnet is better than a fabricated one.
@@ -235,7 +236,8 @@ the site's `npm test`.
 
 ## Boundaries (do not duplicate)
 
-- **Positioning, the spine, the tagline** → `website-positioning`.
+- **Positioning, the spine** → `website-positioning`.
+- **The tagline (the short line under the logo)** → `website-tagline` (optional).
 - **Tone of voice, EEAT** → `website-content-guide`.
 - **Quick fresh-eyes check of an existing site** → `website-positioning-check`.
 - **Writing the actual copy** → `copywriting` (reads `STORY.md` for the home page).
