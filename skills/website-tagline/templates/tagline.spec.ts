@@ -42,10 +42,19 @@ const line = norm(SITE.tagline);
 // A copy in a source file may be written with a backslash before a quote
 // ('Freelancers\' evenings back.') or with a character reference (&#039;, &#x27;,
 // &rsquo;, &eacute;). Both are undone before the search, so an escaped copy is still a
-// copy. The references are decoded by the browser, the way it decodes them on a page,
-// and each one once: no table of them is kept here. The closing semicolon is optional
-// because a browser also reads some references without it (&amp without the semicolon).
+// copy. The references are decoded by the browser, the way it decodes them in a page's
+// text, and each one once: no table of them is kept here. The closing semicolon is
+// optional because a browser also reads some references without it (&amp without the
+// semicolon).
 const REFERENCE = /&#?[0-9a-zA-Z]+;?/g;
+// What the search below rests on. If the browser, or this file's way of asking it, ever
+// decoded one of these differently, a copy written that way would go unseen, so the
+// "typed once" test checks them on every run before it trusts the search.
+const DECODES: [written: string, read: string][] = [
+  ['it&#39;s', "it's"], ['it&#00000039;s', "it's"], ['it&#x0000027;s', "it's"],
+  ['caf&eacute;', 'caf\u00e9'], ['a &amp b', 'a & b'], ['&#38;amp;', '&amp;'],
+  ['&#9999999;', '\ufffd'], ['&nosuch;', '&nosuch;'], ['a && b', 'a && b'],
+];
 const unquoted = (source: string) => source.replace(/\\(['"`])/g, '$1');
 
 // The line counts as typed in a text only where it stands on its own, with no letter
@@ -111,15 +120,22 @@ test.describe('tagline', () => {
       }
     };
     walk(src);
-    // Every character reference those files hold, decoded by the browser in one call.
-    const references = [...new Set(files.flatMap((file) => file.text.match(REFERENCE) ?? []))];
+    // Every character reference those files hold, and the ones in DECODES, decoded by
+    // the browser in one call.
+    const texts = [...files.map((file) => file.text), ...DECODES.map(([written]) => written)];
+    const references = [...new Set(texts.flatMap((text) => text.match(REFERENCE) ?? []))];
     const decoded = await page.evaluate((list) => {
       const box = document.createElement('textarea');
       return list.map((reference) => { box.innerHTML = reference; return box.value; });
     }, references);
+    expect(decoded.filter((value) => typeof value === 'string'),
+      'the browser did not return one text per character reference').toHaveLength(references.length);
     const meaning = new Map(references.map((reference, i) => [reference, decoded[i]]));
     const plain = (source: string) => norm(unquoted(source)
       .replace(REFERENCE, (reference) => meaning.get(reference) ?? reference));
+    for (const [written, read] of DECODES) {
+      expect(plain(written), `"${written}" should read as "${read}" once decoded`).toBe(read);
+    }
     const copies = files.filter((file) => holds(plain(file.text), line)).map((file) => file.name);
     expect(copies,
       `the tagline is typed again in ${copies.join(', ')}. Read SITE.tagline there instead, ` +
