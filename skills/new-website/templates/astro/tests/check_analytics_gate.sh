@@ -184,9 +184,11 @@ count_tags() {
 # property of whatever is stored as plausible is watched, so the stub's own init is counted,
 # also when it is called through a variable that holds the same function), so a stub that
 # only calls plausible.init(), or one whose own definition branch never calls it, fails.
-# Not supported: a stub that defines plausible or its init with Object.defineProperty (an
-# init defined as non-configurable cannot be watched, so such a stub fails; extend this
-# check first).
+# Not supported (such a stub may be rejected here; extend this check first): a stub that
+# defines plausible or its init with Object.defineProperty, one that tests for init with `in`
+# or Object.hasOwn before defining it (the watch gives the property to the function early),
+# and one that keeps the init function in a variable BEFORE assigning plausible and calls it
+# only from there.
 stub_runs() {
   local page="$1" out="$work/stub.js" err="$work/stub.err"
   rm -f "$out" "$err"
@@ -211,8 +213,9 @@ stub_runs() {
       // that wraps any function assigned to it, so a call is counted whoever defined the
       // function, whenever the stub did it (before or after assigning plausible), and through
       // any variable that holds it. A function gets one wrapper, so plausible.init stays equal
-      // to itself. An init defined as non-configurable cannot be watched: nothing is counted
-      // and the check fails, the safe way to be wrong.
+      // to itself. An init that cannot be watched (defined non-configurable) is not counted
+      // and the check fails, the safe way to be wrong; see the header for the shapes it
+      // does not support.
       const wrappers = new WeakMap(), wrapped = new WeakSet();
       const wrap = (f) => {
         if (typeof f !== "function" || wrapped.has(f)) return f;
@@ -224,7 +227,7 @@ stub_runs() {
         if (typeof v !== "function") return;
         const d = Object.getOwnPropertyDescriptor(v, "init");
         if (d && (!d.configurable || !("value" in d))) return;
-        let cur = d ? wrap(d.value) : undefined;
+        let cur = wrap(d ? d.value : v.init);
         Object.defineProperty(v, "init", { configurable: true, enumerable: true,
           get() { return cur; }, set(f) { cur = wrap(f); } });
       };
@@ -383,13 +386,14 @@ selftest() {
   fixture quotedtag  "$s<script data-text=\"</script>\">$qbody</script>" ''
   fixture alias      "$s<script>var p=window.plausible||function(){};p.init=p.init||function(o){p.o=o||{}};window.plausible=p;if(0){plausible.init()}p.init()</script>" ''
   fixture identity   "$s<script>window.plausible=window.plausible||function(){};plausible.init=plausible.init||function(o){plausible.o=o||{}};if(plausible.init!==plausible.init){throw new Error('x')};plausible.init()</script>" ''
-  fixture defprop    "$s<script>window.plausible=window.plausible||function(){};Object.defineProperty(plausible,'init',{value:function(o){plausible.o=o||{}}});plausible.init()</script>" ''
+  fixture defprop    "$s<script>window.plausible=window.plausible||function(){};Object.defineProperty(plausible,'init',{value:function(o){plausible.o=o||{}},configurable:false});plausible.init()</script>" ''
+  fixture inherit    "$s<script>var f=function(){};Object.setPrototypeOf(f,{init:function(o){f.o=o||{}}});window.plausible=window.plausible||f;plausible.init()</script>" ''
   # name:expected counts "<script> <stub> <other>"
   for expect in both:'1 1 0' script:'1 0 0' stub:'0 1 0' none:'0 0 0' mention:'1 0 0' options:'1 1 0' \
                 spaced:'1 1 0' upper:'1 1 0' jsonld:'0 0 0' comment:'0 0 0' oldform:'0 0 1' oldext:'0 0 1' \
                 wrongid:'0 1 1' queryform:'0 1 1' twice:'2 1 0' jscomment:'1 1 0' jsstring:'1 1 0' \
                 fakeinit:'1 1 0' usesdoc:'1 1 0' callonly:'1 1 0' branchy:'1 1 0' replaced:'1 1 0' preassign:'1 1 0' commentstr:'1 1 0' \
-                scriptx:'1 0 0' quotedtag:'1 1 0' alias:'1 1 0' identity:'1 1 0' defprop:'1 1 0'; do
+                scriptx:'1 0 0' quotedtag:'1 1 0' alias:'1 1 0' identity:'1 1 0' defprop:'1 1 0' inherit:'1 1 0'; do
     name="${expect%%:*}"; want_line="${expect#*:}"
     n=$((n + 1))
     got="$(perl -e "$(tags_program)" "$dir/$name.html" | awk '{print $1, $2, $3}')"
@@ -399,7 +403,7 @@ selftest() {
     fi
   done
   for expect in both:yes options:yes usesdoc:yes jscomment:no jsstring:no fakeinit:no callonly:no branchy:no replaced:no preassign:yes commentstr:yes stub:yes script:no \
-                alias:yes identity:yes quotedtag:yes defprop:no; do
+                alias:yes identity:yes quotedtag:yes defprop:no inherit:yes; do
     name="${expect%%:*}"; want_line="${expect#*:}"
     got=no
     if stub_runs "$dir/$name.html"; then got=yes; fi
