@@ -206,12 +206,13 @@ setting's history, the cloudflare-docs pull requests that
 
 ## After the first deploy: the Cloudflare settings checklist
 
-The kit's promises (no cookies, no analytics, open to search engines and AI assistants)
-also rest on a few Cloudflare settings that live in the dashboard:
-Network Error Logging, Bot Fight Mode, Web Analytics, HSTS, Crawler Hints and the AI
-crawler policies. `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder lists each one
-with its dashboard path and a command that checks it. Once the site is live, offer to go
-through it with the owner.
+The kit's promises (no cookies, no tracking the owner didn't choose, open to search engines
+and AI assistants) also rest on a few Cloudflare settings that live in the dashboard, such
+as HTTPS and TLS, HSTS, Network Error Logging, Bot Fight Mode, Web Analytics, Crawler Hints
+and the AI crawler policies. `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder lists
+them with their dashboard paths and, where the site can show it from outside, a command
+that checks each. Once the site is live, offer to go through it with the owner. Offer the
+token route too (section 6 of the checklist): the guardrails above apply to it.
 
 ---
 
