@@ -57,8 +57,12 @@ skip silently. With a config diff, send the code that reads the config too.
    `OLLAMA_MODEL=<name>:cloud` and the script calls ollama's HTTP API instead, authenticated by
    `OLLAMA_API_KEY` or the environment's API credential for `ollama.com` (the network policy must
    allow that host); `OLLAMA_TRANSPORT=api|cli` forces one. The API path also logs tokens.
-   **Melious fallback:** with `MELIOUS_MODEL=<model>` set (a name from its `/v1/models`; the
-   script names none), a round whose ollama seat did not count — no model or CLI, a failure such
+   **Melious fallback:** with `MELIOUS_MODEL=<model>` set (one of the ids listed in
+   `scripts/melious_models.txt`, by the owner's rule of 2026-10-12: the script refuses any other
+   name with exit 2 before any reviewer starts, in every mode, and an id the list marks `light`
+   unless the run says `--depth light`; Kimi and every other model run on ollama, and a model
+   ollama cannot serve has no seat that round; the script sets no default), a round whose
+   ollama seat did not count — no model or CLI, a failure such
    as a quota refusal, or a local sanity pass — sends the same text-only prompt to Melious's
    OpenAI-compatible API (`api.melious.ai`) instead, so the pair keeps its second reviewer. Auth:
    `MELIOUS_API_KEY`, `~/.config/reviewers/melious.env`, or the environment's API credential for
