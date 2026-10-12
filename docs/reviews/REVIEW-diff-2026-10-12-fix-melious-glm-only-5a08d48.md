@@ -1,5 +1,5 @@
-# DIFF review — branch `fix/melious-glm-only` — the Melious seat refuses every model its list does not allow
-Base `896e3c5` · depth: Normal (the diff changes the logic of the gate script and of a check script, and an instruction file agents load) · verdict: CLEAN for artifact 2 at head `5d7b4dd`, with one RISK waived by the owner (A1) and nothing open; artifact 1 stopped after round 5 and was replaced (the owner's decisions, below) · authority used: WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); POST AUTHORITY — none yet: no PR, and the owner's task says not to push or open one without his OK
+# DIFF review — PR #269, branch `fix/melious-glm-only` — the Melious seat refuses every model its list does not allow
+Base `896e3c5` · depth: Normal (the diff changes the logic of the gate script and of a check script, and an instruction file agents load) · verdict: CLEAN for artifact 2 at head `5d7b4dd`, with one RISK waived by the owner (A1) and nothing open; artifact 1 stopped after round 5 and was replaced (the owner's decisions, below) · authority used: WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); POST AUTHORITY — atom A (this session opened PR #269) and atom B (the owner, 2026-10-12, to the offer to push the branch and open the PR with the review comment: "push & PR")
 
 Data consent: the owner's task for this change (2026-10-12) names the gate: "the review gate is Normal at least (Codex + GLM 5.3 on melious via the independent-review skill)". The repo is public. A grep of the round-1 artifact for keys, tokens, passwords and secrets found only the tests' stub values (`stub-msecret`, `stub-stopkey`, `real-curl-key`). ollama-cloud received nothing (Melious counted in all five rounds); Antigravity was not used. The script was run from this worktree (`grep -c SECOND_SEAT` found 16), so each round also exercised the changed script with the allowed model.
 
@@ -46,7 +46,7 @@ Notes:
 - The requirement moved during the gate: the owner's instructions (his `~/.claude` commit `86cb4eb`, 2026-10-12 11:54 CEST) now allow GLM 5.3 Flash on Melious in a Light review. The branch refuses it in every mode. Also for the owner's decision.
 - Melious's reply in round 1 came with its final-review marker at the end, so the script printed the whole reply with its "no usable marker" notice; it reads as a finished review and was counted.
 - Codex could not run the check script or the test file in its sandbox (here-strings need temp files); it ran their cases through pipes. The author's full runs (`make check`: exit 0, 1062 ok lines, at each head) are not externally reproduced.
-- Raw reviewer output of these five rounds: not posted (no PR); copies are kept as the last note of artifact 2 says.
+- Raw reviewer output of these five rounds: on PR #269, in the further comment the consolidated one links to.
 
 ## The owner's decisions, 2026-10-12, after artifact 1's round 5
 
@@ -95,5 +95,5 @@ Notes on artifact 2:
 - Seen pair: base `896e3c5`, head `5d7b4dd`. Codex holds an unbroken chain to that head; GLM's ends at `7ec02a6`; fresh-eyes' at round 1, by design. `origin/main` has since moved to `e58d3ae` (PR #264), which touches none of this change's files; the merge-base is unchanged.
 - Author's runs at `5d7b4dd`: `make check` exits 0 with 1094 ok lines. It skips, here as on the base, the Perl minimum-version check (no Perl::MinimumVersion on this machine; CI runs it) and six pre-push-hook cases that need `/proc`. With the startup check cut from a scratch copy, 28 checks of sections 32c to 32e fail.
 - Codex could not run the test file or the check script in its sandbox (they write temp files) and ran their cases through pipes instead; the full runs above are the author's.
-- Raw reviewer output: not posted (no PR yet). Copies of every round's output and prior-findings file are in this worktree under `docs/local/review-raw-fix-melious-glm-only/`, which git ignores.
+- Raw reviewer output: posted on PR #269, artifact 2's under the consolidated comment and artifact 1's five rounds in a further comment linked from it. The consolidated comment is stamped at the head that added this trail, which changes nothing outside `docs/reviews/`.
 
