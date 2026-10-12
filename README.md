@@ -303,6 +303,9 @@ skills/            the suite skills (canonical)
   website-scorecard   (optional public scorecard — a dated section showing what the
                    site's own test gate checked, plus the owner's Lighthouse scores;
                    copied to every site, never runs unasked)
+  website-tagline  (optional line under the logo — starts from the purpose, shows
+                   the owner six to eight lines, the owner picks one: TAGLINE.md +
+                   SITE.tagline; copied to every site, never runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
@@ -392,11 +395,11 @@ none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
-Four more skills are optional in a different way: `website-motion`, `website-story`,
-`website-scorecard` and `website-positioning-check` are **copied into every site** so the
-recipient can use them later, but **never run unless asked** (`website-story` is offered
-once, after positioning, with a plain-language explanation; the other three only on
-request).
+Five more skills are optional in a different way: `website-motion`, `website-story`,
+`website-scorecard`, `website-tagline` and `website-positioning-check` are **copied into
+every site** so the recipient can use them later, but **never run unless asked**
+(`website-story` is offered once, after positioning, with a plain-language explanation;
+the other four only on request).
 
 ### Use it locally
 
