@@ -1193,8 +1193,9 @@ test('thousands of unclosed script starts inside an svg: the text taken is bound
   const jsd = 'var a="/cdn-cgi/challenge-platform/scripts/jsd/main.js";';
   const page = `<svg>${'<script>'.repeat(40_000)}${jsd}`;
   const { scripts } = readHtml(page);
-  const taken = scripts.reduce((sum, text) => sum + text.length, 0);
-  assert.ok(taken <= page.length, `the script text taken (${taken}) is no more than the page (${page.length}): every character once`);
+  // The first <script> takes the rest of the page, once: one piece, and exactly what follows its start tag.
+  assert.equal(scripts.length, 1);
+  assert.equal(scripts[0].length, page.length - '<svg><script>'.length);
   await withSite(homeWith({}, page), async (s) => {
     assert.equal((await check(s.origin)).by.bot.state, 'fail');
   });
