@@ -42,7 +42,7 @@
         "Shows 'Still your garden, without the heavy part.' again, word for word, marked as still in the running and not counted among the new lines",
         "At least one new line contains the phrase 'your own garden' word for word",
         "No line contains the word 'burden'",
-        "Every new line is eight words and 50 characters or fewer, contains no em dash or contraction, and says nothing POSITIONING.md does not say",
+        "Every new line is eight words or fewer and 50 characters or fewer, contains no em dash or contraction, and says nothing POSITIONING.md does not say",
         "Asks for feedback with concrete questions (which words the owner would really say, which word feels off, too bold, too modest or too long), not with 'what do you think?'",
         "Does not pick a line for the owner and does not treat any line as dropped unless the owner dropped it",
         "Does not create TAGLINE.md and does not edit src/config.ts or any page"
