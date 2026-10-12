@@ -499,6 +499,8 @@ jobs:
           placeholder="$(sed -n "s/^ *tagline: '\(.*\)',\$/\1/p" src/config.ts)"
           [ -n "$placeholder" ] || { echo "::error::no tagline value found in the starter's src/config.ts"; exit 1; }
           grep -Fq "const PLACEHOLDER = '$placeholder';" tests/tagline.spec.ts || { echo "::error::the starter ships tagline '$placeholder'; tagline.spec.ts expects another placeholder"; exit 1; }
+          # The later steps take the value from here, so this job holds no third copy of it.
+          printf '%s' "$placeholder" > "$RUNNER_TEMP/placeholder"
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           # An unconfigured copy reports "not applicable": nothing passes, nothing fails.
@@ -510,15 +512,18 @@ jobs:
         working-directory: ${{ runner.temp }}/site
         run: |
           perl -pi -e "s|selector: '',|selector: '.tagline',|" tests/tagline.spec.ts
-          perl -pi -e "s|tagline: 'One-line positioning.',|tagline: 'Your books done. Your evenings back.',|" src/config.ts
-          # The comment line is a decoy: the line inside a longer word is not a second
-          # copy, so the "typed once" test has to stay green with it in the file.
-          perl -pi -e 's|^(\s*)<h1>\{SITE\.name\}</h1>|$1<h1>{SITE.name}</h1>\n$1<!-- xYour books done. Your evenings back.x -->\n$1<p class="tagline">{SITE.tagline}</p>|' src/pages/index.astro
+          PLACEHOLDER="$(cat "$RUNNER_TEMP/placeholder")" perl -pi -e 's|tagline: \x27\Q$ENV{PLACEHOLDER}\E\x27,|tagline: \x27Your books done. Your evenings back.\x27,|' src/config.ts
+          # The two comment lines are decoys: the line inside a longer word is not a second
+          # copy, so the "typed once" test has to stay green with them in the file. The
+          # second is bordered by a digit and a letter from outside the basic plane, which
+          # take two places each in a string.
+          perl -pi -e 's|^(\s*)<h1>\{SITE\.name\}</h1>|$1<h1>{SITE.name}</h1>\n$1<!-- xYour books done. Your evenings back.x -->\n$1<!-- 𝟙Your books done. Your evenings back.𐐀 -->\n$1<p class="tagline">{SITE.tagline}</p>|' src/pages/index.astro
           # One check per line: in "a && b" a failing a does not stop the step.
           grep -q "selector: '.tagline'," tests/tagline.spec.ts
           grep -q "tagline: 'Your books done. Your evenings back.'," src/config.ts
           grep -q '<p class="tagline">{SITE.tagline}</p>' src/pages/index.astro
           grep -q 'xYour books done. Your evenings back.x' src/pages/index.astro
+          grep -q '𝟙Your books done. Your evenings back.𐐀' src/pages/index.astro
           cp src/pages/index.astro "$RUNNER_TEMP/index.good" && cp src/config.ts "$RUNNER_TEMP/config.good"
           npm run check
           npm test
@@ -567,8 +572,14 @@ jobs:
           grep -Fq "const again = 'Freelancers\\' evenings back.';" src/pages/index.astro
           grep -q '<p class="tagline">{again}</p>' src/pages/index.astro
           red "the line typed again with an escaped apostrophe" "the line is typed once"
-          perl -pi -e "s|tagline: 'Your books done. Your evenings back.',|tagline: 'One-line positioning.',|" src/config.ts
-          grep -q "tagline: 'One-line positioning.'," src/config.ts
+          # The same, with the apostrophe as a numeric character reference in the page.
+          perl -pi -e 's|tagline: \x27Your books done. Your evenings back.\x27,|tagline: "Freelancers\x27 evenings back.",|' src/config.ts
+          grep -q "tagline: \"Freelancers' evenings back.\"," src/config.ts
+          perl -pi -e 's|\{SITE\.tagline\}</p>|Freelancers&#039; evenings back.</p>|' src/pages/index.astro
+          grep -q '<p class="tagline">Freelancers&#039; evenings back.</p>' src/pages/index.astro
+          red "the line typed again with a character reference" "the line is typed once"
+          PLACEHOLDER="$(cat "$RUNNER_TEMP/placeholder")" perl -pi -e 's|tagline: \x27Your books done. Your evenings back.\x27,|tagline: \x27$ENV{PLACEHOLDER}\x27,|' src/config.ts
+          grep -Fq "tagline: '$(cat "$RUNNER_TEMP/placeholder")'," src/config.ts
           red "the starter's placeholder left in the config" "is a real line within the limits" "placeholder"
           # Nine words in 31 characters, then six words in 67: each limit on its own.
           perl -pi -e "s|tagline: 'Your books done. Your evenings back.',|tagline: 'We do it so you can get on now.',|" src/config.ts

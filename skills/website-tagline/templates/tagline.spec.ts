@@ -40,23 +40,28 @@ const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 const line = norm(SITE.tagline);
 
 // A copy in a source file may be written with a backslash before a quote
-// ('Freelancers\' evenings back.') or with an HTML entity (&amp;, &#39;). Both are
-// undone before the search, so an escaped copy is still a copy.
-const ENTITIES: Record<string, string> = {
-  '&amp;': '&', '&quot;': '"', '&#34;': '"', '&apos;': "'", '&#39;': "'",
-  '&rsquo;': '\u2019', '&lsquo;': '\u2018', '&nbsp;': ' ',
+// ('Freelancers\' evenings back.'), with a numeric character reference (&#39;, &#039;,
+// &#x27;) or with one of six named entities. All of these are undone before the search,
+// so an escaped copy is still a copy. Any other named entity (&eacute;) is left as it
+// is: a copy written with one is not found.
+const NAMED: Record<string, string> = {
+  amp: '&', quot: '"', apos: "'", rsquo: '\u2019', lsquo: '\u2018', nbsp: ' ',
 };
 const unescaped = (source: string) => norm(source
   .replace(/\\(['"`])/g, '$1')
-  .replace(/&(?:amp|quot|apos|rsquo|lsquo|nbsp|#34|#39);/g, (entity) => ENTITIES[entity]));
+  .replace(/&#(\d{1,7});/g, (_, digits: string) => String.fromCodePoint(Math.min(Number(digits), 0x10ffff)))
+  .replace(/&#[xX]([0-9a-fA-F]{1,6});/g, (_, hex: string) => String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)))
+  .replace(/&(amp|quot|apos|rsquo|lsquo|nbsp);/g, (_, name: string) => NAMED[name]));
 
 // The line counts as typed in a text only where it stands on its own, with no letter
 // or digit directly before or after it. A short line inside a longer word is not a copy.
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
 const holds = (text: string, needle: string) => {
   for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
-    const before = text[at - 1] ?? '';
-    const after = text[at + needle.length] ?? '';
+    // Whole characters, not halves: a letter outside the basic plane takes two places
+    // in a string, and half of it would not look like a letter.
+    const before = [...text.slice(Math.max(0, at - 2), at)].pop() ?? '';
+    const after = [...text.slice(at + needle.length, at + needle.length + 2)][0] ?? '';
     if (!LETTER_OR_DIGIT.test(before) && !LETTER_OR_DIGIT.test(after)) return true;
   }
   return false;
