@@ -572,11 +572,12 @@ jobs:
           grep -Fq "const again = 'Freelancers\\' evenings back.';" src/pages/index.astro
           grep -q '<p class="tagline">{again}</p>' src/pages/index.astro
           red "the line typed again with an escaped apostrophe" "the line is typed once"
-          # The same, with the apostrophe as a numeric character reference in the page.
+          # The same, with the apostrophe as a character reference in the page, in a
+          # spelling with leading zeros that only a full decoder reads.
           perl -pi -e 's|tagline: \x27Your books done. Your evenings back.\x27,|tagline: "Freelancers\x27 evenings back.",|' src/config.ts
           grep -q "tagline: \"Freelancers' evenings back.\"," src/config.ts
-          perl -pi -e 's|\{SITE\.tagline\}</p>|Freelancers&#039; evenings back.</p>|' src/pages/index.astro
-          grep -q '<p class="tagline">Freelancers&#039; evenings back.</p>' src/pages/index.astro
+          perl -pi -e 's|\{SITE\.tagline\}</p>|Freelancers&#00000039; evenings back.</p>|' src/pages/index.astro
+          grep -q '<p class="tagline">Freelancers&#00000039; evenings back.</p>' src/pages/index.astro
           red "the line typed again with a character reference" "the line is typed once"
           PLACEHOLDER="$(cat "$RUNNER_TEMP/placeholder")" perl -pi -e 's|tagline: \x27Your books done. Your evenings back.\x27,|tagline: \x27$ENV{PLACEHOLDER}\x27,|' src/config.ts
           grep -Fq "tagline: '$(cat "$RUNNER_TEMP/placeholder")'," src/config.ts

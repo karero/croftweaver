@@ -40,18 +40,13 @@ const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 const line = norm(SITE.tagline);
 
 // A copy in a source file may be written with a backslash before a quote
-// ('Freelancers\' evenings back.'), with a numeric character reference (&#39;, &#039;,
-// &#x27;) or with one of six named entities. All of these are undone before the search,
-// so an escaped copy is still a copy. Any other named entity (&eacute;) is left as it
-// is: a copy written with one is not found.
-const NAMED: Record<string, string> = {
-  amp: '&', quot: '"', apos: "'", rsquo: '\u2019', lsquo: '\u2018', nbsp: ' ',
-};
-const unescaped = (source: string) => norm(source
-  .replace(/\\(['"`])/g, '$1')
-  .replace(/&#(\d{1,7});/g, (_, digits: string) => String.fromCodePoint(Math.min(Number(digits), 0x10ffff)))
-  .replace(/&#[xX]([0-9a-fA-F]{1,6});/g, (_, hex: string) => String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)))
-  .replace(/&(amp|quot|apos|rsquo|lsquo|nbsp);/g, (_, name: string) => NAMED[name]));
+// ('Freelancers\' evenings back.') or with a character reference (&#039;, &#x27;,
+// &rsquo;, &eacute;). Both are undone before the search, so an escaped copy is still a
+// copy. The references are decoded by the browser, the way it decodes them on a page,
+// and each one once: no table of them is kept here. The closing semicolon is optional
+// because a browser also reads some references without it (&amp without the semicolon).
+const REFERENCE = /&#?[0-9a-zA-Z]+;?/g;
+const unquoted = (source: string) => source.replace(/\\(['"`])/g, '$1');
 
 // The line counts as typed in a text only where it stands on its own, with no letter
 // or digit directly before or after it. A short line inside a longer word is not a copy.
@@ -101,22 +96,31 @@ test.describe('tagline', () => {
     });
   }
 
-  test('the line is typed once: only src/config.ts holds it', () => {
+  test('the line is typed once: only src/config.ts holds it', async ({ page }) => {
     // An empty line is "in" every file. The limits test below reports the empty config.
     test.skip(line === '', 'SITE.tagline is empty: nothing to search for');
     const src = join(process.cwd(), 'src');
-    const copies: string[] = [];
+    const files: { name: string; text: string }[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const file = join(dir, entry.name);
         if (entry.isDirectory()) walk(file);
-        else if (COPY_FILES.test(entry.name) && relative(src, file) !== 'config.ts'
-          && holds(unescaped(readFileSync(file, 'utf8')), line)) {
-          copies.push(relative(process.cwd(), file));
+        else if (COPY_FILES.test(entry.name) && relative(src, file) !== 'config.ts') {
+          files.push({ name: relative(process.cwd(), file), text: readFileSync(file, 'utf8') });
         }
       }
     };
     walk(src);
+    // Every character reference those files hold, decoded by the browser in one call.
+    const references = [...new Set(files.flatMap((file) => file.text.match(REFERENCE) ?? []))];
+    const decoded = await page.evaluate((list) => {
+      const box = document.createElement('textarea');
+      return list.map((reference) => { box.innerHTML = reference; return box.value; });
+    }, references);
+    const meaning = new Map(references.map((reference, i) => [reference, decoded[i]]));
+    const plain = (source: string) => norm(unquoted(source)
+      .replace(REFERENCE, (reference) => meaning.get(reference) ?? reference));
+    const copies = files.filter((file) => holds(plain(file.text), line)).map((file) => file.name);
     expect(copies,
       `the tagline is typed again in ${copies.join(', ')}. Read SITE.tagline there instead, ` +
       `or the two copies drift apart the next time the line changes`)
