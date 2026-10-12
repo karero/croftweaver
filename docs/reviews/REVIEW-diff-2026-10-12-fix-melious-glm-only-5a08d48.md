@@ -1,5 +1,5 @@
 # DIFF review — branch `fix/melious-glm-only` — the Melious seat refuses every model its list does not allow
-Base `896e3c5` · depth: Normal (the diff changes the logic of the gate script and of a check script, and an instruction file agents load) · verdict: OPEN (artifact 2 under review; artifact 1 stopped after round 5 and was replaced, see the owner's decisions) · authority used: WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); POST AUTHORITY — none yet: no PR, and the owner's task says not to push or open one without his OK
+Base `896e3c5` · depth: Normal (the diff changes the logic of the gate script and of a check script, and an instruction file agents load) · verdict: CLEAN for artifact 2 at head `5d7b4dd`, with one RISK waived by the owner (A1) and nothing open; artifact 1 stopped after round 5 and was replaced (the owner's decisions, below) · authority used: WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); POST AUTHORITY — none yet: no PR, and the owner's task says not to push or open one without his OK
 
 Data consent: the owner's task for this change (2026-10-12) names the gate: "the review gate is Normal at least (Codex + GLM 5.3 on melious via the independent-review skill)". The repo is public. A grep of the round-1 artifact for keys, tokens, passwords and secrets found only the tests' stub values (`stub-msecret`, `stub-stopkey`, `real-curl-key`). ollama-cloud received nothing (Melious counted in all five rounds); Antigravity was not used. The script was run from this worktree (`grep -c SECOND_SEAT` found 16), so each round also exercised the changed script with the allowed model.
 
@@ -46,7 +46,7 @@ Notes:
 - The requirement moved during the gate: the owner's instructions (his `~/.claude` commit `86cb4eb`, 2026-10-12 11:54 CEST) now allow GLM 5.3 Flash on Melious in a Light review. The branch refuses it in every mode. Also for the owner's decision.
 - Melious's reply in round 1 came with its final-review marker at the end, so the script printed the whole reply with its "no usable marker" notice; it reads as a finished review and was counted.
 - Codex could not run the check script or the test file in its sandbox (here-strings need temp files); it ran their cases through pipes. The author's full runs (`make check`: exit 0, 1062 ok lines, at each head) are not externally reproduced.
-- Raw reviewer output is not yet posted anywhere (no PR): it is in this session's scratch folder until a PR comment holds it.
+- Raw reviewer output of these five rounds: not posted (no PR); copies are kept as the last note of artifact 2 says.
 
 ## The owner's decisions, 2026-10-12, after artifact 1's round 5
 
@@ -58,3 +58,42 @@ Asked in this session with the round-5 state and the changed rule in front of hi
 So artifact 1's let-through is gone and K1, K2 and K3 with it: `scripts/check_model_agnostic.sh` is the base's file plus one more exact-path exclusion, and no file it scans holds a model's name. Artifact 2 is a new artifact with a new round count.
 
 ## Artifact 2 — the allowed models in `scripts/melious_models.txt`, a light-only mark, the check skips that file
+
+| Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
+|---|---|---|---|---|---|
+| 1 | `91e58fe` | full: `origin/main...91e58fe`, 8 files (docs/reviews excluded), plus unchanged source excerpts marked as context for the text-only seat | codex-cli 0.162.1, gpt-6.1-sol, effort high (config.toml), read-only; melious glm-5.3, HTTP API, text only; fresh-eyes: Claude Sonnet through the Agent tool, read-only by instruction | codex 301 s / 96,067; melious 328 s / 53,069; fresh-eyes 322 s / 149,448 | 2/4/5 after dedup |
+| 2 | `99e4e53` | delta `91e58fe..99e4e53`, `--verify` with round 1's dispositions | codex at effort medium; melious glm-5.3 | codex 133 s / 62,579; melious 282 s / 28,918 | 0/1/2 |
+| not a round: the closing edits, and the tracker row | `7ec02a6` | delta `99e4e53..7ec02a6` plus this change's diff of `OPEN-FINDINGS-independent-review.md`, `--verify` | same pair | codex 119 s / 58,579; melious 268 s / 21,668 | 0/1/0 |
+| not a round: confirmation of C1's fix | `5d7b4dd` | delta `7ec02a6..5d7b4dd`, `--verify`, `--seat codex` | codex at effort medium | codex 111 s / 37,966 | 0/0/0 |
+
+Artifact 2: 2 rounds, 15 findings (2 BUG, 6 RISK, 7 NIT). One BUG was a README sentence; the other was refuted, and both seats confirmed the refutation in round 2. The whole gate, both artifacts: 7 rounds, 36 findings.
+
+| id | Sev | Source | Round | Finding | Status | Evidence |
+|---|---|---|---|---|---|---|
+| A1 | RISK | Codex | 1 | Neither listed model has a measurement of how Melious hands it a prompt holding think tags (it is F9 again) | waived by the owner (below); tracker row R-MELIOUS-THINK stays open | — |
+| A2 | BUG | Codex | 1 | `README.md` said the skill is free of concrete model names outside two files; the tests hold `kimi-k3`, which the check's pattern does not see | fixed `99e4e53` as wording (the README now says what the pattern covers), externally_reverified (round 2). The literal stays: the owner's task names it, and it is in two scanned files on the base | `git grep -n kimi-k3 896e3c5 -- skills/independent-review` |
+| A3 | RISK | Codex | 1 | The refusal tests compared a sentence naming every listed model, so a longer list would fail them | fixed `99e4e53`, externally_reverified | Codex reproduced the substrings on a longer list |
+| A4 | BUG | GLM | 1 | The gate would refuse a Light run because the parser "stores the whole token `--depth:light`" | refuted; both seats confirmed in round 2 | `case "$a:$1" in --depth:light\|…) DEPTH="$1"`: the colon is only in the string matched on. Tests `lseat`, `lsecond` (run at `--depth light`), `lnormal`, `lhigh` (refusal text) pass. GLM had been shown one arm of the parser, not the `case` line |
+| A5 | RISK | GLM | 1 | The two-word form `--depth light` may have no parser branch | refuted, as A4 | — |
+| A6 | RISK | GLM | 1 | Nothing shows that Melious serves the two ids | fixed in part `99e4e53`, then corrected by B1 | the any-depth id answered in every round of this gate |
+| A7 | NIT | GLM | 1 | An id listed as `light` and again bare was named twice in the refusal | fixed `99e4e53`, externally_reverified | test `ltwice` |
+| A8 | NIT | fresh-eyes | 1 | The sentence about Kimi and ollama ended every refusal, also where it did not fit | fixed `99e4e53`, externally_reverified | test `lnodepth` |
+| A9 | NIT | fresh-eyes | 1 | A test comment overstated what the check keeps out | fixed `99e4e53` | — |
+| A10 | NIT | fresh-eyes | 1 | Two over-long lines | fixed `99e4e53` | — |
+| A11 | NIT | fresh-eyes | 1 | Nothing said the script cannot check that a review is Light | fixed `99e4e53` (setup guide) | — |
+| B1 | RISK | Codex | 2 | The list's header claimed both ids "answered on Melious on 2026-10-12" with no record, least for the light-only id | fixed `7ec02a6` (the sentence is gone), externally_reverified | — |
+| B2 | NIT | GLM | 2 | An id with a glob character would match another id already seen | refuted; Codex confirmed | `bash -c` on the pattern prints `kept`; test `lglob` (after C1) |
+| B3 | NIT | GLM | 2 | `ltwice` covered one order only | fixed `7ec02a6` (`ltwice2`), externally_reverified | — |
+| C1 | RISK (GLM), NIT (Codex) | both | closing edits | `lglob` as first written could not fail: its wildcard stood in the id already seen | fixed `5d7b4dd`, externally_reverified (Codex's confirmation) | With the id unquoted in a scratch copy, the test file fails on `lglob` alone |
+
+Waivers and deferrals: A1 (and F9 of artifact 1), the missing think-tag measurement: waived for this change by the owner on 2026-10-12, in this session, with the risk described to him: "Accept for now, keep it listed (Recommended)". No deferral.
+
+Follow-ups: none.
+
+Notes on artifact 2:
+- Stop (a2) after round 2: no BUG and no RISK that called for a change to what runs. The closing edits held a test hunk, so they were read once by the pair instead of going to a prose-only pass; that read's one finding (C1) got one confirmation from Codex.
+- Seen pair: base `896e3c5`, head `5d7b4dd`. Codex holds an unbroken chain to that head; GLM's ends at `7ec02a6`; fresh-eyes' at round 1, by design. `origin/main` has since moved to `e58d3ae` (PR #264), which touches none of this change's files; the merge-base is unchanged.
+- Author's runs at `5d7b4dd`: `make check` exits 0 with 1094 ok lines. It skips, here as on the base, the Perl minimum-version check (no Perl::MinimumVersion on this machine; CI runs it) and six pre-push-hook cases that need `/proc`. With the startup check cut from a scratch copy, 28 checks of sections 32c to 32e fail.
+- Codex could not run the test file or the check script in its sandbox (they write temp files) and ran their cases through pipes instead; the full runs above are the author's.
+- Raw reviewer output: not posted (no PR yet). Copies of every round's output and prior-findings file are in this worktree under `docs/local/review-raw-fix-melious-glm-only/`, which git ignores.
+
