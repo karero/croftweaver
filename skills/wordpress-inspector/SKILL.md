@@ -57,8 +57,9 @@ Keep that folder out of any public repository: it lists another party's addresse
    - marked "a usual address, only tried": the script guessed it, because robots.txt names
      no sitemap. If the note says the file was "sent as text/html", open the address in a
      browser: an ordinary web page there means the site keeps no sitemap at that address,
-     and this gap is settled. If the note says the site refused or was busy, or that the
-     file could not be unpacked, a browser settles nothing: run the count again later.
+     and this gap is settled. Any other note about such an address (the site refused or
+     was busy, the file could not be unpacked, or it was sent as something else) a browser
+     does not settle: run the count again later.
    - not marked so: robots.txt or a sitemap index names that file, so the site says a
      sitemap is there and the count lacks its addresses. A web page in its place is an
      error on the site. Have it repaired, or count those pages another way.

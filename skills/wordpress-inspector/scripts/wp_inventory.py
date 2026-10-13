@@ -183,11 +183,11 @@ def safe_cell(value) -> str:
 
 
 def md(value, limit: int = 120) -> str:
-    """Text from the site, made safe for a Markdown table cell."""
+    """Text from the site, made safe for a Markdown table cell. `limit` 0 keeps it whole."""
     s = re.sub(r"\s+", " ", "" if value is None else str(value)).strip()
     s = s.replace("\\", "\\\\").replace("|", "\\|").replace("`", "'").replace("<", "&lt;")
     s = s.replace("[", "\\[").replace("]", "\\]")  # CommonMark reads an escaped bracket as text, so it opens no link or image
-    return s if len(s) <= limit else s[: limit - 1] + "…"
+    return s if not limit or len(s) <= limit else s[: limit - 1] + "…"
 
 
 # --- robots.txt, read as RFC 9309 reads it. This is the matcher of skills/facts-check/scripts/
@@ -824,7 +824,7 @@ def render(d: dict) -> str:
     else:
         add("**The count is incomplete.** Do not base an estimate on it until these are cleared:")
         add("")
-        L.extend("- %s" % md(x, 4000) for x in d["incomplete_because"])  # an address can be long; what follows it must stay
+        L.extend("- %s" % md(x, 0) for x in d["incomplete_because"])  # kept whole: the cause stands behind the address
     add("")
     add("## Content")
     add("")

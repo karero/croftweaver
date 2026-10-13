@@ -422,7 +422,7 @@ class SitemapReading(unittest.TestCase):
 
     def test_a_gap_note_keeps_its_end_however_long_the_address(self):
         site = Site()
-        long_path = "/maps/" + "a" * 400 + ".xml"
+        long_path = "/maps/" + "a" * 5000 + ".xml"
         with serve(site):
             site.robots += "Sitemap: %s%s\n" % (site.base(), long_path)
             site.extra[long_path] = (200, "text/html", "<urlset><url><lo")
