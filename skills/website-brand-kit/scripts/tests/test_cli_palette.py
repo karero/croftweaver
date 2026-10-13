@@ -885,6 +885,82 @@ class PaletteCommand(unittest.TestCase):
                 self.assertEqual(snapshot(self.dir), before)
         self.assertNotIn("is not a heading", run("palette", self.write(brand + "```markdown\n" + themes + "```\n", name="round7.md"))[1])
 
+    def test_each_text_that_round_8_found_refused_for_a_no_break_space_is_read_again_through_the_command(self):
+        # R8-201: round 7 folded a space and a tab only, so a no-break space (Option+Space on a Mac keyboard; a paste from a web page or a
+        # chat) after a heading's #, before a row's first | or inside a value ended with 2, and `##<U+00A0>Colour palette` made the whole
+        # brand guide the palette without the refusal ever quoting that line. Each ends as the same text with a plain space does.
+        good, guide = pasted(), filled_guide()
+        self.assertIn("| Muted | `#a6abce` |", good)
+        nb = "\u00a0"
+        cases = [
+            ("after the # of one heading", good, good.replace("### Light theme", "###" + nb + "Light theme")),
+            ("after the # of all three headings", good, good.replace("### ", "###" + nb)),
+            ("a wide space (U+3000) there", good, good.replace("### ", "###\u3000")),
+            ("before the first | of one row", good, good.replace("| Muted | `#a6abce` |", nb + "| Muted | `#a6abce` |")),
+            ("before the first | of every row", good, "\n".join(nb + line if line.startswith("|") else line for line in good.split("\n"))),
+            ("inside a value", good.replace("`#ffffff`", "rgb(255, 255, 255)"), good.replace("`#ffffff`", "rgb(255," + nb + "255," + nb + "255)")),
+            ("a thin space (U+2009) inside a value", good.replace("`#ffffff`", "rgb(255 255 255)"), good.replace("`#ffffff`", "rgb(255\u2009255\u2009255)")),
+            ("between a value and its mark", good.replace("| Muted | `#a6abce` |", "| Muted | #a6abce proposed |"), good.replace("| Muted | `#a6abce` |", "| Muted | #a6abce" + nb + "proposed |")),
+            ("every space of the text (a paste from a rendered page)", good, good.replace(" ", nb)),
+            ("a line that holds nothing else, inside a table", good.replace("| Muted | `#a6abce` |\n", "| Muted | `#a6abce` |\n \n"), good.replace("| Muted | `#a6abce` |\n", "| Muted | `#a6abce` |\n" + nb + "\n")),
+            # the suite's own template, filled in as it asks (a shadow's rgba(), the share cards' colours and the word outside the section)
+            ("the template's `## Colour palette`", guide, guide.replace("## Colour palette", "##" + nb + "Colour palette")),
+            ("the same with the space between its two words", guide, guide.replace("## Colour palette", "## Colour" + nb + "palette")),
+        ]
+        for name, plain_text, typed in cases:
+            with self.subTest(name=name):
+                self.assertNotEqual(typed, plain_text)
+                want = run("palette", self.write(plain_text, name="plain.md"))
+                self.assertEqual(want[0], 3 if "mark" in name else 0, want[1])
+                path = self.write(typed, name="round8.md")
+                before = snapshot(self.dir)
+                code, out, err = run("palette", path)
+                self.assertEqual((code, out.replace("round8.md", "plain.md"), err), want)
+                self.assertNotIn("U+", out)
+                data, same = json.loads(run("palette", path, "--json")[1]), json.loads(run("palette", self.write(plain_text, name="round8.md"), "--json")[1])
+                self.assertEqual(data, same)
+                self.assertEqual((data["problems"], data["status"]), ([], "needs-confirmation" if "mark" in name else "pass"))
+        self.assertIn("30 of 30 pairs pass.", run("palette", self.write(cases[-2][2], name="round8.md"))[1])
+        # R7-201 stays mended (the test above has the rest): U+001F is no blank, in the word and after a heading's #
+        code, out, _ = run("palette", self.write(good.replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | pro\x1fposed |"), name="round8.md"))
+        self.assertEqual(code, 3, out)
+        code, out, _ = run("palette", self.write(good.replace("### Light theme", "###\x1fLight theme"), name="round8.md"))
+        self.assertEqual(code, 2, out)
+        self.assertIn('"###<U+001F>Light theme"', out)
+
+    def test_a_charset_written_with_another_of_the_names_a_browser_takes_for_utf8_stops_neither_the_check_nor_the_install(self):
+        # R8-205: `@charset "utf8";` ended the check with 2 and stopped the install, with the untrue reason that the file "is written in
+        # another encoding than UTF-8"
+        whole = T.read(os.path.join(self.dir, "global.css"))
+        path = self.write(brand_md())
+        for statement in ('@charset "utf8";', '@charset "UTF8";', "@charset 'unicode-1-1-utf-8';", '@charset " x-unicode20utf8 ";'):
+            with self.subTest(statement=statement):
+                code, out, err = run("palette", path, "--css", self.css(statement + "\n" + whole))
+                self.assertEqual((code, err), (0, ""), out)
+                self.assertNotIn("encoding", out)
+                data = json.loads(run("palette", path, "--css", self.css(statement + "\n" + whole), "--json")[1])
+                self.assertEqual((data["status"], data["stylesheet_problems"], data["drift"]), ("pass", [], []))
+        # the near-miss stays refused, with the sentence that is true of it
+        code, out, _ = run("palette", path, "--css", self.css('@charset "utf-16";\n' + whole))
+        self.assertEqual(code, 2, out)
+        self.assertIn('says the file is written in another encoding than UTF-8 (`@charset "utf-16"`)', out)
+        # and the install writes the palette into such a stylesheet, the line left as it stands
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            site = T.make_starter_site(os.path.join(tmp, "site"), with_modules=False)
+            with open(os.path.join(site, "BRAND.md"), "w", encoding="utf-8") as f:
+                f.write(brand_md(light=T.BAKERY_LIGHT, dark=T.BAKERY_DARK, primary="#b4531a"))
+            sheet = os.path.join(site, "src", "styles", "global.css")
+            with open(sheet, "w", encoding="utf-8", newline="") as f:
+                f.write('@charset "utf8";\n' + T.starter_file("src/styles/global.css"))
+            r = subprocess.run([sys.executable, SCRIPT, "install", "--test-command", "true", "--with-colours", "--site", site, "--json"],
+                               capture_output=True, text=True, encoding="utf-8", env=env, timeout=120)
+            self.assertEqual((r.returncode, r.stderr), (0, ""), r.stdout)
+            self.assertIn("src/styles/global.css", json.loads(r.stdout)["written"])
+            css = _palette.read_css(T.read(sheet))
+            self.assertTrue(T.read(sheet).startswith('@charset "utf8";\n'))
+            self.assertEqual((css.brand, css.light, css.dark, css.dark_media, css.problems), ("#b4531a", T.BAKERY_LIGHT, T.BAKERY_DARK, T.BAKERY_DARK, []))
+
     def test_each_stylesheet_that_round_7_found_misread_ends_as_it_should_through_the_command(self):
         whole = T.read(os.path.join(self.dir, "global.css"))
         aliased = whole.replace("  --brand: #000000;", "  --brand: var(--accent);", 1)

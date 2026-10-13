@@ -66,7 +66,13 @@ ONE_COLOUR_ICONS = ("this tool cannot tell what the installed app icons sit on, 
 # installed, and this tool recolours nothing. A mark with both kinds of colour can get both notes.
 KEPT_CURRENT = ("the logo was given in `currentColor` and was drawn in %s. It keeps that colour: this tool draws it in %s only from the package it came in. For that, run "
                 "this again with the package: --input, with --pick and --mono as before")
-KEPT_FOR = ("the Primary the palette has now (%s)", "the light theme's Accent the palette has now (%s: it gives no Primary)")
+KEPT_FOR = ("the Primary the palette has now (%s)", "the light theme's Accent the palette has now (%s: it gives no Primary)",
+            "the stylesheet's `--brand` (%s)")   # (the third: there is no palette in BRAND.md to ask, and the stylesheet's `--brand` is the Primary)
+# A run that leaves BRAND.md's palette out (--keep-colours, or a palette that is not complete) goes by the site's own
+# colours. Where BRAND.md names no Primary, a mark given in `currentColor` is then drawn in the light theme's Accent
+# as the site has it, not in the stylesheet's `--brand`: said on the run that draws it (BRAND.md's name, the colour).
+DRAWN_IN_ACCENT = ("the mark was given without a colour of its own (in `currentColor`) and is drawn in the light theme's Accent the site has now (%s), because %s names no "
+                   "Primary. The site's own colours were not changed")
 KEPT_COLOURS = ("the logo keeps %s it was installed with (%s), which the palette no longer holds: this run changes the site's colours and leaves the logo's files as they "
                 "are, and this tool recolours nothing. For the logo in the new colours, ask the design tool for the mark in them, then run this again with that package: --input")
 NO_EMBLEM = ("the share cards get no emblem from this tool (the logo, shown faintly on each card): it leaves the LOGO line in scripts/generate_og_cards.py exactly as it is. "
@@ -356,9 +362,11 @@ def _answer(printed, mark):
 
 def _first_line(text, site, none="it did not say why"):
     """The first line of what a program said, for a note: with the site's folder written as `.`, so that a long
-    path is not what the 200 characters are spent on. Only the folder's whole path is taken for it (as it was
-    given, and with links followed), where no letter of a longer name stands right before or after it; also
-    where it is written as a `file://` address with characters as %XX, as Node writes it."""
+    path is not what the 200 characters are spent on. Only the folder's full path is taken for it (the path
+    from the root, as `install` works it out from the folder it was given, and the same with links followed;
+    another spelling of the folder, a relative one say, is left as it stands), where no letter of a longer
+    name stands right before or after it; also where it is written as a `file://` address with characters as
+    %XX, as Node writes it."""
     for folder in sorted({os.path.realpath(site), os.path.abspath(site)}, key=len, reverse=True):
         spelt = "".join(r"[/\\]" if c in "/\\" else "(?:%s|%s)" % (re.escape(c), "".join("%%%02X" % b for b in os.fsencode(c))) for c in folder)
         text = re.sub(r"(?<![\w.%-])(?:file:///?)?" + spelt + r"(?![\w.%-])", lambda _m: ".", text)
@@ -494,6 +502,13 @@ def _read_differently(rel, off, where, set_here):
         head = "%s: the site reads %s as %s (this tool asked the site's own Node)." % (rel, off["reads"], {"themeColor": "SITE.themeColor", "logo": "COMPANY.logo"}[name])
     said = ("This run set %s on line %d" % (off["wanted"], at) if name in set_here else "Line %d already says %s, and this run left it" % (at, off["wanted"]) if at else
             "The file already says %s, and this run left it" % off["wanted"])   # (no line: none is surely the block's own, see _site.set_lines)
+    if rel == _site.CONFIG and not at and off["reads"] == "nothing":
+        # The site reads no value at all, and the line that says the value is not surely the block's own: it belongs to
+        # something inside the block (`pwa: {`, then `themeColor: ...`), and nothing else in the file decides the value.
+        const = _site._CONFIG[name][0]
+        return ("%s %s, but the `%s` block has no `%s` of its own: the line that says it belongs to something inside the block. Write `%s: '%s',` as the first line under the "
+                "block's opening line (it starts `export const %s`), and where that other line was changed to say %s, put back what it said before. Then run this again."
+                % (head, said, const, name, name, off["wanted"], const, off["wanted"]))
     return "%s %s, so something else in the file decides the value. Set it by hand where the file decides it, or have the developer mend the file, then run this again." % (head, said)
 
 
@@ -871,8 +886,9 @@ def _install(a, site, out, data):
     redraw = a.with_logo and not a.input
     renderer = None
     # A mark given in `currentColor` was drawn in that colour as it was on the day, and no run without its package draws it in another.
-    if kept is not None and not a.input and drawn not in (None, primary):
-        notes.append(KEPT_CURRENT % (drawn, KEPT_FOR[not brand] % primary))
+    # (Where neither a Primary nor an Accent is to be had, there is no colour to name, and the note is not given.)
+    if kept is not None and not a.input and primary and drawn not in (None, primary):
+        notes.append(KEPT_CURRENT % (drawn, KEPT_FOR[2 if brand and state == "none" else not brand] % primary))
     if master_bytes is not None and want_colours and not asked_for_logo:
         now = palette_from_css(css)
         moves = _icons.backgrounds(pal) != _icons.backgrounds(now)
@@ -935,6 +951,8 @@ def _install(a, site, out, data):
             notes.extend(icons.notes)
             files = dict(icons.files)
             given = drawn if clean is kept else primary if _given_in_current(source, clean, primary) else None
+            if given and clean is not kept and not want_colours and parsed is not None and not parsed.brand and (parsed.light or parsed.dark):
+                notes.append(DRAWN_IN_ACCENT % (given, os.path.basename(brand_path)))
             files[MASTER] = (MARK_CURRENT % _colour.parse_colour(given) if given else MARK).encode("utf-8") + files[MASTER]   # (as #rrggbb: the line is read again by the next run)
             # Two questions, two sets of colours. Every colour an installed file paints with is held against
             # the palette. Only the colour version ever stands on the page (the favicon, the logo); the

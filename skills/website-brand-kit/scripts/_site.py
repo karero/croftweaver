@@ -64,15 +64,27 @@ def edit_css(text, palette):
     the old one. Whatever that scan names as a problem for a block this edit has to write to, or for the
     stylesheet as a whole (a rule outside the three blocks that sets one of the colours, and the rest of the
     scan's list), is the reason it refuses, in the scan's own words, before anything is changed. So a
-    stylesheet the reading takes without a word is one this edit can write to (or one that lacks a line for
-    a colour, which is refused by name), and the other way round.
+    stylesheet in which the scan has such a problem is one this edit refuses, and one in which it has none
+    is one this edit writes to, with the three exceptions below. That is said of the scan (`scan_css`), not
+    of the reading (`read_css`). The reading names more than the scan does, and this edit does not refuse on
+    what the reading alone names (a value that is no colour it reads, a `var()` it does not follow): it
+    writes over such a value, where the palette gives that colour.
+
+    The three things this edit refuses, by name, where the scan has no problem:
+
+    - a line for a colour the palette gives that is not there (the reading has no value for it);
+    - a Primary (`--brand`) set again in a dark block. The reading says nothing of it either, so `palette
+      --css` can end with 0 on a stylesheet this edit refuses;
+    - a Primary written as a `var()` under a palette that gives no Primary to write in its place (the
+      reading names that line).
 
     A value that already IS the colour wanted is left as it stands, in whatever spelling the reading takes
     (`#FFF8EE`, `#fff`, `rgb(255, 248, 238)`, and `var(--accent)` where the accent of that block is, or
     is being set to, the colour wanted): a stylesheet that already holds the palette comes back byte for
     byte as it was. One exception: the Primary (`--brand`) is one colour for both themes, and a `var()`
     there shows each theme's own value of the variable it points at, so it is never left standing: the
-    Primary is always written out as a colour. A value the reading does not take for a colour is written
+    palette's Primary is written out as a colour over it, and where the palette gives no Primary this edit
+    refuses and says so. A value the reading does not take for a colour is written
     over, also where it only looks like the colour wanted (a no-break space pasted beside it makes it none
     to a browser). A byte order mark at the start of the text stays where it is."""
     import _palette as P
@@ -101,6 +113,13 @@ def edit_css(text, palette):
             raise Refusal("css-primary-in-dark", "src/styles/global.css sets %s (the Primary) inside %s. The Primary is one colour for both themes and is kept in the "
                                         "`:root` block only: a line in a dark block gives the dark theme a Primary of its own, whatever the `:root` block says. Take "
                                         "that line out of the dark block, then run this again." % (brand, what))
+    # and it is never left standing as a `var()`: with a Primary to set, the colour is written over that line (below);
+    # with none it would stay, the install would end "done", and the check would go on naming it
+    if not palette.brand and brand in sheet.spans.get("light", ()) and sheet.value("light", brand)[:4].lower() == "var(":
+        raise Refusal("css-primary-is-a-variable", "src/styles/global.css writes %s (the Primary) as `%s`: the brand colour points at another variable, and this palette "
+                                                   "names no Primary to put in its place. Write the colour out in the stylesheet (`%s: #1a2b3c;`, with your colour), or "
+                                                   "give the palette a Primary (the `Primary` row in the table under `### Brand`), then run this again."
+                      % (brand, P._visible(sheet.value("light", brand)[:40]), brand))
     wanted = {(block, var): value for block, values in writes for var, value in values}
 
     def stays(block, var):
@@ -265,7 +284,11 @@ def set_lines(rel, text, want, where=None):
     something inside the block (`pwa: {`, then `themeColor: ...`). Where every line of the key stands
     so, the block is not edited, and the advice is to write the line in place of the block's own, or
     as the first line under the opening line where the block has none of its own: no advice names such
-    a line as the one to write over, to move or to take out. A line end that TypeScript reads and this
+    a line as the one to write over, to move or to take out. The same is said where the one line of the
+    key there has the key in quotes (`'themeColor':`), or says the value wanted with no comma after it
+    and more below it. Where the block's own line holds more after the entry's comma than a `//`
+    comment (`themeColor: '#000000', region: 'eu',`), the advice is to write the line in place of the
+    entry and to keep the rest on a line of its own. A line end that TypeScript reads and this
     tool does not (a carriage return on its own, U+2028, U+2029) is refused. A block this tool does
     not edit gets the advice to set the value by hand, and a key's line that already holds the value
     wanted is left as it stands, whatever stands around it.
@@ -391,33 +414,54 @@ def _config_line(lines, name, new, where=None):
     cannot = "this tool cannot be sure from the text which value the site reads, so it does not edit this block"
     keys = [i for i in range(top + 1, close) if re.match(r"[ \t]*%s[ \t]*:" % name, lines[i][0])]
     first = "the first line under the opening line (line %d)" % (top + 1)
+    # A line that begins with the key is surely the block's own where every line above it is plain: below a line that
+    # is not, it may belong to something inside the block (`pwa: {` and, under it, `themeColor: ...`). That is asked
+    # before any line is named as the one to write over: a key in quotes and a value without its comma too.
+    deep = next((j for j in range(top + 1, close) if not code[j][2]), close)
+
+    def inside(at, begins):
+        """The refusal for lines that begin with the key below a line that is not plain. Its advice names no line to
+        write over or to move: such a line may be a part of something inside the block, and hers."""
+        one = len(at) == 1
+        return no("%s `%s` (%s)%s below a line that is not one whole entry on one line (line %d: %s), so %s may belong to something inside the block. With that in the block %s"
+                  % ("the one line of the block that begins with" if one else "%d lines of the block begin with" % len(at), begins, _at(at), " stands" if one else ", each",
+                     deep + 1, _quoted(lines[deep][0]), "it" if one else "any of them", cannot),
+                  "Set the value by hand: write that one line in place of the block's own `%s` line, or as %s where the block has none of its own" % (name, first))
+
+    def in_place(i):
+        """What to do with the block's own line where it is not written as the key's line is: write the shown line in its
+        place. Where the line holds more after the entry's comma than a `//` comment (`themeColor: '#000000', region:
+        'eu',`), the shown line takes the place of the entry alone, and what stands after it is kept."""
+        more = None if lines[i][0].endswith("\\") else re.match(r"[ \t]*(['\"]?)%s\1[ \t]*:[ \t]*(?:%s|[\w$.]+)[ \t]*,[ \t]*(?P<rest>(?!//)\S.*)$" % (name, _TEXT), lines[i][0])
+        return "Write that one line in its place" if not more else (
+            "Write that one line in place of the entry, and keep what stands after the entry on line %d (%s) on a line of its own below it" % (i + 1, _quoted(more.group("rest"))))
+
+    def runs_on(i):
+        """Whether a line that `written` reads has no comma after the value while something stands below it in the
+        block other than blank lines and comments: the value can then run on to the line below."""
+        return not written(i).group("comma") and any(not code[j][2] or _PLAIN.match(lines[j][0]).group("key") for j in range(i + 1, close))
+
     if not keys:
         quoted = [i for i in range(top + 1, close) if re.match(r"[ \t]*(['\"])%s\1[ \t]*:" % name, lines[i][0])]
+        if len(quoted) == 1 and quoted[0] > deep:
+            raise inside(quoted, lines[quoted[0]][0].split(":")[0].strip() + ":")
         if len(quoted) == 1:
             raise no("line %d is written another way: its key is in quotes (%s), and this tool takes the key as the starter writes it, without them" % (quoted[0] + 1, _quoted(lines[quoted[0]][0])),
-                     "Write that one line in its place")
+                     in_place(quoted[0]))
         raise no("no line of the block (lines %d to %d) begins with `%s:`" % (top + 1, close + 1, name), "Write that one line as %s" % first)
-    # A line that begins with the key is surely the block's own where every line above it is plain: below a line that
-    # is not, it may belong to something inside the block (`pwa: {` and, under it, `themeColor: ...`).
-    deep = next((j for j in range(top + 1, close) if not code[j][2]), close)
     own = [i for i in keys if i <= deep]
     if len(own) > 1:
         raise no("%d lines of the block begin with `%s:` (%s), so it cannot be known from the text which of them the site reads" % (len(own), name, _at(own)),
                  "Leave one of them, written as shown, and take the other%s out" % ("" if len(own) == 2 else "s"))
     said = [i for i in keys if wanted(i)]   # (asked where none is the block's own: one that she set by hand is taken as it stands, like any other line that needs no edit)
-    if not own and not said:
-        # The advice names no line to write over or to move: such a line may be a part of something inside the block, and hers.
-        one = len(keys) == 1
-        raise no("%s `%s:` (%s)%s below a line that is not one whole entry on one line (line %d: %s), so %s may belong to something inside the block. With that in the block %s"
-                 % ("the one line of the block that begins with" if one else "%d lines of the block begin with" % len(keys), name, _at(keys), " stands" if one else ", each",
-                    deep + 1, _quoted(lines[deep][0]), "it" if one else "any of them", cannot),
-                 "Set the value by hand: write that one line in place of the block's own `%s` line, or as %s where the block has none of its own" % (name, first))
+    if not own and (not said or runs_on(said[0])):   # (one that says the value with no comma after it, where the value can run on, is not taken as it stands)
+        raise inside(keys, name + ":")
     key = (own or said)[0]
     line, start = lines[key]
     m = written(key)
     if not m:
-        raise no("line %d is written another way: %s" % (key + 1, _quoted(line)), "Write that one line in its place")
-    if not m.group("comma") and any(not code[j][2] or _PLAIN.match(lines[j][0]).group("key") for j in range(key + 1, close)):   # anything below it but blank lines and comments
+        raise no("line %d is written another way: %s" % (key + 1, _quoted(line)), in_place(key))
+    if runs_on(key):
         raise no("line %d is written another way: it has no comma after the value, so the value can run on to the line below it (%s)" % (key + 1, _quoted(line)), "Write that one line in its place")
     if where is not None and own:   # (a line that is not surely the block's own is not named as the place of the value)
         where[name] = key + 1

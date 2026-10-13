@@ -1088,7 +1088,10 @@ def grammar_rows():
     # as it came is drawn as the cleaned file is, at 32 and at 512 pixels, and (where the shape with the transform has
     # all but gone) as if the other shape stood in the clip path alone.
     for form, plain in (("scale(1e-9 1e-9)", other_alone), ("scale(-1e-9 1e-9)", other_alone), ("matrix(1e-9 0 0 1e-9 0 0)", other_alone), ("matrix(0 1e-9 -1e-9 0 0 0)", other_alone),
-                        ("skewX(89.42)", None), ("skewX(-89.4)", None), ("skewY(-89.4)", None), ("skewX(269.4)", None)):
+                        ("skewX(89.42)", None), ("skewX(-89.4)", None), ("skewY(-89.4)", None), ("skewX(269.4)", None),
+                        # the least area with a turn beside it, which multiplies out to a rounding hair under the line and is kept (round 8)
+                        ("scale(1e-9) rotate(6)", other_alone), ("rotate(6) scale(1e-9)", other_alone), ("scale(.001) scale(.001) scale(.001) rotate(6)", other_alone),
+                        ("rotate(17) scale(1e-9) rotate(-17)", other_alone)):
         rows.append(("clip-path", "measured against a browser: one of two shapes inside with transform=%r" % form, B % (two % form), plain, unclipped))
     for form in ("scale(100 1) rotate(45) scale(100 1)", "scale(10 1) rotate(45) scale(10 1)"):   # (these two all but fill the box: not held against the unclipped picture)
         rows.append(("clip-path", "measured against a browser: one of two shapes inside with transform=%r" % form, B % (two % form), None, None))

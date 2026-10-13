@@ -18,7 +18,9 @@ protects, so a new pair in the CSS that the matrix lacks fails here.
 
 import os
 import re
+import sys
 import time
+import unicodedata
 import unittest
 
 import _testutil as T
@@ -320,19 +322,21 @@ class Rule0WhereTheCheckLooks(unittest.TestCase):
         # round 4: any line that began with # ended the part under `Colour palette`, so `#1: the dark values are still proposed`
         # after three good tables was neither read nor named, and the check ended with 0
         guide = "# Our guide\n\n## Colour palette\n\n" + pasted()
-        # (round 7: a blank is a space or a tab, as in Markdown; a `#` with a no-break space after it starts no heading)
+        # (round 8: U+001F after the # is no blank, so the line is text; it is quoted with the character shown)
         for line in ("#1: the dark values are still proposed", "#proposed", "#16162a is the ink; the rest is proposed", "#Brand (proposed)", "####### proposed", "##proposed",
-                     "#\u00a0the dark values are proposed", "##\u2003proposed"):
+                     "#\x1fthe dark values are proposed", "##\x1fproposed"):
             with self.subTest(line=line):
                 p = _palette.parse_tables(guide + "\n" + line + "\n\nA last word: #123456 is proposed too.\n")
                 self.bakery_starter(p)
                 self.assertEqual(len(of(p, MARK)), 2, "the line is text of the section, and so is the line after it")
-                self.assertIn('Line 36, "%s", holds the word "proposed"' % line.replace("\u00a0", "<U+00A0>").replace("\u2003", "<U+2003>"), of(p, MARK)[0])
+                self.assertIn('Line 36, "%s", holds the word "proposed"' % line.replace("\x1f", "<U+001F>"), of(p, MARK)[0])
                 self.assertIn("Line 38,", of(p, MARK)[1])
                 self.assertEqual(len(of(p, NOT_READ)), 2 if line.startswith("#16162a") else 1)
         # the near-miss: a heading of the section's level ends it, with a blank after its # or nothing at all, up to six of them
-        # (a blank is what rule 1 makes one space of: a space or a tab)
-        for line in ("# 1: the dark values are still proposed", "## proposed", "##", "#\tproposed", "# \t the dark values are proposed"):
+        # (a blank is what rule 1 makes one space of: a space, a tab, and what else a person sees as a space. Round 8: a no-break space
+        # after the # is typed with Option+Space and came back to this side, where round 4 had it)
+        for line in ("# 1: the dark values are still proposed", "## proposed", "##", "#\tproposed", "# \t the dark values are proposed",
+                     "#\u00a0the dark values are proposed", "##\u2003proposed", "##\u3000proposed", "## \u00a0\tproposed", "##\u00a0"):
             with self.subTest(line=line):
                 p = _palette.parse_tables(guide + "\n" + line + "\n\nA last word: #123456 is proposed too.\n")
                 self.bakery_starter(p)
@@ -446,8 +450,8 @@ class Rule0WhereTheCheckLooks(unittest.TestCase):
 
 class Rule1Lines(unittest.TestCase):
     """1. A byte-order mark at the start is dropped and every HTML comment is blanked, before anything else.
-    Runs of spaces and tabs are made one space; a table row longer than 2,000 characters is not read, and a
-    problem names it."""
+    Runs of blanks (what a person sees as a space) are made one space; a table row longer than 2,000 characters
+    is not read, and a problem names it."""
 
     def test_a_byte_order_mark_before_the_first_heading_does_not_hide_it(self):
         # round 3: the table under the first heading was lost, and the rows were said to be not filled in
@@ -502,25 +506,76 @@ class Rule1Lines(unittest.TestCase):
         p = self.timed(md)
         self.assertEqual((p.light, p.proposed, p.problems), ({"muted": "#5a5a72"}, {("light", "muted")}, []))
 
-    def test_a_space_and_a_tab_are_the_only_blanks_of_a_line_as_in_markdown(self):
-        # round 7 (R7-201): the blanks of a line were folded with Python's split(), which takes more for a blank than Markdown does: U+001F,
-        # which nobody sees (so `pro` + U+001F + `posed` was two words and the check ended with 0), and a no-break space. Now a space and a
-        # tab are folded and nothing else is: what nobody sees stays in the line for the one cleaning pass, and what is no blank to
-        # Markdown is none here.
-        p = _palette.parse_tables("###\u00a0Light theme\n" + plain(STARTER_LIGHT))
-        self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({}, ["palette-no-section"]))
-        self.assertIn('stands under the line "###<U+00A0>Light theme", which is not a heading', p.problems[0][3])
-        for before in ("\u00a0", "\u2003", "\u3000", "\x1f"):
-            with self.subTest(before=before):
-                p = _palette.parse_tables("### Light theme\n" + HEAD + before + "| Muted | #5a5a72 |\n")
-                self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({}, [NOT_READ]), "a line with that character before its first | is no row of a table")
-                self.assertIn('Line 4, "<U+%04X>| Muted | #5a5a72 |", holds a colour (#5a5a72) that was not read' % ord(before), p.problems[0][3])
-        # the near-misses: a space or a tab in any of those places, and any of those characters at the ends of a cell
-        for md in ("###\t Light theme\n" + plain(STARTER_LIGHT), "### Light theme\n" + HEAD + " \t" + "\n \t".join(lines(STARTER_LIGHT)) + "\n",
-                   "### Light theme\n" + HEAD + "\n".join(line.replace("| ", "|\u00a0").replace(" |", "\u2003|") for line in lines(STARTER_LIGHT)) + "\n"):
-            with self.subTest(md=md[:40]):
-                p = _palette.parse_tables(md)
-                self.assertEqual((p.light, p.problems), (STARTER_LIGHT, []))
+    def test_what_a_person_sees_as_a_space_is_a_blank_of_a_line_and_a_character_nobody_sees_is_none(self):
+        # Round 7 (R7-201): the blanks of a line were folded with Python's split(), which also takes U+001F for one, a character nobody sees: `pro`
+        # + U+001F + `posed` was two words, and the check ended with 0. Round 7 then folded a space and a tab only, and round 8 (R8-201) found
+        # what that cost: a no-break space (Option+Space on a Mac keyboard, or pasted from a web page or a chat) after a heading's #, before a
+        # row's first | or inside a value made the line text or the value unreadable. INVARIANT: what a person sees as a space is a blank (the
+        # space, the tab, Unicode's category Zs), and what nobody sees is none, so it is still in the line for rule 9's one cleaning pass.
+        spaces = [chr(c) for c in range(sys.maxunicode + 1) if unicodedata.category(chr(c)) == "Zs"]
+        self.assertEqual(len(spaces), 17, "the same on the Unicode tables of every Python this runs on")
+        for c in ("\u00a0", "\u2003", "\u2009", "\u202f", "\u3000"):
+            self.assertIn(c, spaces)
+        self.assertEqual([chr(c) for c in range(sys.maxunicode + 1) if _palette._BLANKS.fullmatch(chr(c))], ["\t"] + spaces, "the tab, that category, and no other character")
+        dark = "### Dark theme\n" + plain(STARTER_DARK)
+        for c in spaces + ["\t"]:
+            for name, text, proposed in (
+                    ("after the # of a heading", "###%sLight theme\n" % c + plain(STARTER_LIGHT) + "\n###%sDark theme%s\n" % (c, c) + plain(STARTER_DARK), set()),
+                    ("two of them, and one beside a space", "###%s%sLight theme\n" % (c, c) + plain(STARTER_LIGHT) + "\n### %sDark theme\n" % c + plain(STARTER_DARK), set()),
+                    ("before the first | of a row, and after its last", "### Light theme\n" + HEAD + "\n".join(c + line + c for line in lines(STARTER_LIGHT)) + "\n\n" + dark, set()),
+                    ("inside a value", "### Light theme\n" + plain(STARTER_LIGHT, bg="rgb(255,%s255,%s%s255)" % (c, c, c), bg_soft="rgb(245%s247%s251)" % (c, c)) + "\n" + dark, set()),
+                    ("between a value and its mark", "### Light theme\n" + plain(STARTER_LIGHT, muted="#5a5a72%sproposed" % c, link="`#2b50e0`%s(proposed)" % c) + "\n" + dark,
+                     {("light", "muted"), ("light", "link")}),
+                    ("in a row's name and in a heading's", "### Light%stheme\n" % c + plain(STARTER_LIGHT).replace("Soft background", "Soft%sbackground" % c) + "\n" + dark, set()),
+                    ("a line that holds nothing else, between two tables of a section", "### Light theme\n" + HEAD + "\n".join(lines(STARTER_LIGHT)[:4]) + "\n" + c + "\n"
+                     + "\n".join(lines(STARTER_LIGHT)[4:]) + "\n\n" + dark, set())):
+                with self.subTest(c="U+%04X" % ord(c), name=name):
+                    p, same = _palette.parse_tables(text), _palette.parse_tables(text.replace(c, " "))
+                    self.assertEqual((p.light, p.dark, p.proposed, p.problems), (STARTER_LIGHT, STARTER_DARK, proposed, []))
+                    self.assertEqual((p.light, p.dark, p.proposed, p.problems, p.rows_found), (same.light, same.dark, same.proposed, same.problems, same.rows_found),
+                                     "read as the same text with a plain space there")
+        # the heading that says where the palette is, in the suite's own template filled in: read as with a plain space, and nothing outside it is named
+        guide = filled_guide()
+        for c in ("\u00a0", "\u3000", "\u2009"):
+            with self.subTest(c="U+%04X" % ord(c), name="the template's `## Colour palette`"):
+                typed = guide.replace("## Colour palette", "##%sColour%spalette" % (c, c))
+                self.assertNotEqual(typed, guide)
+                p = _palette.parse_tables(typed)
+                self.assertEqual((p.brand, p.light, p.dark, p.proposed, p.problems), ("#b4531a", T.BAKERY_LIGHT, T.BAKERY_DARK, set(), []))
+        # WHAT NOBODY SEES IS NO BLANK. U+001F and a zero-width space stay in their line: after the # they make it text, before a | no row, and
+        # each is shown in the quote
+        for c in ("\x1f", "\u200b", "\u2060", "\u00ad"):
+            with self.subTest(c="U+%04X" % ord(c)):
+                self.assertIsNone(_palette._BLANKS.search(c))
+                p = _palette.parse_tables("###%sLight theme\n" % c + plain(STARTER_LIGHT))
+                self.assertEqual((p.light, [k for _t, _k, k in codes(p)]), ({}, ["palette-no-section"]))
+                self.assertIn('stands under the line "###<U+%04X>Light theme", which is not a heading' % ord(c), p.problems[0][3])
+                p = _palette.parse_tables("### Light theme\n" + HEAD + c + "| Muted | #5a5a72 |\n")
+                self.assertEqual((p.light, [k for _t, _k, k in codes(p)]), ({}, [NOT_READ]), "a line with that character before its first | is no row of a table")
+                self.assertIn('Line 4, "<U+%04X>| Muted | #5a5a72 |", holds a colour (#5a5a72) that was not read' % ord(c), p.problems[0][3])
+                p = _palette.parse_tables(one("#5a5a72%sproposed" % c))
+                self.assertEqual((p.light, [k for _t, _k, k in codes(p)]), ({}, ["palette-not-one-colour"]), "and between a value and its mark it is no blank: never a colour taken as confirmed")
+        # the characters that end a line to this reader (rule 9's limit) are no blanks either: the heading ends at them
+        for c in ("\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029", "\x0b", "\x0c"):
+            with self.subTest(c="U+%04X" % ord(c)):
+                self.assertIsNone(_palette._BLANKS.search(c))
+                p = _palette.parse_tables("###%sLight theme\n" % c + plain(STARTER_LIGHT))
+                self.assertEqual((p.light, [k for _t, _k, k in codes(p)]), ({}, ["palette-no-section"]))
+        # R7-201 stays mended: the word with U+001F inside it is the word (rule 9), in a sentence and in a note cell, and so is a theme's
+        p = _palette.parse_tables("### Light theme\n" + plain(STARTER_LIGHT) + "\nAll of these are pro\x1fposed.\n")
+        self.assertEqual([k for _t, _k, k in codes(p)], [MARK])
+        self.assertIn('"All of these are pro<U+001F>posed.", holds the word "proposed"', p.problems[0][3])
+        p = _palette.parse_tables("### Light theme\n" + HEAD + "| Muted | #5a5a72 | pro\x1fposed |\n")
+        self.assertEqual((p.light, p.proposed, p.problems), ({"muted": "#5a5a72"}, {("light", "muted")}, []))
+        p = _palette.parse_tables("### Light theme\nDar\x1fk\n" + plain(STARTER_DARK))
+        self.assertEqual((p.light, [k for _t, _k, k in codes(p)]), ({}, ["palette-label"]))
+        self.assertIn('"Dar<U+001F>k", stands between the heading `### Light theme` and its table, and it reads as a label for the other theme', p.problems[0][3])
+        # and the rule's own sentences say so
+        rules = " ".join(_palette.parse_tables.__doc__.split())
+        for part in ("A line's blanks are what a person sees as a space: the space, the tab, and every character of Unicode's category Zs",
+                     "So a `#` with a no-break space after it starts a heading, a line with one before its first `|` is a row of a table, and one inside a value is the blank there",
+                     "No other character is a blank: not the information separators (U+001C to U+001F), not U+0085."):
+            self.assertIn(part, rules)
 
     def test_no_input_makes_the_reading_slow(self):
         # round 2 measured 11 seconds for one cell of 40,000 spaces
@@ -743,7 +798,8 @@ class Rule2Sections(unittest.TestCase):
                       "Dar\u00adk", "D\u200bark mode", "Dark\ufe0f mode", "D\u0336a\u0336r\u0336k\u0336", "Da\x01rk mode", "Dark mo\u200dde", "\u034fDark",
                       # round 7: U+001F, which Python's split() takes for a blank and nobody sees, inside the theme's word and inside a label word
                       "Dar\x1fk", "D\x1fark mode", "Dark mo\x1fde", "The da\x1frk the\x1fme", "Dark\x1fmode",
-                      # one word: the two closed compounds, each with or without a hyphen and with or without digits after it (R7-208)
+                      # one word: the two closed compounds, each with or without digits after it; in two words (a hyphen) they read the same,
+                      # with digits after them as a word of their own (R7-208; round 8 pins what digits joined to the second word do, below)
                       "Darkmode", "DarkTheme", "darkTheme tokens", "Dark2", "dark-mode", "Dark-Theme", "darkmode2", "DarkTheme 3", "dark-theme-2", "darktheme10 colours",
                       # the label words round 6 added, and a number
                       "Dark scheme", "Dark variant", "Dark version", "Dark colour scheme", "Dark color", "Dark hex", "Dark theme table", "Use in dark mode", "These are the dark values",
@@ -754,8 +810,8 @@ class Rule2Sections(unittest.TestCase):
                 p = _palette.parse_tables("### Light theme\n\n%s\n\n" % label + plain(STARTER_DARK) + "\n" + HEAD + "| Muted | #777777 |\n\n### Dark theme\n" + plain(STARTER_LIGHT))
                 self.assertEqual((p.light, p.dark, p.brand), ({}, STARTER_LIGHT, None), "no table under that heading is read; the next heading is read as before")
                 self.assertEqual(codes(p), [("?", None, "palette-label")], "said once, for every table under that heading")
-                self.assertEqual(re.sub("[ \t]+", " ", label).strip(" "), label, "the label is quoted as it is written: a space or a tab is the only blank that is folded")
-                for part in ('Line 3, %s, stands between the heading `### Light theme` and its table, and it reads as a label for the other theme.' % _palette._quoted(label),
+                shown = label.replace("\u00a0", " ").replace("\u2003", " ")  # the label is quoted as the line is read: with its blanks made one space (rule 1)
+                for part in ('Line 3, %s, stands between the heading `### Light theme` and its table, and it reads as a label for the other theme.' % _palette._quoted(shown),
                              "A line of text is not a heading", "read no table under that heading", "If the table belongs under `### Dark theme`, write that line as a heading (`### Dark theme`)",
                              "if it belongs under `### Light theme`, take the line out"):
                     self.assertIn(part, p.problems[0][3])
@@ -897,6 +953,34 @@ class Rule2Sections(unittest.TestCase):
                 self.assertEqual((p.light, p.dark, [c for _t, _k, c in codes(p)]), ({}, {}, ["palette-label"]))
                 p = _palette.parse_tables("### %s theme\n%s\n\n" % (under, joined) + plain(rows))
                 self.assertEqual((p.theme(under.lower()), p.problems), (rows, []))
+
+    def test_a_compound_in_two_words_reads_the_same_but_not_with_digits_joined_to_its_second_word(self):
+        # round 8 (R8-204): rule 2 said the closed compounds count "with or without digits" and "with a hyphen ... the same", which read as if
+        # `dark-mode2` were caught. It is not, and the rule now says what the reader does: a hyphen or an underscore makes two words, the
+        # first is the theme's word and the second must be one of the label words, which `mode2` is not.
+        rules = " ".join(_palette.parse_tables.__doc__.split())
+        for part in ("A hyphen or an underscore makes two words of a compound, which reads the same (`dark-mode`, `dark_theme`: the word `dark` and one of (c)'s words), but not "
+                     "with digits joined to its second word: `dark-mode2`, `dark_theme3` and `Dark mode2` are no labels, because `mode2` is none of (c)'s words (`Dark-mode 2` "
+                     "is one, and so is `darkmode2`).",
+                     "a compound in two words with digits joined to the second (`dark-mode2`, point (a) above)"):
+            self.assertIn(part, rules)
+        for theme, other, own, theirs in (("Light", "dark", STARTER_LIGHT, STARTER_DARK), ("Dark", "light", STARTER_DARK, STARTER_LIGHT)):
+            # passed over without a word, as a line before the table and as a cell of its header row: the table is read under its heading
+            for word in ("%s-mode2", "%s-theme3", "%s_mode2", "%s_theme3", "%s mode2", "%s theme3", "%s-Mode10 colours"):
+                word = word % other.capitalize()
+                for name, md in (("a line", "### %s theme\n\n%s\n\n" % (theme, word) + plain(theirs)),
+                                 ("a header cell", "### %s theme\n| %s | Hex |\n|---|---|\n" % (theme, word) + "\n".join(lines(theirs)) + "\n")):
+                    with self.subTest(theme=theme, word=word, name=name):
+                        p = _palette.parse_tables(md)
+                        self.assertEqual((p.theme(theme.lower()), p.theme(other), p.problems), (theirs, {}, []))
+            # and each of these is a label, in both places: no table under that heading is read
+            for word in ("%s-mode", "%s_theme", "%s_mode", "%s-mode 2", "%s_theme_2", "%smode2", "%stheme3", "%s2", "%s-2", "%s-mode-2"):
+                word = word % other.capitalize()
+                for name, md in (("a line", "### %s theme\n\n%s\n\n" % (theme, word) + plain(theirs)),
+                                 ("a header cell", "### %s theme\n| %s | Hex |\n|---|---|\n" % (theme, word) + "\n".join(lines(theirs)) + "\n")):
+                    with self.subTest(theme=theme, word=word, name=name):
+                        p = _palette.parse_tables(md)
+                        self.assertEqual((p.light, p.dark, [c for _t, _k, c in codes(p)]), ({}, {}, ["palette-label"]))
 
     def test_a_header_row_that_calls_its_first_column_by_another_sections_name_is_named_and_its_table_is_not_read(self):
         # round 4: under `### Light theme`, a table headed `| Dark theme | Hex |` was read as the light theme's without a word
@@ -2945,8 +3029,11 @@ class Stylesheet(unittest.TestCase):
         import _site
         whole = self.starter()
         for statement, shown in (('@charset "iso-2022-kr";', '@charset "iso-2022-kr"'), ("@charset 'hz-gb-2312';", "@charset 'hz-gb-2312'"), ('@CHARSET "ISO-2022-JP";', '@CHARSET "ISO-2022-JP"'),
-                                 ('@charset\n  "windows-1252" ;', '@charset "windows-1252"'), ('@charset /* old */ "latin1";', '@charset "latin1"'), ('@charset "utf8";', '@charset "utf8"'),
-                                 ('@charset "utf-16le";', '@charset "utf-16le"'), ('@charset "";', '@charset ""'), ('@charset "utf-8 x";', '@charset "utf-8 x"')):
+                                 ('@charset\n  "windows-1252" ;', '@charset "windows-1252"'), ('@charset /* old */ "latin1";', '@charset "latin1"'), ('@charset "utf-7";', '@charset "utf-7"'),
+                                 ('@charset "utf-16le";', '@charset "utf-16le"'), ('@charset "";', '@charset ""'), ('@charset "utf-8 x";', '@charset "utf-8 x"'),
+                                 # round 8: what only looks like one of the names a browser takes for UTF-8
+                                 ('@charset "utf_8";', '@charset "utf_8"'), ('@charset "utf 8";', '@charset "utf 8"'), ('@charset "x-utf8";', '@charset "x-utf8"'),
+                                 ('@charset "unicode-1-1-utf8";', '@charset "unicode-1-1-utf8"'), ('@charset "utf-8-sig";', '@charset "utf-8-sig"'), ('@charset "utf88";', '@charset "utf88"')):
             for name, text, line in (("first", statement + "\n" + whole, 1), ("after a comment", "/* styles */\n" + statement + "\n" + whole, 2), ("last", whole + statement + "\n", 89),
                                      ("after one that says UTF-8", '@charset "UTF-8";\n' + statement + "\n" + whole, 2), ("twice", statement + "\n" + statement + "\n" + whole, 1)):
                 with self.subTest(statement=statement, name=name):
@@ -2960,9 +3047,16 @@ class Stylesheet(unittest.TestCase):
                         self.assertEqual(cm.exception.code, "css-layout")
                         self.assertIn(message, str(cm.exception))
         # the near-misses: UTF-8 in any case, either quote and with blanks around the name; a statement with no quoted name, which names no
-        # encoding to a browser; the words in a string or in a comment; a longer name
-        for statement in ('@charset "utf-8";', '@charset "UTF-8";', "@charset 'Utf-8';", '@charset " utf-8\t";', '@CHARSET\n"utf-8";', "@charset utf-8;", "@charset iso-2022-kr;",
-                          '/* @charset "iso-2022-kr"; */', "a { content: '@charset \"iso-2022-kr\";' }", '@charset-x "iso-2022-kr";', '.charset::after { content: "iso-2022-kr" }'):
+        # encoding to a browser; the words in a string or in a comment; a longer name.
+        # Round 8 (R8-205): `@charset "utf8";` was refused with "written in another encoding than UTF-8", which is untrue: a browser takes
+        # six names for UTF-8 (the reviewer's Chromium painted the starter's colours under `utf8` and `unicode-1-1-utf-8`). Each counts, in any
+        # case and with blanks around it.
+        self.assertEqual(sorted(_palette._UTF8_NAMES), ["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "utf-8", "utf8", "x-unicode20utf8"])
+        self.assertIn("none of the names a browser takes for UTF-8: `utf-8`, `utf8`, `unicode-1-1-utf-8`, `unicode11utf8`, `unicode20utf8`, `x-unicode20utf8`, case and the blanks "
+                      "around the name ignored", " ".join(_palette.scan_css.__doc__.split()))
+        also_utf8 = ['@charset "%s";' % spelt for name in sorted(_palette._UTF8_NAMES) for spelt in (name, name.upper(), name.title(), " %s\t" % name)] + ["@charset 'UTF8' ;", '@CHARSET\n"Utf8";']
+        for statement in also_utf8 + ['@charset "utf-8";', '@charset "UTF-8";', "@charset 'Utf-8';", '@charset " utf-8\t";', '@CHARSET\n"utf-8";', "@charset utf-8;", "@charset iso-2022-kr;",
+                          '/* @charset "iso-2022-kr"; */', "a { content: '@charset \"iso-2022-kr\";' }", '@charset-x "iso-2022-kr";', '.charset::after { content: "iso-2022-kr" }']:
             with self.subTest(statement=statement):
                 self.assert_all_three_blocks(statement + "\n" + whole)
                 self.assertNotEqual(_site.edit_css(statement + "\n" + whole, self.bakery()), statement + "\n" + whole)

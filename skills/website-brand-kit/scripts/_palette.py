@@ -118,7 +118,9 @@ _PLACEHOLDER = re.compile(r"#?\[([^\[\]#0-9]*)\]|#?(?:\.\.\.|…)|[-–—]+")
 _COLOUR = re.compile(r"(?<![^\W_])(?<!&)#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})(?![^\W_])|(?<![^\W_])(?:rgba?|hsla?|oklch)\(([^()]*)\)", re.I)
 _VALUE_FORM = re.compile(r"#|[A-Za-z-]+\(")
 _BREAKS = "\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029"  # what str.splitlines() ends a line at
-_BLANKS = re.compile(r"[ \t]+")  # a blank, as Markdown has it: a space or a tab, and no other character (rule 1)
+# A line's blanks (rule 1): what a person sees as a space. The space, the tab, and Unicode's category Zs: the no-break
+# space, U+1680, U+2000 to U+200A, U+202F, U+205F, U+3000. Nothing else: no U+001C to U+001F, no U+0085.
+_BLANKS = re.compile("[ \t\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]+")
 _NOT_A_BREAK = re.compile("[^%s]" % _BREAKS)
 MOST_NAMED = 5  # how many lines one kind of "not read" problem quotes; the rest are counted
 
@@ -418,8 +420,8 @@ class _Reader(object):
 
     def read(self, text):
         text, unclosed = _without_comments(text)
-        # (not `raw.split()`: that takes U+001F and a no-break space for blanks too, and a character nobody sees must
-        # still be in the line when _seen cleans it for a search)
+        # (not `raw.split()`: that takes U+001F for a blank too, and a character nobody sees must still be in the line
+        # when _seen cleans it for a search)
         lines = [_BLANKS.sub(" ", raw).strip(" ") for raw in text.splitlines()]
         if "```" in text or "~~~" in text:
             self.fenced, self.open_fence = _fenced(lines)
@@ -893,11 +895,15 @@ def parse_tables(text):
        next `-->`) is blanked before anything else is looked at, its line breaks kept so that every
        line keeps its number: nothing inside a comment is read, and nothing inside one is named. A
        comment that is never closed runs to the end of the text, and a problem says on which line it
-       opens. Then runs of spaces and tabs are made one space, and those at a line's ends are
-       dropped, so no input makes a pattern slow. A space and a tab are the only blanks of a line,
-       as in Markdown: a `#` with a no-break space after it starts no heading, and a line with a
-       no-break space before its first `|` is no row of a table. A table row longer than 2,000
-       characters is not read, and a problem names it.
+       opens. Then each run of blanks is made one space, and those at a line's ends are dropped,
+       so no input makes a pattern slow. A line's blanks are what a person sees as a space: the
+       space, the tab, and every character of Unicode's category Zs (the no-break space, the wide
+       and thin spaces U+2000 to U+200A, U+1680, U+202F, U+205F, U+3000). So a `#` with a
+       no-break space after it starts a heading, a line with one before its first `|` is a row of
+       a table, and one inside a value is the blank there (`rgb(255,<U+00A0>248,<U+00A0>238)`).
+       No other character is a blank: not the information separators (U+001C to U+001F), not
+       U+0085. U+001F stays in its line as a character nobody sees (rule 9). A table row longer
+       than 2,000 characters is not read, and a problem names it.
 
     2. SECTIONS. Only a heading line (rule 0 says what one is) names a section, and only when its text
        (emphasis marks and backticks taken out, case ignored) is exactly `Brand`, `Light theme` or `Dark
@@ -923,12 +929,15 @@ def parse_tables(text):
          tags, list and quote markers, emphasis, brackets and punctuation (the words inside brackets
          stay): (a) one of its words is the other theme's word. Under Light that is `dark` whole,
          or one of the two compounds `darkmode` and `darktheme`, each with or without digits after
-         it (`Dark`, `Dark2`, `Darkmode`, `DarkTheme3`; with a hyphen they are two words, which
-         reads the same: `dark-mode`), or `night` whole; under Dark the same with `light`,
-         `lightmode`, `lighttheme` and `day`. Any other word that begins so is an ordinary word
-         (`Darker`, `Darkened`, `Darkness`, `Lightness`, `Lighten`, `Lighting`): a `Lightness`
-         column under `### Dark theme` is a note. (b) none of its words is its own theme's word,
-         by the same test;
+         it (`Dark`, `Dark2`, `Darkmode`, `DarkTheme3`), or `night` whole; under Dark the same
+         with `light`, `lightmode`, `lighttheme` and `day`. A hyphen or an underscore makes two
+         words of a compound, which reads the same (`dark-mode`, `dark_theme`: the word `dark`
+         and one of (c)'s words), but not with digits joined to its second word: `dark-mode2`,
+         `dark_theme3` and `Dark mode2` are no labels, because `mode2` is none of (c)'s words
+         (`Dark-mode 2` is one, and so is `darkmode2`). Any other word that begins so is an
+         ordinary word (`Darker`, `Darkened`, `Darkness`, `Lightness`, `Lighten`, `Lighting`): a
+         `Lightness` column under `### Dark theme` is a note. (b) none of its words is its own
+         theme's word, by the same test;
          and (c) every other word is one of theme, mode, the, values, value, colours, colors, colour,
          color, tokens, token, palette, scheme, variant, version, table, hex, set, for, in, use,
          these, are, or a number. So `Dark mode`, `(Dark theme)`, `Palette (dark)`, `- Dark theme
@@ -944,7 +953,8 @@ def parse_tables(text):
        THE LIMITS of the label test. Each of these is passed over without a word, and the table is
        read under its heading: a longer sentence, or any word outside the list ("This table is for
        the dark theme of the site.", `Dark theme: see the note`, `Dark theme v2`); another language
-       (`Dunkel`); a caption AFTER the table, and a note in a cell of a row; the other theme's name
+       (`Dunkel`); a compound in two words with digits joined to the second (`dark-mode2`, point
+       (a) above); a caption AFTER the table, and a note in a cell of a row; the other theme's name
        in a row in FRONT of the table (a title row `| Dark theme |` above the header row), or in
        a header row with no `|---|---|` line under it (a table without its separator line has no
        header row to this check: rule 6); a character reference (`&#68;ark theme`,
@@ -1233,6 +1243,8 @@ _AT_MEDIA = re.compile(r"{s}@media(?![\w-])".format(s=_S), re.I)
 _AT_NAMESPACE = re.compile(r"""{s}@namespace{s}(?:url\(|["'])""".format(s=_S), re.I)  # one without a prefix: the default namespace
 _AT_IMPORT = re.compile(r"{s}@import(?![\w-])".format(s=_S), re.I)
 _AT_CHARSET = re.compile(r"@charset(?![\w-])", re.I)
+# The names a browser takes for UTF-8 in an `@charset` (the Encoding Standard's labels for it), in lower case.
+_UTF8_NAMES = frozenset(("utf-8", "utf8", "unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "x-unicode20utf8"))
 _CHARSET_NAME = re.compile(r"""{s}(["'])([^"'\n\r\f]*)\1""".format(s=_S))  # the quoted name after it, read from the text with its strings
 _AT_PROPERTY = re.compile(r"@property(?![\w-]){s}(.*)".format(s=_S), re.I | re.S)
 _IMPORTANT = re.compile(r"!{s}important{s}\Z".format(s=_S), re.I)
@@ -1533,18 +1545,21 @@ def scan_css(text):
         type and a start value of its own.
     11. A top-level `@namespace` statement without a prefix ("namespace", block None): with a default
         namespace, `:root` matches only a root element of that namespace, which a web page's may not be.
-    12. An `@charset` with a quoted name that is not `utf-8`, case ignored ("charset", block None; the first
-        one is named, wherever it stands). This scanner reads the text as UTF-8; a browser that loads the
-        file as a file, with no encoding said by a server, reads it in the encoding such a line names where
-        it is the file's first bytes, and then has other colours, or none of the variables. `@charset
-        "utf-8";` is ordinary and stops nothing.
+    12. An `@charset` with a quoted name that is none of the names a browser takes for UTF-8: `utf-8`,
+        `utf8`, `unicode-1-1-utf-8`, `unicode11utf8`, `unicode20utf8`, `x-unicode20utf8`, case and the
+        blanks around the name ignored ("charset", block None; the first one is named, wherever it
+        stands). This scanner reads the text as UTF-8; a browser that loads the file as a file, with no
+        encoding said by a server, reads it in the encoding such a line names where it is the file's first
+        bytes, and then has other colours, or none of the variables. `@charset "utf-8";` and `@charset
+        "utf8";` are ordinary and stop nothing.
     13. Brackets that do not pair up, each `{`, `(` and `[` closed by its own kind in the right order: refused
         as a whole (Refusal "css-unreadable"), because a browser reads on from a bracket that is not closed
         through the end of the block and of the blocks after it. The same refusal for a `{` inside round or
         square brackets where a browser expects a rule (at the top level, or directly inside a top-level
         `@media`): `( a{} :root { ... } ) a{}` is one rule to a browser, and its `:root` block sets nothing.
     14. A value written as `var(--other)`: see `read_css`, which reads it only where it points at another
-        palette variable, and never for `--brand`. The editor writes over such a value like over any other.
+        palette variable, and never for `--brand`. The editor writes over such a value like over any other
+        (and refuses where `--brand` is written so and the palette gives no Primary to write there).
     15. Not a problem, a NOTE: a top-level `@import` statement. The stylesheet it brings in is not read, and
         it can set the colours too, so `notes` says on which line the first one stands and how many more
         there are. An import is ordinary (fonts): it stops nothing.
@@ -1742,7 +1757,7 @@ def scan_css(text):
                 % (_line_number(text, end - 1), _quoted(_squeeze(plain[start:end]))))
     for m in _AT_CHARSET.finditer(code):  # wherever it stands: a browser takes it only as the file's first bytes, and this does not weigh that
         name = _CHARSET_NAME.match(plain, m.end())
-        if name and name.group(2).strip(_CSS_SPACE).lower() != "utf-8":
+        if name and name.group(2).strip(_CSS_SPACE).lower() not in _UTF8_NAMES:
             trouble(None, None, "charset",
                     "Line %d of the stylesheet says the file is written in another encoding than UTF-8 (`%s`). This check reads the "
                     "stylesheet as UTF-8, and a browser that loads the file as it is would read it in the encoding that line names, so "

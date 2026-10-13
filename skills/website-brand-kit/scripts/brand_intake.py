@@ -31,6 +31,7 @@ import os
 import sys
 
 STOPPED = "Stopped (Ctrl-C). Nothing was written."
+_OUTCOME = []   # the run's exit status, from the moment main hands its report over to be said (see command_line)
 
 
 def _stopped(argv):
@@ -260,6 +261,7 @@ def cmd_install(args, out):
 
 
 def main(argv=None):
+    del _OUTCOME[:]   # (a caller may run main more than once)
     if sys.stderr is None:   # closed (`2>&-`): argparse on Python 3.9 writes its word on a bad argument there without looking
         sys.stderr = open(os.devnull, "w")
     # (allow_abbrev: `--js` is not `--json`. An early stop looks for the word itself among the arguments.)
@@ -300,27 +302,40 @@ def main(argv=None):
     except Refusal as r:
         out.append(str(r))
         code = 2
-    _say("\n".join(out))
+    report = "\n".join(out)
+    _OUTCOME[:] = [code]   # kept before the report is said: a Ctrl-C from here on changes neither the report nor the status (see command_line)
+    _say(report)
     return code
 
 
 def command_line(argv=None):
     """What `python3 brand_intake.py ...` runs: main(), and then the end of the process, at once, with
     main's status (see _leave): also where main ends through argparse (`--help`, an argument it does not
-    take), which leaves by sys.exit. A Ctrl-C before `install` began to watch for it, or during `palette`,
-    is said in one line (one JSON object where `--json` was asked for): neither had written anything.
+    take), which leaves by sys.exit. A Ctrl-C before `install` began to watch for it, or during `palette`
+    before its report is said, is said in one line (one JSON object where `--json` was asked for): neither
+    had written anything. From the moment main hands the report over to be said, a Ctrl-C changes nothing:
+    main has kept the run's status by then (_OUTCOME), and the command ends with that status and says
+    nothing after the report, so a check that passed does not end with the stop's line and status 2.
     What argparse has to say it prints itself, not through _say: the limit stated there for a terminal
     holds for those lines too.
 
     What no line of this file can answer: a Ctrl-C while Python itself is still starting ends the process
-    before this file is reached. And until `install` watches the signals (the tool's first moments, while
-    its modules are loaded and the arguments read), a SIGTERM, or a SIGHUP from a terminal that was closed,
-    ends the process with the signal's own status and no line. Nothing is written by then."""
+    before this file is reached, or at this file's first instruction, and then with Python's own traceback,
+    which names this file (13 of 1,440 runs that were stopped in their first moments at a terminal). A
+    Ctrl-C in the instant between the status being kept and the report reaching `print` (a few
+    instructions) ends the command with that status and no report. And until `install` watches the
+    signals (the tool's first moments, while its modules are loaded and the arguments read), a SIGTERM, or
+    a SIGHUP from a terminal that was closed, ends the process with the signal's own status and no line.
+    Nothing is written by then."""
     try:
         code = main(argv)
     except KeyboardInterrupt:
         while True:   # (see _stop_early: it ends the process)
             try:
+                if _OUTCOME:   # the report is said, or is being said: it stands, with its status
+                    import signal
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
+                    _leave(_OUTCOME[0])
                 _stop_early(sys.argv[1:] if argv is None else argv)
             except KeyboardInterrupt:
                 pass

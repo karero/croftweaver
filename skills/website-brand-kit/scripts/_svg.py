@@ -71,16 +71,23 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                  100 or more) and at every half turn on from there. And none of them, nor all of
                  them together, leaves of an area less than 1e-18 of it (not scale(1e-10): a
                  thousand million times smaller each way is the least. And not six of
-                 scale(1e-9), nor two, which multiply to less).
+                 scale(1e-9), nor two, which multiply to less). That line has room for rounding,
+                 one part in a thousand million: a turn keeps an area, and scale(1e-9) rotate(6)
+                 multiplies out to a hair under 1e-18 of it and is kept.
                  "All of them together" is the list multiplied from its first function to each
                  one in turn: a list that goes under one of the two lines on its way is refused,
                  though it may end above it (scale(1e-6) scale(1e-6) scale(1000) scale(1000)).
+                 The list is held where it goes UNDER a line on its way, not where it goes far
+                 above on its way and comes back: scale(1e8) five times, then scale(1e-9) four
+                 times and scale(.01), is kept, and from a running scale of 1e40 each way on the
+                 renderer draws the shape and a browser does not (made by hand, in a box of a
+                 million; see _flattens).
                  The rule looks at ONE transform attribute at a time. Transforms on elements that
                  stand inside one another (a group's and its shape's, a clip path's and that of a
                  shape in it) are not multiplied: where only together they squash a shape, scale
                  it to nothing, or undo each other, this check does not see it, the file is kept,
                  and one program may draw nothing of a shape that another draws (_flattens says
-                 what was measured; such nesting was only ever made by hand).
+                 what was measured; nesting that goes so far was only ever made by hand).
   path data      d: the letters MmZzLlHhVvCcSsQqTtAa, digits, `+ - . ,`, e and E, and blanks;
                  200,000 characters at most. (Read by the renderer's own reader, as it was.)
   keyword        exactly one of the words the renderer and a browser both read:
@@ -160,6 +167,10 @@ file that took the renderer longest when they were measured (they do not bound i
                  of path data (an arc's two flags are no numbers), stroke-width,
                  stroke-dashoffset, and in a transform every number but an angle (the first of
                  rotate, skewX and skewY: an angle has its own line, under `transform`).
+                 Each number is held as it is written, not as a transform leaves it: a drawing
+                 made far larger than its box and scaled down to fit by a group (a font's letter
+                 1,700 units tall in a box of 16) is refused as well, though nothing of it lies
+                 outside the box. The refusal names that way too.
   how many dashes   where a dash list is set (stroke-dasharray, not `none`), no dash or gap is
                  smaller than a thousandth of the box's larger side, unless it is 0. Where it
                  applies to a shape that paints an outline (set on it, handed down, or from a
@@ -265,6 +276,7 @@ MAX_URL = 80                   # characters of a url(#id), its brackets and blan
 # What squashes a shape flat (see `transform` at the top, and _flattens).
 MAX_SQUASH = 10000             # a transform leaves a square LESS than this many times as long as it is thick (exactly this many is flat)
 MIN_AREA = 1e-18               # the least a transform leaves of an area, one function of it or all of them multiplied: a thousand million times smaller each way
+AREA_ROUNDING = 1e-9           # the room that line leaves for rounding, as a share of it: a turn keeps an area, and multiplied out it comes a hair short
 MAX_ANGLE = 100000             # degrees, either way, in rotate, skewX and skewY: single precision keeps an angle up to here to a hundredth of a degree
 # A browser's work on clip paths: for each one, the numbers its shapes hold times the elements clipped by it, summed.
 MAX_CLIP_WORK = 200000
@@ -536,7 +548,11 @@ def _flattens(matrix):
     less b times c is for a, b, c and d squared and added up: that share is no smaller than one in MAX_SQUASH. A
     square left exactly MAX_SQUASH times as long as it is thick is refused already, since the squares added up come
     to a little more than its length squared (scale(10000 1) and scale(1 .0001) are refused, scale(1 .00011) is
-    kept; a skew's tangent stays under 100). And of an area no less is left than MIN_AREA of it.
+    kept; a skew's tangent stays under 100). And of an area no less is left than MIN_AREA of it, to one part in a
+    thousand million (AREA_ROUNDING), which is room for rounding and no more: a turn keeps an area, and
+    scale(1e-9) rotate(6), like scale(.001) three times and then rotate(6), multiplies out to 9.999999999999999e-19
+    of it. Both were refused for that hair for one round; scale(1e-9) scale(.99999999), a hundred-millionth under
+    each way, still is.
 
     _transform asks this of each function of a `transform`, and of the list multiplied from its first function to
     each one in turn, so the list is held to the same two lines as one function. Two of scale(1e-9), or six, each
@@ -546,6 +562,11 @@ def _flattens(matrix):
     And ONE list that goes down to 1e-45 or 1e-54 each way and comes up again (scale(1e-9) five or six times, then
     scale(1e8) six or seven times, in a box of a million) is drawn by the renderer, and by a browser wrongly or not
     at all (down to 1e-36 and up again: alike by both). So the list is held on its way, not only at its end.
+    It is held where it goes UNDER a line on its way, not where it goes far above on its way and comes back: there
+    is no line above. Made by hand and measured 2026-10-13, in a box of a million: scale(1e8) five times or more,
+    then scales down again till the list ends at a scale of 100 (scale(1e-9) four times and scale(.01)), is kept, and
+    from a running scale of 1e40 each way on the renderer draws the shape and a browser draws nothing of it (up to
+    1e32 each way: both draw it).
 
     What this does NOT see: it looks at ONE `transform` attribute at a time. The transforms of elements that stand
     inside one another (a group's and its shape's, a clip path's and that of a shape in it) are not multiplied.
@@ -557,7 +578,7 @@ def _flattens(matrix):
     tool was seen to nest so."""
     a, b, c, d = matrix
     area = abs(a * d - b * c)
-    return not (area >= MIN_AREA and area * MAX_SQUASH >= a * a + b * b + c * c + d * d)   # (`not`: a number too large to work with is turned down too)
+    return not (area >= MIN_AREA * (1 - AREA_ROUNDING) and area * MAX_SQUASH >= a * a + b * b + c * c + d * d)   # (`not`: a number too large to work with is turned down too)
 
 
 def _transform(v):
@@ -702,8 +723,9 @@ def _validate(name, value, grammar=GRAMMAR):
     if why[0] == "flat":
         raise Refusal(
             "flat-transform",
-            "The file has a transform that squashes what it is applied to flat, or all but flat (%s). Programs do not "
-            "agree on what is left to draw then: one draws nothing of a shape that another still draws. Ask the tool "
+            "The file has a transform that squashes what it is applied to flat, or all but flat, at its end or at a step "
+            "on its way (%s). Programs do not agree on what is left to draw then: one draws nothing of a shape that "
+            "another still draws. Ask the tool "
             "for the SVG without that part, or with its transforms applied to the shapes." % " ".join(why[1].split())[:40],
         )
     if why[0] == "angle":
@@ -764,7 +786,9 @@ class Clean(object):
 
 # The two forms of a DOCTYPE, each with the way out that exists for it. A declaration can stand on a line of its
 # own, run over several lines, or share its line with the <svg that follows: what is deleted is the declaration, from
-# its `<!DOCTYPE` to its last `>` (an address in quotes may hold a `>` of its own), not "the line". One that defines
+# its `<!DOCTYPE` to the `>` that ends it, not "the line", and not up to the line's last `>` (said as "its last >", an
+# owner could take that one, and with it the <svg). An address in quotes may hold a `>` of its own, which does not end
+# the declaration: only a file made by hand has one, and the sentence is true of it as well. One that defines
 # names of its own (one common tool's "save as" writes the addresses of its namespaces so, and the outer <svg> then
 # uses them) cannot be deleted: without the definitions the rest of the file is not readable (measured 2026-10-13).
 # A declaration without square brackets can bring names in as well, from the outside file it names (SYSTEM "brand.dtd",
@@ -773,8 +797,9 @@ class Clean(object):
 NEEDS_AN_EXPORT = "drawing needs what the declaration brought in: ask the tool for an export without a DOCTYPE."
 DOCTYPE = (
     "The file has a DOCTYPE declaration. That is how a file asks for other files to be pulled in, so it is refused. "
-    "Open the file in a text editor and delete the declaration: everything from <!DOCTYPE to its last >, wherever "
-    "the lines break, and nothing else. If the file cannot be read after that, the " + NEEDS_AN_EXPORT
+    "Open the file in a text editor and delete the declaration: everything from <!DOCTYPE up to the > that ends the "
+    "declaration, wherever the lines break, and nothing else (an <svg that comes after it stays). If the file cannot "
+    "be read after that, the " + NEEDS_AN_EXPORT
 )
 DOCTYPE_DEFINES = (
     "The file has a DOCTYPE declaration that holds definitions of its own (the part in square brackets). That is "
@@ -782,10 +807,16 @@ DOCTYPE_DEFINES = (
     "of the file may use the names it defines, and is then not readable without them. Ask the tool for an export "
     "without a DOCTYPE (a plain SVG, without the tool's own editing data)."
 )
-# A file with no DOCTYPE (none is ever read: see start_doctype) that uses a name only a DOCTYPE could have defined.
+# A file with no DOCTYPE (none is ever read: see start_doctype) that uses a name nothing defines. Two kinds of file meet
+# this, and the sentence gives each its own way on, the commoner first. Pasted code that never had a DOCTYPE and holds a
+# web page's name for a character (&nbsp; in a title, &copy; in a label: XML itself defines five names, and a web page
+# many more): "ask for an export without a DOCTYPE" alone asked its owner for the file she had. And a file whose
+# DOCTYPE was deleted as the sentence above says, where the declaration had defined the name.
 NO_SUCH_NAME = (
-    "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;). "
-    "Such names are defined by a DOCTYPE declaration, and this file has none, or has it no longer. The " + NEEDS_AN_EXPORT
+    "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;, "
+    "for example &nbsp;). Where the name stands for a character, as it does on a web page, open the file in a text "
+    "editor and put the character itself in its place, or take the name out, its & and its ; too. Where the file had "
+    "a DOCTYPE declaration that was deleted, the " + NEEDS_AN_EXPORT
 )
 
 
@@ -1369,7 +1400,9 @@ def _reach(root, box):
                     "too-far",
                     "The file places or sizes something far outside the drawing's own box (%s holds %s, and the box is "
                     "%s by %s). Programs draw such a shape in different ways, and slowly. Ask the tool for the drawing "
-                    "with nothing outside its frame." % (name, ("the number %g" % n) if len(numbers) > 1 else repr(value[:40]), "%g" % box[2], "%g" % box[3]),
+                    "with nothing outside its frame. Or the drawing is made far larger than its box and scaled down to "
+                    "fit: then ask for it in the box's own units, with the scaling applied to the shapes."
+                    % (name, ("the number %g" % n) if len(numbers) > 1 else repr(value[:40]), "%g" % box[2], "%g" % box[3]),
                 )
 
     pieces = 0.0

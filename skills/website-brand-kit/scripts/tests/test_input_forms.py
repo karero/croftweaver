@@ -653,6 +653,40 @@ class ZipRefusals(unittest.TestCase):
         self.assertIn(ascii("logo \u0378.svg"), answer["message"])
         self.assertTrue(answer["message"].isascii())
 
+    def test_a_character_this_python_does_not_know_is_shown_where_it_stands_in_a_long_name(self):
+        # The sentence showed the name's first 60 characters: of a long name with the character late in it, a plain
+        # beginning, not the character, and not which of several long names it was. Now the name is cut round the
+        # character, and the sentence says which character of the name it is. A name with the character in its first 60
+        # is shown from its start, as it was. What is refused has not changed.
+        c = "\u0378"   # no version of Unicode so far gives this a character
+        for name, at, shown in (("a" * 70 + c + ".svg", 71, "a" * 30 + c + ".svg"), ("a" * 60 + c + ".svg", 61, "a" * 30 + c + ".svg"),
+                                ("pack/" + "b" * 85 + c + "-mono.svg", 91, "b" * 30 + c + "-mono.svg"), ("n" * 100 + c + "x" * 100 + ".svg", 101, "n" * 30 + c + "x" * 29),
+                                ("m" * 70 + c + c + ".svg", 71, "m" * 30 + c + c + ".svg"), ("k" * 65 + c + "k" * 20 + c + ".txt", 66, "k" * 30 + c + "k" * 20 + c + ".txt")):
+            with self.subTest(name=ascii(name)):
+                data = self.zip_(("fine.svg", SVG), (name, SVG))
+                said = str(refused(self, lambda: _zipin.open_zip(data), "zip-path"))
+                self.assertTrue(said.isascii())
+                self.assertIn("(it may be an emoji newer than that Python; it is character %d of the name; spelled out, the name reads %s round it)." % (at, ascii(shown)), said)
+                self.assertIn("\\u0378", said, "the character is in what is shown")
+                self.assertNotIn("the name starts", said)
+                for word in ("a character this check does not know", "whole package is refused", "Give the file a plain name", "plain file names"):
+                    self.assertIn(word, said)
+        for name in (c + "a" * 100 + ".svg", "a" * 59 + c + "a" * 40 + ".svg", "logo" + c + ".svg", "a" * 30 + c + "a" * 40 + c + ".svg"):   # in the first 60: from the start, as it was
+            with self.subTest(name=ascii(name)):
+                said = str(refused(self, lambda: _zipin.open_zip(self.zip_((name, SVG))), "zip-path"))
+                self.assertIn("(it may be an emoji newer than that Python; spelled out, the name starts %s)." % ascii(name[:60]), said)
+                self.assertIn("\\u0378", said)
+        # two long names that begin alike are told apart by what is shown
+        long = ["pack/" + "n" * 90 + "-colour" + c + ".svg", "pack/" + "n" * 90 + "-mono" + c + ".svg"]
+        said = [str(refused(self, lambda: _zipin.open_zip(self.zip_((name, SVG))), "zip-path")) for name in long]
+        self.assertIn("-colour", said[0])
+        self.assertIn("-mono", said[1])
+        # through the command the assistant runs
+        answer = through_the_command(self, self.zip_(("a" * 70 + c + ".svg", SVG), ("fine.svg", SVG)), "--pick", "fine.svg")
+        self.assertEqual((answer["status"], answer["code"], answer["written"]), ("refused", "zip-path", []))
+        self.assertIn("it is character 71 of the name; spelled out, the name reads %s round it" % ascii("a" * 30 + c + ".svg"), answer["message"])
+        self.assertTrue(answer["message"].isascii())
+
     def test_a_name_that_is_a_blank_or_ends_in_one_refuses_the_package(self):
         # `logo<U+2800>.svg` (the empty braille cell), a name of three spaces and an ideographic space all passed: Unicode files
         # the first as a symbol and the others as spaces, and neither kind was on the list. A plain space is seen only

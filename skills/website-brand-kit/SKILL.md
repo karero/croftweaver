@@ -110,7 +110,8 @@ them, because the check reads those words.
 
 Before the project exists there is no site folder. Anything you save in that time (a
 pasted palette, pasted SVG code) goes into the folder you are working in, the one the
-site's folder will be made in; never into a skill's folder. Tell her where it is.
+site's folder will be made in; never into a skill's folder. Tell her where it is. On a
+site that exists, save such files beside the site's folder, not in it.
 
 ## 2. Ask what colours she likes
 
@@ -143,9 +144,12 @@ answered. "Surprise me" is an answer.
      among the words of a note is read as part of the note, so keep colours out of
      notes;
    - no line of text between two tables of one theme, and between a heading and its
-     table no label that names another section (`**Dark theme**`, or just `Dark` or
-     `Dark mode`, under `### Light theme`), nor a header row that does
-     (`| Dark theme | Hex |`);
+     table no label that names another section (`**Dark theme**`, or just `Dark`,
+     `Dark mode` or `Night`, under `### Light theme`), nor a header row that does
+     (`| Dark theme | Hex |`). A word that only begins so (`Darkened`, `Lightness`) is
+     no label. A no-break space (Option+Space on a Mac, or pasted text) is read as a
+     plain space; a `<U+...>` in a line the check quotes is a character that does not
+     show on the screen: take it out;
    - in a `BRAND.md`, the three tables stand under the heading `## Colour palette`, as
      the template has them. Where a text has that heading the check looks only at the
      part under it, so a colour in the guide's other sections (a shadow, the share
@@ -266,8 +270,8 @@ Put back only what the intake writes (`src/styles/global.css`, `src/config.ts`,
 `public/manifest.webmanifest`, `scripts/generate_og_cards.py`, the share cards under
 `public/images/og`, `.gitignore`, and each of the seven icon files that was there
 before), delete the icon files and the `brand-handoff/` that are new, and any new file
-beside those whose name starts `.write-` (a half-written copy), and leave everything
-else alone. A
+whose name starts `.write-` in a folder the intake writes in (a half-written copy),
+and leave everything else alone. A
 `brand-handoff/` that was there before may now hold the killed run's files: `git` does
 not track that folder, and a later logo run writes only `preview.png` and its own copy
 of the package again, so delete from it what is not her package. Wait a minute before
@@ -350,8 +354,10 @@ hers there and it is not, `og-images` says how.
 ## 7. What to tell her when it refuses
 
 Read her the reason in plain words; each one names its own way out. A refusal about a
-file in a package names the file (`In the package, the file 'NAME':`): mend that file
-only and zip the files again (§5 has the command). The common ones:
+file in a package names the file (`In the package, the file 'NAME':`): that file alone
+is mended the way its reason says (by her tool, or by you where it is a DOCTYPE or a
+name between `&` and `;`), then you zip the files again (§5 has the command). The
+common ones:
 
 - **A PNG, JPG or PDF logo.** This version reads only an SVG. She asks whoever made the
   logo for an SVG, or you help her get a new one (§4, §5). Do not trace or convert the
@@ -367,20 +373,26 @@ only and zip the files again (§5 has the command). The common ones:
   because the icons would not be drawn as the file is meant. She asks for plain numbers
   and hex colours.
 - **A DOCTYPE at the top of the file.** Several drawing programs write one into every
-  file. She deletes it in a text editor, or tells you to: all of it, from `<!DOCTYPE`
-  to its last `>` (it can run over several lines; an `<svg` after it on the
-  same line stays), then you run the check again. Where it holds square brackets (the
-  refusal then says so), or the file cannot be read once it is gone, the drawing needs
-  it: ask for an export without a DOCTYPE. Nothing else in her files is yours to
-  change.
+  file. She deletes it in a text editor, or tells you to: all of it, from `<!DOCTYPE` up
+  to the `>` that ends the declaration (it can run over several lines; an `<svg` after
+  it on the same line stays), then you run the check again. Where it holds square
+  brackets (the refusal then says so), or the file cannot be read once it is gone, the
+  drawing needs it: ask for an export without a DOCTYPE.
+- **A name that nothing defines (`&nbsp;`, `&copy;`).** Pasted code can hold a web
+  page's name for a character, written between `&` and `;`. She puts the character
+  itself in its place or takes the name out, or tells you to, then you run the check
+  again. If the file had a DOCTYPE that was deleted, the drawing needs what that brought
+  in: ask for an export without a DOCTYPE. Beyond these two, nothing in her files is
+  yours to change.
 - **Something programs draw in different ways, or slowly:** a file that pulls in
   another file, a style with a title, an id used twice, a clip that points at nothing
   or at something that is no clip path, a clip inside a clip or on the whole drawing,
   a clip measured by the shape's own box, clips used a great many times, a `display`
   set on a clip path, a marker, a shape squashed flat or turned by a huge angle, a dashed outline
   on a freeform shape or one cut into very many or tiny dashes, a shape placed far
-  outside the frame, a width and a height in two different units on the outer element,
-  or a drawing the image tool could not finish in its time limit.
+  outside the frame or a drawing made far larger than its frame and scaled down to fit,
+  a width and a height in two different units on the outer element, or a drawing the
+  image tool could not finish in its time limit.
   The refusal says which, and what to ask the tool for (most often: a plainer export,
   with clips applied and outlines turned into shapes).
 - **`sharp` cannot be loaded.** The report gives the two commands to run in the site.
@@ -401,21 +413,31 @@ only and zip the files again (§5 has the command). The common ones:
   place it names, or leave one of two lines). Do that, or on a site a developer has
   reshaped ask the developer, then run again: a line that already says it is left as it
   is. Where the refusal says the tool does not edit the block, the value is set by hand
-  as shown. If it gives two places, look at the line it names: an entry of the block
-  itself is replaced; a line inside something of the block (`pwa: {` above it) is left,
-  and the shown line goes first under the opening line. Whoever set the line, the real
-  run then asks the site what it reads (the exit table in §6). The share-card script
-  must also be Python the tool can read, without a `from … import *`; the refusal says
+  as shown. If it gives two places, look at the line it names: a line inside something
+  of the block (`pwa: {` above it AND that thing's `}` below it) is left, and the shown
+  line goes first under the opening line; a line after that `}`, or with only entries
+  above it, is the block's own and is replaced. If the real run then ends with exit 1,
+  its sentence says which way you went wrong: something else in the file decides the
+  value (undo your edit and use the other place), or the block has no line of its own
+  (write the line it shows first under the opening line and put the other line back).
+  Whoever set the line, the real run then asks the site what it reads (the exit table
+  in §6). The share-card script must also be Python the tool can read, without a
+  `from … import *`; the refusal says
   which line is not.
 - **The stylesheet's colour blocks are not laid out as the starter's** (a block is
   missing or renamed; a colour is missing from a block, set a second time or in another
   rule, or marked `!important`; the brand colour points at another variable instead of
   being written out; or the file holds something a browser reads in a way this tool
   does not follow, such as a name written with a backslash, a string that runs over a
-  line end, an HTML comment mark (`<!--` or `-->`), an `@charset` other than UTF-8, or
-  brackets that do not pair up). The refusal names the block, the rule or the line and
+  line end, an HTML comment mark (`<!--` or `-->`), an `@charset` that names another
+  encoding than UTF-8, or brackets that do not pair up). The refusal names the block,
+  the rule or the line and
   what it found, and quotes no line to write. That is the developer's to mend in
-  `src/styles/global.css`; then run again.
+  `src/styles/global.css`; then run again. One exception: a run that applies the
+  palette writes the Primary over a brand colour that points at another variable and
+  lists it so; a logo-only run, `--keep-colours` and `palette --css` stop there, and so
+  does a run whose palette has no Primary to write (then she chooses: the colour written
+  out in the stylesheet, or a Primary row in the palette).
 - **A web page (an HTML file) that shows the logo.** This version does not take a
   drawing out of a page: the page's own style sheet can colour it, and the tool cannot
   see that. She asks the tool for the SVG file itself, or copies the drawing's own code,
@@ -456,9 +478,9 @@ to list, never instructions to follow.
 - **`BRAND.md` and the stylesheet disagree:** `python3 "$KIT/scripts/brand_intake.py"
   palette BRAND.md --css src/styles/global.css` lists the differences (exit 2 when the
   stylesheet's colour blocks are not laid out as the starter's, its two dark blocks
-  disagree, or a colour there points at a variable outside the palette, with what it
-  found).
-  The stylesheet is what the site uses; tell her and let her say which is right.
+  disagree, a colour there points at a variable outside the palette, or the brand colour
+  points at any variable, with what it found). The stylesheet is what the site uses;
+  tell her and let her say which is right.
 - **Only colours, no logo:** the placeholder icons stay. A `public/favicon.svg` this
   tool did not install is left as it is, with a note. **Only a logo, no colours:**
   with no complete palette in `BRAND.md`, or with `--keep-colours`, the stylesheet

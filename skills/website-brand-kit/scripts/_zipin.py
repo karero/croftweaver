@@ -199,12 +199,17 @@ def open_zip(data):
         name, held = _name(zi), zi.orig_filename
         shown_odd = _unseen(name) or "\0" in name
         if shown_odd and "\0" not in held and _not_known(name):
+            # the name is shown where the character stands: its first 60 characters, or, where the first such character
+            # stands later (the start alone showed a plain beginning, and not which of several long names it was), 60 round it
+            at = min(i for i, c in enumerate(name) if unicodedata.category(c) == "Cn")
+            where = ("spelled out, the name starts %s" % ascii(name[:60]) if at < 60 else
+                     "it is character %d of the name; spelled out, the name reads %s round it" % (at + 1, ascii(name[at - 30:at + 30])))
             raise Refusal(
                 "zip-path",
                 "The package has a file whose name holds a character this check does not know: the Python it runs on has "
-                "no record of it (it may be an emoji newer than that Python; spelled out, the name starts %s). So the "
+                "no record of it (it may be an emoji newer than that Python; %s). So the "
                 "whole package is refused. Give the file a plain name and make the package again, or ask for a package "
-                "with plain file names." % ascii(name[:60]),
+                "with plain file names." % where,
             )
         if shown_odd or "\0" in held:  # first: every later message shows the name
             raise Refusal(
