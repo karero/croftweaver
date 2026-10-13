@@ -113,6 +113,7 @@ Feature → the high-value test to add:
 | New/changed positioning | add the page's term to the `POSITIONING` map in `positioning.spec.ts`; the page must carry it in `<title>`/`<meta description>`/`<h1>` (see `website-positioning`). |
 | Public scorecard (`website-scorecard`) | install the skill by its §2 (three files and the package script; the spec needs the script, so never copy it alone), then set `PAGE` in `tests/scorecard.spec.ts`: the page must show the numbers in `scorecard.json`, and the file must add up. |
 | Story-led home page (`website-story`) | copy that skill's `templates/story.spec.ts` into `tests/` and fill its `CONFIG` from the values listed at the end of `STORY.md` (the rest have defaults); `positioning.spec.ts` stays untouched. |
+| Tagline under the logo (`website-tagline`) | copy that skill's `templates/tagline.spec.ts` into `tests/` and set `CONFIG.selector` to the element that shows the line: the page must show `SITE.tagline` word for word, in a `<p>`, no other file under `src/` may hold the line, and the line must keep to that skill's limits (eight words, 50 characters). |
 | Exposed email/phone | it's rendered via `EmailLink` — assert the built HTML has **no plaintext `mailto:` or literal `@`-address** (crawler/spam protection; see `website-design-system`). |
 
 Keep it thin: a marketing site needs a high-value harness, not 1000 unit tests. Don't test a
