@@ -26,7 +26,7 @@ table. **Script steps** are the nine things the script does, under "Shape".
 | 1 | Requirements and scenarios (this file) | ⚠ written; the PLAN gate (High) stopped after round 3, not converging. Rounds 1 and 2 are worked in, round 3 is open. How to go on is the maintainer's decision | this file; trail: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work) | ✅ merged 2026-10-12. The script that runs its outside checks followed the same day | karero/croftweaver#266 (`7642954`); the check script: karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended"). D2 and D3 changed the same day: the script lives in the kit ("In the kit"). D1 changed twice on 2026-10-13: first to three stages with a yes for each ("Three, one per stage"), asked for with a reason round 3 showed to be false (H3); then back to two yeses ("go back to two yeses") | section "Decisions D1 to D7" |
-| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ▶ started 2026-10-13. The observations that need no token and the read-only calls are made ("Seen in the spike"); so are the calls on the throwaway project. Open: the domain and DNS observations (7, 10), which wait for a DNS row in the token; the settings calls (9); pull requests opened before the connection (11); Bing's record. The throwaway repository exists, built from the starter. The maintainer chose the domain to try on ("croftweaver.com", with a host of its own for the domain step). Waits for the token and for the GitHub app's authorization | the private repository `karero/cf-setup-spike` at `98d7742` |
+| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ▶ started 2026-10-13. The observations that need no token and the read-only calls are made ("Seen in the spike"); so are the calls on the throwaway project, the settings calls and the pull-request cases. Open: writing the domain's record, the cases with an existing record, and the DNS records (observations 7 and 10), which wait for a DNS row in the token; whether Fail open reaches the live build (6); Bing's record (8). A second throwaway project, `cf-setup-spike-2`, exists; the domain `spike.croftweaver.com` is attached to the first and pending. The throwaway repository exists, built from the starter. The maintainer chose the domain to try on ("croftweaver.com", with a host of its own for the domain step). Waits for the token and for the GitHub app's authorization | the private repository `karero/cf-setup-spike` at `98d7742` |
 | 5 | The script and its tests against a stub of Cloudflare's API. Two pull requests: the project and domain stages (script steps 1 to 7), then the settings stage (script steps 8 and 9) | ⏸ not started | — |
 | 6 | The kit's files that say otherwise today are changed with the script (list under "Hooks") | ⏸ not started | — |
 | 7 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
@@ -521,6 +521,34 @@ maintainer gave one go-ahead for the list of them):
 - **A deployment does not record Fail open.** So whether a change reaches the build that
   is live cannot be read from it (observation 6 stays open).
 - A build took about two and a half minutes the first time and under 90 seconds after.
+
+**Seen in the spike, 2026-10-13, the settings, the domain and the pull requests** (captures
+063 to 103; the maintainer's go-ahead: "do all items in a row, just check everything"):
+
+- **The settings calls work with the checklist's token rows** (observation 9). On the
+  live zone each of four settings was read, written to the checklist's value with a
+  PATCH of `{"value": …}`, and read back: Always Use HTTPS, Minimum TLS Version and NEL
+  were already right; Email Address Obfuscation went from `on` to `off`. Writing a value
+  that is already there is accepted. It left `modified_on` as it was for Always Use
+  HTTPS and moved it for NEL, so `modified_on` does not show whether anything changed.
+- **Bot Management.** Bot Fight Mode is `fight_mode`, a true or false. The AI crawler
+  policies are `ai_bots_protection`, `ai_training`, `ai_search` and `ai_user`; the value
+  `disabled` means nothing is blocked. The zone's own values, sent back whole with PUT,
+  were accepted and changed nothing. Whether PUT with only some fields keeps the others
+  was not tried: the only zone at hand was live.
+- **The header rule.** The ruleset of the phase `http_response_headers_transform`, read
+  and sent back with PUT with the same one rule, kept the rule, its id and its version.
+- **Attaching a domain creates no DNS record** (observation 7, first case). The call
+  answered `initializing`, then stayed `pending` with the verification message "CNAME
+  record not set". The host had no record before and none a minute after, and it
+  answered an error. So the script has to write the host's record itself, and the token
+  needs the DNS row for the domain step, as "What the owner does" says. The cases with
+  an existing record, and both orders, are not tried yet: the token had no DNS row.
+- **A pull request and the connection** (observation 11). GitHub opened a pull request
+  for a branch whose one commit is empty, and Cloudflare built it. A second project,
+  connected to the same repository later, built nothing for a pull request that was
+  already open; it built that pull request's next commit. With two projects on one
+  repository, each puts its own check on a pull request, named after the project.
 
 **Read in Cloudflare's API reference, 2026-10-12, not tried:**
 
