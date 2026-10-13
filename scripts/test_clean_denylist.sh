@@ -137,7 +137,8 @@ expect "README.md, the holder's name after a non-ASCII letter: fails" 1 "README.
 # The check compares bytes, in the C locale it sets itself: a caller's UTF-8 locale, where
 # an awk may read é as one character and order it by the locale, changes nothing. Without
 # such a locale on this machine the cases would prove nothing: skip, and say so.
-utf8=""; for l in C.UTF-8 en_US.UTF-8; do
+# (`locale -a` spells them C.utf8 and en_US.utf8 on Linux.)
+utf8=""; for l in C.UTF-8 C.utf8 en_US.UTF-8 en_US.utf8; do
   if [ -z "$utf8" ] && locale -a 2>/dev/null | grep -qx "$l"; then utf8="$l"; fi
 done
 if [ -n "$utf8" ]; then
