@@ -14,9 +14,11 @@
 //      default; the page then describes what the instance does); and the
 //      storage period. The clause "only a visit that is still going ... continues as the
 //      same visit" describes Plausible's own session lookup (self-hosted Community
-//      Edition, checked for v3.2.1: lib/plausible/session/cache_store.ex, find_session).
-//      With Plausible Cloud keep it only if Plausible confirms the same; with another
-//      analytics tool delete it together with the paragraph.
+//      Edition, checked for v3.2.1: on_event and find_session in
+//      lib/plausible/session/cache_store.ex, register_session in
+//      lib/plausible/ingestion/event.ex, salts.ex, and the RotateSalts cron in
+//      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
+//      the same; with another analytics tool delete it together with the paragraph.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
