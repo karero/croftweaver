@@ -4,6 +4,13 @@ Requirements record for a script that does not exist yet. Where this plan and th
 files disagree, the files win until plan step 6 changes them. Names of sites and people
 stay out of this public repo on purpose; the business in the scenarios is made up.
 
+**Do not build from this text yet.** The PLAN gate stopped after round 3 without a clean
+verdict. Round 3 found four BUGs, eight RISKs and fourteen NITs that are not worked in
+(H1 to H26 in `docs/reviews/REVIEW-plan-2026-10-12-pr265.md`). Three of them are wrong
+statements in this file: script step 4 would build on a project that already serves a
+domain; script step 7 reports a failure on a finished setup; and D1's reason is false,
+because the settings can be written before the domain is attached.
+
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are the nine things the script does, under "Shape".
 
@@ -11,7 +18,7 @@ table. **Script steps** are the nine things the script does, under "Shape".
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ▶ written; PLAN gate (High) in progress, rounds 1 and 2 done and their findings worked in | this file; trail: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
+| 1 | Requirements and scenarios (this file) | ⚠ written; the PLAN gate (High) stopped after round 3, not converging. Rounds 1 and 2 are worked in, round 3 is open. How to go on is the maintainer's decision | this file; trail: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work) | ✅ merged 2026-10-12. The script that runs its outside checks followed the same day | karero/croftweaver#266 (`7642954`); the check script: karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended"). D2 and D3 changed the same day: the script lives in the kit ("In the kit"). D1 changed on 2026-10-13: three stages, a yes for each ("Three, one per stage") | section "Decisions D1 to D7" |
 | 4 | Spike on a throwaway repository, project and zone: every write call once, and the eight questions under "Not verified" | ⏸ not started | — |
