@@ -68,9 +68,8 @@ setup, or a count of them), this is the wrong tool: see §0.
 | `public/js/mail-form.js` | `mail-form.js` | the script: shows the form, builds the `mailto:` link, opens it |
 | `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
 
-The templates are at `~/.claude/skills/website-contact-form/templates/` (Codex:
-`~/.agents/skills/…`), or in the site's own bundled copy on a handed-off repo. Install
-all four.
+The templates are in this skill's `templates/` folder, beside this SKILL.md; the bundled
+copy of the skill on a handed-off repo has them too. Install all four.
 
 **How it works, in one paragraph.** The owner's address goes into the HTML encoded the
 way `EmailLink` encodes it (`src/lib/obfuscate.ts`), never as plain text. The script, a
