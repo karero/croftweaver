@@ -463,6 +463,7 @@ test('placeholders — the page reading reaches each surface it claims', async (
       connectedCallback() { window.mounted = (window.mounted || 0) + 1; }
     });</script>
     <x-probe hidden></x-probe>
+    <style>x-note { display: block; }</style> <div>Vault<x-note style="display:none">platz<b>halter</b>text</x-note></div>
     <svg width="1" height="1"><title>Rows</title><text style="display:none">ja<tspan>ne</tspan> doe</text></svg>
     <details><summary>More</summary><p>[FOLDED SLOT]</p></details>
     <img alt="[ALT SLOT]" src="data:,">
@@ -522,6 +523,7 @@ test('placeholders — the page reading reaches each surface it claims', async (
   expect(found('placeholder wording', 'maxmustermann'), '"ma<script></script>x mustermann": a script counts as a block').toBe(true);
   expect(found('placeholder wording', 'erikamustermann'), '"eri<u hidden>ka</u> mustermann" where the page styles "body > u" as a block: the bare <u> is asked, and answers wrongly').toBe(true);
   expect(found('placeholder wording', 'janedoe'), '"<title>Rows</title><text style="display:none">ja<tspan>ne</tspan> doe</text>" in an <svg>: a hidden SVG <text> is a block, an HTML element of that name is not').toBe(true);
+  expect(found('placeholder wording', 'platzhaltertext'), '"Vault<x-note style="display:none">platz<b>halter</b>text</x-note>", which the page styles as a block and has not registered: it is asked like any other tag').toBe(true);
   expect(await page.evaluate(() => (window as unknown as { mounted: number }).mounted), 'a hidden custom element must not be built a second time to ask for its layout').toBe(1);
   const mustSkip = [
     ...notShown.map((t) => `UNSEEN ${t.toUpperCase()}`),
