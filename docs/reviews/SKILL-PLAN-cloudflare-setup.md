@@ -424,6 +424,22 @@ and commit messages.
 - The preview of `main` answered at the project's `pages.dev` address with `main.` in
   front.
 
+**Seen in the spike, 2026-10-13** (the two observations that need no token; git 2.33.0
+and Node 26.11.1 on the maintainer's Mac, not Node 18):
+
+- `git ls-remote`, run with its input closed, returned in every case tried and never
+  waited for an answer: an unknown host failed at once, a repository that does not exist
+  failed after 24 seconds, and a normal remote answered in 0.6 seconds. So one such call
+  can use a large part of a 60-second run.
+- A remote's address is not always `https://github.com/<owner>/<repository>`. On that Mac
+  one remote carries a user name before the host, and a global git setting rewrites
+  GitHub addresses to SSH. The script has to read owner and repository from each of these
+  forms, and must not print a remote's address as it is, because that part of an address
+  can hold a credential.
+- Node's resolver, set to `127.0.0.1` and a port, asked a stand-in DNS server on this
+  machine and returned its TXT record. So the tests can replace the resolver (spike
+  observation 10, second half).
+
 **Read in Cloudflare's API reference, 2026-10-12, not tried:**
 
 - [Creating a project](https://developers.cloudflare.com/api/resources/pages/subresources/projects/methods/create/)
