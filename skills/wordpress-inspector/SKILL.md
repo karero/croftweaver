@@ -32,8 +32,13 @@ Run it only on a site you own or are asked to look at.
 
 ## Run it
 
+The two scripts are this skill's `scripts/wp_inventory.py` and `scripts/check_move.py`. In
+the commands below, the name in braces stands for the folder this SKILL.md is in: Claude
+Code fills it in; with another assistant, put that folder's path in its place. Run the
+commands in the folder where the reports should live.
+
 ```bash
-python3 skills/wordpress-inspector/scripts/wp_inventory.py https://example.com --out ./inventory
+python3 "${CLAUDE_SKILL_DIR}/scripts/wp_inventory.py" https://example.com --out ./inventory
 ```
 
 It pauses one second between requests and stops after 100, which covers a site of a few
@@ -103,7 +108,7 @@ entries the count found; a listing page the sitemap left out is not in it, so ad
 addresses to the file by hand if they matter.
 
 ```bash
-python3 skills/wordpress-inspector/scripts/check_move.py ./inventory/urls.csv https://preview.example.com --out ./move-check
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_move.py" ./inventory/urls.csv https://preview.example.com --out ./move-check
 ```
 
 Give it the new site's deployed address, the preview or the live one. A preview server on
@@ -144,7 +149,8 @@ decisions rest on numbers.
 ## Tests
 
 ```bash
-make test-wordpress-inventory
+python3 -m unittest discover -s "${CLAUDE_SKILL_DIR}/scripts/tests"
 ```
 
-Stub sites on 127.0.0.1, no real requests.
+Stub sites on 127.0.0.1, no real requests. In the toolkit's own folder,
+`make test-wordpress-inventory` runs the same.
