@@ -256,13 +256,18 @@ stamps, `whats-new`) — a release just names a milestone. Versions step by **0.
 # First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
 # ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip
-git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
-# The plugin is installed from the branch `stable`. The release-tag workflow, started by
-# the tag, checks the version against it and moves `stable` to the release. If that run
-# is red, plugin users are still on the release before: put right what it names, then
-# move the branch yourself:  git push origin 'v0.11^{commit}:refs/heads/stable'
-gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \
+# The tag takes its name from that number (0.11.0 gives v0.11), so the two cannot differ.
+# A number that was not raised names the last release's tag, and git refuses to make it.
+v="v$(node -p 'require("./.claude-plugin/plugin.json").version.replace(/\.0$/, "")')"
+git tag -a "$v" -m "Croftweaver ${v#v}" && git push origin "$v"
+gh release create "$v" dist/croftweaver.zip --title "${v#v}" --latest \
   --generate-notes                # or write the notes by hand
+# The plugin is installed from the branch `stable`. The release-tag workflow, started by
+# the tag, checks the number against it and moves `stable` to the release. A red run means
+# plugin users are still on the release before. If the step that moves the branch failed,
+# move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
+# If the check of the number failed, the tag was not made as above: leave `stable` where
+# it is, and plugin users get the next release.
 ```
 
 Zip users download the newest release from the Releases page; clone users keep using

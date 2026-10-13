@@ -315,6 +315,9 @@ Decided by the owner on 2026-10-12:
   `templates/…`". The three places that give a command (`facts-check`,
   `website-permissions`, the lookup in `new-website`) use the name Claude Code replaces by
   the skill's own folder in a SKILL.md, with one sentence for other assistants.
+  `website-permissions` copies from its own folder: it carries the allowlist and the sync
+  hook itself, the same two files `new-website` has, so that its copy inside a site needs
+  nothing beside it (the owner's choice after three review findings on a lookup for them).
 - **Releases only.** The marketplace entry installs from the branch `stable`, and
   `plugin.json` carries the release's number. A release raises the number in its pull
   request; when its tag is pushed, the `release-tag` workflow checks the number against the
@@ -337,15 +340,20 @@ https://code.claude.com/docs/en/plugins/host-marketplace):
   install took the files at `stable` and not what main had gained since; `claude plugin
   update` said "already at the latest version (0.32.0)" while main moved and also after a
   release 0.33 was tagged; once `stable` was moved to that tag it said "updated from 0.32.0
-  to 0.33.0". The entry in this repo uses `"source": "github"`, which was not tried.
+  to 0.33.0".
+- The entry in this repo uses `"source": "github"`. Tried the same day with that source
+  type and this pull request's branch as the `ref`, from GitHub, into a throwaway
+  configuration folder: installed, version 0.32.0, 35 skills, with the files only that
+  branch has. An update through that source type was not tried.
 - Installed from a copy of this tree as a local marketplace, into a throwaway configuration
   folder: 35 skills, and every folder and file the scaffold copies is there, the
   templates' `.gitignore` included. The files land under
   `plugins/cache/croftweaver/croftweaver/<version>/`.
-- The lines `new-website` gives the assistant to find the suite, and the lines
-  `website-permissions` gives to copy the allowlist, are run by tests, with the skill's
-  folder filled in as Claude Code does and left as written as another assistant would,
-  also in a shell that takes an unset variable as an error (`make test-plugin`).
+- The lines `new-website` gives the assistant to find the suite are run by tests, with
+  the skill's folder filled in as Claude Code does and left as written as another
+  assistant would, also in a shell that takes an unset variable as an error; the lines
+  `website-permissions` gives are run from a copy of the skill in a folder named
+  `Sam's Bakery` (`make test-plugin`).
 
 Known limits:
 
@@ -357,17 +365,15 @@ Known limits:
 - Nothing can be installed from GitHub before release 0.32 creates the branch `stable`.
   The owner chose to merge this change with that release, so the README is not ahead of it.
 - A release that forgets to raise the number passes every check on its pull request. The
-  `release-tag` workflow then fails on the pushed tag and does not move `stable`: plugin
-  users stay on the release before until the number is raised and the branch moved by
-  hand. A red run on the tag is the only notice.
+  README's release steps take the tag's name from the number, so git then refuses the tag,
+  which exists already. A tag made by hand with another name gets a red `release-tag` run,
+  and `stable` stays: plugin users get the next release.
 - The workflow has not run yet: it starts on a tag pushed after it is on main, so release
   0.32 is its first run. Its two shell steps are run by tests against a throwaway
   repository; that GitHub starts it, and lets it push, is not.
-- A copy of `website-permissions` inside a site has no `new-website` beside it. Its
-  commands then take the two files from an installed suite: the folder `SKILLS_ROOT`
-  names, `~/.claude/skills`, or the plugin's folder under Claude Code's configuration
-  folder (`plugins/cache/croftweaver/croftweaver/<version>/skills`, as observed with
-  2.1.287; of several versions kept there, the first by name).
+- The allowlist and the sync hook exist twice, in `new-website` and in
+  `website-permissions`. A test holds them equal; a change to one that forgets the other
+  fails `make test-plugin`.
 - The folder Claude Code fills in stands between double quotes. A folder name with a
   double quote, a dollar sign, a backtick or a backslash in it breaks those lines; one with
   a space or an apostrophe does not.

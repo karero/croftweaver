@@ -36,20 +36,26 @@ jobs:
           PUSHED: ${{ github.ref_type }}
           NAME: ${{ github.ref_name }}
         run: |
-          if [ "$PUSHED" = tag ]; then
-            tag="$NAME"
-            # Only a release's tag (v0.32) is a release. Any other tag that starts with v,
-            # a trial one say, is not this workflow's business.
-            case "$tag" in
-              v[0-9]*.[0-9]*) case "${tag#v}" in *[!0-9.]*|*.*.*) tag="" ;; esac ;;
-              *) tag="" ;;
+          # Only a release's tag (v0.32) is a release. Any other tag that starts with v, a
+          # trial one say, is not this workflow's business, on a commit of `stable` either.
+          is_release() {
+            case "$1" in
+              v[0-9]*.[0-9]*) case "${1#v}" in *[!0-9.]*|*.*.*) return 1 ;; esac ;;
+              *) return 1 ;;
             esac
-            [ -n "$tag" ] || echo "::notice::$NAME is not a release tag like v0.32: nothing to do"
+          }
+          tag=""
+          if [ "$PUSHED" = tag ]; then
+            if is_release "$NAME"; then tag="$NAME"; else echo "::notice::$NAME is not a release tag like v0.32: nothing to do"; fi
           else
-            tag="$(git tag --points-at HEAD --list 'v*')"
-            case "$tag" in
-              "")       echo "::error::stable was moved to a commit that carries no release tag"; exit 1 ;;
-              *$'\n'*)  echo "::error::the commit stable points at carries more than one release tag"; exit 1 ;;
+            found=0
+            for t in $(git tag --points-at HEAD --list 'v*'); do
+              if is_release "$t"; then tag="$t"; found=$((found + 1)); fi
+            done
+            case "$found" in
+              0) echo "::error::stable was moved to a commit that carries no release tag"; exit 1 ;;
+              1) ;;
+              *) echo "::error::the commit stable points at carries more than one release tag"; exit 1 ;;
             esac
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

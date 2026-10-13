@@ -125,14 +125,8 @@ function tmp() {
   return dir;
 }
 
-// A stand-in for an installed suite: the folders and the two files the cases need.
-function suiteAt(skillsDir, mark = 'suite') {
-  const claude = path.join(skillsDir, 'new-website', 'templates', 'claude');
-  fs.mkdirSync(path.join(claude, 'hooks'), { recursive: true });
-  fs.writeFileSync(path.join(claude, 'settings.json'), `settings from ${mark}`);
-  fs.writeFileSync(path.join(claude, 'hooks', 'git-stand.mjs'), `hook from ${mark}`);
-  fs.mkdirSync(path.join(skillsDir, 'website-permissions'), { recursive: true });
-}
+// A stand-in for an installed suite: the folder the lookup tests for.
+const suiteAt = (skillsDir) => fs.mkdirSync(path.join(skillsDir, 'new-website', 'templates'), { recursive: true });
 
 test('new-website finds the suite where it was loaded from: a plugin\'s folder, which is none of the home folders', () => {
   const home = tmp();
@@ -201,61 +195,47 @@ test('the two guides that repeat the lookup for testers repeat it as it is', () 
 });
 
 // The lines website-permissions gives to copy the allowlist and its hook into a site.
-const copySettings = () => block(['skills', 'website-permissions', 'SKILL.md'], ': "${CLAUDE_SKILL_DIR:=}"', 'If both `cp` lines fail');
-
-function runCopy(options) {
-  const site = tmp();
-  const run = bash(copySettings().replace(/^```\s*$/m, ''), { cwd: site, ...options });
-  const got = (file) => (fs.existsSync(path.join(site, file)) ? fs.readFileSync(path.join(site, file), 'utf8') : null);
-  return { status: run.status, settings: got('.claude/settings.json'), hook: got('.claude/hooks/git-stand.mjs') };
+function copySettings() {
+  const lines = read('skills', 'website-permissions', 'SKILL.md').split('\n');
+  const hits = lines.map((line, i) => (line === 'mkdir -p .claude/hooks' ? i : -1)).filter((i) => i >= 0);
+  assert.equal(hits.length, 1, 'the copy commands in website-permissions/SKILL.md were not found exactly once');
+  const end = lines.findIndex((line, i) => i > hits[0] && line.startsWith('```'));
+  return lines.slice(hits[0], end).join('\n');
 }
 
-test('website-permissions copies the allowlist from the suite it is part of', () => {
-  const plugin = path.join(tmp(), 'cache', "owner's suite", 'skills');
-  suiteAt(plugin, 'the plugin');
-
-  const copied = runCopy({ filled: path.join(plugin, 'website-permissions'), home: tmp() });
-
-  assert.deepEqual(copied, { status: 0, settings: 'settings from the plugin', hook: 'hook from the plugin' });
-});
-
-test('from the copy inside a site, which has no new-website beside it, it takes the installed suite', () => {
-  const home = tmp();
-  suiteAt(path.join(home, '.claude', 'skills'), 'the home install');
-  const siteCopy = path.join(tmp(), '.claude', 'skills', 'website-permissions');
-  fs.mkdirSync(siteCopy, { recursive: true });
-
-  assert.deepEqual(runCopy({ filled: siteCopy, home }), { status: 0, settings: 'settings from the home install', hook: 'hook from the home install' });
-
-  // And where SKILLS_ROOT says where the suite is, that one, in a strict shell too.
-  const elsewhere = path.join(tmp(), 'skills');
-  suiteAt(elsewhere, 'SKILLS_ROOT');
-  for (const strict of [false, true]) {
-    assert.deepEqual(runCopy({ filled: null, home, env: { SKILLS_ROOT: elsewhere }, strict }), { status: 0, settings: 'settings from SKILLS_ROOT', hook: 'hook from SKILLS_ROOT' });
-  }
-});
-
-test('from a site\'s copy on a computer that has the suite only as a plugin, it takes the plugin\'s', () => {
-  const home = tmp();
-  const config = path.join(home, '.claude');
-  suiteAt(path.join(config, 'plugins', 'cache', 'croftweaver', 'croftweaver', '0.32.0', 'skills'), 'the plugin cache');
+test('website-permissions copies the allowlist and the hook from its own folder, wherever that is', () => {
+  const own = (file) => read('skills', 'website-permissions', 'templates', 'claude', file);
+  // A site carries a copy of this skill and no new-website beside it: "Sam's Bakery" stands
+  // for a folder name with a space and an apostrophe.
   const siteCopy = path.join(tmp(), "Sam's Bakery", '.claude', 'skills', 'website-permissions');
-  fs.mkdirSync(siteCopy, { recursive: true });
+  fs.cpSync(path.join(REPO, 'skills', 'website-permissions'), siteCopy, { recursive: true });
 
   for (const strict of [false, true]) {
-    assert.deepEqual(runCopy({ filled: siteCopy, home, strict }), { status: 0, settings: 'settings from the plugin cache', hook: 'hook from the plugin cache' });
+    const site = tmp();
+    const run = bash(copySettings(), { filled: siteCopy, home: tmp(), cwd: site, strict });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(fs.readFileSync(path.join(site, '.claude', 'settings.json'), 'utf8'), own('settings.json'));
+    assert.equal(fs.readFileSync(path.join(site, '.claude', 'hooks', 'git-stand.mjs'), 'utf8'), own('hooks/git-stand.mjs'));
   }
-  // The same where Claude Code's configuration folder is not the default one.
-  const moved = path.join(tmp(), 'claude-config');
-  suiteAt(path.join(moved, 'plugins', 'cache', 'croftweaver', 'croftweaver', '0.33.0', 'skills'), 'the moved config');
-  assert.equal(runCopy({ filled: siteCopy, home: tmp(), env: { CLAUDE_CONFIG_DIR: moved } }).settings, 'settings from the moved config');
 });
 
-test('with no suite to copy from it fails, and writes neither file', () => {
-  const copied = runCopy({ filled: null, home: tmp(), strict: true });
+test('the two files website-permissions carries are new-website\'s, byte for byte', () => {
+  // They exist twice so that the skill needs nothing outside its own folder. The scaffold
+  // installs new-website's; a site repaired from this skill must get the same.
+  for (const file of [['settings.json'], ['hooks', 'git-stand.mjs']]) {
+    const mine = fs.readFileSync(path.join(REPO, 'skills', 'website-permissions', 'templates', 'claude', ...file));
+    const theirs = fs.readFileSync(path.join(REPO, 'skills', 'new-website', 'templates', 'claude', ...file));
+    assert.ok(mine.equals(theirs), `${file.join('/')} differs between website-permissions and new-website`);
+  }
+});
 
-  assert.notEqual(copied.status, 0);
-  assert.deepEqual([copied.settings, copied.hook], [null, null]);
+test('the release steps in the README take the tag\'s name from the plugin\'s number', () => {
+  const line = read('README.md').split('\n').filter((l) => l.startsWith('v="v$(node -p '));
+  assert.equal(line.length, 1);
+  const plugin = JSON.parse(read('.claude-plugin', 'plugin.json'));
+  const out = execFileSync('bash', ['-c', `${line[0]}\nprintf '%s' "$v"`], { cwd: REPO, encoding: 'utf8' });
+  assert.equal(out, `v${plugin.version.replace(/\.0$/, '')}`);
+  assert.match(out, /^v\d+\.\d+$/);
 });
 
 // The release-tag workflow's two shell steps, taken from the workflow file itself: the lines
@@ -312,12 +292,20 @@ test('the workflow takes only a release\'s tag for a release', () => {
     assert.deepEqual([found.status, found.output], [0, 'tag=\n'], name);
     assert.match(found.log, /::notice::/);
   }
-  // `stable` moved by hand: the commit has to be a release's.
+  // `stable` moved by hand: the commit has to be a release's. A trial tag beside the
+  // release's does not count, here either.
+  git('tag', 'v0.32-rc1');
   assert.equal(find({ PUSHED: 'branch', NAME: 'stable' }).output, 'tag=v0.32\n');
-  commit('not a release');
+  commit('only a trial');
+  git('tag', 'v0.33-rc1');
   const untagged = find({ PUSHED: 'branch', NAME: 'stable' });
   assert.equal(untagged.status, 1);
   assert.match(untagged.log, /::error::stable was moved to a commit that carries no release tag/);
+  git('tag', 'v0.33');
+  git('tag', 'v0.34');
+  const two = find({ PUSHED: 'branch', NAME: 'stable' });
+  assert.equal(two.status, 1);
+  assert.match(two.log, /::error::the commit stable points at carries more than one release tag/);
 });
 
 test('the workflow moves stable to a release that is on main, forward only', () => {

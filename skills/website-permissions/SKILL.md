@@ -24,29 +24,17 @@ keeps it that way as the project grows.
 ## 1. Install the bundled allowlist (the 90% fix)
 
 The `new-website` kit ships a curated `.claude/settings.json`. Copy it into the repo
-(this is also scaffold step 3.2 — do it here if it was skipped). The two files are in the
-`new-website` skill's `templates/claude/` folder, and that skill sits beside this one
-wherever the whole suite is installed. The copy of this skill inside a site has no such
-neighbour, so the lines below look there first and then where a suite is installed: the
-folder `SKILLS_ROOT` names, the home folder, and Claude Code's plugin folder. In the second
-line Claude Code puts this skill's own folder where the name in braces stands; left as
-written it names no folder, and the loop goes on to the next place.
+(this is also scaffold step 3.2 — do it here if it was skipped). This skill carries its own
+copy of the two files, in its `templates/claude/` folder, so the step works from the copy
+of the skill inside a site too. In the commands below, the name in braces stands for the
+folder this SKILL.md is in: Claude Code fills it in; with another assistant, put that
+folder's path in its place.
 
 ```bash
-: "${CLAUDE_SKILL_DIR:=}"
-src="${CLAUDE_SKILL_DIR}/../new-website/templates/claude"
-for root in "${SKILLS_ROOT:-}" "$HOME/.claude/skills" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/croftweaver/croftweaver/*/skills; do
-  [ -d "$src" ] && break
-  [ -n "$root" ] && src="$root/new-website/templates/claude"
-done
 mkdir -p .claude/hooks
-cp "$src/settings.json" .claude/settings.json
-cp "$src/hooks/git-stand.mjs" .claude/hooks/
+cp "${CLAUDE_SKILL_DIR}/templates/claude/settings.json" .claude/settings.json
+cp "${CLAUDE_SKILL_DIR}/templates/claude/hooks/git-stand.mjs" .claude/hooks/
 ```
-
-If both `cp` lines fail, the suite is in none of those places on this computer (for
-another assistant it is elsewhere): set `SKILLS_ROOT` to its `skills` folder and run the
-lines again.
 
 The settings also register a sync hook (`.claude/hooks/git-stand.mjs`, `AGENTS.md` §1):
 copy the script with them, or every session start reports a missing file. A repo whose
