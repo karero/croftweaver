@@ -12,8 +12,9 @@
 # that scripts/ is scanned for names without the list matching itself, that packages/ is
 # scanned where there is one and not missed where there is none, and that this repo's
 # own short name in an issue or PR reference is not a leak, under the name it has now and
-# under the one it had before the rename. The names are made up; the real list never
-# appears in this repo.
+# under the one it had before the rename, and that README.md may name the maintainer, as
+# LICENSE's copyright line spells the name, while every other use of that name still fails.
+# The names are made up; the real list never appears in this repo.
 #
 # Usage: bash scripts/test_clean_denylist.sh
 set -u
@@ -109,10 +110,35 @@ printf 'ran zorblequux\n' >"$R/packages/create-croftweaver/LICENSE:12"
 expect "a listed name in a file named like that copy plus a colon: fails" 1 "create-croftweaver/LICENSE:12:1:" "$R"
 rm -r "$R/packages"; : >"$R/LICENSE"
 
-# In the main checkout, where the list is read either way, so only the self-reference
-# allowance decides these cases.
 # The org name is split so this file, which the real check scans, holds no bare copy of it.
 org="kar""ero"
+# README.md may say who maintains the suite: the copyright holder, as LICENSE's copyright
+# line spells the name. (2026-10-13: the README named no maintainer, and an AI assistant
+# that read it said so.) Only that spelling passes, only in README.md, and a listed name
+# beside it still fails.
+printf 'MIT License\n\nCopyright (c) 2026 Zorblequux Flumm\n' >"$R/LICENSE"
+printf '# Kit\n\nMaintained by Zorblequux Flumm (Munich). Zorblequux Flumm, again.\n' >"$R/README.md"
+expect "the copyright holder named in README.md: passes" 0 "OK — no private names in:" "$R"
+printf 'Maintained by Zorblequux Flumm, and ask zorblequux.\n' >"$R/README.md"
+expect "README.md, the listed part of the name beside the whole name: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by zorblequux flumm.\n' >"$R/README.md"
+expect "README.md, the holder's name in another spelling: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by Zorblequux Flummery.\n' >"$R/README.md"
+expect "README.md, the holder's name inside a longer name: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by Zorblequux Flumm of %s.\n' "$org" >"$R/README.md"
+expect "README.md, another listed name beside the holder's: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by Zorblequux Flumm.\n' | tee "$R/README.md" >"$R/docs/notes.md"
+expect "the holder's name in a file other than README.md: fails" 1 "docs/notes.md:1:" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "README.md:1:"; then
+  printf 'FAIL README.md was reported beside the file that may not hold the name\n'; fails=$((fails+1))
+fi
+printf 'plain notes\n' >"$R/docs/notes.md"
+printf 'MIT License\n' >"$R/LICENSE"
+expect "README.md names someone, LICENSE has no copyright line: fails" 1 "README.md:1:" "$R"
+: >"$R/LICENSE"; : >"$R/README.md"
+
+# In the main checkout, where the list is read either way, so only the self-reference
+# allowance decides these cases.
 # Each name the repo has had: what it is called now, and what docs/reviews/ still links to.
 for repo in croftweaver website-builder; do
   printf 'fixed in %s/%s#131\nsee https://github.com/%s/%s.\ngit clone https://github.com/%s/%s.git\n%s/%s %s/%s,%s/%s\n' \
@@ -198,6 +224,11 @@ mkdir -p "$T/badsed"
 printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *SELF-REPO*) exit 4 ;; esac; done\nexec "%s" "$@"\n' "$(command -v sed)" >"$T/badsed/sed"
 chmod +x "$T/badsed/sed"; printf 'ran zorblequux\n' >"$R/docs/notes.md"
 expect "the name filter's sed failing: a scan error, not lost hits" 1 "the name filter failed" "$R" "PATH=$T/badsed:$PATH"
+# The same for the awk that blanks the maintainer's name in README.md's hits.
+mkdir -p "$T/badawk"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *MAINTAINER*) exit 4 ;; esac; done\nexec "%s" "$@"\n' "$(command -v awk)" >"$T/badawk/awk"
+chmod +x "$T/badawk/awk"
+expect "the name filter's awk failing: a scan error, not lost hits" 1 "the name filter failed" "$R" "PATH=$T/badawk:$PATH"
 printf 'plain notes\n' >"$R/docs/notes.md"
 # A filter grep that fails dropped every hit it was meant to filter. This grep fails when one
 # of its arguments holds FAILPAT; each filter in turn. (Which scan error is printed depends
@@ -252,6 +283,13 @@ printf 'plain notes\n' >"$R/docs/notes.md"
 mkdir -p "$R/packages/x"; printf 'ran zorblequux\n' >"$R/packages/x/file"
 masked "masked: a listed name in packages/ fails, and only a count is printed" 1 "    (1 line(s) withheld"
 rm -r "$R/packages"
+# CI runs masked: the maintainer named in README.md passes there too, and is not printed.
+printf 'Copyright (c) 2026 Zorblequux Flumm\n' >"$R/LICENSE"
+printf 'Maintained by Zorblequux Flumm (Munich).\n' >"$R/README.md"
+masked "masked: the copyright holder named in README.md: passes" 0 "OK — no private names in:"
+printf 'Maintained by Zorblequux Flumm, and ask zorblequux.\n' >"$R/README.md"
+masked "masked: a listed name beside the holder's in README.md: fails, only a count" 1 "    (1 line(s) withheld"
+: >"$R/LICENSE"; : >"$R/README.md"
 # A name in a file name, inside a word, in an email or a home path: other reports print
 # their lines too, and each of these leaked when only the name report was masked.
 printf 'met zorblequux and the zorblequux_team\nwrite to bob@zorblequux.de\nsee /Users/zorblequux/x\n' >"$R/docs/zorblequux_notes.md"

@@ -85,6 +85,8 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # self-match). The name denylist covers the same docs EXCEPT LICENSE, which legitimately
 # carries the owner's real name + clone URLs (2026-07-17: widened from skills/-only after
 # docs/reviews/*.md review artifacts slipped a client name past a skills/-only scan).
+# README.md is scanned, with one allowance: it may name the maintainer, who is the copyright
+# holder LICENSE names (section 1 says how narrow that is).
 # It DOES cover scripts/: the names live in the gitignored list, not in any script, so
 # nothing there can match itself; the list's own lines are dropped below. (2026-10-06: a
 # client site's name sat in a comment in a script that ships in the handoff zip.)
@@ -251,6 +253,31 @@ if [ -f "$DENYLIST_FILE" ]; then
   # exact path and under the same condition, and only while the copy is the root file byte
   # for byte: one that has drifted is scanned like any other file. Another package with a
   # copy of its own needs its path here.
+  # README.md at the repo's root may say who maintains the suite: the copyright holder, as
+  # LICENSE's own copyright line spells the name. (2026-10-13: an AI assistant with web
+  # search read the README and answered that it names no maintainer.) That name is blanked
+  # in README.md's hits, then each line is looked at again: the name alone passes, and
+  # another listed name beside it still fails, as do a part of the name, another spelling
+  # of it, the name inside a longer word, and the name in any other file. The name is read
+  # from LICENSE at run time, so this script, which the check scans, never holds it, and it
+  # is compared as plain text (awk's index), so nothing in it is read as a pattern. A
+  # LICENSE without such a line (one year, then the name) allows nothing.
+  holder="$(sed -n '/^Copyright (c) [0-9][0-9]* /{s///;s/[[:space:]]*$//;p;q;}' LICENSE)"
+  blank_maintainer() { # stdin: hits → stdout, the holder's name blanked in README.md's lines
+    HOLDER="$holder" awk '
+      BEGIN { h = ENVIRON["HOLDER"]; n = length(h); w = "[A-Za-z0-9_]" }
+      n && /^README\.md:[0-9]+:/ {
+        s = $0; out = ""; p = ""
+        while ((i = index(s, h)) > 0) {
+          b = (i > 1) ? substr(s, i - 1, 1) : p
+          a = substr(s, i + n, 1)
+          out = out substr(s, 1, i - 1) ((b ~ w || a ~ w) ? h : "MAINTAINER")
+          p = substr(h, n, 1); s = substr(s, i + n)
+        }
+        $0 = out s
+      }
+      { print }'
+  }
   if [ -n "$NAMES" ]; then
     # An entry anchored with ^ finds its lines but is never reported: the post-filter below
     # looks for it after "file:line:", where ^ cannot match. Refuse such entries (a count
@@ -268,9 +295,11 @@ if [ -f "$DENYLIST_FILE" ]; then
     hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
-      # gf() never fails, so under pipefail a failure here is sed's, and its hits are lost.
+      # gf() never fails, so under pipefail a failure here is sed's or awk's, and its hits
+      # are lost.
       *) hits="$(printf '%s\n' "$hits" \
            | gf -vE "$self" \
+           | blank_maintainer \
            | sed -E -e ':a' \
                -e 's#(^|[^A-Za-z0-9_.-])karero/croftweaver(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
                -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
