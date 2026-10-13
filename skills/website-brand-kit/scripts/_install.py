@@ -52,7 +52,11 @@ MARK = "<!-- Installed by the website-brand-kit skill (brand_intake.py install) 
 # Primary of the day. The line above means a mark with colours of its own (and so does every file installed before
 # this second form was there).
 MARK_CURRENT = MARK[:-5] + " The logo was given in currentColor and is drawn here in %s. -->\n"
-_MARK_LINE = re.compile(re.escape(MARK[:-5].encode("utf-8")) + rb"(?: The logo was given in currentColor and is drawn here in (#[0-9a-f]{6})\.)? -->\n")
+# That line with one sentence more, for a mark that as it was given also holds that very colour as a colour of its own (a
+# part in `currentColor` beside a part written in the Primary of the day). In this file the two parts have one colour,
+# and only the line tells a later run that one of them keeps it whatever colour the package is drawn in.
+MARK_CURRENT_OWN = MARK_CURRENT[:-5] + " A part of it has that colour as its own. -->\n"
+_MARK_LINE = re.compile(re.escape(MARK[:-5].encode("utf-8")) + rb"(?: The logo was given in currentColor and is drawn here in (#[0-9a-f]{6})\.( A part of it has that colour as its own\.)?)? -->\n")
 BOM = "﻿"
 STYLESHEET = "src/styles/global.css"
 OTHER_FILES = (_site.CONFIG, _site.MANIFEST, _site.GENERATOR)  # the colours' other three homes
@@ -384,8 +388,10 @@ def _reads_config(site):
     (None, why it could not be asked). Node 22.18 and newer read a TypeScript file as it stands. One before
     that says it does not know the extension, and is asked once more with --experimental-strip-types (the
     starter allows Node from 22.12, which reads TypeScript only with that). Where that second asking fails
-    too, its reason is the one given; a Node that does not know the flag (before 22.6: it ends with status 9
-    and names the flag) is said to read no TypeScript."""
+    too, its reason is the one given; a Node that does not know the flag (before 22.6: it ends with status 9,
+    and one line of its error output is its own sentence for that, which ends `: bad option: ` and the
+    flag) is said to read no TypeScript. Status 9 without that line is said like any other ending without
+    an answer: the file may have ended the program with it."""
     node = shutil.which("node")
     if not node:
         return None, "Node is not installed here, or is not on the path"
@@ -398,7 +404,8 @@ def _reads_config(site):
         said = _answer(printed, mark)
         if said is None and code is None:
             return None, "Node took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
-        if said is None and more and code == 9 and more[0] in errors:   # Node's own word on an option it does not know names the option
+        # Node's own sentence on an option it does not know, a line of its own: `<the program as it was started>: bad option: <the option>`
+        if said is None and more and code == 9 and any(line.rstrip("\r").endswith(": bad option: " + more[0]) for line in errors.split("\n")):
             break
         if said is None:
             return None, _unanswered("Node", code, errors, site)
@@ -669,9 +676,10 @@ def _css_problems(css):
 
 def _own_master(master, primary):
     """Whose the installed favicon is: ("ours", the cleaned mark, the colour its line says it is drawn in
-    where it was given in `currentColor`, else None) when it is this tool's own file, as this tool wrote
-    it; ("changed", None, None) when it starts with this tool's line and is not as this tool wrote it;
-    ("other", None, None) when it does not start with that line. Either sign alone shows nothing: a favicon
+    where it was given in `currentColor`, else None, whether its line says that a part of it has that
+    colour as its own) when it is this tool's own file, as this tool wrote it; ("changed", None, None,
+    False) when it starts with this tool's line and is not as this tool wrote it; ("other", None, None,
+    False) when it does not start with that line. Either sign alone shows nothing: a favicon
     somebody wrote by hand may be clean, and one that was edited afterwards still has the line. Line ends
     and a byte order mark in front are not held against it: a checkout that turns the line ends into CRLF,
     or an editor that saves the file with the mark, leaves the file this tool's own."""
@@ -679,21 +687,27 @@ def _own_master(master, primary):
     text = text.replace(b"\r\n", b"\n")
     line = _MARK_LINE.match(text)
     if not line:
-        return "other", None, None
+        return "other", None, None, False
     body = text[line.end():]
     try:
         again = _svg.clean_svg(body, current=primary)
     except Refusal:
-        return "changed", None, None
-    return ("ours", again, line.group(1).decode("ascii") if line.group(1) else None) if again.text.encode("utf-8") == body else ("changed", None, None)
+        return "changed", None, None, False
+    if again.text.encode("utf-8") != body:
+        return "changed", None, None, False
+    return "ours", again, line.group(1).decode("ascii") if line.group(1) else None, bool(line.group(2))
 
 
 def _given_in_current(source, clean, primary):
-    """Whether a mark was given in `currentColor`: cleaned with another colour for it, it is another drawing."""
+    """Whether a mark was given in `currentColor` (cleaned with another colour for it, it is another
+    drawing), and whether as it was given it also holds `primary` as a colour of its own (that colour
+    is then still among its colours)."""
     try:
-        return _svg.clean_svg(source, current="#000000" if primary != "#000000" else "#ffffff").text != clean.text
+        other = _svg.clean_svg(source, current="#000000" if primary != "#000000" else "#ffffff")
     except Refusal:
-        return True
+        # (refused with the other colour only: inside a group painted with `currentColor`, a part sets `color` to this very colour, written out)
+        return True, True
+    return other.text != clean.text, primary in other.colours
 
 
 def _sits_on(colours, palette):
@@ -800,7 +814,7 @@ def _install(a, site, out, data):
              "src/styles/global.css:"] + _css_problems(css) +
             ["Mend that in the stylesheet (the three colour blocks as the starter writes them, each colour once), then run this again."]))
     # whose the installed favicon is: asked only now, when the colours it is held against are known to be all there
-    whose, kept, drawn = _own_master(master_bytes, primary) if master_bytes is not None else (None, None, None)
+    whose, kept, drawn, own_too = _own_master(master_bytes, primary) if master_bytes is not None else (None, None, None, False)
 
     # --- the colours, set in memory in all four files that hold one ---------------------------
     # What the palette changes, as she reads it: said in every report from here on, and asked about
@@ -917,8 +931,9 @@ def _install(a, site, out, data):
             # The logo's files stay as they are, in the colours they were drawn in. Where the palette drops one of those
             # colours, that is said: nothing is recoloured. (The colour a mark given in `currentColor` is drawn in has the
             # note above, with another way out: said here are the mark's own colours, and a mark with both gets both notes.
-            # A colour of its own that is the very colour the other part is drawn in is not told apart from it.)
-            lost = [c for c in _palette.check_mark(kept.colours, pal).outside if c not in _palette.check_mark(kept.colours, now).outside and c != drawn]
+            # Where a colour of its own is the very colour the other part is drawn in, the favicon's line says so, and that
+            # colour is said here too: the package draws only the other part in another colour.)
+            lost = [c for c in _palette.check_mark(kept.colours, pal).outside if c not in _palette.check_mark(kept.colours, now).outside and (c != drawn or own_too)]
             if lost:
                 notes.append(KEPT_COLOURS % ("the colour" if len(lost) == 1 else "the colours", ", ".join(lost)))
     want_logo = bool(a.input) or redraw
@@ -950,10 +965,14 @@ def _install(a, site, out, data):
             icons = _icons.build(clean, mono_clean, pal, renderer, workdir)
             notes.extend(icons.notes)
             files = dict(icons.files)
-            given = drawn if clean is kept else primary if _given_in_current(source, clean, primary) else None
+            if clean is kept:   # drawn again from this tool's own favicon: its line is written back as it was read
+                given, its_own = drawn, own_too
+            else:
+                in_current, its_own = _given_in_current(source, clean, primary)
+                given = primary if in_current else None
             if given and clean is not kept and not want_colours and parsed is not None and not parsed.brand and (parsed.light or parsed.dark):
                 notes.append(DRAWN_IN_ACCENT % (given, os.path.basename(brand_path)))
-            files[MASTER] = (MARK_CURRENT % _colour.parse_colour(given) if given else MARK).encode("utf-8") + files[MASTER]   # (as #rrggbb: the line is read again by the next run)
+            files[MASTER] = ((MARK_CURRENT_OWN if its_own else MARK_CURRENT) % _colour.parse_colour(given) if given else MARK).encode("utf-8") + files[MASTER]   # (as #rrggbb: the line is read again by the next run)
             # Two questions, two sets of colours. Every colour an installed file paints with is held against
             # the palette. Only the colour version ever stands on the page (the favicon, the logo); the
             # one-colour version sits on the app icons' own background, so its colours are not asked about there.

@@ -70,6 +70,9 @@ def of(palette, code):
 
 
 NOT_READ, MARK = "palette-colour-not-read", "palette-mark-not-read"
+LINE_END = "palette-line-end"
+# What str.splitlines() ends a line at beside a line feed and a carriage return: a vertical tab, a form feed, U+001C to U+001E, U+0085, U+2028, U+2029
+LINE_ENDS = ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
 
 
 def brand_md(light=STARTER_LIGHT, dark=STARTER_DARK, primary="#000000", extra=""):
@@ -555,12 +558,14 @@ class Rule1Lines(unittest.TestCase):
                 self.assertIn('Line 4, "<U+%04X>| Muted | #5a5a72 |", holds a colour (#5a5a72) that was not read' % ord(c), p.problems[0][3])
                 p = _palette.parse_tables(one("#5a5a72%sproposed" % c))
                 self.assertEqual((p.light, [k for _t, _k, k in codes(p)]), ({}, ["palette-not-one-colour"]), "and between a value and its mark it is no blank: never a colour taken as confirmed")
-        # the characters that end a line to this reader (rule 9's limit) are no blanks either: the heading ends at them
-        for c in ("\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029", "\x0b", "\x0c"):
+        # the characters that end a line to this reader are no blanks either. (Round 9: a text that holds one is not read at all, rule 9:
+        # until then the heading ended at the character, and the table under it was named as standing under no heading.)
+        for c in LINE_ENDS:
             with self.subTest(c="U+%04X" % ord(c)):
                 self.assertIsNone(_palette._BLANKS.search(c))
                 p = _palette.parse_tables("###%sLight theme\n" % c + plain(STARTER_LIGHT))
-                self.assertEqual((p.light, [k for _t, _k, k in codes(p)]), ({}, ["palette-no-section"]))
+                self.assertEqual((p.light, codes(p)), ({}, [("?", None, LINE_END)]))
+                self.assertIn('Line 1, "###<U+%04X>Light theme", holds a character that this check takes for the end of a line' % ord(c), p.problems[0][3])
         # R7-201 stays mended: the word with U+001F inside it is the word (rule 9), in a sentence and in a note cell, and so is a theme's
         p = _palette.parse_tables("### Light theme\n" + plain(STARTER_LIGHT) + "\nAll of these are pro\x1fposed.\n")
         self.assertEqual([k for _t, _k, k in codes(p)], [MARK])
@@ -736,9 +741,8 @@ class Rule2Sections(unittest.TestCase):
                       # and the limits rule 2 states: a word outside the list, another language, a character reference, a wide letter, emphasis or a tag inside the word
                       "Dark theme (see (note))", "Dark theme (a (b (c)) d) colours", "Dark theme v2", "Dunkel", "Dunkles Thema (dark)", "Dark&nbsp;mode", "&#68;ark theme",
                       "Dark theme &mdash; values", "D&#173;ark theme", "\uff24ark theme", "\uff44\uff41\uff52\uff4b", "The da**rk** theme", "<b>Da</b>rk mode", "Da_rk_ mode",
-                      "Da\x0brk mode", "Da\u2028rk theme",
-                      # round 7: each of these ends a line to this reader (rule 9's list), so the word is on two lines and is passed over
-                      "Da\x1crk theme", "Da\x1drk", "Da\x1erk mode", "Da\x85rk theme", "D\u2028ark mode",
+                      # (round 9: a character inside the word that ends a line to this reader is no limit any more. The text that holds one is
+                      # not read: Rule9ALineEndThatIsNoPlainNewLine below has the seven lines that stood here.)
                       # R7-202: emphasis inside the word is seen through for the three exact names only (the test after this one)
                       "da**rk** mode", "The da**rk** mode", "Da*r*k",
                       # R7-206: a character nobody sees that the one pass does not take out (a filler Unicode files as a letter, a private-use
@@ -1804,11 +1808,11 @@ class Rule9Proposals(unittest.TestCase):
                 p = _palette.parse_tables(brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | %s |" % word) + "\nA %s line.\n" % word)
                 self.assertEqual((p.proposed, p.problems), (set(), []))
         # rule 9's stated limits, none of which is seen through: emphasis or a tag INSIDE the word, a look-alike letter of another script, and
-        # (round 6, where resolving them was a traceback and a stall) a character reference, a wide or mathematical letter, and a character
-        # that this reader takes for the end of a line
+        # (round 6, where resolving them was a traceback and a stall) a character reference and a wide or mathematical letter. (Round 9: a
+        # character that this reader takes for the end of a line is no limit any more: the eight words that stood here, `pro\x0bposed` to
+        # `pro\u2029posed`, are in Rule9ALineEndThatIsNoPlainNewLine below, where the text that holds one is not read.)
         for word in ("**pro**posed", "pro_posed", "\u0440roposed", "prop\u03bfsed", "pro<b>posed</b>", "<i>p</i>roposed", "&#112;roposed", "propose&#x64;", "&#80;ROPOSED", "prop&shy;osed",
-                     "prop&#173;osed", "prop&#x200B;osed", "prop&zwnj;osed", "\uff50\uff52\uff4f\uff50\uff4f\uff53\uff45\uff44", "\U0001d429roposed", "pro\x0bposed", "pro\x0cposed",
-                     "pro\x1cposed", "pro\x1dposed", "pro\x1eposed", "pro\x85posed", "pro\u2028posed", "pro\u2029posed", "&#" + "9" * 5000 + ";roposed",
+                     "prop&#173;osed", "prop&#x200B;osed", "prop&zwnj;osed", "\uff50\uff52\uff4f\uff50\uff4f\uff53\uff45\uff44", "\U0001d429roposed", "&#" + "9" * 5000 + ";roposed",
                      # R7-206: a character nobody sees that Unicode files under another category than the four: a filler filed as a letter,
                      # a private-use character, one that is not assigned
                      "pro\u115fposed", "pro\u1160posed", "pro\u3164posed", "pro\uffa0posed", "pro\ue000posed", "pro\u2065posed"):
@@ -1840,6 +1844,191 @@ class Rule9Proposals(unittest.TestCase):
         # (emphasis marks are taken out of a heading wherever they stand, rule 2, so there the word with emphasis inside it is the mark: it errs towards asking)
         p = _palette.parse_tables(brand_md().replace("### Dark theme", "### Dark theme (**pro**posed)"))
         self.assertEqual((p.proposed, p.problems), ({("dark", k) for k in STARTER_DARK}, []))
+
+
+class Rule9ALineEndThatIsNoPlainNewLine(unittest.TestCase):
+    """9, its refusal (round 9). This reader cuts a text into lines with `str.splitlines()`, which ends a line at eight
+    characters beside the line feed and the carriage return; a Markdown reader ends a line at none of the eight. One of
+    them inside the word made two lines of it: the word was not seen, and the check ended with 0 on a proposal. A text
+    that holds one, anywhere, is not read: ONE problem gives the number of the first line that holds one, as an editor
+    counts it, and the character's code point. A text that holds none is read as before."""
+
+    def refused(self, text, number, c, more=0):
+        """Nothing of the text is read, and the one problem names this line (counted as an editor counts) and this character."""
+        p = _palette.parse_tables(text)
+        self.assertEqual((p.light, p.dark, p.brand, p.proposed, p.ignored, p.fixed_accent, p.rows_found), ({}, {}, None, set(), [], set(), 0))
+        self.assertEqual(codes(p), [("?", None, LINE_END)])
+        message = p.problems[0][3]
+        self.assertTrue(message.startswith("Line %d, \"" % number), message)
+        self.assertIn("<U+%04X>" % ord(c), message.partition(", holds a character that this check takes for the end of a line and a Markdown reader does not (")[0])
+        self.assertIn("does not (U+%04X, written as <U+%04X> in the quote). " % (ord(c), ord(c)), message)
+        self.assertEqual(message.count(" more character"), 1 if more else 0)
+        if more:
+            self.assertIn(" The text holds %d more character%s of that kind. " % (more, "" if more == 1 else "s"), message)
+        self.assertTrue(message.endswith(" Delete each such character, or put a plain new line in its place, then check again."), message)
+        return message
+
+    @staticmethod
+    def line(text, part):
+        """The number of the line of a text with plain new lines on which `part` begins."""
+        return text[:text.index(part)].count("\n") + 1
+
+    def test_the_eight_are_every_character_at_which_this_reader_ends_a_line_and_a_markdown_reader_does_not(self):
+        # the refusal closes the gap only if it knows every such character: asked of the Python that runs this, for every code point
+        ends = [chr(n) for n in range(sys.maxunicode + 1) if len(("a%sb" % chr(n)).splitlines()) == 2]
+        self.assertEqual(sorted(ends), sorted(("\n", "\r") + LINE_ENDS))
+        self.assertEqual(sorted(_palette._BREAKS), sorted(ends))
+        self.assertEqual([c for c in ends if _palette._OTHER_BREAK.search(c)], sorted(LINE_ENDS))
+        self.assertEqual(_palette._OTHER_BREAK.pattern, "[%s]" % "".join(LINE_ENDS), "and the pattern holds nothing else")
+        # so a text that is read has the lines an editor shows: cut at \r\n, \n and \r, and nowhere else
+        text = brand_md().replace("### Light", "### Light\r").replace("| Muted |", "| Muted |\r\n") + "\x1f \u00a0\u200b"
+        self.assertIsNone(_palette._other_line_end(text))
+        self.assertEqual(text.splitlines(), _palette._PLAIN_BREAK.split(text))
+
+    def test_each_of_the_eight_in_each_place_is_the_one_problem_with_the_number_of_its_line(self):
+        good = brand_md()
+        guide = good + "\n## Type\n\nInter, 700.\n"
+        row = "| Muted | `#a6abce` |"
+        # (what the place is called; the text, with %s where the character goes; what the line it goes on holds, or the line so many
+        # lines above it; whether the text without the character is the whole palette, read without a problem)
+        places = (
+            # the finding: the word on two lines was no word, in a sentence and in a note cell, and the check ended with 0 on a proposal
+            ("inside the word, in a sentence", good + "\nAll dark values are pro%sposed.\n", "All dark", 0, False),
+            ("inside the word, in a note cell", good.replace(row, row + " pro%sposed |"), row, 0, False),
+            ("inside the mark after a value", good.replace(row, "| Muted | `#a6abce` (pro%sposed) |"), "| Muted | `#a6abce` (", 0, False),
+            ("inside the mark of a heading", good.replace("### Dark theme", "### Dark theme (pro%sposed)"), "### Dark theme", 0, False),
+            # a value cut in two was read as another colour: `#a6a` is a colour too
+            ("inside a value", good.replace(row, "| Muted | #a6a%sbce |"), "| Muted | #a6a", 0, True),
+            ("inside a row's name", good.replace(row, "| Mu%sted | `#a6abce` |"), "| Mu%sted", 0, True),
+            ("between two rows, where the new line would be", good.replace(row + "\n", row + "%s"), row, 0, False),
+            ("between two rows, on a line of its own", good.replace(row + "\n", row + "\n%s\n"), row, 1, True),
+            ("at the end of a row's line", good.replace(row, row + "%s"), row, 0, True),
+            ("at the end of a heading's line", good.replace("### Dark theme", "### Dark theme%s"), "### Dark theme", 0, True),
+            ("between the # and the words of a heading", good.replace("### Dark theme", "###%sDark theme"), "###%sDark theme", 0, False),
+            ("in a line of mood text", good.replace("### Dark theme\n", "### Dark theme\n\nWarm paper,%sdark ink.\n\n"), "Warm paper", 0, True),
+            ("inside the name of the other theme, between a heading and its table", good.replace("### Light theme\n", "### Light theme\nDa%srk mode\n"), "Da%srk mode", 0, False),
+            ("the first character of the text", "%s" + good, "# Example", 0, True),
+            ("the last character of the text", good + "%s", "| Surface (cards) | `#161836` |", 1, True),
+            # everywhere, which is wider than the rest of rule 9: where the lines are not the text's, where the part under `## Colour palette`
+            # ends cannot be trusted either, and a blanked comment keeps its line breaks
+            ("above the part under `## Colour palette`", good.replace("# Example Bakery", "# Example%sBakery"), "# Example", 0, True),
+            ("below that part", guide.replace("Inter, 700.", "Inter,%s700."), "Inter,", 0, True),
+            # (this one ended with 0 too: the reader took `## Notes` for a heading that ends the part, and the sentence after it for none of its business)
+            ("before what then reads as a heading that ends that part", good + "\nA note.%s## Notes\n\nAll dark values are still proposed.\n", "A note.", 0, False),
+            ("inside a comment", good + "\n<!-- a note%sover two lines -->\n", "<!-- a note", 0, True),
+            ("inside a comment that is never closed", good + "\n<!-- a note%s\n", "<!-- a note", 0, False),
+        )
+        for name, text, part, down, _whole in places:
+            self.assertEqual(text.count("%s"), 1, name)
+            for c in LINE_ENDS:
+                with self.subTest(name=name, c="U+%04X" % ord(c)):
+                    self.refused(text % c, self.line(text, part) + down, c)
+        # the same text without the character is the palette, read: the refusal is about the character and nothing else
+        for name, text, _part, _down, whole in places:
+            if whole:
+                with self.subTest(name=name, c="none"):
+                    p = _palette.parse_tables(text % "")
+                    self.assertEqual((p.light, p.dark, p.brand, p.rows_found, p.problems), (STARTER_LIGHT, STARTER_DARK, "#000000", 19, []))
+
+    def test_what_rules_2_and_9_stated_as_a_limit_until_round_9_is_refused(self):
+        # the seven lines that test_no_line_of_text_under_a_heading_files_its_table_elsewhere had as passed over, and the eight words that
+        # test_the_word_with_a_character_inside_it_that_nobody_sees_is_the_word had: each was read with no problem at all
+        for prose in ("Da\x0brk mode", "Da\u2028rk theme", "Da\x1crk theme", "Da\x1drk", "Da\x1erk mode", "Da\x85rk theme", "D\u2028ark mode"):
+            with self.subTest(prose=prose):
+                self.refused("### Light theme\n%s\n" % prose + plain(STARTER_LIGHT), 2, next(c for c in prose if c in LINE_ENDS))
+        last = brand_md().count("\n") + 2
+        for word in ("pro\x0bposed", "pro\x0cposed", "pro\x1cposed", "pro\x1dposed", "pro\x1eposed", "pro\x85posed", "pro\u2028posed", "pro\u2029posed"):
+            with self.subTest(word=word):
+                message = self.refused(brand_md() + "\nA %s line.\n" % word, last, word[3])
+                self.assertIn('Line %d, "A pro<U+%04X>posed line.", holds' % (last, ord(word[3])), message)
+        # what nobody sees and ends no line stays what it was: the word with U+001F inside it is the word, and is named as one
+        p = _palette.parse_tables(brand_md() + "\nA pro\x1fposed line.\n")
+        self.assertEqual((p.light, p.dark, [code for _t, _k, code in codes(p)]), (STARTER_LIGHT, STARTER_DARK, [MARK]))
+
+    def test_the_number_is_the_one_an_editor_shows_whatever_ends_the_lines(self):
+        good = brand_md()
+        row = "| Muted | `#a6abce` |"
+        number = self.line(good, row)
+        self.assertEqual(number, 28)
+        for name, end in (("plain new lines", "\n"), ("Windows line ends", "\r\n"), ("old Mac line ends", "\r")):
+            for c in LINE_ENDS:
+                with self.subTest(name=name, c="U+%04X" % ord(c)):
+                    self.refused(good.replace(row, row + " pro%sposed |" % c).replace("\n", end), number, c)
+                    self.refused("\ufeff" + good.replace(row, row + c).replace("\n", end), number, c)
+        # the three mixed, a carriage return straight before the character, and the character between a carriage return and a line feed
+        for name, text, want in (("mixed line ends", "one\r\ntwo\rthree\n\nfive %s\n", 5), ("after a carriage return", "one\r%stwo\n", 2), ("after a Windows line end", "one\r\n%stwo\n", 2),
+                                 ("between a carriage return and a line feed", "one\r%s\nthree\n", 2), ("on the only line", "one %s", 1), ("alone", "%s", 1)):
+            for c in LINE_ENDS:
+                with self.subTest(name=name, c="U+%04X" % ord(c)):
+                    self.refused(text % c, want, c)
+        # what this reader's own count of lines would have said, which is not the editor's: the fifth of those characters is on line 1
+        self.assertEqual(len(("\x0b\x0c\x1c\x1d" + "\x1e").splitlines()), 5)
+        self.refused("\x0b\x0c\x1c\x1d\x1e", 1, "\x0b", more=4)
+
+    def test_the_first_one_is_named_and_the_others_are_counted(self):
+        good = brand_md()
+        self.refused(good.replace("### Light theme", "### Light theme\u2028").replace("### Dark theme", "### Dark\x0b theme"), 10, "\u2028", more=1)
+        self.refused(good.replace("### Light theme", "### Light theme\x0b").replace("### Dark theme", "### Dark\u2028 theme\x85") + "\x0c", 10, "\x0b", more=3)
+        self.refused("| Muted | #5a5a72 |\x1e\x1e\n", 1, "\x1e", more=1)
+        # the whole sentence, once: the line, cut around the character where the line is long, with the character written out
+        self.assertEqual(self.refused("### Light theme\n" + HEAD + "| Muted | #5a5a72 | still pro\u2028posed |\n\nA line\x0bmore.\n", 4, "\u2028", more=1),
+                         'Line 4, "| Muted | #5a5a72 | still pro<U+2028>posed |", holds a character that this check takes for the end of a line and a Markdown reader does not '
+                         "(U+2028, written as <U+2028> in the quote). This check would begin a new line there where the text has none, which can cut a word or a value in "
+                         "two, so it read nothing of this text. The text holds 1 more character of that kind. Delete each such character, or put a plain new line in its "
+                         "place, then check again.")
+        message = self.refused("### Light theme\n" + "x" * 3000 + "\x85" + "y" * 3000 + "\n", 2, "\x85")
+        self.assertIn('Line 2, "...%s<U+0085>%s...", holds' % ("x" * 39, "y" * 40), message)
+        # with it, nothing else is said of the text, and nothing is raised: not the comment that is never closed, not two palettes pasted together
+        self.refused(good + "\n<!-- later\x0c\n### Dark theme\n| Muted | #777777 |\n", good.count("\n") + 2, "\x0c")
+        twice = pasted() + pasted().replace("#a6abce", "#777777")
+        with self.assertRaises(Refusal):
+            _palette.parse_tables(twice)
+        self.refused(twice + "\x1d", twice.count("\n") + 1, "\x1d")
+
+    def test_a_file_with_windows_or_old_mac_line_ends_and_none_of_the_eight_is_read_as_the_same_file_with_plain_new_lines(self):
+        def whole(text):
+            p = _palette.parse_tables(text)
+            return p.light, p.dark, p.brand, p.proposed, p.problems, p.ignored, p.fixed_accent, p.rows_found
+        texts = (("the palette", brand_md()), ("a brand guide filled in", filled_guide()), ("the pasted tables", pasted()),
+                 ("a colour and the word where they are not read", brand_md() + "\nOur ink is #16162a.\n\nStill proposed.\n"),
+                 ("a mark on a row and one on a heading", brand_md(dark=dict(STARTER_DARK, muted="#a6abce (proposed)")).replace("### Light theme", "### Light theme (proposed)")),
+                 ("a comment over three lines and one that is never closed", brand_md().replace("### Dark theme", "<!-- a\nnote\nhere -->\n### Dark theme") + "\n<!-- later\n| Fancy | #123456 |\n"),
+                 ("a table in a code block", pasted().replace("### Dark theme", "```\n### Dark theme") + "```\n"))
+        for name, text in texts:
+            want = whole(text)
+            self.assertNotIn(LINE_END, [code for _t, _k, code, _m in want[4]])
+            for end in ("\r\n", "\r"):
+                with self.subTest(name=name, end=repr(end)):
+                    self.assertEqual(whole(text.replace("\n", end)), want, "the values, and every problem with its line number and its quote")
+        self.assertEqual(whole(texts[0][1])[:3], (STARTER_LIGHT, STARTER_DARK, "#000000"))
+        self.assertEqual([code for _t, _k, code, _m in whole(texts[3][1])[4]], [MARK, NOT_READ])
+
+    def test_no_megabyte_with_such_characters_makes_the_refusal_slow(self):
+        for name, text, number in (("a megabyte of them", "\u2028" * 1000000, 1), ("one at the end of a line of a megabyte", "x" * 1000000 + "\x0b", 1),
+                                   ("one after 300,000 short lines", "| a | b |\n" * 300000 + "\x1c", 300001), ("one in each of 100,000 lines", "pro\x85posed\r\n" * 100000, 1)):
+            with self.subTest(name=name):
+                start = time.process_time()
+                p = _palette.parse_tables(text)
+                took = time.process_time() - start
+                self.assertLess(took, 1.0, "the refusal took %.2f s of processor time" % took)
+                self.assertEqual(codes(p), [("?", None, LINE_END)])
+                self.assertTrue(p.problems[0][3].startswith("Line %d, " % number), p.problems[0][3][:60])
+
+    def test_the_rule_says_so_and_states_it_as_no_limit_any_more(self):
+        rules = " ".join(_palette.parse_tables.__doc__.split())
+        for part in ("A WHOLE text that holds, anywhere (outside the part rule 0 names and inside a comment too), a character that this reader takes for the end of a line and a "
+                     "Markdown reader does not (a vertical tab U+000B, a form feed U+000C, U+001C, U+001D, U+001E, U+0085, U+2028, U+2029), which would cut a line in two and a "
+                     "word on it, is not read: ONE problem (`palette-line-end`) quotes the first line that holds one, with its number as an editor counts it (by line feeds and "
+                     "carriage returns alone), names the character by its code point, says how many more the text holds and what to do (delete each, or put a plain new line in "
+                     "its place), and no row and no value is returned.",
+                     "And a text that holds a line-end character other than a plain new line is not read at all, wherever in it that character stands: rule 9.",
+                     "nothing inside one is named (but for rule 9's line-end characters, which are line breaks inside a comment too)"):
+            self.assertIn(part, rules)
+        for limits in (rules[rules.index("THE LIMITS of the label test."):rules.index("Two things go the other way")],
+                       rules[rules.index("THE LIMITS. Each of these inside the word"):rules.index("The mark is read in three places")]):
+            self.assertNotIn("end of a line", limits)
+            self.assertNotIn("U+2028", limits)
+
 
 class Rule10NothingIsReadFromAnywhereElse(unittest.TestCase):
     """10. No table with a Light and a Dark column, no column of names, no tolerance between two

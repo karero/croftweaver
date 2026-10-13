@@ -122,6 +122,9 @@ _BREAKS = "\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029"  # what str.splitlines() ends a
 # space, U+1680, U+2000 to U+200A, U+202F, U+205F, U+3000. Nothing else: no U+001C to U+001F, no U+0085.
 _BLANKS = re.compile("[ \t\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]+")
 _NOT_A_BREAK = re.compile("[^%s]" % _BREAKS)
+# Rule 9's refusal: the eight of _BREAKS that are no line feed and no carriage return. A text that holds one is not read.
+_OTHER_BREAK = re.compile("[\v\f\x1c\x1d\x1e\x85\u2028\u2029]")
+_PLAIN_BREAK = re.compile("\r\n|[\n\r]")  # where a line ends in an editor and to a Markdown reader
 MOST_NAMED = 5  # how many lines one kind of "not read" problem quotes; the rest are counted
 
 # What one cell holds. kind: "colour" (exactly one colour: `value` is its hex, `named` says it was written as a colour
@@ -390,6 +393,24 @@ def _without_comments(text):
     return "".join(out), unclosed
 
 
+def _other_line_end(text):
+    """Rule 9's refusal as a sentence, or None: said of a text that holds a character at which str.splitlines()
+    ends a line and a Markdown reader does not (_OTHER_BREAK). The line's number is counted by line feeds and
+    carriage returns alone, as an editor counts it."""
+    found = _OTHER_BREAK.findall(text)
+    if not found:
+        return None
+    number, line = next((n, l) for n, l in enumerate(_PLAIN_BREAK.split(text), 1) if _OTHER_BREAK.search(l))
+    at, more = _OTHER_BREAK.search(line).start(), len(found) - 1
+    code = "U+%04X" % ord(line[at])
+    return ("Line %d, %s, holds a character that this check takes for the end of a line and a Markdown reader does not (%s, written "
+            "as <%s> in the quote). This check would begin a new line there where the text has none, which can cut a word or a "
+            "value in two, so it read nothing of this text.%s Delete each such character, or put a plain new line in its place, "
+            "then check again."
+            % (number, _quoted(line, 80, (at, at + 1)), code, code,
+               " The text holds %d more character%s of that kind." % (more, "" if more == 1 else "s") if more else ""))
+
+
 class _Reader(object):
     """parse_tables at work: the lines of one document, taken one at a time."""
 
@@ -420,6 +441,10 @@ class _Reader(object):
 
     def read(self, text):
         text, unclosed = _without_comments(text)
+        refused = _other_line_end(text)  # (a blanked comment keeps every character of _BREAKS: one inside a comment is found too)
+        if refused:
+            self.problem("?", None, "palette-line-end", refused)
+            return self.p
         # (not `raw.split()`: that takes U+001F for a blank too, and a character nobody sees must still be in the line
         # when _seen cleans it for a search)
         lines = [_BLANKS.sub(" ", raw).strip(" ") for raw in text.splitlines()]
@@ -857,7 +882,9 @@ def parse_tables(text):
     (3) The word `proposed`, `proposal` or `proposals`, wherever in that part it is not read as a
         mark, is named in `problems` (rule 9).
 
-    0. WHERE THE CHECK LOOKS. (Comments are blanked first: rule 1.) A HEADING, here and in every rule
+    0. WHERE THE CHECK LOOKS. (Comments are blanked first: rule 1. And a text that holds a line-end
+       character other than a plain new line is not read at all, wherever in it that character
+       stands: rule 9.) A HEADING, here and in every rule
        below, is a line that starts with one to six `#` followed by a blank or by the end of the line.
        A line that starts with `#` in any other way (`#1: ...`, `#Brand`, a hex colour, seven `#`) is a
        line of text like any other: it ends no section, and rules 9 and 12 hold for it. So is every line
@@ -893,7 +920,8 @@ def parse_tables(text):
 
     1. LINES. A byte-order mark at the very start is dropped. Every HTML comment (`<!--` up to the
        next `-->`) is blanked before anything else is looked at, its line breaks kept so that every
-       line keeps its number: nothing inside a comment is read, and nothing inside one is named. A
+       line keeps its number: nothing inside a comment is read, and nothing inside one is named
+       (but for rule 9's line-end characters, which are line breaks inside a comment too). A
        comment that is never closed runs to the end of the text, and a problem says on which line it
        opens. Then each run of blanks is made one space, and those at a line's ends are dropped,
        so no input makes a pattern slow. A line's blanks are what a person sees as a space: the
@@ -959,9 +987,8 @@ def parse_tables(text):
        a header row with no `|---|---|` line under it (a table without its separator line has no
        header row to this check: rule 6); a character reference (`&#68;ark theme`,
        `Dark&nbsp;mode`); full-width or look-alike letters; emphasis or a tag INSIDE the word
-       (`da**rk** mode`, `<b>Da</b>rk mode`); a character inside the word that this reader takes
-       for the end of a line; and a character nobody sees that the one pass does not take out
-       (rule 9 lists both kinds).
+       (`da**rk** mode`, `<b>Da</b>rk mode`); and a character nobody sees that the one pass does
+       not take out (rule 9 lists them).
        Two things go the other way, and the line is named. The three exact names are compared
        with emphasis marks taken out wherever they stand (the first point above), so `da**rk**
        theme` under `### Light theme` IS named, as the name of another section. And an accent
@@ -1040,13 +1067,19 @@ def parse_tables(text):
        pass that does nothing else. Those are Unicode's categories Cf (a soft hyphen, a zero-width
        space or joiner, a byte-order mark), Cc (a control character: a NUL, U+001F), Mn and Me (a
        variation selector, the combining stroke that "strike-through text" tools write).
+       A WHOLE text that holds, anywhere (outside the part rule 0 names and inside a comment
+       too), a character that this reader takes for the end of a line and a Markdown reader
+       does not (a vertical tab U+000B, a form feed U+000C, U+001C, U+001D, U+001E, U+0085,
+       U+2028, U+2029), which would cut a line in two and a word on it, is not read: ONE problem
+       (`palette-line-end`) quotes the first line that holds one, with its number as an editor
+       counts it (by line feeds and carriage returns alone), names the character by its code
+       point, says how many more the text holds and what to do (delete each, or put a plain new
+       line in its place), and no row and no value is returned.
        THE LIMITS. Each of these inside the word makes it another word, which is passed over without
        a word: a character reference (`&#112;roposed`, `prop&shy;osed`); a full-width, mathematical
        or look-alike letter (a Cyrillic `р` for the `p`); emphasis or a tag (`**pro**posed`,
-       `pro<b>posed</b>`); a character that this reader takes for the end of a line and a
-       Markdown reader does not (a vertical tab, a form feed, U+001C to U+001E, U+0085, U+2028,
-       U+2029); and a character nobody sees that Unicode files under another category than those
-       four: a filler it files as a letter (U+115F, U+1160, U+3164, U+FFA0), a private-use
+       `pro<b>posed</b>`); and a character nobody sees that Unicode files under another category
+       than those four: a filler it files as a letter (U+115F, U+1160, U+3164, U+FFA0), a private-use
        character (U+E000) or one it has not assigned (U+2065). The pass follows the Unicode
        tables of the Python that runs it, so a character a newer Unicode added is taken out by a
        newer Python only (U+180F: by Python 3.13, not by 3.9). (In a section's heading, rule 2

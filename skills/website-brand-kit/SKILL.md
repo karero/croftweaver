@@ -149,7 +149,11 @@ answered. "Surprise me" is an answer.
      (`| Dark theme | Hex |`). A word that only begins so (`Darkened`, `Lightness`) is
      no label. A no-break space (Option+Space on a Mac, or pasted text) is read as a
      plain space; a `<U+...>` in a line the check quotes is a character that does not
-     show on the screen: take it out;
+     show on the screen: take it out. One kind stops the check before it reads anything,
+     wherever in the file it stands: a line break that is no plain new line (pasted text
+     can bring one; the check names it, such as `U+2028` or `U+000B`). Delete it or put a
+     plain new line in its place and check again; the same output then also says that no
+     row was found, so do not rewrite the tables for it;
    - in a `BRAND.md`, the three tables stand under the heading `## Colour palette`, as
      the template has them. Where a text has that heading the check looks only at the
      part under it, so a colour in the guide's other sections (a shadow, the share

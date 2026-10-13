@@ -867,9 +867,13 @@ class PaletteCommand(unittest.TestCase):
             # and what stays a label: the theme's word whole, and the two closed compounds with a hyphen or with digits
             ("the compound with a hyphen and a digit", under_light("Dark-mode 2"), 2, ('Not read: Line 21, "Dark-mode 2", ' + between + "reads as a label for the other theme",)),
             ("the compound in one word, with digits", under_light("DarkTheme2"), 2, ('Not read: Line 21, "DarkTheme2", ' + between + "reads as a label for the other theme",)),
-            # the limits rules 2 and 9 state: a character that ends a line to this reader, and one nobody sees that the pass does not take out
-            ("the limit: U+001E inside the word", good + "\nAll dark values are pro\x1eposed.\n", 0, ("30 of 30 pairs pass.",)),
+            # the limit rules 2 and 9 state: a character nobody sees that the pass does not take out
             ("the limit: a filler that Unicode files as a letter", good + "\nAll dark values are pro\u1160posed.\n", 0, ("30 of 30 pairs pass.",)),
+            # (round 9: a character that ends a line to this reader was the other limit, and ended with 0. The text that holds one is not read:
+            # the test of that is test_a_line_end_character_that_is_no_plain_new_line_is_refused_by_name_through_the_command, below)
+            ("U+001E inside the word, which round 7 stated as a limit", good + "\nAll dark values are pro\x1eposed.\n", 2,
+             ('Not read: Line %d, "All dark values are pro<U+001E>posed.", holds a character that this check takes for the end of a line and a Markdown reader does not '
+              "(U+001E, written as <U+001E> in the quote)." % last, "so it read nothing of this text", "No pair could be checked.")),
         )
         for name, text, want, parts in cases:
             with self.subTest(name=name):
@@ -1177,6 +1181,137 @@ class PaletteCommand(unittest.TestCase):
                 self.assertEqual((r.returncode, r.stderr), (want, ""), r.stdout)
                 self.assertIn(part, r.stdout)
                 self.assertEqual(T.read_bytes(sheet), before, "a dry run, and a refusal, write nothing")
+
+    # --- round 9: a character that ends a line to this reader and is no plain new line (rule 9) ------------------------------
+
+    LINE_ENDS = ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+    HOLDS = "holds a character that this check takes for the end of a line and a Markdown reader does not (U+%04X, written as <U+%04X> in the quote)."
+
+    def write_bytes(self, text, name):
+        """A file with exactly these characters: no line end is changed on the way in."""
+        path = os.path.join(self.dir, name)
+        with open(path, "wb") as f:
+            f.write(text.encode("utf-8"))
+        return path
+
+    def run_bytes(self, *args, stdin=None):
+        """The command with its standard input given as bytes and what it prints read as UTF-8, whatever this computer's own encoding is."""
+        r = subprocess.run([sys.executable, SCRIPT] + list(args), capture_output=True, input=stdin, timeout=120,
+                           env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8"))
+        return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+
+    def line_end_places(self, good, row):
+        """(what the place is called, the text with %s where the character goes, the number of its line, that line as the problem quotes it)."""
+        line = lambda text, part: text[:text.index(part)].count("\n") + 1  # noqa: E731
+        self.assertEqual(good.count(row), 1)
+        places = (("inside the word, in a sentence", good + "\nAll dark values are pro%sposed.\n", "All dark values are pro%sposed."),
+                  ("inside the word, in a note cell", good.replace(row, row + " pro%sposed |"), row + " pro%sposed |"),
+                  ("between two rows", good.replace(row + "\n", row + "%s"), row + "%s" + good[good.index(row) + len(row) + 1:].split("\n")[0]),
+                  ("at a line's end", good.replace(row, row + "%s"), row + "%s"),
+                  ("in a line of mood text", good.replace("### Dark theme\n", "### Dark theme\n\nWarm paper,%sdark ink.\n\n"), "Warm paper,%sdark ink."))
+        return [(name, text, line(text, quote), quote) for name, text, quote in places]
+
+    def test_a_line_end_character_that_is_no_plain_new_line_is_refused_by_name_through_the_command(self):
+        # R9-201: `pro` + U+001E + `posed` in a sentence or a note cell is two lines to `str.splitlines()`: the word was not seen, and
+        # `palette - --json` ended with 0 (status "pass") on a palette that says its dark values are proposals
+        good = pasted()
+        self.assertEqual(run("palette", self.write(good, name="round9.md"))[0], 0)
+        for name, text, number, quote in self.line_end_places(good, "| Muted | `#a6abce` |"):
+            for c in self.LINE_ENDS:
+                with self.subTest(name=name, c="U+%04X" % ord(c)):
+                    said = 'Line %d, "%s", ' % (number, quote % ("<U+%04X>" % ord(c))) + self.HOLDS % (ord(c), ord(c))
+                    code, out, err = self.run_bytes("palette", "-", "--json", stdin=(text % c).encode("utf-8"))
+                    data = json.loads(out)
+                    self.assertEqual((code, err, data["exit"], data["status"]), (2, "", 2, "incomplete"))
+                    self.assertEqual([(x["theme"], x["row"], x["code"]) for x in data["problems"]], [("?", None, "palette-line-end")])
+                    self.assertTrue(data["problems"][0]["message"].startswith(said), data["problems"][0]["message"])
+                    self.assertEqual((data["values"], data["pairs"], data["proposed"], len(data["missing"])), ({"brand": {}, "light": {}, "dark": {}}, [], [], 18),
+                                     "no row is reported as read from such a text")
+                    if c == "\u2028" or name.endswith("in a sentence"):   # and in words, from a file, which stays as it is
+                        path = self.write_bytes(text % c, "round9.md")
+                        before = snapshot(self.dir)
+                        code, out, err = self.run_bytes("palette", path)
+                        self.assertEqual((code, err), (2, ""), out)
+                        lines = out.splitlines()
+                        self.assertEqual(len([l for l in lines if l.startswith("Not read: ")]), 1, out)
+                        self.assertTrue([l for l in lines if l.startswith("Not read: " + said) and l.endswith(
+                            " so it read nothing of this text. Delete each such character, or put a plain new line in its place, then check again.")], out)
+                        self.assertIn("No pair could be checked.", lines)
+                        self.assertEqual(snapshot(self.dir), before)
+        # two of them: the first is named and the other is counted
+        code, out, _err = self.run_bytes("palette", "-", stdin=(good.replace("### Light theme", "### Light theme\x0b") + "\u2028").encode("utf-8"))
+        self.assertEqual(code, 2, out)
+        self.assertIn('Not read: Line 6, "### Light theme<U+000B>", ' + self.HOLDS % (11, 11), out)
+        self.assertIn(" The text holds 1 more character of that kind. Delete each such character, or put a plain new line in its place, then check again.", out)
+
+    def test_a_file_with_windows_or_old_mac_line_ends_is_checked_as_the_same_file_with_plain_new_lines(self):
+        # the refusal above is for the eight characters and for nothing else: \r\n and a lone \r end a line as they did
+        cases = (("a palette that passes", pasted(), 0), ("a brand guide filled in", filled_guide(), 0),
+                 ("a mark on a row", pasted(dark=dict(STARTER_DARK, muted="#a6abce (proposed)")), 3),
+                 ("the word and a colour where they are not read, and a row not filled in", pasted().replace("| Link | `#9fb0ff` |", "| Link | |") + "\nStill proposed: #9fb0ff.\n", 2))
+        for name, text, want in cases:
+            plain_path = self.write_bytes(text, "plain.md")
+            wanted = self.run_bytes("palette", plain_path), self.run_bytes("palette", plain_path, "--json")
+            self.assertEqual((wanted[0][0], wanted[0][2]), (want, ""), wanted[0][1])
+            self.assertNotIn("takes for the end of a line", wanted[0][1])
+            for end in ("\r\n", "\r"):
+                with self.subTest(name=name, end=repr(end)):
+                    path = self.write_bytes(text.replace("\n", end), "plain.md")
+                    self.assertEqual((self.run_bytes("palette", path), self.run_bytes("palette", path, "--json")), wanted,
+                                     "every line the command prints, its JSON and its exit status")
+                    self.assertEqual(self.run_bytes("palette", "-", "--json", stdin=text.replace("\n", end).encode("utf-8")), wanted[1])
+
+    def test_the_install_does_not_apply_a_palette_that_holds_such_a_character_and_writes_nothing(self):
+        # the same texts through the other door: a problem of the reading stops the palette going in, as every other "not read" problem does
+        script = [sys.executable, SCRIPT, "install", "--test-command", "true"]
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        good = brand_md(light=T.BAKERY_LIGHT, dark=T.BAKERY_DARK, primary="#b4531a")
+        places = self.line_end_places(good, "| Muted | `%s` |" % T.BAKERY_DARK["muted"])
+        with tempfile.TemporaryDirectory() as tmp:
+            site = T.make_starter_site(os.path.join(tmp, "site"), with_modules=False)
+            brand, other = os.path.join(site, "BRAND.md"), os.path.join(tmp, "our-colours.md")
+
+            def install(*flags):
+                r = subprocess.run(script + ["--site", site] + list(flags), capture_output=True, env=env, timeout=120)
+                return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+
+            def put(path, text):
+                with open(path, "wb") as f:
+                    f.write(text.encode("utf-8"))
+
+            put(brand, good)
+            code, out, err = install("--with-colours", "--dry-run")
+            self.assertEqual((code, err), (0, ""), out)
+            self.assertIn("  Primary: #000000 becomes #b4531a", out.splitlines(), "without the character it is a palette the install would apply")
+            for at, c in enumerate(self.LINE_ENDS):
+                name, text, number, quote = places[at % len(places)]
+                said = 'Line %d, "%s", ' % (number, quote % ("<U+%04X>" % ord(c))) + self.HOLDS % (ord(c), ord(c))
+                with self.subTest(name=name, c="U+%04X" % ord(c)):
+                    put(brand, text % c)
+                    before = snapshot(site)
+                    for flags in (("--with-colours",), ("--with-colours", "--dry-run")) + ((("--with-colours", "--json"), ()) if at < 2 else ()):
+                        code, out, err = install(*flags)
+                        self.assertEqual((code, err), (2, ""), out)
+                        self.assertEqual(snapshot(site), before, "nothing was written")
+                        if "--json" in flags:
+                            data = json.loads(out)
+                            self.assertEqual((data["status"], data["code"], data["exit"], data["written"]), ("refused", "palette-incomplete", 2, []))
+                            lines = data["message"].splitlines()
+                        else:
+                            lines = out.splitlines()
+                            self.assertIn("Nothing was written.", lines)
+                            self.assertIn("No colour could be read from the palette in BRAND.md.", lines)
+                        self.assertEqual(len([l for l in lines if l.startswith(said)]), 1, out)
+                        self.assertNotIn("becomes", out)
+            # a palette file she names, beside a BRAND.md that is fine: the file she named is the one that is read, and it is not applied
+            put(brand, good)
+            put(other, places[0][1] % "\x0b")
+            before = snapshot(site)
+            code, out, err = install("--with-colours", "--palette", other)
+            self.assertEqual((code, err), (2, ""), out)
+            self.assertIn("No colour could be read from the palette in our-colours.md.", out.splitlines())
+            self.assertTrue([l for l in out.splitlines() if l.startswith('Line %d, "All dark values are pro<U+000B>posed.", ' % places[0][2] + self.HOLDS % (11, 11))], out)
+            self.assertEqual(snapshot(site), before, "nothing was written")
 
 
 if __name__ == "__main__":

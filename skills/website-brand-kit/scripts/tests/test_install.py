@@ -12,6 +12,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import stat
@@ -279,13 +280,15 @@ class SiteCase(unittest.TestCase):
         22.6 does (it does not know the flag: status 9, and Node's own word, which names the flag); "ends
         with 9", it ends with that status and a word of the file's own (a Node that takes the flag, and a
         config that ended the program); "reads", it hands over to the real Node, as a 22.12 would read the
-        file; anything else is the JSON it answers with (a Node that knows the flag and still cannot load
-        the file). Everything else goes to the real Node. An answer starts with the mark the tool handed
-        over, its last argument. Returns the file it notes each of those calls in."""
+        file; a list is the lines it writes to its error output before it ends with status 9, whoever is
+        to have said them; any other text is the JSON it answers with (a Node that knows the flag and
+        still cannot load the file). Everything else goes to the real Node. An answer starts with the mark
+        the tool handed over, its last argument. Returns the file it notes each of those calls in."""
         self.path = getattr(self, "path", os.environ["PATH"])   # as it was before the first stand-in: the real Node is found there
         folder, real = tempfile.mkdtemp(dir=self.tmp.name), shutil.which("node", path=self.path)
         asked = os.path.join(folder, "asked")
-        flagged = {"unknown": "echo 'node: bad option: --experimental-strip-types' >&2; exit 9", "ends with 9": "echo 'no settings for this branch' >&2; exit 9", "reads": "exec '%s' \"$@\"" % real}.get(
+        flagged = "printf '%%s\\n' %s >&2; exit 9" % " ".join(shlex.quote(line) for line in with_the_flag) if isinstance(with_the_flag, list) else {
+            "unknown": "echo 'node: bad option: --experimental-strip-types' >&2; exit 9", "ends with 9": "echo 'no settings for this branch' >&2; exit 9", "reads": "exec '%s' \"$@\"" % real}.get(
             with_the_flag, "printf '\\n%%s%%s\\n' \"$mark\" '%s'; exit 0" % with_the_flag)
         with open(os.path.join(folder, "node"), "w", encoding="utf-8") as f:
             f.write("#!/bin/sh\nfor mark; do :; done\ncase \" $* \" in\n  \" --experimental-strip-types \"*) echo flag >> '%s'; %s ;;\n"
@@ -2410,6 +2413,58 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
             shutil.which = real
         self.assertEqual(notes, [of_config % 10 + "Node is not installed here, or is not on the path",
                                  of_cards % "52, 53, 54, 55, 56 and 57" + "no Python was found on the path (python3, py or python)"])
+
+    @POSIX
+    def test_a_node_is_said_to_read_no_typescript_only_where_node_itself_said_it_does_not_know_the_flag(self):
+        # (round 9) INVARIANT: the tool says that this Node does not know the flag only when Node said so. Status 9 and the
+        # flag's name anywhere in the error output were taken for that: a config that ended the program with status 9 and
+        # named the flag in a message of its own was reported as a Node that reads no TypeScript. What counts now is Node's
+        # own sentence, a line of its own: the program as it was started, `: bad option: `, the flag.
+        self.need_read_back()
+        flag, config = "--experimental-strip-types", T.starter_file("src/config.ts")
+        no_typescript = "the Node on this computer (v20.11.0) does not read a TypeScript file"
+        of_config = "this tool could not check that the site reads `themeColor` from line %d of src/config.ts, where it is set: "
+        # the sentence as the Node here says it of an option it does not know, with the status it ends with
+        node = shutil.which("node")
+        real = subprocess.run([node, "--no-such-option-of-node", "-e", "0"], capture_output=True, text=True)
+        self.assertEqual((real.returncode, real.stdout, real.stderr), (9, "", "%s: bad option: --no-such-option-of-node\n" % node))
+        said_by_node = (["node: bad option: " + flag], ["%s: bad option: %s" % (node, flag)], ["/opt/node 20/bin/node: bad option: " + flag],
+                        ["D:\\Program Files\\nodejs\\node.exe: bad option: %s\r" % flag], ["a line of the wrapper that starts Node", "node: bad option: " + flag, ""])
+        said_by_the_file = (["this site is not built with " + flag], [flag], ["the settings name a bad option: %s, which this branch does not take" % flag],
+                            ["node: bad option: %s is what a Node before 22.6 says" % flag], ["node: bad option: %s-and-more" % flag], ["node: bad option: --no" + flag[1:]],
+                            ["node: bad option:", flag], ["bad option: " + flag], ["node: bad option: %s " % flag], [], [""])
+        for lines in said_by_node + said_by_the_file:
+            with self.subTest(lines=lines):
+                asked = self.old_node(lines)
+                read, why = _install._reads_config(self.site)
+                first = ([l.strip() for l in lines if l.strip()] or [""])[0]
+                self.assertEqual((read, why, T.read(asked).split()), (None, no_typescript if lines in said_by_node else "Node ended without answering (its exit status was 9%s)" % (
+                    ": " + first.rstrip(".") if first else ""), ["plain", "flag"]))
+
+        def notes(files, node):   # a run about colours, as the command line makes it: what it notes about the read-back
+            self.fresh()
+            for rel, text in files.items():
+                self.put(rel, text)
+            asked = self.old_node(node)
+            code, out = self.intake("--json")
+            data = json.loads(out)
+            self.assertEqual((code, data["status"], data["tests"], T.read(asked).split()), (0, "done", "passed", ["plain", "flag"]), out)
+            return [n for n in data["notes"] if "could not check" in n]
+        self.assertEqual(notes({}, ["%s: bad option: %s" % (node, flag)]), [of_config % 10 + no_typescript])
+        self.assertEqual(notes({}, ["this site is not built with " + flag]), [of_config % 10 + "Node ended without answering (its exit status was 9: this site is not built with %s)" % flag])
+        # the real Node, which takes the flag, and a config that names the flag in a message of its own and sets status 9: one that
+        # ends the program there, and one that never gets to its end (Node then ends with the status that was set)
+        for ending in ("process.exit();", "await new Promise(() => {});"):
+            with self.subTest(ending=ending):
+                ends = "console.error('this site is not built with %s');\nprocess.exitCode = 9;\n%s\n" % (flag, ending)
+                direct = subprocess.run([node, flag, "--input-type=module", "-e", ends], capture_output=True, text=True)
+                self.assertEqual((direct.returncode, flag in direct.stderr, "bad option" in direct.stderr), (9, True, False), direct.stderr)
+                said = notes({"src/config.ts": ends + config}, "reads")
+                self.assertEqual(len(said), 1, said)
+                self.assertTrue(said[0].startswith(of_config % 13 + "Node ended without answering (its exit status was 9: "), said)
+                self.assertNotIn("does not read a TypeScript file", said[0])
+                if direct.stderr.strip().splitlines() == ["this site is not built with " + flag]:   # (a Node that warns about the flag says that first)
+                    self.assertEqual(said, [of_config % 13 + "Node ended without answering (its exit status was 9: this site is not built with %s)" % flag])
 
     def test_only_the_sites_whole_folder_is_written_as_a_dot_in_a_reason_in_whichever_way_a_program_spells_it(self):
         # (round 7) the folder's name was replaced wherever its letters stood: a site in a folder called `site` or `app` scarred
@@ -5422,6 +5477,154 @@ class WhatIsAskedAndWhen(SiteCase):
         self.assertEqual((code, self.kept(out)), (0, ([], [])), out)
         (dry_code, dry), (code, out) = self.both_runs("--json")
         self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([], []), ([], [])), out)
+
+    # (round 9) INVARIANT: every colour the installed logo keeps that the new palette drops is named by a note whose way out
+    # works for it. A part in `currentColor` beside a part written in the Primary of the day: in the installed file the two
+    # are one colour, and a later run about colours gave the note about `currentColor` alone. Its way out, the package
+    # again, draws only the first part in the new Primary. The favicon's line now says that a part has the colour as its
+    # own, and such a mark gets both notes.
+
+    @staticmethod
+    def two_parts(second, first='fill="currentColor"'):
+        """A mark of two rectangles, each with the attributes given: the first in `currentColor` unless said otherwise."""
+        return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="2" y="2" width="14" height="28" %s/>'
+                '<rect x="16" y="2" width="14" height="28" %s/></svg>' % (first, second)).encode("utf-8")
+
+    def test_a_colour_of_its_own_that_is_the_very_colour_the_currentcolor_part_was_drawn_in_is_said_in_the_favicons_line_and_gets_its_note_too(self):
+        own_line, plain_line = _install.MARK_CURRENT_OWN % "#7a2e0b", _install.MARK_CURRENT % "#7a2e0b"
+        self.assertEqual(own_line, _install.MARK[:-5] + " The logo was given in currentColor and is drawn here in #7a2e0b. A part of it has that colour as its own. -->\n")
+        self.assertNotIn("--", own_line[4:-4], "two hyphens would end the comment early")
+        current, own = self.IN_CURRENT % ("#7a2e0b", "#5c2208"), self.ITS_OWN % "#7a2e0b"
+        link = ("| Link | `#a14a14` |", "| Link | `#96440f` |")   # the light theme's Link
+        self.assertEqual(self.LATER.count(link[0]), 1)
+        group = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="currentColor"><rect x="2" y="2" width="14" height="28"/>'
+                 b'<rect color="#7a2e0b" x="16" y="2" width="14" height="28"/></g></svg>')
+        kinds = (   # (what the mark is, the mark, the line its favicon gets, the palette of the later run, what that run notes)
+            ("a part in currentColor and a part written in the Primary of the day", self.two_parts('fill="#7a2e0b"'), own_line, self.LATER, ([current], [own])),
+            ("the same, with a stroke in another colour of its own, which leaves the palette too", self.two_parts('fill="#7a2e0b" stroke="#a14a14"'), own_line, self.LATER.replace(*link),
+             ([current], [self.ITS_OWN.replace("keeps the colour it", "keeps the colours it") % "#7a2e0b, #a14a14"])),
+            ("inside a group in currentColor, a part that sets `color` to the Primary of the day (cleaned with another colour, that mark is refused)", group, own_line, self.LATER,
+             ([current], [own])),
+            # as before round 9: the three kinds of mark that hold no colour twice
+            ("a part in currentColor and a part in another colour of its own", self.two_parts('fill="#a14a14"'), plain_line, self.LATER.replace(*link), ([current], [self.ITS_OWN % "#a14a14"])),
+            ("in currentColor alone", self.CURRENT, plain_line, self.LATER, ([current], [])),
+            ("colours of its own alone", self.two_parts('fill="#7a2e0b"', 'fill="#7a2e0b"'), _install.MARK, self.LATER, ([], [own])),
+        )
+        for label, svg, line, later, notes in kinds:
+            with self.subTest(label=label):
+                self.brand_md(self.DAY_ONE)
+                code, out = self.intake("--input", self.package("mark.svg", svg), "--with-colours", "--replace-icons", *self.ACCEPT)
+                self.assertEqual(code, 0, out)
+                favicon, icons = self.bytes("public/favicon.svg"), self.icons()
+                self.assertTrue(favicon.startswith(line.encode("utf-8")) and b"currentColor" not in favicon[len(line):] and b'fill="#7a2e0b"' in favicon, favicon[:500])
+                whose, _kept, drawn, own_too = _install._own_master(favicon, "#5c2208")
+                self.assertEqual((whose, drawn, own_too), ("ours", None if line == _install.MARK else "#7a2e0b", line == own_line))
+                self.brand_md(later)
+                for note in notes[0] + notes[1]:
+                    self.assertIn("Note: " + note, self.intake("--dry-run")[1].splitlines())
+                (dry_code, dry), (code, out) = self.both_runs("--json")
+                self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, notes, notes), out)
+                self.assertEqual(self.icons(), icons, "the logo's files are as they were: nothing is recoloured")
+        # however the colour of its own is written, and wherever it stands: it is that colour, and the line says so
+        for attributes in ('fill="#7A2E0B"', 'fill="rgb(122, 46, 11)"', 'fill=" #7a2e0b "', 'style="fill:#7a2e0b"', 'fill="none" stroke="#7a2e0b"', 'fill="currentColor" stroke="#7a2e0b"'):
+            with self.subTest(attributes=attributes):
+                svg = self.two_parts(attributes)
+                self.assertEqual(_install._given_in_current(svg, _svg.clean_svg(svg, current="#7a2e0b"), "#7a2e0b"), (True, True))
+        for label, svg, primary, said in (("another colour of its own", self.two_parts('fill="#a14a14"'), "#7a2e0b", (True, False)), ("in currentColor alone", self.CURRENT, "#7a2e0b", (True, False)),
+                                          ("both parts in currentColor", self.two_parts('fill="currentColor"'), "#7a2e0b", (True, False)),
+                                          ("a part with no colour written, which is black, under a black Primary", self.two_parts(""), "#000000", (True, True)),
+                                          ("the same under another Primary", self.two_parts(""), "#7a2e0b", (True, False))):
+            with self.subTest(label=label):
+                self.assertEqual(_install._given_in_current(svg, _svg.clean_svg(svg, current=primary), primary), said)
+        self.assertFalse(_install._given_in_current(self.two_parts('fill="#7a2e0b"', 'fill="#7a2e0b"'), _svg.clean_svg(self.two_parts('fill="#7a2e0b"', 'fill="#7a2e0b"'), current="#7a2e0b"), "#7a2e0b")[0])
+
+    def test_the_reviewers_mark_of_round_8_gets_both_notes_when_the_palette_drops_its_colour_and_each_way_out_does_what_its_note_says(self):
+        # both parts are #b4531a on the day: the bakery's Primary, and its light theme's Accent too
+        mark = self.package("mixed.svg", self.two_parts('fill="#b4531a"'))
+        self.brand_md(BAKERY_BRAND_MD)
+        code, out = self.intake("--input", mark, "--with-colours", *self.ACCEPT)
+        self.assertEqual(code, 0, out)
+        favicon, icons = self.bytes("public/favicon.svg"), self.icons()
+        self.assertTrue(favicon.startswith((_install.MARK_CURRENT_OWN % "#b4531a").encode("utf-8")) and favicon.count(b'fill="#b4531a"') == 2, favicon[:500])
+        current, own = self.IN_CURRENT % ("#b4531a", "#7a2e0b"), self.ITS_OWN % "#b4531a"
+        # another Primary, and the palette still holds the colour (as the light theme's Accent): the part of its own is in the palette, and has no note
+        primary = BAKERY_BRAND_MD.replace("| Primary | `#b4531a` |", "| Primary | `#7a2e0b` |")
+        self.assertEqual((primary.count("#b4531a"), primary.count("| Accent | `#b4531a` |")), (1, 1))
+        self.brand_md(primary)
+        code, out = self.intake("--dry-run", "--json")
+        self.assertEqual((code, self.kept(out)), (0, ([current], [])), out)
+        # another Primary and another Accent: the palette holds the colour no longer, and both notes are given, in the dry run as in the real one
+        dropped = primary.replace("| Accent | `#b4531a` |", "| Accent | `#a84c16` |")
+        self.brand_md(dropped)
+        for note in (current, own):
+            self.assertIn("Note: " + note, self.intake("--dry-run")[1].splitlines())
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([current], [own]), ([current], [own])), out)
+        self.assertEqual(self.icons(), icons, "the logo's files are as they were: nothing is recoloured")
+        # the next run about colours: the colour of its own was dropped by the run before and is not said again; the other note stays true
+        code, out = self.intake("--json")
+        self.assertEqual((code, self.kept(out)), (0, ([current], [])), out)
+        # what the first note says to do: the package again. The part in currentColor is drawn in the Primary of today. The part of
+        # its own keeps its colour, which is why it had a note of its own: it is asked about as any colour outside the palette is.
+        self.assertEqual([k["code"] for k in json.loads(self.intake("--input", mark, "--json", "--replace-icons", "--accept-low-contrast", "both")[1])["asks"]], ["outside-palette"])
+        code, out = self.intake("--input", mark, "--json", "--replace-icons", *self.ACCEPT)
+        favicon = self.bytes("public/favicon.svg")
+        self.assertEqual((code, self.kept(out)), (0, ([], [])), out)
+        self.assertTrue(favicon.startswith((_install.MARK_CURRENT % "#7a2e0b").encode("utf-8")) and b'fill="#7a2e0b"' in favicon and b'fill="#b4531a"' in favicon, favicon[:500])
+        # what the second note says to do: the mark in the new colours, as a package of its own. Nothing is left to say.
+        code, out = self.intake("--input", self.package("new.svg", self.two_parts('fill="#7a2e0b"')), "--json", "--replace-icons", "--accept-low-contrast", "both")
+        self.assertEqual((code, self.kept(out)), (0, ([], [])), out)
+        self.assertTrue(self.bytes("public/favicon.svg").startswith((_install.MARK_CURRENT_OWN % "#7a2e0b").encode("utf-8")))
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([], []), ([], [])), out)
+
+    def test_the_favicons_line_is_written_back_as_it_was_read_when_the_icons_are_drawn_again_and_a_line_in_a_form_this_tool_does_not_write_makes_no_file_its_own(self):
+        moved = ("| Background | `#fff8ee` |", "| Background | `#fffdf7` |")
+        self.assertEqual(self.DAY_ONE.count(moved[0]), 1)
+        self.brand_md(self.DAY_ONE)
+        mark = self.package("mixed.svg", self.two_parts('fill="#7a2e0b"'))
+        code, out = self.intake("--input", mark, "--with-colours", *self.ACCEPT)
+        self.assertEqual(code, 0, out)
+        favicon = self.bytes("public/favicon.svg")
+        self.assertTrue(favicon.startswith((_install.MARK_CURRENT_OWN % "#7a2e0b").encode("utf-8")), favicon[:400])
+        self.assertEqual(self.sits_on(), "#fff8ee")
+        # a run about colours that draws the icons again (the background they sit on changes): the line is as it was
+        self.brand_md(self.DAY_ONE.replace(*moved))
+        code, out = self.intake("--json", "--replace-icons", *self.ACCEPT)
+        self.assertEqual((code, self.kept(out), self.sits_on(), self.bytes("public/favicon.svg")), (0, ([], []), "#fffdf7", favicon), out)
+        # the icons again because she asks for them: the line is as it was
+        code, out = self.intake("--with-logo", "--json", "--replace-icons", *self.ACCEPT)
+        self.assertEqual((code, self.kept(out), self.bytes("public/favicon.svg")), (0, ([], []), favicon), out)
+        icons = self.icons()
+        # the second run about colours: the Primary changes, and the line that came through both drawings still gets the mark both notes
+        notes = ([self.IN_CURRENT % ("#7a2e0b", "#5c2208")], [self.ITS_OWN % "#7a2e0b"])
+        self.brand_md(self.LATER.replace(*moved))
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, notes, notes), out)
+        self.assertEqual(self.icons(), icons)
+        # a checkout's line ends and an editor's byte order mark are not held against the longer line either
+        whose, _kept, drawn, own_too = _install._own_master(b"\xef\xbb\xbf" + favicon.replace(b"\n", b"\r\n"), "#5c2208")
+        self.assertEqual((whose, drawn, own_too), ("ours", "#7a2e0b", True))
+        # a drawing that was changed under the line: not as this tool wrote it, and nothing is read from its line
+        self.assertEqual(_install._own_master(favicon.replace(b'fill="#7a2e0b"', b'fill="#7A2E0B"'), "#5c2208"), ("changed", None, None, False))
+        # a line in a form this tool does not write: the file is not this tool's, as with any other line that is not this tool's to the letter
+        sentence, body = b" A part of it has that colour as its own.", favicon[len(_install.MARK_CURRENT_OWN % "#7a2e0b"):]
+        self.assertEqual(favicon.count(sentence), 1)
+        edited = (favicon.replace(b"that colour as", b"that color as"), favicon.replace(sentence, sentence * 2), favicon.replace(sentence, sentence + b" "), favicon.replace(sentence, sentence[:-1]),
+                  favicon.replace(sentence, b" A part of it has #7a2e0b as its own."), favicon.replace(b"in #7a2e0b.", b"in #7A2E0B."),
+                  _install.MARK[:-5].encode("utf-8") + sentence + b" -->\n" + body)
+        for other in edited:
+            with self.subTest(line=other[len(_install.MARK) - 5:len(other) - len(body)]):
+                self.assertEqual(_install._own_master(other, "#5c2208"), ("other", None, None, False))
+        self.put("public/favicon.svg", edited[0])
+        self.brand_md(self.LATER.replace(moved[0], "| Background | `#fffcf5` |").replace("| Primary | `#5c2208` |", "| Primary | `#6b2c0b` |"))
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([], []), ([], [])), out)
+        for report in (dry, out):
+            self.assertEqual([n for n in json.loads(report)["notes"] if "the icons were left as they are" in n],
+                             ["the icons were left as they are: public/favicon.svg is not a file this tool wrote, so the app icons were not drawn again on the new background. "
+                              "To make them again from that file, run this again with --with-logo; to install a logo, give it with --input"])
+        self.assertEqual((self.sits_on(), self.bytes("public/favicon.svg")), ("#fffdf7", edited[0]), "left on the background they had, and the file as she edited it")
 
     def test_where_the_palette_gives_no_primary_a_mark_in_currentcolor_is_drawn_in_the_light_accent_by_every_kind_of_run_and_the_note_comes_when_that_colour_changed(self):
         # (round 7) A palette without a Primary row: the mark is drawn in the light theme's Accent, and the stylesheet's
