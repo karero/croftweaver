@@ -26,7 +26,7 @@ table. **Script steps** are the nine things the script does, under "Shape".
 | 1 | Requirements and scenarios (this file) | ⚠ written; the PLAN gate (High) stopped after round 3, not converging. Rounds 1 and 2 are worked in, round 3 is open. How to go on is the maintainer's decision | this file; trail: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work) | ✅ merged 2026-10-12. The script that runs its outside checks followed the same day | karero/croftweaver#266 (`7642954`); the check script: karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended"). D2 and D3 changed the same day: the script lives in the kit ("In the kit"). D1 changed twice on 2026-10-13: first to three stages with a yes for each ("Three, one per stage"), asked for with a reason round 3 showed to be false (H3); then back to two yeses ("go back to two yeses") | section "Decisions D1 to D7" |
-| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ▶ started 2026-10-13. Two observations made ("Seen in the spike"). The throwaway repository exists, built from the starter. The maintainer chose the domain to try on ("croftweaver.com", with a host of its own for the domain step). Waits for the token and for the GitHub app's authorization | the private repository `karero/cf-setup-spike` at `98d7742` |
+| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ▶ started 2026-10-13. The observations that need no token and the read-only calls are made ("Seen in the spike"); the calls that change something are next, each on the maintainer's go-ahead. The throwaway repository exists, built from the starter. The maintainer chose the domain to try on ("croftweaver.com", with a host of its own for the domain step). Waits for the token and for the GitHub app's authorization | the private repository `karero/cf-setup-spike` at `98d7742` |
 | 5 | The script and its tests against a stub of Cloudflare's API. Two pull requests: the project and domain stages (script steps 1 to 7), then the settings stage (script steps 8 and 9) | ⏸ not started | — |
 | 6 | The kit's files that say otherwise today are changed with the script (list under "Hooks") | ⏸ not started | — |
 | 7 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
@@ -439,6 +439,50 @@ and Node 26.11.1 on the maintainer's Mac, not Node 18):
 - Node's resolver, set to `127.0.0.1` and a port, asked a stand-in DNS server on this
   machine and returned its TXT record. So the tests can replace the resolver (spike
   observation 10, second half).
+
+**Seen in the spike, 2026-10-13, read-only calls** with a token limited to one zone and one
+account, on the zone and the live project the maintainer named. Captures 001 to 027, kept
+outside every repository.
+
+- **Testing a token.** For a token with no end date the answer holds `id` and `status`
+  and no `expires_on`. After the maintainer set a date, the same call returned
+  `expires_on` and `not_before`. So the script can tell the two apart (spike
+  observation 8).
+- **A refused read does not say which permission is missing.** The token had no DNS row.
+  Listing DNS records answered 403 with code 10000, "Authentication error", and nothing
+  else. A read of an area the token has no row for can also succeed: listing Workers
+  scripts answered 200 with an empty list.
+- **The `permissions` list on a zone is not the token's.** Both the list of zones and a
+  zone's own record carry `permissions`, and here it named `#dns_records:read` and
+  `#dns_records:edit` while the DNS read was refused. The script must not read a token's
+  reach from it. What a token may do is learned by trying, as script step 1 says.
+- **The list of zones shows a token's reach in zones.** It returned one zone, the one the
+  token was limited to.
+- **What a project and a deployment record** (the live project, 128 deployments):
+  - A project has `subdomain` and `domains`, and here its `name` is not the first part
+    of its `subdomain`. `domains` holds the `pages.dev` address too.
+  - A deployment records `deployment_trigger.type`, the branch and commit it was built
+    from, `environment`, the project's `production_branch` at that time, its own
+    `env_vars` and `build_config`, `aliases`, `url`, `latest_stage` and `is_skipped`.
+    So a deployment's variables and build settings can be compared with the project's
+    saved ones, and a production build made while another branch was the production
+    branch can be told (spike observation 4, the reading half).
+  - A build Cloudflare started from a push has the trigger type `github:push`. The
+    upload of 2026-10-12 and two deployments started by hand that day have `ad_hoc`.
+    `source.type` is `github` on all of them, so it does not tell them apart. Whether
+    a deployment started through the API also reads `ad_hoc` is not yet seen.
+  - The preview of `main` carries its alias in `aliases`
+    (`https://main.<subdomain>`); the newest production deployment carries the live
+    domain there. A failed deployment has the stage `deploy` with status `failure` and
+    no alias.
+- **Zone settings answer with `value`, `editable` and `modified_on`.** `modified_on` was
+  empty for two settings that had never been changed. The NEL setting's value is an
+  object, `{"enabled": false}`; the others read are strings.
+- **A setting can read "on" and show nothing from outside.** Email Address Obfuscation
+  read `on` through the API on a site whose pages hold no plain address, and the check
+  script found no trace of it in the page. The outside check cannot stand in for the
+  read-back there, and the read-back cannot stand in for the outside check on NEL
+  (decision 3 keeps both).
 
 **Read in Cloudflare's API reference, 2026-10-12, not tried:**
 
