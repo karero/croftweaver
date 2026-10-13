@@ -96,7 +96,7 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-setup.md`. Raw reviewer output is 
 | H25 | NIT | fresh-eyes | 3 | A local-path fixture origin carries no GitHub owner and repository | open | — |
 | H26 | NIT | fresh-eyes | 3 | `PROD_BRANCH` and `SITE.url` are read from the working tree, not from the commit that is built | open | — |
 
-Waivers and deferrals: none. Owner decision between rounds 2 and 3 (maintainer, 2026-10-13, asked how many times the script should ask): "Three, one per stage". It changes D1.
+Waivers and deferrals: none. Owner decision between rounds 2 and 3 (maintainer, 2026-10-13, asked how many times the script should ask): "Three, one per stage". It changes D1. Owner decision after round 3 (maintainer, 2026-10-13, asked how to go on and told that the reason given for three stages was false, H3): "Trial run first, go back to two yeses". The spike of plan step 4 runs next; the plan is then rewritten once and gets a new PLAN gate with a new round count.
 
 Follow-ups: U1 (RISK, Codex, round 2) the check script's `canonical` comparison ignores the query string; taken into the check-script work of plan step 5. U2 (NIT, fresh-eyes, round 2) `CLOUDFLARE_CHECK.md` says any other `http://` address is refused, while the code also accepts `.test` and `.localhost` names. U3 (NIT, fresh-eyes, round 2) D5's dashboard path is in no kit file; D5 now says so. U4 (NIT, fresh-eyes, round 3) the status header names `714516a` and `origin/main` has moved on; the commits between touch none of the files the plan leans on. U5 (NIT, fresh-eyes, round 3) a host with one A and one AAAA record, a common pair, is refused as "more than one address record". U6 (fresh-eyes, round 3) a slip in the round-2 record: it said "five in part" and listed six ids.
 

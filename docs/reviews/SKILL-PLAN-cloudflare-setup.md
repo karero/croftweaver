@@ -11,6 +11,11 @@ statements in this file: script step 4 would build on a project that already ser
 domain; script step 7 reports a failure on a finished setup; and D1's reason is false,
 because the settings can be written before the domain is attached.
 
+**What happens next** (maintainer, 2026-10-13: "Trial run first, go back to two yeses"):
+the spike of plan step 4 runs first, as the section "The spike" describes. Then this file
+is rewritten once, from what the spike showed and with two yeses (D1), and that text goes
+through a new PLAN gate.
+
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are the nine things the script does, under "Shape".
 
@@ -20,8 +25,8 @@ table. **Script steps** are the nine things the script does, under "Shape".
 |---|-----------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ⚠ written; the PLAN gate (High) stopped after round 3, not converging. Rounds 1 and 2 are worked in, round 3 is open. How to go on is the maintainer's decision | this file; trail: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work) | ✅ merged 2026-10-12. The script that runs its outside checks followed the same day | karero/croftweaver#266 (`7642954`); the check script: karero/croftweaver#267 (`d382cbe`) |
-| 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended"). D2 and D3 changed the same day: the script lives in the kit ("In the kit"). D1 changed on 2026-10-13: three stages, a yes for each ("Three, one per stage") | section "Decisions D1 to D7" |
-| 4 | Spike on a throwaway repository, project and zone: every write call once, and the eight questions under "Not verified" | ⏸ not started | — |
+| 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended"). D2 and D3 changed the same day: the script lives in the kit ("In the kit"). D1 changed twice on 2026-10-13: first to three stages with a yes for each ("Three, one per stage"), asked for with a reason round 3 showed to be false (H3); then back to two yeses ("go back to two yeses") | section "Decisions D1 to D7" |
+| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ▶ next, by the maintainer's decision of 2026-10-13; waits for a domain to try on and a token | — |
 | 5 | The script and its tests against a stub of Cloudflare's API. Two pull requests: the project and domain stages (script steps 1 to 7), then the settings stage (script steps 8 and 9) | ⏸ not started | — |
 | 6 | The kit's files that say otherwise today are changed with the script (list under "Hooks") | ⏸ not started | — |
 | 7 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
@@ -479,6 +484,52 @@ The settings of script step 8, their permission rows and their cautions are the
 checklist's, with that file's own sources. The checklist says that of those calls only the
 Transform Rules call has been run on live sites.
 
+## The spike
+
+Plan step 4. It answers the eight questions above and makes the observations round 3 of
+the PLAN gate asked for, on a throwaway repository and a throwaway Pages project. No
+script exists yet, so the assistant makes each call by hand, and guardrail 4 of
+`CLOUDFLARE_FIRST_DEPLOY.md` holds as written: every call that changes something is shown
+to the owner first and made on the owner's go-ahead.
+
+**What it needs from the owner.**
+
+- A domain on Cloudflare to try on. The zone-wide settings are written to it, so it is a
+  spare domain, or a live one whose owner wants the checklist's values anyway. On a live
+  domain every setting is read first and written only to the checklist's value, and the
+  domain step uses a host of its own (`spike.` and the domain), never the apex or `www`.
+- One token with the rows of the checklist's section 6 and Zone → DNS → Edit, limited to
+  that domain and that account, ending in two or three days. It goes into a file git
+  ignores, never into a chat.
+- Cloudflare's GitHub app authorized for the throwaway repository.
+- For question 8: the record Bing shows for CNAME verification, with the code removed.
+
+**What is kept.** Each request and each answer, in a folder outside every repository.
+Nothing is committed until every name, id and address in it is replaced as the paragraph
+under the scenario table lists. The token is never written into a capture.
+
+**What it observes.**
+
+| # | Question | The observation that settles it |
+|---|----------|--------------------------------|
+| 1 | "Not verified" 1: does a project created with a `source` object build from GitHub? | Create it through the API with the app authorized; push a commit; read the list of deployments |
+| 2 | "Not verified" 2: first build on creation; the deployment call without a branch | The list of deployments right after creation; then the call, and which commit and branch the new deployment records |
+| 3 | H7: what a rerun meets | A second deployment call while the first is still building: the answer, and how the pending one is listed |
+| 4 | "Not verified" 6, H9: what a deployment records | One deployment each from a push, the API call and an upload: trigger, branch, commit, variables, build settings, `aliases`. Then change the production branch and read the same fields and `build.txt` on the `pages.dev` address before and after |
+| 5 | "Not verified" 5, H11: does a change to one setting keep the rest? | A project holding a plain variable and a secret, and a Function that answers with a hash of the secret. Change a variable, Fail open, the branch and a build setting, each with the smallest body; after each, read the variables by name and value and ask the Function |
+| 6 | "Not verified" 6: when does Fail open apply? | Read it on the live deployment before and after the change, and after a new build |
+| 7 | "Not verified" 3, H10: the domain and its record | Attach `spike.` and the domain with no record, with a CNAME elsewhere, and with an A record elsewhere: what Cloudflare creates or changes, the statuses over time, and what the host answers at each point. Whether one update call turns an A record into the record Pages needs. Both orders: record first, attach first |
+| 8 | "Not verified" 4: what a token shows | The test call for a token with and without an end date; a read the token has no row for; the list of zones |
+| 9 | Script step 8: the settings calls | For each of the six settings and the NEL rule: read, write the checklist's value, read back, and the time of the last change if the answer has one |
+| 10 | Script step 9, H-follow-ups on DNS | Create a TXT beside an existing TXT at one name; time until the zone's nameservers show it; a lookup through Node 18's resolver set to a nameserver's address |
+| 11 | "Not verified" 7: pull requests | A new commit on a pull request opened before the project was connected; a pull request whose one commit is empty |
+| 12 | A shell without a terminal | `git ls-remote origin` against an unreachable remote and one that needs credentials, with input closed: does it return? |
+
+**Afterwards.** The answers go into "What is known, and how", each with its date and the
+capture it rests on. Then this file is rewritten once and gated again. The throwaway
+project and repository are deleted by the owner, or by the assistant on the owner's word;
+the token is deleted by the owner.
+
 ## Decisions taken
 
 1. **The model is route B** (connected to GitHub), by the maintainer, 2026-10-12.
@@ -515,8 +566,11 @@ weighed.
 
 - **D1. One yes or many.** *Decided first (2026-10-12):* one yes for the whole list, a
   second for the domain. *Changed (2026-10-13):* three stages and a yes for each. The
-  settings can only be applied once the domain serves the site, so the one yes would have
-  covered changes made days later, in another run. *Rests on:* "the owner should not have
+  reason given for it, that the settings can only be applied once the domain serves the
+  site, was false (H3 in the trail): the checklist makes only HSTS and the forwarding
+  wait. *Changed back the same day:* two yeses, one for the project and the settings on
+  setup day, a second for the domain. "Shape" and the scenarios below still show three
+  stages; the rewrite after the spike brings them in line. *Rests on:* "the owner should not have
   to do anything". *Against:* guardrail 4 in `CLOUDFLARE_FIRST_DEPLOY.md` asks for a yes
   before each change to the account; a yes to a list is weaker, and the list must be read
   carefully to be worth it. The settings stage changes the whole domain; its list says so
