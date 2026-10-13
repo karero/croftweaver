@@ -1,0 +1,694 @@
+#!/usr/bin/env python3
+"""
+wp_inventory.py — count what a live WordPress site holds, from the outside.
+
+Read-only, and it needs no login and no backup. It asks the site's own public addresses:
+robots.txt, the home page, the REST API (the list of content types, then each type's records,
+100 at a time) and the sitemap. From the answers it writes three files:
+
+  inventory.md    the report to read: records per content type, sitemap addresses, what the
+                  two disagree on, the page builder and forms it saw, and what it could not see
+  inventory.json  the same, for a program
+  urls.csv        one row per address, from the REST API, the sitemap or both
+
+It counts; it does not copy. No page text is written to disk, only numbers about it, and of
+the site's user list only how many names it shows.
+
+Standard library only (Python 3.9+), so it runs on a stock python3 with no installs.
+
+Usage:
+  python3 wp_inventory.py https://example.com --out ./inventory
+  python3 wp_inventory.py https://example.com --max-requests 200 --delay 2
+
+Exit codes: 0 the count is complete, 1 the count is incomplete (the report says where: a
+request was refused, the site was too busy to answer, or the request limit was reached),
+2 the run could not start (no such site, or neither a REST API nor a sitemap was found).
+
+What it keeps to:
+  - Only the host you name. A redirect to another host is reported, not followed. The one
+    exception is the start address itself (example.com -> www.example.com), which it adopts
+    and names in the report.
+  - robots.txt, under the name "wordpress-inventory". An address it may not read is skipped
+    and listed.
+  - A pause between requests (--delay) and a ceiling on their number (--max-requests).
+  - A refusal, a "please wait" or maintenance page, or any web page where data was due is
+    never counted as content. It makes the count incomplete.
+
+What it cannot see, and says so in the report: drafts, private and password-protected
+records; content a plugin draws inside a page (a directory in pop-ups, say); fields a plugin
+keeps to itself (a session's start time, for one); media files themselves, only their number.
+"""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import csv
+import gzip
+import html
+import http.client
+import json
+import os
+import re
+import statistics
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import urllib.robotparser
+from typing import Dict, List, Optional, Tuple
+
+ROBOTS_TOKEN = "wordpress-inventory"  # the name a robots.txt group calls this tool by
+USER_AGENT = ROBOTS_TOKEN + "/0.1 (read-only site inventory)"
+MAX_BYTES = 16 * 1024 * 1024
+SITEMAP_MAX_BYTES = 52 * 1024 * 1024  # the protocol allows 50 MB, uncompressed
+MAX_SITEMAP_FILES = 200  # a guard against loops and endless indexes
+MAX_HOPS = 5
+PER_PAGE = 100  # the most the REST API hands out in one answer
+
+# Content types WordPress keeps for its own machinery; `attachment` (media) is counted apart.
+INTERNAL_TYPES = {
+    "attachment", "nav_menu_item", "wp_block", "wp_template", "wp_template_part",
+    "wp_global_styles", "wp_navigation", "wp_font_family", "wp_font_face",
+}
+CORE_NAMESPACES = {"wp/v2", "oembed/1.0", "wp-site-health/v1", "wp-block-editor/v1", "wp-abilities/v1"}
+
+# What a page builder or form plugin leaves in the HTML it produces.
+BUILDER_MARKS = {
+    "WPBakery": re.compile(r"\bvc_row\b|\[vc_|\bwpb_"),
+    "Elementor": re.compile(r"\belementor-"),
+    "Divi": re.compile(r"\bet_pb_"),
+    "Beaver Builder": re.compile(r"\bfl-builder\b|\bfl-row\b"),
+    "block editor": re.compile(r"\bwp-block-"),
+}
+FORM_MARKS = {
+    "Gravity Forms": re.compile(r"gform_wrapper|\[gravityform"),
+    "Contact Form 7": re.compile(r"\bwpcf7\b|\[contact-form-7"),
+    "WPForms": re.compile(r"\bwpforms-"),
+    "Ninja Forms": re.compile(r"\bnf-form-"),
+}
+_FORM_TAG = re.compile(r"<form\b", re.I)
+_SCRIPT = re.compile(r"(?is)<(script|style)\b.*?</\1\s*>")
+_TAG = re.compile(r"(?s)<[^>]*>")
+_SC_OPEN = re.compile(r"\[([a-z][a-z0-9_-]{2,40})((?:\s[^\[\]]{0,400})?)/?\]")
+_SC_CLOSE = re.compile(r"\[/([a-z][a-z0-9_-]{2,40})\]")
+_LOC = re.compile(r"<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)")
+_WORD = re.compile(r"[^\W\d_]+")
+# Two languages only, the two this guess was checked on. Anything else reads "unknown".
+_STOP = {
+    "de": frozenset("der die das und ist nicht mit für von auf eine einer den dem zu im sich auch wird sind bei wie".split()),
+    "en": frozenset("the and is of to in for with that on are this as by from be at an it has".split()),
+}
+
+
+def strip_tags(markup: str) -> str:
+    return html.unescape(_TAG.sub(" ", _SCRIPT.sub(" ", markup)))
+
+
+def raw_shortcodes(text: str) -> "collections.Counter[str]":
+    """Shortcodes left as text ("[vc_row]", "[caption id=...]"): the sign that a plugin's markup
+    reached the reader unrendered. A bracketed word counts only when it has a closing tag, an
+    attribute or an underscore, so "[sic]" and "[1]" do not."""
+    closes = set(_SC_CLOSE.findall(text))
+    found: "collections.Counter[str]" = collections.Counter()
+    for name, attrs in _SC_OPEN.findall(text):
+        if name in closes or "_" in name or "=" in attrs:
+            found[name] += 1
+    return found
+
+
+def guess_language(text: str) -> str:
+    words = [w.lower() for w in _WORD.findall(text)]
+    if len(words) < 40:
+        return "unknown"
+    hits = {lang: sum(1 for w in words if w in stop) for lang, stop in _STOP.items()}
+    (best, n), (_, m) = sorted(hits.items(), key=lambda kv: -kv[1])[:2]
+    return best if n >= 8 and n > 1.5 * m else "unknown"
+
+
+def analyse(markup: str) -> dict:
+    text = strip_tags(markup)
+    return {
+        "words": len(_WORD.findall(text)),
+        "builders": sorted(k for k, rx in BUILDER_MARKS.items() if rx.search(markup)),
+        "forms": sorted(k for k, rx in FORM_MARKS.items() if rx.search(markup))
+                 or (["other form"] if _FORM_TAG.search(markup) else []),
+        "raw_shortcodes": dict(raw_shortcodes(text)),
+        "iframes": len(re.findall(r"<iframe\b", markup, re.I)),
+        "language": guess_language(text),
+    }
+
+
+def origin_of(url: str) -> Tuple[str, str, int]:
+    p = urllib.parse.urlsplit(url)
+    return (p.scheme.lower(), (p.hostname or "").lower(), p.port or (443 if p.scheme.lower() == "https" else 80))
+
+
+def path_key(url: str, site_host: str) -> str:
+    """The address as the site knows it: its path without a trailing slash. An address on
+    another host keeps its full form, so it never matches one of the site's own."""
+    p = urllib.parse.urlsplit(url)
+    host = (p.hostname or "").lower()
+    bare = lambda h: h[4:] if h.startswith("www.") else h  # noqa: E731
+    if host and bare(host) != bare(site_host):
+        return url
+    return p.path.rstrip("/") or "/"
+
+
+def safe_cell(value) -> str:
+    """A spreadsheet runs a cell that starts with = + - or @ as a formula. Addresses and slugs
+    come from the site, so such a cell gets a leading apostrophe."""
+    s = "" if value is None else str(value)
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
+
+
+def md(value, limit: int = 120) -> str:
+    """Text from the site, made safe for a Markdown table cell."""
+    s = re.sub(r"\s+", " ", "" if value is None else str(value)).strip()
+    s = s.replace("\\", "\\\\").replace("|", "\\|").replace("`", "'").replace("<", "&lt;")
+    return s if len(s) <= limit else s[: limit - 1] + "…"
+
+
+class Resp:
+    __slots__ = ("url", "status", "ctype", "headers", "body", "note", "redirect_to")
+
+    def __init__(self, url, status=0, ctype="", headers=None, body=b"", note="", redirect_to=""):
+        self.url, self.status, self.ctype, self.headers = url, status, ctype, headers
+        self.body, self.note, self.redirect_to = body, note, redirect_to
+
+    def text(self) -> str:
+        m = re.search(r"charset=([\w-]+)", self.ctype or "", re.I)
+        try:
+            return self.body.decode(m.group(1) if m else "utf-8", "replace")
+        except LookupError:
+            return self.body.decode("utf-8", "replace")
+
+    def problem(self) -> str:
+        """Why this answer cannot be used, or "" when it can."""
+        if self.note:
+            return self.note
+        if self.status in (403, 429, 503):
+            return "the site refused the request or was too busy (HTTP %s)" % self.status
+        if self.status != 200:
+            return "HTTP %s" % self.status
+        return ""
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None  # every redirect comes back to Fetcher.get, which decides
+
+
+class Fetcher:
+    def __init__(self, start: str, delay: float, timeout: float, max_requests: int, user_agent: str):
+        self.origin = origin_of(start)
+        self.delay, self.timeout, self.max_requests, self.user_agent = delay, timeout, max_requests, user_agent
+        self.opener = urllib.request.build_opener(_NoRedirect)
+        self.robots: Optional[urllib.robotparser.RobotFileParser] = None
+        self.count = 0
+        self.cap_hit = False
+        self.log: List[dict] = []
+        self._last = 0.0
+
+    def _fetch(self, url: str, limit: int) -> Resp:
+        if self.count >= self.max_requests:
+            self.cap_hit = True
+            return Resp(url, note="not asked: the request limit (%s) was reached" % self.max_requests)
+        wait = self.delay - (time.monotonic() - self._last)
+        if wait > 0:
+            time.sleep(wait)
+        self.count += 1
+        self._last = time.monotonic()
+        req = urllib.request.Request(url, headers={"User-Agent": self.user_agent, "Accept": "*/*"})
+        try:
+            with self.opener.open(req, timeout=self.timeout) as r:
+                status, headers, body = r.status, r.headers, r.read(limit + 1)
+        except urllib.error.HTTPError as e:
+            status, headers = e.code, e.headers
+            try:
+                body = e.read(65536)
+            except (OSError, http.client.HTTPException):
+                body = b""
+        except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError) as e:
+            return Resp(url, note="no answer (%s)" % type(e).__name__)
+        resp = Resp(url, status, headers.get("Content-Type", "") if headers else "", headers, body)
+        if len(body) > limit:
+            resp.note = "the answer is larger than %s MB" % (limit // (1024 * 1024))
+        return resp
+
+    def get(self, url: str, limit: int = MAX_BYTES, robots_exempt: bool = False) -> Resp:
+        """One address of this site. A redirect within the site is followed; one that leaves
+        it comes back as `redirect_to`, unfetched."""
+        resp = Resp(url, note="too many redirects")
+        for _ in range(MAX_HOPS + 1):
+            if origin_of(url) != self.origin:
+                resp = Resp(url, note="on another host, not asked")
+                break
+            if not robots_exempt and self.robots is not None and not self.robots.can_fetch(ROBOTS_TOKEN, url):
+                resp = Resp(url, note="robots.txt does not allow it")
+                break
+            resp = self._fetch(url, limit)
+            loc = resp.headers.get("Location") if (resp.headers and resp.status in (301, 302, 303, 307, 308)) else None
+            if not loc:
+                break
+            nxt = urllib.parse.urljoin(url, loc)
+            if urllib.parse.urlsplit(nxt).scheme not in ("http", "https"):
+                resp.note = "redirects to something that is not a web address"
+                break
+            if origin_of(nxt) != self.origin:
+                resp.note = "redirects to another host (%s), not followed" % urllib.parse.urlsplit(nxt).netloc
+                resp.redirect_to = nxt
+                break
+            url = nxt
+            resp = Resp(url, note="too many redirects")
+        self.log.append({"url": resp.url, "status": resp.status, "bytes": len(resp.body), "problem": resp.problem()})
+        return resp
+
+    def load_robots(self, base: str) -> str:
+        """Read robots.txt for the current host. Returns "" or why the run must stop."""
+        self.robots = None
+        scheme, host, port = self.origin
+        resp = self.get("%s://%s/robots.txt" % (scheme, urllib.parse.urlsplit(base).netloc), 1024 * 1024, robots_exempt=True)
+        rp = urllib.robotparser.RobotFileParser()
+        if resp.status == 200 and not resp.note and "html" not in (resp.ctype or "").lower():
+            rp.parse(resp.text().splitlines())
+        elif 400 <= resp.status < 500 or (resp.status == 200 and not resp.note):
+            rp.parse([])  # no robots.txt (or a web page in its place): nothing is disallowed
+        else:
+            return "robots.txt could not be read (%s), so nothing else was asked" % (resp.problem() or "no rules")
+        self.robots = rp
+        return ""
+
+
+def as_json(resp: Resp):
+    """(data, problem). A 200 that is not JSON is never data."""
+    problem = resp.problem()
+    if problem:
+        return None, problem
+    try:
+        return json.loads(resp.body.decode("utf-8", "replace")), ""
+    except ValueError:
+        return None, ("a web page came back where data was due" if "html" in (resp.ctype or "").lower()
+                      else "the answer is not JSON")
+
+
+def header_int(resp: Resp, name: str) -> Optional[int]:
+    try:
+        return int(resp.headers.get(name)) if resp.headers else None
+    except (TypeError, ValueError):
+        return None
+
+
+class Rest:
+    """Builds REST addresses in the site's own style: /wp-json/wp/v2/posts or ?rest_route=/wp/v2/posts."""
+
+    def __init__(self, root: str):
+        self.root = root
+
+    def url(self, route: str, **params) -> str:
+        route = route.strip("/")
+        query = urllib.parse.urlencode(params)
+        if "rest_route=" in self.root:
+            head, _, _ = self.root.partition("rest_route=")
+            return head + "rest_route=/" + urllib.parse.quote(route) + ("&" + query if query else "")
+        return self.root.rstrip("/") + "/" + route + ("?" + query if query else "")
+
+
+def read_type(fetcher: Fetcher, rest: Rest, slug: str, info: dict, site_host: str, records: List[dict]) -> dict:
+    out = {"type": slug, "name": str(info.get("name") or slug), "total": None, "fetched": 0, "complete": False, "note": ""}
+    stats = []
+    page, pages = 1, 1
+    while page <= pages:
+        resp = fetcher.get(rest.url("wp/v2/" + str(info["rest_base"]), per_page=PER_PAGE, page=page,
+                                    _fields="id,link,slug,date,modified,type,title,content"))
+        data, problem = as_json(resp)
+        if problem or not isinstance(data, list):
+            out["note"] = problem or "the answer is not a list"
+            break
+        if page == 1:
+            out["total"] = header_int(resp, "X-WP-Total")
+            pages = header_int(resp, "X-WP-TotalPages") or 1
+        for rec in data:
+            if not isinstance(rec, dict):
+                continue
+            content = rec.get("content") if isinstance(rec.get("content"), dict) else {}
+            a = analyse(str(content.get("rendered") or ""))
+            stats.append((rec, a))
+            records.append({"url": str(rec.get("link") or ""), "key": path_key(str(rec.get("link") or ""), site_host),
+                            "type": slug, "id": rec.get("id"), "modified": str(rec.get("modified") or "")[:10], **a})
+        page += 1
+    out["fetched"] = len(stats)
+    out["complete"] = not out["note"] and out["total"] is not None and out["fetched"] == out["total"]
+    if not out["note"] and not out["complete"]:
+        out["note"] = "the site reports %s records, %s were handed out" % (out["total"], out["fetched"])
+    words = [a["words"] for _, a in stats]
+    out.update({
+        "by_year": dict(sorted(collections.Counter(str(r.get("date") or "")[:4] or "?" for r, _ in stats).items())),
+        "last_modified": max((str(r.get("modified") or "")[:10] for r, _ in stats), default=""),
+        "words_total": sum(words),
+        "words_median": int(statistics.median(words)) if words else 0,
+        "builders": dict(collections.Counter(b for _, a in stats for b in a["builders"]).most_common()),
+        "forms": dict(collections.Counter(f for _, a in stats for f in a["forms"]).most_common()),
+        "records_with_forms": sum(1 for _, a in stats if a["forms"]),
+        "records_with_raw_shortcodes": sum(1 for _, a in stats if a["raw_shortcodes"]),
+        "raw_shortcodes": dict(sum((collections.Counter(a["raw_shortcodes"]) for _, a in stats), collections.Counter()).most_common(12)),
+        "records_with_iframes": sum(1 for _, a in stats if a["iframes"]),
+        "languages": dict(collections.Counter(a["language"] for _, a in stats).most_common()),
+    })
+    return out
+
+
+def count_only(fetcher: Fetcher, rest: Rest, route: str) -> Tuple[Optional[int], str]:
+    resp = fetcher.get(rest.url(route, per_page=1, _fields="id"))
+    data, problem = as_json(resp)
+    if problem:
+        return None, problem
+    return header_int(resp, "X-WP-Total"), ""
+
+
+def read_sitemaps(fetcher: Fetcher, starts: List[str], notes: List[str]) -> List[dict]:
+    """Every sitemap file reachable from `starts`. `notes` collects each file that could not be read."""
+    queue, seen, files = list(starts), set(), []
+    while queue and len(seen) < MAX_SITEMAP_FILES:
+        sm = queue.pop(0)
+        if sm in seen:
+            continue
+        seen.add(sm)
+        resp = fetcher.get(sm, SITEMAP_MAX_BYTES)
+        problem = resp.problem()
+        if problem:
+            notes.append("sitemap %s: %s" % (sm, problem))
+            continue
+        body = resp.body
+        if body[:2] == b"\x1f\x8b":
+            try:
+                with gzip.GzipFile(fileobj=__import__("io").BytesIO(body)) as gz:
+                    body = gz.read(SITEMAP_MAX_BYTES + 1)
+            except (OSError, EOFError):
+                notes.append("sitemap %s: cannot be unpacked" % sm)
+                continue
+        text = body.decode("utf-8", "replace")
+        if not re.search(r"<(sitemapindex|urlset)\b", text[:4000]):
+            notes.append("sitemap %s: not a sitemap" % sm)
+            continue
+        locs = [html.unescape(x) for x in _LOC.findall(text)]
+        if re.search(r"<sitemapindex\b", text[:4000]):
+            queue.extend(urllib.parse.urljoin(sm, x) for x in locs)
+        else:
+            files.append({"url": resp.url, "urls": locs})
+    if queue:
+        notes.append("more than %s sitemap files: %s were not read" % (MAX_SITEMAP_FILES, len(queue)))
+    return files
+
+
+def inventory(start: str, delay: float, timeout: float, max_requests: int, user_agent: str) -> Tuple[Optional[dict], str]:
+    """(data, "") or (None, why the run could not start)."""
+    p = urllib.parse.urlsplit(start)
+    if p.scheme not in ("http", "https") or not p.hostname:
+        return None, "not a web address: %s" % start
+    base = urllib.parse.urlunsplit((p.scheme, p.netloc, p.path if p.path.endswith("/") else p.path + "/", "", ""))
+    fetcher = Fetcher(base, delay, timeout, max_requests, user_agent)
+    notes: List[str] = []  # worth knowing
+    gaps: List[str] = []   # what makes the count incomplete
+    moved: List[str] = []
+    home = None
+    for _ in range(3):  # the start address may redirect to the site's real host, once or twice
+        stop = fetcher.load_robots(base)
+        if stop:
+            return None, stop
+        home = fetcher.get(base)
+        if not home.redirect_to:
+            break
+        t = urllib.parse.urlsplit(home.redirect_to)
+        moved.append("%s redirects to %s" % (base, home.redirect_to))
+        base = urllib.parse.urlunsplit((t.scheme, t.netloc, t.path if t.path.endswith("/") else t.path + "/", "", ""))
+        fetcher.origin = origin_of(base)
+    home_problem = home.problem() if home is not None else "no answer"
+    if home is None or home.redirect_to or home.status == 0:
+        return None, "the home page could not be read at %s (%s)" % (base, home_problem)
+    site_host = fetcher.origin[1]
+    home_html = "" if home_problem else home.text()
+    if home_problem:
+        gaps.append("home page: %s" % home_problem)
+
+    tech = {
+        "html_lang": (re.search(r"<html[^>]*\blang=[\"']([^\"']+)", home_html, re.I) or [None, ""])[1],
+        "hreflang_links": len(re.findall(r"<link[^>]+hreflang=", home_html, re.I)),
+        "generator": sorted(set(re.findall(r"<meta[^>]+name=[\"']generator[\"'][^>]*content=[\"']([^\"']+)", home_html, re.I))),
+        "themes": sorted(set(re.findall(r"/wp-content/themes/([A-Za-z0-9_.-]+)/", home_html))),
+        "plugins_seen_on_home_page": sorted(set(re.findall(r"/wp-content/plugins/([A-Za-z0-9_.-]+)/", home_html))),
+        "rest_namespaces": [],
+    }
+
+    # --- the REST API: its root is announced on the home page; /wp-json/ is the default
+    m = re.search(r"<link[^>]+rel=[\"']https://api\.w\.org/[\"'][^>]*href=[\"']([^\"']+)", home_html, re.I)
+    root = urllib.parse.urljoin(base, html.unescape(m.group(1))) if m else urllib.parse.urljoin(base, "wp-json/")
+    if origin_of(root) != fetcher.origin:
+        notes.append("the REST API is announced on another host (%s), not asked" % urllib.parse.urlsplit(root).netloc)
+        root = urllib.parse.urljoin(base, "wp-json/")
+    rest = Rest(root)
+    types: List[dict] = []
+    taxonomies: List[dict] = []
+    records: List[dict] = []
+    media = users = comments = None
+    site_name = ""
+    index, problem = as_json(fetcher.get(rest.url("")))
+    rest_ok = isinstance(index, dict) and "namespaces" in index
+    if not rest_ok:
+        gaps.append("REST API at %s: %s" % (rest.url(""), problem or "not a WordPress REST index"))
+    else:
+        site_name = str(index.get("name") or "")
+        tech["rest_namespaces"] = sorted(str(n) for n in index.get("namespaces", []) if n not in CORE_NAMESPACES)
+        tdata, problem = as_json(fetcher.get(rest.url("wp/v2/types")))
+        if not isinstance(tdata, dict):
+            gaps.append("content types: %s" % (problem or "unexpected answer"))
+            tdata = {}
+        for slug, info in sorted(tdata.items()):
+            if slug in INTERNAL_TYPES or not isinstance(info, dict) or not info.get("rest_base"):
+                continue
+            types.append(read_type(fetcher, rest, slug, info, site_host, records))
+        xdata, problem = as_json(fetcher.get(rest.url("wp/v2/taxonomies")))
+        if not isinstance(xdata, dict):
+            gaps.append("taxonomies: %s" % (problem or "unexpected answer"))
+            xdata = {}
+        for slug, info in sorted(xdata.items()):
+            if not isinstance(info, dict) or not info.get("rest_base") or slug in ("nav_menu", "wp_pattern_category"):
+                continue
+            total, problem = count_only(fetcher, rest, "wp/v2/" + str(info["rest_base"]))
+            taxonomies.append({"taxonomy": slug, "name": str(info.get("name") or slug), "terms": total, "note": problem,
+                               "for_types": [str(t) for t in info.get("types", [])]})
+        media, problem = count_only(fetcher, rest, "wp/v2/media")
+        if problem:
+            gaps.append("media: %s" % problem)
+        users, _ = count_only(fetcher, rest, "wp/v2/users")  # a refusal here is the good case
+        comments, _ = count_only(fetcher, rest, "wp/v2/comments")
+
+    # --- the sitemap: robots.txt names it, else the usual addresses
+    named = [s for s in (fetcher.robots.site_maps() or [])] if fetcher.robots else []
+    files = read_sitemaps(fetcher, named, gaps) if named else []
+    if not files:
+        for guess in ("sitemap_index.xml", "wp-sitemap.xml", "sitemap.xml"):
+            quiet: List[str] = []
+            files = read_sitemaps(fetcher, [urllib.parse.urljoin(base, guess)], quiet)
+            if files:
+                gaps.extend(quiet)
+                break
+    if not rest_ok and not files:
+        return None, "neither a WordPress REST API nor a sitemap was found at %s (%s)" % (base, "; ".join(gaps) or "no answer")
+
+    # --- compare the two
+    rest_by_key = {r["key"]: r for r in records}
+    sm_keys: Dict[str, str] = {}
+    sm_files = []
+    for f in files:
+        keys = [path_key(u, site_host) for u in f["urls"]]
+        for k, u in zip(keys, f["urls"]):
+            sm_keys.setdefault(k, u)
+        known = collections.Counter(rest_by_key[k]["type"] for k in keys if k in rest_by_key)
+        sm_files.append({"url": f["url"], "urls": len(f["urls"]), "matched_by_type": dict(known),
+                         "not_in_rest": sum(1 for k in keys if k not in rest_by_key)})
+    only_sitemap = sorted(k for k in sm_keys if k not in rest_by_key)
+    groups = collections.Counter((k.strip("/").split("/")[0] if k.startswith("/") and k.count("/") > 1 else "(top level)")
+                                 for k in only_sitemap)
+    only_rest = collections.Counter(r["type"] for k, r in rest_by_key.items() if k not in sm_keys) if files else collections.Counter()
+
+    problems = [e for e in fetcher.log if e["problem"]]
+    incomplete = []
+    if fetcher.cap_hit:
+        incomplete.append("the request limit of %s was reached; raise --max-requests" % max_requests)
+    incomplete += ["%s: %s" % (t["type"], t["note"]) for t in types if not t["complete"]]
+    incomplete += ["%s: %s" % (x["taxonomy"], x["note"]) for x in taxonomies if x["note"]]
+    incomplete += gaps
+    data = {
+        "schema_version": 1,
+        "site": base, "site_name": site_name, "moved": moved,
+        "complete": not incomplete, "incomplete_because": incomplete,
+        "rest_api": rest_ok, "types": types, "taxonomies": taxonomies,
+        "media_items": media, "public_user_records": users, "comments": comments,
+        "sitemap": {"files": sm_files, "urls": sum(f["urls"] for f in sm_files), "distinct": len(sm_keys),
+                    "only_in_sitemap": len(only_sitemap), "only_in_sitemap_by_first_segment": dict(groups.most_common(40)),
+                    "in_rest_not_in_sitemap_by_type": dict(only_rest)},
+        "technology": tech, "notes": notes,
+        "requests": {"made": fetcher.count, "with_a_problem": problems},
+        "_rows": _rows(records, sm_keys),
+    }
+    return data, ""
+
+
+def _rows(records: List[dict], sm_keys: Dict[str, str]) -> List[dict]:
+    rows = []
+    for r in records:
+        rows.append({"url": r["url"], "source": "both" if r["key"] in sm_keys else "rest", "type": r["type"], "id": r["id"],
+                     "modified": r["modified"], "words": r["words"], "language_guess": r["language"],
+                     "builders": "; ".join(r["builders"]), "raw_shortcodes": "; ".join(sorted(r["raw_shortcodes"])),
+                     "forms": "; ".join(r["forms"]), "iframes": r["iframes"]})
+    have = {r["key"] for r in records}
+    rows += [{"url": u, "source": "sitemap"} for k, u in sorted(sm_keys.items()) if k not in have]
+    return rows
+
+
+CSV_FIELDS = ["url", "source", "type", "id", "modified", "words", "language_guess", "builders", "raw_shortcodes", "forms", "iframes"]
+
+
+def render(d: dict) -> str:
+    L: List[str] = []
+    add = L.append
+    add("# WordPress inventory: %s" % md(d["site_name"] or d["site"]))
+    add("")
+    add("Site: %s. Counted from the outside, read-only, in %s requests." % (md(d["site"]), d["requests"]["made"]))
+    for m in d["moved"]:
+        add("Note: %s." % md(m, 300))
+    add("")
+    if d["complete"]:
+        add("**The count is complete** for everything the site shows the public.")
+    else:
+        add("**The count is incomplete.** Do not base an estimate on it until these are cleared:")
+        add("")
+        L.extend("- %s" % md(x, 300) for x in d["incomplete_because"])
+    add("")
+    add("## Content")
+    add("")
+    if not d["rest_api"]:
+        add("The site's REST API did not answer, so records could not be counted; the sitemap below is all there is.")
+    else:
+        add("| Content type | Published records | Read | Median words | Last change | Left as raw shortcode text | With a form |")
+        add("|---|---|---|---|---|---|---|")
+        for t in d["types"]:
+            add("| %s (`%s`) | %s | %s | %s | %s | %s | %s |" % (
+                md(t["name"]), md(t["type"]), "?" if t["total"] is None else t["total"], t["fetched"],
+                t["words_median"], t["last_modified"] or "", t["records_with_raw_shortcodes"],
+                t["records_with_forms"]))
+        add("")
+        for t in d["types"]:
+            bits = []
+            if t["by_year"]:
+                bits.append("published by year: " + ", ".join("%s %s" % kv for kv in t["by_year"].items()))
+            if t["builders"]:
+                bits.append("page-builder marks: " + ", ".join("%s in %s" % kv for kv in t["builders"].items()))
+            if t["raw_shortcodes"]:
+                bits.append("raw shortcodes: " + ", ".join("%s ×%s" % (md(k), n) for k, n in t["raw_shortcodes"].items()))
+            if t["forms"]:
+                bits.append("forms: " + ", ".join("%s in %s" % kv for kv in t["forms"].items()))
+            if t["records_with_iframes"]:
+                bits.append("embeds (iframes) in %s" % t["records_with_iframes"])
+            if set(t["languages"]) - {"unknown"}:
+                bits.append("language guess: " + ", ".join("%s %s" % kv for kv in t["languages"].items()))
+            if t["note"]:
+                bits.append("NOT COMPLETE: " + md(t["note"], 300))
+            if bits:
+                add("- **%s**: %s." % (md(t["name"]), "; ".join(bits)))
+        add("")
+        add("Media items: %s. Comments: %s." % (_n(d["media_items"]), _n(d["comments"])))
+        if d["taxonomies"]:
+            add("")
+            add("Groupings: " + ", ".join("%s %s (for %s)" % (md(x["name"]), _n(x["terms"]), md(", ".join(x["for_types"])))
+                                          for x in d["taxonomies"]) + ".")
+    add("")
+    add("## Sitemap")
+    add("")
+    sm = d["sitemap"]
+    if not sm["files"]:
+        add("No sitemap was found.")
+    else:
+        add("%s addresses in %s files (%s distinct)." % (sm["urls"], len(sm["files"]), sm["distinct"]))
+        add("")
+        add("| Sitemap file | Addresses | Not explained by a counted record |")
+        add("|---|---|---|")
+        L.extend("| %s | %s | %s |" % (md(f["url"]), f["urls"], f["not_in_rest"]) for f in sm["files"])
+        add("")
+        if sm["only_in_sitemap"]:
+            add("%s sitemap addresses belong to no counted record. A plugin or a listing page usually stands "
+                "behind them, and each group needs a decision. By first part of the address: %s."
+                % (sm["only_in_sitemap"], ", ".join("%s %s" % (md(k), n) for k, n in sm["only_in_sitemap_by_first_segment"].items())))
+        if sm["in_rest_not_in_sitemap_by_type"]:
+            add("")
+            add("Published but left out of the sitemap (hidden from search on purpose, redirects, or forgotten): %s."
+                % ", ".join("%s %s" % (md(k), n) for k, n in sm["in_rest_not_in_sitemap_by_type"].items()))
+    add("")
+    add("## What the site is built with")
+    add("")
+    t = d["technology"]
+    add("- Theme: %s" % (md(", ".join(t["themes"])) or "not visible on the home page"))
+    add("- Plugins visible on the home page: %s" % (md(", ".join(t["plugins_seen_on_home_page"]), 600) or "none"))
+    add("- Plugins that add to the REST API: %s" % (md(", ".join(t["rest_namespaces"]), 900) or "none"))
+    add("- Language the home page declares: %s; links to other language versions: %s" % (md(t["html_lang"]) or "none", t["hreflang_links"]))
+    if d["public_user_records"]:
+        add("- The site lists %s user records to anyone who asks. Worth telling its owner." % d["public_user_records"])
+    add("")
+    add("## What this count cannot see")
+    add("")
+    add("- Drafts, private and password-protected records, and anything behind a login.")
+    add("- Content a plugin draws inside a page, such as a directory shown in pop-ups: it counts as one page.")
+    add("- Fields a plugin keeps to itself, such as a session's start time or its speakers.")
+    add("- The media files themselves, redirects set inside WordPress, and form entries.")
+    add("")
+    add("These need the site's backup or a login.")
+    if d["notes"]:
+        add("")
+        add("## Notes from the run")
+        add("")
+        L.extend("- %s" % md(n, 400) for n in d["notes"])
+    return "\n".join(L) + "\n"
+
+
+def _n(v) -> str:
+    return "not readable" if v is None else str(v)
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="Count what a live WordPress site holds, from the outside. Read-only.")
+    ap.add_argument("site", help="the site's address, e.g. https://example.com")
+    ap.add_argument("--out", default="wordpress-inventory", help="folder for inventory.md, inventory.json and urls.csv")
+    ap.add_argument("--delay", type=float, default=1.0, help="seconds between requests (default 1)")
+    ap.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for one answer (default 30)")
+    ap.add_argument("--max-requests", type=int, default=100, help="stop after this many requests (default 100)")
+    ap.add_argument("--user-agent", default=USER_AGENT, help="the name sent with each request")
+    args = ap.parse_args(argv)
+    data, stop = inventory(args.site, max(args.delay, 0.0), args.timeout, max(args.max_requests, 1), args.user_agent)
+    if data is None:
+        print("wp_inventory: %s" % stop, file=sys.stderr)
+        return 2
+    rows = data.pop("_rows")
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "inventory.json"), "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    with open(os.path.join(args.out, "inventory.md"), "w", encoding="utf-8") as fh:
+        fh.write(render(data))
+    with open(os.path.join(args.out, "urls.csv"), "w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=CSV_FIELDS)
+        w.writeheader()
+        for row in rows:
+            w.writerow({k: safe_cell(row.get(k, "")) for k in CSV_FIELDS})
+    for t in data["types"]:
+        print("%-28s %s" % (t["type"], "?" if t["total"] is None else t["total"]))
+    print("%-28s %s" % ("sitemap addresses", data["sitemap"]["urls"]))
+    print("%s: %s" % ("complete" if data["complete"] else "INCOMPLETE", os.path.join(args.out, "inventory.md")))
+    for why in data["incomplete_because"]:
+        print("  - %s" % why)
+    return 0 if data["complete"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

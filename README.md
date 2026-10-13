@@ -295,6 +295,10 @@ skills/            the suite skills (canonical)
                    figure and retired phrase out; plus the positioning check, each
                    page against the term it owns per audience; runs weekly beside
                    the AI check)
+  wordpress-inspector (read-only, any live WordPress site: counts every content type,
+                   the sitemap's addresses and where the two disagree, names the page
+                   builder and forms it saw, and says when the count is incomplete; the
+                   first step before moving a site, and the basis for an estimate)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
   website-story    (optional story layer — the home page as the customer's story:

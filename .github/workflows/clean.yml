@@ -334,6 +334,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run the facts-check tests (stub site on 127.0.0.1, no real requests)
         run: make test-facts PYTHON=python
+  wordpress-inventory-tests:
+    # Standard library only, as for the facts check: 3.9 is macOS's stock python3.
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run the WordPress inventory tests (stub sites on 127.0.0.1, no real requests)
+        run: make test-wordpress-inventory PYTHON=python
   cloudflare-check-tests:
     # Node's standard library only, so nothing is installed. 18 is the oldest Node the script
     # promises, 24 is the one the template pins and a site is built with; Windows runs the same

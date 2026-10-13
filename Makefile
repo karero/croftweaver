@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test test-facts test-cloudflare-check test-create smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts test-wordpress-inventory test-cloudflare-check test-create smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -44,6 +44,9 @@ test:      ## run the search-console-insights tests (tracker + AI check; needs `
 
 test-facts: ## run the facts-check tests (standard library only; a stub site on 127.0.0.1, no real requests)
 	@$(PYTHON) -m unittest discover -s skills/facts-check/scripts/tests
+
+test-wordpress-inventory: ## run the WordPress inventory's tests (standard library only; stub sites on 127.0.0.1, no real requests)
+	@$(PYTHON) -m unittest discover -s skills/wordpress-inspector/scripts/tests
 
 NODE ?= node
 test-cloudflare-check: ## run the Cloudflare check's tests (Node 18+, standard library only; stub sites on 127.0.0.1, no real requests)
