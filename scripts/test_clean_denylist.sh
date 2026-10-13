@@ -134,6 +134,12 @@ printf 'Maintained by Zorblequux Flummé.\n' >"$R/README.md"
 expect "README.md, the holder's name before a non-ASCII letter: fails" 1 "README.md:1:" "$R"
 printf 'Maintained by éZorblequux Flumm.\n' >"$R/README.md"
 expect "README.md, the holder's name after a non-ASCII letter: fails" 1 "README.md:1:" "$R"
+# Any byte above \177 beside the name counts, a curly quote or a long dash too: the check
+# does not tell those from letters, and fails rather than guess.
+printf 'Maintained by “Zorblequux Flumm”.\n' >"$R/README.md"
+expect "README.md, the holder's name in curly quotes: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by "Zorblequux Flumm", (Zorblequux Flumm) and Zorblequux Flumm\n' >"$R/README.md"
+expect "README.md, the holder's name beside ASCII punctuation and at the end of a line: passes" 0 "OK — no private names in:" "$R"
 printf 'Maintained by Zorblequux Flumm of %s.\n' "$org" >"$R/README.md"
 expect "README.md, another listed name beside the holder's: fails" 1 "README.md:1:" "$R"
 printf 'Maintained by Zorblequux Flumm.\n' | tee "$R/README.md" >"$R/docs/notes.md"
@@ -148,6 +154,20 @@ printf 'Copyright (c) 2024-2026 Zorblequux Flumm\n' >"$R/LICENSE"
 expect "LICENSE with a range of years, the holder named in README.md: passes" 0 "OK — no private names in:" "$R"
 printf 'MIT License\n' >"$R/LICENSE"
 expect "README.md names someone, LICENSE has no copyright line: fails, and says why" 1 "LICENSE has no line" "$R"
+# The note is printed when README.md's hit is not the first one, too (skills/ is scanned first).
+printf '# a skill\nfirst tried by zorblequux\n' >"$R/skills/SKILL.md"
+expect "the same, with a hit in another file listed first: still says why" 1 "LICENSE has no line" "$R"
+printf '# a skill\n' >"$R/skills/SKILL.md"
+# The name is everything after the year: a full stop there is part of it, so a README.md
+# without one fails, and the run says how the name is read.
+printf 'Copyright (c) 2026 Zorblequux Flumm.\n' >"$R/LICENSE"
+printf 'Maintained by Zorblequux Flumm (Munich).\n' >"$R/README.md"
+expect "LICENSE's line ends in a full stop, README.md's name does not: fails, and says how the name is read" 1 "punctuation included" "$R"
+printf 'plain notes\n' >"$R/README.md"
+expect "a clean README.md: no note about the maintainer" 0 "OK — no private names in:" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "may name the maintainer"; then
+  printf 'FAIL the note about the maintainer printed with no hit in README.md\n'; fails=$((fails+1))
+fi
 : >"$R/LICENSE"; : >"$R/README.md"
 
 # In the main checkout, where the list is read either way, so only the self-reference

@@ -259,13 +259,16 @@ if [ -f "$DENYLIST_FILE" ]; then
   # in README.md's hits, then each line is looked at again: the name alone passes, and
   # another listed name beside it still fails, as do a part of the name, another spelling
   # of it, the name inside a longer word, and the name in any other file. A longer word is
-  # the name with a letter, a digit or _ right beside it, or a byte of a non-ASCII letter
-  # (the é of a longer name): stricter than the edges the list is matched with, since what
-  # is blanked here is not looked at again. The name is read from LICENSE at run time, so
-  # this script, which the check scans, never holds it, and it is compared as plain text
-  # (awk's index), so nothing in it is read as a pattern. A LICENSE without such a line (a
-  # year or a range of years, then the name) allows nothing, and a hit in README.md then
-  # comes with a line that says so.
+  # the name with a letter, a digit or _ right beside it, or any byte above \177: the é of
+  # a longer name, and a curly quote or a long dash too, since telling those from letters
+  # would take a table of Unicode. Stricter than the edges the list is matched with, on
+  # purpose: what is blanked here is not looked at again, and a name left unblanked only
+  # fails the run. (The comparison with \177 is by bytes because this script runs in the C
+  # locale, set at its top.) The name is read from LICENSE at run time, so this script,
+  # which the check scans, never holds it, and it is compared as plain text (awk's index),
+  # so nothing in it is read as a pattern: it is everything after the year or range of
+  # years, punctuation included. A LICENSE without such a line allows nothing. Either way,
+  # a hit in README.md comes with a line that says what README.md may hold.
   holder="$(sed -n '/^Copyright (c) [0-9][0-9-]* /{s///;s/[[:space:]]*$//;p;q;}' LICENSE)"
   blank_maintainer() { # stdin: hits → stdout, the holder's name blanked in README.md's lines
     HOLDER="$holder" awk '
@@ -311,9 +314,13 @@ if [ -f "$DENYLIST_FILE" ]; then
            | gf -iE "^✗ scan error|^Binary file |:[0-9]+:((.*$E)?(${NAMES})($E|\$)|.*\\b(${NAMES})\\b)")" \
            || hits="✗ scan error (the name filter failed) — hits may be missing" ;;
     esac
-    case "$holder:$hits" in
-      :README.md:[0-9]*|:*$'\n'README.md:[0-9]*)
-        echo "· README.md may name the maintainer only as LICENSE's copyright line does, and LICENSE has no line \"Copyright (c) <year> <name>\": the name in README.md is reported like any other" ;;
+    case "$hits" in
+      README.md:[0-9]*|*$'\n'README.md:[0-9]*)
+        if [ -n "$holder" ]; then
+          echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name (everything after the year, punctuation included); any other name or spelling in README.md is reported"
+        else
+          echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name, and LICENSE has no line \"Copyright (c) <year> <name>\": a name in README.md is reported like any other"
+        fi ;;
     esac
     report "personal/site identifier" "$hits"
     names_checked=1
