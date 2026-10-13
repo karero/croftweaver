@@ -79,8 +79,8 @@ often lack a dark theme, and §3 says what to do then.
 
 ## 1. Files in this skill
 
-Under `~/.claude/skills/website-brand-kit/`, or the site's own
-`.claude/skills/website-brand-kit/` on a handed-off repo:
+In this skill's own folder, the one this `SKILL.md` is in (on a handed-off repo that is
+the site's own `.claude/skills/website-brand-kit/`):
 
 - `templates/palette-prompt.md`, `templates/logo-prompt.md`,
   `templates/handover-prompt.md`: the three prompts. Each says where its slots come
