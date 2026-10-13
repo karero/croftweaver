@@ -10,6 +10,18 @@ responsive design, SEO, accessibility checks, schema markup, tests, and launch s
 modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages). After launch, it helps you
 keep improving SEO and GEO (how your site shows up in AI answers), week by week.
 
+**Already have a website?** Part of Croftweaver works on a site that is already live, on any
+stack, without a rebuild: the checks and measurements. They are Search Console insights, the
+weekly AI check, the SEO audit, the positioning check, and the facts check. The ready-made
+test suite and the two link audits need the Croftweaver starter, and there is no automatic
+import of an existing site yet. See
+[Croftweaver for established sites](https://croftweaver.com/established-sites).
+
+**Who maintains it.** Croftweaver is maintained by Daniel Melter (Munich). It grew out of
+GenAI Wednesday Munich. The [LICENSE](LICENSE) file names the same person as copyright
+holder, and the [imprint](https://croftweaver.com/imprint) names the operator of the website
+croftweaver.com.
+
 > **Formerly website-builder.** Same project, new name. GitHub redirects old repository links
 > and existing clones here. To point a clone at the new address, run
 > `git remote set-url origin https://github.com/karero/croftweaver.git`.
