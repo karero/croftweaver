@@ -28,7 +28,7 @@ function skillFiles() {
     .map(([file, data]) => [file, data.toString('utf8')]);
 }
 
-test('the plugin and the marketplace entry name the same plugin and the same release', () => {
+test('the plugin and the marketplace entry name the same plugin, and the entry installs releases', () => {
   const plugin = JSON.parse(read('.claude-plugin', 'plugin.json'));
   const market = JSON.parse(read('.claude-plugin', 'marketplace.json'));
   assert.equal(plugin.name, 'croftweaver');
@@ -37,21 +37,23 @@ test('the plugin and the marketplace entry name the same plugin and the same rel
   // Installing is by entry name, the skills' prefix is the plugin's: they must not differ.
   assert.equal(entry.name, plugin.name);
   assert.deepEqual({ source: entry.source.source, repo: entry.source.repo }, { source: 'github', repo: 'karero/croftweaver' });
-  // Users get releases, not main: the entry points at a release tag, and the plugin carries
-  // that release's number, which is also what tells Claude Code that there is an update.
-  const tag = /^v(\d+)\.(\d+)$/.exec(entry.source.ref);
-  assert.ok(tag, `the entry's ref ${JSON.stringify(entry.source.ref)} is not a release tag like v0.32`);
-  assert.equal(plugin.version, `${tag[1]}.${tag[2]}.0`);
+  // Users get releases, not main: the entry installs from the branch `stable`, which a
+  // release moves to its tag once the tag exists. main therefore never names something
+  // that is not there yet. The plugin carries the release's number (0.32 is 0.32.0), which
+  // is what tells Claude Code that there is an update.
+  assert.equal(entry.source.ref, 'stable');
+  assert.match(plugin.version, /^\d+\.\d+\.0$/);
   // Set in one place only: with both, Claude Code takes plugin.json's without a word.
   assert.equal(entry.version, undefined);
 });
 
-// The two values agreeing with each other says nothing about the release being cut: both
-// can be left at the last one. The release-tag workflow runs this with the pushed tag.
-test('a release tag is the one the marketplace entry installs from',
-  { skip: process.env.RELEASE_TAG ? false : 'no RELEASE_TAG: this runs when a release tag is pushed' }, () => {
-    const market = JSON.parse(read('.claude-plugin', 'marketplace.json'));
-    assert.equal(market.plugins[0].source.ref, process.env.RELEASE_TAG);
+// Nothing on a pull request can tell that a release forgot to raise the number: the last
+// one is as well-formed as the next. The release-tag workflow runs this with the tag a
+// release pushed, and with the tag `stable` was moved to.
+test('the plugin carries the number of the release it is in',
+  { skip: process.env.RELEASE_TAG ? false : 'no RELEASE_TAG: this runs when a release tag is pushed or stable moves' }, () => {
+    const plugin = JSON.parse(read('.claude-plugin', 'plugin.json'));
+    assert.equal(`v${plugin.version.replace(/\.0$/, '')}`, process.env.RELEASE_TAG);
   });
 
 test('no file of a skill sends the reader to the home skills folder for a skill\'s files', () => {

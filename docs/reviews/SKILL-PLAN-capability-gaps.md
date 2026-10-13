@@ -19,7 +19,7 @@ it; a row is only as good as its evidence.
 | B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
 | C | Forms: a contact form with a submission test (`website-forms`) | **dropped 2026-10-08**: the skill and its CI job were removed; a mail-app contact form skill replaces it, planned separately. Section C below is kept as the record of what was built | the pull request that removed it |
 | D | Import: bring an existing site under the gate | scenarios only | — |
-| E1 | Install: a plugin for Claude Code (own marketplace in this repo) | built, not released: the manifests and the skills' paths are in; the marketplace entry names the tag `v0.32`, so nothing can be installed from GitHub until that release is cut. Not run: a live session that loads the plugin (see E1 below) | the pull request that carries this row; `claude plugin validate --strict .` |
+| E1 | Install: a plugin for Claude Code (own marketplace in this repo) | built, not released: the manifests and the skills' paths are in; the marketplace entry installs from the branch `stable`, which release 0.32 creates, so nothing can be installed from GitHub until that release is cut. Not run: a live session that loads the plugin (see E1 below) | the pull request that carries this row; `claude plugin validate --strict .` |
 | E2 | Install: one line, `npm create croftweaver` | built, reviewed and published: the package is `packages/create-croftweaver`, on npm as `create-croftweaver` 0.1.0 since 2026-10-12 | karero/croftweaver#268; `npm view create-croftweaver version dist.shasum` gives 0.1.0 and `2394930488d0025bdfaede0b7026f2dc2fed251b`, the checksum of the reviewed commit's pack |
 
 ## Build order, and why
@@ -315,9 +315,11 @@ Decided by the owner on 2026-10-12:
   `templates/…`". The three places that give a command (`facts-check`,
   `website-permissions`, the lookup in `new-website`) use the name Claude Code replaces by
   the skill's own folder in a SKILL.md, with one sentence for other assistants.
-- **Releases only.** The marketplace entry installs from a release tag, and `plugin.json`
-  carries that release's number. Both are set in the release's pull request
-  (`README.md`, "Releases & versioning").
+- **Releases only.** The marketplace entry installs from the branch `stable`, and
+  `plugin.json` carries the release's number. A release raises the number in its pull
+  request and, once its tag is pushed, moves `stable` to the tag
+  (`README.md`, "Releases & versioning"). The first version of this named the tag itself
+  in the entry; main would then have named, at every release, a tag that did not exist yet.
 - **Own marketplace first.** The two files in `.claude-plugin/` make this repo its own
   marketplace. Anthropic's directory, which is what would put it one click away in the
   app, can follow.
@@ -338,15 +340,18 @@ https://code.claude.com/docs/en/plugins/host-marketplace):
 
 Known limits:
 
-- No live session has loaded the plugin yet. That Claude Code replaces the name by the
-  skill's folder is its documentation's word and not something this change observed: the
-  session that built it could not start a signed-in one.
-- Nothing can be installed from GitHub before the tag `v0.32` exists.
-- Each release's pull request has to set the two values. From its merge until the tag is
-  pushed, main names a tag that does not exist, and installing or updating the plugin
-  fails; the README says to tag in the same sitting. A release that forgets the two values
-  passes every check on its pull request. The `release-tag` workflow compares the pushed
-  tag with them, after the fact: a red run on the tag is the notice.
+- No live session has loaded the plugin yet. What was observed, on 2026-10-13 in a
+  signed-in Claude Code session with a probe skill in a project's `.claude/skills/`: the
+  name is replaced by the skill's folder in prose, in double quotes, in single quotes and
+  inside a fenced block; the forms with `:-` and `:=` after the name are left as written.
+  That it is the same for a plugin's skill is the documentation's word.
+- Nothing can be installed from GitHub before release 0.32 creates the branch `stable`.
+  The owner chose to merge this change with that release, so the README is not ahead of it.
+- A release that forgets to raise the number passes every check on its pull request. The
+  `release-tag` workflow compares the number with the pushed tag, and with the tag `stable`
+  is moved to, after the fact: a red run is the notice.
+- A release that forgets to move `stable` leaves plugin users on the release before, and
+  nothing notices.
 - A copy of `website-permissions` inside a site has no `new-website` beside it. Its
   commands then take the two files from the installed suite (`SKILLS_ROOT`, or
   `~/.claude/skills`); with the suite installed only as a plugin, that needs `SKILLS_ROOT`

@@ -12,7 +12,7 @@
       "source": {
         "source": "github",
         "repo": "karero/croftweaver",
-        "ref": "v0.32"
+        "ref": "stable"
       }
     }
   ]

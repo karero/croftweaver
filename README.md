@@ -254,14 +254,13 @@ stamps, `whats-new`) — a release just names a milestone. Versions step by **0.
 
 ```bash
 # First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
-# ("version": "0.11.0") and in .claude-plugin/marketplace.json ("ref": "v0.11"). The plugin
-# is installed from that tag, and the changed version is what tells Claude Code there is an
-# update; `make test-plugin` fails when the two disagree. Tag the commit that merge makes,
-# in the same sitting: from the merge until the tag is pushed, main names a tag that does
-# not exist, and installing or updating the plugin fails. The release-tag workflow then
-# checks the pushed tag against both values; a red run there means this step was missed.
+# ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip
 git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
+# The plugin is installed from the branch `stable`: move it to the release, or plugin
+# users stay on the one before. The release-tag workflow checks both pushes against the
+# version; a red run means the number was not raised.
+git push origin 'v0.11^{commit}:refs/heads/stable'
 gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \
   --generate-notes                # or write the notes by hand
 ```
@@ -373,7 +372,7 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 .claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
-                   from the release tag the marketplace entry names (make test-plugin)
+                   from the branch `stable`, which each release moves to its tag (make test-plugin)
 packages/      (repo only: the zip does not hold it)
   create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
                    into the assistant's skills folder. The maintainer publishes it to npm (make test-create)
