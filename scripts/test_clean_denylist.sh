@@ -134,6 +134,19 @@ printf 'Maintained by Zorblequux Flummé.\n' >"$R/README.md"
 expect "README.md, the holder's name before a non-ASCII letter: fails" 1 "README.md:1:" "$R"
 printf 'Maintained by éZorblequux Flumm.\n' >"$R/README.md"
 expect "README.md, the holder's name after a non-ASCII letter: fails" 1 "README.md:1:" "$R"
+# The check compares bytes, in the C locale it sets itself: a caller's UTF-8 locale, where
+# an awk may read é as one character and order it by the locale, changes nothing. Without
+# such a locale on this machine the cases would prove nothing: skip, and say so.
+utf8=""; for l in C.UTF-8 en_US.UTF-8; do
+  if [ -z "$utf8" ] && locale -a 2>/dev/null | grep -qx "$l"; then utf8="$l"; fi
+done
+if [ -n "$utf8" ]; then
+  expect "the same, called from a UTF-8 locale: fails" 1 "README.md:1:" "$R" "LC_ALL=$utf8"
+  printf 'Maintained by Zorblequux Flummé.\n' >"$R/README.md"
+  expect "the holder's name before a non-ASCII letter, called from a UTF-8 locale: fails" 1 "README.md:1:" "$R" "LC_ALL=$utf8"
+else
+  echo "SKIP: no C.UTF-8 or en_US.UTF-8 locale here; the UTF-8 caller cases would prove nothing"
+fi
 # Any byte above \177 beside the name counts, a curly quote or a long dash too: the check
 # does not tell those from letters, and fails rather than guess.
 printf 'Maintained by “Zorblequux Flumm”.\n' >"$R/README.md"

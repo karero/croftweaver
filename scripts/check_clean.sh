@@ -263,15 +263,15 @@ if [ -f "$DENYLIST_FILE" ]; then
   # a longer name, and a curly quote or a long dash too, since telling those from letters
   # would take a table of Unicode. Stricter than the edges the list is matched with, on
   # purpose: what is blanked here is not looked at again, and a name left unblanked only
-  # fails the run. (The comparison with \177 is by bytes because this script runs in the C
-  # locale, set at its top.) The name is read from LICENSE at run time, so this script,
+  # fails the run. (The comparison with \177 is by bytes: awk is run in the C locale here,
+  # whatever the caller's.) The name is read from LICENSE at run time, so this script,
   # which the check scans, never holds it, and it is compared as plain text (awk's index),
   # so nothing in it is read as a pattern: it is everything after the year or range of
   # years, punctuation included. A LICENSE without such a line allows nothing. Either way,
   # a hit in README.md comes with a line that says what README.md may hold.
   holder="$(sed -n '/^Copyright (c) [0-9][0-9-]* /{s///;s/[[:space:]]*$//;p;q;}' LICENSE)"
   blank_maintainer() { # stdin: hits → stdout, the holder's name blanked in README.md's lines
-    HOLDER="$holder" awk '
+    HOLDER="$holder" LC_ALL=C awk '
       function inword(c) { return c ~ /[A-Za-z0-9_]/ || c > "\177" }
       BEGIN { h = ENVIRON["HOLDER"]; n = length(h) }
       n && /^README\.md:[0-9]+:/ {
@@ -317,7 +317,7 @@ if [ -f "$DENYLIST_FILE" ]; then
     case "$hits" in
       README.md:[0-9]*|*$'\n'README.md:[0-9]*)
         if [ -n "$holder" ]; then
-          echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name (everything after the year, punctuation included); any other name or spelling in README.md is reported"
+          echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name (everything after the year, punctuation included), with no letter, digit, _ or non-ASCII character right beside it; anything else in README.md is reported"
         else
           echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name, and LICENSE has no line \"Copyright (c) <year> <name>\": a name in README.md is reported like any other"
         fi ;;
