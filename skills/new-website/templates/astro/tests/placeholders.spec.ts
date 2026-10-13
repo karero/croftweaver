@@ -337,15 +337,15 @@ async function readPage(page: Page): Promise<{ text: string; lang: string }> {
     // browser calls block, flex, grid, table (and table parts), list-item or flow-root, or
     // what stays `none` when bare (script, template, rp); every other answer is inline:
     // inline*, contents, and ruby, which is what Chromium answers for <ruby>. A hidden
-    // custom element is not asked: a bare one would run that element's own code on the
-    // page under test. It counts as inline, which is the browser's answer for a custom
-    // element the page does not style.
+    // element the page has registered as a custom element is not asked: a bare one would
+    // run that element's own code on the page under test. It counts as inline, which is
+    // the browser's answer for a custom element the page does not style.
     const live = Array.from(document.body.querySelectorAll('*'));
     const copied = Array.from(body.querySelectorAll('*'));
     const bare = new Map<string, string>();
     const displayOfBare = (el: Element) => {
       const tag = el.tagName;
-      if (tag.includes('-')) return 'inline';
+      if (customElements.get(el.localName)) return 'inline';
       if (!bare.has(tag)) {
         // In the element's own namespace: an SVG <text> is a block, an HTML element of
         // that name is not.
@@ -454,6 +454,8 @@ test('placeholders — the page reading reaches each surface it claims', async (
     <ul><li>Stock</li><li>dum<em>my</em> content</li></ul><table><tr><td>Cost</td><td>place<b>holder</b> image</td></tr></table>
     <div>Shelf<div style="display:flow-root">place<b>holder</b> content</div></div>
     <div>Crate<div style="display:-webkit-box">tex<i>t</i> goes here</div></div>
+    <div>Bench<div style="display:flex"><span style="display:contents">your head<em style="display:contents">line</em> here</span></div></div>
+    <div>Chest<div style="display:grid"><span style="display:contents">co<em style="display:contents">py</em> goes here</span></div></div>
     <p><span style="float:left">J</span>ohn doe</p> <h2 style="display:flex"><span>muster</span><span>strasse</span></h2>
     <p>ma<script></script>x mustermann</p>
     <style>body > u { display: block; }</style> <p>eri<u hidden>ka</u> mustermann</p>
@@ -506,12 +508,14 @@ test('placeholders — the page reading reaches each surface it claims', async (
   expect(found('placeholder wording', 'placeholdercopy'), '"place<ruby hidden>holder</ruby> copy": Chromium lays <ruby> out as "ruby", which is inline').toBe(true);
   expect(found('placeholder wording', 'musterstadt'), '"muster<button hidden>stadt</button>": inline-block').toBe(true);
   expect(found('placeholder wording', 'musterfirma'), '"muster<ruby>firma</ruby>": a <ruby> that is shown').toBe(true);
-  // The other kinds of block a leftover can pin. (Not flex and grid: what such a box holds
-  // is laid out as blocks itself.)
+  // The other kinds of block. What a flex or grid box holds is laid out as blocks itself,
+  // unless it is display: contents; only then does the box's own boundary decide.
   expect(found('placeholder wording', 'dummycontent'), '"<li>Stock</li><li>dum<em>my</em> content</li>": list-item').toBe(true);
   expect(found('placeholder wording', 'placeholderimage'), '"<td>Cost</td><td>place<b>holder</b> image</td>": table-cell').toBe(true);
   expect(found('placeholder wording', 'placeholdercontent'), '"Shelf<div style="display:flow-root">place<b>holder</b> content</div>"').toBe(true);
   expect(found('placeholder wording', 'textgoeshere'), '"Crate<div style="display:-webkit-box">tex<i>t</i> goes here</div>"').toBe(true);
+  expect(found('placeholder wording', 'yourheadlinehere'), '"Bench<div style="display:flex">…your head<em>line</em> here…</div>", the children display: contents: flex').toBe(true);
+  expect(found('placeholder wording', 'copygoeshere'), '"Chest<div style="display:grid">…co<em>py</em> goes here…</div>", the children display: contents: grid').toBe(true);
   // What only the fused reading as served sees: the spaces around blocks split these.
   expect(found('placeholder wording', 'johndoe'), '"<span style="float:left">J</span>ohn doe": a floated first letter is a block').toBe(true);
   expect(found('placeholder wording', 'musterstrasse'), '"<span>muster</span><span>strasse</span>" in a flex heading: each item is a block').toBe(true);
