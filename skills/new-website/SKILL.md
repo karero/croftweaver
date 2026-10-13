@@ -272,18 +272,20 @@ full path (the output of `pwd` inside it):
    # Honour an explicit $SKILLS_ROOT; else auto-detect. First the folder this very skill was
    # loaded from: in the first candidate of the loop below, Claude Code puts this skill's
    # own folder where the name in braces stands, which also finds the suite when it is
-   # installed as a plugin and so sits in none of the three folders above. That candidate is
-   # in single quotes on purpose: where another assistant leaves the name as it is, the
-   # shell takes it as a folder name, not as a variable, no such folder exists, and the
-   # candidate drops out. Then Claude Code → Antigravity → Codex
+   # installed as a plugin and so sits in none of the three folders above. Claude Code
+   # replaces the name only where nothing follows it inside the braces, so the line before
+   # the loop reaches every assistant as written: where the name was left alone, it gives
+   # the shell an empty value for it instead of an unset variable, the candidate reads
+   # "/..", and the loop passes over it. Then Claude Code → Antigravity → Codex
    # (Claude is the default/primary). On a machine with more than one installed, set it
    # yourself — e.g. `export SKILLS_ROOT=~/.agents/skills` (Codex) or
    # `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
    # `export SKILLS_ROOT="$PWD/.agents/skills"`.
    if [ -z "${SKILLS_ROOT:-}" ]; then
      SKILLS_ROOT="$HOME/.claude/skills"
-     for d in '${CLAUDE_SKILL_DIR}/..' "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
-       [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
+     : "${CLAUDE_SKILL_DIR:=}"
+     for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
+       [ "$d" != /.. ] && [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
      done
    fi
    # Where bundled skills go IN the generated project (the cp DESTINATION). Claude default

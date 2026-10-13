@@ -329,6 +329,13 @@ Checked on 2026-10-12 against Claude Code 2.1.287 and its documentation
 https://code.claude.com/docs/en/plugins/host-marketplace):
 
 - `claude plugin validate --strict .` passes.
+- An entry that names a branch works as the release step needs it to. Tried on 2026-10-13
+  with a throwaway git repository as the plugin's source (`"source": "url"`, `"ref":
+  "stable"`), a marketplace added from a folder, and a throwaway configuration folder: the
+  install took the files at `stable` and not what main had gained since; `claude plugin
+  update` said "already at the latest version (0.32.0)" while main moved and also after a
+  release 0.33 was tagged; once `stable` was moved to that tag it said "updated from 0.32.0
+  to 0.33.0". The entry in this repo uses `"source": "github"`, which was not tried.
 - Installed from a copy of this tree as a local marketplace, into a throwaway configuration
   folder: 35 skills, and every folder and file the scaffold copies is there, the
   templates' `.gitignore` included. The files land under
@@ -353,9 +360,13 @@ Known limits:
 - A release that forgets to move `stable` leaves plugin users on the release before, and
   nothing notices.
 - A copy of `website-permissions` inside a site has no `new-website` beside it. Its
-  commands then take the two files from the installed suite (`SKILLS_ROOT`, or
-  `~/.claude/skills`); with the suite installed only as a plugin, that needs `SKILLS_ROOT`
-  set by hand.
+  commands then take the two files from an installed suite: the folder `SKILLS_ROOT`
+  names, `~/.claude/skills`, or the plugin's folder under Claude Code's configuration
+  folder (`plugins/cache/croftweaver/croftweaver/<version>/skills`, as observed with
+  2.1.287; of several versions kept there, the first by name).
+- The folder Claude Code fills in stands between double quotes. A folder name with a
+  double quote, a dollar sign, a backtick or a backslash in it breaks those lines; one with
+  a space or an apostrophe does not.
 - Row 5: the doubled listing costs context in every session in such a site.
 - A site scaffolded from the plugin is stamped `suite_commit: unknown`, as from a zip.
 - The documentation names a single command that adds the marketplace and installs

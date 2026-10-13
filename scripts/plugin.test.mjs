@@ -60,7 +60,9 @@ test('no file of a skill sends the reader to the home skills folder for a skill\
   const found = [];
   for (const [file, text] of skillFiles()) {
     text.split('\n').forEach((line, i) => {
-      if (/(~|\$\{?HOME\}?)\/\.(claude|agents|gemini\/config)\/skills\//.test(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
+      // The folder followed by a path: also behind the closing brace of a default, as in
+      // "${SKILLS_ROOT:-$HOME/.claude/skills}/name".
+      if (/(~|\$\{?HOME\}?)\/\.(claude|agents|gemini\/config)\/skills\}?\//.test(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
     });
   }
   assert.deepEqual(found, [], 'a plugin\'s skills are not in that folder: name the file relative to the skill ("this skill\'s templates/…")');
@@ -145,10 +147,12 @@ test('new-website finds the suite where it was loaded from: a plugin\'s folder, 
 test('the copy that is running wins over another install of the suite on the same computer', () => {
   const home = tmp();
   suiteAt(path.join(home, '.claude', 'skills'));
-  const plugin = path.join(tmp(), 'with space', 'skills');
+  // A folder name with a space and an apostrophe: both are common in "Documents" folders.
+  const plugin = path.join(tmp(), "owner's suite", 'skills');
   suiteAt(plugin);
 
   assert.equal(runLookup({ filled: path.join(plugin, 'new-website'), home }).root, plugin);
+  assert.equal(runLookup({ filled: path.join(plugin, 'new-website'), home, strict: true }).root, plugin);
 });
 
 test('an assistant that fills nothing in still finds its own install, and the unfilled name does no harm', () => {
@@ -164,11 +168,17 @@ test('an assistant that fills nothing in still finds its own install, and the un
   assert.deepEqual(runLookup({ filled: null, home }), { root: path.join(home, '.claude', 'skills'), project: '.claude/skills' });
 });
 
-test('left as written, the first candidate is a folder name and not a variable: in single quotes', () => {
-  // In double quotes an unset name would vanish and leave "/..", the root of the disk: the
-  // lookup would then take a folder /new-website for the suite, and stop in a strict shell.
-  assert.match(lookup(), /for d in '\$\{CLAUDE_SKILL_DIR\}\/\.\.' "\$HOME\/\.claude\/skills"/);
-  assert.equal(lookup().split(VAR).length, 2, 'the name stands in the lookup more than once');
+test('left as written, the name is an empty value, not an unset variable, and its candidate is passed over', () => {
+  // Claude Code leaves the form with := alone (seen in a live session), so this line reaches
+  // every assistant; without it a strict shell stops at the unset name.
+  assert.ok(lookup().includes(': "${CLAUDE_SKILL_DIR:=}"\n'));
+  // The candidate is in double quotes: a folder with an apostrophe in its name, filled in
+  // between single quotes, ends the string early and the shell cannot read the line.
+  assert.match(lookup(), /for d in "\$\{CLAUDE_SKILL_DIR\}\/\.\." "\$HOME\/\.claude\/skills"/);
+  // Empty, the candidate is "/..", the root of the disk: without this test a folder
+  // /new-website there would pass for the suite.
+  assert.ok(lookup().includes('[ "$d" != /.. ] && [ -d "$d/new-website" ]'));
+  assert.equal(lookup().split(VAR).length, 2, 'the name must stand in the lookup exactly once');
 });
 
 test('an explicit SKILLS_ROOT is honoured, and with nothing installed the default is unchanged', () => {
@@ -182,8 +192,8 @@ test('an explicit SKILLS_ROOT is honoured, and with nothing installed the defaul
 });
 
 test('the two guides that repeat the lookup for testers repeat it as it is', () => {
-  const loop = lookup().split('\n').filter((line) => /^\s*(for d in|\[ -d "\$d\/new-website" \])/.test(line)).map((line) => line.trim());
-  assert.equal(loop.length, 2);
+  const loop = lookup().split('\n').filter((line) => /^\s*(: "\$\{CLAUDE_SKILL_DIR:=\}"|for d in|\[ "\$d" != \/\.\. \])/.test(line)).map((line) => line.trim());
+  assert.equal(loop.length, 3);
   for (const guide of ['CODEX-TEST.md', 'ANTIGRAVITY-TEST.md']) {
     const lines = read('docs', guide).split('\n').map((line) => line.trim());
     for (const line of loop) assert.ok(lines.includes(line), `docs/${guide} lacks: ${line}`);
@@ -191,7 +201,7 @@ test('the two guides that repeat the lookup for testers repeat it as it is', () 
 });
 
 // The lines website-permissions gives to copy the allowlist and its hook into a site.
-const copySettings = () => block(['skills', 'website-permissions', 'SKILL.md'], "src='${CLAUDE_SKILL_DIR}/../new-website/templates/claude'", 'If both `cp` lines fail');
+const copySettings = () => block(['skills', 'website-permissions', 'SKILL.md'], ': "${CLAUDE_SKILL_DIR:=}"', 'If both `cp` lines fail');
 
 function runCopy(options) {
   const site = tmp();
@@ -201,7 +211,7 @@ function runCopy(options) {
 }
 
 test('website-permissions copies the allowlist from the suite it is part of', () => {
-  const plugin = path.join(tmp(), 'cache', 'with space', 'skills');
+  const plugin = path.join(tmp(), 'cache', "owner's suite", 'skills');
   suiteAt(plugin, 'the plugin');
 
   const copied = runCopy({ filled: path.join(plugin, 'website-permissions'), home: tmp() });
@@ -223,6 +233,22 @@ test('from the copy inside a site, which has no new-website beside it, it takes 
   for (const strict of [false, true]) {
     assert.deepEqual(runCopy({ filled: null, home, env: { SKILLS_ROOT: elsewhere }, strict }), { status: 0, settings: 'settings from SKILLS_ROOT', hook: 'hook from SKILLS_ROOT' });
   }
+});
+
+test('from a site\'s copy on a computer that has the suite only as a plugin, it takes the plugin\'s', () => {
+  const home = tmp();
+  const config = path.join(home, '.claude');
+  suiteAt(path.join(config, 'plugins', 'cache', 'croftweaver', 'croftweaver', '0.32.0', 'skills'), 'the plugin cache');
+  const siteCopy = path.join(tmp(), "Sam's Bakery", '.claude', 'skills', 'website-permissions');
+  fs.mkdirSync(siteCopy, { recursive: true });
+
+  for (const strict of [false, true]) {
+    assert.deepEqual(runCopy({ filled: siteCopy, home, strict }), { status: 0, settings: 'settings from the plugin cache', hook: 'hook from the plugin cache' });
+  }
+  // The same where Claude Code's configuration folder is not the default one.
+  const moved = path.join(tmp(), 'claude-config');
+  suiteAt(path.join(moved, 'plugins', 'cache', 'croftweaver', 'croftweaver', '0.33.0', 'skills'), 'the moved config');
+  assert.equal(runCopy({ filled: siteCopy, home: tmp(), env: { CLAUDE_CONFIG_DIR: moved } }).settings, 'settings from the moved config');
 });
 
 test('with no suite to copy from it fails, and writes neither file', () => {

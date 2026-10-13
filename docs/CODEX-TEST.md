@@ -39,8 +39,9 @@ Antigravity, force Codex's path first:
 export SKILLS_ROOT=~/.agents/skills           # needed if Claude Code or Antigravity is also installed
 if [ -z "${SKILLS_ROOT:-}" ]; then
   SKILLS_ROOT="$HOME/.claude/skills"
-  for d in '${CLAUDE_SKILL_DIR}/..' "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
-    [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
+  : "${CLAUDE_SKILL_DIR:=}"
+  for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
+    [ "$d" != /.. ] && [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
   done
 fi
 echo "$SKILLS_ROOT"                   # expect: .../.agents/skills
