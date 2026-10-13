@@ -196,6 +196,25 @@ class TheSkillFile(unittest.TestCase):
         for prefix in calls:
             self.assertEqual(prefix, '"$KIT/scripts/', prefix)
 
+    @unittest.skipUnless(os.path.exists("/bin/sh"), "needs a POSIX shell")
+    def test_the_way_it_says_to_set_the_folder_works_in_a_shell(self):
+        # `KIT=/path python3 "$KIT/…"` cannot work: a shell fills in "$KIT" before the assignment on
+        # the same simple command takes effect, and Python then reports '/scripts/brand_intake.py'
+        # as missing. So the example is run as written, in a shell that has no KIT of its own.
+        import shlex
+        import subprocess
+        import sys
+        examples = re.findall(r"`(KIT=/full/path[^`]*)`", self.text)
+        self.assertEqual(len(examples), 1, examples)
+        line = examples[0]
+        self.assertTrue(line.endswith(" …"), line)
+        line = line[:-2].replace("/full/path", shlex.quote(os.path.abspath(SKILL)), 1)
+        line = line.replace("python3", shlex.quote(sys.executable), 1) + " palette --help"
+        env = dict((k, v) for k, v in os.environ.items() if k != "KIT")
+        done = subprocess.run(["/bin/sh", "-c", line], capture_output=True, text=True, env=env)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("usage:", done.stdout)
+
     def test_the_starters_colours_it_names_are_the_starters_colours(self):
         # §0 gives them for a logo made before the project exists; a starter that changes its colours
         # must change this sentence too

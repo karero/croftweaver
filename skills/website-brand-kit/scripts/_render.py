@@ -12,12 +12,16 @@ import json
 import os
 import re
 import shutil
-import subprocess
 
+import _proc
 from _refusal import Refusal
 
 HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "render.mjs")
 INTRINSIC = 1024  # the long side, in pixels, the drawing is given before it is scaled to each icon
+# How long the renderer may take over all the icons of one drawing. The check keeps out the drawings it knows to be
+# slow (measured 2026-10-13: the slowest one found inside its caps takes 0.8 seconds of processor time for an icon);
+# this is the backstop behind it.
+RENDER_SECONDS = 180
 _FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,60}$")
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -59,28 +63,37 @@ class Renderer(object):
         self.site = site_dir
         self.node = node if node is not None else shutil.which("node")
 
-    def _run(self, args, request=None, timeout=180):
+    def _run(self, args, request=None, timeout=RENDER_SECONDS):
         if not self.node:
             raise Refusal("no-node", NO_NODE)
         if not os.path.isdir(self.site):
             raise Refusal("no-site", NO_SITE % self.site)
         try:
-            # read as UTF-8 whatever the computer's own encoding is: a warning may name a path with any letters in it
-            r = subprocess.run([self.node, HELPER] + args, input=None if request is None else json.dumps(request),
-                               cwd=self.site, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout)
+            # Node is run as every other command of a run is (_proc._run), because a stop from outside can come
+            # while it draws: it is started and waited for in a way a stop cannot break, the stop ends the wait at
+            # once, and Node is stopped with it. Read as UTF-8 whatever the computer's own encoding is: a warning
+            # may name a path with any letters in it.
+            code, printed, errors = _proc._run([self.node, HELPER] + args, self.site, timeout, input=None if request is None else json.dumps(request))
         except FileNotFoundError:
             raise Refusal("no-node", NO_NODE) from None
-        except subprocess.TimeoutExpired:
-            raise Refusal("render-failed", "The renderer took more than %d seconds and was stopped." % timeout) from None
+        if code is None:
+            # the last line of defence against a drawing that is slow to draw (the check keeps out the ones it knows:
+            # see "what the grammar does not close" in _svg.py); with no drawing handed over, it is the computer
+            raise Refusal(
+                "render-failed",
+                "The renderer took more than %d seconds and was stopped.%s"
+                % (timeout, " The drawing is far more work to draw than a logo is. Ask the tool for a plainer drawing: fewer "
+                            "shapes, and outlines turned into shapes." if request is not None else ""),
+            )
         # a line ends at a line feed and nowhere else: splitlines() would also cut an answer in two at a
         # U+2028 or a U+0085 inside one of its texts
-        lines = [l for l in r.stdout.split("\n") if l.strip()]
+        lines = [l for l in printed.split("\n") if l.strip()]
         try:
             answer = json.loads(lines[-1])
             if not isinstance(answer, dict):
                 raise ValueError("the answer is not a JSON object")
         except (IndexError, ValueError, RecursionError):  # no line, not JSON, or JSON nested too deep to read
-            first = ([l for l in r.stderr.strip().split("\n") if l.strip()] or ["no answer"])[0].strip()[:200]
+            first = ([l for l in errors.strip().split("\n") if l.strip()] or ["no answer"])[0].strip()[:200]
             raise Refusal("render-failed", "The renderer did not answer (%s)." % first) from None
         if answer.get("ok") is not True:  # true itself: JSON's NaN, a 1 or a word would pass for it otherwise
             code, msg = answer.get("error", "render-failed"), str(answer.get("message", ""))[:300]
@@ -112,7 +125,7 @@ class Renderer(object):
         w, h = (INTRINSIC, INTRINSIC * vh / vw) if vw >= vh else (INTRINSIC * vw / vh, INTRINSIC)
         sized = svg_text.replace("<svg ", '<svg width="%s" height="%s" ' % (round(w, 4), round(h, 4)), 1)
         request = {"svg": sized, "viewBox": list(view_box), "intrinsic": INTRINSIC, "outDir": os.path.abspath(out_dir), "jobs": jobs}
-        results = self._run([], request).get("results")
+        results = self._run([], request, timeout=RENDER_SECONDS).get("results")
         if not isinstance(results, list):
             raise Refusal("render-failed", "The renderer did not say what it drew.")
         return results

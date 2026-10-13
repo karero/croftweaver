@@ -60,12 +60,14 @@ def choose_background(colour_sets, candidates):
             if all(_colour.ratio(c, bg) >= NEED for c in colours):
                 return Choice(version, bg)
     have_mono = any(v == "mono" for v, _ in colour_sets)
+    tried = ", ".join(candidates[:-1]) + (" and " if candidates[1:] else "") + candidates[-1] if candidates else "none"
     raise Ask(
         "no-background",
-        "No background keeps every colour of the mark at 3 to 1 or better against it, so the app icons would lose part "
-        "of the mark%s. That happens when the mark holds both a very light and a very dark colour: whatever stands "
-        "behind them hides one of the two. %s" % (
-            " (the one-colour version you gave does not serve either)" if have_mono else "",
+        "None of the backgrounds this tool puts behind a mark keeps every colour of this one at 3 to 1 or better against it, "
+        "so the app icons would lose part of the mark%s. It tried %s: the page backgrounds the palette has, then white and "
+        "black, and no other. That happens when the mark holds both a very light and a very dark colour: each of those "
+        "backgrounds is too close to one of the two. %s" % (
+            " (the one-colour version you gave does not serve either)" if have_mono else "", tried,
             "Ask the tool for a version of the mark whose colours are closer to one another in lightness (all of them dark, "
             "or all of them light)." if have_mono else
             "Give the one-colour version of the mark (the file that holds the mark in a single colour), or ask the tool for a "

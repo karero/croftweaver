@@ -123,6 +123,25 @@ class ChoosingABackground(unittest.TestCase):
         c = self.choose(colours, mono=[self.brand])
         self.assertEqual((c.version, c.background), ("mono", self.cream))
 
+    def test_the_question_says_which_backgrounds_were_tried_and_not_that_none_exists(self):
+        # round 4: of a black-and-white mark it said "whatever stands behind them hides one of the two", and a mid grey hides neither
+        black_and_white = ["#000000", "#ffffff"]
+        self.assertGreaterEqual(min(_colour.ratio(c, "#767676") for c in black_and_white), 4.5, "a background that would serve, and is none this tool uses")
+        for palette, tried in ((bakery(), "It tried #fff8ee, #1a120d, #ffffff and #000000: "), (_palette.Palette(), "It tried #ffffff and #000000: ")):
+            with self.subTest(tried=tried):
+                with self.assertRaises(Ask) as cm:
+                    self.choose(black_and_white, palette=palette)
+                message = str(cm.exception)
+                for part in ("None of the backgrounds this tool puts behind a mark keeps every colour of this one at 3 to 1 or better", tried + "the page backgrounds the palette has, then white and black, and no other", "each of those backgrounds is too close to one of the two"):
+                    self.assertIn(part, message)
+                for untrue in ("No background keeps", "whatever stands behind", "hides one of the two"):
+                    self.assertNotIn(untrue, message)
+        # what it says it tried is what it tries: with the grey among the candidates the same mark has a background
+        self.assertEqual(_icons.choose_background([("colour", black_and_white)], _icons.backgrounds(bakery()) + ["#767676"]).background, "#767676")
+        with self.assertRaises(Ask) as cm:
+            _icons.choose_background([("colour", black_and_white)], ["#fff8ee"])
+        self.assertIn("It tried #fff8ee: ", str(cm.exception))
+
     def test_of_the_colours_that_hardly_show_only_those_that_block_a_background_are_named(self):
         # every one of them used to be named, also one that stood in the way of nothing
         black, grey3 = "#000000", ["#767676", "#cccccc", "#444444"]
@@ -333,6 +352,30 @@ class TheSevenFiles(WithTheSitesSharp):
         self.assertAlmostEqual(max(ys) - min(ys) + 1, 205, delta=2)
 
 
+class TheQuestionThroughTheInstall(unittest.TestCase):
+    def test_a_black_and_white_mark_is_asked_about_in_words_that_are_true_of_it(self):
+        # round 4, through the door the assistant uses: the install's own question for a mark no background of the four serves
+        import json
+        import subprocess
+        import sys
+        T.require_sharp(self)
+        mark = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="30" fill="#000000"/>'
+                b'<rect y="34" width="64" height="30" fill="#ffffff"/></svg>')
+        with tempfile.TemporaryDirectory() as tmp:
+            site = T.make_starter_site(os.path.join(tmp, "site"))
+            with open(os.path.join(tmp, "mark.svg"), "wb") as f:
+                f.write(mark)
+            r = subprocess.run([sys.executable, os.path.join(T.SCRIPTS, "brand_intake.py"), "install", "--site", site, "--input", os.path.join(tmp, "mark.svg"), "--keep-colours",
+                                "--accept-colours", "--accept-low-contrast", "both", "--test-command", "true", "--dry-run", "--json"],
+                               capture_output=True, text=True, encoding="utf-8", env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8"))
+            self.assertEqual((r.returncode, r.stderr), (3, ""), r.stdout)
+            said = " ".join(json.loads(r.stdout)["report"])
+            for part in ("None of the backgrounds this tool puts behind a mark keeps every colour of this one at 3 to 1 or better",
+                         "It tried #ffffff, #0a0b1e and #000000: the page backgrounds the palette has, then white and black, and no other"):
+                self.assertIn(part, said)
+            self.assertNotIn("whatever stands behind", said)
+
+
 class LyingRenderer(object):
     """A renderer that hands back what it likes: the checks on what it made must not take its word."""
 
@@ -449,7 +492,8 @@ class WhatTheRenderShows(WithTheSitesSharp):
                 with self.assertRaises(Ask) as cm:
                     self.build(('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">%s</svg>' % body).encode())
                 self.assertEqual(cm.exception.code, "no-background")
-                self.assertIn("#fff8ee", str(cm.exception))
+                # (the question itself now lists the backgrounds it tried, so the colour is looked for in the sentence about what stands in the way)
+                self.assertIn("#fff8ee", str(cm.exception).partition("What stands in the way is")[2])
                 self.assertIn("hardly shows", str(cm.exception))
         # a second colour that hardly shows and stands in the way of no background is not named with it
         body = ('<rect width="64" height="64" fill="#6b2c0b"/><rect x="100" y="100" width="9" height="9" fill="#fff8ee"/>'
@@ -457,7 +501,7 @@ class WhatTheRenderShows(WithTheSitesSharp):
         with self.assertRaises(Ask) as cm:
             self.build(('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">%s</svg>' % body).encode())
         self.assertIn("What stands in the way is #fff8ee: the file paints with it, although it hardly shows when the mark is drawn", str(cm.exception))
-        self.assertNotIn("#000000", str(cm.exception))
+        self.assertNotIn("#000000", str(cm.exception).partition("What stands in the way is")[2])
         self.assertIn("A version of that file without it would do too.", str(cm.exception))
         # two colours that both stand in the way are "them", and with a one-colour version in play the file is named
         body = ('<rect width="64" height="64" fill="#6b2c0b"/><rect x="100" y="100" width="9" height="9" fill="#fff8ee"/>'

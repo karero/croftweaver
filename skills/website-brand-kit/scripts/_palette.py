@@ -89,10 +89,17 @@ class Palette(object):
 
 # --- reading BRAND.md or a pasted palette ----------------------------------------------
 
+_HEADING_LINE = re.compile(r"#{1,6}(?: |\Z)")  # a heading: one to six # and then a blank or the line's end (a line's blanks are single spaces by then)
 _SECTION = re.compile(r"(brand|light theme|dark theme)(?: ?\(([^()]*)\))?")
+_REMARK_BRAND = "fixed, theme-independent"  # the template's own remark on `### Brand`
+_REMARK_MARK = re.compile(r"propos(?:ed|als?)")
 _PALETTE = re.compile(r"colou?r palette")  # rule 0: the heading of the part of a longer text that holds the palette
-_MARK = re.compile(r"\bpropos(?:ed|als?)\b", re.I)
-_MARK_AFTER = re.compile(r"(?: ?\( ?propos(?:ed|als?) ?\)| propos(?:ed|als?))$", re.I)
+# The mark (rule 9), as a whole word: no letter and no digit is joined to it. An underscore beside it is emphasis
+# (`_proposed_`) and a raised or lowered figure a footnote mark (`proposed²`): neither makes it another word.
+_JOINED = "[^\\W_\u00b2\u00b3\u00b9\u2070-\u209f]"
+_MARK = re.compile(r"(?<!%s)propos(?:ed|als?)(?!%s)" % (_JOINED, _JOINED), re.I)
+# The mark after the colour of a value cell: in brackets or after a space, emphasis marks around it or not.
+_MARK_AFTER = re.compile(r"(?: ?[*_`]*\( ?[*_`]*propos(?:ed|als?)[*_`]* ?\)[*_`]*| [*_`]*propos(?:ed|als?)[*_`]*)$", re.I)
 _SEPARATOR = re.compile(r":?-+:?")
 _PLACEHOLDER = re.compile(r"#?\[([^\[\]#0-9]*)\]|#?(?:\.\.\.|…)|[-–—]+")
 # A colour written as a value (rule 12): a # with 3, 4, 6 or 8 hex digits, with no letter, digit or & straight before
@@ -146,6 +153,25 @@ def _unseen(text):
     return " (What is written as <U+...> in the quote is a character that does not show on the screen: take it out.)"
 
 
+def _is_heading(line):
+    """Is this line a heading? One to six # at its start, then a blank or the end of the line. `#1: ...`, `#Brand`
+    and a hex colour at the start of a line are text."""
+    return bool(_HEADING_LINE.match(line))
+
+
+def _section(plain):
+    """What the text of a heading names, given as _plain() makes it: (None, None) when it is not `Brand`, `Light theme`
+    or `Dark theme`, alone or with one bracketed remark; else (that section, what its remark is: "" for none or the
+    template's own on Brand, "proposed" for the mark, "other" for any other, which rule 2 does not read)."""
+    m = _SECTION.fullmatch(plain)
+    if not m:
+        return None, None
+    name, remark = m.group(1).split()[0], m.group(2)  # "brand", "light", "dark"
+    if remark is None or (name == "brand" and remark.strip() == _REMARK_BRAND):
+        return name, ""
+    return name, "proposed" if _REMARK_MARK.fullmatch(remark.strip()) else "other"
+
+
 def _level(line):
     """How many # a heading line starts with."""
     return len(line) - len(line.lstrip("#"))
@@ -181,7 +207,7 @@ def _colour_in(text):
         return None
     for m in _COLOUR.finditer(text):
         inner = m.group(1)
-        if inner is None or not ("..." in inner or "…" in inner):  # rgba(...,0.06) is a placeholder, as #... is
+        if inner is None or not ("..." in inner or "…" in inner):  # rule 12: the template's rgba(...,0.06) is passed over
             return m
     return None
 
@@ -266,7 +292,10 @@ class _Reader(object):
         self.heading = None   # the last heading as written, when it is none of the three
         self.tables = 0       # how many tables have stood under this section's heading
         self.closed = None    # the line of text that followed a table of this section: no later table is filed under it
-        self.label = None     # the line before this section's first table that names another section: no table is filed under it
+        self.label = None     # the line that leaves open which section the tables here belong to (a line before the first table that
+                              # names another section, or the heading itself with a remark that is not read): no table is filed under it
+        self.whole = True     # no heading says `Colour palette`: the whole text is the palette (rule 0)
+        self.foreign = False  # a heading that names none of the three sections was met: the text holds more than the three tables
         self.caption = None   # the last line of text above the table being collected
         self.rows = []        # the table being collected
         self.said = set()     # numbers of the lines whose colours were read, or are named by a problem of their row or table
@@ -297,7 +326,7 @@ class _Reader(object):
                 self.table_line(number, line)
                 continue
             self.end_table()
-            if line.startswith("#"):
+            if _is_heading(line):
                 self.heading_line(number, line)
             else:
                 self.text_line(number, line)
@@ -324,10 +353,11 @@ class _Reader(object):
     def where_to_look(self, lines):
         """Rule 0: (how many lines stand before the part of the text that is the palette, the number of its last
         line). The whole text, unless one heading says `Colour palette`: then the part under that heading."""
-        found = [at for at, line in enumerate(lines)
-                 if line.startswith("#") and len(line) <= MAX_LINE and "palette" in line.lower() and _PALETTE.fullmatch(_plain(_heading(line)))]
+        heads = [at for at, line in enumerate(lines) if _is_heading(line)]
+        found = [at for at in heads if len(lines[at]) <= MAX_LINE and _PALETTE.fullmatch(_plain(_heading(lines[at])))]
         if not found:
             return 0, len(lines)
+        self.whole = False
         if len(found) > 1:
             self.problem("?", None, "palette-section-twice",
                          "The heading %s stands %d times in this text (on lines %s%s). This check reads the palette from the part of "
@@ -337,18 +367,30 @@ class _Reader(object):
                             " and further down" if len(found) > MOST_NAMED else ""))
             return 0, 0
         first, level = found[0], _level(lines[found[0]])
-        last = next((at for at in range(first + 1, len(lines)) if lines[at].startswith("#") and _level(lines[at]) <= level), len(lines))
+        last = next((at for at in heads if at > first and _level(lines[at]) <= level), len(lines))
         # Outside that part nothing is read and nothing is named, with one exception: one of the three headings with a
         # table under it is a palette (or a part of one) written in the wrong place, and is said to be
         stray, heading = [], None
         for at in list(range(first)) + list(range(last, len(lines))):
             line = lines[at]
-            if line.startswith("#"):
-                heading = at if len(line) <= MAX_LINE and _SECTION.fullmatch(_plain(_heading(line))) else None
+            if _is_heading(line):
+                heading = at if len(line) <= MAX_LINE and _section(_plain(_heading(line)))[0] else None
             elif line.startswith("|") and heading is not None:
                 stray.append(heading)
                 heading = None
+        ended_by_one = last in stray  # the part ends at one of the three headings: they have as many # as `Colour palette`, or fewer
         for at in stray[:MOST_NAMED]:
+            if ended_by_one and at >= last:
+                deep = min(level, 5)
+                self.problem("?", None, "palette-outside-section",
+                             "Line %d, the heading %s, has a table under it and stands outside the part of this text that the check "
+                             "reads. That part begins at the heading %s (line %d) and ends at the next heading that has as many # as "
+                             "that one, or fewer: %s. So that table was not read. Give the three headings with the tables more # than "
+                             "the `Colour palette` heading has (`%s Brand` under `%s Colour palette`)."
+                             % (at + 1, _quoted(lines[at]), _quoted(lines[first]), first + 1,
+                                "this heading" if at == last else "line %d, %s" % (last + 1, _quoted(lines[last])),
+                                "#" * (deep + 1), "#" * deep))
+                continue
             self.problem("?", None, "palette-outside-section",
                          "Line %d, the heading %s, has a table under it and stands outside the part of this text that the check "
                          "reads: the part under the heading %s (lines %d to %d). So that table was not read. Move the heading and "
@@ -362,17 +404,27 @@ class _Reader(object):
 
     def heading_line(self, number, line):
         self.end_section()
-        text = _heading(line)
-        m = _SECTION.fullmatch(_plain(text)) if len(line) <= MAX_LINE else None
-        if m:
-            self.section, self.heading = m.group(1).split()[0], None  # "brand", "light", "dark"
-            self.marked = bool(m.group(2) and _MARK.search(m.group(2)))
+        name, remark = _section(_plain(_heading(line))) if len(line) <= MAX_LINE else (None, None)
+        self.tables, self.closed, self.label, self.caption = 0, None, None, None
+        if name and remark != "other":
+            self.section, self.heading = name, None
+            self.marked = remark == "proposed"
             if self.marked:
                 self.mark_read.add(number)
                 self.unmarked = (number, line)
-        else:
-            self.section, self.marked, self.heading = None, False, line
-        self.tables, self.closed, self.label, self.caption = 0, None, None, None
+            return
+        self.section, self.marked, self.heading = None, False, line
+        if not name:
+            self.foreign = True
+            return
+        self.label = line
+        plain = HEADING[name]
+        self.problem("?", None, "palette-heading-remark",
+                     "Line %d, the heading %s, names none of the three sections, so no table under it was read. After `%s` a "
+                     "heading may carry one remark in brackets and no other: the mark `(proposed)`, written in English%s. Write the "
+                     "heading as `%s`, or as `%s (proposed)` if the values under it are still proposals.%s"
+                     % (number, _quoted(line), plain[4:], " (or, on this one, the template's `(%s)`)" % _REMARK_BRAND if name == "brand" else "",
+                        plain, plain, _unseen(line)))
 
     def end_section(self):
         """A heading's mark is read as the mark of the rows under it: where no row under it has a value, say so."""
@@ -390,11 +442,11 @@ class _Reader(object):
         if self.tables:
             if self.closed is None:
                 self.closed = line
-        elif self.label is None and len(line) < 200:
-            other = _SECTION.fullmatch(_plain(line).rstrip(":").strip())
-            if other and other.group(1).split()[0] != self.section:
+        elif self.label is None and len(line) <= MAX_LINE:
+            other = _section(_plain(line).rstrip(":").strip())[0]
+            if other and other != self.section:
                 self.label = line
-                here, there = HEADING[self.section], HEADING[other.group(1).split()[0]]
+                here, there = HEADING[self.section], HEADING[other]
                 self.problem("?", None, "palette-label",
                              "Line %d, %s, stands between the heading `%s` and its table, and it is the name of another section. A "
                              "line of text is not a heading, so this check cannot tell which of the two the table belongs to, and it "
@@ -447,6 +499,10 @@ class _Reader(object):
                          "such a row (the names are Primary under `### Brand`, and %s under the two themes). If it does not (a "
                          "shadow, a note), take it out of this file or put it inside a comment (`<!-- ... -->`), which this check "
                          "does not look at." % ", ".join(t[1] for t in TOKENS))
+                if self.whole and self.foreign:
+                    said += (" Or, if this text is a whole brand guide and the palette is one part of it: put the three headings "
+                             "with their tables under a heading `## Colour palette`. This check then looks only at that part, and "
+                             "a colour in the rest of the guide is not named.")
             else:
                 said += " either: only the second cell of a named row under one of the three headings is read."
             self.problem("?", None, "palette-colour-not-read", said + _unseen(line))
@@ -463,7 +519,7 @@ class _Reader(object):
         if self.section:
             return "after the line %s, further down under `%s`" % (_quoted(self.caption or self.closed), HEADING[self.section])
         if self.caption:
-            return "under the line %s, which is not a heading (a heading starts with #)" % _quoted(self.caption)
+            return "under the line %s, which is not a heading (a heading is one to six # and then a space: `### Light theme`)" % _quoted(self.caption)
         if self.heading is None:
             return "above the first heading"
         return "under the heading %s" % _quoted(self.heading)
@@ -528,7 +584,10 @@ class _Reader(object):
         wrong_header = header is not None and not hex_header
         titles = _plain(" ".join(header.cells)) if header else ""
         both_themes = bool(re.search(r"\blight\b", titles) and re.search(r"\bdark\b", titles))
-        if not (both_themes or filed is None or wrong_header):
+        # a header row whose first cell is the name of another section than the one the table stands under (rule 2)
+        other = _section(_plain(header.cells[0]).rstrip(":").strip())[0] if header and filed else None
+        other = other if other != filed else None
+        if not (both_themes or filed is None or wrong_header or other):
             for row in known:
                 self.row(row, filed, hex_header)
             return
@@ -539,6 +598,14 @@ class _Reader(object):
                          "theme from one table: give each theme its own table, one under `### Light theme` and one under `### Dark "
                          "theme`, each starting with the header row `| Token | Hex |`. The table was not read."
                          % (names, self.where(), _quoted(" | ".join(header.cells))))
+        elif other and not both_themes:
+            here, there = HEADING[filed], HEADING[other]
+            self.problem("?", None, "palette-label",
+                         "Line %d, the header row %s, calls its first column by the name of another section, and its table stands "
+                         "under `%s`. This check cannot tell which of the two the table belongs to, so it did not read the table. If "
+                         "the table belongs under `%s`, write that heading on a line of its own above it; if it belongs under `%s`, "
+                         "call the first column \"Token\" (`| Token | Hex |`)."
+                         % (header.line, _quoted("| %s |" % " | ".join(header.cells)), here, there, here))
         elif claims and filed is None and self.label is None:
             if self.section:
                 advice = ("A line of text is not a heading, and this check does not guess whether it was meant as one. If the table "
@@ -558,7 +625,8 @@ class _Reader(object):
                          "colour from the second column, and only when the header row calls that column \"Hex\" (`| Token | Hex |`), "
                          "so the table was not read. Put the colours in the second column and head it \"Hex\"."
                          % (names, self.where(), _quoted(second)))
-        # (under a line that names another section, rule 2's problem has said that no table there was read)
+        # (under a line that names another section, or a heading with a remark that is not read, rule 2's problem has
+        # said that no table there was read)
         self.said.update(row.line for row in claims)
         p.ignored.extend(row.label for row in known if not _holds_a_colour(row))
 
@@ -647,18 +715,24 @@ def parse_tables(text):
     (3) The word `proposed`, `proposal` or `proposals`, wherever in that part it is not read as a
         mark, is named in `problems` (rule 9).
 
-    0. WHERE THE CHECK LOOKS. (Comments are blanked first: rule 1.) If exactly one heading line of the
-       text says `Colour palette` or `Color palette` and nothing else (at any level; emphasis marks and
-       backticks taken out, case ignored), the palette is that SECTION: from that heading's line to the
-       next heading of the same or a higher level (as many `#` or fewer), or to the end of the text.
+    0. WHERE THE CHECK LOOKS. (Comments are blanked first: rule 1.) A HEADING, here and in every rule
+       below, is a line that starts with one to six `#` followed by a blank or by the end of the line.
+       A line that starts with `#` in any other way (`#1: ...`, `#Brand`, a hex colour, seven `#`) is a
+       line of text like any other: it ends no section, and rules 9 and 12 hold for it.
+       If exactly one heading line of the text says `Colour palette` or `Color palette` and nothing
+       else (at any level; emphasis marks and backticks taken out, wherever in the words they stand,
+       case ignored), the palette is that SECTION: from that heading's line to the next heading of
+       the same or a higher level (as many `#` or fewer), or to the end of the text.
        Rules 1 to 12 are about that part alone, and "the text" in them means that part. Everything
        outside it is not the palette's business: nothing there is read, and nothing there is named,
        neither a colour (rule 12) nor the word proposed (rule 9) nor a table, because a BRAND.md is a
        whole brand guide (a logo, type, a shadow's `rgba(0, 0, 0, 0.06)`, the share cards' colours).
        One thing outside it is named, so that a palette written in the wrong place of such a file is
-       never silently "not there": a heading that rule 2 would read as `Brand`, `Light theme` or `Dark
-       theme`, with a table under it (a line that starts with `|`, before the next heading). A problem
-       quotes that heading and says where the three tables belong. Without a table under it such a
+       never silently "not there": a heading that says `Brand`, `Light theme` or `Dark theme`, alone or
+       with a bracketed remark, with a table under it (a line that starts with `|`, before the next
+       heading). A problem quotes that heading and says where the three tables belong; where the
+       section ended at such a heading (it has as many `#` as `Colour palette`, or fewer), the problem
+       says that, and that the three headings need more `#`. Without a table under it such a
        heading is only a heading (a guide may be titled `# Brand`).
        If the text has NO such heading, the whole text is the palette (a pasted answer), and every
        rule below is about all of it. If it has that heading MORE THAN ONCE, which of them holds the
@@ -676,16 +750,26 @@ def parse_tables(text):
        opens. Then runs of spaces and tabs are made one space, so no input makes a pattern slow. A
        table row longer than 2,000 characters is not read, and a problem names it.
 
-    2. SECTIONS. Only a heading line (one that starts with `#`) names a section, and only when its text
+    2. SECTIONS. Only a heading line (rule 0 says what one is) names a section, and only when its text
        (emphasis marks and backticks taken out, case ignored) is exactly `Brand`, `Light theme` or `Dark
-       theme`, optionally followed by one bracketed remark (`(fixed, theme-independent)`, `(proposed)`).
+       theme`, with no remark or with one of these two in round brackets after it: the mark
+       (`(proposed)`, `(proposal)` or `(proposals)`, in English: rule 9), or, on `Brand` only, the
+       template's own `(fixed, theme-independent)`.
+       One of the three names with ANY OTHER bracketed remark (`### Dark theme (vorgeschlagen)`, `###
+       Light theme (draft)`, `### Brand (proposed by the studio)`) names NO section: a problem quotes
+       the heading and says which remark is read there, and no table under it is read. (A mark in
+       another language would otherwise pass as a remark, and its values as confirmed.)
        Every other heading ends the section, and so does a heading longer than 2,000 characters,
        whatever it begins with. No other line names a section: no label, no bold line, no sentence.
-       One such line is not passed over, though. A line of text between a section's heading and its
-       first table that would name ANOTHER section if it were a heading (`**Light theme**` or `Dark
-       theme:` under `### Brand`; emphasis marks and a colon at its end are not counted) leaves open
-       which of the two the table belongs to: a problem quotes the line, and no table under that
-       heading is read. Any other line there (a sentence on the mood) is only text.
+       Two such lines are not passed over, though, because each leaves open which section a table
+       belongs to; a problem quotes the line (`palette-label`), and the table is not read:
+       - a line of text of at most 2,000 characters between a section's heading and its first table
+         that is the name of ANOTHER section, alone or with a bracketed remark (`**Light theme**`,
+         `Dark theme:` or `Light theme (hell)` under `### Brand`; emphasis marks and a colon at its
+         end are not counted): no table under that heading is read. Any other line there (a sentence
+         on the mood) is only text.
+       - a header row (rule 6) whose first cell is such a name of another section (`| Dark theme |
+         Hex |` under `### Light theme`): that table is not read.
 
     3. TABLES. A table is a run of lines that start with `|`; a blank line, or any other line, ends it.
        Separator rows (`|---|`) are skipped. The first table under a section's heading belongs to that
@@ -702,11 +786,15 @@ def parse_tables(text):
        always. The cells after it are notes: no value is ever taken from them.
 
     5. THE VALUE CELL holds exactly one colour and nothing else: backticks may stand around it, and the
-       mark `(proposed)` after it. The colour is what `_colour.parse_colour` reads as a whole (a hex,
-       rgb(), hsl(), oklch(), a CSS colour name).
+       mark after it (`(proposed)`, or the word after a space; emphasis marks around the mark are not
+       counted: `#a6abce _proposed_`, `#a6abce (**proposed**)`). The colour is what
+       `_colour.parse_colour` reads as a whole (a hex, rgb(), hsl(), oklch(), a CSS colour name).
        - Empty, or a placeholder (`#[…]`, `#...`, `[hex]`, one or more dashes): the row is not filled
          in, which is not a mistake. A colour written as a value further along such a row was not read,
-         and rule 12 names the line.
+         and rule 12 names the line. Square brackets are a placeholder only around words that could
+         not themselves be a colour: around a colour name (`[red]`), around three to eight letters
+         that are all hex digits (`[bad]`, `[facade]`) or around anything with a digit or a `#` in it,
+         they are a value that cannot be read (the next point), since a colour may have been meant.
        - Anything else (two colours, a colour among words, a colour that is refused, such as a
          see-through one): a problem that names the row, the theme and what the cell holds. The row has
          no value.
@@ -739,15 +827,20 @@ def parse_tables(text):
        palettes pasted together), for the nine theme rows, for Primary and for the Brand table's Accent
        alike. The same value twice is fine.
 
-    9. PROPOSALS. The mark is the word `proposed`, `proposal` or `proposals` (a whole word, case
-       ignored). It is read in three places, and only there:
+    9. PROPOSALS. The mark is the word `proposed`, `proposal` or `proposals`, case ignored, as a whole
+       word: no letter and no digit joined to it (`unproposed` and `proposed1` are other words). What
+       else stands beside it does not make it another word: emphasis marks and backticks (`*proposed*`,
+       `__proposals__`, `` `proposed` ``), an underscore (`_proposed_`, `proposed_palette`), a
+       strike-through (`~~proposed~~`), brackets, a raised footnote figure (`proposed²`). It is read
+       in three places, and only there:
        - in the value cell of a row that rules 3 to 7 read, and in any later cell of that row: the row's
          value is a proposal. The check errs towards asking: "not proposed" marks too. Where the value
          cell of such a row is empty or a placeholder, a problem says the row is marked as a proposal
          and is not filled in. Where the cell cannot be read, the row's own problem stands.
-       - in the bracketed remark of a section's heading: every row with a value under that heading is a
-         proposal, in every table of the section. Where no row under it has a value, a problem says the
-         heading's mark marked no value.
+       - as the bracketed remark of a section's heading, where it is the whole remark (rule 2: `###
+         Dark theme (proposed)`; emphasis marks around it are not counted): every row with a value
+         under that heading is a proposal, in every table of the section. Where no row under it has a
+         value, a problem says the heading's mark marked no value.
        EVERYWHERE ELSE in the text (above the first heading, between headings, in any other heading at
        any level, in a line of text, a list or a label, in a header row, in the first cell of a row, in
        any cell of a row that is not read), the word is a problem: it quotes the line, cut so that the
@@ -772,8 +865,10 @@ def parse_tables(text):
         followed by 3, 4, 6 or 8 hex digits, with no letter or digit straight after them and no letter,
         digit or `&` straight before the `#` (a link's `page#fab` and an entity `&#123;` are no
         colours); or `rgb(`, `rgba(`, `hsl(`, `hsla(` or `oklch(`, not as the end of a longer word, with
-        everything up to its closing bracket, unless an ellipsis stands between the brackets
-        (`rgba(...,0.06)` is a placeholder, as `#...` is). Case is ignored. After the reading,
+        everything up to its closing bracket, unless an ellipsis stands between the brackets: this
+        search passes over such a function (the template's `rgba(...,0.06)`). (That is this rule's
+        search only: in a value cell a function with an ellipsis is a value that cannot be read, rule
+        5, and no placeholder.) Case is ignored. After the reading,
         every line that holds such a colour is one of three things: a row whose value was read (the
         colours in its later cells are notes); a row that a problem of rules 1 to 8 names, by its own
         name or as one of the rows of a table that was not read; or a line with a colour that was NOT
@@ -782,6 +877,9 @@ def parse_tables(text):
         of the three headings: a colour in the first cell (columns the wrong way round), in a row under
         another name, in a row whose value cell is empty, in a list, in a sentence, in a heading, in a
         table row without its first `|`. The first five such lines are quoted, and the rest are counted.
+        Where the text has no `Colour palette` heading and has a heading that is none of the three (a
+        whole guide, its palette under `## Colours`), the first of these problems also says the remedy
+        that fits: put the three tables under a heading `## Colour palette` (rule 0).
         The limit of this rule: a colour NAME (`navy`), hex digits without their `#` (`5a5a72`) and any
         other spelling (`#12345`, `hwb()`, `color()`, a function with another bracket inside its own)
         are seen only in a cell that is read; anywhere else they are passed over without a word. And
@@ -839,11 +937,31 @@ class Css(object):
         self.found = set()   # which of "light", "dark", "dark_media" the stylesheet has in the starter's form, once
 
 
-def _unpaired():
+_CSS_BREAK = re.compile(r"\r\n|[\n\r\f]")
+_CLOSES = {"}": "{", ")": "(", "]": "["}
+
+
+def _line_number(text, at):
+    """The number of the line of a stylesheet that the place `at` stands on."""
+    return len(_CSS_BREAK.findall(text, 0, at)) + 1
+
+
+def _unpaired(text, opened, closer):
+    """The refusal for brackets that do not pair up. `opened` is where the innermost bracket stands that is still
+    open, or None when no bracket of the closing one's kind is open at all; `closer` is where a closing bracket
+    stands that does not close it, or None at the end of the text."""
+    if opened is None:
+        what = "the `%s` on line %d closes nothing: no `%s` is open there" % (text[closer], _line_number(text, closer), _CLOSES[text[closer]])
+    elif closer is None:
+        what = "the `%s` on line %d is never closed" % (text[opened], _line_number(text, opened))
+    else:
+        what = "the `%s` on line %d is still open where the `%s` on line %d closes something else" % (
+            text[opened], _line_number(text, opened), text[closer], _line_number(text, closer))
     return Refusal(
         "css-unreadable",
-        "The stylesheet's braces do not pair up (a { is never closed, or there is a } too many), so this check cannot "
-        "tell where its blocks begin and end. Mend the stylesheet, then run this again.",
+        "The stylesheet's brackets do not pair up: %s. So this check cannot tell where the stylesheet's blocks and values "
+        "begin and end, and a browser may take everything after that place for something else than it looks like. Mend the "
+        "stylesheet, then run this again." % what,
     )
 
 
@@ -879,13 +997,31 @@ _DARK_MEDIA_LIKE = re.compile(r"@media\b.*prefers-color-scheme\s*:\s*dark", re.I
 _DARK_LIKE = re.compile(r"data-theme\s*=\s*[\"']?dark", re.I)
 _SQUEEZE = re.compile("[%s]+" % _CSS_SPACE)
 
-_CSS_SKIP = re.compile(r"""/\*|["']|\burl\(""", re.I)
-# A string runs to its closing quote, or to the end of its line when it is never closed. Each character of it is
-# taken by one alternative only, so the pattern cannot be made slow.
-_CSS_STRING = {q: re.compile(r"%s(?:[^%s\\\n]|\\[\s\S]?)*(?:%s|(?=\n)|\Z)" % (q, q, q)) for q in "\"'"}
-_CSS_STRUCTURE = re.compile(r"[{};]")
-_CSS_PIECE = re.compile(r"[;()]")
+# What is no plain text of a stylesheet: a comment, a string, an unquoted url(...), and an escape. `url(` is the
+# word `url` itself: where a letter, a digit, `_`, `-`, `@`, `#`, a character beyond ASCII, a NUL (which a browser
+# reads as one) or an escape stands straight before it, it is the end of a longer name (`-url(`, `@url(`), which
+# is a function like any other.
+_CSS_SKIP = re.compile("/\\*|[\"']|(?<![\\w\\-@#\\x00\u0080-\U0010ffff])url\\(|\\\\", re.I)
+# A string runs to its closing quote, or to the end of its line when it is never closed (a line ends at a line feed,
+# a carriage return or a form feed). A backslash takes the character after it with it, and a line end in either
+# spelling (LF or CRLF), which carries the string on to the next line. Each character is taken by one alternative
+# only, so the pattern cannot be made slow.
+_CSS_STRING = {q: re.compile(r"%s(?:[^%s\\\n\r\f]|\\(?:\r\n|[\s\S])?)*(?:%s|(?=[\n\r\f])|\Z)" % (q, q, q)) for q in "\"'"}
+# An escape outside a string: a backslash with one to six hex digits and one blank after them, or with any one other
+# character. (Before a line end a backslash is no escape, and is taken alone.)
+_CSS_ESCAPE = re.compile(r"\\(?:[0-9a-fA-F]{1,6}(?:\r\n|[ \t\n\r\f])?|[^\n\r\f])?")
+_CSS_URL = re.compile(r"(?:[^)\\]|\\[\s\S]?)*")  # what an unquoted url( holds, up to its )
+_CSS_STRUCTURE = re.compile(r"[{};()\[\]]")
+_CSS_PIECE = re.compile(r"[;()\[\]]")
 _CSS_PROPERTY = re.compile(r"{s}(--[\w-]+){s}:".format(s=_S))
+_CSS_ESCAPED_NAME = re.compile(r"{s}([\w-]*\\[\w\\-]*){s}:".format(s=_S))  # in `code`, where an escape is a run of backslashes
+# The start of an @-statement: `@` and the first character of a name straight after it. (An `@` before anything else,
+# a backslash before a line end too, is a character on its own, and what follows it is no statement.)
+_AT_NAME = "(?:-?[A-Za-z_\\x00\u0080-\U0010ffff]|--|-?\\\\(?![\n\r\f]|\\Z))"
+_AT_STATEMENT = re.compile("%s@%s" % (_S, _AT_NAME))
+_AT_MEDIA = re.compile(r"{s}@media(?![\w\\-])".format(s=_S), re.I)
+_AT_NAMESPACE = re.compile(r"""{s}@namespace{s}(?:url\(|["'])""".format(s=_S), re.I)  # one without a prefix: the default namespace
+_AT_PROPERTY = re.compile(r"@property(?![\w\\-]){s}(.*)".format(s=_S), re.I | re.S)
 _IMPORTANT = re.compile(r"!{s}important{s}\Z".format(s=_S), re.I)
 _VAR = re.compile(r"var\({s}(--[\w-]+){s}\)".format(s=_S))
 
@@ -899,8 +1035,9 @@ Rule = namedtuple("Rule", "start open close children")
 # One line of a block that sets a custom property: its name, where its value stands in the text (without the space,
 # the comments and an !important around it), and whether it is marked !important.
 Line = namedtuple("Line", "name start end important")
-# One thing the scanner cannot take as it stands. `block` is the one of the three it is about, or None for a rule
-# outside them; `variable` the custom property, or None; `kind` is "missing", "twice", "nested", "variable" or "elsewhere".
+# One thing the scanner cannot take as it stands. `block` is the one of the three it is about, or None for something
+# outside them; `variable` the custom property, or None; `kind` is "missing", "twice", "nested" or "variable" (of a
+# block), or "elsewhere", "statement", "namespace", "escape" or "registered" (of the stylesheet: block None).
 Trouble = namedtuple("Trouble", "block variable message kind")
 
 
@@ -922,11 +1059,13 @@ class Sheet(object):
 def _css_code(text):
     """Two copies of a stylesheet, each exactly as long as the text, so that a place in one is the same place in
     the text: `plain` has every comment blanked; `code` has the comments, the insides of strings and the insides
-    of unquoted url(...) blanked, so that every { } ; ( ) : left in it is one the stylesheet means. A /* inside a
-    string is part of the string, and a quote inside a comment is part of the comment."""
+    of unquoted url(...) blanked, and every escape (a backslash and what it takes with it) written as a run of
+    backslashes, so that every { } ; ( ) [ ] : and quote left in it is one the stylesheet means. A /* inside a
+    string is part of the string, a quote inside a comment is part of the comment, and an escaped quote, brace,
+    bracket, colon or semicolon is a character of a name."""
     if not _CSS_SKIP.search(text):
         return text, text
-    plain, code, at, n = [], [], 0, len(text)
+    plain, code, at, n, escaped_to = [], [], 0, len(text), -1
     while at < n:
         m = _CSS_SKIP.search(text, at)
         if not m:
@@ -943,6 +1082,14 @@ def _css_code(text):
             end = _CSS_STRING[token].match(text, start).end()
             plain.append(text[start:end])
             code.append(token + " " * (end - start - 1))
+        elif token == "\\":
+            end = escaped_to = _CSS_ESCAPE.match(text, start).end()
+            plain.append(text[start:end])
+            code.append("\\" * (end - start))
+        elif start == escaped_to:  # `url(` straight after an escape: the end of a longer name
+            end = start + 4
+            plain.append(text[start:end])
+            code.append(text[start:end])
         else:  # url(
             inside = start + 4
             while inside < n and text[inside] in _CSS_SPACE:
@@ -951,8 +1098,7 @@ def _css_code(text):
                 end = start + 4  # a quoted address: the string is taken on the next round
                 code.append(text[start:end])
             else:
-                end = text.find(")", inside)
-                end = n if end < 0 else end
+                end = _CSS_URL.match(text, inside).end()  # (an escaped bracket inside it does not end it)
                 code.append(text[start:start + 4] + " " * (end - start - 4))
             plain.append(text[start:end])
         at = end
@@ -961,49 +1107,82 @@ def _css_code(text):
     return "".join(plain), "".join(code)
 
 
-def _rules(code):
-    """The blocks of a stylesheet at its top level, each with the blocks inside it. Braces that do not pair up
-    are refused."""
-    top, open_rules, start = [], [], 0
+def _rules(text, code):
+    """(the blocks of a stylesheet at its top level, each with the blocks inside it; [(start, end)] of every piece
+    that ends in `;` where a browser expects a rule and that is no @-statement; [(start, end)] of every top-level
+    `@namespace` statement that sets a default namespace). The three kinds of bracket, { ( and
+    [, must pair up and nest, each closed by its own kind: anything else is refused, because a browser reads on
+    from an unclosed bracket to wherever it is closed, through the end of the block and of every block after it.
+
+    A `;` inside round or square brackets is part of a value. Elsewhere it ends a statement (`@import ...;`) or a
+    line of a block, and the next block begins after it. Where a browser expects rules and not lines (at the top
+    level, and directly inside a top-level `@media { }`), only a statement that starts with `@` ends at its `;`:
+    after anything else (`color: red;`, a `;` alone after a `}`) a browser reads on and takes the `;` and what
+    follows for the selector of the next rule, which it then drops. Those are the pieces returned."""
+    top, stack, start, loose, namespaces = [], [], 0, [], []  # stack: (bracket, where it stands) and, for a {, also (where its rule begins, its children, holds rules?)
     for m in _CSS_STRUCTURE.finditer(code):
         at, ch = m.start(), m.group()
+        if ch in "([":
+            stack.append((ch, at))
+            continue
         if ch == "{":
-            open_rules.append((start, at, []))
-        elif ch == "}":
-            if not open_rules:
-                raise _unpaired()
-            began, opened, children = open_rules.pop()
-            (open_rules[-1][2] if open_rules else top).append(Rule(began, opened, at, children))
-        # what ends in ; is a statement (@import, @charset) or a line of a block: the next block begins after it
+            stack.append((ch, at, start, [], not stack and bool(_AT_MEDIA.match(code, start, at))))
+        elif ch == ";":
+            if stack and stack[-1][0] != "{":
+                continue
+            if (not stack or stack[-1][4]) and not _AT_STATEMENT.match(code, start, at):
+                loose.append((start, at + 1))
+            elif not stack and _AT_NAMESPACE.match(code, start, at):
+                namespaces.append((start, at + 1))
+        else:
+            if not stack or stack[-1][0] != _CLOSES[ch]:
+                raise _unpaired(text, stack[-1][1] if any(entry[0] == _CLOSES[ch] for entry in stack) else None, at)
+            opened = stack.pop()
+            if ch != "}":
+                continue
+            parent = next((entry for entry in reversed(stack) if entry[0] == "{"), None)
+            (parent[3] if parent else top).append(Rule(opened[2], opened[1], at, opened[3]))
         start = at + 1
-    if open_rules:
-        raise _unpaired()
-    return top
+    if stack:
+        raise _unpaired(text, stack[-1][1], None)
+    return top, loose, namespaces
 
 
 def _selector(plain, rule):
     return _squeeze(plain[rule.start:rule.open])
 
 
-def _lines(plain, code, rule):
-    """The lines of a block that set a custom property, in order: [Line]. Lines of the blocks inside it are theirs."""
-    out, begin = [], rule.open + 1
+def _pieces(code, rule, holding):
+    """Where each piece of a block's own text begins and ends: what stands between two `;`, a `;` inside round or
+    square brackets being part of a value. The blocks inside it, with what stands before their {, are theirs. Only
+    the stretches that hold the text `holding` are looked at."""
+    begin = rule.open + 1
     for child in rule.children + [None]:
         end = rule.close if child is None else child.start
-        if code.find("--", begin, end) >= 0:
+        if code.find(holding, begin, end) >= 0:
             depth, piece = 0, begin
             for m in _CSS_PIECE.finditer(code, begin, end):
                 ch = m.group()
-                if ch == "(":
+                if ch in "([":
                     depth += 1
-                elif ch == ")":
-                    depth = max(0, depth - 1)
-                elif depth == 0:  # a ; inside brackets is part of the value
-                    out.append(_line(plain, code, piece, m.start()))
+                elif ch in ")]":
+                    depth = max(0, depth - 1)  # (one that closes a bracket of the stretch before a block inside)
+                elif depth == 0:
+                    yield piece, m.start()
                     piece = m.start() + 1
-            out.append(_line(plain, code, piece, end))
+            yield piece, end
         begin = end if child is None else child.close + 1
-    return [line for line in out if line]
+
+
+def _lines(plain, code, rule):
+    """The lines of a block that set a custom property, in order: [Line]. Lines of the blocks inside it are theirs."""
+    return [line for line in (_line(plain, code, begin, end) for begin, end in _pieces(code, rule, "--")) if line]
+
+
+def _escaped_names(code, rule):
+    """Where a line of a block sets a property whose name is written with an escape: [(start, end)] of the names."""
+    found = (_CSS_ESCAPED_NAME.match(code, begin, end) for begin, end in _pieces(code, rule, "\\"))
+    return [m.span(1) for m in found if m]
 
 
 def _line(plain, code, begin, end):
@@ -1044,23 +1223,55 @@ def scan_css(text):
       list of lines: {custom property: (start, end)}, the place in the text of the value of every custom
       property the block sets exactly once and without `!important`. The value is what stands between the
       colon and the `;` (or the end of the block), without the space and the comments around it.
-    - `unsure[block]`: {custom property: (kind, why)}, the ones such a block sets more than once or marks `!important`.
+    - `unsure[block]`: {custom property: (kind, why)}, the ones such a block sets more than once or marks
+      `!important` (or that the `:root` block marks `!important`, which wins over a dark block's line).
     - `problems`: [Trouble(block, variable, message, kind)], everything about the palette's colours that cannot
-      be taken as it stands. A block that is not there, or stands in another shape ("missing"). A block that
-      stands more than once ("twice") or holds another block ("nested"): it has no spans. One of the palette's
-      variables set twice in a block, or marked `!important` ("variable"). And any OTHER rule of the stylesheet,
-      at any depth, that sets one of the palette's variables ("elsewhere", block None): the page may show
-      that colour and not the block's.
+      be taken as it stands: the list below says what, and `kind` says which.
 
     The three blocks are: at the top level, a rule whose selector is exactly `:root`; one whose selector is
     exactly `:root[data-theme="dark"]` (either kind of quote); and, inside a top-level `@media
     (prefers-color-scheme: dark)`, a rule whose selector is exactly `:root:not([data-theme])`. Space and
     comments around a selector do not count, and neither does what line it starts on.
 
-    A comment is not text, and a `/*` inside a string is not a comment. A brace, a `;` or a `--name:` inside a
-    string or an unquoted url(...) is not one. A statement before a block (`@import ...;`) does not hide it.
-    Braces that do not pair up are refused (Refusal "css-unreadable"). The work grows with the length of the
-    text and no faster."""
+    A comment is not text, and a `/*` inside a string is not a comment. A brace, a bracket, a `;` or a `--name:`
+    inside a string or an unquoted url(...) is not one, and neither is one behind a backslash (an escape: the
+    backslash and the character after it, or up to six hex digits and one blank, are one character of a name).
+    A string that a backslash carries over a line end goes on, whether the line ends in LF or CRLF.
+
+    This is a scanner of the starter's shape, not a browser. It does not work out which rule wins; it names
+    WHAT COULD MAKE THE PAGE SHOW ANOTHER VALUE THAN THE BLOCK'S LINE SAYS, and the editor refuses on each
+    (a problem of a block stops the editor when it has to write to that block; a problem of the stylesheet,
+    block None, stops it always):
+
+     1. One of the three blocks is not there, or stands in another shape ("missing").
+     2. One of them stands more than once ("twice"), also where the second sets no colour: no spans.
+     3. One of them holds another block ("nested"): no spans.
+     4. A palette variable is set more than once in its block, or marked `!important` there (on any of its
+        lines), or marked `!important` in the `:root` block and set in a dark block as well, where the
+        `:root` line wins ("variable").
+     5. Any OTHER rule, at any depth, sets a palette variable ("elsewhere", block None): `body { --bg: ... }`,
+        `:root.dark { ... }`, a `:root` rule inside another at-rule, a step of `@keyframes`, and a rule whose
+        selector is written with an escape (`:r\\6f ot` spells `:root`; such a rule is never one of the three).
+     6. A line anywhere sets a property whose NAME is written with an escape ("escape", block None): `--b\\67`
+        spells `--bg`, and this scanner does not read escaped names. (An escape in a selector that sets no
+        palette variable, as in `.sm\\:flex`, is ordinary and named by nothing.)
+     7. A piece that ends in `;`, is no @-statement and stands where a browser expects a rule: at the top
+        level or directly inside a top-level `@media` ("statement", block None). A browser drops the rule
+        after it (`};` before a block, `color: red;` before `:root`, `@media (...) {;`). An @-statement before
+        a block (`@import ...;`) does not hide it.
+     8. An `@property` rule registers a palette variable, or a name written with an escape ("registered",
+        block None): the variable then has a type and a start value of its own.
+     9. A top-level `@namespace` statement without a prefix ("namespace", block None): with a default
+        namespace, `:root` matches only a root element of that namespace, which a web page's may not be.
+    10. Brackets that do not pair up, each `{`, `(` and `[` closed by its own kind in the right order: refused
+        as a whole (Refusal "css-unreadable"), because a browser reads on from a bracket that is not closed
+        through the end of the block and of the blocks after it.
+    11. A value written as `var(--other)`: see `read_css`, which reads it only where it points at another
+        palette variable. The editor writes over such a value like over any other.
+
+    What it cannot see, and does not name: anything outside this one file (another stylesheet, one brought in
+    by `@import`, a `style` attribute, a script).
+    The work grows with the length of the text and no faster."""
     plain, code = _css_code(text)
     sheet = Sheet(plain)
     taken = {block: [] for block in BLOCKS}
@@ -1084,7 +1295,8 @@ def scan_css(text):
             for child in reversed(rule.children):
                 todo.append((child, around, deeper or len(inside) == 2, in_dark_media))
 
-    for rule in _rules(code):
+    top, loose, namespaces = _rules(text, code)
+    for rule in top:
         selector = plain[rule.start:rule.open].strip(_CSS_SPACE)
         if _IS_LIGHT.fullmatch(selector):
             taken["light"].append(rule)
@@ -1132,12 +1344,11 @@ def scan_css(text):
                                "" if not others_too else "; %d other rule%s like it too" % (others_too, " is" if others_too == 1 else "s are")))
             trouble(block, None, "missing", message)
         elif len(found) > 1:
-            again = [line.name for rule in found[1:1 + 2 * MOST_NAMED] for line in _lines(plain, code, rule) if line.name in KEY_OF_VARIABLE]
             trouble(block, None, "twice",
-                    "The stylesheet has %d blocks of the kind that holds %s (%s), and a later one sets %s. This check reads each of "
-                    "the three colour blocks only where it stands once, as in the starter's stylesheet: the intake writes to the "
-                    "first, and a browser lets a later one win. Fold them into one block."
-                    % (len(found), _HOLDS[block], BLOCK[block], _some(again) if again else "no colour"))
+                    "The stylesheet has %d blocks of the kind that holds %s (%s). Each of the three colour blocks must stand once, "
+                    "as in the starter's stylesheet: this check does not choose which of several holds the colours, and the intake "
+                    "does not write to a stylesheet that has one of them twice. Fold them into one block."
+                    % (len(found), _HOLDS[block], BLOCK[block]))
         elif found[0].children:
             inner = _visible(_selector(plain, found[0].children[0]))
             trouble(block, None, "nested",
@@ -1151,10 +1362,14 @@ def scan_css(text):
             for name, lines in by_name.items():
                 written = [_visible(_squeeze(plain[line.start:line.end])[:40]) + (" !important" if line.important else "") for line in lines[:4]]
                 if len(lines) > 1:
-                    sheet.unsure[block][name] = ("twice", "it is set %d times in %s" % (len(lines), BLOCK[block]))
+                    important = any(line.important for line in lines)  # on any of them: a browser takes that line, wherever it stands
+                    sheet.unsure[block][name] = ("important" if important else "twice", "it is set %d times in %s%s" % (
+                        len(lines), BLOCK[block], ", and marked !important there" if important else ""))
                     if name in KEY_OF_VARIABLE:
-                        trouble(block, name, "variable", "It is set %d times in this block (%s). This check does not pick one of them: "
-                                                         "leave one line." % (len(lines), _some(written)))
+                        trouble(block, name, "variable", "It is set %d times in this block (%s)%s. This check does not pick one of "
+                                                         "them: leave one line%s."
+                                % (len(lines), _some(written), ", and marked !important there" if important else "",
+                                   ", without !important" if important else ""))
                 elif lines[0].important:
                     sheet.unsure[block][name] = ("important", "it is marked !important in %s" % BLOCK[block])
                     if name in KEY_OF_VARIABLE:
@@ -1163,6 +1378,15 @@ def scan_css(text):
                                                          "!important off." % written[0])
                 else:
                     sheet.spans[block][name] = (lines[0].start, lines[0].end)
+    # a line of the :root block that is marked !important wins over the same variable's line in a dark block
+    for name, (kind, _why) in sheet.unsure.get("light", {}).items():
+        for block in ("dark", "dark_media"):
+            if kind == "important" and block in sheet.spans and (name in sheet.spans[block] or name in sheet.unsure[block]):
+                sheet.spans[block].pop(name, None)
+                sheet.unsure[block][name] = ("important", "it is marked !important in %s, which wins over the line in %s" % (BLOCK["light"], BLOCK[block]))
+                if name in KEY_OF_VARIABLE:
+                    trouble(block, name, "variable", "It is marked !important in %s, and that line wins over this block's: the page shows "
+                                                     "the colour of %s here too. Take the !important off there." % (BLOCK["light"], BLOCK["light"]))
     for shown, selector, _dark, set_here in alone[:MOST_NAMED]:
         on_root = ":root" in selector.lower()
         trouble(None, None, "elsewhere",
@@ -1176,6 +1400,59 @@ def scan_css(text):
     if rest > 0:
         trouble(None, None, "elsewhere", "%d more rule%s outside the three blocks set%s one of the palette's colours." % (
             rest, "" if rest == 1 else "s", "s" if rest == 1 else ""))
+
+    def more(found, kind, one, several):
+        if len(found) > 1:
+            trouble(None, None, kind, "%d more %s; the next is on line %d." % (len(found) - 1, one if len(found) == 2 else several, _line_number(text, found[1][0])))
+
+    if loose:
+        start, end = loose[0]
+        piece = _squeeze(plain[start:end])
+        trouble(None, None, "statement",
+                "Line %d of the stylesheet has a `;` where a browser expects a rule (%s), and what it ends is no statement that "
+                "starts with `@`. A browser reads on from there, takes the `;` and what follows for the selector of the next rule, "
+                "and drops that rule: the page would not show what the block after it says. %s"
+                % (_line_number(text, end - 1), _quoted(piece),
+                   "Take that `;` out." if piece == ";" else "Take that piece out, or move it into the block it belongs to."))
+        more([(end - 1, end) for _start, end in loose], "statement", "piece like it", "pieces like it")
+    if namespaces:
+        start, end = namespaces[0]
+        trouble(None, None, "namespace",
+                "Line %d of the stylesheet sets a default namespace (%s). With one, the three colour blocks apply only where the "
+                "page's own root element is in that namespace, so a web page may show none of the palette, and this check does not "
+                "work that out. Take the statement out, or give the namespace a prefix (`@namespace svg url(...);`)."
+                % (_line_number(text, end - 1), _quoted(_squeeze(plain[start:end]))))
+    escaped, registered, todo = [], [], list(top)
+    any_escape = "\\" in code
+    while todo:  # every rule of the stylesheet, at any depth (each looks at its own text only, so the work stays linear)
+        rule = todo.pop()
+        todo.extend(rule.children)
+        if any_escape:
+            escaped.extend(_escaped_names(code, rule))
+        if code.find("@", rule.start, rule.open) >= 0:
+            m = _AT_PROPERTY.fullmatch(_squeeze(code[rule.start:rule.open]))
+            if m and (m.group(1) in KEY_OF_VARIABLE or "\\" in m.group(1)):
+                registered.append((rule.open - len(code[rule.start:rule.open].lstrip(_CSS_SPACE)), rule.open))
+    escaped.sort()
+    registered.sort()
+    if escaped:
+        start, end = escaped[0]
+        trouble(None, None, "escape",
+                "Line %d of the stylesheet sets a property whose name is written with a backslash (`%s`). A backslash can spell any "
+                "character, so that name may be one of the palette's variables in another spelling (`--b\\67` is `--bg` to a "
+                "browser), and this check does not read such names. Write the name out without the backslash."
+                % (_line_number(text, start), _visible(plain[start:end].strip(_CSS_SPACE)[:40])))
+        more(escaped, "escape", "line like it", "lines like it")
+    if registered:
+        start, end = registered[0]
+        shown = _squeeze(plain[start:end])
+        trouble(None, None, "registered",
+                "Line %d of the stylesheet registers %s with an `@property` rule (`%s`). A registered variable has a type and a "
+                "starting value of its own, so the page may show another colour than the block's line says, and this check does not "
+                "read that rule. Take the rule out, or set the colours by hand."
+                % (_line_number(text, start), "a variable whose name is written with a backslash" if "\\" in shown else "one of the palette's variables",
+                   _visible(shown[:60])))
+        more(registered, "registered", "rule like it", "rules like it")
     return sheet
 
 
@@ -1191,12 +1468,18 @@ def read_css(text):
       names the variable.
     - Any other rule that sets one of the palette's variables (`body { --bg: ... }`, `:root.dark { ... }`,
       a `:root` rule inside another at-rule) is a problem that names the rule and the variable.
-    - A value written as `var(--other)` is read as that variable's value where the block itself sets it
+    - Whatever else `scan_css` lists (a `;` that makes a browser drop the next rule, a property name written
+      with an escape, an `@property` rule for a colour) is a problem too.
+    - A value written as `var(--other)` is read ONLY where `--other` is another of the palette's variables
+      (the starter's `--link: var(--accent)`): those are the variables the scan holds to "once in its block,
+      nowhere else, not `!important`". It is read as that variable's value where the block itself sets it
       once and plainly, or else (in a dark block) where the `:root` block does. Where the variable it
       points at is set twice or marked `!important`, in the block or in `:root`, that is a problem: it is
-      never read from another block in its place.
+      never read from another block in its place. A `var()` that points at any other variable is a problem
+      that says to write the colour out: nothing holds such a variable to one value (another rule may set
+      it, and this check would not know).
     - A value that is no colour this check reads is a problem that names the variable.
-    - Braces that do not pair up are refused."""
+    - Brackets that do not pair up are refused."""
     sheet = scan_css(text)
     css = Css()
     css.problems = [(t.block, t.variable, t.message) for t in sheet.problems]
@@ -1212,11 +1495,9 @@ def _points_at(sheet, block, name):
     """(the value of the custom property a var() of this block points at, None) or (None, why it has none)."""
     if name in sheet.unsure[block]:
         return None, sheet.unsure[block][name][1]
-    above = sheet.unsure.get("light", {}).get(name) if block != "light" else None  # a dark block is laid over the :root block
     if name in sheet.spans[block]:
-        if above and above[0] == "important":
-            return None, above[1] + ", which wins over this block's line"
         return sheet.value(block, name), None
+    above = sheet.unsure.get("light", {}).get(name) if block != "light" else None  # a dark block is laid over the :root block
     if above:
         return None, above[1]
     if block != "light" and name in sheet.spans.get("light", ()):
@@ -1231,6 +1512,11 @@ def _fill(css, sheet, block, target):
             continue
         value = sheet.value(block, var)
         m = _VAR.fullmatch(value)
+        if m and m.group(1) not in KEY_OF_VARIABLE:
+            css.problems.append((block, var, "It is written as var(%s), which points at a variable this check does not read (it reads "
+                                             "the palette's own variables and no others, because nothing holds another one to one "
+                                             "value). Write the colour out." % m.group(1)))
+            continue
         if m:
             value, why = _points_at(sheet, block, m.group(1))
             if value is None:

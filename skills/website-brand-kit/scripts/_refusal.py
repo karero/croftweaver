@@ -47,4 +47,9 @@ class Ask(Exception):
     def __init__(self, code, message, options=None):
         super().__init__(spelled(str(message)))
         self.code = code
-        self.options = list(options or [])
+        self.options = list(options or [])   # as they are: the owner's answer is matched against these
+
+    @property
+    def shown(self):
+        """The options as they are put before the owner: spelled out like every other text she is shown."""
+        return [spelled(str(o)) for o in self.options]

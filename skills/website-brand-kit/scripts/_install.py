@@ -21,9 +21,7 @@ import re
 import shutil
 import signal
 import stat
-import subprocess
 import tempfile
-import time
 
 import _colour
 import _icons
@@ -33,12 +31,12 @@ import _render
 import _site
 import _svg
 import _zipin
+from _proc import Interrupted, _HOLD, _held, _listing, _run   # noqa: F401 (_listing: the tests ask it by this name too)
 from _refusal import Ask, Refusal
 
 DEFAULT_TEST_COMMAND = "npm run build && npm test"
 TEST_TIMEOUT = 30 * 60
 CARDS_TIMEOUT = 5 * 60
-GRACE = 5   # seconds a command and what it started get to clear up after themselves once they are told to stop, before they are killed
 MAX_TEXT = 1024 * 1024
 CARDS = "public/images/og"
 HANDOFF = "brand-handoff"
@@ -50,6 +48,9 @@ BOM = "﻿"
 STYLESHEET = "src/styles/global.css"
 OTHER_FILES = (_site.CONFIG, _site.MANIFEST, _site.GENERATOR)  # the colours' other three homes
 PILLOW_MISSING = "Pillow, the image library the generator draws with, is not installed"
+ONE_COLOUR_ICONS = ("the app icons were drawn with a one-colour version of the logo, so this run left them as they are (this tool keeps the colour version only, and "
+                    "cannot tell what those icons sit on). To draw them for the new colours, run this again with the package the logo came in: --input, with --pick "
+                    "and --mono as before")
 NO_EMBLEM = ("the share cards get no emblem from this tool (the logo, shown faintly on each card): it leaves the LOGO line in scripts/generate_og_cards.py exactly as it is. "
              "The og-images skill says how to put the logo on the cards")
 
@@ -60,11 +61,6 @@ class Stop(Exception):
     def __init__(self, code, lines, status):
         super().__init__("\n".join(lines))
         self.code, self.lines, self.status = code, lines, status
-
-
-class Interrupted(BaseException):
-    """The run was told to stop from outside (SIGTERM, SIGHUP, or Ctrl-C's SIGINT). A BaseException, as
-    KeyboardInterrupt is, so that nothing between the signal and the rollback takes it for an ordinary error."""
 
 
 def _theme_label(theme):
@@ -175,217 +171,45 @@ def _accepted(value):
 
 # --- a stop from outside ---------------------------------------------------------------------
 
-SIGNALS = ("SIGTERM", "SIGHUP", "SIGINT")  # Windows has no SIGHUP
-_HOLD = {"depth": 0, "pending": None}
+SIGNALS = ("SIGTERM", "SIGHUP", "SIGINT", "SIGQUIT")  # Windows has neither SIGHUP nor SIGQUIT
+# (The flag these set, the lines during which a stop is kept back, and the running of commands are in _proc.py: the
+# renderer runs Node by the same rules, and does not know this file.)
 
 
-class _held(object):
-    """A few lines during which a stop from outside is kept back, and raised as soon as they are over: the
-    lines that make something (a temporary folder, a process) and only then have a name for it, and the
-    lines that stop what a command started. A stop in the middle of those would leave something behind
-    that nothing knows of. Outside a run that watches the signals this changes nothing."""
-
-    def __enter__(self):
-        _HOLD["depth"] += 1
-
-    def __exit__(self, kind, _value, _trace):
-        _HOLD["depth"] -= 1
-        if not _HOLD["depth"] and _HOLD["pending"] is not None and kind is None:
-            signum, _HOLD["pending"] = _HOLD["pending"], None
-            _ignore_signals()
-            raise Interrupted(signum)
+def _stop(signum, _frame):
+    """The one handler for all the watched signals. It never changes how a signal is handled (doing that
+    from inside a handler, while a second signal is on its way, makes Python raise an error of its own):
+    whether a signal still counts is a flag that this handler reads."""
+    if _HOLD["deaf"]:
+        return
+    if _HOLD["depth"]:
+        _HOLD["pending"] = signum   # raised when the lines that must not be cut short are over
+        return
+    _HOLD["deaf"] = True
+    raise Interrupted(signum)
 
 
 def _watch_signals():
-    """From here on a SIGTERM, a SIGHUP or a Ctrl-C raises Interrupted inside the run, which then puts
-    back what it wrote and says so, instead of the process ending with the site half installed or with a
-    traceback. One stop is enough: from the first signal on, all of them are ignored until the process
-    ends, so that a second one cuts short neither the putting back nor the report. A signal that was
-    already being ignored (a run started with nohup ignores SIGHUP) is left ignored."""
-    _HOLD.update(depth=0, pending=None)
-
-    def stop(signum, _frame):
-        if _HOLD["depth"]:
-            _HOLD["pending"] = signum   # raised when the lines that must not be cut short are over
-            return
-        _ignore_signals()
-        raise Interrupted(signum)
+    """From here on a SIGTERM, a SIGHUP, a SIGQUIT or a Ctrl-C raises Interrupted inside the run, which
+    then puts back what it wrote and says so, instead of the process ending with the site half installed
+    or with a traceback. One stop is enough: the first signal sets a flag, and from then on the handler
+    does nothing, whichever signal comes and however close behind, so that a second one cuts short neither
+    the putting back nor the report. The handler is set once, here, and is not taken away again: the
+    signals stay handled, and do nothing, until the process ends. A signal that was already being ignored
+    (a run started with nohup ignores SIGHUP) is left ignored."""
+    _HOLD.update(depth=0, pending=None, deaf=False)
     for name in SIGNALS:
         sig = getattr(signal, name, None)
         try:
             if sig is not None and signal.getsignal(sig) != signal.SIG_IGN:
-                signal.signal(sig, stop)
+                signal.signal(sig, _stop)
         except (ValueError, OSError):
             pass  # not the main thread, where no signal arrives anyway
 
 
 def _ignore_signals():
-    for name in SIGNALS:
-        try:
-            signal.signal(getattr(signal, name), signal.SIG_IGN)
-        except (AttributeError, ValueError, OSError):
-            pass
-
-
-# --- running a command, and stopping everything it started --------------------------------------
-
-def _listing():
-    """What is running, as far as `ps` says: {process id: (its parent, its group, when it started)},
-    processes that have ended and only wait to be collected left out. None where `ps` cannot be asked
-    (Windows; a system whose `ps` does not know these columns)."""
-    try:
-        r = subprocess.run(["ps", "-Ao", "pid=,ppid=,pgid=,stat=,lstart="], capture_output=True, text=True, errors="replace", timeout=60)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    table = {}
-    for line in r.stdout.splitlines():
-        parts = line.split(None, 4)
-        if len(parts) >= 4 and all(v.isdigit() for v in parts[:3]) and not parts[3].startswith("Z"):
-            table[int(parts[0])] = (int(parts[1]), int(parts[2]), parts[4].strip() if len(parts) > 4 else "")
-    return table or None
-
-
-def _wait(p, timeout):
-    """Wait until a command has ended, or `timeout` seconds are over: whether it ended. Where the system
-    can, the command is looked at without being collected (os.waitid with WNOWAIT), so that its process
-    id, which is also the number of its group, stays its own until _stop_all has stopped the group. Where
-    it cannot (Windows; macOS before Python 3.13, which has no os.waitid there), the command is collected
-    here. That leaves a moment, between this and the stop that follows at once, in which the system could
-    hand the number to a new process: _stop_all then signals the group only when `ps` shows a process in
-    it, so a number that went to nobody, or to a process in somebody else's group, is not touched. One
-    that went to a process which made itself the leader of a new group within that moment would be, and
-    that cannot be closed from here."""
-    waitid = getattr(os, "waitid", None)
-    if waitid is None or not hasattr(os, "WNOWAIT"):
-        try:
-            p.wait(timeout=timeout)
-            return True
-        except subprocess.TimeoutExpired:
-            return False
-    end, pause = time.monotonic() + timeout, 0.0005
-    while True:
-        try:
-            if waitid(os.P_PID, p.pid, os.WEXITED | os.WNOWAIT | os.WNOHANG) is not None:
-                return True
-        except ChildProcessError:
-            return True
-        left = end - time.monotonic()
-        if left <= 0:
-            return False
-        pause = min(pause * 2, left, 0.05)
-        time.sleep(pause)
-
-
-def _stop_all(p):
-    """Stop everything a command started that is still running, whether the command itself has ended or
-    not, and collect the command. In two steps, so that what was started can clear up after itself
-    (Playwright stops the preview server it started when it is told to end, and a server that is killed
-    with it keeps the site's port): first everything is asked to end (SIGTERM), then, after GRACE seconds
-    at most, what is still there is killed.
-
-    What is reached, on macOS and Linux: every process in the command's own group (it is started in a
-    group of its own, and what it starts stays there unless it leaves on purpose); and every process that
-    descends from the command by parent at the moment the stopping begins, wherever it has moved (a
-    preview server started in a session of its own is still its starter's child). A process outside the
-    group is signalled by its own number, and only while `ps` shows that number with the same start time.
-
-    What is not reached: a process that left the group AND whose parent had already ended when the
-    stopping began (a program that makes itself a daemon; a child in a session of its own whose starter
-    ended without stopping it). Nothing ties such a process to this run any more. On Windows only what
-    the command started while it still runs is reached (taskkill with /T), all at once; once the command
-    has ended there, nothing can be asked about what it left."""
-    if os.name != "posix":
-        if p.poll() is None:
-            try:
-                subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
-            except OSError:
-                pass
-            try:
-                p.kill()
-            except OSError:
-                pass
-        p.wait()
-        return
-
-    table = _listing()
-    family, todo = {}, [p.pid]
-    while todo and table:   # everything that descends from the command, noted before anything is stopped: afterwards the parents are gone
-        parent = todo.pop()
-        for pid, (its_parent, _group, started) in table.items():
-            if its_parent == parent and pid not in family:
-                family[pid] = started
-                todo.append(pid)
-
-    def running(now):
-        return {pid: group for pid, (_parent, group, started) in now.items() if group == p.pid or family.get(pid) == started}
-
-    def tell(sig, pids):
-        if pids is None or p.pid in pids.values():   # somebody is in the group (or `ps` cannot say): the group as a whole
-            try:
-                os.killpg(p.pid, sig)
-            except OSError:
-                pass
-        for pid, group in (pids or {}).items():
-            if group != p.pid:
-                try:
-                    os.kill(pid, sig)
-                except OSError:
-                    pass
-
-    def gone():
-        """Whether nothing of it is left, when `ps` cannot say: the group is asked instead."""
-        p.poll()
-        try:
-            os.killpg(p.pid, 0)
-            return False
-        except OSError:
-            return True
-
-    pids = running(table) if table else None
-    if pids != {}:
-        tell(signal.SIGTERM, pids)
-        end = time.monotonic() + GRACE
-        while time.monotonic() < end:
-            time.sleep(0.05)
-            now = _listing() if table else None
-            pids = running(now) if now else None
-            if pids == {} or (pids is None and gone()):
-                break
-        if pids != {} and not (pids is None and gone()):
-            tell(signal.SIGKILL, pids)
-            end = time.monotonic() + GRACE   # killed is not gone at once: nothing of it may still be writing when the files are put back
-            while time.monotonic() < end:
-                time.sleep(0.05)
-                now = _listing() if table else None
-                if (running(now) == {}) if now else gone():
-                    break
-    p.wait()
-
-
-def _run(command, cwd, timeout, shell=False, env=None, encoding="utf-8"):
-    """Run a command and wait for it: (its exit status, what it printed, its error output). The status
-    is None when it took longer than `timeout` seconds. The wait is for the command itself: its output
-    goes to two temporary files, not to pipes, so that something it left running and that still holds
-    the output open (a preview server) does not keep this waiting. However the wait ends (the command is
-    done, the timeout, Ctrl-C, a signal), what the command started is stopped with it (see _stop_all), so
-    that none of it is still running when the site's files are put back or the tests are run a second
-    time; only then is the output read."""
-    group = {"start_new_session": True} if os.name == "posix" else {}
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
-        p = None
-        try:
-            with _held():   # a stop between the start of the command and its name being known here would leave it running
-                p = subprocess.Popen(command, shell=shell, cwd=cwd, env=env, stdout=out, stderr=err, **group)
-            ended = _wait(p, timeout)
-        finally:
-            if p is not None:
-                with _held():   # the stopping is not cut short either; a stop that comes meanwhile is raised when it is done
-                    _stop_all(p)
-        printed = []
-        for f in (out, err):
-            f.seek(0)
-            printed.append(f.read().decode(encoding or "utf-8", "replace"))
-        return (p.returncode if ended else None), printed[0], printed[1]
+    """From here on the watched signals do nothing (see _stop): the run has its outcome, or is putting back."""
+    _HOLD["deaf"] = True
 
 
 _ESCAPES = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")
@@ -423,7 +247,7 @@ def regenerate_cards(site):
 
 def run_tests(site, command):
     """(green, what it printed). Green is None when the tests took too long and were stopped: that is
-    neither a pass nor a failing check. The output is read as UTF-8, which is what Node and Playwright
+    neither a pass nor a failing check, and the run then ends with a status of its own ("tests-timed-out"). The output is read as UTF-8, which is what Node and Playwright
     write, whatever this computer's own encoding is; a byte that is not UTF-8 is shown as the mark that
     stands for one, and stops nothing."""
     code, out, err = _run(command, site, TEST_TIMEOUT, shell=True)
@@ -452,6 +276,7 @@ class Plan(object):
     """What the run has decided, with nothing yet written."""
 
     def __init__(self):
+        self.unchecked = set()   # the values of src/config.ts that were left as they stand and not checked (their names)
         self.texts = {}       # relative path -> (old text, new text)
         self.files = {}       # relative path -> bytes (icons)
         self.asks = []
@@ -486,6 +311,18 @@ def _changes_lines(changes, how):
     return lines
 
 
+def _left_unchecked(unchecked, notes):
+    """One note for each value of src/config.ts that already is the value wanted, on a line this tool could
+    not have edited: it was left as it stands, and whether the site reads it from there was not checked.
+    Returns the names of those values, for the report's own sentences. A value is noted once."""
+    for rel, name, at, line, because in unchecked:
+        note = ("%s already holds the value wanted for `%s` on line %d (%s), and this run left that line as it is. This tool did not check that the site reads the value "
+                "from there, because line %d of the block is not written as the starter writes it" % (rel, name, at, _site._quoted(line), because))
+        if note not in notes:
+            notes.append(note)
+    return {name for _rel, name, _at, _line, _because in unchecked}
+
+
 def _notes_lines(data):
     return ["Note: " + n for n in data["notes"]]
 
@@ -497,20 +334,21 @@ def install(a, out):
     included: the signals are watched from the first step on, the planning too.
 
     Once the run has its outcome (done, a question, a dry run, a refusal, red tests, a stop), the signals
-    are ignored, and they stay ignored when this returns: the report is still to be printed, and a signal
-    in that moment would end the process after "Done" was decided, with no report or half of one. The
-    command line ends right after printing. A caller that goes on living (a test) sets its own handlers
-    again."""
+    do nothing any more, and that stays so when this returns: the report is still to be printed, and a
+    signal in that moment would end the process after "Done" was decided, with no report or half of one.
+    The command line ends right after printing. A caller that goes on living (a test) sets its own
+    handlers again."""
     site = os.path.abspath(a.site)
     data = {"written": [], "notes": [], "cards": None, "tests": None, "changes": []}
+    mine = len(out)   # where this run's lines begin: what the caller had in `out` before is the caller's
     _watch_signals()
     try:
         code, status = _outcome(a, site, out, data)
     except (Interrupted, KeyboardInterrupt) as e:
-        _ignore_signals()  # also when the stop did not come through the handler, which does this itself
+        _ignore_signals()  # also when the stop did not come through the handler, which sets the flag itself
         name = signal.Signals(e.args[0]).name if isinstance(e, Interrupted) else "SIGINT"
         lines = ["The run was stopped from outside (%s) before it had finished, and what it had started was stopped with it." % name] + _aftermath(data)
-        del out[:]   # every way the run can end ignores the signals before it writes its first line, so there is none; were there one, it would not be true any more
+        del out[mine:]   # every way the run can end stops listening before it writes its first line, so there is none of this run's; were there one, it would not be true any more
         out.extend(lines + _changes_lines(data["changes"], "would have changed") + _notes_lines(data))
         data["message"] = "\n".join(lines)
         code, status = 2, "rollback-incomplete" if data.get("not_restored") else "stopped"
@@ -538,7 +376,7 @@ def _outcome(a, site, out, data):
         _ignore_signals()
         out.append("I need your decision before I go on. Nothing was written.")
         out.append("- " + str(k))
-        out.extend("    * " + o for o in k.options)
+        out.extend("    * " + o for o in k.shown)   # spelled out for the eye; the JSON keeps k.options, which an answer is matched against
         if k.code != "colours-too":  # that question is about them, and lists them as what it asks
             out.extend(_changes_lines(data["changes"], "would change"))
         out.extend(_notes_lines(data))
@@ -572,8 +410,8 @@ def _differences(css, pal):
                                 ("dark", css.dark_media, "dark theme for visitors without JavaScript")):
         for k in _palette.KEYS:
             new = pal.theme(theme).get(k)
-            if new is None or block.get(k) == new or (block is css.dark_media and css.dark.get(k) == block.get(k)):
-                continue
+            if new is None or block.get(k) == new or (block is css.dark_media and block.get(k) is not None and css.dark.get(k) == block.get(k)):
+                continue   # (a row that neither dark block has is named for each: nothing is alike about two rows that are not there)
             out.append(("%s, %s" % (_palette.LABEL[k], where), block.get(k), new))
         if theme == "dark" and pal.brand and block.get("brand") not in (None, pal.brand):
             out.append(("%s, %s" % (_palette.LABEL["brand"], where), block.get("brand"), pal.brand))
@@ -591,8 +429,10 @@ def _own_master(master, primary):
     tool wrote it; ("changed", None) when it starts with this tool's line and is not as this tool wrote
     it; ("other", None) when it does not start with that line. Either sign alone shows nothing: a favicon
     somebody wrote by hand may be clean, and one that was edited afterwards still has the line. Line ends
-    are not held against it: a checkout that turns them into CRLF leaves the file this tool's own."""
-    text = master.replace(b"\r\n", b"\n")
+    and a byte order mark in front are not held against it: a checkout that turns the line ends into CRLF,
+    or an editor that saves the file with the mark, leaves the file this tool's own."""
+    text = master[len(BOM.encode("utf-8")):] if master.startswith(BOM.encode("utf-8")) else master
+    text = text.replace(b"\r\n", b"\n")
     if not text.startswith(MARK.encode("utf-8")):
         return "other", None
     body = text[len(MARK.encode("utf-8")):]
@@ -619,6 +459,9 @@ def _install(a, site, out, data):
         raise Refusal("bad-argument", "%s can only be used with a package to choose from, and none was given. Give the logo with --input, or leave %s out." % (flags, flags))
     if a.with_colours and a.keep_colours:
         raise Refusal("bad-argument", "--with-colours and --keep-colours ask for opposite things (apply the palette; leave the site's colours as they are). Give one of them.")
+    if a.test_command is not None and not a.test_command.strip():
+        raise Refusal("bad-argument", "--test-command was given with no command in it. Give the command that shows the site is still green, or leave --test-command out to run "
+                                      "the site's own: %s" % DEFAULT_TEST_COMMAND)
     missing = _site.missing_files(site)
     if missing:
         raise Refusal("site-layout", "%s does not look like a site made from the starter: it lacks %s." % (site, ", ".join(missing)))
@@ -680,7 +523,6 @@ def _install(a, site, out, data):
     master_bytes = _read_bytes(site, MASTER)
     if master_bytes is not None and _site.is_scaffold_default(MASTER, master_bytes):
         master_bytes = None
-    whose, kept = _own_master(master_bytes, primary) if master_bytes is not None else (None, None)
     if a.with_logo and not a.input and master_bytes is None:
         raise Refusal("logo-missing", "There is no logo to apply: no file was given, and the site has no logo of its own installed yet (%s is the scaffold's placeholder or missing)." % MASTER)
     asked_for_logo = bool(a.input) or a.with_logo   # she asked for the logo's files; a run about colours may still draw them again (below)
@@ -697,11 +539,14 @@ def _install(a, site, out, data):
             ["The logo is checked against the colours the site has now (the backgrounds it has to show on), and this tool could not read all of them from "
              "src/styles/global.css:"] + _css_problems(css) +
             ["Mend that in the stylesheet (the three colour blocks as the starter writes them, each colour once), then run this again."]))
+    # whose the installed favicon is: asked only now, when the colours it is held against are known to be all there
+    whose, kept = _own_master(master_bytes, primary) if master_bytes is not None else (None, None)
 
     # --- the colours, set in memory in all four files that hold one ---------------------------
     # What the palette changes, as she reads it: said in every report from here on, and asked about
     # (below) when she came for the logo and did not say the colours should change too.
     card_colours = want_colours
+    unchecked = []   # what _site.set_lines left as it stands without being able to check it: each gets a note (see _left_unchecked)
     if want_colours:
         low = _site.og_low_contrast(pal)
         changes.extend("%s: %s becomes %s" % (where, old or "a value this tool cannot read", new) for where, old, new in _differences(css, parsed))
@@ -734,11 +579,12 @@ def _install(a, site, out, data):
         refused = None
         for rel, want in others:   # all three are looked at, also after one of them was refused: the report lists every change it could work out
             try:
-                texts[rel], changed = _site.set_lines(rel, text(rel), want)
+                texts[rel], changed = _site.set_lines(rel, text(rel), want, unchecked)
             except Refusal as r:
                 refused = refused or r
                 continue
             changes.extend("%s, %s: %s becomes %s" % (rel, name, old, new) for name, old, new in changed)
+        _left_unchecked(unchecked, notes)
         if refused is not None:
             raise refused
 
@@ -768,6 +614,9 @@ def _install(a, site, out, data):
     # never handed over, and a run about colours neither judges it nor stops over it. Where the background
     # stays as it is, the logo's files are left alone and nothing is asked about them. Nor does a run about
     # colours stop over the image library: where the icons cannot be drawn, the colours go in and the icons wait.
+    # Where the master has no background of its own under the colours the site has now, the installed icons
+    # were not drawn from it: a one-colour version was used, and this tool keeps no record of that file or of
+    # the background it was given. Such icons are left as they are, with a note, and nothing is asked.
     redraw = a.with_logo and not a.input
     renderer = None
     if master_bytes is not None and want_colours and not asked_for_logo:
@@ -775,7 +624,11 @@ def _install(a, site, out, data):
         moves = _icons.backgrounds(pal) != _icons.backgrounds(now)
         if moves and kept is not None:
             was, will = _sits_on(kept.colours, now), _sits_on(kept.colours, pal)
-            moves = was is None or was != will
+            if was is None:
+                moves = False
+                notes.append(ONE_COLOUR_ICONS)
+            else:
+                moves = was != will
         if moves and kept is None:
             notes.append("the icons were left as they are: %s is not %s, so the app icons were not drawn again on the new background. "
                          "To make them again from that file, run this again with --with-logo; to install a logo, give it with --input" % (
@@ -793,6 +646,7 @@ def _install(a, site, out, data):
     want_logo = bool(a.input) or redraw
 
     plan = Plan()
+    plan.unchecked = _left_unchecked(unchecked, notes)
     workdir = None
     try:
         with _held():   # a stop between the making of the folder and its name being known here would leave it behind
@@ -801,7 +655,8 @@ def _install(a, site, out, data):
             if not a.input:
                 clean = kept or _svg.clean_svg(master_bytes, current=primary)
             # COMPANY.logo, by the same rule as the colours' lines: refused here, before anything is drawn
-            texts[_site.CONFIG], repointed = _site.set_lines(_site.CONFIG, text(_site.CONFIG), {"logo": _site.LOGO_ADDRESS})
+            texts[_site.CONFIG], repointed = _site.set_lines(_site.CONFIG, text(_site.CONFIG), {"logo": _site.LOGO_ADDRESS}, unchecked)
+            plan.unchecked = _left_unchecked(unchecked, notes)
             for _name, logo_was, _new in repointed:
                 plan.pending.append((
                     "COMPANY.logo in src/config.ts points at %s; this run would point it at /images/logo.png, the picture made from this logo, and leave the file it "
@@ -825,13 +680,17 @@ def _install(a, site, out, data):
             if report.outside and not a.accept_colours:
                 plan.asks.append(Ask("outside-palette", "These colours of the mark are not in the palette: %s. Nothing is recoloured without your say-so. Use the mark as it is "
                                      "(--accept-colours), or ask the tool for the mark in the palette's colours." % ", ".join(report.outside)))
+            mono_low = _palette.check_mark(mono_clean.colours, pal).low if mono_clean is not None else {}
             for theme, under in on_page.low.items():
                 if theme not in accepted:
                     what = "; ".join("%s is %s to 1" % (c, _colour.shown(r)) for c, r in under)
+                    # said of the one-colour version only what was worked out: whether it reaches 3 to 1 on that same background
+                    way = ("Use its one-colour version where it sits on that background." if mono_clean is None else
+                           "The one-colour version you gave can be used where it sits on that background." if theme not in mono_low else
+                           "The one-colour version you gave does not reach 3 to 1 on that background either (%s)."
+                           % "; ".join("%s is %s to 1" % (c, _colour.shown(r)) for c, r in mono_low[theme]))
                     plan.asks.append(Ask("low-contrast", "On %s the mark falls under 3 to 1 against the background (%s). %s Accept it as it is (--accept-low-contrast %s), "
-                                         "or choose a different mark." % (_theme_label(theme), what,
-                                         "Use its one-colour version where it sits on that background." if mono_clean is None else
-                                         "The one-colour version you gave can be used where it sits on that background.", theme)))
+                                         "or choose a different mark." % (_theme_label(theme), what, way, theme)))
             for rel, new in files.items():
                 current = _read_bytes(site, rel)
                 if current is None or current == new:
@@ -850,7 +709,7 @@ def _install(a, site, out, data):
             lines = ["I need your decision before I go on. Nothing was written."]
             for k in plan.asks:
                 lines.append("- " + str(k))
-                lines.extend("    * " + o for o in k.options)
+                lines.extend("    * " + o for o in k.shown)
             lines.extend(_changes_lines(changes, "would change"))
             lines.extend(_notes_lines(data))
             data["asks"] = [{"code": k.code, "question": str(k), "options": k.options} for k in plan.asks]
@@ -900,6 +759,9 @@ def _install(a, site, out, data):
 
         return _apply(a, site, out, data, plan, j, writes, want_colours, want_logo, card_colours, pal, brand_path)
     finally:
+        # However the run got here (done, a question, a refusal, red tests, a stop), it has its outcome: from
+        # here on a signal does nothing, so that none cuts short the clearing up and leaves the folder behind.
+        _ignore_signals()
         if workdir is not None:
             shutil.rmtree(workdir, ignore_errors=True)
 
@@ -999,11 +861,13 @@ def _apply(a, site, out, data, plan, j, writes, want_colours, want_logo, card_co
         if not green:
             names = failing_checks(output)
             left = undo()
-            data["tests"] = "failed"
+            data["tests"] = "timed-out" if green is None else "failed"
             data["failing"] = names
             if green is None:
                 data["tests_timed_out"] = True
                 lines = ["The site's own tests ran for more than %d minutes after the install and were stopped%%s." % (TEST_TIMEOUT // 60)]
+                if names:
+                    lines.append("Before they were stopped, %s had failed: %s" % ("this check" if len(names) == 1 else "these checks", "; ".join(names)))
             else:
                 lines = ["The site's own tests failed after the install%s."]
                 if names:
@@ -1029,7 +893,7 @@ def _apply(a, site, out, data, plan, j, writes, want_colours, want_logo, card_co
             lines[0] %= "" if left else ", so everything was put back (every file, the share cards included)"
             if left:
                 lines.extend(_aftermath(data))
-            raise Stop(1, lines, "rollback-incomplete" if left else "tests-failed")
+            raise Stop(1, lines, "rollback-incomplete" if left else "tests-timed-out" if green is None else "tests-failed")
         data["tests"] = "passed"
         # From here the install stands, and a stop can no longer take it back: it is not listened to while
         # the report is made and printed, so that no report says "stopped, nothing was written" of an install that is in.
@@ -1045,13 +909,18 @@ def _apply(a, site, out, data, plan, j, writes, want_colours, want_logo, card_co
     reword(1)
     out.append("Done. The site's own tests pass afterwards.")
     if want_colours:
+        # the theme colour is claimed only where this run set it or could check it: one that was left as it stands in a
+        # block this tool cannot edit has its own note, and is named here as not checked
         out.append("Colours: the palette in %s is now in src/styles/global.css (the light theme, the dark theme, and the dark values for visitors without JavaScript), "
-                   "in the theme colour and the manifest%s" % (os.path.basename(brand_path), ", and in the share cards." if card_colours and data["cards"] == "regenerated" else
-                                                               ". The share cards do not have it: see below."))
+                   "%s the manifest%s%s" % (os.path.basename(brand_path), "and in" if "themeColor" in plan.unchecked else "in the theme colour and",
+                                            ", and in the share cards." if card_colours and data["cards"] == "regenerated" else ". The share cards do not have it: see below.",
+                                            " The theme colour in src/config.ts was left as it stands, and this tool did not check that the site reads it: see the note about it."
+                                            if "themeColor" in plan.unchecked else ""))
         out.extend(_changes_lines(changes, "changed"))
     if want_logo:
-        out.append("Logo: the seven icon files are in public/ (the app icons sit on %s, drawn from the %s version), and COMPANY.logo points at public/images/logo.png." % (
-            plan.background, plan.version))
+        out.append("Logo: the seven icon files are in public/ (the app icons sit on %s, drawn from the %s version)%s" % (
+            plan.background, plan.version, ", and COMPANY.logo points at public/images/logo.png." if "logo" not in plan.unchecked else
+            ". COMPANY.logo in src/config.ts was left as it stands, and this tool did not check that the site reads it: see the note about it."))
     out.append("Written:")
     out.extend("  " + w for w in data["written"])
     if not data["written"]:

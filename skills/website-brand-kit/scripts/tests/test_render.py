@@ -6,6 +6,7 @@ intake checks it first and stops with the command to run when it is missing (sce
 tests run the real helper; the ones that draw need a `sharp` to borrow (see _testutil).
 """
 
+import base64
 import json
 import os
 import re
@@ -13,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 import _testutil as T
@@ -199,6 +201,27 @@ class WhenTheHelperAnswersBadly(unittest.TestCase):
                 self.assertEqual(cm.exception.code, "render-failed")
         drawn = self.renderer("printf '%s\\n' '{\"ok\":true,\"results\":[]}'").render(MARK, (0, 0, 64, 64), [job("a", 16)], self.tmp.name)
         self.assertEqual(drawn, [])
+
+    def test_a_renderer_that_takes_too_long_is_stopped_and_the_refusal_says_what_to_ask_for(self):
+        # the backstop behind the check: a drawing that keeps the renderer busy is stopped, and the owner is told what to
+        # ask the tool for (it said only that the renderer was stopped)
+        slow = self.renderer("sleep 30")
+        before = _render.RENDER_SECONDS
+        self.assertEqual(before, 180)
+        _render.RENDER_SECONDS = 1
+        try:
+            with self.assertRaises(Refusal) as cm:
+                slow.render(MARK, (0, 0, 64, 64), [job("a", 16)], self.tmp.name)
+        finally:
+            _render.RENDER_SECONDS = before
+        self.assertEqual(cm.exception.code, "render-failed")
+        for word in ("took more than 1 seconds", "was stopped", "Ask the tool for a plainer drawing", "outlines turned into shapes"):
+            self.assertIn(word, str(cm.exception))
+        # where no drawing was handed over (the first check that the renderer starts at all), nothing is said about a drawing
+        with self.assertRaises(Refusal) as cm:
+            slow._run(["--check"], timeout=1)
+        self.assertIn("took more than 1 seconds and was stopped.", str(cm.exception))
+        self.assertNotIn("drawing", str(cm.exception))
 
     def test_an_answer_nested_too_deep_to_read_is_a_refusal(self):
         # Python gives up on JSON nested this deep with a RecursionError, which is no ValueError: it came out as a traceback
@@ -735,8 +758,8 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
             docs["points %r" % f] = '<svg %s><polygon fill="#f00" points="0,0 %s,0 %s,10 0,10"/></svg>' % (b, f, f)
             docs["translate(%r)" % f] = '<svg %s><rect transform="translate(%s 0)" fill="#f00" width="10" height="10"/></svg>' % (b, f)
             docs["scale(1 %r)" % f] = '<svg %s><rect transform="scale(.1 %s)" fill="#f00" width="100" height="1"/></svg>' % (b, f)
-            docs["dasharray %r" % f] = '<svg %s><path stroke="#f00" stroke-width="10" stroke-dasharray="%s" d="M0 5h10"/></svg>' % (b, f)
-            docs["dashoffset %r" % f] = '<svg %s><path stroke="#f00" stroke-width="10" stroke-dasharray="5" stroke-dashoffset="%s" d="M0 5h10"/></svg>' % (b, f)
+            docs["dasharray %r" % f] = '<svg %s><line stroke="#f00" stroke-width="10" stroke-dasharray="%s" y1="5" x2="10" y2="5"/></svg>' % (b, f)
+            docs["dashoffset %r" % f] = '<svg %s><line stroke="#f00" stroke-width="10" stroke-dasharray="5" stroke-dashoffset="%s" y1="5" x2="10" y2="5"/></svg>' % (b, f)
             docs["miterlimit %r" % f] = '<svg %s><path fill="none" stroke="#f00" stroke-width="3" stroke-miterlimit="%s" d="M1 9L5 2L9 9"/></svg>' % (b, f)
             docs["viewBox width %r" % f] = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 %s 5"><rect fill="#f00" width="2.5" height="5"/></svg>' % f
             docs["no viewBox, width %r" % f] = '<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="5"><rect fill="#f00" width="2.5" height="5"/></svg>' % f
@@ -749,7 +772,7 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
             docs["opacity %r" % o] = '<svg %s><rect fill="#f00" opacity="%s" width="10" height="10"/></svg>' % (b, o)
             docs["style fill-opacity %r" % o] = '<svg %s><rect fill="#f00" style="fill-opacity:%s" width="10" height="10"/></svg>' % (b, o)
         for d in ["5 1", "5,1", "50% 10%", "50%10%", "5.0 1.0", "5. 1", "5 1.", "5%%", "5-1", "5.5.5", ""]:
-            docs["dasharray %r" % d] = '<svg %s><path stroke="#f00" stroke-width="10" stroke-dasharray="%s" d="M0 5h10"/></svg>' % (b, d)
+            docs["dasharray %r" % d] = '<svg %s><line stroke="#f00" stroke-width="10" stroke-dasharray="%s" y1="5" x2="10" y2="5"/></svg>' % (b, d)
         outcome = self.judge(docs)
         # the forms a renderer does not read as this check would are refused, not passed on
         for f in ("5.", "5.e0", "+5.", "5.px", "5\u00a0", "\u00a05", "\u0665"):
@@ -813,7 +836,8 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
             docs["viewBox: " + name] = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="%s"><rect fill="#f00" width="10" height="10"/></svg>' % box
         outcome = self.judge(docs)
         for name in ("sheet: a plain rule", "sheet: a font's name in quotes", "sheet: a comment", "sheet: a name twice", "sheet: an id and a class", "sheet: the later of two",
-                     "style: plain", "style: a font's name", "attribute: plain", "attribute: plain spaces", "attribute: an id", "attribute: a clip", "attribute: a point with a digit", "viewBox: plain",
+                     "style: plain", "style: a font's name", "attribute: plain", "attribute: plain spaces", "attribute: an id", "attribute: an id with a space", "attribute: a clip",
+                     "attribute: a point with a digit", "viewBox: plain",
                      "viewBox: commas", "viewBox: a tab"):
             self.assertEqual(outcome[name], "accepted", name)
         for name in ("sheet: a rule in a quoted brace", "sheet: single quotes", "sheet: an escaped quote", "sheet: a line break in quotes", "sheet: a value in quotes",
@@ -824,7 +848,7 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
                      "style: an escaped semicolon", "style: a no-break space before the property", "style: capitals", "sheet: a capital property"):
             self.assertEqual(outcome[name], "refused: css-unreadable", name)
         for name in ("sheet: a no-break space before the value", "sheet: another script's digits", "style: a no-break space", "attribute: a no-break space before",
-                     "attribute: an em space after", "attribute: another script's digits", "attribute: full-width letters", "attribute: an id with a space",
+                     "attribute: an em space after", "attribute: another script's digits", "attribute: full-width letters",
                      "attribute: a class after an em space", "attribute: two classes round a no-break space", "attribute: a clip in quotes"):
             self.assertEqual(outcome[name], "refused: bad-value", name)
         for name in ("attribute: a bare point", "attribute: a bare point in hsl", "attribute: a bare point before a percent"):
@@ -860,14 +884,15 @@ POSITIONS = ("x", "y", "cx", "cy", "x1", "y1", "x2", "y2", "width", "height")
 # read the form keeps the other value, and the cleaned file (which holds the form alone) would then be drawn differently.
 MITRE = '<path class="p" d="M1 9L5 2L9 9" fill="none" stroke="#f00" stroke-width="2"/>'
 LINE = '<path class="p" d="M0 5H10" stroke="#f00" stroke-width="4"/>'
+DASHED = '<line class="p" y1="5" x2="10" y2="5" stroke="#f00" stroke-width="4"/>'   # a dashed outline stands on a shape whose length its numbers tell
 SQUARE = '<rect class="p" width="6" height="6" fill="#f00"/>'
 HOLE = '<path class="p" d="M1 1h8v8h-8zM3 3h4v4h-4z" fill="#f00"/>'
 CLIPS = ('<clipPath id="c"><rect width="3" height="10"/></clipPath><clipPath id="d-e.f:g_h"><rect width="3" height="10"/></clipPath>'
          '<rect class="p" width="10" height="10" fill="#f00"/>')
 PROPERTIES = {   # property: (the shape, the other value)
     "stroke-width": ('<path class="p" d="M0 5H10" stroke="#f00"/>', "1"), "stroke-miterlimit": (MITRE, "1.5"),
-    "stroke-dashoffset": ('<path class="p" d="M0 5H10" stroke="#f00" stroke-width="4" stroke-dasharray="7"/>', "1"),
-    "opacity": (SQUARE, ".3"), "fill-opacity": (SQUARE, ".3"), "stroke-opacity": (LINE, ".3"), "stroke-dasharray": (LINE, "1 1"),
+    "stroke-dashoffset": ('<line class="p" y1="5" x2="10" y2="5" stroke="#f00" stroke-width="4" stroke-dasharray="7"/>', "1"),
+    "opacity": (SQUARE, ".3"), "fill-opacity": (SQUARE, ".3"), "stroke-opacity": (LINE, ".3"), "stroke-dasharray": (DASHED, "1 1"),
 }
 
 
@@ -896,7 +921,8 @@ def grammar_rows():
     for prop in ("opacity", "fill-opacity", "stroke-opacity"):
         rule("number", prop, ONE, "1")
     # --- length
-    rule("length", "stroke-width", FIVE + FIVE_PX + [("0", "0"), ("0.0", "0"), ("0e9", "0"), ("0px", "0"), ("1e9", "1000000000")], "5")
+    # (1010 is as far as a number may be in this box: a hundred times its side of 10, beyond its far edge)
+    rule("length", "stroke-width", FIVE + FIVE_PX + [("0", "0"), ("0.0", "0"), ("0e9", "0"), ("0px", "0"), ("1.01e3", "1010")], "5")
     rule("length", "stroke-dashoffset", FIVE + FIVE_PX + [("-5", "9"), ("0", "14"), ("-.5e1px", "9")], "5")
     for name in ("r", "rx", "ry", "rx of an ellipse", "ry of an ellipse"):
         attribute("length", name, FIVE + FIVE_PX)
@@ -911,7 +937,8 @@ def grammar_rows():
         shape, _other = SHAPES[name]
         for form in ("-5", "-.5e1", "-5px", "-50%"):
             rows.append(("position", "%s=%r" % (name, form), B % (shape % form), B % (shape % "-5"), B % (shape % "1")))
-        rows.append(("position", "%s='1e9'" % name, B % (shape % "1e9"), B % (shape % "1000000000"), B % (shape % "1")))
+        rows.append(("position", "%s='1.01e3'" % name, B % (shape % "1.01e3"), B % (shape % "1010"), B % (shape % "1")))
+        rows.append(("position", "%s='-10100%%'" % name, B % (shape % "-10100%"), B % (shape % "-1010"), B % (shape % "1")))
     wide = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><rect width="20" height="10" fill="#00f"/>%s</svg>'
     for name, plain in (("x", "10"), ("width", "10"), ("cx", "10"), ("x2", "10"), ("y", "5"), ("height", "5"), ("cy", "5"), ("y2", "5")):
         shape, _other = SHAPES[name]   # a share is of the box's width for x and of its height for y
@@ -922,16 +949,26 @@ def grammar_rows():
     # --- number list
     poly, three = '<polygon points="%s" fill="#f00"/>', "1 1 9 1 5 9"
     for form in ("1 1 9 1 5 9", "1,1 9,1 5,9", "1,1,9,1,5,9", "1 , 1 9 , 1 5 , 9", " 1 1 9 1 5 9 ", "1&#10;1&#9;9&#13;1  5 9", "+1 +1 +9 +1 +5 +9", "1e0 1E0 .9e1 1.0 5 9",
-                 "1 1 9 1 5 9 1 1"):
-        rows.append(("number list", "points=%r" % form, B % (poly % form), B % (poly % three), B % (poly % "1 1 9 1 5 5")))
+                 "1 1 9 1 5 9 1 1", "1 1 9 1" + " " * 3000 + "5 9", "1" + "&#10;" * 500 + "1,9,1," + "&#9;" * 500 + "5 9",
+                 # between two points: blanks, or a comma and then blanks
+                 "1 1,9 1,5 9", "1 1, 9 1,&#10;5 9", "1,1,&#9;9,1, 5,9", "1 , 1&#10;9 , 1&#9;5 , 9", "1+1 9+1 5+9", "1.0.1e1 9 1,.5e1.9e1"):
+        rows.append(("number list", "points=%r" % form[:40], B % (poly % form), B % (poly % three), B % (poly % "1 1 9 1 5 5")))
+    rows.append(("number list", "points as far out as a number may be", B % (poly % "1 1 1010 1 5 -1010"), B % (poly % "1 1 1.01e3 1 5 -1.01e3"), B % (poly % three)))
     rows.append(("number list", "points run together before a sign", B % (poly % "1 1 9 1 5-1"), B % (poly % "1 1 9 1 5 -1"), B % (poly % three)))
     rows.append(("number list", "points run together before a point", B % (poly % "1 1 9 1 5.5.9"), B % (poly % "1 1 9 1 5.5 .9"), B % (poly % three)))
     rows.append(("number list", "points='' draws nothing", B % (poly % ""), B % "", B % (poly % three)))
     rule("number list", "stroke-dasharray", ["3 1", "3,1", "3 , 1", "3  1", "3.0 1e0", "+3 +1", "3 1 3 1", ("3", "3 3"), ("3 1 2", "3 1 2 3 1 2"), ("3.5.5", "3.5 .5"),
                                              ("3+1", "3 1"), ("none", "none"), ("0 0", "none"), ("0", "none"), ("1e9", "none"), ("3 1 " * 8, "3 1")], "3 1")
-    dashed = '<path d="M0 5H10" stroke="#f00" stroke-width="4" stroke-dasharray="%s"/>'
-    for form in ("3&#9;1", "3&#10;1", "&#13;3 1 ", "3&#10;,&#9;1"):
-        rows.append(("number list", "stroke-dasharray=%r" % form, B % (dashed % form), B % (dashed % "3 1"), B % (dashed % "1 1")))
+    dashed = '<line y1="5" x2="10" y2="5" stroke="#f00" stroke-width="4" stroke-dasharray="%s"/>'
+    for form in ("3&#9;1", "3&#10;1", "&#13;3 1 ", "3&#10;,&#9;1", "3" + " " * 3000 + "1", "3" + "&#10;" * 300 + "," + "&#9;" * 300 + "1"):   # written out as `3 1`, however it is spaced
+        rows.append(("number list", "stroke-dasharray=%r" % form[:40], B % (dashed % form), B % (dashed % "3 1"), B % (dashed % "1 1")))
+    # the smallest dash there is in this box (a thousandth of its side), and the shapes a dashed outline may stand on
+    rows.append(("number list", "stroke-dasharray='0.01 1' (the smallest dash)", B % (dashed % "0.01 1"), B % (dashed % ".01 1 .01 1"), B % (dashed % "1 1")))
+    rows.append(("number list", "stroke-dasharray='0 2' (dots)", B % (dashed.replace("<line ", '<line stroke-linecap="round" ') % "0 2"), None, B % (dashed.replace("<line ", '<line stroke-linecap="round" ') % "1 1")))
+    for shape in ('<rect x="1" y="1" width="8" height="8" rx="2" fill="none" stroke="#f00" stroke-dasharray="%s"/>', '<circle cx="5" cy="5" r="4" fill="none" stroke="#f00" stroke-dasharray="%s"/>',
+                  '<ellipse cx="5" cy="5" rx="4" ry="2" fill="none" stroke="#f00" stroke-dasharray="%s"/>', '<polyline points="1 1 9 1 5 9" fill="none" stroke="#f00" stroke-dasharray="%s"/>',
+                  '<polygon points="1,1 9,1 5,9" fill="none" stroke="#f00" stroke-dasharray="%s"/>', '<g stroke="#f00" stroke-dasharray="%s"><line x1="1" y1="1" x2="9" y2="9"/></g>'):
+        rows.append(("number list", "a dashed %s" % shape[1:9].split()[0], B % (shape % "2,1"), B % (shape % "2 1"), B % (shape % "none")))
     # --- transform
     moved = '<rect transform="%s" width="4" height="4" fill="#f00"/>'
     for form, plain in (("translate(2)", "translate(2 0)"), ("translate(2 3)", None), ("translate(2,3)", "translate(2 3)"), ("translate( 2 , 3 )", "translate(2 3)"),
@@ -941,8 +978,14 @@ def grammar_rows():
                         ("matrix(1 0 0 1 2 3)", "translate(2 3)"), ("matrix(1,0,0,1,2,3)", "translate(2 3)"), ("matrix(2 0 0 2 0 0)", "scale(2)"),
                         ("translate(2) scale(2)", None), ("translate(2),scale(2)", "translate(2) scale(2)"), ("translate(2) , scale(2)", "translate(2) scale(2)"),
                         ("translate(2)scale(2)", "translate(2) scale(2)"), (" translate(2 3) ", "translate(2 3)"), ("translate(2)&#10;scale(2)", "translate(2) scale(2)"),
-                        ("translate(.25) " * 16, "translate(4)"), ("translate(1e9)", "translate(1000000000)")):
-        rows.append(("transform", "transform=%r" % form, B % (moved % form), B % (moved % plain) if plain else None, B % (moved % "translate(1 1)")))
+                        ("translate(.25) " * 16, "translate(4)"), ("translate(1.01e3)", "translate(1010)"),
+                        # a blank before the bracket: SVG allows it, and the site's renderer reads it as a browser does (measured 2026-10-13)
+                        ("translate (2 3)", "translate(2 3)"), ("translate&#9;(2,3)", "translate(2 3)"), ("rotate &#10; (30 5 5)", "rotate(30 5 5)"), ("skewX (20)", "skewX(20)"),
+                        ("matrix  (1 0 0 1 2 3)", "translate(2 3)"), ("translate(2) scale (2)", "translate(2) scale(2)"), ("scale (2)translate (1)", "scale(2) translate(1)"),
+                        # a transform is written out with one blank between two of anything, however it is spaced
+                        ("translate(2)" + " " * 3000 + "scale(2)", "translate(2) scale(2)"), ("translate(2" + "&#9;" * 500 + "3)", "translate(2 3)"),
+                        ("rotate(3e1&#10;,&#10;5,5)&#10;,&#10;translate(1-1)", "rotate(30 5 5) translate(1 -1)")):
+        rows.append(("transform", "transform=%r" % form[:60], B % (moved % form), B % (moved % plain) if plain else None, B % (moved % "translate(1 1)")))
     rows.append(("transform", "transform='' moves nothing", B % (moved % ""), B % '<rect width="4" height="4" fill="#f00"/>', B % (moved % "translate(1 1)")))
     # --- path data
     for form in ("M0 0h5v5z", "M0,0H5V5Z", "M0 0h5.v5.e0z", "M0 0h.5e1v+5z", "M0 0l5 0 0 5z", "m0 0 5 0 0 5z", "M0 0L5 0L5 5", "M 0 0 H 5 V 5 Z", "M0 0h5v5-5-5",
@@ -956,7 +999,7 @@ def grammar_rows():
             ("stroke-linecap", '<path class="p" d="M3 5H7" stroke="#f00" stroke-width="4"/>', (("butt", "round"), ("round", "butt"), ("square", "butt"))),
             ("stroke-linejoin", '<path class="p" d="M2 8L5 2L8 8" fill="none" stroke="#f00" stroke-width="2"/>', (("miter", "round"), ("round", "miter"), ("bevel", "miter"))),
             ("visibility", SQUARE, (("visible", "hidden"), ("hidden", "visible"), ("collapse", "visible", "hidden"))),
-            ("display", SQUARE, (("inline", "none"), ("block", "none", "inline"), ("inherit", "none", "inline"), ("none", "inline"))),
+            ("display", SQUARE, (("inline", "none"), ("block", "none", "inline"), ("none", "inline"))),
             ("shape-rendering", '<circle class="p" cx="5" cy="5" r="3.3" fill="#f00"/>',
              (("auto", "crispEdges"), ("geometricPrecision", "crispEdges", "auto"), ("crispEdges", "auto"), ("optimizeSpeed", "auto", "crispEdges"))),
             ("paint-order", '<rect class="p" x="2" y="2" width="6" height="6" fill="#0f0" stroke="#f00" stroke-width="3"/>',
@@ -981,6 +1024,29 @@ def grammar_rows():
     for name in ("a", "_a", "A1", "a-b_c", "x" * 64):   # the letters a style rule can name an id with
         styled = '<style>#%s{fill:#f00}</style><rect id="%s" width="6" height="6"/>'
         rows.append(("id", "#%s in a rule" % name, B % (styled % (name, name)), B % (styled % ("a", "a")), B % (styled % (name, "other"))))
+    # an id nothing is named by is left out, whatever it is written in: the drawing is the one without it
+    shape = '<g %s><rect %s width="6" height="6" fill="#f00"/></g>'
+    for value in ("Frame 1", "Gr\u00f6\u00dfe", "8ce47d5fb1", "icon/logo", " a ", "", "c", "x" * 300):
+        rows.append(("id", "an id nothing is named by: %r" % value[:20], B % (shape % ('id="%s"' % value, 'id="%s"' % value)), B % (shape % ("", "")), None))
+    rows.append(("id", "ids on what is left out and on the outer svg", (B % ('<title id="t">x</title><metadata id="m"/>' + shape % ("", ""))).replace("<svg ", '<svg id="s" ', 1), B % (shape % ("", "")), None))
+    rows.append(("id", "a rule names an id written with a blank: it does not apply", B % ('<style>#a{fill:#0f0}</style>' + shape % ("", 'id=" a"')), B % (shape % ("", "")),
+                 B % ('<style>#a{fill:#0f0}</style>' + shape % ("", 'id="a"'))))
+    clip = '<clipPath id="c"><rect width="3" height="10"/></clipPath><clipPath id="unused"><rect width="1" height="1"/></clipPath><g id="g"><rect id="r" clip-path="url(%s)" width="10" height="10" fill="#f00"/></g>'
+    for form in ("#c", " #c ", "&#9;#c&#10;"):
+        rows.append(("id", "a clip path named by its id, among ids nothing is named by: url(%s)" % form, B % (clip % form), B % (clip % "#c"), B % (clip % "#unused")))
+    # `inherit` in a paint is written as nothing at all. Measured 2026-10-13 in the places where `display: inherit` was drawn
+    # differently (on a shape inside a clip path, and by a rule every element matches): a paint's is drawn as it is read
+    clipped = '<clipPath id="c"><rect %s width="3" height="10"/></clipPath><g fill="#0f0" stroke="#f00" color="#f00"><rect %s clip-path="url(#c)" x="1" y="1" width="8" height="8" stroke-width="2"/></g>'
+    for prop in ("fill", "stroke", "color"):
+        for what, doc, plain in (("on a shape inside a clip path", B % (clipped % ('%s="inherit"' % prop, "")), B % (clipped % ("", ""))),
+                                 ("in a style inside a clip path", B % (clipped % ('style="%s:inherit"' % prop, "")), B % (clipped % ("", ""))),
+                                 ("on the shape that is clipped", B % (clipped % ("", '%s="inherit"' % prop)), B % (clipped % ("", ""))),
+                                 # (a rule every shape matches also takes the colour off the square behind: held as it came against cleaned)
+                                 ("by a rule every element matches", B % ("<style>*{%s:inherit}</style>" % prop + clipped % ("", "")), None),
+                                 ("by a rule for the clip path and one for its shapes", B % ("<style>clipPath{%s:#00f}rect{%s:inherit}</style>" % (prop, prop) + clipped % ("", "")), None)):
+            rows.append(("paint", "%s: inherit %s" % (prop, what), doc, plain, None))
+    rows.append(("paint", "fill: inherit after another fill in one rule", B % ('<style>.p{fill:#00f;fill:inherit}</style><g fill="#f00">%s</g>' % SQUARE.replace(' fill="#f00"', "")),
+                 B % ('<g fill="#f00">%s</g>' % SQUARE.replace(' fill="#f00"', "")), B % ('<g fill="#f00">%s</g>' % SQUARE.replace('fill="#f00"', 'fill="#00f"'))))
     for names in ("b", "a b", " a  b ", "b a", "a b c-d e_f 0", "b b"):
         classed = '<style>.b{fill:#f00}</style><rect class="%s" width="6" height="6"/>'
         rows.append(("class", "class=%r" % names, B % (classed % names), B % (classed % "b"), B % (classed % "a")))
@@ -1001,7 +1067,11 @@ def grammar_rows():
             rows.append(("preserveAspectRatio", "%r%s" % (form, size), tall % ('viewBox="0 0 10 20" preserveAspectRatio="%s"%s' % (form, size)), tall % 'viewBox="0 0 10 20"', None))
     for width, height in (("10", "20"), ("5", "10"), ("20", "40"), ("+10", "+20"), ("1e1", "2e1"), ("10.0", "20.00"), ("10px", "20px"), ("64mm", "128mm"), ("1in", "2in"),
                           ("10pt", "20pt"), ("1cm", "2cm"), ("1pc", "2pc"), ("100%", "100%"), ("50%", "100%"), ("100%", "7%"), ("10", "100%"), ("100%", "20"), ("100%", "3"),
-                          ("10", None), (None, "20"), ("33", None), (None, "7mm"), ("100%", None), ("10.00009", "20"), ("10", "20.00019"), ("9.99991", "20")):
+                          ("10", None), (None, "20"), ("33", None), (None, "7mm"), ("100%", None), ("10.00009", "20"), ("10", "20.00019"), ("9.99991", "20"),
+                          # the units a letter's size is measured in: `1em` by `1em` round a square viewBox is the commonest size of an icon export
+                          ("1em", "2em"), ("10em", "20em"), ("1.5ex", "3ex"), (".5em", "1e0em"), ("1em", None), (None, "3ex"), ("1em", "100%"), ("100%", "2ex"),
+                          # a share of the page is no size, whatever the share (a share of nothing is refused: a browser draws nothing for it)
+                          ("1%", "1%"), ("1000%", "1000%"), ("0.5%", None), (None, "250%"), ("12.5%", "20"), ("10", "0.01%"), ("1e-9%", "1e9%"), ("50%", "2em")):
         attrs = "".join(' %s="%s"' % (k, v) for k, v in (("width", width), ("height", height)) if v is not None)
         rows.append(("width and height of the outer svg", "a viewBox and%s" % attrs, tall % ('viewBox="0 0 10 20"' + attrs), tall % 'viewBox="0 0 10 20"', None))
     for width, height in (("10", "20"), ("10px", "20px"), ("1e1", "2e1"), ("+10.0", "20.00"), (" 10 ", "20px")):
@@ -1069,6 +1139,10 @@ def refused_rows():
     poly = '<polygon points="%s" fill="#f00"/>'
     for form in ("1,1 9,1 5,9,", ",1,1 9,1 5,9", "1,,1 9,1 5,9", "1,1 9,1 5,9 3", "1,1 9,1 5"):
         rows.append(("points=%r" % form, "bad-value", B % (poly % form), B % (poly % "1,1 9,1 5,9"), "differs"))
+    # between two points the renderer reads no comma after a blank, and no number run on to the one before: it draws nothing
+    for form, meant in (("1,1 ,9,1 5,9", "1 1 9 1 5 9"), ("1 1 , 9 1 5 9", "1 1 9 1 5 9"), ("1 1 9 1&#9;,&#10;5 9", "1 1 9 1 5 9"), ("1 1 9 1  ,  5 9", "1 1 9 1 5 9"),
+                        ("5 5+9 1 5 9", "5 5 9 1 5 9"), ("1 1.5.5 9 5 9", "1 1.5 .5 9 5 9"), ("1 1 9 1-5-9", "1 1 9 1 -5 -9")):
+        rows.append(("points=%r between two points" % form, "bad-value", B % (poly % form), B % (poly % meant), "differs"))
     moved = '<rect transform="%s" width="4" height="4" fill="#f00"/>'
     for form, meant in (("translate(2 3 4)", "translate(2 3)"), ("translate(2,,3)", "translate(2 3)"), ("translate(2,)", "translate(2)"), ("translate(,2)", "translate(2)"),
                         ("scale(2 1 1)", "scale(2 1)"), ("rotate(30 5)", "rotate(30)"), ("rotate(30 5 5 5)", "rotate(30 5 5)"), ("skewX(20 1)", "skewX(20)"),
@@ -1087,8 +1161,9 @@ def refused_rows():
     # a box so small that the renderer takes it for no box at all, and draws nothing where a browser draws the mark
     tiny = tall.replace('width="10" height="20"', 'width=".003" height=".006"').replace('cx="5" cy="10" r="4.3"', 'cx=".0015" cy=".003" r=".0013"')
     rows.append(("viewBox='0 0 0.003 0.006'" + GIVEN_A_SIZE, "bad-view-box", tiny % 'viewBox="0 0 0.003 0.006"', tall % 'viewBox="0 0 10 20"', "differs"))
-    for attrs in ('width="40" height="20"', 'width="10" height="21"', 'width="10" height="20.1"', 'width="1in" height="192px"', 'width="5" height="20"',
-                  'width="10" height="10" preserveAspectRatio="none"', 'width="40" height="20" preserveAspectRatio="xMinYMin slice"'):
+    for attrs in ('width="40" height="20"', 'width="10" height="21"', 'width="10" height="20.5"', 'width="1in" height="192px"', 'width="5" height="20"',
+                  'width="10" height="10" preserveAspectRatio="none"', 'width="40" height="20" preserveAspectRatio="xMinYMin slice"',
+                  'width="1em" height="32px"', 'width="16px" height="2em"', 'width="4em" height="1ex"', 'width="4em" height="2em"'):
         rows.append(("a viewBox and %s" % attrs, "root-size", tall % ('viewBox="0 0 10 20" ' + attrs), tall % 'viewBox="0 0 10 20"', "differs"))
     for width, height, as_px in (("7.5pt", "15pt", "10 20"), ("2.6458mm", "5.2917mm", "10 20"), (".10417in", ".20833in", "10 20")):
         rows.append(("no viewBox, %s by %s" % (width, height), "no-size", tall % ('width="%s" height="%s"' % (width, height)), tall % ('viewBox="0 0 %s"' % as_px), "differs"))
@@ -1104,6 +1179,28 @@ def refused_rows():
                               ("a clip in the metadata", "misplaced-element",
                                '<metadata><clipPath id="c"><rect width="3" height="3"/></clipPath></metadata><rect clip-path="url(#c)" width="6" height="6"/>')):
         rows.append((what, code, B % inner, B % (rect if "clip" in what or "style" in what else ""), "differs"))
+    # A reference finds another element once the file is cleaned: a program takes the FIRST element that carries an id,
+    # whatever it is, so the file as it came is not clipped (the red covers the box) and the cleaned file would be
+    clip = '<clipPath id="c"><rect width="3" height="10"/></clipPath><rect clip-path="url(#c)" width="10" height="10" fill="#f00"/>'
+    for what, doc in (("an id on a title that is also a clip path's", B % ('<title id="c">x</title>' + clip)), ("an id on the metadata that is also a clip path's", B % ('<metadata id="c"/>' + clip)),
+                      ("an id on a desc that is also a clip path's", B % ('<desc id="c"/>' + clip)), ("an id on a group that is also a clip path's", B % ('<g id="c"/>' + clip)),
+                      ("an id on the outer svg that is also a clip path's", (B % clip).replace("<svg ", '<svg id="c" ', 1))):
+        rows.append((what, "shared-id", doc, B % clip, "differs"))
+    # `display: inherit` on a shape inside a clip path, however it gets there: the renderer draws nothing of what is clipped
+    inside = '<clipPath id="c"><rect %s width="3" height="10"/></clipPath><rect clip-path="url(#c)" width="10" height="10" fill="#f00"/>'
+    for what, doc in (("display='inherit' on a shape inside a clip path", B % (inside % 'display="inherit"')), ("*{display:inherit} beside a clip path", B % ("<style>*{display:inherit}</style>" + inside % "")),
+                      ("rect{display:inherit} under clipPath{display:inline}", B % ("<style>clipPath{display:inline}rect{display:inherit}</style>" + inside % "")),
+                      ("style='display:inherit' under clipPath{display:block}", B % ("<style>clipPath{display:block}</style>" + inside % 'style="display:inherit"'))):
+        rows.append((what, "bad-value", doc, B % (inside % ""), "differs"))
+    # an include: the renderer fetches what it names (here, what the address itself holds) and draws it, or applies its styles
+    xi = 'xmlns:xi="http://www.w3.org/2001/XInclude"'
+    red = "data:image/svg+xml;base64," + base64.b64encode(b'<rect xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="#f00"/>').decode("ascii")
+    sheet = "data:text/xml;base64," + base64.b64encode(b'<style xmlns="http://www.w3.org/2000/svg">rect{fill:#f00}</style>').decode("ascii")
+    for what, inner in (("an include of a shape", '<xi:include %s href="%s"/>' % (xi, red)), ("an include of a style, in the metadata", '<metadata><xi:include %s href="%s"/></metadata>' % (xi, sheet)),
+                        ("an include of a style, in a title", '<title><xi:include %s href="%s"/></title>' % (xi, sheet))):
+        rows.append((what, "xinclude", B % inner, B % "", "differs"))
+    # a number far outside the box: drawn in a small icon and not in a large one (so not as a browser draws it, which fills the box)
+    rows.append(("stroke-width='1000000' in a box of 10", "too-far", B % '<path d="M0 5H10" stroke="#f00" stroke-width="1000000"/>', B % '<rect width="10" height="10" fill="#f00"/>', "differs"))
     return rows
 
 
@@ -1122,7 +1219,7 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
     def test_every_form_the_grammar_takes(self):
         rows = grammar_rows()
         lines = sorted(set(r[0] for r in rows))
-        self.assertEqual(lines, sorted(["number", "length", "position", "number list", "transform", "path data", "keyword", "clip-path", "id", "class", "viewBox",
+        self.assertEqual(lines, sorted(["number", "length", "position", "number list", "transform", "path data", "keyword", "paint", "clip-path", "id", "class", "viewBox",
                                         "preserveAspectRatio", "width and height of the outer svg", "nothing here"]))
         cleaned = []
         for line, what, doc, _plain, _other in rows:
@@ -1193,6 +1290,94 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
                          "oklch(0.627955 0.257683 29.2339)", "rgb(1_0,0,0)", "#11_22", "#f000", "transparent", "red garbage", "0xff0000"):
                 self.assertNotEqual(outcome[prop, form], "read", form)
         self.assertGreater(len(kept), 100)
+
+    def test_a_size_a_tool_rounded_apart_from_its_viewbox_moves_the_drawing_by_no_more_than_an_edge(self):
+        # The outer svg's width and height may be up to one part in a hundred from the shape of its viewBox (an export of
+        # 283.46px by 141.73px round a viewBox of 283.5 by 141.7 was refused). The cleaned file keeps the viewBox alone, so
+        # within that line it is NOT the file as it came pixel for pixel: the drawing sits up to half a hundredth of the
+        # icon's side away. What is held here is that it is no more: only the edges of the shapes differ (measured
+        # 2026-10-13 at the line itself: 3,348 of 262,144 pixels at 512, none at 32), and past the line far more do.
+        tall = '<svg xmlns="http://www.w3.org/2000/svg" %s><rect width="10" height="20" fill="#00f"/><circle cx="5" cy="10" r="4.3" fill="#f00"/></svg>'
+        within = [("10", "20.19"), ("10", "19.81"), ("10.09", "20"), ("9.91", "20"), ("283.46px", "566.93px"), ("10mm", "20.19mm"), ("1em", "2.019em"), ("10", "20.1"), ("10.05pt", "20pt")]
+        # (a size that is too WIDE for its viewBox only adds room at the sides, which a square icon has anyway: too tall is what shows)
+        beyond = [("10", "20.5"), ("10", "21"), ("10", "24"), ("10mm", "20.5mm"), ("1em", "2.05em")]
+        jobs = []
+        for width, height in within:
+            doc = tall % ('viewBox="0 0 10 20" width="%s" height="%s"' % (width, height))
+            jobs.append({"texts": [doc, _svg.clean_svg(doc.encode()).text], "pairs": [[0, 1]]})
+        for width, height in beyond:
+            doc = tall % ('viewBox="0 0 10 20" width="%s" height="%s"' % (width, height))
+            with self.assertRaises(Refusal) as cm:
+                _svg.clean_svg(doc.encode())
+            self.assertEqual(cm.exception.code, "root-size")
+            jobs.append({"texts": [doc, tall % 'viewBox="0 0 10 20"'], "pairs": [[0, 1]]})
+        answers = pictures(self, self.site.dir, jobs)
+        edge = lambda size: size * size // 50   # a fiftieth of the icon's pixels: the edges of its shapes, half a hundredth of its side wide
+        seen = 0
+        for (width, height), answer in zip(within, answers):
+            with self.subTest(width=width, height=height):
+                all_drawn(self, answer, "%s by %s" % (width, height))
+                for size, got in zip(SIZES, answer["pairs"][0]):
+                    self.assertLessEqual(got["over"], edge(size), "at %d pixels %d pixels differ" % (size, got["over"]))
+                    seen = max(seen, got["over"])
+        self.assertGreater(seen, 0, "within the line the two are not the same picture, and this test says so")
+        for (width, height), answer in zip(beyond, answers[len(within):]):
+            with self.subTest(width=width, height=height):
+                all_drawn(self, answer, "%s by %s" % (width, height))
+                self.assertGreater(answer["pairs"][0][-1]["over"], edge(SIZES[-1]), "past the line more than the edges differ in a large icon")
+
+    def test_a_file_as_it_came_may_be_one_the_renderer_cannot_draw_small_where_the_cleaned_file_is_drawn(self):
+        # A search with generated files (2026-10-13) reported "zero-sized image" for a file as it came, at 32 pixels, with
+        # an outer size in pc or %: the renderer works such a size out by the icon it is drawing, and for a small icon it
+        # comes to no pixels at all. That is the file as it came failing to draw, not the cleaned file (which says its size
+        # by its viewBox alone and is drawn at every size): no finding, and pinned here so that the reason stays known.
+        tall = '<svg xmlns="http://www.w3.org/2000/svg" %s><rect width="10" height="20" fill="#00f"/><circle cx="5" cy="10" r="4.3" fill="#f00"/></svg>'
+        doc = tall % 'viewBox="0 0 10 20" width="200pc" height="400pc"'
+        clean = _svg.clean_svg(doc.encode())
+        answer = pictures(self, self.site.dir, [{"texts": [doc, clean.text, tall % 'viewBox="0 0 10 20"'], "pairs": [[0, 1], [1, 2]]}])[0]
+        self.assertEqual(SIZES, (32, 512))
+        self.assertIn("zero-sized image", answer["errors"][0][0] or "", "at 32 pixels the file as it came is not drawn")
+        self.assertIsNone(answer["errors"][0][1], "at 512 pixels it is")
+        self.assertEqual(answer["errors"][1], [None, None], "the cleaned file is drawn at both")
+        self.assertIsNone(answer["pairs"][0][0])
+        self.assertEqual(answer["pairs"][0][1]["over"], 0, "and where both are drawn they are one picture")
+        the_same(self, answer["pairs"][1], "the cleaned file, and the drawing by its viewBox alone")
+
+    def test_the_slowest_drawings_inside_the_caps_are_drawn_in_seconds(self):
+        # An accepted file is drawn in a time that fits a logo. Measured 2026-10-13 (processor time of the renderer for
+        # one icon, load average 3 to 12): before the caps, a dashed path of 3,652 characters that ran a hundred boxes out
+        # and back took 33 seconds and one of 25,152 characters inside its box 10; each of the drawings below, which
+        # use all of what the caps allow, takes under a second (the slowest 0.8). The line held here is ten seconds.
+        dashes = 'fill="none" stroke="#f00" stroke-width="2" stroke-dasharray="%s"'
+        inside = {
+            "100 lines across the box, dashes a thousandth of it": '<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.01") * 100,
+            "one line a hundred boxes long": '<line y1="5" x2="1000" y2="5" %s/>' % (dashes % "0.01"),
+            "50 diagonals of the box": '<line x2="10" y2="10" %s/>' % (dashes % "0.01") * 50,
+            "159 small circles": '<circle cx="5" cy="5" r="1" %s/>' % (dashes % "0.01") * 159,
+            "dots along 100 lines": '<line y1="5" x2="10" y2="5" stroke-linecap="round" %s/>' % (dashes % "0 0.02") * 100,
+            "a polygon of 1,000 slanted sides": '<polygon points="%s" %s/>' % ("0 0 10 10 0 10 10 0 " * 250, dashes % "0.2"),
+            "100 lines, each begun a hundred boxes into its dashes": '<line y1="5" x2="10" y2="5" stroke-dashoffset="1010" %s/>' % (dashes % "0.01") * 100,
+            "a path of 200,000 characters that runs a hundred boxes out and back": '<path d="M0 5%s" fill="none" stroke="#f00" stroke-width="2"/>' % ("H1010H0" * 28570),
+            "the same with an outline a hundred boxes wide": '<path d="M0 5%s" fill="none" stroke="#f00" stroke-width="1010"/>' % ("H9H0" * 49998),
+        }
+        renderer = _render.Renderer(self.site.dir)
+        for what, inner in inside.items():
+            clean = _svg.clean_svg((B % inner).encode())   # each of them is inside every cap: the check takes it
+            for size in SIZES:
+                with self.subTest(what=what, size=size):
+                    started, clock = os.times(), time.time()
+                    renderer.render(clean.text, clean.view_box, [job("icon", size)], self.site.out)   # the call the intake makes
+                    ended = os.times()
+                    used = (ended.children_user + ended.children_system) - (started.children_user + started.children_system)
+                    self.assertLess(used or (time.time() - clock), 10.0, "%s took the renderer %.1f seconds at %d pixels" % (what, used, size))
+        # one step past the caps each of these is refused, so the renderer never meets it
+        for inner, code in (('<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.01") * 101, "too-many-dashes"), ('<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.0099"), "dash-too-small"),
+                            ('<path d="M0 5%s" %s/>' % ("H1010H0" * 500, dashes % "0.01"), "dashed-path"), ('<path d="M0 5%s" %s/>' % ("H10H0" * 5000, dashes % "0.01"), "dashed-path"),
+                            ('<path d="M0 5H60000H0" fill="none" stroke="#f00"/>', "too-far"), ('<line y1="5" x2="10" y2="5" stroke-dashoffset="1e9" %s/>' % (dashes % "0.01"), "too-far")):
+            with self.subTest(inner=inner[:60]):
+                with self.assertRaises(Refusal) as cm:
+                    _svg.clean_svg((B % inner).encode())
+                self.assertEqual(cm.exception.code, code)
 
     def test_what_the_grammar_leaves_out_is_what_would_be_drawn_differently(self):
         rows = refused_rows()

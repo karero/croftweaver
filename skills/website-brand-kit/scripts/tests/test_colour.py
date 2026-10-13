@@ -168,8 +168,67 @@ class Refused(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(_colour.parse_colour(text), want)
 
+    BIG = ("oklch(0.5 10000000000e99 0)", "rgb(%s,0,0)" % ("9" * 400), "oklch(%s 0 0)" % ("9" * 200))  # round 4: each ended in OverflowError
+
+    def test_a_number_is_at_most_64_characters_long_as_the_svg_check_has_it_and_a_longer_one_is_refused_by_name(self):
+        # round 3 took the overflow guards out, reasoning that two digits of exponent cannot overflow. The mantissa had no limit:
+        # 400 digits in rgb() and 200 in oklch() ended in a traceback from the palette check, the stylesheet reading and the install.
+        import _paint
+        import _svg
+        self.assertEqual((_colour._NUM, _colour.MAX_NUMBER_CHARS), (_svg._NUM, _svg.MAX_VALUE), "one grammar for a number, and one limit on its length, in both files")
+        self.assertEqual(_colour._NUM, _paint._NUM)
+        for text in self.BIG[1:] + ("hsl(%s 50%% 50%%)" % ("1" * 65), "rgb(0 0 %s)" % ("0" * 62 + "255"), "rgb(0, 0, 0, %s)" % ("1." + "0" * 63), "oklch(0.5 0.1 %sdeg)" % ("0" * 64 + "9"),
+                                 "rgb(%s%% 0%% 0%%)" % ("5" * 65), "rgb(.%s 0 0)" % ("5" * 64), "rgb(-%s 0 0)" % ("5" * 64), "hsl(0 %se-99%% 50%%)" % ("5" * 61)):
+            with self.subTest(text=text[:24], length=len(text)):
+                refused(self, text, "colour-unreadable")
+                self.assertIn("it holds a number of more than 64 characters", _unreadable_message(text))
+        # 64 characters are read, sign, point and exponent counted, the unit not
+        for text, want in (("rgb(%s 0 0)" % ("0" * 61 + "255"), "#ff0000"), ("rgb(0 0 %s)" % ("9" * 64), "#0000ff"), ("rgb(0, 0, 0, %s)" % ("1." + "0" * 62), "#000000"),
+                           ("hsl(%sdeg 100%% 50%%)" % ("0" * 61 + "120"), "#00ff00"), ("rgb(%s%% 0%% 0%%)" % ("0" * 62 + "50"), "#800000"), ("rgb(-%s 0 0)" % ("5" * 63), "#000000"),
+                           ("rgb(%se99 0 0)" % ("9" * 60), "#ff0000"), ("rgb(.%s 0 0)" % ("0" * 62 + "9"), "#000000")):
+            with self.subTest(text=text[:24], length=len(text)):
+                self.assertEqual(_colour.parse_colour(text), want)
+        # the largest numbers the two limits allow are outside any screen in oklch(), and are said to be, whatever the sums do with them
+        for text in (self.BIG[0], "oklch(%se99 0 0)" % ("9" * 60), "oklch(0.5 %se99 0)" % ("9" * 60), "oklch(-%se99 %se99 90)" % ("9" * 59, "9" * 60), "oklch(%se99%% %se99%% 1)" % ("9" * 60, "9" * 60)):
+            with self.subTest(text=text[:24]):
+                refused(self, text, "colour-gamut")
+
+    def test_no_colour_text_ends_in_anything_but_a_colour_or_a_refusal(self):
+        # the property the three above are cases of: a few thousand colours with long whole parts, long fractions and extreme exponents in every function
+        import random
+        rng = random.Random(20261013)
+        digits = lambda n: "".join(rng.choice("0123456789") for _ in range(n))  # noqa: E731
+
+        def number(unit=""):
+            """A number for one place of a function: mostly long or extreme, sometimes an everyday one, with the unit the place takes or, now and then, another."""
+            whole, fraction = digits(rng.choice((1, 1, 2, 3, 17, 60, 63, 64, 65, 200, 400))), digits(rng.choice((1, 2, 6, 60, 64, 300)))
+            mantissa = rng.choice((whole, "." + fraction, whole + "." + fraction, "0." + fraction, "0." + fraction, "1", digits(2), digits(1)))
+            exponent = rng.choice(("", "", "", "", "e0", "e1", "e2", "e-2", "e9", "e99", "e-99", "E+99", "e308", "e-400", "e999"))
+            unit = unit if rng.random() < 0.85 else rng.choice(("", "%", "deg", "turn", "rad", "grad", "px"))
+            return rng.choice(("", "", "", "", "-", "+")) + mantissa + exponent + unit
+
+        outcomes = {}
+        for _ in range(4000):
+            name = rng.choice(("rgb", "rgba", "hsl", "hsla", "oklch", "oklch", "oklch", "OKLCH", "Rgb", "lab", "color"))
+            units = {"rgb": rng.choice((("", "", ""), ("%", "%", "%"))), "hsl": (rng.choice(("", "deg", "turn")), "%", "%"), "okl": (rng.choice(("", "%")), "", rng.choice(("", "deg")))}.get(name.lower()[:3], ("", "", ""))
+            parts = [number(unit) for unit in units]
+            alpha = rng.choice(("", "", "", ", 1", " / 1", "/100%", ", 0.5", " / " + number(), ", " + number()))
+            text = "%s(%s%s)" % (name, rng.choice((", ", " ", " ", ",", "  ")).join(parts), alpha)
+            for kw in ({}, {"drawn": True}, {"current": "#123456"}):
+                try:
+                    outcome = "a colour" if self.assertRegex(_colour.parse_colour(text, **kw), "^#[0-9a-f]{6}$") is None else ""
+                except Refusal as r:
+                    outcome = r.code
+                outcomes[outcome] = outcomes.get(outcome, 0) + 1
+            try:  # and where the text is what currentColor stands for
+                self.assertRegex(_colour.parse_colour("currentColor", current=text), "^#[0-9a-f]{6}$")
+            except Refusal:
+                pass
+        for outcome in ("a colour", "colour-unreadable", "colour-gamut", "colour-alpha"):
+            self.assertGreater(outcomes.get(outcome, 0), 60, "the texts tried no longer end as %r: %r" % (outcome, outcomes))
+
     def test_the_largest_numbers_it_reads_end_in_a_colour_or_a_named_refusal_never_in_a_crash(self):
-        # with two digits in the exponent nothing overflows: a chroma or lightness far beyond any screen is outside the gamut
+        # with two digits in the exponent and 64 characters in all, a chroma or lightness far beyond any screen is outside the gamut
         for exponent in range(3, 100, 4):
             for hue in (0, 30, 90, 142, 180, 264, 270, 359):
                 for lightness in ("0", "0.5", "1", "9e99", "-9e99"):

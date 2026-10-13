@@ -4,7 +4,8 @@ The check is read-only, runs at step 2b (before any project exists) and again in
 anything is written. These tests run the real script as a program, on files in a folder, and look at
 what it prints, its exit status, and that every file in the folder is byte for byte what it was.
 Exit status: 0 every pair passes, 1 a pair fails, 2 it cannot judge (a row is missing or unreadable,
-something was not read, or the stylesheet given with --css holds something it could not take as it stands),
+something was not read, the stylesheet given with --css holds something it could not take as it stands, or
+its two dark blocks disagree),
 3 only the owner's confirmation of proposed values is outstanding.
 """
 
@@ -151,6 +152,15 @@ class PaletteCommand(unittest.TestCase):
         code, out, _ = run("palette", self.write(brand_md()), "--css", css)
         self.assertIn("two dark", out.lower())
         self.assertIn("Background", out)
+        # round 4: it ended "pass", with 0, while it printed that the two blocks must carry the same values
+        self.assertEqual(code, 2, out)
+        data = json.loads(run("palette", self.write(brand_md()), "--css", css, "--json")[1])
+        self.assertEqual((data["status"], data["exit"], data["dark_blocks_disagree"]), ("incomplete", 2, [{"row": "bg", "dark_block": "#0a0b1e", "media_block": "#000000"}]))
+        # a failing pair and a proposal are still said first, and a document that only differs from the stylesheet still ends with 0 (the test above)
+        self.assertEqual(run("palette", self.write(brand_md(dark=dict(STARTER_DARK, muted="#5c5f80")), name="bad.md"), "--css", css)[0], 1)
+        self.assertEqual(run("palette", self.write(brand_md(dark=dict(STARTER_DARK, muted="#a6abce (proposed)")), name="proposed.md"), "--css", css)[0], 2)
+        self.assertEqual(run("palette", self.write(brand_md(dark=dict(STARTER_DARK, bg="#000000")), name="other.md"), "--css", os.path.join(self.dir, "global.css"))[0], 2,
+                         "the document agrees with one of the two blocks: the blocks still disagree")
 
     def test_json_for_the_assistant(self):
         code, out, _ = run("palette", self.write(brand_md(dark=dict(STARTER_DARK, muted="#5c5f80"))), "--json")
@@ -451,12 +461,13 @@ class PaletteCommand(unittest.TestCase):
         whole = T.read(os.path.join(self.dir, "global.css"))
         path = self.write(brand_md())
         before = snapshot(self.dir)
-        for name, text in (("a } too many", whole.replace("--radius: 12px;", "--radius: 12px; }", 1)), ("cut short", whole[:whole.index("--bg-soft: #11132c;")])):
+        for name, text in (("a } too many", whole.replace("--radius: 12px;", "--radius: 12px; }", 1)), ("cut short", whole[:whole.index("--bg-soft: #11132c;")]),
+                           # round 4: a value's own brackets count too (a browser reads on from `rgb(1,2;` to the end of the stylesheet)
+                           ("a ( never closed in a value", whole.replace("--bg: #ffffff;", "--bg: rgb(1,2; --other: 3px;", 1)), ("a ] too many", whole.replace("--radius: 12px;", "--radius: 12px];", 1))):
             with self.subTest(name=name):
                 code, out, err = run("palette", path, "--css", self.css(text, name="broken.css"))
                 self.assertEqual((code, err), (2, ""), out)
-                self.assertIn("Cannot check the palette", out)
-                self.assertIn("braces", out)
+                self.assertIn("Cannot check the palette: The stylesheet's brackets do not pair up: the `", out)
                 self.assertIn("Nothing was written", out)
                 os.remove(os.path.join(self.dir, "broken.css"))
         self.assertEqual(snapshot(self.dir), before)
@@ -579,8 +590,15 @@ class PaletteCommand(unittest.TestCase):
         path = self.write(brand_md())
         for name, text, parts in (("a selector list", whole.replace(":root {", ":root, html {", 1), ("The stylesheet has no :root { ... } block", "The rule `:root, html { ... }`", "written in another way than the starter writes it")),
                                   ("a colour set on body", whole + "\nbody { --bg: #eeeeee; }\n", ("--bg is also set in the rule `body { ... }`", "the page may show another colour there than the block's")),
-                                  ("a second block", whole + "\n:root { --accent: #c0392b; }\n", ("The stylesheet has 2 blocks", "the light theme's colours", "a later one sets --accent")),
-                                  ("important", whole.replace("--bg: #ffffff;", "--bg: #ffffff !important;", 1), ("--bg in the :root block: The colour '#ffffff !important' is not one this check can read",)),
+                                  ("a second block", whole + "\n:root { --accent: #c0392b; }\n", ("The stylesheet has 2 blocks", "the light theme's colours", "must stand once", "does not write to a stylesheet that has one of them twice")),
+                                  ("important, in a dark block", whole.replace("  --bg: #0a0b1e;", "  --bg: #0a0b1e !important;", 1), ("--bg in the :root[data-theme=\"dark\"] block: The colour '#0a0b1e !important' is not one this check can read",)),
+                                  # round 4: each of these was read without a word, and a browser shows something else (the reader's own tests say what)
+                                  ("a ; after a block", whole.replace("}\n\n:root[data-theme", "};\n\n:root[data-theme", 1), ("Line 22 of the stylesheet has a `;` where a browser expects a rule", "drops that rule")),
+                                  ("a name written with an escape", whole + "\nbody { --b\\67: #000000; }\n", ("Line 90 of the stylesheet sets a property whose name is written with a backslash (`--b\\67`)",)),
+                                  ("a rule that registers a colour", whole + "\n@property --bg { syntax: '<color>'; inherits: true; initial-value: #000; }\n", ("Line 90 of the stylesheet registers one of the palette's variables",)),
+                                  ("a default namespace", "@namespace url(http://www.w3.org/2000/svg);\n" + whole, ("Line 1 of the stylesheet sets a default namespace",)),
+                                  ("a value that points outside the palette", whole.replace("--bg: #ffffff;", "--page: #ffffff;\n  --bg: var(--page);", 1) + "\nhtml:root { --page: #000000; }\n",
+                                   ("--bg in the :root block: It is written as var(--page), which points at a variable this check does not read", "Write the colour out.")),
                                   ("a colour set twice", whole.replace("  --bg: #ffffff;", "  --bg: #ffffff;\n  --bg: #fafafa;", 1), ("--bg in the :root block: It is set 2 times in this block (#ffffff and #fafafa)",))):
             with self.subTest(name=name):
                 code, out, err = run("palette", path, "--css", self.css(text))
@@ -590,6 +608,91 @@ class PaletteCommand(unittest.TestCase):
                 for part in parts:
                     self.assertIn(part, said[0])
                 self.assertNotIn("BRAND.md and the stylesheet disagree", out, "what was not read is not compared")
+        # in the :root block an !important wins over both dark blocks' lines, so it is said of all three
+        code, out, err = run("palette", path, "--css", self.css(whole.replace("--bg: #ffffff;", "--bg: #ffffff !important;", 1)))
+        said = [l for l in out.splitlines() if l.startswith("Could not read the stylesheet: ")]
+        self.assertEqual((code, err, len(said)), (2, "", 3), out)
+        self.assertIn("--bg in the :root block: The colour '#ffffff !important' is not one this check can read", said[0])
+        self.assertIn("--bg in the @media (prefers-color-scheme: dark) block: It is marked !important in the :root block, and that line wins over this block's", said[2])
+        self.assertNotIn("The two dark blocks in the stylesheet disagree", out)
+
+    # --- round 4: what the reader was mended for, through the command ----------------------------------
+
+    def test_each_reading_that_round_4_found_wrong_ends_as_it_should_through_the_command(self):
+        # each of these ended with 0 ("pass") before; the reader's own tests have the variants
+        good = pasted()
+        cases = (
+            ("the mark between underscores in a later cell", good.replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | _proposed_ |"), 3, ("Dark theme, Muted: #a6abce",)),
+            ("the mark between underscores in the value cell", good.replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` __proposed__ |"), 3, ("Dark theme, Muted: #a6abce",)),
+            ("a mark in another language on a heading", good.replace("### Dark theme", "### Dark theme (vorgeschlagen)"), 2,
+             ('Not read: Line 19, the heading "### Dark theme (vorgeschlagen)", names none of the three sections', "the mark `(proposed)`, written in English")),
+            ("a line that starts with # and is no heading", "## Colour palette\n\n" + good + "\n#1: the dark values are still proposed\n", 2,
+             ('Not read: Line 34, "#1: the dark values are still proposed", holds the word "proposed"',)),
+            ("the palette's heading twice, once with emphasis inside a word", "## Colour palette\n\n" + good + "\n## Colour pal*ette\n", 2, ("stands 2 times in this text",)),
+            ("a long label that names another section", good.replace("### Dark theme\n", "### Dark theme\n\nLight theme (%s)\n\n" % ("x" * 300)), 2,
+             ("stands between the heading `### Dark theme` and its table, and it is the name of another section",)),
+            ("a header row that names another section", good.replace("### Dark theme\n| Token | Hex |", "### Dark theme\n| Light theme | Hex |"), 2,
+             ('Not read: Line 20, the header row "| Light theme | Hex |", calls its first column by the name of another section',)),
+            ("the three headings with as many # as the palette's", "### Colour palette\n\n" + good, 2,
+             ("ends at the next heading that has as many # as that one, or fewer: this heading", "Give the three headings with the tables more #")),
+            ("a guide whose palette heading has another name", "# Guide\n\n## Colours\n\n" + good + "\n## Cards\n\nBackground #2a1f17.\n", 2,
+             ("holds a colour (#2a1f17) that was not read", "put the three headings with their tables under a heading `## Colour palette`")),
+        )
+        for name, text, want, parts in cases:
+            with self.subTest(name=name):
+                code, out, err = run("palette", "-", stdin=text)
+                self.assertEqual((code, err), (want, ""), out)
+                for part in parts:
+                    self.assertIn(part, out)
+        # and what is fine stays fine: a string carried over a Windows line end, an escaped class name, brackets that pair up
+        whole = T.read(os.path.join(self.dir, "global.css"))
+        css = self.css(whole.replace(":root {\n", ':root {\n  --note: "a\\\r\nb } --bg: #000000;";\n  --grid: [; --ink: #000000; ];\n', 1) + "\n.sm\\:flex { display: flex }\n")
+        code, out, err = run("palette", self.write(brand_md()), "--css", css)
+        self.assertEqual((code, err), (0, ""), out)
+        self.assertNotIn("stylesheet", out.replace("the stylesheet given", ""))
+
+    # --- round 4: no text in a cell or a stylesheet value ends in a traceback ------------------------
+
+    BIG = ("oklch(0.5 10000000000e99 0)", "rgb(%s,0,0)" % ("9" * 400), "oklch(%s 0 0)" % ("9" * 200), "hsl(%s 50%% 50%%)" % ("9" * 1000), "rgb(0 0 %se99)" % ("9" * 310))
+
+    def test_a_number_too_long_or_too_large_in_a_cell_or_in_the_stylesheet_is_a_value_that_cannot_be_read_never_a_traceback(self):
+        whole = T.read(os.path.join(self.dir, "global.css"))
+        for value in self.BIG:
+            with self.subTest(value=value[:30], where="a cell"):
+                code, out, err = run("palette", self.write(brand_md(dark=dict(STARTER_DARK, muted=value))))
+                self.assertEqual((code, err), (2, ""), out)
+                self.assertNotIn("Traceback", out)
+                self.assertIn("Could not read a value: Muted (dark theme): ", out)
+                self.assertRegex(out, "the second cell holds|lies outside the colours a screen can show")
+            with self.subTest(value=value[:30], where="the stylesheet"):
+                code, out, err = run("palette", self.write(brand_md()), "--css", self.css(whole.replace("--muted: #5a5a72;", "--muted: %s;" % value, 1)))
+                self.assertEqual((code, err), (2, ""), out)
+                self.assertIn("Could not read the stylesheet: --muted in the :root block: ", out)
+            with self.subTest(value=value[:30], where="a line of text, a note and a heading"):
+                text = brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | was %s |" % value) + "\nOld: %s\n\n### Notes %s\n" % (value, value)
+                code, out, err = run("palette", self.write(text))
+                self.assertEqual((code, err), (2, ""), out)
+                self.assertEqual(len([l for l in out.splitlines() if l.startswith("Not read: Line ")]), 2, out)
+
+    def test_the_install_refuses_such_a_palette_and_such_a_stylesheet_in_words_too(self):
+        script = [sys.executable, SCRIPT, "install", "--test-command", "true", "--dry-run"]
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        for value in self.BIG:
+            for where in ("BRAND.md", "the stylesheet"):
+                with self.subTest(value=value[:30], where=where), tempfile.TemporaryDirectory() as tmp:
+                    site = T.make_starter_site(os.path.join(tmp, "site"), with_modules=False)
+                    with open(os.path.join(site, "BRAND.md"), "w", encoding="utf-8") as f:
+                        f.write(brand_md(light=T.BAKERY_LIGHT, dark=dict(T.BAKERY_DARK, muted=value) if where == "BRAND.md" else T.BAKERY_DARK, primary="#b4531a"))
+                    if where == "the stylesheet":
+                        sheet = os.path.join(site, "src", "styles", "global.css")
+                        with open(sheet, "w", encoding="utf-8") as f:
+                            f.write(T.starter_file("src/styles/global.css").replace("--shadow: 0 1px 2px rgba(0, 0, 0, 0.06)", "--shadow: 0 1px 2px %s" % value, 1)
+                                    .replace("  --muted: #a6abce;", "  --muted: %s;" % value, 1))
+                    r = subprocess.run(script + ["--site", site, "--with-colours"], capture_output=True, text=True, encoding="utf-8", env=env)
+                    self.assertEqual(r.stderr, "", "no traceback")
+                    self.assertNotIn("Traceback", r.stdout)
+                    # in BRAND.md it is a value that cannot be read; in the stylesheet the old value is written over, whatever it was
+                    self.assertEqual(r.returncode, 2 if where == "BRAND.md" else 0, r.stdout)
 
 
 if __name__ == "__main__":

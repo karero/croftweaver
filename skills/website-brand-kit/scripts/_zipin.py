@@ -12,7 +12,9 @@ from __future__ import annotations
 import io
 import re
 import stat
+import struct
 import unicodedata
+import warnings
 import zipfile
 
 from _refusal import Refusal, unseen
@@ -26,12 +28,16 @@ MAX_RATIO = 100                         # declared size over compressed size ...
 RATIO_FROM = 64 * 1024                  # ... for any entry this big (tiny files compress unevenly)
 _METHODS = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
 MAX_NAME = 120                          # characters in an entry's whole path: it is shown to the owner as it is
-# The package's own list of its files (the central directory): a kilobyte for each file there may be. The zip
-# reader works through all of it before it hands back one name, and through each entry's "extra" notes one
-# small step at a time: measured 2026-10-13, a package of 9.8 MB whose 150 entries each carried 64 KB of
-# empty notes took 4 seconds to open.
+# The package's own list of its files (the central directory): a kilobyte for each file there may be, counted
+# over what the zip reader read of it (each entry's name, its "extra" notes and its comment, and the package's
+# comment). It is counted AFTER the reader has gone through the list, so the reading is paid once whatever the
+# list holds, and what bounds it is the 10 MB a package may be. Measured 2026-10-13 (processor time, best of
+# three, load average 6 to 12): the slowest package found inside 10 MB, 150 to 159 entries with 64 KB of empty
+# notes each, is read and refused in 1.4 to 1.5 seconds on Python 3.13 and 1.5 to 1.9 on Python 3.9; a list of
+# 100,000 empty entries in 0.1 and 0.2.
 MAX_DIRECTORY_BYTES = MAX_ENTRIES * 1024
 _LOCAL_HEADER = 30                      # bytes of the header that stands before an entry's data
+_SECOND_NAME = 0x7075                   # the note that gives an entry a second, "Unicode" name
 
 
 class ZipPackage(object):
@@ -48,8 +54,10 @@ class ZipPackage(object):
             raise Refusal("no-such-file", "There is no SVG called %r in the package." % name[:80])
         info = self._infos[name]
         try:
-            with self._zf.open(info) as f:
-                data = f.read(info.file_size + 1)
+            with warnings.catch_warnings():   # as in open_zip
+                warnings.simplefilter("ignore")
+                with self._zf.open(info) as f:
+                    data = f.read(info.file_size + 1)
         except Exception:
             # Whatever the zip reader makes of a damaged entry (a bad zip, a zlib error, an OverflowError from
             # an offset of 2 to the 64th, a struct error ...): the list of what it may raise is not this
@@ -72,34 +80,44 @@ def _unseen(name):
             or any(part != part.strip(" ") or "  " in part for part in name.split("/")))
 
 
-def _directory_bytes(data):
-    """How large the package says its list of files is, found the way the zip reader itself finds it (so
-    that this is the list it would go on to read), or 0 where that cannot be asked: then the reader decides."""
-    find = getattr(zipfile, "_EndRecData", None)  # the reader's own first step; not part of what it promises to keep
-    try:
-        end = find(io.BytesIO(data)) if find else None
-        return int(end[getattr(zipfile, "_ECD_SIZE", 5)]) if end else 0
-    except Exception:
-        return 0
+def _second_names(zi):
+    """The second names an entry carries in its notes (the "Unicode path" note, which older tools write beside a
+    name with letters beyond ASCII), each as the bytes it is written in, or None for one that cannot be read."""
+    extra, pos, out = zi.extra, 0, []
+    while pos + 4 <= len(extra):
+        kind, size = struct.unpack_from("<HH", extra, pos)
+        note = extra[pos + 4:pos + 4 + size]
+        if kind == _SECOND_NAME:
+            # one byte for the version (there is only version 1), four for a checksum, then the name
+            out.append(note[5:] if len(note) == size and size >= 5 and note[0] == 1 else None)
+        pos += 4 + size
+    return out
 
 
 def open_zip(data):
     if len(data) > MAX_ZIP_BYTES:
         raise Refusal("zip-too-large", "The package is larger than %d MB, far more than a logo needs." % (MAX_ZIP_BYTES // 1048576))
-    too_many = Refusal(
-        "zip-too-many",
-        "The package holds more than %d files, far more than a logo needs. Ask for a package with only the logo's own "
-        "files in it." % MAX_ENTRIES,
-    )
-    if _directory_bytes(data) > MAX_DIRECTORY_BYTES:  # before the reader is let loose on it
-        raise too_many
     try:
-        zf = zipfile.ZipFile(io.BytesIO(data))
-        infos = zf.infolist()
+        with warnings.catch_warnings():   # what the zip reader has to say about odd bytes is not the owner's to read
+            warnings.simplefilter("ignore")
+            zf = zipfile.ZipFile(io.BytesIO(data))
+            infos = zf.infolist()
+            listed = len(zf.comment) + sum(len(zi.orig_filename) + len(zi.extra) + len(zi.comment) for zi in infos)
     except Exception:  # see read_svg: whatever the zip reader raises for bytes that are no zip
         raise Refusal("zip-bad", "The package is not a readable zip file.") from None
     if len(infos) > MAX_ENTRIES:
-        raise too_many
+        raise Refusal(
+            "zip-too-many",
+            "The package holds more than %d files, far more than a logo needs. Ask for a package with only the logo's own "
+            "files in it." % MAX_ENTRIES,
+        )
+    if listed > MAX_DIRECTORY_BYTES:
+        raise Refusal(
+            "zip-list-too-large",
+            "The package's own list of its files is far larger than a logo package's (more than %d KB of names and notes "
+            "for %d files). Ask for a package with only the logo's own files in it, saved again as a plain zip."
+            % (MAX_DIRECTORY_BYTES // 1024, len(infos)),
+        )
 
     seen, total = set(), 0
     svg_names, other_names, ignored, by_name = [], [], [], {}
@@ -108,6 +126,18 @@ def open_zip(data):
         # cuts that at its first NUL (so `a.svg\0hidden` would be shown as `a.svg`) and turns this computer's own
         # path separator into a slash. What it cuts off or turns round is checked here all the same.
         name, held = zi.filename, zi.orig_filename
+        # A second name must be, byte for byte, the name in the entry's own field. Newer versions of the zip reader go
+        # by the second name and older ones by the first, and the newer ones cut it at a NUL without a word: an
+        # entry called `plain.svg` with a second name of `a.svg<NUL>hidden` was listed as `a.svg`.
+        first = held.encode("utf-8" if zi.flag_bits & 0x800 else "cp437", "replace")
+        for second in _second_names(zi):
+            if second != first:
+                raise Refusal(
+                    "zip-second-name",
+                    "The package has a file with two names that are not the same (it is listed as %s, and a note beside "
+                    "it gives another name), so the whole package is refused. Ask for a package saved again as a plain "
+                    "zip, with plain file names." % ascii(held[:60]),
+                )
         if _unseen(name) or "\0" in held:  # first: every later message shows the name
             raise Refusal(
                 "zip-path",

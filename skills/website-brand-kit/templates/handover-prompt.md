@@ -13,7 +13,7 @@ I have chosen variation [N]. Please give me a download package (a zip file) of t
 - its SVG file in a single colour,
 - and a short README that says what each file is.
 
-Both SVG files should be plain: a square drawing with a viewBox, flat shapes each written out with its colour directly on it as a hex value, sizes as plain numbers (no mm, pt or em), no gradients, no masks, no reused shapes, no scripts, no embedded pictures and no text that depends on a font.
+Both SVG files should be plain: a square drawing with a viewBox, flat shapes each written out with its colour directly on it as a hex value, sizes as plain numbers (no mm, pt or em), no gradients, no masks, no dashed or dotted outlines, no reused shapes, no scripts, no embedded pictures and no text that depends on a font.
 <!-- prompt:end -->
 
 ## Words for the owner

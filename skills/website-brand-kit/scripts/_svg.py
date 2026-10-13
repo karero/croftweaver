@@ -20,7 +20,9 @@ every one of them both ways, at 32 and at 512 pixels). GRAMMAR, further down, is
 table: attribute or property, and the line it is held to.
 
 Everywhere: plain ASCII. A blank is a space, a tab or a line break, and blanks around a value
-are taken off (not around an id).
+are taken off (not around an id). A cap on a value's length counts the whole value, its sign,
+its unit and its percent sign included; and as it stands in the file, its blanks and all, no
+value is longer than 8,192 characters (`d` and `points`: 200,000).
 
   number         an optional sign, digits, optionally a point FOLLOWED by digits, optionally e or
                  E with an optional sign and one or two digits: 5  -5  +.5  0.5  5e1  5E-02. Not
@@ -28,62 +30,106 @@ are taken off (not around an id).
                  a thousand million either way (the renderer takes a larger one for no number).
                    stroke-miterlimit (1 or more); opacity, fill-opacity, stroke-opacity (the
                    paint reader then asks for exactly 1)
-  length         a number, or a number and `px`. No other unit: the renderer sizes pt, pc, mm,
-                 cm, in, em and ex by the icon it is drawing, so one file gave two pictures.
-                   stroke-dashoffset; not below zero: stroke-width, r, rx, ry (those two also
-                   `auto`)
+  length         a number, or a number and `px`; 64 characters at most. No other unit: the
+                 renderer sizes pt, pc, mm, cm, in, em and ex by the icon it is drawing, so one
+                 file gave two pictures.
+                   stroke-dashoffset; with no minus sign (`-0` too is refused): stroke-width, r,
+                   rx, ry (those two also `auto`)
   position       a length, or a number and `%` (a share of the drawing's box: of its width for
                  x, of its height for y).
-                   x, y, cx, cy, x1, y1, x2, y2; not below zero: width, height
+                   x, y, cx, cy, x1, y1, x2, y2; with no minus sign: width, height
   number list    numbers with blanks between them, or ONE comma (blanks may stand around it), or
                  nothing at all where the next number begins with a sign or a point (10-5, .5.5).
-                 No comma first, last or twice.
-                   points (an even count, 2,000 numbers at most; it may be empty)
-                   stroke-dasharray (`none`, or 1 to 16 numbers, none below zero)
+                 No comma first, last or twice. Written into the cleaned file with one blank
+                 between two numbers, however the file spaced it.
+                   points (an even count, 2,000 numbers at most; it may be empty). Between two
+                   POINTS, that is after every second number: blanks, or a comma and then blanks,
+                   and nothing else (the renderer reads no comma after a blank there, and no
+                   number run on to the one before)
+                   stroke-dasharray (`none`, or 1 to 16 numbers, none with a minus sign; see
+                   "how many dashes" below)
   transform      at most 16 of matrix(a b c d e f), translate(x) or (x y), scale(s) or (x y),
-                 rotate(a) or (a x y), skewX(a), skewY(a): the name, `(`, a number list of
-                 exactly that many numbers, `)`. Between two of them: blanks, one comma, or
-                 nothing. It may be empty.
+                 rotate(a) or (a x y), skewX(a), skewY(a): the name, blanks if any, `(`, a
+                 number list of exactly that many numbers, `)`. Between two of them: blanks, one
+                 comma, or nothing. It may be empty. Written into the cleaned file as
+                 `name(a b c) name(d)`.
   path data      d: the letters MmZzLlHhVvCcSsQqTtAa, digits, `+ - . ,`, e and E, and blanks;
                  200,000 characters at most. (Read by the renderer's own reader, as it was.)
   keyword        exactly one of the words the renderer and a browser both read:
                    fill-rule, clip-rule: nonzero evenodd
                    stroke-linecap: butt round square      stroke-linejoin: miter round bevel
-                   visibility: visible hidden collapse    display: inline block none inherit
+                   visibility: visible hidden collapse    display: inline block none
                    shape-rendering: auto optimizeSpeed crispEdges geometricPrecision
                    clipPathUnits (on a clipPath): userSpaceOnUse objectBoundingBox
                    paint-order: normal, or one to three of fill stroke markers, each once
+                   (written with one blank between two of them)
   paint          fill, stroke, color: at most 64 of the characters a colour is written in
                  (letters, digits, `# ( ) . , % + - /` and blanks), or a url(#id). The colour reader
                  (_colour.py) holds what a colour is, and refuses by name what it does not read.
+  clip-path      `none`, or url(#id) (blanks may stand inside the brackets; 80 characters at
+                 most; written as `url(#id)`). The id is that of a <clipPath> in the file, and
+                 stands on no other element of the file as it came: not on a second clip path,
+                 not on the outer svg, not on anything that is left out (as `id` or as `xml:id`).
   id             an ASCII letter or `_`, then letters, digits and `_ - . :`; 64 characters at most.
+                 This is the id a clip-path names, the one id that is kept. Every other id is
+                 left out without a word and is not read: nothing in the cleaned file is named
+                 by it (a style rule that named it has been written out as the values it gave).
   class          names of ASCII letters, digits and `_ - .` with spaces between them; 200
-                 characters at most.
-  clip-path      `none`, or url(#id) with an id as above (blanks may stand inside the brackets;
-                 80 characters at most).
+                 characters at most. Read for the style rules, never written.
   viewBox        four numbers, as a number list; the third and fourth (the box's width and height)
                  from 0.01 to 1,000,000 and neither more than 20 times the other.
   preserveAspectRatio   none, or xMinYMin, xMidYMin ... xMaxYMax, then optionally meet or slice.
   width, height of the outer <svg>   never kept: the cleaned file says its size by its viewBox
-                 alone. A number above zero with px, pt, pc, mm, cm, in or nothing after it, or a
-                 number and `%`. With a viewBox the two, when both are lengths, are in one unit
-                 and of the viewBox's own shape (to one part in a hundred thousand): any other
-                 pair would be a drawing the cleaned file sets differently in its icon. Without
-                 a viewBox both are plain or px, and they are the box.
+                 alone. A number above zero with px, pt, pc, mm, cm, in, em, ex or nothing after
+                 it, or a number above zero and `%` (a share of the page: no size). With a
+                 viewBox the two, when both are lengths, are in ONE unit and of the viewBox's own
+                 shape to one part in a hundred: tools round the two apart, and within that line
+                 the cleaned file sets the drawing at most half a hundredth of the icon's side
+                 from where the file as it came had it. Two units, or another shape, would be a
+                 drawing the cleaned file sets differently in its icon. Without a viewBox both
+                 are plain or px, and they are the box.
 
 Three values that only say "nothing here" are left out without a word: filter, mask or
 vector-effect of `none`, and mix-blend-mode of `normal`.
 
-What the grammar does not close: how FAR a drawing reaches. A number may be as large as a
-thousand million, and the renderer's own arithmetic runs out some eight million pixels from the
-icon it is drawing (measured 2026-10-13: in a box of 10, a stroke a million wide is drawn in a
-32-pixel icon and not in a 512-pixel one). Such a file is cleaned as it is written and is drawn
-as the file that came is drawn, which need not be how a browser draws it. Keeping it out would
-take working out where every shape lands; the icons step looks at what was really drawn instead.
+HOW FAR, AND HOW MANY DASHES. These rules are held once the box is known, on the values the
+cleaned file writes (_reach). They keep the picture one picture, and the renderer's work short.
+
+  how far        a number that places or sizes a shape is no further from zero than the box's own
+                 farthest edge and a hundred times its larger side beyond it (in a box of 10 from
+                 0: 1,010 either way; a share is taken of the larger side). Held: x, y, cx, cy,
+                 x1, y1, x2, y2, width, height, r, rx, ry, every number of `points`, every number
+                 of path data (an arc's two flags are no numbers), stroke-width,
+                 stroke-dashoffset, and in a transform every number but an angle (the first of
+                 rotate, skewX and skewY).
+  how many dashes   where a dash list is set (stroke-dasharray, not `none`), no dash or gap is
+                 smaller than a thousandth of the box's larger side, unless it is 0. Where it
+                 applies to a shape that paints an outline (set on it, handed down, or from a
+                 rule), the shape is a line, rect, circle, ellipse, polyline or polygon, not a
+                 <path>: its outline is then no longer than its numbers say (_outline). And all
+                 such outlines of a file together are cut into at most 100,000 dashes and gaps.
+
+Refused by name wherever they stand, beside what the element and attribute lists further down
+refuse: an element of the XInclude namespaces (the renderer fetches what it names), and a
+`title` on a <style> (a browser then takes the style for one of several to choose between).
+
+What the grammar does not close: where a drawing ends up. Each number is held to the box, and
+what the numbers make together is not worked out: a transform multiplies (16 of them, on groups
+32 deep), a path's small steps add up, and an arc or a run of smooth curves can swing far out
+from near numbers. So a shape can still lie far outside the box, where the renderer's own
+arithmetic runs out (measured 2026-10-13: in a box of 10, a stroke a million wide is drawn in a
+32-pixel icon and not in a 512-pixel one; that stroke is refused now, the same reach built from a
+transform is not). Such a file is cleaned as it is written and is drawn as the file that came is
+drawn, which need not be how a browser draws it. The icons step looks at what was really drawn:
+at the 32-pixel favicon and at one 256-pixel picture, not at every size, so a mark that came out
+blank at 512 pixels only would pass it. And the time the renderer takes is held for dashed
+outlines only, the one slow thing found (2026-10-13); behind that stands its time limit
+(_render.RENDER_SECONDS).
 """
 
 from __future__ import annotations
 
+import math
 import re
 from xml.parsers import expat
 from xml.sax.saxutils import quoteattr
@@ -96,6 +142,8 @@ SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
 XHTML_NS = "http://www.w3.org/1999/xhtml"
 XML_NS = "http://www.w3.org/XML/1998/namespace"
+_XML_ID = XML_NS + " id"   # `xml:id`, as the parser names it
+XINCLUDE_NS = ("http://www.w3.org/2001/XInclude", "http://www.w3.org/2003/XInclude")  # the standard's, and its draft's
 
 MAX_BYTES = 512 * 1024
 MAX_OUTPUT = MAX_BYTES        # characters of the cleaned text (all of them ASCII): what goes in can come out again
@@ -110,16 +158,23 @@ MAX_ASPECT = 20
 # A viewBox outside this is no logo, and would make the renderer misjudge its density. Measured 2026-10-13: the
 # renderer draws nothing at all in a box with a side under 0.004 (it takes anything below 1/256 for zero).
 MIN_BOX, MAX_BOX = 1e-2, 1e6
-# How far the outer svg's width and height may be from the shape of its viewBox. Measured 2026-10-13: one part in
-# ten thousand already moves the drawing by a pixel's edge in a 512-pixel icon; tools write the two alike to the last digit.
-ROOT_SLACK = 1e-5
+# How far the outer svg's width and height may be from the shape of its viewBox: one part in a hundred. Tools round
+# the two apart (an export of 283.46px by 141.73px round a viewBox of 283.5 by 141.7), and the cleaned file, which
+# keeps the viewBox alone, then sets the drawing up to half a hundredth of the icon's side from where the file as it
+# came had it. Measured 2026-10-13: at the line itself (10 by 20.19 round 10 by 20) 3,348 of the 262,144 pixels of a
+# 512-pixel icon differ, all of them along the edges of the shapes, and none of a 32-pixel icon's.
+ROOT_SLACK = 1e-2
 # the caps of the value grammar (see the top of this file)
 MAX_VALUE = 64                 # characters in one number, length, paint or id
+MAX_RAW = 8192                 # characters of any other value as it stands in the file, its blanks and all
 MAX_NUMBER = 1e9               # the size of one number, either way
+MAX_FAR = 100                  # how many times the box's larger side a number that places or sizes a shape may be from the box
+MIN_DASH = 1e-3                # the smallest dash or gap, as a share of the box's larger side
+MAX_DASH_PIECES = 100000       # dashes and gaps in all the dashed outlines of one file together
 MAX_POINTS = 2000              # numbers in `points`
 MAX_DASHES = 16                # numbers in `stroke-dasharray`
 MAX_TRANSFORMS = 16            # functions in `transform`
-MAX_PATH = 200_000             # characters of path data
+MAX_PATH = 200_000             # characters of path data, and of `points`
 MAX_CLASS = 200                # characters of `class`
 MAX_URL = 80                   # characters of a url(#id), its brackets and blanks included
 
@@ -212,7 +267,8 @@ _BLANKS = " \t\r\n"  # what XML and CSS call white space; Python's strip(), spli
 # gives its answer in one pass, however long the value. A point is followed by a digit and an
 # exponent has one or two digits: the site's renderer reads `5.` as a number in path data only
 # (measured 2026-10-12: a width of `5.` draws nothing, a stroke-width of `0.` draws one unit
-# wide), and it does not take `0e309` for a number at all. The same number as _paint._NUM.
+# wide), and it does not take `0e309` for a number at all. The same number as _paint._NUM and _colour._NUM, with
+# the same limit on its length (MAX_VALUE here, _colour.MAX_NUMBER_CHARS there): the tests hold the three to each other.
 _NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,2})?"
 _NUMBER = re.compile(_NUM)
 _LENGTH = re.compile(r"(%s)(?:px)?" % _NUM)
@@ -221,6 +277,10 @@ _PERCENT = re.compile(r"(%s)%%" % _NUM)
 _WITH_UNIT = re.compile(r"%s(?:px|pt|pc|mm|cm|in|em|ex|rem|ch|vw|vh|vmin|vmax|Q|%%)" % _NUM)
 # what stands between two numbers of a list, and the second of them: each alternative begins with another character
 _NEXT = re.compile(r"(?:[ \t\r\n]+(?:,[ \t\r\n]*)?|,[ \t\r\n]*|(?=[+\-.]))(%s)" % _NUM)
+# What stands between two POINTS of `points`, and the first number of the second: blanks, or a comma and then blanks.
+# Measured 2026-10-13: the site's renderer reads no comma after a blank there and no number run on to the one before
+# (`1,1 ,9,1` and `1 1-9 1` draw nothing), though it reads both between the two numbers of one point.
+_NEXT_POINT = re.compile(r"(?:[ \t\r\n]+|,[ \t\r\n]*)(%s)" % _NUM)
 _NOT_NEGATIVE = {"stroke-width", "r", "rx", "ry", "width", "height"}
 _IDENT = r"[A-Za-z_][A-Za-z0-9_\-.:]{0,%d}" % (MAX_VALUE - 1)
 _ID = re.compile(_IDENT)
@@ -232,34 +292,43 @@ _KEYWORDS = {
     # measured 2026-10-12: the site's renderer reads neither `arcs` nor `miter-clip`, and keeps the join it had
     "stroke-linejoin": {"miter", "round", "bevel"},
     "visibility": {"visible", "hidden", "collapse"},
-    "display": {"inline", "block", "none", "inherit"},
+    # measured 2026-10-13: `inherit` on a shape inside a clip path makes the site's renderer draw nothing of what is
+    # clipped, where a browser clips as if the word were not there
+    "display": {"inline", "block", "none"},
     "shape-rendering": {"auto", "optimizeSpeed", "crispEdges", "geometricPrecision"},
     "clipPathUnits": {"userSpaceOnUse", "objectBoundingBox"},
 }
 _PAINT_ORDER = {"fill", "stroke", "markers"}
-_FUNCTION = re.compile(r"(matrix|translate|scale|rotate|skewX|skewY)\(([^()]*)\)")
+_FUNCTION = re.compile(r"(matrix|translate|scale|rotate|skewX|skewY)[ \t\r\n]*\(([^()]*)\)")
 _TAKES = {"matrix": (6,), "translate": (1, 2), "scale": (1, 2), "rotate": (1, 3), "skewX": (1,), "skewY": (1,)}
+_ANGLE_FIRST = ("rotate", "skewX", "skewY")   # their first number is an angle, which places nothing by its size
 _BETWEEN = re.compile(r"[ \t\r\n]*(?:,[ \t\r\n]*)?")
 _PATH_DATA = re.compile(r"[MmZzLlHhVvCcSsQqTtAa0-9eE+\-.,\s]*", re.ASCII)
 _URL = r"url\([ \t\r\n]*%s[ \t\r\n]*\)"
-_CLIP = re.compile(_URL % ("#" + _IDENT))
+_CLIP = re.compile(_URL % ("#(" + _IDENT + ")"))
 # ASCII only: a renderer reads no other script's digits or letters in a colour, and no other kind of space. An
 # underscore is part of an id and of nothing else in a colour (`rgb(1_0,0,0)` is no colour to any renderer).
 _PAINT = re.compile(r"""[#A-Za-z0-9 \t\r\n().,%%+\-/]{1,%d}|%s""" % (MAX_VALUE, _URL % r"""(?:#ID|"#ID"|'#ID')""".replace("ID", _IDENT)))
 _ASPECT = re.compile(r"(?:none|x(?:Min|Mid|Max)Y(?:Min|Mid|Max))(?:[ \t\r\n]+(?:meet|slice))?")
-_ROOT_SIZE = re.compile(r"(%s)(px|pt|pc|mm|cm|in|%%)?" % _NUM)
+_ROOT_SIZE = re.compile(r"(%s)(px|pt|pc|mm|cm|in|em|ex|%%)?" % _NUM)
+# Path data is the renderer's own to read (see `path data` at the top). These find its numbers, to see how far they
+# reach: a number as that reader takes one (a point may end it, an exponent may be long), and what stands between two.
+_PATH_NUMBER = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+_PATH_GAP = re.compile(r"[ \t\r\n,]*")
+_COMMANDS = "MmZzLlHhVvCcSsQqTtAa"
 
 
-def _numbers(text):
+def _numbers(text, points=False):
     """The numbers of a number list, as they are written, or None when `text` is not one. Read left
-    to right in one pass: a value that is almost a list is turned down as fast as a list is read."""
+    to right in one pass: a value that is almost a list is turned down as fast as a list is read.
+    In a list of `points` every second gap is the one between two points."""
     out, pos, item = [], 0, _NUMBER
     while pos < len(text):
         m = item.match(text, pos)
         if not m:
             return None
         out.append(m.group(m.lastindex or 0))
-        pos, item = m.end(), _NEXT
+        pos, item = m.end(), _NEXT if len(out) % 2 or not points else _NEXT_POINT
     return out
 
 
@@ -276,10 +345,13 @@ def _too_much(numbers, most=None, of="numbers"):
 
 
 def _one(v, pattern=_NUMBER, percent=False):
-    """A number, or one written as `pattern` or (where `percent` says so) as a share."""
+    """A number, or one written as `pattern` or (where `percent` says so) as a share. The cap on its
+    length counts the whole value, its sign, its unit and its percent sign included."""
     m = pattern.fullmatch(v) or (percent and _PERCENT.fullmatch(v))
     if not m:
         return "unit" if _WITH_UNIT.fullmatch(v) else "bad"
+    if len(v) > MAX_VALUE:
+        return ("long", "more than %d characters" % MAX_VALUE)
     return _too_much([m.group(1) if m.lastindex else m.group()])
 
 
@@ -305,7 +377,7 @@ def _position(v):
 
 
 def _points(v):
-    numbers = _numbers(v)
+    numbers = _numbers(v, points=True)
     if numbers is None or len(numbers) % 2:
         return "bad"
     return _too_much(numbers, MAX_POINTS)
@@ -332,9 +404,7 @@ def _transform(v):
 
 
 def _path_data(v):
-    if not _PATH_DATA.fullmatch(v):
-        return "bad"
-    return ("long", "more than %s characters of path data" % "{:,}".format(MAX_PATH)) if len(v) > MAX_PATH else None
+    return None if _PATH_DATA.fullmatch(v) else "bad"   # how long it may be: see _validate
 
 
 def _keyword(words):
@@ -360,10 +430,7 @@ def _class(v):
 
 
 def _root_size(v):
-    m = _ROOT_SIZE.fullmatch(v)
-    if not m:
-        return "unit" if _WITH_UNIT.fullmatch(v) else "bad"
-    return _too_much([m.group(1)])
+    return _one(v, _ROOT_SIZE)
 
 
 def _later(_v):
@@ -402,30 +469,56 @@ def _bad(name, value):
     return Refusal("bad-value", "The file has a value this check cannot read (%s=%r). Ask the tool for a plainer export." % (name, str(value)[:40]))
 
 
+def _too_long(name, what):
+    return Refusal(
+        "value-too-long",
+        "The file has a value far beyond what a logo needs (%s holds %s). Ask the tool for a plainer export." % (name, what),
+    )
+
+
+def _written(name, v):
+    """A value of the grammar as the cleaned file writes it: a list with one blank between two of its
+    entries and nothing else, however the file spaced it (it may have put 400,000 blanks there)."""
+    if name in ("points", "stroke-dasharray") and v != "none":
+        return " ".join(_numbers(v))   # (a list of points that is one is a number list too)
+    if name == "transform":
+        return " ".join("%s(%s)" % (m.group(1), " ".join(_numbers(m.group(2).strip(_BLANKS)))) for m in _FUNCTION.finditer(v))
+    if name in ("paint-order", "preserveAspectRatio"):
+        return " ".join(part for part in re.split("[%s]+" % _BLANKS, v) if part)
+    if name == "clip-path" and v != "none":
+        return "url(#%s)" % _CLIP.fullmatch(v).group(1)
+    return v
+
+
 def _validate(name, value, grammar=GRAMMAR):
     """One kept attribute or property value, held to its line of the value grammar (a colour's own
-    grammar is the colour reader's, later). The value with its blanks taken off, or a Refusal."""
-    v = value if name == "id" else value.strip(_BLANKS)  # a renderer takes no blank off an id, so ` a` is not the `a` a rule names
-    why = grammar[name](v)
+    grammar is the colour reader's, later). The value as the cleaned file writes it (its blanks
+    taken off, a list set out plainly), or a Refusal."""
+    v = value if name == "id" else value.strip(_BLANKS)  # a renderer takes no blank off an id, so ` a` is not the `a` a clip path is named by
+    line = grammar.get(name)
+    if line is None:
+        # every kept name has its line (tests/test_svg_safety.py holds the lists to the table); should one ever lack it, it is not kept
+        raise Refusal("no-grammar", "The file sets %s, which this check has no rule for. Ask the tool for a plainer export." % name[:30])
+    why = line(v)
     if why is None and name in _NOT_NEGATIVE and v.startswith("-"):
         why = "below zero"
+    most = MAX_PATH if name in ("d", "points") else MAX_RAW
+    if why is None and len(value) > most:  # as it stands in the file: the blanks round it and inside it count
+        why = ("long", "more than %s characters" % "{:,}".format(most))
     if why is None:
-        return v
+        return _written(name, v)
     if why == "below zero":
         # a renderer may fall back to its default (a stroke one unit wide) and paint what no check listed
         raise Refusal(
             "negative-size",
-            "The file gives a shape a size below zero (%s=%r), which programs draw in different ways. Ask the "
-            "tool for a plainer export." % (name, v[:40]),
+            "The file gives a shape a size written with a minus sign (%s=%r), which programs draw in different ways. "
+            "Ask the tool for a plainer export." % (name, v[:40]),
         )
     if why == "unit":
         raise Refusal("length-unit", UNIT % (name, v[:40]))
     if why == "bad":
         raise _bad(name, value)
-    raise Refusal(
-        "value-too-long",
-        "The file has a value far beyond what a logo needs (%s holds %s). Ask the tool for a plainer export." % (name, why[1]),
-    )
+    raise _too_long(name, why[1])
 
 
 # --- the tree --------------------------------------------------------------------------
@@ -474,6 +567,7 @@ def _parse(data):
     """expat, event by event: refusals happen in document order, before anything is built that
     a later step could trip over."""
     notes = []
+    ids = {}   # every id in the file as it came, and how often it stands there: see _references
     state = {"depth": 0, "count": 0, "skip": 0, "skipped": "", "root": None, "stack": [], "style": 0, "ns": ""}
 
     def start_doctype(*_a):
@@ -496,6 +590,18 @@ def _parse(data):
         if state["depth"] > MAX_DEPTH:
             raise Refusal("too-deep", "The drawing nests its elements more than %d deep, far more than a logo needs." % MAX_DEPTH)
         uri, local = _split(name)
+        if uri in XINCLUDE_NS:
+            # Measured 2026-10-13: the site's renderer fetches what such an element names and draws it, or applies the
+            # styles in it, wherever the element stands (inside <metadata> too). It is only ever given the cleaned
+            # text, which holds no such element; the file as it came would still be another drawing than the cleaned one.
+            raise Refusal(
+                "xinclude",
+                "The file pulls in another file (an include element, <%s>), so not all of what it draws is in the file "
+                "itself. Ask the tool for a plain SVG with everything in the one file." % local[:20],
+            )
+        for attr, value in attrs.items():
+            if attr in ("id", _XML_ID):   # on any element, a left-out one and the outer svg too
+                ids[value] = ids.get(value, 0) + 1
         if state["skip"]:
             # Measured 2026-10-12: the site's renderer applies a <style> that stands inside a <title>, a
             # <metadata> or another program's element, and clips with a <clipPath> that stands there. So a
@@ -503,9 +609,9 @@ def _parse(data):
             if uri in (SVG_NS, ""):
                 raise Refusal(
                     "misplaced-element",
-                    "The file has a drawing element (<%s>) inside <%s>, a part that holds notes about the drawing and "
-                    "is left out. One program draws such an element, or uses its styles, and another does not. Ask the "
-                    "tool for a plainer export." % (local[:30], state["skipped"]),
+                    "The file has an element of the drawing (<%s>) inside <%s>, a part that holds notes about the drawing "
+                    "and is left out. One program draws such an element, or uses its styles, and another does not. Ask "
+                    "the tool for a plainer export." % (local[:30], state["skipped"]),
                 )
             state["skip"] += 1
             return
@@ -592,7 +698,7 @@ def _parse(data):
         ) from None
     if state["root"] is None:
         raise Refusal("not-xml", "The file is empty or is not readable as an SVG.")
-    return state["root"], notes
+    return state["root"], notes, ids
 
 
 def _read_attrs(node, attrs, notes, is_root):
@@ -621,9 +727,7 @@ def _read_attrs(node, attrs, notes, is_root):
         if local == "style":
             node.style_decls = _css.parse_declarations(value)
         elif local == "id":
-            node.id = _validate("id", value)
-            if is_root:
-                _note(notes, "left out the id of the outer <svg> element")
+            node.id = value  # as it is written, and not checked: it is kept only where a clip path is named by it (_references)
         elif local == "class":
             node.classes = frozenset(_validate("class", value).split())
         elif local in PROPS:
@@ -653,6 +757,15 @@ def _read_attrs(node, attrs, notes, is_root):
                     "A style in the file is meant for some screens or for print only (media=%r), which this check "
                     "does not read. Ask the tool for a plainer export." % value.strip()[:40],
                 )
+        elif node.tag == "style" and local == "title":
+            # measured 2026-10-13: of two styles with a title each, a browser applies the first alone (it takes them
+            # for a choice of style sheets), and the site's renderer applies both
+            raise Refusal(
+                "style-title",
+                "A style in the file has a title (title=%r). A browser takes a style with a title for one of several to "
+                "choose between and may leave it out, and other programs apply it all the same. Ask the tool for a "
+                "plainer export." % value.strip()[:40],
+            )
         elif local in SILENT_ATTRS or local.startswith(("data-", "aria-")):
             continue
         else:
@@ -741,11 +854,9 @@ def _cascade(root, notes):
 
 def _root_length(text):
     """One of the outer svg's width and height as (number, unit, the number as it is written), or
-    None when it is not there or is a share of the page (`100%`), which is no size."""
+    None when it is not there. No unit is px; the unit `%` is a share of the page, which is no size."""
     m = _ROOT_SIZE.fullmatch(text) if text is not None else None
-    if not m or m.group(2) == "%":
-        return None
-    return float(m.group(1)), m.group(2) or "px", m.group(1)
+    return (float(m.group(1)), m.group(2) or "px", m.group(1)) if m else None
 
 
 def _box(root):
@@ -770,7 +881,9 @@ def _box(root):
         return (0.0, 0.0, w[0], h[0]), "0 0 %s %s" % (w[2], h[2])
     parts = _numbers(vb)
     # four numbers of the grammar and nothing else: float() alone would also take 1_0, Arabic-Indic digits, "inf"
-    nums = tuple(float(p) for p in parts) if parts is not None and len(parts) == 4 and not _too_much(parts) else ()
+    if parts is not None and len(parts) == 4 and any(len(p) > MAX_VALUE for p in parts):
+        raise _too_long("viewBox", "a number of more than %d characters" % MAX_VALUE)
+    nums = tuple(float(p) for p in parts) if parts is not None and len(parts) == 4 else ()
     if len(nums) != 4 or nums[2] <= 0 or nums[3] <= 0:
         raise Refusal("bad-view-box", "The viewBox is not four numbers with a width and a height above zero (%r)." % vb[:40])
     if not all(MIN_BOX <= x <= MAX_BOX for x in nums[2:]) or not all(abs(x) <= MAX_BOX for x in nums[:2]):
@@ -779,22 +892,186 @@ def _box(root):
         raise Refusal("bad-view-box", "The drawing is more than %d times wider than it is tall (or the other way round): not a logo." % MAX_ASPECT)
     # The cleaned file keeps the viewBox and leaves the width and height out. That draws the same picture only
     # where the two say the same shape (measured 2026-10-12: a 40 by 20 svg round a 10 by 20 viewBox is drawn at
-    # half the size, and a width of 1in beside a height of 192px is one shape in a small icon and another in a large one).
+    # half the size, and a width of 1in beside a height of 192px is one shape in a small icon and another in a large
+    # one; 2026-10-13: so is 1em beside 32px). A size of nothing is refused whatever its unit: a browser draws
+    # nothing for `0%` either.
     if (w is not None and w[0] <= 0) or (h is not None and h[0] <= 0):
         raise Refusal(
             "root-size",
             "The outer <svg> element gives the drawing a width or a height of nothing, so a program draws nothing at "
             "all. Ask the tool for the SVG with a viewBox and no width and height.",
         )
-    if w is not None and h is not None and (w[1] != h[1] or abs(w[0] * nums[3] / (h[0] * nums[2]) - 1) > ROOT_SLACK):
-        raise Refusal(
-            "root-size",
-            "The outer <svg> element gives the drawing one shape with its width and height (%s%s by %s%s) and another "
-            "with its viewBox (%r). The cleaned file keeps the viewBox alone, so the drawing would sit differently in "
-            "its icons. Ask the tool for the SVG with a width and a height that fit its viewBox, or with a viewBox "
-            "and no width and height." % (w[2], w[1], h[2], h[1], vb[:40]),
-        )
+    if w is not None and h is not None and "%" not in (w[1], h[1]):
+        if w[1] != h[1]:
+            raise Refusal(
+                "root-size",
+                "The outer <svg> element gives the drawing a width and a height in two different units (%s%s by %s%s), "
+                "which programs work out in different ways, so the drawing would sit differently in its icons than in "
+                "the file that came. Ask the tool for the SVG with a viewBox and no width and height."
+                % (w[2], w[1], h[2], h[1]),
+            )
+        if abs(w[0] * nums[3] / (h[0] * nums[2]) - 1) > ROOT_SLACK:
+            raise Refusal(
+                "root-size",
+                "The outer <svg> element gives the drawing one shape with its width and height (%s%s by %s%s) and another "
+                "with its viewBox (%r). The cleaned file keeps the viewBox alone, so the drawing would sit differently in "
+                "its icons. Ask the tool for the SVG with a width and a height that fit its viewBox, or with a viewBox "
+                "and no width and height." % (w[2], w[1], h[2], h[1], vb[:40]),
+            )
     return nums, " ".join(parts)
+
+
+def _references(root, ids):
+    """A reference finds the same element in the cleaned file as in the file that came. The one
+    reference this check keeps is a clip path's, `url(#name)`, and a program takes the FIRST element
+    that carries the name, whatever it is: a <title id="c"> before the <clipPath id="c"> made the
+    file that came unclipped and the cleaned file clipped (measured 2026-10-13). So the name stands
+    once in the whole file as it came (`ids`: on what is left out and on the outer svg too), and on a
+    clip path. Every other id is left out, unchecked: nothing in the cleaned file is named by it."""
+    clips = set(n.id for n in _walk(root) if n.tag == "clipPath" and n.id is not None)
+    used = set()
+    for n in _walk(root):
+        value = n.props.get("clip-path", "none")
+        if value == "none":
+            continue
+        name = value[len("url(#"):-1]
+        if ids.get(name, 0) > 1:
+            raise Refusal(
+                "shared-id",
+                "Two parts of the file carry the same id (%r), and a shape is clipped by whatever carries it. One program "
+                "takes the first of them and another the clip path, so the drawing would not come out the same "
+                "everywhere. Ask the tool for the SVG again, with each id used once." % name[:40],
+            )
+        if name not in clips:
+            raise Refusal(
+                "clip-target",
+                "A shape in the file is clipped by something that is not a clip path, or is not in the file at all "
+                "(clip-path=%r). Programs draw that in different ways. Ask the tool for a plainer export." % value[:40],
+            )
+        used.add(name)
+    for n in _walk(root):
+        if n.tag != "clipPath" or n.id not in used:
+            n.id = None
+
+
+def _path_numbers(d):
+    """The numbers in path data, to see how far they reach (the path itself is not worked out). An
+    arc's two flags are one digit each and are no numbers: `a5 5 0 11100 0` ends 100 across."""
+    out, pos, command, count = [], 0, "", 0
+    while True:
+        pos = _PATH_GAP.match(d, pos).end()
+        if pos >= len(d):
+            return out
+        if d[pos] in _COMMANDS:
+            command, count, pos = d[pos], 0, pos + 1
+        elif command in ("A", "a") and count % 7 in (3, 4) and d[pos] in "01":
+            count, pos = count + 1, pos + 1
+        else:
+            m = _PATH_NUMBER.match(d, pos)
+            if m:
+                out.append(m.group())
+                count += 1
+            pos = m.end() if m else pos + 1
+
+
+def _amount(v, side):
+    """A length or a share, as a number of the drawing's own units. A share is taken of the box's
+    larger side: never less than what it is a share of."""
+    if v.endswith("%"):
+        return float(v[:-1]) * side / 100
+    return float(v[:-2] if v.endswith("px") else v)
+
+
+def _outline(node, side):
+    """No less than the length of a shape's outline, from its numbers alone: a rectangle's four
+    sides, a circle's or an ellipse's round, and each side of a line, a polyline or a polygon as its
+    way across and its way down together (a polyline is counted closed)."""
+    def of(name):
+        v = node.attrs.get(name, "auto")
+        return 0.0 if v == "auto" else _amount(v, side)
+
+    if node.tag == "rect":
+        return 2 * (abs(of("width")) + abs(of("height")))
+    if node.tag == "circle":
+        return 2 * math.pi * abs(of("r"))
+    if node.tag == "ellipse":
+        return 2 * math.pi * max(abs(of("rx")), abs(of("ry")))
+    if node.tag == "line":
+        return abs(of("x2") - of("x1")) + abs(of("y2") - of("y1"))
+    numbers = [float(n) for n in node.attrs.get("points", "").split()]
+    xs, ys = numbers[0::2], numbers[1::2]
+    return sum(abs(xs[i] - xs[i - 1]) + abs(ys[i] - ys[i - 1]) for i in range(len(xs)))
+
+
+def _reach(root, box):
+    """How far a drawing reaches, as far as its numbers say, and how many dashes its outlines are
+    cut into (see "how far, and how many dashes" at the top of this file). Both are about the
+    renderer's time as much as about the picture. Measured 2026-10-13, in a box of 10 and with
+    dashes of 0.01: a path of 3,652 characters that went a hundred boxes out and back 500 times
+    took the site's renderer 33 seconds of processor time for one icon, and one of 25,152
+    characters that crossed its own box 10,000 times took 10. With these rules the slowest drawing
+    found takes 0.8 seconds."""
+    side = max(box[2], box[3])
+    far = MAX_FAR * side + max(abs(box[0]), abs(box[1]), abs(box[0] + box[2]), abs(box[1] + box[3]))
+
+    def held(name, value, numbers):
+        for n in numbers:
+            if not abs(n) <= far:
+                raise Refusal(
+                    "too-far",
+                    "The file places or sizes something far outside the drawing's own box (%s holds %s, and the box is "
+                    "%s by %s). Programs draw such a shape in different ways, and slowly. Ask the tool for the drawing "
+                    "with nothing outside its frame." % (name, ("the number %g" % n) if len(numbers) > 1 else repr(value[:40]), "%g" % box[2], "%g" % box[3]),
+                )
+
+    pieces = 0.0
+    todo = [(root, None, False)]   # an element, and what it is handed down: a dash list, and whether an outline is painted
+    while todo:
+        node, dashes, stroked = todo.pop()
+        for name, value in sorted(node.attrs.items()) if node is not root else ():
+            if name == "d":
+                held(name, value, [float(n) for n in _path_numbers(value)])
+            elif name == "points":
+                held(name, value, [float(n) for n in value.split()])
+            elif name == "transform":
+                for m in _FUNCTION.finditer(value):
+                    held(name, value, [float(n) for n in m.group(2).split()][1 if m.group(1) in _ANGLE_FIRST else 0:])
+            elif name != "clipPathUnits" and value != "auto":
+                held(name, value, [_amount(value, side)])
+        for name in ("stroke-width", "stroke-dashoffset"):
+            if name in node.props:
+                held(name, node.props[name], [_amount(node.props[name], side)])
+        if "stroke-dasharray" in node.props:
+            value = node.props["stroke-dasharray"]
+            dashes = [] if value == "none" else [float(n) for n in value.split()]
+            if any(0 < n < MIN_DASH * side for n in dashes):
+                raise Refusal(
+                    "dash-too-small",
+                    "The file draws an outline with dashes far too small to see (stroke-dasharray=%r, in a drawing %s "
+                    "across). Ask the tool for a plain outline, or to turn the dashed outline into shapes."
+                    % (value[:40], "%g" % side),
+                )
+            if not any(dashes):
+                dashes = None   # `none`, or nothing but zeros: a plain outline
+        if "stroke" in node.props:
+            stroked = node.props["stroke"] != "none"
+        if dashes and stroked and node.tag in DRAWING:
+            if node.tag == "path":
+                raise Refusal(
+                    "dashed-path",
+                    "The file draws a shape (<path>) with a dashed outline, and this check cannot tell from the file how "
+                    "long that outline is, and so how many dashes it is cut into. Ask the tool to turn the dashed outline "
+                    "into shapes.",
+                )
+            pieces += _outline(node, side) * len(dashes) / sum(dashes)
+            if pieces > MAX_DASH_PIECES:
+                raise Refusal(
+                    "too-many-dashes",
+                    "The dashed outlines in the file are cut into more than %s dashes, far more than a logo needs and "
+                    "more than can be drawn in good time. Ask the tool for plain outlines, or to turn the dashed "
+                    "outlines into shapes." % "{:,}".format(MAX_DASH_PIECES),
+                )
+        todo.extend((child, dashes, stroked) for child in node.children)
 
 
 class _Written(object):
@@ -839,10 +1116,12 @@ def _emit(node, out, view_box=None):
     out.add("</" + node.tag + ">")
 
 
-def _finish(root, notes, current=None):
+def _finish(root, notes, ids, current=None):
     box, written = _box(root)
     _cascade(root, notes)
+    _references(root, ids)
     colours = _paint.resolve_paints(root, DRAWING, current)
+    _reach(root, box)
     out = _Written()
     _emit(root, out, written)
     return Clean("".join(out.parts), box, notes, root, colours)
@@ -867,5 +1146,5 @@ def clean_svg(data, source="svg", current=None):
         raise Refusal("web-page", WEB_PAGE)
     if len(data) > MAX_BYTES:
         raise Refusal("too-large", "The file is larger than %d KB, far more than a logo needs." % (MAX_BYTES // 1024))
-    root, notes = _parse(data)
-    return _finish(root, notes, current)
+    root, notes, ids = _parse(data)
+    return _finish(root, notes, ids, current)

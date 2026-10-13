@@ -16,7 +16,7 @@ model for judgement.
 
 Exit status: 0 all good, 1 a check failed, 2 it cannot judge or cannot go on (something is missing,
 unreadable or refused; for `palette --css`, also something in the stylesheet that it could not take as it
-stands), 3 it needs the owner to decide something first.
+stands, or its two dark blocks disagree), 3 it needs the owner to decide something first.
 
 Usage:
   python3 brand_intake.py palette BRAND.md [--css src/styles/global.css] [--json]
@@ -87,7 +87,7 @@ def cmd_palette(args, out):
 
     if bad:
         status, code = "fail", 1
-    elif missing or problems or unread:
+    elif missing or problems or unread or disagree:  # (two dark blocks that disagree are a stylesheet that cannot be taken as it stands)
         status, code = "incomplete", 2
     elif proposed:
         status, code = "needs-confirmation", 3
@@ -212,14 +212,29 @@ def main(argv=None):
         code = {"palette": cmd_palette, "install": cmd_install}[args.command](args, out)
     except Ask as a:
         out.append(str(a))
-        out.extend("  - %s" % o for o in a.options)
+        out.extend("  - %s" % o for o in a.shown)   # as a person can read them; an answer is matched against a.options
         code = 3
     except Refusal as r:
         out.append(str(r))
         code = 2
-    print("\n".join(out))
+    try:
+        print("\n".join(out))
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # Nobody reads the report any more (`... | head`, a terminal that closed). The run ends with the status
+        # it has, and Python is kept from complaining about the same pipe once more when it closes the stream.
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        except (OSError, ValueError, AttributeError):
+            pass
     return code
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        # Ctrl-C before `install` began to watch for it, or during `palette`: neither had written anything. (One
+        # that comes while Python itself is still starting ends the process before this line is reached.)
+        print("Stopped (Ctrl-C). Nothing was written.")
+        sys.exit(2)

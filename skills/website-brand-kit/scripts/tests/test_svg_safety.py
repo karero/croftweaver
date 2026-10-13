@@ -13,6 +13,7 @@ Run:  python3 -m unittest discover -s skills/website-brand-kit/scripts/tests
 import base64
 import encodings.aliases
 import json
+import re
 import subprocess
 import sys
 import unittest
@@ -155,6 +156,10 @@ class Hostile(unittest.TestCase):
             ("a filter", svg('<filter id="f"><feImage href="https://x.example/a"/></filter>'), "filter", svg()),
             ("a use element", svg('<defs><circle id="c" r="1"/></defs><use href="#c"/>'), "use", svg('<defs><clipPath id="c"><circle r="1"/></clipPath></defs>')),
             ("an unknown element", svg('<blink/>'), "unknown-element", svg()),
+            ("an include of another file", svg('<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="other.svg"/>'), "xinclude",
+             svg('<x:include xmlns:x="urn:not-an-include" href="other.svg"/>')),
+            ("an include in the metadata", svg('<metadata><xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="data:text/xml,%3Cstyle/%3E"/></metadata>'), "xinclude",
+             svg("<metadata>xi:include href=other.svg</metadata>")),
             ("a root that is not svg", b'<html xmlns="http://www.w3.org/1999/xhtml"><body/></html>', "not-svg", svg()),
             ("a root in another namespace", svg(ns='xmlns="http://example.com/other"'), "not-svg", svg()),
             ("not XML at all", b"<svg><path></svg>", "not-xml", svg()),
@@ -167,6 +172,41 @@ class Hostile(unittest.TestCase):
             with self.subTest(name=name):
                 refused(self, hostile, code)
                 _svg.clean_svg(control)  # the same document without the hostile part is fine
+
+    def test_a_file_that_pulls_in_another_file_is_refused_wherever_the_include_stands(self):
+        # Measured 2026-10-13: the site's renderer resolves <xi:include href="data:...">, inside <metadata> too, and draws
+        # the shapes or applies the styles it holds. The check left the element out as another program's, so the file as
+        # it came (10,000 red pixels of 10,000) was another drawing than the cleaned one (5,000 blue).
+        std, draft = "http://www.w3.org/2001/XInclude", "http://www.w3.org/2003/XInclude"
+        rect = "data:image/svg+xml;base64," + base64.b64encode(b'<rect xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="#f00"/>').decode()
+        include = '<xi:include xmlns:xi="%s" href="%s"/>' % (std, rect)
+        for what, doc in (
+                ("in the drawing", svg(include)), ("in a group", svg("<g>%s</g>" % include)), ("in the defs", svg("<defs>%s</defs>" % include)),
+                ("in a clip path", svg('<clipPath id="c">%s</clipPath>' % include)), ("in a shape", svg('<rect width="9" height="9">%s</rect>' % include)),
+                ("in a style", svg("<style>%s</style>" % include)), ("in the metadata", svg("<metadata>%s</metadata>" % include)), ("in a title", svg("<title>%s</title>" % include)),
+                ("in a desc", svg("<desc>%s</desc>" % include)), ("in another program's element", svg('<x:a xmlns:x="urn:editor">%s</x:a>' % include)),
+                ("deep in what is left out", svg('<metadata><x:a xmlns:x="urn:editor"><x:b><x:c>%s</x:c></x:b></x:a></metadata>' % include)),
+                ("in an include", svg('<xi:include xmlns:xi="%s" href="a.svg"><xi:fallback>%s</xi:fallback></xi:include>' % (std, include))),
+                ("its fallback alone", svg('<xi:fallback xmlns:xi="%s">words</xi:fallback>' % std)), ("any element of that namespace", svg('<xi:other xmlns:xi="%s"/>' % std)),
+                ("under the draft's namespace", svg('<xi:include xmlns:xi="%s" href="a.svg"/>' % draft)), ("under another prefix", svg('<q:include xmlns:q="%s" href="a.svg"/>' % std)),
+                ("as the default namespace", svg('<include xmlns="%s" href="a.svg"/>' % std)), ("declared on the outer svg", svg('<xi:include href="a.svg"/>', root='xmlns:xi="%s"' % std)),
+                ("with no address", svg('<xi:include xmlns:xi="%s"/>' % std)), ("of a text", svg('<xi:include xmlns:xi="%s" href="a.txt" parse="text"/>' % std)),
+                ("of a part of the file itself", svg('<xi:include xmlns:xi="%s" xpointer="c"/>' % std)), ("twice", svg(include + include)),
+                ("as the outer element", ('<xi:include xmlns:xi="%s" href="a.svg"/>' % std).encode()),
+                ("pasted code without a namespace of its own", ('<svg viewBox="0 0 8 8"><path d="M0 0h9v9z"/><metadata>%s</metadata></svg>' % include).encode())):
+            with self.subTest(what=what):
+                err = refused(self, doc, "xinclude")
+                for word in ("pulls in another file", "Ask the tool", "everything in the one file"):
+                    self.assertIn(word, str(err))
+                # and through the door the intake uses
+                with self.assertRaises(_svg.Refusal) as cm:
+                    _svg.clean_svg(_input.mark(_input.load(doc)).colour)
+                self.assertIn(cm.exception.code, ("xinclude", "unknown-file"))   # (an outer element that is no <svg> is no drawing to the intake)
+        # an element that is only called include, or the word in a text, pulls nothing in
+        for doc in (svg('<x:include xmlns:x="urn:editor" href="a.svg"/>'), svg('<metadata><include xmlns="urn:editor" href="a.svg"/></metadata>'), svg("<title>xi:include</title>"),
+                    svg("<desc>http://www.w3.org/2001/XInclude</desc>"), svg(root='xmlns:xi="%s"' % std), svg('<g data-ns="%s"/>' % std)):
+            with self.subTest(doc=doc[150:220]):
+                self.assertEqual(_svg.clean_svg(doc).colours, ["#b4531a"])
 
     def test_text_is_refused_with_the_way_out(self):
         # Scenario 14: the owner is told what to ask the tool for.
@@ -188,7 +228,7 @@ class Hostile(unittest.TestCase):
                        "\ufe0f", "\ufe00", "\U000e0100", "\U000e01ef", "\u034f", "\u115f", "\u1160", "\u3164", "\uffa0", "\u180b", "\u17b4", "\u2800",
                        # and every blank that is not the plain space
                        "\u00a0", "\u2003", "\u3000", "\u202f", "\u1680"):
-            for attrs in ('href="%sgpj.elif//:ptth"', 'stroke-width="%s1"', 'transform="%s"', 'fill="%s"', 'style="fill:%s"', 'id="a%s"', 'points="1 1%s"',
+            for attrs in ('href="%sgpj.elif//:ptth"', 'stroke-width="%s1"', 'transform="%s"', 'fill="%s"', 'style="fill:%s"', 'clip-path="url(#a%s)"', 'points="1 1%s"',
                           'stroke-dasharray="4%s"', 'clip-path="none%s"', 'style="cursor%s:a"', 'display="no%sne"', 'width="5%spx"',
                           # on the outer svg
                           '>viewBox="0 0 %s 9"', '>preserveAspectRatio="none%s"', '>transform="scale(2)%s"', '>width="9%smm"'):
@@ -206,6 +246,17 @@ class Hostile(unittest.TestCase):
                 self.assertNotIn(hidden, str(error))
         plain = "A sentence with caf\u00e9, \u65e5\u672c, a dash \u2013 and\ntwo lines stays as it is."
         self.assertEqual(str(_refusal.Refusal("a-code", plain)), plain)
+        # what an Ask offers to choose from is spelled out where it is SHOWN; as it is stored it stays what her answer is matched against
+        given = ["plain.svg", "caf\u00e9 2.svg", "a\u200bb.svg", "a\x00b", "\u202egvs.exe", "a\u00a0b", "a\ufe0f", "two\nlines"]
+        ask = _refusal.Ask("a-code", "which one?", given)
+        self.assertEqual(ask.options, given)
+        self.assertEqual(ask.shown, ["plain.svg", "caf\u00e9 2.svg", "a\\u200bb.svg", "a\\x00b", "\\u202egvs.exe", "a\\xa0b", "a\\ufe0f", "two\nlines"])
+        self.assertFalse([c for o in ask.shown for c in o if c != "\n" and _refusal.unseen(c)])
+        self.assertEqual((_refusal.Ask("a-code", "which?").shown, _refusal.Ask("a-code", "which?", [1, None]).shown), ([], ["1", "None"]))
+        names = ["a.svg", "b c.svg", "caf\u00e9.svg"]
+        with self.assertRaises(_refusal.Ask) as cm:   # the question the intake really asks: nothing in it to spell out, and nothing changed
+            _input.mark(_input.load(T.build_zip([(n, svg()) for n in names])))
+        self.assertEqual((cm.exception.options, cm.exception.shown), (names, names))
 
     def test_a_colour_with_a_number_too_large_to_work_with_is_refused_by_name(self):
         # each of these once ended in a traceback from the arithmetic, not in a sentence
@@ -269,18 +320,24 @@ class Size(unittest.TestCase):
                 self.assertIn('viewBox="%s"' % box, clean.text)
         # Measured 2026-10-12: the site's renderer sizes cm, in and pt by the icon it is drawing, so the box worked out
         # here (at a browser's 96 to the inch) was not the box it drew in: the mark came out at another size
-        for w, h in (("4cm", "3cm"), ("1in", "1in"), ("12pt", "12pt"), ("40mm", "30mm"), ("4pc", "3pc"), ("40", "3cm"), ("1in", "96")):
+        for w, h in (("4cm", "3cm"), ("1in", "1in"), ("12pt", "12pt"), ("40mm", "30mm"), ("4pc", "3pc"), ("40", "3cm"), ("1in", "96"), ("4em", "3em"), ("4ex", "3ex"),
+                     ("1em", "1em"), ("40", "3em")):
             with self.subTest(w=w, h=h):
                 err = refused(self, (doc % (w, h)).encode(), "no-size")
                 self.assertIn("viewBox", str(err))
-        # beside a viewBox of the same shape such a width and height change nothing, and are left out as before
-        for w, h, box in (("4cm", "3cm", "0 0 64 48"), ("1in", "1in", "0 0 7 7"), ("12pt", "12pt", "0 0 7 7"), ("40mm", "30mm", "0 0 4 3"), ("4pc", "3pc", "0 0 8 6")):
+        # beside a viewBox of the same shape such a width and height change nothing, and are left out as before. The
+        # commonest size an icon is exported with is 1em by 1em: refused until 2026-10-13, for its unit
+        for w, h, box in (("4cm", "3cm", "0 0 64 48"), ("1in", "1in", "0 0 7 7"), ("12pt", "12pt", "0 0 7 7"), ("40mm", "30mm", "0 0 4 3"), ("4pc", "3pc", "0 0 8 6"),
+                          ("1em", "1em", "0 0 24 24"), ("4em", "3em", "0 0 64 48"), ("1.2ex", "1.2ex", "0 0 24 24"), ("2em", "1em", "0 0 48 24")):
             with self.subTest(w=w, h=h, box=box):
                 clean = _svg.clean_svg((doc % (w, h)).replace("<svg ", '<svg viewBox="%s" ' % box).encode())
                 self.assertIn('viewBox="%s">' % box, clean.text)
-        for w, h in (("4em", "3em"), ("4ex", "3ex"), ("40vw", "30vh"), ("4rem", "3rem")):
+                self.assertEqual(clean.notes, [])
+        # a unit that is a share of the window or of some other element's letters is no size of a drawing anywhere
+        for w, h in (("40vw", "30vh"), ("4rem", "3rem"), ("4ch", "3ch"), ("40vmin", "30vmin")):
             with self.subTest(w=w, h=h):
                 refused(self, (doc % (w, h)).encode(), "length-unit")
+                refused(self, (doc % (w, h)).replace("<svg ", '<svg viewBox="0 0 4 3" ').encode(), "length-unit")
 
     def test_neither_is_refused_with_the_reason(self):
         err = refused(self, b'<svg xmlns="http://www.w3.org/2000/svg"><path d="M10 10h5v5z"/></svg>', "no-size")
@@ -312,7 +369,7 @@ class Size(unittest.TestCase):
     def test_the_box_is_written_as_it_was_read_with_nothing_rounded(self):
         # the cleaned box was the numbers worked out from the file, rounded to six places: in a small box that is
         # another box, and the drawing sat a fraction of a pixel away from where the file had it
-        doc = '<svg xmlns="http://www.w3.org/2000/svg" %s><path fill="#111111" d="M0 0h9v9z"/></svg>'
+        doc = '<svg xmlns="http://www.w3.org/2000/svg" %s><path fill="#111111" d="M0 0h.009v.009z"/></svg>'
         for attrs, written, box in (('viewBox="0 0 0.0100004 0.0100009"', "0 0 0.0100004 0.0100009", (0, 0, 0.0100004, 0.0100009)),
                                     ('viewBox=" -0.33333333333 +.5e1,10.0000000001 , 1E1 "', "-0.33333333333 +.5e1 10.0000000001 1E1", (-0.33333333333, 5, 10.0000000001, 10)),
                                     ('viewBox="0,0,64,64"', "0 0 64 64", (0, 0, 64, 64)), ('viewBox="0-0 64.50 64"', "0 -0 64.50 64", (0, 0, 64.5, 64)),
@@ -332,7 +389,7 @@ class Size(unittest.TestCase):
         # both sides of each line (measured 2026-10-13: under 0.004 the site's renderer draws nothing at all in the box)
         for vb in ("0 0 0.01 0.01", "0 0 1e-2 .01", "0 0 1000000 1000000", "0 0 1e6 1e6", "1000000 -1e6 9 9"):
             with self.subTest(vb=vb):
-                _svg.clean_svg(('<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s"><path fill="#111111" d="M0 0h9v9z"/></svg>' % vb).encode())
+                _svg.clean_svg(('<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s"><path fill="#111111" d="M0 0h.009v.009z"/></svg>' % vb).encode())
         for w, h, code in (("0.0099", "0.0099", "bad-view-box"), ("1000001", "1000001", "bad-view-box"), ("0", "9", "no-size"), ("9", "0.0", "no-size")):
             with self.subTest(w=w, h=h):
                 refused(self, ('<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s"><path fill="#111111" d="M0 0"/></svg>' % (w, h)).encode(), code)
@@ -404,27 +461,43 @@ class Numbers(unittest.TestCase):
     def test_a_long_honest_value_is_read_just_as_fast_and_kept_only_as_long_as_a_logo_needs(self):
         # as much as the grammar keeps of each kind is read at once ...
         most = ['points="%s"' % ("1.5,-2e1 " * (_svg.MAX_POINTS // 2)), 'stroke-dasharray="%s"' % ("4 2 " * (_svg.MAX_DASHES // 2)),
-                'transform="%s"' % ("scale(1) " * _svg.MAX_TRANSFORMS), 'd="M0 0%s"' % (" 1" * 90000), 'width="%s"' % ("1" * 9 + "." + "0" * (_svg.MAX_VALUE - 10))]
+                'transform="%s"' % ("scale(1) " * _svg.MAX_TRANSFORMS), 'd="M0 0%s"' % (" 1" * 90000), 'width="%s"' % ("1." + "0" * (_svg.MAX_VALUE - 2)), 'x="%s%%"' % ("5." + "0" * (_svg.MAX_VALUE - 3)),
+                'stroke-width="%spx"' % ("0" * (_svg.MAX_VALUE - 3) + "5"), 'transform="%s"' % ("translate(1\t2)\n" * _svg.MAX_TRANSFORMS + " " * (_svg.MAX_RAW - 16 * 16))]
         for attrs, out in zip(most, judged(self, [self.shape(attrs) for attrs in most])):
             self.assertEqual(out["code"], "ok", attrs[:60])
         # ... and a value that is the right form and far longer is refused by name, just as fast (each of these was read
         # and kept whole before 2026-10-12: one rule's value is written onto every element, so the cleaned file grew without end)
         over = ['points="%s"' % ("1.5,-2e1 " * 40000), 'stroke-dasharray="%s"' % ("4 2 " * 50000), 'transform="%s"' % ("scale(1) " * 40000),
                 'd="M0 0%s"' % (" 1" * 190000), 'width="%s"' % ("1" * 100000), 'stroke-width="%s1"' % ("0" * 200000), 'style="stroke-dasharray:%s"' % ("1 " * 30000),
-                'points="%s"' % ("1 " * 250000), 'transform="translate(%s)"' % ("0" * 100000 + "1")]
+                'points="%s"' % ("1 " * 250000), 'transform="translate(%s)"' % ("0" * 100000 + "1"),
+                # the cap on one value counts the whole of it, its unit and its sign too: `0`, 63 times, and `5px` was kept
+                'stroke-width="%s5px"' % ("0" * (_svg.MAX_VALUE - 1)), 'width="%spx"' % ("0" * (_svg.MAX_VALUE - 2) + "5"), 'x="%s%%"' % ("0" * (_svg.MAX_VALUE - 1) + "5"),
+                'x="+%s5"' % ("0" * (_svg.MAX_VALUE - 1)), 'style="stroke-width:%s5px"' % ("0" * (_svg.MAX_VALUE - 1)), 'r="%s"' % ("5." + "0" * (_svg.MAX_VALUE - 1)),
+                # and a list may not be padded out with blanks: 400,000 of them in a transform were written out as they came
+                'transform="translate(1)%sscale(2)"' % (" " * 400000), 'transform="translate(1%s2)"' % ("\t" * (_svg.MAX_RAW - 12)), 'transform="%sscale(2)"' % (" " * _svg.MAX_RAW),
+                'stroke-dasharray="4%s2"' % (" " * _svg.MAX_RAW), 'style="stroke-dasharray:4%s2"' % (" " * _svg.MAX_RAW), 'points="1%s2"' % (" " * _svg.MAX_PATH),
+                'd="M0 0%sh1"' % (" " * _svg.MAX_PATH), 'points="%s1 2"' % (" " * _svg.MAX_PATH), 'paint-order="stroke%s"' % (" " * _svg.MAX_RAW)]
         for attrs, out in zip(over, judged(self, [self.shape(attrs) for attrs in over])):
             self.assertEqual(out["code"], "value-too-long", attrs[:60])
+        # what is kept is written with one blank between two entries, however the file spaced it
+        spaced = _svg.clean_svg(self.shape('transform="translate(1)%sscale(2\t,\n3)" points="1%s2\r\n3,4" stroke-dasharray="4%s2" stroke="#111111" paint-order=" stroke\t\tfill "'
+                                           % (" " * 4000, " " * 4000, "\n" * 4000)))
+        for written in ('transform="translate(1) scale(2 3)"', 'points="1 2 3 4"', 'stroke-dasharray="4 2"', 'paint-order="stroke fill"'):
+            self.assertIn(written, spaced.text)
+        self.assertLess(len(spaced.text), 400)
 
     def test_numbers_written_the_ways_tools_write_them_are_still_read(self):
         # run together without a space, a bare dot, a sign, an exponent: all of it is SVG
-        fine = ['points="10-20,3.5.5 1e2,4"', 'points=""', 'stroke-dasharray="4 2"', 'stroke-dasharray="4,2"', 'stroke-dasharray="none"',
-                'width="1.0" height=".5"', 'x="+3" y="-3"', 'width="1e2"', 'width="4.5px"', 'rx="auto"',
-                'transform="translate(1,2) scale(2)"', 'transform="rotate(45 1 1),scale(2)"', 'transform="translate(-1.5e1-2)"',
-                'transform="matrix(1 0 0 1 0 0)"', 'stroke-miterlimit="4"', 'stroke-dashoffset="-2"']
-        for attrs in fine:
+        # (a list is written out with one blank between its numbers: the second of each pair is what the cleaned file holds)
+        fine = [('points="10-20,3.5.5 1e2,4"', 'points="10 -20 3.5 .5 1e2 4"'), ('points=""', None), ('stroke-dasharray="4 2"', None), ('stroke-dasharray="4,2"', 'stroke-dasharray="4 2"'),
+                ('stroke-dasharray="none"', None), ('width="1.0" height=".5"', None), ('x="+3" y="-3"', None), ('width="1e2"', None), ('width="4.5px"', None), ('rx="auto"', None),
+                ('transform="translate(1,2) scale(2)"', 'transform="translate(1 2) scale(2)"'), ('transform="rotate(45 1 1),scale(2)"', 'transform="rotate(45 1 1) scale(2)"'),
+                ('transform="translate(-1.5e1-2)"', 'transform="translate(-1.5e1 -2)"'), ('transform="matrix(1 0 0 1 0 0)"', None), ('stroke-miterlimit="4"', None),
+                ('stroke-dashoffset="-2"', None)]
+        for attrs, written in fine:
             with self.subTest(attrs=attrs):
-                self.assertIn(attrs.split('" ')[0].rstrip('"') + '"', _svg.clean_svg(self.shape(attrs)).text)
-        self.assertIn('points="1 2,3 4"', _svg.clean_svg(self.shape('points=" 1 2,3 4 "')).text)
+                self.assertIn(written or (attrs.split('" ')[0].rstrip('"') + '"'), _svg.clean_svg(self.shape(attrs)).text)
+        self.assertIn('points="1 2 3 4"', _svg.clean_svg(self.shape('points=" 1 2,3 4 "')).text)
 
     def test_only_ascii_digits_are_numbers(self):
         # "٠" is ARABIC-INDIC DIGIT ZERO: Python's \d and float() take it, a renderer does not, and
@@ -462,7 +535,7 @@ class Numbers(unittest.TestCase):
         # in path data it is a number, to the renderer and so to this check, and is kept as it is written
         self.assertIn('d="M0. 0.h5.v5.e0z"', _svg.clean_svg(svg('<path fill="#111111" d="M0. 0.h5.v5.e0z"/>')).text)
         # and every other way of writing a number is still read
-        for attrs in ('width="5.0"', 'height="05"', 'stroke-width="5e0"', 'stroke-width=".5e1"', 'x="+5"', 'y="-.5"', 'transform="translate(5.0,.5)"',
+        for attrs in ('width="5.0"', 'height="05"', 'stroke-width="5e0"', 'stroke-width=".5e1"', 'x="+5"', 'y="-.5"', 'transform="translate(5.0 .5)"',
                       'stroke-dasharray="5.0 .5"', 'stroke-miterlimit="4.0"'):
             with self.subTest(attrs=attrs):
                 self.assertIn(attrs, _svg.clean_svg(self.shape(attrs)).text)
@@ -475,9 +548,9 @@ class Numbers(unittest.TestCase):
             with self.subTest(value=value):
                 refused(self, self.shape('stroke-dasharray="%s" stroke="#ff0000"' % value), "bad-value")
                 refused(self, self.shape('style="stroke-dasharray:%s" stroke="#ff0000"' % value), "bad-value")
-        for value in ("4 2", "4,2", "none", "4", "0.5 .5e1"):
+        for value, written in (("4 2", "4 2"), ("4,2", "4 2"), ("none", "none"), ("4", "4"), ("0.5 .5e1", "0.5 .5e1"), ("4 , 2", "4 2")):
             with self.subTest(value=value):
-                self.assertIn('stroke-dasharray="%s"' % value, _svg.clean_svg(self.shape('stroke-dasharray="%s" stroke="#ff0000"' % value)).text)
+                self.assertIn('stroke-dasharray="%s"' % written, _svg.clean_svg(self.shape('stroke-dasharray="%s" stroke="#ff0000"' % value)).text)
 
     def test_only_a_plain_space_is_a_space(self):
         # Python's strip(), split() and \s take a no-break space, an em space, a line separator; a renderer does not.
@@ -488,7 +561,7 @@ class Numbers(unittest.TestCase):
                           'style="fill:red%s"', 'stroke-width="%s2"', 'stroke-width="2%s"', 'width="9%s"', 'opacity="%s1"',
                           'visibility="%shidden"', 'display="none%s"', 'fill-rule="%sevenodd"', 'clip-path="%snone"', 'stroke-dasharray="4%s2"',
                           'transform="translate(1%s2)"', 'transform="%sscale(2)"', 'transform="scale%s(2)"', 'class="%sa"',
-                          'class="a%sb"', 'id="%sa"', 'id="a%s"', 'paint-order="stroke%sfill"'):
+                          'class="a%sb"', 'paint-order="stroke%sfill"'):
                 with self.subTest(space=ascii(space), attrs=attrs):
                     refused(self, self.shape(attrs % space), "bad-value")
             for inner in ('<polygon points="0,0%s9,0 9,9"/>', '<polygon points="%s0,0 9,0 9,9"/>', '<path d="M0%s0h9v9z"/>', '<path d="%sM0 0h9v9z"/>'):
@@ -524,6 +597,8 @@ class Numbers(unittest.TestCase):
                 with self.subTest(name=name, value=value):
                     err = refused(self, self.shape('%s="%s" stroke="#ff0000"' % (name, value)), "negative-size")
                     self.assertIn(name, str(err))
+                    self.assertIn("minus sign", str(err))   # what is there to see: `-0` is not below zero, and is refused all the same
+                    self.assertNotIn("below zero", str(err))
         refused(self, self.shape('style="stroke-width:-1" stroke="#ff0000"'), "negative-size")
         refused(self, svg("<style>rect{stroke-width:-1}</style><rect/>"), "negative-size")
         # a position may be below zero, and a size may be nothing or carry a plus
@@ -547,14 +622,16 @@ class OuterSvg(unittest.TestCase):
         # and an empty one loses nothing
         self.assertEqual(_svg.clean_svg(svg(root='transform=" "')).notes, [])
 
-    def test_x_y_and_id_on_the_outer_svg_are_left_out_and_said(self):
+    def test_x_and_y_on_the_outer_svg_are_left_out_and_said_and_its_id_goes_as_any_unused_id_does(self):
         clean = _svg.clean_svg(svg(root='x="5" y="6" id="logo"'))
         root = clean.text.split(">", 1)[0]
         for attr in (" x=", " y=", " id="):
             self.assertNotIn(attr, root)
-        for word in ("x of the outer", "y of the outer", "id of the outer"):
+        for word in ("x of the outer", "y of the outer"):
             self.assertEqual(len([n for n in clean.notes if word in n]), 1, clean.notes)
+        self.assertEqual(len(clean.notes), 2, "an id nothing is named by is no part of the drawing: nothing is said of it")
         self.assertEqual(_svg.clean_svg(svg()).notes, [], "a file that loses nothing has nothing to say")
+        self.assertEqual(_svg.clean_svg(svg(root='id="Ebene 1"')).notes, [])
 
 
 class Encodings(unittest.TestCase):
@@ -854,6 +931,44 @@ class Styles(unittest.TestCase):
                 clean = _svg.clean_svg(svg("<style %s>%s</style>" % (attrs, rule)))
                 self.assertEqual((clean.colours, clean.notes), (["#ff0000"], []))
 
+    def test_a_style_with_a_title_is_refused_because_a_browser_may_leave_it_out(self):
+        # Measured 2026-10-13: of <style title="a"> and <style title="b"> a browser applies the first alone (a title makes a
+        # style one of several to choose between); the site's renderer, and this check, applied both: red in a browser's
+        # tab, blue in the icons.
+        rule = "path{fill:#ff0000}"
+        for inner in ('<style title="a">%s</style>', '<style title="a">path{fill:#0000ff}</style><style title="b">%s</style>', '<style title="">%s</style>', '<style title=" ">%s</style>',
+                      '<style type="text/css" media="all" title="default">%s</style>', '<defs><style title="a">%s</style></defs>', '<g><style title="a">%s</style></g>',
+                      '<style>%s</style><style title="b">path{fill:#0000ff}</style>', '<style title="a"/><style>%s</style>'):
+            with self.subTest(inner=inner):
+                err = refused(self, svg(inner % rule), "style-title")
+                for word in ("title", "browser", "Ask the tool"):
+                    self.assertIn(word, str(err))
+        self.assertEqual(refused(self, _input.mark(_input.load(svg('<style title="a">%s</style>' % rule))).colour, "style-title").code, "style-title")
+        # a title on anything else is a word about it: left out with the attributes this check does not use (or without
+        # a word, where it is another program's own), and the <title> element is left out as ever
+        for inner, notes in (('<style>%s</style><g title="a"/>', 1), ('<style>%s</style><rect title="a" width="9" height="9" fill="#ff0000"/>', 1), ("<style>%s</style><title>a</title>", 0),
+                             ('<style xlink:title="a">%s</style>', 0), ('<style data-title="a">%s</style>', 0)):
+            with self.subTest(inner=inner):
+                clean = _svg.clean_svg(svg(inner % rule))
+                self.assertEqual((clean.colours, len(clean.notes)), (["#ff0000"], notes), clean.notes)
+
+    def test_display_inherit_is_refused_wherever_it_is_set(self):
+        # Measured 2026-10-13: on a shape inside a clip path (set there, or by a rule every element matches) it makes the
+        # site's renderer draw nothing of what is clipped, where a browser clips as if the word were not there; and for
+        # three of four spellings the renderer drew the file as it came (blank) and the cleaned file (drawn) differently.
+        clip = '<clipPath id="c"><rect %s width="4" height="4"/></clipPath><rect clip-path="url(#c)" width="9" height="9"/>'
+        for doc in (bare(clip % 'display="inherit"'), bare(clip % 'style="display:inherit"'), bare("<style>*{display:inherit}</style>" + clip % ""),
+                    bare("<style>clipPath{display:inline}rect{display:inherit}</style>" + clip % ""), bare("<style>clipPath{display:block}</style>" + clip % 'style="display:inherit"'),
+                    bare('<rect display="inherit" width="9" height="9"/>'), bare('<g display=" inherit "><rect width="9" height="9"/></g>'), svg(root='display="inherit"'),
+                    svg("<style>.unused{display:inherit}</style>"), bare('<clipPath id="c" display="inherit"><rect width="4" height="4"/></clipPath><rect clip-path="url(#c)" width="9" height="9"/>')):
+            with self.subTest(doc=doc[110:190]):
+                err = refused(self, doc, "bad-value")
+                self.assertIn("display", str(err))
+                self.assertIn("inherit", str(err))
+        self.assertEqual(refused(self, _input.mark(_input.load(bare(clip % 'display="inherit"'))).colour, "bad-value").code, "bad-value")
+        for word in ("inline", "block"):
+            self.assertEqual(_svg.clean_svg(bare(clip % ('display="%s"' % word))).colours, ["#000000"])
+
     def test_all_the_styles_of_a_file_share_one_budget(self):
         half = "path{fill:#b4531a}" + " " * (_svg.MAX_STYLE_CHARS // 2)
         refused(self, svg("<style>%s</style><style>%s</style>" % (half, half)), "too-large")
@@ -993,6 +1108,8 @@ class Structure(unittest.TestCase):
                     err = refused(self, svg(place % thing), "misplaced-element")
                     self.assertIn("left out", str(err))
                     self.assertIn("Ask the tool", str(err))
+                    self.assertIn("an element of the drawing (<", str(err))   # a <title>, a <g>, a <defs>: none of them is "a drawing element"
+                    self.assertNotIn("a drawing element", str(err))
         self.assertIn("<style>", str(refused(self, svg("<metadata><style>path{fill:#f00}</style></metadata>"), "misplaced-element")))
         self.assertIn("<metadata>", str(refused(self, svg("<metadata><style>path{fill:#f00}</style></metadata>"), "misplaced-element")))
         # what such a part does hold is left out as before: words, and another program's own elements however deep
@@ -1036,11 +1153,16 @@ class Structure(unittest.TestCase):
         self.assertNotIn("class", clean.text)
 
     def test_an_id_is_the_id_as_it_is_written(self):
-        # a renderer takes no blank off an id: ` a` is not the `a` that `#a` names (measured 2026-10-12: the rect stays black)
-        for value in (" a", "a ", " a ", "&#9;a", "a&#10;", "a b", ""):
+        # a renderer takes no blank off an id: ` a` is not the `a` that `#a` names (measured 2026-10-12: the rect stays black).
+        # So the rule does not apply to it here either, and the id itself, which nothing is named by, is left out.
+        for value in (" a", "a ", " a ", "&#9;a", "a&#10;", "a b", "", "A", "a\u00a0"):
             with self.subTest(value=value):
-                refused(self, bare('<style>#a{fill:#ff0000}</style><rect id="%s" width="9" height="9"/>' % value), "bad-value")
-        self.assertEqual(_svg.clean_svg(bare('<style>#a{fill:#ff0000}</style><rect id="a" width="9" height="9"/>')).colours, ["#ff0000"])
+                clean = _svg.clean_svg(bare('<style>#a{fill:#ff0000}</style><rect id="%s" width="9" height="9"/>' % value))
+                self.assertEqual((clean.colours, clean.notes), (["#000000"], []))
+                self.assertNotIn("id=", clean.text)
+        clean = _svg.clean_svg(bare('<style>#a{fill:#ff0000}</style><rect id="a" width="9" height="9"/>'))
+        self.assertEqual(clean.colours, ["#ff0000"])
+        self.assertNotIn("id=", clean.text, "the rule is written out as the colour it gives: the id has done its work")
 
     def test_what_changes_the_drawing_in_one_program_and_not_in_another_is_refused_by_name(self):
         # Each of these was left out with the general note. A browser honours it and the site's renderer does not,
@@ -1097,11 +1219,13 @@ class Line(unittest.TestCase):
         return docs
 
     def takes(self, name, values, **where):
+        """Each value is kept: as it is written with its blanks taken off, or, given as (value, written), as the cleaned
+        file writes it (a list is set out with one blank between two of its entries)."""
         for value in values:
+            value, written = value if isinstance(value, tuple) else (value, value.strip(" \t\r\n"))
             for doc in self.places(name, value, **where):
-                with self.subTest(name=name, value=value, doc=doc[150:210]):
+                with self.subTest(name=name, value=value[:60], doc=doc[150:210]):
                     clean = _svg.clean_svg(doc)
-                    written = value.strip(" \t\r\n")
                     if not any(c in written for c in "\t\r\n") and name not in ("opacity", "fill-opacity", "stroke-opacity", "fill", "stroke", "color", "class"):
                         self.assertIn(' %s="%s"' % (name, written), clean.text)
                     self.assertEqual(_svg.clean_svg(clean.text.encode()).text, clean.text, "what is written is read again as the same")
@@ -1114,6 +1238,20 @@ class Line(unittest.TestCase):
                     self.assertIn("sk the tool", str(err))   # every refusal ends with what to ask the design tool for
         return err
 
+
+def spaced(value):
+    """A number list as the cleaned file writes it: its numbers, one blank between two of them."""
+    return (value, " ".join(re.findall(r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", value)))
+
+
+def set_out(value):
+    """A transform as the cleaned file writes it: each function with its numbers, one blank between two of anything."""
+    return (value, " ".join("%s(%s)" % (name, spaced(numbers)[1]) for name, numbers in re.findall(r"([A-Za-z]+)[ \t\r\n]*\(([^()]*)\)", value)))
+
+
+# The box of svg() and bare() is 64 by 64, from 0: a number that places or sizes a shape may be 100 times 64 from
+# the box's far edge, and no further (see HowFarADrawingReaches).
+FAR = 6464
 
 # what is not a number at all, however it is dressed
 NOT_NUMBERS = ["", "5.", ".", "+", "-", "5e", "5e+", "5e-", ".e1", "5.e1", "e5", "5e1.5", "5e100", "5e+100", "0e309", "5e0001", "0x5", "5f", "1_0", "5 5", "5,", ",5", "--5",
@@ -1153,10 +1291,10 @@ class ALength(Line):
     """length: a number, or a number and px. stroke-dashoffset; and, not below zero, stroke-width, r, rx, ry (rx and ry
     also `auto`)."""
 
-    FORMS = ANumber.FORMS[:-1] + ["5px", "5.0px", "+5px", ".5e1px", "5e0px", " 5px ", "0", "0px", "0.0", "1e9", "1e9px"]
+    FORMS = ANumber.FORMS[:-1] + ["5px", "5.0px", "+5px", ".5e1px", "5e0px", " 5px ", "0", "0px", "0.0", str(FAR), "%dpx" % FAR, "6.464e3"]
 
     def test_what_it_takes(self):
-        self.takes("stroke-dashoffset", self.FORMS + ["-5", "-5px", "-.5e1", "-0", "-1e9"], tag="path", more='d="M0 0h9v9"')
+        self.takes("stroke-dashoffset", self.FORMS + ["-5", "-5px", "-.5e1", "-0", "-%d" % FAR], tag="path", more='d="M0 0h9v9"')
         self.takes("stroke-width", self.FORMS, tag="path", more='d="M0 0h9v9" stroke="#ff0000"')
         self.takes("r", self.FORMS, tag="circle", more="")
         for name in ("rx", "ry"):
@@ -1186,22 +1324,25 @@ class ALength(Line):
 
     def test_a_length_too_long_or_too_large_is_refused_as_that(self):
         for name, where in (("stroke-dashoffset", dict(tag="path", more='d="M0 0h9v9"')), ("stroke-width", dict(tag="path", more='d="M0 0h9v9"')), ("r", dict(tag="circle", more=""))):
-            self.turns_down(name, ["0" * 64 + "5", "0" * 64 + "5px", "1e10", "1e10px", "9e99", "1000000001", "4e38px"], "value-too-long", **where)
-        self.takes("r", ["0" * 63 + "5", "0" * 63 + "5px"], tag="circle", more="")
+            # the cap counts the whole value: `0` 63 times and `5px` is 66 characters, and was kept until 2026-10-13
+            self.turns_down(name, ["0" * 64 + "5", "0" * 64 + "5px", "0" * 63 + "5px", "0" * 62 + "5px", "+" + "0" * 63 + "5", "1e10", "1e10px", "9e99", "1000000001", "4e38px"],
+                            "value-too-long", **where)
+        self.takes("r", ["0" * 63 + "5", "0" * 61 + "5px", "+" + "0" * 62 + "5", "  " + "0" * 63 + "5  "], tag="circle", more="")
+        self.assertEqual((len("0" * 63 + "5"), len("0" * 61 + "5px")), (_svg.MAX_VALUE, _svg.MAX_VALUE))
 
 
 class APosition(Line):
     """position: a length, or a number and % (a share of the drawing's box). x, y, cx, cy, x1, y1, x2, y2; and, not
     below zero, width and height."""
 
-    FORMS = ALength.FORMS + ["50%", "50.0%", "+50%", "5e1%", ".5e2%", " 50% ", "0%", "100%", "150%", "1e9%"]
+    FORMS = ALength.FORMS + ["50%", "50.0%", "+50%", "5e1%", ".5e2%", " 50% ", "0%", "100%", "150%", "10100%"]
     NAMES = (("x", {}), ("y", {}), ("width", dict(more='height="9"')), ("height", dict(more='width="9"')), ("cx", dict(tag="circle", more='r="3"')),
              ("cy", dict(tag="circle", more='r="3"')), ("x1", dict(tag="line", more='stroke="#ff0000"')), ("y1", dict(tag="line", more='stroke="#ff0000"')),
              ("x2", dict(tag="line", more='stroke="#ff0000"')), ("y2", dict(tag="line", more='stroke="#ff0000"')))
 
     def test_what_it_takes(self):
         for name, where in self.NAMES:
-            self.takes(name, self.FORMS + ([] if name in ("width", "height") else ["-5", "-5px", "-50%", "-.5e1", "-0", "-1e9"]), **where)
+            self.takes(name, self.FORMS + ([] if name in ("width", "height") else ["-5", "-5px", "-50%", "-.5e1", "-0", "-%d" % FAR]), **where)
 
     def test_what_is_no_position(self):
         for name, where in self.NAMES:
@@ -1218,8 +1359,8 @@ class APosition(Line):
 
     def test_a_position_too_long_or_too_large_is_refused_as_that(self):
         for name, where in self.NAMES:
-            self.turns_down(name, ["0" * 64 + "5", "0" * 64 + "5%", "1e10", "1e10%", "9e99", "1000000001px"], "value-too-long", **where)
-            self.takes(name, ["0" * 63 + "5", "0" * 63 + "5%"], **where)
+            self.turns_down(name, ["0" * 64 + "5", "0" * 64 + "5%", "0" * 63 + "5%", "0" * 62 + "5px", "1e10", "1e10%", "9e99", "1000000001px"], "value-too-long", **where)
+            self.takes(name, ["0" * 63 + "5", "0" * 62 + "5%", "0" * 61 + "5px"], **where)
 
 
 class ANumberList(Line):
@@ -1227,8 +1368,26 @@ class ANumberList(Line):
     or a point. points (an even count, 2,000 at most); stroke-dasharray (`none`, or 1 to 16 numbers, none below zero)."""
 
     def test_what_points_takes(self):
-        self.takes("points", ["", "1 2", "1,2", "1 , 2", "1  2", "1\t2\n3\r4", "1,2 3,4 5,6", "1,2,3,4", " 1 2 ", "10-20", "10-20,3.5.5 1e2,4", "1+2", ".5.5", "-1-2-3-4", "1e1-2",
-                               "1e2.5", "+1 -2", "1E0 2e-1", "0 0 1e9 -1e9", "1 2 " * (_svg.MAX_POINTS // 2), "0" * 63 + "1 2"], tag="polygon", more="")
+        values = ["", "1 2", "1,2", "1 , 2", "1  2", "1\t2\n3\r4", "1,2 3,4 5,6", "1,2,3,4", " 1 2 ", "10-20", "10-20,3.5.5 1e2,4", "1+2", ".5.5", "-1-2 -3-4", "1e1-2",
+                  "1e2.5", "+1 -2", "1E0 2e-1", "0 0 %d -%d" % (FAR, FAR), "1 2 " * (_svg.MAX_POINTS // 2), "0" * 63 + "1 2",
+                  # between two points: blanks, or a comma and then blanks
+                  "1 2,3 4", "1 2, 3 4", "1,2,\t3,4", "1-2\n\n3-4", "1 , 2,3 , 4", "1.5.5 2+3", "1 2,-3 4", "1 2,.5.5"]
+        self.takes("points", [spaced(v) for v in values], tag="polygon", more="")
+        # the helper of this test, held to the letter for a few: a list is written with one blank between two numbers
+        for value, written in (("1,2", "1 2"), ("10-20,3.5.5 1e2,4", "10 -20 3.5 .5 1e2 4"), ("1\t2\n3\r4", "1 2 3 4"), ("-1-2,-3-4", "-1 -2 -3 -4"), (" 1  ,  2 ", "1 2"), ("", "")):
+            self.assertEqual(spaced(value)[1], written)
+            self.assertIn(' points="%s"' % written, _svg.clean_svg(svg('<polygon points="%s"/>' % value)).text)
+
+    def test_between_two_points_stand_blanks_or_a_comma_and_nothing_else(self):
+        # Measured 2026-10-13: between the two numbers of one point the site's renderer reads a comma after a blank and
+        # a number run on to the one before; between two POINTS it reads neither, and draws nothing of the shape. A
+        # browser reads both everywhere. (Found when the cleaned file began to write a list with plain blanks: the file as
+        # it came was then another drawing than the cleaned one.)
+        self.turns_down("points", ["1 2 ,3 4", "1 2 , 3 4", "1,2 ,3,4", "1,2\t,\n3,4", "1 2  ,  3 4", "1 2-3 4", "1 2+3 4", "1 2.5.5 4", "-1-2-3-4", "1,2-3,4", "1 2 3 4 ,5 6",
+                                    "1 2 3 4-5 6", "1e1 2e1.5 3"], "bad-value", tag="polygon", more="")
+        self.turns_down("points", ["1 2 ,3 4", "1 2-3 4"], "bad-value", tag="polyline", more='stroke="#ff0000"')
+        self.assertIsNone(_svg.GRAMMAR["stroke-dasharray"]("1 2 ,3 4"), "in any other list a comma may stand after a blank anywhere")
+        self.assertEqual(_svg.clean_svg(svg('<g transform="matrix(1 0 ,0 1-2.5.5)"/>')).text.count('transform="matrix(1 0 0 1 -2.5 .5)"'), 1)
 
     def test_what_is_no_list_of_points(self):
         self.turns_down("points", ["1", "1 2 3", "1,2,3", "1,2 3", ",1 2", "1 2,", "1,,2", "1 ,, 2", "1, ,2", ",", "1;2", "1 2;", "1.2.", "1 2.", "1px 2px", "1% 2%", "1 2 x", "x", "1 2e",
@@ -1239,22 +1398,25 @@ class ANumberList(Line):
         self.turns_down("points", ["1 2 " * (_svg.MAX_POINTS // 2 + 1), "1 " * 100000, "0" * 64 + "1 2", "1e10 2", "1 9e99", "1 -1e10"], "value-too-long", tag="polygon", more="")
 
     def test_what_a_dash_list_takes(self):
-        self.takes("stroke-dasharray", ["none", " none ", "4", "4 2", "4,2", "4 , 2", "4  2", "4\t2", "4.5.5", "4+2", "+4 +2", ".5 .5e1", "4 2 1", "0", "0 0", "1e9",
-                                        "4 2 " * (_svg.MAX_DASHES // 2), "4 " * _svg.MAX_DASHES, "0" * 63 + "4"], tag="path", more='d="M0 0h9" stroke="#ff0000"')
+        values = ["4", "4 2", "4,2", "4 , 2", "4  2", "4\t2", "4.5.5", "4+2", "+4 +2", ".5 .5e1", "4 2 1", "0", "0 0", "1e9", "4 2 " * (_svg.MAX_DASHES // 2),
+                  "4 " * _svg.MAX_DASHES, "0" * 63 + "4"]
+        self.takes("stroke-dasharray", ["none", (" none ", "none")] + [spaced(v) for v in values], tag="line", more='x2="9" stroke="#ff0000"')
+        for value, written in (("4,2", "4 2"), ("4.5.5", "4.5 .5"), ("4+2", "4 +2"), ("4 , 2", "4 2")):
+            self.assertEqual(spaced(value)[1], written)
 
     def test_what_is_no_dash_list(self):
         self.turns_down("stroke-dasharray", [" ", "4,,2", ",4 2", "4 2,", "4, ,2", "4;2", "4 2 x", "x", "None", "NONE", "none 4", "4 none", "auto", "inherit", "4.", "4 2.", "4e100",
                                              "0e309", "1_0", "\u0664 \u0662", "4\u00a02", "4px", "4px 2px", "50%", "5% 10%", "5%10%", "4 2%", "4mm", "(4 2)", "4/2", "4e"], "bad-value",
-                        tag="path", more='d="M0 0h9" stroke="#ff0000"')
-        refused(self, bare('<path stroke-dasharray="" d="M0 0h9" stroke="#ff0000"/>'), "bad-value")   # a list that names no dash, and is not `none`
+                        tag="line", more='x2="9" stroke="#ff0000"')
+        refused(self, bare('<line stroke-dasharray="" x2="9" stroke="#ff0000"/>'), "bad-value")   # a list that names no dash, and is not `none`
 
     def test_a_dash_below_zero_is_refused_as_that(self):
-        self.turns_down("stroke-dasharray", ["-4", "4 -2", "4-2", "4,-2", "-0", "4 2 -.5e1", "-1e-9"], "negative-size", tag="path", more='d="M0 0h9" stroke="#ff0000"')
+        self.turns_down("stroke-dasharray", ["-4", "4 -2", "4-2", "4,-2", "-0", "4 2 -.5e1", "-1e-9"], "negative-size", tag="line", more='x2="9" stroke="#ff0000"')
 
     def test_more_dashes_than_a_logo_needs_are_refused_as_that(self):
         # with no cap, one rule's dash list was written onto every element: 228 KB in, a favicon of 20 MB out
         self.turns_down("stroke-dasharray", ["4 " * (_svg.MAX_DASHES + 1), "1 " * 30000, "0" * 64 + "4", "4 1e10", "9e99"], "value-too-long",
-                        tag="path", more='d="M0 0h9" stroke="#ff0000"')
+                        tag="line", more='x2="9" stroke="#ff0000"')
 
 
 class ATransform(Line):
@@ -1262,18 +1424,26 @@ class ATransform(Line):
     number list of exactly that many numbers; blanks, one comma or nothing between two of them."""
 
     def test_what_it_takes(self):
-        self.takes("transform", ["", " ", "translate(1)", "translate(1 2)", "translate(1,2)", "translate( 1 , 2 )", "translate(1-2)", "translate(.5.5)", "translate(-1.5e1-2)",
-                                 "scale(2)", "scale(2 3)", "scale(-1)", "rotate(45)", "rotate(45 1 1)", "rotate(45,1,1)", "rotate(-45.5 1e1 .5)", "skewX(10)", "skewY(-10)",
-                                 "matrix(1 0 0 1 0 0)", "matrix(1,0,0,1,0,0)", "matrix(1 0 0 1-5 3)", "matrix(.5.5.5.5.5.5)", "translate(1,2) scale(2)", "rotate(45 1 1),scale(2)",
-                                 "translate(1) , scale(2)", "translate(1)scale(2)", "translate(1)\nscale(2)\trotate(3)", " translate(1 2) ", "translate(1e9)", "scale(1e-9)",
-                                 "scale(1) " * _svg.MAX_TRANSFORMS, "translate(" + "0" * 63 + "1)"], tag="g", more="")
+        values = ["", " ", "translate(1)", "translate(1 2)", "translate(1,2)", "translate( 1 , 2 )", "translate(1-2)", "translate(.5.5)", "translate(-1.5e1-2)",
+                  "scale(2)", "scale(2 3)", "scale(-1)", "rotate(45)", "rotate(45 1 1)", "rotate(45,1,1)", "rotate(-45.5 1e1 .5)", "skewX(10)", "skewY(-10)",
+                  "matrix(1 0 0 1 0 0)", "matrix(1,0,0,1,0,0)", "matrix(1 0 0 1-5 3)", "matrix(.5.5.5.5.5.5)", "translate(1,2) scale(2)", "rotate(45 1 1),scale(2)",
+                  "translate(1) , scale(2)", "translate(1)scale(2)", "translate(1)\nscale(2)\trotate(3)", " translate(1 2) ", "translate(%d)" % FAR, "scale(1e-9)",
+                  "scale(1) " * _svg.MAX_TRANSFORMS, "translate(" + "0" * 63 + "1)",
+                  # a blank before the bracket: SVG allows it, and the site's renderer reads it as a browser does (measured 2026-10-13)
+                  "translate (1)", "translate\t(1 2)", "scale (2)", "rotate \n (45 1 1)", "translate (1)scale  (2)", "matrix  (1 0 0 1 2 3)", "skewX (10) , skewY\r(10)"]
+        self.takes("transform", [set_out(v) for v in values], tag="g", more="")
+        for value, written in (("translate(1,2) scale(2)", "translate(1 2) scale(2)"), ("matrix(.5.5.5.5.5.5)", "matrix(.5 .5 .5 .5 .5 .5)"), ("translate(1)scale(2)", "translate(1) scale(2)"),
+                               ("rotate(45 1 1),scale(2)", "rotate(45 1 1) scale(2)"), ("translate (1)scale  (2)", "translate(1) scale(2)"), (" ", ""),
+                               ("translate( 1 , 2 )", "translate(1 2)"), ("translate(1)\nscale(2)\trotate(3)", "translate(1) scale(2) rotate(3)")):
+            self.assertEqual(set_out(value)[1], written)
+            self.assertIn(' transform="%s"' % written, _svg.clean_svg(svg('<g transform="%s"/>' % value)).text)
 
     def test_what_is_no_transform(self):
         self.turns_down("transform", [
             "translate()", "scale()", "rotate()", "matrix()", "skewX()", "translate( )",                                # a function with nothing in it
             "translate(1 2 3)", "scale(1 2 3)", "rotate(1 2)", "rotate(1 2 3 4)", "skewX(1 2)", "skewY(1 2)", "matrix(1 0 0 1 0)", "matrix(1 0 0 1 0 0 0)",   # not the count it takes
             "translate(1,,2)", "translate(,1)", "translate(1,)", "translate(1 2),", ",translate(1)", "translate(1),,scale(2)", "translate(1), ,scale(2)", "translate(1) ,",
-            "translate (1)", "translate\t(1)", "scale (2)", "Translate(1)", "TRANSLATE(1)", "translateX(1)", "translate3d(1,2,3)", "perspective(1)", "rotateZ(4)", "skew(1)",
+            "trans late(1)", "translate( (1)", "translate ()", "Translate(1)", "TRANSLATE(1)", "translateX(1)", "translate3d(1,2,3)", "perspective(1)", "rotateZ(4)", "skew(1)",
             "none", "inherit", "translate", "translate(", "translate(1", "translate 1)", "translate(1))", "(1)", "translate(1) x", "x translate(1)", "translate(1);scale(2)",
             "translate(1px)", "translate(50%)", "rotate(45deg)", "rotate(1turn)", "scale(2x)", "translate(1.)", "translate(1e100)", "translate(0e309)", "translate(1_0)",
             "translate(\u0661)", "translate(1\u00a02)", "\u00a0translate(1)", "translate(1)\u2003scale(2)", "translate(translate(1))", "translate(1 scale(2))"], "bad-value",
@@ -1281,7 +1451,7 @@ class ATransform(Line):
 
     def test_more_than_a_logo_needs_is_refused_as_that(self):
         self.turns_down("transform", ["scale(1) " * (_svg.MAX_TRANSFORMS + 1), "scale(1)" * 40000, "translate(1e10)", "translate(1 9e99)", "matrix(1 0 0 1 4e38 0)",
-                                      "translate(" + "0" * 64 + "1)"], "value-too-long", tag="g", more="")
+                                      "translate(" + "0" * 64 + "1)", "translate(1)" + " " * _svg.MAX_RAW, "translate" + " " * _svg.MAX_RAW + "(1)"], "value-too-long", tag="g", more="")
 
 
 class PathData(Line):
@@ -1305,7 +1475,7 @@ class AKeyword(Line):
     """keyword: exactly one of the words the renderer and a browser both read."""
 
     WORDS = {"fill-rule": ["nonzero", "evenodd"], "clip-rule": ["nonzero", "evenodd"], "stroke-linecap": ["butt", "round", "square"], "stroke-linejoin": ["miter", "round", "bevel"],
-             "visibility": ["visible", "hidden", "collapse"], "display": ["inline", "block", "none", "inherit"],
+             "visibility": ["visible", "hidden", "collapse"], "display": ["inline", "block", "none"],
              "shape-rendering": ["auto", "optimizeSpeed", "crispEdges", "geometricPrecision"]}
 
     def test_the_words_are_the_ones_in_the_table(self):
@@ -1315,14 +1485,14 @@ class AKeyword(Line):
     def test_what_it_takes(self):
         for name, words in self.WORDS.items():
             self.takes(name, words + [" %s " % words[0], "\t%s\n" % words[-1]])
-        self.takes("paint-order", ["normal", "fill", "stroke", "markers", "fill stroke", "stroke fill", "stroke fill markers", "markers stroke fill", "stroke  markers", " stroke ",
-                                   "fill\tmarkers\nstroke"])
+        self.takes("paint-order", ["normal", "fill", "stroke", "markers", "fill stroke", "stroke fill", "stroke fill markers", "markers stroke fill", ("stroke  markers", "stroke markers"),
+                                   " stroke ", ("fill\tmarkers\nstroke", "fill markers stroke")])
 
     def test_what_is_no_word_of_its_property(self):
         for name, words in self.WORDS.items():
             near = ["", words[0].upper(), words[0].capitalize(), words[0] + "x", "x" + words[0], words[0] + " " + words[-1], words[0] + ",", words[0][:-1], "initial", "unset",
                     "revert", "0", "1", "true", words[0] + "\u00a0", "\u00a0" + words[0], words[0].replace("o", "\u03bf")]
-            self.turns_down(name, [v for v in near + ([] if name == "display" else ["inherit"]) if v not in words], "bad-value")
+            self.turns_down(name, [v for v in near + ["inherit", "Inherit", " inherit "] if v not in words], "bad-value")
         # measured 2026-10-12: the site's renderer reads neither of these two joins and keeps the join it had; a browser reads both
         self.turns_down("stroke-linejoin", ["arcs", "miter-clip", "miter clip", "crop", "fallback"], "bad-value")
         self.turns_down("display", ["inline-block", "flex", "grid", "contents", "table", "list-item", "run-in", "None", "NONE", "Inline"], "bad-value")
@@ -1387,22 +1557,135 @@ class APaint(Line):
 
 class AnId(Line):
     """id: an ASCII letter or `_`, then letters, digits and `_ - . :`; 64 characters at most. Taken as it is written:
-    a renderer takes no blank off an id."""
+    a renderer takes no blank off an id. This is the id a clip path is named by, the one id the cleaned file keeps;
+    every other id is left out, whatever it is written in (see Ids)."""
+
+    CLIP = '<defs><clipPath id="%s"><rect width="4" height="4"/></clipPath></defs><rect clip-path="url(#%s)" width="9" height="9"/>'
 
     def test_what_it_takes(self):
         for value in ("a", "A", "_", "a1", "Layer_1", "clip0_12_34", "SVGID_1_", "a-b", "a.b", "a:b", "_-.:", "a" * 64, "Ebene_1", "path111"):
             with self.subTest(value=value):
-                clean = _svg.clean_svg(bare('<rect id="%s" width="9" height="9"/>' % value))
-                self.assertIn('<rect id="%s"' % value, clean.text)
-                clip = '<defs><clipPath id="%s"><rect width="4" height="4"/></clipPath></defs><rect clip-path="url(#%s)" width="9" height="9"/>' % (value, value)
-                self.assertIn('clip-path="url(#%s)"' % value, _svg.clean_svg(bare(clip)).text)
+                clean = _svg.clean_svg(bare(self.CLIP % (value, value)))
+                self.assertIn('<clipPath id="%s">' % value, clean.text)
+                self.assertIn('clip-path="url(#%s)"' % value, clean.text)
+                self.assertEqual(_svg._validate("id", value), value)
 
     def test_what_is_no_id(self):
+        # none of these names a clip path: the reference is refused where it stands (as a value this check does not read,
+        # or as an address that is no plain #name)
         for value in ("", " ", " a", "a ", "a b", "1a", "-a", ".a", ":a", "a/b", "a,b", "a;b", "a#b", "#a", "a(b)", "a" * 65, "Frame 1", "brand/logo/mark", "1a2b3c4d5e",
                       "\u00e9", "a\u00e9", "Gr\u00f6\u00dfe", "\u65e5\u672c", "a\u0661", "a\u00a0", "a\u200b", "&#9;a", "a&#10;", "a\ufe0f", "a'b", "a&quot;b", "a&lt;b", "a&amp;b",
                       "a\\62", "a%b", "a+b", "a=b", "a@b", "a*b", "a!b"):
             with self.subTest(value=value):
-                refused(self, bare('<rect id="%s" width="9" height="9"/>' % value), "bad-value")
+                with self.assertRaises(_svg.Refusal) as cm:
+                    _svg.clean_svg(bare(self.CLIP % (value, value)))
+                # (`url(#a )` names `a`, which the clip path called `a ` is not)
+                self.assertIn(cm.exception.code, ("bad-value", "css-url", "css-unreadable", "clip-target"), str(cm.exception))
+                if value not in ("", " "):
+                    self.assertIsNotNone(_svg.GRAMMAR["id"](value.replace("&#9;", "\t").replace("&#10;", "\n").replace("&quot;", '"').replace("&lt;", "<").replace("&amp;", "&")))
+        # the same names on something no clip path is named by are no business of the grammar: see Ids
+        self.assertEqual(_svg.clean_svg(bare('<g id="Frame 1"><rect id="1a" width="9" height="9"/></g>')).notes, [])
+
+
+class Ids(unittest.TestCase):
+    """A REFERENCE FINDS THE SAME ELEMENT IN THE CLEANED FILE AS IN THE FILE THAT CAME. A program looks a clip path up
+    by its id and takes the first element that carries it, whatever that element is. Measured 2026-10-13 (the site's
+    renderer and Chromium agree): with <title id="c"> before <clipPath id="c"> the file as it came is drawn unclipped,
+    and the cleaned file, which leaves the title out, clipped. So an id a clip-path names stands once in the whole
+    file, on a clip path; and an id nothing is named by is left out unread."""
+
+    CLIP = '<clipPath id="c"><rect width="4" height="4"/></clipPath>'
+    USE = '<rect clip-path="url(#c)" width="9" height="9"/>'
+
+    def test_an_id_that_a_clip_path_is_named_by_stands_once_in_the_whole_file(self):
+        rdf = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description id="c"/></rdf:RDF>'
+        for what, doc in (
+                ("a title before the clip path", bare('<title id="c">x</title>' + self.CLIP + self.USE)),
+                ("a title after it", bare(self.CLIP + self.USE + '<title id="c">x</title>')),
+                ("a desc", bare('<desc id="c"/>' + self.CLIP + self.USE)),
+                ("the metadata", bare('<metadata id="c"/>' + self.CLIP + self.USE)),
+                ("another program's element in the metadata", bare("<metadata>%s</metadata>" % rdf + self.CLIP + self.USE)),
+                ("another program's element", bare('<x:note xmlns:x="urn:editor" id="c"/>' + self.CLIP + self.USE)),
+                ("an element deep in what is left out", bare('<x:a xmlns:x="urn:editor"><x:b><x:c id="c"/></x:b></x:a>' + self.CLIP + self.USE)),
+                ("the outer svg", bare(self.CLIP + self.USE, root='id="c"')),
+                ("a group", bare('<g id="c"/>' + self.CLIP + self.USE)),
+                ("a shape", bare(self.CLIP + self.USE.replace("<rect ", '<rect id="c" '))),
+                ("a style", bare('<style id="c">rect{fill:#111111}</style>' + self.CLIP + self.USE)),
+                ("the defs round it", bare('<defs id="c">%s</defs>' % self.CLIP + self.USE)),
+                ("a second clip path", bare(self.CLIP + self.CLIP + self.USE)),
+                ("a second clip path, empty and first", bare('<clipPath id="c"/>' + self.CLIP + self.USE)),
+                ("three of them", bare('<title id="c"/><g id="c"/>' + self.CLIP + self.USE)),
+                ("the same id as xml:id", bare('<title xml:id="c">x</title>' + self.CLIP + self.USE)),
+                ("a reference from a style attribute", bare('<title id="c"/>' + self.CLIP + '<rect style="clip-path:url(#c)" width="9" height="9"/>')),
+                ("a reference from a rule", bare('<title id="c"/><style>rect{clip-path:url( #c )}</style>' + self.CLIP + '<rect width="9" height="9"/>')),
+                ("a reference on a group", bare('<title id="c"/>' + self.CLIP + '<g clip-path="url(#c)"><rect width="9" height="9"/></g>')),
+                ("a reference on the outer svg", bare('<title id="c"/>' + self.CLIP + '<rect width="9" height="9"/>', root='clip-path="url(#c)"')),
+                ("a reference from one clip path to another", bare('<title id="c"/>' + self.CLIP + '<clipPath id="d" clip-path="url(#c)"><rect width="4" height="4"/></clipPath>'
+                                                                   '<rect clip-path="url(#d)" width="9" height="9"/>'))):
+            with self.subTest(what=what):
+                err = refused(self, doc, "shared-id")
+                for word in ("same id", "'c'", "Ask the tool"):
+                    self.assertIn(word, str(err))
+        # the control: once, on a clip path, wherever the clip path stands and however the reference is written
+        for doc in (bare(self.CLIP + self.USE), bare(self.USE + self.CLIP), bare("<defs>%s</defs>" % self.CLIP + self.USE), bare("<title>c</title><desc>id=\"c\"</desc>" + self.CLIP + self.USE),
+                    bare(self.CLIP + '<rect style="clip-path: url( #c )" width="9" height="9"/>'), bare("<style>rect{clip-path:url(#c)}</style>" + self.CLIP + '<rect width="9" height="9"/>'),
+                    bare('<title id="d"/><g id="e"/>' + self.CLIP + self.USE, root='id="f"')):
+            with self.subTest(doc=doc[110:170]):
+                clean = _svg.clean_svg(doc)
+                self.assertEqual(clean.text.count('id="c"'), 1)
+                self.assertEqual(clean.text.count(' id='), 1, "and no other id is written")
+                self.assertIn('clip-path="url(#c)"', clean.text)
+
+    def test_what_a_shape_is_clipped_by_is_a_clip_path_in_the_file(self):
+        for what, doc in (("nothing in the file", bare(self.USE)), ("nothing: another name", bare(self.CLIP.replace('"c"', '"d"') + self.USE)),
+                          ("a group", bare('<g id="c"><rect width="4" height="4"/></g>' + self.USE)), ("a shape", bare('<rect id="c" width="4" height="4"/>' + self.USE)),
+                          ("itself", bare(self.USE.replace("<rect ", '<rect id="c" '))), ("a title", bare('<title id="c">x</title>' + self.USE)),
+                          ("the outer svg", bare(self.USE, root='id="c"')), ("another program's element", bare('<x:clipPath xmlns:x="urn:editor" id="c"/>' + self.USE)),
+                          ("a clip path named in other letters", bare(self.CLIP.replace('"c"', '"C"') + self.USE)), ("a clip path with a blank in its id", bare(self.CLIP.replace('"c"', '" c"') + self.USE)),
+                          ("a clip path with an xml:id only", bare(self.CLIP.replace(" id=", " xml:id=") + self.USE)),
+                          ("a clip path with a prefixed id only", bare(self.CLIP.replace(" id=", " x:id=").replace("<clipPath ", '<clipPath xmlns:x="urn:editor" ') + self.USE))):
+            with self.subTest(what=what):
+                err = refused(self, doc, "clip-target")
+                for word in ("not a clip path", "url(#c)", "Ask the tool"):
+                    self.assertIn(word, str(err))
+        # a reference that no element ends up with is not followed, so nothing is asked of its name
+        clean = _svg.clean_svg(bare("<style>.unused{clip-path:url(#nobody)} .r{clip-path:url(#nobody)}</style>" + self.CLIP
+                                    + '<rect class="r" style="clip-path:url(#c)" width="9" height="9"/><rect class="r" clip-path="url(#gone)" style="clip-path:none" width="9" height="9"/>'))
+        self.assertNotIn("nobody", clean.text)
+        self.assertNotIn("gone", clean.text)
+
+    def test_an_id_nothing_is_named_by_is_left_out_whatever_it_is_written_in(self):
+        # ordinary exports were refused for an id nobody uses: a layer called "Frame 1" or "Größe", an id that starts with a digit
+        for value in ("Frame 1", "Rectangle 1", "Gr\u00f6\u00dfe", "\u65e5\u672c\u8a9e", "brand/logo/mark", "1a2b3c4d5e", "8ce47d5fb1", "icon/logo", "Layer-1", "a" * 300, "", " ",
+                      "a b c", "&#9;x&#10;", "x\u00a0y", "\u200b", "a&amp;b", "a&lt;b&gt;", "a'b", "#a", "url", "none", "c"):
+            with self.subTest(value=ascii(value)):
+                for doc in (bare('<g id="%s"><rect id="%s" width="9" height="9" fill="#111111"/></g>' % (value, value)), svg(root='id="%s"' % value),
+                            bare('<title id="%s">x</title><defs id="%s"/><rect width="9" height="9" fill="#111111"/>' % (value, value)),
+                            bare('<clipPath id="%s"><rect width="4" height="4"/></clipPath><rect width="9" height="9" fill="#111111"/>' % value)):
+                    clean = _svg.clean_svg(doc.decode().encode("utf-8"))
+                    self.assertNotIn(" id=", clean.text)
+                    self.assertEqual(clean.notes, [])
+        # an id that could fetch or run something is still what it is to the style check, used or not
+        refused(self, bare('<rect id="url(https://x.example/a)" width="9" height="9"/>'), "css-url")
+        refused(self, bare('<rect id="@import a" width="9" height="9"/>'), "css-import")
+
+    def test_a_clip_path_nothing_refers_to_keeps_no_id_and_one_that_is_referred_to_keeps_its_own(self):
+        clean = _svg.clean_svg(bare('<clipPath id="unused 1"><rect width="4" height="4"/></clipPath><clipPath id="used"><rect width="4" height="4"/></clipPath>'
+                                    '<clipPath id="also"><rect width="4" height="4"/></clipPath><g id="used too" clip-path="url(#used)"><rect id="r" clip-path="url( #also )" width="9" height="9"/></g>'))
+        self.assertEqual(re.findall(r'<(\w+) id="([^"]*)"', clean.text), [("clipPath", "used"), ("clipPath", "also")])
+        self.assertEqual(_svg.clean_svg(clean.text.encode()).text, clean.text)
+
+    def test_the_intake_refuses_a_shared_id_as_the_check_does(self):
+        # through the door production uses: what the bytes are, the mark, the check
+        doc = bare('<title id="c">x</title>' + self.CLIP + self.USE)
+        with self.assertRaises(_svg.Refusal) as cm:
+            _svg.clean_svg(_input.mark(_input.load(doc)).colour)
+        self.assertEqual(cm.exception.code, "shared-id")
+        package = T.build_zip([("pack/logo.svg", doc)])
+        with self.assertRaises(_svg.Refusal) as cm:
+            _svg.clean_svg(_input.mark(_input.load(package)).colour)
+        self.assertEqual(cm.exception.code, "shared-id")
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(bare('<g id="Frame 1">' + self.CLIP + self.USE + "</g>"))).colour).colours, ["#000000"])
 
 
 class AClass(Line):
@@ -1427,7 +1710,8 @@ class AClass(Line):
 class AClipPath(Line):
     """clip-path: `none`, or url(#id) with an id of the grammar, 80 characters at most; blanks may stand inside the brackets."""
 
-    CLIP = '<defs><clipPath id="c"><rect width="4" height="4"/></clipPath><clipPath id="a-b.c:d_e"><rect width="4" height="4"/></clipPath></defs>'
+    CLIP = ('<defs><clipPath id="c"><rect width="4" height="4"/></clipPath><clipPath id="a-b.c:d_e"><rect width="4" height="4"/></clipPath>'
+            '<clipPath id="%s"><rect width="4" height="4"/></clipPath></defs>' % ("a" * 64))
 
     def places(self, name, value, **where):
         escaped = value.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
@@ -1435,7 +1719,7 @@ class AClipPath(Line):
         return docs + [bare(self.CLIP + "<style>rect{clip-path:%s}</style><rect width='9' height='9'/>" % escaped.replace("&quot;", '"'))]
 
     def test_what_it_takes(self):
-        self.takes("clip-path", ["none", " none ", "url(#c)", "url( #c )", "url(\t#c\n)", " url(#c) ", "url(#a-b.c:d_e)", "url(#" + "a" * 64 + ")", "url(#nobody)"])
+        self.takes("clip-path", ["none", " none ", "url(#c)", ("url( #c )", "url(#c)"), ("url(\t#c\n)", "url(#c)"), (" url(#c) ", "url(#c)"), "url(#a-b.c:d_e)", "url(#" + "a" * 64 + ")"])
 
     def test_what_is_no_clip_path(self):
         self.turns_down("clip-path", ["None", "NONE", "auto", "inherit", "#c", "c", "URL(#c)", "Url(#c)", "url (#c)", "url(#c) none", "none url(#c)", "url(#c) url(#c)",
@@ -1462,7 +1746,7 @@ class TheViewBox(Line):
     """viewBox: four numbers, as a number list; the width and the height from 0.01 to 1,000,000 and neither more than
     20 times the other. It is written into the cleaned file as it was read."""
 
-    DOC = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s"><path fill="#111111" d="M0 0h9v9z"/></svg>'
+    DOC = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s"><path fill="#111111" d="M0 0h.009v.009z"/></svg>'
 
     def test_what_it_takes(self):
         for value, box in (("0 0 10 20", (0, 0, 10, 20)), ("0,0,10,20", (0, 0, 10, 20)), ("0, 0, 10, 20", (0, 0, 10, 20)), ("0 , 0 , 10 , 20", (0, 0, 10, 20)),
@@ -1478,10 +1762,16 @@ class TheViewBox(Line):
         for value in ("", " ", "0 0 10", "0 0 10 20 30", "0,,0 10 20", "0 0 10 20,", ",0 0 10 20", "0 0 10,,20", "0, ,0 10 20", "0;0;10;20", "0 0 10 20;", "0 0 10px 20px", "0 0 100% 100%",
                       "0 0 10. 20", "0. 0 10 20", "0 0 10 20.e0", "0 0 1e100 20", "0 0 10 0e309", "0 0 1e999 10", "0 0 1_0 20", "0 0 \u0661\u0660 20", "0\u20030 10 20", "0 0\u00a010 20",
                       "0 0 10 20\u2028", "0 0 infinity 10", "0 0 nan 10", "0 0 0x10 10", "0 0 0 20", "0 0 10 0", "0 0 -10 20", "0 0 10 -20", "0 0 10-20", "none", "auto", "0 0 ten 20",
-                      "(0 0 10 20)", "0 0 10 20 ,", "0 0 0.009 0.009", "0 0 1000001 1000001", "0 0 10 201", "0 0 201 10", "1000001 0 10 20", "0 -1e7 10 20", "0 0 " + "0" * 64 + "9 9",
-                      "0 0 1e10 1e10", "0 0 9e99 9e99"):
+                      "(0 0 10 20)", "0 0 10 20 ,", "0 0 0.009 0.009", "0 0 1000001 1000001", "0 0 10 201", "0 0 201 10", "1000001 0 10 20", "0 -1e7 10 20", "0 0 1e10 1e10", "0 0 9e99 9e99"):
             with self.subTest(value=ascii(value)):
                 refused(self, (self.DOC % value).encode("utf-8"), "bad-view-box")
+        # a number longer than a number may be is refused as that, as it is in every other value (it was called "not four numbers")
+        for value in ("0 0 " + "0" * 64 + "9 9", "0" * 65 + " 0 9 9", "0 0 9 9." + "0" * 63, "+" + "0" * 64 + ",0,9,9"):
+            with self.subTest(value=value[:20]):
+                err = refused(self, (self.DOC % value).encode("utf-8"), "value-too-long")
+                self.assertIn("viewBox", str(err))
+                self.assertIn("64 characters", str(err))
+        self.assertEqual(_svg.clean_svg((self.DOC % ("0 0 " + "0" * 63 + "9 9")).encode()).view_box, (0, 0, 9, 9))
 
 
 class TheAspect(Line):
@@ -1504,9 +1794,9 @@ class TheAspect(Line):
 
 
 class TheOuterSize(Line):
-    """width and height of the outer svg: never kept. A number above zero with px, pt, pc, mm, cm, in or nothing, or
-    a number and %. With a viewBox, two lengths are in one unit and of the viewBox's own shape (to one part in a
-    hundred thousand); without one, both are plain or px, and they are the box."""
+    """width and height of the outer svg: never kept. A number above zero with px, pt, pc, mm, cm, in, em, ex or
+    nothing, or a number and %. With a viewBox, two lengths are in one unit and of the viewBox's own shape (to one
+    part in a hundred); without one, both are plain or px, and they are the box."""
 
     DOC = '<svg xmlns="http://www.w3.org/2000/svg" %s><path fill="#111111" d="M0 0h9v9z"/></svg>'
 
@@ -1515,7 +1805,12 @@ class TheOuterSize(Line):
                       'width="64mm" height="32mm"', 'width="2in" height="1in"', 'width="64pt" height="32pt"', 'width="2cm" height="1cm"', 'width="2pc" height="1pc"',
                       'width="100%" height="100%"', 'width="50%" height="7%"', 'width="64"', 'height="32"', 'width="7"', 'height="7mm"', 'width="100%"', 'width="64" height="100%"',
                       'width="100%" height="5"', 'width="+64" height="3.2e1"', 'width=" 64 " height="&#10;32&#9;"', 'width="64.0006" height="32"', 'width="64" height="32.0003"',
-                      'width="63.9994" height="32"', 'width="375" height="187.4999955"', 'width="1e9" height="5e8"', 'width="0.0001" height="0.00005"'):
+                      'width="63.9994" height="32"', 'width="375" height="187.4999955"', 'width="1e9" height="5e8"', 'width="0.0001" height="0.00005"',
+                      # the units a letter's size is measured in: `1em` by `1em` is the commonest size of an icon export
+                      'width="2em" height="1em"', 'width="1ex" height=".5ex"', 'width="1em"', 'height="3ex"', 'width="2em" height="100%"', 'width="100%" height="1ex"',
+                      # sizes a tool has rounded apart from its viewBox, up to one part in a hundred either way
+                      'width="64.1" height="32"', 'width="64" height="32.1"', 'width="64.63" height="32"', 'width="63.37" height="32"', 'width="64" height="32.31"',
+                      'width="64" height="31.69"', 'width="283.46px" height="141.6px"', 'width="64.63mm" height="32mm"', 'width="2.019em" height="1em"'):
             with self.subTest(attrs=attrs):
                 clean = _svg.clean_svg((self.DOC % ('viewBox="0 0 64 32" ' + attrs)).encode())
                 self.assertIn('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 32">', clean.text)
@@ -1524,26 +1819,35 @@ class TheOuterSize(Line):
     def test_a_width_and_a_height_of_another_shape_than_the_view_box_are_refused_by_name(self):
         # The cleaned file keeps the viewBox alone. Measured 2026-10-12: an svg of 40 by 20 round a viewBox of 10 by 20
         # is drawn at half the size the cleaned file is, and with preserveAspectRatio="none" it is stretched.
-        for attrs in ('width="64" height="64"', 'width="32" height="64"', 'width="64" height="33"', 'width="64" height="32.1"', 'width="64.1" height="32"', 'width="1" height="1000"',
-                      'width="64.001" height="32"', 'width="64" height="32.0005"', 'width="63.999" height="32"',   # a part in a hundred thousand is the line
-                      'width="64px" height="64px"', 'width="64mm" height="64mm"', 'width="64" height="64" preserveAspectRatio="none"',
-                      'width="640" height="32" preserveAspectRatio="xMinYMin slice"',
-                      # in two units the two are one shape to a browser and another to a renderer that reads an inch its own way
-                      'width="2in" height="96px"', 'width="64mm" height="32pt"', 'width="64" height="32mm"', 'width="64pt" height="32"'):
+        for attrs in ('width="64" height="64"', 'width="32" height="64"', 'width="64" height="33"', 'width="64" height="32.4"', 'width="65" height="32"', 'width="1" height="1000"',
+                      'width="64.65" height="32"', 'width="64" height="32.33"', 'width="63.35" height="32"', 'width="64" height="31.67"',   # a part in a hundred is the line
+                      'width="64px" height="64px"', 'width="64mm" height="64mm"', 'width="64" height="64" preserveAspectRatio="none"', 'width="1em" height="1em"',
+                      'width="640" height="32" preserveAspectRatio="xMinYMin slice"', 'width="2.03em" height="1em"'):
             with self.subTest(attrs=attrs):
                 err = refused(self, (self.DOC % ('viewBox="0 0 64 32" ' + attrs)).encode(), "root-size")
-                for word in ("viewBox", "width", "height", "Ask the tool"):
+                for word in ("viewBox", "width", "height", "one shape", "Ask the tool"):
                     self.assertIn(word, str(err))
-        for attrs in ('width="0" height="32"', 'width="64" height="0"', 'width="0"', 'height="0.0"', 'width="0e5" height="0"', 'width="0px"', 'height="0mm"'):
+        # in two units the two are one shape to a browser and another to a renderer that reads an inch, or a letter's size, its own way
+        for attrs in ('width="2in" height="96px"', 'width="64mm" height="32pt"', 'width="64" height="32mm"', 'width="64pt" height="32"', 'width="2em" height="16px"', 'width="64" height="2em"',
+                      'width="2em" height="1ex"', 'width="64px" height="32pt"'):
+            with self.subTest(attrs=attrs):
+                err = refused(self, (self.DOC % ('viewBox="0 0 64 32" ' + attrs)).encode(), "root-size")
+                for word in ("viewBox", "width", "height", "two different units", "Ask the tool"):
+                    self.assertIn(word, str(err))
+        # a size of nothing, whatever its unit: `0%` was accepted and left out, and a browser draws nothing for it
+        for attrs in ('width="0" height="32"', 'width="64" height="0"', 'width="0"', 'height="0.0"', 'width="0e5" height="0"', 'width="0px"', 'height="0mm"',
+                      'width="0%"', 'height="0%"', 'width="0%" height="0%"', 'width="0.0%" height="32"', 'width="64" height="0e0%"', 'width="100%" height="+0%"', 'width="0em"',
+                      'height="0ex"', 'width=" 0% "'):
             with self.subTest(attrs=attrs):
                 self.assertIn("nothing", str(refused(self, (self.DOC % ('viewBox="0 0 64 32" ' + attrs)).encode(), "root-size")))
 
     def test_what_is_no_width_or_height_of_the_outer_svg(self):
         for value, code in (("", "bad-value"), ("auto", "bad-value"), ("64.", "bad-value"), ("64 px", "bad-value"), ("64PX", "bad-value"), ("64MM", "bad-value"), ("6e100", "bad-value"),
                             ("64,", "bad-value"), ("64 32", "bad-value"), ("\u0666\u0664", "bad-value"), ("64\u00a0", "bad-value"), ("100 %", "bad-value"), ("%", "bad-value"),
-                            ("64em", "length-unit"), ("64ex", "length-unit"), ("64rem", "length-unit"), ("64vw", "length-unit"), ("64vh", "length-unit"), ("64ch", "length-unit"),
-                            ("-64", "negative-size"), ("-64mm", "negative-size"), ("-100%", "negative-size"), ("-0", "negative-size"),
-                            ("0" * 64 + "9", "value-too-long"), ("1e10", "value-too-long"), ("9e99mm", "value-too-long")):
+                            ("64rem", "length-unit"), ("64vw", "length-unit"), ("64vh", "length-unit"), ("64ch", "length-unit"), ("64Q", "length-unit"),
+                            ("-64", "negative-size"), ("-64mm", "negative-size"), ("-100%", "negative-size"), ("-0", "negative-size"), ("-1em", "negative-size"), ("-0%", "negative-size"),
+                            ("0" * 64 + "9", "value-too-long"), ("1e10", "value-too-long"), ("9e99mm", "value-too-long"),
+                            ("0" * 62 + "9mm", "value-too-long"), ("0" * 63 + "9%", "value-too-long"), ("0" * 62 + "9em", "value-too-long")):
             for doc in (self.DOC % ('viewBox="0 0 64 32" width="%s"' % value), self.DOC % ('viewBox="0 0 64 32" height="%s"' % value), self.DOC % ('width="%s" height="32"' % value)):
                 with self.subTest(value=ascii(value), doc=doc[40:80]):
                     refused(self, doc.encode("utf-8"), code)
@@ -1554,7 +1858,8 @@ class TheOuterSize(Line):
             with self.subTest(attrs=attrs):
                 self.assertIn('viewBox="%s"' % box, _svg.clean_svg((self.DOC % attrs).encode()).text)
         for attrs in ("", 'width="64"', 'height="32"', 'width="100%" height="100%"', 'width="64" height="50%"', 'width="64mm" height="32mm"', 'width="2in" height="1in"',
-                      'width="64pt" height="32pt"', 'width="2cm" height="1cm"', 'width="2pc" height="1pc"', 'width="64" height="32mm"', 'width="0" height="32"', 'width="64" height="0"'):
+                      'width="64pt" height="32pt"', 'width="2cm" height="1cm"', 'width="2pc" height="1pc"', 'width="64" height="32mm"', 'width="0" height="32"', 'width="64" height="0"',
+                      'width="2em" height="1em"', 'width="2ex" height="1ex"', 'width="1em"', 'width="64" height="1em"', 'width="0%" height="0%"'):
             with self.subTest(attrs=attrs):
                 refused(self, (self.DOC % attrs).encode(), "no-size")
 
@@ -1607,6 +1912,26 @@ class TheGrammarIsTheTable(unittest.TestCase):
         self.assertFalse(kept & _svg.PROPS_DROP)
         self.assertNotIn("pathLength", kept)
 
+    def test_a_kept_name_without_a_line_is_a_refusal_by_name_never_a_crash(self):
+        # every name has its line today (the test above); should a name ever be kept without one, the file is refused
+        # with a sentence, where it once would have ended in a KeyError
+        for name in ("no-such-name", "x-new", ""):
+            with self.assertRaises(_svg.Refusal) as cm:
+                _svg._validate(name, "5")
+            self.assertEqual(cm.exception.code, "no-grammar")
+        for name in ("stroke-linecap", "x", "points", "clipPathUnits", "viewBox"):
+            line = _svg.GRAMMAR.pop(name)
+            root_line = _svg.ROOT_GRAMMAR.pop(name)
+            try:
+                doc = (svg('<clipPath id="c" clipPathUnits="userSpaceOnUse"><polygon points="1 2 3 4" x="1" stroke-linecap="round"/></clipPath>') if name != "stroke-linecap"
+                       else svg("<style>.unused{stroke-linecap:round}</style>"))
+                err = refused(self, doc, "no-grammar")
+                self.assertIn(name, str(err))
+                self.assertIn("Ask the tool", str(err))
+            finally:
+                _svg.GRAMMAR[name], _svg.ROOT_GRAMMAR[name] = line, root_line
+        self.assertEqual(_svg.clean_svg(svg("<style>.unused{stroke-linecap:round}</style>")).colours, ["#b4531a"])
+
     def test_a_line_answers_none_or_why_not_and_nothing_else(self):
         for name, line in sorted(_svg.GRAMMAR.items()):
             for value in ("", "5", "-5", "5px", "5mm", "50%", "none", "auto", "a", "url(#a)", "0 0 9 9", "translate(1)", "M0 0", "x" * 300, "1 " * 5000, "9e99", "\u00a0"):
@@ -1634,6 +1959,225 @@ class TheGrammarIsTheTable(unittest.TestCase):
                         self.assertEqual(_svg._validate(name, value), value)
 
 
+class HowFarADrawingReaches(unittest.TestCase):
+    """A number that places or sizes a shape is no further from zero than the box's own farthest edge and a hundred
+    times its larger side beyond it. Until 2026-10-13 it could be a thousand million: such a file was drawn by the
+    site's renderer one way in a small icon and another in a large one, and slowly."""
+
+    def doc(self, inner, box='viewBox="0 0 10 10"'):
+        return ('<svg %s %s>%s<path fill="#111111" d="M0 0h1v1z"/></svg>' % (NS, box, inner)).encode()
+
+    def near_and_far(self, shape, near, far, box='viewBox="0 0 10 10"', name=None):
+        with self.subTest(shape=shape, near=near):
+            _svg.clean_svg(self.doc(shape % near, box))
+        with self.subTest(shape=shape, far=far):
+            err = refused(self, self.doc(shape % far, box), "too-far")
+            for word in ("far outside", "Ask the tool") + ((name,) if name else ()):
+                self.assertIn(word, str(err))
+
+    def test_every_number_that_places_or_sizes_a_shape_is_held_both_ways(self):
+        # the box is 10 by 10 from 0: 100 times 10, beyond its far edge at 10
+        shapes = {"x": '<rect x="%s" width="4" height="4"/>', "y": '<rect y="%s" width="4" height="4"/>', "width": '<rect width="%s" height="4"/>', "height": '<rect width="4" height="%s"/>',
+                  "rx": '<rect width="4" height="4" rx="%s"/>', "ry": '<rect width="4" height="4" ry="%s"/>', "cx": '<circle cx="%s" r="3"/>', "cy": '<circle cy="%s" r="3"/>',
+                  "r": '<circle r="%s"/>', "x1": '<line x1="%s" stroke="#111111"/>', "y1": '<line y1="%s" stroke="#111111"/>', "x2": '<line x2="%s" stroke="#111111"/>',
+                  "y2": '<line y2="%s" stroke="#111111"/>'}
+        for name, shape in shapes.items():
+            for near, far in (("1010", "1011"), ("1010.0", "1010.5"), ("1.01e3", "1.011e3"), ("1010px", "1011px"), ("+1010", "+1e9"), ("5", "1e4")):
+                self.near_and_far(shape, near, far, name=name)
+            if name not in ("r", "rx", "ry"):
+                self.near_and_far(shape, "10100%", "10101%", name=name)   # a share of the box: 101 times 10
+            if name not in ("width", "height", "r", "rx", "ry"):
+                for near, far in (("-1010", "-1011"), ("-1010px", "-1010.01px"), ("-10100%", "-10110%")):
+                    self.near_and_far(shape, near, far, name=name)
+        for shape in ('<rect rx="%s" ry="auto" width="4" height="4"/>', '<ellipse rx="%s" ry="2"/>', '<ellipse rx="2" ry="%s"/>'):
+            self.near_and_far(shape, "1010", "1011")
+        for shape, name in (('<polygon points="0 0 %s 0 5 5"/>', "points"), ('<polyline points="0,0 5,%s" stroke="#111111"/>', "points"), ('<polygon points="%s-5.5,.5 9 9 9"/>', "points")):
+            for near, far in (("1010", "1011"), ("-1010", "-1011"), ("1.01e3", "1.011e3"), ("0", "1e9")):
+                self.near_and_far(shape, near, far, name=name)
+        for name, shape in (("stroke-width", '<rect stroke="#111111" stroke-width="%s" width="4" height="4"/>'), ("stroke-width", '<rect stroke="#111111" style="stroke-width:%s" width="4" height="4"/>'),
+                            ("stroke-width", '<style>rect{stroke-width:%s}</style><rect stroke="#111111" width="4" height="4"/>'), ("stroke-width", '<g stroke-width="%s"><rect width="4" height="4"/></g>'),
+                            ("stroke-dashoffset", '<rect stroke-dashoffset="%s" width="4" height="4"/>'), ("stroke-dashoffset", '<rect style="stroke-dashoffset:%s" width="4" height="4"/>'),
+                            ("stroke-dashoffset", '<style>*{stroke-dashoffset:%s}</style><rect width="4" height="4"/>')):
+            self.near_and_far(shape, "1010", "1011", name=name)
+            self.near_and_far(shape, "1010px", "1e9", name=name)
+        self.near_and_far('<rect stroke-dashoffset="%s" width="4" height="4"/>', "-1010", "-1011", name="stroke-dashoffset")
+        self.near_and_far('<path fill="#111111" d="M0 0h9v9z" stroke-width="%s"/>', "1010", "1011", box='viewBox="0 0 10 10" stroke="#111111"')
+        # a value no element ends up with is not written, and so is not held: the rule's other value is
+        _svg.clean_svg(self.doc('<style>.unused{stroke-width:1e9} rect{stroke-width:1e9}</style><rect style="stroke-width:2" stroke="#111111" width="4" height="4"/>'))
+        # and what neither places nor sizes anything is not held to the box at all
+        for inner in ('<path d="M1 9L5 2L9 9" fill="none" stroke="#111111" stroke-miterlimit="1e9"/>', '<line x2="9" stroke="#111111" stroke-dasharray="1e9"/>',
+                      '<rect width="4" height="4" opacity="1.0"/>', '<g transform="scale(1e-9)"/>'):
+            with self.subTest(inner=inner):
+                _svg.clean_svg(self.doc(inner))
+
+    def test_path_data_is_held_by_its_numbers_and_an_arcs_flags_are_no_numbers(self):
+        path = '<path fill="#111111" d="%s"/>'
+        for near, far in (("M0 0H1010", "M0 0H1011"), ("M0 0L1010-1010", "M0 0L1010-1011"), ("M-1010 0h9", "M-1011 0h9"), ("m0 0l1010 0 0 1010z", "m0 0l1010 0 0 1010.5z"),
+                          ("M0,0C1,2,3,4,5,1010", "M0,0C1,2,3,4,5,1011"), ("M0 0Q5 5 1.01e3 0", "M0 0Q5 5 1.011e3 0"), ("M0 0h1010.", "M0 0h1011."), ("M0 0h.101e4", "M0 0h.1011e4"),
+                          ("M0 0h1e3", "M0 0h1e4"), ("M0 0h1E+3", "M0 0h1E+4"), ("M0 0h10e2", "M0 0h1e9"), ("M0 0h101e1", "M0 0h1e300"), ("M0 0h1e-300", "M0 0h1e999"),
+                          ("M0 0T5 5T9 1010", "M0 0T5 5T9 -1011"), ("M0 0S1 2 3 1010", "M0 0s1 2 3 1011"), ("M0 0V1010", "M0 0v1011"),
+                          # an arc: rx ry turn, two flags of one digit each, then where it ends
+                          ("M0 0A1010 1010 0 0 1 9 9", "M0 0A1011 5 0 0 1 9 9"), ("M0 0a5 5 0 1 1 1010 0", "M0 0a5 5 0 1 1 1011 0"), ("M0 0a5 5 1010 1 1 9 0", "M0 0a5 5 1011 1 1 9 0"),
+                          # written without blanks, the flags run into the number: `111000` is a 1, a 1 and 1000, not 111,000
+                          ("M0 0a5 5 0 111000 0", "M0 0a5 5 0 111011 0"), ("M0 0a5 5 0 011010 0", "M0 0a5 5 0 011011 0"), ("M0 0a5 5 0 1 11010 0", "M0 0a5 5 0 1 11011 0"),
+                          ("M0 0a5 5 0 1,1,1010,0", "M0 0a5 5 0 1,1,1011,0"), ("M0 0a5 5 0 00.5 9", "M0 0a5 5 0 001011 9"), ("M0 0A5 5 0 111000 0 5 5 0 001010 9", "M0 0A5 5 0 111000 0 5 5 0 001011 9"),
+                          ("M0 0a5 5 0 119-1010", "M0 0a5 5 0 119-1011"), ("M0 0a5 5 0 11-1010 9", "M0 0a5 5 0 11-1011 9"), ("M0 0a5 5 0 11.5 1010", "M0 0a5 5 0 111011.5 9")):
+            self.near_and_far(path, near, far, name="d")
+        # a real export, written the short way: a ring 100 across in a box of 100, whose arcs end `1 1 100 0`
+        ring = '<svg %s viewBox="0 0 100 100"><path fill="#111111" d="M0 50a50 50 0 11100 0a50 50 0 11-100 0z"/></svg>' % NS
+        self.assertEqual(_svg.clean_svg(ring.encode()).colours, ["#111111"])
+        self.assertEqual(_svg._path_numbers("M0 50a50 50 0 11100 0a50 50 0 11-100 0z"), ["0", "50", "50", "50", "0", "100", "0", "50", "50", "0", "-100", "0"])
+        self.assertEqual(_svg._path_numbers("M1-2.5.5e1L3,4 5 6zA1 2 3 0 1 4 5 6 7 8 109 10"), ["1", "-2.5", ".5e1", "3", "4", "5", "6", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])
+        self.assertEqual(_svg._path_numbers(""), [])
+        # however long the path is, its numbers are found in one pass
+        long = [self.doc(path % ("M0 0" + "h1" * 60000)), self.doc(path % ("M0 0" + " 1" * 90000 + " 1011")), self.doc(path % ("M0 0" + "a1 1 0 111 1" * 15000)),
+                self.doc(path % ("M0 0" + "e" * 150000)), self.doc(path % ("M0 0" + "." * 150000)), self.doc(path % ("M0 0" + "-" * 150000)), self.doc(path % ("M" + "1e" * 90000))]
+        self.assertEqual([out["code"] for out in judged(self, long)], ["ok", "too-far", "ok", "ok", "ok", "ok", "ok"])
+
+    def test_a_transform_is_held_by_what_it_moves_and_scales_by_and_not_by_its_angles(self):
+        moved = '<g transform="%s"><rect width="4" height="4"/></g>'
+        for near, far in (("translate(1010)", "translate(1011)"), ("translate(0 -1010)", "translate(0 -1011)"), ("translate(5,5) translate(-1010)", "translate(5,5) translate(-1011)"),
+                          ("scale(1010)", "scale(1011)"), ("scale(1 -1010)", "scale(1 -1011)"), ("matrix(1 0 0 1 1010 -1010)", "matrix(1 0 0 1 0 1011)"),
+                          ("matrix(1010 0 0 1 0 0)", "matrix(1 1011 0 1 0 0)"), ("rotate(45 1010 0)", "rotate(45 1011 0)"), ("rotate(45,0,-1010)", "rotate(45,0,-1011)"),
+                          ("rotate(100000)", "rotate(100000 0 1e9)"), ("rotate(1e9) skewX(5000) skewY(-1e9)", "rotate(1e9) skewX(5000) skewY(-1e9) translate (1011)"),
+                          ("translate (1010)", "scale  (1011)")):
+            self.near_and_far(moved, near, far, name="transform")
+        self.near_and_far('<rect transform="%s" width="4" height="4"/>', "translate(1010)", "translate(1e9)", name="transform")
+        self.near_and_far('<clipPath id="c" transform="%s"><rect width="4" height="4"/></clipPath>', "translate(1010)", "translate(1011)", name="transform")
+
+    def test_the_bound_is_counted_from_the_box_wherever_and_however_large_the_box_is(self):
+        rect = '<rect x="%s" width="4" height="4"/>'
+        # an icon cut out of a large sheet keeps its place on the sheet: its numbers are far from zero and inside its box
+        self.near_and_far(rect, "6010", "6011", box='viewBox="5000 -5000 10 10"')
+        self.near_and_far(rect, "-5010", "-6011", box='viewBox="5000 -5000 10 10"')
+        self.near_and_far('<path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v%sZ"/>', "360", "98000", box='viewBox="0 -960 960 960"')
+        self.near_and_far('<rect x="%s" width=".004" height=".004"/>', "2.02", "2.03", box='viewBox="0 0 0.01 0.02"')
+        self.near_and_far(rect, "4040", "4041", box='width="40" height="30"')
+        self.near_and_far(rect, "101000000", "101000001", box='viewBox="0 0 1e6 1e6"')
+        self.near_and_far(rect, "2020", "2021", box='viewBox="0 0 20 1"')
+        self.near_and_far(rect, "10100%", "10101%", box='viewBox="0 0 100 100" width="1em" height="1em"')   # a share of the box's 100: 100 times it beyond the far edge
+        # in the smallest box there is, a turn is still a turn
+        _svg.clean_svg(self.doc('<g transform="rotate(180) skewX(45)"><rect width=".004" height=".004"/></g>', 'viewBox="0 0 0.01 0.01"').replace(b"M0 0h1v1z", b"M0 0h.01v.01z"))
+
+    def test_the_refusal_says_what_was_found_and_how_large_the_box_is(self):
+        err = refused(self, self.doc('<circle cx="5" cy="5" r="80000"/>'), "too-far")
+        for word in ("r holds '80000'", "the box is 10 by 10", "nothing outside its frame"):
+            self.assertIn(word, str(err))
+        err = refused(self, self.doc('<path d="M0 0L5 5 123456 7"/>', 'viewBox="0 0 24 12"'), "too-far")
+        for word in ("d holds the number 123456", "the box is 24 by 12"):
+            self.assertIn(word, str(err))
+        # through the door the intake uses, as a file and inside a package
+        doc = self.doc('<circle cx="5" cy="5" r="80000"/>')
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "too-far").code, "too-far")
+        self.assertEqual(refused(self, _input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour, "too-far").code, "too-far")
+
+
+class Dashes(unittest.TestCase):
+    """A dashed outline costs the renderer one step for every dash and gap. Measured 2026-10-13 (processor time for one
+    icon): a zigzag of 25 KB inside its own box, with dashes a thousandth of the box long, 10 seconds; one of 3.6 KB
+    that ran a hundred boxes out and back, 33. So no dash is smaller than a thousandth of the box, a dashed outline
+    stands on a shape whose length this check can tell from its numbers (not on a <path>), and all the dashed
+    outlines of a file together are cut into no more than 100,000 dashes and gaps."""
+
+    LINE = '<line x2="9" stroke="#111111" %s/>'
+
+    def doc(self, inner, box="0 0 10 10", root=""):
+        return ('<svg %s viewBox="%s" %s>%s<path fill="#111111" d="M0 0h1v1z"/></svg>' % (NS, box, root, inner)).encode()
+
+    def test_no_dash_or_gap_is_smaller_than_a_thousandth_of_the_box_unless_it_is_nothing(self):
+        for value in ("0.0099", "0.01 0.0099", "0.0099 5", "5 5 5 0.009", "0 0.0099", "1e-9", "1e-99", ".00999", "9.9e-3", "5,0.001", "0.005 0", "5 5 1e-3"):
+            for inner in (self.LINE % ('stroke-dasharray="%s"' % value), self.LINE % ('style="stroke-dasharray:%s"' % value), "<style>line{stroke-dasharray:%s}</style>" % value + self.LINE % "",
+                          '<g stroke-dasharray="%s">%s</g>' % (value, self.LINE % ""), '<g stroke-dasharray="%s"/>' % value, '<rect stroke-dasharray="%s" width="4" height="4"/>' % value,
+                          '<clipPath id="c" stroke-dasharray="%s"/>' % value):
+                with self.subTest(value=value, inner=inner[:40]):
+                    err = refused(self, self.doc(inner), "dash-too-small")
+                    for word in ("too small to see", "stroke-dasharray", "10 across", "Ask the tool"):
+                        self.assertIn(word, str(err))
+            with self.subTest(value=value, where="the outer svg"):
+                refused(self, self.doc(self.LINE % "", root='stroke-dasharray="%s"' % value), "dash-too-small")
+        for value, written in (("0.01", "0.01"), ("0.01 0.01", "0.01 0.01"), ("1e-2", "1e-2"), (".01,5", ".01 5"), ("0 0.01", "0 0.01"), ("0.01 0", "0.01 0"), ("5 0 5", "5 0 5"),
+                               ("0", "0"), ("0 0", "0 0"), ("0.0 0e0 .0", "0.0 0e0 .0"), ("none", "none"), ("3 1", "3 1"), ("1e9", "1e9")):
+            with self.subTest(value=value):
+                self.assertIn('stroke-dasharray="%s"' % written, _svg.clean_svg(self.doc(self.LINE % ('stroke-dasharray="%s"' % value))).text)
+        # the box sets the line: a dash of 1 is a thousandth of a box 1,000 across, and one of 0.5 is not
+        for box, near, far in (("0 0 1000 1000", "1", "0.999"), ("0 0 1000 50", "1 1", "1 .5"), ("0 0 0.01 0.02", "0.00002", "0.000019"), ("-5 -5 24 24", "0.024", "0.0239"),
+                               ("0 0 1e6 1e6", "1000", "999")):
+            with self.subTest(box=box):
+                _svg.clean_svg(self.doc(self.LINE.replace("9", ".005") % ('stroke-dasharray="%s"' % near), box).replace(b"M0 0h1v1z", b"M0 0h.01v.01z"))
+                refused(self, self.doc(self.LINE.replace("9", ".005") % ('stroke-dasharray="%s"' % far), box).replace(b"M0 0h1v1z", b"M0 0h.01v.01z"), "dash-too-small")
+        # a rule no element ends up with is not written, and so is not held
+        _svg.clean_svg(self.doc("<style>.unused{stroke-dasharray:1e-9}</style>" + self.LINE % ""))
+
+    def test_a_dashed_outline_stands_on_a_shape_whose_length_the_numbers_tell(self):
+        path = '<path d="M0 5H9" %s/>'
+        for inner in (path % 'stroke="#111111" stroke-dasharray="3 1"', path % 'style="stroke:#111111;stroke-dasharray:3 1"', "<style>path{stroke:#111111;stroke-dasharray:3,1}</style>" + path % "",
+                      '<g stroke-dasharray="3 1">%s</g>' % (path % 'stroke="#111111"'), '<g stroke="#111111">%s</g>' % (path % 'stroke-dasharray="3"'),
+                      '<g stroke="#111111" stroke-dasharray="3 1"><g><g>%s</g></g></g>' % (path % ""), '<g stroke-dasharray="none"><g stroke-dasharray="0 3">%s</g></g>' % (path % 'stroke="red"'),
+                      '<clipPath id="c">%s</clipPath>' % (path % 'stroke="#111111" stroke-dasharray="3 1"'), path % 'stroke="#111111" stroke-width="0" stroke-dasharray="3 1"',
+                      path % 'stroke="currentColor" color="#111111" stroke-dasharray="3 1"', "<style>*{stroke-dasharray:1}</style>" + path % 'stroke="#111111"'):
+            with self.subTest(inner=inner[:70]):
+                err = refused(self, self.doc(inner), "dashed-path")
+                for word in ("<path>", "dashed outline", "turn the dashed outline into shapes"):
+                    self.assertIn(word, str(err))
+        with self.subTest(where="the outer svg"):
+            refused(self, self.doc("", root='stroke="#111111" stroke-dasharray="3 1"'), "dashed-path")
+            refused(self, self.doc(path % "", root='style="stroke:#111111;stroke-dasharray:3 1"').replace(b'<path fill="#111111" d="M0 0h1v1z"/>', b""), "dashed-path")
+        # a path that paints no outline, or whose dashes are none after all, is no dashed outline
+        for inner in (path % 'stroke-dasharray="3 1" fill="#111111"', '<g stroke-dasharray="3 1">%s</g>' % (path % 'fill="#111111"'), path % 'stroke="#111111" stroke-dasharray="none"',
+                      path % 'stroke="#111111" stroke-dasharray="0 0"', path % 'stroke="#111111" stroke-dasharray="0"', path % 'stroke="none" stroke-dasharray="3 1"',
+                      '<g stroke="#111111" stroke-dasharray="3 1">%s</g>' % (path % 'stroke="none"'), '<g stroke="#111111" stroke-dasharray="3 1">%s</g>' % (path % 'stroke-dasharray="none"'),
+                      '<g stroke="#111111" stroke-dasharray="3 1">%s</g>' % (path % 'style="stroke-dasharray:0 0 0"'), "<style>path{stroke-dasharray:none}</style>" + path % 'stroke="#111111" stroke-dasharray="3 1"'):
+            with self.subTest(inner=inner[:70]):
+                _svg.clean_svg(self.doc(inner))
+        # and on every other shape a dashed outline is kept
+        for shape in ('<line x2="9" y2="9" %s/>', '<rect width="8" height="8" rx="2" %s/>', '<circle cx="5" cy="5" r="4" %s/>', '<ellipse cx="5" cy="5" rx="4" ry="2" %s/>',
+                      '<polyline points="1 1 9 1 5 9" %s/>', '<polygon points="1,1 9,1 5,9" %s/>'):
+            for attrs in ('stroke="#111111" stroke-dasharray="3 1"', 'style="stroke:#111111;stroke-dasharray:0 2"', 'stroke="#111111" stroke-dasharray="1" stroke-dashoffset="-.5"'):
+                with self.subTest(shape=shape, attrs=attrs):
+                    self.assertIn("stroke-dasharray=", _svg.clean_svg(self.doc(shape % attrs)).text)
+            self.assertIn('stroke-dasharray="3 1"', _svg.clean_svg(self.doc('<g stroke="#111111" stroke-dasharray="3,1">%s</g>' % (shape % ""))).text)
+
+    def test_all_the_dashed_outlines_of_a_file_together_are_cut_into_no_more_than_the_budget(self):
+        self.assertEqual(_svg.MAX_DASH_PIECES, 100000)
+        dashed = 'stroke="#111111" stroke-dasharray="%s"'
+        # with dashes and gaps of 0.01, an outline is cut into 100 for each unit of its length: 1,000 units are the budget
+        for near, far in (('<line x2="1000" %s/>', '<line x2="1000.1" %s/>'), ('<line x1="-250" y1="250" x2="250" y2="-250" %s/>', '<line x1="-250" y1="250" x2="250" y2="-251" %s/>'),
+                          ('<rect width="250" height="250" %s/>', '<rect width="250" height="250.1" %s/>'), ('<rect x="900" y="-900" width="499" height="1" %s/>', '<rect x="900" y="-900" width="501" height="1" %s/>'),
+                          ('<rect width="2500%" height="2500%" %s/>', '<rect width="2500%" height="2501%" %s/>'), ('<rect width="250px" height="250px" rx="5" %s/>', '<rect width="251px" height="250px" rx="5" %s/>'),
+                          ('<circle r="159" %s/>', '<circle r="160" %s/>'), ('<ellipse rx="159" ry="1" %s/>', '<ellipse rx="1" ry="160" %s/>'), ('<ellipse rx="159" ry="auto" %s/>', '<ellipse rx="auto" ry="160" %s/>'),
+                          ('<polyline points="0 0 500 0" %s/>', '<polyline points="0 0 500.1 0" %s/>'), ('<polygon points="0,0 250,0 250,250 0,250" %s/>', '<polygon points="0,0 250,0 250,250 0,250.1" %s/>'),
+                          ('<polygon points="-100,100 100,-100 50 50" %s/>', '<polygon points="-100,100 100,-100 50 50 -100,100 100,-100" %s/>'),
+                          ('<line x2="10" %s/>' * 100, '<line x2="10" %s/>' * 101), ('<circle r="1" %s/>' * 159, '<circle r="1" %s/>' * 160),
+                          ('<line x2="500" %s/><rect width="125" height="125" %s/>', '<line x2="500" %s/><rect width="125" height="126" %s/>')):
+            with self.subTest(near=near[:50]):
+                _svg.clean_svg(self.doc(near.replace("%s", dashed % "0.01")))
+                err = refused(self, self.doc(far.replace("%s", dashed % "0.01")), "too-many-dashes")
+                for word in ("100,000", "dashed outlines", "Ask the tool"):
+                    self.assertIn(word, str(err))
+        # a list is counted by its dashes and gaps as they come round: `0.02 0.01 0.03` is three in 0.06 units, 500 in a line of 10
+        for dashes, near, far in (("0.01 0.01", 100, 101), ("0.01", 100, 101), ("0 0.02", 100, 101), ("0.02 0.01 0.03", 200, 201), ("0.05", 500, 501), ("0.02,0.03", 250, 251),
+                                  ("0.01 0.01 0.01 0.01", 100, 101), ("5", 4900, None), ("0 0", 4900, None), ("none", 4900, None)):
+            with self.subTest(dashes=dashes):
+                _svg.clean_svg(self.doc('<line x2="10" %s/>' % (dashed % dashes) * near))
+                if far:
+                    refused(self, self.doc('<line x2="10" %s/>' % (dashed % dashes) * far), "too-many-dashes")
+        # however the dash list reaches the shapes, and only where an outline is painted
+        for inner, code in (('<g %s>%s</g>' % (dashed % "0.01", '<line x2="10"/>' * 101), "too-many-dashes"), ('<g %s>%s</g>' % (dashed % "0.01", '<line x2="10"/>' * 100), None),
+                            ("<style>line{stroke:#111111;stroke-dasharray:0.01}</style>" + '<line x2="10"/>' * 101, "too-many-dashes"),
+                            ('<g stroke-dasharray="0.01">%s</g>' % ('<line x2="10"/>' * 300), None), ('<g %s>%s</g>' % (dashed % "0.01", '<line stroke="none" x2="1000"/>' * 300), None),
+                            ('<g %s>%s</g>' % (dashed % "0.01", '<line stroke-dasharray="none" x2="1000"/>' * 300), None), ('<g %s>%s</g>' % (dashed % "0.01", '<g/>' * 300), None),
+                            ('<g %s>%s</g>' % (dashed % "0.01", '<line stroke-dasharray="0" x2="1000"/><line stroke-dasharray="1" x2="1000"/>' * 5), None)):
+            with self.subTest(inner=inner[:60]):
+                if code:
+                    refused(self, self.doc(inner), code)
+                else:
+                    _svg.clean_svg(self.doc(inner))
+        # through the door the intake uses
+        doc = self.doc('<circle r="160" %s/>' % (dashed % "0.01"))
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "too-many-dashes").code, "too-many-dashes")
+        self.assertEqual(refused(self, _input.mark(_input.load(self.doc('<path d="M0 5H9" %s/>' % (dashed % "1")))).colour, "dashed-path").code, "dashed-path")
+
+
 class WrittenOut(unittest.TestCase):
     """The cleaned text is never larger than a file that may come in. One rule's value is checked once and then written
     onto every element the rule applies to: before 2026-10-12 a file of 228 KB was installed as a favicon of 20 MB, and
@@ -1641,16 +2185,16 @@ class WrittenOut(unittest.TestCase):
 
     def test_a_file_whose_cleaned_text_would_be_too_large_is_refused_by_name(self):
         rule = "<style>*{fill:#111111;stroke:#222222;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:4 2;paint-order:stroke}</style>"
-        paths = '<path d="M0 0"/>' * 4990
-        small = svg(rule + paths)
+        lines = '<line x2="1"/>' * 4990
+        small = bare(rule + lines)
         self.assertLess(len(small), 90 * 1024)
         err = refused(self, small, "output-too-large")
         for word in ("far larger", "logo", "512 KB", "Ask the tool"):
             self.assertIn(word, str(err))
         # the same rule on as many elements as do fit is written out whole
-        clean = _svg.clean_svg(svg(rule + '<path d="M0 0"/>' * 2000))
+        clean = _svg.clean_svg(bare(rule + '<line x2="1"/>' * 2000))
         self.assertLessEqual(len(clean.text), _svg.MAX_OUTPUT)
-        self.assertEqual(clean.text.count("<path"), 2000 + 1)
+        self.assertEqual(clean.text.count("<line"), 2000)
 
     def test_the_cap_is_the_size_of_a_file_that_may_come_in_and_both_sides_of_it_are_held(self):
         self.assertEqual(_svg.MAX_OUTPUT, _svg.MAX_BYTES)
@@ -1713,10 +2257,11 @@ class WrittenOut(unittest.TestCase):
         rules = ["fill:#111111", "stroke:#222222", "stroke-width:2px", "stroke-dasharray:" + " ".join(["1234567.5"] * 16), "stroke-linecap:round", "stroke-linejoin:bevel",
                  "stroke-miterlimit:4", "stroke-dashoffset:-1.5", "fill-rule:evenodd", "clip-rule:evenodd", "opacity:1", "fill-opacity:1", "stroke-opacity:1", "color:#333333",
                  "display:inline", "visibility:visible", "clip-path:url(#%s)" % ("c" * 64), "shape-rendering:geometricPrecision", "paint-order:markers stroke fill"]
-        sheet = "<style>*{%s}</style>" % ";".join(rules)
+        # (the clip path every element is clipped by here is clipped by itself: one drawing before and after, whatever a program makes of it)
+        sheet = "<style>*{%s}</style><clipPath id=\"%s\"/>" % (";".join(rules), "c" * 64)
         seen = set()
         for elements in (1, 10, 100, 700, 800, 900, 1000, 1500, 4990):
-            for shape in ('<circle r="1"/>', '<path d="M0 0"/>', '<rect id="%s" width="9" height="9"/>' % ("i" * 64), '<polygon points="%s"/>' % ("1 2 " * 20)):
+            for shape in ('<circle r="1"/>', '<line x2="1"/>', '<rect id="%s" width="9" height="9"/>' % ("i" * 64), '<polygon points="%s"/>' % ("1 2 " * 20)):
                 data = bare(sheet + shape * elements)
                 if len(data) > _svg.MAX_BYTES:
                     continue

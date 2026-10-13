@@ -100,6 +100,14 @@ class ARealSite(unittest.TestCase):
         built_css = "".join(T.read(os.path.join(d, n)) for d, _s, names in os.walk(self.p("dist")) for n in names if n.endswith((".css", ".html")))
         self.assertIn(T.BAKERY_LIGHT["bg"], built_css)
         self.assertIn(T.BAKERY_DARK["bg"], built_css)
+        # what the report says it set outside the stylesheet is what the built site carries: the theme colour
+        # in the pages' heads (Astro read src/config.ts), and the manifest's two colours
+        if "src/config.ts" in data["written"]:
+            self.assertIn("src/config.ts, themeColor: #000000 becomes #b4531a", data["changes"])
+        self.assertRegex(built_css, r'<meta name="theme-color" content="#b4531a"')
+        self.assertNotRegex(built_css, r'<meta name="theme-color" content="#000000"')
+        served = json.loads(T.read(self.p("dist/manifest.webmanifest")))
+        self.assertEqual((served["theme_color"], served["background_color"]), ("#b4531a", T.BAKERY_LIGHT["bg"]))
 
     @unittest.skipUnless(os.name == "posix", "a stop from outside is a signal, and the processes are looked for with ps")
     def test_a_stop_from_outside_while_the_sites_real_tests_serve_the_build_ends_the_preview_server_too_and_puts_every_file_back(self):

@@ -17,6 +17,9 @@ EVERY caller, so that one colour has one hex whoever asks:
   - a number with more than two digits in its exponent (`255e000`, `0e309`). This is the SVG check's
     rule for a number (_svg._NUM), kept the same here so that the tool has one grammar for a number;
     inside a colour the renderer does read such a number.
+  - a number of more than 64 characters (`rgb(` and four hundred digits): the SVG check's limit for
+    one number (_svg.MAX_VALUE), for the same reason. No colour needs one, and arithmetic with it
+    has no result a screen can show.
   - a hue of more than a thousand turns either way (`hsl(1e9 100% 50%)`): the renderer works with
     less exact numbers and draws another colour for it, and black beyond what it can hold.
   - hsl() or hsla() whose saturation or lightness has no % sign: the renderer draws black.
@@ -76,8 +79,10 @@ _NAMES_TEXT = """
 NAMES = dict(w.split(":") for w in _NAMES_TEXT.split())
 
 # ASCII digits only (\d would take any script's digits), a digit after the point, and one or two digits in
-# an exponent (the top of this file says why). The same number as _svg._NUM and _paint._NUM.
+# an exponent (the top of this file says why). The same number as _svg._NUM and _paint._NUM, and the same
+# limit on its length as _svg.MAX_VALUE: tests/test_colour.py holds the two files to each other.
 _NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,2})?"
+MAX_NUMBER_CHARS = 64
 _VALUE = re.compile(r"^(%s)(%%|deg|grad|rad|turn)?$" % _NUM)
 _HEX = re.compile(r"^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 _FUNC = re.compile(r"^([a-zA-Z]+)\((.*)\)$", re.S)
@@ -117,8 +122,12 @@ def _num(token, text, allow=("", "%")):
     m = _VALUE.match(token.strip())
     if not m or (m.group(2) or "") not in allow:
         raise _unreadable(text)
-    # (with at most two digits in its exponent a number is far from the largest there is: nothing below overflows)
-    return float(m.group(1)), m.group(2) or ""
+    if len(m.group(1)) > MAX_NUMBER_CHARS:
+        raise _unreadable(text, "it holds a number of more than %d characters" % MAX_NUMBER_CHARS)
+    value = float(m.group(1))
+    if not math.isfinite(value):  # (cannot happen within the two limits above; kept so that no later sum meets an infinity)
+        raise _unreadable(text, "it holds a number too large to work with")
+    return value, m.group(2) or ""
 
 
 MAX_TURNS = 1000  # a hue further round than this is not read: the renderer's less exact numbers give another colour
@@ -188,14 +197,18 @@ def _oklch(parts, text):
     C = max(0.0, C)  # CSS Color 4: a chroma below zero is zero (a grey), not the opposite hue
     h = math.radians(_angle(parts[2], text))
     a, b = C * math.cos(h), C * math.sin(h)
-    l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
-    m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
-    s_ = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
-    lin = (
-        +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
-        -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
-        -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
-    )
+    try:
+        l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+        m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+        s_ = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
+        lin = (
+            +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+            -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+            -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+        )
+    except OverflowError:  # a lightness or a chroma too large to cube: far outside any screen
+        lin = (math.inf,) * 3
+    # (an infinity, and the not-a-number that two of them make, fail this comparison like any other colour outside)
     if not all(-_GAMUT_EPS <= c <= 1 + _GAMUT_EPS for c in lin) or not 0 <= L <= 1:
         raise Refusal(
             "colour-gamut",
@@ -209,7 +222,15 @@ def _oklch(parts, text):
 def parse_colour(text, current=None, drawn=False):
     """`text` as '#rrggbb' (lower case). `current` is what currentColor means here, if anything.
     `drawn` says the colour is a paint of a file the site's renderer draws as it came (a mark): then
-    oklch(), which that renderer does not read, is refused (see the top of this file)."""
+    oklch(), which that renderer does not read, is refused (see the top of this file). Whatever the
+    text is, this returns a colour or raises Refusal, and nothing else."""
+    try:
+        return _parse(text, current, drawn)
+    except OverflowError:  # no number the grammar lets through gets here (tests/test_colour.py tries); if one ever does, it is refused by name
+        raise _unreadable((text or "")[:40], "it holds a number too large to work with") from None
+
+
+def _parse(text, current, drawn):
     t = (text or "").strip()
     if not t:
         raise _unreadable(text or "", "it is empty")
@@ -219,7 +240,7 @@ def parse_colour(text, current=None, drawn=False):
     low = t.lower()
     if low == "currentcolor":
         if current:
-            return parse_colour(current, drawn=drawn)
+            return _parse(current, None, drawn)
         raise Refusal(
             "colour-current",
             "The mark paints with currentColor, which takes the colour of the page around it, so its colour cannot be "

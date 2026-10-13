@@ -196,7 +196,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 2 | Positioning: what you offer, for whom, market category → `POSITIONING.md` (Dunford) | **`website-positioning`** |
 | 2a | Optional: the home page as the customer's story → `STORY.md` (offered once, §2a; positioning stays the source of truth) | `website-story` |
 | 2b | Optional: colours and a logo (asked once, §2b; her choices are made here, the install waits for the green baseline of §3 step 5) | `website-brand-kit` |
-| 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` (its palette and logo come from step 2b when the owner took the help) | **`website-content-guide`** |
+| 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` (its palette and logo come from step 2b, where the owner brought or chose them) | **`website-content-guide`** |
 | 4 | Pages, clean URLs, nav, internal links | `site-architecture` |
 | 5 | Decision interview + scaffold the repo | **this skill** §1, §3 |
 | 6 | Build: mobile graphics, dark mode, theme tokens | **`website-design-system`** |

@@ -11,10 +11,10 @@ purpose; the business in the scenarios is made up.
 | 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 10 and the closing wording pass answered and handled (each round verified the one before; round 10's answers are not yet verified); the intake accepts SVG only (decision 8) | merged on main (#245, #246, #247), later rounds' answers by pull request; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
 | 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) settled at the start of the build, 2026-10-11, by the build's author as the plan left it (below); the handoff step was tried on 2026-10-11 and one trial showed how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26; rerun 2026-10-11 under the pinned Node 24.21.0 with the same numbers (one claim sharpened: the no-`viewBox` case). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
-| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 857 tests (after review round 3's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
+| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 943 tests (after review round 4's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ✅ written, not yet reviewed (row 7) | branch `feat/website-brand-kit`, commit `b75db71` |
 | 6 | Hooks into the other skills (listed under "Hooks") | ✅ written 2026-10-12, not yet reviewed (row 7): `new-website` (the intro, a step 2b row and section, the copy list now twenty-six, §3 step 4 and step 5), `README.md` (layout, the optional-skills paragraph), `website-qa` (one row), `website-design-system` (the tokens paragraph), `website-content-guide` (the `BRAND.md` line), the `BRAND.md` template (D6's rows; a test holds it to the palette prompt row for row), the count comment in `check_skill_budgets.sh`. `check_model_agnostic.sh` re-run inside `make check`: still green | branch `feat/website-brand-kit` (local) |
-| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ rounds 1 to 3 run (102, 102 and about 105 findings), fixed; round 3's fixes not yet re-verified | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
+| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ rounds 1 to 4 run (102, 102, about 105 and about 93 findings), fixed; round 4's fixes not yet re-verified | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
 | 8 | Evals, with and without the skill, as `website-story` had | ▶ five evals written (`evals/evals.json`, three fixture files); not yet run with and without the skill | branch `feat/website-brand-kit`, commit `b75db71` |
 | 9 | Release note line in 0.32 | ⏸ waits for row 7 (#212 is merged and v0.31 is out) | — |
 
@@ -667,6 +667,37 @@ known to the build's authors. Each is a judgment the maintainer may overrule.
   - The site's tests: the tool waits for the command, not for its output; a stop is SIGTERM,
     a grace of five seconds, then SIGKILL, and reaches a preview server in a session of
     its own; after a run has its outcome the stop signals stay ignored.
+- **Changed by review round 4 (2026-10-13):**
+  - The line rule for `src/config.ts` is stated in full: the opening line is
+    `export const SITE = {` (a type after the name may stand); every line from there to the
+    key's own line is a plain one-line property or a `//` comment; the name is counted as a
+    key; a line outside the block that changes the object by its name is refused. A value
+    that is already right in a block the rule would not edit is left as it is, with a note
+    that the tool did not check that the site reads it from there. The share-card generator
+    is read with Python's own parser and every binding of a colour's name is counted. The
+    manifest refuses what `JSON.parse` refuses. The tests ask Node and Python what the site
+    reads from each edited file.
+  - The stylesheet scanner refuses what could make a browser show another value than the
+    block's line says (a stray `;` before a block, a name written with a backslash,
+    brackets that do not pair up, `@property` for a colour, a default `@namespace`,
+    `!important`), and reads a `var()` only when it points at another palette variable.
+    It was compared with headless Chromium over 150,000 generated stylesheets.
+  - Palette: a heading is one to six `#` and a blank, and takes no bracketed remark but the
+    mark `(proposed)` (and Brand its `(fixed, theme-independent)`); the mark is read with
+    emphasis around it; `palette --css` ends with 2 when the two dark blocks disagree.
+  - SVG: on the outer element, beside a viewBox, a width and a height in any one unit are
+    read (`1em` by `1em`), and an id nothing refers to is dropped unchecked. Refused by
+    name: an included file (XInclude), a `title` on a style, an id used twice or a clip
+    that is no clip path, `display: inherit`, geometry more than 100 boxes outside the
+    viewBox, dashes smaller than 1/1,000 of the box or more than 100,000 of them, and a
+    dashed outline on a `<path>` (the build's author's call: the renderer took 10 to 33
+    seconds per icon on such files inside every other cap; a path walker would read them).
+  - A colours run on a site whose app icons were drawn from the one-colour version leaves
+    the icons, asks nothing, and says so in a note. The low-contrast question says whether
+    the one-colour version reaches 3 to 1 on that background.
+  - Stops: SIGQUIT is a stop like the other three; a stop can no longer leave the tool
+    waiting for ever on a Python without `os.waitid` (the tool does its own waiting, for
+    the site's tests and for the renderer, in a new module `_proc.py`).
 - **Not built:** a command that checks a logo file before a site exists. The contrast check
   on a palette is the only early check, as "Shape" says; a logo the intake will refuse
   (text, a gradient, a picture) is found out at the intake. Counter-argument: she would
