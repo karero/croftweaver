@@ -27,3 +27,5 @@ After the gate: `main` had moved to `08e1275` and the repository merges only an 
 
 `main` moved once more (`4257b23`, PR #268) while the checks ran; merged in again as `23cf35a`, no conflict, and `git diff origin/main 23cf35a` is byte-identical to `git diff 08e1275 0351b1e` (`cmp`). No re-gate.
 
+2026-10-13: the checks on `246e3a0` passed, but `main` had moved again (`a5650d8`) before the merge could happen. Merged in a third time as `d3cbf28`, no conflict; `git diff origin/main d3cbf28` is byte-identical to `git diff 4257b23 246e3a0` (`cmp`). No re-gate.
+
