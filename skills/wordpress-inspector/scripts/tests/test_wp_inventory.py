@@ -413,9 +413,32 @@ class SitemapReading(unittest.TestCase):
             site.robots += "Sitemap: %s/sitemap_index.xml\n" % site.base()
             site.extra["/sitemap_index.xml"] = (200, "text/html", page)    # the file robots.txt names
             code, data, _, report, _ = run(site.base())
+            asked = [h for h in site.hits if "sitemap" in h]
         self.assertEqual((code, data["complete"]), (1, False))
         self.assertIn("/sitemap_index.xml: a web page, not a sitemap", report)
         self.assertNotIn("only tried", report)
+        # where robots.txt names a sitemap, no usual address is tried: one address, asked once, one kind of note
+        self.assertEqual(asked, ["/sitemap_index.xml"])
+
+    def test_a_gap_note_keeps_its_end_however_long_the_address(self):
+        site = Site()
+        long_path = "/maps/" + "a" * 400 + ".xml"
+        with serve(site):
+            site.robots += "Sitemap: %s%s\n" % (site.base(), long_path)
+            site.extra[long_path] = (200, "text/html", "<urlset><url><lo")
+            code, data, _, report, _ = run(site.base())
+        self.assertEqual(code, 1)
+        self.assertIn(long_path + ": is not valid XML", report)
+        self.assertIn("a web page of a kind the XML parser cannot name); sent as text/html; not read", report)
+
+    def test_a_packed_file_that_cannot_be_unpacked_says_what_it_was_sent_as(self):
+        site = Site()
+        site.sitemaps = {}
+        site.extra["/sitemap_index.xml"] = (200, "application/x-gzip", b"\x1f\x8b" + b"not really packed")
+        with serve(site):
+            code, data, _, report, _ = run(site.base())
+        self.assertEqual(code, 1)
+        self.assertIn("/sitemap_index.xml (a usual address, only tried): cannot be unpacked; sent as application/x-gzip; not read", report)
 
     def test_a_cut_off_sitemap_is_a_gap_wherever_its_first_element_sits(self):
         # the invariant: a sitemap is read whole or it is a gap, never a quietly missing one
@@ -505,9 +528,14 @@ class SitemapReading(unittest.TestCase):
         cut = b"<urlset><url><lo"
         self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE htmlx [<!ENTITY a 'b'>]>" + cut), ("", [], refused))
         self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html-foo SYSTEM 'x'>" + cut), ("", [], refused))
-        # A file that declares itself an HTML page is one, whatever follows: the reader stops there
-        # and reads no further. No sitemap begins that way, so no cut-off sitemap is lost by it.
-        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html>" + cut), ("page", [], ""))
+        # a page's document type is read past only as far as the first element: a sitemap behind it is refused,
+        # and one that declares anything itself (an internal subset) is refused at once, page or not
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html>" + cut), ("", [], refused))
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html><sm:urlset xmlns:sm='x'><sm:url/></sm:urlset>"), ("", [], refused))
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html [<!ENTITY a 'b'>]><html><p>&a;</p></html>"), ("", [], refused))
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html [ ]><html/>"), ("", [], refused))
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html><head><title>x</title>"), ("other", [], ""))
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html>\n<!-- nothing follows -->"), ("", [], damaged))
         for name in (b"html-foo", b"html:foo", b"html.foo", b"html"):
             # PUBLIC with no system identifier: XML cannot read it, so the reader names nothing
             self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE " + name + b" PUBLIC 'x'>" + cut), ("", [], damaged))
@@ -591,7 +619,7 @@ class SitemapReading(unittest.TestCase):
             finally:
                 wi.SITEMAP_MAX_BYTES = limit
         self.assertEqual((code, data["sitemap"]["urls"]), (1, 0))
-        self.assertIn("unpacks to more than", " ".join(data["incomplete_because"]))
+        self.assertIn("unpacks to more than the limit of 0 MB; sent as application/x-gzip; not read", " ".join(data["incomplete_because"]))
 
     def test_a_sitemap_named_under_the_sites_other_spelling_is_asked_on_the_site(self):
         # robots.txt files often still say http:// (or https://) after the site changed over

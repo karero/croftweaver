@@ -533,11 +533,15 @@ def parse_sitemap(body: bytes) -> Tuple[str, List[str], str]:
         expat 2.2.8 (the Python a Mac ships with, which has no expansion guard) and 2.7.4:
         a 10-level entity bomb stops in under a millisecond, also behind white space or a
         comment, and in UTF-16 or Latin-1.
+      - One document type is read past, as far as the first element and no further: one named
+        html that declares nothing itself (no internal subset, so no entity), which is how a
+        web page opens. If <html> follows, the file is a page. If a sitemap's element
+        follows, the file is refused like any other with a document type.
       - It stops at the first element when that is neither <urlset> nor <sitemapindex>.
       - A file that ends early, or is damaged, is a problem: never a shorter sitemap.
     Addresses are the text of <loc> directly inside <url> or <sitemap>, whatever prefix the
     elements carry; image:loc and the like sit deeper and are not pages."""
-    seen = {"doctype": None, "root": None}
+    seen = {"doctype": None, "root": None, "refused": False}
     path: List[str] = []
     locs: List[str] = []
     text: List[str] = []
@@ -546,13 +550,18 @@ def parse_sitemap(body: bytes) -> Tuple[str, List[str], str]:
 
     def doctype(name, system_id, public_id, has_internal_subset):
         seen["doctype"] = name
-        raise _StopParsing
+        if has_internal_subset or name.lower() != "html":
+            seen["refused"] = True
+            raise _StopParsing
 
     def start(name, attrs):
         local = name.rsplit("}", 1)[-1]
         if seen["root"] is None:
             seen["root"] = local
             if local not in ("urlset", "sitemapindex"):
+                raise _StopParsing
+            if seen["doctype"] is not None:  # a sitemap behind a page's document type
+                seen["refused"] = True
                 raise _StopParsing
         path.append(local)
 
@@ -575,9 +584,7 @@ def parse_sitemap(body: bytes) -> Tuple[str, List[str], str]:
     try:
         parser.Parse(body, True)
     except _StopParsing:
-        if seen["doctype"] is not None:
-            if seen["doctype"].lower() == "html":
-                return "page", [], ""
+        if seen["refused"]:
             return "", [], "declares a document type, which a sitemap does not need"
         return ("page" if seen["root"].lower() == "html" else "other"), [], ""
     except (expat.ExpatError, LookupError, ValueError):  # cut off or damaged; or an encoding the parser does not know
@@ -613,21 +620,22 @@ def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent
             (absent if sm in first and resp.status in (404, 410) and not resp.note else broken).append("%s: %s" % (named(sm), problem))
             continue
         body = resp.body
+        sent_as = (resp.ctype or "").split(";")[0].strip() or "no content type"
         if body[:2] == b"\x1f\x8b":
             try:
                 with gzip.GzipFile(fileobj=io.BytesIO(body)) as gz:
                     body = gz.read(SITEMAP_MAX_BYTES + 1)
             except (OSError, EOFError):
-                broken.append("%s: cannot be unpacked" % named(sm))
+                broken.append("%s: cannot be unpacked; sent as %s; not read" % (named(sm), sent_as))
                 continue
             if len(body) > SITEMAP_MAX_BYTES:
-                broken.append("%s: unpacks to more than the limit of %d MB; not read" % (named(sm), SITEMAP_MAX_BYTES // (1024 * 1024)))
+                broken.append("%s: unpacks to more than the limit of %d MB; sent as %s; not read"
+                              % (named(sm), SITEMAP_MAX_BYTES // (1024 * 1024), sent_as))
                 continue
         # A web page or another kind of document at a start address means no sitemap lives
         # there. Anywhere else, and for anything that could not be read whole, it is a gap.
         kind, locs, why = parse_sitemap(body)
         if why or kind not in ("urlset", "sitemapindex"):
-            sent_as = (resp.ctype or "").split(";")[0].strip() or "no content type"
             if not why and sm in first:
                 absent.append("%s: %s, not a sitemap" % (named(sm), "a web page" if kind == "page" else "another kind of document"))
             else:
@@ -738,7 +746,7 @@ def inventory(start: str, delay: float, timeout: float, max_requests: int, user_
     absent: List[str] = []
     files = read_sitemaps(fetcher, named, broken, absent) if named else []
     gaps.extend(broken + absent)  # an address robots.txt names has to hold a sitemap
-    if not files:
+    if not named:  # the usual addresses are tried only where robots.txt names none: one address, one kind of note
         for guess in ("sitemap_index.xml", "wp-sitemap.xml", "sitemap.xml"):
             broken, absent = [], []
             files = read_sitemaps(fetcher, [urllib.parse.urljoin(base, guess)], broken, absent, only_tried=True)
@@ -816,7 +824,7 @@ def render(d: dict) -> str:
     else:
         add("**The count is incomplete.** Do not base an estimate on it until these are cleared:")
         add("")
-        L.extend("- %s" % md(x, 300) for x in d["incomplete_because"])
+        L.extend("- %s" % md(x, 4000) for x in d["incomplete_because"])  # an address can be long; what follows it must stay
     add("")
     add("## Content")
     add("")
