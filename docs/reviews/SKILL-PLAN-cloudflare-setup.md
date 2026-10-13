@@ -26,7 +26,7 @@ table. **Script steps** are the nine things the script does, under "Shape".
 | 1 | Requirements and scenarios (this file) | ⚠ written; the PLAN gate (High) stopped after round 3, not converging. Rounds 1 and 2 are worked in, round 3 is open. How to go on is the maintainer's decision | this file; trail: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work) | ✅ merged 2026-10-12. The script that runs its outside checks followed the same day | karero/croftweaver#266 (`7642954`); the check script: karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended"). D2 and D3 changed the same day: the script lives in the kit ("In the kit"). D1 changed twice on 2026-10-13: first to three stages with a yes for each ("Three, one per stage"), asked for with a reason round 3 showed to be false (H3); then back to two yeses ("go back to two yeses") | section "Decisions D1 to D7" |
-| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ▶ started 2026-10-13. The observations that need no token and the read-only calls are made ("Seen in the spike"); the calls that change something are next, each on the maintainer's go-ahead. The throwaway repository exists, built from the starter. The maintainer chose the domain to try on ("croftweaver.com", with a host of its own for the domain step). Waits for the token and for the GitHub app's authorization | the private repository `karero/cf-setup-spike` at `98d7742` |
+| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ▶ started 2026-10-13. The observations that need no token and the read-only calls are made ("Seen in the spike"); so are the calls on the throwaway project. Open: the domain and DNS observations (7, 10), which wait for a DNS row in the token; the settings calls (9); pull requests opened before the connection (11); Bing's record. The throwaway repository exists, built from the starter. The maintainer chose the domain to try on ("croftweaver.com", with a host of its own for the domain step). Waits for the token and for the GitHub app's authorization | the private repository `karero/cf-setup-spike` at `98d7742` |
 | 5 | The script and its tests against a stub of Cloudflare's API. Two pull requests: the project and domain stages (script steps 1 to 7), then the settings stage (script steps 8 and 9) | ⏸ not started | — |
 | 6 | The kit's files that say otherwise today are changed with the script (list under "Hooks") | ⏸ not started | — |
 | 7 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
@@ -483,6 +483,44 @@ outside every repository.
   script found no trace of it in the page. The outside check cannot stand in for the
   read-back there, and the read-back cannot stand in for the outside check on NEL
   (decision 3 keeps both).
+
+**Seen in the spike, 2026-10-13, calls on the throwaway project** (captures 027 to 062; the
+maintainer gave one go-ahead for the list of them):
+
+- **A project created through the API builds from GitHub** (spike observation 1). The
+  create call carried a `source` with the owner's and the repository's names, after the
+  maintainer had given Cloudflare's GitHub app access to that repository. Cloudflare
+  filled in the repository's ids itself. A commit pushed afterwards had a preview build
+  one second later, with the trigger type `github:push`, and the pull request showed
+  Cloudflare's check. "Connect to Git" in the dashboard was not needed.
+- **Creating a project starts no build** (observation 2). None was listed 38 seconds
+  later. The deployment call with an empty form then built the head of the production
+  branch as a production deployment. Its trigger type is `ad_hoc`.
+- **A second deployment call starts a second build** (observation 3). Sent while the
+  first was queued, it was accepted, and both ran to the end. So the script has to look
+  for a build that is queued or running before it starts one.
+- **A build and an upload are both `ad_hoc`, and their stages tell them apart**
+  (observation 4). A deployment Cloudflare built has the stages `clone_repo` and `build`
+  with status `success`. The two uploads on the live project have them `idle`.
+- **A change to one setting keeps the rest** (observation 5). Each of these went as the
+  smallest request, a PATCH of the project holding only what changes: adding a secret,
+  changing a plain variable, a build setting, the production branch, Fail open. After
+  each, the other variables were still listed. A secret's value never comes back. The
+  test function gave the same hash of the secret after all changes, on the production
+  address and on a preview.
+- **Fail open has to be the same for production and preview.** A request for one alone
+  answered 400, code 8000066.
+- **A change of the production branch changes nothing that is served** until the next
+  build. The project kept naming the old production build as its newest, and the
+  `pages.dev` address kept serving it. The next deployment call built the new branch.
+  A deployment records which branch was the production branch at its time.
+- **A variable reaches only deployments made after it.** After the changes and before a
+  new build, the function still answered with the old values.
+- **A branch's preview address** replaces the slash in `trial/first-pr` by a dash, and
+  moves to the branch's newest deployment: the older one lost its entry in `aliases`.
+- **A deployment does not record Fail open.** So whether a change reaches the build that
+  is live cannot be read from it (observation 6 stays open).
+- A build took about two and a half minutes the first time and under 90 seconds after.
 
 **Read in Cloudflare's API reference, 2026-10-12, not tried:**
 
