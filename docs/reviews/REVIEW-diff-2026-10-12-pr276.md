@@ -1,5 +1,5 @@
 # DIFF review — PR #276 — Croftweaver as a Claude Code plugin; skills name their files relative to their own folder
-Base `714516a` · depth: Normal (instruction files eleven skills load, and the lines the orchestrator runs to find the suite; no user data, no deploy path) · verdict: OPEN · authority used: POST AUTHORITY — atom A (this session opened #276); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch)
+Base `714516a` · depth: Normal (instruction files eleven skills load, and the lines the orchestrator runs to find the suite; no user data, no deploy path) · verdict: OPEN on two rows that only the first release can close, P3 (a session that loads the plugin) and P18 (the release-tag workflow's first run); every other row is fixed, refuted, waived or accepted by the owner · authority used: POST AUTHORITY — atom A (this session opened #276); WORKTREE-WRITE — atom A (this session created the worktree); BRANCH-COMMIT — atom A (this session created the branch); GATED-THIS-DIFF — atom A (codex's chain below, unbroken from round 1 to `eb7d905`)
 
 Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fresh-eyes pass on a mid-tier model of the host's family. The owner's words, in this session on 2026-10-12: "push it and open the PR, then run the review"; both services were cleared for this repo the same day for #268 ("yes to all three").
 
@@ -9,6 +9,7 @@ Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fr
 | 2 | `b8a917c` | delta `7e7dcb2..b8a917c` without `docs/reviews/`, plus the plan's delta, with round 1's dispositions (`--verify`); as context the lookup, the permissions section, the whole test file, the test record and the live observation | codex-cli 0.162.1, gpt-6.1-sol, medium, read-only · melious HTTP API, glm-5.3, text only | codex 242 s / 59,242 · melious 214 s / 40,836 | codex 2/2/0 · melious 0/2/3 · after dedup 2/3/3 |
 | 3 | `b85e728` | delta `b8a917c..b85e728` without `docs/reviews/`, plus the plan's delta, with round 2's dispositions (`--verify`); as context the lookup, the permissions section, the workflow and the test file whole, the test record and the two observations | same two seats, codex at medium | codex 314 s / 58,830 · melious 365 s / 45,261 | codex 2/2/0 · melious 0/2/2 · after dedup 2/2/2 |
 | 4 | `02a9225` | delta `b85e728..02a9225` without `docs/reviews/`, plus the plan's delta, with round 3's dispositions (`--verify`); as context the permissions section, the README's release steps, the workflow and the test file whole, the test record and the `github` install | same two seats, codex at medium | codex 142 s / 52,529 · melious 321 s / 45,278 | codex 0/1/0 · melious 0/2/1 · after dedup 0/2/1 |
+| closing pass | `eb7d905` | delta `02a9225..eb7d905` without `docs/reviews/`, plus the plan's delta: the answers to round 4's three points, named as such (not prose alone) | codex-cli 0.162.1, gpt-6.1-sol, config effort, read-only | 250 s / 57,317 | 0/2/0, both follow-ups |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -44,6 +45,8 @@ Seats: Codex and GLM 5.3 on melious (`SECOND_SEAT=melious`), and in round 1 a fr
 | P30 | RISK | melious | 4 | The run on `stable` rests on the checkout having fetched tags, which `fetch-depth: 0` alone is only assumed to do | fixed — read by the closing pass only | `fetch-tags: true` on the checkout step. The first run remains P18's |
 | P31 | NIT | melious | 4 | `website-permissions`' commands lost the line that keeps a strict shell from stopping on the unfilled name, and no test ran them unfilled | fixed — locally_verified, read by the closing pass only | the line is back as the block's first; a test runs the block unfilled, strict and not: it fails for want of the files, not on an unset name, and writes nothing |
 
+31 findings in 4 rounds and a closing pass: 6 BUG, 12 RISK, 13 NIT. 25 fixed, 2 waived by the owner (P6, P10), 1 accepted for after the merge (P7), 1 fixed for a project's skill and open for a plugin's (P3), 1 open until the first release (P18), 1 replaced by a later fix (P15). No BUG is open.
+
 UNVERIFIABLE entries, round 1: 12 asked across the three seats; one became a finding in all three (P3), one was looked at and settled: all 13 tests run on Node 24 in CI's `plugin-tests` job. The rest (update behaviour between two releases, the GitHub source at a tag, the single-command install) cannot be observed before a release exists and are in the plan's known limits.
 
 UNVERIFIABLE entries, round 2: 7 asked; two were looked at: `skills/new-website/templates/astro/.nvmrc` exists and holds 24, and `fetch-depth: 0` is what the checkout action documents for all history and tags, which the first run on `stable` will show (P18).
@@ -54,7 +57,15 @@ UNVERIFIABLE entries, round 3: 7 asked, one confirmed and filed (the `github` so
 
 UNVERIFIABLE entries, round 4: 8 asked. Two were looked at and settled: the tester guides hold nothing of the removed lookup (`grep` for `for root in` and `CLAUDE_CONFIG_DIR` finds none), and git refuses a tag that exists (now a line in the tests). One became P30. The rest wait for the first release.
 
+Follow-ups (the closing pass, codex): both restate rows that wait for the first release.
+- Claude Code's part (the https install and update, the branch as the source, the name filled in for a plugin's skill) is the author's record and the documentation's word until a release exists: P3, and the plan's "Done when".
+- That `fetch-tags: true` brings the tags is the checkout action's documentation ("Whether to fetch tags, even if fetch-depth > 0"; "Set `fetch-depth: 0` to fetch all history for all branches and tags"), not a run: P18.
+
+For the release that merges this (the owner chose to merge it with release 0.32): watch the `release-tag` run on the tag, and that `stable` then points at the tag's commit; then, on a computer with the plugin only, say "new website". Those two close P18 and P3.
+
 Notes:
+- Chains for the stamp: codex saw `714516a...7e7dcb2` in full, then each delta to `b8a917c`, `b85e728`, `02a9225` and `eb7d905`. melious's chain ends at `02a9225`, fresh-eyes' at `7e7dcb2`, by design. The branch is behind main; the merge with release 0.32 needs a merge link read by codex and a new stamp.
+- The commit that brings this file to its final state changes nothing else; the stamp names it, and the reviewed scope is the one at `eb7d905`.
 - Round 4 is past the three the budget gives: round 3 found two BUGs in what someone runs or follows (P23, P24), which earn it.
 - Round 4 found no BUG, so the rounds end there. Its two RISKs and one NIT went to the owner as one decision on 2026-10-13: "Fix all three, closing pass (Recommended)". The fixes are checked by the author and read once by codex in the closing pass, not by both seats.
 
