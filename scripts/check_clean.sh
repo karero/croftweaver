@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Guard: the skill suite is a handoff artifact — no personal names, contact info, or
-# credentials may enter it. Scans skills/ + root docs (and scripts/, for names only) and
-# exits 1 (with file:line) on any hit. Wired into `make check` and CI (.github/workflows/clean.yml).
+# credentials may enter it. Scans skills/ + root docs (and scripts/, for names only; and
+# packages/, where there is one) and exits 1 (with file:line) on any hit. Wired into
+# `make check` and CI (.github/workflows/clean.yml).
 #
 # Two kinds of check:
 #   • DENYLIST — specific known-private identifiers, read from an OPTIONAL gitignored
@@ -108,6 +109,14 @@ if [ -n "$MISSING" ]; then
   echo "legitimately lack one, drop it from SCAN_NAMES_ALL/SCAN_DOCS_ALL deliberately."
   exit 1
 fi
+# packages/ (the npm installer) is in the repo but not in the handoff zip, where `make check`
+# runs too, so it cannot be a required target above: it is scanned where it exists. A name
+# or an address in it reaches the public repo and the npm page. (2026-10-12: it was added
+# and no check read it.)
+SCAN_PRESENT=""
+[ -e packages ] && SCAN_PRESENT="packages"
+SCAN_NAMES="$SCAN_NAMES${SCAN_PRESENT:+ $SCAN_PRESENT}"
+SCAN_DOCS="$SCAN_DOCS${SCAN_PRESENT:+ $SCAN_PRESENT}"
 fail=0
 names_checked=0 names_skipped=""
 # grep prints a hit as file:line:text, and the filters below read the first ":<digits>:" as
@@ -119,7 +128,7 @@ names_checked=0 names_skipped=""
 # They print 4-space-indented, so masked mode withholds them like any scan line. Gitignored
 # files are refused too: they are on disk, where grep reads them. If find fails, the names
 # were not checked: fail too.
-odd_paths="$(find $SCAN_BASE scripts LICENSE \( -name "*"$'\n'"*" -o -name '*:[0-9]*:*' \) -print 2>/dev/null)" \
+odd_paths="$(find $SCAN_BASE scripts LICENSE $SCAN_PRESENT \( -name "*"$'\n'"*" -o -name '*:[0-9]*:*' \) -print 2>/dev/null)" \
   || { fail=1; echo "✗ scan error (find failed) — file names were not checked"; }
 if [ -n "$odd_paths" ]; then
   fail=1
@@ -237,6 +246,9 @@ if [ -f "$DENYLIST_FILE" ]; then
   # (docs/ ships whole in the zip) is scanned like any other. A line from a file named
   # like the list plus a colon (scripts/.clean-denylist:1:x) starts the same way, so with
   # such a file present nothing is dropped: the list then reports itself, loudly.
+  # The installer's LICENSE is a copy of the root one (the installer's own test holds it to
+  # that), which this scan leaves out for the owner's name. A scan of packages/ reads the
+  # copy, so its lines are dropped as well, by exact path and under the same condition.
   if [ -n "$NAMES" ]; then
     # An entry anchored with ^ finds its lines but is never reported: the post-filter below
     # looks for it after "file:line:", where ^ cannot match. Refuse such entries (a count
@@ -248,6 +260,8 @@ if [ -f "$DENYLIST_FILE" ]; then
     fi
     self='^scripts/\.clean-denylist:[0-9]+:'
     compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
+    compgen -G 'packages/create-croftweaver/LICENSE:*' >/dev/null \
+      || self="$self|^packages/create-croftweaver/LICENSE:[0-9]+:"
     hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;

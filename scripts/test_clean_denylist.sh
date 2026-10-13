@@ -9,7 +9,8 @@
 # name reached main that way (2026-09-27). These cases pin that a worktree uses the main
 # checkout's list, that a copy with no git still skips (and says so, on its OK line too),
 # that CI's masked mode (CLEAN_MASK_NAMES=1) fails on a name without printing it,
-# that scripts/ is scanned for names without the list matching itself, and that this repo's
+# that scripts/ is scanned for names without the list matching itself, that packages/ is
+# scanned where there is one and not missed where there is none, and that this repo's
 # own short name in an issue or PR reference is not a leak, under the name it has now and
 # under the one it had before the rename. The names are made up; the real list never
 # appears in this repo.
@@ -66,6 +67,44 @@ expect "worktree, a listed name: fails" 1 "zorblequux" "$W"
 printf '#!/usr/bin/env bash\n# first tried on the zorblequux site\n' >"$R/scripts/tool.sh"
 expect "a listed name in a scripts/*.sh comment: fails" 1 "scripts/tool.sh" "$R"
 rm "$R/scripts/tool.sh"
+
+# packages/ (the npm installer) is in the repo but not in the handoff zip, where the check
+# runs too: it is scanned where it exists, and a copy without it passes. The OK line names
+# what was scanned, so it tells the two apart. (2026-10-12: the folder was added and no
+# check read it.)
+expect "no packages/ (the handoff zip): passes, and the OK line does not name it" 0 \
+  "docs scripts; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q packages; then
+  printf 'FAIL the check names packages/ in a copy that has none\n'; fails=$((fails+1))
+fi
+mkdir -p "$R/packages/x" "$R/packages/create-croftweaver"
+printf 'plain notes\n' >"$R/packages/x/file"
+expect "packages/, clean: passes, and the OK line names it in both lists" 0 \
+  "docs scripts packages; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE packages" "$R"
+printf 'first tried on the zorblequux site\n' >"$R/packages/x/file"
+expect "a listed name in packages/x/file: fails" 1 "packages/x/file" "$R"
+printf 'write to bob@realmail.de\n' >"$R/packages/x/file"
+expect "an email in packages/x/file: fails" 1 "✗ email address" "$R"
+printf 'plain notes\n' >"$R/packages/x/file"
+: >"$R/packages/x/a:1:b"
+expect "a file name in packages/ holding a colon, a digit and later another colon: refused" 1 "a colon, a digit and later another colon" "$R"
+rm "$R/packages/x/a:1:b"
+# The installer's LICENSE is a copy of the root one, which the name check leaves out for the
+# owner's name. The copy is left out too, by exact path: a name in the file beside it fails.
+printf 'Copyright (c) zorblequux\n' >"$R/packages/create-croftweaver/LICENSE"
+expect "a listed name in the installer's copy of LICENSE: passes" 0 "OK — no private names in:" "$R"
+printf 'made by zorblequux\n' >"$R/packages/create-croftweaver/README.md"
+expect "a listed name in the file beside that copy: fails" 1 "packages/create-croftweaver/README.md:1:" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "create-croftweaver/LICENSE"; then
+  printf 'FAIL the copy of LICENSE was reported beside the file that holds a name\n'; fails=$((fails+1))
+fi
+rm "$R/packages/create-croftweaver/README.md"
+# grep prints file:line:text, so a hit in a file named like the copy plus a colon and a
+# number starts like the copy's own lines, and was dropped with them.
+printf 'MIT License\n' >"$R/packages/create-croftweaver/LICENSE"
+printf 'ran zorblequux\n' >"$R/packages/create-croftweaver/LICENSE:12"
+expect "a listed name in a file named like that copy plus a colon: fails" 1 "create-croftweaver/LICENSE:12:1:" "$R"
+rm -r "$R/packages"
 
 # In the main checkout, where the list is read either way, so only the self-reference
 # allowance decides these cases.
