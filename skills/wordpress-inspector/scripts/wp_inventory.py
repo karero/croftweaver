@@ -31,9 +31,9 @@ What it keeps to:
   - robots.txt, under the name "wordpress-inventory", by the rules of RFC 9309 as the toolkit's facts
     check implements them (the longest matching rule wins, * and $ count). An address it may not read is skipped and listed. A
     robots.txt that is refused (401, 403) or cannot be read stops the run.
-  - A sitemap with a document type, or in UTF-16, is never handed to the XML parser: a
-    sitemap needs no document type, and one can carry entity tricks that exhaust an older
-    Python's parser. Such a file is a gap in the count.
+  - A sitemap that declares a document type is not read: a sitemap needs none, and one can
+    carry entity tricks that exhaust an older Python's XML parser. The parser itself is
+    made to stop at the declaration, before it reads on. Such a file is a gap in the count.
   - A pause between requests (--delay) and a ceiling on their number (--max-requests).
   - A refusal, a "please wait" or maintenance page, or any web page where data was due is
     never counted as content. It makes the count incomplete.
@@ -61,8 +61,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple
+from xml.parsers import expat
 
 ROBOTS_TOKEN = "wordpress-inventory"  # the name a robots.txt group calls this tool by
 USER_AGENT = ROBOTS_TOKEN + "/0.1 (read-only site inventory)"
@@ -486,7 +486,7 @@ def read_type(fetcher: Fetcher, rest: Rest, slug: str, info: dict, site_host: st
         elif repeats:
             out["note"] = "%s records were handed out twice, so the list changed or repeated while it was read" % repeats
         elif no_id:
-            out["note"] = "%s records came without a usable id (a number or a text), so a repeat could not be told from a second record" % no_id
+            out["note"] = "%s records came without a usable id (a whole number or a text), so a repeat could not be told from a second record" % no_id
         elif out["fetched"] != out["total"]:
             out["note"] = "the site reports %s records, %s were handed out" % (out["total"], out["fetched"])
     out["complete"] = not out["note"]
@@ -518,37 +518,76 @@ def count_only(fetcher: Fetcher, rest: Rest, route: str) -> Tuple[Optional[int],
     return (total, "") if total is not None else (None, "the site did not report a total")
 
 
-def _local(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1]
+class _StopParsing(Exception):
+    pass
 
 
-_PROLOG_SKIP = re.compile(rb"\s*(?:<\?.*?\?>|<!--.*?-->)", re.S)
-_HTML_PAGE = re.compile(rb"<html[\s>]|<!DOCTYPE\s+html", re.I)
+def parse_sitemap(body: bytes) -> Tuple[str, List[str], str]:
+    """(kind, addresses, problem). `kind` is "urlset", "sitemapindex", "page" (an HTML page),
+    "other" (some other XML document) or "" (nothing that could be read).
 
+    One reader decides everything: expat, the XML parser, in whatever encoding the file is
+    written. No second look at the bytes can disagree with it.
+      - It stops the moment it meets a document type, before the declarations inside it and
+        long before any entity could expand; a sitemap needs no document type. Measured on
+        expat 2.2.8 (the Python a Mac ships with, which has no expansion guard) and 2.7.4:
+        a 10-level entity bomb stops in under a millisecond, also behind white space or a
+        comment, and in UTF-16 or Latin-1.
+      - It stops at the first element when that is neither <urlset> nor <sitemapindex>.
+      - A file that ends early, or is damaged, is a problem: never a shorter sitemap.
+    Addresses are the text of <loc> directly inside <url> or <sitemap>, whatever prefix the
+    elements carry; image:loc and the like sit deeper and are not pages."""
+    seen = {"doctype": None, "root": None}
+    path: List[str] = []
+    locs: List[str] = []
+    text: List[str] = []
+    parser = expat.ParserCreate(namespace_separator="}")
+    parser.buffer_text = True
 
-def sitemap_refusal(body: bytes) -> str:
-    """Why these bytes are not handed to the XML parser, or "" when they are.
+    def doctype(name, system_id, public_id, has_internal_subset):
+        seen["doctype"] = name
+        raise _StopParsing
 
-    No document type may reach the parser: it can declare entities that expand without end,
-    and the parser of an older Python (expat before 2.4) has no guard. A document type can
-    stand only in the prolog: before the first element, after nothing but the XML
-    declaration, comments, processing instructions and white space. The words inside a
-    comment do not count. The look below reads the bytes as ASCII, which is what the parser
-    does for every encoding it accepts except UTF-16: expat takes only encodings that write
-    XML's own characters as ASCII does (the note on XML_UnknownEncodingHandler in expat.h;
-    a document type in EBCDIC is a parse error, which a test pins). UTF-16 is known by its
-    NUL bytes and refused outright; the sitemap protocol asks for UTF-8."""
-    if b"\x00" in body:
-        return "holds NUL bytes (UTF-16, or no text at all), where a sitemap must be UTF-8"
-    pos = 3 if body[:3] == b"\xef\xbb\xbf" else 0
-    while True:
-        m = _PROLOG_SKIP.match(body, pos)
-        if not m:
-            break
-        pos = m.end()
-    if re.match(rb"\s*<!DOCTYPE", body[pos:pos + 4096], re.I):
-        return "declares a document type, which a sitemap does not need"
-    return ""
+    def start(name, attrs):
+        local = name.rsplit("}", 1)[-1]
+        if seen["root"] is None:
+            seen["root"] = local
+            if local not in ("urlset", "sitemapindex"):
+                raise _StopParsing
+        path.append(local)
+
+    def end(name):
+        if path and path[-1] == "loc" and len(path) == 3 and path[1] in ("url", "sitemap"):
+            loc = "".join(text).strip()
+            if loc:
+                locs.append(loc)
+        del text[:]
+        path.pop()
+
+    def chars(data):
+        if path and path[-1] == "loc":
+            text.append(data)
+
+    parser.StartDoctypeDeclHandler = doctype
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.CharacterDataHandler = chars
+    try:
+        parser.Parse(body, True)
+    except _StopParsing:
+        if seen["doctype"] is not None:
+            if seen["doctype"].lower() == "html":
+                return "page", [], ""
+            return "", [], "declares a document type, which a sitemap does not need"
+        return ("page" if seen["root"].lower() == "html" else "other"), [], ""
+    except (expat.ExpatError, LookupError, ValueError):  # cut off or damaged; or an encoding the parser does not know
+        # An old HTML page opens with a document type XML cannot read (no system identifier), so
+        # the parser fails before it can report it. Only where it had met no element yet is the
+        # file's own first line consulted, and only to tell a web page from a damaged file.
+        if seen["root"] is None and re.match(rb"(?:\xef\xbb\xbf)?\s*<!DOCTYPE\s+html\b", body[:1024], re.I):
+            return "page", [], ""
+        return "", [], "is not valid XML (cut off, damaged or in an unknown encoding)"
+    return seen["root"] or "", locs, ""
 
 
 def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent: List[str]) -> List[dict]:
@@ -578,32 +617,15 @@ def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent
             if len(body) > SITEMAP_MAX_BYTES:
                 broken.append("sitemap %s: unpacks to more than the limit of %d MB; not read" % (sm, SITEMAP_MAX_BYTES // (1024 * 1024)))
                 continue
-        # The rules, in order. (1) Bytes with a document type, or in UTF-16, never reach the
-        # parser. (2) Bytes that do not parse are not a sitemap that was read.
-        # (3) Either case is a gap, with one exception: a web page at a start address means no
-        # sitemap lives there. The page is known by its own markup, not by a header: a cut-off
-        # sitemap sent as text/html holds no <html>, and must never pass for a missing one.
-        why = sitemap_refusal(body)
-        root = None
-        if not why:
-            try:
-                root = ET.fromstring(body)
-            except (ET.ParseError, LookupError, ValueError):
-                why = "is not valid XML (cut off or damaged)"
-        if why:
-            if sm in first and _HTML_PAGE.search(body):
-                absent.append("sitemap %s: a web page, not a sitemap" % sm)
+        # A web page or another kind of document at a start address means no sitemap lives
+        # there. Anywhere else, and for anything that could not be read whole, it is a gap.
+        kind, locs, why = parse_sitemap(body)
+        if why or kind not in ("urlset", "sitemapindex"):
+            if not why and sm in first:
+                absent.append("sitemap %s: %s, not a sitemap" % (sm, "a web page" if kind == "page" else "another kind of document"))
             else:
-                broken.append("sitemap %s: %s; not read" % (sm, why))
+                broken.append("sitemap %s: %s; not read" % (sm, why or "not a sitemap"))
             continue
-        kind = _local(root.tag)
-        if kind not in ("sitemapindex", "urlset"):
-            (absent if sm in first else broken).append("sitemap %s: not a sitemap" % sm)
-            continue
-        # Only <url><loc> and <sitemap><loc>, whatever prefix they carry: image:loc is not a page.
-        locs = [loc.text.strip()
-                for entry in root if _local(entry.tag) in ("url", "sitemap")
-                for loc in entry if _local(loc.tag) == "loc" and loc.text and loc.text.strip()]
         if kind == "sitemapindex":
             queue.extend(urllib.parse.urljoin(sm, x) for x in locs)
         else:

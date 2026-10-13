@@ -401,8 +401,8 @@ class SitemapReading(unittest.TestCase):
     def test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap(self):
         # the header may lie; a page is known by its own markup, and a cut-off sitemap has none
         cut = "<?xml version='1.0'?>%s<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>http://x.test/a/</loc></url><url><lo"
-        for lead in ("", "<!-- %s -->" % ("x" * 5000)):
-            with self.subTest(lead=len(lead)):
+        for lead in ("", "<!-- %s -->" % ("x" * 5000), "<!-- <html> <!DOCTYPE html> -->", "<?note <html lang='en'> ?>"):
+            with self.subTest(lead=lead[:24]):
                 site = Site()
                 site.sitemaps = {}
                 site.extra["/sitemap_index.xml"] = (200, "text/html; charset=utf-8", cut % lead)
@@ -411,47 +411,70 @@ class SitemapReading(unittest.TestCase):
                 self.assertEqual((code, data["complete"]), (1, False))
                 self.assertIn("not valid XML", " ".join(data["incomplete_because"]))
 
-    def test_a_document_type_in_any_encoding_never_reaches_the_parser(self):
-        # the invariant: no document type reaches the parser, however it is written
-        bomb = ("<?xml version='1.0'%s?><!DOCTYPE urlset [<!ENTITY a 'aaaaaaaaaa'><!ENTITY b '&a;&a;&a;&a;'>]>"
+    def test_a_document_type_however_it_is_written_stops_the_reader(self):
+        # the invariant: nothing after a document type is read, so no entity can expand.
+        # (Kept small on purpose: were the guard gone, a large one would hang the test run.)
+        bomb = ("<?xml version='1.0'%s?>%s<!DOCTYPE urlset [<!ENTITY a 'aaaaaaaaaa'><!ENTITY b '&a;&a;&a;&a;'>]>"
                 "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>http://x.test/&b;/</loc></url></urlset>")
         cases = {
-            "utf-16 with a byte-order mark": (bomb % " encoding='UTF-16'").encode("utf-16"),
-            "utf-16 little-endian, no mark": (bomb % "").encode("utf-16-le"),
-            "utf-16 big-endian, no mark": (bomb % "").encode("utf-16-be"),
-            "utf-32": (bomb % "").encode("utf-32"),
-            "latin-1, declared": (bomb % " encoding='ISO-8859-1'").encode("latin-1"),
-            "an 8-bit code page, declared": (bomb % " encoding='cp1252'").encode("cp1252"),
-            # the declaration in ASCII, the rest in a code page whose letters are other bytes
-            "EBCDIC after an ASCII declaration": b"<?xml version='1.0' encoding='cp500'?>" + (bomb % "").split("?>", 1)[1].encode("cp500"),
-            "utf-8 after a comment and a processing instruction": (
-                bomb % "").replace("?><!DOCTYPE", "?>\n<!-- note -->\n<?xml-stylesheet href='a.xsl'?>\n  <!DOCTYPE").encode(),
-            "utf-8 with a byte-order mark": b"\xef\xbb\xbf" + (bomb % "").encode(),
+            "plain": (bomb % ("", "")).encode(),
+            "after 5,000 spaces, no declaration": (bomb % ("", " " * 5000)).split("?>", 1)[1].encode(),
+            "after a comment and 9,000 line ends": (bomb % ("", "<!-- note -->" + "\n" * 9000)).encode(),
+            "after a processing instruction": (bomb % ("", "\n<?xml-stylesheet href='a.xsl'?>\n  ")).encode(),
+            "behind a UTF-8 byte-order mark": b"\xef\xbb\xbf" + (bomb % ("", "")).encode(),
+            "utf-16 with a byte-order mark": (bomb % (" encoding='UTF-16'", "")).encode("utf-16"),
+            "utf-16 little-endian, no mark": (bomb % ("", "")).encode("utf-16-le"),
+            "utf-16 big-endian, no mark": (bomb % ("", "")).encode("utf-16-be"),
+            "latin-1, declared": (bomb % (" encoding='ISO-8859-1'", "")).encode("latin-1"),
+            "an 8-bit code page, declared": (bomb % (" encoding='cp1252'", "")).encode("cp1252"),
         }
         for name, body in cases.items():
             with self.subTest(name=name):
-                if not name.startswith("EBCDIC"):  # that one the parser itself cannot read: the run below pins it
-                    self.assertNotEqual(wi.sitemap_refusal(body), "")
+                self.assertEqual(wi.parse_sitemap(body), ("", [], "declares a document type, which a sitemap does not need"))
                 site = Site()
                 site.sitemaps = {}
                 site.extra["/sitemap_index.xml"] = (200, "text/xml", body)
                 with serve(site):
                     code, data, _, _, _ = run(site.base())
                 self.assertEqual((code, data["complete"], data["sitemap"]["urls"]), (1, False, 0))
+        # letters the parser cannot read as XML at all (EBCDIC after an ASCII declaration, UTF-32)
+        for body in (b"<?xml version='1.0' encoding='cp500'?>" + (bomb % ("", "")).split("?>", 1)[1].encode("cp500"),
+                     (bomb % ("", "")).encode("utf-32")):
+            kind, locs, why = wi.parse_sitemap(body)
+            self.assertEqual((kind, locs, why[:16]), ("", [], "is not valid XML"))
 
     def test_the_words_of_a_comment_are_not_a_document_type(self):
         ok = ("%s<?xml version='1.0' encoding='UTF-8'?>\n<!-- made by a plugin; no <!DOCTYPE here -->\n<?xml-stylesheet href='a.xsl'?>\n"
               "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><!-- <!DOCTYPE x> --><url><loc>http://x.test/\u00e4/</loc></url></urlset>")
         for name, body in (("plain", (ok % "").encode()), ("with a byte-order mark", b"\xef\xbb\xbf" + (ok % "").encode()),
-                           ("in Latin-1, declared", (ok % "").replace("UTF-8", "ISO-8859-1").encode("latin-1"))):
+                           ("in Latin-1, declared", (ok % "").replace("UTF-8", "ISO-8859-1").encode("latin-1")),
+                           ("in UTF-16", (ok % "").replace("UTF-8", "UTF-16").encode("utf-16"))):
             with self.subTest(name=name):
-                self.assertEqual(wi.sitemap_refusal(body), "")
+                self.assertEqual(wi.parse_sitemap(body), ("urlset", ["http://x.test/\u00e4/"], ""))
                 site = Site()
                 site.sitemaps = {}
                 site.extra["/sitemap_index.xml"] = (200, "text/xml", body)
                 with serve(site):
                     code, data, _, _, _ = run(site.base())
                 self.assertEqual((code, data["sitemap"]["urls"]), (0, 1))
+
+    def test_what_the_reader_takes_for_an_address(self):
+        ns = "xmlns='http://www.sitemaps.org/schemas/sitemap/0.9' xmlns:image='http://www.google.com/schemas/sitemap-image/1.1'"
+        doc = ("<urlset %s><url><loc> http://x.test/a?b=1&amp;c=2 </loc><image:image><image:loc>http://x.test/i.png</image:loc></image:image>"
+               "</url><url><loc></loc></url><loc>http://x.test/stray/</loc><url><x><loc>http://x.test/deep/</loc></x></url></urlset>" % ns)
+        self.assertEqual(wi.parse_sitemap(doc.encode()), ("urlset", ["http://x.test/a?b=1&c=2"], ""))
+        self.assertEqual(wi.parse_sitemap(b"<sitemapindex><sitemap><loc>/s1.xml</loc></sitemap></sitemapindex>"), ("sitemapindex", ["/s1.xml"], ""))
+        for page in (b"<!DOCTYPE html><html><p>x<br></html>",
+                     b"<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html><p>x<br></html>",
+                     b"\xef\xbb\xbf\n<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN'>\n<html><p>x<br></html>"):
+            self.assertEqual(wi.parse_sitemap(page), ("page", [], ""))
+        # a document type that only looks like a page's, in front of a cut-off sitemap, is still refused
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE htmlx [<!ENTITY a 'b'>]><urlset><url><lo")[::2],
+                         ("", "declares a document type, which a sitemap does not need"))
+        self.assertEqual(wi.parse_sitemap(b"\n<html lang='en'><body><p>Nothing<br></body></html>"), ("page", [], ""))
+        self.assertEqual(wi.parse_sitemap(b"<rss version='2.0'><channel/></rss>"), ("other", [], ""))
+        for damaged in (b"", b"Not found", b"<urlset><url><loc>http://x.test/a/</loc></url>", b"<urlset><url><loc>&nope;</loc></url></urlset>"):
+            self.assertEqual(wi.parse_sitemap(damaged)[::2], ("", "is not valid XML (cut off, damaged or in an unknown encoding)"))
 
     def test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash(self):
         for enc in ("bogus-enc", "utf-7"):
