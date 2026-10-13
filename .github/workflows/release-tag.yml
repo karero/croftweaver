@@ -26,7 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0   # with tags and main: both are compared with the pushed commit
+          fetch-depth: 0   # all of main: the pushed commit is compared with it
+          fetch-tags: true # asked for by name: a run on stable looks for the tag on its commit
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc

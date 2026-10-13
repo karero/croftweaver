@@ -10,8 +10,8 @@
       "name": "croftweaver",
       "description": "Skills that build a small-business website end to end with your AI coding assistant.",
       "source": {
-        "source": "github",
-        "repo": "karero/croftweaver",
+        "source": "url",
+        "url": "https://github.com/karero/croftweaver.git",
         "ref": "stable"
       }
     }

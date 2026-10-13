@@ -31,6 +31,7 @@ folder this SKILL.md is in: Claude Code fills it in; with another assistant, put
 folder's path in its place.
 
 ```bash
+: "${CLAUDE_SKILL_DIR:=}"
 mkdir -p .claude/hooks
 cp "${CLAUDE_SKILL_DIR}/templates/claude/settings.json" .claude/settings.json
 cp "${CLAUDE_SKILL_DIR}/templates/claude/hooks/git-stand.mjs" .claude/hooks/

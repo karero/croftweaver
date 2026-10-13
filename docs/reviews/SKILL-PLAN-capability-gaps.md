@@ -302,7 +302,7 @@ Done when the imported site passes the whole suite with every old address accoun
 
 | # | Given | When | Then |
 |---|---|---|---|
-| 1 | Claude Code, nothing installed, and release 0.32 or a later one is out | the user runs `claude plugin marketplace add karero/croftweaver` and `claude plugin install croftweaver@croftweaver` | all skills are available under the plugin's name (`croftweaver:new-website`), with no clone, no script and no Node |
+| 1 | Claude Code, nothing installed, and release 0.32 or a later one is out | the user runs `claude plugin marketplace add https://github.com/karero/croftweaver.git` and `claude plugin install croftweaver@croftweaver` | all skills are available under the plugin's name (`croftweaver:new-website`), with no clone, no script and no Node |
 | 2 | the suite installed as the plugin only | the user says "new website" | the scaffold finds the suite in the plugin's own folder and copies the templates and the site's skills from there |
 | 3 | a plugin user on 0.32, and 0.33 comes out | the user runs `claude plugin update croftweaver@croftweaver`, or has auto-update on | they get 0.33. Between releases nothing changes for them, whatever is merged to main |
 | 4 | the suite installed any other way: `scripts/install.sh`, `npm create croftweaver`, Codex, Antigravity, or the copies inside a site | a skill needs one of its own files | it finds it: the skills name their files relative to their own folder, not to `~/.claude/skills/` |
@@ -341,10 +341,15 @@ https://code.claude.com/docs/en/plugins/host-marketplace):
   update` said "already at the latest version (0.32.0)" while main moved and also after a
   release 0.33 was tagged; once `stable` was moved to that tag it said "updated from 0.32.0
   to 0.33.0".
-- The entry in this repo uses `"source": "github"`. Tried the same day with that source
-  type and this pull request's branch as the `ref`, from GitHub, into a throwaway
-  configuration folder: installed, version 0.32.0, 35 skills, with the files only that
-  branch has. An update through that source type was not tried.
+- The entry in this repo is of that kind: `"source": "url"` with the repo's full https
+  address. Tried the same day from GitHub with this pull request's branch as the `ref`,
+  into a throwaway configuration folder: installed, version 0.32.0, 35 skills, with the
+  files only that branch has. (`"source": "github"` with `karero/croftweaver` installed
+  as well. It is not used: that form is fetched over SSH where it can be, and Claude
+  Code's documentation says an update does not fall back to https, so a user without a
+  GitHub key would not get one. The README gives the marketplace's address in full for
+  the same reason.) What was not tried is an update from GitHub itself: that needs two
+  releases.
 - Installed from a copy of this tree as a local marketplace, into a throwaway configuration
   folder: 35 skills, and every folder and file the scaffold copies is there, the
   templates' `.gitignore` included. The files land under
@@ -380,8 +385,8 @@ Known limits:
 - Row 5: the doubled listing costs context in every session in such a site.
 - A site scaffolded from the plugin is stamped `suite_commit: unknown`, as from a zip.
 - The documentation names a single command that adds the marketplace and installs
-  (`claude plugin install croftweaver --marketplace karero/croftweaver`) from Claude Code
-  2.1.292 on. It was not tried here.
+  (`claude plugin install <plugin> --marketplace <source>`) from Claude Code 2.1.292 on.
+  It was not tried here.
 - `scripts/check_clean.sh` does not read `.claude-plugin/` either (`docs/BUGLOG.md`).
 
 Done when, after release 0.32, a computer that has only the plugin scaffolds a site from

@@ -36,7 +36,10 @@ test('the plugin and the marketplace entry name the same plugin, and the entry i
   const [entry] = market.plugins;
   // Installing is by entry name, the skills' prefix is the plugin's: they must not differ.
   assert.equal(entry.name, plugin.name);
-  assert.deepEqual({ source: entry.source.source, repo: entry.source.repo }, { source: 'github', repo: 'karero/croftweaver' });
+  // By its full https address, not as "github" with owner/repo: that form is fetched over
+  // SSH where it can, and Claude Code's documentation says an update does not fall back to
+  // https, so a user without a GitHub key would never get one.
+  assert.deepEqual({ source: entry.source.source, url: entry.source.url }, { source: 'url', url: 'https://github.com/karero/croftweaver.git' });
   // Users get releases, not main: the entry installs from the branch `stable`, which a
   // release moves to its tag once the tag exists. main therefore never names something
   // that is not there yet. The plugin carries the release's number (0.32 is 0.32.0), which
@@ -197,7 +200,7 @@ test('the two guides that repeat the lookup for testers repeat it as it is', () 
 // The lines website-permissions gives to copy the allowlist and its hook into a site.
 function copySettings() {
   const lines = read('skills', 'website-permissions', 'SKILL.md').split('\n');
-  const hits = lines.map((line, i) => (line === 'mkdir -p .claude/hooks' ? i : -1)).filter((i) => i >= 0);
+  const hits = lines.map((line, i) => (line === ': "${CLAUDE_SKILL_DIR:=}"' ? i : -1)).filter((i) => i >= 0);
   assert.equal(hits.length, 1, 'the copy commands in website-permissions/SKILL.md were not found exactly once');
   const end = lines.findIndex((line, i) => i > hits[0] && line.startsWith('```'));
   return lines.slice(hits[0], end).join('\n');
@@ -216,6 +219,16 @@ test('website-permissions copies the allowlist and the hook from its own folder,
     assert.equal(run.status, 0, run.stderr);
     assert.equal(fs.readFileSync(path.join(site, '.claude', 'settings.json'), 'utf8'), own('settings.json'));
     assert.equal(fs.readFileSync(path.join(site, '.claude', 'hooks', 'git-stand.mjs'), 'utf8'), own('hooks/git-stand.mjs'));
+  }
+});
+
+test('left as written, the copy fails for want of the files, not on an unset name, and writes nothing', () => {
+  for (const strict of [false, true]) {
+    const site = tmp();
+    const run = bash(copySettings(), { filled: null, home: tmp(), cwd: site, strict });
+    assert.notEqual(run.status, 0);
+    assert.doesNotMatch(run.stderr, /unbound variable/);
+    assert.ok(!fs.existsSync(path.join(site, '.claude', 'settings.json')) && !fs.existsSync(path.join(site, '.claude', 'hooks', 'git-stand.mjs')));
   }
 });
 
@@ -312,7 +325,10 @@ test('the workflow moves stable to a release that is on main, forward only', () 
   const { commit, git, stable, step } = releaseRepo();
   const move = (name) => step('Move stable to the release', { NAME: name });
   const first = commit('release 0.32');
-  git('tag', 'v0.32');
+  git('tag', '-a', 'v0.32', '-m', 'Croftweaver 0.32');
+  // What the README's release steps rest on: a number that was not raised names this tag
+  // again, and git does not make a tag that exists.
+  assert.throws(() => git('tag', '-a', 'v0.32', '-m', 'Croftweaver 0.32'), /already exists/);
   git('push', '-q', 'origin', 'main', 'v0.32');
 
   // The first release creates the branch.

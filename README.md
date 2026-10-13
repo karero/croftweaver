@@ -156,9 +156,11 @@ Antigravity `-- --antigravity`.
 no Node, no script, no folder to keep.
 
 ```bash
-claude plugin marketplace add karero/croftweaver
+claude plugin marketplace add https://github.com/karero/croftweaver.git
 claude plugin install croftweaver@croftweaver
 ```
+
+(The address is written out in full so that nothing needs a GitHub key.)
 
 Then go to step 3. As a plugin the skills carry its name in front
 (`/croftweaver:new-website`). You stay on the release you installed until you run
