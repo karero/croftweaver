@@ -1,5 +1,5 @@
 # DIFF review — PR #277 (`fix/check-clean-scans-packages`) — check_clean: scan packages/ where it exists
-Base `8696da0` · depth: Normal (the logic of a guard script changes, so not Light; nothing in the High row) · verdict: no BUG in 2 rounds, 7 findings; one RISK (F2) waits on the owner, so NOT CLEAN yet · authority used: WORKTREE-WRITE and BRANCH-COMMIT, atom A (this session made the worktree and the branch). POST AUTHORITY, atom A (this session opened #277 on 2026-10-13).
+Base `8696da0` · depth: Normal (the logic of a guard script changes, so not Light; nothing in the High row) · verdict: CLEAN. 2 rounds, 7 findings, no BUG: 4 fixed, 2 refuted, 1 waived by the owner; then a wording pass with no findings · authority used: WORKTREE-WRITE and BRANCH-COMMIT, atom A (this session made the worktree and the branch). POST AUTHORITY, atom A (this session opened #277 on 2026-10-13).
 
 Data consent: the owner named the seats for this change in his task message of 2026-10-12, quoted: "Normal depth with the `independent-review` skill: Codex plus GLM 5.3 on melious". Fresh-eyes runs in round 1 only, on a mid-tier model of the host's family.
 
@@ -65,6 +65,7 @@ Mutations on `5b45e56`, each exits 1: M1 (no name scan) fails 6 cases, the maske
 |---|---|---|---|---|---|
 | 1 | `04b9120` | full: `8696da0...04b9120`, 3 files, with the changed script whole and the run records | codex-cli 0.162.1, gpt-6.1-sol, config effort (high), read-only: OK · melious, glm-5.3, text only: OK · fresh-eyes, a sub-agent on the host family's mid-tier model, read-only, no shared context: OK | 317 s / 79,450 · 230 s / 38,084 · 261 s / 130,386 | 0/2/5 |
 | 2 | `5b45e56` | delta: `04b9120..5b45e56`, 3 files, with the author's record of round 1 (`--verify`), excerpts and the new run records | codex-cli 0.162.1, gpt-6.1-sol, medium, read-only: OK · melious, glm-5.3, text only: OK | 166 s / 45,275 · 209 s / 29,947 | 0/1/0 (F2 again; nothing new) |
+| wording pass | `caea8ec` | delta: `5b45e56..caea8ec`, prose only: two rows of `docs/BUGLOG.md` (one Status cell, one new row) | codex-cli 0.162.1, gpt-6.1-sol, config effort (high), read-only: OK | 364 s / 66,899 | 0/0/0 |
 
 Round 2 had no BUG and no RISK that calls for a change to the code, so no third round is owed. `c617d43`, between the two heads, adds only this file.
 
@@ -82,4 +83,8 @@ Round 2 had no BUG and no RISK that calls for a change to the code, so no third 
 
 Waiver: F2, the owner's sign-off in this session on 2026-10-13, quoted: "Waive F2 with the BUGLOG row, push and open the PR". The row is the one dated 2026-10-13 in `docs/BUGLOG.md` (Where: `scripts/check_clean.sh`, `SCAN_BASE` and `SCAN_PRESENT`).
 
-Questions the seats could not settle (UNVERIFIABLE entries, not findings): round 1 asked 8, round 2 asked 6; none became a finding. Still open, and settled only by CI on the pushed branch: the new pattern under GNU grep, and CI's own name list against `packages/`. Codex did not re-run the full suites in either round (its sandbox is read-only and the suites write temp files); fresh-eyes re-ran the test, the masked check, M0 and M4 in round 1.
+Notes:
+- The wording pass is not a round. Its seat confirmed the inventory (one file, one hunk, table text; no code moved since `5b45e56`) and that exactly three tracked top-level paths are not scanned, as the new row says. It marked two sentences of the author's scope note as text that tries to steer the review and treated them as data.
+- The stamp on the PR comment names the branch head. The commits after `caea8ec` change only this file; the reviewed scope ends at `caea8ec`. Codex holds the chain for it: round 1 in full, round 2's delta, the wording pass's delta. The melious seat's chain ends at `5b45e56`, fresh-eyes' at `04b9120`, by design at this depth.
+
+Questions the seats could not settle (UNVERIFIABLE entries, not findings): round 1 asked 8, round 2 asked 6, the wording pass 3; none became a finding. Still open, and settled only by CI on the pushed branch: the new pattern under GNU grep, and CI's own name list against `packages/`. Codex did not re-run the full suites in either round (its sandbox is read-only and the suites write temp files); fresh-eyes re-ran the test, the masked check, M0 and M4 in round 1.
