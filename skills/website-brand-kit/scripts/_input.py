@@ -152,7 +152,7 @@ def _member(package, name):
         raise Refusal(
             "unknown-file",
             "The file %r in the package is not an SVG drawing, whatever its name says. Pick another file, or ask for "
-            "a package of SVG files." % held[:80],
+            "a package of SVG files." % held,   # the whole name (see _svg.in_package)
         )
     return _svg.Member(data, held)
 

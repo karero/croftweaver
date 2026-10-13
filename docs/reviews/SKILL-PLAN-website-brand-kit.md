@@ -11,10 +11,10 @@ purpose; the business in the scenarios is made up.
 | 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 10 and the closing wording pass answered and handled (each round verified the one before; round 10's answers are not yet verified); the intake accepts SVG only (decision 8) | merged on main (#245, #246, #247), later rounds' answers by pull request; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
 | 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) settled at the start of the build, 2026-10-11, by the build's author as the plan left it (below); the handoff step was tried on 2026-10-11 and one trial showed how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26; rerun 2026-10-11 under the pinned Node 24.21.0 with the same numbers (one claim sharpened: the no-`viewBox` case). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
-| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 1,026 tests (after review round 6's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
+| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 1,044 tests (after review round 7's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ✅ written, not yet reviewed (row 7) | branch `feat/website-brand-kit`, commit `b75db71` |
 | 6 | Hooks into the other skills (listed under "Hooks") | ✅ written 2026-10-12, not yet reviewed (row 7): `new-website` (the intro, a step 2b row and section, the copy list now twenty-six, §3 step 4 and step 5), `README.md` (layout, the optional-skills paragraph), `website-qa` (one row), `website-design-system` (the tokens paragraph), `website-content-guide` (the `BRAND.md` line), the `BRAND.md` template (D6's rows; a test holds it to the palette prompt row for row), the count comment in `check_skill_budgets.sh`. `check_model_agnostic.sh` re-run inside `make check`: still green | branch `feat/website-brand-kit` (local) |
-| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ rounds 1 to 6 run (102, 102, about 105, about 93, about 72 and about 58 findings), fixed; round 6's fixes not yet re-verified | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
+| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ rounds 1 to 7 run (102, 102, about 105, about 93, about 72, about 58 and about 49 findings), fixed; round 7's fixes not yet re-verified | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
 | 8 | Evals, with and without the skill, as `website-story` had | ▶ five evals written (`evals/evals.json`, three fixture files); not yet run with and without the skill | branch `feat/website-brand-kit`, commit `b75db71` |
 | 9 | Release note line in 0.32 | ⏸ waits for row 7 (#212 is merged and v0.31 is out) | — |
 
@@ -742,6 +742,21 @@ known to the build's authors. Each is a judgment the maintainer may overrule.
     needs a new mark from the design tool. The tool recolours nothing.
   - A Ctrl-C typed while the report is printed no longer makes a terminal throw part of
     it away (macOS; less on Linux).
+- **Changed by review round 7 (2026-10-13):**
+  - The brand colour in the stylesheet must be written out: `--brand: var(--accent)` is
+    refused, because each theme may set what it points at differently.
+  - Round 6's terminal setting is out again (it could leave the owner's terminal changed
+    after a quick double Ctrl-C). A Ctrl-C typed while the report is printed can cut the
+    report; the site and the exit status are right.
+  - Refused by name: an `@charset` other than UTF-8 in the stylesheet; in an SVG an angle
+    beyond 100,000 degrees and a list of transforms that squashes a shape flat.
+  - Sentences: the DOCTYPE refusal no longer promises an unchanged drawing and says what
+    to do if the file cannot be read once the declaration is gone; where no `themeColor`
+    line is surely the block's own, the advice gives both places and never takes a nested
+    value; a mark with `currentColor` and colours of its own gets both notes.
+  - Palette: a word that only begins with `dark` or `light` (`Lightness`, `Darker`) names
+    no theme. The reader's limits are stated in its grammar (characters nobody sees that
+    it does not take out, a label in front of a table).
 - **Not built:** a command that checks a logo file before a site exists. The contrast check
   on a palette is the only early check, as "Shape" says; a logo the intake will refuse
   (text, a gradient, a picture) is found out at the intake. Counter-argument: she would

@@ -57,14 +57,16 @@ BOM = "﻿"
 STYLESHEET = "src/styles/global.css"
 OTHER_FILES = (_site.CONFIG, _site.MANIFEST, _site.GENERATOR)  # the colours' other three homes
 PILLOW_MISSING = "Pillow, the image library the generator draws with, is not installed"
-ONE_COLOUR_ICONS = ("the app icons were drawn with a one-colour version of the logo, so this run left them as they are (this tool keeps the colour version only, and "
-                    "cannot tell what those icons sit on). To draw them for the new colours, run this again with the package the logo came in: --input, with --pick "
-                    "and --mono as before")
+ONE_COLOUR_ICONS = ("this tool cannot tell what the installed app icons sit on, or which version of the logo they were drawn from (it keeps the colour version only), so "
+                    "this run left them as they are. To draw them for the new colours, run this again with the package the logo came in: --input, with --pick and "
+                    "--mono as before")
 # A logo this tool installed keeps the colours it was drawn in when the palette changes. What can be done about it
-# depends on how the mark was given: one in `currentColor` is drawn in the new Primary from its package; one with
-# colours of its own is the same drawing whenever it is installed, and this tool recolours nothing.
-KEPT_CURRENT = ("the logo was given in `currentColor` and was drawn in the Primary of that day (%s). It keeps that colour: this tool draws it in the Primary the palette has "
-                "now (%s) only from the package it came in. For that, run this again with the package: --input, with --pick and --mono as before")
+# depends on how the mark was given: one in `currentColor` is drawn in the new Primary from its package (in the light
+# theme's Accent where the palette gives no Primary); one with colours of its own is the same drawing whenever it is
+# installed, and this tool recolours nothing. A mark with both kinds of colour can get both notes.
+KEPT_CURRENT = ("the logo was given in `currentColor` and was drawn in %s. It keeps that colour: this tool draws it in %s only from the package it came in. For that, run "
+                "this again with the package: --input, with --pick and --mono as before")
+KEPT_FOR = ("the Primary the palette has now (%s)", "the light theme's Accent the palette has now (%s: it gives no Primary)")
 KEPT_COLOURS = ("the logo keeps %s it was installed with (%s), which the palette no longer holds: this run changes the site's colours and leaves the logo's files as they "
                 "are, and this tool recolours nothing. For the logo in the new colours, ask the design tool for the mark in them, then run this again with that package: --input")
 NO_EMBLEM = ("the share cards get no emblem from this tool (the logo, shown faintly on each card): it leaves the LOGO line in scripts/generate_og_cards.py exactly as it is. "
@@ -295,7 +297,9 @@ def last_lines(output):
 # they are written, the site's own Node imports src/config.ts and says what SITE.themeColor and COMPANY.logo
 # are, and Python loads the generator (as a module, so that it draws nothing) and says what the colours'
 # names are bound to. Each program answers in one line of JSON that starts with a mark made for this run (the
-# file may print lines of its own, before and after), and ends the process as soon as it has printed it.
+# file may print lines of its own, before and after), and ends the process as soon as it has printed it. An
+# answer that has arrived counts, also where the process then did not end in time and was stopped (Node still
+# runs the file's `exit` listeners).
 
 _ASK_NODE = """
 import { pathToFileURL } from 'node:url';
@@ -352,9 +356,12 @@ def _answer(printed, mark):
 
 def _first_line(text, site, none="it did not say why"):
     """The first line of what a program said, for a note: with the site's folder written as `.`, so that a long
-    path is not what the 200 characters are spent on."""
-    for folder in sorted({os.path.realpath(site), site}, key=len, reverse=True):
-        text = text.replace(folder, ".")
+    path is not what the 200 characters are spent on. Only the folder's whole path is taken for it (as it was
+    given, and with links followed), where no letter of a longer name stands right before or after it; also
+    where it is written as a `file://` address with characters as %XX, as Node writes it."""
+    for folder in sorted({os.path.realpath(site), os.path.abspath(site)}, key=len, reverse=True):
+        spelt = "".join(r"[/\\]" if c in "/\\" else "(?:%s|%s)" % (re.escape(c), "".join("%%%02X" % b for b in os.fsencode(c))) for c in folder)
+        text = re.sub(r"(?<![\w.%-])(?:file:///?)?" + spelt + r"(?![\w.%-])", lambda _m: ".", text)
     return ([l.strip() for l in _plain(text).splitlines() if l.strip()] or [none])[0][:200].rstrip(".")
 
 
@@ -369,8 +376,8 @@ def _reads_config(site):
     (None, why it could not be asked). Node 22.18 and newer read a TypeScript file as it stands. One before
     that says it does not know the extension, and is asked once more with --experimental-strip-types (the
     starter allows Node from 22.12, which reads TypeScript only with that). Where that second asking fails
-    too, its reason is the one given; a Node that does not know the flag (before 22.6: it ends with status 9)
-    is said to read no TypeScript."""
+    too, its reason is the one given; a Node that does not know the flag (before 22.6: it ends with status 9
+    and names the flag) is said to read no TypeScript."""
     node = shutil.which("node")
     if not node:
         return None, "Node is not installed here, or is not on the path"
@@ -380,10 +387,10 @@ def _reads_config(site):
             code, printed, errors = _run([node] + more + ["--input-type=module", "-e", _ASK_NODE, os.path.join(site, "src", "config.ts"), mark], site, READ_BACK_SECONDS)
         except OSError as e:
             return None, "Node could not be started (%s)" % (e.strerror or e)
-        if code is None:
-            return None, "Node took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
         said = _answer(printed, mark)
-        if said is None and more and code == 9:
+        if said is None and code is None:
+            return None, "Node took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
+        if said is None and more and code == 9 and more[0] in errors:   # Node's own word on an option it does not know names the option
             break
         if said is None:
             return None, _unanswered("Node", code, errors, site)
@@ -412,9 +419,9 @@ def _reads_generator(site, names):
                                      env=dict(os.environ, PYTHONIOENCODING="utf-8"))
     except OSError as e:
         return None, "Python could not be started (%s)" % (e.strerror or e)
-    if code is None:
-        return None, "Python took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
     said = _answer(printed, mark)
+    if said is None and code is None:
+        return None, "Python took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
     if said is None:
         return None, _unanswered("Python", code, errors, site)
     if isinstance(said.get("read"), dict):
@@ -468,14 +475,14 @@ def read_back(site, wanted):
     return out
 
 
-def _not_read_back(rel, where, why):
-    """The one note about a file whose values could not be read back."""
-    lines = sorted(set(where.values()))
-    at = "line %d" % lines[0] if len(lines) == 1 else "lines %s and %d" % (", ".join(str(n) for n in lines[:-1]), lines[-1])
+def _not_read_back(rel, names, where, why):
+    """The one note about a file whose values could not be read back. `names` are the values asked about, `where`
+    the lines they stand on: a line is named only where each of them has one (see _site.set_lines)."""
+    lines = sorted({where[n] for n in names}) if all(n in where for n in names) else []
+    at = "" if not lines else "line %d of " % lines[0] if len(lines) == 1 else "lines %s and %d of " % (", ".join(str(n) for n in lines[:-1]), lines[-1])
     if rel == _site.GENERATOR:
-        return "this tool could not check that Python reads the share cards' colours from %s of %s, where they are set: %s" % (at, rel, why)
-    names = ["`%s`" % n for n in where]
-    return "this tool could not check that the site reads %s from %s of %s, where %s set: %s" % (" and ".join(names), at, rel, "it is" if len(names) == 1 else "they are", why)
+        return "this tool could not check that Python reads the share cards' colours from %s%s, where they are set: %s" % (at, rel, why)
+    return "this tool could not check that the site reads %s from %s%s, where %s set: %s" % (" and ".join("`%s`" % n for n in names), at, rel, "it is" if len(names) == 1 else "they are", why)
 
 
 def _read_differently(rel, off, where, set_here):
@@ -485,7 +492,8 @@ def _read_differently(rel, off, where, set_here):
         head = "%s: Python has %s bound to %s once the file's own top has run (this tool asked Python)." % (rel, name, off["reads"])
     else:
         head = "%s: the site reads %s as %s (this tool asked the site's own Node)." % (rel, off["reads"], {"themeColor": "SITE.themeColor", "logo": "COMPANY.logo"}[name])
-    said = "This run set %s on line %d" % (off["wanted"], at) if name in set_here else "Line %d already says %s, and this run left it" % (at, off["wanted"])
+    said = ("This run set %s on line %d" % (off["wanted"], at) if name in set_here else "Line %d already says %s, and this run left it" % (at, off["wanted"]) if at else
+            "The file already says %s, and this run left it" % off["wanted"])   # (no line: none is surely the block's own, see _site.set_lines)
     return "%s %s, so something else in the file decides the value. Set it by hand where the file decides it, or have the developer mend the file, then run this again." % (head, said)
 
 
@@ -494,7 +502,7 @@ class Plan(object):
 
     def __init__(self):
         self.wanted = {}      # file -> {name: value} of what this run sets, or finds already set, in src/config.ts and the generator
-        self.where = {}       # file -> {name: the number of the line it stands on}
+        self.where = {}       # file -> {name: the number of the line it stands on, where that is known}
         self.set_here = {}    # file -> the names whose line this run edits (the others already say the value)
         self.texts = {}       # relative path -> (old text, new text)
         self.files = {}       # relative path -> bytes (icons)
@@ -735,7 +743,13 @@ def _install(a, site, out, data):
             ["%s does not hold a complete palette (rows not filled in: %s)" % (os.path.basename(brand_path), ", ".join(sorted(set(by))))
              if has_any and by else why[0][0].lower() + why[0][1:].rstrip(".")] + why[1:]))
     pal = parsed if want_colours else palette_from_css(css)
-    primary = pal.brand or pal.light.get("accent")
+    # The colour that stands for the brand where one colour is wanted (the theme colour, a mark given in `currentColor`):
+    # the Primary, or the light theme's Accent where the palette gives none. That is asked of BRAND.md also on a run that
+    # goes by the site's own colours: a palette there with no Primary leaves the stylesheet's `--brand` as it was (the
+    # starter's black, say), and that leftover is not the palette's Primary. With no palette in BRAND.md to ask, the
+    # stylesheet's `--brand` is the Primary.
+    brand = None if parsed is not None and not parsed.brand and (parsed.light or parsed.dark) else pal.brand
+    primary = brand or pal.light.get("accent")
     low = []
     if want_colours:
         pairs = _palette.matrix(parsed)
@@ -851,15 +865,14 @@ def _install(a, site, out, data):
     # never handed over, and a run about colours neither judges it nor stops over it. Where the background
     # stays as it is, the logo's files are left alone and nothing is asked about them. Nor does a run about
     # colours stop over the image library: where the icons cannot be drawn, the colours go in and the icons wait.
-    # Where the master has no background of its own under the colours the site has now, the installed icons
-    # were not drawn from it: a one-colour version was used, and this tool keeps no record of that file or of
-    # the background it was given. Such icons are left as they are, with a note, and nothing is asked.
+    # Where the master has no background of its own under the colours the site has now, this tool cannot tell
+    # what the installed icons sit on: they were drawn from a one-colour version, or on a background the site
+    # has changed since, and it keeps a record of neither. Such icons are left as they are, with a note, and nothing is asked.
     redraw = a.with_logo and not a.input
     renderer = None
-    # A mark given in `currentColor` was drawn in the Primary of the day, and no run without its package draws it in another.
-    stale = kept is not None and not a.input and drawn not in (None, primary)
-    if stale:
-        notes.append(KEPT_CURRENT % (drawn, primary))
+    # A mark given in `currentColor` was drawn in that colour as it was on the day, and no run without its package draws it in another.
+    if kept is not None and not a.input and drawn not in (None, primary):
+        notes.append(KEPT_CURRENT % (drawn, KEPT_FOR[not brand] % primary))
     if master_bytes is not None and want_colours and not asked_for_logo:
         now = palette_from_css(css)
         moves = _icons.backgrounds(pal) != _icons.backgrounds(now)
@@ -884,10 +897,12 @@ def _install(a, site, out, data):
                              "That does not hold the colours back. Once it is put right%s, run this again with --with-logo to draw the icons again" % (
                                  str(r).strip().splitlines()[0].rstrip(".:") + ".",
                                  " (in the site's folder: npm install --include=optional)" if r.code == "sharp-missing" else ""))
-        if kept is not None and not redraw and not stale:
+        if kept is not None and not redraw:
             # The logo's files stay as they are, in the colours they were drawn in. Where the palette drops one of those
-            # colours, that is said: nothing is recoloured. (Never beside the note above: one of the two is the one to act on.)
-            lost = [c for c in _palette.check_mark(kept.colours, pal).outside if c not in _palette.check_mark(kept.colours, now).outside]
+            # colours, that is said: nothing is recoloured. (The colour a mark given in `currentColor` is drawn in has the
+            # note above, with another way out: said here are the mark's own colours, and a mark with both gets both notes.
+            # A colour of its own that is the very colour the other part is drawn in is not told apart from it.)
+            lost = [c for c in _palette.check_mark(kept.colours, pal).outside if c not in _palette.check_mark(kept.colours, now).outside and c != drawn]
             if lost:
                 notes.append(KEPT_COLOURS % ("the colour" if len(lost) == 1 else "the colours", ", ".join(lost)))
     want_logo = bool(a.input) or redraw
@@ -1102,7 +1117,7 @@ def _apply(a, site, out, data, plan, j, writes, want_colours, want_logo, card_co
             left = undo()
             raise Stop(1, ["A check failed after the files were written: what the site reads is not what this run set."] + differ + _aftermath(data),
                        "rollback-incomplete" if left else "read-back-failed")
-        notes.extend(_not_read_back(rel, plan.where[rel], got["why"]) for rel, got in checked.items() if got["status"] == "not-checked")
+        notes.extend(_not_read_back(rel, list(plan.wanted[rel]), plan.where[rel], got["why"]) for rel, got in checked.items() if got["status"] == "not-checked")
 
         ok, why = regenerate_cards(site)
         if ok:

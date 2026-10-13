@@ -263,14 +263,16 @@ class SiteCase(unittest.TestCase):
         """A stand-in `node` in a folder of its own, first on the path until the test is over: asked to import a
         TypeScript file, it answers as a Node before 22.18 does (it does not know the extension). Asked again
         with --experimental-strip-types it does what `with_the_flag` says: "unknown", it ends as a Node before
-        22.6 does (it does not know the flag: status 9); "reads", it hands over to the real Node, as a 22.12
-        would read the file; anything else is the JSON it answers with (a Node that knows the flag and still
-        cannot load the file). Everything else goes to the real Node. An answer starts with the mark the
-        tool handed over, its last argument. Returns the file it notes each of those calls in."""
+        22.6 does (it does not know the flag: status 9, and Node's own word, which names the flag); "ends
+        with 9", it ends with that status and a word of the file's own (a Node that takes the flag, and a
+        config that ended the program); "reads", it hands over to the real Node, as a 22.12 would read the
+        file; anything else is the JSON it answers with (a Node that knows the flag and still cannot load
+        the file). Everything else goes to the real Node. An answer starts with the mark the tool handed
+        over, its last argument. Returns the file it notes each of those calls in."""
         self.path = getattr(self, "path", os.environ["PATH"])   # as it was before the first stand-in: the real Node is found there
         folder, real = tempfile.mkdtemp(dir=self.tmp.name), shutil.which("node", path=self.path)
         asked = os.path.join(folder, "asked")
-        flagged = {"unknown": "echo 'node: bad option: --experimental-strip-types' >&2; exit 9", "reads": "exec '%s' \"$@\"" % real}.get(
+        flagged = {"unknown": "echo 'node: bad option: --experimental-strip-types' >&2; exit 9", "ends with 9": "echo 'no settings for this branch' >&2; exit 9", "reads": "exec '%s' \"$@\"" % real}.get(
             with_the_flag, "printf '\\n%%s%%s\\n' \"$mark\" '%s'; exit 0" % with_the_flag)
         with open(os.path.join(folder, "node"), "w", encoding="utf-8") as f:
             f.write("#!/bin/sh\nfor mark; do :; done\ncase \" $* \" in\n  \" --experimental-strip-types \"*) echo flag >> '%s'; %s ;;\n"
@@ -1720,8 +1722,18 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         home = "# Home + fallback card"
         cases = (
             # src/config.ts: a file a developer has reshaped, where the tool edited a line and the site read another value
-            ("src/config.ts", "an object inside the block whose lines are indented like the block's own", config.replace(own, "  social: {\n  themeColor: '#111111',\n  },\n"),
-             "line 10, above it in the block, is not one whole entry on one line (`social: {`)"),
+            # (round 7) the key only in an object inside the block: the advice names no line to write over or to move, and her value stays
+            ("src/config.ts", "an object inside the block whose lines are indented like the block's own", config.replace(own, "  social: {\n  themeColor: '#00ff00',\n  },\n"),
+             "the one line of the block that begins with `themeColor:` (line 11) stands below a line that is not one whole entry on one line (line 10: `social: {`), so it may belong to something inside the block. "
+             "With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this block. Set the value by hand: write that one line in place of the block's own "
+             "`themeColor` line, or as the first line under the opening line (line 5) where the block has none of its own"),
+            ("src/config.ts", "an object inside the block that holds the key as its last entry, with no comma", config.replace(own, "  pwa: {\n    themeColor: '#00ff00'\n  },\n"),
+             "the one line of the block that begins with `themeColor:` (line 11) stands below a line that is not one whole entry on one line (line 10: `pwa: {`)"),
+            # (round 7) the block's own line as its last entry, without a comma: "move the line up" left a file that was no TypeScript
+            ("src/config.ts", "the key as the block's last entry, with no comma after it", config.replace(own, "").replace("} as const;", "  themeColor: '#000000'\n} as const;", 1),
+             "the one line of the block that begins with `themeColor:` (line 17) stands below a line that is not one whole entry on one line (line 14: `description:`)"),
+            ("src/config.ts", "a list above the key", config.replace(own, "  tags: ['bread', 'cake'],\n" + own),
+             "the one line of the block that begins with `themeColor:` (line 11) stands below a line that is not one whole entry on one line (line 10: `tags: ['bread', 'cake'],`)"),
             ("src/config.ts", "the key a second time, with a value that is no colour", "const BRAND_COLOUR = '#111111';\n" + config.replace(own, own + "  themeColor: BRAND_COLOUR,\n"),
              "2 lines of the block begin with `themeColor:` (lines 11 and 12)"),
             ("src/config.ts", "the key again in an object inside the block, below it", config.replace(own, own + "  pwa: {\n    themeColor: '#00ff00',\n  },\n"),
@@ -1748,6 +1760,13 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
             ("public/manifest.webmanifest", "a manifest on one line", '{"name":"X","background_color":"#ffffff","theme_color":0}\n', 'Set the value yourself on line 1: put "#b4531a", in its quotes, where the value of "theme_color" stands now'),
             ("public/manifest.webmanifest", "another entry with colours of the same names", manifest.replace('  "lang": "en",', NESTED_SHORTCUT, 1), 'the name "theme_color" stands 2 times in the file (lines 6 and 10)'),
             ("public/manifest.webmanifest", "no theme colour of its own", manifest.replace('  "theme_color": "#000000",\n', ""), 'the name "theme_color" is not in the file'),
+            # (round 7) an entry of that name inside another entry, and none of the manifest's own: hers is never the one to write over
+            ("public/manifest.webmanifest", "a number of that name inside another entry, and none of the manifest's own",
+             manifest.replace('  "theme_color": "#000000",\n', "").replace('  "lang": "en",', '  "lang": "en",\n  "related": { "theme_color": 0 },'),
+             'the one place where "theme_color" stands (line 6) is not the manifest\'s own entry: it belongs to something inside the manifest. Write that one line as the first line under the manifest\'s opening `{`'),
+            ("public/manifest.webmanifest", "a value over two lines of that name inside another entry, and none of the manifest's own",
+             manifest.replace('  "theme_color": "#000000",\n', "").replace('  "lang": "en",', '  "lang": "en",\n  "related": {\n    "theme_color":\n      "#111111"\n  },'),
+             'the one place where "theme_color" stands (line 7) is not the manifest\'s own entry: it belongs to something inside the manifest. Write that one line as the first line under the manifest\'s opening `{`'),
             ("public/manifest.webmanifest", "a manifest that is not valid JSON", manifest.replace('"standalone",', '"standalone",,'), "public/manifest.webmanifest is not valid JSON ("),
             ("public/manifest.webmanifest", "a value that Python's reader takes and the site's does not", manifest.replace('"lang": "en",', '"lang": "en", "ratio": NaN,'),
              "public/manifest.webmanifest is not valid JSON (it holds NaN, which JSON does not have)"),
@@ -1796,12 +1815,13 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
                 reads = self.as_the_site_reads(rel)
                 if rel == "src/config.ts":
                     self.assertEqual(len(re.findall(r"(?m)^[ \t]*themeColor: '#b4531a',", self.read(rel))), 1)
-                    self.assertEqual(self.read(rel).count("themeColor: '#00ff00',"), text.count("themeColor: '#00ff00',"), "a value of hers inside the block is where it was: nothing said to take it out")
+                    self.assertEqual(self.read(rel).count("themeColor: '#00ff00'"), text.count("themeColor: '#00ff00'"), "a value of hers inside the block is where it was: nothing said to take it out, to move it or to write over it")
                     if reads is not None:
                         self.assertEqual(reads.get("themeColor"), "#b4531a", reads)
                 elif rel == "public/manifest.webmanifest":
                     data = json.loads(self.read(rel))
                     self.assertEqual((data["theme_color"], data["background_color"]), ("#b4531a", "#fff8ee"))
+                    self.assertEqual(data.get("related"), json.loads(text).get("related") if "related" in text else None, "what stands inside another entry is hers, and as it was")
                     if reads is not None:
                         self.assertEqual(reads, {"theme_color": "#b4531a", "background_color": "#fff8ee"})
                 else:
@@ -2098,9 +2118,16 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
              {"name": "themeColor", "reads": "#111111", "wanted": "#b4531a"}, "the site reads #111111 as SITE.themeColor " + node + "This run set #b4531a on line 4", lambda t: t.replace("'#111111'", "'#b4531a'")),
             ("the block's closing brace indented, and the object changed before the next brace at a line's start", "src/config.ts", indented, None,
              {"name": "themeColor", "reads": "#111111", "wanted": "#b4531a"}, "the site reads #111111 as SITE.themeColor " + node + "This run set #b4531a on line 11", lambda t: t.replace("'#111111'", "'#b4531a'")),
+            # (round 7) A line that already says the value below a line that is not one whole entry is left as it stands with no
+            # other guard: it may be a part of something inside the block. The read-back is the guard, and names no line.
             ("the key only in an object inside the block, with the colour wanted", "src/config.ts", config.replace(own, "  social: {\n  themeColor: '#b4531a',\n  },\n"), None,
-             {"name": "themeColor", "reads": "nothing", "wanted": "#b4531a"}, "the site reads nothing as SITE.themeColor " + node + "Line 11 already says #b4531a, and this run left it",
+             {"name": "themeColor", "reads": "nothing", "wanted": "#b4531a"}, "the site reads nothing as SITE.themeColor " + node + "The file already says #b4531a, and this run left it",
              lambda t: t.replace("  social: {\n", "  themeColor: '#b4531a',\n  social: {\n").replace("  social: {\n  themeColor: '#b4531a',\n", "  social: {\n")),
+            ("the colour wanted in an object inside the block, on one line of its own, and the block's own line below it says another", "src/config.ts", config.replace(own, "  pwa: {\n    themeColor: '#b4531a',\n  },\n" + own), None,
+             {"name": "themeColor", "reads": "#000000", "wanted": "#b4531a"}, "the site reads #000000 as SITE.themeColor " + node + "The file already says #b4531a, and this run left it",
+             lambda t: t.replace("themeColor: '#000000'", "themeColor: '#b4531a'")),
+            ("the colour wanted in an object inside the block, written on one line, and the block's own line says another", "src/config.ts", config.replace(own, own + "  pwa: { themeColor: '#b4531a' },\n"),
+             "line 11, in the same block, holds the name `themeColor` again (`pwa: { themeColor: '#b4531a' },`)", None, None, None),
             # the generator: a write that Python's parser does not show as a binding of the name
             ("a colour set through globals() further down", "scripts/generate_og_cards.py", generator.replace(home, "globals().update(BG_TOP=(1, 2, 3))\n\n" + home, 1), None,
              {"name": "BG_TOP", "reads": "#010203", "wanted": "#2a1f17"}, "Python has BG_TOP bound to #010203 " + python + "This run set #2a1f17 on line 52", lambda t: t.replace("BG_TOP=(1, 2, 3)", "BG_TOP=[42, 31, 23]")),   # (a list of the three numbers is the colour too)
@@ -2116,6 +2143,11 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
                     self.assertEqual((dry_code, code), (2, 2), out)
                     self.assertIn(refused_first, out)
                     self.put(rel, self.follow(rel, self.read(rel), out))
+                if value is None:   # ... or to a run that passes: the block's own line is the one the site reads
+                    code, out = self.intake("--json")
+                    self.assertEqual((code, json.loads(out)["status"], json.loads(out)["read_back"]), (0, "done", self.READ_OK), out)
+                    self.assertIn("pwa: { themeColor: '#b4531a' },", self.read(rel))
+                    continue
                 before = self.snapshot()
                 (dry_code, dry), (code, out) = self.both_runs("--json")
                 dry, data = json.loads(dry), json.loads(out)
@@ -2156,6 +2188,20 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
             shutil.which = real
         self.assertEqual((code, json.loads(out)["status"]), (0, "done"), out)
         self.assertIn("this tool could not check that the site reads `themeColor` from line 10 of src/config.ts, where it is set: Node is not installed here, or is not on the path", json.loads(out)["notes"])
+        # the same for a value that is left as it stands inside the block: the note names the file, and no line (round 7)
+        for label, block in (("no line of the block's own", "  pwa: {\n    themeColor: '#b4531a',\n  },\n"), ("the block's own line says another value", "  pwa: {\n    themeColor: '#b4531a',\n  },\n" + own)):
+            with self.subTest(label=label, node="not there"):
+                self.fresh()
+                self.put("src/config.ts", config.replace(own, block))
+                shutil.which = lambda name, *a, **k: None if name == "node" else real(name, *a, **k)
+                try:
+                    code, out = self.intake("--json")
+                finally:
+                    shutil.which = real
+                self.assertEqual((code, json.loads(out)["status"]), (0, "done"), out)
+                self.assertEqual([n for n in json.loads(out)["notes"] if "could not check" in n],
+                                 ["this tool could not check that the site reads `themeColor` from src/config.ts, where it is set: Node is not installed here, or is not on the path"])
+                self.assertEqual(self.read("src/config.ts"), config.replace(own, block), "not a byte of the file was changed")
         # in words too, and both values of src/config.ts when both are read otherwise
         self.fresh()
         self.put("src/config.ts", config.replace("} as const;", "} && { themeColor: '#B4531A' };", 1).replace("themeColor: '#000000'", "themeColor: '#b4531a'"))
@@ -2221,7 +2267,17 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         asked = self.old_node('{"code":"ERR_MODULE_NOT_FOUND","why":"Cannot find module %s/src/nav imported from %s/src/config.ts","node":"v22.12.0"}' % (os.path.realpath(self.site), self.site))
         data, notes, colours = run({})
         self.assertEqual((T.read(asked).split(), notes), (["plain", "flag"], [of_config % 10 + "Node could not load the file (Cannot find module ./src/nav imported from ./src/config.ts)"]))
+        # (round 7) a Node that takes the flag, and a config that ends the program with status 9 itself: said as that. Status 9 alone
+        # was taken for Node's word on an option it does not know, and the note said this Node reads no TypeScript.
+        asked = self.old_node("ends with 9")
+        data, notes, colours = run({})
+        self.assertEqual((T.read(asked).split(), notes), (["plain", "flag"], [of_config % 10 + "Node ended without answering (its exit status was 9: no settings for this branch)"]))
         os.environ["PATH"] = self.path   # the real Node again
+        # (round 7) Node runs the file's `exit` listeners when the asking script ends the process. One that takes long holds the
+        # process until the time limit: the answer had arrived by then, and was thrown away with it. It counts.
+        data, notes, colours = run({"src/config.ts": "process.on('exit', () => { while (Date.now() > 0) { } });\n" + config}, limit=12)
+        self.assertEqual((data["read_back"], notes), (self.READ_OK, []))
+        self.assertIn("in the theme colour and the manifest, and in the share cards.", colours)
         # a file that imports what only the site's build knows; one Node does not come back from
         data, notes, colours = run({"src/config.ts": "import more from 'a-package-nobody-installed';\n" + config})
         self.assertEqual(data["read_back"]["src/config.ts"]["status"], "not-checked")
@@ -2235,6 +2291,13 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         self.assertNotIn(os.path.basename(self.tmp.name), notes[0], "nothing of the path to the site is in the reason")
         data, notes, colours = run({"src/config.ts": config + "while (Date.now() > 0) { }\n"}, limit=2)
         self.assertEqual(notes, [of_config % 10 + "Node took more than 2 seconds over the file and was stopped"])
+        # (round 7) Node names a file as a `file://` address, with a blank or a letter outside ASCII written as %XX: that spelling
+        # of the site's folder is written `.` too, so that the reason is not cut in the middle of a long path
+        self.site = T.make_starter_site(os.path.join(self.tmp.name, "My B\u00e4ckerei (new) & more", "a very long folder name for the site " * 4, "site"), with_modules=self.modules)
+        data, notes, colours = run({"src/config.ts": "import pack from '../package.json';\n" + config})
+        self.assertEqual(len(notes), 1)
+        self.assertRegex(notes[0], re.escape(of_config % 11) + r'Node could not load the file \(Module "\./package\.json" needs an import attribute of "?type: json"?\)$')
+        self.site = os.path.join(self.tmp.name, "site")
         # the generator: Pillow not there (the file's own top says so and ends), and a top that fails
         data, notes, colours = run({"scripts/generate_og_cards.py": generator.replace("from __future__ import annotations\nimport sys\n", "from __future__ import annotations\nimport sys\nsys.modules['PIL'] = None\n", 1)})
         self.assertEqual(data["read_back"], {"src/config.ts": {"status": "ok"}, "scripts/generate_og_cards.py": {"status": "not-checked", "why": _install.PILLOW_MISSING}})
@@ -2254,6 +2317,23 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
             shutil.which = real
         self.assertEqual(notes, [of_config % 10 + "Node is not installed here, or is not on the path",
                                  of_cards % "52, 53, 54, 55, 56 and 57" + "no Python was found on the path (python3, py or python)"])
+
+    def test_only_the_sites_whole_folder_is_written_as_a_dot_in_a_reason_in_whichever_way_a_program_spells_it(self):
+        # (round 7) the folder's name was replaced wherever its letters stood: a site in a folder called `site` or `app` scarred
+        # other words of the reason. And Node's own spelling of a folder, a `file://` address with %XX in it, was not replaced.
+        said = _install._first_line
+        for folder in ("/srv/site", "/srv/app", "/srv/My B\u00e4ckerei (new) & 100%/site"):
+            with self.subTest(folder=folder):
+                address = "file://" + "".join(c if c.isascii() and (c.isalnum() or c in "/()&") else "".join("%%%02X" % b for b in c.encode("utf-8")) for c in folder)
+                self.assertEqual(said("Cannot find module '%s/src/nav' imported from %s/src/config.ts" % (folder, folder), folder), "Cannot find module './src/nav' imported from ./src/config.ts")
+                self.assertEqual(said('Module "%s/package.json" needs an import attribute of "type: json"' % address, folder), 'Module "./package.json" needs an import attribute of "type: json"')
+                self.assertEqual(said("%s/src/config.ts:3 and %s too" % (address, folder), folder), "./src/config.ts:3 and . too")
+                for other in ("No module named 'sitemaps' for the application, opposite", "%s-old/src/config.ts" % folder, "%ss/src/config.ts" % folder, "/backup%s/src/config.ts" % folder,
+                              "%s.bak/x" % folder, "file:///elsewhere%s" % address[len("file://"):]):
+                    self.assertEqual(said(other, folder), other, "a word that only holds the folder's letters, or a longer path, is left as it is")
+        self.assertEqual(said("site: No module named 'sitemaps' in site/x", "site"), "site: No module named 'sitemaps' in site/x", "a folder given by its name alone is looked for by its whole path")
+        self.assertEqual(said("x" * 300 + ".", "/srv/site"), "x" * 200)
+        self.assertEqual((said("\n\n  first.  \nsecond", "/srv/site"), said("", "/srv/site"), said("", "/srv/site", "")), ("first", "it did not say why", ""))
 
     @POSIX
     def test_the_answer_is_the_line_that_carries_this_runs_mark_whatever_else_the_file_prints_and_however_it_ends(self):
@@ -2301,6 +2381,22 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
                 self.assertEqual(_install.read_back(self.site, {rel: wanted[rel]}), {rel: said})
                 self.assertLess(time.time() - began, _install.READ_BACK_SECONDS / 2, "the answer was there at once, and was waited for until the limit")
                 self.put(rel, T.starter_file(rel))
+        # (round 7) An answer that has arrived counts, also where the program then does not end before the time limit (Node runs a
+        # file's `exit` listeners; the install's own test of that is in the test above). Python's side, with a stand-in that
+        # answers and stays; and one that stays without an answer is still said to have taken too long.
+        folder = tempfile.mkdtemp(dir=self.tmp.name)
+        was, path = _install.READ_BACK_SECONDS, os.environ["PATH"]
+        _install.READ_BACK_SECONDS, os.environ["PATH"] = 3, folder + os.pathsep + path
+        try:
+            for label, answers, said in (("an answer, and then it stays", "printf '\\n%s{\"read\": {\"BG_TOP\": [30, 33, 64]}}\\n' \"$4\"; ", ok),
+                                         ("no answer, and it stays", "", unasked("Python took more than 3 seconds over the file and was stopped"))):
+                with self.subTest(label=label):
+                    with open(os.path.join(folder, "python3"), "w", encoding="utf-8") as f:
+                        f.write("#!/bin/sh\n%sexec sleep 600\n" % answers)   # (its arguments: -c, the asking script, the file, the mark, the names)
+                    os.chmod(os.path.join(folder, "python3"), 0o755)
+                    self.assertEqual(_install.read_back(self.site, {"scripts/generate_og_cards.py": wanted["scripts/generate_og_cards.py"]}), {"scripts/generate_og_cards.py": said})
+        finally:
+            _install.READ_BACK_SECONDS, os.environ["PATH"] = was, path
 
     def test_what_the_reading_of_the_stylesheet_notes_and_stops_for_nothing_is_in_the_installs_report_too(self):
         # the stylesheet's reader hands out notes beside its problems (a stylesheet brought in with @import, which
@@ -3344,23 +3440,58 @@ class StoppedFromOutside(SiteCase):
                 self.assertIn(printed, r.stdout)
                 self.assertIn(said, r.stderr)
                 self.assertTrue((r.stdout + r.stderr).endswith("\n"), "what argparse had to say arrived whole")
+        # (round 7) with the error output closed, argparse on Python 3.9 had nothing to write its word to, and the run ended with 1
+        script = os.path.abspath(os.path.join(T.SCRIPTS, "brand_intake.py"))
+        for argv in (["install", "--bogus"], ["palette"], []):
+            with self.subTest(argv=argv, error_output="closed"):
+                r = subprocess.run(["/bin/sh", "-c", 'exec "$@" 2>&-', "sh", sys.executable, script] + argv, capture_output=True, timeout=120)
+                self.assertEqual((r.returncode, r.stdout, r.stderr), (2, b"", b""))
+        # (round 7) a flag cut short is no flag: `--js` was taken for `--json`, and the line of an early stop, which looks for the word itself, was then not JSON
+        for argv in (["install", "--site", self.site, "--js"], ["install", "--site", self.site, "--dry"], ["palette", self.p("BRAND.md"), "--js"]):
+            with self.subTest(argv=argv[2:]):
+                r = subprocess.run([sys.executable, script] + argv, capture_output=True, text=True, encoding="utf-8", timeout=120)
+                self.assertEqual((r.returncode, r.stdout), (2, ""))
+                self.assertIn("unrecognized arguments: " + argv[-1], r.stderr)
         whole = subprocess.run([sys.executable, "-c", "import sys\nsys.path.insert(0, %r)\nimport brand_intake\nbrand_intake.main(['install', '--help'])\n" % T.SCRIPTS], capture_output=True, text=True, encoding="utf-8", timeout=120)
         self.assertEqual(subprocess.run([sys.executable, "-c", program, "install", "--help"], capture_output=True, text=True, encoding="utf-8", timeout=120).stdout, whole.stdout, "not a line of the help is lost on the way out")
 
-    # --- a terminal throws away what it has not shown yet when the interrupt key is typed (round 6) ---
-    # The driver below is the terminal's own program, as a shell is: it says how the command ended and how the
-    # terminal's settings were left, and stays (a shell waits for the next command) until the test ends it. The
-    # command is the file itself, run as the owner runs it.
-    TERMINAL = ("import json, os, signal, subprocess, sys, termios\nsignal.signal(signal.SIGINT, lambda *a: None)\nbefore = repr(termios.tcgetattr(0))\n"
-                "p = subprocess.Popen(sys.argv[2:], preexec_fn=(lambda: os.setpgid(0, 0)) if sys.argv[1] == 'background' else None)\n_pid, status = os.waitpid(p.pid, os.WUNTRACED)\n"
-                "if os.WIFSTOPPED(status):\n    ended = 'stopped by signal %d' % os.WSTOPSIG(status)\n    os.kill(p.pid, signal.SIGKILL)\n    os.waitpid(p.pid, 0)\n"
-                "else:\n    ended = os.WEXITSTATUS(status) if os.WIFEXITED(status) else 'ended by signal %d' % os.WTERMSIG(status)\n"
-                "sys.stderr.write(json.dumps({'ended': ended, 'before': before, 'after': repr(termios.tcgetattr(0))}) + '\\n')\nsys.stderr.flush()\nwhile True:\n    signal.pause()\n")
+    def test_a_second_ctrl_c_can_neither_cut_the_early_stop_short_nor_end_the_process_another_way(self):
+        # (round 7) The line of an early stop is said with Python's own handling of Ctrl-C still in place: a second
+        # press while it was said was a traceback. Ctrl-C is ignored before the line is said, and a press that comes
+        # before it is ignored begins the stop again. The second press is put at each of the two moments, for both
+        # places the line is said from: a stop while the tool's modules are loaded, and one while its arguments are read.
+        script = os.path.abspath(os.path.join(T.SCRIPTS, "brand_intake.py"))
+        first = {"while the modules are loaded": "real = builtins.__import__\nsent = []\ndef stopped_here(name, *args, **kwargs):\n    if name == '_install' and not sent:\n        sent.append(name)\n"
+                                                 "        os.kill(os.getpid(), signal.SIGINT)\n    return real(name, *args, **kwargs)\nbuiltins.__import__ = stopped_here\n",
+                 "while the arguments are read": "real = argparse.ArgumentParser.parse_args\ndef stopped_here(self, *args, **kwargs):\n    os.kill(os.getpid(), signal.SIGINT)\n    return real(self, *args, **kwargs)\n"
+                                                 "argparse.ArgumentParser.parse_args = stopped_here\n"}
+        second = {"while the line is said": "said = builtins.print\ndef pressed_again(*args, **kwargs):\n    os.kill(os.getpid(), signal.SIGINT)\n    return said(*args, **kwargs)\nbuiltins.print = pressed_again\n",
+                  "before Ctrl-C is ignored": "sets, again = signal.signal, []\ndef pressed_again(number, handler):\n    if handler == signal.SIG_IGN and not again:\n        again.append(number)\n"
+                                              "        os.kill(os.getpid(), signal.SIGINT)\n    return sets(number, handler)\nsignal.signal = pressed_again\n"}
+        before = self.snapshot()
+        for when, stop in first.items():
+            for then, press in second.items():
+                for argv in (["install", "--site", self.site, "--test-command", GREEN], ["palette", self.p("BRAND.md"), "--json"]):
+                    with self.subTest(first=when, second=then, command=argv[0]):
+                        program = ("import argparse, builtins, os, runpy, signal, sys\nsignal.signal(signal.SIGINT, signal.default_int_handler)\n" + press + stop
+                                   + "sys.argv = [%r] + sys.argv[1:]\nrunpy.run_path(%r, run_name='__main__')\n" % (script, script))
+                        r = subprocess.run([sys.executable, "-c", program] + argv, capture_output=True, text=True, encoding="utf-8", timeout=120)
+                        self.assertEqual((r.returncode, r.stdout, r.stderr), (2, self.STOPPED_JSON if "--json" in argv else "Stopped (Ctrl-C). Nothing was written.\n", ""))
+        self.assertEqual(self.snapshot(), before)
 
-    def at_a_terminal(self, how, *argv):
-        """Start the command line at a terminal of this test's own (a pty), in the foreground of it or in the
-        background: (the process of the terminal's own program, the end of the terminal that a terminal window
-        holds). Nothing typed is printed back. Skips where no terminal is to be had."""
+    # --- at a terminal (round 7) ---
+    # The program below is the terminal's own, as a shell is: it runs the command, says how it ended and how the
+    # terminal's settings were before and after, and stays (a shell waits for the next command) until the test ends it.
+    TERMINAL = ("import json, os, signal, subprocess, sys, termios\nsignal.signal(signal.SIGINT, lambda *a: None)\nbefore = repr(termios.tcgetattr(0))\n"
+                "p = subprocess.Popen(sys.argv[1:])\n_pid, status = os.waitpid(p.pid, 0)\n"
+                "ended = os.WEXITSTATUS(status) if os.WIFEXITED(status) else 'ended by signal %d' % os.WTERMSIG(status)\n"
+                "sys.stderr.write('\\n' + json.dumps({'ended': ended, 'before': before, 'after': repr(termios.tcgetattr(0))}) + '\\n')\nsys.stderr.flush()\nwhile True:\n    signal.pause()\n")
+
+    def at_a_terminal(self, command, keeps):
+        """Start a command at a terminal of this test's own (a pty), in the foreground of it: (the process of the
+        terminal's own program, the end of the terminal that a terminal window holds). Nothing typed is printed
+        back. `keeps` says whether the terminal keeps what it has not shown yet when the interrupt key is typed
+        (NOFLSH); a terminal as it comes throws that away. Skips where no terminal is to be had."""
         try:
             import fcntl
             import pty
@@ -3370,7 +3501,7 @@ class StoppedFromOutside(SiteCase):
             self.skipTest("no terminal to be had here: %s" % e)
         self.addCleanup(os.close, window)
         now = termios.tcgetattr(inside)
-        now[3] &= ~(termios.ECHO | termios.NOFLSH)
+        now[3] = (now[3] & ~(termios.ECHO | termios.NOFLSH)) | (termios.NOFLSH if keeps else 0)
         termios.tcsetattr(inside, termios.TCSANOW, now)
 
         def as_the_terminals_own():
@@ -3378,9 +3509,8 @@ class StoppedFromOutside(SiteCase):
                 signal.signal(getattr(signal, name), signal.SIG_DFL)
             os.setsid()
             fcntl.ioctl(0, termios.TIOCSCTTY, 0)
-        script = os.path.abspath(os.path.join(T.SCRIPTS, "brand_intake.py"))
         try:
-            p = subprocess.Popen([sys.executable, "-c", self.TERMINAL, how, sys.executable, script] + list(argv), stdin=inside, stdout=inside, stderr=subprocess.PIPE, preexec_fn=as_the_terminals_own)
+            p = subprocess.Popen([sys.executable, "-c", self.TERMINAL] + list(command), stdin=inside, stdout=inside, stderr=subprocess.PIPE, preexec_fn=as_the_terminals_own)
         finally:
             os.close(inside)
         self.addCleanup(p.stderr.close)
@@ -3388,68 +3518,46 @@ class StoppedFromOutside(SiteCase):
         self.addCleanup(p.kill)   # (the terminal's own program stays until it is ended, as a shell does)
         return p, window
 
-    def shown(self, p, window, held=b"", limit=300):
-        """(Everything the terminal is handed from now until the command has ended and nothing more comes, what
-        the terminal's own program said of the end.) With `held`, the terminal is a slow one with a key held
-        down: it takes a little at a time, and the key is typed again after each taking for as long as the
-        command has not ended."""
+    def test_ctrl_c_typed_twice_at_a_terminal_in_the_tools_first_moments_ends_in_the_one_line_and_leaves_the_terminal_as_it_was(self):
+        # Round 6 changed a terminal's settings around every line the command says, the line of an early stop too: a
+        # second Ctrl-C a few milliseconds after an early first one was a traceback (35 of 300 runs at 4 ms apart),
+        # in some of them with the terminal left changed for the commands that follow. Nothing sets a terminal's
+        # modes any more. Here the keys are typed at a terminal: the first when the tool loads its modules, the second
+        # 1 to 40 ms later. Every run ends with status 2 and nothing on the error output, and the terminal's
+        # settings are as they were. The line arrives on a terminal that keeps its output. One as it comes may throw
+        # the line away at the second press (the limit brand_intake._say states): there it is the line, or nothing.
         import select
-        got, ended, end = b"", None, time.time() + limit
-        while time.time() < end:
-            ready = select.select([window] if ended else [window, p.stderr], [], [], 0.3)[0]
-            if window in ready:
-                got += os.read(window, 256 if held and not ended else 65536)
-                if held and not ended:
-                    time.sleep(0.02)
-                    os.write(window, held)
-            elif ready:
-                ended = json.loads(p.stderr.readline().decode("utf-8") or '{"ended": "the terminal\'s own program ended first"}')
-            elif ended:
-                break   # the command has ended, and what it wrote before that was there to be taken at once
-        return got.decode("utf-8").replace("\r\n", "\n"), ended or {"ended": "it did not end in %d seconds" % limit}
-
-    def test_ctrl_c_held_down_while_the_report_is_on_its_way_to_a_terminal_does_not_make_the_terminal_throw_it_away(self):
-        # A Ctrl-C that is TYPED makes the terminal empty its output queue (the tests above send signals to a
-        # process whose output is a pipe, where nothing is thrown away). The run ignores the signal by then; the
-        # report arrived cut, or not at all (1 of 232 runs with three presses, 5 of 40 with the key held down).
-        # Here the key is held down from the moment the site's tests run: the first press stops the run, the
-        # others come while it puts back and reports. On macOS the terminal takes nothing for half a second
-        # after the report began to arrive, and then a little at a time, with the key down until the command
-        # has ended. (Linux has the report at the terminal's other end at once and gives the tool no way to
-        # wait for a slow terminal: there the key is let go when the report begins to arrive.)
-        import select
-        running = os.path.join(self.tmp.name, "tests-are-running")
+        script, there = os.path.abspath(os.path.join(T.SCRIPTS, "brand_intake.py")), os.path.join(self.tmp.name, "loading")
+        program = ("import builtins, os, runpy, signal, sys, time\nreal = builtins.__import__\ndef waits_here(name, *args, **kwargs):\n    if name == '_install' and not os.path.exists(%r):\n"
+                   "        open(%r, 'w').close()\n        time.sleep(300)\n    return real(name, *args, **kwargs)\nbuiltins.__import__ = waits_here\n"
+                   "sys.argv = [%r] + sys.argv[1:]\nrunpy.run_path(%r, run_name='__main__')\n" % (there, there, script, script))
         before = self.snapshot()
-        p, window = self.at_a_terminal("foreground", "install", "--site", self.site, "--json", "--test-command", "touch '%s'; sleep 300" % running)
-        self.assertTrue(self.until(lambda: os.path.exists(running), p, limit=300), "the site's tests never ran")
-        arrived, end = None, time.time() + 300
-        while time.time() < end and (arrived is None or (sys.platform == "darwin" and time.time() - arrived < 0.5)):
-            ready = [] if arrived else select.select([window, p.stderr], [], [], 0.02)[0]
-            if window in ready:
-                arrived = time.time()
-                continue
-            if ready:
-                break   # the command ended and nothing came
-            os.write(window, b"\x03")
-            time.sleep(0.02 if arrived else 0)
-        self.assertIsNotNone(arrived, "no report came")
-        printed, end = self.shown(p, window, held=b"\x03" if sys.platform == "darwin" else b"")
-        self.assertEqual(printed.count("\n"), 1, printed)
-        data = json.loads(printed)
-        self.assertEqual((end["ended"], data["exit"], data["status"], data["report"][:2]), (
-            2, 2, "stopped", ["The run was stopped from outside (SIGINT) before it had finished, and what it had started was stopped with it as far as this tool could find it.", "Everything it had written was put back."]))
-        self.assertEqual(end["after"], end["before"], "the terminal's settings are as they were before the run")
+        for n, gap in enumerate((0.001, 0.002, 0.004, 0.008, 0.015, 0.025, 0.040) * 4):
+            keeps, argv = bool(n % 2), ["palette", self.p("BRAND.md"), "--json"] if n % 4 > 1 else ["install", "--site", self.site, "--test-command", GREEN]
+            with self.subTest(gap=gap, keeps=keeps, command=argv[0]):
+                p, window = self.at_a_terminal([sys.executable, "-c", program] + argv, keeps)
+                self.assertTrue(self.until(lambda: os.path.exists(there), p, limit=300), "the tool never came to load its modules")
+                os.write(window, b"\x03")
+                time.sleep(gap)
+                os.write(window, b"\x03")
+                shown, said, end = b"", b"", time.time() + 300
+                while not said.endswith(b"}\n") and time.time() < end:   # until the terminal's own program has said how the command ended
+                    for ready in select.select([window, p.stderr], [], [], 0.05)[0]:
+                        if ready is window:
+                            shown += os.read(window, 65536)
+                        else:
+                            said += os.read(p.stderr.fileno(), 65536)
+                while select.select([window], [], [], 0.2)[0]:
+                    shown += os.read(window, 65536)
+                p.kill()
+                os.remove(there)
+                errors, _newline, ended = said.rpartition(b"\n")[0].rpartition(b"\n")
+                ended = json.loads(ended.decode("utf-8"))
+                self.assertEqual((ended["ended"], errors.decode("utf-8")), (2, ""), "status 2, and no traceback")
+                self.assertEqual(ended["after"], ended["before"], "the terminal's settings are as they were before the run")
+                line = self.STOPPED_JSON if "--json" in argv else "Stopped (Ctrl-C). Nothing was written.\n"
+                self.assertIn(shown.decode("utf-8").replace("\r\n", "\n"), (line,) if keeps else (line, ""))
         self.assertEqual(self.snapshot(), before)
-
-    def test_a_run_in_the_background_of_a_terminal_prints_its_report_and_is_not_stopped_over_the_terminals_settings(self):
-        # a process in the background that changes a terminal's settings is stopped by the system (SIGTTOU) until it
-        # is brought to the foreground: the report would never come. So from the background the settings are left alone.
-        for how in ("background", "foreground"):
-            with self.subTest(how=how):
-                p, window = self.at_a_terminal(how, "install", "--site", self.site, "--dry-run", "--test-command", GREEN)
-                printed, end = self.shown(p, window)
-                self.assertEqual((end["ended"], end["after"]), (0, end["before"]), printed)
-                self.assertTrue(printed.startswith("Dry run: nothing was written. This is what would be written:\n") and printed.endswith("\n"), printed)
 
     def test_a_report_that_nobody_reads_any_more_changes_neither_the_runs_status_nor_puts_an_error_out(self):
         # `... | head -1`, a terminal that went away: the write of the report fails, and Python said so twice over
@@ -4821,14 +4929,14 @@ class WhatIsAskedAndWhen(SiteCase):
         code, out = self.intake("--accept-colours", "--accept-low-contrast", "both", "--replace-icons")
         self.assertEqual(code, 0, out)
         self.assertEqual(self.sits_on(), "#fffdf7")
-        self.assertNotIn("one-colour version of the logo, so this run left them", out, "these icons were drawn from the colour version: they are drawn again")
+        self.assertNotIn("cannot tell what the installed app icons sit on", out, "these icons were drawn from the colour version, on a background the site still has: they are drawn again")
         # and with both backgrounds changed at once
         self.brand_md(BAKERY_BRAND_MD.replace("| Background | `#fff8ee` |", "| Background | `#fffcf5` |").replace("| Background | `#1a120d` |", "| Background | `#1b130e` |"))
         self.assertEqual(self.intake()[0], 3)
         code, out = self.intake("--accept-colours", "--accept-low-contrast", "both", "--replace-icons")
         self.assertEqual(code, 0, out)
         self.assertEqual(self.sits_on(), "#fffcf5")
-        self.assertNotIn("one-colour version of the logo, so this run left them", out)
+        self.assertNotIn("cannot tell what the installed app icons sit on", out)
 
     def mono_installed(self):
         """A site whose app icons were drawn from the one-colour version: the colour version, white beside
@@ -4860,16 +4968,16 @@ class WhatIsAskedAndWhen(SiteCase):
                 self.assertEqual(self.icons(), icons, "not a byte of the logo's files")
                 for report in (json.loads(dry), data):
                     self.assertNotIn("asks", report)
-                    self.assertEqual([n for n in report["notes"] if "one-colour" in n], [_install.ONE_COLOUR_ICONS])
+                    self.assertEqual([n for n in report["notes"] if "app icons" in n], [_install.ONE_COLOUR_ICONS])
                     self.assertIn("Note: " + _install.ONE_COLOUR_ICONS, report["report"])
                     self.assertEqual([w for w in report["written"] if w.startswith(("public/favicon", "public/icon", "public/apple", "public/images/logo", "brand-handoff"))], [])
                 self.assertEqual(_palette.read_css(self.read("src/styles/global.css")).dark["bg"] == "#1b130e", dark in changes, "and the colours went in")
-        self.assertIn("so this run left them as they are", _install.ONE_COLOUR_ICONS)
-        self.assertIn("run this again with the package the logo came in: --input, with --pick and --mono as before", _install.ONE_COLOUR_ICONS)
+        self.assertEqual(_install.ONE_COLOUR_ICONS, "this tool cannot tell what the installed app icons sit on, or which version of the logo they were drawn from (it keeps the colour version only), so this run "
+                         "left them as they are. To draw them for the new colours, run this again with the package the logo came in: --input, with --pick and --mono as before")
         # a change that moves no background says nothing of the icons
         self.brand_md(md.replace("| Accent | `#e2874a` |", "| Accent | `#d47c44` |"))
         data = json.loads(self.intake("--json")[1])
-        self.assertEqual((data["status"], [n for n in data["notes"] if "one-colour" in n]), ("done", []))
+        self.assertEqual((data["status"], [n for n in data["notes"] if "app icons" in n]), ("done", []))
         # asked for outright, the redraw from the favicon alone is tried, and its question stands as before
         data = json.loads(self.intake("--with-logo", "--accept-colours", "--accept-low-contrast", "both", "--replace-icons", "--json")[1])
         self.assertEqual((data["status"], [k["code"] for k in data["asks"]]), ("needs-decision", ["no-background"]))
@@ -4878,6 +4986,29 @@ class WhatIsAskedAndWhen(SiteCase):
         code, out = self.intake("--input", pack, "--pick", "p/mark.svg", "--mono", "p/mark-mono.svg", "--accept-colours", "--accept-low-contrast", "both", "--replace-icons")
         self.assertEqual(code, 0, out)
         self.assertIn("drawn from the one-colour version", out)
+
+    def test_icons_drawn_from_the_colour_version_on_a_background_the_site_no_longer_has_get_the_same_note_and_it_claims_no_more_than_is_known(self):
+        # (round 7) The note said "the app icons were drawn with a one-colour version of the logo". What the tool knows is less:
+        # the colour version has no background among the colours the site has now. Here the icons WERE drawn from the colour
+        # version, white beside black on a grey page, and the stylesheet's colours were set by hand since.
+        grey = dict(T.BAKERY_LIGHT, bg="#808080", bg_soft="#858585", surface="#8a8a8a", heading="#000000", ink="#000000", muted="#000000", accent="#000000", link="#000000", line="#6f6f6f")
+        self.brand_md("# Brand\n\n### Brand (fixed, theme-independent)\n| Token | Hex |\n|---|---|\n| Primary | `#000000` |\n\n### Light theme\n" + table([(l, grey[k]) for k, l in LABELS])
+                      + "\n### Dark theme\n" + table([(l, T.BAKERY_DARK[k]) for k, l in LABELS]))
+        pack = self.package("two.svg", rects((2, 2, 14, 28, "#ffffff"), (16, 2, 14, 28, "#000000")))
+        code, out = self.intake("--input", pack, "--with-colours", "--accept-colours", "--accept-low-contrast", "both")
+        self.assertEqual(code, 0, out)
+        self.assertIn("(the app icons sit on #808080, drawn from the colour version)", out)
+        icons = self.icons()
+        self.put("src/styles/global.css", _site.edit_css(self.read("src/styles/global.css"), _palette.parse_tables(BAKERY_BRAND_MD)))   # by hand: the tool was not asked, and drew nothing again
+        self.brand_md(BAKERY_BRAND_MD.replace("| Background | `#fff8ee` |", "| Background | `#fffdf7` |"))
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code), (0, 0), out)
+        for report in (json.loads(dry), json.loads(out)):
+            self.assertEqual([n for n in report["notes"] if "app icons" in n], [_install.ONE_COLOUR_ICONS])
+        self.assertEqual(self.icons(), icons, "not a byte of the logo's files")
+        # what the note says to do: the package again. This mark has no one-colour version, so what comes next is the question about its background.
+        data = json.loads(self.intake("--input", pack, "--accept-colours", "--accept-low-contrast", "both", "--replace-icons", "--json")[1])
+        self.assertEqual((data["status"], [k["code"] for k in data["asks"]]), ("needs-decision", ["no-background"]))
 
     def test_the_tools_own_favicon_is_known_again_when_a_checkout_turned_its_line_ends_into_crlf_and_one_that_was_edited_is_said_to_be_that(self):
         self.installed()
@@ -4993,8 +5124,9 @@ class WhatIsAskedAndWhen(SiteCase):
     DAY_ONE = BAKERY_BRAND_MD.replace("| Primary | `#b4531a` |", "| Primary | `#7a2e0b` |")
     LATER = DAY_ONE.replace("| Primary | `#7a2e0b` |", "| Primary | `#5c2208` |")
     ACCEPT = ("--accept-colours", "--accept-low-contrast", "both")
-    IN_CURRENT = ("the logo was given in `currentColor` and was drawn in the Primary of that day (%s). It keeps that colour: this tool draws it in the Primary the palette has now (%s) only "
-                  "from the package it came in. For that, run this again with the package: --input, with --pick and --mono as before")
+    IN_CURRENT = ("the logo was given in `currentColor` and was drawn in %s. It keeps that colour: this tool draws it in the Primary the palette has now (%s) only from the package it came "
+                  "in. For that, run this again with the package: --input, with --pick and --mono as before")
+    IN_ACCENT = IN_CURRENT.replace("the Primary the palette has now (%s)", "the light theme's Accent the palette has now (%s: it gives no Primary)")
     ITS_OWN = ("the logo keeps the colour it was installed with (%s), which the palette no longer holds: this run changes the site's colours and leaves the logo's files as they are, and "
                "this tool recolours nothing. For the logo in the new colours, ask the design tool for the mark in them, then run this again with that package: --input")
 
@@ -5020,7 +5152,7 @@ class WhatIsAskedAndWhen(SiteCase):
         self.brand_md(self.DAY_ONE.replace(T.BAKERY_LIGHT["muted"], "#6a5643"))
         (dry_code, dry), (code, out) = self.both_runs("--json")
         self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([], []), ([], [])), out)
-        # the Primary changes: said in the dry run as in the real one, in the JSON and in words, and never beside the other note
+        # the Primary changes: said in the dry run as in the real one, in the JSON and in words, and not beside the other note (the mark has no colour of its own)
         note = self.IN_CURRENT % ("#7a2e0b", "#5c2208")
         self.brand_md(self.LATER)
         self.assertIn("Note: " + note, self.intake("--dry-run")[1].splitlines())
@@ -5075,6 +5207,93 @@ class WhatIsAskedAndWhen(SiteCase):
         self.brand_md(BAKERY_BRAND_MD)
         (dry_code, dry), (code, out) = self.both_runs("--json")
         self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([], [self.ITS_OWN % "#5c2208"]), ([], [self.ITS_OWN % "#5c2208"])), out)
+
+    def test_a_mark_with_a_part_in_currentcolor_and_a_colour_of_its_own_gets_each_note_when_it_is_true_and_both_when_both_are(self):
+        # (round 7) "Never both" was a rule for a mark of one kind. For a mark with both, a Primary that changed kept the
+        # note about the mark's own colour back, though no run with the package brings that colour into the palette.
+        def mixed(own):
+            return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="2" y="2" width="14" height="28" fill="currentColor"/>'
+                    '<rect x="16" y="2" width="14" height="28" fill="%s"/></svg>' % own).encode("utf-8")
+        link = ("| Link | `#a14a14` |", "| Link | `#96440f` |")   # the light theme's Link, which is the colour of the mark's own
+        self.assertEqual(self.DAY_ONE.count(link[0]), 1)
+        mark = self.package("mixed.svg", mixed("#a14a14"))
+        current, own = self.IN_CURRENT % ("#7a2e0b", "#5c2208"), self.ITS_OWN % "#a14a14"
+
+        def day_one():
+            self.brand_md(self.DAY_ONE)
+            code, out = self.intake("--input", mark, "--with-colours", "--replace-icons", *self.ACCEPT)
+            self.assertEqual(code, 0, out)
+            favicon = self.bytes("public/favicon.svg")
+            self.assertTrue(favicon.startswith((_install.MARK_CURRENT % "#7a2e0b").encode("utf-8")) and b'fill="#7a2e0b"' in favicon and b'fill="#a14a14"' in favicon, favicon[:500])
+            return self.icons()
+        for label, md, notes in (("both change", self.LATER.replace(*link), ([current], [own])), ("only the Primary changes", self.LATER, ([current], [])),
+                                 ("only the colour of its own leaves the palette", self.DAY_ONE.replace(*link), ([], [own]))):
+            with self.subTest(label=label):
+                icons = day_one()
+                self.brand_md(md)
+                for note in notes[0] + notes[1]:
+                    self.assertIn("Note: " + note, self.intake("--dry-run")[1].splitlines())
+                (dry_code, dry), (code, out) = self.both_runs("--json")
+                self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, notes, notes), out)
+                self.assertEqual(self.icons(), icons, "the logo's files are as they were: nothing is recoloured")
+        # After "both change": the colour of its own was dropped by that run and is not said again; the other note stays
+        # true until the package is given again.
+        day_one()
+        self.brand_md(self.LATER.replace(*link))
+        self.assertEqual(self.intake()[0], 0)
+        code, out = self.intake("--json")
+        self.assertEqual((code, self.kept(out)), (0, ([current], [])), out)
+        # what the first note says to do: the package again. The part in currentColor is drawn in the Primary of today; the
+        # colour of its own is as it was, and is asked about as any colour outside the palette is (answered here).
+        code, out = self.intake("--input", mark, "--json", "--replace-icons", *self.ACCEPT)
+        favicon = self.bytes("public/favicon.svg")
+        self.assertEqual((code, self.kept(out), b'fill="#5c2208"' in favicon, b'fill="#a14a14"' in favicon), (0, ([], []), True, True), out)
+        self.assertEqual(json.loads(self.intake("--input", mark, "--json", "--replace-icons", "--accept-low-contrast", "both")[1])["asks"][0]["code"], "outside-palette")
+        # what the second note says to do: the mark in the new colours, as a package of its own. Nothing is left to say.
+        code, out = self.intake("--input", self.package("new.svg", mixed("#96440f")), "--json", "--replace-icons", "--accept-low-contrast", "both")
+        self.assertEqual((code, self.kept(out)), (0, ([], [])), out)
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([], []), ([], [])), out)
+
+    def test_where_the_palette_gives_no_primary_a_mark_in_currentcolor_is_drawn_in_the_light_accent_by_every_kind_of_run_and_the_note_comes_when_that_colour_changed(self):
+        # (round 7) A palette without a Primary row: the mark is drawn in the light theme's Accent, and the stylesheet's
+        # `--brand` stays the starter's black. A later run that went by the site's own colours took that black for the
+        # Primary: it said the Primary had changed, and with the package it drew the logo black.
+        no_primary = BAKERY_BRAND_MD.replace("| Primary | `#b4531a` | buttons, brand surfaces |\n", "")
+        self.assertEqual((no_primary.count("Primary"), no_primary.count("| Accent | `#b4531a` |")), (0, 1))
+        self.brand_md(no_primary)
+        mark = self.package("current.svg", self.CURRENT)
+        code, out = self.intake("--input", mark, "--with-colours", *self.ACCEPT)
+        self.assertEqual(code, 0, out)
+        favicon = self.bytes("public/favicon.svg")
+        self.assertTrue(favicon.startswith((_install.MARK_CURRENT % "#b4531a").encode("utf-8")) and b'fill="#b4531a"' in favicon, favicon[:400])
+        self.assertEqual(_palette.read_css(self.read("src/styles/global.css")).brand, "#000000", "the palette gives no Primary, so the stylesheet's is the starter's still")
+        half = no_primary.replace("| Muted | `#6b5744` |\n", "")
+        for label, md, extra in (("the icons again, the site's colours kept", no_primary, ("--with-logo", "--keep-colours")), ("the package again, the site's colours kept", no_primary, ("--input", mark, "--keep-colours")),
+                                 ("the package again beside a palette that is not complete", half, ("--input", mark)), ("the icons again beside a palette that is not complete", half, ("--with-logo",)),
+                                 ("a run about colours", no_primary, ())):
+            with self.subTest(label=label):
+                self.brand_md(md)
+                (dry_code, dry), (code, out) = self.both_runs("--json", "--replace-icons", *(self.ACCEPT + extra))
+                self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([], []), ([], [])), out)
+                self.assertEqual(self.bytes("public/favicon.svg"), favicon, "drawn in the light theme's Accent, as on the day")
+        # the light theme's Accent changes: that is the colour the mark was drawn in, and now the note is true
+        self.brand_md(no_primary.replace("| Accent | `#b4531a` |", "| Accent | `#a84c16` |"))
+        note = self.IN_ACCENT % ("#b4531a", "#a84c16")
+        self.assertIn("Note: " + note, self.intake("--dry-run")[1].splitlines())
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([note], []), ([note], [])), out)
+        code, out = self.intake("--with-logo", "--keep-colours", "--json", "--replace-icons", *self.ACCEPT)
+        self.assertEqual((code, self.kept(out), self.bytes("public/favicon.svg")), (0, ([note], []), favicon), out)
+        # what the note says to do, with the site's colours kept or not: the package again, and the mark is drawn in the Accent of today
+        for extra in (("--keep-colours",), ()):
+            code, out = self.intake("--input", mark, "--json", "--replace-icons", *(self.ACCEPT + extra))
+            self.assertEqual((code, self.kept(out)), (0, ([], [])), out)
+            self.assertTrue(self.bytes("public/favicon.svg").startswith((_install.MARK_CURRENT % "#a84c16").encode("utf-8")) and b'fill="#a84c16"' in self.bytes("public/favicon.svg"))
+        # a Primary row added later: the note names the Primary
+        self.brand_md(BAKERY_BRAND_MD.replace("| Primary | `#b4531a` |", "| Primary | `#7a2e0b` |").replace("| Accent | `#b4531a` |", "| Accent | `#a84c16` |"))
+        code, out = self.intake("--json")
+        self.assertEqual((code, self.kept(out)), (0, ([self.IN_CURRENT % ("#a84c16", "#7a2e0b")], [])), out)
 
 
 class NoSharp(SiteCase):

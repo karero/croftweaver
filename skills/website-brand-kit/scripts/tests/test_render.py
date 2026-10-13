@@ -1015,7 +1015,7 @@ def grammar_rows():
     for form, plain in (("scale(.001)", "scale(.001 .001)"), ("scale(1e-9)", "scale(1e-9 1e-9)"), ("scale(1 .001)", None), ("scale(.001 1)", None), ("scale(2 .001)", None),
                         ("skewX(80)", None), ("skewX(89.4)", None), ("skewX(-89.4)", None), ("skewY(89.4)", None), ("skewX(269.4)", "skewX(89.4)"), ("skewX(90.6)", "skewX(-89.4)"),
                         ("matrix(1 0 99 1 0 0)", None), ("matrix(1 99 0 1 0 0)", None), ("matrix(1 2 2 5 0 0)", None), ("matrix(1e-9 0 0 1e-9 0 0)", "scale(1e-9)"),
-                        ("skewX(45) skewY(45) skewX(45)", None), ("scale(100 1) rotate(45) scale(100 1)", None), ("scale(1e-9) " * 16, None)):
+                        ("skewX(45) skewY(45) skewX(45)", None), ("scale(100 1) rotate(45) scale(100 1)", None), ("scale(.1) scale(.1) scale(.1)", "scale(.001)")):
         rows.append(("transform", "transform=%r, which leaves a shape its form" % form[:40], B % (moved % form), B % (moved % plain) if plain else None, B % (moved % "translate(1 1)")))
     # --- path data
     for form in ("M0 0h5v5z", "M0,0H5V5Z", "M0 0h5.v5.e0z", "M0 0h.5e1v+5z", "M0 0l5 0 0 5z", "m0 0 5 0 0 5z", "M0 0L5 0L5 5", "M 0 0 H 5 V 5 Z", "M0 0h5v5-5-5",
@@ -1078,8 +1078,20 @@ def grammar_rows():
     two = '<clipPath id="c"><rect width="3" height="10" transform="%s"/><rect x="5" width="2" height="10"/></clipPath>' + used
     other_alone = B % '<rect x="5" width="2" height="10" fill="#f00"/>'
     for form, plain in (("scale(.001)", None), ("scale(1e-9)", other_alone), ("scale(1 .001)", None), ("skewX(89.4)", None), ("skewY(89.4)", None), ("matrix(1 0 99 1 0 0)", None),
-                        ("scale(1e-9) " * 16, other_alone), ("skewX(45) skewY(45) skewX(45)", None)):
+                        ("scale(.1) scale(.1) scale(.1)", None), ("skewX(45) skewY(45) skewX(45)", None)):
         rows.append(("clip-path", "one of two shapes inside with transform=%r" % form[:40], B % (two % form), plain, unclipped))
+    # THE ROWS THE LINES OF THE FLAT-TRANSFORM RULE REST ON (_svg._flattens), on the kept side of each line: the least
+    # area, the steepest skew, the longest stretch. Each of these, and each row of the loop above, was drawn by the
+    # site's renderer AND by headless Chromium, by hand, on 2026-10-13 (100 by 100 pixels, the pixels of each colour
+    # counted, the file as it came and cleaned): the two programs were at most 2 pixels of 10,000 apart on every one.
+    # THIS SUITE HAS NO BROWSER AND DOES NOT MAKE THAT COMPARISON AGAIN. What it holds is the renderer's half: the file
+    # as it came is drawn as the cleaned file is, at 32 and at 512 pixels, and (where the shape with the transform has
+    # all but gone) as if the other shape stood in the clip path alone.
+    for form, plain in (("scale(1e-9 1e-9)", other_alone), ("scale(-1e-9 1e-9)", other_alone), ("matrix(1e-9 0 0 1e-9 0 0)", other_alone), ("matrix(0 1e-9 -1e-9 0 0 0)", other_alone),
+                        ("skewX(89.42)", None), ("skewX(-89.4)", None), ("skewY(-89.4)", None), ("skewX(269.4)", None)):
+        rows.append(("clip-path", "measured against a browser: one of two shapes inside with transform=%r" % form, B % (two % form), plain, unclipped))
+    for form in ("scale(100 1) rotate(45) scale(100 1)", "scale(10 1) rotate(45) scale(10 1)"):   # (these two all but fill the box: not held against the unclipped picture)
+        rows.append(("clip-path", "measured against a browser: one of two shapes inside with transform=%r" % form, B % (two % form), None, None))
     for name in ("c", "_", "A", "a1", "clip0_12_34", "SVGID_1_", "a-b.c:d", "x" * 64,
                  # an id may start with a digit (one common design tool names its clip paths in hex digits)
                  "8ce47d5fb1", "4a5b6c7d8e", "0", "007", "1e5", "9-9", "0x1f", "1.5", "7:a", "4" * 64):
@@ -1330,6 +1342,9 @@ def refused_rows():
         rows.append(("one of two shapes in a clip path with transform=%r" % form[:40], "flat-transform", B % (two % form), other_alone, "differs"))
     for form in ("skewX(90)", "skewX(89.99999)", "skewX(270)"):
         rows.append(("one of two shapes in a clip path with transform=%r" % form, "flat-transform", B % (two % form), nothing, "differs"))
+    # An angle too large for single precision: written, it is 90.9 degrees on from whole turns; both programs read 90 on
+    # from them, the skew of a quarter turn of the rows above (Chromium, measured 2026-10-13: it draws nothing).
+    rows.append(("one of two shapes in a clip path with transform='skewX(20000070.9)'", "angle-too-large", B % (two % "skewX(20000070.9)"), nothing, "differs"))
     # an include: the renderer fetches what it names (here, what the address itself holds) and draws it, or applies its styles
     xi = 'xmlns:xi="http://www.w3.org/2001/XInclude"'
     red = "data:image/svg+xml;base64," + base64.b64encode(b'<rect xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="#f00"/>').decode("ascii")

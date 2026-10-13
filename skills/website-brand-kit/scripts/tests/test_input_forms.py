@@ -470,10 +470,45 @@ class WhatIsInAPackageIsWhatItsBytesAre(unittest.TestCase):
         self.assertFalse(str(refused(self, lambda: _svg.clean_svg(doctype), "doctype")).startswith("In the package"))
         twice = refused(self, lambda: _svg.clean_svg(self.picked(doctype).colour), "doctype")
         self.assertEqual(str(twice).count("In the package"), 1)
-        # a long name is shown as far as any name in a refusal is
+        # a long name is shown whole (see the next test)
         long_name = "pack/" + "n" * 110 + ".svg"
         err = refused(self, lambda: _svg.clean_svg(_input.mark(_input.load(T.build_zip([(long_name, doctype)]))).colour), "doctype")
-        self.assertTrue(str(err).startswith("In the package, the file %r: The file has a DOCTYPE" % long_name[:80]), str(err))
+        self.assertTrue(str(err).startswith("In the package, the file %r: The file has a DOCTYPE" % long_name), str(err))
+
+    def test_a_file_of_a_package_is_named_whole_so_two_long_names_that_begin_alike_are_told_apart(self):
+        # The name was cut at 80 characters. A tool's long export names begin alike and differ at the end (`...-colour.svg`,
+        # `...-mono.svg`): of the mark and its one-colour version the refusal then named neither. A name a package may
+        # hold is 120 characters at most (_zipin.MAX_NAME) and holds nothing that cannot be seen, so it is shown whole.
+        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + SVG
+        words = b"just some words, in a file that is only called .svg"
+        for stem in ("pack/" + "n" * 90, "pack/" + "n" * 75, "n" * (_zipin.MAX_NAME - len("-colour.svg")), "pack/gr\u00f6\u00dfe-" + "n" * 80):
+            colour, mono = stem + "-colour.svg", stem + "-mono.svg"
+            self.assertEqual(colour[:80], mono[:80])
+            self.assertLessEqual(max(len(colour), len(mono)), _zipin.MAX_NAME)
+            for bad, good in ((colour, mono), (mono, colour)):
+                with self.subTest(stem=stem[:12], bad=bad[-11:]):
+                    def checked(data, bad=bad, good=good):
+                        mark = _input.mark(_input.load(T.build_zip([(bad, data), (good, SVG)])), pick=colour, mono=mono)
+                        for part in (mark.colour, mark.mono):
+                            _svg.clean_svg(part)
+                    # what the check finds in the file, what the file's bytes are, and what the bytes are that is no drawing
+                    self.assertEqual(str(refused(self, lambda: checked(doctype), "doctype")), "In the package, the file %r: %s" % (bad, _svg.DOCTYPE))
+                    self.assertEqual(str(refused(self, lambda: checked(b"\x89PNG\r\n\x1a\n" + b"\0" * 20), "raster-logo")), "In the package, the file %r: %s" % (bad, _input.RASTER_MESSAGE % "PNG"))
+                    self.assertIn("The file %r in the package is not an SVG drawing" % bad, str(refused(self, lambda: checked(words), "unknown-file")))
+                    # a damaged entry: its bytes changed (the checksum no longer fits), or not the size the package says
+                    stored = T.build_zip([(bad, SVG.replace(b"#b4531a", b"#b4531b")), (good, SVG)], compression=zipfile.ZIP_STORED)
+                    self.assertEqual(stored.count(b"#b4531b"), 1)
+                    changed = stored.replace(b"#b4531b", b"#b4531c")
+                    err = refused(self, lambda: _input.mark(_input.load(changed), pick=colour, mono=mono), "zip-bad")
+                    self.assertEqual(str(err), "The package is damaged: %r cannot be read." % bad)
+                    lying = patch_central(T.build_zip([(bad, SVG)]), file_size=len(SVG) + 4000)
+                    self.assertEqual(str(refused(self, lambda: _input.mark(_input.load(lying)), "zip-bad")), "The package is damaged: %r is not the size it says." % bad)
+                    # and through the command the assistant runs
+                    answer = through_the_command(self, T.build_zip([(bad, doctype), (good, SVG)]), "--pick", colour, "--mono", mono)
+                    self.assertEqual((answer["status"], answer["code"], answer["message"]), ("refused", "doctype", "In the package, the file %r: %s" % (bad, _svg.DOCTYPE)))
+        # the same refusal of the one file and of the other is two sentences, which it was not
+        said = [str(_svg.in_package(name, Refusal("doctype", _svg.DOCTYPE))) for name in ("pack/" + "n" * 90 + "-colour.svg", "pack/" + "n" * 90 + "-mono.svg")]
+        self.assertNotEqual(said[0], said[1])
 
     def test_a_drawing_is_still_a_drawing_and_one_that_is_refused_is_refused_for_its_own_reason(self):
         text = SVG.decode("ascii")
@@ -560,7 +595,8 @@ class ZipRefusals(unittest.TestCase):
                 with self.subTest(name=ascii(name)):
                     err = refused(self, lambda: _zipin.open_zip(self.zip_((name, SVG), ("fine.svg", SVG))), "zip-path")
                     self.assertTrue(str(err).isascii(), "the refusal spells the name out and carries none of it as it is")
-                    self.assertIn("cannot be seen", str(err))
+                    # (a character without a category is said to be what it is: see the test after the next)
+                    self.assertIn("this check does not know" if all(unicodedata.category(x) == "Cn" for x in c) else "cannot be seen", str(err))
                     self.assertIn("plain file names", str(err))
         # it does not hide behind another fault of the same name, whose message shows the name
         for name in ("../a\ufe0f.svg", "a\ufe0f" * 80 + ".svg", "a/b/c\U000e0100.svg"):
@@ -574,6 +610,48 @@ class ZipRefusals(unittest.TestCase):
             for option in cm.exception.options:
                 self.assertFalse(_zipin._unseen(option))
                 self.assertFalse(any(unicodedata.category(c) in ("Cc", "Cf", "Co", "Cn", "Cs", "Zl", "Zp") for c in option), ascii(option))
+
+    def test_a_character_this_python_does_not_know_is_said_to_be_that_and_not_one_that_cannot_be_seen(self):
+        # A character newer than the Unicode tables of the Python that runs the check has no category there: an emoji
+        # of 2021 on the Python 3.9 a Mac comes with. The package was refused as holding "something that cannot be
+        # seen", of a character anyone can see. It is still refused (nothing says what the character is), and the
+        # sentence now says what is true of it. What is refused has not changed.
+        permanent = ["\u0378", "\u0530", "\U0001fffe", "\uffff", "\U000e0080"]   # no version of Unicode so far gives these a character
+        newer = ["\U0001fae0", "\U0001fae8", "\U00010570", "\U00011f04"]          # an emoji of 2021 and one of 2022, a letter of each year
+        for c in permanent:
+            self.assertEqual(unicodedata.category(c), "Cn")
+        for c in permanent + newer:
+            known = unicodedata.category(c) != "Cn"   # by this Python: the newer ones are known to 3.13 and not to 3.9
+            for name in ("logo %s.svg" % c, "%s.svg" % c, "pack/logo%s.svg" % c, "pack%s/logo.svg" % c, "logo%s%s.svg" % (c, c), "notes%s.txt" % c):
+                with self.subTest(name=ascii(name), known=known):
+                    data = self.zip_((name, SVG), ("fine.svg", SVG))
+                    if known:
+                        self.assertIn(name, _zipin.open_zip(data).svg_names + _zipin.open_zip(data).other_names)
+                        continue
+                    err = refused(self, lambda: _zipin.open_zip(data), "zip-path")
+                    self.assertTrue(str(err).isascii(), "the refusal spells the name out")
+                    for word in ("a character this check does not know", "the Python it runs on has no record of it", "it may be an emoji newer than that Python", ascii(name[:60]), "whole package is refused",
+                                 "Give the file a plain name", "plain file names"):
+                        self.assertIn(word, str(err))
+                    for word in ("cannot be seen", "hidden", "blank"):
+                        self.assertNotIn(word, str(err))
+                    self.assertEqual(read_through(data), "zip-path")
+                    self.assertEqual(read_through(data, pick="fine.svg"), "zip-path")
+        # where the name holds something else that cannot be seen as well, that is what is said, as it was
+        for name in ("logo\u0378\u200b.svg", "logo\u0378.svg ", " \u0378.svg", "a  \u0378.svg", "logo\u0378\ufe0f.svg", "logo\u0378\ue000.svg", "\u0378\x85.svg"):
+            with self.subTest(name=ascii(name)):
+                err = refused(self, lambda: _zipin.open_zip(self.zip_((name, SVG), ("fine.svg", SVG))), "zip-path")
+                self.assertIn("cannot be seen", str(err))
+                self.assertNotIn("does not know", str(err))
+        # a character that IS hidden, and has a category, keeps its sentence: the new one is for no category alone
+        for c in ("\u200b", "\u202e", "\ue000", "\ufe0f", "\x85", "\u2028", "\u00a0"):
+            self.assertIn("cannot be seen", str(refused(self, lambda: _zipin.open_zip(self.zip_(("logo%s.svg" % c, SVG))), "zip-path")))
+        # through the command the assistant runs
+        answer = through_the_command(self, self.zip_(("logo \u0378.svg", SVG), ("fine.svg", SVG)), "--pick", "fine.svg")
+        self.assertEqual((answer["status"], answer["code"], answer["written"]), ("refused", "zip-path", []))
+        self.assertIn("a character this check does not know", answer["message"])
+        self.assertIn(ascii("logo \u0378.svg"), answer["message"])
+        self.assertTrue(answer["message"].isascii())
 
     def test_a_name_that_is_a_blank_or_ends_in_one_refuses_the_package(self):
         # `logo<U+2800>.svg` (the empty braille cell), a name of three spaces and an ideographic space all passed: Unicode files

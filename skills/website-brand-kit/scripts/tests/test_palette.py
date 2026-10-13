@@ -320,17 +320,19 @@ class Rule0WhereTheCheckLooks(unittest.TestCase):
         # round 4: any line that began with # ended the part under `Colour palette`, so `#1: the dark values are still proposed`
         # after three good tables was neither read nor named, and the check ended with 0
         guide = "# Our guide\n\n## Colour palette\n\n" + pasted()
-        for line in ("#1: the dark values are still proposed", "#proposed", "#16162a is the ink; the rest is proposed", "#Brand (proposed)", "####### proposed", "##proposed"):
+        # (round 7: a blank is a space or a tab, as in Markdown; a `#` with a no-break space after it starts no heading)
+        for line in ("#1: the dark values are still proposed", "#proposed", "#16162a is the ink; the rest is proposed", "#Brand (proposed)", "####### proposed", "##proposed",
+                     "#\u00a0the dark values are proposed", "##\u2003proposed"):
             with self.subTest(line=line):
                 p = _palette.parse_tables(guide + "\n" + line + "\n\nA last word: #123456 is proposed too.\n")
                 self.bakery_starter(p)
                 self.assertEqual(len(of(p, MARK)), 2, "the line is text of the section, and so is the line after it")
-                self.assertIn('Line 36, "%s", holds the word "proposed"' % line.replace("\u00a0", "<U+00A0>"), of(p, MARK)[0])
+                self.assertIn('Line 36, "%s", holds the word "proposed"' % line.replace("\u00a0", "<U+00A0>").replace("\u2003", "<U+2003>"), of(p, MARK)[0])
                 self.assertIn("Line 38,", of(p, MARK)[1])
                 self.assertEqual(len(of(p, NOT_READ)), 2 if line.startswith("#16162a") else 1)
         # the near-miss: a heading of the section's level ends it, with a blank after its # or nothing at all, up to six of them
-        # (a blank is whatever rule 1 makes one space of: a tab and a no-break space too)
-        for line in ("# 1: the dark values are still proposed", "## proposed", "##", "#\tproposed", "#\u00a0the dark values are proposed"):
+        # (a blank is what rule 1 makes one space of: a space or a tab)
+        for line in ("# 1: the dark values are still proposed", "## proposed", "##", "#\tproposed", "# \t the dark values are proposed"):
             with self.subTest(line=line):
                 p = _palette.parse_tables(guide + "\n" + line + "\n\nA last word: #123456 is proposed too.\n")
                 self.bakery_starter(p)
@@ -388,6 +390,25 @@ class Rule0WhereTheCheckLooks(unittest.TestCase):
         opens = text.splitlines().index("~~~") + 1
         self.assertIn("(line %d opens one with ``` or ~~~, and no line after it closes it)" % opens, second)
         self.assertIn("Take line %d, which opens the code block, out" % opens, second)
+        # round 7 (R7-209): a heading that counts stands ABOVE the block (`### Brand` and its table, then the two themes pasted with their
+        # fence). The sentence said the theme's heading "is not a heading" and never named the code block.
+        brand, themes = "### Brand\n" + HEAD + "| Primary | #000000 |\n\n", "### Light theme\n" + plain(STARTER_LIGHT) + "\n### Dark theme\n" + plain(STARTER_DARK)
+        for name, text, where, do in (
+                ("closed", brand + "```markdown\n" + themes + "```\n", "(between two lines of ``` or ~~~)", "Take the two lines that open and close the code block out, so that the headings inside it count."),
+                ("never closed", brand + "~~~\n" + themes, "(line 6 opens one with ``` or ~~~, and no line after it closes it)", "Take line 6, which opens the code block, out, so that the headings after it count.")):
+            with self.subTest(name=name):
+                p = _palette.parse_tables(text)
+                self.assertEqual((p.light, p.dark, p.brand, [c for _t, _k, c in codes(p)]), ({}, {}, "#000000", ["palette-no-section"] * 2))
+                for message, heading in zip(of(p, "palette-no-section"), ("### Light theme", "### Dark theme")):
+                    for part in ('stands under the line "%s", which stands inside a code block %s, where this check takes no line for a heading' % (heading, where), do):
+                        self.assertIn(part, message)
+                    for part in ("is not a heading", "further down under `### Brand`", "does not guess whether it was meant as one"):
+                        self.assertNotIn(part, message)
+                self.assertEqual(_palette.parse_tables(brand + themes).problems, [], "followed, it ends the matter")
+        # the near-miss: a line of text above the second table, in no code block, is told what it was told before
+        p = _palette.parse_tables(brand + "Light theme\n" + plain(STARTER_LIGHT))
+        for part in ('stands after the line "Light theme", further down under `### Brand`', "A line of text is not a heading, and this check does not guess whether it was meant as one."):
+            self.assertIn(part, of(p, "palette-no-section")[0])
         # a marked heading inside a fence marks nothing, and is named for its word
         p = _palette.parse_tables(pasted() + "\n```\n### Dark theme (proposed)\n```\n")
         self.assertEqual((p.proposed, [c for _t, _k, c in codes(p)]), (set(), [MARK]))
@@ -480,6 +501,26 @@ class Rule1Lines(unittest.TestCase):
         md = "###%sLight   theme\n%s|%sMuted%s|%s`#5a5a72`\t\t(proposed)%s|%sa   note%s|\n" % (gap, HEAD, gap, gap, gap, gap, gap, gap)
         p = self.timed(md)
         self.assertEqual((p.light, p.proposed, p.problems), ({"muted": "#5a5a72"}, {("light", "muted")}, []))
+
+    def test_a_space_and_a_tab_are_the_only_blanks_of_a_line_as_in_markdown(self):
+        # round 7 (R7-201): the blanks of a line were folded with Python's split(), which takes more for a blank than Markdown does: U+001F,
+        # which nobody sees (so `pro` + U+001F + `posed` was two words and the check ended with 0), and a no-break space. Now a space and a
+        # tab are folded and nothing else is: what nobody sees stays in the line for the one cleaning pass, and what is no blank to
+        # Markdown is none here.
+        p = _palette.parse_tables("###\u00a0Light theme\n" + plain(STARTER_LIGHT))
+        self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({}, ["palette-no-section"]))
+        self.assertIn('stands under the line "###<U+00A0>Light theme", which is not a heading', p.problems[0][3])
+        for before in ("\u00a0", "\u2003", "\u3000", "\x1f"):
+            with self.subTest(before=before):
+                p = _palette.parse_tables("### Light theme\n" + HEAD + before + "| Muted | #5a5a72 |\n")
+                self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({}, [NOT_READ]), "a line with that character before its first | is no row of a table")
+                self.assertIn('Line 4, "<U+%04X>| Muted | #5a5a72 |", holds a colour (#5a5a72) that was not read' % ord(before), p.problems[0][3])
+        # the near-misses: a space or a tab in any of those places, and any of those characters at the ends of a cell
+        for md in ("###\t Light theme\n" + plain(STARTER_LIGHT), "### Light theme\n" + HEAD + " \t" + "\n \t".join(lines(STARTER_LIGHT)) + "\n",
+                   "### Light theme\n" + HEAD + "\n".join(line.replace("| ", "|\u00a0").replace(" |", "\u2003|") for line in lines(STARTER_LIGHT)) + "\n"):
+            with self.subTest(md=md[:40]):
+                p = _palette.parse_tables(md)
+                self.assertEqual((p.light, p.problems), (STARTER_LIGHT, []))
 
     def test_no_input_makes_the_reading_slow(self):
         # round 2 measured 11 seconds for one cell of 40,000 spaces
@@ -640,7 +681,17 @@ class Rule2Sections(unittest.TestCase):
                       # and the limits rule 2 states: a word outside the list, another language, a character reference, a wide letter, emphasis or a tag inside the word
                       "Dark theme (see (note))", "Dark theme (a (b (c)) d) colours", "Dark theme v2", "Dunkel", "Dunkles Thema (dark)", "Dark&nbsp;mode", "&#68;ark theme",
                       "Dark theme &mdash; values", "D&#173;ark theme", "\uff24ark theme", "\uff44\uff41\uff52\uff4b", "The da**rk** theme", "<b>Da</b>rk mode", "Da_rk_ mode",
-                      "Da\x0brk mode", "Da\u2028rk theme"):
+                      "Da\x0brk mode", "Da\u2028rk theme",
+                      # round 7: each of these ends a line to this reader (rule 9's list), so the word is on two lines and is passed over
+                      "Da\x1crk theme", "Da\x1drk", "Da\x1erk mode", "Da\x85rk theme", "D\u2028ark mode",
+                      # R7-202: emphasis inside the word is seen through for the three exact names only (the test after this one)
+                      "da**rk** mode", "The da**rk** mode", "Da*r*k",
+                      # R7-206: a character nobody sees that the one pass does not take out (a filler Unicode files as a letter, a private-use
+                      # character, one that is not assigned)
+                      "Da\u1160rk theme", "Da\u3164rk", "D\u115fark mode", "Dar\uffa0k", "Da\ue000rk theme", "Da\u2065rk mode",
+                      # R7-208: a word that only begins with the other theme's word is an ordinary word
+                      "Darker", "Darker palette", "Darkened values", "Hex values (darkened 10%)", "Version 2 (darker)", "Darkness", "Darken", "The darkest tokens",
+                      "Darkroom", "Darkmodes", "Darkthemed", "Dark2a", "Nightly", "Night2", "Tonight"):
             with self.subTest(prose=prose):
                 p = _palette.parse_tables("### Light theme\n%s\n" % prose + plain(STARTER_LIGHT))
                 self.assertEqual((p.light, p.dark, p.brand), (STARTER_LIGHT, {}, None))
@@ -648,15 +699,26 @@ class Rule2Sections(unittest.TestCase):
 
     def test_a_line_before_the_first_table_that_is_the_name_of_another_section_is_named_and_no_table_under_the_heading_is_read(self):
         # round 3: `### Dark theme`, then `**Light theme**`, then the table: filed as the dark theme's without a word
+        # (R7-202: emphasis marks are taken out of the three exact names wherever they stand, inside a word too; R7-201: so is U+001F)
         for label, there in (("**Light theme**", "light"), ("Light theme:", "light"), ("Light theme", "light"), ("_LIGHT THEME_", "light"), ("`Light theme` :", "light"),
-                             ("**Light theme:**", "light"), ("Brand", "brand"), ("**Brand (fixed, theme-independent)**", "brand"), ("Light theme (the default)", "light")):
+                             ("**Light theme:**", "light"), ("Brand", "brand"), ("**Brand (fixed, theme-independent)**", "brand"), ("Light theme (the default)", "light"),
+                             ("li**ght** theme", "light"), ("Light th_e_me", "light"), ("Br`a`nd", "brand"), ("Lig\x1fht theme", "light"), ("Light the\x1fme:", "light")):
             with self.subTest(label=label):
                 p = _palette.parse_tables("### Dark theme\n\n%s\n\n" % label + plain(STARTER_LIGHT) + "\n" + HEAD + "| Muted | #777777 |\n")
                 self.assertEqual((p.light, p.dark, p.brand, p.rows_found), ({}, {}, None, 0))
                 self.assertEqual(codes(p), [("?", None, "palette-label")], "said once, for every table under that heading")
-                for part in ('Line 3, "%s", stands between the heading `### Dark theme` and its table' % label, "the name of another section", "not a heading",
+                for part in ('Line 3, "%s", stands between the heading `### Dark theme` and its table' % label.replace("\x1f", "<U+001F>"), "the name of another section", "not a heading",
                              "read no table under that heading", "write that line as a heading (`%s`)" % _palette.HEADING[there], "if it belongs under `### Dark theme`, take the line out"):
                     self.assertIn(part, p.problems[0][3])
+        # R7-202: the example rule 2 gives, word for word, and the one it gives for the limit
+        p = _palette.parse_tables("### Light theme\nda**rk** theme\n" + plain(STARTER_DARK))
+        self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({}, ["palette-label"]))
+        self.assertIn('Line 2, "da**rk** theme", stands between the heading `### Light theme` and its table, and it is the name of another section.', p.problems[0][3])
+        p = _palette.parse_tables("### Light theme\nda**rk** mode\n" + plain(STARTER_DARK))
+        self.assertEqual((p.light, p.problems), (STARTER_DARK, []), "the limit: passed over without a word")
+        rules = " ".join(_palette.parse_tables.__doc__.split())
+        self.assertIn("so `da**rk** theme` under `### Light theme` IS named, as the name of another section", rules)
+        self.assertIn("INSIDE the word (`da**rk** mode`, `<b>Da</b>rk mode`)", rules)
         # a sentence between the label and the table changes nothing, and neither does a table that holds no colour yet
         p = _palette.parse_tables("### Dark theme\n**Light theme**\nBright and floury.\n" + plain(STARTER_LIGHT))
         self.assertEqual((p.dark, [c for _t, _k, c in codes(p)]), ({}, ["palette-label"]))
@@ -674,13 +736,15 @@ class Rule2Sections(unittest.TestCase):
         for label in ("Dark", "**Dark**", "Dark mode", "The dark theme", "Dark theme - night", "Dark theme values", "- Dark theme", "> Dark theme", "* Dark", "1. Dark theme", "2) Dark mode",
                       "> - **Dark theme:**", "Dark theme.", "#Dark theme", "####### Dark theme", "<b>Dark theme</b>",
                       "<strong class=\"x\">Dark</strong> mode", "DARK MODE", "Dark theme colours", "Colors for the dark theme", "Tokens: dark", "The night palette (dark)... dark",
-                      "`dark`", "Dark\u00a0mode", "_Dark_ _mode_",
+                      "`dark`", "Dark\u00a0mode", "Dark\u2003values", "_Dark_ _mode_",
                       # the word inside brackets
                       "(Dark theme)", "*(dark mode)*", "Palette (dark)", "Colours (dark)", "Theme (dark)", "(dark)", "[Dark]", "Dark (theme (mode))",
                       # with a character nobody sees: a soft hyphen, a zero-width space, a variation selector, a combining stroke, a control character
                       "Dar\u00adk", "D\u200bark mode", "Dark\ufe0f mode", "D\u0336a\u0336r\u0336k\u0336", "Da\x01rk mode", "Dark mo\u200dde", "\u034fDark",
-                      # one word, and a word that only begins with it
-                      "Darkmode", "DarkTheme", "darkTheme tokens", "Dark2", "Darker",
+                      # round 7: U+001F, which Python's split() takes for a blank and nobody sees, inside the theme's word and inside a label word
+                      "Dar\x1fk", "D\x1fark mode", "Dark mo\x1fde", "The da\x1frk the\x1fme", "Dark\x1fmode",
+                      # one word: the two closed compounds, each with or without a hyphen and with or without digits after it (R7-208)
+                      "Darkmode", "DarkTheme", "darkTheme tokens", "Dark2", "dark-mode", "Dark-Theme", "darkmode2", "DarkTheme 3", "dark-theme-2", "darktheme10 colours",
                       # the label words round 6 added, and a number
                       "Dark scheme", "Dark variant", "Dark version", "Dark colour scheme", "Dark color", "Dark hex", "Dark theme table", "Use in dark mode", "These are the dark values",
                       "Table 2: dark theme", "Dark set", "Dark token", "Dark value", "Dark theme 2",
@@ -690,13 +754,15 @@ class Rule2Sections(unittest.TestCase):
                 p = _palette.parse_tables("### Light theme\n\n%s\n\n" % label + plain(STARTER_DARK) + "\n" + HEAD + "| Muted | #777777 |\n\n### Dark theme\n" + plain(STARTER_LIGHT))
                 self.assertEqual((p.light, p.dark, p.brand), ({}, STARTER_LIGHT, None), "no table under that heading is read; the next heading is read as before")
                 self.assertEqual(codes(p), [("?", None, "palette-label")], "said once, for every table under that heading")
-                for part in ('Line 3, %s, stands between the heading `### Light theme` and its table, and it reads as a label for the other theme.' % _palette._quoted(" ".join(label.split())),
+                self.assertEqual(re.sub("[ \t]+", " ", label).strip(" "), label, "the label is quoted as it is written: a space or a tab is the only blank that is folded")
+                for part in ('Line 3, %s, stands between the heading `### Light theme` and its table, and it reads as a label for the other theme.' % _palette._quoted(label),
                              "A line of text is not a heading", "read no table under that heading", "If the table belongs under `### Dark theme`, write that line as a heading (`### Dark theme`)",
                              "if it belongs under `### Light theme`, take the line out"):
                     self.assertIn(part, p.problems[0][3])
         # the other way round, under `### Dark theme`
+        # (R7-208: `day` whole is the light theme's word, so "Day 2" and "Day 1 palette" stay labels)
         for label in ("Light", "Light mode", "The light theme:", "- Light theme values", "Light theme (default)", "Day (light)... light", "Day", "Day mode", "Lightmode", "(Light theme)",
-                      "Li\u00adght scheme", "Light variant 1"):
+                      "Li\u00adght scheme", "Light variant 1", "Lig\x1fht", "light-mode", "LightTheme2", "Light3", "lighttheme", "Day 2", "Day 1 palette"):
             with self.subTest(label=label):
                 p = _palette.parse_tables("### Dark theme\n%s\n" % label + plain(STARTER_LIGHT))
                 self.assertEqual((p.light, p.dark, [c for _t, _k, c in codes(p)]), ({}, {}, ["palette-label"]))
@@ -706,7 +772,10 @@ class Rule2Sections(unittest.TestCase):
         self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({}, ["palette-label"]))
         self.assertIn('Line 2, "Night", stands between the heading `### Light theme` and its table, and it reads as a label for the other theme.', p.problems[0][3])
         # and what is only text under `### Dark theme`: its own word beside the other's, and a word that only holds the other's
-        for prose in ("Light colours for the dark theme.", "Dark theme for night; light theme for day", "Daylight", "Delight", "Twilight", "Highlight colours", "Today", "Lighter than dark"):
+        # (R7-208: and a word that only begins with it, which round 6 took for the theme's word: a correct palette with such a note was refused)
+        for prose in ("Light colours for the dark theme.", "Dark theme for night; light theme for day", "Daylight", "Delight", "Twilight", "Highlight colours", "Today", "Lighter than dark",
+                      "Lightness values", "Lightness 20", "Lightness", "Lighting", "Lightened 5 %", "Lighten", "Lighter", "Lighter variant", "Lights", "Lightbox colours", "Daytime",
+                      "Lightmodes", "Light2go"):
             with self.subTest(prose=prose):
                 p = _palette.parse_tables("### Dark theme\n%s\n" % prose + plain(STARTER_DARK))
                 self.assertEqual((p.dark, p.problems), (STARTER_DARK, []))
@@ -805,6 +874,30 @@ class Rule2Sections(unittest.TestCase):
         p = _palette.parse_tables("### Dark theme\n\nLight theme (%s)\n\n" % ("x" * 2000) + plain(STARTER_DARK))
         self.assertEqual((p.dark, p.problems), (STARTER_DARK, []))
 
+    def test_the_limits_round_7_states_are_what_the_reader_does(self):
+        # R7-207: the other theme's name in a row in FRONT of the table, or in a header row with no separator line under it (which is no
+        # header row to this check), is passed over without a word, and the table is read under its heading
+        for name, md in (("a title row", "### Light theme\n| Dark theme |\n" + plain(STARTER_DARK)),
+                         ("a title row and a blank line", "### Light theme\n| Dark theme |\n\n" + plain(STARTER_DARK)),
+                         ("a header row without its separator line", "### Light theme\n| Dark theme | Hex |\n" + "\n".join(lines(STARTER_DARK)) + "\n"),
+                         ("the same, the word in brackets", "### Light theme\n| Token (dark) | Hex |\n" + "\n".join(lines(STARTER_DARK)) + "\n")):
+            with self.subTest(name=name):
+                p = _palette.parse_tables(md)
+                self.assertEqual((p.light, p.dark, p.problems), (STARTER_DARK, {}, []))
+        # (with the separator line the same header row is named: the test below)
+        p = _palette.parse_tables("### Light theme\n| Token (dark) | Hex |\n|---|---|\n" + "\n".join(lines(STARTER_DARK)) + "\n")
+        self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({}, ["palette-label"]))
+        # R7-210: an accent written as a separate mark is taken out for the search, so the same line is a label written that way and
+        # text written with the one accented letter
+        for apart, joined, under, rows in (("Da\u0303y 2", "D\u00e3y 2", "Dark", STARTER_LIGHT), ("The\u0300me dark", "Th\u00e8me dark", "Light", STARTER_DARK)):
+            with self.subTest(line=joined):
+                import unicodedata
+                self.assertEqual(unicodedata.normalize("NFC", apart), joined)
+                p = _palette.parse_tables("### %s theme\n%s\n\n" % (under, apart) + plain(rows))
+                self.assertEqual((p.light, p.dark, [c for _t, _k, c in codes(p)]), ({}, {}, ["palette-label"]))
+                p = _palette.parse_tables("### %s theme\n%s\n\n" % (under, joined) + plain(rows))
+                self.assertEqual((p.theme(under.lower()), p.problems), (rows, []))
+
     def test_a_header_row_that_calls_its_first_column_by_another_sections_name_is_named_and_its_table_is_not_read(self):
         # round 4: under `### Light theme`, a table headed `| Dark theme | Hex |` was read as the light theme's without a word
         for header, there in (("| Dark theme | Hex |", "dark"), ("| **Dark theme** | Hex |", "dark"), ("| DARK THEME: | Hex | Use |", "dark"), ("| Brand | Hex |", "brand"),
@@ -827,7 +920,8 @@ class Rule2Sections(unittest.TestCase):
                              ("| Token | Hex (DARK) |", "dark"), ("| Token | Hex | _dark_ mode |", "dark"), ("| Dark token | Hex | Use |", "dark"), ("| Token | Hex | Use | dark |", "dark"),
                              ("| dark_tokens | Hex |", "dark"), ("| Token | Dark |", "dark"), ("| Token | Value | for dark mode |", "dark"),
                              ("| Token | Hex | Darkmode |", "darkmode"), ("| Darkmode | Hex |", "darkmode"), ("| DarkTheme | Hex |", "darktheme"), ("| Token | Hex | Night |", "night"),
-                             ("| Token | Hex | Da\u200brk |", "dark"), ("| Token (d\u00adark) | Hex |", "dark"), ("| Darker | Hex |", "darker"), ("| Token | Hex | Darkness |", "darkness"),
+                             ("| Token | Hex | Da\u200brk |", "dark"), ("| Token (d\u00adark) | Hex |", "dark"), ("| Token | Hex | Da\x1frk |", "dark"),
+                             ("| Dark-mode | Hex |", "dark"), ("| Token | Hex | DarkTheme2 |", "darktheme2"),
                              ("| Token | Hex | dark2 |", "dark2"), ("| Token | Hex | Dark scheme |", "dark"), ("| Token | Hex | (dark) | Use |", "dark"),
                              ("| Light token | Hex | Darkmode |", "darkmode"), ("| Hex | Hex | Dark colour 2 |", "dark")):
             with self.subTest(header=header):
@@ -845,11 +939,14 @@ class Rule2Sections(unittest.TestCase):
         # Round 6: a cell with other words in it is a note, and the limits are rule 2's (a character reference, emphasis inside the word, another language)
         for header in ("| Light theme | Hex |", "| Token (light) | Hex |", "| Token | Hex | Lighter than dark? No: light |", "| Theme | Hex |",
                        "| Token | Hex | light_bg, dark_bg |", "| light_token | Hex | on_dark |", "| Token | Hex | Contrast on dark ink |", "| Token | Hex | Pairs with dark |",
-                       "| Token | Hex | D&#97;rk |", "| Token | Hex | da**rk** |", "| Token | Hex | Dunkel |", "| Token | Hex | \uff24ark |", "| Token | Hex | Day |", "| Token | Hex | Nightly |"):
+                       "| Token | Hex | D&#97;rk |", "| Token | Hex | da**rk** |", "| Token | Hex | Dunkel |", "| Token | Hex | \uff24ark |", "| Token | Hex | Day |", "| Token | Hex | Nightly |",
+                       # R7-208: a word that only begins with the other theme's word names no theme (round 6 refused these)
+                       "| Darker | Hex |", "| Token | Hex | Darkness |", "| Token | Hex | Darkened |", "| Token | Hex | Darken 10 |", "| Token | Hex | Darker variant |"):
             with self.subTest(header=header):
                 p = _palette.parse_tables("### Light theme\n" + header + "\n|---|---|\n" + "\n".join(lines(STARTER_LIGHT)) + "\n")
                 self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({} if "No: light" in header else STARTER_LIGHT, ["palette-combined-table"] * ("No: light" in header)))
-        for header in ("| Token | Hex | Light equivalent |", "| Token | Hex | Use (light text) |", "| Token | Hex | Night |", "| Token | Hex | on light paper |"):
+        for header in ("| Token | Hex | Light equivalent |", "| Token | Hex | Use (light text) |", "| Token | Hex | Night |", "| Token | Hex | on light paper |",
+                       "| Token | Hex | Lightness |", "| Token | Hex | Lightness % |", "| Token | Hex | Lighten |", "| Lightness | Hex |", "| Token | Hex | Lighter variant |"):
             with self.subTest(header=header, under="dark"):
                 p = _palette.parse_tables("### Dark theme\n" + header + "\n|---|---|\n" + "\n".join(lines(STARTER_DARK)) + "\n")
                 self.assertEqual((p.dark, p.problems), (STARTER_DARK, []))
@@ -1591,7 +1688,10 @@ class Rule9Proposals(unittest.TestCase):
         marked = {("dark", "muted")}
         # round 6: what is taken out is four of Unicode's categories and nothing else. Cf (the first six), Cc (a NUL, another control character, a
         # delete, one of the upper controls), Mn (a variation selector, the grapheme joiner, the strokes that "strike-through text" tools write) and Me
-        for hidden in ("\u00ad", "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff", "\x00", "\x01", "\x7f", "\x9b", "\ufe0f", "\u034f", "\u0336", "\u0332", "\u20dd"):
+        # round 7 (R7-201): U+001F is a control character like the others, and Python's split() takes it for a blank: the line's blanks were
+        # folded with it before this pass ran, so the word was cut in two. (The other characters split() takes for one and nobody sees end a
+        # line to this reader: the limit below.)
+        for hidden in ("\u00ad", "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff", "\x00", "\x01", "\x7f", "\x9b", "\ufe0f", "\u034f", "\u0336", "\u0332", "\u20dd", "\x1f"):
             for word in ("prop%sosed" % hidden, "%sproposed" % hidden, "proposed%s" % hidden, "p%sr%so%sposal" % (hidden, hidden, hidden), "PROP%sOSALS" % hidden):
                 with self.subTest(word=word, where="a later cell"):
                     p = _palette.parse_tables(brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | %s |" % word))
@@ -1624,10 +1724,21 @@ class Rule9Proposals(unittest.TestCase):
         # that this reader takes for the end of a line
         for word in ("**pro**posed", "pro_posed", "\u0440roposed", "prop\u03bfsed", "pro<b>posed</b>", "<i>p</i>roposed", "&#112;roposed", "propose&#x64;", "&#80;ROPOSED", "prop&shy;osed",
                      "prop&#173;osed", "prop&#x200B;osed", "prop&zwnj;osed", "\uff50\uff52\uff4f\uff50\uff4f\uff53\uff45\uff44", "\U0001d429roposed", "pro\x0bposed", "pro\x0cposed",
-                     "pro\x1cposed", "pro\x1dposed", "pro\x1eposed", "pro\x85posed", "pro\u2028posed", "pro\u2029posed", "&#" + "9" * 5000 + ";roposed"):
+                     "pro\x1cposed", "pro\x1dposed", "pro\x1eposed", "pro\x85posed", "pro\u2028posed", "pro\u2029posed", "&#" + "9" * 5000 + ";roposed",
+                     # R7-206: a character nobody sees that Unicode files under another category than the four: a filler filed as a letter,
+                     # a private-use character, one that is not assigned
+                     "pro\u115fposed", "pro\u1160posed", "pro\u3164posed", "pro\uffa0posed", "pro\ue000posed", "pro\u2065posed"):
             with self.subTest(word=word[:30]):
                 p = _palette.parse_tables(brand_md() + "\nA %s line.\n" % word)
                 self.assertEqual((p.proposed, p.problems), (set(), []))
+        # R7-206: the pass follows the Unicode tables of the Python that runs it. U+180F is a mark since Unicode 14 and U+13439 a format
+        # character since 15: a Python that knows them takes them out, an older one passes the word over
+        import unicodedata
+        for hidden in ("\u180f", "\U00013439"):
+            with self.subTest(hidden=hidden):
+                known = unicodedata.category(hidden) in ("Cf", "Cc", "Mn", "Me")  # (Python 3.13: yes for both; 3.9: for neither)
+                p = _palette.parse_tables(brand_md() + "\nA pro%sposed line.\n" % hidden)
+                self.assertEqual([c for _t, _k, c in codes(p)], [MARK] if known else [])
         # in the VALUE cell none of these is passed over: whatever stands beside the colour there makes the cell one that cannot be read
         for word in ("prop\u00adosed", "&#112;roposed", "\uff50\uff52\uff4f\uff50\uff4f\uff53\uff45\uff44", "**pro**posed", "proposed \u00b2", "p\u0336roposed"):
             with self.subTest(word=word, where="the value cell"):
@@ -2359,6 +2470,35 @@ class Stylesheet(unittest.TestCase):
         # the near-miss: the starter's own line, which points at another of the palette's variables, is read (the test above this one has the rest)
         self.assertEqual(_palette.read_css(whole).light["link"], "#2b50e0")
 
+    def test_the_primary_written_as_a_variable_is_never_read_and_is_told_to_write_the_colour_out(self):
+        # round 7 (R7-204), checked in a browser by the reviewer: `--brand: var(--accent);` in `:root`, a line a developer writes, was read as
+        # ONE colour (the light Accent), with no problem and no drift, while the page shows the dark Accent on a dark page: the dark blocks
+        # set `--accent`, and no dark block sets `--brand`. The Primary is one colour, the same in every theme.
+        whole = self.starter()
+        same = _palette.Palette()
+        same.light, same.dark, same.brand = dict(STARTER_LIGHT), dict(STARTER_DARK), STARTER_LIGHT["accent"]
+        for points_at in ("--accent", "--link", "--heading", "--bg", "--brand", "--mine", " --accent\n  "):
+            with self.subTest(points_at=points_at):
+                text = whole.replace("  --brand: #000000;", "  --brand: var(%s);" % points_at, 1)
+                self.assertNotEqual(text, whole)
+                css = _palette.read_css(text)
+                self.assertEqual((css.brand, [(b, v) for b, v, _m in css.problems]), (None, [("light", "--brand")]))
+                self.assertEqual((css.light, css.dark, css.dark_media), (STARTER_LIGHT, STARTER_DARK, STARTER_DARK), "every other colour is read as before")
+                self.assertEqual(css.problems[0][2], "It is written as var(%s): the brand colour points at another variable, which each theme may set differently, and the "
+                                                     "Primary is one colour for both themes. Write the colour out (`--brand: #1a2b3c;`, with your colour)." % points_at.strip())
+                self.assertEqual(_palette.scan_css(text).problems, [], "the scan has no problem with it: the editor writes the colour over it")
+                self.assertEqual(_palette.drift(same, css), [], "said once: a palette whose Primary is that Accent's colour is not told of a drift as well")
+        # in a dark block too (where the editor refuses a Primary of any kind)
+        css = _palette.read_css(whole.replace(':root[data-theme="dark"] {\n', ':root[data-theme="dark"] {\n  --brand: var(--accent);\n', 1))
+        self.assertEqual((css.brand, [(b, v) for b, v, _m in css.problems]), ("#000000", [("dark", "--brand")]))
+        # the near-misses: the starter's own line, which points from one theme colour at another and is set again by each dark block, and a
+        # theme colour that points at the Primary, which is one colour everywhere
+        self.assert_all_three_blocks(whole)
+        self.assertIn("  --link: var(--accent);", whole)
+        css = _palette.read_css(whole.replace("  --accent: #2b50e0;", "  --accent: var(--brand);", 1))
+        self.assertEqual((css.brand, css.light["accent"], css.light["link"] if "link" in css.light else None, css.problems[:1] and css.problems[0][:2]), ("#000000", "#000000", None, ("light", "--link")),
+                         "(the link then points at a line that points on, which is its own problem)")
+
     def test_no_stylesheet_makes_the_reading_slow(self):
         # round 3 measured 100 seconds for a megabyte of `a{b:c}` on one line: the start of the line was looked for again at every rule.
         # Round 4 added the shapes from "of brace pairs" on. The slowest measured is that one, which makes half a million rules: 0.88
@@ -2797,6 +2937,35 @@ class Stylesheet(unittest.TestCase):
         for statement in ("@namespace svg url(http://www.w3.org/2000/svg);", '@namespace svg "http://www.w3.org/2000/svg";', "a { content: '@namespace url(x);' }", "/* @namespace url(x); */"):
             with self.subTest(statement=statement):
                 self.assert_all_three_blocks(statement + "\n" + whole)
+
+    def test_a_charset_that_names_another_encoding_than_utf8_is_named_and_stops_the_editor(self):
+        # round 7 (R7-205), checked in a browser by the reviewer: with `@charset "iso-2022-kr";` as its first bytes, a stylesheet that a
+        # browser loads as a file (no encoding said by a server) is read in that encoding: the page had none of the ten variables, and with
+        # another encoding a `/*` was half of a two-byte character and the rule after it set the colour. This read the text as UTF-8 and was clean.
+        import _site
+        whole = self.starter()
+        for statement, shown in (('@charset "iso-2022-kr";', '@charset "iso-2022-kr"'), ("@charset 'hz-gb-2312';", "@charset 'hz-gb-2312'"), ('@CHARSET "ISO-2022-JP";', '@CHARSET "ISO-2022-JP"'),
+                                 ('@charset\n  "windows-1252" ;', '@charset "windows-1252"'), ('@charset /* old */ "latin1";', '@charset "latin1"'), ('@charset "utf8";', '@charset "utf8"'),
+                                 ('@charset "utf-16le";', '@charset "utf-16le"'), ('@charset "";', '@charset ""'), ('@charset "utf-8 x";', '@charset "utf-8 x"')):
+            for name, text, line in (("first", statement + "\n" + whole, 1), ("after a comment", "/* styles */\n" + statement + "\n" + whole, 2), ("last", whole + statement + "\n", 89),
+                                     ("after one that says UTF-8", '@charset "UTF-8";\n' + statement + "\n" + whole, 2), ("twice", statement + "\n" + statement + "\n" + whole, 1)):
+                with self.subTest(statement=statement, name=name):
+                    message = self.only(text, "charset")
+                    self.assertEqual(message, "Line %d of the stylesheet says the file is written in another encoding than UTF-8 (`%s`). This check reads the stylesheet as UTF-8, and a "
+                                              "browser that loads the file as it is would read it in the encoding that line names, so the page may show other colours than these, or "
+                                              "none of the palette. Save the file as UTF-8 and take that line out." % (line, shown))
+                    for which in (self.bakery(), self.only_dark()):
+                        with self.assertRaises(Refusal) as cm:
+                            _site.edit_css(text, which)
+                        self.assertEqual(cm.exception.code, "css-layout")
+                        self.assertIn(message, str(cm.exception))
+        # the near-misses: UTF-8 in any case, either quote and with blanks around the name; a statement with no quoted name, which names no
+        # encoding to a browser; the words in a string or in a comment; a longer name
+        for statement in ('@charset "utf-8";', '@charset "UTF-8";', "@charset 'Utf-8';", '@charset " utf-8\t";', '@CHARSET\n"utf-8";', "@charset utf-8;", "@charset iso-2022-kr;",
+                          '/* @charset "iso-2022-kr"; */', "a { content: '@charset \"iso-2022-kr\";' }", '@charset-x "iso-2022-kr";', '.charset::after { content: "iso-2022-kr" }'):
+            with self.subTest(statement=statement):
+                self.assert_all_three_blocks(statement + "\n" + whole)
+                self.assertNotEqual(_site.edit_css(statement + "\n" + whole, self.bakery()), statement + "\n" + whole)
 
     def test_url_is_the_word_itself_and_the_end_of_a_longer_name_is_a_function_like_any_other(self):
         # found by comparing with a browser while round 4 was mended: `-url(`, `@url(`, `#url(` and `url(` after a character beyond ASCII are no

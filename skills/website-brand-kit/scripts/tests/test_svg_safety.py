@@ -128,10 +128,18 @@ READ = ("sharp-missing", "no-node")   # where the command stops a file that the 
 
 
 def without_doctype(data):
-    """What the DOCTYPE sentence says to do, done: the declaration deleted, from its `<!DOCTYPE` to the `>` that closes
-    it, and nothing else."""
-    start = data.index(b"<!DOCTYPE")
-    return data[:start] + data[data.index(b">", start) + 1:]
+    """What the DOCTYPE sentence says to do, done: the declaration deleted, from its `<!DOCTYPE` to its last `>` (a `>`
+    inside an address in quotes is not the last), and nothing else."""
+    start, quote = data.index(b"<!DOCTYPE"), None
+    for pos in range(start, len(data)):
+        c = data[pos:pos + 1]
+        if quote:
+            quote = None if c == quote else quote
+        elif c in (b'"', b"'"):
+            quote = c
+        elif c == b">":
+            return data[:start] + data[pos + 1:]
+    raise ValueError("a declaration that never closes")
 
 
 class ThroughTheCommand(unittest.TestCase):
@@ -166,6 +174,12 @@ class ThroughTheCommand(unittest.TestCase):
             ("the same shape scaled to a half", bare(clip.replace("<rect ", '<rect transform="scale(.5)" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), None),
             ("clip paths used so often and so large that a browser draws for seconds", bare(big_clip + '<rect clip-path="url(#c)" width="9" height="9"/>' * 101), "clip-work"),
             ("the same clip path, used as often as the cap takes", bare(big_clip + '<rect clip-path="url(#c)" width="9" height="9"/>' * 100), None),
+            # the rules of round 7
+            ("six scales in one transform, each the smallest there is", bare('<g transform="%s"><rect width="9" height="9"/></g>' % " ".join(["scale(1e-9)"] * 6)), "flat-transform"),
+            ("three ordinary small scales in one transform", bare('<g transform="scale(.1) scale(.1) scale(.1)"><rect width="900" height="900"/></g>'), None),
+            ("a skew by an angle too large to be read exactly", bare('<rect transform="skewX(20000070.9)" width="9" height="9"/>'), "angle-too-large"),
+            ("the same skew, its angle between 0 and 360", bare('<rect transform="skewX(270.9)" width="9" height="9"/>'), None),
+            ("a clip in the box's units named on a group, where it means nothing", bare('<g clipPathUnits="objectBoundingBox"><rect width="9" height="9"/></g>'), None),
         )
         for what, data, code in rows:
             with self.subTest(what=what):
@@ -183,6 +197,13 @@ class ThroughTheCommand(unittest.TestCase):
             self.assertEqual(through_the_command(self, by_name[what])["message"], _svg.DOCTYPE)
             self.assertIn(through_the_command(self, without_doctype(by_name[what]))["code"], READ, "with the declaration deleted, as the sentence says, the file is read")
         self.assertEqual(through_the_command(self, by_name["a DOCTYPE with definitions of its own"])["message"], _svg.DOCTYPE_DEFINES)
+        # the rule of round 7: a declaration without brackets can bring in a name the drawing uses, from the file it names.
+        # Deleted as the sentence says, the file meets a second refusal, and that one says the same way on.
+        needs_it = b'<!DOCTYPE svg SYSTEM "brand.dtd">\n' + svg().replace(b'fill="#b4531a"', b'fill="&brand;"')
+        first, second = through_the_command(self, needs_it), through_the_command(self, without_doctype(needs_it))
+        self.assertEqual((first["code"], first["message"]), ("doctype", _svg.DOCTYPE))
+        self.assertEqual((second["status"], second["code"], second["message"], second["written"]), ("refused", "not-xml", _svg.NO_SUCH_NAME, []))
+        self.assertTrue(first["message"].endswith("the " + _svg.NEEDS_AN_EXPORT) and second["message"].endswith("The " + _svg.NEEDS_AN_EXPORT))
         answer = through_the_command(self, by_name["an editor's leftovers in a style"])
         self.assertEqual(answer["notes"], ["left out styles that only an editor reads (their names start -inkscape-)"])
 
@@ -322,7 +343,7 @@ class Hostile(unittest.TestCase):
 
     def test_a_doctype_is_refused_with_the_way_out_that_exists(self):
         # Three common drawing programs write a DOCTYPE into every file, and one of them cannot leave it out: "export again
-        # without it" was no way out. The declaration can be taken out by hand, and the drawing is the same without it.
+        # without it" was no way out. The declaration can be taken out by hand.
         # What is taken out is the DECLARATION, not "the line that starts <!DOCTYPE": that sentence deleted the whole
         # drawing where the declaration shares its line with the <svg, and left half a declaration where it runs over two.
         public = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
@@ -346,10 +367,11 @@ class Hostile(unittest.TestCase):
                 # what the sentence says to do works, wherever the lines break: the declaration deleted, and nothing else
                 self.assertNotIn(b"<!DOCTYPE", without_doctype(data))
                 self.assertEqual(_svg.clean_svg(_input.mark(_input.load(without_doctype(data))).colour).colours, ["#b4531a"])
-        for word in ("DOCTYPE declaration", "text editor", "delete the declaration itself", "everything from <!DOCTYPE to the > that closes it", "wherever the lines break",
-                     "and nothing else", "the drawing is the same without it", "ask the tool for an export without a DOCTYPE"):
+        for word in ("DOCTYPE declaration", "text editor", "delete the declaration: everything from <!DOCTYPE to its last >", "wherever the lines break",
+                     "and nothing else", "If the file cannot be read after that", "ask the tool for an export without a DOCTYPE"):
             self.assertIn(word, _svg.DOCTYPE)
-        for word in ("export again", "the line that starts", "DOCTYPE line", "square brackets"):
+        # (no promise that the drawing is the same, or that the file reads, with the declaration gone: see the next test)
+        for word in ("export again", "the line that starts", "DOCTYPE line", "square brackets", "the drawing is the same", "the > that closes it"):
             self.assertNotIn(word, _svg.DOCTYPE)
         # the old sentence, done to the letter, on the two shapes it failed for
         lines_gone = lambda data: b"\n".join(line for line in data.split(b"\n") if not line.startswith(b"<!DOCTYPE"))
@@ -379,7 +401,7 @@ class Hostile(unittest.TestCase):
         # and that is true of the file that uses its names: with the whole declaration deleted it cannot be read
         gone = uses_them.replace(entities, b"")
         self.assertNotIn(b"DOCTYPE", gone)
-        refused(self, gone, "not-xml")
+        self.assertEqual(str(refused(self, gone, "not-xml")), _svg.NO_SUCH_NAME)   # (and that refusal leads to the same end)
 
         # through the door the intake uses, as a file and inside a package (where the refusal says which file)
         for form, data in ((_svg.DOCTYPE, plain["over two lines"]), (_svg.DOCTYPE, plain["on the line of the svg"]), (_svg.DOCTYPE_DEFINES, uses_them)):
@@ -394,6 +416,63 @@ class Hostile(unittest.TestCase):
             with self.assertRaises(_svg.Refusal) as cm:
                 _svg.clean_svg(_input.mark(_input.load(data)).colour)
             self.assertEqual(cm.exception.code, "not-xml")
+
+    def test_a_file_that_needs_what_its_doctype_brought_in_is_led_to_one_end_by_both_refusals(self):
+        # A declaration WITHOUT square brackets can define names too: in the outside file it names. The sentence promised
+        # that the drawing is the same with the declaration deleted; such a file was then "not readable (undefined entity)",
+        # which named no way on. Now the first sentence says what to do if the file cannot be read after that, and the
+        # refusal that file meets says the same: both end with the export.
+        public = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n'
+        coloured = svg().replace(b'fill="#b4531a"', b'fill="&brand;"')
+        self.assertIn(b"&brand;", coloured)
+        needs_it = {
+            "a colour named in an outside file": b'<!DOCTYPE svg SYSTEM "brand.dtd">' + coloured,
+            "the same, the declaration over two lines": b'<?xml version="1.0"?>\n<!DOCTYPE svg\n  SYSTEM "brand.dtd">\n' + coloured,
+            "the public form, and the name is the namespace's": public + svg(ns='xmlns="&ns_svg;"'),
+            "a name in a title, which is left out": public + svg("<title>A&nbsp;B</title>"),
+            "a name in an attribute that is left out": public + svg(root='data-made-by="&tool;"'),
+            "two names": b'<!DOCTYPE svg SYSTEM "brand.dtd" >' + svg("<desc>&one; &two;</desc>"),
+            "an address with a > in it": b'<!DOCTYPE svg SYSTEM "a>b.dtd">' + coloured,
+        }
+        for what, data in needs_it.items():
+            with self.subTest(what=what):
+                self.assertEqual(str(refused(self, data, "doctype")), _svg.DOCTYPE)
+                gone = without_doctype(data)   # the declaration deleted, as the sentence says
+                self.assertNotIn(b"DOCTYPE", gone)
+                self.assertEqual(str(refused(self, gone, "not-xml")), _svg.NO_SUCH_NAME)
+                # through the door the intake uses, as a file and inside a package (where the refusal says which file)
+                for packed, before in ((gone, ""), (T.build_zip([("pack/logo.svg", gone)]), "In the package, the file 'pack/logo.svg': ")):
+                    with self.assertRaises(_svg.Refusal) as cm:
+                        _svg.clean_svg(_input.mark(_input.load(packed)).colour)
+                    self.assertEqual((cm.exception.code, str(cm.exception)), ("not-xml", before + _svg.NO_SUCH_NAME))
+        # the two sentences lead to one end, in the same words
+        self.assertTrue(_svg.DOCTYPE.endswith(" If the file cannot be read after that, the " + _svg.NEEDS_AN_EXPORT))
+        self.assertTrue(_svg.NO_SUCH_NAME.endswith(" The " + _svg.NEEDS_AN_EXPORT))
+        self.assertTrue(_svg.NEEDS_AN_EXPORT.endswith("ask the tool for an export without a DOCTYPE."))
+        for word in ("not readable as an SVG", "a name that nothing in it defines", "between & and ;", "DOCTYPE declaration", "this file has none, or has it no longer"):
+            self.assertIn(word, _svg.NO_SUCH_NAME)
+        # "its last >": where an address in quotes holds a > of its own, the declaration ends at the later one. Deleted to
+        # there, a file that needs nothing of the declaration is read; deleted to the first, it is not.
+        quoted = {"a > in the address": b'<!DOCTYPE svg SYSTEM "a>b.dtd">' + svg(), "in single quotes, with a double quote too": b"<!DOCTYPE svg SYSTEM 'a>\"b.dtd'>\n" + svg(),
+                  "two of them": b'<!DOCTYPE svg SYSTEM "a>>b.dtd" >' + svg()}
+        for what, data in quoted.items():
+            with self.subTest(what=what):
+                self.assertEqual(str(refused(self, data, "doctype")), _svg.DOCTYPE)
+                self.assertEqual(without_doctype(data).strip(), svg())
+                self.assertEqual(_svg.clean_svg(_input.mark(_input.load(without_doctype(data))).colour).colours, ["#b4531a"])
+                start = data.index(b"<!DOCTYPE")
+                to_the_first = data[:start] + data[data.index(b">", start) + 1:]
+                with self.assertRaises(_svg.Refusal):
+                    _svg.clean_svg(_input.mark(_input.load(to_the_first)).colour)
+        # a name nothing defines in a file that never had a DOCTYPE (pasted code with a web page's &nbsp;) is told the same,
+        # and "this file has none" is true of it; any other XML that cannot be read keeps the sentence it had
+        self.assertEqual(str(refused(self, svg("<title>A&nbsp;B</title>"), "not-xml")), _svg.NO_SUCH_NAME)
+        for data, said in ((b"<svg><path></svg>", "mismatched tag"), (svg(root='data-x="a & b"'), "not well-formed"), (svg(root='data-x="&#xFFFFFFF;"'), "invalid character number")):
+            err = refused(self, data, "not-xml")
+            self.assertIn(said, str(err))
+            self.assertNotIn("DOCTYPE", str(err))
+        # the names XML itself defines are no such name
+        self.assertEqual(_svg.clean_svg(svg(root='data-x="&amp;&lt;&gt;&quot;&apos;&#38;"')).colours, ["#b4531a"])
 
     def test_text_is_refused_with_the_way_out(self):
         # Scenario 14: the owner is told what to ask the tool for.
@@ -1709,7 +1788,7 @@ class ATransform(Line):
     # NO TRANSFORM SQUASHES WHAT IT IS APPLIED TO FLAT, OR ALL BUT FLAT. Measured 2026-10-13, on one of two shapes inside
     # a clip path: for a scale of nothing the site's renderer draws nothing at all of what is clipped, where a browser
     # clips by the other shape; for a skew of a quarter turn it is the browser that draws nothing (the pictures are in
-    # test_render.py). The line is how flat a square comes out: no thinner than a ten-thousandth of its length.
+    # test_render.py). The line is how flat a square comes out: thicker than a ten-thousandth of its length.
     FLAT = [
         # a scale with a nothing in it, however the nothing is written; and one the renderer reads as nothing (it reads a number in single precision)
         "scale(0)", "scale(0 0)", "scale(1 0)", "scale(0 1)", "scale(0,5)", "scale(-0)", "scale(+0.0)", "scale(0e5)", "scale(.0 1)", "scale( 0 )", "scale (0)", "scale(1e-46)", "scale(1e-99)",
@@ -1725,13 +1804,21 @@ class ATransform(Line):
         # all of them together, none of them flat alone: steep skews, stretches at an angle
         "skewX(89.4) skewX(89.4)", "skewX(89.4) skewY(89.4) " * 8, "skewX(60) skewY(60) " * 8, "scale(100 1) rotate(45) " * 8, "matrix(1 1 1 1.01 0 0) matrix(1 1 1 1.01 0 0) matrix(1 1 1 1.01 0 0)",
         "scale(1 .001) rotate(45) scale(1 .001)",
+        # all of them together leave too little of an area, each of them at the least or above it (until round 7 the list was held to its thinness alone)
+        "scale(1e-9) scale(1e-9)", "scale(1e-9) " * 6, "scale(1e-9) " * 16, "matrix(1e-9 0 0 1e-9 0 0) matrix(0 1e-9 -1e-9 0 0 0)", "scale(1e-9) rotate(30) scale(.5)", "scale(.001) " * 4,
+        "scale(1e-5) scale(1e-5)", "scale(-1e-9) scale(-1e-9)", "scale(1e-9 1e-8) scale(1e-8 1e-9)", "translate(1) scale(1e-9) translate(1) scale(.99)",
+        # and a list that goes under the line on its way is refused, though it ends above it
+        "scale(1e-6) scale(1e-6) scale(1000) scale(1000)", "scale(.001) " * 8 + "scale(1000) " * 8,
     ]
     NOT_FLAT = [
-        "scale(1)", "scale(-1)", "scale(-1 1)", "scale(.001)", "scale(1e-9)", "scale(1e-9 1e-9)", "scale(1 .001)", "scale(.001 1)", "scale(100 1)", "scale(%d .7)" % FAR, "scale(1e-9) " * 16,
+        "scale(1)", "scale(-1)", "scale(-1 1)", "scale(.001)", "scale(1e-9)", "scale(1e-9 1e-9)", "scale(1 .001)", "scale(.001 1)", "scale(100 1)", "scale(%d .7)" % FAR,
+        # small scales that multiply to no less than the least: nested ordinary ones, and the smallest beside what changes no area
+        "scale(.1) scale(.1) scale(.1)", "scale(.1) " * 9, "scale(.5) " * 16, "scale(.001) scale(.001) scale(.001)", "scale(1e-9) scale(1)", "scale(1e-9) translate(5) rotate(30)", "scale(-1) scale(1e-9)",
+        "scale(1e-6) scale(1000) scale(1e-6) scale(1000)", "scale(1e-9) scale(2) scale(.5)",
         "matrix(1 0 0 1 0 0)", "matrix(0 1 -1 0 0 0)", "matrix(.866 .5 -.5 .866 3 4)", "matrix(1 0 99 1 0 0)", "matrix(1 2 2 5 0 0)", "matrix(1e-9 0 0 1e-9 0 0)", "matrix(0 1e-9 -1e-9 0 0 0)",
         "matrix(-1 0 0 1 64 0)", "matrix(1.3333 0 0 -1.3333 0 64)",
         "skewX(0)", "skewX(45)", "skewY(-30)", "skewX(80)", "skewX(89)", "skewX(89.4)", "skewX(-89.4)", "skewY(89.4)", "skewX(90.6)", "skewX(180)", "skewX(269.4)", "skewY(360)", "skewX(91)",
-        "rotate(90)", "rotate(89.999999)", "rotate(1e9)", "rotate(90 5 5)", "translate(0)", "translate(0 0)", "translate(%d)" % FAR,
+        "rotate(90)", "rotate(89.999999)", "rotate(1e5)", "rotate(-100000 5 5)", "skewX(100000)", "skewY(-99999.5)", "rotate(90 5 5)", "translate(0)", "translate(0 0)", "translate(%d)" % FAR,
         "skewX(45) skewY(45) skewX(45)", "scale(100 1) rotate(45) scale(100 1)", "rotate(30) scale(2 1) rotate(-30)", "translate(1) " * 16, "rotate(22.5) " * 16, "scale(1 .01) rotate(90) scale(1 .01)",
     ]
 
@@ -1748,6 +1835,7 @@ class ATransform(Line):
         self.assertIn("(scale(0))", str(refused(self, svg('<g transform="translate(1)  scale(0) rotate(5)"/>'), "flat-transform")))
         self.assertIn("(skewX( 90 ))", str(refused(self, svg('<g transform="rotate(5),skewX( 90 )"/>'), "flat-transform")))
         self.assertIn("(skewX(89.4) skewX(89.4))", str(refused(self, svg('<g transform="skewX(89.4)\nskewX(89.4)"/>'), "flat-transform")))
+        self.assertIn("(scale(1e-9) scale(1e-9))", str(refused(self, svg('<g transform="scale(1e-9)\n scale(1e-9)"/>'), "flat-transform")))
         self.assertLess(len(str(refused(self, svg('<g transform="%s"/>' % ("skewX(60) skewY(60) " * 8)), "flat-transform"))), 400)
         # on the outer svg a transform is refused as that, whatever it does
         refused(self, svg(root='transform="scale(0)"'), "root-transform")
@@ -1782,9 +1870,84 @@ class ATransform(Line):
             with self.subTest(kept=kept, flat=flat):
                 _svg.clean_svg(bare('<g transform="%s"><rect width="9" height="9"/></g>' % kept).replace(b'viewBox="0 0 64 64"', b'viewBox="0 0 640 640"'))
                 refused(self, svg('<g transform="%s"/>' % flat), "flat-transform")
-        # sixteen of the smallest scale there is still leave a number a program can work with: nothing multiplies to nothing
-        product = (float("1e-9") ** 2) ** _svg.MAX_TRANSFORMS
-        self.assertGreater(product, 2.3e-308)
+        # exactly 10,000 times as long as thick is flat already (the comment, the grammar and the docstring said it was kept)
+        for flat in ("scale(10000 1)", "scale(1 10000)", "scale(1 .0001)", "scale(1 1e-4)", "scale(1e-4 1)", "matrix(1 0 0 .0001 0 0)"):
+            with self.subTest(flat=flat):
+                refused(self, svg('<g transform="%s"/>' % flat).replace(b'viewBox="0 0 64 64"', b'viewBox="0 0 640 640"'), "flat-transform")
+        for said in (_svg.__doc__, _svg._flattens.__doc__):
+            self.assertIn("scale(1 .0001)", said)
+            self.assertNotIn("squashed to less than a ten-thousandth", said)
+            self.assertNotIn("no thinner than one to MAX_SQUASH", said)
+        self.assertIn("exactly 10,000 times as long as it is thick is flat already", " ".join(_svg.__doc__.split()))
+        # THE LIST IS HELD TO THE SAME TWO LINES AS ONE FUNCTION. Six of the smallest scale there is each passed, and the
+        # list was held to its thinness alone: they multiplied to a scale of 1e-54 each way and were kept.
+        for kept, flat in (("scale(1e-9)", "scale(1e-9) scale(1e-9)"), ("scale(1e-9) scale(1)", "scale(1e-9) scale(.99)"), ("scale(.001) " * 3, "scale(.001) " * 4),
+                           ("scale(.1) " * 9, "scale(.1) " * 10), ("scale(1e-3 1e-3) scale(1e-3 1e-3) scale(1e-3)", "scale(1e-3 1e-3) scale(1e-3 1e-3) scale(.99e-3 1e-3)"),
+                           ("scale(1e-6) scale(1000) scale(1e-6) scale(1000)", "scale(1e-6) scale(1e-6) scale(1000) scale(1000)")):
+            with self.subTest(kept=kept, flat=flat):
+                _svg.clean_svg(svg('<g transform="%s"/>' % kept))
+                err = refused(self, svg('<g transform="%s"/>' % flat), "flat-transform")
+                self.assertIn("(%s" % " ".join(flat.split())[:40], str(err))   # the list is shown from where it starts: no one function does it
+        self.assertEqual(_svg._transform(" ".join(["scale(1e-9)"] * 6)), ("flat", " ".join(["scale(1e-9)"] * 6)))
+        self.assertIsNone(_svg._transform("scale(.1) scale(.1) scale(.1)"))
+
+    def test_an_angle_too_large_to_be_read_exactly_is_refused_by_name(self):
+        # Both programs read a number in single precision. The check worked an angle out in double: skewX(20000070.9) was
+        # 90.9 degrees on from whole turns to the check (kept), and 90 on from them to both programs, which is the skew of
+        # a quarter turn that flat-transform refuses. Up to 100,000 degrees single precision keeps an angle to a hundredth.
+        self.assertEqual(_svg.MAX_ANGLE, 100000)
+        far = ["skewX(20000070.9)", "skewY(20000070.9)", "rotate(999999990 5 5)", "rotate(123456789 4 4)", "rotate(1e9)", "rotate(100000.01)", "rotate(-100000.01)", "rotate(100001 5 5)",
+               "skewX(100001)", "skewX(-100001)", "skewY(1e6)", "skewY(-1.1e5)", "rotate( 1e8 )", "rotate (16777217 5 5)", "translate(1) rotate(200000)", "rotate(200000),scale(2)",
+               "rotate(30) " * 15 + "skewX(1e7)"]
+        for value in far:
+            for doc in (svg('<g transform="%s"/>' % value), svg('<rect transform="%s" width="9" height="9"/>' % value),
+                        svg('<clipPath id="c" transform="%s"><rect width="3" height="9"/></clipPath><rect clip-path="url(#c)" width="9" height="9"/>' % value)):
+                with self.subTest(value=value[:40], doc=doc[150:190]):
+                    err = refused(self, doc, "angle-too-large")
+                    for said in ("turns or slants", "more than 100,000 degrees", "only roughly", "Ask the tool", "between 0 and 360"):
+                        self.assertIn(said, str(err))
+        # the sentence shows the function that holds the angle
+        self.assertIn("(rotate( 200000 5 5 ))", str(refused(self, svg('<g transform="translate(1)  rotate( 200000\n5 5 ) scale(2)"/>'), "angle-too-large")))
+        # the line is 100,000 either way, and it is about an angle alone: a number that places something has its own line
+        for kept in ("rotate(100000)", "rotate(-100000)", "rotate(1e5 5 5)", "skewX(100000)", "skewY(-100000)", "rotate(99999.99)", "rotate(360)", "rotate(720.5)", "rotate(0)", "skewX(-0)",
+                     "rotate(30 %d 5)" % FAR, "translate(%d)" % FAR, "scale(100 1)", "matrix(1 0 0 1 %d 0)" % FAR):
+            with self.subTest(kept=kept):
+                self.assertIn(' transform="%s"' % set_out(kept)[1], _svg.clean_svg(svg('<g transform="%s"/>' % kept)).text)
+        refused(self, svg('<g transform="rotate(30 100001 5)"/>'), "too-far")
+        refused(self, svg('<g transform="translate(100001)"/>'), "too-far")
+        # whichever fault comes first in the list is the one that is said; a number that is no number at all stays that
+        refused(self, svg('<g transform="scale(0) rotate(200000)"/>'), "flat-transform")
+        refused(self, svg('<g transform="rotate(200000) scale(0)"/>'), "angle-too-large")
+        refused(self, svg('<g transform="rotate(2e10)"/>'), "value-too-long")
+        refused(self, svg('<g transform="rotate(200000 5)"/>'), "bad-value")
+        # through the door the intake uses, as a file and inside a package (where the refusal says which file)
+        doc = bare('<rect transform="skewX(20000070.9)" width="9" height="9"/>')
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "angle-too-large").code, "angle-too-large")
+        err = refused(self, _input.mark(_input.load(T.build_zip([("pack/logo.svg", doc)]))).colour, "angle-too-large")
+        self.assertTrue(str(err).startswith("In the package, the file 'pack/logo.svg': The file turns or slants a shape"), str(err))
+        # the grammar at the top of the file says the line and the way out
+        said = " ".join(_svg.__doc__.split())
+        for words in ("no further from zero than 100,000 degrees", "skewX(20000070.9)", "between 0 and 360"):
+            self.assertIn(words, said)
+
+    def test_the_rule_looks_at_one_transform_attribute_at_a_time_and_says_so(self):
+        # A STATED LIMIT, not a rule: transforms on elements inside one another are not multiplied. Each of these files
+        # is kept, though the transforms of its nested groups come to nothing together (the first) or undo each other
+        # (the second); made by hand and measured 2026-10-13, one of the two programs draws nothing of each. The grammar
+        # and the docstring say so. If nesting is ever held, this test is the one to turn round.
+        small, large = " ".join(["scale(.001)"] * 3), " ".join(["scale(1000)"] * 3)
+        nested = '<g transform="%s"><g transform="%s"><g transform="%s"><g transform="%s"><rect width="9" height="9"/></g></g></g></g>'
+        for what, doc, kept in (("down and down, and up and up", svg(nested % (small, small, large, large)), 4),
+                                ("steep skews and back", svg(nested % ("skewX(89.4)", "skewY(89.4)", "skewY(-89.4)", "skewX(-89.4)")), 4),
+                                ("a clip path's and its shape's", svg('<clipPath id="c" transform="%s"><rect transform="%s" width="3" height="9"/></clipPath><rect clip-path="url(#c)" width="9" height="9"/>' % (small, small)), 2)):
+            with self.subTest(what=what):
+                self.assertEqual(_svg.clean_svg(doc).text.count(" transform="), kept)
+        # the same functions in ONE attribute are held
+        refused(self, svg('<g transform="%s %s %s %s"/>' % (small, small, large, large)), "flat-transform")
+        refused(self, svg('<g transform="skewX(89.4) skewY(89.4) skewY(-89.4) skewX(-89.4)"/>'), "flat-transform")
+        for said in (" ".join(_svg.__doc__.split()), " ".join(_svg._flattens.__doc__.split())):
+            for words in ("ONE", "attribute at a time", "inside one another", "are not multiplied"):
+                self.assertIn(words, said)
 
     def test_a_flat_transform_is_refused_through_the_door_the_intake_uses(self):
         doc = bare('<clipPath id="c"><rect transform="scale(0)" width="3" height="9"/><rect x="5" width="2" height="9"/></clipPath><rect clip-path="url(#c)" width="9" height="9"/>')
@@ -1868,6 +2031,15 @@ class AKeyword(Line):
         # with a prefix it is not the attribute a program reads (left out, as any prefixed attribute is); on anything but a clip path it means nothing
         self.assertNotIn("clipPathUnits", _svg.clean_svg(bare(inner.replace("<defs>", '<defs xmlns:x="urn:editor">') % 'x:clipPathUnits="objectBoundingBox"')).text)
         self.assertNotIn("clipPathUnits", _svg.clean_svg(bare('<g clipPathUnits="objectBoundingBox"><rect width="9" height="9"/></g>')).text)
+        # on any element that is no <clipPath> the attribute means nothing: left out with the note every such attribute gets
+        for doc in (bare('<g clipPathUnits="objectBoundingBox"><rect width="9" height="9"/></g>'), bare('<rect clipPathUnits="objectBoundingBox" width="9" height="9"/>'),
+                    bare('<defs clipPathUnits=" objectBoundingBox "/><path clipPathUnits="objectBoundingBox" d="M0 0h9v9z"/>'), bare('<rect width="9" height="9"/>', root='clipPathUnits="objectBoundingBox"'),
+                    bare('<clipPath id="c"><rect clipPathUnits="objectBoundingBox" width="3" height="9"/></clipPath><rect clip-path="url(#c)" width="9" height="9"/>'),
+                    bare('<g clipPathUnits="objectBoundingBox"/><circle clipPathUnits="objectBoundingBox" r="3"/>'), bare('<g clipPathUnits="no such word"><rect width="9" height="9"/></g>')):
+            with self.subTest(doc=doc[150:210]):
+                clean = _svg.clean_svg(doc)
+                self.assertNotIn("clipPathUnits", clean.text)
+                self.assertEqual(clean.notes, ["left out attributes this check does not use: clipPathUnits"])
         # through the door the intake uses, as a file and inside a package
         doc = bare(inner % 'clipPathUnits="objectBoundingBox"')
         self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "clip-units").code, "clip-units")
@@ -2727,7 +2899,7 @@ class HowFarADrawingReaches(unittest.TestCase):
         for near, far in (("translate(1010)", "translate(1011)"), ("translate(0 -1010)", "translate(0 -1011)"), ("translate(5,5) translate(-1010)", "translate(5,5) translate(-1011)"),
                           ("scale(1010)", "scale(1011)"), ("scale(1 -1010)", "scale(1 -1011)"), ("matrix(1 0 0 1 1010 -1010)", "matrix(1 0 0 1 0 1011)"),
                           ("matrix(1010 0 0 1 0 0)", "matrix(1 1011 -1011 1 0 0)"), ("rotate(45 1010 0)", "rotate(45 1011 0)"), ("rotate(45,0,-1010)", "rotate(45,0,-1011)"),
-                          ("rotate(100000)", "rotate(100000 0 1e9)"), ("rotate(1e9) skewX(5000) skewY(-1e9)", "rotate(1e9) skewX(5000) skewY(-1e9) translate (1011)"),
+                          ("rotate(100000)", "rotate(100000 0 1e9)"), ("rotate(1e5) skewX(5000) skewY(-1e5)", "rotate(1e5) skewX(5000) skewY(-1e5) translate (1011)"),
                           ("translate (1010)", "scale  (1011)")):
             self.near_and_far(moved, near, far, name="transform")
         self.near_and_far('<rect transform="%s" width="4" height="4"/>', "translate(1010)", "translate(1e9)", name="transform")

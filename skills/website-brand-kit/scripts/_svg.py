@@ -54,15 +54,33 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                  number list of exactly that many numbers, `)`. Between two of them: blanks, one
                  comma, or nothing. It may be empty. Written into the cleaned file as
                  `name(a b c) name(d)`.
+                 An angle (the first number of rotate, skewX and skewY) is no further from zero
+                 than 100,000 degrees (refused by name). Both programs read a number in single
+                 precision, which keeps a larger angle only roughly: skewX(20000070.9) was read
+                 here as 90.9 degrees on from whole turns, and drawn as 90. The way out is the
+                 same angle between 0 and 360.
                  None of them, nor all of them together, squashes what it is applied to flat,
                  or all but flat: one program then draws nothing of a shape that another still
-                 draws (refused by name). Flat is a square squashed to less than a ten-thousandth
-                 as thick as it is long: for matrix(a b c d e f), a times d less b times c comes
-                 to less than a ten-thousandth of a, b, c and d each squared and added up. A
-                 scale and a skew are matrices too: scale(0), scale(1 .0001), and skewX and skewY
-                 from about 89.43 degrees to 90.57 (a tangent of 100 or more) and at every half
-                 turn on from there. And one of them alone leaves of an area no less than 1e-18
-                 of it (not scale(1e-10): a thousand million times smaller each way is the least).
+                 draws (refused by name). Flat is a square squashed to a ten-thousandth as thick
+                 as it is long, or thinner: for matrix(a b c d e f), a times d less b times c
+                 comes to less than a ten-thousandth of a, b, c and d each squared and added up.
+                 (Those squares come to a little more than the length squared, so a square left
+                 exactly 10,000 times as long as it is thick is flat already: scale(1 .0001) is
+                 refused, scale(1 .00011) is kept.) A scale and a skew are matrices too:
+                 scale(0), and skewX and skewY from about 89.43 degrees to 90.57 (a tangent of
+                 100 or more) and at every half turn on from there. And none of them, nor all of
+                 them together, leaves of an area less than 1e-18 of it (not scale(1e-10): a
+                 thousand million times smaller each way is the least. And not six of
+                 scale(1e-9), nor two, which multiply to less).
+                 "All of them together" is the list multiplied from its first function to each
+                 one in turn: a list that goes under one of the two lines on its way is refused,
+                 though it may end above it (scale(1e-6) scale(1e-6) scale(1000) scale(1000)).
+                 The rule looks at ONE transform attribute at a time. Transforms on elements that
+                 stand inside one another (a group's and its shape's, a clip path's and that of a
+                 shape in it) are not multiplied: where only together they squash a shape, scale
+                 it to nothing, or undo each other, this check does not see it, the file is kept,
+                 and one program may draw nothing of a shape that another draws (_flattens says
+                 what was measured; such nesting was only ever made by hand).
   path data      d: the letters MmZzLlHhVvCcSsQqTtAa, digits, `+ - . ,`, e and E, and blanks;
                  200,000 characters at most. (Read by the renderer's own reader, as it was.)
   keyword        exactly one of the words the renderer and a browser both read:
@@ -72,7 +90,9 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                    shape-rendering: auto optimizeSpeed crispEdges geometricPrecision
                    clipPathUnits (on a clipPath): userSpaceOnUse, which is what it means left
                    out as well. `objectBoundingBox` is refused by name: the clip is then measured
-                   by the box of the shape it clips, and programs work that out in different ways
+                   by the box of the shape it clips, and programs work that out in different ways.
+                   (On any other element the attribute means nothing: it is left out there, with
+                   a note, whatever it says.)
                    paint-order: normal, or one to three of fill stroke markers, each once
                    (written with one blank between two of them)
   paint          fill, stroke, color: at most 64 of the characters a colour is written in
@@ -139,7 +159,7 @@ file that took the renderer longest when they were measured (they do not bound i
                  x1, y1, x2, y2, width, height, r, rx, ry, every number of `points`, every number
                  of path data (an arc's two flags are no numbers), stroke-width,
                  stroke-dashoffset, and in a transform every number but an angle (the first of
-                 rotate, skewX and skewY).
+                 rotate, skewX and skewY: an angle has its own line, under `transform`).
   how many dashes   where a dash list is set (stroke-dasharray, not `none`), no dash or gap is
                  smaller than a thousandth of the box's larger side, unless it is 0. Where it
                  applies to a shape that paints an outline (set on it, handed down, or from a
@@ -243,8 +263,9 @@ MAX_PATH = 200_000             # characters of path data, and of `points`
 MAX_CLASS = 200                # characters of `class`
 MAX_URL = 80                   # characters of a url(#id), its brackets and blanks included
 # What squashes a shape flat (see `transform` at the top, and _flattens).
-MAX_SQUASH = 10000             # how many times as long as it is thick a transform may leave a square
-MIN_AREA = 1e-18               # the least one function of a transform leaves of an area: a thousand million times smaller each way
+MAX_SQUASH = 10000             # a transform leaves a square LESS than this many times as long as it is thick (exactly this many is flat)
+MIN_AREA = 1e-18               # the least a transform leaves of an area, one function of it or all of them multiplied: a thousand million times smaller each way
+MAX_ANGLE = 100000             # degrees, either way, in rotate, skewX and skewY: single precision keeps an angle up to here to a hundredth of a degree
 # A browser's work on clip paths: for each one, the numbers its shapes hold times the elements clipped by it, summed.
 MAX_CLIP_WORK = 200000
 
@@ -340,8 +361,9 @@ NO_EFFECT = {
 # Each line of the grammar (see the top of this file) is one function: given the value with its
 # blanks taken off, it answers None when the value is in the grammar, and otherwise why not:
 # "bad" (not the form), "unit" (a number with a unit this line does not take), "below zero",
-# ("long", what there is too much of), or ("flat", the function of a transform that squashes a
-# shape flat). GRAMMAR says which line each name is held to.
+# ("long", what there is too much of), ("flat", the function of a transform that squashes a
+# shape flat), or ("angle", the function of a transform whose angle is too large to be read
+# exactly). GRAMMAR says which line each name is held to.
 
 _BLANKS = " \t\r\n"  # what XML and CSS call white space; Python's strip(), split() and \s also take a no-break space
 # ASCII digits only, and no part of a number can be read two ways: every pattern built from it
@@ -496,7 +518,7 @@ def _linear(name, numbers):
     return 1.0, 0.0, 0.0, 1.0
 
 
-def _flattens(matrix, least=0.0):
+def _flattens(matrix):
     """Does a transform squash what it is applied to flat, or all but flat? Measured 2026-10-13, on one of two
     shapes inside a clip path. scale(0), scale(1 0), a matrix whose a times d is its b times c: the site's renderer
     draws nothing at all of what is clipped, a browser clips by the other shape. The same for a scale so small
@@ -505,13 +527,37 @@ def _flattens(matrix, least=0.0):
     to a matrix too lopsided to work with (skewX(89.4) skewY(89.4), eight times over). A skew near a quarter turn
     the other way round: the renderer clips by the other shape and a browser draws less (skewX(89.999)) or nothing
     (skewX(89.99999), skewX(90)); at 89.99 degrees, a tangent of 5,730, the two still agree.
+    Where these were measured: by hand, each file drawn by the site's renderer and by headless Chromium at 100 by 100
+    pixels and the pixels of each colour counted, as the file came and cleaned. The tests have no browser and do not
+    draw that comparison again: tests/test_render.py draws the rows it rests on with the renderer alone (the file as
+    it came against the cleaned file, on the kept side of each line), and holds the refused ones against the picture
+    the browser drew.
     So the line is not "exactly 0". It is how flat a square comes out, about as thin for its length as a times d
-    less b times c is for a, b, c and d squared and added up: no thinner than one to MAX_SQUASH (a skew's tangent
-    stays under 100). `least` is the smallest area that may be left, for one function alone: no sixteen such
-    multiply to nothing."""
+    less b times c is for a, b, c and d squared and added up: that share is no smaller than one in MAX_SQUASH. A
+    square left exactly MAX_SQUASH times as long as it is thick is refused already, since the squares added up come
+    to a little more than its length squared (scale(10000 1) and scale(1 .0001) are refused, scale(1 .00011) is
+    kept; a skew's tangent stays under 100). And of an area no less is left than MIN_AREA of it.
+
+    _transform asks this of each function of a `transform`, and of the list multiplied from its first function to
+    each one in turn, so the list is held to the same two lines as one function. Two of scale(1e-9), or six, each
+    exactly at the least area, were kept until 2026-10-13 (the list was held to the first line alone). Measured that
+    day: a group whose list multiplies to a scale of 1e-39 each way (scale(.001) thirteen times), round a group that
+    scales up again by as much, is drawn by the site's renderer and not by a browser (twelve times, 1e-36: by both).
+    And ONE list that goes down to 1e-45 or 1e-54 each way and comes up again (scale(1e-9) five or six times, then
+    scale(1e8) six or seven times, in a box of a million) is drawn by the renderer, and by a browser wrongly or not
+    at all (down to 1e-36 and up again: alike by both). So the list is held on its way, not only at its end.
+
+    What this does NOT see: it looks at ONE `transform` attribute at a time. The transforms of elements that stand
+    inside one another (a group's and its shape's, a clip path's and that of a shape in it) are not multiplied.
+    Where only together they squash a shape, or scale it to nothing, or where one undoes what another did, each
+    attribute passes and the file is kept, though one of the two programs may draw nothing of the shape. Made by
+    hand and measured 2026-10-13: four groups of steep skews (89.4 degrees, across and down in turn) round four that
+    undo them are drawn by a browser and not by the renderer; three round three are drawn by both. (Groups scaled
+    down by 1,000, fourteen deep, round fourteen scaled up again were drawn alike by both.) No export of a design
+    tool was seen to nest so."""
     a, b, c, d = matrix
     area = abs(a * d - b * c)
-    return not (area >= least and area * MAX_SQUASH >= a * a + b * b + c * c + d * d)   # (`not`: a number too large to work with is turned down too)
+    return not (area >= MIN_AREA and area * MAX_SQUASH >= a * a + b * b + c * c + d * d)   # (`not`: a number too large to work with is turned down too)
 
 
 def _transform(v):
@@ -522,10 +568,12 @@ def _transform(v):
         if numbers is None or len(numbers) not in _TAKES[m.group(1)]:
             return "bad"
         why, pos, count = why or _too_much(numbers), m.end(), count + 1
+        if why is None and m.group(1) in _ANGLE_FIRST and not abs(float(numbers[0])) <= MAX_ANGLE:
+            why = ("angle", m.group())
         if why is None and count <= MAX_TRANSFORMS:
             (a, b, c, d), (e, f, g, h) = all_of_them, _linear(m.group(1), numbers)
             all_of_them = (a * e + c * f, b * e + d * f, a * g + c * h, b * g + d * h)
-            why = ("flat", m.group()) if _flattens((e, f, g, h), MIN_AREA) else ("flat", v) if _flattens(all_of_them) else None
+            why = ("flat", m.group()) if _flattens((e, f, g, h)) else ("flat", v) if _flattens(all_of_them) else None
     return ("long", "more than %d transforms" % MAX_TRANSFORMS) if count > MAX_TRANSFORMS else why
 
 
@@ -658,6 +706,13 @@ def _validate(name, value, grammar=GRAMMAR):
             "agree on what is left to draw then: one draws nothing of a shape that another still draws. Ask the tool "
             "for the SVG without that part, or with its transforms applied to the shapes." % " ".join(why[1].split())[:40],
         )
+    if why[0] == "angle":
+        raise Refusal(
+            "angle-too-large",
+            "The file turns or slants a shape by an angle of more than %s degrees (%s). Programs keep so large a number "
+            "only roughly, so the shape is not drawn as the angle says, and not the same by every program. Ask the tool "
+            "for the same angle written between 0 and 360." % ("{:,}".format(MAX_ANGLE), " ".join(why[1].split())[:40]),
+        )
     raise _too_long(name, why[1])
 
 
@@ -690,8 +745,10 @@ class Member(bytes):
 
 
 def in_package(name, refusal):
-    """The same refusal, said of one file of a package by its name."""
-    return Refusal(refusal.code, "In the package, the file %r: %s" % (name[:80], refusal))
+    """The same refusal, said of one file of a package by its name: the whole name, as the package holds it (it is one
+    that _zipin.open_zip has passed: _zipin.MAX_NAME characters at most, and nothing in it that cannot be seen). Cut
+    short, two files whose names begin alike were called the same."""
+    return Refusal(refusal.code, "In the package, the file %r: %s" % (name, refusal))
 
 
 class Clean(object):
@@ -707,20 +764,28 @@ class Clean(object):
 
 # The two forms of a DOCTYPE, each with the way out that exists for it. A declaration can stand on a line of its
 # own, run over several lines, or share its line with the <svg that follows: what is deleted is the declaration, from
-# its `<!DOCTYPE` to its `>`, not "the line". One that defines names of its own (one common tool's "save as" writes
-# the addresses of its namespaces so, and the outer <svg> then uses them) cannot be deleted: without the
-# definitions the rest of the file is not readable (measured 2026-10-13).
+# its `<!DOCTYPE` to its last `>` (an address in quotes may hold a `>` of its own), not "the line". One that defines
+# names of its own (one common tool's "save as" writes the addresses of its namespaces so, and the outer <svg> then
+# uses them) cannot be deleted: without the definitions the rest of the file is not readable (measured 2026-10-13).
+# A declaration without square brackets can bring names in as well, from the outside file it names (SYSTEM "brand.dtd",
+# and then fill="&brand;"): so the first sentence does not promise that the file reads once the declaration is gone.
+# It says what to do if it does not, and NO_SUCH_NAME, the refusal such a file then meets, says the same.
+NEEDS_AN_EXPORT = "drawing needs what the declaration brought in: ask the tool for an export without a DOCTYPE."
 DOCTYPE = (
     "The file has a DOCTYPE declaration. That is how a file asks for other files to be pulled in, so it is refused. "
-    "Open the file in a text editor and delete the declaration itself: everything from <!DOCTYPE to the > that "
-    "closes it, wherever the lines break, and nothing else (the drawing is the same without it). Or ask the tool "
-    "for an export without a DOCTYPE."
+    "Open the file in a text editor and delete the declaration: everything from <!DOCTYPE to its last >, wherever "
+    "the lines break, and nothing else. If the file cannot be read after that, the " + NEEDS_AN_EXPORT
 )
 DOCTYPE_DEFINES = (
     "The file has a DOCTYPE declaration that holds definitions of its own (the part in square brackets). That is "
     "how a file asks for other files to be pulled in, so it is refused. This one cannot simply be deleted: the rest "
     "of the file may use the names it defines, and is then not readable without them. Ask the tool for an export "
     "without a DOCTYPE (a plain SVG, without the tool's own editing data)."
+)
+# A file with no DOCTYPE (none is ever read: see start_doctype) that uses a name only a DOCTYPE could have defined.
+NO_SUCH_NAME = (
+    "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;). "
+    "Such names are defined by a DOCTYPE declaration, and this file has none, or has it no longer. The " + NEEDS_AN_EXPORT
 )
 
 
@@ -860,7 +925,8 @@ def _parse(data):
         parser.UseForeignDTD(False)
         parser.Parse(data, True)
     except expat.ExpatError as e:
-        raise Refusal("not-xml", "The file is not readable as an SVG (%s)." % expat.errors.messages.get(e.code, "bad XML")) from None
+        why = expat.errors.messages.get(e.code, "bad XML")
+        raise Refusal("not-xml", NO_SUCH_NAME if why == expat.errors.XML_ERROR_UNDEFINED_ENTITY else "The file is not readable as an SVG (%s)." % why) from None
     except (ValueError, LookupError):
         # the parser asks Python for an encoding it does not know itself: utf-7, big5, one that does not exist
         raise Refusal(
@@ -923,7 +989,7 @@ def _read_attrs(node, attrs, notes, is_root):
                 "shift or change size: ask the tool for the SVG without a transform on the outer svg element."
                 % value.strip()[:40],
             )
-        elif local == "clipPathUnits" and value.strip(_BLANKS) == "objectBoundingBox":   # (on a <clipPath>: anywhere else it was left out above)
+        elif local == "clipPathUnits" and node.tag == "clipPath" and value.strip(_BLANKS) == "objectBoundingBox":   # (anywhere else it means nothing, and was left out above)
             raise Refusal(
                 "clip-units",
                 "A clip path in the file is measured by the box of the shape it clips (clipPathUnits=\"objectBoundingBox\"). "

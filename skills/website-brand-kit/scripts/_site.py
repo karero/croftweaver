@@ -70,9 +70,11 @@ def edit_css(text, palette):
     A value that already IS the colour wanted is left as it stands, in whatever spelling the reading takes
     (`#FFF8EE`, `#fff`, `rgb(255, 248, 238)`, and `var(--accent)` where the accent of that block is, or
     is being set to, the colour wanted): a stylesheet that already holds the palette comes back byte for
-    byte as it was. A value the reading does not take for a colour is written over, also where it only
-    looks like the colour wanted (a no-break space pasted beside it makes it none to a browser). A byte
-    order mark at the start of the text stays where it is."""
+    byte as it was. One exception: the Primary (`--brand`) is one colour for both themes, and a `var()`
+    there shows each theme's own value of the variable it points at, so it is never left standing: the
+    Primary is always written out as a colour. A value the reading does not take for a colour is written
+    over, also where it only looks like the colour wanted (a no-break space pasted beside it makes it none
+    to a browser). A byte order mark at the start of the text stays where it is."""
     import _palette as P
     sheet = P.scan_css(text)
     brand = P.VARIABLE["brand"]
@@ -92,13 +94,13 @@ def edit_css(text, palette):
             head = "src/styles/global.css: this tool cannot write the colours into the %s as it stands." % _PLACE[first.block]
         raise Refusal("css-layout", " ".join([head] + [t.message if t.variable is None else "%s in %s: %s" % (t.variable, P.BLOCK[t.block], t.message)
                                                        for t in stops] + ["Mend that in the stylesheet, or set the colours by hand."]))
-    # the Primary is one colour for both themes and is set in `:root` alone: a dark block that sets it again
-    # would show another, so it is refused by name
+    # the Primary is one colour for both themes and is kept in `:root` alone: a dark block that sets it again
+    # shows one of its own, so it is refused by name (whether or not this palette gives a Primary to set)
     for block, what in (("dark", "the " + _PLACE["dark"]), ("dark_media", "the dark block inside the `@media (prefers-color-scheme: dark)` block")):
         if brand in sheet.spans.get(block, ()) or brand in sheet.unsure.get(block, ()):
-            raise Refusal("css-primary-in-dark", "src/styles/global.css sets %s (the Primary) inside %s. The Primary is one colour for both themes, and this tool sets it in the "
-                                        "`:root` block only, so the dark theme would go on showing another. Take that line out of the dark block, then run this again."
-                          % (brand, what))
+            raise Refusal("css-primary-in-dark", "src/styles/global.css sets %s (the Primary) inside %s. The Primary is one colour for both themes and is kept in the "
+                                        "`:root` block only: a line in a dark block gives the dark theme a Primary of its own, whatever the `:root` block says. Take "
+                                        "that line out of the dark block, then run this again." % (brand, what))
     wanted = {(block, var): value for block, values in writes for var, value in values}
 
     def stays(block, var):
@@ -106,6 +108,8 @@ def edit_css(text, palette):
         will hold once this edit is done."""
         now = sheet.value(block, var)
         m = P._VAR.fullmatch(now)
+        if m and var == brand:
+            return False  # the Primary is one colour for both themes: a `var()` shows each theme's own, so the colour is written out
         if m and m.group(1) in P.KEY_OF_VARIABLE:
             home = block if m.group(1) in sheet.spans[block] else "light"
             at = P._points_at(sheet, block, m.group(1))[0]
@@ -230,7 +234,8 @@ def set_lines(rel, text, want, where=None):
     `background_color` in public/manifest.webmanifest, the six colour names in
     scripts/generate_og_cards.py (each colour as #rrggbb). `where`, a dict the caller hands in, is
     told the line each value of src/config.ts or of the generator stands on, set or left as it is:
-    {name: the line's number, counted from 1}.
+    {name: the line's number, counted from 1}. A value of src/config.ts that is left as it stands on a
+    line which is not surely the block's own (see below) gets no entry.
 
     A value is edited only on a line written as the starter writes it, and everything else is refused
     before anything is written. That keeps this tool from editing where it plainly should not; it does
@@ -256,11 +261,14 @@ def set_lines(rel, text, want, where=None):
       `/*` without its end, a backtick, a `\\` at its end, nor the key's name again: looked for
       outside quoted texts without a backslash and comments that end on the line.
     A second line that begins with the key, with only plain lines above it, is refused with the advice
-    to leave one. Below a line that is not plain it may belong to something inside the block (`pwa:
-    {`, then `themeColor: ...`): the block is then not edited, and nothing says to take a line out. A
-    line end that TypeScript reads and this tool does not (a carriage return on its own, U+2028,
-    U+2029) is refused. A block this tool does not edit gets the advice to set the value by hand, and
-    a key's line that already holds the value wanted is left as it stands, whatever stands around it.
+    to leave one. A line that begins with the key below a line that is not plain may belong to
+    something inside the block (`pwa: {`, then `themeColor: ...`). Where every line of the key stands
+    so, the block is not edited, and the advice is to write the line in place of the block's own, or
+    as the first line under the opening line where the block has none of its own: no advice names such
+    a line as the one to write over, to move or to take out. A line end that TypeScript reads and this
+    tool does not (a carriage return on its own, U+2028, U+2029) is refused. A block this tool does
+    not edit gets the advice to set the value by hand, and a key's line that already holds the value
+    wanted is left as it stands, whatever stands around it.
 
     scripts/generate_og_cards.py, read with Python's own parser (`ast`) by the Python this tool runs
     on; a file it cannot read is refused with the parser's line, and so is a `from ... import *`.
@@ -276,8 +284,10 @@ def set_lines(rel, text, want, where=None):
     so is `NaN` or `Infinity`, which the site's `JSON.parse` does not take. What its top level holds
     is the truth. Where that is not yet the value wanted, the text is edited only when the quoted name
     stands exactly once in the file with a quoted value after it, and the result, read again, is the
-    same manifest with that one value changed. Lines are counted as an editor counts them (LF, CRLF or
-    a carriage return on its own).
+    same manifest with that one value changed. Where the top level has no entry of the name, the advice
+    is to add the line there, never to write over an entry of that name inside something else. Lines
+    are counted as an editor counts them (LF, CRLF or a carriage return on its own), in the word on a
+    file that is not valid JSON too.
 
     A refusal about a file as a whole (not JSON, not Python, `import *`) says so in a sentence of its
     own. Every other refusal is one kind of sentence: the line this tool looked for, with the value
@@ -346,7 +356,7 @@ def _config_line(lines, name, new, where=None):
     def no(found, do):
         return _not_as_the_starter(CONFIG, what, ", in the block between the line `%s = {` and the next line that starts with `}`" % opening, "%s: '%s'," % (name, new), found, do)
 
-    odd = [i for i, (line, _s) in enumerate(lines) if re.search("[\r  ]", line)]
+    odd = [i for i, (line, _s) in enumerate(lines) if re.search("[\r\u2028\u2029]", line)]
     if odd:
         raise no("line %d holds a line end that TypeScript reads and this tool does not (a carriage return on its own, or one of Unicode's line separators)" % (odd[0] + 1),
                  "Save the file with ordinary line ends")
@@ -394,20 +404,22 @@ def _config_line(lines, name, new, where=None):
     if len(own) > 1:
         raise no("%d lines of the block begin with `%s:` (%s), so it cannot be known from the text which of them the site reads" % (len(own), name, _at(own)),
                  "Leave one of them, written as shown, and take the other%s out" % ("" if len(own) == 2 else "s"))
-    if not own and len(keys) > 1:
-        said = [i for i in keys if wanted(i)]   # one that she set by hand is taken as it stands, like any other line that needs no edit
-        if not said:
-            raise no("%d lines of the block begin with `%s:` (%s), each below a line that is not one whole entry on one line (line %d: %s), so any of them may belong to something inside the block. "
-                     "With that in the block %s" % (len(keys), name, _at(keys), deep + 1, _quoted(lines[deep][0]), cannot), "Set the value by hand: write that one line in place of the block's own `%s` line, or as %s where the block has none of its own" % (name, first))
-        own = said
-    key = (own or keys)[0]
+    said = [i for i in keys if wanted(i)]   # (asked where none is the block's own: one that she set by hand is taken as it stands, like any other line that needs no edit)
+    if not own and not said:
+        # The advice names no line to write over or to move: such a line may be a part of something inside the block, and hers.
+        one = len(keys) == 1
+        raise no("%s `%s:` (%s)%s below a line that is not one whole entry on one line (line %d: %s), so %s may belong to something inside the block. With that in the block %s"
+                 % ("the one line of the block that begins with" if one else "%d lines of the block begin with" % len(keys), name, _at(keys), " stands" if one else ", each",
+                    deep + 1, _quoted(lines[deep][0]), "it" if one else "any of them", cannot),
+                 "Set the value by hand: write that one line in place of the block's own `%s` line, or as %s where the block has none of its own" % (name, first))
+    key = (own or said)[0]
     line, start = lines[key]
     m = written(key)
     if not m:
         raise no("line %d is written another way: %s" % (key + 1, _quoted(line)), "Write that one line in its place")
     if not m.group("comma") and any(not code[j][2] or _PLAIN.match(lines[j][0]).group("key") for j in range(key + 1, close)):   # anything below it but blank lines and comments
         raise no("line %d is written another way: it has no comma after the value, so the value can run on to the line below it (%s)" % (key + 1, _quoted(line)), "Write that one line in its place")
-    if where is not None:
+    if where is not None and own:   # (a line that is not surely the block's own is not named as the place of the value)
         where[name] = key + 1
     old = m.group("v")
     if wanted(key):
@@ -416,17 +428,12 @@ def _config_line(lines, name, new, where=None):
     if not _CLOSING.match(lines[close][0]):
         raise no("line %d closes the block with more than its `}` (%s): after the brace this tool takes `as const`, a `satisfies` clause, a `;` and a `//` comment, and nothing else. "
                  "With that on the closing line %s" % (close + 1, _quoted(lines[close][0]), cannot), by_hand)
-    # the flat lines around the key: asked only where this tool has to edit the line
-    other = [j for j in range(top + 1, close) if j != key and not code[j][2]]
-    marked = [j for j in range(top + 1, close) if j != key and (j in keys or not code[j][2]) and _mark(code[j][0], code[j][1], lines[j][0], name)]   # (a plain line names the key only as its own key)
-    if marked and (marked[-1] > key or other[0] < key):
-        at = next((j for j in marked if j > key), marked[0])
+    # The flat lines below the key: asked only where this tool has to edit the line. (Every line above it is plain: the
+    # line is the block's own.)
+    marked = [j for j in range(key + 1, close) if (j in keys or not code[j][2]) and _mark(code[j][0], code[j][1], lines[j][0], name)]   # (a plain line names the key only as its own key)
+    if marked:
+        at = marked[0]
         raise no("line %d, in the same block, holds %s (%s). With that in the block %s" % (at + 1, _mark(code[at][0], code[at][1], lines[at][0], name), _quoted(lines[at][0]), cannot), by_hand)
-    if other and other[0] < key:
-        at = other[0]
-        raise no("line %d, above it in the block, is not one whole entry on one line (%s). Above the `%s` line this tool takes only blank lines, comments and entries written "
-                 "`name: 'text',` (or a number, true, false, null in place of the text), so that it is sure the line is the block's own" % (at + 1, _quoted(lines[at][0]), name),
-                 "Move the `%s` line up to be %s" % (name, first))
     return start + m.start("v"), start + m.end("v"), old, new
 
 
@@ -531,8 +538,12 @@ def _set_manifest(text, want):
 
     data = read(text)
     if isinstance(data, Exception):
+        said = str(data) or type(data).__name__
+        if isinstance(data, json.JSONDecodeError):   # the parser counts lines by LF alone: its place is said in the lines an editor shows
+            starts = [s for _line, s in _text_lines(text, r"\r\n|\r|\n") if s <= data.pos]
+            said = "%s: line %d column %d (char %d)" % (data.msg, len(starts), data.pos - starts[-1] + 1, data.pos)
         raise Refusal("manifest-layout", "public/manifest.webmanifest is not valid JSON (%s), so this tool does not edit it. Mend the file so that it is valid JSON "
-                                         "(the starter's manifest shows the form), then run this again." % (str(data) or type(data).__name__))
+                                         "(the starter's manifest shows the form), then run this again." % said)
     if not isinstance(data, dict):
         raise Refusal("manifest-layout", "public/manifest.webmanifest does not hold one object in braces at its top level, as a web manifest does, so this tool does not "
                                          "edit it. Write it as the starter's manifest is written, then run this again.")
@@ -554,6 +565,7 @@ def _set_manifest(text, want):
             raise no(key, new, 'the name "%s" stands %d times in the file (%s), so the manifest\'s own line cannot be told from the text' % (key, len(stands), _at(stands)),
                      "Set the value yourself on the manifest's own line (the last line of that name at its top level)", last=ends)
         edited, n = re.subn(r'("%s"[ \t]*:[ \t]*)"(?:[^"\\\n]|\\.)*"' % key, lambda m: m.group(1) + '"%s"' % new, text, count=1)
+        inside = 'the one place where "%s" stands (line %d) is not the manifest\'s own entry: it belongs to something inside the manifest' % (key, stands[0] + 1)
         if not n:
             at = stands[0]
             entry = re.search(r'"%s"\s*:\s*' % key, text)
@@ -561,6 +573,8 @@ def _set_manifest(text, want):
                 stop = json.JSONDecoder(parse_constant=not_json).raw_decode(text, entry.end())[1]   # where the entry's value ends
             except (AttributeError, ValueError):   # the name stands there as a text, not as the name of an entry: nothing is to be written in its place
                 raise first(key, new, 'the name "%s" stands in the file (line %d) only as a text, not as the name of an entry' % (key, at + 1)) from None
+            if key not in data:   # an entry of something inside the manifest (a number, or a value over several lines): hers, and left as it is
+                raise first(key, new, inside)
             comma = re.match(r"\s*,", text[stop:])
             end = stop + (comma.end() if comma else 0)
             to = max(i for i, (_line, s) in enumerate(lines) if s < end)   # the line its value ends on, or the comma after it
@@ -578,10 +592,9 @@ def _set_manifest(text, want):
         after = read(edited)
         # compared as text: two readings of the same manifest are then the same whatever stands in them
         if isinstance(after, Exception) or json.dumps(after, sort_keys=True) != json.dumps(dict(data, **{key: new}), sort_keys=True):
-            found = 'the one place where "%s" stands (line %d) is not the manifest\'s own entry: it belongs to something inside the manifest' % (key, stands[0] + 1)
             if key in data:   # the manifest has an entry of that name all the same: one whose name is not spelt in plain letters
-                raise no(key, new, found + ", and the manifest's own entry spells its name another way (with a `\\u` escape)", "Write that one line in place of the manifest's own entry", last=ends)
-            raise first(key, new, found)
+                raise no(key, new, inside + ", and the manifest's own entry spells its name another way (with a `\\u` escape)", "Write that one line in place of the manifest's own entry", last=ends)
+            raise first(key, new, inside)
         changes.append((key, now, new))
         text, data = edited, after
     return text, changes

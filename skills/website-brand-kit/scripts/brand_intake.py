@@ -31,7 +31,6 @@ import os
 import sys
 
 STOPPED = "Stopped (Ctrl-C). Nothing was written."
-SHOWN = 5   # seconds a terminal gets to take the report before its own setting is put back (see _terminal)
 
 
 def _stopped(argv):
@@ -40,56 +39,19 @@ def _stopped(argv):
     return '{"status": "stopped", "exit": 2, "message": "%s"}' % STOPPED if "--json" in argv else STOPPED
 
 
-def _terminal(fd=None):
-    """Keep a terminal from throwing the report away. A terminal empties its output queue when the interrupt
-    key is typed, unless its NOFLSH setting is on: a Ctrl-C typed while the report was on its way (the run
-    no longer listens by then) cut the report short, or left nothing of it. Called with nothing, this
-    switches NOFLSH on where standard output is a terminal that this process is in the foreground of (from
-    the background, changing a terminal's settings would stop the process), and returns what to call it
-    with afterwards; None where there is nothing to do or it cannot be done (no terminal, no `termios`, the
-    setting already on). Called with that, it waits until the terminal has taken what was written (SHOWN
-    seconds at most) and switches NOFLSH off again.
-
-    How far this reaches: macOS says how much the terminal has not taken yet, so there the whole report is
-    safe. Linux does not (it answers "nothing" at once), so there the setting covers the writing alone: of
-    a report that a slow terminal has not taken yet, a Ctrl-C typed after this can still throw away what
-    lies beyond the first 4,095 bytes."""
-    try:
-        import termios
-        if fd is None:
-            fd = sys.stdout.fileno()
-            if not os.isatty(fd) or os.tcgetpgrp(fd) != os.getpgrp():
-                return None
-            now = termios.tcgetattr(fd)
-            if now[3] & termios.NOFLSH:
-                return None
-            now[3] |= termios.NOFLSH
-            termios.tcsetattr(fd, termios.TCSANOW, now)
-            return fd
-        import fcntl
-        import struct
-        import time
-        try:
-            end = time.monotonic() + SHOWN
-            while struct.unpack("i", fcntl.ioctl(fd, termios.TIOCOUTQ, b"\0\0\0\0"))[0] and time.monotonic() < end:
-                time.sleep(0.005)
-        finally:
-            now = termios.tcgetattr(fd)
-            now[3] &= ~termios.NOFLSH
-            termios.tcsetattr(fd, termios.TCSANOW, now)
-    except Exception:   # (termios has an error of its own, which cannot be named where there is no termios)
-        return None
-
-
 def _say(text):
     """Print what the command has to say (its report, or the one line of an early stop) and hand it over
     at once. Nothing that goes wrong with standard output changes how the command ends: a reader that has
     gone (`... | head`, a terminal that closed), an output that was closed (`>&-`: Python then has no
     sys.stdout at all), one that cannot be written to. The run has its outcome by then and ends with that
     status. Standard output is pointed at the null device in that case, so that Python does not complain
-    about the same stream once more when it closes it. A terminal is kept from throwing the lines away on
-    Ctrl-C while they are on their way (see _terminal)."""
-    held = _terminal()
+    about the same stream once more when it closes it.
+
+    What this does not answer: a terminal empties its output when the interrupt key is typed, so a Ctrl-C
+    typed while the report is handed to a terminal can make the terminal discard what it has not shown
+    yet. The site and the exit status are right all the same, and `install --dry-run` shows the state
+    again. Nothing here changes a terminal's settings to prevent that: the terminal is the owner's, and a
+    run that is killed half way would leave it changed."""
     try:
         print(text)
         sys.stdout.flush()
@@ -102,9 +64,6 @@ def _say(text):
                 os.close(null)
         except (OSError, ValueError, AttributeError):
             pass
-    finally:
-        if held is not None:
-            _terminal(held)
 
 
 def _leave(code):
@@ -124,6 +83,17 @@ def _leave(code):
         os._exit(code)
 
 
+def _stop_early(argv):
+    """The end of a run that Ctrl-C stopped before anything was written: its one line, and status 2. Ctrl-C
+    is ignored first, so that a second press can neither cut the line short nor end the process another
+    way. A press that comes before it is ignored raises KeyboardInterrupt once more: both callers call
+    this in a loop that takes that, until this has ended the process."""
+    import signal
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    _say(_stopped(argv))
+    _leave(2)
+
+
 try:
     # Under the same guard as main() (see command_line): loading these takes a moment at the start of every run,
     # and a Ctrl-C in that moment is a stop before anything was written, not a traceback.
@@ -139,8 +109,11 @@ try:
 except KeyboardInterrupt:
     if __name__ != "__main__":
         raise
-    _say(_stopped(sys.argv[1:]))
-    _leave(2)
+    while True:   # (see _stop_early: it ends the process)
+        try:
+            _stop_early(sys.argv[1:])
+        except KeyboardInterrupt:
+            pass
 
 MAX_TEXT = 1024 * 1024
 
@@ -287,13 +260,16 @@ def cmd_install(args, out):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="brand_intake.py", description=__doc__.split("\n\n")[0])
+    if sys.stderr is None:   # closed (`2>&-`): argparse on Python 3.9 writes its word on a bad argument there without looking
+        sys.stderr = open(os.devnull, "w")
+    # (allow_abbrev: `--js` is not `--json`. An early stop looks for the word itself among the arguments.)
+    ap = argparse.ArgumentParser(prog="brand_intake.py", description=__doc__.split("\n\n")[0], allow_abbrev=False)
     sub = ap.add_subparsers(dest="command", required=True)
-    p = sub.add_parser("palette", help="check a palette for contrast in both themes (read-only)")
+    p = sub.add_parser("palette", allow_abbrev=False, help="check a palette for contrast in both themes (read-only)")
     p.add_argument("file", help="BRAND.md or a pasted palette; - for standard input")
     p.add_argument("--css", help="the site's global.css, to compare it with the palette")
     p.add_argument("--json", action="store_true", help="machine-readable output")
-    i = sub.add_parser("install", help="put a palette and a logo into a site (checks everything first; puts everything back if the site's tests go red)")
+    i = sub.add_parser("install", allow_abbrev=False, help="put a palette and a logo into a site (checks everything first; puts everything back if the site's tests go red)")
     i.add_argument("--site", required=True, help="the site's folder")
     i.add_argument("--palette", help="the palette to apply (default: BRAND.md, or docs/BRAND.md, in the site)")
     i.add_argument("--input", help="the logo: an SVG file, a zip of SVG files, or a folder holding one of them")
@@ -333,6 +309,8 @@ def command_line(argv=None):
     main's status (see _leave): also where main ends through argparse (`--help`, an argument it does not
     take), which leaves by sys.exit. A Ctrl-C before `install` began to watch for it, or during `palette`,
     is said in one line (one JSON object where `--json` was asked for): neither had written anything.
+    What argparse has to say it prints itself, not through _say: the limit stated there for a terminal
+    holds for those lines too.
 
     What no line of this file can answer: a Ctrl-C while Python itself is still starting ends the process
     before this file is reached. And until `install` watches the signals (the tool's first moments, while
@@ -341,8 +319,11 @@ def command_line(argv=None):
     try:
         code = main(argv)
     except KeyboardInterrupt:
-        _say(_stopped(sys.argv[1:] if argv is None else argv))
-        code = 2
+        while True:   # (see _stop_early: it ends the process)
+            try:
+                _stop_early(sys.argv[1:] if argv is None else argv)
+            except KeyboardInterrupt:
+                pass
     except SystemExit as e:   # argparse has printed what it had to say
         code = e.code if type(e.code) is int else 0 if e.code is None else 1
     _leave(code)

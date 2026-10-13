@@ -836,6 +836,105 @@ class PaletteCommand(unittest.TestCase):
                 self.assertIn(part, r.stdout)
                 self.assertEqual(T.read_bytes(sheet), before, "a refusal writes nothing")
 
+    def test_each_reading_that_round_7_found_wrong_ends_as_it_should_through_the_command(self):
+        good = pasted()
+        swapped = good.replace("### Light theme", "### L").replace("### Dark theme", "### Light theme").replace("### L\n", "### Dark theme\n")
+        under_light = lambda line: swapped.replace("### Light theme\n", "### Light theme\n\n%s\n\n" % line)  # noqa: E731
+        between = "stands between the heading `### Light theme` and its table, and it "
+        brand, themes = good[:good.index("### Light theme")], good[good.index("### Light theme"):]
+        last = len(good.splitlines()) + 2
+        cases = (
+            # R7-201: U+001F, which Python's split() takes for a blank, cut the word in two before the cleaning pass ran: each ended with 0
+            ("U+001F inside the word, in a sentence", good + "\nAll dark values are pro\x1fposed.\n", 2,
+             ('Not read: Line %d, "All dark values are pro<U+001F>posed.", holds the word "proposed"' % last, "is a character that does not show on the screen: take it out")),
+            ("U+001F inside the word, in a note cell", good.replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | pro\x1fposed |"), 3, ("  Dark theme, Muted: #a6abce",)),
+            ("U+001F inside the name of the other theme", under_light("Dar\x1fk theme"), 2, ('Not read: Line 21, "Dar<U+001F>k theme", ' + between + "is the name of another section",)),
+            ("U+001F inside a label word", under_light("Dark mo\x1fde"), 2, ('Not read: Line 21, "Dark mo<U+001F>de", ' + between + "reads as a label for the other theme",)),
+            # R7-202: the example rule 2 gave as passed over is named, as the name of another section
+            ("emphasis inside the exact name", under_light("da**rk** theme"), 2, ('Not read: Line 21, "da**rk** theme", ' + between + "is the name of another section",)),
+            # R7-209: a heading that counts above the code block; the sentence said the theme's heading "is not a heading"
+            ("the two themes in a code block under the Brand table", brand + "```markdown\n" + themes + "```\n", 2,
+             ('stands under the line "### Light theme", which stands inside a code block (between two lines of ``` or ~~~), where this check takes no line for a heading',
+              "Take the two lines that open and close the code block out, so that the headings inside it count.")),
+            ("the same with only the line that opens the block", brand + "```markdown\n" + themes, 2,
+             ('stands under the line "### Dark theme", which stands inside a code block (line %d opens one with ``` or ~~~, and no line after it closes it)' % (len(brand.splitlines()) + 1),
+              "Take line %d, which opens the code block, out, so that the headings after it count." % (len(brand.splitlines()) + 1))),
+            # R7-208: a correct palette that round 6 refused, for a word that only begins with the other theme's word
+            ("a Lightness column under the dark theme", good.replace("### Dark theme\n| Token | Hex |\n|---|---|", "### Dark theme\n| Token | Hex | Lightness |\n|---|---|---|"), 0, ("30 of 30 pairs pass.",)),
+            ("a note on lightness under the dark theme", good.replace("### Dark theme\n", "### Dark theme\n\nLightness values\n\n"), 0, ("30 of 30 pairs pass.",)),
+            ("a note on darkening under the light theme", good.replace("### Light theme\n", "### Light theme\n\nHex values (darkened 10%)\n\n"), 0, ("30 of 30 pairs pass.",)),
+            ("a darker version under the light theme", good.replace("### Light theme\n", "### Light theme\n\nVersion 2 (darker)\n\n"), 0, ("30 of 30 pairs pass.",)),
+            # and what stays a label: the theme's word whole, and the two closed compounds with a hyphen or with digits
+            ("the compound with a hyphen and a digit", under_light("Dark-mode 2"), 2, ('Not read: Line 21, "Dark-mode 2", ' + between + "reads as a label for the other theme",)),
+            ("the compound in one word, with digits", under_light("DarkTheme2"), 2, ('Not read: Line 21, "DarkTheme2", ' + between + "reads as a label for the other theme",)),
+            # the limits rules 2 and 9 state: a character that ends a line to this reader, and one nobody sees that the pass does not take out
+            ("the limit: U+001E inside the word", good + "\nAll dark values are pro\x1eposed.\n", 0, ("30 of 30 pairs pass.",)),
+            ("the limit: a filler that Unicode files as a letter", good + "\nAll dark values are pro\u1160posed.\n", 0, ("30 of 30 pairs pass.",)),
+        )
+        for name, text, want, parts in cases:
+            with self.subTest(name=name):
+                self.assertNotEqual(text, good)
+                path = self.write(text, name="round7.md")
+                before = snapshot(self.dir)
+                code, out, err = run("palette", path)
+                self.assertEqual((code, err), (want, ""), out)
+                for part in parts:
+                    self.assertIn(part, out)
+                data = json.loads(run("palette", path, "--json")[1])
+                self.assertEqual((data["exit"], data["status"]), (want, {0: "pass", 2: "incomplete", 3: "needs-confirmation"}[want]))
+                self.assertEqual(snapshot(self.dir), before)
+        self.assertNotIn("is not a heading", run("palette", self.write(brand + "```markdown\n" + themes + "```\n", name="round7.md"))[1])
+
+    def test_each_stylesheet_that_round_7_found_misread_ends_as_it_should_through_the_command(self):
+        whole = T.read(os.path.join(self.dir, "global.css"))
+        aliased = whole.replace("  --brand: #000000;", "  --brand: var(--accent);", 1)
+        self.assertNotEqual(aliased, whole)
+        primary = ("Could not read the stylesheet: --brand in the :root block: It is written as var(--accent): the brand colour points at another variable, which each theme may set "
+                   "differently, and the Primary is one colour for both themes. Write the colour out (`--brand: #1a2b3c;`, with your colour).")
+        cases = (
+            # R7-204: read as one colour, no problem and no drift (exit 0), while a dark page shows the dark Accent
+            ("the Primary written as the accent, under a palette whose Primary is the light Accent", brand_md(primary=STARTER_LIGHT["accent"]), aliased, 2, (primary,)),
+            ("the same under the starter's own palette", brand_md(), aliased, 2, (primary,)),
+            # R7-205: a browser that loads the file as it is reads it in the encoding the line names
+            ("a charset that names another encoding", brand_md(), '@charset "iso-2022-kr";\n' + whole, 2,
+             ('Could not read the stylesheet: Line 1 of the stylesheet says the file is written in another encoding than UTF-8 (`@charset "iso-2022-kr"`).',
+              "Save the file as UTF-8 and take that line out.")),
+            # what stays fine: UTF-8 said in so many words, and the starter's own line from one theme colour to another
+            ("a charset that says UTF-8", brand_md(), '@charset "UTF-8";\n' + whole, 0, ("30 of 30 pairs pass.",)),
+            ("the starter's stylesheet, whose link is written as the accent", brand_md(), whole, 0, ("30 of 30 pairs pass.",)),
+        )
+        self.assertIn("  --link: var(--accent);", whole)
+        for name, doc, text, want, parts in cases:
+            with self.subTest(name=name):
+                path = self.write(doc)
+                code, out, err = run("palette", path, "--css", self.css(text))
+                self.assertEqual((code, err), (want, ""), out)
+                for part in parts:
+                    self.assertIn(part, out)
+                self.assertNotIn("BRAND.md and the stylesheet disagree", out, "the Primary is said once, as a line that cannot be read")
+                if want == 0:
+                    self.assertNotIn("stylesheet", out.replace("the stylesheet given", ""))
+                data = json.loads(run("palette", path, "--css", self.css(text), "--json")[1])
+                self.assertEqual((data["exit"], data["status"], data["drift"]), (want, "pass" if want == 0 else "incomplete", []))
+
+    def test_the_install_stops_on_a_charset_that_names_another_encoding(self):
+        # R7-205 through the other door, as a dry run and as a real one: the install does not write, with the check's own sentence
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        for extra in (["--dry-run"], []):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as tmp:
+                site = T.make_starter_site(os.path.join(tmp, "site"), with_modules=False)
+                with open(os.path.join(site, "BRAND.md"), "w", encoding="utf-8") as f:
+                    f.write(brand_md(light=T.BAKERY_LIGHT, dark=T.BAKERY_DARK, primary="#b4531a"))
+                sheet = os.path.join(site, "src", "styles", "global.css")
+                with open(sheet, "w", encoding="utf-8", newline="") as f:
+                    f.write('@charset "iso-2022-kr";\n' + T.starter_file("src/styles/global.css"))
+                before = T.read_bytes(sheet)
+                r = subprocess.run([sys.executable, SCRIPT, "install", "--test-command", "true", "--with-colours", "--site", site] + extra,
+                                   capture_output=True, text=True, encoding="utf-8", env=env, timeout=120)
+                self.assertEqual((r.returncode, r.stderr), (2, ""), r.stdout)
+                self.assertIn('Line 1 of the stylesheet says the file is written in another encoding than UTF-8 (`@charset "iso-2022-kr"`).', r.stdout)
+                self.assertEqual(T.read_bytes(sheet), before, "a refusal writes nothing")
+
     def test_each_stylesheet_that_round_5_found_misread_ends_as_it_should_through_the_command(self):
         whole = T.read(os.path.join(self.dir, "global.css"))
         doc = self.write(brand_md())

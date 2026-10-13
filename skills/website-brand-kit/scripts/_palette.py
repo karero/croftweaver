@@ -100,6 +100,9 @@ _MARK_WORDS = ("proposals", "proposed", "proposal")
 _AROUND_MARK = "*_`~"  # what may stand around the mark and is not counted: emphasis marks, backticks, a strike-through
 _OTHER_THEME = {"light": "dark", "dark": "light"}
 _ALSO_SAID = {"dark": "night", "light": "day"}
+# Rule 2: a theme's word is its name whole, or one of two closed compounds, each with or without digits after it
+# (`dark`, `dark2`, `darkmode`, `darktheme3`). Any other word that begins so is an ordinary word (`darker`, `lightness`).
+_THEME_WORD = {theme: re.compile(r"%s(?:mode|theme)?\d*" % theme) for theme in ("light", "dark")}
 # Rule 2: the words a label for a theme may be made of beside the theme's own ("Dark mode", "These are the dark values").
 _LABEL_WORDS = frozenset("theme mode the values value colours colors colour color tokens token palette scheme variant version table hex set "
                          "for in use these are".split())
@@ -115,6 +118,7 @@ _PLACEHOLDER = re.compile(r"#?\[([^\[\]#0-9]*)\]|#?(?:\.\.\.|…)|[-–—]+")
 _COLOUR = re.compile(r"(?<![^\W_])(?<!&)#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})(?![^\W_])|(?<![^\W_])(?:rgba?|hsla?|oklch)\(([^()]*)\)", re.I)
 _VALUE_FORM = re.compile(r"#|[A-Za-z-]+\(")
 _BREAKS = "\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029"  # what str.splitlines() ends a line at
+_BLANKS = re.compile(r"[ \t]+")  # a blank, as Markdown has it: a space or a tab, and no other character (rule 1)
 _NOT_A_BREAK = re.compile("[^%s]" % _BREAKS)
 MOST_NAMED = 5  # how many lines one kind of "not read" problem quotes; the rest are counted
 
@@ -198,11 +202,12 @@ def _label_for_other(text, theme):
     """Rule 2: the word that makes a line of text, or one cell of a header row, under `theme`'s heading a label for
     the OTHER theme, or None. The text is cleaned (_seen), HTML tags, markers, emphasis, brackets and punctuation
     are taken out, and what is left is words: it is such a label when one of them is the other theme's word
-    (`dark...` or `light...` at the word's start; or `night` for dark, `day` for light) and every other one is one
-    of _LABEL_WORDS or a number. (Its own theme's word is no such word: a line that holds it is no label.)"""
+    (_THEME_WORD: `dark`, `darkmode` or `darktheme`, with or without digits after it, and the same for light; or
+    `night` for dark, `day` for light, whole) and every other one is one of _LABEL_WORDS or a number. (Its own
+    theme's word is no such word: a line that holds it is no label. Neither is `darker` or `lightness`.)"""
     other = _OTHER_THEME[theme]
     words = _WORDS.findall(_TAG.sub(" ", _seen(text)).lower())
-    theirs = [w for w in words if w.startswith(other) or w == _ALSO_SAID[other]]
+    theirs = [w for w in words if _THEME_WORD[other].fullmatch(w) or w == _ALSO_SAID[other]]
     return theirs[0] if theirs and all(w in _LABEL_WORDS or w.isdigit() for w in words if w not in theirs) else None
 
 
@@ -413,7 +418,9 @@ class _Reader(object):
 
     def read(self, text):
         text, unclosed = _without_comments(text)
-        lines = [" ".join(raw.split()) for raw in text.splitlines()]
+        # (not `raw.split()`: that takes U+001F and a no-break space for blanks too, and a character nobody sees must
+        # still be in the line when _seen cleans it for a search)
+        lines = [_BLANKS.sub(" ", raw).strip(" ") for raw in text.splitlines()]
         if "```" in text or "~~~" in text:
             self.fenced, self.open_fence = _fenced(lines)
         first, last = self.where_to_look(lines)
@@ -631,12 +638,12 @@ class _Reader(object):
         """Where the table being read stands, in words."""
         if self.section and self.closed is None:
             return "under `%s`" % HEADING[self.section]
-        if self.section:
-            return "after the line %s, further down under `%s`" % (_quoted(self.caption or self.closed), HEADING[self.section])
-        if self.caption and self.in_a_fence():
+        if self.in_a_fence():  # asked before `self.section`: a heading that counts may stand above the code block
             opened = self.never_closed()
             return "under the line %s, which stands inside a code block (%s), where this check takes no line for a heading" % (
                 _quoted(self.caption), "line %d opens one with ``` or ~~~, and no line after it closes it" % opened if opened else "between two lines of ``` or ~~~")
+        if self.section:
+            return "after the line %s, further down under `%s`" % (_quoted(self.caption or self.closed), HEADING[self.section])
         if self.caption:
             return "under the line %s, which is not a heading (a heading is one to six # and then a space: `### Light theme`)" % _quoted(self.caption)
         if self.heading is None:
@@ -740,14 +747,14 @@ class _Reader(object):
                             "calls its first column by the name of another section" if other else "says \"%s\"" % word, here, there, here,
                             "call the first column \"Token\"" if other else "take that word out of the header row", _unseen(titles)))
         elif claims and filed is None and self.label is None:
-            if self.section:
-                advice = ("A line of text is not a heading, and this check does not guess whether it was meant as one. If the table "
-                          "belongs to another theme, write that theme's heading above it; if it carries on the table before it, take "
-                          "the line out from between the two.")
-            elif self.in_a_fence():
+            if self.in_a_fence():
                 opened = self.never_closed()
                 advice = ("Take line %d, which opens the code block, out, so that the headings after it count." % opened if opened else
                           "Take the two lines that open and close the code block out, so that the headings inside it count.")
+            elif self.section:
+                advice = ("A line of text is not a heading, and this check does not guess whether it was meant as one. If the table "
+                          "belongs to another theme, write that theme's heading above it; if it carries on the table before it, take "
+                          "the line out from between the two.")
             else:
                 advice = "Write the heading the table belongs to on a line of its own above it."
             if wrong_header:
@@ -886,8 +893,11 @@ def parse_tables(text):
        next `-->`) is blanked before anything else is looked at, its line breaks kept so that every
        line keeps its number: nothing inside a comment is read, and nothing inside one is named. A
        comment that is never closed runs to the end of the text, and a problem says on which line it
-       opens. Then runs of spaces and tabs are made one space, so no input makes a pattern slow. A
-       table row longer than 2,000 characters is not read, and a problem names it.
+       opens. Then runs of spaces and tabs are made one space, and those at a line's ends are
+       dropped, so no input makes a pattern slow. A space and a tab are the only blanks of a line,
+       as in Markdown: a `#` with a no-break space after it starts no heading, and a line with a
+       no-break space before its first `|` is no row of a table. A table row longer than 2,000
+       characters is not read, and a problem names it.
 
     2. SECTIONS. Only a heading line (rule 0 says what one is) names a section, and only when its text
        (emphasis marks and backticks taken out, case ignored) is exactly `Brand`, `Light theme` or `Dark
@@ -911,9 +921,14 @@ def parse_tables(text):
        - such a line under `### Light theme` or `### Dark theme` that reads as a label for the OTHER
          theme. The test, with the characters nobody sees taken out (rule 9 says which) and then HTML
          tags, list and quote markers, emphasis, brackets and punctuation (the words inside brackets
-         stay): (a) one of its words is the other theme's word, which is `dark...` under Light and
-         `light...` under Dark at the start of a word (`Dark`, `Darkmode`, `darker`), or `night` for
-         dark and `day` for light; (b) none of its words is its own theme's word, by the same test;
+         stay): (a) one of its words is the other theme's word. Under Light that is `dark` whole,
+         or one of the two compounds `darkmode` and `darktheme`, each with or without digits after
+         it (`Dark`, `Dark2`, `Darkmode`, `DarkTheme3`; with a hyphen they are two words, which
+         reads the same: `dark-mode`), or `night` whole; under Dark the same with `light`,
+         `lightmode`, `lighttheme` and `day`. Any other word that begins so is an ordinary word
+         (`Darker`, `Darkened`, `Darkness`, `Lightness`, `Lighten`, `Lighting`): a `Lightness`
+         column under `### Dark theme` is a note. (b) none of its words is its own theme's word,
+         by the same test;
          and (c) every other word is one of theme, mode, the, values, value, colours, colors, colour,
          color, tokens, token, palette, scheme, variant, version, table, hex, set, for, in, use,
          these, are, or a number. So `Dark mode`, `(Dark theme)`, `Palette (dark)`, `- Dark theme
@@ -929,10 +944,20 @@ def parse_tables(text):
        THE LIMITS of the label test. Each of these is passed over without a word, and the table is
        read under its heading: a longer sentence, or any word outside the list ("This table is for
        the dark theme of the site.", `Dark theme: see the note`, `Dark theme v2`); another language
-       (`Dunkel`); a caption AFTER the table, and a note in a cell of a row; a character reference
-       (`&#68;ark theme`, `Dark&nbsp;mode`); full-width or look-alike letters; emphasis or a tag
-       INSIDE the word (`da**rk** theme`, `<b>Da</b>rk mode`); and a character inside the word that
-       this reader takes for the end of a line (rule 9 lists them).
+       (`Dunkel`); a caption AFTER the table, and a note in a cell of a row; the other theme's name
+       in a row in FRONT of the table (a title row `| Dark theme |` above the header row), or in
+       a header row with no `|---|---|` line under it (a table without its separator line has no
+       header row to this check: rule 6); a character reference (`&#68;ark theme`,
+       `Dark&nbsp;mode`); full-width or look-alike letters; emphasis or a tag INSIDE the word
+       (`da**rk** mode`, `<b>Da</b>rk mode`); a character inside the word that this reader takes
+       for the end of a line; and a character nobody sees that the one pass does not take out
+       (rule 9 lists both kinds).
+       Two things go the other way, and the line is named. The three exact names are compared
+       with emphasis marks taken out wherever they stand (the first point above), so `da**rk**
+       theme` under `### Light theme` IS named, as the name of another section. And an accent
+       written as a separate mark is one of the characters taken out, so the same line can be a
+       label written that way and text written with the one accented letter (Vietnamese `Dãy 2`
+       under `### Dark theme`, which is `Day 2` without the mark).
 
     3. TABLES. A table is a run of lines that start with `|`; a blank line, or any other line, ends it.
        Separator rows (`|---|`) are skipped. The first table under a section's heading belongs to that
@@ -1003,15 +1028,19 @@ def parse_tables(text):
        figure that is no digit of a number, raised, lowered, circled or a fraction).
        The search for the word looks at each line with the characters nobody sees taken out, in one
        pass that does nothing else. Those are Unicode's categories Cf (a soft hyphen, a zero-width
-       space or joiner, a byte-order mark), Cc (a control character: a NUL), Mn and Me (a variation
-       selector, the combining stroke that "strike-through text" tools write).
+       space or joiner, a byte-order mark), Cc (a control character: a NUL, U+001F), Mn and Me (a
+       variation selector, the combining stroke that "strike-through text" tools write).
        THE LIMITS. Each of these inside the word makes it another word, which is passed over without
        a word: a character reference (`&#112;roposed`, `prop&shy;osed`); a full-width, mathematical
        or look-alike letter (a Cyrillic `р` for the `p`); emphasis or a tag (`**pro**posed`,
-       `pro<b>posed</b>`); and a character that this reader takes for the end of a line and a
+       `pro<b>posed</b>`); a character that this reader takes for the end of a line and a
        Markdown reader does not (a vertical tab, a form feed, U+001C to U+001E, U+0085, U+2028,
-       U+2029). (In a section's heading, rule 2 takes emphasis marks out wherever they stand: `###
-       Dark theme (**pro**posed)` is the mark.)
+       U+2029); and a character nobody sees that Unicode files under another category than those
+       four: a filler it files as a letter (U+115F, U+1160, U+3164, U+FFA0), a private-use
+       character (U+E000) or one it has not assigned (U+2065). The pass follows the Unicode
+       tables of the Python that runs it, so a character a newer Unicode added is taken out by a
+       newer Python only (U+180F: by Python 3.13, not by 3.9). (In a section's heading, rule 2
+       takes emphasis marks out wherever they stand: `### Dark theme (**pro**posed)` is the mark.)
        The mark is read in three places, and only there:
        - in the value cell of a row that rules 3 to 7 read, and in any later cell of that row: the row's
          value is a proposal. The check errs towards asking: "not proposed" marks too. Where the value
@@ -1203,6 +1232,8 @@ _AT_STATEMENT = re.compile("%s@%s" % (_S, _AT_NAME))
 _AT_MEDIA = re.compile(r"{s}@media(?![\w-])".format(s=_S), re.I)
 _AT_NAMESPACE = re.compile(r"""{s}@namespace{s}(?:url\(|["'])""".format(s=_S), re.I)  # one without a prefix: the default namespace
 _AT_IMPORT = re.compile(r"{s}@import(?![\w-])".format(s=_S), re.I)
+_AT_CHARSET = re.compile(r"@charset(?![\w-])", re.I)
+_CHARSET_NAME = re.compile(r"""{s}(["'])([^"'\n\r\f]*)\1""".format(s=_S))  # the quoted name after it, read from the text with its strings
 _AT_PROPERTY = re.compile(r"@property(?![\w-]){s}(.*)".format(s=_S), re.I | re.S)
 _IMPORTANT = re.compile(r"!{s}important{s}\Z".format(s=_S), re.I)
 _VAR = re.compile(r"var\({s}(--[\w-]+){s}\)".format(s=_S))
@@ -1221,8 +1252,8 @@ Rule = namedtuple("Rule", "start open close children")
 Line = namedtuple("Line", "name start end important")
 # One thing the scanner cannot take as it stands. `block` is the one of the three it is about, or None for something
 # outside them; `variable` the custom property, or None; `kind` is "missing", "twice", "nested" or "variable" (of a
-# block), or "elsewhere", "statement", "namespace", "escape", "string", "html-comment" or "registered" (of the stylesheet:
-# block None).
+# block), or "elsewhere", "statement", "namespace", "charset", "escape", "string", "html-comment" or "registered" (of the
+# stylesheet: block None).
 Trouble = namedtuple("Trouble", "block variable message kind")
 
 
@@ -1442,7 +1473,7 @@ def scan_css(text):
       `!important` (or that the `:root` block marks `!important`, which wins over a dark block's line).
     - `problems`: [Trouble(block, variable, message, kind)], everything about the palette's colours that cannot
       be taken as it stands: the list below says what, and `kind` says which.
-    - `notes`: sentences for the owner about something that is no problem and stops nothing (point 14).
+    - `notes`: sentences for the owner about something that is no problem and stops nothing (point 15).
 
     THE PROMISE is the value of the palette's ten variables on the page's root element, as this one file sets
     it: what a clean scan reads for a variable is what a browser has for it there, and what the editor writes
@@ -1502,14 +1533,19 @@ def scan_css(text):
         type and a start value of its own.
     11. A top-level `@namespace` statement without a prefix ("namespace", block None): with a default
         namespace, `:root` matches only a root element of that namespace, which a web page's may not be.
-    12. Brackets that do not pair up, each `{`, `(` and `[` closed by its own kind in the right order: refused
+    12. An `@charset` with a quoted name that is not `utf-8`, case ignored ("charset", block None; the first
+        one is named, wherever it stands). This scanner reads the text as UTF-8; a browser that loads the
+        file as a file, with no encoding said by a server, reads it in the encoding such a line names where
+        it is the file's first bytes, and then has other colours, or none of the variables. `@charset
+        "utf-8";` is ordinary and stops nothing.
+    13. Brackets that do not pair up, each `{`, `(` and `[` closed by its own kind in the right order: refused
         as a whole (Refusal "css-unreadable"), because a browser reads on from a bracket that is not closed
         through the end of the block and of the blocks after it. The same refusal for a `{` inside round or
         square brackets where a browser expects a rule (at the top level, or directly inside a top-level
         `@media`): `( a{} :root { ... } ) a{}` is one rule to a browser, and its `:root` block sets nothing.
-    13. A value written as `var(--other)`: see `read_css`, which reads it only where it points at another
-        palette variable. The editor writes over such a value like over any other.
-    14. Not a problem, a NOTE: a top-level `@import` statement. The stylesheet it brings in is not read, and
+    14. A value written as `var(--other)`: see `read_css`, which reads it only where it points at another
+        palette variable, and never for `--brand`. The editor writes over such a value like over any other.
+    15. Not a problem, a NOTE: a top-level `@import` statement. The stylesheet it brings in is not read, and
         it can set the colours too, so `notes` says on which line the first one stands and how many more
         there are. An import is ordinary (fonts): it stops nothing.
 
@@ -1683,7 +1719,7 @@ def scan_css(text):
         trouble(None, None, "elsewhere", "%d more rule%s outside the three blocks set%s one of the palette's colours." % (
             rest, "" if rest == 1 else "s", "s" if rest == 1 else ""))
 
-    def more(found, kind, one, several):
+    def more_like_it(found, kind, one, several):
         if len(found) > 1:
             trouble(None, None, kind, "%d more %s; the next is on line %d." % (len(found) - 1, one if len(found) == 2 else several, _line_number(text, found[1][0])))
 
@@ -1696,7 +1732,7 @@ def scan_css(text):
                 "and drops that rule: the page would not show what the block after it says. %s"
                 % (_line_number(text, end - 1), _quoted(piece),
                    "Take that `;` out." if piece == ";" else "Take that piece out, or move it into the block it belongs to."))
-        more([(end - 1, end) for _start, end in loose], "statement", "piece like it", "pieces like it")
+        more_like_it([(end - 1, end) for _start, end in loose], "statement", "piece like it", "pieces like it")
     if namespaces:
         start, end = namespaces[0]
         trouble(None, None, "namespace",
@@ -1704,6 +1740,15 @@ def scan_css(text):
                 "page's own root element is in that namespace, so a web page may show none of the palette, and this check does not "
                 "work that out. Take the statement out, or give the namespace a prefix (`@namespace svg url(...);`)."
                 % (_line_number(text, end - 1), _quoted(_squeeze(plain[start:end]))))
+    for m in _AT_CHARSET.finditer(code):  # wherever it stands: a browser takes it only as the file's first bytes, and this does not weigh that
+        name = _CHARSET_NAME.match(plain, m.end())
+        if name and name.group(2).strip(_CSS_SPACE).lower() != "utf-8":
+            trouble(None, None, "charset",
+                    "Line %d of the stylesheet says the file is written in another encoding than UTF-8 (`%s`). This check reads the "
+                    "stylesheet as UTF-8, and a browser that loads the file as it is would read it in the encoding that line names, so "
+                    "the page may show other colours than these, or none of the palette. Save the file as UTF-8 and take that line out."
+                    % (_line_number(text, m.start()), _visible(_squeeze(plain[m.start():name.end()])[:60])))
+            break
     for kind, message in early:
         trouble(None, None, kind, message)
     registered, todo = [], list(top)
@@ -1722,7 +1767,7 @@ def scan_css(text):
                 "variable has a type and a starting value of its own, so the page may show another colour than the block's line "
                 "says, and this check does not read that rule. Take the rule out, or set the colours by hand."
                 % (_line_number(text, start), _visible(_squeeze(plain[start:end])[:60])))
-        more(registered, "registered", "rule like it", "rules like it")
+        more_like_it(registered, "registered", "rule like it", "rules like it")
     if imports:
         start, end = imports[0]
         start += len(plain[start:end]) - len(plain[start:end].lstrip(_CSS_SPACE))
@@ -1752,7 +1797,7 @@ def read_css(text):
       a `:root` rule inside another at-rule) is a problem that names the rule and the variable.
     - Whatever else `scan_css` lists (a `;` that makes a browser drop the next rule, a backslash outside a
       string, a string that runs over a line end, an HTML comment mark, an `@property` rule for a colour, a
-      default namespace) is a problem too.
+      default namespace, an `@charset` that names another encoding than UTF-8) is a problem too.
     - A value written as `var(--other)` is read ONLY where `--other` is another of the palette's variables
       (the starter's `--link: var(--accent)`): those are the variables the scan holds to "once in its block,
       nowhere else, not `!important`". It is read as that variable's value where the block itself sets it
@@ -1761,6 +1806,10 @@ def read_css(text):
       never read from another block in its place. A `var()` that points at any other variable is a problem
       that says to write the colour out: nothing holds such a variable to one value (another rule may set
       it, and this check would not know).
+    - `--brand` written as a `var()` is never read, whatever it points at: the Primary is one colour for
+      both themes, and a `var()` shows each theme's own value of the variable it points at (`--brand:
+      var(--accent)` is the light Accent on a light page and the dark Accent on a dark one). A problem
+      names the variable and says to write the colour out.
     - A value that is no colour this check reads is a problem that names the variable.
     - Brackets that do not pair up are refused.
     - `notes` holds what the owner should know and is no problem: a stylesheet this one brings in with
@@ -1798,6 +1847,11 @@ def _fill(css, sheet, block, target):
             continue
         value = sheet.value(block, var)
         m = _VAR.fullmatch(value)
+        if m and key == "brand":
+            css.problems.append((block, var, "It is written as var(%s): the brand colour points at another variable, which each theme may set "
+                                             "differently, and the Primary is one colour for both themes. Write the colour out (`%s: #1a2b3c;`, "
+                                             "with your colour)." % (m.group(1), var)))
+            continue
         if m and m.group(1) not in KEY_OF_VARIABLE:
             css.problems.append((block, var, "It is written as var(%s), which points at a variable this check does not read (it reads "
                                              "the palette's own variables and no others, because nothing holds another one to one "

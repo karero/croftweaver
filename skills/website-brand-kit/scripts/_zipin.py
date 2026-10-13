@@ -75,10 +75,11 @@ class ZipPackage(object):
         except Exception:
             # Whatever the zip reader makes of a damaged entry (a bad zip, a zlib error, an OverflowError from
             # an offset of 2 to the 64th, a struct error ...): the list of what it may raise is not this
-            # module's to keep, and every one of them means the same to the owner.
-            raise Refusal("zip-bad", "The package is damaged: %r cannot be read." % name[:80]) from None
+            # module's to keep, and every one of them means the same to the owner. (The file is named whole, here and
+            # below: it is one of the names open_zip passed, MAX_NAME characters at most. See _svg.in_package.)
+            raise Refusal("zip-bad", "The package is damaged: %r cannot be read." % name) from None
         if len(data) != info.file_size:
-            raise Refusal("zip-bad", "The package is damaged: %r is not the size it says." % name[:80])
+            raise Refusal("zip-bad", "The package is damaged: %r is not the size it says." % name)
         return data
 
 
@@ -92,6 +93,16 @@ def _unseen(name):
     things: at the start or the end of a folder's or a file's name, or two in a row."""
     return (any(unseen(c) for c in name)
             or any(part != part.strip(" ") or "  " in part for part in name.split("/")))
+
+
+def _not_known(name):
+    """Is the one thing wrong with the name a character that has no category: one the Unicode tables of the Python
+    that runs this do not hold? Such a character counts as one that cannot be seen (nothing says what it is), and
+    it may well be a visible one that is newer than the tables: an emoji of 2021 is read on Python 3.13 and has no
+    category on Python 3.9. (It may also be a code point that no version of Unicode gives a character.) The package
+    is refused either way; what the refusal says of it must be true."""
+    known = "".join("x" if unicodedata.category(c) == "Cn" else c for c in name)
+    return known != name and not _unseen(known)
 
 
 def _second_names(zi):
@@ -187,6 +198,14 @@ def open_zip(data):
         # that it also counts as a character that cannot be seen is another rule's business.
         name, held = _name(zi), zi.orig_filename
         shown_odd = _unseen(name) or "\0" in name
+        if shown_odd and "\0" not in held and _not_known(name):
+            raise Refusal(
+                "zip-path",
+                "The package has a file whose name holds a character this check does not know: the Python it runs on has "
+                "no record of it (it may be an emoji newer than that Python; spelled out, the name starts %s). So the "
+                "whole package is refused. Give the file a plain name and make the package again, or ask for a package "
+                "with plain file names." % ascii(name[:60]),
+            )
         if shown_odd or "\0" in held:  # first: every later message shows the name
             raise Refusal(
                 "zip-path",
