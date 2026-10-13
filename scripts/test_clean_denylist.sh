@@ -90,8 +90,9 @@ printf 'plain notes\n' >"$R/packages/x/file"
 expect "a file name in packages/ holding a colon, a digit and later another colon: refused" 1 "a colon, a digit and later another colon" "$R"
 rm "$R/packages/x/a:1:b"
 # The installer's LICENSE is a copy of the root one, which the name check leaves out for the
-# owner's name. The copy is left out too, by exact path: a name in the file beside it fails.
-printf 'Copyright (c) zorblequux\n' >"$R/packages/create-croftweaver/LICENSE"
+# owner's name. The copy is left out too, by exact path and only while it is the root file
+# byte for byte: a name in the file beside it fails, and so does a copy that has drifted.
+printf 'Copyright (c) zorblequux\n' | tee "$R/LICENSE" >"$R/packages/create-croftweaver/LICENSE"
 expect "a listed name in the installer's copy of LICENSE: passes" 0 "OK — no private names in:" "$R"
 printf 'made by zorblequux\n' >"$R/packages/create-croftweaver/README.md"
 expect "a listed name in the file beside that copy: fails" 1 "packages/create-croftweaver/README.md:1:" "$R"
@@ -99,12 +100,14 @@ if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "create-croftweaver/
   printf 'FAIL the copy of LICENSE was reported beside the file that holds a name\n'; fails=$((fails+1))
 fi
 rm "$R/packages/create-croftweaver/README.md"
+printf 'Copyright (c) zorblequux\nall rights reserved\n' >"$R/packages/create-croftweaver/LICENSE"
+expect "a copy of LICENSE that differs from the root file: scanned, and fails" 1 "packages/create-croftweaver/LICENSE:1:" "$R"
 # grep prints file:line:text, so a hit in a file named like the copy plus a colon and a
 # number starts like the copy's own lines, and was dropped with them.
-printf 'MIT License\n' >"$R/packages/create-croftweaver/LICENSE"
+printf 'MIT License\n' | tee "$R/LICENSE" >"$R/packages/create-croftweaver/LICENSE"
 printf 'ran zorblequux\n' >"$R/packages/create-croftweaver/LICENSE:12"
 expect "a listed name in a file named like that copy plus a colon: fails" 1 "create-croftweaver/LICENSE:12:1:" "$R"
-rm -r "$R/packages"
+rm -r "$R/packages"; : >"$R/LICENSE"
 
 # In the main checkout, where the list is read either way, so only the self-reference
 # allowance decides these cases.
@@ -246,6 +249,9 @@ masked() {
 printf 'ran ZorbleQuux and zorblequux\nand zorblequux again\n' >"$R/docs/notes.md"
 masked "masked: a listed name fails, and only a count is printed" 1 "    (2 line(s) withheld"
 printf 'plain notes\n' >"$R/docs/notes.md"
+mkdir -p "$R/packages/x"; printf 'ran zorblequux\n' >"$R/packages/x/file"
+masked "masked: a listed name in packages/ fails, and only a count is printed" 1 "    (1 line(s) withheld"
+rm -r "$R/packages"
 # A name in a file name, inside a word, in an email or a home path: other reports print
 # their lines too, and each of these leaked when only the name report was masked.
 printf 'met zorblequux and the zorblequux_team\nwrite to bob@zorblequux.de\nsee /Users/zorblequux/x\n' >"$R/docs/zorblequux_notes.md"

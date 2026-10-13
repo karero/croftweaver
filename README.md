@@ -449,8 +449,9 @@ name, `karero/website-builder`). The name check also covers `scripts/`,
 since those files ship in the zip; the generic catches leave `scripts/` out, because its
 files define their patterns. In the repo both also cover `packages/`, which the zip does
 not hold. The name check skips only `LICENSE`, which carries the owner's name, and the
-installer's copy of it (`packages/create-croftweaver/LICENSE`). A genuine false positive is fixed by tightening a pattern in the script —
-never by loosening it. The same `make check` (and the same CI workflow) also keeps
+installer's copy of it (`packages/create-croftweaver/LICENSE`) while that copy is the same
+file byte for byte. A genuine false positive is fixed by tightening a pattern in the
+script — never by loosening it. The same `make check` (and the same CI workflow) also keeps
 `independent-review` free of the model names and tags the pattern in
 `scripts/check_model_agnostic.sh` knows, outside its setup guide and its list of the models
 the Melious seat may run, and holds every skill to its size budgets

@@ -246,9 +246,11 @@ if [ -f "$DENYLIST_FILE" ]; then
   # (docs/ ships whole in the zip) is scanned like any other. A line from a file named
   # like the list plus a colon (scripts/.clean-denylist:1:x) starts the same way, so with
   # such a file present nothing is dropped: the list then reports itself, loudly.
-  # The installer's LICENSE is a copy of the root one (the installer's own test holds it to
-  # that), which this scan leaves out for the owner's name. A scan of packages/ reads the
-  # copy, so its lines are dropped as well, by exact path and under the same condition.
+  # The installer's LICENSE is a copy of the root one, which this scan leaves out for the
+  # owner's name. A scan of packages/ reads the copy, so its lines are dropped as well, by
+  # exact path and under the same condition, and only while the copy is the root file byte
+  # for byte: one that has drifted is scanned like any other file. Another package with a
+  # copy of its own needs its path here.
   if [ -n "$NAMES" ]; then
     # An entry anchored with ^ finds its lines but is never reported: the post-filter below
     # looks for it after "file:line:", where ^ cannot match. Refuse such entries (a count
@@ -260,8 +262,9 @@ if [ -f "$DENYLIST_FILE" ]; then
     fi
     self='^scripts/\.clean-denylist:[0-9]+:'
     compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
-    compgen -G 'packages/create-croftweaver/LICENSE:*' >/dev/null \
-      || self="$self|^packages/create-croftweaver/LICENSE:[0-9]+:"
+    cmp -s LICENSE packages/create-croftweaver/LICENSE 2>/dev/null \
+      && ! compgen -G 'packages/create-croftweaver/LICENSE:*' >/dev/null \
+      && self="$self|^packages/create-croftweaver/LICENSE:[0-9]+:"
     hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
