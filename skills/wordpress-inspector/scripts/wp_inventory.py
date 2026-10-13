@@ -527,7 +527,7 @@ def parse_sitemap(body: bytes) -> Tuple[str, List[str], str]:
     "other" (some other XML document) or "" (nothing that could be read).
 
     One reader decides everything: expat, the XML parser, in whatever encoding the file is
-    written. No second look at the bytes can disagree with it.
+    written. There is no second look at the bytes that could disagree with it.
       - It stops the moment it meets a document type, before the declarations inside it and
         long before any entity could expand; a sitemap needs no document type. Measured on
         expat 2.2.8 (the Python a Mac ships with, which has no expansion guard) and 2.7.4:
@@ -581,11 +581,10 @@ def parse_sitemap(body: bytes) -> Tuple[str, List[str], str]:
             return "", [], "declares a document type, which a sitemap does not need"
         return ("page" if seen["root"].lower() == "html" else "other"), [], ""
     except (expat.ExpatError, LookupError, ValueError):  # cut off or damaged; or an encoding the parser does not know
-        # An old HTML page opens with a document type XML cannot read (no system identifier), so
-        # the parser fails before it can report it. Only where it had met no element yet is the
-        # file's own first line consulted, and only to tell a web page from a damaged file.
-        if seen["root"] is None and re.match(rb"(?:\xef\xbb\xbf)?\s*<!DOCTYPE\s+html\b", body[:1024], re.I):
-            return "page", [], ""
+        # Also the answer for the one kind of web page the parser cannot name: an old HTML page
+        # whose document type has no system identifier, which XML does not allow. No look at
+        # the bytes is made to tell it apart: every such look so far read some file otherwise
+        # than the parser does. At a guessed address that page is reported as a gap, by name.
         return "", [], "is not valid XML (cut off, damaged or in an unknown encoding)"
     return seen["root"] or "", locs, ""
 

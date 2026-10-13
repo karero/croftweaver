@@ -386,6 +386,16 @@ class SitemapReading(unittest.TestCase):
                     code, data, _, _, _ = run(site.base())
                 self.assertEqual((code, data["complete"]), (0, True))
 
+    def test_an_old_style_page_the_parser_cannot_name_is_a_gap_that_names_the_address(self):
+        # the price of having one reader only: this page is not told from a damaged file. It is the loud side.
+        site = Site()
+        site.sitemaps = {}
+        site.extra["/sitemap_index.xml"] = (200, "text/html", "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN'>\n<html><p>Not found<br></html>")
+        with serve(site):
+            code, data, _, report, _ = run(site.base())
+        self.assertEqual((code, data["complete"]), (1, False))
+        self.assertIn("/sitemap_index.xml: is not valid XML", report)
+
     def test_a_cut_off_sitemap_is_a_gap_wherever_its_first_element_sits(self):
         # the invariant: a sitemap is read whole or it is a gap, never a quietly missing one
         start = "<?xml version='1.0'?>%s<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>{base}/a/</loc></url><url><lo"
@@ -440,8 +450,7 @@ class SitemapReading(unittest.TestCase):
         # letters the parser cannot read as XML at all (EBCDIC after an ASCII declaration, UTF-32)
         for body in (b"<?xml version='1.0' encoding='cp500'?>" + (bomb % ("", "")).split("?>", 1)[1].encode("cp500"),
                      (bomb % ("", "")).encode("utf-32")):
-            kind, locs, why = wi.parse_sitemap(body)
-            self.assertEqual((kind, locs, why[:16]), ("", [], "is not valid XML"))
+            self.assertEqual(wi.parse_sitemap(body), ("", [], "is not valid XML (cut off, damaged or in an unknown encoding)"))
 
     def test_the_words_of_a_comment_are_not_a_document_type(self):
         ok = ("%s<?xml version='1.0' encoding='UTF-8'?>\n<!-- made by a plugin; no <!DOCTYPE here -->\n<?xml-stylesheet href='a.xsl'?>\n"
@@ -465,16 +474,22 @@ class SitemapReading(unittest.TestCase):
         self.assertEqual(wi.parse_sitemap(doc.encode()), ("urlset", ["http://x.test/a?b=1&c=2"], ""))
         self.assertEqual(wi.parse_sitemap(b"<sitemapindex><sitemap><loc>/s1.xml</loc></sitemap></sitemapindex>"), ("sitemapindex", ["/s1.xml"], ""))
         for page in (b"<!DOCTYPE html><html><p>x<br></html>",
-                     b"<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html><p>x<br></html>",
-                     b"\xef\xbb\xbf\n<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN'>\n<html><p>x<br></html>"):
+                     b"<!-- served by a cache -->\n" + b" " * 3000 + b"<!DOCTYPE html><html><p>x<br></html>",
+                     b"<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html><p>x<br></html>"):
             self.assertEqual(wi.parse_sitemap(page), ("page", [], ""))
-        # a document type that only looks like a page's, in front of a cut-off sitemap, is still refused
-        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE htmlx [<!ENTITY a 'b'>]><urlset><url><lo")[::2],
-                         ("", "declares a document type, which a sitemap does not need"))
+        # a document type that only looks like a page's, in front of a cut-off sitemap, is refused or unreadable, never a page
+        damaged = "is not valid XML (cut off, damaged or in an unknown encoding)"
+        refused = "declares a document type, which a sitemap does not need"
+        cut = b"<urlset><url><lo"
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE htmlx [<!ENTITY a 'b'>]>" + cut), ("", [], refused))
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html-foo SYSTEM 'x'>" + cut), ("", [], refused))
+        for name in (b"html-foo", b"html:foo", b"html.foo", b"html"):
+            # PUBLIC with no system identifier: XML cannot read it, so the reader names nothing
+            self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE " + name + b" PUBLIC 'x'>" + cut), ("", [], damaged))
         self.assertEqual(wi.parse_sitemap(b"\n<html lang='en'><body><p>Nothing<br></body></html>"), ("page", [], ""))
         self.assertEqual(wi.parse_sitemap(b"<rss version='2.0'><channel/></rss>"), ("other", [], ""))
-        for damaged in (b"", b"Not found", b"<urlset><url><loc>http://x.test/a/</loc></url>", b"<urlset><url><loc>&nope;</loc></url></urlset>"):
-            self.assertEqual(wi.parse_sitemap(damaged)[::2], ("", "is not valid XML (cut off, damaged or in an unknown encoding)"))
+        for body in (b"", b"Not found", b"<urlset><url><loc>http://x.test/a/</loc></url>", b"<urlset><url><loc>&nope;</loc></url></urlset>"):
+            self.assertEqual(wi.parse_sitemap(body), ("", [], damaged))
 
     def test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash(self):
         for enc in ("bogus-enc", "utf-7"):

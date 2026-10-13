@@ -52,7 +52,9 @@ Keep that folder out of any public repository: it lists another party's addresse
 ## Read the result with the owner
 
 1. **Is the count complete?** The report's first lines say so. If not, it names each gap.
-   Clear the gaps before you estimate. Exit code 0 means complete, 1 incomplete, 2 the run
+   Clear the gaps before you estimate. A gap that names a sitemap address: open that address
+   in a browser. If it shows an ordinary web page, the site keeps no sitemap there and that
+   gap is settled. Exit code 0 means complete, 1 incomplete, 2 the run
    could not start.
 2. **Content types.** The count covers the types the site's REST API lists, apart from
    WordPress's own internal ones (menus, templates, patterns, styles, fonts); media is one
