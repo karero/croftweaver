@@ -51,9 +51,9 @@ Options: **Yes, on `<page>`** / **No (default)**. No answer means no.
 | `tests/scorecard.spec.ts` | `scorecard.spec.ts` | the page shows the file's numbers; the file adds up. Needs the script: install all three, never this file alone |
 | `scorecard.json` (project root) | written by the script | the card itself, committed like any other file |
 
-The templates are at `~/.claude/skills/website-scorecard/templates/` (Codex:
-`~/.agents/skills/…`), or in the site's own bundled copy on a handed-off repo
-(`.claude/skills/website-scorecard/templates/` or `.agents/skills/…`).
+The templates are in this skill's `templates/` folder, beside this SKILL.md; the bundled
+copy of the skill on a handed-off repo has them too (`.claude/skills/website-scorecard/templates/`
+or `.agents/skills/…`).
 
 ## 2. Install (on a branch, as a pull request: `AGENTS.md` §2)
 

@@ -152,6 +152,24 @@ It copies the skills of the latest release into `~/.claude/skills/` and tells yo
 step, which is step 3 below. To update, run it again. For Codex add `-- --codex`, for
 Antigravity `-- --antigravity`.
 
+**As a Claude Code plugin**, from release 0.32 on. Claude Code installs the suite itself:
+no Node, no script, no folder to keep.
+
+```bash
+claude plugin marketplace add https://github.com/karero/croftweaver.git
+claude plugin install croftweaver@croftweaver
+```
+
+(The address is written out in full so that nothing needs a GitHub key.)
+
+Then go to step 3. As a plugin the skills carry its name in front
+(`/croftweaver:new-website`). You stay on the release you installed until you run
+`claude plugin update croftweaver@croftweaver`, or turn on auto-update for the marketplace
+under `/plugin`; what lands on main between releases does not reach you. Use one route:
+with the plugin and a copy in `~/.claude/skills/` (from `npm create croftweaver` or
+`install.sh`), every skill is listed twice. The same holds in a site built with the suite,
+for the skills the site carries.
+
 **By hand**, in three steps:
 
 ```bash
@@ -237,10 +255,21 @@ stamps, `whats-new`) — a release just names a milestone. Versions step by **0.
 (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
+# First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
+# ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip
-git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
-gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \
+# The tag takes its name from that number (0.11.0 gives v0.11), so the two cannot differ.
+# A number that was not raised names the last release's tag, and git refuses to make it.
+v="v$(node -p 'require("./.claude-plugin/plugin.json").version.replace(/\.0$/, "")')"
+git tag -a "$v" -m "Croftweaver ${v#v}" && git push origin "$v"
+gh release create "$v" dist/croftweaver.zip --title "${v#v}" --latest \
   --generate-notes                # or write the notes by hand
+# The plugin is installed from the branch `stable`. The release-tag workflow, started by
+# the tag, checks the number against it and moves `stable` to the release. A red run means
+# plugin users are still on the release before. If the step that moves the branch failed,
+# move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
+# If the check of the number failed, the tag was not made as above: leave `stable` where
+# it is, and plugin users get the next release.
 ```
 
 Zip users download the newest release from the Releases page; clone users keep using
@@ -295,6 +324,14 @@ skills/            the suite skills (canonical)
                    figure and retired phrase out; plus the positioning check, each
                    page against the term it owns per audience; runs weekly beside
                    the AI check)
+  wordpress-inspector (read-only, any live WordPress site: counts each content type the
+                   site's REST API lists (WordPress's internal ones left out, media as
+                   one number), the sitemap's addresses and where the two
+                   disagree, shows signs of a page builder and forms, and says when
+                   the count is incomplete; the first step before moving a site, and
+                   the basis for an estimate. After the move it asks the new site for
+                   each address the count listed and names those that are missing or
+                   were sent to the home page)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
   website-story    (optional story layer — the home page as the customer's story:
@@ -350,6 +387,8 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
+.claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
+                   from the branch `stable`, which the release-tag workflow moves to each release (make test-plugin)
 packages/      (repo only: the zip does not hold it)
   create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
                    into the assistant's skills folder. The maintainer publishes it to npm (make test-create)

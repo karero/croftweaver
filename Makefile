@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test test-facts test-cloudflare-check test-create smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts test-wordpress-inventory test-cloudflare-check test-create test-plugin smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -45,12 +45,18 @@ test:      ## run the search-console-insights tests (tracker + AI check; needs `
 test-facts: ## run the facts-check tests (standard library only; a stub site on 127.0.0.1, no real requests)
 	@$(PYTHON) -m unittest discover -s skills/facts-check/scripts/tests
 
+test-wordpress-inventory: ## run the wordpress-inspector tests, the count and the move check (standard library only; stub sites on 127.0.0.1, no real requests)
+	@$(PYTHON) -m unittest discover -s skills/wordpress-inspector/scripts/tests
+
 NODE ?= node
 test-cloudflare-check: ## run the Cloudflare check's tests (Node 18+, standard library only; stub sites on 127.0.0.1, no real requests)
 	@$(NODE) --test skills/new-website/scripts/tests/cloudflare-check.test.mjs
 
 test-create: ## run the create-croftweaver tests (the `npm create croftweaver` installer; needs node and a git checkout, and on macOS and Linux zip and tar for one test; a stub of the release download on 127.0.0.1, no real requests). Not part of check/package: the handoff zip does not hold packages/
 	@cd packages/create-croftweaver && $(NODE) --test
+
+test-plugin: ## run the tests of the Claude Code plugin (.claude-plugin/) and of the rule that lets the skills run from a plugin's folder: no skill names ~/.claude/skills/<name>/ for its files (needs node 20 or newer, git and bash). Not part of check/package: the handoff zip does not hold .claude-plugin/
+	@$(NODE) --test scripts/plugin.test.mjs
 
 # A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.
 # It runs in the C locale, as check_clean.sh does, so both read "the names" byte for byte alike

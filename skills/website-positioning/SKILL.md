@@ -29,7 +29,7 @@ subject matter.
 
 ## Outputs
 
-- **`POSITIONING.md`** (from `~/.claude/skills/new-website/templates/positioning.md`)
+- **`POSITIONING.md`** (from the `new-website` skill's `templates/positioning.md`)
   — the five Dunford components, a one-paragraph positioning statement, reusable
   boilerplate, and the **per-page positioning spine** (one term per page). It lives
   in the repo root on a new site; an existing site may keep it in `docs/` with its
