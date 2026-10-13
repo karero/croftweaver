@@ -8,6 +8,7 @@ checked at all.
 """
 
 import contextlib
+import io
 import os
 import struct
 import tempfile
@@ -44,6 +45,71 @@ def patch_central(data, flag_or=0, file_size=None, compress_size=None, external_
         if external_attr is not None:
             struct.pack_into("<I", out, pos + 38, external_attr)
         pos += 4
+
+
+# Every number a zip holds about one stored file, by the record it stands in: (name, bytes). ZIP64 is the form for
+# very large packages: the old fields then say "look further on" (all ones), and the real numbers are in records of
+# their own. A tool never writes most of the values these fields can hold, so they are written here by hand.
+LOCAL = (("version", 2), ("flags", 2), ("method", 2), ("time", 2), ("date", 2), ("crc", 4), ("packed", 4), ("size", 4), ("name length", 2), ("extra length", 2))
+CENTRAL = (("made by", 2), ("version", 2), ("flags", 2), ("method", 2), ("time", 2), ("date", 2), ("crc", 4), ("packed", 4), ("size", 4), ("name length", 2), ("extra length", 2),
+           ("comment length", 2), ("disk", 2), ("inner", 2), ("outer", 4), ("offset", 4))
+END = (("disk", 2), ("directory disk", 2), ("entries here", 2), ("entries", 2), ("directory size", 4), ("directory offset", 4), ("comment length", 2))
+END64 = (("record size", 8), ("made by", 2), ("version", 2), ("disk", 4), ("directory disk", 4), ("entries here", 8), ("entries", 8), ("directory size", 8), ("directory offset", 8))
+LOCATOR = (("disk", 4), ("record offset", 8), ("disks", 4))
+EXTRA64 = (("size", 8), ("packed", 8), ("offset", 8), ("disk", 4))
+FIELD_VALUES = (0, 1, 2 ** 16 - 1, 2 ** 31, 2 ** 32 - 1, 2 ** 63, 2 ** 64 - 1)
+
+
+def crafted_zip(zip64=False, name=b"a.svg", data=None, **fields):
+    """A zip of one stored file, with any of its numbers set by hand: crafted_zip(central={"offset": 2 ** 32 - 1}).
+    With zip64=True it is written the ZIP64 way, and extra64, end64 and locator can be set as well."""
+    data = SVG if data is None else data
+
+    def record(layout, values, given):
+        out = b""
+        for (field, width), value in zip(layout, values):
+            value = given.get(field, value) & (256 ** width - 1)
+            out += value.to_bytes(width, "little")
+        return out
+
+    crc, big = zipfile.crc32(data), 2 ** 32 - 1
+    extra = b""
+    if zip64:
+        body = record(EXTRA64, (len(data), len(data), 0, 0), fields.get("extra64", {}))[:24]
+        extra = struct.pack("<HH", 1, len(body)) + body
+    local = b"PK\x03\x04" + record(LOCAL, (45 if zip64 else 20, 0, 0, 0, 0x21, crc, len(data), len(data), len(name), 0), fields.get("local", {})) + name + data
+    sizes = (big, big, big) if zip64 else (len(data), len(data), 0)
+    central = b"PK\x01\x02" + record(CENTRAL, (0x031E, 45 if zip64 else 20, 0, 0, 0, 0x21, crc, sizes[0], sizes[1], len(name), len(extra), 0, 0, 0, 0, sizes[2]),
+                                      fields.get("central", {})) + name + extra
+    tail = b""
+    if zip64:
+        tail = b"PK\x06\x06" + record(END64, (44, 45, 45, 0, 0, 1, 1, len(central), len(local)), fields.get("end64", {}))
+        tail += b"PK\x06\x07" + record(LOCATOR, (0, len(local) + len(central), 1), fields.get("locator", {}))
+    counts = (0, 0, 0xFFFF, 0xFFFF, big, big, 0) if zip64 else (0, 0, 1, 1, len(central), len(local), 0)
+    return local + central + tail + b"PK\x05\x06" + record(END, counts, fields.get("end", {}))
+
+
+def listing_zip(extras, name_length=5, tail=b""):
+    """A zip whose directory lists one real stored file (a.svg) and then one more entry for each of `extras`, each
+    carrying those bytes as its "extra" notes. The other entries all point at the one file: only the list is long."""
+    name, crc = b"a.svg", zipfile.crc32(SVG)
+    local = struct.pack("<4s5H3L2H", b"PK\x03\x04", 20, 0, 0, 0, 0x21, crc, len(SVG), len(SVG), len(name), 0) + name + SVG
+    records = []
+    for i, extra in enumerate([b""] + list(extras)):
+        entry = name if i == 0 else (b"%0*d.txt" % (max(1, name_length - 4), i))
+        records.append(struct.pack("<4s6H3L5H2L", b"PK\x01\x02", 0x0314, 20, 0, 0, 0, 0x21, crc, len(SVG), len(SVG), len(entry), len(extra), 0, 0, 0, 0, 0) + entry + extra)
+    directory = b"".join(records)
+    count = (len(extras) + 1) & 0xFFFF
+    return local + directory + struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, count, count, len(directory), len(local), len(tail)) + tail, len(directory)
+
+
+def read_through(data, pick=None):
+    """What the intake makes of the bytes, all the way: its kind, the mark, the check. The colours, or the code of the
+    Refusal or the Ask it ended in. Anything else that is raised is a traceback, and is let through."""
+    try:
+        return _svg.clean_svg(_input.mark(_input.load(data), pick=pick).colour).colours
+    except (Refusal, Ask) as e:
+        return e.code
 
 
 def refused(testcase, fn, code):
@@ -150,6 +216,47 @@ class OnlyThePickIsChecked(unittest.TestCase):
         self.assertIsNone(m.mono)
 
 
+class WhatIsInAPackageIsWhatItsBytesAre(unittest.TestCase):
+    """A file's name says nothing about it, in a package as anywhere else: the entry that was picked is held to what its
+    bytes are, and refused as that, with the way out that goes with it."""
+
+    def picked(self, data, **more):
+        entries = [("pack/logo.svg", data)] + [(name, body) for name, body in more.items()]
+        return _input.mark(_input.load(T.build_zip(entries)), pick="pack/logo.svg", mono=("pack/mono.svg" if "pack/mono.svg" in more else None))
+
+    def test_a_web_page_named_svg_is_refused_as_a_web_page_with_its_way_out(self):
+        # it was refused as "not an SVG drawing: the first element is <html>", with no word of what to do instead
+        page = b'<!doctype html><html><body><svg viewBox="0 0 8 8"><path d="M0 0h8v8z"/></svg></body></html>'
+        for data in (page, page.replace(b"<!doctype html>", b""), b"<div>" + SVG + b"</div>", b"Here is the logo:\n" + SVG, b"<!-- saved from a site -->" + page,
+                     page.decode("ascii").encode("utf-16"), b"\xef\xbb\xbf" + page):
+            with self.subTest(data=data[:30]):
+                err = refused(self, lambda: self.picked(data), "web-page")
+                for word in ("web page", "SVG file", "from <svg to </svg>", "Ask the tool"):
+                    self.assertIn(word, str(err))
+        refused(self, lambda: self.picked(SVG, **{"pack/mono.svg": page}), "web-page")   # the one-colour twin is held to the same
+
+    def test_a_picture_or_anything_else_named_svg_is_refused_as_what_it_is(self):
+        for data, code, word in ((b"\x89PNG\r\n\x1a\n" + b"\0" * 20, "raster-logo", "PNG"), (b"\xff\xd8\xff\xe0" + b"\0" * 20, "raster-logo", "JPG"), (b"%PDF-1.7\n", "raster-logo", "PDF"),
+                                 (b"GIF89a" + b"\0" * 20, "raster-logo", "GIF"), (b"just some words", "unknown-file", "pack/logo.svg"), (b"", "unknown-file", "not an SVG drawing"),
+                                 (b"<rss><channel/></rss>", "unknown-file", "whatever its name says"), (T.build_zip([("a.svg", SVG)]), "unknown-file", "Pick another file"),
+                                 (b"\0\1\2\3", "unknown-file", "pack/logo.svg")):
+            with self.subTest(data=data[:12]):
+                self.assertIn(word, str(refused(self, lambda: self.picked(data), code)))
+                self.assertIn(word.replace("pack/logo.svg", "pack/mono.svg"), str(refused(self, lambda: self.picked(SVG, **{"pack/mono.svg": data}), code)))
+
+    def test_a_drawing_is_still_a_drawing_and_one_that_is_refused_is_refused_for_its_own_reason(self):
+        text = SVG.decode("ascii")
+        for data in (SVG, b"\n  " + SVG, b'<?xml version="1.0"?>' + SVG, b"\xef\xbb\xbf" + SVG, b"<!-- made by a tool -->" + SVG, text.encode("utf-16"), text.encode("utf-16-le"),
+                     text.replace("<svg xmlns=", "<s:svg xmlns:s=").replace("<path", "<s:path").replace("</svg>", "</s:svg>").encode()):
+            with self.subTest(data=data[:20]):
+                self.assertEqual(_svg.clean_svg(self.picked(data).colour).colours, ["#b4531a"])
+        with self.assertRaises(Refusal) as cm:
+            _svg.clean_svg(self.picked(EVIL).colour)
+        self.assertEqual(cm.exception.code, "script")
+        # nothing that was not picked is looked at: a page beside the mark does not sink the package
+        self.assertEqual(self.picked(SVG, **{"pack/page.svg": b"<html></html>", "pack/other.svg": b"\x89PNG\r\n\x1a\n"}).colour, SVG)
+
+
 class ZipRefusals(unittest.TestCase):
     """Each of these refuses the WHOLE zip, with its own reason."""
 
@@ -229,13 +336,125 @@ class ZipRefusals(unittest.TestCase):
             with self.subTest(name=ascii(name)):
                 self.assertTrue(str(refused(self, lambda: _zipin.open_zip(self.zip_((name, SVG))), "zip-path")).isascii())
         # so no name in the question the owner is asked holds such a character
-        for names in (["a.svg", "b.svg"], ["caf\u00e9.svg", "\u30ed\u30b4 2.svg", "logo\u00a0final.svg", "\u05dc\u05d5\u05d2\u05d5.svg", "e\u0301.svg", "\U0001f600.svg"]):
+        for names in (["a.svg", "b.svg"], ["caf\u00e9.svg", "\u30ed\u30b4 2.svg", "logo final.svg", "\u05dc\u05d5\u05d2\u05d5.svg", "e\u0301.svg", "\U0001f600.svg"]):
             with self.assertRaises(Ask) as cm:
                 _input.mark(_input.load(self.zip_(*[(n, SVG) for n in names])))
             self.assertEqual(cm.exception.options, names)
             for option in cm.exception.options:
                 self.assertFalse(_zipin._unseen(option))
                 self.assertFalse(any(unicodedata.category(c) in ("Cc", "Cf", "Co", "Cn", "Cs", "Zl", "Zp") for c in option), ascii(option))
+
+    def test_a_name_that_is_a_blank_or_ends_in_one_refuses_the_package(self):
+        # `logo<U+2800>.svg` (the empty braille cell), a name of three spaces and an ideographic space all passed: Unicode files
+        # the first as a symbol and the others as spaces, and neither kind was on the list. A plain space is seen only
+        # where it is a gap between two things that are: inside a name, and one at a time.
+        for name in ("logo\u2800.svg", "\u2800.svg", "   .svg", " .svg", "\u3000.svg", "logo\u3000.svg", "logo\u00a0final.svg", "logo\u2003.svg", "a\u202f.svg", "\u1680.svg",
+                     "\u2000a.svg", "a\u205f.svg", " logo.svg", "logo.svg ", "logo  final.svg", "pack /a.svg", " pack/a.svg", "pack/ a.svg", "pack/a.svg ", "pack/a  b.svg",
+                     "p  q/a.svg", " ", "  ", " /a.svg", "notes .txt ", " notes.txt", "__MACOSX/._a "):
+            with self.subTest(name=ascii(name)):
+                err = refused(self, lambda: _zipin.open_zip(self.zip_((name, SVG), ("fine.svg", SVG))), "zip-path")
+                self.assertTrue(str(err).isascii(), "the refusal spells the name out")
+                for word in ("cannot be seen", "blank", "plain file names"):
+                    self.assertIn(word, str(err))
+        for name in ("logo final.svg", "my logo final 2.svg", "my pack/my logo.svg", "a b c.svg", "logo .svg", "logo (2).svg", "a - b.svg", "caf\u00e9 au lait.svg"):
+            with self.subTest(name=name):
+                self.assertEqual(_zipin.open_zip(self.zip_((name, SVG))).svg_names, [name])
+        self.assertEqual(_zipin.open_zip(self.zip_(("pack/", b""), ("pack/a b.svg", SVG))).svg_names, ["pack/a b.svg"])   # a folder's own entry ends in a slash
+
+    def test_a_name_is_read_as_the_zip_holds_it_and_one_with_a_nul_refuses_the_package(self):
+        # Python's zip reader cuts a name at its first NUL: an entry called `a.svg<NUL>hidden` was accepted and shown as `a.svg`
+        for name in (b"a.svg\0hidden", b"a.svg\0", b"\0a.svg", b"a\0.svg", b"pack/a.svg\0.exe", b"a.svg\0/../../x", b"notes.txt\0"):
+            with self.subTest(name=name):
+                data = crafted_zip(name=name)
+                self.assertEqual(zipfile.ZipFile(io.BytesIO(data)).infolist()[0].orig_filename, name.decode("ascii"), "the zip does hold that name")
+                err = refused(self, lambda: _zipin.open_zip(data), "zip-path")
+                self.assertTrue(str(err).isprintable() and "\\x00" in str(err), str(err))
+                self.assertEqual(read_through(data), "zip-path")
+                self.assertEqual(read_through(data, pick="a.svg"), "zip-path")
+        self.assertEqual(read_through(crafted_zip(name=b"a.svg")), ["#b4531a"])
+        # and the entry that is read is the one that was listed, by the entry itself, never by a name looked up again
+        pkg = _zipin.open_zip(crafted_zip(name=b"pack/a b.svg"))
+        self.assertEqual((pkg.svg_names, pkg.read_svg("pack/a b.svg")), (["pack/a b.svg"], SVG))
+
+    def test_an_entry_with_a_second_name_in_its_notes_is_held_to_the_name_the_reader_goes_by(self):
+        # An entry may carry a second, "Unicode" name in its notes (the way older tools write a name with letters
+        # beyond ASCII). Newer versions of the zip reader go by that name and older ones by the first. Whichever
+        # one it is, that name is the one that is checked, shown and read by: a hidden second name gets no pass.
+        def with_second_name(first, second):
+            note = struct.pack("<BL", 1, zipfile.crc32(first)) + second
+            extra = struct.pack("<HH", 0x7075, len(note)) + note
+            data = crafted_zip(name=first, central={"extra length": len(extra)})
+            at = data.index(b"PK\x01\x02") + 46 + len(first)
+            data = data[:at] + extra + data[at:]
+            end = data.rindex(b"PK\x05\x06")
+            return data[:end + 12] + struct.pack("<L", struct.unpack_from("<L", data, end + 12)[0] + len(extra)) + data[end + 16:]
+
+        def listed(data):
+            pkg = _zipin.open_zip(data)
+            return pkg.svg_names + pkg.other_names
+
+        for first, second in ((b"a.svg", b"b.svg"), (b"a.svg", b"a.png"), (b"a.txt", b"a.svg"), (b"caf\xc3\xa9.svg", "caf\u00e9.svg".encode("utf-8"))):
+            with self.subTest(first=first, second=second):
+                data = with_second_name(first, second)
+                goes_by = zipfile.ZipFile(io.BytesIO(data)).infolist()[0].filename
+                self.assertEqual(listed(data), [goes_by])
+                if goes_by.endswith(".svg"):
+                    self.assertEqual(read_through(data, pick=goes_by), ["#b4531a"])
+        for first, second in ((b"logo.svg", "logo\u202egvs.exe".encode("utf-8")), (b"a.svg", b"../a.svg"), (b"a.svg", b"a\x00.svg"), (b"a.svg", "a\u2800.svg".encode("utf-8")),
+                              (b"a.svg", b" a.svg"), (b"a.svg", b"/etc/a.svg")):
+            with self.subTest(first=first, second=second):
+                data = with_second_name(first, second)
+                goes_by = zipfile.ZipFile(io.BytesIO(data)).infolist()[0].filename
+                try:
+                    names = listed(data)
+                except Refusal as e:   # the reader goes by the second name, and that name is refused as any such name is
+                    self.assertEqual(e.code, "zip-path")
+                    self.assertTrue(str(e).isprintable())
+                    self.assertNotEqual(goes_by, first.decode())
+                else:                  # the reader does not read such notes, or cut the name down to something plain
+                    self.assertEqual(names, [goes_by])
+                    self.assertFalse(_zipin._unseen(goes_by) or ".." in goes_by or goes_by.startswith("/"), ascii(goes_by))
+
+    def test_an_entry_that_is_not_where_the_package_says_it_is_is_a_refusal_never_a_traceback(self):
+        # 228 bytes: an entry whose place is "look in the ZIP64 record", and a record that says 2 to the 64th less one.
+        # Reading it ended in an OverflowError from deep inside the zip reader, which nothing caught.
+        size = len(crafted_zip(zip64=True))
+        for offset in (2 ** 64 - 1, 2 ** 63, 2 ** 63 - 1, 2 ** 32, 10 ** 6, size + 1, size, size - 1, size - 29):
+            with self.subTest(offset=offset):
+                data = crafted_zip(zip64=True, extra64={"offset": offset})
+                self.assertEqual(read_through(data), "zip-bad")
+                self.assertEqual(read_through(data, pick="a.svg"), "zip-bad")
+                self.assertIn("not where the package says", str(refused(self, lambda: _zipin.open_zip(data), "zip-bad")))
+        for offset in (size - 30, 100, 31, 1):   # inside the package, and not where an entry starts: found out when it is read
+            with self.subTest(offset=offset):
+                self.assertEqual(read_through(crafted_zip(zip64=True, extra64={"offset": offset})), "zip-bad")
+        for offset in (2 ** 32 - 2, 2 ** 31, 65535, 300, 1):   # the same lie told in the old field itself
+            with self.subTest(offset=offset):
+                self.assertEqual(read_through(crafted_zip(central={"offset": offset})), "zip-bad")
+        # an entry that IS where it says is read, the ZIP64 way and the old way
+        self.assertEqual(read_through(crafted_zip()), ["#b4531a"])
+        self.assertEqual(read_through(crafted_zip(zip64=True)), ["#b4531a"])
+
+    def test_no_number_in_a_zip_however_it_is_set_ends_in_a_traceback(self):
+        # Every number of every record, set to nothing, to one, and to the largest and the first-too-large value of each
+        # width a zip counts in. Whatever the intake makes of the package, it says so in a sentence.
+        outcomes, cases = {}, 0
+        for zip64 in (False, True):
+            records = [("local", LOCAL), ("central", CENTRAL), ("end", END)] + ([("extra64", EXTRA64), ("end64", END64), ("locator", LOCATOR)] if zip64 else [])
+            for record, layout in records:
+                for field, _width in layout:
+                    for value in FIELD_VALUES:
+                        data = crafted_zip(zip64=zip64, **{record: {field: value}})
+                        for pick in (None, "a.svg"):
+                            with self.subTest(zip64=zip64, record=record, field=field, value=value, pick=pick):
+                                got = read_through(data, pick=pick)
+                                outcomes[str(got)] = outcomes.get(str(got), 0) + 1
+                                cases += 1
+        self.assertEqual(cases, 2 * 7 * (len(LOCAL) + len(CENTRAL) + len(END)) * 2 + 2 * 7 * (len(EXTRA64) + len(END64) + len(LOCATOR)))
+        self.assertGreater(outcomes.pop("['#b4531a']"), 100, "many of these numbers are not read at all, or say what was true anyway")
+        self.assertGreater(outcomes.get("zip-bad", 0), 100)
+        self.assertLessEqual(set(outcomes), {"zip-bad", "zip-too-many", "zip-encrypted", "zip-method", "zip-symlink", "zip-entry-too-large", "zip-total-too-large", "zip-ratio",
+                                             "zip-no-svg", "zip-path", "zip-name", "which-file", "no-such-file", "unknown-file", "not-xml", "zip-too-large"}, outcomes)
 
     def test_an_entry_damaged_in_any_way_is_a_refusal_never_a_traceback(self):
         # a flipped bit in the packed data surfaces as zlib.error, which nothing caught (one mutation in six)
@@ -274,6 +493,55 @@ class ZipRefusals(unittest.TestCase):
         data = self.zip_(*[("f%d.svg" % i, SVG) for i in range(_zipin.MAX_ENTRIES + 1)])
         refused(self, lambda: _zipin.open_zip(data), "zip-too-many")
         _zipin.open_zip(self.zip_(*[("f%d.svg" % i, SVG) for i in range(_zipin.MAX_ENTRIES)]))
+
+    def test_a_list_of_files_far_longer_than_a_logos_files_need_is_refused_before_the_zip_reader_works_through_it(self):
+        # The zip reader goes through a package's whole list of files before it hands back one name, and through each
+        # entry's "extra" notes one small step at a time, copying what is left of them at every step. Measured
+        # 2026-10-13: 150 entries with 64 KB of empty notes each (9.8 MB, inside every cap) took 4 seconds to open.
+        import time
+        empty_note = struct.pack("<HH", 0x9999, 0)
+        slow, size = listing_zip([empty_note * (65535 // 4)] * 150)
+        self.assertLess(len(slow), _zipin.MAX_ZIP_BYTES)
+        started = time.process_time()
+        err = refused(self, lambda: _input.load(slow), "zip-too-many")
+        self.assertLess(time.process_time() - started, 1.0, "refused before the list is read, not after")
+        self.assertIn("only the logo", str(err))
+        # so is a list of a great many entries: 217,000 of them fit into 10 MB
+        flood, size = listing_zip([b""] * 100000, name_length=5)
+        started = time.process_time()
+        refused(self, lambda: _input.load(flood), "zip-too-many")
+        self.assertLess(time.process_time() - started, 1.0)
+        # both sides of the line: a list of exactly the most there may be is read, and one byte more is not
+        most = _zipin.MAX_DIRECTORY_BYTES
+        self.assertEqual(most, _zipin.MAX_ENTRIES * 1024)
+        base = listing_zip([b""] * 4)[1]
+        note = lambda n: struct.pack("<HH", 0x9999, n - 4) + b"\0" * (n - 4)
+        room = most - base
+        at_most, size = listing_zip([note(60000)] * 3 + [note(room - 180000)])
+        self.assertEqual(size, most)
+        self.assertEqual(read_through(at_most, pick="a.svg"), ["#b4531a"])
+        over, size = listing_zip([note(60000)] * 3 + [note(room - 180000 + 1)])
+        self.assertEqual(size, most + 1)
+        self.assertEqual(read_through(over, pick="a.svg"), "zip-too-many")
+        # the most files there may be, with names as long as they may be and the notes real tools write, fit several times over
+        full = self.zip_(*[("pack/%s%03d.svg" % ("n" * 108, i), SVG) for i in range(_zipin.MAX_ENTRIES)])
+        self.assertLess(_zipin._directory_bytes(full), most // 4)
+        self.assertEqual(len(_zipin.open_zip(full).svg_names), _zipin.MAX_ENTRIES)
+
+    def test_the_size_of_the_list_is_asked_of_the_zip_reader_itself_and_only_asked(self):
+        # the same first step the reader takes, so that what is measured is the list it would go on to read; where
+        # that step cannot be taken or says nothing, nothing is refused here and the reader decides
+        self.assertEqual(_zipin._directory_bytes(listing_zip([b"x" * 100] * 7)[0]), listing_zip([b"x" * 100] * 7)[1])
+        self.assertEqual(_zipin._directory_bytes(listing_zip([], tail=b"a comment")[0]), listing_zip([])[1])
+        huge = crafted_zip(zip64=True, end64={"directory size": 12345678901234567890})   # some versions of the reader turn this record down themselves
+        self.assertIn(_zipin._directory_bytes(huge), (12345678901234567890, 0))
+        self.assertIn(read_through(huge), ("zip-too-many", "zip-bad"))
+        for data in (b"", b"PK\x03\x04", b"PK\x03\x04 but nothing like a zip", b"\0" * 100, SVG, b"PK\x05\x06" + b"\xff" * 18):
+            with self.subTest(data=data[:12]):
+                self.assertIn(_zipin._directory_bytes(data), (0, 0xFFFFFFFF))
+        for stand_in in (None, lambda fp: None, lambda fp: [], lambda fp: ["PK"] * 3, lambda fp: 1 // 0, lambda fp: [0] * 5 + ["many"], "not a function"):
+            with _patch(zipfile, "_EndRecData", stand_in):
+                self.assertEqual(_zipin._directory_bytes(listing_zip([])[0]), 0)
 
     def test_the_zip_file_itself_has_a_size_cap(self):
         refused(self, lambda: _zipin.open_zip(b"PK\x03\x04" + b"0" * (_zipin.MAX_ZIP_BYTES + 1)), "zip-too-large")
@@ -314,6 +582,8 @@ class ZipRefusals(unittest.TestCase):
     def test_a_zip_with_no_svg_names_the_way_out(self):
         err = refused(self, lambda: _input.mark(_input.load(self.zip_(("a.png", b"\x89PNG"), ("b.txt", b"x")))), "zip-no-svg")
         self.assertIn("SVG", str(err))
+        self.assertIn("let the assistant help you get a new logo", str(err))
+        self.assertNotIn("ask the assistant for a new logo", str(err))
 
     def test_macos_leftovers_are_ignored_not_refused(self):
         pkg = _zipin.open_zip(self.zip_(("pack/a.svg", SVG), ("__MACOSX/pack/._a.svg", b"\0\5\x16\7"), ("pack/.DS_Store", b"x")))
@@ -346,6 +616,9 @@ class RasterAndFriendsAreRefused(unittest.TestCase):
                 self.assertIn("PNG, JPG or PDF", msg)
                 self.assertIn("whoever made", msg)  # the first way out: ask for an SVG
                 self.assertIn("new logo", msg)      # the second: make her one
+                # the assistant writes the request and checks what comes back; it is a design tool that draws
+                self.assertIn("let the assistant help you get a new logo", msg)
+                self.assertNotIn("have the assistant make", msg)
 
     def test_an_svg_named_png_is_still_an_svg(self):
         self.assertEqual(_input.load(SVG).kind, "svg")
@@ -410,7 +683,7 @@ class WebPage(unittest.TestCase):
                            ("capitals", b"<HTML><BODY>" + SVG.upper()), ("an XHTML page", DECLARATION + one.replace(b"<!doctype html><html>", b'<html xmlns="http://www.w3.org/1999/xhtml">')),
                            ("a prefixed page", b'<h:html xmlns:h="http://www.w3.org/1999/xhtml"><h:body/></h:html>'),
                            ("words before the drawing", b"Here is the logo:\n" + SVG), ("a drawing far down", b"<p>" + b"x" * 100000 + b"</p>" + SVG),
-                           ("a template", b"<?php echo 1 ?>" + SVG), ("another kind of markup", b"<rss><channel/></rss>")):
+                           ("a template", b"<?php echo 1 ?>" + SVG), ("another kind of markup round a drawing", b"<rss><channel>" + SVG + b"</channel></rss>")):
             with self.subTest(name=name):
                 self.page_refused(data)
 
@@ -446,6 +719,59 @@ class WebPage(unittest.TestCase):
             with self.subTest(data=data):
                 refused(self, lambda: _input.load(data), "unknown-file")
         self.assertNotIn("web page", str(refused(self, lambda: _input.load(b"just some words"), "unknown-file")))
+
+    def test_a_file_that_starts_with_some_other_element_is_not_called_a_web_page(self):
+        # every file whose first element was not <svg> was told "this looks like a web page": a feed, a plist, a stray <foo/>
+        for data in (b"<rss><channel/></rss>", b"<foo/>", b'<?xml version="1.0"?><note><to>x</to></note>', DECLARATION + b"<plist version='1.0'><dict/></plist>",
+                     b"<g><path d='M0 0'/></g>", b"<path d='M0 0h9v9z'/>", b"<xsvg></xsvg>", b"<sv g/>", b"<s:g xmlns:s='http://www.w3.org/2000/svg'/>", b"<feed xmlns='http://www.w3.org/2005/Atom'/>",
+                     b"<x:html-like xmlns:x='urn:x'/>", b"<htmlx/>", b"<bodyguard/>", b"<!DOCTYPE note><note/>", b"<!doctype plist><plist/>", b"<a1/>", b"<Workbook/>",
+                     "<\u00e9l\u00e9ment/>".encode("utf-8"), "<note/>".encode("utf-16"), b"<!-- a --><foo/>"):
+            with self.subTest(data=data[:40]):
+                err = refused(self, lambda: _input.load(data), "unknown-file")
+                self.assertNotIn("web page", str(err))
+                self.assertIn("SVG file", str(err))
+        # what a page, or a piece copied out of one, starts with is still a page, with a prefix or in capitals too
+        for name in sorted(_input._PAGE):
+            for data in (("<%s>" % name).encode(), ("<%s class='x'>words</%s>" % (name, name)).encode(), ("<%s/>" % name.upper()).encode(), ("<h:%s xmlns:h='urn:h'/>" % name).encode(),
+                         ("<!-- a -->\n<%s>" % name).encode(), ("<%s>" % name).encode("utf-16")):
+                with self.subTest(data=data[:30]):
+                    self.page_refused(data)
+        for name in ("html", "head", "body", "div", "p", "img", "script", "style", "table", "h1"):
+            self.assertIn(name, _input._PAGE)
+        # and so is anything with a drawing somewhere inside it, whatever comes first
+        for data in (b"<rss>" + SVG + b"</rss>", b"<foo/><svg/>", b"<note><SVG></SVG></note>", b"words <svg", b"<foo><Svg ", b"<!DOCTYPE note><note><svg/></note>"):
+            with self.subTest(data=data[:30]):
+                self.page_refused(data)
+        refused(self, lambda: _input.load("<note>\u017fvg <\u017fvg></note>".encode("utf-8")), "unknown-file")   # a long s is no s: this holds no <svg
+
+    def test_nothing_larger_than_the_most_a_package_may_be_is_looked_at(self):
+        most = _input.MAX_BYTES
+        self.assertEqual(most, _zipin.MAX_ZIP_BYTES)
+        page = b"<html><body>" + b"x" * (most - 12)
+        self.assertEqual(len(page), most)
+        self.page_refused(page)
+        for data in (page + b"x", b"x" * (most + 1), b"<svg/>" * (most // 6 + 1), b"<!--" + b"-" * most, b" " * (most + 1), ("<html>" + "\u00e9" * most).encode("utf-8"),
+                     b"\xff\xfe" + b"<\0h\0t\0m\0l\0>\0" * (most // 12 + 1)):
+            with self.subTest(data=data[:12], size=len(data)):
+                err = refused(self, lambda: _input.load(data), "too-large")
+                self.assertIn("10 MB", str(err))
+        # what is known by its first bytes is still called what it is, whatever its size
+        refused(self, lambda: _input.load(b"\x89PNG\r\n\x1a\n" + b"\0" * most), "raster-logo")
+        refused(self, lambda: _input.load(b"PK\x03\x04" + b"0" * most), "zip-too-large")
+
+    def test_a_large_text_is_copied_once_to_be_read_and_not_a_second_time_in_small_letters(self):
+        # the whole text was put into small letters to look for "<svg" in it: a second copy of anything handed over
+        import tracemalloc
+        data = b"<p>" + b"WORDS and words " * (_input.MAX_BYTES // 16 - 1)
+        tracemalloc.start()
+        try:
+            refused(self, lambda: _input.load(data), "web-page")
+            _now, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertLess(peak, 1.5 * len(data), "one copy of the text, as text, and no more")
+        for text in (b"<foo/><SVG/>", b"<foo/><Svg>", b"<foo/><sVG x='1'>", b"words <svG"):
+            self.page_refused(text)
 
 
 class SvgCode(unittest.TestCase):

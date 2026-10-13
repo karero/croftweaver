@@ -1,10 +1,34 @@
-"""_colour.py: read any colour the way a browser would, as one six-digit hex, and compare two.
+"""_colour.py: read a colour as one six-digit hex, and compare two.
 
 One helper for everything that meets a colour (the pasted palette, the stylesheet, the paint
 values of a mark), so that the same colour is always the same hex. It reads #rgb, #rgba, #rrggbb,
 #rrggbbaa, rgb()/rgba(), hsl()/hsla(), oklch(), the 148 CSS colour names and currentColor (when the
 caller says what that is). It refuses, by name, what it cannot resolve: alpha, a gradient or
-pattern, a colour outside the screen's range, and any other format. Standard library only.
+pattern, a colour outside the screen's range, and any other format.
+
+It reads fewer spellings than a browser does, on purpose. A mark's paint is drawn twice: by a
+browser, and by the site's renderer (sharp), which makes the icons from the file. Where the two
+draw a spelling differently, or where it is not known that they agree, the spelling is refused for
+EVERY caller, so that one colour has one hex whoever asks:
+  - rgb() with percentages and plain numbers mixed. The renderer draws the comma form
+    (`rgb(50%, 0, 0)`) black and the space form as a browser does; every mixed form is refused.
+  - a number with no digit after its point (`255.`): the renderer does not take it for a number and
+    draws black.
+  - a number with more than two digits in its exponent (`255e000`, `0e309`). This is the SVG check's
+    rule for a number (_svg._NUM), kept the same here so that the tool has one grammar for a number;
+    inside a colour the renderer does read such a number.
+  - a hue of more than a thousand turns either way (`hsl(1e9 100% 50%)`): the renderer works with
+    less exact numbers and draws another colour for it, and black beyond what it can hold.
+  - hsl() or hsla() whose saturation or lightness has no % sign: the renderer draws black.
+  - an alpha written after a slash in the comma form (`rgb(255,0,0/1)`): the renderer draws black. An
+    alpha of exactly 1 (or 100%) is read in the two forms the renderer draws as the solid colour: as
+    a fourth value after commas, and after a slash in the space form.
+One rule is for one caller only: with `drawn=True` (the paint of a mark, _paint.py) oklch() is
+refused, because the renderer does not read it and draws black, so the file as it came would not
+show the colour this check lists. A palette table and a stylesheet are never drawn by that
+renderer (a browser reads the stylesheet, and the table is only turned into hex), so there oklch()
+is read as CSS has it. tests/test_paint.py holds a picture of each of these, drawn by the renderer.
+Standard library only.
 """
 
 from __future__ import annotations
@@ -51,9 +75,9 @@ _NAMES_TEXT = """
 """
 NAMES = dict(w.split(":") for w in _NAMES_TEXT.split())
 
-# ASCII digits only (\d would take any script's digits), and a digit after the point: the site's renderer
-# does not read "255." as a number, so neither does this.
-_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+# ASCII digits only (\d would take any script's digits), a digit after the point, and one or two digits in
+# an exponent (the top of this file says why). The same number as _svg._NUM and _paint._NUM.
+_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,2})?"
 _VALUE = re.compile(r"^(%s)(%%|deg|grad|rad|turn)?$" % _NUM)
 _HEX = re.compile(r"^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 _FUNC = re.compile(r"^([a-zA-Z]+)\((.*)\)$", re.S)
@@ -93,22 +117,19 @@ def _num(token, text, allow=("", "%")):
     m = _VALUE.match(token.strip())
     if not m or (m.group(2) or "") not in allow:
         raise _unreadable(text)
-    v = float(m.group(1))
-    if not math.isfinite(v):
-        raise _unreadable(text)
-    return v, m.group(2) or ""
+    # (with at most two digits in its exponent a number is far from the largest there is: nothing below overflows)
+    return float(m.group(1)), m.group(2) or ""
 
 
-def _finite(x, text):
-    """`x`, unless the arithmetic on a huge number overflowed: then it is no colour, and is refused."""
-    if not math.isfinite(x):
-        raise _unreadable(text, "a number in it is too large")
-    return x
+MAX_TURNS = 1000  # a hue further round than this is not read: the renderer's less exact numbers give another colour
 
 
 def _angle(token, text):
     v, unit = _num(token, text, ("", "deg", "grad", "rad", "turn"))
-    return _finite(v * {"": 1.0, "deg": 1.0, "grad": 0.9, "rad": 180 / math.pi, "turn": 360.0}[unit], text) % 360.0
+    degrees = v * {"": 1.0, "deg": 1.0, "grad": 0.9, "rad": 180 / math.pi, "turn": 360.0}[unit]
+    if abs(degrees) > MAX_TURNS * 360:
+        raise _unreadable(text, "its hue is more than a thousand turns round")
+    return degrees % 360.0
 
 
 def _check_alpha(token, text):
@@ -122,6 +143,9 @@ def _split_args(body, text, legacy_ok):
     alpha = None
     if "/" in body:
         body, alpha = body.rsplit("/", 1)
+        if "," in body:
+            # rgb(255,0,0/1): the site's renderer draws black for it
+            raise _unreadable(text, "it has commas and a slash; write the alpha after a comma, or leave it out")
     if "," in body:
         if not legacy_ok:
             raise _unreadable(text)
@@ -140,8 +164,12 @@ def _split_args(body, text, legacy_ok):
 
 def _hsl(parts, text):
     h = _angle(parts[0], text)
-    s, _ = _num(parts[1], text)
-    l, _ = _num(parts[2], text)
+    for part in parts[1:]:
+        if not part.endswith("%"):
+            # hsl(0, 100, 50): the site's renderer draws black for it
+            raise _unreadable(text, "the saturation and the lightness of hsl() each need a % sign")
+    s, _ = _num(parts[1], text, ("%",))
+    l, _ = _num(parts[2], text, ("%",))
     s, l = max(0.0, min(100.0, s)) / 100.0, max(0.0, min(100.0, l)) / 100.0
     c = (1 - abs(2 * l - 1)) * s
     x = c * (1 - abs((h / 60.0) % 2 - 1))
@@ -160,17 +188,14 @@ def _oklch(parts, text):
     C = max(0.0, C)  # CSS Color 4: a chroma below zero is zero (a grey), not the opposite hue
     h = math.radians(_angle(parts[2], text))
     a, b = C * math.cos(h), C * math.sin(h)
-    try:
-        l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
-        m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
-        s_ = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
-        lin = (
-            +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
-            -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
-            -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
-        )
-    except OverflowError:  # a lightness or chroma so large that the arithmetic gives up: far outside any screen
-        lin = (math.inf,) * 3
+    l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s_ = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    lin = (
+        +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+        -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+        -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+    )
     if not all(-_GAMUT_EPS <= c <= 1 + _GAMUT_EPS for c in lin) or not 0 <= L <= 1:
         raise Refusal(
             "colour-gamut",
@@ -181,8 +206,10 @@ def _oklch(parts, text):
     return _hex(*(c * 255 for c in enc))
 
 
-def parse_colour(text, current=None):
-    """`text` as '#rrggbb' (lower case). `current` is what currentColor means here, if anything."""
+def parse_colour(text, current=None, drawn=False):
+    """`text` as '#rrggbb' (lower case). `current` is what currentColor means here, if anything.
+    `drawn` says the colour is a paint of a file the site's renderer draws as it came (a mark): then
+    oklch(), which that renderer does not read, is refused (see the top of this file)."""
     t = (text or "").strip()
     if not t:
         raise _unreadable(text or "", "it is empty")
@@ -192,7 +219,7 @@ def parse_colour(text, current=None):
     low = t.lower()
     if low == "currentcolor":
         if current:
-            return parse_colour(current)
+            return parse_colour(current, drawn=drawn)
         raise Refusal(
             "colour-current",
             "The mark paints with currentColor, which takes the colour of the page around it, so its colour cannot be "
@@ -226,14 +253,22 @@ def parse_colour(text, current=None):
             for p in parts:
                 v, unit = _num(p, t)
                 units.add(unit)
-                ch.append(_finite(v * 255 / 100.0, t) if unit == "%" else v)
+                ch.append(v * 255 / 100.0 if unit == "%" else v)
             if len(units) > 1:
-                # rgb(50%, 0, 0): the site's renderer draws black for it, so it is no colour to rely on
+                # the site's renderer draws rgb(50%, 0, 0) black and rgb(50% 0 0) as a browser does: no mixed
+                # form is read, whichever of the two it is
                 raise _unreadable(t, "it mixes percentages and plain numbers")
             return _hex(*ch)
         if name in ("hsl", "hsla"):
             return _hsl(_split_args(body, t, True), t)
         if name == "oklch":
+            if drawn:
+                raise Refusal(
+                    "colour-unreadable",
+                    "The mark paints with %r. The program that makes the site's icons does not read oklch() and would paint "
+                    "black in its place, so the colour cannot be taken from the file as it is. Ask the tool for the SVG with "
+                    "that colour written as #rrggbb." % t[:40],
+                )
             return _oklch(_split_args(body, t, False), t)
         raise _unreadable(t)
     if low in NAMES:

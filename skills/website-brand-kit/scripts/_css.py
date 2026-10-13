@@ -21,8 +21,9 @@ _ESCAPE = re.compile(r"\\([0-9a-fA-F]{1,6})(?:\r\n|[ \t\r\n\f])?|\\(.)", re.S)
 # An escaped character or a string (kept as it is: a `/*` inside quotes starts no comment), or a comment.
 _COMMENT = re.compile(r"""(\\.|"[^"\\\n]*(?:\\.[^"\\\n]*)*"?|'[^'\\\n]*(?:\\.[^'\\\n]*)*'?)|/\*.*?(?:\*/|\Z)""", re.S)
 _URL = re.compile(r"url\s*\(", re.I)
-# Blanks are the ones CSS knows: any other kind of space would be part of the address.
-_FRAGMENT = re.compile(r"""[ \t\r\n]*(?:#[\w\-.:]*|"#[\w\-.:]*"|'#[\w\-.:]*')[ \t\r\n]*\)""")
+# Blanks are the ones CSS knows: any other kind of space would be part of the address. The name is
+# there and is plain ASCII: `url(#)` points at nothing, and \w would take any script's letters and digits.
+_FRAGMENT = re.compile(r"""[ \t\r\n]*(?:#NAME|"#NAME"|'#NAME')[ \t\r\n]*\)""".replace("NAME", r"[A-Za-z0-9_\-.:]+"))
 # The three functions themselves, bare or with a browser's own prefix (-webkit-image-set), not a
 # longer word that ends in one of them (background-image, mask-image).
 _FETCH = re.compile(r"(?<![A-Za-z0-9_\-])(?:-[a-z]+-)?(?:image-set|image|src)\(", re.I)
@@ -65,7 +66,7 @@ def check_urls(text):
             raise Refusal(
                 "css-url",
                 "A style in the file points to something outside the drawing (a url() that is not "
-                "a #fragment). Ask the tool for a plainer export.",
+                "a #fragment with a plain name). Ask the tool for a plainer export.",
             )
 
 

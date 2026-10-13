@@ -11,6 +11,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import signal
 import stat
@@ -97,10 +98,21 @@ def rects(*shapes):
             + "".join('<rect x="%d" y="%d" width="%d" height="%d" fill="%s"/>' % shape for shape in shapes) + "</svg>").encode("utf-8")
 
 
+STOP_SIGNALS = [getattr(signal, n) for n in ("SIGTERM", "SIGHUP", "SIGINT") if hasattr(signal, n)]
+
+
 def run(*argv):
+    """The command line, in this process. An install ends with the stop signals ignored, as the command
+    line wants them until it has printed its report and ended; a test goes on living, so what handled
+    them before is set again here."""
     out = io.StringIO()
-    with contextlib.redirect_stdout(out):
-        code = brand_intake.main(list(argv))
+    before = [(s, signal.getsignal(s)) for s in STOP_SIGNALS]
+    try:
+        with contextlib.redirect_stdout(out):
+            code = brand_intake.main(list(argv))
+    finally:
+        for s, handler in before:
+            signal.signal(s, handler)
     return code, out.getvalue()
 
 
@@ -375,12 +387,22 @@ class OnlyColours(SiteCase):
         self.assertFalse(self.exists("public/images/logo.png"))
         self.assertIn("LOGO = None", self.read("scripts/generate_og_cards.py"))
 
-    def test_a_palette_without_a_primary_row_uses_the_accent_as_the_theme_colour_and_says_so(self):
-        self.brand_md(BAKERY_BRAND_MD.replace("| Primary | `#b4531a` | buttons, brand surfaces |\n", ""))
-        code, out = self.intake()
-        self.assertEqual(code, 0, out)
-        self.assertIn("no Primary row", out)
-        self.assertIn("themeColor: '%s'" % T.BAKERY_LIGHT["accent"], self.read("src/config.ts"))
+    def test_a_palette_that_gives_no_primary_uses_the_accent_as_the_theme_colour_and_says_what_is_true_whether_the_row_is_missing_or_empty(self):
+        row = "| Primary | `#b4531a` | buttons, brand surfaces |\n"
+        self.assertIn(row, BAKERY_BRAND_MD)
+        for name, md in (("no such row", BAKERY_BRAND_MD.replace(row, "")), ("the row is there and empty", BAKERY_BRAND_MD.replace(row, "| Primary | | buttons, brand surfaces |\n")),
+                         ("the row still holds the template's placeholder", BAKERY_BRAND_MD.replace(row, "| Primary | `#[hex]` | buttons, brand surfaces |\n"))):
+            with self.subTest(name=name):
+                for rel in ("src/styles/global.css",) + _install.OTHER_FILES:
+                    self.put(rel, T.starter_file(rel))
+                self.brand_md(md)
+                (dry_code, dry), (code, out) = self.both_runs()
+                self.assertEqual((dry_code, code), (0, 0), out)
+                for report in (dry, out):
+                    self.assertIn("Note: the palette gives no Primary (the row is not there, or holds no colour), so the light theme's Accent (%s) is used as the theme colour"
+                                  % T.BAKERY_LIGHT["accent"], report.splitlines())
+                    self.assertNotIn("has no Primary row", report, "said of a row that is there, that was untrue")
+                self.assertIn("themeColor: '%s'" % T.BAKERY_LIGHT["accent"], self.read("src/config.ts"))
 
     def test_scenario_29_a_stylesheet_that_does_not_carry_the_palette_in_all_three_places_is_not_kept(self):
         # the check on the file the intake wrote, the last guard after the same check on the planned text:
@@ -708,20 +730,23 @@ class OnlyColours(SiteCase):
         before = self.snapshot()
         code, out = self.intake()
         self.assertEqual(code, 2, out)
-        self.assertIn("Soft background, light theme would be unreadable", out)
-        self.assertIn("--bg-soft in the :root block: The colour '#fef5e8 !important' is not one this check can read", out, "the reading's own reason")
+        # (the sentence is the stylesheet edit's, which is being rebuilt beside this round: what is held here is that the
+        # value is named with the reading's own reason, once, and that nothing is written)
+        self.assertEqual(out.count("--bg-soft in the :root block: The colour '#f5f7fb !important' is not one this check can read"), 1, out)
         self.assertIn("Nothing was written", out)
         self.assertEqual(self.snapshot(), before)
 
-    def test_a_theme_colour_in_another_object_before_site_is_left_alone_and_sites_own_is_set(self):
+    def test_a_theme_colour_in_another_object_before_site_is_a_second_place_the_name_stands_and_nothing_is_written(self):
+        # the tool does not read TypeScript: with the name twice in the file it cannot know which line the site reads
         self.brand_md()
         other = "export const PRINT = {\n  themeColor: '#111111',\n} as const;\n\n"
         self.put("src/config.ts", other + self.read("src/config.ts"))
-        code, out = self.intake()
-        self.assertEqual(code, 0, out)
-        config = self.read("src/config.ts")
-        self.assertTrue(config.startswith(other))
-        self.assertIn("  themeColor: '#b4531a',", config[len(other):])
+        before = self.snapshot()
+        for code, out in self.both_runs():
+            self.assertEqual(code, 2, out)
+            self.assertIn("the name `themeColor` stands 2 times in the file (lines 2 and 14)", out)
+            self.assertIn("Nothing was written", out)
+            self.assertEqual(self.snapshot(), before)
 
     def test_a_manifest_colour_inside_another_entry_before_the_manifests_own_is_refused_before_anything_is_written(self):
         self.brand_md()
@@ -732,8 +757,9 @@ class OnlyColours(SiteCase):
             with self.subTest(extra=extra):
                 code, out = self.intake(*extra)
                 self.assertEqual(code, 2, out)
-                self.assertIn("public/manifest.webmanifest", out)
-                self.assertIn("by hand", out)
+                self.assertIn('public/manifest.webmanifest: this tool sets the manifest\'s own "theme_color" only where', out)
+                self.assertIn('the name "theme_color" stands 2 times in the file (lines 6 and 10)', out)
+                self.assertIn("Set the value on the manifest's own line yourself", out)
                 self.assertIn("Nothing was written", out)
                 self.assertEqual(self.snapshot(), before)
 
@@ -914,14 +940,27 @@ class OnlyColours(SiteCase):
         self.assertEqual(len(started), 1)
         self.assertTrue(self.gone(started[0]), "the generator (%d) is still running" % started[0])
 
-    def test_the_signal_handlers_are_as_they_were_once_a_run_is_over(self):
+    def test_once_a_run_has_its_outcome_the_stop_signals_are_ignored_and_stay_ignored_however_it_ended(self):
+        # the report is printed after `install` has returned: a signal in that moment must not end the process
+        # with the outcome decided and nothing, or half of it, said. (What a signal then does to the whole
+        # command line is in StoppedFromOutside; this is every way a run can end.)
         self.brand_md()
-        names = [n for n in ("SIGTERM", "SIGHUP", "SIGINT") if hasattr(signal, n)]
-        before = [signal.getsignal(getattr(signal, n)) for n in names]
-        for command, extra in ((GREEN, ()), (RED, ()), (GREEN, ("--dry-run",)), (GREEN, ("--with-logo",))):
+        before = [(s, signal.getsignal(s)) for s in STOP_SIGNALS]
+        self.assertNotIn(signal.SIG_IGN, [h for _s, h in before], "the test itself is not run with them ignored")
+        for command, extra, code_wanted in ((GREEN, (), 0), (RED, (), 1), (GREEN, ("--dry-run",), 0), (GREEN, ("--with-logo",), 2), (GREEN, ("--with-colours", "--keep-colours"), 2),
+                                            (GREEN, ("--input", self.package(), "--keep-colours"), 3)):
             with self.subTest(command=command, extra=extra):
-                self.intake(*extra, command=command)
-                self.assertEqual([signal.getsignal(getattr(signal, n)) for n in names], before)
+                out = io.StringIO()
+                try:
+                    with contextlib.redirect_stdout(out):
+                        code = brand_intake.main(["install", "--site", self.site, "--test-command", command] + list(extra))
+                    after = [signal.getsignal(s) for s in STOP_SIGNALS]
+                finally:
+                    for s, handler in before:
+                        signal.signal(s, handler)
+                self.assertEqual(code, code_wanted, out.getvalue())
+                self.assertEqual(after, [signal.SIG_IGN] * len(STOP_SIGNALS))
+                self.put("src/styles/global.css", T.starter_file("src/styles/global.css"))
 
     @unittest.skipUnless(os.name == "posix" and hasattr(signal, "SIGHUP"), "signals as POSIX has them")
     def test_a_run_stopped_from_outside_while_the_tests_run_puts_everything_back_and_stops_what_it_started(self):
@@ -1020,7 +1059,9 @@ class OnlyColours(SiteCase):
                 for absent in ("public/favicon.ico", "public/images/logo.png", "public/icon-192.png", "brand-handoff"):
                     self.assertFalse(self.exists(absent), absent)
                 self.assertIn("LOGO = None", self.read("scripts/generate_og_cards.py"))
-                self.assertIn("the icons were left as they are: public/favicon.svg is not a file this tool wrote", out)
+                # a file that carries this tool's line and was changed since is said to be that, not "not this tool's"
+                self.assertIn("the icons were left as they are: public/favicon.svg is not %s, so the app icons were not drawn again on the new background" % (
+                    "as this tool wrote it (it starts with this tool's line and was changed since)" if "edited by hand since" in name else "a file this tool wrote"), out)
                 self.assertIn("--with-logo", out)
                 self.assertEqual(_palette.read_css(self.read("src/styles/global.css")).light, T.BAKERY_LIGHT, "the colours are in")
 
@@ -1040,7 +1081,7 @@ class OnlyALogo(SiteCase):
             self.assertTrue(self.exists(rel), rel)
         self.assertEqual(self.read("src/styles/global.css"), css_before)
         self.assertEqual(self.read("public/manifest.webmanifest"), manifest_before)
-        self.assertIn('LOGO = ROOT / "public/images/logo.png"', self.read("scripts/generate_og_cards.py"))
+        self.assertEqual(self.read("scripts/generate_og_cards.py"), T.starter_file("scripts/generate_og_cards.py"), "the generator is not touched: the emblem is not this tool's to set")
         self.assertIn("logo: '/images/logo.png'", self.read("src/config.ts"))
 
     def test_the_package_is_kept_in_a_folder_git_ignores_with_a_preview_beside_it(self):
@@ -1244,7 +1285,7 @@ class OnlyALogo(SiteCase):
         self.assertEqual(code, 0, out)
         self.assertIn("themeColor: '#123456'", self.read("src/config.ts"))
         self.assertIn("BG_TOP = (1, 2, 3)", self.read("scripts/generate_og_cards.py"))
-        self.assertIn('LOGO = ROOT / "public/images/logo.png"', self.read("scripts/generate_og_cards.py"))
+        self.assertIn("\nLOGO = None ", self.read("scripts/generate_og_cards.py"))
 
     def test_scenario_31_red_tests_remove_the_package_copy_the_ignore_line_and_the_folder(self):
         before = self.snapshot()
@@ -1383,12 +1424,6 @@ class OnlyALogo(SiteCase):
         code, out = self.intake("--input", self.package(), *LOGO_ARGS, brand=False)
         self.assertNotIn("COMPANY.logo in src/config.ts pointed at", out, "once it points there, there is nothing to say")
 
-    def test_an_emblem_already_wired_with_single_quotes_is_not_taken_for_somebody_elses(self):
-        wired = self.read("scripts/generate_og_cards.py").replace("LOGO = None", "LOGO = ROOT / 'public/images/logo.png'")
-        self.put("scripts/generate_og_cards.py", wired)
-        code, out = self.intake("--input", self.package(), *LOGO_ARGS, brand=False)
-        self.assertEqual(code, 0, out)
-        self.assertEqual(self.read("scripts/generate_og_cards.py"), wired)
 
     def test_a_note_that_explains_a_question_is_printed_with_the_question(self):
         # the question names a colour she cannot see in her mark; the note says why it is counted
@@ -1454,9 +1489,11 @@ class OnlyALogo(SiteCase):
         before = self.snapshot()
         code, out = self.intake("--input", self.package(), *LOGO_ARGS, brand=False)
         self.assertEqual(code, 2, out)
-        self.assertIn("brand-handoff is a file, not a folder", out)
+        self.assertIn("brand-handoff/logo.zip cannot be written: brand-handoff is not a folder. Move it away, then run this again.", out)
         self.assertIn("Nothing was written", out)
         self.assertEqual(self.snapshot(), before)
+        os.remove(self.p("brand-handoff"))   # what it says to do, done
+        self.assertEqual(self.intake("--input", self.package(), *LOGO_ARGS, brand=False)[0], 0)
 
 
 OTHER_HEADINGS = BAKERY_BRAND_MD.replace("### Light theme", "### Light").replace("### Dark theme", "### Dark").replace("### Brand (fixed, theme-independent)", "### Brand colours")
@@ -1477,68 +1514,193 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
 
     # --- an edit changes the value the site reads, or nothing ---------------------------------
 
-    def test_a_copy_of_the_site_block_that_is_commented_out_or_quoted_is_left_alone_and_the_theme_colour_the_site_reads_is_set(self):
+    # --- src/config.ts, the manifest and the generator are edited by line, strictly ----------------
+    # One rule (_site.set_lines): a value is edited only on its one line in the starter's shape; whatever
+    # else is found is refused before anything is written, in a sentence that can be followed.
+
+    def line_asked_for(self, out):
+        return re.search(r"only where the file has this one line[^\n]*:\n    (.*)\nWhat it found instead: ", out).group(1)
+
+    def follow(self, rel, text, out):
+        """Do to a file exactly what the refusal printed in `out` says, and nothing else."""
+        if "Mend the file so that it is valid JSON" in out:
+            return text.replace(",,", ",")
+        if "Leave one `export const SITE` in the file" in out:
+            return re.sub(r"/\*.*?\*/\n", "", text, flags=re.S)   # the copy in the comment goes
+        line, lines = self.line_asked_for(out), text.split("\n")
+
+        def block_end(const):
+            start = next(i for i, l in enumerate(lines) if l.startswith("export const %s " % const))
+            return next(i for i in range(start + 1, len(lines)) if lines[i].startswith("}"))
+        if "Move the `themeColor` line down to just above the block's closing `}`" in out:
+            own = next(l for l in lines if re.match(r"\s*themeColor:", l))
+            lines.remove(own)
+            lines.insert(block_end("SITE"), own)
+        elif rel == "src/config.ts":
+            self.assertIn("Write that one line there yourself, and the name `themeColor` nowhere else in the file", out)
+            lines[:] = [l for l in lines if not re.search(r"(?<![\w$])themeColor(?![\w$])", l)]
+            lines.insert(block_end("SITE"), "  " + line)
+        elif rel == "public/manifest.webmanifest":
+            key = re.match(r'"(\w+)"', line).group(1)
+            own = [i for i, l in enumerate(lines) if l.startswith('  "%s"' % key)]   # the manifest's own line: at its top level
+            self.assertIn("Set the value on the manifest's own line yourself" if own else "Write that one line there yourself", out)
+            if own:
+                lines[own[-1]] = "  " + line
+            else:
+                lines.insert(1, "  " + line)
+        else:
+            name = line.split(" = ")[0]
+            self.assertIn("Write that one line there yourself, and set %s on no other line" % name, out)
+            at = next(i for i, l in enumerate(lines) if re.match(r"\s*%s\b" % name, l) or "%s =" % name in l)
+            lines[:] = [l for i, l in enumerate(lines) if i < at or not (re.match(r"\s*%s\b" % name, l) or "%s =" % name in l)]
+            lines.insert(at, line)
+        return "\n".join(lines)
+
+    def test_nothing_above_the_site_block_can_hide_it_a_regex_literal_holding_a_quote_least_of_all(self):
+        # the scanner of the round before read strings and comments, took the quote in `/'/` for the start of a
+        # string, and no longer found the block below it: a config that round 1 edited was refused, for good
         config = T.starter_file("src/config.ts")
-        start = config.index("export const SITE")
-        old = config[start:config.index("\n}", start) + 2].replace("#000000", "#111111")
-        for name, copy in (("a block comment", "/*\n" + old + "\n*/\n"), ("line comments", "".join("// " + line + "\n" for line in old.splitlines())),
-                           ("a template string", "const notes = `\n" + old + "\n`;\n")):
+        for name, above in (("a regex literal holding an apostrophe", "const APOS = /'/g;\n"), ("a regex literal holding both quotes", "const QUOTES = /['\"]/g;\n"),
+                            ("a template string nested in a template string", "const n = 1;\nconst T = `a${n ? `x'` : 'y'}b`;\n"),
+                            ("a template string with a quoted brace", "const n = 1;\nconst T = `a${n ? '}' : \"{\"}b`;\n")):
             with self.subTest(name=name):
                 self.fresh()
-                self.put("src/config.ts", copy + config)
+                self.put("src/config.ts", above + config)
                 (dry_code, dry), (code, out) = self.both_runs("--json")
                 self.assertEqual((dry_code, code), (0, 0), out)
                 self.assertEqual(json.loads(dry)["written"], json.loads(out)["written"])
-                self.assertIn("src/config.ts, themeColor: #000000 becomes #b4531a", json.loads(dry)["changes"], "the value that is read is the real block's")
-                after = self.read("src/config.ts")
-                self.assertTrue(after.startswith(copy), "the copy is exactly as it was")
-                self.assertEqual(after[len(copy):], config.replace("themeColor: '#000000'", "themeColor: '#b4531a'"))
+                self.assertIn("src/config.ts", json.loads(out)["written"])
+                self.assertIn("src/config.ts, themeColor: #000000 becomes #b4531a", json.loads(dry)["changes"])
+                self.assertEqual(self.read("src/config.ts"), above + config.replace("themeColor: '#000000'", "themeColor: '#b4531a'"), "that one value, and not a byte else")
+                (dry_code, dry), (code, out) = self.both_runs("--json")   # and once the value is there, it is seen to be there
+                self.assertEqual((dry_code, code), (0, 0), out)
+                self.assertNotIn("src/config.ts", json.loads(dry)["written"] + json.loads(out)["written"])
 
-    def test_a_theme_colour_that_the_site_cannot_be_known_to_read_is_refused_before_anything_is_written(self):
-        config, line = T.starter_file("src/config.ts"), "  themeColor: '#000000',"
-        self.assertEqual(config.count(line), 1)
-        for name, text, said in (("the block twice", config + "\nexport const SITE = {\n  themeColor: '#111111',\n};\n", "`export const SITE` twice"),
-                                 ("the key once with quotes and once without", config.replace(line, line + "\n  'themeColor': '#111111',"), "sets `themeColor` twice in SITE"),
-                                 ("the key twice on one line", config.replace(line, line + " themeColor: '#111111',"), "sets `themeColor` twice in SITE"),
-                                 ("the key a second time with a value that is no colour", config.replace(line, line + "\n  themeColor: BRAND_COLOUR,"), "sets `themeColor` twice in SITE")):
-            with self.subTest(name=name):
+    def test_what_is_not_written_as_the_starter_writes_it_is_refused_before_anything_is_written_and_doing_what_the_refusal_says_makes_the_next_run_go_through(self):
+        config, manifest, generator = (T.starter_file(rel) for rel in _install.OTHER_FILES)
+        own = "  themeColor: '#000000',               // matches the brand primary + manifest\n"
+        self.assertEqual(config.count(own), 1)
+        cases = (
+            ("src/config.ts", "a copy of the line in a comment", config.replace(own, own + "  // themeColor: '#111111',\n"), "the name `themeColor` stands 2 times in the file (lines 10 and 11)"),
+            ("src/config.ts", "the key a second time, with a value that is no colour", config.replace(own, own + "  themeColor: BRAND_COLOUR,\n"), "stands 2 times in the file (lines 10 and 11)"),
+            ("src/config.ts", "the key once with quotes and once without", config.replace(own, own + "  'themeColor': '#111111',\n"), "stands 2 times in the file (lines 10 and 11)"),
+            ("src/config.ts", "the key twice on one line", config.replace(own, "  themeColor: '#000000', themeColor: '#111111',\n"), "line 10 is written another way"),
+            ("src/config.ts", "the same key in another object above", "export const PRINT = {\n  themeColor: '#111111',\n} as const;\n" + config, "stands 2 times in the file (lines 2 and 13)"),
+            ("src/config.ts", "a value that is worked out", config.replace(own, "  themeColor: dark ? '#111111' : '#000000',\n"), "line 10 is written another way: `themeColor: dark ? '#111111' : '#000000',`"),
+            ("src/config.ts", "the key written another way under a regex with a quote", "const APOS = /'/g;\n" + config.replace(own, "  'themeColor': '#000000',\n"), "line 11 is written another way"),
+            ("src/config.ts", "a spread further down, which wins", "const OVERRIDES = { other: 1 };\n" + config.replace("} as const;\n", "  ...OVERRIDES,\n} as const;\n", 1),
+             "line 19, further down in the same block, holds `...`, which can set the theme colour again without naming it"),
+            ("src/config.ts", "a copy of the whole block in a comment", "/*\nexport const SITE = {\n  url: 'https://old.example',\n};\n*/\n" + config, "2 lines (lines 2 and 10), not one, that start `export const SITE`"),
+            ("public/manifest.webmanifest", "another entry with colours of the same names", manifest.replace('  "lang": "en",', NESTED_SHORTCUT, 1), 'the name "theme_color" stands 2 times in the file (lines 6 and 10)'),
+            ("public/manifest.webmanifest", "no theme colour of its own", manifest.replace('  "theme_color": "#000000",\n', ""), 'the name "theme_color" is not in the file'),
+            ("public/manifest.webmanifest", "a manifest that is not valid JSON", manifest.replace('"standalone",', '"standalone",,'), "public/manifest.webmanifest is not valid JSON ("),
+            ("scripts/generate_og_cards.py", "a colour set again further down", generator.replace("# Home + fallback card", "BG_BOT = (200, 200, 200)   # my override\n\n# Home + fallback card", 1),
+             "2 lines begin with BG_BOT or set it (lines 53 and "),
+            ("scripts/generate_og_cards.py", "a colour that is worked out", generator.replace("BG_TOP = (30, 33, 64)", "BG_TOP = pick_a_colour()", 1), "line 52 is written another way: `BG_TOP = pick_a_colour()"),
+            ("scripts/generate_og_cards.py", "two names set at once", generator.replace("BG_TOP = (30, 33, 64)", "BG_TOP = BG_BOT = (30, 33, 64)", 1), "line 52 is written another way"),
+        )
+        for rel, name, text, said in cases:
+            with self.subTest(rel=rel, name=name):
+                self.assertNotEqual(text, T.starter_file(rel))
                 self.fresh()
-                self.put("src/config.ts", text)
-                before = self.snapshot()
-                for code, out in self.both_runs():
-                    self.assertEqual(code, 2, out)
-                    self.assertIn(said, out)
-                    self.assertIn("Nothing was written", out)
-                    self.assertEqual(self.snapshot(), before)
+                self.put(rel, text)
+                refusals, hers = [], []
+                for _round in range(6):
+                    before = self.snapshot()
+                    (dry_code, dry), (code, out) = self.both_runs()
+                    if (dry_code, code) == (0, 0):
+                        break
+                    self.assertEqual((dry_code, code), (2, 2), out)
+                    head = out.split("\nNothing was written.")[0]
+                    self.assertEqual(dry.split("\nNothing was written.")[0], head, "the dry run refuses in the same words")
+                    self.assertIn("Nothing was written.", out)
+                    self.assertEqual(self.snapshot(), before, "a refusal leaves every file as it was")
+                    self.assertNotIn(head, refusals, "the same refusal a second time: doing what it said did not help")
+                    refusals.append(head)
+                    if "is not valid JSON" not in head:
+                        self.assertRegex(head, r"^%s: this tool sets .* only where the file has this one line" % re.escape(rel))
+                        hers.append(self.line_asked_for(out))
+                    self.put(rel, self.follow(rel, self.read(rel), out))
+                self.assertEqual((dry_code, code), (0, 0), out)
+                self.assertTrue(refusals, "it was refused at first")
+                self.assertIn(said, refusals[0])
+                for line in hers:
+                    if "Move the" not in refusals[0] and "Leave one" not in refusals[0]:
+                        self.assertIn(line, self.read(rel).split("\n") + [l.strip() for l in self.read(rel).split("\n")], "the line she wrote is as she wrote it")
+                # and what the site now holds is the palette, in that file too
+                if rel == "src/config.ts":
+                    self.assertEqual(len(re.findall(r"(?m)^  themeColor: '#b4531a',", self.read(rel))), 1)
+                elif rel == "public/manifest.webmanifest":
+                    data = json.loads(self.read(rel))
+                    self.assertEqual((data["theme_color"], data["background_color"]), ("#b4531a", "#fff8ee"))
+                else:
+                    self.assertEqual(len(re.findall(r"(?m)^BG_TOP = \(42, 31, 23\)", self.read(rel))), 1)
+                    self.assertEqual(len(re.findall(r"(?m)^BG_BOT = \(26, 18, 13\)", self.read(rel))), 1)
 
-    def test_a_manifest_she_set_by_hand_as_the_refusal_told_her_to_is_left_exactly_as_it_is(self):
-        # run 1 refuses: another entry has colours of the same names. She sets the manifest's own two by hand.
-        # Run 2 must not then edit the first line of each name (the other entry's) and call it done.
+    def test_a_value_she_wrote_in_capitals_or_in_another_spelling_is_the_same_colour_no_change_and_not_edited(self):
         self.brand_md()
-        nested = self.read("public/manifest.webmanifest").replace('  "lang": "en",', NESTED_SHORTCUT, 1)
-        self.put("public/manifest.webmanifest", nested)
+        self.assertEqual(self.intake()[0], 0)
+        by_hand = {"src/config.ts": self.read("src/config.ts").replace("'#b4531a'", "'#B4531A'"),
+                   "public/manifest.webmanifest": self.read("public/manifest.webmanifest").replace('"#b4531a"', '"#B4531AFF"').replace('"#fff8ee"', '"#FFF8EE"'),
+                   "scripts/generate_og_cards.py": self.read("scripts/generate_og_cards.py").replace("BG_TOP = (42, 31, 23)", "BG_TOP = ( 42,31 ,23 )")}
+        for rel, text in by_hand.items():
+            self.assertNotEqual(text, self.read(rel))
+            self.put(rel, text)
+        before = self.snapshot()
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code), (0, 0), out)
+        for report in (dry, out):
+            self.assertEqual(json.loads(report)["changes"], [], "the same colours, spelt her way, are no change")
+            self.assertEqual(json.loads(report)["written"], [])
+        after = self.snapshot()
+        cards = {k for k in after if k.startswith(os.path.join("public", "images", "og"))}
+        self.assertEqual({k: v for k, v in after.items() if k not in cards}, {k: v for k, v in before.items() if k not in cards}, "every file but the cards, which are made again")
+        # one that is another colour is a change, shown as it stood
+        self.put("public/manifest.webmanifest", by_hand["public/manifest.webmanifest"].replace('"#B4531AFF"', '"#B4531B"'))
+        self.assertEqual(json.loads(self.intake("--json", "--dry-run")[1])["changes"], ["public/manifest.webmanifest, theme_color: #B4531B becomes #b4531a"])
+
+    def test_a_manifest_that_never_was_valid_json_is_refused_as_that_and_not_as_something_the_edit_did(self):
+        self.brand_md()
+        self.put("public/manifest.webmanifest", self.read("public/manifest.webmanifest").replace('  ]\n}', '  ],\n}'))
         before = self.snapshot()
         for code, out in self.both_runs():
             self.assertEqual(code, 2, out)
-            self.assertIn('public/manifest.webmanifest has "theme_color" more than once', out)
-            self.assertIn("by hand to #b4531a", out)
+            self.assertIn("public/manifest.webmanifest is not valid JSON (", out)
+            self.assertIn("so this tool does not edit it", out)
+            self.assertNotIn("after the colours were set", out)
             self.assertEqual(self.snapshot(), before)
-        half = nested.replace('"theme_color": "#000000"', '"theme_color": "#b4531a"')
-        self.put("public/manifest.webmanifest", half)
-        for code, out in self.both_runs():
-            self.assertEqual(code, 2, out)
-            self.assertIn('has "background_color" more than once', out)
-            self.assertIn("by hand to #fff8ee", out)
-            self.assertEqual(self.read("public/manifest.webmanifest"), half)
-        by_hand = half.replace('"background_color": "#ffffff"', '"background_color": "#fff8ee"')
-        self.assertEqual(by_hand.count("#111111") + by_hand.count("#222222"), 2)
-        self.put("public/manifest.webmanifest", by_hand)
+
+    def test_every_value_that_changes_is_listed_old_and_new_also_numbers_that_were_no_colour(self):
+        self.brand_md()
+        self.put("scripts/generate_og_cards.py", self.read("scripts/generate_og_cards.py").replace("BG_TOP = (30, 33, 64)", "BG_TOP = (300, 33, 64)"))
         (dry_code, dry), (code, out) = self.both_runs("--json")
-        self.assertEqual((dry_code, code, json.loads(out)["status"]), (0, 0, "done"), out)
+        self.assertEqual((dry_code, code), (0, 0), out)
         for report in (dry, out):
-            self.assertNotIn("public/manifest.webmanifest", json.loads(report)["written"])
-            self.assertEqual([c for c in json.loads(report)["changes"] if "manifest" in c], [])
-        self.assertEqual(self.read("public/manifest.webmanifest"), by_hand, "the other entry's colours too")
+            self.assertIn("scripts/generate_og_cards.py, BG_TOP: (300, 33, 64) becomes #2a1f17", json.loads(report)["changes"])
+        self.assertIn("\nBG_TOP = (42, 31, 23) ", self.read("scripts/generate_og_cards.py"))
+
+    def test_a_refusal_over_one_file_does_not_take_the_changes_already_worked_out_from_the_report(self):
+        # the stylesheet's changes, and those of the files that could be read, are said in words and in JSON
+        self.brand_md()
+        config = self.read("src/config.ts")
+        self.put("src/config.ts", config.replace("  locale: 'en',\n", "  locale: 'en',\n  themeColor: '#111111',\n"))
+        before = self.snapshot()
+        for extra in (("--dry-run",), ()):
+            with self.subTest(extra=extra):
+                code, out = self.intake(*extra)
+                self.assertEqual(code, 2, out)
+                self.assertIn("the name `themeColor` stands 2 times in the file", out)
+                for line in ("Colours that would have changed in src/styles/global.css:", "  Primary: #000000 becomes #b4531a", "Colours that would have changed in the site's other files:",
+                             "  public/manifest.webmanifest, theme_color: #000000 becomes #b4531a", "  scripts/generate_og_cards.py, BG_TOP: #1e2140 becomes #2a1f17"):
+                    self.assertIn(line, out.splitlines())
+                data = json.loads(self.intake("--json", *extra)[1])
+                self.assertEqual((data["status"], data["code"]), ("refused", "config-layout"))
+                self.assertIn("Primary: #000000 becomes #b4531a", data["changes"])
+                self.assertIn("Surface (cards), dark theme: #161836 becomes #2a1f17", data["changes"])
+                self.assertIn("public/manifest.webmanifest, background_color: #ffffff becomes #fff8ee", data["changes"])
+                self.assertIn("scripts/generate_og_cards.py, FOOTER_COL: #9696aa becomes #c4ae98", data["changes"])
+                self.assertEqual([c for c in data["changes"] if c.startswith("src/config.ts")], [], "the file that was refused has none to list")
+                self.assertEqual(self.snapshot(), before)
 
     def test_a_primary_that_a_dark_block_sets_again_is_refused_before_anything_is_written_naming_the_block(self):
         css = T.starter_file("src/styles/global.css")
@@ -1872,10 +2034,10 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         self.brand_md()
         real, seen = _install._run, []
 
-        def watching(command, cwd, timeout, shell=False, env=None, encoding=None):
-            if shell:
-                seen.append(encoding)
-            return real(command, cwd, timeout, shell=shell, env=env, encoding=encoding)
+        def watching(command, cwd, timeout, **how):
+            if how.get("shell"):
+                seen.append(how.get("encoding", "utf-8"))   # what is read is bytes from a file, decoded as UTF-8 unless a caller asks otherwise
+            return real(command, cwd, timeout, **how)
         _install._run = watching
         try:
             code, out = self.intake("--json", command=RED)
@@ -1958,7 +2120,7 @@ class TheIconsWaitForTheImageLibrary(SiteCase):
     def test_asked_for_outright_the_icons_cannot_wait_and_the_run_stops_with_what_to_install(self):
         self.put("public/favicon.svg", self.installed)
         before = self.snapshot()
-        for code, out in self.both_runs("--with-logo"):
+        for code, out in self.both_runs("--with-logo", "--with-colours"):   # (without --with-colours she is asked about the colours first)
             self.assertEqual(code, 2, out)
             self.assertIn("npm install --include=optional", out)
             self.assertIn("Nothing was written", out)
@@ -2056,6 +2218,52 @@ class StoppedFromOutside(SiteCase):
         self.assertIn("stopped from outside (SIGINT)", r.stdout)
         self.assertIn("Everything it had written was put back.", r.stdout)
         self.assertEqual(self.snapshot(), before)
+
+    def test_a_signal_that_comes_once_the_outcome_is_decided_changes_neither_the_exit_status_nor_one_line_of_the_report(self):
+        # the report is printed after `install` has returned. With the signals given back in between, a stop in
+        # that moment ended the process (status -15) with the install in and nothing said: 5 runs of 80.
+        again = "    for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):\n        os.kill(os.getpid(), s)\n"
+        patch = ("real_install = _install.install\ndef install(a, out):\n    result = real_install(a, out)\n" + again + "    return result\n_install.install = install\n"
+                 "import builtins\nreal_print = builtins.print\ndef printed(*args, **kwargs):\n" + again + "    real_print(*args, **kwargs)\n" + again + "builtins.print = printed\n")
+        proposed = BAKERY_BRAND_MD.replace("| Primary | `#b4531a` |", "| Primary | `#b4531a` (proposed) |")
+        for name, extra, command, md, code_wanted, first, last in (
+                ("done", (), GREEN, BAKERY_BRAND_MD, 0, "Done. The site's own tests pass afterwards.", "Share cards: "),
+                ("a dry run", ("--dry-run",), GREEN, BAKERY_BRAND_MD, 0, "Dry run: nothing was written.", "  scripts/generate_og_cards.py, FOOTER_COL: #9696aa becomes #c4ae98"),
+                ("a question", (), GREEN, proposed, 3, "I need your decision before I go on. Nothing was written.", "- These colours are still proposals"),
+                ("a refusal", ("--with-colours", "--keep-colours"), GREEN, BAKERY_BRAND_MD, 2, "--with-colours and --keep-colours ask for opposite things", "Nothing was written."),
+                ("red tests", (), RED, BAKERY_BRAND_MD, 1, "The site's own tests failed after the install, so everything was put back", "  scripts/generate_og_cards.py, FOOTER_COL: #9696aa becomes #c4ae98")):
+            with self.subTest(name=name):
+                for rel in ("src/styles/global.css",) + _install.OTHER_FILES:
+                    self.put(rel, T.starter_file(rel))
+                self.brand_md(md)
+                before = self.snapshot()
+                r = self.drive(patch, *extra, command=command)
+                self.assertEqual((r.returncode, r.stderr), (code_wanted, ""), r.stdout + r.stderr)
+                lines = r.stdout.splitlines()
+                self.assertTrue(lines[0].startswith(first), r.stdout)
+                self.assertTrue(lines[-1].startswith(last), r.stdout)
+                self.assertNotIn("stopped from outside", r.stdout)
+                if name == "done":
+                    self.assertEqual(_palette.read_css(self.read("src/styles/global.css")).light, T.BAKERY_LIGHT, "and it is in")
+                else:
+                    self.assertEqual(self.snapshot(), before)
+                data = json.loads(self.drive(patch, *extra, "--json", command=command).stdout)   # the JSON is whole too
+                self.assertEqual(data["exit"], code_wanted)
+
+    def test_a_stop_in_the_instant_the_temporary_folder_is_made_does_not_leave_it_behind(self):
+        # between the making of the folder and the line that remembers its name, nothing knew of it: 1 stop in 170 left it
+        before = self.snapshot()
+        made = ("real = _install.tempfile.mkdtemp\ndef stopped_here(*args, **kwargs):\n    path = real(*args, **kwargs)\n    os.kill(os.getpid(), signal.%s)\n    return path\n"
+                "_install.tempfile.mkdtemp = stopped_here\n")
+        for name in ("SIGTERM", "SIGINT", "SIGHUP"):
+            with self.subTest(signal=name):
+                scratch = tempfile.mkdtemp(dir=self.tmp.name)
+                r = self.drive(made % name, tmpdir=scratch)
+                self.assertEqual((r.returncode, r.stderr), (2, ""), r.stdout + r.stderr)
+                self.assertIn("The run was stopped from outside (%s) before it had finished" % name, r.stdout)
+                self.assertIn("Nothing was written.", r.stdout)
+                self.assertEqual(os.listdir(scratch), [], "the folder it had just made is gone again")
+                self.assertEqual(self.snapshot(), before)
 
     def test_a_signal_the_run_was_started_to_ignore_stays_ignored(self):
         # `nohup` starts a command with SIGHUP ignored, a shell starts a background job with SIGINT ignored:
@@ -2157,75 +2365,76 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
         import _png
         self.assertEqual(_png.at(_png.decode(self.bytes("public/icon-maskable-512.png")), 0, 0)[:3], (0xff, 0xf8, 0xee), "on the palette's background")
 
-    # --- the share cards' emblem ----------------------------------------------------------------
+    # --- the share cards' emblem is not this tool's -------------------------------------------------
+    # The generator's LOGO line is neither set nor taken out, and nothing is judged about text over an
+    # emblem: whatever the line says, it is hers. A run that does the logo says so in one line.
 
-    def low(self, cards, mark):
-        return " and ".join("%s %s would fall to %s to 1 over the mark's %s" % (_palette.LABEL[k], h, _colour.shown(r), c) for k, h, r, c in _site.og_emblem_low(cards, mark))
+    def logo_lines(self):
+        return [l for l in self.read("scripts/generate_og_cards.py").splitlines() if "LOGO" in l or "EMBLEM" in l]
 
-    def test_a_mark_under_which_the_cards_text_would_not_read_is_not_made_their_emblem_and_the_colours_still_go_in(self):
-        self.brand_md()
-        args = ("--input", self.package("white.svg", self.WHITE), "--with-colours", "--accept-colours", "--accept-low-contrast", "both")
-        why = self.low(bakery(), ["#ffffff"])
-        self.assertIn("Accent #e2874a would fall to 3.2 to 1 over the mark's #ffffff", why)
-        (dry_code, dry), (code, out) = self.both_runs(*args)
-        self.assertEqual((dry_code, code), (0, 0), out)
-        for report in (dry, out):
-            self.assertIn("Note: the share cards go without the emblem (the logo, shown faintly on the right of each card).", report)
-            self.assertIn("and there %s; text needs 4.5 to 1." % why, report)
-            self.assertNotIn("goes back to None", report)
-        generator = self.read("scripts/generate_og_cards.py")
-        self.assertIn("LOGO = None", generator)
-        self.assertRegex(generator, r"(?m)^BG_BOT = \(26, 18, 13\)", "the cards' colours are the palette's all the same")
-        self.assertIn("and COMPANY.logo points at public/images/logo.png.", out)
-        for untrue in ("the share cards' emblem point at", "and the emblem"):
-            self.assertNotIn(untrue, out)
-        self.assertTrue(self.exists("public/images/logo.png"))
-        self.assertIn("logo: '/images/logo.png'", self.read("src/config.ts"))
+    def test_no_run_sets_takes_out_or_judges_the_generators_logo_line_whatever_it_says(self):
+        starter = T.starter_file("scripts/generate_og_cards.py")
+        again = ("--with-logo", "--with-colours", "--accept-colours", "--accept-low-contrast", "both")
+        for name, generator in (("as the starter has it", starter),
+                                ("the picture this tool installs, as its own earlier rounds set it", starter.replace("LOGO = None", 'LOGO = ROOT / "public/images/logo.png"')),
+                                ("the same, as the generator's own comment spells a path", starter.replace("LOGO = None", "LOGO = ROOT/'public/images/logo.png'")),
+                                ("a picture of her own", starter.replace("LOGO = None", 'LOGO = ROOT / "public/mine.png"')),
+                                ("the line twice", starter.replace("# Home + fallback card", 'LOGO = ROOT / "public/images/logo.png"\n\n# Home + fallback card', 1)),
+                                ("no such line", starter.replace("LOGO = None", "EMBLEM = None"))):
+            with self.subTest(name=name):
+                self.assertTrue(name == "as the starter has it" or generator != starter)
+                self.fresh()
+                self.put("scripts/generate_og_cards.py", generator)
+                hers = self.logo_lines()
+                redrawn = ("--accept-colours", "--accept-low-contrast", "both", "--replace-icons")
+                for step, args, brand in (("a logo alone", self.logo(), False), ("then the colours, and the icons drawn again on the new background", redrawn, True),
+                                          ("then the colours alone", (), True), ("then the icons again", again, True)):
+                    if brand:
+                        self.brand_md()
+                    for code, out in self.both_runs(*args, brand=brand):
+                        self.assertEqual(code, 0, "%s: %s" % (step, out))
+                        self.assertEqual(self.logo_lines(), hers, "%s: the line is as she left it" % step)
+                        for untrue in ("go without the emblem", "would fall to", "goes back to None", "an earlier run set", "the emblem is a picture", "emblem point at"):
+                            self.assertNotIn(untrue, out)
+                        said = [l for l in out.splitlines() if "emblem" in l]
+                        if step == "then the colours alone":
+                            self.assertEqual(said, [], "a run about colours has nothing to say of the emblem")
+                        else:
+                            self.assertEqual(said, ["Note: the share cards get no emblem from this tool (the logo, shown faintly on each card): it leaves the LOGO line in "
+                                                    "scripts/generate_og_cards.py exactly as it is. The og-images skill says how to put the logo on the cards"])
+                    if step == "a logo alone":
+                        self.assertEqual(self.read("scripts/generate_og_cards.py"), generator, "a logo alone changes not a byte of the generator")
+                self.assertRegex(self.read("scripts/generate_og_cards.py"), r"(?m)^BG_BOT = \(26, 18, 13\)", "the colours went in around the line")
 
-    def test_a_logo_alone_is_held_against_the_colours_the_cards_already_have(self):
-        generator = self.read("scripts/generate_og_cards.py")
-        why = self.low(_install.palette_from_cards(_site.og_colours(generator)), ["#ffffff"])
-        self.assertIn("Accent #8aa0ff would fall to 3.46 to 1 over the mark's #ffffff", why)
-        args = ("--input", self.package("white.svg", self.WHITE), "--accept-colours", "--accept-low-contrast", "both")
-        for code, out in self.both_runs(*args, brand=False):
-            self.assertEqual(code, 0, out)
-            self.assertIn("the share cards go without the emblem", out)
-            self.assertIn(why, out)
-        self.assertEqual(self.read("scripts/generate_og_cards.py"), generator, "not a line of the generator is changed")
-        self.fresh()   # the bakery's own mark reads on the starter's cards: it is their emblem
-        code, out = self.intake(*self.logo(), brand=False)
-        self.assertEqual(code, 0, out)
-        self.assertIn('LOGO = ROOT / "public/images/logo.png"', self.read("scripts/generate_og_cards.py"))
-        self.assertIn("COMPANY.logo and the share cards' emblem point at public/images/logo.png.", out)
-        self.assertNotIn("go without the emblem", out)
-
-    def test_an_emblem_an_earlier_run_set_is_taken_out_when_the_new_colours_would_not_read_over_it(self):
+    def test_a_line_she_set_by_hand_after_a_logo_run_is_still_there_after_the_next_run_about_colours(self):
+        # the round before told her she could set LOGO by hand, and its next colours run set it back to None,
+        # saying "an earlier run set" it
         self.brand_md()
         self.assertEqual(self.intake(*self.logo("--with-colours"))[0], 0)
-        self.assertIn('LOGO = ROOT / "public/images/logo.png"', self.read("scripts/generate_og_cards.py"))
-        self.assertIn("| Accent | `#e2874a` |", BAKERY_BRAND_MD)
-        self.brand_md(BAKERY_BRAND_MD.replace("| Accent | `#e2874a` |", "| Accent | `#d47c44` |"))   # passes every pair and the gradient
-        cards = bakery()
-        cards.dark["accent"] = "#d47c44"
-        self.assertEqual((_site.og_low_contrast(cards), [p for p in _palette.matrix(cards) if not p.ok]), ([], []))
-        why = self.low(cards, ["#b4531a", "#6b2c0b"])
-        self.assertIn("Accent #d47c44 would fall to 4.33 to 1 over the mark's #b4531a", why)
-        for code, out in self.both_runs("--accept-colours", "--accept-low-contrast", "both"):
-            self.assertEqual(code, 0, out)
-            self.assertIn("the share cards go without the emblem (the logo, shown faintly on the right of each card), so the LOGO line an earlier run set there goes back to None.", out)
-            self.assertIn(why, out)
+        self.assertEqual(self.logo_lines()[0].split("#")[0].strip(), "LOGO = None")
+        by_hand = self.read("scripts/generate_og_cards.py").replace("LOGO = None", 'LOGO = ROOT / "public/images/logo.png"', 1)
+        self.put("scripts/generate_og_cards.py", by_hand)
+        self.brand_md(BAKERY_BRAND_MD.replace("| Accent | `#e2874a` |", "| Accent | `#d47c44` |"))   # the colours under the emblem change
+        (dry_code, dry), (code, out) = self.both_runs("--json", "--accept-colours", "--accept-low-contrast", "both")
+        self.assertEqual((dry_code, code), (0, 0), out)
+        self.assertEqual(json.loads(dry)["written"], json.loads(out)["written"])
         generator = self.read("scripts/generate_og_cards.py")
-        self.assertIn("LOGO = None", generator)
-        self.assertIn("SUB_COL = (212, 124, 68)", generator)
+        self.assertIn('\nLOGO = ROOT / "public/images/logo.png" ', generator)
+        self.assertIn("\nSUB_COL = (212, 124, 68) ", generator)
+        self.assertEqual(generator.replace("(212, 124, 68)", "(226, 135, 74)"), by_hand, "the two accent lines changed, and nothing else")
 
-    def test_an_emblem_she_pointed_somewhere_herself_is_left_and_new_colours_under_it_are_said_to_be_unchecked(self):
+    def test_a_mark_is_installed_whatever_its_colours_would_do_under_the_cards_text(self):
+        # a white mark, over which the cards' accent would not read were it their emblem: not this tool's question any more
         self.brand_md()
-        wired = self.read("scripts/generate_og_cards.py").replace("LOGO = None", 'LOGO = ROOT / "public/mine.png"')
-        self.put("scripts/generate_og_cards.py", wired)
-        for code, out in self.both_runs(brand=True):
-            self.assertEqual(code, 0, out)
-            self.assertIn("Whether the text can still be read there was not checked, because the emblem is a picture this tool did not install", out)
-        self.assertIn('LOGO = ROOT / "public/mine.png"', self.read("scripts/generate_og_cards.py"))
+        args = ("--input", self.package("white.svg", self.WHITE), "--with-colours", "--accept-colours", "--accept-low-contrast", "both")
+        (dry_code, dry), (code, out) = self.both_runs(*args)
+        self.assertEqual((dry_code, code), (0, 0), out)
+        self.assertIn("\nLOGO = None ", self.read("scripts/generate_og_cards.py"))
+        self.assertRegex(self.read("scripts/generate_og_cards.py"), r"(?m)^BG_BOT = \(26, 18, 13\)")
+        self.assertIn("and COMPANY.logo points at public/images/logo.png.", out)
+        self.assertIn("Share cards: regenerated with the new colours.", out)
+        self.assertTrue(self.exists("public/images/logo.png"))
+        self.assertIn("logo: '/images/logo.png'", self.read("src/config.ts"))
 
     # --- the colours a logo run would change, in all four files ---------------------------------
 
@@ -2382,14 +2591,22 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
         before = self.snapshot()
         for code, out in self.both_runs(*self.logo(), brand=False):
             self.assertEqual(code, 2, out)
-            self.assertIn("the value of `logo` in COMPANY has a backslash in it", out)
+            self.assertIn("src/config.ts: this tool sets the address of the logo only where the file has this one line", out)
+            self.assertIn("\n    logo: '/images/logo.png',\nWhat it found instead: line 34 is written another way: `logo: '/it\\'s.png', // resolved against SITE.url for schema`", out)
             self.assertIn("Nothing was written", out)
+            self.assertNotIn("Note: the share cards get no emblem", out, "a run that was refused before the logo was drawn has nothing to say of the cards")
             self.assertEqual(self.snapshot(), before)
         self.brand_md()   # the colours alone do not touch that line
         code, out = self.intake()
         self.assertEqual(code, 0, out)
         self.assertIn("logo: '/it\\'s.png',", self.read("src/config.ts"))
         self.assertIn("themeColor: '#b4531a'", self.read("src/config.ts"))
+        # what the refusal says to do, done: that one line, written as the starter writes it
+        mended = self.read("src/config.ts").replace("logo: '/it\\'s.png',", "logo: '/images/logo.png',")
+        self.put("src/config.ts", mended)
+        (dry_code, _dry), (code, out) = self.both_runs(*self.logo())
+        self.assertEqual((dry_code, code), (0, 0), out)
+        self.assertEqual(self.read("src/config.ts"), mended, "her line is left as she wrote it")
 
     def test_the_folders_line_goes_to_the_end_of_gitignore_whenever_a_later_line_could_take_it_back_and_ends_as_the_files_lines_end(self):
         starter = self.bytes(".gitignore").decode("utf-8")
@@ -2425,6 +2642,702 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
                 self.assertEqual(os.listdir(scratch), [], "the folder the icons were drawn in is gone")
                 self.assertEqual(self.snapshot(), before)
                 self.assertFalse(self.exists("brand-handoff"))
+
+
+# A stand-in for a test runner that starts a server in a session of its own (as Playwright starts the preview
+# server: `detached: true`) and, like Playwright, stops it itself when it ends or is told to end. Arguments:
+# how it behaves ("tidy" or "deaf"), the file it notes things in, how long its server sleeps (that length tells
+# the server apart in `ps`), how long it runs itself, its exit status.
+RUNNER = r'''
+import os, signal, subprocess, sys, time
+how, notes, length, lasts, status = sys.argv[1], sys.argv[2], sys.argv[3], float(sys.argv[4]), int(sys.argv[5])
+server = subprocess.Popen(["sleep", length], start_new_session=True)
+def note(text):
+    with open(notes, "a") as f:
+        f.write(text + "\n")
+note("runner %d" % os.getpid())
+note("server %d" % server.pid)
+def stop_server():
+    server.terminate()
+    server.wait()
+    note("the runner stopped its server")
+def told(signum, _frame):
+    note("the runner was told to end")
+    stop_server()
+    sys.exit(1)
+signal.signal(signal.SIGTERM, signal.SIG_IGN if how == "deaf" else told)
+time.sleep(lasts)
+stop_server()
+sys.exit(status)
+'''
+
+
+@POSIX
+class WhatACommandStartedIsStopped(SiteCase):
+    """Round 3: the site's tests are a command that starts other things. After a normal end, a timeout and a
+    stop from outside, `ps` shows nothing the run started; what was started gets the chance to clear up after
+    itself first; and a command that has ended is not waited for because something it left holds its output."""
+    modules = False
+
+    def setUp(self):
+        super().setUp()
+        self.brand_md()
+        self.notes = os.path.join(self.tmp.name, "runner-notes")
+        self.runner_file = os.path.join(self.tmp.name, "runner.py")
+        with open(self.runner_file, "w", encoding="utf-8") as f:
+            f.write(RUNNER)
+        self.addCleanup(self.stop_noted)
+
+    def noted(self):
+        return T.read(self.notes).splitlines() if os.path.exists(self.notes) else []
+
+    def pids(self, what):
+        return [int(l.split()[1]) for l in self.noted() if l.startswith(what + " ")]
+
+    def stop_noted(self):
+        for pid in self.pids("runner") + self.pids("server"):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+
+    def runner(self, how, length, lasts, status):
+        return "'%s' '%s' %s '%s' %s %s %d" % (sys.executable, self.runner_file, how, self.notes, length.split()[1], lasts, status)
+
+    def with_limits(self, call, timeout=None, grace=None):
+        old = _install.TEST_TIMEOUT, getattr(_install, "GRACE", None)
+        _install.TEST_TIMEOUT, _install.GRACE = timeout or old[0], grace or old[1]
+        try:
+            started = time.time()
+            return call() + (time.time() - started,)
+        finally:
+            _install.TEST_TIMEOUT, _install.GRACE = old
+
+    def all_gone(self, running):
+        self.assertTrue(self.none_left(running), "the server that was started in a session of its own is still running")
+        for pid in self.pids("runner") + self.pids("server"):
+            self.assertTrue(self.gone(pid), "process %d, which the run started, is still running" % pid)
+
+    def test_a_command_that_has_ended_is_not_waited_for_because_something_it_left_running_holds_its_output(self):
+        # `(sleep 30 &); exit 1`: the command is gone at once, and what it left has its output still open. Waiting
+        # for the output to end waited for that: a green run that left a preview server took the whole timeout
+        # and was then put back as "ran too long".
+        for name, leaves in (("both its outputs", "(%s &);"), ("its output", "(%s 2>/dev/null &);"), ("its error output", "(%s >/dev/null &);"), ("neither", "(%s >/dev/null 2>&1 &);"),
+                             ("both, as a job of the shell", "%s &")):
+            for ending, code_wanted in (("exit 1", 1), ("exit 0", 0)):
+                with self.subTest(holds=name, ending=ending):
+                    for rel in ("src/styles/global.css",) + _install.OTHER_FILES:
+                        self.put(rel, T.starter_file(rel))
+                    before = self.snapshot()
+                    sleep, running = self.sleeper()
+                    code, out, took = self.with_limits(lambda: self.intake(command="echo started; %s %s" % (leaves % sleep, ending)), timeout=30)
+                    self.assertEqual(code, code_wanted, out)
+                    self.assertNotIn("were stopped", out, "it ended; nothing ran too long")
+                    self.assertLess(took, 25, "the run waited for what the command left behind")
+                    self.assertIn("With the install taken out again, the same tests still fail." if code_wanted else "Done. The site's own tests pass afterwards.", out)
+                    self.assertTrue(self.none_left(running), "what the command left running is still running")
+                    if code_wanted:
+                        self.assertEqual(self.snapshot(), before)
+
+    def test_what_a_command_printed_is_read_after_it_ended_and_what_it_left_running_adds_nothing_to_it(self):
+        sleep, running = self.sleeper()
+        started = time.time()
+        code, out, err = _install._run("echo before; echo oops >&2; (%s; echo late) & echo after; exit 3" % sleep, self.site, 60, shell=True)
+        self.assertEqual((code, out, err), (3, "before\nafter\n", "oops\n"))
+        self.assertLess(time.time() - started, 45)
+        self.assertTrue(self.none_left(running))
+        code, out, err = _install._run("printf 'caf\\351\\n'; exit 0", self.site, 60, shell=True)
+        self.assertEqual((code, out), (0, "caf" + chr(0xfffd) + "\n"), "bytes that are no UTF-8 are shown as that")
+        sleep, running = self.sleeper()
+        started = time.time()
+        code, out, _err = _install._run("echo begun; " + sleep, self.site, 2, shell=True)
+        self.assertEqual((code, out), (None, "begun\n"), "one that runs too long has no status, and what it printed until then is kept")
+        self.assertTrue(self.none_left(running))
+        self.assertEqual(subprocess.run(["ps", "-p", "1"], capture_output=True).returncode, 0, "`ps` can be asked here, as the stopping asks it")
+
+    def test_a_runner_that_ends_by_itself_and_stops_its_own_server_leaves_nothing_and_is_not_disturbed(self):
+        for status, code_wanted in ((0, 0), (1, 1)):
+            with self.subTest(status=status):
+                self.put("src/styles/global.css", T.starter_file("src/styles/global.css"))
+                if os.path.exists(self.notes):
+                    os.remove(self.notes)
+                sleep, running = self.sleeper()
+                code, out = self.intake(command=self.runner("tidy", sleep, 0.5, status))
+                self.assertEqual(code, code_wanted, out)
+                self.assertEqual(self.noted().count("the runner stopped its server"), 2 if status else 1, "each run of it ended in its own way")
+                self.assertNotIn("the runner was told to end", self.noted())
+                self.all_gone(running)
+
+    def test_tests_that_run_too_long_are_told_to_end_before_they_are_killed_so_that_they_can_stop_what_they_started(self):
+        # killed at once, Playwright cannot stop the preview server it started in a session of its own, and
+        # that server keeps the site's port: the next `npm test` fails with "already used"
+        before = self.snapshot()
+        sleep, running = self.sleeper()
+        code, out, took = self.with_limits(lambda: self.intake(command=self.runner("tidy", sleep, 300, 0)), timeout=3)
+        self.assertEqual(code, 1, out)
+        self.assertIn("were stopped", out)
+        self.assertEqual(self.noted()[2:], ["the runner was told to end", "the runner stopped its server"], "it was asked first, and had the time to clear up")
+        self.all_gone(running)
+        self.assertEqual(self.snapshot(), before)
+        self.assertLess(took, 60)
+
+    def test_what_does_not_end_when_told_to_is_killed_after_the_grace_with_the_server_it_started_in_a_session_of_its_own(self):
+        # the server left the command's group; it is reached as a descendant of the command, by its own number
+        before = self.snapshot()
+        sleep, running = self.sleeper()
+        code, out, took = self.with_limits(lambda: self.intake(command=self.runner("deaf", sleep, 300, 0)), timeout=3, grace=2)
+        self.assertEqual(code, 1, out)
+        self.assertIn("were stopped", out)
+        self.assertEqual(len(self.noted()), 2, "it neither ended nor stopped its server by itself")
+        self.all_gone(running)
+        self.assertEqual(self.snapshot(), before)
+        self.assertGreaterEqual(took, 3 + 2, "it had its grace")
+
+    def test_a_stop_from_outside_reaches_the_server_in_a_session_of_its_own_too_whether_the_runner_clears_up_or_not(self):
+        before = self.snapshot()
+        for how, said in (("tidy", ["the runner was told to end", "the runner stopped its server"]), ("deaf", [])):
+            with self.subTest(how=how):
+                if os.path.exists(self.notes):
+                    os.remove(self.notes)
+                sleep, running = self.sleeper()
+                # the shell starts the runner, waits until it has noted its server, then has the intake stopped as from outside
+                command = "%s & while [ ! -s '%s' ] || [ $(wc -l < '%s') -lt 2 ]; do sleep 0.1; done; kill -TERM $PPID; wait" % (self.runner(how, sleep, 300, 0), self.notes, self.notes)
+                r = self.drive("_install.GRACE = 2\n", command=command)
+                self.assertEqual((r.returncode, r.stderr), (2, ""), r.stdout + r.stderr)
+                self.assertIn("stopped from outside (SIGTERM)", r.stdout)
+                self.assertIn("Everything it had written was put back.", r.stdout)
+                self.assertEqual(self.noted()[2:], said)
+                self.all_gone(running)
+                self.assertEqual(self.snapshot(), before)
+
+    def test_a_stop_in_the_instant_a_command_is_started_or_while_it_is_being_stopped_leaves_nothing_running(self):
+        before = self.snapshot()
+        started = ("real = _install.subprocess.Popen\ndef stopped_here(*args, **kwargs):\n    p = real(*args, **kwargs)\n    if kwargs.get('shell'):\n"
+                   "        os.kill(os.getpid(), signal.SIGTERM)\n    return p\n_install.subprocess.Popen = stopped_here\n")
+        stopping = ("real = _install._listing\ndef stopped_here():\n    global sent\n    if not sent:\n        sent = True\n        os.kill(os.getpid(), signal.SIGTERM)\n"
+                    "    return real()\nsent = False\n_install._listing = stopped_here\n_install.regenerate_cards = lambda site: (False, 'left out of this test')\n")
+        for moment, patch in (("the command is started", started), ("the command has ended and what it left is being stopped", stopping)):
+            with self.subTest(moment=moment):
+                sleep, running = self.sleeper()
+                r = self.drive(patch, command="(%s &); exit 0" % sleep if "left" in moment else sleep)
+                self.assertEqual((r.returncode, r.stderr), (2, ""), r.stdout + r.stderr)
+                self.assertIn("stopped from outside (SIGTERM)", r.stdout)
+                self.assertTrue(self.none_left(running), "the command, or what it left, is still running")
+                self.assertEqual(self.snapshot(), before)
+
+    def test_a_second_run_of_the_tests_that_writes_to_the_site_as_the_first_did_is_put_back_too(self):
+        # the tests are run a second time after everything was put back; what THAT run does to the share cards
+        # (or to any file the first run was put back from) must not stay under "everything was put back"
+        before = self.snapshot()
+        code, out = self.intake("--json", command="echo x >> public/images/og/default.jpg; echo y > public/images/og/extra.jpg; echo z >> src/config.ts; exit 1")
+        data = json.loads(out)
+        self.assertEqual((code, data["status"], data["cards"], data.get("not_restored")), (1, "tests-failed", "restored", None), out)
+        self.assertIn("With the install taken out again, the same tests still fail.", data["report"])
+        self.assertEqual(self.snapshot(), before)
+
+    def test_tests_that_ran_too_long_are_said_not_to_have_been_run_again_also_when_not_everything_could_be_put_back(self):
+        real = _site.Journal._put
+        sleep, running = self.sleeper()
+
+        def go():
+            # the manifest is written (the journal has written nothing yet), then the putting back of it is refused
+            first = []
+
+            def once(journal, path, data, mode=0o644):
+                if path.endswith("manifest.webmanifest") and first:
+                    raise PermissionError(13, "Permission denied", path)
+                if path.endswith("manifest.webmanifest"):
+                    first.append(path)
+                return real(journal, path, data, mode)
+            _site.Journal._put = once
+            try:
+                return self.intake("--json", command=sleep)
+            finally:
+                _site.Journal._put = real
+        code, out, _took = self.with_limits(go, timeout=2)
+        data = json.loads(out)
+        self.assertEqual((code, data["status"], data["tests"], data.get("tests_timed_out")), (1, "rollback-incomplete", "failed", True), out)
+        self.assertEqual([l["file"] for l in data["not_restored"]], ["public/manifest.webmanifest"])
+        report = "\n".join(data["report"])
+        self.assertIn("They were not run a second time with the install taken out again", report)
+        self.assertIn("NOT as they were", report)
+        self.assertNotIn("everything was put back", report)
+        self.assertTrue(self.none_left(running))
+        self.put("public/manifest.webmanifest", T.starter_file("public/manifest.webmanifest"))
+
+    def test_what_goes_into_a_report_from_the_tests_output_is_text_without_a_terminals_colour_codes_or_other_control_characters(self):
+        esc, arrow, dash = chr(27), chr(0x203a), chr(0x2014)
+        coloured = "printf '\\033[31m  1) [chromium] \\342\\200\\272 tests/a.spec.ts:8:5 \\342\\200\\272 a11y \\342\\200\\224 / [dark]\\033[39m \\033[2K\\r\\n'; exit 1"
+        code, out = self.intake("--json", command=coloured)
+        data = json.loads(out)
+        self.assertEqual((code, data["failing"]), (1, ["tests/a.spec.ts:8:5 %s a11y %s / [dark]" % (arrow, dash)]), "the failing check is read past the colour it is printed in")
+        unnamed = "printf '\\033[1m\\033[31mFAIL\\033[0m src/a.test.js\\007\\n\\033]0;title\\007  expected 1,\\010 got 2\\033[K\\n\\0\\n'; exit 1"
+        code, out = self.intake("--json", command=unnamed)
+        data = json.loads(out)
+        self.assertEqual((code, data["output_tail"]), (1, ["FAIL src/a.test.js", "expected 1, got 2"]))
+        for line in data["report"] + data["output_tail"]:
+            self.assertFalse([c for c in line if ord(c) < 32 and c != "\t" or 127 <= ord(c) < 160], repr(line))
+        self.assertNotIn(esc, out)
+        text = self.intake(command=unnamed)[1]
+        self.assertFalse([c for c in text if ord(c) < 32 and c not in "\t\n" or 127 <= ord(c) < 160], repr(text))
+
+
+@POSIX
+class WhatStandsInTheSite(SiteCase):
+    """Round 3: every planned path, and what stands above it, is looked at before anything is opened or
+    written; what a run leaves when it is taken back is exactly what was there, also on a site that had no
+    folder for its images; and a dry run refuses whatever the real run would refuse."""
+
+    WHITE = rects((4, 4, 24, 24, "#ffffff"))
+
+    def logo(self, *more):
+        return ("--input", self.package()) + LOGO_ARGS + more
+
+    def command_line(self, *extra, command=GREEN, timeout=120):
+        """The command line as a process of its own with a time limit: for runs that once waited for ever."""
+        self.brand_md()
+        program = "import sys\nsys.path.insert(0, %r)\nimport brand_intake\nsys.exit(brand_intake.main(sys.argv[1:]))\n" % T.SCRIPTS
+        try:
+            r = subprocess.run([sys.executable, "-c", program, "install", "--site", self.site, "--test-command", command] + list(extra),
+                               capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.fail("the run did not end within %d seconds: it waits on something it opened" % timeout)
+        return r.returncode, r.stdout + r.stderr
+
+    def test_a_logo_run_on_a_site_without_an_images_folder_is_taken_back_whole_and_says_so(self):
+        # the run writes public/images/logo.png and the generator makes public/images/og beside it. Putting the
+        # cards' folder back tried to take public/images away while the logo was still in it, and counted that
+        # as "not put back" although the tree ended up as it was.
+        T.require_pillow(self)
+        shutil.rmtree(self.p("public/images"))
+        self.brand_md()
+        before = self.snapshot()
+        code, out = self.intake(*self.logo("--with-colours", "--json"), command=RED)
+        data = json.loads(out)
+        self.assertEqual((code, data["status"], data["cards"], data.get("not_restored")), (1, "tests-failed", "restored", None), "\n".join(data["report"]))
+        self.assertIn("The site's own tests failed after the install, so everything was put back (every file, the share cards included).", data["report"])
+        self.assertEqual(self.snapshot(), before)
+        text_code, text = self.intake(*self.logo("--with-colours"), command=RED)
+        self.assertEqual(text_code, 1)
+        self.assertNotIn("Directory not empty", text)
+        self.assertNotIn("NOT as they were", text)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a_generator_that_fails_on_a_site_without_an_images_folder_does_not_take_a_good_install_back(self):
+        shutil.rmtree(self.p("public/images"))
+        self.brand_md()
+        gen = self.read("scripts/generate_og_cards.py")
+        for name, fails in (("after it made the cards' folder", "def main():\n    OUT.mkdir(parents=True, exist_ok=True)\n    (OUT / 'default.jpg').write_bytes(b'half way')\n    raise SystemExit('simulated: a later card failed')\n"),
+                            ("before it made anything", "def main():\n    raise SystemExit('simulated: nothing was made')\n")):
+            with self.subTest(name=name):
+                shutil.rmtree(self.site)
+                T.make_starter_site(self.site, with_modules=self.modules)
+                shutil.rmtree(self.p("public/images"))
+                self.brand_md()
+                self.put("scripts/generate_og_cards.py", gen.replace("def main():\n", fails, 1))
+                (dry_code, dry), (code, out) = self.both_runs(*self.logo("--with-colours", "--json"))
+                data = json.loads(out)
+                self.assertEqual((dry_code, code, data["status"], data["cards"], data["tests"]), (0, 0, "done", "failed", "passed"), "\n".join(data["report"]))
+                self.assertEqual(json.loads(dry)["written"], data["written"])
+                self.assertEqual(sorted(os.listdir(self.p("public/images"))), ["logo.png"], "the logo is in; the folder the generator made for the cards is gone again")
+                self.assertIn("public/images/logo.png", data["written"])
+                self.assertNotIn("not_restored", data)
+
+    def test_cards_that_could_not_be_put_back_after_the_generator_failed_are_said_to_be_that_in_the_json_too(self):
+        T.require_pillow(self)   # without it the generator stops before it writes anything
+        self.brand_md()
+        gen = self.read("scripts/generate_og_cards.py")
+        self.put("scripts/generate_og_cards.py", gen.replace("def main():\n", "def main():\n    (OUT / 'default.jpg').write_bytes(b'half way')\n    raise SystemExit('simulated: a later card failed')\n", 1))
+        real = _site.Journal._put
+
+        def refusing(journal, path, data, mode=0o644):
+            if path.endswith(os.path.join("og", "default.jpg")):
+                raise PermissionError(13, "Permission denied", path)
+            return real(journal, path, data, mode)
+        _site.Journal._put = refusing
+        try:
+            code, out = self.intake("--json")
+        finally:
+            _site.Journal._put = real
+        data = json.loads(out)
+        self.assertEqual((code, data["status"], data["code"], data["cards"]), (2, "rollback-incomplete", "cards-not-restored", "not-restored"), out)
+        self.assertEqual(data["cards_why"], "simulated: a later card failed")
+
+    def test_a_pipe_or_a_link_the_tests_left_where_a_file_was_is_taken_away_and_the_file_put_back_and_the_run_ends(self):
+        # a saved card that the test command replaced by a pipe was opened for reading when the cards were put
+        # back, and the run waited there for ever; a dangling link where a new file had been was left in place
+        # under "everything was put back"
+        self.brand_md()
+        before = self.snapshot()
+        wrecks = (("a pipe where a card was", "rm public/images/og/default.jpg; mkfifo public/images/og/default.jpg"),
+                  ("a pipe where a file of the run was", "rm public/manifest.webmanifest; mkfifo public/manifest.webmanifest"),
+                  ("a dangling link where a file of the run was", "rm src/config.ts; ln -s nowhere src/config.ts"),
+                  ("a link to a file where a card was", "rm public/images/og/default.jpg; ln -s ../../manifest.webmanifest public/images/og/default.jpg"),
+                  ("a dangling link where a new card was made", "ln -s nowhere public/images/og/new.jpg"))
+        once = os.path.join(self.tmp.name, "wrecked-once")
+        for name, wreck in wrecks:
+            with self.subTest(name=name):
+                if os.path.exists(once):
+                    os.remove(once)
+                code, out = self.command_line("--json", command="if [ -e '%s' ]; then exit 1; fi; touch '%s'; %s; exit 1" % (once, once, wreck))
+                data = json.loads(out)
+                self.assertEqual((code, data["status"], data.get("not_restored")), (1, "tests-failed", None), "\n".join(data["report"]))
+                self.assertEqual(self.links(), {})
+                self.assertEqual(self.snapshot(), before)
+
+    def test_a_file_where_the_folder_for_the_images_would_be_is_refused_by_the_dry_run_as_by_the_real_one(self):
+        # the cards' folder looked merely absent, the dry run passed, and the real run failed in the generator
+        shutil.rmtree(self.p("public/images"))
+        self.put("public/images", b"a file where the folder would go")
+        self.brand_md()
+        before = self.snapshot()
+        for code, out in self.both_runs():
+            self.assertEqual(code, 2, out)
+            self.assertIn("public/images/og cannot be made: public/images is a file, not a folder.", out)
+            self.assertIn("move the file away, then run this again", out)
+            self.assertIn("Nothing was written", out)
+            self.assertEqual(self.snapshot(), before)
+        os.remove(self.p("public/images"))   # what it says to do, done
+        (dry_code, dry), (code, out) = self.both_runs("--json")
+        self.assertEqual((dry_code, code), (0, 0), out)
+        self.assertEqual(json.loads(dry)["written"], json.loads(out)["written"])
+
+    def test_a_pipe_at_a_path_the_run_would_read_or_write_is_refused_by_name_and_never_opened(self):
+        master = _install.MARK.encode("utf-8") + _svg.clean_svg(T.real_svg()).text.encode("utf-8")
+        cases = (("the installed logo, on a run about colours", "public/favicon.svg", (), "public/favicon.svg is neither a file nor a folder"),
+                 ("the installed logo, asked for outright", "public/favicon.svg", ("--with-logo", "--with-colours"), "public/favicon.svg is neither a file nor a folder"),
+                 ("an icon it would replace", "public/favicon.ico", self.logo("--with-colours", "--replace-icons"), "public/favicon.ico is neither a file nor a folder"),
+                 ("the logo's picture", "public/images/logo.png", self.logo("--with-colours"), "public/images/logo.png is neither a file nor a folder"),
+                 ("the preview sheet of an earlier run", "brand-handoff/preview.png", self.logo("--with-colours"), "brand-handoff/preview.png is neither a file nor a folder"),
+                 ("the package kept from an earlier run", "brand-handoff/logo.zip", self.logo("--with-colours"), "brand-handoff/logo.zip is neither a file nor a folder"),
+                 ("where the folder for the package would be", "brand-handoff", self.logo("--with-colours"), "brand-handoff is not a folder"))
+        for name, rel, args, said in cases:
+            with self.subTest(name=name):
+                shutil.rmtree(self.site)
+                T.make_starter_site(self.site, with_modules=self.modules)
+                os.makedirs(os.path.dirname(self.p(rel)), exist_ok=True)
+                os.mkfifo(self.p(rel))
+                for extra in (("--dry-run",), ()):
+                    code, out = self.command_line(*args, *extra)
+                    self.assertEqual(code, 2, out)
+                    self.assertIn(said, out)
+                    self.assertIn("Nothing was written.", out)
+                    self.assertTrue(stat.S_ISFIFO(os.lstat(self.p(rel)).st_mode), "it is left where it was")
+                    self.assertEqual(sorted(n for n in os.listdir(self.p("public")) if n not in ("favicon.svg", "favicon.ico")), sorted(n for n in os.listdir(os.path.join(T.STARTER, "public"))))
+                os.remove(self.p(rel))   # what the refusal says to do: taken out of the site
+                if "favicon.svg" in rel:
+                    self.put("public/favicon.svg", master)
+                code, out = self.command_line(*args, "--accept-colours", "--accept-low-contrast", "both")
+                self.assertEqual(code, 0, out)
+
+    def test_a_cards_folder_that_holds_more_than_is_kept_to_put_it_back_is_refused_by_name_before_anything_is_written(self):
+        self.brand_md()
+        self.put("public/images/og/film.mov", b"x" * 300000)
+        before = self.snapshot()
+        old = _site.MAX_KEPT
+        _site.MAX_KEPT = 250000
+        try:
+            for code, out in self.both_runs():
+                self.assertEqual(code, 2, out)
+                self.assertIn("public/images/og holds more than 0 MB, more than this tool keeps of a folder so that it can put it back", out)
+                self.assertIn("the largest file it came to is public/images/og/film.mov", out)
+                self.assertIn("Nothing was written", out)
+                self.assertEqual(self.snapshot(), before)
+            os.rename(self.p("public/images/og/film.mov"), os.path.join(self.tmp.name, "film.mov"))   # what it says to do, done
+            self.assertEqual([code for code, _out in self.both_runs()], [0, 0])
+        finally:
+            _site.MAX_KEPT = old
+
+    @unittest.skipUnless(sys.platform == "darwin" and shutil.which("chflags"), "the lock that macOS shows in what stat returns (chflags uchg)")
+    def test_a_locked_file_or_folder_is_refused_by_the_dry_run_as_by_the_real_one_naming_the_planned_file(self):
+        self.brand_md()
+        for rel, said in (("public/manifest.webmanifest", "public/manifest.webmanifest cannot be written: the file is locked against change."),
+                          ("src", "src/config.ts cannot be written"), ("public/images/og", "public/images/og is locked against change."),
+                          ("public/images/og/default.jpg", "public/images/og/default.jpg is locked against change.")):
+            with self.subTest(rel=rel):
+                self.put("src/styles/global.css", T.starter_file("src/styles/global.css"))
+                before = self.snapshot()
+                subprocess.run(["chflags", "uchg", self.p(rel)], check=True)
+                self.addCleanup(subprocess.run, ["chflags", "nouchg", self.p(rel)], capture_output=True)
+                try:
+                    runs = self.both_runs()
+                finally:
+                    subprocess.run(["chflags", "nouchg", self.p(rel)], check=True)
+                for code, out in runs:
+                    self.assertEqual(code, 2, out)
+                    self.assertIn(said, out)
+                    self.assertNotIn(".write-", out, "the temporary file beside it is not what is named")
+                    self.assertIn("Nothing was written", out)
+                self.assertEqual(self.snapshot(), before)
+                self.assertEqual(self.intake("--dry-run")[0], 0, "unlocked, as the refusal says, it goes through")
+
+
+class WhatIsAskedAndWhen(SiteCase):
+    """Round 3: the question whether the colours should change too is asked on every run that she asked the
+    logo of, after what she handed over was read; and a later run about colours leaves the logo's files, and
+    its questions, alone unless the background the app icons sit on would change."""
+
+    def logo(self, *more):
+        return ("--input", self.package()) + LOGO_ARGS + more
+
+    def installed(self, *more):
+        """A site with the bakery's palette and logo in."""
+        self.brand_md()
+        code, out = self.intake(*self.logo("--with-colours", *more))
+        self.assertEqual(code, 0, out)
+
+    ICONS = ("public/favicon.svg", "public/favicon.ico", "public/apple-touch-icon.png", "public/icon-192.png", "public/icon-512.png",
+             "public/icon-maskable-512.png", "public/images/logo.png")
+
+    def icons(self):
+        return {rel: self.bytes(rel) for rel in self.ICONS}
+
+    def sits_on(self):
+        import _png
+        return "#%02x%02x%02x" % _png.at(_png.decode(self.bytes("public/icon-maskable-512.png")), 0, 0)[:3]
+
+    # --- the question about the colours ------------------------------------------------------------
+
+    def test_asking_for_the_icons_again_without_a_file_asks_about_the_colours_just_as_a_file_does(self):
+        # --with-logo (no --input) went past the question: a dry run planned to overwrite a theme colour she had set by hand
+        self.installed()
+        for rel, old, new, line in (("src/config.ts", "themeColor: '#b4531a'", "themeColor: '#123456'", "src/config.ts, themeColor: #123456 becomes #b4531a"),
+                                    ("public/manifest.webmanifest", '"background_color": "#fff8ee"', '"background_color": "#654321"', "public/manifest.webmanifest, background_color: #654321 becomes #fff8ee"),
+                                    ("scripts/generate_og_cards.py", "BG_TOP = (42, 31, 23)", "BG_TOP = (1, 2, 3)", "scripts/generate_og_cards.py, BG_TOP: #010203 becomes #2a1f17")):
+            with self.subTest(rel=rel):
+                settled = self.read(rel)
+                self.assertEqual(settled.count(old), 1)
+                self.put(rel, settled.replace(old, new))
+                before = self.snapshot()
+                for how in (("--with-logo",), self.logo()):
+                    for code, out in self.both_runs(*how, "--accept-colours", "--accept-low-contrast", "both"):
+                        self.assertEqual(code, 3, out)
+                        self.assertIn("    * " + line, out.splitlines())
+                        self.assertIn("--with-colours", out)
+                        self.assertIn("--keep-colours", out)
+                        self.assertIn("Nothing was written", out)
+                        self.assertEqual(self.snapshot(), before)
+                data = json.loads(self.intake("--with-logo", "--json", "--dry-run")[1])
+                self.assertEqual(([k["code"] for k in data["asks"]], data["asks"][0]["options"], data["changes"], data["written"]), (["colours-too"], [line], [line], []))
+                code, out = self.intake("--with-logo", "--keep-colours", "--accept-colours", "--accept-low-contrast", "both")
+                self.assertEqual(code, 0, out)
+                self.assertIn(new, self.read(rel), "kept, as she said")
+                code, out = self.intake("--with-logo", "--with-colours", "--accept-colours", "--accept-low-contrast", "both")
+                self.assertEqual(code, 0, out)
+                self.assertEqual(self.read(rel), settled, "set, as she said")
+
+    def test_what_she_handed_over_is_read_and_checked_before_she_is_asked_about_the_colours(self):
+        # asked first, she answered --with-colours or --keep-colours only to be told then that nothing had arrived
+        self.brand_md()
+        before = self.snapshot()
+        nothing = os.path.join(self.pack, "not-there.zip")
+        page = os.path.join(self.pack, "saved.svg")
+        with open(page, "wb") as f:
+            f.write(b"<!doctype html><html><body><svg xmlns='http://www.w3.org/2000/svg'/></body></html>")
+        broken = self.package("broken.zip", b"PK\x03\x04 not a zip at all")
+        empty = os.path.join(self.pack, "empty")
+        os.makedirs(empty)
+        for name, given, status, said in (("a path that holds nothing", nothing, 2, "Nothing arrived at that path"), ("a web page saved as .svg", page, 2, None),
+                                          ("a file that is no zip", broken, 2, None), ("a folder that holds no package", empty, 2, "holds no .zip or .svg file")):
+            with self.subTest(name=name):
+                for code, out in self.both_runs("--input", given):
+                    self.assertEqual(code, status, out)
+                    self.assertNotIn("Should it? Run this again with --with-colours", out, "the question was asked before the input was looked at")
+                    if said:
+                        self.assertIn(said, out)
+                    self.assertEqual(self.snapshot(), before)
+        two = os.path.join(self.pack, "two")
+        os.makedirs(two)
+        for n in ("a.zip", "b.zip"):
+            with open(os.path.join(two, n), "wb") as f:
+                f.write(T.real_zip_bytes())
+        data = json.loads(self.intake("--input", two, "--json")[1])
+        self.assertEqual([k["code"] for k in data["asks"]], ["which-package"], "which file it is comes before whether the colours change")
+        data = json.loads(self.intake("--input", self.package(), "--json")[1])
+        self.assertEqual([k["code"] for k in data["asks"]], ["which-file"], "which drawing of the zip it is comes first too")
+        data = json.loads(self.intake(*self.logo("--json"))[1])
+        self.assertEqual([k["code"] for k in data["asks"]], ["colours-too"], "and with a file that will do, the question is asked")
+        self.assertEqual(self.snapshot(), before)
+
+    # --- a rule outside the three colour blocks that sets one of the colours ---------------------------
+
+    def test_a_rule_outside_the_three_blocks_that_sets_one_of_the_colours_is_refused_before_anything_is_written_whatever_the_run_is_about(self):
+        # the page may then show another colour than the block's: the palette would go in and not show (a run about
+        # colours), or the logo would be checked against a background the page does not have (a run about the logo)
+        starter = T.starter_file("src/styles/global.css")
+        for name, rule, said in (("on body", "\nbody {\n  --bg: #eeeeee;\n}\n", "--bg is also set in the rule `body { ... }`, outside the three blocks that hold the palette"),
+                                 ("on :root inside another at-rule", "\n@media print {\n  :root {\n    --ink: #000000;\n  }\n}\n", "--ink is also set in the rule `@media print { :root { ... } }`"),
+                                 ("on :root with a class", "\n:root.dark {\n  --surface: #010101;\n}\n", "--surface is also set in the rule `:root.dark { ... }`")):
+            for run_name, args, brand in (("the colours", (), True), ("a logo alone", self.logo(), False), ("a logo, the colours kept", self.logo("--keep-colours"), True),
+                                          ("a logo and the colours", self.logo("--with-colours"), True), ("a logo, the question about the colours not yet answered", self.logo(), True)):
+                with self.subTest(rule=name, run=run_name):
+                    shutil.rmtree(self.site)
+                    T.make_starter_site(self.site, with_modules=self.modules)
+                    self.put("src/styles/global.css", starter + rule)
+                    if brand:
+                        self.brand_md()
+                    before = self.snapshot()
+                    for code, out in self.both_runs(*args, brand=brand):
+                        self.assertEqual(code, 2, out)
+                        self.assertIn(said, out)
+                        self.assertIn("Nothing was written.", out.splitlines())
+                        self.assertEqual(self.snapshot(), before)
+                    data = json.loads(self.intake(*args, "--json", brand=brand)[1])
+                    self.assertEqual((data["status"], data["written"], data["code"]), ("refused", [], "css-layout" if "--keep-colours" not in args and brand else "site-colours-unread"))
+                    self.put("src/styles/global.css", starter)   # what the refusal says to do: the line taken out
+                    (dry_code, dry), (code, out) = self.both_runs(*args, brand=brand)
+                    self.assertEqual((dry_code, code), (3, 3) if run_name.endswith("not yet answered") else (0, 0), out)
+        self.assertEqual(_install._css_problems(type("Css", (), {"problems": [(None, None, "A sentence of its own."), (None, "--bg", "is set elsewhere"), ("light", "--bg", "is odd")]})()),
+                         ["A sentence of its own.", "--bg in a rule outside the three colour blocks: is set elsewhere", "--bg in the :root block: is odd"],
+                         "one that is about no block of the three is said without a block being looked up for it")
+
+    # --- the tool's own favicon, and the icons drawn from it ------------------------------------------
+
+    def test_a_run_about_colours_draws_the_icons_again_from_its_own_favicon_under_another_primary_and_other_backgrounds(self):
+        # the file is known as this tool's own by cleaning it again and comparing: that must not depend on the
+        # palette the run has, or the promise in the file's first line ("drawn again from this file") fails silently
+        self.installed()
+        favicon, icons = self.bytes("public/favicon.svg"), self.icons()
+        self.assertEqual(self.sits_on(), "#fff8ee")
+        light = dict(T.BAKERY_LIGHT, bg="#fdf6ff", bg_soft="#f6ecfa", accent="#7a2a8f", link="#6a2380")
+        dark = dict(T.BAKERY_DARK, bg="#150d1a", bg_soft="#1d1324", surface="#261a2e")
+        other = ("# Brand\n\n### Brand (fixed, theme-independent)\n| Token | Hex |\n|---|---|\n| Primary | `#7a2a8f` |\n\n### Light theme\n" + table([(l, light[k]) for k, l in LABELS])
+                 + "\n### Dark theme\n" + table([(l, dark[k]) for k, l in LABELS]))
+        self.brand_md(other)
+        (dry_code, dry), (code, out) = self.both_runs("--json", "--accept-colours", "--accept-low-contrast", "both", "--replace-icons")
+        data = json.loads(out)
+        self.assertEqual((dry_code, code), (0, 0), "\n".join(data["report"]))
+        self.assertEqual(json.loads(dry)["written"], data["written"])
+        for note in data["notes"]:
+            self.assertNotIn("the icons were left as they are", note)
+            self.assertNotIn("is not a file this tool wrote", note)
+            self.assertNotIn("is not as this tool wrote it", note)
+        self.assertEqual(self.bytes("public/favicon.svg"), favicon, "the master itself is as it was")
+        self.assertEqual(self.sits_on(), "#fdf6ff", "the app icons sit on the new background")
+        self.assertIn("public/icon-maskable-512.png", data["written"])
+        self.assertNotEqual(self.icons()["public/apple-touch-icon.png"], icons["public/apple-touch-icon.png"])
+        self.assertEqual(_palette.read_css(self.read("src/styles/global.css")).brand, "#7a2a8f")
+
+    def test_a_later_run_about_colours_leaves_the_logos_files_and_its_questions_alone_while_the_background_under_the_icons_stays(self):
+        # the mark was accepted once (a colour outside the palette, low contrast on one theme): a run that
+        # changes no colour, or only colours the icons do not sit on, has nothing to ask about it again
+        self.installed()
+        icons, before = self.icons(), self.snapshot()
+        self.assertEqual(json.loads(self.intake(*self.logo("--with-colours", "--json", "--dry-run", "--accept-low-contrast", ""))[1])["status"], "needs-decision",
+                         "this mark is one that questions are asked about")
+        for name, md in (("nothing changed", BAKERY_BRAND_MD), ("a text colour changed", BAKERY_BRAND_MD.replace("| Accent | `#e2874a` |", "| Accent | `#d47c44` |")),
+                         ("the dark background changed, which the icons do not sit on", BAKERY_BRAND_MD.replace("| Background | `#1a120d` |", "| Background | `#1b130e` |"))):
+            with self.subTest(name=name):
+                self.brand_md(md)
+                (dry_code, dry), (code, out) = self.both_runs("--json")
+                data = json.loads(out)
+                self.assertEqual((dry_code, code, data["status"]), (0, 0, "done"), "\n".join(data["report"]))
+                self.assertNotIn("asks", data)
+                self.assertEqual([w for w in data["written"] + json.loads(dry)["written"] if w.startswith(("public/favicon", "public/icon", "public/apple", "public/images/logo", "brand-handoff"))], [])
+                self.assertEqual(self.icons(), icons, "not a byte of the logo's files")
+                self.assertEqual([n for n in data["notes"] if "icons" in n or "emblem" in n], [])
+        self.assertNotEqual(self.snapshot(), before, "the colours did go in")
+        # the background they sit on changes: now they are drawn again, and the questions are due
+        self.brand_md(BAKERY_BRAND_MD.replace("| Background | `#fff8ee` |", "| Background | `#fffdf7` |"))
+        still = self.snapshot()
+        for code, out in self.both_runs("--json"):
+            data = json.loads(out)
+            self.assertEqual((code, data["status"]), (3, "needs-decision"), "\n".join(data["report"]))
+            self.assertEqual(self.snapshot(), still)
+        code, out = self.intake("--accept-colours", "--accept-low-contrast", "both", "--replace-icons")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.sits_on(), "#fffdf7")
+
+    def test_the_tools_own_favicon_is_known_again_when_a_checkout_turned_its_line_ends_into_crlf_and_one_that_was_edited_is_said_to_be_that(self):
+        self.installed()
+        favicon = self.bytes("public/favicon.svg")
+        moved = BAKERY_BRAND_MD.replace("| Background | `#fff8ee` |", "| Background | `#fffdf7` |")
+        self.assertNotIn(b"\r", favicon)
+        self.put("public/favicon.svg", favicon.replace(b"\n", b"\r\n"))
+        self.brand_md(moved)
+        code, out = self.intake("--json", "--accept-colours", "--accept-low-contrast", "both", "--replace-icons")
+        data = json.loads(out)
+        self.assertEqual((code, data["status"]), (0, "done"), "\n".join(data["report"]))
+        self.assertEqual([n for n in data["notes"] if "the icons were left as they are" in n], [], "it is this tool's own file, whatever its line ends")
+        self.assertEqual(self.sits_on(), "#fffdf7")
+        self.assertEqual(self.bytes("public/favicon.svg"), favicon, "and it is written again as this tool writes it")
+        # edited since: it still starts with this tool's line, and is not what this tool wrote
+        self.put("public/favicon.svg", favicon.replace(b"#6b2c0b", b"#6B2C0B"))
+        self.brand_md()
+        code, out = self.intake()
+        self.assertEqual(code, 0, out)
+        self.assertIn("the icons were left as they are: public/favicon.svg is not as this tool wrote it (it starts with this tool's line and was changed since)", out)
+        self.assertNotIn("is not a file this tool wrote", out)
+        self.assertEqual(self.sits_on(), "#fffdf7", "left on the background they had")
+
+    # --- a palette that was named and not read, and the notes of a run that ends badly ------------------
+
+    def test_a_palette_that_is_there_and_not_in_the_form_the_reading_takes_ends_like_any_other_that_was_named_and_not_read(self):
+        # colours in a list or in a sentence, with or without the `## Colour palette` heading above them, and the
+        # three tables under another heading than that one: the reading names each (it never comes back as "no
+        # palette"), and every run says so: the note beside a logo, the refusal with the form the reading takes
+        listed = "- Primary: `#b4531a`\n" + "".join("- %s (light): `%s`\n" % (l, T.BAKERY_LIGHT[k]) for k, l in LABELS)
+        tables = BAKERY_BRAND_MD.split("## Colour palette\n\n", 1)[1]
+        self.assertTrue(tables.startswith("### Brand"))
+        not_read = "holds a colour (#b4531a) that was not read"
+        for name, md, said in (("a list", "# Brand\n\n## Colours\n" + listed, not_read),
+                               ("a sentence", "# Brand\n\nOur colour is #b4531a on cream #fff8ee, with dark brown #3a1d0a text.\n", not_read),
+                               ("a list under the palette's own heading", "# Brand\n\n## Colour palette\n\n" + listed + "\n## Logo\n\nThe mark.\n", not_read),
+                               ("a sentence under the palette's own heading", "# Brand\n\n## Colour palette\n\nOur colour is #b4531a on cream #fff8ee.\n\n## Logo\n", not_read),
+                               ("the three tables under another heading than the palette's", "# Brand\n\n## Colour palette\n\nSee below.\n\n## Our colours\n\n" + tables,
+                                'the heading "### Brand (fixed, theme-independent)", has a table under it and stands outside the part')):
+            with self.subTest(name=name):
+                parsed = _palette.parse_tables(md)
+                self.assertTrue(parsed.problems and not (parsed.light or parsed.dark or parsed.brand), "the reading names it and takes no colour from it")
+                shutil.rmtree(self.site)
+                T.make_starter_site(self.site, with_modules=self.modules)
+                self.brand_md(md)
+                before = self.snapshot()
+                for code, out in self.both_runs():   # nothing to do, and why
+                    self.assertEqual(code, 2, out)
+                    self.assertIn("There is nothing to do: no complete palette was found in BRAND.md, and no logo file was given.", out)
+                    self.assertIn("No colour could be read from the palette in BRAND.md.", out)
+                    self.assertIn(said, out)
+                    self.assertIn(_palette.FORM, out)
+                    self.assertEqual(self.snapshot(), before)
+                for code, out in self.both_runs("--with-colours"):
+                    self.assertEqual(code, 2, out)
+                    self.assertIn("No colour could be read from the palette in BRAND.md.", out)
+                    self.assertIn(said, out)
+                    self.assertIn(_palette.FORM, out)
+                    self.assertIn("Fill in or mend what is named here", out)
+                    self.assertEqual(self.snapshot(), before)
+                (dry_code, dry), (code, out) = self.both_runs(*self.logo())   # the logo goes in, and the report says why the colours stayed
+                self.assertEqual((dry_code, code), (0, 0), out)
+                for report in (dry, out):
+                    self.assertIn("Note: the colours were not changed: no colour could be read from the palette in BRAND.md", report)
+                    self.assertIn(said, report)
+                    self.assertIn(_palette.FORM, report)
+                self.assertEqual(self.read("src/styles/global.css"), T.starter_file("src/styles/global.css"))
+        # what the refusal says to do, done: the colours written in the form it names, under the palette's heading
+        shutil.rmtree(self.site)
+        T.make_starter_site(self.site, with_modules=self.modules)
+        self.brand_md(BAKERY_BRAND_MD)
+        self.assertEqual([code for code, _out in self.both_runs("--with-colours")], [0, 0])
+
+    def test_the_notes_are_in_the_words_too_when_the_tests_are_red_or_the_run_is_refused_not_in_the_json_alone(self):
+        partial = BAKERY_BRAND_MD.replace("| Muted | `#6b5744` |\n", "", 1)
+        self.assertNotEqual(partial, BAKERY_BRAND_MD)
+        self.brand_md(partial)
+        note = "Note: the colours were not changed: BRAND.md does not hold a complete palette (rows not filled in: Muted)"
+        code, out = self.intake(*self.logo(), command=RED)
+        self.assertEqual(code, 1, out)
+        self.assertIn(note, out.splitlines())
+        self.assertTrue(json.loads(self.intake(*self.logo("--json"), command=RED)[1])["notes"][0].startswith(note[len("Note: "):]))
+        self.put("brand-handoff", b"a file where the folder would go")
+        for code, out in self.both_runs(*self.logo()):
+            self.assertEqual(code, 2, out)
+            self.assertIn(note, out.splitlines())
+        os.remove(self.p("brand-handoff"))
+        r = self.drive(StoppedFromOutside.AT % ("_icons.build", "SIGTERM", "_icons.build"), *self.logo()) if os.name == "posix" else None
+        if r is not None:
+            self.assertEqual((r.returncode, r.stderr), (2, ""), r.stdout)
+            self.assertIn(note, r.stdout.splitlines())
 
 
 class NoSharp(SiteCase):

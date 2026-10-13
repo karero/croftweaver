@@ -15,7 +15,8 @@ small Node file that renders pictures runs later, with the site's own `sharp`. N
 model for judgement.
 
 Exit status: 0 all good, 1 a check failed, 2 it cannot judge or cannot go on (something is missing,
-unreadable or refused), 3 it needs the owner to decide something first.
+unreadable or refused; for `palette --css`, also something in the stylesheet that it could not take as it
+stands), 3 it needs the owner to decide something first.
 
 Usage:
   python3 brand_intake.py palette BRAND.md [--css src/styles/global.css] [--json]
@@ -51,6 +52,11 @@ def _read_text(path):
     return data.decode("utf-8", "replace")
 
 
+# What the install does with a palette that gives no Primary (_install.py says so in its report): said by the check
+# too, so that it is no surprise there.
+NO_PRIMARY = "the palette gives no Primary, so the install uses the light theme's Accent as the theme colour"
+
+
 def _theme_name(theme):
     return {"light": "Light theme", "dark": "Dark theme", "brand": "Brand table", "?": "No theme heading"}.get(theme, theme)
 
@@ -76,10 +82,12 @@ def cmd_palette(args, out):
     drift = _palette.drift(palette, css) if css else []
     disagree = _palette.dark_blocks_disagree(css) if css else []
     proposed = sorted(palette.proposed)
+    unread = css.problems if css else []  # what the stylesheet holds and this check could not take as it stands
+    no_primary = not palette.brand and "accent" in palette.light
 
     if bad:
         status, code = "fail", 1
-    elif missing or problems:
+    elif missing or problems or unread:
         status, code = "incomplete", 2
     elif proposed:
         status, code = "needs-confirmation", 3
@@ -100,8 +108,8 @@ def cmd_palette(args, out):
             "proposed": [{"theme": t, "row": k, "hex": palette.theme(t)[k]} for t, k in proposed],
             "drift": [{"theme": t, "row": k, "document": d, "stylesheet": c} for t, k, d, c in drift],
             "dark_blocks_disagree": [{"row": k, "dark_block": a, "media_block": b} for k, a, b in disagree],
-            "stylesheet_problems": [{"block": b, "variable": v, "message": m} for b, v, m in (css.problems if css else [])],
-            "unused_rows": [{"label": label, "colours": colours} for label, colours in palette.unused],
+            "stylesheet_problems": [{"block": b, "variable": v, "message": m} for b, v, m in unread],
+            "notes": [NO_PRIMARY] if no_primary else [],
         }, ensure_ascii=True))
         return code
 
@@ -116,19 +124,21 @@ def cmd_palette(args, out):
         by = {}
         for t, k in missing:
             by.setdefault(t, []).append(_palette.LABEL[k])
-        out.append("These rows are not filled in:")
+        # "not filled in" is said only where nothing else is wrong: a value that was not read shows its row here too
+        out.append("These rows have no value that this check could use:" if problems else "These rows are not filled in:")
         for t in _palette.THEMES:
             if t in by:
                 out.append("  %s: %s" % (_theme_name(t), ", ".join(by[t])))
-        out.append("The assistant can propose values for them; you confirm or change each one before anything is used.")
+        if problems:
+            out.append("Some of them may be filled in and only not read. First mend what is named below (\"Not read:\", \"Could not read a "
+                       "value:\") and check again: a value that was not read also shows its row as missing here. Rows that are still "
+                       "listed after that are the ones to fill in.")
+        else:
+            out.append("The assistant can propose values for them; you confirm or change each one before anything is used.")
     for problem in problems:  # said of one row's value, or of a whole table or line
         out.append(("Could not read a value: %s" if _palette.is_about_a_value(problem) else "Not read: %s") % problem[3])
-    if palette.unused:
-        out.append("These rows hold a colour, but under a name this check does not know, so they were not used:")
-        for label, colours in palette.unused:
-            out.append("  %s (%s)" % (label, " and ".join(colours)))
-        out.append("The names it reads are: %s, and Primary. If one of them is meant, write the row under that name."
-                   % ", ".join(_palette.LABEL[k] for k in _palette.KEYS))
+    if no_primary:
+        out.append("Note: %s." % NO_PRIMARY)
     if proposed:
         out.append("Proposed values, waiting for your confirmation (a proposal is shown, never written until you agree):")
         for t, k in proposed:
@@ -152,7 +162,7 @@ def cmd_palette(args, out):
             sides = ["%s in %s" % (v, _palette.BLOCK[block]) if v != _palette.MISSING else "not set in %s" % _palette.BLOCK[block]
                      for v, block in ((a, "dark"), (b, "dark_media"))]
             out.append("  %s: %s" % (_palette.LABEL[k], ", ".join(sides)))
-    for block, variable, m in (css.problems if css else []):
+    for block, variable, m in unread:
         out.append("Could not read the stylesheet: %s" % (m if variable is None else "%s in %s: %s" % (variable, _palette.BLOCK[block], m)))
     out.append("This check only reads files: nothing was written.")
     return code
@@ -182,8 +192,8 @@ def main(argv=None):
     i.add_argument("--input", help="the logo: an SVG file, a zip of SVG files, or a folder holding one of them")
     i.add_argument("--pick", help="which file of a zip is the mark")
     i.add_argument("--mono", help="which file of the zip is the mark's one-colour version")
-    i.add_argument("--with-colours", action="store_true", help="stop unless a complete palette is applied; with --input, also the answer that the palette should go in together with the logo")
-    i.add_argument("--keep-colours", action="store_true", help="leave the site's colours as they are, although BRAND.md holds a palette: the logo is installed against the colours the site has")
+    i.add_argument("--with-colours", action="store_true", help="stop unless a complete palette is applied; with --input or --with-logo, also the answer that the palette should go in together with the logo")
+    i.add_argument("--keep-colours", action="store_true", help="leave the site's colours as they are, although BRAND.md holds a palette: the logo is installed, or its icons drawn again, against the colours the site has")
     i.add_argument("--with-logo", action="store_true", help="stop unless a logo is applied; without --input, draw the icons again from the logo already installed")
     i.add_argument("--accept-colours", action="store_true", help="use the mark's colours even where the palette does not hold them")
     i.add_argument("--accept-low-contrast", default="", help="light, dark or both: use the mark although it falls under 3 to 1 on that theme's background")

@@ -3,8 +3,8 @@
 
   The assistant fills every [BRACKET] and gives the owner ONLY the text between the two marker
   comments, to paste where she likes (references/where-to-paste.md). It writes the prompt in the
-  language the owner writes in, EXCEPT the three table headings and the row names: those stay in
-  English exactly as below, because the check reads those words. It names no tool and says nothing
+  language the owner writes in, EXCEPT the three table headings, the header row `| Token | Hex |`
+  and the row names: those stay in English exactly as below, because the check reads those words. It names no tool and says nothing
   about what a tool can or cannot do.
 
   Where the slots come from:
@@ -32,7 +32,7 @@ The feel I want
 - A brand or place whose colours I admire: [A BRAND OR PLACE]
 
 How to answer
-Give each palette a short name and one sentence on the mood it carries. Then give each palette as exactly the three tables below, one table per heading, with every `#...` replaced by a hex colour. Keep the three headings and the row names exactly as they are, in English, so that I can copy the tables of the palette I choose and paste them somewhere else.
+Give each palette a short name and one sentence on the mood it carries. Then give each palette as exactly the three tables below, one table per heading, with every `#...` replaced by a hex colour. Keep the three headings, the header row of each table (`| Token | Hex |`) and the row names exactly as they are, in English, so that I can copy the tables of the palette I choose and paste them somewhere else.
 
 ### Brand (fixed, theme-independent)
 | Token | Hex | Use |

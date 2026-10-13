@@ -3,6 +3,7 @@ is this colour really visible) is made here, in plain Python, so it can be teste
 These tests build PNGs by hand, with every filter type a real encoder uses.
 """
 
+import struct
 import unittest
 import zlib
 
@@ -161,6 +162,28 @@ class Decoding(unittest.TestCase):
                     self.assertEqual(cm.exception.code, "png-bad")
                     self.assertIn("two headers", str(cm.exception))
         self.assertEqual(_png.decode(good)[:2], (2, 2))
+
+    def test_a_second_palette_or_list_of_see_through_colours_and_one_after_the_picture_data_are_refused(self):
+        # like the second header: the last one was taken, another reader may take the first, and then the two see two pictures
+        head = T._chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 3, 0, 0, 0))
+        red, blue, data, end = T._chunk(b"PLTE", b"\xff\x00\x00"), T._chunk(b"PLTE", b"\x00\x00\xff"), T._chunk(b"IDAT", zlib.compress(b"\x00\x00")), T._chunk(b"IEND", b"")
+        solid, clear = T._chunk(b"tRNS", b"\xff"), T._chunk(b"tRNS", b"\x00")
+        good = _png.SIGNATURE + head + red + solid + data + end
+        self.assertEqual(_png.decode(good), (1, 1, b"\xff\x00\x00\xff"))
+        for name, chunks, said in (("two palettes", (head, red, blue, data, end), "it has two palettes"),
+                                   ("the same palette twice", (head, red, red, data, end), "it has two palettes"),
+                                   ("a palette after the picture data", (head, red, data, blue, end), "it has two palettes"),
+                                   ("its only palette after the picture data", (head, data, red, end), "its palette comes after the picture data"),
+                                   ("two lists of see-through colours", (head, red, solid, clear, data, end), "it has two lists of see-through colours"),
+                                   ("a list of see-through colours after the picture data", (head, red, data, clear, end), "its list of see-through colours comes after the picture data")):
+            with self.subTest(name=name):
+                with self.assertRaises(Refusal) as cm:
+                    _png.decode(_png.SIGNATURE + b"".join(chunks))
+                self.assertEqual(cm.exception.code, "png-bad")
+                self.assertIn(said, str(cm.exception))
+        # the near-miss: other chunks may stand anywhere and as often as they like
+        text = T._chunk(b"tEXt", b"a\x00b")
+        self.assertEqual(_png.decode(_png.SIGNATURE + head + text + red + text + solid + data + text + text + end), (1, 1, b"\xff\x00\x00\xff"))
 
     def test_a_picture_of_no_width_or_no_height_is_said_to_be_that_not_far_too_large(self):
         for w, h in ((0, 2), (2, 0), (0, 0)):

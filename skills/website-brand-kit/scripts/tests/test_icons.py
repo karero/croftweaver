@@ -111,6 +111,15 @@ class ChoosingABackground(unittest.TestCase):
             self.choose(colours)
         self.assertEqual(cm.exception.code, "no-background")
         self.assertIn("one-colour", str(cm.exception))
+        # what helps, said the right way round: the question is asked BECAUSE the colours are far apart in lightness
+        for part in ("both a very light and a very dark colour", "Give the one-colour version of the mark", "whose colours are closer to one another in lightness"):
+            self.assertIn(part, str(cm.exception))
+        self.assertNotIn("further apart", str(cm.exception))
+        with self.assertRaises(Ask) as cm:
+            self.choose(colours, mono=colours)
+        self.assertIn("(the one-colour version you gave does not serve either)", str(cm.exception))
+        self.assertNotIn("Give the one-colour version", str(cm.exception), "she gave one: only the other way out is left")
+        self.assertIn("closer to one another in lightness", str(cm.exception))
         c = self.choose(colours, mono=[self.brand])
         self.assertEqual((c.version, c.background), ("mono", self.cream))
 
@@ -447,9 +456,23 @@ class WhatTheRenderShows(WithTheSitesSharp):
                 '<rect x="120" y="100" width="9" height="9" fill="#000000"/>')
         with self.assertRaises(Ask) as cm:
             self.build(('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">%s</svg>' % body).encode())
-        self.assertIn("What stands in the way is #fff8ee: the file paints with it", str(cm.exception))
+        self.assertIn("What stands in the way is #fff8ee: the file paints with it, although it hardly shows when the mark is drawn", str(cm.exception))
         self.assertNotIn("#000000", str(cm.exception))
-        self.assertIn("A version of the mark without it would do too.", str(cm.exception))
+        self.assertIn("A version of that file without it would do too.", str(cm.exception))
+        # two colours that both stand in the way are "them", and with a one-colour version in play the file is named
+        body = ('<rect width="64" height="64" fill="#6b2c0b"/><rect x="100" y="100" width="9" height="9" fill="#fff8ee"/>'
+                '<rect x="120" y="100" width="9" height="9" fill="#fffdf5"/>')
+        two = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">%s</svg>' % body).encode()
+        with self.assertRaises(Ask) as cm:
+            self.build(two)
+        self.assertIn("What stands in the way is #fff8ee and #fffdf5: the file paints with them, although they hardly show when the mark is drawn", str(cm.exception))
+        self.assertIn("A version of that file without them would do too.", str(cm.exception))
+        grey3 = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="20" fill="#767676"/>'
+                 b'<rect y="22" width="64" height="20" fill="#cccccc"/><rect y="44" width="64" height="20" fill="#444444"/></svg>')
+        for colour, mono, where in ((two, grey3, "the colour file paints with them"), (grey3, two, "the one-colour file paints with them")):
+            with self.assertRaises(Ask) as cm:
+                self.build(colour, mono=mono)
+            self.assertIn("What stands in the way is #fff8ee and #fffdf5: " + where, str(cm.exception))
         # where the colours that show have no background either, nothing is blamed on a colour that hardly shows
         grey3 = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="20" fill="#767676"/>'
                  b'<rect y="22" width="64" height="20" fill="#cccccc"/><rect y="44" width="64" height="20" fill="#444444"/>'

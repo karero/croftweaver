@@ -72,16 +72,18 @@ class Renderer(object):
             raise Refusal("no-node", NO_NODE) from None
         except subprocess.TimeoutExpired:
             raise Refusal("render-failed", "The renderer took more than %d seconds and was stopped." % timeout) from None
-        lines = [l for l in r.stdout.splitlines() if l.strip()]
+        # a line ends at a line feed and nowhere else: splitlines() would also cut an answer in two at a
+        # U+2028 or a U+0085 inside one of its texts
+        lines = [l for l in r.stdout.split("\n") if l.strip()]
         try:
             answer = json.loads(lines[-1])
             if not isinstance(answer, dict):
                 raise ValueError("the answer is not a JSON object")
         except (IndexError, ValueError, RecursionError):  # no line, not JSON, or JSON nested too deep to read
-            first = (r.stderr.strip().splitlines() or ["no answer"])[0][:200]
+            first = ([l for l in r.stderr.strip().split("\n") if l.strip()] or ["no answer"])[0].strip()[:200]
             raise Refusal("render-failed", "The renderer did not answer (%s)." % first) from None
-        if not answer.get("ok"):
-            code, msg = answer.get("error", "render-failed"), answer.get("message", "")
+        if answer.get("ok") is not True:  # true itself: JSON's NaN, a 1 or a word would pass for it otherwise
+            code, msg = answer.get("error", "render-failed"), str(answer.get("message", ""))[:300]
             if code == "sharp-missing":
                 raise Refusal("sharp-missing", SHARP_MISSING % msg)
             if code == "bad-job":

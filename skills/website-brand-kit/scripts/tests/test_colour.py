@@ -136,7 +136,7 @@ class Refused(unittest.TestCase):
     def test_digits_and_letters_of_another_script_are_not_read_as_plain_ones(self):
         # \d took any script's digits and float() read them: rgb(١٢٣,0,0) was #7b0000, a colour nobody can see in the file.
         # The Kelvin sign lower-cases to a plain k, so "blac" + that sign was black.
-        for text in ("rgb(١٢٣,0,0)", "rgb(１２, 0, 0)", "rgb(1२3 0 0)", "hsl(٢٤٠ 30% 12%)", "hsl(240 ３0% 12%)", "oklch(0.5 0.0٤ 280)", "rgb(1 2 3 / ١)",
+        for text in ("rgb(١٢٣,0,0)", "rgb(１２, 0, 0)", "rgb(1२3 0 0)", "hsl(٢٤٠ 30% 12%)", "hsl(240 ３0% 12%)", "oklch(0.5 0.0٤ 280)", "rgb(1 2 3 / ١)", "rgb(1e१ 0 0)",
                      "rgb(1e٢ 0 0)", "blac\u212a", "dar\u212ablue", "#١٢٣٤٥٦", "#１２３", "ＲＧＢ(1,2,3)", "réd"):
             with self.subTest(text=text):
                 refused(self, text, "colour-unreadable")
@@ -157,37 +157,93 @@ class Refused(unittest.TestCase):
                 with self.assertRaises(Refusal):
                     _colour.parse_colour(text)
 
-    def test_a_number_so_large_that_the_arithmetic_overflows_is_refused_not_a_crash_and_not_a_colour(self):
-        # each of these is a finite number as written; it is the unit conversion that overflows
-        for text in ("hsl(1e308turn 50% 50%)", "hsl(1e308rad 50% 50%)", "hsl(-1e308turn 50% 50%)", "hsla(1e307turn, 50%, 50%, 1)",
-                     "rgb(1e308% 0 0)", "rgb(0 -1e308% 0)", "rgba(0, 0, 1e307%, 1)",
-                     "oklch(0.5 0.1 1e308turn)", "oklch(0.5 0.1 1e308rad)", "oklch(0.5 0 -1e308turn)"):
+    def test_an_exponent_has_one_or_two_digits_and_more_is_no_number(self):
+        # the site's renderer does not take 0e309 for a number and draws black; these once overflowed the arithmetic too
+        for text in ("rgb(0e309,0,0)", "rgb(1e100, 0, 0)", "hsl(1e308turn 50% 50%)", "hsl(1e308rad 50% 50%)", "hsla(1e307turn, 50%, 50%, 1)", "rgb(1e308% 0% 0%)",
+                     "rgba(0%, 0%, 1e307%, 1)", "oklch(0.5 0.1 1e308turn)", "oklch(0.5 1e308 0)", "oklch(1e200% 0 0)", "rgb(1e+100 0 0)", "rgb(1e-100 0 0)", "rgb(255e000,0,0)"):
             with self.subTest(text=text):
                 refused(self, text, "colour-unreadable")
-                with self.assertRaises(Refusal) as cm:
-                    _colour.parse_colour(text)
-                self.assertIn("too large", str(cm.exception))
-
-    def test_an_oklch_lightness_or_chroma_far_beyond_any_screen_is_outside_the_gamut_not_a_crash(self):
-        for text in ("oklch(0.5 1e308 0)", "oklch(0.5 1e200 0)", "oklch(0.5 1e308% 0)", "oklch(1e308 0 0)", "oklch(1e200% 0 0)",
-                     "oklch(-1e308 0 0)", "oklch(0.5 1e308 270)", "oklch(1 1e308 0.5turn)"):
+        for text, want in (("rgb(2.55e2, 0, 0)", "#ff0000"), ("rgb(255e0,0,0)", "#ff0000"), ("rgb(255e-0 0 0)", "#ff0000"), ("rgb(1E2 0 0)", "#640000"), ("rgb(25500e-02 0 0)", "#ff0000"),
+                           ("rgb(1e99, 0, 0)", "#ff0000"), ("rgb(1e-99, 0, 0)", "#000000"), ("rgb(.5e3, 0, 0)", "#ff0000")):
             with self.subTest(text=text):
-                refused(self, text, "colour-gamut")
+                self.assertEqual(_colour.parse_colour(text), want)
 
-    def test_no_chroma_however_large_and_no_hue_ever_gets_past_the_gamut_check_as_a_colour(self):
-        # around 1e102 the cubes are still finite and their sums are not (inf - inf is not a number):
-        # whichever way the arithmetic gives up, the answer is the named refusal
-        for exponent in range(3, 309, 5):
+    def test_the_largest_numbers_it_reads_end_in_a_colour_or_a_named_refusal_never_in_a_crash(self):
+        # with two digits in the exponent nothing overflows: a chroma or lightness far beyond any screen is outside the gamut
+        for exponent in range(3, 100, 4):
             for hue in (0, 30, 90, 142, 180, 264, 270, 359):
-                for lightness in ("0", "0.5", "1"):
+                for lightness in ("0", "0.5", "1", "9e99", "-9e99"):
                     text = "oklch(%s 1e%d %d)" % (lightness, exponent, hue)
                     with self.subTest(text=text):
                         refused(self, text, "colour-gamut")
+        for text in ("oklch(9e99 0 0)", "oklch(9e99% 9e99% 1000turn)", "oklch(-9e99 0 0)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-gamut")
+        for text, want in (("rgb(9e99% -9e99% 0%)", "#ff0000"), ("rgb(-9e99, 9e99, 0)", "#00ff00"), ("hsl(0 9e99% 50%)", "#ff0000"), ("hsl(0 100% 9e99%)", "#ffffff"),
+                           ("hsl(0 -9e99% 50%)", "#808080")):
+            with self.subTest(text=text):
+                self.assertEqual(_colour.parse_colour(text), want)
+
+    def test_a_hue_of_more_than_a_thousand_turns_is_not_read(self):
+        # the site's renderer draws hsl(1e9 100% 50%) as another colour than CSS has it, and hsl(1e39 ...) black (test_paint.py holds the pictures)
+        for text in ("hsl(1e9 100% 50%)", "hsl(360001 100% 50%)", "hsl(-360001deg 100% 50%)", "hsl(1000.1turn 100% 50%)", "hsl(6284rad 100% 50%)", "hsl(400001grad 100% 50%)",
+                     "hsl(9e99turn 50% 50%)", "hsl(-9.9e99rad 50% 50%)", "oklch(0.5 0.1 1e9)", "oklch(0.5 0.1 9e99turn)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+                self.assertIn("more than a thousand turns", _unreadable_message(text))
+        for text, want in (("hsl(360000 100% 50%)", "#ff0000"), ("hsl(-360000 100% 50%)", "#ff0000"), ("hsl(1000turn 100% 50%)", "#ff0000"), ("hsl(36030 100% 50%)", "#ff8000"),
+                           ("hsl(100.25turn 100% 50%)", "#80ff00"), ("hsl(400000grad 100% 50%)", "#ff0000")):
+            with self.subTest(text=text):
+                self.assertEqual(_colour.parse_colour(text), want)
+
+    def test_hsl_needs_a_percent_sign_on_its_saturation_and_its_lightness(self):
+        # the site's renderer draws black for hsl(0,100,50): the hex this check would give is not what shows (test_paint.py holds the picture)
+        for text in ("hsl(0,100,50)", "hsl(0 100 50)", "hsl(0,100%,50)", "hsl(0 100 50%)", "hsla(0, 100, 50, 1)", "hsl(0deg 1 0.5)", "hsl(0 100% 50 / 1)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+                self.assertIn("each need a % sign", _unreadable_message(text))
+        for text in ("hsl(0,100%,50%)", "hsl(0 100% 50%)", "hsl(0deg, 100%, 50%)", "hsl(360 100% 50%)", "hsl(0 150% 50%)", "hsl(0 100.0% 5e1%)"):
+            with self.subTest(text=text):
+                self.assertEqual(_colour.parse_colour(text), "#ff0000")
+
+    def test_an_alpha_of_one_is_read_after_a_comma_or_in_the_space_form_after_a_slash_and_nowhere_else(self):
+        # rgb(255,0,0/1): commas and a slash. The site's renderer draws black for it.
+        for text in ("rgb(255,0,0/1)", "rgb(255,0,0/100%)", "hsl(0,100%,50%/1)", "rgba(255, 0, 0 / 1)", "hsla(0, 100%, 50% / 100%)", "rgb(255,0,0,1/1)", "rgb(255 0 0 1)", "rgb(255 0 0, 1)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+        self.assertIn("commas and a slash", _unreadable_message("rgb(255,0,0/1)"))
+        for text in ("rgba(255,0,0,1)", "rgba(255, 0, 0, 100%)", "rgb(255,0,0,1.0)", "hsla(0,100%,50%,1)", "hsl(0, 100%, 50%, 100%)", "rgb(255 0 0 / 1)", "rgb(255 0 0/100%)",
+                     "rgba(255 0 0 / 1.0)", "hsl(0 100% 50% / 1)", "hsla(0 100% 50% / 100%)", "rgb(100% 0% 0% / 1)", "rgba(255,0,0)"):
+            with self.subTest(text=text):
+                self.assertEqual(_colour.parse_colour(text), "#ff0000")
+        # and an alpha below one is see-through in the forms that are read
+        for text in ("rgba(255,0,0,0.99)", "rgb(255 0 0 / 99%)", "hsl(0 100% 50% / 0)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-alpha")
+
+    def test_oklch_is_read_for_a_palette_and_refused_for_the_paint_of_a_file_the_renderer_draws(self):
+        # the site's renderer does not read oklch() and draws black: a mark's own paint is not taken from it. A palette's value
+        # is only turned into hex and written, and a stylesheet is read by a browser, so there it is read as CSS has it.
+        self.assertEqual(_colour.parse_colour("oklch(0.5 0.15 30)"), "#a8372a")
+        for text in ("oklch(0.5 0.15 30)", "OKLCH(50% 0 0)", "oklch(0.7 0.4 150)", "oklch(0 0 0 / 1)"):
+            with self.subTest(text=text):
+                with self.assertRaises(Refusal) as cm:
+                    _colour.parse_colour(text, drawn=True)
+                self.assertEqual(cm.exception.code, "colour-unreadable")
+                for part in ("The mark paints with %r" % text, "does not read oklch()", "would paint black", "written as #rrggbb"):
+                    self.assertIn(part, str(cm.exception))
+        # what currentColor stands for is held to the same rule; everything else is read the same for both
+        with self.assertRaises(Refusal):
+            _colour.parse_colour("currentColor", current="oklch(0.5 0.15 30)", drawn=True)
+        self.assertEqual(_colour.parse_colour("currentColor", current="oklch(0.5 0.15 30)"), "#a8372a")
+        for text in ("#B4531A", "rgb(180, 83, 26)", "hsl(22.2078 74.7573% 40.3922%)", "tomato", "rgba(180,83,26,1)"):
+            with self.subTest(text=text):
+                self.assertEqual(_colour.parse_colour(text, drawn=True), _colour.parse_colour(text))
 
     def test_an_oklch_chroma_below_zero_is_zero_as_css_has_it_not_the_opposite_hue(self):
         # CSS Color 4 clamps a negative chroma to 0 when the value is parsed: a browser shows a grey.
         # Read as it stood, -0.1 at hue 210 came out as +0.1 at hue 30, a brown the owner never saw.
-        for text in ("oklch(0.5 -0.1 210)", "oklch(0.5 -0.1 30)", "oklch(50% -25% 30)", "oklch(0.5 -1e308 30)"):
+        for text in ("oklch(0.5 -0.1 210)", "oklch(0.5 -0.1 30)", "oklch(50% -25% 30)", "oklch(0.5 -1e99 30)"):
             with self.subTest(text=text):
                 self.assertEqual(_colour.parse_colour(text), _colour.parse_colour("oklch(0.5 0 0)"))
         self.assertEqual(_colour.parse_colour("oklch(0.5 0.1 30)"), "#944b40", "a chroma above zero is left alone")

@@ -250,6 +250,97 @@ class CurrentColourAsTheSitesRendererDrawsIt(unittest.TestCase):
                 self.assertEqual(_png.at(_png.decode(T.read_bytes(os.path.join(tmp, "a.png"))), 8, 8), (0, 0, 255, 255))
 
 
+class EachSpellingOfAColourAsTheSitesRendererDrawsIt(unittest.TestCase):
+    """The evidence for which spellings of a colour `_colour.parse_colour` reads. A mark is drawn by the site's
+    renderer from the file as it came (the icons), and this check lists and writes out ITS reading of each paint.
+    So every spelling it reads for a paint must be one the renderer draws as that very colour, and the spellings
+    it refuses are refused because the renderer draws something else (black, mostly), or because it draws some
+    of a family of spellings and not others."""
+
+    def drawn(self, fills):
+        """What the renderer paints for each fill: [(r, g, b, a)]. One picture, a square for each fill."""
+        import os
+        import tempfile
+        import _png
+        import _render
+        T.require_sharp(self)
+        n = len(fills)
+        squares = "".join('<rect x="%d" width="8" height="8" fill="%s"/>' % (8 * i, fill) for i, fill in enumerate(fills))
+        raw = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d 8">%s</svg>' % (8 * n, squares)
+        with tempfile.TemporaryDirectory() as tmp:
+            renderer = _render.Renderer(T.make_site(tmp, T.node_modules_dir()))
+            renderer.render(raw, (0, 0, 8 * n, 8), [{"name": "a", "file": "a.png", "size": 8 * n, "scale": 1.0, "background": None}], tmp)
+            picture = _png.decode(T.read_bytes(os.path.join(tmp, "a.png")))
+        self.assertEqual(picture[0], 8 * n)
+        return [_png.at(picture, 8 * i + 4, picture[1] // 2) for i in range(n)]
+
+    def rgba(self, hex_colour):
+        return tuple(int(hex_colour[i:i + 2], 16) for i in (1, 3, 5)) + (255,)
+
+    READ = ("#b4531a", "#B4531A", "#f00", "#ff0000ff", "#f00f", "red", "RED", "rgb(255,0,0)", "RGB(255, 0, 0)", "rgb(255 0 0)", "rgb( 255 , 0 , 0 )", "rgb(100%,0%,0%)",
+            "rgb(100% 0% 0%)", "rgb(50%,0%,0%)", "rgb(300,0,0)", "rgb(-5,0,255)", "rgb(255.0,0,0)", "rgb(+255,0,0)", "rgb(.5e3,0,0)", "rgb(2.55e2,0,0)", "rgb(255e-0,0,0)",
+            "rgb(1e2,0,0)", "rgb(127.5 0 0)",
+            # an alpha of one: after a comma, and in the space form after a slash
+            "rgba(255,0,0,1)", "rgba(255, 0, 0, 100%)", "rgba(255,0,0,1.0)", "rgb(255,0,0,1)", "rgba(255,0,0)", "hsla(0,100%,50%,1)", "hsla(0, 100%, 50%, 100%)", "hsl(0,100%,50%,1)",
+            "rgb(255 0 0 / 1)", "rgb(255 0 0 / 100%)", "rgb(255 0 0/1)", "rgba(255 0 0 / 1)", "rgb(100% 0% 0% / 1)", "hsl(0 100% 50% / 1)", "hsl(0 100% 50% / 100%)", "hsla(0 100% 50% / 1)",
+            # hsl with its percent signs, in each unit of angle
+            "hsl(0,100%,50%)", "hsl(0 100% 50%)", "hsl(0deg, 100%, 50%)", "hsl(0.5turn 100% 50%)", "hsl(3.14159rad 100% 50%)", "hsl(200grad 100% 50%)", "hsl(-360, 100%, 50%)",
+            "hsl(720 100% 50%)", "hsl(0 150% 50%)", "hsl(22.2078 74.7573% 40.3922%)", "hsl(36030 100% 50%)", "hsl(100.25turn 100% 50%)", "hsl(12345.678 80% 40%)",
+            "hsl(1e5 100% 50%)", "hsl(-359999 100% 50%)", "hsl(999.9turn 100% 50%)",
+            # numbers far beyond the range of a colour are cut to it, by both
+            "rgb(1e99, 0, 255)", "rgb(-1e99 0 255)", "rgb(1e99%,0%,100%)", "hsl(0 1e99% 50%)", "hsl(0 100% 1e99%)", "hsl(0 -1e99% 50%)", "hsl(1e-99 100% 50%)")
+
+    def test_every_spelling_it_reads_for_a_paint_is_drawn_as_the_colour_it_reads(self):
+        read = [_colour.parse_colour(fill, drawn=True) for fill in self.READ]
+        for fill, hex_colour, pixel in zip(self.READ, read, self.drawn(self.READ)):
+            with self.subTest(fill=fill):
+                self.assertEqual(pixel, self.rgba(hex_colour), "the check reads %s" % hex_colour)
+
+    def test_each_spelling_it_refuses_and_what_the_renderer_draws_for_it(self):
+        black = (0, 0, 0, 255)
+        refused_and_drawn = (
+            # percentages and plain numbers mixed: the comma form is drawn black, the space form as a browser draws it.
+            # Every mixed form is refused, so that nobody has to know which of the two a file holds.
+            ("rgb(50%, 0, 0)", black), ("rgb(255,0%,0)", black), ("rgb(50% 0 0)", (128, 0, 0, 255)), ("rgb(10% 20 30 / 1)", (26, 20, 30, 255)),
+            # no digit after the point: not a number to the renderer
+            ("rgb(255.,0,0)", black), ("rgb(255. 0 0)", black), ("hsl(0.,100%,50%)", black),
+            # three digits in an exponent: the renderer reads these inside a colour. They are refused because the tool has one
+            # grammar for a number, the SVG check's, which takes one or two digits there.
+            ("rgb(255e000,0,0)", (255, 0, 0, 255)), ("rgb(2.55e002,0,0)", (255, 0, 0, 255)), ("rgb(0e309,0,255)", (0, 0, 255, 255)),
+            # a hue of more than a thousand turns: CSS has hsl(1e9 100% 50%) as #aa00ff
+            ("hsl(1e9 100% 50%)", (68, 0, 255, 255)), ("hsl(1e39 100% 50%)", black), ("hsl(1e20 100% 50%)", (255, 0, 0, 255)),
+            # hsl without its percent signs
+            ("hsl(0,100,50)", black), ("hsl(0 100 50)", black), ("hsl(0,100%,50)", black),
+            # an alpha after a slash in the comma form
+            ("rgb(255,0,0/1)", black), ("rgb(255,0,0/100%)", black), ("hsl(0,100%,50%/1)", black),
+            # commas and spaces mixed
+            ("rgb(255 , 0 0)", black), ("rgb(255,0 0)", black),
+        )
+        fills = [fill for fill, _pixel in refused_and_drawn]
+        for (fill, expected), pixel in zip(refused_and_drawn, self.drawn(fills)):
+            with self.subTest(fill=fill):
+                with self.assertRaises(Refusal) as cm:
+                    _colour.parse_colour(fill, drawn=True)
+                self.assertEqual(cm.exception.code, "colour-unreadable")
+                with self.assertRaises(Refusal):
+                    _colour.parse_colour(fill)  # and for a palette too: one colour has one hex, whoever asks
+                self.assertEqual(pixel, expected)
+
+    def test_the_renderer_does_not_read_oklch_so_a_marks_paint_is_not_taken_from_it(self):
+        # CSS reads these as the three primaries and a mid-tone; the renderer paints every one of them black
+        fills = ("oklch(0.6279553606145516 0.25768330773615683 29.2338851923426)", "oklch(62.8% 0.2577 29.23)", "oklch(0.8664 0.2948 142.5)", "oklch(0.5 0.15 30)", "oklch(0.628 0.2577 29.23 / 1)")
+        for fill, pixel in zip(fills, self.drawn(fills)):
+            with self.subTest(fill=fill):
+                self.assertEqual(pixel, (0, 0, 0, 255))
+                self.assertNotEqual(_colour.parse_colour(fill), "#000000", "as CSS has it, and as a palette's value, it is a colour")
+                refused(self, '<path fill="%s" %s/>' % (fill, D), "colour-unreadable")
+                refused(self, '<g color="%s"><path fill="currentColor" %s/></g>' % (fill, D), "colour-unreadable")
+        # a palette table and a stylesheet are not drawn by that renderer: there oklch() is read
+        p = _palette.parse_tables("### Light theme\n| Token | Hex |\n|---|---|\n| Accent | oklch(0.5 0.15 30) |\n")
+        self.assertEqual((p.light, p.problems), ({"accent": "#a8372a"}, []))
+        self.assertEqual(_palette.read_css(":root { --accent: oklch(0.5 0.15 30); }").light, {"accent": "#a8372a"})
+
+
 class Refusals(unittest.TestCase):
     def test_gradients_and_patterns_in_the_paint(self):
         for fill in ("url(#g)", "url('#p')", "URL( #g )"):
@@ -263,9 +354,11 @@ class Refusals(unittest.TestCase):
                 refused(self, '<path %s %s/>' % (attr, D), "colour-alpha")
 
     def test_full_opacity_is_not_alpha_and_leaves_no_trace(self):
-        clean = _svg.clean_svg(svg('<path opacity="1" fill-opacity="100%%" fill="#111111" %s/>' % D))
+        clean = _svg.clean_svg(svg('<path opacity="1" fill-opacity="1.0" stroke-opacity="1e0" fill="#111111" %s/>' % D))
         self.assertEqual(clean.colours, ["#111111"])
         self.assertNotIn("opacity", clean.text)
+        # (an opacity written as a percentage no longer gets as far as this: the SVG check refuses a % there)
+        self.assertTrue(_paint._is_one("100%") and _paint._is_one(" 1.00 ") and not _paint._is_one("99.9%"))
 
     def test_alpha_on_a_group_is_alpha(self):
         refused(self, '<g opacity="0.5"><path fill="#111111" %s/></g>' % D, "colour-alpha")

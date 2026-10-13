@@ -10,7 +10,7 @@ does in general.
 ## If you use Claude
 
 - **The palette:** if the assistant you are talking to right now is Claude, ask it for the three palettes
-  here. It gives each as the colour tables, and the contrast check runs on them like on any palette you paste.
+  here, each as the three colour tables. The contrast check runs on them like on any palette you paste.
 - **The logo:** paste the logo prompt into a conversation with Claude and ask it to design the logo. Name the
   task rather than looking for a particular menu or web address.
 - **The download package:** once you have picked your favourite, paste the handover words into the same
@@ -21,5 +21,5 @@ does in general.
 ## If you use another tool
 
 - Paste the prompt into any tool that can **draw a vector (an SVG file)**. If the tool cannot, ask it to say so
-  rather than hand you a picture; then ask whoever made your logo for an SVG, or try a tool that can.
+  rather than hand you a picture; then try a tool that can.
 - A tool is added to this file only after someone has tried it and seen what it returns.

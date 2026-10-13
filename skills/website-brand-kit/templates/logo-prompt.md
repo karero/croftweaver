@@ -36,7 +36,7 @@ What each variation must be
 1. A simple vector mark, drawn as an SVG file. If you cannot draw a vector (SVG), tell me so now instead of making a picture; I will get an SVG from someone who can.
 2. Flat shapes only, each one written out in the file: no gradients, no shadows, no transparency, no blur, no masks, no reused shapes (`<use>`), no photos, no embedded pictures.
 3. No text of any kind, and no letters that depend on a font. If letters are wanted, draw them as shapes.
-4. A square drawing with a viewBox, with the mark filling most of the square.
+4. A square drawing with a viewBox, with the mark filling most of the square. Write every size and position as a plain number (no mm, pt or em) and every colour as a hex value such as `#1a2b3c`.
 5. It must still read at 16 pixels wide, so keep it bold and simple, with few parts.
 6. Each variation comes in two versions: one in the colours above, and one in a single colour (the brand colour) only.
 7. Number the variations 1 to 5 and name each file with its number.

@@ -41,6 +41,7 @@ class Palette(unittest.TestCase):
     def setUp(self):
         self.text = skill_file("templates", "palette-prompt.md")
         self.prompt = prompt_of(self.text)
+        self.tables = self.prompt[self.prompt.index("### Brand"):self.prompt.index("Rules for every palette")]
 
     def test_scenario_4_it_asks_for_three_palettes_and_carries_the_business_and_her_likes(self):
         self.assertIn("THREE different colour palettes", self.prompt)
@@ -49,7 +50,8 @@ class Palette(unittest.TestCase):
 
     def test_the_table_it_asks_for_is_the_table_the_check_reads(self):
         # filled in with any colour, the prompt's own tables are a complete palette: nothing missing, nothing ignored
-        filled = self.prompt.replace("`#...`", "`#123456`")
+        # what a tool hands back, and she pastes: the three tables, not the prompt's own sentences
+        filled = self.tables.replace("`#...`", "`#123456`")
         p = _palette.parse_tables(filled)
         self.assertEqual(p.missing(), [])
         self.assertEqual(p.problems, [])
@@ -72,11 +74,14 @@ class Palette(unittest.TestCase):
 
     def test_the_headings_and_row_names_stay_in_english_whatever_language_the_prompt_is_written_in(self):
         # the check reads those words: with "Helles Design" for "Light theme" every row counts as missing
-        self.assertIn("Keep the three headings and the row names exactly as they are, in English", self.prompt)
-        self.assertIn("EXCEPT the three table headings and the row names", self.text)
+        self.assertIn("Keep the three headings, the header row of each table (`| Token | Hex |`) and the row names exactly as they are, in English", self.prompt)
+        self.assertIn("EXCEPT the three table headings, the header row `| Token | Hex |`", self.text)
         self.assertIn("**Translate the sentences, never the table:**", skill_file("SKILL.md"))
-        german = self.prompt.replace("`#...`", "`#123456`").replace("### Light theme", "### Helles Design").replace("### Dark theme", "### Dunkles Design")
+        german = self.tables.replace("`#...`", "`#123456`").replace("### Light theme", "### Helles Design").replace("### Dark theme", "### Dunkles Design")
         self.assertEqual(len(_palette.parse_tables(german).missing()), 18)
+        # and a header row in another language loses the table too
+        hexwert = _palette.parse_tables(self.tables.replace("`#...`", "`#123456`").replace("| Token | Hex |", "| Token | Hexwert |"))
+        self.assertEqual(len(hexwert.missing()), 18)
 
     def test_the_prompt_states_the_threshold_the_check_holds_it_to(self):
         self.assertIn("at least 4.5 to 1", self.prompt)
@@ -105,7 +110,7 @@ class Logo(unittest.TestCase):
         self.assertIn("do not put a background shape behind the mark", sits)
 
     def test_it_asks_for_what_the_intake_can_read_and_nothing_it_refuses(self):
-        for clause in ("each one written out", "no masks", "no reused shapes"):
+        for clause in ("each one written out", "no masks", "no reused shapes", "as a plain number (no mm, pt or em)", "as a hex value"):
             self.assertIn(clause, self.prompt)
 
     def test_scenario_5_what_each_variation_must_be(self):
@@ -178,9 +183,9 @@ class TheSkillFile(unittest.TestCase):
         source = T.read(brand_intake.__file__)
         for flag in set(re.findall(r"(?<![\w-])--[a-z][a-z-]+", self.text)):
             with self.subTest(flag=flag):
-                if flag == "--include":
-                    continue
-                self.assertIn('"%s"' % flag, source)
+                if flag == "--include" or flag in _palette.VARIABLE.values():
+                    continue  # npm's own flag; the stylesheet's variables
+                self.assertIn('"%s"' % flag, source, "SKILL.md names a flag the script does not have")
         for command in re.findall(r"brand_intake\.py (\w+)", self.text):
             self.assertIn(command, ("palette", "install"))
 
@@ -190,6 +195,20 @@ class TheSkillFile(unittest.TestCase):
         self.assertGreaterEqual(len(calls), 5)
         for prefix in calls:
             self.assertEqual(prefix, '"$KIT/scripts/', prefix)
+
+    def test_the_starters_colours_it_names_are_the_starters_colours(self):
+        # §0 gives them for a logo made before the project exists; a starter that changes its colours
+        # must change this sentence too
+        css = _palette.read_css(T.starter_file("src/styles/global.css"))
+        row = [l for l in self.text.splitlines() if l.startswith("| no colours | a logo only |")]
+        self.assertEqual(len(row), 1)
+        self.assertEqual(css.problems, [])
+        self.assertIn("`%s` and `%s`, on a white page and on `%s`" % (css.brand, css.light["accent"], css.dark["bg"]), row[0])
+        self.assertEqual(css.light["bg"], "#ffffff")
+
+    def test_the_header_row_is_named_wherever_the_words_that_stay_english_are(self):
+        self.assertIn("the header\nrow `| Token | Hex |` and the row names stay in English", self.text)
+        self.assertIn("the header row `| Token | Hex |`", skill_file("templates", "palette-prompt.md"))
 
     def test_the_seven_files_it_lists_are_the_seven_the_intake_makes(self):
         # the same seven test_icons.TheSevenFiles holds the intake to

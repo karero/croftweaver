@@ -3,7 +3,8 @@
 The check is read-only, runs at step 2b (before any project exists) and again in the intake before
 anything is written. These tests run the real script as a program, on files in a folder, and look at
 what it prints, its exit status, and that every file in the folder is byte for byte what it was.
-Exit status: 0 every pair passes, 1 a pair fails, 2 it cannot judge (a row is missing or unreadable),
+Exit status: 0 every pair passes, 1 a pair fails, 2 it cannot judge (a row is missing or unreadable,
+something was not read, or the stylesheet given with --css holds something it could not take as it stands),
 3 only the owner's confirmation of proposed values is outstanding.
 """
 
@@ -17,7 +18,7 @@ import unittest
 
 import _testutil as T
 import _palette
-from test_palette import EVALS, HEAD, LABELS, STARTER_DARK, STARTER_LIGHT, brand_md, plain, table
+from test_palette import EVALS, HEAD, LABELS, STARTER_DARK, STARTER_LIGHT, brand_md, filled_guide, pasted, plain, table
 
 SCRIPT = os.path.join(T.SCRIPTS, "brand_intake.py")
 
@@ -290,20 +291,126 @@ class PaletteCommand(unittest.TestCase):
         self.assertEqual(len(shown), 1, out)
         self.assertIn("taken from the Brand table's Accent; give the dark theme its own", shown[0])
 
-    def test_rows_under_a_name_it_does_not_know_are_shown_so_a_missing_row_explains_itself(self):
+    def test_rows_under_a_name_it_does_not_know_are_named_with_their_lines_so_a_missing_row_explains_itself(self):
         md = brand_md().replace("| Heading | `#16162a` |", "| Headings: | `#16162a` |").replace("| Surface (cards) | `#ffffff` |", "| Surface / cards | `#ffffff` |")
         path = self.write(md)
         code, out, _ = run("palette", path)
         self.assertEqual(code, 2, out)
-        self.assertIn("Light theme: Heading, Surface (cards)", out, "the rows are missing, as before")
-        self.assertIn("not used", out)
-        self.assertIn("  Headings: (#16162a)", out)
-        self.assertIn("  Surface / cards (#ffffff)", out)
-        self.assertIn("Soft background", [l for l in out.splitlines() if l.startswith("The names it reads")][0])
+        self.assertIn("  Light theme: Heading, Surface (cards)", out, "the rows are missing, as before")
+        said = [l for l in out.splitlines() if l.startswith("Not read: ")]
+        self.assertEqual(len(said), 2, out)
+        self.assertIn('Not read: Line 13, "| Headings: | `#16162a` |", holds a colour (#16162a) that was not read.', said[0])
+        self.assertIn("the names are Primary under `### Brand`, and Heading, Body (ink), Muted, Accent, Link, Hairline, Background, Soft background, Surface (cards) under the two themes", said[0])
+        self.assertIn('Not read: Line 21, "| Surface / cards | `#ffffff` |", holds a colour (#ffffff) that was not read either', said[1])
         data = json.loads(run("palette", path, "--json")[1])
-        self.assertEqual(data["unused_rows"], [{"label": "Headings:", "colours": ["#16162a"]}, {"label": "Surface / cards", "colours": ["#ffffff"]}])
+        self.assertEqual([(x["theme"], x["row"], x["code"]) for x in data["problems"]], [("?", None, "palette-colour-not-read")] * 2)
+        self.assertNotIn("unused_rows", data, "said once, as a problem")
         # a palette with no such row says nothing of the kind
-        self.assertNotIn("not used", run("palette", self.write(brand_md(), name="plain.md"))[1])
+        self.assertNotIn("Not read", run("palette", self.write(brand_md(), name="plain.md"))[1])
+
+    # --- what the review of the rebuilt reader found (round 3) --------------------------------------
+
+    def test_rows_are_called_not_filled_in_only_where_nothing_was_left_unread(self):
+        # reversed columns under the light heading: its rows were printed as "not filled in" with the offer to propose values
+        offer, mend = "The assistant can propose values for them", "First mend what is named below"
+        reversed_ = brand_md(light={}).replace("### Light theme\n" + HEAD, "### Light theme\n| Hex | Token |\n|---|---|\n| `#16162a` | Heading |\n| #5a5a72 | Muted |\n")
+        cases = (("columns the wrong way round", reversed_, 2), ("a list under the heading", brand_md(light={}) + "\n### Light theme\n- Heading: #16162a\n- Muted: #5a5a72\n", 2),
+                 ("a value that could not be read", brand_md(light=dict(STARTER_LIGHT, muted="rgba(90, 90, 114, 0.9)")), 0),
+                 ("a table under a label", brand_md(light={}) + "\n**Light theme**\n" + plain(STARTER_LIGHT), 1),
+                 ("the word where it is not read as a mark", brand_md(dark={}) + "\nThe dark theme is still a proposal.\n", 1))
+        for name, md, not_read in cases:
+            with self.subTest(name=name):
+                code, out, _ = run("palette", self.write(md))
+                self.assertEqual(code, 2, out)
+                self.assertIn("These rows have no value that this check could use:", out)
+                self.assertIn(mend, out)
+                self.assertNotIn("not filled in:", out)
+                self.assertNotIn(offer, out, "a value that was not read is not one to propose anew")
+                self.assertEqual(len([l for l in out.splitlines() if l.startswith("Not read: ")]), not_read, out)
+                self.assertLess(out.index(mend), out.index("Not read: " if not_read else "Could not read a value: "), "the sentence points down at what it names")
+        # the other side: rows that are only missing are not filled in, and values can be proposed for them
+        for name, md in (("no dark theme", brand_md(dark={})), ("the template", T.read(T.BRAND_TEMPLATE)), ("two rows", T.read(os.path.join(EVALS, "own-colours.md")))):
+            with self.subTest(name=name):
+                code, out, _ = run("palette", self.write(md))
+                self.assertEqual(code, 2, out)
+                self.assertIn("These rows are not filled in:", out)
+                self.assertIn(offer, out)
+                self.assertNotIn(mend, out)
+
+    def test_the_word_proposed_outside_a_mark_never_ends_in_a_pass(self):
+        # each of these ended with 0: the dark values went in as confirmed. (A pasted answer: all of it is the palette.)
+        full = pasted()
+        for name, md in (("the plural in the heading's brackets", full.replace("### Dark theme", "### Dark theme (proposals)")),
+                         ("a sentence under the heading above", "## Colours\n\nThe dark values below are proposed; the owner has not confirmed them.\n\n" + full),
+                         ("a sentence before the first heading", "Here are three proposed palettes.\n\n" + full), ("a heading beside the three", "### Proposed dark values\n" + full),
+                         ("a row under another name", full.replace("### Dark theme\n| Token | Hex |\n|---|---|\n", "### Dark theme\n| Token | Hex |\n|---|---|\n| Status | proposed |\n")),
+                         ("a mark beside a placeholder", full + "| Muted | #[…] | proposed |\n"), ("a closing sentence", full + "\nTell me if I should change any of the proposed colours.\n")):
+            with self.subTest(name=name):
+                code, out, _ = run("palette", self.write(md))
+                self.assertIn(code, (2, 3), out)
+                self.assertEqual(code == 3, "(proposals)" in md, "only the heading's own mark makes them proposals; everywhere else the word is named")
+                self.assertIn("30 of 30", out)
+                if code == 2:
+                    self.assertTrue([l for l in out.splitlines() if l.startswith(("Not read: Line", "Could not read a value: Muted (dark theme): the row is marked as a proposal"))], out)
+        # inside a comment the word is not looked at, as the assistant's own notes may hold it
+        self.assertEqual(run("palette", self.write("<!-- colours proposed on 3 October, confirmed on the 5th -->\n" + full))[0], 0)
+
+    def test_a_brand_guide_filled_in_as_its_template_asks_passes_and_its_palette_in_the_wrong_place_does_not(self):
+        # the shadow's rgba(), the share cards' colours and "proposed" in the logo's history are no business of the palette's
+        guide = filled_guide()
+        for needle in ("rgba(58, 29, 10, 0.06)", "#2a1f17 at the top", "was proposed by the studio", "## Colour palette"):
+            self.assertIn(needle, guide)
+        path = self.write(guide)
+        before = snapshot(self.dir)
+        code, out, err = run("palette", path)
+        self.assertEqual((code, err), (0, ""), out)
+        self.assertEqual(out.splitlines()[1:], ["30 of 30 pairs pass.", "This check only reads files: nothing was written."])
+        data = json.loads(run("palette", path, "--json")[1])
+        self.assertEqual((data["status"], data["problems"], data["missing"], data["proposed"]), ("pass", [], [], []))
+        self.assertEqual(snapshot(self.dir), before)
+        # the three tables moved under another heading of the guide: named, never "no palette here" without a word
+        start, end = guide.index("### Brand (fixed"), guide.index("## Typography")
+        code, out, _ = run("palette", self.write(guide[:start] + guide[end:] + "\n## Appendix\n\n" + guide[start:end], name="moved.md"))
+        self.assertEqual(code, 2, out)
+        said = [l for l in out.splitlines() if l.startswith("Not read: Line ")]
+        self.assertEqual(len(said), 3, out)
+        self.assertIn('the heading "### Brand (fixed, theme-independent)", has a table under it and stands outside the part of this text that the check reads', said[0])
+        self.assertIn('the part under the heading "## Colour palette"', said[0])
+        self.assertIn("No row of a palette was found where this check looks for one.", out)
+        # the heading twice: nothing is read, and that is said
+        code, out, _ = run("palette", self.write(guide + "\n## Colour palette\n", name="twice.md"))
+        self.assertEqual(code, 2, out)
+        self.assertIn('Not read: The heading "## Colour palette" stands 2 times in this text', out)
+        self.assertIn("No pair could be checked.", out)
+
+    def test_a_pasted_answer_with_its_own_palette_heading_is_read_like_a_guide(self):
+        # the sentence above the heading stands outside the section and is not named; the values carry no mark and are read.
+        # Intended (rule 0). With no such heading the same sentence stops the check, and so does a mark inside the section.
+        tables = pasted()
+        self.assertEqual(run("palette", "-", stdin="Here are three proposed palettes.\n\n## Colour palette\n\n" + tables)[0], 0)
+        self.assertEqual(run("palette", "-", stdin="Here are three proposed palettes.\n\n" + tables)[0], 2)
+        self.assertEqual(run("palette", "-", stdin="## Colour palette\n\nHere are three proposed palettes.\n\n" + tables)[0], 2)
+        self.assertEqual(run("palette", "-", stdin="Here you are.\n\n## Colour palette\n\n" + tables.replace("### Dark theme", "### Dark theme (proposed)"))[0], 3)
+
+    def test_a_file_that_starts_with_a_byte_order_mark_is_read_from_its_first_line(self):
+        md = brand_md().partition("### Brand")
+        code, out, _ = run("palette", self.write("\ufeff" + md[1] + md[2]))
+        self.assertEqual(code, 0, out)
+        self.assertIn("30 of 30", out)
+        self.assertNotIn("Note: ", out, "the Primary under the first heading is read")
+
+    def test_a_palette_without_a_primary_says_what_the_install_does_about_it(self):
+        # it passed with not a word, and the install then used the accent as the theme colour
+        note = "Note: the palette gives no Primary, so the install uses the light theme's Accent as the theme colour."
+        path = self.write(brand_md().partition("### Light theme")[1] + brand_md().partition("### Light theme")[2])
+        code, out, _ = run("palette", path)
+        self.assertEqual(code, 0, out)
+        self.assertIn(note, out.splitlines())
+        self.assertEqual(json.loads(run("palette", path, "--json")[1])["notes"], [note[6:-1]])
+        # with a Primary there is no such line, and neither where there is no Accent to use
+        self.assertNotIn("Note: ", run("palette", self.write(brand_md(), name="full.md"))[1])
+        self.assertEqual(json.loads(run("palette", self.write(brand_md(), name="full.md"), "--json")[1])["notes"], [])
+        self.assertNotIn("Note: ", run("palette", T.BRAND_TEMPLATE)[1])
 
     def test_a_stylesheet_that_starts_with_an_import_is_still_compared(self):
         # the light block went unread behind the @import, and the drift in it went unsaid
@@ -323,7 +430,9 @@ class PaletteCommand(unittest.TestCase):
         self.assertEqual(len(said), 1, out)
         self.assertIn('no :root[data-theme="dark"]', said[0])
         self.assertIn("dark theme", said[0])
-        self.assertEqual(code, 0, "the palette itself passes; this command reads, it does not judge the stylesheet")
+        # (it ended with 0, "pass", on a stylesheet it had not read in full)
+        self.assertEqual(code, 2, "the palette passes, and the comparison with the stylesheet could not be made in full")
+        self.assertIn("30 of 30", out)
         code, out, _ = run("palette", path, "--css", self.css(whole.replace("--muted: #5a5a72;", "--muted: rgba(90, 90, 114, 0.8);", 1), name="alpha.css"))
         said = [l for l in out.splitlines() if l.startswith("Could not read the stylesheet")]
         self.assertEqual(len(said), 1, out)
@@ -331,7 +440,12 @@ class PaletteCommand(unittest.TestCase):
             self.assertIn(part, said[0])
         data = json.loads(run("palette", path, "--css", self.css(no_dark), "--json")[1])
         self.assertEqual([(x["block"], x["variable"]) for x in data["stylesheet_problems"]], [("dark", None)])
-        self.assertEqual(json.loads(run("palette", path, "--json")[1])["stylesheet_problems"], [])
+        self.assertEqual((data["status"], data["exit"]), ("incomplete", 2))
+        data = json.loads(run("palette", path, "--json")[1])
+        self.assertEqual((data["stylesheet_problems"], data["status"], data["exit"]), ([], "pass", 0), "without --css the stylesheet is not looked at")
+        # a failing pair is still the first thing said: 1, not 2
+        bad = self.write(brand_md(dark=dict(STARTER_DARK, muted="#5c5f80")), name="bad.md")
+        self.assertEqual(run("palette", bad, "--css", os.path.join(self.dir, "edited.css"))[0], 1)
 
     def test_a_stylesheet_whose_braces_do_not_pair_up_is_refused_in_plain_words(self):
         whole = T.read(os.path.join(self.dir, "global.css"))
@@ -390,7 +504,9 @@ class PaletteCommand(unittest.TestCase):
                 self.assertEqual((code, err), (2, ""), out)
                 said = [l for l in out.splitlines() if l.startswith("No row of a palette was found")]
                 self.assertEqual(len(said), 1, out)
-                for part in ("`### Brand`", "`### Light theme`", "`### Dark theme`", "`| Token | Hex |`", "Soft background", "The assistant can write your colours in that form"):
+                for part in ("`### Brand`", "`### Light theme`", "`### Dark theme`", "`| Token | Hex |`", "Soft background", "The assistant can write your colours in that form",
+                             "In a file that holds more than the palette (a BRAND.md), the three tables stand under the heading `## Colour palette`",
+                             "where a text has that heading, this check looks only at the part under it"):
                     self.assertIn(part, said[0])
                 self.assertNotIn("These rows are not filled in", out, "eighteen rows that are not there are not eighteen rows to fill in")
                 self.assertIn("nothing was written", out.lower())
@@ -399,7 +515,7 @@ class PaletteCommand(unittest.TestCase):
                 self.assertEqual((data["status"], data["exit"], data["form"]), ("incomplete", 2, _palette.FORM))
         code, out, _ = run("palette", self.write(another))
         self.assertIn('Not read: A table with colours for Background and Primary stands under the heading "### Light Mode".', out)
-        self.assertIn("  Text (#16162a)", out)
+        self.assertIn('Not read: Line 7, "| Text | Near Black | `#16162A` |", holds a colour (#16162A) that was not read.', out)
         # the template has its rows, not filled in: that is said as before, and the form is not explained to it
         self.assertNotIn("No row of a palette", run("palette", T.BRAND_TEMPLATE)[1])
         self.assertEqual(json.loads(run("palette", self.write(brand_md(), name="full.md"), "--json")[1])["form"], "")
@@ -461,13 +577,14 @@ class PaletteCommand(unittest.TestCase):
     def test_a_stylesheet_block_in_another_shape_or_twice_or_with_important_is_said_not_read_around(self):
         whole = T.read(os.path.join(self.dir, "global.css"))
         path = self.write(brand_md())
-        for name, text, parts in (("a selector list", whole.replace(":root {", ":root, html {", 1), ("The rule `:root, html { ... }`", "written in another way than the starter writes it")),
+        for name, text, parts in (("a selector list", whole.replace(":root {", ":root, html {", 1), ("The stylesheet has no :root { ... } block", "The rule `:root, html { ... }`", "written in another way than the starter writes it")),
+                                  ("a colour set on body", whole + "\nbody { --bg: #eeeeee; }\n", ("--bg is also set in the rule `body { ... }`", "the page may show another colour there than the block's")),
                                   ("a second block", whole + "\n:root { --accent: #c0392b; }\n", ("The stylesheet has 2 blocks", "the light theme's colours", "a later one sets --accent")),
                                   ("important", whole.replace("--bg: #ffffff;", "--bg: #ffffff !important;", 1), ("--bg in the :root block: The colour '#ffffff !important' is not one this check can read",)),
                                   ("a colour set twice", whole.replace("  --bg: #ffffff;", "  --bg: #ffffff;\n  --bg: #fafafa;", 1), ("--bg in the :root block: It is set 2 times in this block (#ffffff and #fafafa)",))):
             with self.subTest(name=name):
                 code, out, err = run("palette", path, "--css", self.css(text))
-                self.assertEqual((code, err), (0, ""), out)
+                self.assertEqual((code, err), (2, ""), out)
                 said = [l for l in out.splitlines() if l.startswith("Could not read the stylesheet: ")]
                 self.assertEqual(len(said), 1, out)
                 for part in parts:

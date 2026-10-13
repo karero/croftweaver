@@ -26,9 +26,11 @@ _RASTER = (
 
 RASTER_MESSAGE = (
     "This looks like a %s file. This version of the logo step reads only an SVG: it cannot use a PNG, JPG or PDF. "
-    "You have two ways forward: ask whoever made the logo for an SVG of it, or have the assistant make you a new logo "
+    "You have two ways forward: ask whoever made the logo for an SVG of it, or let the assistant help you get a new logo "
     "(it writes the question to put to a design tool, then checks what comes back)."
 )
+UNKNOWN_FILE = "This is not a file this check reads. Give it an SVG file, SVG code pasted as text, or a zip of SVG files."
+MAX_BYTES = _zipin.MAX_ZIP_BYTES  # of anything handed over: nothing larger is looked at, whatever it is
 
 
 class Source(object):
@@ -50,6 +52,11 @@ _BLANK = re.compile(r"[\s\ufeff]*")
 # The first element's whole name, as XML reads one: everything up to a blank, a slash or the end
 # of the tag, whatever letters it is written in. Its prefix, if it has one, ends at the last colon.
 _FIRST = re.compile(r"<(?:!doctype[ \t\r\n]+)?([^ \t\r\n/>!?][^ \t\r\n/>]*)", re.I)
+_SVG_TAG = re.compile("<svg", re.I | re.ASCII)  # searched as it stands: no second copy of the text in small letters
+# What a web page, or a piece copied out of one, starts with. Any other first element is some other
+# kind of file (a feed, a stray <foo/>), and is not called a page.
+_PAGE = frozenset(("html head body div span p a img section header footer main nav article aside figure picture table ul ol li "
+                   "h1 h2 h3 h4 h5 h6 form button script style link meta title br hr iframe").split())
 _BMP_INFO_SIZES = (12, 40, 52, 56, 64, 108, 124)
 
 
@@ -101,13 +108,15 @@ def _kind(data):
         raise Refusal("raster-logo", RASTER_MESSAGE % "WebP")
     if data.startswith((b"PK\x03\x04", b"PK\x05\x06")):
         return "zip"
+    if len(data) > MAX_BYTES:  # before anything is made of it: a text is copied once to be read at all
+        raise Refusal("too-large", "The file is larger than %d MB, far more than a logo needs." % (MAX_BYTES // 1048576))
     text = _text(data)
     first = _FIRST.match(text, _first_element(text))
     name = first.group(1).lower() if first else ""
     if name == "svg" or name.endswith(":svg"):  # the root's own name, whatever prefix it carries
         return "svg"
-    if first or "<svg" in text.lower():
-        # another element comes first, or a drawing stands somewhere inside: a page, or a piece of one.
+    if name.rsplit(":", 1)[-1] in _PAGE or _SVG_TAG.search(text):
+        # a page's own element comes first, or a drawing stands somewhere inside: a page, or a piece of one.
         # Nothing of it is read beyond this.
         raise Refusal("web-page", _svg.WEB_PAGE)
     return None
@@ -117,11 +126,21 @@ def load(data):
     """Say what the bytes are. Raises Refusal for a picture or anything it does not read."""
     kind = _kind(data)
     if kind is None:
+        raise Refusal("unknown-file", UNKNOWN_FILE)
+    return Source(kind, data, _zipin.open_zip(data) if kind == "zip" else None)
+
+
+def _member(package, name):
+    """One .svg entry of a package, held to what its bytes ARE like any other file: a page or a
+    picture that was only named .svg is refused as that, with its way out."""
+    data = package.read_svg(name)
+    if _kind(data) != "svg":
         raise Refusal(
             "unknown-file",
-            "This is not a file this check reads. Give it an SVG file, SVG code pasted as text, or a zip of SVG files.",
+            "The file %r in the package is not an SVG drawing, whatever its name says. Pick another file, or ask for "
+            "a package of SVG files." % name[:80],
         )
-    return Source(kind, data, _zipin.open_zip(data) if kind == "zip" else None)
+    return data
 
 
 def mark(source, pick=None, mono=None):
@@ -146,7 +165,7 @@ def mark(source, pick=None, mono=None):
         raise Refusal(
             "zip-no-svg",
             "There is no SVG file in the package. This version reads only an SVG: ask whoever made the logo for one, "
-            "or ask the assistant for a new logo.",
+            "or let the assistant help you get a new logo.",
         )
     if pick is None:
         if len(names) > 1:
@@ -157,4 +176,4 @@ def mark(source, pick=None, mono=None):
                 names,
             )
         pick = names[0]
-    return Mark(pkg.read_svg(pick), pkg.read_svg(mono) if mono else None, "svg", pick)
+    return Mark(_member(pkg, pick), _member(pkg, mono) if mono else None, "svg", pick)

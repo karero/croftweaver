@@ -63,10 +63,23 @@ def choose_background(colour_sets, candidates):
     raise Ask(
         "no-background",
         "No background keeps every colour of the mark at 3 to 1 or better against it, so the app icons would lose part "
-        "of the mark%s. Give the one-colour version of the mark (the file that holds the mark in a single colour), "
-        "or ask the tool for a version whose colours are further apart in lightness." % (
-            " (the one-colour version you gave does not serve either)" if have_mono else ""),
+        "of the mark%s. That happens when the mark holds both a very light and a very dark colour: whatever stands "
+        "behind them hides one of the two. %s" % (
+            " (the one-colour version you gave does not serve either)" if have_mono else "",
+            "Ask the tool for a version of the mark whose colours are closer to one another in lightness (all of them dark, "
+            "or all of them light)." if have_mono else
+            "Give the one-colour version of the mark (the file that holds the mark in a single colour), or ask the tool for a "
+            "version whose colours are closer to one another in lightness (all of them dark, or all of them light)."),
     )
+
+
+def _blocked(colour_sets, hardly, candidates):
+    """(the version that would have had a background, its colours that keep it from that background), or None."""
+    try:
+        choice = choose_background([(v, [c for c in colours if c not in hardly.get(v, ())]) for v, colours in colour_sets], candidates)
+    except Ask:
+        return None
+    return choice.version, [c for c in hardly.get(choice.version, ()) if _colour.ratio(c, choice.background) < NEED]
 
 
 def in_the_way(colour_sets, hardly, candidates):
@@ -74,11 +87,8 @@ def in_the_way(colour_sets, hardly, candidates):
     version to its colours that hardly show. Taken away, the colours that do show have a background (the first
     that serves, as choose_background picks it); the ones named are those of that version that fall under 3 to 1
     on it, and no other. None when the colours that show have no background either."""
-    try:
-        choice = choose_background([(v, [c for c in colours if c not in hardly.get(v, ())]) for v, colours in colour_sets], candidates)
-    except Ask:
-        return None
-    return [c for c in hardly.get(choice.version, ()) if _colour.ratio(c, choice.background) < NEED]
+    found = _blocked(colour_sets, hardly, candidates)
+    return found[1] if found else None
 
 
 def ico_from_png(png):
@@ -154,12 +164,16 @@ def build(clean, mono, palette, renderer, workdir):
         choice = choose_background(sets, backgrounds(palette))
     except Ask as ask:
         # would the colours that show have had a background? Then say which colour stood in the way of it, and only that one
-        blocking = in_the_way(sets, hardly, backgrounds(palette))
+        version, blocking = _blocked(sets, hardly, backgrounds(palette)) or (None, None)
         if not blocking:
             raise
-        raise Ask(ask.code, "%s What stands in the way is %s: the file paints with it, although it hardly shows when the mark is "
-                            "drawn (it is covered by another shape, too thin, or outside the box). A version of the mark without "
-                            "%s would do too." % (ask, " and ".join(blocking), "it" if len(blocking) == 1 else "them")) from None
+        one = len(blocking) == 1
+        # the colours named are those of ONE file, the one that would have had a background: with two files, say which
+        where = "the file" if mono is None else "the one-colour file" if version == "mono" else "the colour file"
+        raise Ask(ask.code, "%s What stands in the way is %s: %s paints with %s, although %s hardly %s when the mark is drawn "
+                            "(covered by another shape, too thin, or outside the box). A version of that file without %s would "
+                            "do too." % (ask, " and ".join(blocking), where, "it" if one else "them", "it" if one else "they",
+                                         "shows" if one else "show", "it" if one else "them")) from None
     chosen = mono if choice.version == "mono" else clean
     if choice.version == "mono":
         notes.append("no background keeps every colour of the colour version at 3 to 1, so the app icons (apple-touch and "

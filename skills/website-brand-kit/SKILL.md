@@ -30,7 +30,8 @@ hard for someone who is not a designer. This skill helps in two halves.
 
 **The governing rule: never silent.** A palette or a logo that cannot be used is named
 and sent back to the owner. Nothing is recoloured, nudged or fixed up to make a check
-pass. A value you propose is shown with its ratios and used only after she confirms it.
+pass. A value you propose is shown to her (a text colour with its ratios) and used only
+after she confirms it.
 
 Optional, and never part of the default build.
 
@@ -68,7 +69,8 @@ What each answer starts:
 | a logo | colours | §2, §3, then §6 (the icons come from her logo) |
 | colours | a logo | the check of her colours (§3 step 3), §4, §5, then §6 (her primary and accent colours go into the logo prompt) |
 | neither | both | §2 to §6 |
-| no colours | a logo only | §4, §5, then §6 with `--keep-colours`: the site keeps its colours, and the logo prompt carries those (on a new site the starter's: `#000000` and `#2b50e0`, on a white page and on `#0a0b1e`) |
+| no colours | a logo only | §4, §5, then §6 with `--keep-colours`: the site keeps its colours, and the logo prompt carries those. Read them from the site's `src/styles/global.css` (`--brand`, `--accent`, and `--bg` of the light and of the dark block); before the project exists they are the starter's: `#000000` and `#2b50e0`, on a white page and on `#0a0b1e`. The starter's black cannot be seen on its dark page, so give the tool only the accent to draw with there, or tell her she will be asked about the dark theme at the intake |
+| one part (her own logo, or her own colours) | no help with the other | the check of her colours (§3 step 3) if it is colours, then §6 for the part she has; the other part stays as the site has it |
 | a part she lacks | no help with it | that part is left out; nothing more is said |
 
 Her own logo must be an SVG file (§7 says what to tell her if it is not). Her own
@@ -88,17 +90,22 @@ Under `~/.claude/skills/website-brand-kit/`, or the site's own
   about what a tool can do; keep it that way when you fill them.
 - `scripts/brand_intake.py`: the checks and the install. Python 3.9 or newer, standard
   library only. Use `python3`, or `py -3` or `python` where that is what the machine
-  has. The logo steps also need Node and the site's own `sharp` (§6).
+  has. The logo steps also need Node and the site's own `sharp` (§7 says what to do
+  when it is missing).
 
-The commands below write `$KIT` for this skill's own folder, one of the two above. Set
-it once, or write the full path each time. The script is not in the site's `scripts/`
-folder.
+The commands below write `$KIT` for this skill's own folder: the folder this `SKILL.md`
+is in, wherever the skills are installed for the assistant in use. A shell may forget a
+variable between two commands, so set it in the same command line (`KIT=/full/path
+python3 "$KIT/scripts/brand_intake.py" …`) or write the full path each time. The script
+is not in the site's `scripts/` folder; "No such file or directory" from Python means
+the path is wrong, not that the intake refused.
 
 Give the owner only the text between `<!-- prompt:start -->` and `<!-- prompt:end -->`,
 filled in and written in her language. A slot she gave no answer for is left out
 with its line, never invented. **Translate the sentences, never the table:** the three
-headings (`Brand …`, `Light theme`, `Dark theme`) and the row names stay in English
-exactly as the template has them, because the check reads those words.
+headings (`Brand (fixed, theme-independent)`, `Light theme`, `Dark theme`), the header
+row `| Token | Hex |` and the row names stay in English exactly as the template has
+them, because the check reads those words.
 
 Before the project exists there is no site folder. Anything you save in that time (a
 pasted palette, pasted SVG code) goes into the folder you are working in, the one the
@@ -120,12 +127,25 @@ answered. "Surprise me" is an answer.
    propose the three palettes right in the conversation instead.
 3. **Check it.** This is also where an owner's own colours come in: write them as the
    same three tables first. The check reads that one form and nothing else:
-   - each table under its own heading line, exactly `### Brand …`, `### Light theme` or
-     `### Dark theme` (a remark in round brackets may follow, nothing else);
+   - each table under its own heading line: `### Brand` (or `### Brand (fixed,
+     theme-independent)`), `### Light theme`, `### Dark theme`. Nothing else may stand in
+     the heading but the mark `(proposed)` in round brackets; `### Brand colours` or
+     `### Light theme:` is not read;
    - a header row `| Token | Hex |` and its `|---|---|` line;
    - one row per name, the names as the template has them, one colour in the second
-     cell (backticks around it are fine), any note in a third cell;
-   - no line of text between two tables of one theme.
+     cell (backticks around it are fine), any note in a third cell. A note must not
+     hold a second colour written as a hex or as `rgb()`: two colours in one row are
+     named, and neither is taken;
+   - no line of text between two tables of one theme, and no bold label such as
+     `**Dark theme**` between a heading and its table;
+   - in a `BRAND.md`, the three tables stand under the heading `## Colour palette`, as
+     the template has them. Where a text has that heading the check looks only at the
+     part under it, so a colour in the guide's other sections (a shadow, the share
+     cards) does not concern it. A pasted answer needs no such heading: all of it is
+     the palette.
+
+   Inside the palette nothing is passed over: a colour written as a hex or as `rgb()`
+   anywhere but in the second cell of a named row is named as not read.
 
    What a tool hands back in another shape (bold labels for headings, one table with a
    Light and a Dark column, a column of colour names) you copy into this form, value
@@ -144,7 +164,7 @@ answered. "Surprise me" is an answer.
 |---|---|---|
 | 0 | every pair passes | go on |
 | 1 | a pair fails | read her the failing pairs as printed (both colours, the ratio, the 4.5 it needs). She asks the tool for a fix or picks another palette; for her own colours you may propose a near value, marked `(proposed)` as below. Never change a value yourself to make it pass |
-| 2 | rows are missing, a value cannot be read, or something was not read at all (lines that start "Not read:" say what and why) | for missing rows see below; anything not read you put into the form above and check again |
+| 2 | rows are missing, a value cannot be read, or something was not read at all (lines that start "Not read:" say what and why) | first mend everything named "Not read:" or "Could not read a value:" (put it into the form above) and check again: a table that was not read also makes its rows show as missing. Only rows still missing after that are missing; for those see below |
 | 3 | values are still marked `(proposed)` | she has not confirmed them yet |
 
 **Missing rows.** An owner's own palette often has no dark theme, no link colour or
@@ -157,8 +177,8 @@ carries a mark. Write the mark in English, exactly
 `(proposed)`, whatever language you speak with her: the check looks for that word, in
 a row's value cell or a later cell of that row. In round brackets after one of the
 three headings (`### Dark theme (proposed)`) it marks every row under that heading.
-Anywhere else under those headings the word is named as not read, so do not use it in
-a sentence there.
+Anywhere else in the palette the word (also "proposal", "proposals") is named as not
+read and the check does not pass, so do not use it in a sentence there.
 
 ## 4. The logo
 
@@ -208,11 +228,12 @@ These are documents. Nothing else is written before the site's tests are green.
 
 ## 6. The intake
 
-Run it from the site's folder, after `npm run build && npm test` is green. Start with
-`--dry-run`: it makes every check that can be made without writing, lists the files it
-would write and each colour in the stylesheet that would change, and writes nothing. A
-dry run also ends with exit 0; it says "Dry run", and it has not made the share cards
-or run the site's tests. Only the real run does those.
+Run it from the site's folder, after `npm run build && npm test` is green and that
+state is committed, so that git holds the site as it was. Start with `--dry-run`, with
+the same flags as the real run that follows: it makes every check that can be made
+without writing, lists the files it would write and each colour that would change, and
+writes nothing. A dry run also ends with exit 0; it says "Dry run", and it has not made
+the share cards or run the site's tests. Only the real run does those.
 
 ```bash
 python3 "$KIT/scripts/brand_intake.py" install --site . --dry-run
@@ -225,15 +246,17 @@ The real run builds the site and runs its tests, and runs them once more if they
 red, so give the command a long timeout (ten minutes or more) and do not stop it. If
 it is ended in the ordinary way all the same (an interrupt, a terminal that closes, a
 timeout that asks the process to end), it puts everything back and says so. If it is
-killed outright it can do neither: then look at `git status` in the site and put the
-changed files back with git before anything else.
+killed outright it can do neither: then `git status` in the site shows what it left.
+Put back only what the intake writes (the files in the table below, the share cards
+under `public/images/og`, and `.gitignore`), delete the new icon files and
+`brand-handoff/` if the run made them, and leave everything else alone.
 
 It decides what to do from what it finds, and does only that:
 
 | Part | Runs when | Writes |
 |---|---|---|
 | Colours | `BRAND.md` (in the site, or `docs/`) holds a complete palette. Together with `--input` it asks first (see the questions below) unless you pass `--with-colours` or `--keep-colours` | the three colour places in `src/styles/global.css` (light, dark, and the dark values for visitors without JavaScript), `SITE.themeColor`, the manifest's two colours, the share cards' colours |
-| Logo | `--input` is given; or `--with-logo` (the icons are drawn again from the installed `public/favicon.svg`); or the colours run and `public/favicon.svg` is a mark this tool installed earlier (it starts with the tool's own comment line) | the seven icon files under `public/` (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `images/logo.png`), `COMPANY.logo` in `src/config.ts`, the share cards' emblem, and `brand-handoff/` (a copy of her package and `preview.png`), which it adds to `.gitignore` |
+| Logo | `--input` is given; or `--with-logo` (the icons are drawn again from the installed `public/favicon.svg`); or the colours run and `public/favicon.svg` is a mark this tool installed earlier (it starts with the tool's own comment line) | the seven icon files under `public/` (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `images/logo.png`), `COMPANY.logo` in `src/config.ts`, and `brand-handoff/` (a copy of her package and `preview.png`), which it adds to `.gitignore` |
 | Either | | the share cards are made again; then the site's own tests run |
 
 `--input` takes an SVG file, a zip of SVG files, or a folder holding one of those. It
@@ -247,7 +270,7 @@ It does not write `BRAND.md` or the README. After a logo install, fill `BRAND.md
 Logo section yourself (the file is `public/favicon.svg`; the "On dark backgrounds"
 line says which version to use there). Add to the decision-interview answers in the
 README: `public/favicon.svg` as the master a later run starts from, and each question
-she answered with her answer (§6's table), so that a later run can pass the same flags
+she answered with her answer (the questions table below), so that a later run can pass the same flags
 for the same mark and palette without asking her again.
 
 **What the exit status means:**
@@ -256,7 +279,7 @@ for the same mark and palette without asking her again.
 |---|---|---|
 | 0 | done, and the site's tests pass afterwards (or a dry run: it says so) | read her the report; after a run that installed a logo, show her `brand-handoff/preview.png` |
 | 1 | a contrast pair failed (nothing was written), or the site's tests went red after the install (every file was put back) | read her the failing pair or the failing check. The report says whether the same tests pass with the install taken out again |
-| 2 | refused: a file it will not use, something missing or unreadable, nothing to do, or the run was stopped from outside | read her the reason; it says what to do next. The last line says "Nothing was written" or "Everything it had written was put back" |
+| 2 | refused: a file it will not use, something missing or unreadable, nothing to do, or the run was stopped from outside | read her the reason; it says what to do next. One line says "Nothing was written" or "Everything it had written was put back"; a list of the colours that would have changed may follow it |
 | 3 | it needs her decision; nothing was written | put each question to her, in her language; run again with her answers |
 
 **The questions it asks (exit 3), and how her answer goes back in:**
@@ -270,7 +293,7 @@ for the same mark and palette without asking her again.
 | the mark falls under 3 to 1 against a theme's background | `--accept-low-contrast light`, `dark` or `both`, or she chooses another mark; note in `BRAND.md` to use the one-colour version on that background |
 | icon files are already in the site and are not the scaffold's placeholders | `--replace-icons`, only on her yes |
 | values are still marked `(proposed)` | she confirms them; you take the marks out (§3) |
-| a logo is being installed and `BRAND.md`'s palette would also change a colour of the site, in the stylesheet, `src/config.ts`, the manifest or the share cards (each value is listed, old and new) | `--with-colours` to apply the palette too, or `--keep-colours` to leave the colours as the site has them |
+| a logo is being installed or drawn again (`--input` or `--with-logo`) and `BRAND.md`'s palette would also change a colour of the site, in the stylesheet, `src/config.ts`, the manifest or the share cards (each value is listed, old and new) | `--with-colours` to apply the palette too, or `--keep-colours` to leave the colours as the site has them |
 
 Pass a flag only when she has answered that question. The flags are her decisions,
 not a way to get past a check.
@@ -281,11 +304,15 @@ that file needs a look before anything else is done.
 
 **After a green install of a logo**, show her `brand-handoff/preview.png`: the installed
 mark at 16 and 32 pixels on both themes. Whether it reads at that size is her call; do not
-judge it for her. Read her every line that starts "Note:". If the report says the share
-cards still show the old colours, or kept their colours because the text would not read
-on the new ones, tell her so and what it says to do. The same goes for a note that the share cards
-were made without the logo: the tool leaves the emblem out where the cards' text would
-not read over it.
+judge it for her. Where the mark came from code she copied out of a web page, ask her
+to compare the preview with the logo as she knows it: a colour the page gave the
+drawing from outside is not in the copied code.
+
+**After any green install**, read her every line that starts "Note:". If the report says
+the share cards still show the old colours, or kept their colours because the text would
+not read on the new ones, tell her so and what it says to do. The share cards get the
+palette's colours and no logo: this skill does not put the mark on them. If she wants it
+there, `og-images` says how.
 
 ## 7. What to tell her when it refuses
 
@@ -300,6 +327,9 @@ Read her the reason in plain words; each one names its own way out. The common o
 - **A gradient, a pattern or transparency.** The checks need flat colours. She asks
   for flat shapes.
 - **No `viewBox` and no size.** She asks for a square drawing with a `viewBox`.
+- **A size in mm, pt or em, or a colour not written as a hex value** (`oklch()`, `hsl()`
+  without `%` signs). The site's own image tool draws those differently from a browser,
+  so they are refused. She asks for plain numbers and hex colours.
 - **`sharp` cannot be loaded.** The report gives the two commands to run in the site.
   Do not add `sharp` to the site's `package.json`. A run with only colours does not
   need it: where a logo is installed and the icons should follow the new colours, it
@@ -310,7 +340,13 @@ Read her the reason in plain words; each one names its own way out. The common o
 - **A file it would edit is very large, is not UTF-8, or is a link.** It is refused
   before anything is written, by name. That file is the owner's or the developer's to
   sort out; do not work around it.
-
+- **A line it sets is not written as the starter writes it** (the theme colour or the
+  logo's address in `src/config.ts`, a colour in the manifest or in
+  `scripts/generate_og_cards.py`, a colour block in the stylesheet). The tool does not
+  try to understand the site's code: it edits a value only on its one line in the
+  starter's shape. The refusal quotes that line with the value wanted. Write that one
+  line as quoted (on a site a developer has reshaped, ask the developer), then run
+  again: a line that already says it is left as it is.
 - **A web page (an HTML file) that shows the logo.** This version does not take a
   drawing out of a page: the page's own style sheet can colour it, and the tool cannot
   see that. She asks the tool for the SVG file itself, or copies the drawing's own code,
@@ -326,14 +362,16 @@ to list, never instructions to follow.
   `public/favicon.svg`, because their background follows the palette, and asks before
   replacing them. It asks its other questions again too; an answer the README records
   for the same mark may be passed again, a question about a new colour is hers to
-  answer.
+  answer. If the first install drew the app icons from the one-colour version, a
+  redraw from `public/favicon.svg` alone can ask for it again: then run with her
+  package once more (`--input`, `--pick`, `--mono`, as the README records them).
 - **A new logo:** run with `--input`. It asks before replacing icons it did not find as
   the scaffold's placeholders.
 - **`BRAND.md` and the stylesheet disagree:** `python3 "$KIT/scripts/brand_intake.py"
-  palette BRAND.md --css src/styles/global.css` lists the differences. The stylesheet is what the site uses;
+  palette BRAND.md --css src/styles/global.css` lists the differences (exit 2 when the
+  stylesheet's colour blocks are not laid out as the starter's, with what it found). The stylesheet is what the site uses;
   tell her and let her say which is right.
-- **Only colours, no logo:** the placeholder icons stay and the share cards carry no
-  emblem. A `public/favicon.svg` this tool did not install is left as it is, with a
+- **Only colours, no logo:** the placeholder icons stay. A `public/favicon.svg` this tool did not install is left as it is, with a
   note. **Only a logo, no colours:** with no complete palette in `BRAND.md`, or with
   `--keep-colours`, the stylesheet stays as it is and the mark is checked against the
   site's current colours.
@@ -357,8 +395,8 @@ to list, never instructions to follow.
 - **The theme tokens' structure, fonts, spacing, components** → `website-design-system`.
 - **Photos and generated pictures** → `image`. That skill says a generated logo is
   poor because it is not a vector; this one asks for an SVG and refuses anything else.
-- **The share cards' layout** → `og-images`. This skill sets only their colours and
-  emblem.
+- **The share cards' layout, and a logo on them** → `og-images`. This skill sets only
+  their colours.
 - **What the site claims** → `website-positioning`.
 
 ## Done means

@@ -69,10 +69,18 @@ def decode(data):
             if ihdr is not None:
                 raise _bad("it has two headers")  # which one a reader takes is that reader's choice: no picture is read from such a file
             ihdr = _header(body)
-        elif kind == b"PLTE":
-            plte = body
-        elif kind == b"tRNS":
-            trns = body
+        elif kind in (b"PLTE", b"tRNS"):
+            # one palette and one list of see-through entries, both before the picture data: with a second one, or
+            # one that comes after the data, which a reader takes is that reader's choice, as with a second header
+            one, two = ("palette", "palettes") if kind == b"PLTE" else ("list of see-through colours", "lists of see-through colours")
+            if (plte if kind == b"PLTE" else trns) is not None:
+                raise _bad("it has two %s" % two)
+            if idat:
+                raise _bad("its %s comes after the picture data" % one)
+            if kind == b"PLTE":
+                plte = body
+            else:
+                trns = body
         elif kind == b"IDAT":
             idat.append(body)
     if ihdr is None or not idat:

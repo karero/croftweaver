@@ -8,6 +8,7 @@ tests run the real helper; the ones that draw need a `sharp` to borrow (see _tes
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -143,6 +144,52 @@ class WhenTheHelperAnswersBadly(unittest.TestCase):
                     self.renderer("printf '%s\\n' '" + answer + "'").preflight()
                 self.assertEqual(cm.exception.code, "render-failed")
         self.assertEqual(self.renderer("printf '%s\\n' '{\"ok\":true}'").preflight(), {"ok": True})
+
+    def test_ok_is_the_word_true_and_nothing_that_only_counts_as_true(self):
+        # JSON as Python reads it also has NaN, and a 1 or a word is as good as true to an `if`: a stand-in that
+        # answered {"ok":NaN} passed for a renderer that had loaded sharp and drawn a pixel
+        for answer in ('{"ok":NaN}', '{"ok":1}', '{"ok":"true"}', '{"ok":"yes"}', '{"ok":[true]}', '{"ok":{"a":1}}', '{"ok":Infinity}', '{"ok":1.0}'):
+            with self.subTest(answer=answer):
+                for call in (lambda r: r.preflight(), lambda r: r.render(MARK, (0, 0, 64, 64), [job("a", 16)], self.tmp.name)):
+                    with self.assertRaises(Refusal) as cm:
+                        call(self.renderer("printf '%s\\n' '" + answer + "'"))
+                    self.assertEqual(cm.exception.code, "render-failed")
+        self.assertEqual(self.renderer("printf '%s\\n' '{\"ok\":true}'").preflight(), {"ok": True})
+
+    def test_an_answer_is_one_line_that_ends_at_a_line_feed_and_nowhere_else(self):
+        # splitlines() also cuts at U+2028, U+2029, U+0085 and others: an answer that held one in a text (a path in a
+        # warning, say) was cut in two there and came out as "did not answer". (Octal: 342 200 250 is U+2028, 302 205 is U+0085.)
+        for name, inside, char in (("a line separator", "\\342\\200\\250", "\u2028"), ("a paragraph separator", "\\342\\200\\251", "\u2029"),
+                                   ("a next-line character", "\\302\\205", "\x85"), ("a form feed", "\\014", None), ("a vertical tab", "\\013", None),
+                                   ("a file separator", "\\034", None)):
+            with self.subTest(name=name):
+                if char:  # as a text inside the answer it is part of the answer
+                    good = self.renderer("printf '{\"ok\":true,\"sharp\":\"a" + inside + "b\"}\\n'")
+                    self.assertEqual(good.preflight(), {"ok": True, "sharp": "a%sb" % char})
+                    bad = self.renderer("printf '{\"ok\":false,\"error\":\"render-failed\",\"message\":\"in a" + inside + "b\"}\\n'")
+                    with self.assertRaises(Refusal) as cm:
+                        bad.preflight()
+                    self.assertIn("could not be rendered: in a", str(cm.exception))
+                    self.assertNotIn(char, str(cm.exception), "and the refusal spells it out")
+                # and standing between two answers it ends neither: the last LINE is not JSON
+                with self.assertRaises(Refusal) as cm:
+                    self.renderer("printf '{\"ok\":false,\"error\":\"bad-job\",\"message\":\"x\"}" + inside + "{\"ok\":true}\\n'").preflight()
+                self.assertIn("did not answer", str(cm.exception))
+        # a line feed does end a line, with a carriage return before it or without, and blank lines after it count for nothing
+        for ending in ("\\n", "\\r\\n", "\\n\\n", "\\r\\n\\r\\n  \\n"):
+            with self.subTest(ending=ending):
+                self.assertEqual(self.renderer("printf 'a warning\\n{\"ok\":true}" + ending + "'").preflight(), {"ok": True})
+
+    def test_a_message_that_is_no_text_or_a_very_long_one_is_still_one_short_sentence(self):
+        for answer in ('{"ok":false,"error":[1],"message":{"a":1}}', '{"ok":false,"error":null,"message":null}', '{"ok":false,"message":7}', '{"ok":false}'):
+            with self.subTest(answer=answer):
+                with self.assertRaises(Refusal) as cm:
+                    self.renderer("printf '%s\\n' '" + answer + "'").preflight()
+                self.assertEqual(cm.exception.code, "render-failed")
+        long = self.renderer("printf '{\"ok\":false,\"error\":\"render-failed\",\"message\":\"'; head -c 2000000 /dev/zero | tr '\\0' 'a'; printf '\"}\\n'")
+        with self.assertRaises(Refusal) as cm:
+            long.preflight()
+        self.assertLess(len(str(cm.exception)), 400)
 
     def test_an_answer_that_does_not_say_what_was_drawn_is_a_refusal(self):
         for answer in ('{"ok":true}', '{"ok":true,"results":null}', '{"ok":true,"results":"a.png"}', '{"ok":true,"results":{}}'):
@@ -497,11 +544,113 @@ const sharp = require('sharp');
 """
 
 
+# Draws SVG texts as icons and compares them pixel by pixel. Standard input: {sizes, same, far, rows: [{texts, pairs}]}.
+# Each text is drawn from a Buffer at each size the way an icon is: its long side on `size` pixels, in the middle of a
+# see-through square. A pair [i, j] of a row's texts is then compared pixel by pixel, each pixel as its colour times
+# its opacity (so a see-through pixel is the same pixel whatever colour it carries). Standard output, for each row:
+# {errors: [per text, per size: null or why it was not drawn], pairs: [per pair, per size: {max, over, far} or null]},
+# where `max` is the largest difference in any channel of any pixel, `over` the pixels that differ by more than `same`
+# and `far` those that differ by more than `far`.
+_PICTURES = r"""
+const sharp = require('sharp');
+sharp.cache(false);
+sharp.concurrency(1);
+const longSide = async (buf, density) => { const m = await sharp(buf, { density }).metadata(); return Math.max(m.width, m.height); };
+async function picture(svg, size) {
+  const buf = Buffer.from(svg, 'utf8');
+  // The density at which the long side is `size` pixels is found by measuring: a size is rounded to whole pixels, and
+  // an outer svg sized in mm or in grows with the square of the density, not with the density. A very large or a
+  // very small box cannot be measured at 72 dots an inch at all, and is measured at another density first.
+  let density = null, got = null, failed = null;
+  for (const at of [72, 1, 100000]) {
+    try { got = await longSide(buf, at); density = at; break; } catch (e) { failed = e; }
+  }
+  if (density === null) throw failed;
+  let power = 1;
+  for (let turn = 0; turn < 6 && got !== size; turn++) {
+    const next = Math.min(100000, Math.max(1, density * Math.pow(size / got, 1 / power)));
+    if (next === density) break;
+    const then = await longSide(buf, next);
+    if (then !== got && got > 16 && Math.log(then / got) / Math.log(next / density) > 1.5) power = 2;
+    density = next; got = then;
+  }
+  const { data, info } = await sharp(buf, { density }).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  if (info.width !== size || info.height !== size) throw new Error('came out ' + info.width + ' by ' + info.height);
+  for (let i = 0; i < data.length; i += 4) for (let c = 0; c < 3; c++) data[i + c] = Math.round((data[i + c] * data[i + 3]) / 255);
+  return data;
+}
+(async () => {
+  const req = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+  const out = req.rows.map((row) => ({ errors: row.texts.map(() => []), pairs: row.pairs.map(() => []) }));
+  for (const size of req.sizes) {
+    let known = new Map(); // the same text is drawn once: many rows share the text they are held against
+    for (let r = 0; r < req.rows.length; r++) {
+      const row = req.rows[r];
+      const drawn = [];
+      for (let t = 0; t < row.texts.length; t++) {
+        let p = known.get(row.texts[t]);
+        if (p === undefined) {
+          try { p = await picture(row.texts[t], size); } catch (e) { p = String(e && e.message).split('\n')[0].slice(0, 120); }
+          if (known.size > 40) known = new Map();
+          known.set(row.texts[t], p);
+        }
+        drawn.push(p);
+        out[r].errors[t].push(typeof p === 'string' ? p : null);
+      }
+      row.pairs.forEach(([i, j], n) => {
+        const a = drawn[i], b = drawn[j];
+        if (typeof a === 'string' || typeof b === 'string') { out[r].pairs[n].push(null); return; }
+        let max = 0, over = 0, far = 0;
+        for (let k = 0; k < a.length; k += 4) {
+          const d = Math.max(Math.abs(a[k] - b[k]), Math.abs(a[k + 1] - b[k + 1]), Math.abs(a[k + 2] - b[k + 2]), Math.abs(a[k + 3] - b[k + 3]));
+          if (d > max) max = d;
+          if (d > req.same) over++;
+          if (d > req.far) far++;
+        }
+        out[r].pairs[n].push({ max, over, far });
+      });
+    }
+  }
+  console.log(JSON.stringify(out));
+})();
+"""
+SIZES = (32, 512)   # a small icon and a large one: the renderer sized some values by the icon it was drawing
+SAME = 2            # two pictures are the same when no channel of any pixel differs by more than this (of 255): the
+                    # rounding of a colour to a hex, and nothing that could be seen
+FAR = 32            # and they differ when more than a quarter of the icon's side in pixels differ by more than this
+
+
+def pictures(testcase, site_dir, rows):
+    """Draw and compare `rows` ([{texts, pairs}]) at every size; see _PICTURES."""
+    r = subprocess.run(["node", "-e", _PICTURES], input=json.dumps({"sizes": SIZES, "same": SAME, "far": FAR, "rows": rows}), cwd=site_dir,
+                       capture_output=True, text=True, timeout=1800)
+    testcase.assertEqual(r.returncode, 0, r.stderr[-400:])
+    return json.loads(r.stdout)
+
+
+def all_drawn(testcase, answer, what):
+    for t, per_size in enumerate(answer["errors"]):
+        for size, error in zip(SIZES, per_size):
+            testcase.assertIsNone(error, "%s: text %d was not drawn at %d pixels (%s)" % (what, t, size, error))
+
+
+def the_same(testcase, pair, what):
+    for size, got in zip(SIZES, pair):
+        testcase.assertEqual(got["over"], 0, "%s: at %d pixels %d pixels differ, by up to %d of 255" % (what, size, got["over"], got["max"]))
+
+
+def not_the_same(testcase, pair, what):
+    for size, got in zip(SIZES, pair):
+        testcase.assertGreater(got["far"], size // 4, "%s: at %d pixels only %d pixels differ" % (what, size, got["far"]))
+
+
 class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
     """The check reads a file with its own reader of numbers, colours and styles; the site draws it with a renderer
     that has its own. Wherever the two could read a value differently the check must refuse, because it writes ITS
     reading into the cleaned file and lists ITS colours. So for every way of writing a value: the file is refused, or
-    the cleaned file is drawn as the original was and no colour is drawn that the check did not list."""
+    the cleaned file is drawn as the original was (pixel for pixel, both of them drawn, at a small size and a large
+    one) and no colour is drawn that the check did not list."""
 
     BOX = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"'
     RECT = '<rect width="10" height="10"/>'
@@ -527,13 +676,14 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
             else:
                 outcome[name] = "accepted"
                 pairs.append((name, text, clean))
-        pictures = self.drawn([t for _n, text, clean in pairs for t in (text, clean.text)])
-        for i, (name, _text, clean) in enumerate(pairs):
-            was, now = pictures[2 * i], pictures[2 * i + 1]
+        # where each thing is, not only how much of each colour there is: a shape that had moved kept its colours
+        compared = pictures(self, self.site.dir, [{"texts": [text, clean.text], "pairs": [[0, 1]]} for _n, text, clean in pairs])
+        listed = self.drawn([clean.text for _n, _text, clean in pairs])
+        for (name, _text, clean), answer, now in zip(pairs, compared, listed):
             with self.subTest(name=name):
+                all_drawn(self, answer, name)
+                the_same(self, answer["pairs"][0], name)
                 self.assertNotIn("error", now, "the cleaned file must draw")
-                for colour in set(was) | set(now):
-                    self.assertLess(abs(was.get(colour, 0) - now.get(colour, 0)), 82, "%s: drawn %r, cleaned %r" % (colour, was, now))
                 for colour in now:
                     self.assertTrue(any(self.a_tint_of(colour, listed) for listed in clean.colours),
                                     "%s is drawn, and the check listed only %r" % (colour, clean.colours))
@@ -548,6 +698,25 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
         shares = [(255 - c[i]) / (255 - l[i]) for i in range(3) if l[i] != 255]
         share = shares[0] if shares else 0
         return 0 < share <= 1.01 and all(abs((255 - l[i]) * share - (255 - c[i])) <= 3 for i in range(3))
+
+    def test_a_shape_that_has_moved_is_not_drawn_as_it_was(self):
+        # the comparison itself: before 2026-10-12 it counted colours, so a red half that had changed sides passed
+        b = self.BOX
+        left = '<svg %s><rect fill="#f00" width="5" height="10"/></svg>' % b
+        right = '<svg %s><rect fill="#f00" x="5" width="5" height="10"/></svg>' % b
+        nudged = '<svg %s><rect fill="#f00" x="0.2" width="5" height="10"/></svg>' % b
+        broken = '<svg %s><rect fill="#f00" width="5" height="10"></svg>' % b
+        answer = pictures(self, self.site.dir, [{"texts": [left, right, nudged, left + " ", broken], "pairs": [[0, 1], [0, 2], [0, 3], [0, 4]]}])[0]
+        self.assertEqual(self.drawn([left])[0], self.drawn([right])[0], "the two do hold the same colours")
+        not_the_same(self, answer["pairs"][0], "left and right")
+        for size, got in zip(SIZES, answer["pairs"][1]):
+            self.assertGreater(got["over"], 0, "a fifth of a unit to the side is seen at %d pixels" % size)
+        the_same(self, answer["pairs"][2], "the same drawing twice")
+        self.assertEqual(answer["pairs"][3], [None, None], "what was not drawn is the same as nothing")
+        with self.assertRaises(AssertionError):
+            all_drawn(self, answer, "a drawing that is no XML")
+        with self.assertRaises(AssertionError):
+            the_same(self, answer["pairs"][0], "left and right")
 
     def test_every_way_of_writing_a_number(self):
         b = self.BOX
@@ -656,12 +825,392 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
             self.assertEqual(outcome[name], "refused: css-unreadable", name)
         for name in ("sheet: a no-break space before the value", "sheet: another script's digits", "style: a no-break space", "attribute: a no-break space before",
                      "attribute: an em space after", "attribute: another script's digits", "attribute: full-width letters", "attribute: an id with a space",
-                     "attribute: a class after an em space", "attribute: two classes round a no-break space", "attribute: a clip in quotes",
-                     "attribute: a bare point", "attribute: a bare point in hsl", "attribute: a bare point before a percent"):
+                     "attribute: a class after an em space", "attribute: two classes round a no-break space", "attribute: a clip in quotes"):
             self.assertEqual(outcome[name], "refused: bad-value", name)
+        for name in ("attribute: a bare point", "attribute: a bare point in hsl", "attribute: a bare point before a percent"):
+            self.assertEqual(outcome[name], "refused: colour-unreadable", name)  # the colour reader's own refusal, by name
         self.assertEqual(outcome["attribute: a clip after an em space"], "refused: css-url")
         for name in ("viewBox: an em space", "viewBox: a no-break space", "viewBox: a point"):
             self.assertEqual(outcome[name], "refused: bad-view-box", name)
+
+
+# --- the value grammar, drawn ----------------------------------------------------------------------
+# One row for every form of every line of the value grammar (_svg.py, at its top). A row is
+# (line, what, the drawing with the form in it, the same drawing with the value written the plainest way or None,
+#  the same drawing with another value or None).
+
+B = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#00f"/>%s</svg>'
+GIVEN_A_SIZE = " (given a size, as the renderer is given the cleaned file)"
+FIVE = ["5", "5.0", ".5e1", "5e0", "+5", "05", "5E0", "50e-1", "0.5e+1", "0.05e02", "5.00e00", " 5 ", "&#9;5&#10;"]   # the number five
+FIVE_PX = ["5px", "5.0px", ".5e1px", "+5px", " 5px "]
+HALF = ["50%", "50.0%", "+50%", "5e1%", ".5e2%", " 50% "]   # half of a box ten wide and ten high: five
+ONE = ["1", "1.0", "+1", "1e0", "10e-1", "0.1e1", "1.00e00", "01", " 1 "]
+SHAPES = {   # attribute: (the shape it is tried on, a value that is not five)
+    "x": ('<rect x="%s" width="4" height="4" fill="#f00"/>', "1"), "y": ('<rect y="%s" width="4" height="4" fill="#f00"/>', "1"),
+    "width": ('<rect width="%s" height="4" fill="#f00"/>', "1"), "height": ('<rect width="4" height="%s" fill="#f00"/>', "1"),
+    "cx": ('<circle cx="%s" cy="5" r="3" fill="#f00"/>', "1"), "cy": ('<circle cx="5" cy="%s" r="3" fill="#f00"/>', "1"),
+    "r": ('<circle cx="5" cy="5" r="%s" fill="#f00"/>', "1"),
+    "rx": ('<rect width="10" height="10" rx="%s" fill="#f00"/>', "1"), "ry": ('<rect width="10" height="10" rx="2" ry="%s" fill="#f00"/>', "1"),
+    "rx of an ellipse": ('<ellipse cx="5" cy="5" rx="%s" ry="2" fill="#f00"/>', "1"), "ry of an ellipse": ('<ellipse cx="5" cy="5" rx="2" ry="%s" fill="#f00"/>', "1"),
+    "x1": ('<line x1="%s" y1="1" x2="9" y2="9" stroke="#f00" stroke-width="2"/>', "1"), "y1": ('<line x1="1" y1="%s" x2="9" y2="9" stroke="#f00" stroke-width="2"/>', "1"),
+    "x2": ('<line x1="1" y1="1" x2="%s" y2="9" stroke="#f00" stroke-width="2"/>', "1"), "y2": ('<line x1="1" y1="1" x2="9" y2="%s" stroke="#f00" stroke-width="2"/>', "1"),
+}
+POSITIONS = ("x", "y", "cx", "cy", "x1", "y1", "x2", "y2", "width", "height")
+# A property is tried the hard way: one rule sets another value first and the form after it. A renderer that cannot
+# read the form keeps the other value, and the cleaned file (which holds the form alone) would then be drawn differently.
+MITRE = '<path class="p" d="M1 9L5 2L9 9" fill="none" stroke="#f00" stroke-width="2"/>'
+LINE = '<path class="p" d="M0 5H10" stroke="#f00" stroke-width="4"/>'
+SQUARE = '<rect class="p" width="6" height="6" fill="#f00"/>'
+HOLE = '<path class="p" d="M1 1h8v8h-8zM3 3h4v4h-4z" fill="#f00"/>'
+CLIPS = ('<clipPath id="c"><rect width="3" height="10"/></clipPath><clipPath id="d-e.f:g_h"><rect width="3" height="10"/></clipPath>'
+         '<rect class="p" width="10" height="10" fill="#f00"/>')
+PROPERTIES = {   # property: (the shape, the other value)
+    "stroke-width": ('<path class="p" d="M0 5H10" stroke="#f00"/>', "1"), "stroke-miterlimit": (MITRE, "1.5"),
+    "stroke-dashoffset": ('<path class="p" d="M0 5H10" stroke="#f00" stroke-width="4" stroke-dasharray="7"/>', "1"),
+    "opacity": (SQUARE, ".3"), "fill-opacity": (SQUARE, ".3"), "stroke-opacity": (LINE, ".3"), "stroke-dasharray": (LINE, "1 1"),
+}
+
+
+def in_a_rule(prop, shape, value, other):
+    return B % ("<style>.p{%s:%s;%s:%s}</style>%s" % (prop, other, prop, value, shape))
+
+
+def grammar_rows():
+    rows = []
+
+    def attribute(line, name, forms, plain="5"):
+        shape, other = SHAPES[name]
+        for form in forms:
+            rows.append((line, "%s=%r" % (name, form), B % (shape % form), B % (shape % plain), B % (shape % other)))
+
+    def rule(line, prop, forms, plain, other=None, shape=None):
+        shape, other = shape or PROPERTIES[prop][0], other or PROPERTIES[prop][1]
+        for form in forms:
+            form, same_as = form if isinstance(form, tuple) else (form, plain)
+            rows.append((line, "%s: %s" % (prop, form), in_a_rule(prop, shape, form, other),
+                         in_a_rule(prop, shape, same_as, other) if same_as is not None else None, in_a_rule(prop, shape, other, other)))
+
+    # --- number
+    rule("number", "stroke-miterlimit", FIVE + ["100", ("1e9", None)], "5")
+    rule("number", "stroke-miterlimit", ["1", "1.0", "1e0"], "1", other="8")   # the least there is
+    for prop in ("opacity", "fill-opacity", "stroke-opacity"):
+        rule("number", prop, ONE, "1")
+    # --- length
+    rule("length", "stroke-width", FIVE + FIVE_PX + [("0", "0"), ("0.0", "0"), ("0e9", "0"), ("0px", "0"), ("1e9", "1000000000")], "5")
+    rule("length", "stroke-dashoffset", FIVE + FIVE_PX + [("-5", "9"), ("0", "14"), ("-.5e1px", "9")], "5")
+    for name in ("r", "rx", "ry", "rx of an ellipse", "ry of an ellipse"):
+        attribute("length", name, FIVE + FIVE_PX)
+    rows.append(("length", "rx='auto' beside an ry", B % '<rect width="10" height="10" rx="auto" ry="3" fill="#f00"/>',
+                 B % '<rect width="10" height="10" rx="3" ry="3" fill="#f00"/>', B % '<rect width="10" height="10" fill="#f00"/>'))
+    rows.append(("length", "ry='auto' beside an rx", B % '<rect width="10" height="10" rx="3" ry="auto" fill="#f00"/>',
+                 B % '<rect width="10" height="10" rx="3" ry="3" fill="#f00"/>', B % '<rect width="10" height="10" fill="#f00"/>'))
+    # --- position
+    for name in POSITIONS:
+        attribute("position", name, FIVE + FIVE_PX + HALF)
+    for name in ("x", "y", "cx", "x1"):
+        shape, _other = SHAPES[name]
+        for form in ("-5", "-.5e1", "-5px", "-50%"):
+            rows.append(("position", "%s=%r" % (name, form), B % (shape % form), B % (shape % "-5"), B % (shape % "1")))
+        rows.append(("position", "%s='1e9'" % name, B % (shape % "1e9"), B % (shape % "1000000000"), B % (shape % "1")))
+    wide = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><rect width="20" height="10" fill="#00f"/>%s</svg>'
+    for name, plain in (("x", "10"), ("width", "10"), ("cx", "10"), ("x2", "10"), ("y", "5"), ("height", "5"), ("cy", "5"), ("y2", "5")):
+        shape, _other = SHAPES[name]   # a share is of the box's width for x and of its height for y
+        rows.append(("position", "%s='50%%' in a box 20 by 10" % name, wide % (shape % "50%"), wide % (shape % plain), wide % (shape % "1")))
+    no_box = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="#00f"/>%s</svg>'
+    rows.append(("position", "a share where the box is the width and height", no_box % '<rect width="50%" height="50%" fill="#f00"/>',
+                 no_box % '<rect width="10" height="5" fill="#f00"/>', no_box % '<rect width="1" height="1" fill="#f00"/>'))
+    # --- number list
+    poly, three = '<polygon points="%s" fill="#f00"/>', "1 1 9 1 5 9"
+    for form in ("1 1 9 1 5 9", "1,1 9,1 5,9", "1,1,9,1,5,9", "1 , 1 9 , 1 5 , 9", " 1 1 9 1 5 9 ", "1&#10;1&#9;9&#13;1  5 9", "+1 +1 +9 +1 +5 +9", "1e0 1E0 .9e1 1.0 5 9",
+                 "1 1 9 1 5 9 1 1"):
+        rows.append(("number list", "points=%r" % form, B % (poly % form), B % (poly % three), B % (poly % "1 1 9 1 5 5")))
+    rows.append(("number list", "points run together before a sign", B % (poly % "1 1 9 1 5-1"), B % (poly % "1 1 9 1 5 -1"), B % (poly % three)))
+    rows.append(("number list", "points run together before a point", B % (poly % "1 1 9 1 5.5.9"), B % (poly % "1 1 9 1 5.5 .9"), B % (poly % three)))
+    rows.append(("number list", "points='' draws nothing", B % (poly % ""), B % "", B % (poly % three)))
+    rule("number list", "stroke-dasharray", ["3 1", "3,1", "3 , 1", "3  1", "3.0 1e0", "+3 +1", "3 1 3 1", ("3", "3 3"), ("3 1 2", "3 1 2 3 1 2"), ("3.5.5", "3.5 .5"),
+                                             ("3+1", "3 1"), ("none", "none"), ("0 0", "none"), ("0", "none"), ("1e9", "none"), ("3 1 " * 8, "3 1")], "3 1")
+    dashed = '<path d="M0 5H10" stroke="#f00" stroke-width="4" stroke-dasharray="%s"/>'
+    for form in ("3&#9;1", "3&#10;1", "&#13;3 1 ", "3&#10;,&#9;1"):
+        rows.append(("number list", "stroke-dasharray=%r" % form, B % (dashed % form), B % (dashed % "3 1"), B % (dashed % "1 1")))
+    # --- transform
+    moved = '<rect transform="%s" width="4" height="4" fill="#f00"/>'
+    for form, plain in (("translate(2)", "translate(2 0)"), ("translate(2 3)", None), ("translate(2,3)", "translate(2 3)"), ("translate( 2 , 3 )", "translate(2 3)"),
+                        ("translate(2-3)", "translate(2 -3)"), ("translate(.5.5)", "translate(.5 .5)"), ("translate(2e0 +3E0)", "translate(2 3)"),
+                        ("translate(&#10;2&#9;3&#13;)", "translate(2 3)"), ("scale(2)", "scale(2 2)"), ("scale(2 1)", None), ("scale(-1) translate(-6 -6)", "translate(2 2)"),
+                        ("rotate(30)", "rotate(30 0 0)"), ("rotate(30 5 5)", None), ("rotate(30,5,5)", "rotate(30 5 5)"), ("skewX(20)", None), ("skewY(20)", None),
+                        ("matrix(1 0 0 1 2 3)", "translate(2 3)"), ("matrix(1,0,0,1,2,3)", "translate(2 3)"), ("matrix(2 0 0 2 0 0)", "scale(2)"),
+                        ("translate(2) scale(2)", None), ("translate(2),scale(2)", "translate(2) scale(2)"), ("translate(2) , scale(2)", "translate(2) scale(2)"),
+                        ("translate(2)scale(2)", "translate(2) scale(2)"), (" translate(2 3) ", "translate(2 3)"), ("translate(2)&#10;scale(2)", "translate(2) scale(2)"),
+                        ("translate(.25) " * 16, "translate(4)"), ("translate(1e9)", "translate(1000000000)")):
+        rows.append(("transform", "transform=%r" % form, B % (moved % form), B % (moved % plain) if plain else None, B % (moved % "translate(1 1)")))
+    rows.append(("transform", "transform='' moves nothing", B % (moved % ""), B % '<rect width="4" height="4" fill="#f00"/>', B % (moved % "translate(1 1)")))
+    # --- path data
+    for form in ("M0 0h5v5z", "M0,0H5V5Z", "M0 0h5.v5.e0z", "M0 0h.5e1v+5z", "M0 0l5 0 0 5z", "m0 0 5 0 0 5z", "M0 0L5 0L5 5", "M 0 0 H 5 V 5 Z", "M0 0h5v5-5-5",
+                 "M0 0Q5 0 5 0T5 5", "M0 0C5 0 5 0 5 0S5 5 5 5", "M0 0A9 9 0 0 0 5 0L5 5Z", "M0 0a9 9 0 005 0l0 5z"):
+        row = [B % ('<path d="%s" fill="#f00"/>' % d) for d in (form, "M0 0h1v1z")]
+        rows.append(("path data", "d=%r" % form, row[0], None, row[1]))
+    rows.append(("path data", "a point with no digit, in path data only", B % '<path d="M0 0h5.v5.e0z" fill="#f00"/>', B % '<path d="M0 0h5v5z" fill="#f00"/>', None))
+    # --- keyword
+    for prop, shape, words in (
+            ("fill-rule", HOLE, (("nonzero", "evenodd"), ("evenodd", "nonzero"))),
+            ("stroke-linecap", '<path class="p" d="M3 5H7" stroke="#f00" stroke-width="4"/>', (("butt", "round"), ("round", "butt"), ("square", "butt"))),
+            ("stroke-linejoin", '<path class="p" d="M2 8L5 2L8 8" fill="none" stroke="#f00" stroke-width="2"/>', (("miter", "round"), ("round", "miter"), ("bevel", "miter"))),
+            ("visibility", SQUARE, (("visible", "hidden"), ("hidden", "visible"), ("collapse", "visible", "hidden"))),
+            ("display", SQUARE, (("inline", "none"), ("block", "none", "inline"), ("inherit", "none", "inline"), ("none", "inline"))),
+            ("shape-rendering", '<circle class="p" cx="5" cy="5" r="3.3" fill="#f00"/>',
+             (("auto", "crispEdges"), ("geometricPrecision", "crispEdges", "auto"), ("crispEdges", "auto"), ("optimizeSpeed", "auto", "crispEdges"))),
+            ("paint-order", '<rect class="p" x="2" y="2" width="6" height="6" fill="#0f0" stroke="#f00" stroke-width="3"/>',
+             (("normal", "stroke"), ("fill", "stroke", "normal"), ("markers", "stroke", "normal"), ("fill stroke", "stroke", "normal"), ("fill stroke markers", "stroke", "normal"),
+              ("fill markers stroke", "stroke", "normal"), ("markers fill", "stroke", "normal"), ("markers fill stroke", "stroke", "normal"),
+              ("stroke", "normal"), ("stroke fill", "normal", "stroke"), ("stroke markers", "normal", "stroke"), ("stroke fill markers", "normal", "stroke"),
+              ("stroke markers fill", "normal", "stroke"), ("markers stroke", "normal", "stroke"), ("markers stroke fill", "normal", "stroke"), ("stroke  fill", "normal", "stroke")))):
+        for word in words:
+            rule("keyword", prop, [(word[0], word[2] if len(word) > 2 else word[0])], None, other=word[1], shape=shape)
+    clipped = '<clipPath id="c"><path class="p" d="M1 1h8v8h-8zM3 3h4v4h-4z"/></clipPath><rect clip-path="url(#c)" width="10" height="10" fill="#f00"/>'
+    rule("keyword", "clip-rule", ["evenodd"], "evenodd", other="nonzero", shape=clipped)
+    rule("keyword", "clip-rule", ["nonzero"], "nonzero", other="evenodd", shape=clipped)
+    units = '<clipPath id="c" clipPathUnits="%s"><rect width=".5" height=".5"/></clipPath><rect clip-path="url(#c)" width="8" height="8" fill="#f00"/>'
+    rows.append(("keyword", "clipPathUnits='objectBoundingBox'", B % (units % "objectBoundingBox"), None, B % (units % "userSpaceOnUse")))
+    rows.append(("keyword", "clipPathUnits='userSpaceOnUse'", B % (units % "userSpaceOnUse"), None, B % (units % "objectBoundingBox")))
+    # --- clip-path, id, class
+    rule("clip-path", "clip-path", ["url(#c)", "url( #c )", "url(#d-e.f:g_h)", " url(#c) "], "url(#c)", other="none", shape=CLIPS)
+    rule("clip-path", "clip-path", ["none"], "none", other="url(#c)", shape=CLIPS)
+    for name in ("c", "_", "A", "a1", "clip0_12_34", "SVGID_1_", "a-b.c:d", "x" * 64):
+        with_id = '<clipPath id="%s"><rect width="3" height="10"/></clipPath><rect clip-path="url(#%s)" width="10" height="10" fill="#f00"/>'
+        rows.append(("id", "id=%r" % name, B % (with_id % (name, name)), B % (with_id % ("c", "c")), B % (with_id % (name, "other"))))
+    for name in ("a", "_a", "A1", "a-b_c", "x" * 64):   # the letters a style rule can name an id with
+        styled = '<style>#%s{fill:#f00}</style><rect id="%s" width="6" height="6"/>'
+        rows.append(("id", "#%s in a rule" % name, B % (styled % (name, name)), B % (styled % ("a", "a")), B % (styled % (name, "other"))))
+    for names in ("b", "a b", " a  b ", "b a", "a b c-d e_f 0", "b b"):
+        classed = '<style>.b{fill:#f00}</style><rect class="%s" width="6" height="6"/>'
+        rows.append(("class", "class=%r" % names, B % (classed % names), B % (classed % "b"), B % (classed % "a")))
+    # --- the outer svg: viewBox, preserveAspectRatio, width and height
+    tall = '<svg xmlns="http://www.w3.org/2000/svg" %s><rect width="10" height="20" fill="#00f"/><circle cx="5" cy="10" r="4.3" fill="#f00"/></svg>'
+    for form in ("0 0 10 20", "0,0,10,20", "0, 0, 10, 20", "0 , 0 , 10 , 20", " 0 0 10 20 ", "0&#9;0&#10;10&#13;20", "0 0 1e1 2e1", "+0 -0 10.0 +20", "0 0 .1e2 20.00",
+                 "0-0 10 20", ".0.0 10 20", "0 0 10 2E1"):
+        rows.append(("viewBox", "viewBox=%r" % form, tall % ('viewBox="%s"' % form), tall % 'viewBox="0 0 10 20"', tall % 'viewBox="0 0 20 20"'))
+    for form in ("-5 -5 20 30", "2.5 5 5 10", "0 0 1e6 1e6", "0 0 1000000 50000.5"):
+        rows.append(("viewBox", "viewBox=%r" % form, tall % ('viewBox="%s"' % form), None, tall % 'viewBox="0 0 10 20"'))
+    # the smallest box there is: under one unit the renderer rounds a drawing to no pixels at all unless it is given a size,
+    # so _render.py gives the cleaned drawing one, and here the file as it came is given the same
+    small = tall.replace('width="10" height="20"', 'width=".01" height=".02"').replace('cx="5" cy="10" r="4.3"', 'cx=".005" cy=".01" r=".0043"')
+    rows.append(("viewBox", "viewBox='0 0 0.01 0.02'" + GIVEN_A_SIZE, small % 'viewBox="0 0 0.01 0.02"', small % 'viewBox="0 0 1e-2 .2e-1"', small % 'viewBox="0 0 0.02 0.02"'))
+    for form in ("none", "xMidYMid", "xMinYMin", "xMaxYMax", "xMidYMin", "xMinYMax", "xMaxYMid", "xMidYMid meet", "xMidYMid slice", "xMinYMin slice", "none meet", "none slice",
+                 " xMaxYMin  meet ", "xMidYMid&#10;slice"):
+        for size in ("", ' width="10" height="20"', ' width="5px" height="10px"', ' width="100%" height="100%"', ' width="30"'):
+            rows.append(("preserveAspectRatio", "%r%s" % (form, size), tall % ('viewBox="0 0 10 20" preserveAspectRatio="%s"%s' % (form, size)), tall % 'viewBox="0 0 10 20"', None))
+    for width, height in (("10", "20"), ("5", "10"), ("20", "40"), ("+10", "+20"), ("1e1", "2e1"), ("10.0", "20.00"), ("10px", "20px"), ("64mm", "128mm"), ("1in", "2in"),
+                          ("10pt", "20pt"), ("1cm", "2cm"), ("1pc", "2pc"), ("100%", "100%"), ("50%", "100%"), ("100%", "7%"), ("10", "100%"), ("100%", "20"), ("100%", "3"),
+                          ("10", None), (None, "20"), ("33", None), (None, "7mm"), ("100%", None), ("10.00009", "20"), ("10", "20.00019"), ("9.99991", "20")):
+        attrs = "".join(' %s="%s"' % (k, v) for k, v in (("width", width), ("height", height)) if v is not None)
+        rows.append(("width and height of the outer svg", "a viewBox and%s" % attrs, tall % ('viewBox="0 0 10 20"' + attrs), tall % 'viewBox="0 0 10 20"', None))
+    for width, height in (("10", "20"), ("10px", "20px"), ("1e1", "2e1"), ("+10.0", "20.00"), (" 10 ", "20px")):
+        rows.append(("width and height of the outer svg", "no viewBox, %s by %s" % (width, height), tall % ('width="%s" height="%s"' % (width, height)),
+                     tall % 'viewBox="0 0 10 20"', tall % 'viewBox="0 0 20 20"'))
+    for attrs in ('x="5" y="6"', 'x="50%" y="-5px"', 'id="logo"', 'x="5" id="logo" width="10" height="20"'):   # left out, and said: nothing of the drawing
+        rows.append(("width and height of the outer svg", "beside %s" % attrs, tall % ('viewBox="0 0 10 20" ' + attrs), tall % 'viewBox="0 0 10 20"', None))
+    # --- what only says "nothing here"
+    for attrs in ('filter="none"', 'mask="none"', 'vector-effect="none"', 'mix-blend-mode="normal"', 'style="filter:none"', 'style="mask:none;fill:#f00"',
+                  'style="vector-effect:none"', 'style="mix-blend-mode:normal"', 'filter=" none "', 'style="filter: none ;mask:none"'):
+        rows.append(("nothing here", attrs, B % ('<rect %s width="6" height="6" fill="#f00"/>' % attrs), B % '<rect width="6" height="6" fill="#f00"/>', None))
+    for prop, word in (("filter", "none"), ("mask", "none"), ("vector-effect", "none"), ("mix-blend-mode", "normal")):
+        rows.append(("nothing here", "%s:%s in a rule" % (prop, word), B % ('<style>rect.q{%s:%s}</style><rect class="q" width="6" height="6" fill="#f00"/>' % (prop, word)),
+                     B % '<rect width="6" height="6" fill="#f00"/>', None))
+    return rows
+
+
+# Colours are the colour reader's (_colour.py): a paint is held here to "refused, or drawn as it is read". Each of these
+# is written after another colour in one rule, so a renderer that cannot read it keeps the other colour.
+COLOURS = [
+    "#f00", "#F00", "#ff0000", "#FF0000", "#Ff0000", "#f00f", "#ff0000ff", "#FF0000FF", "red", "RED", "Red", "tomato", "rebeccapurple", "darkgrey", "GrEy",
+    "rgb(255,0,0)", "rgb(255, 0, 0)", "rgb( 255 , 0 , 0 )", "RGB(255,0,0)", "Rgb(255,0,0)", "rgb(100%,0%,0%)", "rgb(255 0 0)", "rgb(100% 0% 0%)", "rgb(180 83 26)", "rgb(180, 83, 26)",
+    "rgb(255,0,0,1)", "rgba(255,0,0,1)", "rgba(255,0,0,1.0)", "rgba(255,0,0,100%)", "rgb(255 0 0 / 1)", "rgb(255 0 0 / 100%)", "rgba(255 0 0 / 1)", "rgba(255,0,0)",
+    "rgb(255.0,0.0,0.0)", "rgb(300,-5,0)", "rgb(254.6,0,0)", "rgb(254.4,0.5,0.4)", "rgb(2.55e2,0,0)", "rgb(+255,0,0)", "rgb(49.8%,50.2%,0.2%)", "rgb(127.5,0,0)",
+    "hsl(0,100%,50%)", "hsl(0, 100%, 50%)", "hsl(0deg,100%,50%)", "hsl(0 100% 50%)", "hsl(0deg 100% 50%)", "hsla(0,100%,50%,1)", "hsl(0,100%,50%,1)", "hsl(0 100% 50% / 1)",
+    "hsl(360,100%,50%)", "hsl(-360,100%,50%)", "hsl(1turn,100%,50%)", "hsl(400grad,100%,50%)", "hsl(6.2831853rad,100%,50%)", "hsl(720,100%,50%)", "hsl(0,200%,50%)",
+    "hsl(120,100%,25%)", "hsl(210,50%,40%)", "hsl(210.5,50.5%,40.5%)", "hsl(22.2078 74.7573% 40.3922%)", "HSL(0,100%,50%)", "hsl(30,100%,50%)", "hsl(0.5turn 30% 60%)",
+    # read by a browser and not by the site's renderer, or the other way round, or by neither
+    "hsl(0,100,50)", "hsl(0,100%,50)", "hsl(0 100 50)", "rgb(255,0,0/1)", "hsl(0,100%,50%/1)", "rgb(50%,0,0)", "rgb(50% 0 0)", "rgb(255,0%,0)", "rgb(255.,0,0)", "rgb(1e2,0,0)",
+    "rgb(0e309,0,0)", "rgb(1e100,0,0)", "oklch(0.627955 0.257683 29.2339)", "oklch(62.7955% 0.257683 29.2339)", "oklch(0.627955 0.257683 29.2339 / 1)", "rgb(1_0,0,0)", "#11_22",
+    "#f000", "transparent", "rgba(255,0,0,.5)", "rgb(255 0 0 / 50%)", "red garbage", "rgb(255,0,0)garbage", "#ff00", "#ff00000", "color(srgb 1 0 0)", "lab(50% 40 59.5)",
+    "rgb(255,,0,0)", "rgb(255,0,0,)", "rgb(,255,0,0)", "rgb(255 0,0)", "hsl(0 100%,50%)", "rgb(255;0;0)", "rgb (255,0,0)", "rgb(255,0,0) ", " rgb(255,0,0)", "0xff0000", "ff0000",
+    "currentColor", "currentcolor", "CURRENTCOLOR", "inherit", "INHERIT", "none", "NONE", "None",
+]
+
+
+def refused_rows():
+    """What the grammar leaves out BECAUSE of how it is drawn: (what, the code it is refused with, the drawing with the
+    form, the drawing it is held against, how the two compare: "differs" where the form is not drawn as the value a
+    browser reads in it, "same" where it is drawn as if the OTHER value stood there, so the renderer never read it)."""
+    rows = []
+
+    def after(prop, shape, form, other, code="bad-value"):
+        rows.append(("%s: %s" % (prop, form), code, in_a_rule(prop, shape, form, other), in_a_rule(prop, shape, other, other), "same"))
+
+    # a unit: the renderer sizes it by the icon it draws (a browser reads 3.75pt, 1.3229mm, .0520833in and 5px as one length)
+    for name, form in (("width", "3.75pt"), ("height", "1.3229mm"), ("r", ".0520833in"), ("x", ".3125pc"), ("cx", ".13229cm"), ("rx", ".3125em"), ("y2", ".625ex")):
+        shape, _other = SHAPES[name]
+        rows.append(("%s=%r" % (name, form), "length-unit", B % (shape % form), B % (shape % "5"), "differs"))
+    rows.append(("stroke-width: 3.75pt", "length-unit", in_a_rule("stroke-width", PROPERTIES["stroke-width"][0], "3.75pt", "1"),
+                 in_a_rule("stroke-width", PROPERTIES["stroke-width"][0], "5", "1"), "differs"))
+    after("stroke-miterlimit", MITRE, "5px", "1.5", "length-unit")
+    after("stroke-miterlimit", MITRE, "500%", "1.5", "length-unit")
+    # a number the renderer does not take for one
+    after("stroke-width", PROPERTIES["stroke-width"][0], "0e309", "5")
+    after("stroke-width", PROPERTIES["stroke-width"][0], "0e2147483648", "5")
+    after("stroke-width", PROPERTIES["stroke-width"][0], "5.", "1")
+    after("stroke-width", PROPERTIES["stroke-width"][0], "4e38", "1", "value-too-long")
+    after("stroke-miterlimit", MITRE, "9e99", "1.5", "value-too-long")
+    rows.append(("width='9e99'", "value-too-long", B % (SHAPES["width"][0] % "9e99"), B % (SHAPES["width"][0] % "0"), "same"))
+    rows.append(("transform='scale(4e38)'", "value-too-long", B % '<rect transform="scale(4e38)" width="4" height="4" fill="#f00"/>', B % '<rect width="4" height="4" fill="#f00"/>', "same"))
+    # a list with a comma too many, a dash below zero, a point without its partner
+    for form in ("3,,1", ",3 1", "3 1,", "3 -1", "3-1"):
+        after("stroke-dasharray", LINE, form, "1 1", "negative-size" if "-" in form else "bad-value")
+    poly = '<polygon points="%s" fill="#f00"/>'
+    for form in ("1,1 9,1 5,9,", ",1,1 9,1 5,9", "1,,1 9,1 5,9", "1,1 9,1 5,9 3", "1,1 9,1 5"):
+        rows.append(("points=%r" % form, "bad-value", B % (poly % form), B % (poly % "1,1 9,1 5,9"), "differs"))
+    moved = '<rect transform="%s" width="4" height="4" fill="#f00"/>'
+    for form, meant in (("translate(2 3 4)", "translate(2 3)"), ("translate(2,,3)", "translate(2 3)"), ("translate(2,)", "translate(2)"), ("translate(,2)", "translate(2)"),
+                        ("scale(2 1 1)", "scale(2 1)"), ("rotate(30 5)", "rotate(30)"), ("rotate(30 5 5 5)", "rotate(30 5 5)"), ("skewX(20 1)", "skewX(20)"),
+                        ("matrix(1 0 0 1 2)", "translate(2)"), ("matrix(1 0 0 1 2 3 4)", "translate(2 3)")):
+        rows.append(("transform=%r" % form, "bad-value", B % (moved % form), B % (moved % meant), "differs"))
+    # a word the renderer does not know
+    for word in ("arcs", "miter-clip"):
+        after("stroke-linejoin", '<path class="p" d="M2 8L5 2L8 8" fill="none" stroke="#f00" stroke-width="2"/>', word, "round")
+    # a made-up length the renderer does not read
+    dashes = '<path d="M0 5H10" pathLength="%s" stroke="#f00" stroke-width="4" stroke-dasharray="10"/>'
+    rows.append(("pathLength='20'", "path-length", B % (dashes % "20"), B % (dashes % "40"), "same"))
+    # the outer svg
+    tall = '<svg xmlns="http://www.w3.org/2000/svg" %s><rect width="10" height="20" fill="#00f"/><circle cx="5" cy="10" r="4.3" fill="#f00"/></svg>'
+    for form in ("0,,0 10 20", "0 0 10 20,", ",0 0 10 20"):
+        rows.append(("viewBox=%r" % form, "bad-view-box", tall % ('viewBox="%s"' % form), tall % 'viewBox="0 0 10 20"', "differs"))
+    # a box so small that the renderer takes it for no box at all, and draws nothing where a browser draws the mark
+    tiny = tall.replace('width="10" height="20"', 'width=".003" height=".006"').replace('cx="5" cy="10" r="4.3"', 'cx=".0015" cy=".003" r=".0013"')
+    rows.append(("viewBox='0 0 0.003 0.006'" + GIVEN_A_SIZE, "bad-view-box", tiny % 'viewBox="0 0 0.003 0.006"', tall % 'viewBox="0 0 10 20"', "differs"))
+    for attrs in ('width="40" height="20"', 'width="10" height="21"', 'width="10" height="20.1"', 'width="1in" height="192px"', 'width="5" height="20"',
+                  'width="10" height="10" preserveAspectRatio="none"', 'width="40" height="20" preserveAspectRatio="xMinYMin slice"'):
+        rows.append(("a viewBox and %s" % attrs, "root-size", tall % ('viewBox="0 0 10 20" ' + attrs), tall % 'viewBox="0 0 10 20"', "differs"))
+    for width, height, as_px in (("7.5pt", "15pt", "10 20"), ("2.6458mm", "5.2917mm", "10 20"), (".10417in", ".20833in", "10 20")):
+        rows.append(("no viewBox, %s by %s" % (width, height), "no-size", tall % ('width="%s" height="%s"' % (width, height)), tall % ('viewBox="0 0 %s"' % as_px), "differs"))
+    # what stands where a browser draws nothing of it
+    rect = '<rect width="6" height="6"/>'
+    for what, code, inner in (("a style in a title", "misplaced-element", "<title><style>rect{fill:#f00}</style></title>" + rect),
+                              ("a style in a desc", "misplaced-element", "<desc><style>rect{fill:#f00}</style></desc>" + rect),
+                              ("a style in the metadata", "misplaced-element", "<metadata><style>rect{fill:#f00}</style></metadata>" + rect),
+                              ("a style in another program's element", "misplaced-element", '<x:a xmlns:x="urn:x"><style>rect{fill:#f00}</style></x:a>' + rect),
+                              ("a style with no namespace", "no-namespace", '<style xmlns="">rect{fill:#f00}</style>' + rect),
+                              ("a shape with no namespace", "no-namespace", '<rect xmlns="" fill="#f00" width="6" height="6"/>'),
+                              ("a group with no namespace", "no-namespace", '<g xmlns=""><rect fill="#f00" width="6" height="6"/></g>'),
+                              ("a clip in the metadata", "misplaced-element",
+                               '<metadata><clipPath id="c"><rect width="3" height="3"/></clipPath></metadata><rect clip-path="url(#c)" width="6" height="6"/>')):
+        rows.append((what, code, B % inner, B % (rect if "clip" in what or "style" in what else ""), "differs"))
+    return rows
+
+
+class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
+    """WHAT THE CHECK READS IS WHAT IS DRAWN. For every form of every line of the value grammar: the check takes it; the
+    file as it came and the cleaned file are both drawn, and are the same picture pixel for pixel (no channel of any
+    pixel further apart than SAME of 255) at 32 and at 512 pixels; the form is drawn as the plainest way of writing the
+    same value is; and it is NOT drawn as another value is, so the renderer did read it. A form that fails one of
+    these is not in the grammar: refused_rows() holds those, each with the picture that shows why."""
+
+    def setUp(self):
+        T.require_sharp(self)
+        self.site = Site()
+        self.addCleanup(self.site.close)
+
+    def test_every_form_the_grammar_takes(self):
+        rows = grammar_rows()
+        lines = sorted(set(r[0] for r in rows))
+        self.assertEqual(lines, sorted(["number", "length", "position", "number list", "transform", "path data", "keyword", "clip-path", "id", "class", "viewBox",
+                                        "preserveAspectRatio", "width and height of the outer svg", "nothing here"]))
+        cleaned = []
+        for line, what, doc, _plain, _other in rows:
+            try:
+                cleaned.append(_svg.clean_svg(doc.encode("utf-8")))
+            except Refusal as e:
+                cleaned.append(None)
+                with self.subTest(line=line, what=what):
+                    self.fail("the grammar should take this: refused as %s (%s)" % (e.code, e))
+        jobs, kept = [], []
+        for (line, what, doc, plain, other), clean in zip(rows, cleaned):
+            if clean is None:
+                continue
+            texts, pairs = [doc, clean.text], [[0, 1]]
+            for extra in (plain, other):
+                if extra is not None:
+                    texts.append(extra)
+                    pairs.append([0, len(texts) - 1])
+            if what.endswith(GIVEN_A_SIZE):
+                texts = [t.replace("<svg ", '<svg width="512" height="1024" ', 1) for t in texts]
+            jobs.append({"texts": texts, "pairs": pairs})
+            kept.append((line, what, plain, other))
+        answers = pictures(self, self.site.dir, jobs)
+        worst = 0
+        for (line, what, plain, other), answer in zip(kept, answers):
+            with self.subTest(line=line, what=what):
+                all_drawn(self, answer, what)
+                found = list(answer["pairs"])
+                the_same(self, found.pop(0), "as it came, and cleaned")
+                worst = max([worst] + [got["max"] for got in answer["pairs"][0]])
+                if plain is not None:
+                    the_same(self, found.pop(0), "as it is written, and written the plainest way")
+                if other is not None:
+                    not_the_same(self, found.pop(0), "this value, and another")
+        self.assertGreater(len(kept), 600, "the table is the whole grammar")
+        self.assertLessEqual(worst, SAME)
+
+    def test_every_colour_is_refused_or_drawn_as_it_is_read(self):
+        # the colour reader's own business (_colour.py): held here to the same rule, so that the two stay together
+        shape = '<g color="#ff0"><rect class="p" width="6" height="6" stroke-width="2"/></g>'
+        jobs, kept, outcome = [], [], {}
+        for prop in ("fill", "stroke"):
+            for form in COLOURS:
+                doc = in_a_rule(prop, shape, form, "#0f0")
+                try:
+                    clean = _svg.clean_svg(doc.encode("utf-8"))
+                except Refusal as e:
+                    outcome[prop, form] = e.code
+                    continue
+                outcome[prop, form] = "read"
+                # what the check says this form is: the value it wrote on the shape (`inherit` is written as nothing at all)
+                wrote = re.search(r' %s="([^"]*)"' % prop, clean.text.rsplit("<rect ", 1)[1])
+                mine = wrote.group(1) if wrote else "inherit"
+                jobs.append({"texts": [doc, clean.text, in_a_rule(prop, shape, mine, "#0f0"), in_a_rule(prop, shape, "#0f0", "#0f0")], "pairs": [[0, 1], [0, 2], [0, 3]]})
+                kept.append((prop, form, mine))
+        answers = pictures(self, self.site.dir, jobs)
+        for (prop, form, hexed), answer in zip(kept, answers):
+            with self.subTest(prop=prop, form=form, read_as=hexed):
+                all_drawn(self, answer, form)
+                the_same(self, answer["pairs"][0], "as it came, and cleaned")
+                the_same(self, answer["pairs"][1], "as it is written, and as the hex the check lists")
+                not_the_same(self, answer["pairs"][2], "this colour, and the one the rule set before it")
+        # the test is not empty-handed, and what a renderer draws black is not read
+        for prop in ("fill", "stroke"):
+            for form in ("#f00", "#ff0000", "red", "rgb(255,0,0)", "rgb(180, 83, 26)", "rgb(100%,0%,0%)", "hsl(0,100%,50%)", "currentColor", "none", "inherit"):
+                self.assertEqual(outcome[prop, form], "read", form)
+            for form in ("hsl(0,100,50)", "hsl(0,100%,50)", "hsl(0 100 50)", "rgb(255,0,0/1)", "hsl(0,100%,50%/1)", "rgb(50%,0,0)", "rgb(255.,0,0)", "rgb(0e309,0,0)",
+                         "oklch(0.627955 0.257683 29.2339)", "rgb(1_0,0,0)", "#11_22", "#f000", "transparent", "red garbage", "0xff0000"):
+                self.assertNotEqual(outcome[prop, form], "read", form)
+        self.assertGreater(len(kept), 100)
+
+    def test_what_the_grammar_leaves_out_is_what_would_be_drawn_differently(self):
+        rows = refused_rows()
+        for what, code, doc, _against, _how in rows:
+            with self.subTest(what=what):
+                with self.assertRaises(Refusal) as cm:
+                    _svg.clean_svg(doc.encode("utf-8"))
+                self.assertEqual(cm.exception.code, code, str(cm.exception))
+        sized = lambda what, text: text.replace("<svg ", '<svg width="512" height="1024" ', 1) if what.endswith(GIVEN_A_SIZE) else text
+        answers = pictures(self, self.site.dir, [{"texts": [sized(what, doc), sized(what, against)], "pairs": [[0, 1]]} for what, _code, doc, against, _how in rows])
+        for (what, _code, _doc, _against, how), answer in zip(rows, answers):
+            with self.subTest(what=what, how=how):
+                all_drawn(self, answer, what)
+                pair = answer["pairs"][0]
+                if how == "same":   # drawn as if the other value stood there: the renderer did not read the form at all
+                    the_same(self, pair, "the form, and the value it should have replaced")
+                else:               # not drawn as the value a browser reads in it, at one size at least
+                    self.assertTrue(any(got["far"] > size // 4 for size, got in zip(SIZES, pair)), "drawn as a browser would draw it: %r" % (pair,))
 
 
 if __name__ == "__main__":

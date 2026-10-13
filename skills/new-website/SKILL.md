@@ -252,10 +252,10 @@ Ask exactly once per build. Never run it unasked.
 
 1. Read **"The question"** in `website-brand-kit/SKILL.md` and ask it, as it stands
    there, in the language the owner writes in.
-2. **She has a part and wants it used** → note it (her logo must be an SVG file, and
-   its path; her colours as hex values). No prompt is written for that part. Her own
+2. **She has a part and wants it used** → note the path of her logo file, which must
+   be an SVG, or her colours as hex values. No prompt is written for that part. Her own
    colours still go through the skill's check (its §3 step 3) now.
-3. **She wants help with a part** → run now, before step 3, the steps that
+3. **She wants help with a part** → run now, before step 3, the steps before §6 that
    `website-brand-kit` §0's table names for her answer, and only those (help with
    colours alone does not start the logo steps, and the other way round), so the
    palette exists when `BRAND.md`'s "Brand in one line" is written. These steps are a

@@ -16,8 +16,9 @@ import re
 import _colour
 from _refusal import Refusal
 
-# the same number as _svg._NUM (ASCII digits, no alternative that overlaps another), so the two cannot drift
-_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+# the same number as _svg._NUM (ASCII digits, a digit after a point, one or two digits in an exponent; no
+# alternative that overlaps another), so the two cannot drift
+_NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,2})?"
 _NUMBER = re.compile(r"^\s*(%s)(%%?)\s*$" % _NUM)
 
 
@@ -67,7 +68,7 @@ def resolve_paints(root, drawing, current=None):
             if v.lower() == "inherit":
                 del props["color"]
             else:
-                props["color"] = eff["color"] = _colour.parse_colour(v, current=inherited["color"] or current)
+                props["color"] = eff["color"] = _colour.parse_colour(v, current=inherited["color"] or current, drawn=True)
         for k in ("fill", "stroke"):
             if k not in props or props[k].strip().lower() == "inherit":
                 props.pop(k, None)
@@ -87,7 +88,7 @@ def resolve_paints(root, drawing, current=None):
             if v.lower() == "none":
                 props[k] = eff[k] = "none"
             else:
-                props[k] = eff[k] = _colour.parse_colour(v, current=eff["color"] or current)
+                props[k] = eff[k] = _colour.parse_colour(v, current=eff["color"] or current, drawn=True)
         for k in ("stroke-width", "visibility"):
             if k in props:
                 if props[k].strip().lower() == "inherit":
