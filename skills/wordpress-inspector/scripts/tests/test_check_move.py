@@ -33,6 +33,7 @@ class NewSite:
         self.pages = {"/", "/about/", "/news/first/"}
         self.redirects = {}      # path -> (status, target path or absolute address)
         self.unknown = (404, "")  # what an address that does not exist gets: (status, Location)
+        self.probe = None         # ... and what the "cannot exist" probe gets, when that differs
         self.busy = set()
 
     def base(self):
@@ -65,6 +66,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.answer(200)
         if path.rstrip("/") + "/" in site.pages:  # a host that adds the closing slash, as static hosts do
             return self.answer(308, path.rstrip("/") + "/")
+        if site.probe is not None and path.startswith("/no-such-page-"):
+            return self.answer(*site.probe)
         return self.answer(*site.unknown)
 
 
@@ -173,9 +176,34 @@ class EveryAddressEndsSomewhere(unittest.TestCase):
         site.redirects["/old/"] = (302, "/about/")
         with serve(site):
             code, rows, report, _ = run([OLD + "/old/"], site.base())
+        self.assertEqual((code, rows[OLD + "/old/"]["result"], rows[OLD + "/old/"]["temporary_redirect"]), (0, "redirected", "302"))
+        self.assertIn("1 redirect is temporary (302, 303 or 307)", report)
+
+    def test_a_temporary_redirect_to_another_host_is_flagged_too(self):
+        site = NewSite()
+        site.redirects["/shop/"] = (302, "http://127.0.0.1:1/cart")
+        site.redirects["/tickets/"] = (307, "/about/")
+        with serve(site):
+            code, rows, report, _ = run([OLD + "/shop/", OLD + "/tickets/"], site.base())
+        self.assertEqual((rows[OLD + "/shop/"]["result"], rows[OLD + "/shop/"]["temporary_redirect"]), ("off the site", "302"))
+        self.assertIn("2 redirects are temporary", report)
+        self.assertIn("## Forwarded to another host (1)", report)
+        self.assertIn("- https://old.example/shop/ → http://127.0.0.1:1/cart", report)
+
+    def test_a_redirect_to_an_address_with_a_query_is_not_the_home_page(self):
+        site = NewSite()
+        site.redirects["/old/"] = (301, "/?page_id=2")
+        with serve(site):
+            code, rows, _, _ = run([OLD + "/old/"], site.base())
         self.assertEqual((code, rows[OLD + "/old/"]["result"]), (0, "redirected"))
-        self.assertIn("temporary redirect (302)", rows[OLD + "/old/"]["note"])
-        self.assertIn("1 redirects are temporary", report)
+
+    def test_a_redirect_to_an_address_that_is_no_web_address_is_unreadable_not_a_crash(self):
+        site = NewSite()
+        site.redirects["/bad/"] = (301, "http://127.0.0.1:notaport/x")
+        site.redirects["/worse/"] = (301, "mailto:someone@example.com")
+        with serve(site):
+            code, rows, _, _ = run([OLD + "/bad/", OLD + "/worse/"], site.base())
+        self.assertEqual((code, {r["result"] for r in rows.values()}), (1, {"unreadable"}))
 
     def test_a_redirect_to_another_host_is_listed_not_followed(self):
         with serve() as other, serve() as site:
@@ -183,6 +211,29 @@ class EveryAddressEndsSomewhere(unittest.TestCase):
             code, rows, _, _ = run([OLD + "/privacy/"], site.base())
             self.assertEqual(other.hits, [])
         self.assertEqual((code, rows[OLD + "/privacy/"]["result"]), (0, "off the site"))
+
+
+class TheHomePage(unittest.TestCase):
+    """"Sent home" is for a deep address. The old home address itself may go wherever the new
+    home page lives."""
+
+    def site(self):
+        site = NewSite()
+        site.pages = {"/en/", "/about/"}
+        site.redirects["/"] = (302, "/en/")          # a home page that forwards by language
+        site.redirects["/programme/"] = (301, "/")    # deep, sent to the front door
+        site.redirects["/speakers/"] = (301, "/en/")  # deep, sent to where the front door leads
+        return site
+
+    def test_the_old_home_address_is_not_sent_home(self):
+        with serve(self.site()) as site:
+            code, rows, _, _ = run([OLD + "/", OLD + "/about/"], site.base())
+        self.assertEqual((code, rows[OLD + "/"]["result"]), (0, "redirected"))
+
+    def test_a_deep_address_is_sent_home_by_either_route(self):
+        with serve(self.site()) as site:
+            code, rows, _, _ = run([OLD + "/programme/", OLD + "/speakers/"], site.base())
+        self.assertEqual((code, {r["result"] for r in rows.values()}), (1, {"sent home"}))
 
 
 class LetGo(unittest.TestCase):
@@ -216,12 +267,44 @@ class CannotStart(unittest.TestCase):
             code, rows, _, err = run([OLD + "/gone/"], site.base())
         self.assertEqual((code, rows), (2, None))
 
+    def test_a_probe_that_was_refused_or_busy_proves_nothing(self):
+        # the site says "found" for everything, but the one probe request happened to be throttled
+        for answer in ((429, ""), (503, ""), (403, "")):
+            with self.subTest(answer=answer):
+                site = NewSite()
+                site.unknown = (200, "")
+                site.probe = answer
+                with serve(site):
+                    code, rows, _, err = run([OLD + "/gone/"], site.base())
+                self.assertEqual((code, rows), (2, None))
+                self.assertIn("no plain \"not found\"", err)
+
+    def test_a_site_that_forwards_everything_to_another_host(self):
+        site = NewSite()
+        site.unknown = (301, "http://127.0.0.1:1/elsewhere")
+        with serve(site):
+            code, rows, _, err = run([OLD + "/gone/"], site.base())
+        self.assertEqual((code, rows), (2, None))
+        self.assertIn("another host", err)
+
+    def test_an_address_list_that_cannot_be_parsed(self):
+        with tempfile.TemporaryDirectory() as tmp, serve() as site:
+            p = os.path.join(tmp, "urls.csv")
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write('url,source\n"%s",rest\n' % ("x" * (csv.field_size_limit() + 10)))
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                code = cm.main([p, site.base(), "--out", os.path.join(tmp, "out")])
+        self.assertEqual(code, 2)
+        self.assertIn("cannot read the address list", err.getvalue())
+
     def test_no_addresses_and_no_site(self):
         with serve() as site:
             self.assertEqual(run([], site.base())[0], 2)
             gone = site.base()
         self.assertEqual(run([OLD + "/about/"], gone)[0], 2)
         self.assertEqual(run([OLD + "/about/"], "ftp://new.example")[0], 2)
+        self.assertEqual(run([OLD + "/about/"], "https://new.example:notaport")[0], 2)
 
 
 class AddressList(unittest.TestCase):
@@ -231,11 +314,20 @@ class AddressList(unittest.TestCase):
         self.assertEqual((code, sorted(rows)), (0, [OLD + "/about/", "https://www.old.example/"]))
         self.assertIn("On another host, not checked (1)", report)
 
-    def test_one_address_in_two_spellings_is_asked_once(self):
+    def test_the_same_address_twice_is_asked_once(self):
         with serve() as site:
-            run([OLD + "/about/", OLD + "/about", "/about/"], site.base())
+            run([OLD + "/about/", "https://www.old.example/about/", "/about/"], site.base())
             asked = [h for h in site.hits if h.startswith("/about")]
-        self.assertEqual(len(asked), 1)
+        self.assertEqual(asked, ["/about/"])
+
+    def test_with_and_without_the_closing_slash_are_two_addresses(self):
+        # a site can keep "/a" and forward "/a/" to its home page: asking only one would hide that
+        site = NewSite()
+        site.pages.add("/a")
+        site.redirects["/a/"] = (301, "/")
+        with serve(site):
+            code, rows, _, _ = run([OLD + "/a", OLD + "/a/"], site.base())
+        self.assertEqual((code, rows[OLD + "/a"]["result"], rows[OLD + "/a/"]["result"]), (1, "kept", "sent home"))
 
     def test_a_cell_the_inventory_defused_is_read_back_as_the_address(self):
         with tempfile.TemporaryDirectory() as tmp:

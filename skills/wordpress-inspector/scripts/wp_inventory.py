@@ -28,14 +28,15 @@ What it keeps to:
   - Only the host you name. A redirect to another host is reported, not followed. The one
     exception is the start address itself (example.com -> www.example.com), which it adopts
     and names in the report.
-  - robots.txt, under the name "wordpress-inventory". An address it may not read is skipped
-    and listed.
+  - robots.txt, under the name "wordpress-inventory", read as RFC 9309 reads it (the longest
+    matching rule wins, * and $ count). An address it may not read is skipped and listed. A
+    robots.txt that is refused (401, 403) or cannot be read stops the run.
   - A pause between requests (--delay) and a ceiling on their number (--max-requests).
   - A refusal, a "please wait" or maintenance page, or any web page where data was due is
     never counted as content. It makes the count incomplete.
 
-What it cannot see, and says so in the report: drafts, private and password-protected
-records; content a plugin draws inside a page (a directory in pop-ups, say); fields a plugin
+What it cannot see, and says so in the report: drafts and private records, and the text of
+password-protected ones; content a plugin draws inside a page (a directory in pop-ups, say); fields a plugin
 keeps to itself (a session's start time, for one); media files themselves, only their number.
 """
 
@@ -47,6 +48,7 @@ import csv
 import gzip
 import html
 import http.client
+import io
 import json
 import os
 import re
@@ -56,7 +58,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import urllib.robotparser
+import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple
 
 ROBOTS_TOKEN = "wordpress-inventory"  # the name a robots.txt group calls this tool by
@@ -93,7 +95,6 @@ _SCRIPT = re.compile(r"(?is)<(script|style)\b.*?</\1\s*>")
 _TAG = re.compile(r"(?s)<[^>]*>")
 _SC_OPEN = re.compile(r"\[([a-z][a-z0-9_-]{2,40})((?:\s[^\[\]]{0,400})?)/?\]")
 _SC_CLOSE = re.compile(r"\[/([a-z][a-z0-9_-]{2,40})\]")
-_LOC = re.compile(r"<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)")
 _WORD = re.compile(r"[^\W\d_]+")
 # Two languages only, the two this guess was checked on. Anything else reads "unknown".
 _STOP = {
@@ -140,20 +141,35 @@ def analyse(markup: str) -> dict:
     }
 
 
+def web_address(url: str) -> bool:
+    """An http(s) address with a host and a port that is a number."""
+    try:
+        p = urllib.parse.urlsplit(url)
+        p.port  # raises ValueError for "host:abc" and for a port out of range
+    except ValueError:
+        return False
+    return p.scheme.lower() in ("http", "https") and bool(p.hostname)
+
+
 def origin_of(url: str) -> Tuple[str, str, int]:
+    """(scheme, host, port). Callers hand it only what web_address() accepts."""
     p = urllib.parse.urlsplit(url)
     return (p.scheme.lower(), (p.hostname or "").lower(), p.port or (443 if p.scheme.lower() == "https" else 80))
 
 
+def bare_host(host: str) -> str:
+    host = (host or "").lower()
+    return host[4:] if host.startswith("www.") else host
+
+
 def path_key(url: str, site_host: str) -> str:
-    """The address as the site knows it: its path without a trailing slash. An address on
-    another host keeps its full form, so it never matches one of the site's own."""
+    """The address as the site knows it: its path without a trailing slash, plus its query
+    ("/?p=1" and "/?p=3" are two pages). An address on another host keeps its full form, so it
+    never matches one of the site's own."""
     p = urllib.parse.urlsplit(url)
-    host = (p.hostname or "").lower()
-    bare = lambda h: h[4:] if h.startswith("www.") else h  # noqa: E731
-    if host and bare(host) != bare(site_host):
+    if p.hostname and bare_host(p.hostname) != bare_host(site_host):
         return url
-    return p.path.rstrip("/") or "/"
+    return (p.path.rstrip("/") or "/") + ("?" + p.query if p.query else "")
 
 
 def safe_cell(value) -> str:
@@ -167,7 +183,105 @@ def md(value, limit: int = 120) -> str:
     """Text from the site, made safe for a Markdown table cell."""
     s = re.sub(r"\s+", " ", "" if value is None else str(value)).strip()
     s = s.replace("\\", "\\\\").replace("|", "\\|").replace("`", "'").replace("<", "&lt;")
+    s = s.replace("[", "\\[").replace("]", "\\]")  # no link or image can be written into the report
     return s if len(s) <= limit else s[: limit - 1] + "…"
+
+
+# --- robots.txt, read as RFC 9309 reads it. This is the matcher of skills/facts-check/scripts/
+# facts_check.py, copied because a skill travels alone; keep the two in step. The standard
+# library's parser cannot be used: before Python 3.13 it ignores * and $, so the same robots.txt
+# would keep this tool out on one machine and let it in on another.
+_UNRESERVED = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+_ESCAPE_OR_ODD = re.compile(r"%[0-9A-Fa-f]{2}|[^A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]")
+_LINE_END = re.compile(r"\r\n|\r|\n")
+_AGENT_NAME = re.compile(r"[A-Za-z_-]*")
+
+
+def request_target(url: str) -> str:
+    """The path and query a request for this address sends: urllib's own selector."""
+    return urllib.request.Request(url).selector or "/"
+
+
+def robots_form(text: str) -> str:
+    """A rule or a request path as RFC 9309 (2.2.2) compares them: a character that is no URI
+    character becomes percent escapes of its UTF-8 bytes, an escape of an unreserved character
+    becomes the character, any other escape gets capital hex digits."""
+    def one(m):
+        s = m.group()
+        if len(s) == 3 and s[0] == "%":
+            c = chr(int(s[1:], 16))
+            return c if c in _UNRESERVED else s.upper()
+        return "".join("%%%02X" % b for b in s.encode("utf-8", "replace"))
+    return _ESCAPE_OR_ODD.sub(one, text)
+
+
+def _matches(parts: List[str], anchored: bool, path: str) -> bool:
+    """Does a rule, split at its *, match the start of `path` (all of it, if the rule ended in $)?"""
+    if not path.startswith(parts[0]):
+        return False
+    pos = len(parts[0])
+    if len(parts) == 1:
+        return len(path) == pos if anchored else True
+    for piece in parts[1:-1]:
+        at = path.find(piece, pos)
+        if at < 0:
+            return False
+        pos = at + len(piece)
+    last = parts[-1]
+    if anchored:
+        return len(path) - len(last) >= pos and path.endswith(last)
+    return path.find(last, pos) >= 0
+
+
+class RobotsRules:
+    """What a robots.txt allows this tool. Groups are runs of User-agent lines followed by Allow
+    and Disallow rules; the group that names this tool counts, else the group of "*"; the groups
+    of one name are combined. The longest matching rule wins, and an Allow wins a tie."""
+
+    def __init__(self):
+        self.rules: List[Tuple[int, bool, List[str], bool]] = []  # (length, allow, pieces, ends in $), best first
+        self.sitemaps: List[str] = []
+
+    def parse(self, text: str) -> None:
+        named: List[tuple] = []
+        everyone: List[tuple] = []
+        any_named = mine = star = in_rules = False
+        for line in _LINE_END.split(text):
+            name, colon, value = line.split("#", 1)[0].lstrip(" \t﻿").partition(":")
+            name = name.strip().lower()
+            if not colon:
+                continue
+            value = value.strip()
+            if name == "user-agent":
+                if in_rules:  # an agent line after rules starts the next group
+                    mine = star = in_rules = False
+                if _AGENT_NAME.match(value).group().lower() == ROBOTS_TOKEN:
+                    mine = any_named = True
+                elif value == "*":
+                    star = True
+            elif name in ("allow", "disallow"):
+                in_rules = True
+                if not value or not (mine or star):  # an empty rule says nothing, and another agent's is not read
+                    continue
+                pattern = robots_form(value)
+                anchored = pattern.endswith("$")
+                rule = (len(pattern), name == "allow", (pattern[:-1] if anchored else pattern).split("*"), anchored)
+                if mine:
+                    named.append(rule)
+                if star:
+                    everyone.append(rule)
+            elif name == "sitemap" and value:
+                self.sitemaps.append(value)
+        self.rules = sorted(named if any_named else everyone, key=lambda r: (-r[0], not r[1]))
+
+    def allowed(self, url: str) -> bool:
+        path = robots_form(request_target(url))
+        if path == "/robots.txt":  # RFC 9309 (2.2.2): the file itself is always allowed
+            return True
+        for _, allow, parts, anchored in self.rules:
+            if _matches(parts, anchored, path):
+                return allow
+        return True
 
 
 class Resp:
@@ -206,7 +320,7 @@ class Fetcher:
         self.origin = origin_of(start)
         self.delay, self.timeout, self.max_requests, self.user_agent = delay, timeout, max_requests, user_agent
         self.opener = urllib.request.build_opener(_NoRedirect)
-        self.robots: Optional[urllib.robotparser.RobotFileParser] = None
+        self.robots: Optional[RobotsRules] = None
         self.count = 0
         self.cap_hit = False
         self.log: List[dict] = []
@@ -244,10 +358,13 @@ class Fetcher:
         resp = Resp(url, note="too many redirects")
         via: List[int] = []
         for _ in range(MAX_HOPS + 1):
+            if not web_address(url):
+                resp = Resp(url, note="not a web address")
+                break
             if origin_of(url) != self.origin:
                 resp = Resp(url, note="on another host, not asked")
                 break
-            if not robots_exempt and self.robots is not None and not self.robots.can_fetch(ROBOTS_TOKEN, url):
+            if not robots_exempt and self.robots is not None and not self.robots.allowed(url):
                 resp = Resp(url, note="robots.txt does not allow it")
                 break
             resp = self._fetch(url, limit)
@@ -255,7 +372,7 @@ class Fetcher:
             if not loc:
                 break
             nxt = urllib.parse.urljoin(url, loc)
-            if urllib.parse.urlsplit(nxt).scheme not in ("http", "https"):
+            if not web_address(nxt):
                 resp.note = "redirects to something that is not a web address"
                 break
             if origin_of(nxt) != self.origin:
@@ -274,14 +391,16 @@ class Fetcher:
         self.robots = None
         scheme, host, port = self.origin
         resp = self.get("%s://%s/robots.txt" % (scheme, urllib.parse.urlsplit(base).netloc), 1024 * 1024, robots_exempt=True)
-        rp = urllib.robotparser.RobotFileParser()
-        if resp.status == 200 and not resp.note and "html" not in (resp.ctype or "").lower():
-            rp.parse(resp.text().splitlines())
-        elif 400 <= resp.status < 500 or (resp.status == 200 and not resp.note):
-            rp.parse([])  # no robots.txt (or a web page in its place): nothing is disallowed
+        rules = RobotsRules()
+        if resp.status == 200 and not resp.note:
+            rules.parse(resp.text())  # a web page in its place holds no rule: nothing is disallowed
+        elif resp.status in (401, 403):
+            return "robots.txt is refused to this tool (HTTP %s), which means keep out; nothing else was asked" % resp.status
+        elif 400 <= resp.status < 500 and resp.status != 429 and not resp.note:
+            pass  # no robots.txt: nothing is disallowed
         else:
             return "robots.txt could not be read (%s), so nothing else was asked" % (resp.problem() or "no rules")
-        self.robots = rp
+        self.robots = rules
         return ""
 
 
@@ -299,9 +418,10 @@ def as_json(resp: Resp):
 
 def header_int(resp: Resp, name: str) -> Optional[int]:
     try:
-        return int(resp.headers.get(name)) if resp.headers else None
+        n = int(resp.headers.get(name)) if resp.headers else None
     except (TypeError, ValueError):
         return None
+    return n if n is not None and n >= 0 else None
 
 
 class Rest:
@@ -322,36 +442,53 @@ class Rest:
 def read_type(fetcher: Fetcher, rest: Rest, slug: str, info: dict, site_host: str, records: List[dict]) -> dict:
     out = {"type": slug, "name": str(info.get("name") or slug), "total": None, "fetched": 0, "complete": False, "note": ""}
     stats = []
+    seen_ids = set()
+    repeats = 0
+    route = str(info.get("rest_namespace") or "wp/v2").strip("/") + "/" + str(info["rest_base"]).strip("/")
     page, pages = 1, 1
     while page <= pages:
-        resp = fetcher.get(rest.url("wp/v2/" + str(info["rest_base"]), per_page=PER_PAGE, page=page,
+        resp = fetcher.get(rest.url(route, per_page=PER_PAGE, page=page,
                                     _fields="id,link,slug,date,modified,type,title,content"))
         data, problem = as_json(resp)
         if problem or not isinstance(data, list):
             out["note"] = problem or "the answer is not a list"
             break
+        total = header_int(resp, "X-WP-Total")
         if page == 1:
-            out["total"] = header_int(resp, "X-WP-Total")
+            out["total"] = total
             pages = header_int(resp, "X-WP-TotalPages") or 1
+        elif total != out["total"]:
+            out["note"] = "the site's total changed while it was read (%s, then %s)" % (out["total"], total)
+            break
         for rec in data:
             if not isinstance(rec, dict):
                 continue
+            if rec.get("id") is not None:
+                if rec["id"] in seen_ids:
+                    repeats += 1
+                    continue
+                seen_ids.add(rec["id"])
             content = rec.get("content") if isinstance(rec.get("content"), dict) else {}
             a = analyse(str(content.get("rendered") or ""))
             stats.append((rec, a))
             records.append({"url": str(rec.get("link") or ""), "key": path_key(str(rec.get("link") or ""), site_host),
                             "type": slug, "id": rec.get("id"), "modified": str(rec.get("modified") or "")[:10], **a})
         page += 1
-    out["fetched"] = len(stats)
-    out["complete"] = not out["note"] and out["total"] is not None and out["fetched"] == out["total"]
-    if not out["note"] and not out["complete"]:
-        out["note"] = "the site reports %s records, %s were handed out" % (out["total"], out["fetched"])
+    out["fetched"] = len(stats)  # distinct records: one handed out twice counts once
+    if not out["note"]:
+        if out["total"] is None:
+            out["note"] = "the site did not report a total"
+        elif repeats:
+            out["note"] = "%s records were handed out twice, so the list changed or repeated while it was read" % repeats
+        elif out["fetched"] != out["total"]:
+            out["note"] = "the site reports %s records, %s were handed out" % (out["total"], out["fetched"])
+    out["complete"] = not out["note"]
     words = [a["words"] for _, a in stats]
     out.update({
         "by_year": dict(sorted(collections.Counter(str(r.get("date") or "")[:4] or "?" for r, _ in stats).items())),
         "last_modified": max((str(r.get("modified") or "")[:10] for r, _ in stats), default=""),
         "words_total": sum(words),
-        "words_median": int(statistics.median(words)) if words else 0,
+        "words_median": round(statistics.median(words)) if words else 0,
         "builders": dict(collections.Counter(b for _, a in stats for b in a["builders"]).most_common()),
         "forms": dict(collections.Counter(f for _, a in stats for f in a["forms"]).most_common()),
         "records_with_forms": sum(1 for _, a in stats if a["forms"]),
@@ -368,12 +505,22 @@ def count_only(fetcher: Fetcher, rest: Rest, route: str) -> Tuple[Optional[int],
     data, problem = as_json(resp)
     if problem:
         return None, problem
-    return header_int(resp, "X-WP-Total"), ""
+    if not isinstance(data, list):
+        return None, "the answer is not a list"
+    total = header_int(resp, "X-WP-Total")
+    return (total, "") if total is not None else (None, "the site did not report a total")
 
 
-def read_sitemaps(fetcher: Fetcher, starts: List[str], notes: List[str]) -> List[dict]:
-    """Every sitemap file reachable from `starts`. `notes` collects each file that could not be read."""
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent: List[str]) -> List[dict]:
+    """Every sitemap file reachable from `starts`. `broken` collects each file that could not be
+    read; `absent` collects each start address that holds no sitemap at all (not found, or
+    something else lives there). A file an index names is never merely absent."""
     queue, seen, files = list(starts), set(), []
+    first = set(starts)
     while queue and len(seen) < MAX_SITEMAP_FILES:
         sm = queue.pop(0)
         if sm in seen:
@@ -382,35 +529,50 @@ def read_sitemaps(fetcher: Fetcher, starts: List[str], notes: List[str]) -> List
         resp = fetcher.get(sm, SITEMAP_MAX_BYTES)
         problem = resp.problem()
         if problem:
-            notes.append("sitemap %s: %s" % (sm, problem))
+            (absent if sm in first and resp.status in (404, 410) and not resp.note else broken).append("sitemap %s: %s" % (sm, problem))
             continue
         body = resp.body
         if body[:2] == b"\x1f\x8b":
             try:
-                with gzip.GzipFile(fileobj=__import__("io").BytesIO(body)) as gz:
+                with gzip.GzipFile(fileobj=io.BytesIO(body)) as gz:
                     body = gz.read(SITEMAP_MAX_BYTES + 1)
             except (OSError, EOFError):
-                notes.append("sitemap %s: cannot be unpacked" % sm)
+                broken.append("sitemap %s: cannot be unpacked" % sm)
                 continue
-        text = body.decode("utf-8", "replace")
-        if not re.search(r"<(sitemapindex|urlset)\b", text[:4000]):
-            notes.append("sitemap %s: not a sitemap" % sm)
+            if len(body) > SITEMAP_MAX_BYTES:
+                broken.append("sitemap %s: unpacks to more than the 50 MB a sitemap may be; not read" % sm)
+                continue
+        looks_like_one = re.search(rb"<([A-Za-z_][\w.-]*:)?(sitemapindex|urlset)\b", body[:4000]) is not None
+        try:
+            root = ET.fromstring(body)
+        except ET.ParseError:
+            if looks_like_one or sm not in first:
+                broken.append("sitemap %s: not valid XML (cut off or damaged)" % sm)
+            else:
+                absent.append("sitemap %s: not a sitemap" % sm)
             continue
-        locs = [html.unescape(x) for x in _LOC.findall(text)]
-        if re.search(r"<sitemapindex\b", text[:4000]):
+        kind = _local(root.tag)
+        if kind not in ("sitemapindex", "urlset"):
+            (absent if sm in first else broken).append("sitemap %s: not a sitemap" % sm)
+            continue
+        # Only <url><loc> and <sitemap><loc>, whatever prefix they carry: image:loc is not a page.
+        locs = [loc.text.strip()
+                for entry in root if _local(entry.tag) in ("url", "sitemap")
+                for loc in entry if _local(loc.tag) == "loc" and loc.text and loc.text.strip()]
+        if kind == "sitemapindex":
             queue.extend(urllib.parse.urljoin(sm, x) for x in locs)
         else:
             files.append({"url": resp.url, "urls": locs})
     if queue:
-        notes.append("more than %s sitemap files: %s were not read" % (MAX_SITEMAP_FILES, len(queue)))
+        broken.append("more than %s sitemap files: %s were not read" % (MAX_SITEMAP_FILES, len(queue)))
     return files
 
 
 def inventory(start: str, delay: float, timeout: float, max_requests: int, user_agent: str) -> Tuple[Optional[dict], str]:
     """(data, "") or (None, why the run could not start)."""
-    p = urllib.parse.urlsplit(start)
-    if p.scheme not in ("http", "https") or not p.hostname:
+    if not web_address(start):
         return None, "not a web address: %s" % start
+    p = urllib.parse.urlsplit(start)
     base = urllib.parse.urlunsplit((p.scheme, p.netloc, p.path if p.path.endswith("/") else p.path + "/", "", ""))
     fetcher = Fetcher(base, delay, timeout, max_requests, user_agent)
     notes: List[str] = []  # worth knowing
@@ -489,14 +651,25 @@ def inventory(start: str, delay: float, timeout: float, max_requests: int, user_
         comments, _ = count_only(fetcher, rest, "wp/v2/comments")
 
     # --- the sitemap: robots.txt names it, else the usual addresses
-    named = [s for s in (fetcher.robots.site_maps() or [])] if fetcher.robots else []
-    files = read_sitemaps(fetcher, named, gaps) if named else []
+    named = []
+    here = urllib.parse.urlsplit(base)
+    for sm in (fetcher.robots.sitemaps if fetcher.robots else []):
+        t = urllib.parse.urlsplit(urllib.parse.urljoin(base, sm))
+        if (web_address(t.geturl()) and bare_host(t.hostname) == bare_host(here.hostname)
+                and (t.port == here.port or {t.port, here.port} <= {None, 80, 443})):
+            # the same site under its other spelling (http for https, with or without www): ask it here
+            t = t._replace(scheme=here.scheme, netloc=here.netloc)
+        named.append(t.geturl())
+    broken: List[str] = []
+    absent: List[str] = []
+    files = read_sitemaps(fetcher, named, broken, absent) if named else []
+    gaps.extend(broken + absent)  # an address robots.txt names has to hold a sitemap
     if not files:
         for guess in ("sitemap_index.xml", "wp-sitemap.xml", "sitemap.xml"):
-            quiet: List[str] = []
-            files = read_sitemaps(fetcher, [urllib.parse.urljoin(base, guess)], quiet)
+            broken, absent = [], []
+            files = read_sitemaps(fetcher, [urllib.parse.urljoin(base, guess)], broken, absent)
+            gaps.extend(broken)  # refused, busy or damaged is a gap; "not found" at a guessed address is not
             if files:
-                gaps.extend(quiet)
                 break
     if not rest_ok and not files:
         return None, "neither a WordPress REST API nor a sitemap was found at %s (%s)" % (base, "; ".join(gaps) or "no answer")
@@ -642,7 +815,8 @@ def render(d: dict) -> str:
     add("")
     add("## What this count cannot see")
     add("")
-    add("- Drafts, private and password-protected records, and anything behind a login.")
+    add("- Drafts, private records and anything behind a login. A password-protected record may be counted, but its text is not read.")
+    add("- A content type the site's REST API does not list.")
     add("- Content a plugin draws inside a page, such as a directory shown in pop-ups: it counts as one page.")
     add("- Fields a plugin keeps to itself, such as a session's start time or its speakers.")
     add("- The media files themselves, redirects set inside WordPress, and form entries.")
@@ -667,7 +841,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--delay", type=float, default=1.0, help="seconds between requests (default 1)")
     ap.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for one answer (default 30)")
     ap.add_argument("--max-requests", type=int, default=100, help="stop after this many requests (default 100)")
-    ap.add_argument("--user-agent", default=USER_AGENT, help="the name sent with each request")
+    ap.add_argument("--user-agent", default=USER_AGENT,
+                    help="the name sent with each request (robots.txt is still read under the name %s)" % ROBOTS_TOKEN)
     args = ap.parse_args(argv)
     data, stop = inventory(args.site, max(args.delay, 0.0), args.timeout, max(args.max_requests, 1), args.user_agent)
     if data is None:

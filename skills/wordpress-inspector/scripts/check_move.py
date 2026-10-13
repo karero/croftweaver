@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-check_move.py — after a site has moved: does every old address still lead somewhere?
+check_move.py — after a site has moved: does every listed old address still lead somewhere?
 
-It takes the list of the old site's addresses (urls.csv from wp_inventory.py, or any text
-file with one address per line) and asks the NEW site for each of them. Every address must
-end in one of these:
+It takes a list of the old site's addresses (urls.csv from wp_inventory.py, or any text
+file with one address per line) and asks the NEW site for each of them. The check is as
+complete as that list: urls.csv holds the records and sitemap entries the count found, not
+listing pages the sitemap left out. Every address must end in one of these:
 
   kept          the new site answers at the same address
   redirected    the new site forwards it to another of its pages, and that page answers
@@ -14,8 +15,8 @@ end in one of these:
 Anything else is a finding, and the run exits 1:
 
   missing       the new site says "not found"
-  sent home     a deep address is forwarded to the home page: to a search engine, and to a
-                reader, that page is gone
+  sent home     a deep address is forwarded to the home page: a reader who follows an old
+                link to it lands on the front page and has to search again
   unreadable    the new site refused, was too busy, or forwards in a loop
 
 Read-only: it only asks the new site for pages. Standard library only (Python 3.9+).
@@ -25,12 +26,14 @@ Usage:
   python3 check_move.py old-addresses.txt https://preview.new-site.example --let-go let-go.txt
 
 Exit codes: 0 every address is accounted for, 1 at least one finding, 2 the run could not
-start (no address list, the new site does not answer, or it answers "found" for an address
-that cannot exist, so kept and missing cannot be told apart).
+start (no address list, the new site does not answer, or asking it for an address that
+cannot exist did not bring a plain "not found", so kept and missing cannot be told apart).
 
 Notes:
-  - Run it against a deployed address (the preview or the live site). A local preview server
-    does not apply a host's redirect rules, so every redirect would read as missing.
+  - Run it against a deployed address (the preview or the live site). A preview server on
+    your own computer may not apply the host's redirect rules; where it does not, every
+    redirect reads as missing.
+  - "/a" and "/a/" are asked separately: a site can answer the two differently.
   - It does not consult robots.txt: the new site is your own, and a preview often keeps
     robots out on purpose. It still pauses between requests (--delay).
   - The old addresses' paths are asked on the new host. Addresses on a host other than the
@@ -55,7 +58,8 @@ import wp_inventory as wi  # noqa: E402  (one fetcher for both scripts)
 USER_AGENT = "wordpress-inventory/0.1 (move check, read-only)"
 FINDINGS = ("missing", "sent home", "unreadable")
 ORDER = ("kept", "redirected", "off the site", "let go") + FINDINGS
-CSV_FIELDS = ["old_address", "result", "status", "ends_at", "note"]
+TEMPORARY = (302, 303, 307)
+CSV_FIELDS = ["old_address", "result", "status", "ends_at", "temporary_redirect", "note"]
 
 
 def read_addresses(path: str) -> List[str]:
@@ -92,8 +96,9 @@ def ask_of(address: str, old_host: str) -> Optional[str]:
 
 
 def key_of(ask: str) -> str:
-    """Two spellings of one address ("/a" and "/a/") share a key; a query string keeps its own."""
-    return ask if "?" in ask else (ask.rstrip("/") or "/")
+    """The key a let-go line is matched by: "/a" and "/a/" name the same dropped page."""
+    path, q, query = ask.partition("?")
+    return (path.rstrip("/") or "/") + q + query
 
 
 def split_old(addresses: List[str]) -> Tuple[str, List[Tuple[str, str]], List[str]]:
@@ -106,8 +111,8 @@ def split_old(addresses: List[str]) -> Tuple[str, List[Tuple[str, str]], List[st
         ask = ask_of(a, old_host)
         if ask is None:
             elsewhere.append(a)
-        elif key_of(ask) not in seen:
-            seen.add(key_of(ask))
+        elif ask not in seen:  # the same address twice is asked once; "/a" and "/a/" are two addresses
+            seen.add(ask)
             mine.append((a, ask))
     return old_host, mine, elsewhere
 
@@ -118,16 +123,16 @@ def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay:
     try:
         addresses = read_addresses(addresses_file)
         let_go_raw = read_addresses(let_go_file) if let_go_file else []
-    except (OSError, UnicodeDecodeError, StopIteration) as e:
+    except (OSError, UnicodeDecodeError, StopIteration, csv.Error) as e:
         return None, "cannot read the address list (%s)" % (e if str(e) else type(e).__name__)
     old_host, todo, elsewhere = split_old(addresses)
     if not todo:
         return None, "no addresses to check in %s" % addresses_file
     let_go = {key_of(a) for a in (ask_of(x, old_host) for x in let_go_raw) if a is not None}
 
-    p = urllib.parse.urlsplit(new_site)
-    if p.scheme not in ("http", "https") or not p.hostname:
+    if not wi.web_address(new_site):
         return None, "not a web address: %s" % new_site
+    p = urllib.parse.urlsplit(new_site)
     base = urllib.parse.urlunsplit((p.scheme, p.netloc, p.path.rstrip("/"), "", ""))
     fetcher = wi.Fetcher(base + "/", delay, timeout, max_requests, USER_AGENT)  # .robots stays None: see the notes above
     moved = []
@@ -142,44 +147,50 @@ def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay:
         fetcher.origin = wi.origin_of(base + "/")
     if home is None or home.problem():
         return None, "the new site's home page could not be read at %s/ (%s)" % (base, home.problem() if home else "no answer")
-    home_key = wi.path_key(home.url, fetcher.origin[1])
+    host = fetcher.origin[1]
+    root_key = wi.path_key(base + "/", host)      # the home address as asked
+    home_keys = {root_key, wi.path_key(home.url, host)}  # ... and where it ends ("/en/", "/index.html")
 
+    # Only a plain "not found" for an address that cannot exist lets kept and missing be told apart.
     probe = fetcher.get("%s/no-such-page-%s/" % (base, secrets.token_hex(8)))
     if not probe.problem():
         return None, ("the new site answers \"found\" for an address that cannot exist (%s), so kept and missing "
                       "cannot be told apart. Give it a real \"not found\" page first" % probe.url)
+    if probe.status not in (404, 410):  # refused, busy, or forwarded to another host
+        return None, ("asking the new site for an address that cannot exist brought no plain \"not found\" (%s), so kept "
+                      "and missing cannot be told apart yet. Run it again" % probe.problem())
 
     rows = []
     for old, ask in todo:
         resp = fetcher.get(base + ask)
-        key = key_of(ask)
+        asked_key = wi.path_key(base + ask, host)
         problem = resp.problem()
         ends_at, note = "", ""
-        temp = [s for s in resp.via if s in (302, 303, 307)]
+        temp = [s for s in resp.via + ([resp.status] if resp.redirect_to else []) if s in TEMPORARY]
         if resp.redirect_to:
             result, ends_at = "off the site", resp.redirect_to
         elif not problem and not resp.via:
             result = "kept"
         elif not problem:
             ends_at = resp.url
-            if wi.path_key(resp.url, fetcher.origin[1]) == home_key and key != home_key:
+            # the old home address may be forwarded wherever the home page lives; a deep address may not
+            if wi.path_key(resp.url, host) in home_keys and asked_key != root_key:
                 result = "sent home"
             else:
                 result = "redirected"
-            if temp:
-                note = "temporary redirect (%s): make it permanent (301)" % temp[0]
         elif resp.status in (404, 410):
-            result = "let go" if key in let_go else "missing"
+            result = "let go" if key_of(ask) in let_go else "missing"
             if resp.via:
                 note = "forwards to %s, which is not found" % resp.url
         else:
             result, note = "unreadable", problem
-        rows.append({"old_address": old, "result": result, "status": resp.status or "", "ends_at": ends_at, "note": note})
+        rows.append({"old_address": old, "result": result, "status": resp.status or "", "ends_at": ends_at,
+                     "temporary_redirect": temp[0] if temp else "", "note": note})
     counts = collections.Counter(r["result"] for r in rows)
     return {
         "new_site": base + "/", "old_host": old_host, "moved": moved, "checked": len(rows), "rows": rows,
         "counts": {k: counts.get(k, 0) for k in ORDER}, "elsewhere": elsewhere,
-        "temporary": sum(1 for r in rows if r["note"].startswith("temporary")),
+        "temporary": sum(1 for r in rows if r["temporary_redirect"]),
         "findings": sum(counts.get(k, 0) for k in FINDINGS), "requests": fetcher.count, "cap_hit": fetcher.cap_hit,
     }, ""
 
@@ -208,8 +219,9 @@ def render(d: dict, list_limit: int = 200) -> str:
     L.extend("| %s | %s |" % (k, d["counts"][k]) for k in ORDER)
     if d["temporary"]:
         add("")
-        add("%s redirects are temporary (302 or 307). A moved page needs a permanent one (301), "
-            "or search engines keep the old address." % d["temporary"])
+        add("%s temporary (302, 303 or 307); move-check.csv says which. If the move is for good, make "
+            "%s permanent (301 or 308)." % (("1 redirect is", "it") if d["temporary"] == 1
+                                           else ("%s redirects are" % d["temporary"], "them")))
     for kind, title in (("missing", "Missing"), ("sent home", "Sent to the home page"), ("unreadable", "Unreadable")):
         hit = [r for r in d["rows"] if r["result"] == kind]
         if hit:
@@ -219,6 +231,16 @@ def render(d: dict, list_limit: int = 200) -> str:
             L.extend("- %s%s" % (md(r["old_address"], 300), " — " + md(r["note"], 200) if r["note"] else "") for r in hit[:list_limit])
             if len(hit) > list_limit:
                 add("- … and %s more, all in move-check.csv" % (len(hit) - list_limit))
+    off = [r for r in d["rows"] if r["result"] == "off the site"]
+    if off:
+        add("")
+        add("## Forwarded to another host (%s)" % len(off))
+        add("")
+        add("Not followed. Check that each target is the one you mean.")
+        add("")
+        L.extend("- %s → %s" % (md(r["old_address"], 300), md(r["ends_at"], 300)) for r in off[:list_limit])
+        if len(off) > list_limit:
+            add("- … and %s more, all in move-check.csv" % (len(off) - list_limit))
     if d["elsewhere"]:
         add("")
         add("## On another host, not checked (%s)" % len(d["elsewhere"]))

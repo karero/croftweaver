@@ -8,6 +8,7 @@ Run:  python3 -m unittest discover -s skills/wordpress-inspector/scripts/tests
 
 import contextlib
 import csv
+import gzip
 import io
 import json
 import os
@@ -60,6 +61,11 @@ class Site:
             "/extra-sitemap.xml": self.urlset(["/directory/a/", "/directory/b/"]),
         }
         self.redirects = {}        # path -> absolute address
+        self.extra = {}            # path -> (status, content type, body): any other answer a test needs
+        self.robots_status = 200
+        self.no_total = set()      # rest_base values answered without an X-WP-Total header
+        self.total_on_page = {}    # (rest_base, page) -> the X-WP-Total to claim on that page
+        self.replay_first_page = set()  # rest_base values that hand out page 1 again for every page
         self.wordpress = True
 
     def base(self):
@@ -71,11 +77,12 @@ class Site:
                 "modified": year + "-04-02T10:00:00", "title": {"rendered": "T%d" % i}, "content": {"rendered": content}}
 
     def index(self, names):
-        return "<?xml version='1.0'?><sitemapindex>%s</sitemapindex>" % "".join(
+        return "<?xml version='1.0'?><sitemapindex xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>%s</sitemapindex>" % "".join(
             "<sitemap><loc>%s/%s</loc></sitemap>" % ("{base}", n) for n in names)
 
     def urlset(self, paths):
-        return "<?xml version='1.0'?><urlset>%s</urlset>" % "".join(
+        return ("<?xml version='1.0'?><urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9' "
+                "xmlns:image='http://www.google.com/schemas/sitemap-image/1.1'>%s</urlset>") % "".join(
             "<url><loc>{base}%s</loc><image:image><image:loc>{base}/x.png</image:loc></image:image></url>" % p for p in paths)
 
 
@@ -100,8 +107,12 @@ class Handler(BaseHTTPRequestHandler):
         site.hits.append(self.path)
         if url.path in site.redirects and "rest_route" not in q:
             return self.send(301, "text/html", "", [("Location", site.redirects[url.path])])
+        if url.path in site.extra:
+            return self.send(*site.extra[url.path])
         if url.path == "/robots.txt":
-            return self.send(200, "text/plain", site.robots) if site.robots is not None else self.send(404, "text/plain", "")
+            if site.robots is None:
+                return self.send(404, "text/plain", "")
+            return self.send(site.robots_status, "text/plain", site.robots)
         route = None
         if site.wordpress and site.rest_style == "pretty" and url.path.startswith("/wp-json"):
             route = url.path[len("/wp-json"):].strip("/")
@@ -131,18 +142,22 @@ class Handler(BaseHTTPRequestHandler):
                 "category": {"name": "Categories", "rest_base": "categories", "types": ["post"]},
                 "post_tag": {"name": "Tags", "rest_base": "tags", "types": ["post"]},
                 "nav_menu": {"name": "Menus", "rest_base": "menus", "types": ["nav_menu_item"]}}))
-        base = route[len("wp/v2/"):] if route.startswith("wp/v2/") else None
+        base = route[len("wp/v2/"):] if route.startswith("wp/v2/") else route  # another namespace: the whole route
         per, page = int(q.get("per_page", 10)), int(q.get("page", 1))
         if (base, page) in site.fail:
             return self.send(*site.fail[(base, page)])
         if base in site.records:
             recs = [dict(r, link=site.base() + r["link"]) for r in site.records[base]]
-            part = recs[(page - 1) * per: page * per]
+            at = 1 if base in site.replay_first_page else page
+            part = recs[(at - 1) * per: at * per]
             total = site.total_override.get(base, len(recs))
+            pages = max(1, -(-total // per))
+            total = site.total_on_page.get((base, page), total)
             return self.send(200, "application/json", json.dumps(part),
-                             [("X-WP-Total", str(total)), ("X-WP-TotalPages", str(max(1, -(-total // per))))])
+                             [] if base in site.no_total else [("X-WP-Total", str(total)), ("X-WP-TotalPages", str(pages))])
         if base in site.totals:
-            return self.send(200, "application/json", "[]", [("X-WP-Total", str(site.totals[base])), ("X-WP-TotalPages", "1")])
+            return self.send(200, "application/json", "[]",
+                             [] if base in site.no_total else [("X-WP-Total", str(site.totals[base])), ("X-WP-TotalPages", "1")])
         return self.send(404, "application/json", json.dumps({"code": "rest_no_route"}))
 
 
@@ -310,10 +325,12 @@ class StaysOnTheSite(unittest.TestCase):
             site.redirects["/sitemap_index.xml"] = other.base() + "/sitemap_index.xml"
             site.redirects["/wp-sitemap.xml"] = other.base() + "/sitemap_index.xml"
             site.sitemaps.pop("/sitemap_index.xml")
-            code, data, _, _, _ = run(site.base())
+            site.redirects["/sitemap.xml"] = other.base() + "/sitemap_index.xml"
+            code, data, _, report, _ = run(site.base())
             self.assertEqual(other.hits, [])
-        self.assertEqual(data["sitemap"]["urls"], 0)
+        self.assertEqual((code, data["sitemap"]["urls"]), (1, 0))
         self.assertEqual(types(data)["post"]["total"], 230)
+        self.assertIn("redirects to another host", report)
 
     def test_a_sitemap_file_on_another_host_is_reported_not_asked(self):
         with serve() as other, serve() as site:
@@ -346,6 +363,206 @@ class StaysOnTheSite(unittest.TestCase):
         self.assertEqual((code, types(data)["post"]["total"], data["media_items"]), (0, 230, 1234))
 
 
+class SitemapReading(unittest.TestCase):
+    """The sitemap is the second witness. A sitemap that could not be read must not pass for one
+    that is not there: the count would read complete with half the evidence missing."""
+
+    def test_no_sitemap_anywhere_is_not_a_gap(self):
+        site = Site()
+        site.sitemaps = {}
+        with serve(site):
+            code, data, _, report, _ = run(site.base())
+        self.assertEqual((code, data["complete"], data["sitemap"]["urls"]), (0, True, 0))
+        self.assertIn("No sitemap was found", report)
+
+    def test_a_web_page_at_a_guessed_address_is_not_a_gap(self):
+        site = Site()
+        site.sitemaps = {}
+        site.extra["/sitemap_index.xml"] = (200, "text/html", "<html><body>Nothing here</body></html>")
+        with serve(site):
+            code, data, _, _, _ = run(site.base())
+        self.assertEqual((code, data["complete"]), (0, True))
+
+    def test_guessed_addresses_that_are_busy_or_refused_make_the_count_incomplete(self):
+        for status in (503, 403, 429):
+            with self.subTest(status=status):
+                site = Site()
+                site.sitemaps = {}
+                for path in ("/sitemap_index.xml", "/wp-sitemap.xml", "/sitemap.xml"):
+                    site.extra[path] = (status, "text/html", "wait")
+                with serve(site):
+                    code, data, _, report, _ = run(site.base())
+                self.assertEqual((code, data["complete"]), (1, False))
+                self.assertIn("sitemap", " ".join(data["incomplete_because"]))
+                self.assertIn("The count is incomplete", report)
+
+    def test_a_sitemap_cut_off_in_the_middle_is_a_gap_not_a_shorter_sitemap(self):
+        site = Site()
+        whole = site.sitemaps["/post-sitemap.xml"]
+        site.sitemaps["/post-sitemap.xml"] = whole[: len(whole) // 2]
+        with serve(site):
+            code, data, _, _, _ = run(site.base())
+        self.assertEqual(code, 1)
+        self.assertIn("not valid XML", " ".join(data["incomplete_because"]))
+        self.assertEqual(data["sitemap"]["urls"], 2)  # the other file was still read
+
+    def test_a_cut_off_sitemap_at_a_guessed_address_is_a_gap_too(self):
+        site = Site()
+        site.sitemaps = {"/sitemap_index.xml": "<?xml version='1.0'?><urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>{base}/a/</loc></url><url><lo"}
+        with serve(site):
+            code, data, _, _, _ = run(site.base())
+        self.assertEqual((code, data["sitemap"]["urls"]), (1, 0))
+
+    def test_a_sitemap_whose_elements_carry_a_prefix_is_read(self):
+        site = Site()
+        site.sitemaps = {"/sitemap_index.xml": (
+            "<?xml version='1.0'?><sm:urlset xmlns:sm='http://www.sitemaps.org/schemas/sitemap/0.9'>"
+            "<sm:url><sm:loc>{base}/news-1/</sm:loc></sm:url><sm:url><sm:loc> {base}/directory/a/ </sm:loc></sm:url></sm:urlset>")}
+        with serve(site):
+            code, data, _, _, _ = run(site.base())
+        self.assertEqual((code, data["sitemap"]["urls"], data["sitemap"]["only_in_sitemap"]), (0, 2, 1))
+
+    def test_a_packed_sitemap_is_read_and_one_that_unpacks_too_large_is_a_gap(self):
+        site = Site()
+        packed = gzip.compress(("<?xml version='1.0'?><urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>%s</urlset>"
+                                % "".join("<url><loc>http://127.0.0.1/p-%d/</loc></url>" % i for i in range(400))).encode())
+        site.sitemaps = {}
+        site.extra["/sitemap_index.xml"] = (200, "application/x-gzip", packed)
+        with serve(site):
+            code, data, _, _, _ = run(site.base())
+            self.assertEqual((code, data["sitemap"]["urls"]), (0, 400))
+            limit, wi.SITEMAP_MAX_BYTES = wi.SITEMAP_MAX_BYTES, 4096  # the packed file is under it, its contents are not
+            try:
+                self.assertLess(len(packed), 4096)
+                code, data, _, _, _ = run(site.base())
+            finally:
+                wi.SITEMAP_MAX_BYTES = limit
+        self.assertEqual((code, data["sitemap"]["urls"]), (1, 0))
+        self.assertIn("unpacks to more than", " ".join(data["incomplete_because"]))
+
+    def test_a_sitemap_named_under_the_sites_other_spelling_is_asked_on_the_site(self):
+        # robots.txt files often still say http:// (or https://) after the site changed over
+        site = Site()
+        with serve(site):
+            site.robots += "Sitemap: https://127.0.0.1:%d/sitemap_index.xml\n" % site.port
+            code, data, _, _, _ = run(site.base())
+        self.assertEqual((code, data["sitemap"]["urls"]), (0, 232))
+
+
+class RecordCounting(unittest.TestCase):
+    def test_a_list_that_repeats_itself_is_not_a_full_count(self):
+        # 230 rows arrive, but they are the first 100 records again and again
+        site = Site()
+        site.replay_first_page.add("posts")
+        with serve(site):
+            code, data, rows, _, _ = run(site.base())
+        post = types(data)["post"]
+        self.assertEqual((code, post["complete"], post["fetched"]), (1, False, 100))
+        self.assertIn("handed out twice", post["note"])
+        self.assertEqual(sum(1 for r in rows if r["type"] == "post"), 100)
+
+    def test_a_total_that_changes_between_pages_is_said(self):
+        site = Site()
+        site.total_on_page[("posts", 2)] = 231
+        with serve(site):
+            code, data, _, _, _ = run(site.base())
+        self.assertEqual(code, 1)
+        self.assertIn("total changed while it was read (230, then 231)", types(data)["post"]["note"])
+
+    def test_a_type_without_a_total_is_incomplete_and_says_why(self):
+        site = Site()
+        site.no_total.add("talk")
+        with serve(site):
+            code, data, _, report, _ = run(site.base())
+        self.assertEqual(code, 1)
+        self.assertEqual(types(data)["talk"]["note"], "the site did not report a total")
+        self.assertNotIn("None", report)
+
+    def test_media_or_a_grouping_without_a_usable_count_is_incomplete(self):
+        for base, kind in (("media", "no_total"), ("categories", "no_total"), ("media", "not_a_list"), ("media", "negative")):
+            with self.subTest(base=base, kind=kind):
+                site = Site()
+                if kind == "no_total":
+                    site.no_total.add(base)
+                elif kind == "negative":
+                    site.totals[base] = -4
+                else:
+                    site.fail[(base, 1)] = (200, "application/json", json.dumps({"code": "odd"}), [("X-WP-Total", "5")])
+                with serve(site):
+                    code, data, _, _, _ = run(site.base())
+                self.assertEqual((code, data["complete"]), (1, False))
+
+    def test_a_type_registered_under_a_plugins_own_namespace_is_read_there(self):
+        site = Site()
+        site.types["job"] = {"name": "Jobs", "rest_base": "jobs", "rest_namespace": "acme/v1"}
+        site.records["acme/v1/jobs"] = [site.rec(3000 + i, "job", "/jobs/j-%d/" % i, "<p>x</p>") for i in range(4)]
+        with serve(site):
+            code, data, _, _, _ = run(site.base())
+            asked = [h for h in site.hits if "/acme/v1/jobs" in h]
+        self.assertEqual((code, types(data)["job"]["total"], len(asked)), (0, 4, 1))
+
+    def test_two_addresses_that_differ_only_in_the_query_are_two_addresses(self):
+        site = Site()
+        site.records["talk"] = [site.rec(2000 + i, "talk", "/?p=%d" % (2000 + i), "<p>x</p>") for i in range(5)]
+        site.sitemaps["/extra-sitemap.xml"] = site.urlset(["/?p=2000", "/?p=9999"])
+        with serve(site):
+            code, data, rows, _, _ = run(site.base())
+        self.assertEqual(sum(1 for r in rows if r["type"] == "talk"), 5)
+        self.assertEqual(sum(1 for r in rows if r["source"] == "sitemap"), 1)      # /?p=9999 only
+        self.assertEqual(data["sitemap"]["in_rest_not_in_sitemap_by_type"].get("talk"), 4)
+
+
+class Robots(unittest.TestCase):
+    """The promise is "obeys robots.txt". The standard library reads the file differently from one
+    Python to the next, so these run the same on 3.9 and on 3.13."""
+
+    def rules(self, text):
+        r = wi.RobotsRules()
+        r.parse(text)
+        return r
+
+    def test_wildcards_and_the_end_mark_count(self):
+        r = self.rules("User-agent: *\nDisallow: /private*\nDisallow: /*?rest_route=\nDisallow: /*.pdf$\n")
+        self.assertFalse(r.allowed("https://e.test/private-area/x"))
+        self.assertFalse(r.allowed("https://e.test/?rest_route=/wp/v2/posts"))
+        self.assertFalse(r.allowed("https://e.test/files/a.pdf"))
+        self.assertTrue(r.allowed("https://e.test/files/a.pdf.html"))
+        self.assertTrue(r.allowed("https://e.test/public/"))
+
+    def test_the_longest_rule_wins_and_allow_wins_a_tie(self):
+        r = self.rules("User-agent: *\nDisallow: /wp-json/\nAllow: /wp-json/wp/v2/\nDisallow: /a\nAllow: /a\n")
+        self.assertTrue(r.allowed("https://e.test/wp-json/wp/v2/posts"))
+        self.assertFalse(r.allowed("https://e.test/wp-json/other/v1/x"))
+        self.assertTrue(r.allowed("https://e.test/a"))
+
+    def test_a_group_that_names_this_tool_replaces_the_group_for_everyone(self):
+        r = self.rules("User-agent: *\nDisallow: /\n\nUser-agent: wordpress-inventory\nDisallow: /wp-admin/\n")
+        self.assertTrue(r.allowed("https://e.test/wp-json/"))
+        self.assertFalse(r.allowed("https://e.test/wp-admin/x"))
+        self.assertEqual(self.rules("Sitemap: https://e.test/s.xml\nUser-agent: *\nDisallow:\n").sitemaps, ["https://e.test/s.xml"])
+
+    def test_a_wildcard_rule_keeps_the_tool_out_of_the_rest_api(self):
+        site = Site()
+        site.robots = "User-agent: *\nDisallow: /wp-json/wp/v2/po*\n"
+        with serve(site):
+            code, data, _, _, _ = run(site.base())
+            asked = [h for h in site.hits if h.startswith("/wp-json/wp/v2/posts")]
+        self.assertEqual((code, asked), (1, []))
+        self.assertEqual(types(data)["page"]["total"], 3)
+        self.assertIn("robots.txt does not allow it", types(data)["post"]["note"])
+
+    def test_a_refused_or_unreadable_robots_file_stops_the_run(self):
+        for status in (401, 403, 429, 500):
+            with self.subTest(status=status):
+                site = Site()
+                site.robots_status = status
+                with serve(site):
+                    code, data, _, _, err = run(site.base())
+                    self.assertEqual(len(site.hits), 1)
+                self.assertEqual((code, data), (2, None))
+                self.assertIn("robots.txt", err)
+
+
 class CannotStart(unittest.TestCase):
     def test_a_site_that_is_not_wordpress_and_has_no_sitemap(self):
         site = Site()
@@ -357,9 +574,11 @@ class CannotStart(unittest.TestCase):
         self.assertIn("neither a WordPress REST API nor a sitemap", err)
 
     def test_not_a_web_address(self):
-        code, data, _, _, err = run("ftp://example.com")
-        self.assertEqual((code, data), (2, None))
-        self.assertIn("not a web address", err)
+        for bad in ("ftp://example.com", "https://example.com:notaport/", "https:///nohost"):
+            with self.subTest(bad=bad):
+                code, data, _, _, err = run(bad)
+                self.assertEqual((code, data), (2, None))
+                self.assertIn("not a web address", err)
 
     def test_nothing_answers(self):
         with serve() as site:
@@ -384,7 +603,11 @@ class Pieces(unittest.TestCase):
         self.assertEqual(wi.safe_cell("https://example.com/a"), "https://example.com/a")
         self.assertEqual(wi.safe_cell(None), "")
 
+    def test_text_from_the_site_cannot_write_a_link_into_the_report(self):
+        self.assertEqual(wi.md("[click](http://x.test) ![i](y)"), "\\[click\\](http://x.test) !\\[i\\](y)")
+
     def test_an_address_on_another_host_never_matches_one_of_the_sites(self):
+        self.assertEqual(wi.path_key("https://www.example.com/a/?b=1", "example.com"), "/a?b=1")
         self.assertEqual(wi.path_key("https://www.example.com/a/", "example.com"), "/a")
         self.assertEqual(wi.path_key("https://shop.example.net/a/", "example.com"), "https://shop.example.net/a/")
 

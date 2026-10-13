@@ -335,7 +335,8 @@ jobs:
       - name: Run the facts-check tests (stub site on 127.0.0.1, no real requests)
         run: make test-facts PYTHON=python
   wordpress-inventory-tests:
-    # Standard library only, as for the facts check: 3.9 is macOS's stock python3.
+    # Standard library only, as for the facts check. 3.9 is the oldest Python the scripts
+    # promise (the python3 a Mac ships with); the runner gets it from setup-python.
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
