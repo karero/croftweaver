@@ -121,10 +121,19 @@ printf '# Kit\n\nMaintained by Zorblequux Flumm (Munich). Zorblequux Flumm, agai
 expect "the copyright holder named in README.md: passes" 0 "OK — no private names in:" "$R"
 printf 'Maintained by Zorblequux Flumm, and ask zorblequux.\n' >"$R/README.md"
 expect "README.md, the listed part of the name beside the whole name: fails" 1 "README.md:1:" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "LICENSE has no line"; then
+  printf 'FAIL the no-copyright-line note printed although LICENSE names a holder\n'; fails=$((fails+1))
+fi
 printf 'Maintained by zorblequux flumm.\n' >"$R/README.md"
 expect "README.md, the holder's name in another spelling: fails" 1 "README.md:1:" "$R"
 printf 'Maintained by Zorblequux Flummery.\n' >"$R/README.md"
 expect "README.md, the holder's name inside a longer name: fails" 1 "README.md:1:" "$R"
+# A non-ASCII letter beside the name makes a longer name too. The list's own edges count
+# such a byte as an edge, so the hit is found; blanking the name there would hide it.
+printf 'Maintained by Zorblequux Flummé.\n' >"$R/README.md"
+expect "README.md, the holder's name before a non-ASCII letter: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by éZorblequux Flumm.\n' >"$R/README.md"
+expect "README.md, the holder's name after a non-ASCII letter: fails" 1 "README.md:1:" "$R"
 printf 'Maintained by Zorblequux Flumm of %s.\n' "$org" >"$R/README.md"
 expect "README.md, another listed name beside the holder's: fails" 1 "README.md:1:" "$R"
 printf 'Maintained by Zorblequux Flumm.\n' | tee "$R/README.md" >"$R/docs/notes.md"
@@ -133,8 +142,12 @@ if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "README.md:1:"; then
   printf 'FAIL README.md was reported beside the file that may not hold the name\n'; fails=$((fails+1))
 fi
 printf 'plain notes\n' >"$R/docs/notes.md"
+# A range of years is read like one year. A LICENSE with no such line allows nothing, and
+# the run says that this, not the README, is what changed.
+printf 'Copyright (c) 2024-2026 Zorblequux Flumm\n' >"$R/LICENSE"
+expect "LICENSE with a range of years, the holder named in README.md: passes" 0 "OK — no private names in:" "$R"
 printf 'MIT License\n' >"$R/LICENSE"
-expect "README.md names someone, LICENSE has no copyright line: fails" 1 "README.md:1:" "$R"
+expect "README.md names someone, LICENSE has no copyright line: fails, and says why" 1 "LICENSE has no line" "$R"
 : >"$R/LICENSE"; : >"$R/README.md"
 
 # In the main checkout, where the list is read either way, so only the self-reference

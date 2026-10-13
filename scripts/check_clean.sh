@@ -258,20 +258,25 @@ if [ -f "$DENYLIST_FILE" ]; then
   # search read the README and answered that it names no maintainer.) That name is blanked
   # in README.md's hits, then each line is looked at again: the name alone passes, and
   # another listed name beside it still fails, as do a part of the name, another spelling
-  # of it, the name inside a longer word, and the name in any other file. The name is read
-  # from LICENSE at run time, so this script, which the check scans, never holds it, and it
-  # is compared as plain text (awk's index), so nothing in it is read as a pattern. A
-  # LICENSE without such a line (one year, then the name) allows nothing.
-  holder="$(sed -n '/^Copyright (c) [0-9][0-9]* /{s///;s/[[:space:]]*$//;p;q;}' LICENSE)"
+  # of it, the name inside a longer word, and the name in any other file. A longer word is
+  # the name with a letter, a digit or _ right beside it, or a byte of a non-ASCII letter
+  # (the é of a longer name): stricter than the edges the list is matched with, since what
+  # is blanked here is not looked at again. The name is read from LICENSE at run time, so
+  # this script, which the check scans, never holds it, and it is compared as plain text
+  # (awk's index), so nothing in it is read as a pattern. A LICENSE without such a line (a
+  # year or a range of years, then the name) allows nothing, and a hit in README.md then
+  # comes with a line that says so.
+  holder="$(sed -n '/^Copyright (c) [0-9][0-9-]* /{s///;s/[[:space:]]*$//;p;q;}' LICENSE)"
   blank_maintainer() { # stdin: hits → stdout, the holder's name blanked in README.md's lines
     HOLDER="$holder" awk '
-      BEGIN { h = ENVIRON["HOLDER"]; n = length(h); w = "[A-Za-z0-9_]" }
+      function inword(c) { return c ~ /[A-Za-z0-9_]/ || c > "\177" }
+      BEGIN { h = ENVIRON["HOLDER"]; n = length(h) }
       n && /^README\.md:[0-9]+:/ {
         s = $0; out = ""; p = ""
         while ((i = index(s, h)) > 0) {
           b = (i > 1) ? substr(s, i - 1, 1) : p
           a = substr(s, i + n, 1)
-          out = out substr(s, 1, i - 1) ((b ~ w || a ~ w) ? h : "MAINTAINER")
+          out = out substr(s, 1, i - 1) ((inword(b) || inword(a)) ? h : "MAINTAINER")
           p = substr(h, n, 1); s = substr(s, i + n)
         }
         $0 = out s
@@ -305,6 +310,10 @@ if [ -f "$DENYLIST_FILE" ]; then
                -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
            | gf -iE "^✗ scan error|^Binary file |:[0-9]+:((.*$E)?(${NAMES})($E|\$)|.*\\b(${NAMES})\\b)")" \
            || hits="✗ scan error (the name filter failed) — hits may be missing" ;;
+    esac
+    case "$holder:$hits" in
+      :README.md:[0-9]*|:*$'\n'README.md:[0-9]*)
+        echo "· README.md may name the maintainer only as LICENSE's copyright line does, and LICENSE has no line \"Copyright (c) <year> <name>\": the name in README.md is reported like any other" ;;
     esac
     report "personal/site identifier" "$hits"
     names_checked=1
