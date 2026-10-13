@@ -19,7 +19,7 @@ it; a row is only as good as its evidence.
 | B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
 | C | Forms: a contact form with a submission test (`website-forms`) | **dropped 2026-10-08**: the skill and its CI job were removed; a mail-app contact form skill replaces it, planned separately. Section C below is kept as the record of what was built | the pull request that removed it |
 | D | Import: bring an existing site under the gate | scenarios only | — |
-| E1 | Install: a plugin for Claude Code (own marketplace in this repo) | built, not released: the manifests and the skills' paths are in; the marketplace entry installs from the branch `stable`, which release 0.32 creates, so nothing can be installed from GitHub until that release is cut. Not run: a live session that loads the plugin (see E1 below) | the pull request that carries this row; `claude plugin validate --strict .` |
+| E1 | Install: a plugin for Claude Code (own marketplace in this repo) | built and merged, not released: the manifests and the skills' paths are in; the marketplace entry installs from the branch `stable`, which release 0.32 creates, so nothing can be installed from GitHub until that release is cut. Not run: a live session that loads the plugin (see E1 below) | the pull request that carries this row; `claude plugin validate --strict .` |
 | E2 | Install: one line, `npm create croftweaver` | built, reviewed and published: the package is `packages/create-croftweaver`, on npm as `create-croftweaver` 0.1.0 since 2026-10-12 | karero/croftweaver#268; `npm view create-croftweaver version dist.shasum` gives 0.1.0 and `2394930488d0025bdfaede0b7026f2dc2fed251b`, the checksum of the reviewed commit's pack |
 
 ## Build order, and why
@@ -368,7 +368,10 @@ Known limits:
   inside a fenced block; the forms with `:-` and `:=` after the name are left as written.
   That it is the same for a plugin's skill is the documentation's word.
 - Nothing can be installed from GitHub before release 0.32 creates the branch `stable`.
-  The owner chose to merge this change with that release, so the README is not ahead of it.
+  The owner first chose to merge this change with that release and then, on 2026-10-13, to
+  merge it at once: held back, it met main's changes to shared files again and again, and
+  its guard did not yet watch the skills arriving on main. Until that release the README's
+  plugin commands fail; its paragraph says "from release 0.32 on".
 - A release that forgets to raise the number passes every check on its pull request. The
   README's release steps take the tag's name from the number, so git then refuses the tag,
   which exists already. A tag made by hand with another name gets a red `release-tag` run,
