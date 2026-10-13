@@ -16,6 +16,7 @@ import struct
 import unicodedata
 import warnings
 import zipfile
+import zlib
 
 from _refusal import Refusal, unseen
 import _svg
@@ -43,7 +44,7 @@ _SECOND_NAME = 0x7075                   # the note that gives an entry a second,
 class ZipPackage(object):
     def __init__(self, zf, infos, svg_names, other_names, ignored):
         self._zf = zf
-        self._infos = infos   # the entry itself for each .svg name: the zip's own look-up goes by a name it has cut short
+        self._infos = infos   # the entry itself for each .svg name: the zip's own look-up goes by its own reading of the name
         self.svg_names = svg_names
         self.other_names = other_names
         self.ignored = ignored
@@ -81,17 +82,60 @@ def _unseen(name):
 
 
 def _second_names(zi):
-    """The second names an entry carries in its notes (the "Unicode path" note, which older tools write beside a
-    name with letters beyond ASCII), each as the bytes it is written in, or None for one that cannot be read."""
+    """The second names an entry carries in its notes (the "Unicode path" note, which tools write beside a name
+    with letters beyond ASCII), each as (the checksum it gives, the bytes of the name), or None for one that
+    cannot be read."""
     extra, pos, out = zi.extra, 0, []
     while pos + 4 <= len(extra):
         kind, size = struct.unpack_from("<HH", extra, pos)
         note = extra[pos + 4:pos + 4 + size]
         if kind == _SECOND_NAME:
             # one byte for the version (there is only version 1), four for a checksum, then the name
-            out.append(note[5:] if len(note) == size and size >= 5 and note[0] == 1 else None)
+            out.append((struct.unpack_from("<L", note, 1)[0], note[5:]) if len(note) == size and size >= 5 and note[0] == 1 else None)
         pos += 4 + size
     return out
+
+
+def _name(zi):
+    """The one name an entry is shown, picked and checked by, the same on every version of the zip reader (a newer
+    one goes by a second name where an older one does not know the note at all). `zi.orig_filename` is the entry's
+    own name field as the reader read it: as UTF-8 where the entry is marked so, and otherwise in the old DOS letters
+    (cp437), which gives every byte a letter, so the bytes of the field are had back from it.
+
+    A second name is the entry's name where it belongs to it: its bytes are the name field's own bytes again (the way
+    one common tool writes it), or its checksum is the checksum of the name field (what the note is for: the field
+    in the old letters, the name in UTF-8 beside it, the checksum saying which field it was written for). It is UTF-8,
+    it is not empty, and several of them say one name. Anything else refuses the package: before the rule, an entry
+    called `plain.svg` with a second name of `a.svg<NUL>hidden` was listed as `a.svg` by a newer reader.
+
+    With no second name, a name field that is not marked as UTF-8 and is not plain ASCII is read as UTF-8 where it
+    is UTF-8: tools on a Mac write it so, and in the old letters `m<a umlaut>rk.svg` was shown as box-drawing signs."""
+    held = zi.orig_filename
+    marked = bool(zi.flag_bits & 0x800)
+    field = held.encode("utf-8" if marked else "cp437", "replace")
+    names = set()
+    for note in _second_names(zi):
+        try:
+            if note is None or not note[1] or (note[1] != field and note[0] != zlib.crc32(field)):
+                raise ValueError("not this entry's name")
+            names.add(note[1].decode("utf-8"))
+        except ValueError:   # (a name that is no UTF-8 is one too)
+            names.add(None)
+    if None in names or len(names) > 1:
+        raise Refusal(
+            "zip-second-name",
+            "The package has a file with two names that do not belong together (it is listed as %s; a note beside it gives "
+            "a second name that is not marked as this file's, or cannot be read), so the whole package is refused. Ask for "
+            "a package saved again as a plain zip, with plain file names." % ascii(held[:60]),
+        )
+    if names:
+        return names.pop()
+    if not marked and not field.isascii():
+        try:
+            return field.decode("utf-8")
+        except ValueError:
+            pass
+    return held
 
 
 def open_zip(data):
@@ -122,28 +166,17 @@ def open_zip(data):
     seen, total = set(), 0
     svg_names, other_names, ignored, by_name = [], [], [], {}
     for zi in infos:
-        # `filename` is the name the reader goes by, and `orig_filename` the name as the entry holds it: the reader
-        # cuts that at its first NUL (so `a.svg\0hidden` would be shown as `a.svg`) and turns this computer's own
-        # path separator into a slash. What it cuts off or turns round is checked here all the same.
-        name, held = zi.filename, zi.orig_filename
-        # A second name must be, byte for byte, the name in the entry's own field. Newer versions of the zip reader go
-        # by the second name and older ones by the first, and the newer ones cut it at a NUL without a word: an
-        # entry called `plain.svg` with a second name of `a.svg<NUL>hidden` was listed as `a.svg`.
-        first = held.encode("utf-8" if zi.flag_bits & 0x800 else "cp437", "replace")
-        for second in _second_names(zi):
-            if second != first:
-                raise Refusal(
-                    "zip-second-name",
-                    "The package has a file with two names that are not the same (it is listed as %s, and a note beside "
-                    "it gives another name), so the whole package is refused. Ask for a package saved again as a plain "
-                    "zip, with plain file names." % ascii(held[:60]),
-                )
+        # The name is the whole name, as the entry holds it (see _name), never the reader's `filename`: the reader cuts
+        # that at its first NUL (so `a.svg\0hidden` would be shown as `a.svg`) and turns this computer's own path
+        # separator into a slash. `held` is the entry's own name field: a NUL or a backslash there refuses the
+        # package too, whichever name the entry goes by.
+        name, held = _name(zi), zi.orig_filename
         if _unseen(name) or "\0" in held:  # first: every later message shows the name
             raise Refusal(
                 "zip-path",
                 "The package has a file whose name holds something that cannot be seen: a hidden character, or a blank "
                 "at its start, at its end or twice in a row (spelled out, the name starts %s). So the whole package is "
-                "refused. Ask for a package with plain file names." % ascii((held if "\0" in held else name)[:60]),
+                "refused. Ask for a package with plain file names." % ascii((name if _unseen(name) else held)[:60]),
             )
         if (
             not name

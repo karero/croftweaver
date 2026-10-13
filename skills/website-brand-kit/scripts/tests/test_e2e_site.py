@@ -80,6 +80,10 @@ class ARealSite(unittest.TestCase):
         data = json.loads(out)
         self.assertEqual((code, data["status"], data["tests"]), (0, "done", "passed"), "\n".join(data.get("report", [])) + str(data.get("failing")))
         self.assertEqual(data["cards"], "regenerated")
+        # after writing, and before the site's tests ran, the site's own Node and Python said what they read from the two
+        # files this tool edits by line: what the report says of the theme colour, the logo's address and the cards rests on that
+        self.assertEqual(data["read_back"], {"src/config.ts": {"status": "ok"}, "scripts/generate_og_cards.py": {"status": "ok"}})
+        self.assertEqual([n for n in data["notes"] if "could not check" in n], [])
         # the tests started a preview server and stopped it themselves; the intake left them the time, and nothing of it is left
         self.assertFalse(serving(preview_port(SITE)), "the site's preview port is still served after the run")
         self.assertEqual(previews(), [])
@@ -141,7 +145,7 @@ class ARealSite(unittest.TestCase):
                 p.kill()
         data = json.loads(out)
         self.assertEqual((p.returncode, err, data["status"], data["written"], data.get("not_restored")), (2, "", "stopped", [], None), "\n".join(data["report"]))
-        self.assertIn("The run was stopped from outside (SIGTERM) before it had finished, and what it had started was stopped with it.", data["report"])
+        self.assertIn("The run was stopped from outside (SIGTERM) before it had finished, and what it had started was stopped with it as far as this tool could find it.", data["report"])
         self.assertIn("Everything it had written was put back.", data["report"])
         self.assertTrue(server, "the preview server was seen in ps while it served")
         end = time.time() + 30

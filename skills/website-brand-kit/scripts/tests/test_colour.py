@@ -149,7 +149,36 @@ class Refused(unittest.TestCase):
         # the same in plain digits and letters is read, as before
         self.assertEqual(_colour.parse_colour("rgb(123,0,0)"), "#7b0000")
         self.assertEqual(_colour.parse_colour("BLACK"), "#000000")
-        self.assertEqual(_colour.parse_colour("\u00a0#7b0000\u2003"), "#7b0000", "a space of any kind around the colour is only a space")
+
+    # what Python's strip() and split() take for a blank and CSS does not
+    NOT_CSS_SPACE = ("\u00a0", "\u2003", "\u3000", "\u2028", "\u2029", "\u0085", "\x0b", "\x1c", "\x1d", "\x1e", "\x1f", "\u1680", "\u202f", "\ufeff")
+
+    def test_only_what_css_takes_for_white_space_is_taken_off_a_colour_or_stands_between_its_numbers(self):
+        # round 5, checked in a browser: `--bg:` + a no-break space + `#ffffff` (a line pasted from a web page) is no colour to Chromium, and
+        # Python's strip() read past the no-break space, so the check said #ffffff and the editor left the line "as it stands"
+        self.assertEqual(_colour.SPACE, " \t\r\n\f")
+        for blank in self.NOT_CSS_SPACE:
+            for text in (blank + "#7b0000", "#7b0000" + blank, blank + "#7b0000" + blank, " " + blank + " #7b0000", "#7b0000\n" + blank, blank + "red", "rgb(123, 0, 0)" + blank,
+                         "rgb(123" + blank + "0 0)", "rgb(123," + blank + "0, 0)", "rgb(123 0 0 /" + blank + "1)", "hsl(0" + blank + "100% 50%)", "oklch(0.5 0.1" + blank + "30)",
+                         "rgb" + blank + "(123, 0, 0)", "rgb(" + blank + "123, 0, 0)", "#7b" + blank + "0000"):
+                with self.subTest(text=text):
+                    for kw in ({}, {"drawn": True}):
+                        with self.assertRaises(Refusal) as cm:
+                            _colour.parse_colour(text, **kw)
+                        self.assertEqual(cm.exception.code, "colour-unreadable")
+                    with self.assertRaises(Refusal):
+                        _colour.parse_colour("currentColor", current=text)
+        # where the blank stands before or after the colour, the sentence says so and says what to do
+        for text in ("\u00a0#7b0000", "#7b0000\u2003", " \x0b#7b0000 "):
+            message = _unreadable_message(text)
+            for part in ("The colour '#7b0000' has a character before or after it that looks like a space and is none to a browser", "a no-break space",
+                         "a browser takes the whole value for no colour", "Delete the blanks around the colour and type them again."):
+                self.assertIn(part, message)
+        # the five that CSS takes, around the colour and between its numbers, in any number
+        for text in (" #7b0000", "\t#7b0000\n", "\r\n#7b0000\f", "\f \t#7B0000 \r", "rgb(123\t0\n0)", "rgb(\f123,\r\n0,\t0 )", "rgb(123 \n\t 0 0 /\f1)", "hsl(0\n100%\f50% )",
+                     "\n\nrgb(\t123,0,0\t)\n"):
+            with self.subTest(text=text):
+                self.assertEqual(_colour.parse_colour(text), "#ff0000" if "hsl" in text else "#7b0000")
 
     def test_nan_and_infinity_are_not_numbers(self):
         for text in ("rgb(nan, 0, 0)", "hsl(inf 50% 50%)", "oklch(nan 0 0)"):
@@ -238,8 +267,10 @@ class Refused(unittest.TestCase):
         for text in ("oklch(9e99 0 0)", "oklch(9e99% 9e99% 1000turn)", "oklch(-9e99 0 0)"):
             with self.subTest(text=text):
                 refused(self, text, "colour-gamut")
-        for text, want in (("rgb(9e99% -9e99% 0%)", "#ff0000"), ("rgb(-9e99, 9e99, 0)", "#00ff00"), ("hsl(0 9e99% 50%)", "#ff0000"), ("hsl(0 100% 9e99%)", "#ffffff"),
-                           ("hsl(0 -9e99% 50%)", "#808080")):
+        for text in ("hsl(0 9e99% 50%)", "hsl(0 100% 9e99%)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+        for text, want in (("rgb(9e99% -9e99% 0%)", "#ff0000"), ("rgb(-9e99, 9e99, 0)", "#00ff00"), ("hsl(0 -9e99% 50%)", "#808080"), ("hsl(0 100% -9e99%)", "#000000")):
             with self.subTest(text=text):
                 self.assertEqual(_colour.parse_colour(text), want)
 
@@ -261,9 +292,48 @@ class Refused(unittest.TestCase):
             with self.subTest(text=text):
                 refused(self, text, "colour-unreadable")
                 self.assertIn("each need a % sign", _unreadable_message(text))
-        for text in ("hsl(0,100%,50%)", "hsl(0 100% 50%)", "hsl(0deg, 100%, 50%)", "hsl(360 100% 50%)", "hsl(0 150% 50%)", "hsl(0 100.0% 5e1%)"):
+        for text in ("hsl(0,100%,50%)", "hsl(0 100% 50%)", "hsl(0deg, 100%, 50%)", "hsl(360 100% 50%)", "hsl(0 100.0% 5e1%)"):
             with self.subTest(text=text):
                 self.assertEqual(_colour.parse_colour(text), "#ff0000")
+
+    def test_a_saturation_or_a_lightness_over_100_percent_is_not_read(self):
+        # round 5, compared with Chromium: `hsl(270deg 150% 33.333%)` is #5500d4 there, and #5500aa with the saturation cut to 100% as this
+        # check cut it; 42 of 12,000 spellings differed, each with a saturation over 100%
+        for text in ("hsl(270deg 150% 33.333%)", "hsl(0 150% 50%)", "hsl(0, 100.001%, 50%)", "hsla(0, 101%, 50%, 1)", "hsl(0 100% 100.5%)", "hsl(0 50% 200%)", "hsl(0 1e3% 50%)",
+                     "hsl(120 300% 300% / 1)"):
+            with self.subTest(text=text):
+                refused(self, text, "colour-unreadable")
+                self.assertIn("the saturation or the lightness of hsl() is over 100%", _unreadable_message(text))
+                with self.assertRaises(Refusal):
+                    _colour.parse_colour(text, drawn=True)
+        # exactly 100% is read, and so is what lies under 0%, which a browser takes for 0% as this check does
+        for text, want in (("hsl(0 100% 50%)", "#ff0000"), ("hsl(0 100.0% 100.0%)", "#ffffff"), ("hsl(270deg 100% 33.333%)", "#5500aa"), ("hsl(0 1e2% 5e1%)", "#ff0000"),
+                           ("hsl(0 -50% 50%)", "#808080"), ("hsl(0 100% -5%)", "#000000")):
+            with self.subTest(text=text):
+                self.assertEqual(_colour.parse_colour(text), want)
+
+    def test_what_currentcolor_stands_for_is_read_through_the_same_guarded_door(self):
+        # round 5: the text that currentColor stands for is read by parse_colour itself, so that nothing it holds ends in anything but a
+        # colour or a refusal that names it. No number the grammar takes overflows outside oklch() (rgb() multiplies by 2.55 and hsl() cuts
+        # to 0..1, with at most 1e160 going in), so the overflow is made here by hand.
+        from unittest import mock
+        for text in self.BIG + ("rgb(%se99 0 0)" % ("9" * 60), "hsl(%se99 50%% 50%%)" % ("9" * 60), "rgb(%se99%% 0%% 0%%)" % ("9" * 60), "oklch(%se99 %se99 0)" % ("9" * 60, "9" * 60)):
+            with self.subTest(text=text[:24]):
+                try:
+                    direct = _colour.parse_colour(text)
+                except Refusal as r:
+                    direct = r.code
+                try:
+                    through = _colour.parse_colour("currentColor", current=text)
+                except Refusal as r:
+                    through = r.code
+                self.assertEqual(through, direct)
+        with mock.patch.object(_colour, "_hex", side_effect=OverflowError):
+            for kw in ({}, {"drawn": True}):
+                with self.assertRaises(Refusal) as cm:
+                    _colour.parse_colour("currentColor", current="rgb(1, 2, 3)", **kw)
+                self.assertEqual(cm.exception.code, "colour-unreadable")
+                self.assertIn("'rgb(1, 2, 3)'", str(cm.exception), "and it names the colour that currentColor stands for, not the word")
 
     def test_an_alpha_of_one_is_read_after_a_comma_or_in_the_space_form_after_a_slash_and_nowhere_else(self):
         # rgb(255,0,0/1): commas and a slash. The site's renderer draws black for it.

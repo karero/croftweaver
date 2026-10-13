@@ -11,16 +11,23 @@ Run:  python3 -m unittest discover -s skills/website-brand-kit/scripts/tests
 """
 
 import base64
+import contextlib
 import encodings.aliases
+import io
 import json
+import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 import unittest
 
 import _testutil as T
+import brand_intake
 import _css
 import _input
+import _install
 import _refusal
 import _svg
 
@@ -92,6 +99,70 @@ def judged(testcase, documents, how="svg", each=2.0):
     for i, out in enumerate(outcomes):
         testcase.assertLess(out["seconds"], each, "document %d took %.1f seconds" % (i + 1, out["seconds"]))
     return outcomes
+
+
+def through_the_command(testcase, data, *extra, name="logo.svg"):
+    """What the intake's own command makes of a file: `brand_intake.py install --site SITE --input FILE --dry-run
+    --json`, the call the assistant makes, on a site made from the starter (with no image tool in it: a file the
+    check has read is stopped at the next step, where the icons would be drawn). The command's answer, as a dict."""
+    tmp = tempfile.TemporaryDirectory()
+    testcase.addCleanup(tmp.cleanup)
+    site = T.make_starter_site(os.path.join(tmp.name, "site"), with_modules=False)
+    path = os.path.join(tmp.name, name)
+    with open(path, "wb") as f:
+        f.write(data)
+    out = io.StringIO()
+    stops = [getattr(signal, n) for n in _install.SIGNALS if hasattr(signal, n)]
+    before = [(s, signal.getsignal(s)) for s in stops]   # an install leaves the stop signals handled: a test goes on living
+    try:
+        with contextlib.redirect_stdout(out):
+            brand_intake.main(["install", "--site", site, "--input", path, "--dry-run", "--json"] + list(extra))
+    finally:
+        for s, handler in before:
+            signal.signal(s, handler)
+    return json.loads(out.getvalue())
+
+
+READ = ("sharp-missing", "no-node")   # where the command stops a file that the check has read, in a site with no image tool
+
+
+class ThroughTheCommand(unittest.TestCase):
+    """The rules of 2026-10-13, each through the one door production has: the intake's own command, given a file."""
+
+    def test_what_the_check_refuses_the_command_refuses_with_the_same_sentence_and_what_it_reads_goes_on_to_the_icons(self):
+        clip = '<clipPath id="c"><rect width="4" height="4"/></clipPath>'
+        dashed = 'stroke="#111111" stroke-dasharray="0.01"'
+        rows = (
+            ("a dashed line with one end a share, past the budget", ('<svg %s viewBox="0 0 10 1">%s<path fill="#111111" d="M0 0h1v1z"/></svg>' % (NS, '<line y1="100%%" y2="10" %s/>' % dashed * 112)).encode(), "too-many-dashes"),
+            ("the same line, as many as the budget holds", ('<svg %s viewBox="0 0 10 1">%s<path fill="#111111" d="M0 0h1v1z"/></svg>' % (NS, '<line y1="100%%" y2="10" %s/>' % dashed * 111)).encode(), None),
+            ("ids that read like a piece of a style", bare('<g id="javascript:logo"><rect id="expression(layer)" width="9" height="9" fill="#111111"/></g>'), None),
+            ("a style's value padded past the cap", svg('<rect style="fill:%sred" width="9" height="9"/>' % (" " * 9000)), "value-too-long"),
+            ("the same value, not padded", svg('<rect style="fill: red " width="9" height="9"/>'), None),
+            ("a paint that names an id", bare(clip + '<rect fill="url(#c)" width="9" height="9"/>'), "colour-gradient"),
+            ("a shape inside a clip path that is clipped", bare(clip + '<clipPath id="d"><rect clip-path="url(#c)" width="9" height="9"/></clipPath><rect clip-path="url(#d)" width="9" height="9"/>'), "clip-in-clip"),
+            ("display on a clip path", bare(clip.replace("<clipPath ", '<clipPath display="none" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), "clip-display"),
+            ("a clip-path on the outer svg", bare(clip + '<rect width="9" height="9"/>', root='clip-path="url(#c)"'), "root-clip-path"),
+            ("a plain clip path whose id starts with a digit", bare(clip.replace('"c"', '"8ce47d5fb1"') + '<g clip-path="url(#8ce47d5fb1)"><rect width="9" height="9"/></g>'), None),
+            ("a DOCTYPE line", b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + svg(), "doctype"),
+            ("an editor's leftovers in a style", bare('<path style="fill:#111111;marker:none;isolation:auto;image-rendering:auto;-inkscape-stroke:none" d="M0 0h9v9z"/>'), None),
+            ("the class names of a style library", svg(root='class="h-6 w-6 md:h-8 hover:text-gray-500"'), None),
+            ("a label that reads like a piece of a style", svg(root='role="img" aria-label="JavaScript: the logo" data-name="expression(layer)"'), None),
+        )
+        for what, data, code in rows:
+            with self.subTest(what=what):
+                answer = through_the_command(self, data)
+                said = str(refused(self, data, code)) if code else None   # what the check itself says of it
+                self.assertEqual(answer["status"], "refused", answer)
+                if code:
+                    self.assertEqual((answer["code"], answer["message"]), (code, said))
+                else:
+                    self.assertIn(answer["code"], READ, answer["message"])   # read: the run went on to the image tool
+                    self.assertEqual(answer["notes"], _svg.clean_svg(data).notes)
+                self.assertEqual(answer["written"], [])
+        answer = through_the_command(self, rows[10][1])
+        self.assertIn("delete the line that starts <!DOCTYPE", answer["message"])
+        answer = through_the_command(self, rows[11][1])
+        self.assertEqual(answer["notes"], ["left out styles that only an editor reads (their names start -inkscape-)"])
 
 
 class RealMark(unittest.TestCase):
@@ -207,6 +278,28 @@ class Hostile(unittest.TestCase):
                     svg("<desc>http://www.w3.org/2001/XInclude</desc>"), svg(root='xmlns:xi="%s"' % std), svg('<g data-ns="%s"/>' % std)):
             with self.subTest(doc=doc[150:220]):
                 self.assertEqual(_svg.clean_svg(doc).colours, ["#b4531a"])
+
+    def test_a_doctype_is_refused_with_the_way_out_that_exists(self):
+        # Three common drawing programs write a DOCTYPE into every file, and one of them cannot leave it out: "export again
+        # without it" was no way out. The line can be taken out by hand, and the drawing is the same without it.
+        public = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
+        for head in (b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + public + b"\n", public, b"<!DOCTYPE svg>", b"<!doctype svg>\n", b"<!-- made by a tool -->\n" + public,
+                     b'<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "x">]>'):
+            with self.subTest(head=head[:40]):
+                err = refused(self, head + svg(), "doctype") if b"doctype svg" not in head else None
+                for data in (head + svg(), T.build_zip([("logo.svg", head + svg())])):   # through the door the intake uses, as a file and inside a package
+                    with self.assertRaises(_svg.Refusal) as cm:
+                        _svg.clean_svg(_input.mark(_input.load(data)).colour)
+                    self.assertIn(cm.exception.code, ("doctype", "not-xml"))   # (in small letters it is no DOCTYPE to XML at all)
+                if err is not None:
+                    self.assertEqual(cm.exception.code, "doctype")
+                    for word in ("DOCTYPE line", "text editor", "delete the line that starts <!DOCTYPE", "does not change the drawing", "ask the tool for an export without it"):
+                        self.assertIn(word, str(err))
+                    self.assertNotIn("export again", str(err))
+        # what the sentence says to do works: the same file with that line taken out is read
+        with_line = b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + public + b"\n" + svg()
+        without = b"\n".join(line for line in with_line.split(b"\n") if not line.startswith(b"<!DOCTYPE"))
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(without)).colour).colours, ["#b4531a"])
 
     def test_text_is_refused_with_the_way_out(self):
         # Scenario 14: the owner is told what to ask the tool for.
@@ -479,6 +572,40 @@ class Numbers(unittest.TestCase):
                 'd="M0 0%sh1"' % (" " * _svg.MAX_PATH), 'points="%s1 2"' % (" " * _svg.MAX_PATH), 'paint-order="stroke%s"' % (" " * _svg.MAX_RAW)]
         for attrs, out in zip(over, judged(self, [self.shape(attrs) for attrs in over])):
             self.assertEqual(out["code"], "value-too-long", attrs[:60])
+
+    def test_the_cap_on_a_value_as_it_stands_is_one_cap_however_the_value_reaches_the_element(self):
+        # `style="fill:` + 9,000 blanks + `red"` was read where the attribute fill=" ... red" was refused: a style's values
+        # had their blanks taken off before they were counted. One cap: the attribute, a style, a rule, a rule nothing matches.
+        cap = _svg.MAX_RAW
+        for prop, value in (("fill", "#111111"), ("stroke", "red"), ("stroke-width", "2"), ("stroke-dasharray", "4 2"), ("stroke-linecap", "round"), ("opacity", "1"),
+                            ("paint-order", "stroke"), ("clip-path", "none"), ("display", "inline"), ("stroke-dashoffset", "1px")):
+            room = cap - len(value)
+            for pad in (lambda n: (" " * n, ""), lambda n: ("", " " * n), lambda n: (" " * (n // 2), " " * (n - n // 2)), lambda n: ("\t" * n, ""), lambda n: ("", "\n" * n),
+                        lambda n: ("/*" + "x" * (n - 4) + "*/", ""), lambda n: ("", "/*" + "*" * (n - 4) + "*/"), lambda n: (" /**/" * (n // 5) + " " * (n % 5), "")):
+                before, after = pad(room)
+                over_before, over_after = pad(room + 1)
+                is_comment = "/*" in before + after
+                places = [('<rect style="%s:%s" width="9" height="9"/>', True), ('<rect style="fill:#222222;%s:%s;stroke:none" width="9" height="9"/>', True),
+                          ("<style>rect{%s:%s}</style><rect width='9' height='9'/>", True), ("<style>.unused{%s:%s}</style><rect width='9' height='9'/>", True),
+                          ("<style>rect{%s:%s;}\n</style><rect width='9' height='9'/>", True), ('<rect %s="%s" width="9" height="9"/>', False)]
+                for shape, is_style in places:
+                    if is_comment and not is_style:
+                        continue   # a comment is one in a style only
+                    if not is_style and "\t" in before + after or "\n" in before + after and not is_style:
+                        before, after, over_before, over_after = (t.replace("\t", "&#9;").replace("\n", "&#10;") for t in (before, after, over_before, over_after))
+                    with self.subTest(prop=prop, shape=shape[:24], pad=(before[:6], after[:6])):
+                        _svg.clean_svg(svg(shape % (prop, before + value + after)))
+                        err = refused(self, svg(shape % (prop, over_before + value + over_after)), "value-too-long")
+                        for word in (prop + " holds", "more than 8,192 characters", "Ask the tool"):
+                            self.assertIn(word, str(err))
+        # a value that is no value is refused as that, however long it is, and one that is left out is not counted at all
+        refused(self, svg('<rect style="fill:%sno_colour" width="9" height="9"/>' % (" " * 9000)), "bad-value")
+        refused(self, svg('<rect style="stroke-width:%s5 5" width="9" height="9"/>' % (" " * 9000)), "bad-value")
+        self.assertEqual(len(_svg.clean_svg(svg('<rect style="font-family:%sArial;filter:%snone" width="9" height="9"/>' % (" " * 9000, " " * 9000))).notes), 1)
+        # through the door the intake uses, as a file and inside a package
+        doc = svg('<rect style="fill:%sred" width="9" height="9"/>' % (" " * 9000))
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "value-too-long").code, "value-too-long")
+        self.assertEqual(refused(self, _input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour, "value-too-long").code, "value-too-long")
         # what is kept is written with one blank between two entries, however the file spaced it
         spaced = _svg.clean_svg(self.shape('transform="translate(1)%sscale(2\t,\n3)" points="1%s2\r\n3,4" stroke-dasharray="4%s2" stroke="#111111" paint-order=" stroke\t\tfill "'
                                            % (" " * 4000, " " * 4000, "\n" * 4000)))
@@ -670,6 +797,37 @@ class Notes(unittest.TestCase):
         self.assertEqual(len(clean.notes), 4, clean.notes)
         for word in ("font-family", "cursor", "extra", "guide"):
             self.assertEqual(len([n for n in clean.notes if word in n]), 1, clean.notes)
+
+    def test_what_is_left_out_is_not_read_and_cannot_change_what_becomes_of_the_drawing(self):
+        # An attribute that is left out is never written, so it can fetch and run nothing. Until 2026-10-13 it was still
+        # read as a piece of a style: a drawing whose label said "JavaScript: the logo" was refused as one that "can run
+        # code", and so was one whose layer was called `expression(layer)` (an editor writes the layer's name as data-name).
+        words = ("JavaScript: the logo", "expression(layer)", "url(logo.png)", "url(https://x.example/a)", "@import a", "image(x)", "-moz-binding", "behavior: none", "a\\62 c", "/* x */", "{}")
+        for word in words:
+            for attrs, noted in (('aria-label="%s"', None), ('data-name="%s"', None), ('data-anything="%s"', None), ('role="%s"', None), ('version="%s"', None),
+                                 ('label="%s"', "label"), ('sketch-type="%s"', "sketch-type"), ('x:label="%s" xmlns:x="urn:editor"', "label"), ('viewBox-x="%s"', "viewBox-x")):
+                for doc in (svg(root=attrs % word), svg().replace(b"<path ", ("<path %s " % (attrs % word)).encode()), svg("<g %s/>" % (attrs % word)),
+                            svg('<clipPath %s/><defs %s/>' % (attrs % word, attrs % word))):
+                    with self.subTest(word=word, attrs=attrs, doc=doc[100:140]):
+                        clean = _svg.clean_svg(doc)
+                        self.assertEqual(clean.colours, ["#b4531a"])
+                        self.assertEqual(clean.notes, ["left out attributes this check does not use: " + noted] if noted else [])
+                        self.assertNotIn(word.split("(")[0].split(":")[0], clean.text)
+        # the same words where they are kept, or read to decide something, are what they were
+        for attrs, code in (('fill="expression(layer)"', "css-script"), ('style="fill:url(https://x.example/a)"', "css-url"), ('stroke="url(logo.png)"', "css-url"),
+                            ('d="@import a"', "css-import"), ('transform="javascript:x"', "css-script"), ('stroke-width="image(x)"', "css-url"), ('points="-moz-binding"', "css-script")):
+            with self.subTest(attrs=attrs):
+                refused(self, svg("<polygon %s/>" % attrs), code)
+        refused(self, svg('<clipPath clipPathUnits="url(x)"/>'), "css-url")
+        refused(self, svg('<style type="url(x)">path{fill:#111111}</style>'), "css-url")
+        refused(self, svg(root='preserveAspectRatio="expression(1)"'), "css-script")
+        # and what runs or fetches by being an attribute at all is refused whatever it says
+        refused(self, svg(root='onload="x"'), "event-attribute")
+        refused(self, svg().replace(b"<path ", b'<path href="https://x.example/a" '), "external-link")
+        # through the door the intake uses, as a file and inside a package
+        doc = svg(root='role="img" aria-label="JavaScript: the logo" data-name="expression(layer)" id="javascript:logo"')
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(doc)).colour).notes, [])
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour).colours, ["#b4531a"])
 
     def test_a_rule_every_element_matches_is_said_once_not_once_for_each_element(self):
         rule = "path{%s}" % ";".join("cursor:c%d" % i for i in range(_svg.MAX_DECLARATIONS))
@@ -1556,25 +1714,41 @@ class APaint(Line):
 
 
 class AnId(Line):
-    """id: an ASCII letter or `_`, then letters, digits and `_ - . :`; 64 characters at most. Taken as it is written:
-    a renderer takes no blank off an id. This is the id a clip path is named by, the one id the cleaned file keeps;
-    every other id is left out, whatever it is written in (see Ids)."""
+    """id: an ASCII letter, a digit or `_`, then letters, digits and `_ - . :`; 64 characters at most. Taken as it is
+    written: a renderer takes no blank off an id. This is the id a clip path is named by, the one id the cleaned file
+    keeps; every other id is left out, whatever it is written in (see Ids)."""
 
     CLIP = '<defs><clipPath id="%s"><rect width="4" height="4"/></clipPath></defs><rect clip-path="url(#%s)" width="9" height="9"/>'
 
     def test_what_it_takes(self):
-        for value in ("a", "A", "_", "a1", "Layer_1", "clip0_12_34", "SVGID_1_", "a-b", "a.b", "a:b", "_-.:", "a" * 64, "Ebene_1", "path111"):
+        for value in ("a", "A", "_", "a1", "Layer_1", "clip0_12_34", "SVGID_1_", "a-b", "a.b", "a:b", "_-.:", "a" * 64, "Ebene_1", "path111",
+                      # one common design tool names its clip paths in hex digits, and most of those names start with a digit
+                      "1a", "1a2b3c4d5e", "8ce47d5fb1", "0", "007", "9-9", "1.5", "1e5", "0x1f", "7:a", "4" * 64):
             with self.subTest(value=value):
-                clean = _svg.clean_svg(bare(self.CLIP % (value, value)))
-                self.assertIn('<clipPath id="%s">' % value, clean.text)
-                self.assertIn('clip-path="url(#%s)"' % value, clean.text)
+                for use in ('<rect clip-path="url(#%s)" width="9" height="9"/>', '<rect clip-path=" url( #%s ) " width="9" height="9"/>', '<rect style="clip-path:url(#%s)" width="9" height="9"/>',
+                            '<style>.k{clip-path:url(#%s)}</style><rect class="k" width="9" height="9"/>', '<g clip-path="url(#%s)"><rect width="9" height="9"/></g>'):
+                    clean = _svg.clean_svg(bare('<defs><clipPath id="%s"><rect width="4" height="4"/></clipPath></defs>' % value + use % value))
+                    self.assertIn('<clipPath id="%s">' % value, clean.text)
+                    self.assertIn('clip-path="url(#%s)"' % value, clean.text)
+                    self.assertEqual(_svg.clean_svg(clean.text.encode()).text, clean.text)
                 self.assertEqual(_svg._validate("id", value), value)
+                # through the door the intake uses
+                self.assertEqual(_svg.clean_svg(_input.mark(_input.load(bare(self.CLIP % (value, value)))).colour).colours, ["#000000"])
+
+    def test_a_style_rule_names_an_id_by_the_rule_for_a_css_name_and_not_one_that_starts_with_a_digit(self):
+        # `#8c{...}` is no selector to a program: the rule is refused as one this check does not read, and the id itself is fine
+        clip = '<clipPath id="8c"><rect width="4" height="4"/></clipPath><rect clip-path="url(#8c)" width="9" height="9"/>'
+        for selector in ("#8c", "rect#8c", "#8c.a", ".a#8c", "#-8c", "#1"):
+            with self.subTest(selector=selector):
+                refused(self, bare("<style>%s{fill:#ff0000}</style>" % selector + clip), "css-unreadable")
+        self.assertEqual(_svg.clean_svg(bare("<style>#c8{fill:#ff0000}</style>" + clip)).colours, ["#000000"])
+        self.assertEqual(_svg.clean_svg(bare('<style>#c8{fill:#ff0000}</style><rect id="c8" width="9" height="9"/>')).colours, ["#ff0000"])
 
     def test_what_is_no_id(self):
         # none of these names a clip path: the reference is refused where it stands (as a value this check does not read,
         # or as an address that is no plain #name)
-        for value in ("", " ", " a", "a ", "a b", "1a", "-a", ".a", ":a", "a/b", "a,b", "a;b", "a#b", "#a", "a(b)", "a" * 65, "Frame 1", "brand/logo/mark", "1a2b3c4d5e",
-                      "\u00e9", "a\u00e9", "Gr\u00f6\u00dfe", "\u65e5\u672c", "a\u0661", "a\u00a0", "a\u200b", "&#9;a", "a&#10;", "a\ufe0f", "a'b", "a&quot;b", "a&lt;b", "a&amp;b",
+        for value in ("", " ", " a", "a ", "a b", "-a", ".a", ":a", "-1", ".5", "a/b", "a,b", "a;b", "a#b", "#a", "a(b)", "a" * 65, "1" * 65, "Frame 1", "brand/logo/mark", "1 a",
+                      "\u0661a", "\uff11a", "\u00e9", "a\u00e9", "Gr\u00f6\u00dfe", "\u65e5\u672c", "a\u0661", "a\u00a0", "a\u200b", "&#9;a", "a&#10;", "a\ufe0f", "a'b", "a&quot;b", "a&lt;b", "a&amp;b",
                       "a\\62", "a%b", "a+b", "a=b", "a@b", "a*b", "a!b"):
             with self.subTest(value=value):
                 with self.assertRaises(_svg.Refusal) as cm:
@@ -1617,18 +1791,16 @@ class Ids(unittest.TestCase):
                 ("three of them", bare('<title id="c"/><g id="c"/>' + self.CLIP + self.USE)),
                 ("the same id as xml:id", bare('<title xml:id="c">x</title>' + self.CLIP + self.USE)),
                 ("a reference from a style attribute", bare('<title id="c"/>' + self.CLIP + '<rect style="clip-path:url(#c)" width="9" height="9"/>')),
-                ("a reference from a rule", bare('<title id="c"/><style>rect{clip-path:url( #c )}</style>' + self.CLIP + '<rect width="9" height="9"/>')),
+                ("a reference from a rule", bare('<title id="c"/><style>.k{clip-path:url( #c )}</style>' + self.CLIP + '<rect class="k" width="9" height="9"/>')),
                 ("a reference on a group", bare('<title id="c"/>' + self.CLIP + '<g clip-path="url(#c)"><rect width="9" height="9"/></g>')),
-                ("a reference on the outer svg", bare('<title id="c"/>' + self.CLIP + '<rect width="9" height="9"/>', root='clip-path="url(#c)"')),
-                ("a reference from one clip path to another", bare('<title id="c"/>' + self.CLIP + '<clipPath id="d" clip-path="url(#c)"><rect width="4" height="4"/></clipPath>'
-                                                                   '<rect clip-path="url(#d)" width="9" height="9"/>'))):
+                ("an id that names nothing a style check likes", bare('<title id="c"/>' + self.CLIP + self.USE + '<g id="javascript:logo"/><g id="c"/>'))):
             with self.subTest(what=what):
                 err = refused(self, doc, "shared-id")
                 for word in ("same id", "'c'", "Ask the tool"):
                     self.assertIn(word, str(err))
         # the control: once, on a clip path, wherever the clip path stands and however the reference is written
         for doc in (bare(self.CLIP + self.USE), bare(self.USE + self.CLIP), bare("<defs>%s</defs>" % self.CLIP + self.USE), bare("<title>c</title><desc>id=\"c\"</desc>" + self.CLIP + self.USE),
-                    bare(self.CLIP + '<rect style="clip-path: url( #c )" width="9" height="9"/>'), bare("<style>rect{clip-path:url(#c)}</style>" + self.CLIP + '<rect width="9" height="9"/>'),
+                    bare(self.CLIP + '<rect style="clip-path: url( #c )" width="9" height="9"/>'), bare("<style>.k{clip-path:url(#c)}</style>" + self.CLIP + '<rect class="k" width="9" height="9"/>'),
                     bare('<title id="d"/><g id="e"/>' + self.CLIP + self.USE, root='id="f"')):
             with self.subTest(doc=doc[110:170]):
                 clean = _svg.clean_svg(doc)
@@ -1657,7 +1829,10 @@ class Ids(unittest.TestCase):
     def test_an_id_nothing_is_named_by_is_left_out_whatever_it_is_written_in(self):
         # ordinary exports were refused for an id nobody uses: a layer called "Frame 1" or "Größe", an id that starts with a digit
         for value in ("Frame 1", "Rectangle 1", "Gr\u00f6\u00dfe", "\u65e5\u672c\u8a9e", "brand/logo/mark", "1a2b3c4d5e", "8ce47d5fb1", "icon/logo", "Layer-1", "a" * 300, "", " ",
-                      "a b c", "&#9;x&#10;", "x\u00a0y", "\u200b", "a&amp;b", "a&lt;b&gt;", "a'b", "#a", "url", "none", "c"):
+                      "a b c", "&#9;x&#10;", "x\u00a0y", "\u200b", "a&amp;b", "a&lt;b&gt;", "a'b", "#a", "url", "none", "c",
+                      # nor is it read as a piece of a style: a layer may be called any of these (each refused the drawing until 2026-10-13)
+                      "expression(layer)", "javascript:logo", "JavaScript: the logo", "url(https://x.example/a)", "url(logo.png)", "@import a", "image(x)", "src(x)", "behavior: none",
+                      "-moz-binding", "a\\62 c", "/* layer */", "a{b}", "x(", "&quot;", "[1]"):
             with self.subTest(value=ascii(value)):
                 for doc in (bare('<g id="%s"><rect id="%s" width="9" height="9" fill="#111111"/></g>' % (value, value)), svg(root='id="%s"' % value),
                             bare('<title id="%s">x</title><defs id="%s"/><rect width="9" height="9" fill="#111111"/>' % (value, value)),
@@ -1665,9 +1840,53 @@ class Ids(unittest.TestCase):
                     clean = _svg.clean_svg(doc.decode().encode("utf-8"))
                     self.assertNotIn(" id=", clean.text)
                     self.assertEqual(clean.notes, [])
-        # an id that could fetch or run something is still what it is to the style check, used or not
-        refused(self, bare('<rect id="url(https://x.example/a)" width="9" height="9"/>'), "css-url")
-        refused(self, bare('<rect id="@import a" width="9" height="9"/>'), "css-import")
+        # the same words where they ARE a piece of a style are refused as before: an id is not read, a style is
+        refused(self, bare('<rect id="a" style="fill:url(https://x.example/a)" width="9" height="9"/>'), "css-url")
+        refused(self, bare('<rect id="a" fill="expression(layer)" width="9" height="9"/>'), "css-script")
+        # through the door the intake uses, as a file and inside a package
+        doc = bare('<g id="javascript:logo"><rect id="expression(layer)" width="9" height="9" fill="#111111"/></g>')
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(doc)).colour).text.count(" id="), 0)
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour).colours, ["#111111"])
+
+    def test_an_id_that_is_left_out_is_still_the_id_a_style_rule_names_and_still_counts_as_standing_there(self):
+        # a rule that names an id applies before the id is left out: red in the file that came, red in the cleaned file
+        for name in ("layer-1", "a", "_a", "Layer_1"):
+            with self.subTest(name=name):
+                clean = _svg.clean_svg(bare('<style>#%s{fill:#ff0000}</style><g id="expression(layer)"><rect id="%s" width="9" height="9"/></g>' % (name, name)))
+                self.assertEqual(clean.colours, ["#ff0000"])
+                self.assertIn('fill="#ff0000"', clean.text)
+                self.assertNotIn(" id=", clean.text)
+        # and an id nothing refers to still counts where something does refer to it: twice in the file is twice
+        refused(self, bare('<g id="c"/>' + self.CLIP + self.USE), "shared-id")
+        self.assertEqual(_svg.clean_svg(bare('<g id="c"/><g id="c"/><g id="javascript:c"/>' + self.CLIP.replace('"c"', '"d"') + self.USE.replace("#c", "#d"))).text.count(" id="), 1)
+
+    def test_a_paint_that_names_an_id_is_refused_wherever_it_reaches_an_element_so_no_kept_reference_loses_its_id(self):
+        # The value grammar takes `url(#id)` in fill, stroke and color, and every id but a clip path's is left out. No
+        # cleaned file holds such a paint all the same: the colour reader refuses it by name (a gradient or a pattern)
+        # on whatever element it ends up, drawn or not, before anything is written.
+        path = '<path fill="#111111" d="M0 0h9v9z"/>'
+        for what, inner in (("fill on a shape, the id a clip path's", self.CLIP + '<rect fill="url(#c)" width="9" height="9"/>'),
+                            ("stroke on a shape, the id a group's", '<g id="g"/><rect stroke="url(#g)" width="9" height="9"/>'),
+                            ("stroke on a shape, the id nowhere", '<rect stroke="url( #nowhere )" width="9" height="9"/>'),
+                            ("color", '<rect color="url(#c)" fill="#111111" width="9" height="9"/>' + self.CLIP),
+                            ("an id that starts with a digit", '<clipPath id="8c"/><rect fill="url(#8c)" width="9" height="9"/>'),
+                            ("on an empty group", '<g fill="url(#c)"/>' + self.CLIP + path), ("on a group round a shape with a fill of its own", '<g fill="url(#c)">%s</g>' % path + self.CLIP),
+                            ("on a shape in defs", '<defs><rect fill="url(#c)" width="9" height="9"/></defs>' + self.CLIP + path),
+                            ("on a shape inside a clip path", '<clipPath id="k"><rect fill="url(#c)" width="9" height="9"/></clipPath>' + self.CLIP + path),
+                            ("on a shape that is not shown", '<rect display="none" fill="url(#c)" width="9" height="9"/>' + self.CLIP + path),
+                            ("on the clip path itself", self.CLIP.replace("<clipPath ", '<clipPath stroke="url(#c)" ') + path),
+                            ("in a style", '<rect style="fill:url(#c)" width="9" height="9"/>' + self.CLIP), ("by a rule", "<style>rect{stroke:url(#c)}</style>" + self.USE + self.CLIP),
+                            ("an outline of no width", '<rect stroke="url(#c)" stroke-width="0" fill="#111111" width="9" height="9"/>' + self.CLIP)):
+            with self.subTest(what=what):
+                err = refused(self, bare(inner), "colour-gradient")
+                self.assertIn("ask the tool", str(err))
+        refused(self, bare(self.CLIP + path, root='fill="url(#c)"'), "colour-gradient")
+        # a rule that no element ends up with is not written, so its paint is nowhere in the cleaned file
+        clean = _svg.clean_svg(bare("<style>.unused{fill:url(#c)}</style>" + self.CLIP + self.USE + path))
+        self.assertNotIn("fill=\"url(", clean.text)
+        self.assertEqual(clean.text.count("url(#"), 1, "the one reference a cleaned file holds is a clip path's")
+        # through the door the intake uses
+        self.assertEqual(refused(self, _input.mark(_input.load(bare(self.CLIP + '<rect fill="url(#c)" width="9" height="9"/>'))).colour, "colour-gradient").code, "colour-gradient")
 
     def test_a_clip_path_nothing_refers_to_keeps_no_id_and_one_that_is_referred_to_keeps_its_own(self):
         clean = _svg.clean_svg(bare('<clipPath id="unused 1"><rect width="4" height="4"/></clipPath><clipPath id="used"><rect width="4" height="4"/></clipPath>'
@@ -1688,42 +1907,195 @@ class Ids(unittest.TestCase):
         self.assertEqual(_svg.clean_svg(_input.mark(_input.load(bare('<g id="Frame 1">' + self.CLIP + self.USE + "</g>"))).colour).colours, ["#000000"])
 
 
+class APlainClipPath(unittest.TestCase):
+    """A CLIP PATH IS A PLAIN OUTLINE THAT CLIPS SHAPES. What goes beyond that is refused by name, however it is set,
+    because programs do not draw it alike (measured 2026-10-13, the site's renderer against a browser; the pictures are
+    in test_render.py): a clip-path on a <clipPath> or on anything inside one, display on a <clipPath> or a <defs>, and
+    a clip-path on the outer <svg>."""
+
+    CLIP = '<clipPath id="c"><rect width="4" height="4"/></clipPath>'
+    OTHER = '<clipPath id="d"><rect width="6" height="6"/><circle cx="3" cy="3" r="2"/></clipPath>'
+    USE = '<rect clip-path="url(#c)" width="9" height="9"/>'
+
+    def test_a_clip_path_is_not_clipped_and_nothing_inside_one_is_however_that_is_set(self):
+        inner = '<clipPath id="c"%s><rect%s width="4" height="4"/><circle%s r="2"/></clipPath>'
+        ways = {
+            "an attribute on the clip path": inner % (' clip-path="url(#d)"', "", ""),
+            "a style on the clip path": inner % (' style="clip-path:url(#d)"', "", ""),
+            "an attribute on a shape inside": inner % ("", ' clip-path="url(#d)"', ""),
+            "a style on a shape inside": inner % ("", "", ' style="fill:#111111;clip-path: url( #d )"'),
+            "a rule for clip paths": "<style>clipPath{clip-path:url(#d)}</style>" + inner % ("", "", ""),
+            "a rule for the clip path's id": "<style>#c{clip-path:url(#d)}</style>" + inner % ("", "", ""),
+            "a rule for a class on a shape inside": "<style>.k{clip-path:url(#d)}</style>" + inner % ("", ' class="k"', ""),
+            "a rule for every circle": "<style>circle{clip-path:url(#c)}</style>" + inner % ("", "", ""),
+            "a rule for every rect, which the clip path's own shape is": "<style>rect{clip-path:url(#c)}</style>" + inner % ("", "", ""),
+            "a rule for everything but the outer svg": "<style>g,defs,clipPath,rect,circle{clip-path:url(#d)}</style>" + inner % ("", "", ""),
+            "a group inside the clip path": '<clipPath id="c"><g clip-path="url(#d)"><rect width="4" height="4"/></g></clipPath>',
+            "a shape in a group inside the clip path": '<clipPath id="c"><g><g><rect clip-path="url(#d)" width="4" height="4"/></g></g></clipPath>',
+            "a clip path inside a clip path": '<clipPath id="c"><clipPath id="e" clip-path="url(#d)"/><rect width="4" height="4"/></clipPath>',
+            "by itself": inner % (' clip-path="url(#c)"', "", ""),
+            "a shape inside by the clip path it stands in": inner % ("", ' clip-path="url(#c)"', ""),
+            "a clip path nothing is clipped by": '<clipPath id="unused" clip-path="url(#d)"><rect width="4" height="4"/></clipPath>' + self.CLIP,
+            "an empty clip path": '<clipPath id="e" clip-path="url(#d)"/>' + self.CLIP,
+            "by something that is not in the file": inner % (' clip-path="url(#nowhere)"', "", ""),
+            "an id that starts with a digit": inner.replace('"c"', '"8c"') % ("", ' clip-path="url(#d)"', "") + self.CLIP,
+        }
+        for what, clip in ways.items():
+            for doc in (bare(clip + self.OTHER + self.USE), bare("<defs>%s%s</defs>" % (self.OTHER, clip) + self.USE), bare(self.USE + "<g><defs>%s</defs></g>" % (clip + self.OTHER))):
+                with self.subTest(what=what, doc=doc[110:150]):
+                    err = refused(self, doc, "clip-in-clip")
+                    for word in ("clip path", "clipped itself", "clip-path='url(#", "different ways", "Ask the tool", "one plain outline"):
+                        self.assertIn(word, str(err))
+        # two that clip each other, with a tail leading in; and a chain, each link holding two shapes clipped by the next
+        ring = ('<clipPath id="a" clip-path="url(#b)"><rect width="9" height="9"/></clipPath><clipPath id="b" clip-path="url(#a)"><rect width="6" height="6"/></clipPath>'
+                '<clipPath id="c" clip-path="url(#a)"><rect width="4" height="4"/></clipPath>')
+        refused(self, bare(ring + self.USE), "clip-in-clip")
+        chain = "".join('<clipPath id="k%d"><rect clip-path="url(#k%d)" width="9" height="9"/><rect clip-path="url(#k%d)" width="8" height="8"/></clipPath>' % (i, i + 1, i + 1) for i in range(22))
+        refused(self, bare(chain + '<clipPath id="k22"><rect width="4" height="4"/></clipPath><rect clip-path="url(#k0)" width="9" height="9"/>'), "clip-in-clip")
+        # through the door the intake uses, as a file and inside a package
+        doc = bare(ways["an attribute on a shape inside"] + self.OTHER + self.USE)
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "clip-in-clip").code, "clip-in-clip")
+        self.assertEqual(refused(self, _input.mark(_input.load(T.build_zip([("pack/logo.svg", doc)]))).colour, "clip-in-clip").code, "clip-in-clip")
+
+    def test_a_plain_clip_path_is_kept_whatever_plain_shapes_it_holds_and_wherever_it_stands(self):
+        for what, doc in (
+                ("one shape", bare(self.CLIP + self.USE)),
+                ("several plain shapes", bare(self.OTHER + self.USE.replace("#c", "#d"))),
+                ("a transformed clip path", bare(self.CLIP.replace("<clipPath ", '<clipPath transform="translate(2 0) scale(1 .5)" ') + self.USE)),
+                ("a transformed shape inside", bare(self.CLIP.replace("<rect ", '<rect transform="rotate(20 5 5)" ') + self.USE)),
+                ("used by two shapes and a group", bare(self.CLIP + self.USE + self.USE + '<g clip-path="url(#c)"><rect width="9" height="2"/></g>')),
+                ("two clip paths, one for a group and one for a shape in it", bare(self.CLIP + self.OTHER + '<g clip-path="url(#d)">%s</g>' % self.USE)),
+                ("a clip path that stands in a clipped group", bare(self.OTHER + '<g clip-path="url(#d)">%s%s</g>' % (self.CLIP, self.USE))),
+                ("in defs in a clipped group", bare(self.OTHER + '<g clip-path="url(#d)"><defs>%s</defs>%s</g>' % (self.CLIP, self.USE))),
+                ("clip-path none on the clip path", bare(self.CLIP.replace("<clipPath ", '<clipPath clip-path="none" ') + self.USE)),
+                ("clip-path none on a shape inside", bare(self.CLIP.replace("<rect ", '<rect style="clip-path:none" ') + self.USE)),
+                ("a rule that sets none everywhere", bare("<style>*{clip-path:none}</style>" + self.CLIP + '<rect style="clip-path:url(#c)" width="9" height="9"/>')),
+                ("a rule for clip paths that a later one takes back", bare("<style>clipPath{clip-path:url(#d)} #c{clip-path:none}</style>" + self.CLIP + self.USE)),
+                ("a group that is not shown round the clip path", bare('<g display="none">%s</g>' % self.CLIP + self.USE)),
+                ("a group that is not shown round its defs", bare('<g display="none"><defs>%s</defs></g>' % self.CLIP + self.USE)),
+                ("clip-path none on the outer svg", bare(self.CLIP + self.USE, root='clip-path="none"'))):
+            with self.subTest(what=what):
+                clean = _svg.clean_svg(doc)
+                self.assertIn(' clip-path="url(#', clean.text)
+                self.assertEqual(_svg.clean_svg(clean.text.encode()).text, clean.text)
+
+    def test_display_is_not_set_on_a_clip_path_or_on_defs_however_that_is_set(self):
+        for value in ("none", "inline", "block"):
+            for what, inner in (
+                    ("an attribute on the clip path", self.CLIP.replace("<clipPath ", '<clipPath display="%s" ' % value) + self.USE),
+                    ("a style on the clip path", self.CLIP.replace("<clipPath ", '<clipPath style="display: %s" ' % value) + self.USE),
+                    ("a rule for clip paths", "<style>clipPath{display:%s}</style>" % value + self.CLIP + self.USE),
+                    ("a rule for the clip path's id", "<style>#c{display:%s}</style>" % value + self.CLIP + self.USE),
+                    ("a rule for everything", "<style>*{display:%s}</style>" % value + self.CLIP + self.USE),
+                    ("a clip path nothing is clipped by", '<clipPath id="unused" display="%s"/>' % value + self.CLIP + self.USE),
+                    ("an attribute on the defs round it", '<defs display="%s">%s</defs>' % (value, self.CLIP) + self.USE),
+                    ("a style on the defs", '<defs style="display:%s">%s</defs>' % (value, self.CLIP) + self.USE),
+                    ("a rule for defs", "<style>defs{display:%s}</style><defs>%s</defs>" % (value, self.CLIP) + self.USE),
+                    ("defs that hold no clip path", '<defs display="%s"><rect width="4" height="4"/></defs>' % value + self.CLIP + self.USE),
+                    ("empty defs, in a group", '<g><defs display="%s"/></g>' % value + self.CLIP + self.USE)):
+                with self.subTest(value=value, what=what):
+                    err = refused(self, bare(inner), "clip-display")
+                    for word in ("display (%r)" % value, "does not clip at all", "Ask the tool", "<defs>"):
+                        self.assertIn(word, str(err))
+        # display anywhere else is read as before: on a group round a clip path, on a shape, on a shape inside a clip path
+        for inner in ('<g display="none">%s</g>' % self.CLIP + self.USE, '<g style="display:inline"><defs>%s</defs></g>' % self.CLIP + self.USE, self.CLIP + self.USE.replace("<rect ", '<rect display="block" '),
+                      "<style>g,rect{display:inline}</style><g>%s</g>" % self.CLIP + self.USE, self.CLIP.replace("<rect ", '<rect display="none" ') + self.USE):
+            with self.subTest(inner=inner[:50]):
+                self.assertIn('clip-path="url(#c)"', _svg.clean_svg(bare(inner)).text)
+        # through the door the intake uses, as a file and inside a package
+        doc = bare('<defs style="display:none">%s</defs>' % self.CLIP + self.USE)
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "clip-display").code, "clip-display")
+        self.assertEqual(refused(self, _input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour, "clip-display").code, "clip-display")
+
+    def test_the_outer_svg_is_not_clipped_however_that_is_set(self):
+        shape = '<rect width="9" height="9"/>'
+        for what, doc in (("an attribute", bare(self.CLIP + shape, root='clip-path="url(#c)"')), ("an attribute, spaced", bare(self.CLIP + shape, root='clip-path=" url( #c ) "')),
+                          ("a style", bare(self.CLIP + shape, root='style="clip-path:url(#c)"')), ("a rule for svg", bare("<style>svg{clip-path:url(#c)}</style>" + self.CLIP + shape)),
+                          ("a rule for everything", bare("<style>*{clip-path:url(#c)}</style>" + self.CLIP + shape)), ("a rule for its class", bare("<style>.k{clip-path:url(#c)}</style>" + self.CLIP + shape, root='class="k"')),
+                          ("a rule for its id", bare("<style>#logo{clip-path:url(#c)}</style>" + self.CLIP + shape, root='id="logo"')),
+                          ("by something that is not in the file", bare(shape, root='clip-path="url(#nowhere)"')), ("by an id that stands twice", bare('<title id="c"/>' + self.CLIP + shape, root='clip-path="url(#c)"')),
+                          ("an id that starts with a digit", bare(self.CLIP.replace('"c"', '"8c"') + shape, root='clip-path="url(#8c)"'))):
+            with self.subTest(what=what):
+                err = refused(self, doc, "root-clip-path")
+                for word in ("outer <svg>", "clip-path='url(#", "picture's pixels", "a small icon and in a large one", "Ask the tool", "group round the shapes"):
+                    self.assertIn(word, str(err))
+        # the same clip on a group round the shapes is what the sentence asks for, and is read
+        self.assertIn('<g clip-path="url(#c)">', _svg.clean_svg(bare(self.CLIP + '<g clip-path="url(#c)">%s</g>' % shape)).text)
+        self.assertEqual(_svg.clean_svg(bare(shape, root='clip-path=" none "')).colours, ["#000000"])   # `none` clips nothing, there as anywhere
+        # through the door the intake uses, as a file and inside a package
+        doc = bare(self.CLIP + shape, root='clip-path="url(#c)"')
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "root-clip-path").code, "root-clip-path")
+        self.assertEqual(refused(self, _input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour, "root-clip-path").code, "root-clip-path")
+
+
 class AClass(Line):
-    """class: names of ASCII letters, digits and `_ - .` with spaces between them; 200 characters at most. It is read
-    (a rule may name it) and never written."""
+    """class: names of visible ASCII characters with spaces between them; 200 characters at most. A name a style rule
+    can name (letters, digits, `_ -`, begun as a CSS name is) is read for the rules; any other is passed over. Never written."""
 
     def test_what_it_takes(self):
-        for value, names in (("a", {"a"}), ("a b", {"a", "b"}), (" a  b ", {"a", "b"}), ("cls-1 st0", {"cls-1", "st0"}), ("a.b _c -d 0", {"a.b", "_c", "-d", "0"}),
+        for value, names in (("a", {"a"}), ("a b", {"a", "b"}), (" a  b ", {"a", "b"}), ("cls-1 st0", {"cls-1", "st0"}), ("a.b _c -d 0", {"_c", "-d"}),
                              ("", set()), (" ", set()), ("a a", {"a"}), ("x" * 200, {"x" * 200}), (" ".join(["ab"] * 66), {"ab"})):
             with self.subTest(value=value):
                 clean = _svg.clean_svg(bare("<style>.a{fill:#ff0000}</style>" + '<rect class="%s" width="9" height="9"/>' % value))
                 self.assertEqual(clean.colours, ["#ff0000"] if "a" in names else ["#000000"])
                 self.assertNotIn("class", clean.text)
+                self.assertEqual(_svg._classes(_svg._validate("class", value)), names)
+
+    def test_a_name_no_style_rule_can_name_is_passed_over(self):
+        # A pasted icon carries the names of a style library (`h-6 w-6 md:h-8 hover:text-gray-500`): the drawing was refused
+        # for the colon. No selector this check reads can name such a class, and a class is never written.
+        odd = ("md:h-8", "hover:text-gray-500", "w-1/2", "top-0.5", "!mt-0", "[&amp;&gt;path]:fill-current", "text-[#b4531a]", "bg-[url(/hero.png)]", "sm:max-w-[200px]",
+               "a,b", "a;b", "a#b", "#a", ".a", "a.b", "a(b)", "a'b", "a&quot;b", "a&lt;b", "a*", "a+b", "a%", "a\\62", "a!", "a@b", "a=b", "0", "1a", "-", "--", "-1", "a{b}",
+               "javascript:a", "expression(a)", "@import")
+        sheet = "<style>.a{fill:#ff0000} .b{stroke:#00ff00} .md{fill:#0000ff} .h-8{fill:#0000ff} .hover{fill:#0000ff} .w-1{fill:#0000ff} .mt-0{fill:#0000ff}</style>"
+        for name in odd:
+            with self.subTest(name=name):
+                for value, colours in ((name, ["#000000"]), ("a " + name, ["#ff0000"]), (name + " a", ["#ff0000"]), ("%s a %s" % (name, name), ["#ff0000"]), ("%s  %s" % (name, name), ["#000000"])):
+                    clean = _svg.clean_svg(bare(sheet + '<rect class="%s" width="9" height="9"/>' % value))
+                    self.assertEqual(clean.colours, colours, value)
+                    self.assertEqual(clean.notes, [])
+                    self.assertNotIn("class", clean.text)
+        clean = _svg.clean_svg(bare(sheet + '<rect class="%s" width="9" height="9"/>' % "h-6 w-6 md:h-8 hover:text-gray-500 a", root='class="h-6 w-6 md:h-8 hover:text-gray-500"'))
+        self.assertEqual(clean.colours, ["#ff0000"])
+        self.assertEqual(_svg._classes("a md:h-8 b.c -d  _e 0 a"), {"a", "-d", "_e"})
+        # a rule cannot name one of them: written so that a browser would, it is a selector this check does not read
+        for selector in (".md\\:h-8", ".w-1\\/2", ".\\31 a", ".0", ".a\\.b"):
+            with self.subTest(selector=selector):
+                refused(self, bare("<style>%s{fill:#ff0000}</style>" % selector + '<rect class="md:h-8" width="9" height="9"/>'), "css-unreadable")
+        # through the door the intake uses, as a file and inside a package
+        doc = ('<svg %s class="h-6 w-6 md:h-8 hover:text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#111111">'
+               '<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>' % NS).encode()
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(doc)).colour).colours, ["#111111"])
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(T.build_zip([("icon.svg", doc)]))).colour).colours, ["#111111"])
 
     def test_what_is_no_class(self):
-        for value in ("a,b", "a;b", "a/b", "a#b", "a:b", "a(b)", "x" * 201, "a&#9;b", "a&#10;b", "a\u00a0b", "\u2003a", "\u00e9", "gr\u00f6\u00dfe", "a\u0661", "a\u200bb", "a'b",
-                      "a&quot;b", "a&lt;b", "a*", "a+b", "a%", "a\\62", "a!", "a@b", "a=b", "a\ufe0f"):
+        # a name with anything in it that one program may take for a blank and another for a letter, or that is not ASCII
+        for value in ("x" * 201, "a:b " * 50 + "c", "a&#9;b", "a&#10;b", "a&#13;b", "a\u00a0b", "\u2003a", "\u00e9", "gr\u00f6\u00dfe", "a\u0661", "a\u200bb", "a\ufe0f", "a&#127;b",
+                      "md:h-8\u00a0a", "a\u3000b", "a\u2028b"):
             with self.subTest(value=ascii(value)):
-                refused(self, bare('<rect class="%s" width="9" height="9"/>' % value), "bad-value")
+                refused(self, bare("<style>.a{fill:#ff0000}</style>" + '<rect class="%s" width="9" height="9"/>' % value), "bad-value")
 
 
 class AClipPath(Line):
     """clip-path: `none`, or url(#id) with an id of the grammar, 80 characters at most; blanks may stand inside the brackets."""
 
     CLIP = ('<defs><clipPath id="c"><rect width="4" height="4"/></clipPath><clipPath id="a-b.c:d_e"><rect width="4" height="4"/></clipPath>'
+            '<clipPath id="1c"><rect width="4" height="4"/></clipPath><clipPath id="8ce47d5fb1"><rect width="4" height="4"/></clipPath>'
             '<clipPath id="%s"><rect width="4" height="4"/></clipPath></defs>' % ("a" * 64))
 
     def places(self, name, value, **where):
+        # (the rule names the shape by a class: one for every <rect> would clip the shapes inside the clip paths too)
         escaped = value.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
         docs = [bare(self.CLIP + '<rect clip-path="%s" width="9" height="9"/>' % escaped), bare(self.CLIP + '<rect style="clip-path:%s" width="9" height="9"/>' % escaped)]
-        return docs + [bare(self.CLIP + "<style>rect{clip-path:%s}</style><rect width='9' height='9'/>" % escaped.replace("&quot;", '"'))]
+        return docs + [bare(self.CLIP + "<style>.k{clip-path:%s}</style><rect class='k' width='9' height='9'/>" % escaped.replace("&quot;", '"'))]
 
     def test_what_it_takes(self):
-        self.takes("clip-path", ["none", " none ", "url(#c)", ("url( #c )", "url(#c)"), ("url(\t#c\n)", "url(#c)"), (" url(#c) ", "url(#c)"), "url(#a-b.c:d_e)", "url(#" + "a" * 64 + ")"])
+        self.takes("clip-path", ["none", " none ", "url(#c)", ("url( #c )", "url(#c)"), ("url(\t#c\n)", "url(#c)"), (" url(#c) ", "url(#c)"), "url(#a-b.c:d_e)", "url(#" + "a" * 64 + ")",
+                                 "url(#1c)", "url(#8ce47d5fb1)", ("url( #8ce47d5fb1 )", "url(#8ce47d5fb1)")])
 
     def test_what_is_no_clip_path(self):
         self.turns_down("clip-path", ["None", "NONE", "auto", "inherit", "#c", "c", "URL(#c)", "Url(#c)", "url (#c)", "url(#c) none", "none url(#c)", "url(#c) url(#c)",
-                                      "url(#c)x", "url(#1c)", "url(#-c)", "url(#" + "a" * 65 + ")", "url(#c" + " " * 80 + ")", "circle(5)", "inset(1)",
+                                      "url(#c)x", "url(#-c)", "url(#.c)", "url(#:c)", "url(#" + "a" * 65 + ")", "url(#c" + " " * 80 + ")", "circle(5)", "inset(1)",
                                       "polygon(0 0,9 0,9 9)", "path('M0 0')", "border-box", "url(#c) border-box"], "bad-value")
         for value in ('url("#c")', "url('#c')"):   # in quotes it is a fragment to the style check, and no clip-path of this grammar
             refused(self, bare(self.CLIP + "<rect clip-path=\"%s\" width='9' height='9'/>" % value.replace('"', "&quot;")), "bad-value")
@@ -1865,9 +2237,10 @@ class TheOuterSize(Line):
 
 
 class NothingHere(Line):
-    """Three values that only say "nothing here" are left out without a word: filter, mask and vector-effect of
-    `none`, and mix-blend-mode of `normal`. Before 2026-10-12 each was refused with a sentence that said the effect
-    was used."""
+    """The values that only say "nothing here" are left out without a word: filter, mask, vector-effect and the four
+    marker properties of `none`, mix-blend-mode of `normal`, isolation and image-rendering of `auto`. Before 2026-10-12
+    the first four were refused with a sentence that said the effect was used, and until 2026-10-13 the rest were
+    (an editor writes `marker:none` into the style of every shape)."""
 
     def test_the_one_value_of_each_that_does_nothing_is_left_out_and_nothing_is_said(self):
         for name, word in _svg.NO_EFFECT.items():
@@ -1879,7 +2252,31 @@ class NothingHere(Line):
                     clean = _svg.clean_svg(doc)
                     self.assertEqual(clean.notes, [])
                     self.assertNotIn(name, clean.text)
-        self.assertEqual(sorted(_svg.NO_EFFECT.items()), [("filter", "none"), ("mask", "none"), ("mix-blend-mode", "normal"), ("vector-effect", "none")])
+        self.assertEqual(sorted(_svg.NO_EFFECT.items()), [("filter", "none"), ("image-rendering", "auto"), ("isolation", "auto"), ("marker", "none"), ("marker-end", "none"),
+                                                          ("marker-mid", "none"), ("marker-start", "none"), ("mask", "none"), ("mix-blend-mode", "normal"), ("vector-effect", "none")])
+        # an editor's long style, as it is written: nothing of it is drawn, and nothing is said but the one note
+        long = ("fill:#111111;fill-opacity:1;stroke:none;marker:none;marker-start:none;marker-mid:none;marker-end:none;isolation:auto;image-rendering:auto;"
+                "-inkscape-stroke:none;-inkscape-font-specification:'Sans Bold';mix-blend-mode:normal;paint-order:normal")
+        doc = bare('<path style="%s" d="M0 0h9v9z"/>' % long)
+        clean = _svg.clean_svg(_input.mark(_input.load(doc)).colour)   # through the door the intake uses
+        self.assertEqual(clean.colours, ["#111111"])
+        self.assertEqual(clean.notes, ["left out styles that only an editor reads (their names start -inkscape-)"])
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour).notes, clean.notes)
+
+    def test_an_editors_own_properties_are_left_out_with_one_note_whatever_they_are_called(self):
+        for style in ("-inkscape-stroke:none", "-inkscape-stroke:hairline", "-inkscape-font-specification:'DejaVu Sans, Bold'", "-inkscape-anything-at-all:x(1 2)", "-inkscape-:0",
+                      "-inkscape-stroke:none;-inkscape-font-specification:Sans;-inkscape-stroke:hairline"):
+            for doc in (bare('<path style="%s;fill:#111111" d="M0 0h9v9z"/>' % style), bare("<style>path{%s}</style>" % style + '<path fill="#111111" d="M0 0h9v9z"/>'),
+                        bare("<style>.unused{%s}</style>" % style + '<path fill="#111111" d="M0 0h9v9z"/>')):
+                with self.subTest(style=style, doc=doc[110:150]):
+                    clean = _svg.clean_svg(doc)
+                    self.assertEqual(clean.notes, ["left out styles that only an editor reads (their names start -inkscape-)"])
+                    self.assertNotIn("inkscape", clean.text)
+        # another program's prefix is not this one, and what such a value holds is still a piece of a style
+        for style, code in (("-webkit-print-color-adjust:exact", "css-property"), ("-moz-inkscape-stroke:none", "css-property"), ("inkscape-stroke:none", "css-property"),
+                            ("-inkscape-stroke:url(https://x.example/a)", "css-url"), ("-inkscape-stroke:expression(1)", "css-script"), ("-Inkscape-stroke:none", "css-unreadable")):
+            with self.subTest(style=style):
+                refused(self, bare('<path style="%s" d="M0 0h9v9z"/>' % style), code)
 
     def test_every_other_value_is_refused_by_name_as_before(self):
         for name, code, values in (("filter", "filter", ["url(#f)", "blur(2px)", "None", "NONE", "none none", "", "inherit", "normal", "drop-shadow(0 0 1px red)"]),
@@ -1894,9 +2291,20 @@ class NothingHere(Line):
                     if value and "(" not in value:
                         refused(self, bare('<rect style="%s:%s" width="9" height="9"/>' % (name, value)), code)
                         refused(self, bare("<style>.unused{%s:%s}</style><rect width='9' height='9'/>" % (name, value)), code)
-        # the markers have no such value in this grammar: `none` there is refused as any marker is
-        for name in ("marker-start", "marker-mid", "marker-end"):
-            refused(self, bare('<path %s="none" d="M0 0h9"/>' % name), "marker")
+        for name in ("marker", "marker-start", "marker-mid", "marker-end"):
+            for value in ("url(#m)", "None", "NONE", "", "inherit", "auto", "none none"):
+                with self.subTest(name=name, value=value):
+                    refused(self, bare('<path %s="%s" d="M0 0h9"/>' % (name, value)), "marker")
+                    if value:
+                        refused(self, bare('<path style="%s:%s" d="M0 0h9"/>' % (name, value)), "marker")
+                        refused(self, bare("<style>.unused{%s:%s}</style><path d='M0 0h9'/>" % (name, value)), "marker")
+        # isolation and image-rendering are no attributes of a shape: another value is refused in a style, and as an
+        # attribute it is left out with a note, like any attribute this check does not use
+        for name, value in (("isolation", "isolate"), ("isolation", "Auto"), ("image-rendering", "pixelated"), ("image-rendering", "optimizeQuality"), ("image-rendering", "auto auto")):
+            with self.subTest(name=name, value=value):
+                refused(self, bare('<rect style="%s:%s" width="9" height="9"/>' % (name, value)), "css-property")
+                refused(self, bare("<style>.unused{%s:%s}</style><rect width='9' height='9'/>" % (name, value)), "css-property")
+                self.assertEqual(_svg.clean_svg(bare('<rect %s="%s" width="9" height="9"/>' % (name, value))).notes, ["left out attributes this check does not use: " + name])
 
 
 class TheGrammarIsTheTable(unittest.TestCase):
@@ -2177,6 +2585,84 @@ class Dashes(unittest.TestCase):
         self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "too-many-dashes").code, "too-many-dashes")
         self.assertEqual(refused(self, _input.mark(_input.load(self.doc('<path d="M0 5H9" %s/>' % (dashed % "1")))).colour, "dashed-path").code, "dashed-path")
 
+    def test_the_length_the_budget_counts_is_never_less_than_the_length_that_is_drawn(self):
+        # A share is a share of the box's width for x and of its height for y. Until 2026-10-13 every share was taken of
+        # the larger side BEFORE the two ends of a line were taken from each other: in a box 10 by 1, y1="100%" (which is 1)
+        # counted as 10, and a line from there to y2="10" as no length at all. 4,900 such lines were read without a word
+        # (4.4 million dashes where the budget is 100,000), and 4,990 in a box 1 by 20 kept the renderer 30 seconds an icon.
+        dashed = 'stroke="#111111" stroke-dasharray="%s"'
+        wide, tall = "0 0 10 1", "0 0 1 20"   # the smallest dash there is: 0.01 in the one, 0.02 in the other
+        for box, dash, shape, each, what in (
+                (wide, "0.01", '<line y1="100%%" y2="10" %s/>', 9, "the reported line: from 1 down to 10"),
+                (wide, "0.01", '<line y1="10" y2="100%%" %s/>', 9, "the same, its ends changed round"),
+                (wide, "0.01", '<line x1="100%%" x2="1" %s/>', 9, "across: from 10 back to 1"),
+                (wide, "0.01", '<line x1="10%%" y1="100%%" x2="10" y2="10" %s/>', 18, "both ways at once"),
+                (wide, "0.01", '<line x1="10%%" y1="100%%" x2="100%%" y2="1000%%" %s/>', 18, "four shares"),
+                (wide, "0.01", '<line y1="-100%%" y2="10px" %s/>', 11, "a share below zero"),
+                (wide, "0.01", '<rect width="50%%" height="5" %s/>', 20, "a rect: 5 across (half of 10) and 5 down"),
+                (wide, "0.01", '<rect width="5" height="500%%" %s/>', 20, "a rect: 5 across and 5 down (five times 1)"),
+                (wide, "0.01", '<rect x="100%%" y="100%%" width="100%%" height="100%%" %s/>', 22, "a rect of the box's own size"),
+                (wide, "0.01", '<circle cx="100%%" cy="100%%" r="1" %s/>', 6.2832, "a circle is counted by its radius, wherever it stands"),
+                (wide, "0.01", '<ellipse cx="50%%" cy="900%%" rx="1" ry=".5" %s/>', 6.2832, "an ellipse by its larger radius"),
+                (tall, "0.02", '<line x1="100%%" x2="20" %s/>', 19, "from 1 across to 20"),
+                (tall, "0.02", '<line x1="10100%%" x2="2020" %s/>', 1919, "the measured line: from 101 across to 2,020"),
+                (tall, "0.02", '<line y1="100%%" y2="1" %s/>', 19, "from 20 up to 1"),
+                (tall, "0.02", '<line x1="100%%" y1="5%%" x2="20" y2="20" %s/>', 38, "both ways at once"),
+                (tall, "0.02", '<rect width="100%%" height="50%%" %s/>', 22, "a rect 1 across and 10 down"),
+                (tall, "0.02", '<rect width="1" height="50%%" %s/>', 22, "the same, its width a plain number"),
+                (tall, "0.02", '<rect width="1000%%" height="1" %s/>', 22, "a rect 10 across and 1 down"),
+                (tall, "0.02", '<polyline points="0 0 1 19" %s/>', 40, "a polyline, counted closed (it takes no share)"),
+                (tall, "0.02", '<polygon points="0 0 1 0 1 9 0 9" %s/>', 20, "a polygon")):
+            pieces = each * 2 / (2 * float(dash))                # dashes and gaps in one such outline
+            near = int(_svg.MAX_DASH_PIECES // pieces)           # as many of them as the budget holds
+            with self.subTest(what=what, near=near):
+                self.assertGreater(near, 0)
+                _svg.clean_svg(self.doc(shape % (dashed % dash) * near, box))
+                refused(self, self.doc(shape % (dashed % dash) * (near + 1), box), "too-many-dashes")
+        # the reported files themselves, as they came
+        refused(self, self.doc('<line y1="100%%" y2="10" %s/>' % (dashed % "0.01") * 4900, wide), "too-many-dashes")
+        refused(self, self.doc('<line x1="10100%%" x2="2020" %s/>' % (dashed % "0.02") * 4990, tall), "too-many-dashes")
+        # through the door the intake uses, as a file and inside a package
+        doc = self.doc('<line y1="100%%" y2="10" %s/>' % (dashed % "0.01") * 4900, wide)
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "too-many-dashes").code, "too-many-dashes")
+        doc = self.doc('<line y1="100%%" y2="10" %s/>' % (dashed % "0.01") * 112, wide)   # (a package of 4,900 of them is packed too tight to be read at all)
+        self.assertEqual(refused(self, _input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour, "too-many-dashes").code, "too-many-dashes")
+
+    def test_for_lines_made_at_random_the_count_is_at_least_the_true_count(self):
+        # each end of each line a plain number, a number in px or a share, in boxes of every shape: what the budget counts
+        # for it is no less than its true length (a share of the width for x, of the height for y; the render table holds
+        # the renderer to that reading), and no more than its way across and its way down together
+        import random
+        rng = random.Random(20261013)
+
+        def number(of):
+            value = rng.choice((0, 1, -1)) * rng.random() * 3 * of
+            form = rng.choice(("plain", "px", "share"))
+            return ("%.4f%%" % (value * 100 / of), float("%.4f" % (value * 100 / of)) * of / 100) if form == "share" else ("%.4f%s" % (value, "px" if form == "px" else ""), float("%.4f" % value))
+
+        for box in ((0, 0, 10, 1), (0, 0, 1, 20), (0, 0, 10, 10), (-5, 7, 3, 60), (100, 100, 0.5, 0.025), (0, 0, 2000, 100)):
+            lines, true = [], []
+            for _ in range(60):
+                (x1, ax1), (y1, ay1), (x2, ax2), (y2, ay2) = number(box[2]), number(box[3]), number(box[2]), number(box[3])
+                lines.append('<line x1="%s" y1="%s" x2="%s" y2="%s"/>' % (x1, y1, x2, y2))
+                true.append((((ax2 - ax1) ** 2 + (ay2 - ay1) ** 2) ** 0.5, abs(ax2 - ax1) + abs(ay2 - ay1)))
+            clean = _svg.clean_svg(('<svg %s viewBox="%s %s %s %s" stroke="#111111">%s</svg>' % ((NS,) + box + ("".join(lines),))).encode())
+            counted = [_svg._outline(node, clean.view_box) for node in clean.root.children]
+            self.assertEqual(len(counted), 60)
+            for line, got, (length, both) in zip(lines, counted, true):
+                with self.subTest(box=box, line=line):
+                    self.assertGreaterEqual(got, length - 1e-9)
+                    self.assertLessEqual(got, both + 1e-9)
+            self.assertGreater(sum(length for length, _both in true), 0)
+            # and the file's own count is the sum of them: as many dashed copies as the true lengths allow are never over-admitted
+            dash = max(box[2], box[3]) / 1000
+            total = sum(counted) * 2 / (2 * dash)
+            doc = ('<svg %s viewBox="%s %s %s %s" stroke="#111111" stroke-dasharray="%r">%s</svg>' % ((NS,) + box + (dash, "".join(lines)))).encode()
+            if total > _svg.MAX_DASH_PIECES:
+                refused(self, doc, "too-many-dashes")
+            else:
+                _svg.clean_svg(doc)
+
 
 class WrittenOut(unittest.TestCase):
     """The cleaned text is never larger than a file that may come in. One rule's value is checked once and then written
@@ -2229,12 +2715,15 @@ class WrittenOut(unittest.TestCase):
                     self.assertLessEqual(len(out["text"]), _svg.MAX_OUTPUT)
                 else:
                     self.assertIn(out["code"], ("value-too-long", "bad-value", "output-too-large"))
-        self.assertEqual([out["code"] for out in outcomes], ["value-too-long", "value-too-long", "ok", "value-too-long", "value-too-long", "ok", "bad-value", "bad-value", "ok"])
+        self.assertEqual([out["code"] for out in outcomes], ["value-too-long", "value-too-long", "ok", "value-too-long", "value-too-long", "value-too-long", "bad-value", "bad-value", "ok"])
 
     def test_the_slowest_files_a_search_inside_every_cap_found_are_judged_in_bounded_time(self):
         # Searched 2026-10-13 with generated files (by hand, at random and by climbing from the slowest): the work is
         # elements x (selectors + values), and it is the same work whether the file comes out whole, is found blank
-        # at the end or is too large written out. On a quiet machine each of these takes under a second.
+        # at the end or is too large written out. On a quiet machine each of these takes under a second. The slowest
+        # known is the last, found by a reviewer (200 rules of 5 values each on 4,990 shapes, 156 KB): 1.07 to 1.25 seconds
+        # of processor time on Python 3.13 and 1.32 to 1.56 on Python 3.9, on a machine at load 11 to 13, before it is
+        # refused as too large written out.
         most = _svg.MAX_ELEMENTS - 40
         five = "fill:#111;stroke:#222;stroke-width:2;opacity:1;fill-rule:evenodd"
         long = "stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dashoffset:1;stroke-dasharray:4 2"
@@ -2246,19 +2735,20 @@ class WrittenOut(unittest.TestCase):
                  + '<path d="M0 0h9v9z"/>'),
             # and with values enough on every element to pass the cap: refused only when it is written out
             bare("<style>%s</style>" % ("*{%s;%s}" % (five, long) * (_svg.MAX_DECLARATIONS // 10)) + "".join('<rect id="k%d" style="fill:red;color:red;stroke:red;display:block;opacity:1"/>' % i for i in range(most))),
+            bare("<style>%s</style>" % ("*{fill:#f00;stroke:#00f;stroke-width:1;stroke-linecap:round;stroke-linejoin:round}" * _svg.MAX_SELECTORS) + '<rect width="1" height="1"/>' * (_svg.MAX_ELEMENTS - 10)),
         ]
         for data in files:
             self.assertLessEqual(len(data), _svg.MAX_BYTES)
         outcomes = judged(self, files, each=5.0)
-        self.assertEqual([out["code"] for out in outcomes], ["blank-mark", "ok", "output-too-large"])
+        self.assertEqual([out["code"] for out in outcomes], ["blank-mark", "ok", "output-too-large", "output-too-large"])
         self.assertLessEqual(len(outcomes[1]["text"]), _svg.MAX_OUTPUT)
 
     def test_whatever_is_accepted_comes_out_no_larger_than_the_cap_and_in_plain_ascii(self):
         rules = ["fill:#111111", "stroke:#222222", "stroke-width:2px", "stroke-dasharray:" + " ".join(["1234567.5"] * 16), "stroke-linecap:round", "stroke-linejoin:bevel",
                  "stroke-miterlimit:4", "stroke-dashoffset:-1.5", "fill-rule:evenodd", "clip-rule:evenodd", "opacity:1", "fill-opacity:1", "stroke-opacity:1", "color:#333333",
                  "display:inline", "visibility:visible", "clip-path:url(#%s)" % ("c" * 64), "shape-rendering:geometricPrecision", "paint-order:markers stroke fill"]
-        # (the clip path every element is clipped by here is clipped by itself: one drawing before and after, whatever a program makes of it)
-        sheet = "<style>*{%s}</style><clipPath id=\"%s\"/>" % (";".join(rules), "c" * 64)
+        # (the rule names the shapes: one for every element would clip the clip path by itself, and set display on it)
+        sheet = "<style>circle,line,rect,polygon{%s}</style><clipPath id=\"%s\"/>" % (";".join(rules), "c" * 64)
         seen = set()
         for elements in (1, 10, 100, 700, 800, 900, 1000, 1500, 4990):
             for shape in ('<circle r="1"/>', '<line x2="1"/>', '<rect id="%s" width="9" height="9"/>' % ("i" * 64), '<polygon points="%s"/>' % ("1 2 " * 20)):

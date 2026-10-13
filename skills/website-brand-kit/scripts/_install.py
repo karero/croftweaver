@@ -4,8 +4,10 @@ Order matters, and it is the point of this file. Everything that can be checked 
 file is built in memory or in a temporary folder, BEFORE the site is touched: the palette's contrast, the
 mark's safety and colours, the sharp preflight, the seven icons, each edit. Where the owner must decide
 something (a colour outside the palette, a mark that vanishes on a theme, an icon that is not a
-placeholder), it asks and writes nothing. Only then does it write, through a journal. If the site's own
-tests are red afterwards, the journal puts every file back and the report names the failing check.
+placeholder), it asks and writes nothing. Only then does it write, through a journal. Once the files are
+written it asks the site's own Node and Python what they read from the two files it edits by line (the
+read-back), and then runs the site's own tests. If the site reads something else than was set, or the
+tests are red, the journal puts every file back and the report says which.
 
 Two parts, each from her own material or the assistant's: the palette (BRAND.md, the stylesheet, the
 theme colour, the manifest's colours, the share cards' colours) and the logo (the seven icon files and
@@ -16,6 +18,7 @@ library only.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -37,6 +40,7 @@ from _refusal import Ask, Refusal
 DEFAULT_TEST_COMMAND = "npm run build && npm test"
 TEST_TIMEOUT = 30 * 60
 CARDS_TIMEOUT = 5 * 60
+READ_BACK_SECONDS = 60   # how long Node, and Python, may take to say what they read from one file
 MAX_TEXT = 1024 * 1024
 CARDS = "public/images/og"
 HANDOFF = "brand-handoff"
@@ -51,6 +55,8 @@ PILLOW_MISSING = "Pillow, the image library the generator draws with, is not ins
 ONE_COLOUR_ICONS = ("the app icons were drawn with a one-colour version of the logo, so this run left them as they are (this tool keeps the colour version only, and "
                     "cannot tell what those icons sit on). To draw them for the new colours, run this again with the package the logo came in: --input, with --pick "
                     "and --mono as before")
+KEPT_COLOURS = ("the logo keeps %s it was installed with (%s), which the palette no longer holds: this run changes the site's colours and leaves the logo's files as they "
+                "are. To draw the logo in the new colours, run this again with the package it came in: --input, with --pick and --mono as before")
 NO_EMBLEM = ("the share cards get no emblem from this tool (the logo, shown faintly on each card): it leaves the LOGO line in scripts/generate_og_cards.py exactly as it is. "
              "The og-images skill says how to put the logo on the cards")
 
@@ -194,10 +200,11 @@ def _watch_signals():
     then puts back what it wrote and says so, instead of the process ending with the site half installed
     or with a traceback. One stop is enough: the first signal sets a flag, and from then on the handler
     does nothing, whichever signal comes and however close behind, so that a second one cuts short neither
-    the putting back nor the report. The handler is set once, here, and is not taken away again: the
-    signals stay handled, and do nothing, until the process ends. A signal that was already being ignored
-    (a run started with nohup ignores SIGHUP) is left ignored."""
-    _HOLD.update(depth=0, pending=None, deaf=False)
+    the putting back nor the report. The handler is set once, here, and this file does not take it away
+    again. (Python does, while it shuts down: it puts every signal back to its default. So the command
+    line ends the process without that, see brand_intake._leave.) A signal that was already being ignored
+    (a run started with nohup ignores SIGHUP) is left ignored. The caller holds the stop back while this
+    runs (_held): a signal that comes after the first handler is set is raised when all of them are."""
     for name in SIGNALS:
         sig = getattr(signal, name, None)
         try:
@@ -272,11 +279,167 @@ def last_lines(output):
     return [l.strip()[:200] for l in _plain(output).splitlines() if l.strip()][-6:]
 
 
+# --- the read-back: what the site reads, asked of the programs that read it --------------------
+# _site.set_lines goes by the text of src/config.ts and of the share-card generator, and a rule that reads
+# lines can be wrong about what the site reads. So the report's word on those two files rests on this: once
+# they are written, the site's own Node imports src/config.ts and says what SITE.themeColor and COMPANY.logo
+# are, and Python loads the generator (as a module, so that it draws nothing) and says what the colours'
+# names are bound to. Each program answers in one line of JSON, the last line it prints.
+
+_ASK_NODE = """
+import { pathToFileURL } from 'node:url';
+let said;
+try {
+  const m = await import(pathToFileURL(process.argv[1]).href);
+  said = JSON.stringify({ read: { themeColor: m.SITE?.themeColor ?? null, logo: m.COMPANY?.logo ?? null } });
+} catch (e) {
+  said = JSON.stringify({ code: String((e && e.code) || ''), why: String((e && e.message) || e), node: process.version });
+}
+console.log('\\n' + said);
+"""
+_ASK_PYTHON = """
+import importlib.util, json, os, sys
+sys.dont_write_bytecode = True   # nothing is written into the site: no __pycache__ beside the file
+path, names = sys.argv[1], sys.argv[2:]
+sys.path.insert(0, os.path.dirname(path))   # as when the file is run: what stands beside it can be imported
+try:
+    spec = importlib.util.spec_from_file_location('brand_kit_read_back', path)
+    module = sys.modules[spec.name] = importlib.util.module_from_spec(spec)   # known by its name, as a file that is run is
+    spec.loader.exec_module(module)
+    said = {'read': {}}
+    for name in names:
+        value = getattr(module, name, None)
+        said['read'][name] = list(value) if isinstance(value, tuple) and all(type(c) is int for c in value) else repr(value)
+except BaseException as e:
+    said = {'why': str(e) if isinstance(e, SystemExit) else '%s: %s' % (type(e).__name__, e)}
+print('\\n' + json.dumps(said))
+"""
+
+
+def _answer(printed):
+    """The last line a program printed, read as the JSON object it was asked for; None when it is not one."""
+    try:
+        said = json.loads([l for l in printed.split("\n") if l.strip()][-1])
+    except (IndexError, ValueError, RecursionError):
+        return None
+    return said if isinstance(said, dict) else None
+
+
+def _first_line(text):
+    return ([l.strip() for l in _plain(text).splitlines() if l.strip()] or ["it did not say why"])[0][:200].rstrip(".")
+
+
+def _reads_config(site):
+    """What the site's own Node reads from src/config.ts: ({"themeColor": ..., "logo": ...}, None), or
+    (None, why it could not be asked). Node 22.18 and newer read a TypeScript file as it stands. One before
+    that says it does not know the extension, and is asked once more with --experimental-strip-types (the
+    starter allows Node from 22.12, which reads TypeScript only with that)."""
+    node = shutil.which("node")
+    if not node:
+        return None, "Node is not installed here, or is not on the path"
+    first = None
+    for more in ([], ["--experimental-strip-types"]):
+        try:
+            code, printed, errors = _run([node] + more + ["--input-type=module", "-e", _ASK_NODE, os.path.join(site, "src", "config.ts")], site, READ_BACK_SECONDS)
+        except OSError as e:
+            return None, "Node could not be started (%s)" % (e.strerror or e)
+        if code is None:
+            return None, "Node took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
+        said = _answer(printed)
+        if said is not None and isinstance(said.get("read"), dict):
+            return said["read"], None
+        first = first or said or {"why": _first_line(errors)}
+        if first.get("code") != "ERR_UNKNOWN_FILE_EXTENSION":
+            break
+    if first.get("code") == "ERR_UNKNOWN_FILE_EXTENSION":
+        return None, "the Node on this computer (%s) does not read a TypeScript file" % _first_line(str(first.get("node") or "its version is not known"))
+    return None, "Node could not load the file (%s)" % _first_line(str(first.get("why") or ""))
+
+
+def _reads_generator(site, names):
+    """What Python has the generator's names bound to once the file's own top has run: ({name: [r, g, b], or
+    the value as Python writes it}, None), or (None, why it could not be asked). The file is loaded as a
+    module under another name than `__main__`, so it draws no card; by the Python that `npm run og` runs it
+    with (scripts/run_og.mjs takes the first of python3, py -3 and python that is there)."""
+    for name, more in (("python3", []), ("py", ["-3"]), ("python", [])):
+        if shutil.which(name):
+            python = [shutil.which(name)] + more
+            break
+    else:
+        return None, "no Python was found on the path (python3, py or python)"
+    try:
+        code, printed, errors = _run(python + ["-c", _ASK_PYTHON, os.path.join(site, "scripts", "generate_og_cards.py")] + list(names), site, READ_BACK_SECONDS,
+                                     env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+    except OSError as e:
+        return None, "Python could not be started (%s)" % (e.strerror or e)
+    if code is None:
+        return None, "Python took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
+    said = _answer(printed) or {"why": _first_line(errors)}
+    if isinstance(said.get("read"), dict):
+        return said["read"], None
+    why = str(said.get("why") or "")
+    return None, PILLOW_MISSING if "Pillow is required" in why or "No module named 'PIL'" in why else "Python could not load the file (%s)" % _first_line(why)
+
+
+def _as_read(rel, value):
+    """A value as one of the two programs read it, in the form the report shows."""
+    if rel == _site.GENERATOR:
+        return "#%02x%02x%02x" % tuple(value) if isinstance(value, list) and len(value) == 3 and all(0 <= c < 256 for c in value) else str(value)
+    return "nothing" if value is None else value if isinstance(value, str) else json.dumps(value)
+
+
+def read_back(site, wanted):
+    """Ask Node and Python what they read from the files this run set values in. `wanted` is {file: {name:
+    the value wanted}} for src/config.ts and the generator. Returns {file: {"status": ...}}, the status being
+    "ok" (every value is read as wanted, colours compared as colours), "differs" (with "values": [{"name",
+    "reads", "wanted"}] for each that is not), or "not-checked" (with "why": the program could not be asked,
+    or could not load the file)."""
+    out = {}
+    for rel, want in wanted.items():
+        if not want:
+            continue
+        read, why = _reads_config(site) if rel == _site.CONFIG else _reads_generator(site, list(want))
+        if read is None:
+            out[rel] = {"status": "not-checked", "why": why}
+            continue
+        off = []
+        for name, value in want.items():
+            got = read.get(name)
+            same = got == [int(value[i:i + 2], 16) for i in (1, 3, 5)] if rel == _site.GENERATOR else _site._same_colour(got, value) if name == "themeColor" else got == value
+            if not same:
+                off.append({"name": name, "reads": _as_read(rel, got), "wanted": value})
+        out[rel] = {"status": "differs", "values": off} if off else {"status": "ok"}
+    return out
+
+
+def _not_read_back(rel, where, why):
+    """The one note about a file whose values could not be read back."""
+    lines = sorted(set(where.values()))
+    at = "line %d" % lines[0] if len(lines) == 1 else "lines %s and %d" % (", ".join(str(n) for n in lines[:-1]), lines[-1])
+    if rel == _site.GENERATOR:
+        return "this tool could not check that Python reads the share cards' colours from %s of %s, where they are set: %s" % (at, rel, why)
+    names = ["`%s`" % n for n in where]
+    return "this tool could not check that the site reads %s from %s of %s, where %s set: %s" % (" and ".join(names), at, rel, "it is" if len(names) == 1 else "they are", why)
+
+
+def _read_differently(rel, off, where, set_here):
+    """The sentence for one value that the site reads otherwise than this run set it, or left it."""
+    name, at = off["name"], where.get(off["name"])
+    if rel == _site.GENERATOR:
+        head = "%s: Python has %s bound to %s once the file's own top has run (this tool asked Python)." % (rel, name, off["reads"])
+    else:
+        head = "%s: the site reads %s as %s (this tool asked the site's own Node)." % (rel, off["reads"], {"themeColor": "SITE.themeColor", "logo": "COMPANY.logo"}[name])
+    said = "This run set %s on line %d" % (off["wanted"], at) if name in set_here else "Line %d already says %s, and this run left it" % (at, off["wanted"])
+    return "%s %s, so something else in the file decides the value. Set it by hand where the file decides it, or have the developer mend the file, then run this again." % (head, said)
+
+
 class Plan(object):
     """What the run has decided, with nothing yet written."""
 
     def __init__(self):
-        self.unchecked = set()   # the values of src/config.ts that were left as they stand and not checked (their names)
+        self.wanted = {}      # file -> {name: value} of what this run sets, or finds already set, in src/config.ts and the generator
+        self.where = {}       # file -> {name: the number of the line it stands on}
+        self.set_here = {}    # file -> the names whose line this run edits (the others already say the value)
         self.texts = {}       # relative path -> (old text, new text)
         self.files = {}       # relative path -> bytes (icons)
         self.asks = []
@@ -311,18 +474,6 @@ def _changes_lines(changes, how):
     return lines
 
 
-def _left_unchecked(unchecked, notes):
-    """One note for each value of src/config.ts that already is the value wanted, on a line this tool could
-    not have edited: it was left as it stands, and whether the site reads it from there was not checked.
-    Returns the names of those values, for the report's own sentences. A value is noted once."""
-    for rel, name, at, line, because in unchecked:
-        note = ("%s already holds the value wanted for `%s` on line %d (%s), and this run left that line as it is. This tool did not check that the site reads the value "
-                "from there, because line %d of the block is not written as the starter writes it" % (rel, name, at, _site._quoted(line), because))
-        if note not in notes:
-            notes.append(note)
-    return {name for _rel, name, _at, _line, _because in unchecked}
-
-
 def _notes_lines(data):
     return ["Note: " + n for n in data["notes"]]
 
@@ -333,21 +484,33 @@ def install(a, out):
     data) and appends the report's lines to `out`. Raises nothing it can say in words, a stop from outside
     included: the signals are watched from the first step on, the planning too.
 
+    A dry run does everything a real run does up to the first write, and stops there. So the two can differ
+    in one way: after writing, a real run asks Node and Python what the site reads (read_back), and ends
+    with exit status 1 and everything put back where that is not what it set. A dry run writes nothing and
+    cannot ask; its report says so.
+
     Once the run has its outcome (done, a question, a dry run, a refusal, red tests, a stop), the signals
     do nothing any more, and that stays so when this returns: the report is still to be printed, and a
     signal in that moment would end the process after "Done" was decided, with no report or half of one.
     The command line ends right after printing. A caller that goes on living (a test) sets its own
     handlers again."""
     site = os.path.abspath(a.site)
-    data = {"written": [], "notes": [], "cards": None, "tests": None, "changes": []}
+    data = {"written": [], "notes": [], "cards": None, "tests": None, "changes": [], "read_back": {}}
     mine = len(out)   # where this run's lines begin: what the caller had in `out` before is the caller's
-    _watch_signals()
+    _HOLD.update(depth=0, pending=None, unlisted=False)
     try:
+        with _held():   # a signal that comes while the handlers are being set is raised when they all are: here, inside the part that turns a stop into a report
+            _HOLD["deaf"] = False
+            _watch_signals()
         code, status = _outcome(a, site, out, data)
     except (Interrupted, KeyboardInterrupt) as e:
         _ignore_signals()  # also when the stop did not come through the handler, which sets the flag itself
         name = signal.Signals(e.args[0]).name if isinstance(e, Interrupted) else "SIGINT"
-        lines = ["The run was stopped from outside (%s) before it had finished, and what it had started was stopped with it." % name] + _aftermath(data)
+        # said of what was stopped: no more than _proc._stop_all could know
+        lines = ["The run was stopped from outside (%s) before it had finished%s" % (name, (
+            ". This tool could not read the list of running processes: it stopped the command it had started, with that command's own group, and cannot say whether "
+            "anything else the command had started is still running (a preview server, say). Look for one before the next run." if _HOLD["unlisted"] else
+            ", and what it had started was stopped with it as far as this tool could find it."))] + _aftermath(data)
         del out[mine:]   # every way the run can end stops listening before it writes its first line, so there is none of this run's; were there one, it would not be true any more
         out.extend(lines + _changes_lines(data["changes"], "would have changed") + _notes_lines(data))
         data["message"] = "\n".join(lines)
@@ -478,6 +641,7 @@ def _install(a, site, out, data):
 
     # --- the palette, from BRAND.md (or the file she named) ---------------------------------
     notes = data["notes"]
+    notes.extend(css.notes)   # what the reading of the stylesheet has to say that stops nothing (a stylesheet it brings in, which nobody read): in every report from here on
     changes = data["changes"]   # filled as each file is looked at, and never emptied: a run that ends half way still lists what it knew
     parsed, state = None, "none"
     brand_path = a.palette or _find_brand_md(site)
@@ -546,7 +710,9 @@ def _install(a, site, out, data):
     # What the palette changes, as she reads it: said in every report from here on, and asked about
     # (below) when she came for the logo and did not say the colours should change too.
     card_colours = want_colours
-    unchecked = []   # what _site.set_lines left as it stands without being able to check it: each gets a note (see _left_unchecked)
+    # the values this run sets (or finds set) in src/config.ts and the generator, the lines they stand on, and which of
+    # them it edits: what the read-back asks Node and Python about once the files are written
+    wanted, where, set_here = {}, {}, {}
     if want_colours:
         low = _site.og_low_contrast(pal)
         changes.extend("%s: %s becomes %s" % (where, old or "a value this tool cannot read", new) for where, old, new in _differences(css, parsed))
@@ -579,12 +745,14 @@ def _install(a, site, out, data):
         refused = None
         for rel, want in others:   # all three are looked at, also after one of them was refused: the report lists every change it could work out
             try:
-                texts[rel], changed = _site.set_lines(rel, text(rel), want, unchecked)
+                texts[rel], changed = _site.set_lines(rel, text(rel), want, where.setdefault(rel, {}))
             except Refusal as r:
                 refused = refused or r
                 continue
             changes.extend("%s, %s: %s becomes %s" % (rel, name, old, new) for name, old, new in changed)
-        _left_unchecked(unchecked, notes)
+            if rel != _site.MANIFEST:   # (the manifest is JSON: set_lines reads it back itself)
+                wanted[rel] = dict(want)
+                set_here[rel] = {name for name, _old, _new in changed}
         if refused is not None:
             raise refused
 
@@ -643,10 +811,16 @@ def _install(a, site, out, data):
                              "That does not hold the colours back. Once it is put right%s, run this again with --with-logo to draw the icons again" % (
                                  str(r).strip().splitlines()[0].rstrip(".:") + ".",
                                  " (in the site's folder: npm install --include=optional)" if r.code == "sharp-missing" else ""))
+        if kept is not None and not redraw:
+            # The logo's files stay as they are, in the colours they were drawn in (a mark given in `currentColor` was
+            # drawn in the Primary of that day). Where the palette drops one of those colours, that is said: nothing is recoloured.
+            lost = [c for c in _palette.check_mark(kept.colours, pal).outside if c not in _palette.check_mark(kept.colours, now).outside]
+            if lost:
+                notes.append(KEPT_COLOURS % ("the colour" if len(lost) == 1 else "the colours", ", ".join(lost)))
     want_logo = bool(a.input) or redraw
 
     plan = Plan()
-    plan.unchecked = _left_unchecked(unchecked, notes)
+    plan.wanted, plan.where, plan.set_here = wanted, where, set_here
     workdir = None
     try:
         with _held():   # a stop between the making of the folder and its name being known here would leave it behind
@@ -655,8 +829,9 @@ def _install(a, site, out, data):
             if not a.input:
                 clean = kept or _svg.clean_svg(master_bytes, current=primary)
             # COMPANY.logo, by the same rule as the colours' lines: refused here, before anything is drawn
-            texts[_site.CONFIG], repointed = _site.set_lines(_site.CONFIG, text(_site.CONFIG), {"logo": _site.LOGO_ADDRESS}, unchecked)
-            plan.unchecked = _left_unchecked(unchecked, notes)
+            texts[_site.CONFIG], repointed = _site.set_lines(_site.CONFIG, text(_site.CONFIG), {"logo": _site.LOGO_ADDRESS}, where.setdefault(_site.CONFIG, {}))
+            wanted.setdefault(_site.CONFIG, {})["logo"] = _site.LOGO_ADDRESS
+            set_here.setdefault(_site.CONFIG, set()).update(name for name, _old, _new in repointed)
             for _name, logo_was, _new in repointed:
                 plan.pending.append((
                     "COMPANY.logo in src/config.ts points at %s; this run would point it at /images/logo.png, the picture made from this logo, and leave the file it "
@@ -675,6 +850,8 @@ def _install(a, site, out, data):
             # Two questions, two sets of colours. Every colour an installed file paints with is held against
             # the palette. Only the colour version ever stands on the page (the favicon, the logo); the
             # one-colour version sits on the app icons' own background, so its colours are not asked about there.
+            # Both versions are held against the same backgrounds: those of `pal`, which is what the pages show when
+            # this run is done (the palette it applies, or the colours the site has where it applies none).
             report = _palette.check_mark(icons.visible, pal)
             on_page = _palette.check_mark(clean.colours, pal)
             if report.outside and not a.accept_colours:
@@ -685,7 +862,7 @@ def _install(a, site, out, data):
                 if theme not in accepted:
                     what = "; ".join("%s is %s to 1" % (c, _colour.shown(r)) for c, r in under)
                     # said of the one-colour version only what was worked out: whether it reaches 3 to 1 on that same background
-                    way = ("Use its one-colour version where it sits on that background." if mono_clean is None else
+                    way = ("A one-colour version may read better there: give one with --mono (in a package) to have it checked." if mono_clean is None else
                            "The one-colour version you gave can be used where it sits on that background." if theme not in mono_low else
                            "The one-colour version you gave does not reach 3 to 1 on that background either (%s)."
                            % "; ".join("%s is %s to 1" % (c, _colour.shown(r)) for c, r in mono_low[theme]))
@@ -752,6 +929,10 @@ def _install(a, site, out, data):
             if not would:
                 out.append("  nothing: every file is already as this run would write it")
             out.append("  the share cards under %s would be made again" % CARDS)
+            if any(wanted.values()):
+                out.append("A real run then asks %s what the site reads from %s, and puts everything back if that is not what it set. A dry run writes nothing, so it cannot ask." % (
+                    " and ".join(who for who, rel in (("the site's Node", _site.CONFIG), ("Python", _site.GENERATOR)) if wanted.get(rel)),
+                    " and ".join(rel for rel in (_site.CONFIG, _site.GENERATOR) if wanted.get(rel))))
             out.extend(_changes_lines(changes, "would change"))
             out.extend(_notes_lines(data))
             data["written"] = would
@@ -839,6 +1020,15 @@ def _apply(a, site, out, data, plan, j, writes, want_colours, want_logo, card_co
         for rel, new in writes:
             j.write(rel, new)
 
+        # what the site reads from the files as they now are (see read_back): asked before the site's tests are run
+        data["read_back"] = checked = read_back(site, plan.wanted)
+        differ = [_read_differently(rel, off, plan.where[rel], plan.set_here[rel]) for rel, got in checked.items() for off in got.get("values", ())]
+        if differ:
+            left = undo()
+            raise Stop(1, ["A check failed after the files were written: what the site reads is not what this run set."] + differ + _aftermath(data),
+                       "rollback-incomplete" if left else "read-back-failed")
+        notes.extend(_not_read_back(rel, plan.where[rel], got["why"]) for rel, got in checked.items() if got["status"] == "not-checked")
+
         ok, why = regenerate_cards(site)
         if ok:
             data["cards"] = "regenerated"
@@ -908,19 +1098,24 @@ def _apply(a, site, out, data, plan, j, writes, want_colours, want_logo, card_co
     data["written"] = sorted(set(j.written))
     reword(1)
     out.append("Done. The site's own tests pass afterwards.")
+    read = {rel: got["status"] == "ok" for rel, got in data["read_back"].items()}   # what Node and Python read back as this run set it
     if want_colours:
-        # the theme colour is claimed only where this run set it or could check it: one that was left as it stands in a
-        # block this tool cannot edit has its own note, and is named here as not checked
+        # the theme colour and the share cards are claimed only where the read-back said so: one that could not
+        # be made has its own note, and the value is named here as written and not checked
+        in_cards = card_colours and data["cards"] == "regenerated"
         out.append("Colours: the palette in %s is now in src/styles/global.css (the light theme, the dark theme, and the dark values for visitors without JavaScript), "
-                   "%s the manifest%s%s" % (os.path.basename(brand_path), "and in" if "themeColor" in plan.unchecked else "in the theme colour and",
-                                            ", and in the share cards." if card_colours and data["cards"] == "regenerated" else ". The share cards do not have it: see below.",
-                                            " The theme colour in src/config.ts was left as it stands, and this tool did not check that the site reads it: see the note about it."
-                                            if "themeColor" in plan.unchecked else ""))
+                   "%s the manifest%s%s%s" % (os.path.basename(brand_path), "in the theme colour and" if read.get(_site.CONFIG) else "and in",
+                                              ", and in the share cards." if in_cards and read.get(_site.GENERATOR) else "." if in_cards else ". The share cards do not have it: see below.",
+                                              "" if read.get(_site.CONFIG) else
+                                              " The theme colour is written in src/config.ts, and this tool could not check that the site reads it from there: see the note about it.",
+                                              "" if not in_cards or read.get(_site.GENERATOR) else
+                                              " The share cards were made again with their colours set in scripts/generate_og_cards.py, and this tool could not check that Python "
+                                              "reads them from there: see the note about it."))
         out.extend(_changes_lines(changes, "changed"))
     if want_logo:
         out.append("Logo: the seven icon files are in public/ (the app icons sit on %s, drawn from the %s version)%s" % (
-            plan.background, plan.version, ", and COMPANY.logo points at public/images/logo.png." if "logo" not in plan.unchecked else
-            ". COMPANY.logo in src/config.ts was left as it stands, and this tool did not check that the site reads it: see the note about it."))
+            plan.background, plan.version, ", and COMPANY.logo points at public/images/logo.png." if read.get(_site.CONFIG) else
+            ". COMPANY.logo is written in src/config.ts, and this tool could not check that the site reads it from there: see the note about it."))
     out.append("Written:")
     out.extend("  " + w for w in data["written"])
     if not data["written"]:

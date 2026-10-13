@@ -343,6 +343,40 @@ class Rule0WhereTheCheckLooks(unittest.TestCase):
     def bakery_starter(self, p):
         self.assertEqual((p.light, p.dark, p.brand), (STARTER_LIGHT, STARTER_DARK, "#000000"))
 
+    def test_no_line_inside_a_fenced_code_block_is_a_heading(self):
+        # round 5: a `# comment` in a code sample was a level-1 heading and ended the palette's part; a sentence with the word
+        # after the sample was then outside it, named by nothing, and the check ended with 0
+        for fence, close in (("```", "```"), ("```css", "```"), ("~~~", "~~~"), ("````", "`````"), ("~~~ sh", "~~~~"), ("  ```", "```  ")):
+            with self.subTest(fence=fence):
+                md = "# Guide\n\n## Colour palette\n\n" + pasted() + "\n%s\n# a comment in the sample\n## Colour palette\n%s\n\nThe dark values are proposed.\n\n## Type\n\nproposed\n" % (fence, close)
+                p = _palette.parse_tables(md)
+                self.assertEqual((p.light, p.dark, p.brand), (STARTER_LIGHT, STARTER_DARK, "#000000"))
+                self.assertEqual([c for _t, _k, c in codes(p)], [MARK], "the sample ends no part and names no second one; the sentence after it is inside, and named")
+                self.assertIn('Line 41, "The dark values are proposed."', p.problems[0][3])
+        # a fence that is never closed runs to the end of the text, so the heading after it ends nothing either
+        p = _palette.parse_tables("## Colour palette\n\n" + pasted() + "\n```\n# x\n\n## Type\n\nBody text #333333.\n")
+        self.assertEqual([c for _t, _k, c in codes(p)], [NOT_READ])
+        # one of the three headings inside a fence is no heading either: its table stands under none, and the problem says what to do
+        for fence in ("```", "```markdown", "~~~"):
+            with self.subTest(fence=fence):
+                p = _palette.parse_tables(fence + "\n" + pasted() + fence[:3] + "\n")
+                self.assertEqual((p.light, p.dark, p.brand, p.rows_found), ({}, {}, None, 0))
+                self.assertEqual([c for _t, _k, c in codes(p)], ["palette-no-section"] * 3)
+                for part in ('stands under the line "### Brand (fixed, theme-independent)", which stands inside a code block (between two lines of ``` or ~~~), where this check takes no '
+                             "line for a heading", "Take the two lines that open and close the code block out, so that the headings inside it count."):
+                    self.assertIn(part, p.problems[0][3])
+                self.assertNotIn("a heading is one to six #", p.problems[0][3])
+                # followed, it ends the matter
+                self.assertEqual(_palette.parse_tables(pasted()).problems, [])
+        # a marked heading inside a fence marks nothing, and is named for its word
+        p = _palette.parse_tables(pasted() + "\n```\n### Dark theme (proposed)\n```\n")
+        self.assertEqual((p.proposed, [c for _t, _k, c in codes(p)]), (set(), [MARK]))
+        # the near-misses: three backticks in the middle of a line, a line of code between single backticks, and fewer than three
+        for line in ("Use ``` to open a sample.", "```#16162a``` is the ink", "``", "~~ struck ~~", "`# not a fence`"):
+            with self.subTest(line=line):
+                p = _palette.parse_tables("## Colour palette\n\n" + pasted() + "\n%s\n\n## Type\n\nBody text #333333, proposed.\n\n%s\n" % (line, line))
+                self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), (STARTER_LIGHT, [NOT_READ] * ("#16162a" in line)), "the next heading still ends the part")
+
     def test_the_three_headings_with_as_many_hashes_as_the_palette_heading_are_told_that_and_not_to_move(self):
         # round 4: `### Colour palette` and then `### Brand`: "Move the heading and its table into that part" cannot be followed
         tables = pasted()
@@ -448,6 +482,10 @@ class Rule1Lines(unittest.TestCase):
         # heavy job ran beside it; half a million one-pipe lines take 0.59 and 1.2, 75,000 rows that are each refused 0.55 and 1.0.
         # All of them grow with the length and no faster; the limit leaves room for a slower machine still, and fails what round 3
         # measured (81 seconds) many times over.
+        # Round 5: a value cell that is one run of underscores, stars or backticks took 5.0, 3.2 and 4.6 seconds, because the pattern for
+        # the mark after a colour began again at every character of the run; the mark is now looked for from the end of the cell, once
+        # (0.09 seconds each). The slowest shape is still the rows of 990 cells: 1.34 seconds on Python 3.13 and 2.51 on 3.9, with a load
+        # of 7 to 10 on the machine; of the shapes this round added, the footnote figures after a colour (0.44 and 0.70).
         for name, md in (# round 3 measured 81 seconds for this megabyte: each row was looked up in a list of the rows before it
                          ("a megabyte of rows under no heading, every other one with a colour", "|Body|#000|\n|Body||\n" * 52428),
                          ("the same under a header that is not Hex", "### Light theme\n|a|b|\n|-|-|\n" + "|Body|#000|\n|Body||\n" * 52000),
@@ -465,7 +503,20 @@ class Rule1Lines(unittest.TestCase):
                          ("a megabyte of headings with a remark that is not read", "### Dark theme (x)\n" * 55000),
                          ("a megabyte of headings that are the palette's with emphasis in them", "## *Colour* pal_ette_\n" * 47000),
                          ("a megabyte of header rows that name another section", "### Light theme\n" + "| Dark theme | Hex |\n|---|---|\n| Muted | #777 |\n\n" * 21800),
-                         ("a megabyte of the word between underscores", "_proposed_ __proposal__\n" * 43600)):
+                         ("a megabyte of the word between underscores", "_proposed_ __proposal__\n" * 43600),
+                         # round 5
+                         ("a megabyte of value cells that are one run of underscores", "### Light theme\n" + ("|x|" + "_" * 1990 + "\n") * 526),
+                         ("the same of stars", "### Light theme\n" + ("|x|" + "*" * 1990 + "\n") * 526),
+                         ("of backticks after a colour", "### Light theme\n" + ("|Muted|#fff " + "`" * 1980 + "\n") * 526),
+                         ("of tildes after a colour", "### Light theme\n" + ("|Muted|#fff " + "~" * 1980 + "\n") * 526),
+                         ("of footnote figures after a colour", "### Light theme\n" + ("|Muted|#fff " + "\u00b2" * 1980 + "\n") * 526),
+                         ("of brackets before the mark", "### Light theme\n" + ("|Muted|#fff " + "(" * 1970 + "proposed)\n") * 526),
+                         ("a megabyte of lines beyond ASCII that hold the word", "prop\u00adosed \u00e9\n" * 87000), ("of character references", ("&shy;" * 390 + "\n") * 537),
+                         ("of lines that could be a label for the other theme", "### Light theme\n" + "x dark\n" * 149000),
+                         ("of brackets, tags and markers in such lines", "### Light theme\n" + ("(" * 1990 + "\n" + "<b" * 995 + "\n" + ">" * 1990 + "\n" + "1" * 1990 + "\n") * 131),
+                         ("of fence lines", "```\n" * 262144), ("of fences that are never closed", "~~~\n# x\n" * 131000),
+                         ("of lines inside one fence that look like headings", "```\n" + "### Light theme\n|Muted|#fff|\n" * 37000),
+                         ("of header rows that say the other theme's word", "### Light theme\n" + "| Token (dark) | Hex |\n|---|---|\n| Muted | #777 |\n\n" * 21000)):
             with self.subTest(name=name):
                 self.timed(md, limit=6.0)
 
@@ -545,9 +596,11 @@ class Rule2Sections(unittest.TestCase):
 
     def test_no_line_of_text_under_a_heading_files_its_table_elsewhere(self):
         # round 2: "Not for dark mode" filed the table under dark; "These colours belong to our brand" under Brand
+        # (round 5: a line that is nothing but a label for the other theme is named: the test after the next one)
         for prose in ("(pairs with the dark theme below)", "Pairs with the dark theme below.", "*(see also: dark)*", "Paired with: dark", "Not for dark mode",
-                      "These colours belong to our brand", "Note: the dark theme", "Same roles as dark\n\nDark", "Dark theme colours", "The dark theme", "Dark",
-                      "Brand colours", "- Dark theme", "> Dark theme", "Dark theme:\u200b", "Light theme", "**Light theme:**", "Light theme (ours)"):
+                      "These colours belong to our brand", "Note: the dark theme", "Same roles as dark", "Warm paper, dark ink.", "Dark ink on warm paper", "Brand colours",
+                      "Light theme", "**Light theme:**", "Light theme (ours)", "The light theme", "- Light mode", "Light theme (not the dark one)", "Light (for the day)",
+                      "This table is for the dark theme of the site.", "Darker than the theme before", "Night and day", "The values", "(dark)", "Dark2", "dark_theme_v2"):
             with self.subTest(prose=prose):
                 p = _palette.parse_tables("### Light theme\n%s\n" % prose + plain(STARTER_LIGHT))
                 self.assertEqual((p.light, p.dark, p.brand), (STARTER_LIGHT, {}, None))
@@ -573,6 +626,36 @@ class Rule2Sections(unittest.TestCase):
         p = _palette.parse_tables("### Dark theme\n**Light theme**\n" + plain(STARTER_LIGHT) + "### Light theme\n" + plain(STARTER_LIGHT))
         self.assertEqual((p.light, p.dark, [c for _t, _k, c in codes(p)]), (STARTER_LIGHT, {}, ["palette-label"]))
 
+    def test_a_line_before_the_first_table_that_is_nothing_but_a_label_for_the_other_theme_is_named_too(self):
+        # round 5: only the exact name of another section was a label. Under `### Light theme`, the line `Dark mode` and the dark
+        # table: read as the light theme, exit 0. The words such a line may be made of are rule 2's short list.
+        for label in ("Dark", "**Dark**", "Dark mode", "The dark theme", "Dark theme - night", "Dark theme values", "- Dark theme", "> Dark theme", "* Dark", "1. Dark theme", "2) Dark mode",
+                      "> - **Dark theme:**", "Dark theme (see (note))", "Dark theme (a (b (c)) d) colours", "Dark theme.", "#Dark theme", "####### Dark theme", "<b>Dark theme</b>",
+                      "<strong class=\"x\">Dark</strong> mode", "DARK MODE", "Dark theme:\u200b", "Dark theme colours", "Colors for the dark theme", "Tokens: dark", "The night palette (dark)... dark",
+                      "dark / light", "Dark theme, light theme", "`dark`", "Dark\u00a0mode", "_Dark_ _mode_"):
+            with self.subTest(label=label):
+                p = _palette.parse_tables("### Light theme\n\n%s\n\n" % label + plain(STARTER_DARK) + "\n" + HEAD + "| Muted | #777777 |\n\n### Dark theme\n" + plain(STARTER_LIGHT))
+                self.assertEqual((p.light, p.dark, p.brand), ({}, STARTER_LIGHT, None), "no table under that heading is read; the next heading is read as before")
+                self.assertEqual(codes(p), [("?", None, "palette-label")], "said once, for every table under that heading")
+                for part in ('Line 3, %s, stands between the heading `### Light theme` and its table, and it reads as a label for the other theme.' % _palette._quoted(" ".join(label.split())),
+                             "A line of text is not a heading", "read no table under that heading", "If the table belongs under `### Dark theme`, write that line as a heading (`### Dark theme`)",
+                             "if it belongs under `### Light theme`, take the line out"):
+                    self.assertIn(part, p.problems[0][3])
+        # the other way round, under `### Dark theme`
+        for label in ("Light", "Light mode", "The light theme:", "- Light theme values", "Light theme (default)", "Day (light)... light"):
+            with self.subTest(label=label):
+                p = _palette.parse_tables("### Dark theme\n%s\n" % label + plain(STARTER_LIGHT))
+                self.assertEqual((p.light, p.dark, [c for _t, _k, c in codes(p)]), ({}, {}, ["palette-label"]))
+                self.assertIn("If the table belongs under `### Light theme`, write that line as a heading (`### Light theme`); if it belongs under `### Dark theme`, take the line out", p.problems[0][3])
+        # the limits rule 2 states: under `### Brand` only the exact name is a label, and a line after the first table is the text that ends the section's tables (rule 3)
+        p = _palette.parse_tables("### Brand\nDark mode\n" + HEAD + "| Primary | #123456 |\n")
+        self.assertEqual((p.brand, p.problems), ("#123456", []))
+        p = _palette.parse_tables("### Light theme\n" + plain(STARTER_LIGHT) + "\nDark mode\n\n" + plain(STARTER_DARK))
+        self.assertEqual((p.light, p.dark, [c for _t, _k, c in codes(p)]), (STARTER_LIGHT, {}, ["palette-no-section"]))
+        # a line of more than 2,000 characters is no label, as before
+        p = _palette.parse_tables("### Light theme\nDark %s\n" % ("theme " * 400) + plain(STARTER_LIGHT))
+        self.assertEqual((p.light, p.problems), (STARTER_LIGHT, []))
+
     def test_every_other_heading_ends_the_section(self):
         for heading in ("## Notes", "### Typography", "#", "######", "### Light theme typography"):
             with self.subTest(heading=heading):
@@ -587,14 +670,14 @@ class Rule2Sections(unittest.TestCase):
 
     def test_a_line_that_starts_with_a_hash_and_is_no_heading_ends_no_section(self):
         # round 4: a heading is one to six # and then a blank or the end of the line; `#notes` and seven # are text
-        for line in ("#notes", "####### seven", "#1", "#16162a", "###Typography", "#Dark theme"):
+        for line in ("#notes", "####### seven", "#1", "#16162a", "###Typography", "#Dark theme tables follow"):
             with self.subTest(line=line):
                 p = _palette.parse_tables("### Light theme\n%s\n" % line + plain(STARTER_LIGHT) + "\n### Dark theme\n" + plain(STARTER_DARK))
                 self.assertEqual((p.light, p.dark), (STARTER_LIGHT, STARTER_DARK), "a line of text between a heading and its table is only text")
                 self.assertEqual([c for _t, _k, c in codes(p)], [NOT_READ] * (line == "#16162a"))
 
     OTHER_REMARKS = ("(vorgeschlagen)", "(Vorschlag)", "(propos\u00e9)", "(draft)", "(the default)", "()", "(proposed, not yet agreed)", "(Proposal 2, not final)",
-                     "(fixed, theme-independent)", "(not proposed)", "(proposed1)", "(suggested)", "(#fff)", "(~~proposed~~)", "(proposed\u200b)")
+                     "(fixed, theme-independent)", "(not proposed)", "(proposed1)", "(suggested)", "(#fff)", "(~~proposed~~ ?)", "(proposed\u200b)", "(prop\u00adosed)")
 
     def test_a_heading_with_any_other_remark_names_no_section_and_is_said_to(self):
         # round 4: `### Dark theme (vorgeschlagen)` was a heading with a remark, so a mark written in the assistant's own
@@ -606,7 +689,7 @@ class Rule2Sections(unittest.TestCase):
                     p = _palette.parse_tables(brand_md().replace("### %s\n" % name, heading + "\n"))
                     other = "light" if theme == "dark" else "dark"
                     self.assertEqual((p.theme(theme), p.theme(other), p.brand, p.proposed), ({}, {"light": STARTER_LIGHT, "dark": STARTER_DARK}[other], "#000000", set()))
-                    word = bool(re.search(r"propos(ed|al)(?![\w\u00e9])", remark, re.I)) or remark == "(proposed\u200b)"
+                    word = bool(re.search(r"propos(ed|al)(?![\w\u00e9])", remark, re.I)) or remark in ("(proposed\u200b)", "(prop\u00adosed)")
                     colour = remark == "(#fff)"
                     self.assertEqual([c for _t, _k, c in codes(p)], ["palette-heading-remark"] + [MARK] * word + [NOT_READ] * colour,
                                      "one problem for the heading; its table is not named a second time")
@@ -649,7 +732,7 @@ class Rule2Sections(unittest.TestCase):
     def test_a_header_row_that_calls_its_first_column_by_another_sections_name_is_named_and_its_table_is_not_read(self):
         # round 4: under `### Light theme`, a table headed `| Dark theme | Hex |` was read as the light theme's without a word
         for header, there in (("| Dark theme | Hex |", "dark"), ("| **Dark theme** | Hex |", "dark"), ("| DARK THEME: | Hex | Use |", "dark"), ("| Brand | Hex |", "brand"),
-                              ("| Dark theme (proposed) | Hex |", "dark"), ("| Dark theme (dunkel) | Hex |", "dark"), ("| Dark theme | Value |", "dark")):
+                              ("| Dark theme (proposed) | Hex |", "dark"), ("| Dark theme (dunkel) | Hex |", "dark"), ("| Dark theme | Value |", "dark"), ("| Brand | Hex | for dark |", "brand")):
             with self.subTest(header=header):
                 p = _palette.parse_tables("### Light theme\n" + header + "\n|---|---|\n" + "\n".join(lines(STARTER_DARK)) + "\n\n### Dark theme\n" + plain(STARTER_DARK))
                 self.assertEqual((p.light, p.dark), ({}, STARTER_DARK))
@@ -661,11 +744,29 @@ class Rule2Sections(unittest.TestCase):
         # a table that holds no colour yet is told the same, and the table after it under the same heading is read
         p = _palette.parse_tables("### Light theme\n| Dark theme | Hex |\n|---|---|\n| Muted | #[\u2026] |\n\n" + plain(STARTER_LIGHT))
         self.assertEqual((p.light, [c for _t, _k, c in codes(p)], p.ignored), (STARTER_LIGHT, ["palette-label"], ["Muted"]))
-        # the near-misses: the section's own name, a name in a later cell, and any other first cell
-        for header in ("| Light theme | Hex |", "| Token | Hex | Dark theme |", "| Dark | Hex |", "| Dark theme tokens | Hex |", "| Theme | Hex |"):
+        # round 5: a header row that says the other theme's word in any cell, and not its own, is named in the same way
+        for header in ("| Dark | Hex |", "| Dark theme tokens | Hex |", "| Token (dark) | Hex |", "| Token | Hex | Dark theme |", "| Token | Hex (DARK) |", "| Token | Hex | _dark_ mode |",
+                       "| Dark token | Hex | Use |", "| Token | Hex | Use | dark |", "| dark_tokens | Hex |", "| Token | Dark |", "| Token | Value | for dark mode |"):
+            with self.subTest(header=header):
+                p = _palette.parse_tables("### Light theme\n" + header + "\n|---|---|\n" + "\n".join(lines(STARTER_DARK)) + "\n\n### Dark theme\n" + plain(STARTER_DARK))
+                self.assertEqual((p.light, p.dark, [c for _t, _k, c in codes(p)]), ({}, STARTER_DARK, ["palette-label"]))
+                for part in ('Line 2, the header row "%s", says "dark", and its table stands under `### Light theme`' % header, "it did not read the table",
+                             "If the table belongs under `### Dark theme`, write that heading on a line of its own above it",
+                             "if it belongs under `### Light theme`, take that word out of the header row (`| Token | Hex |`)"):
+                    self.assertIn(part, p.problems[0][3])
+        p = _palette.parse_tables("### Dark theme\n| Token (light) | Hex |\n|---|---|\n" + "\n".join(lines(STARTER_LIGHT)) + "\n")
+        self.assertEqual((p.dark, [c for _t, _k, c in codes(p)]), ({}, ["palette-label"]))
+        self.assertIn('says "light", and its table stands under `### Dark theme`', p.problems[0][3])
+        # the near-misses: the section's own name or word, the other word as a part of a longer word, and any other first cell
+        # (a header row that holds both words with an underscore joined to each is not rule 10's "both themes", and with its own word in it no label)
+        for header in ("| Light theme | Hex |", "| Token (light) | Hex |", "| Token | Hex | Lighter than dark? No: light |", "| Darker | Hex |", "| Token | Hex | Darkness |", "| Theme | Hex |",
+                       "| Token | Hex | dark2 |", "| Token | Hex | light_bg, dark_bg |", "| light_token | Hex | on_dark |"):
             with self.subTest(header=header):
                 p = _palette.parse_tables("### Light theme\n" + header + "\n|---|---|\n" + "\n".join(lines(STARTER_LIGHT)) + "\n")
-                self.assertEqual((p.light, p.problems), (STARTER_LIGHT, []))
+                self.assertEqual((p.light, [c for _t, _k, c in codes(p)]), ({} if "No: light" in header else STARTER_LIGHT, ["palette-combined-table"] * ("No: light" in header)))
+        # under `### Brand` a header row may say either word
+        p = _palette.parse_tables("### Brand\n| Token | Hex | on dark |\n|---|---|---|\n| Primary | #123456 | fine |\n")
+        self.assertEqual((p.brand, p.problems), ("#123456", []))
 
 class Rule3Tables(unittest.TestCase):
     """3. A table is a run of lines that start with |. The first table under a section's heading belongs
@@ -821,10 +922,20 @@ class Rule5TheValueCell(unittest.TestCase):
 
     def test_the_mark_after_the_colour_in_the_spellings_the_rule_allows(self):
         for value in ("`#e2874a (proposed)`", "`#e2874a` (proposed)", "#e2874a (proposed)", "#e2874a (Proposed)", "#e2874a(proposed)", "#e2874a proposed",
-                      "`#e2874a` (proposal)", "#e2874a ( proposed )", "`#e2874a` PROPOSED"):
+                      "`#e2874a` (proposal)", "#e2874a ( proposed )", "`#e2874a` PROPOSED",
+                      # round 5: a strike-through and a footnote figure beside the mark are not counted either, as rule 9 has them
+                      "#e2874a ~~proposed~~", "`#e2874a` ~~proposed~~", "#e2874a proposed\u00b2", "#e2874a (proposed\u00b9)", "#e2874a (proposed)\u00b2", "#e2874a (~~proposed~~)",
+                      "#e2874a ~~(proposed)~~", "#e2874a **~~Proposals~~**\u2460", "`#e2874a` (`proposed`)", "#e2874a _(_proposal_)_", "#e2874a proposed\u00b2\u00b3", "#e2874a ( *proposed* )"):
             with self.subTest(value=value):
                 p = _palette.parse_tables(one(value))
                 self.assertEqual((p.light, p.proposed, p.problems), ({"muted": "#e2874a"}, {("light", "muted")}, []))
+        # the near-misses: the word must stand after a space or in brackets, whole, and last in the cell
+        for value in ("#e2874aproposed", "#e2874a~~proposed~~", "#e2874a proposed1", "#e2874a unproposed", "#e2874a (proposed", "#e2874a proposed)", "#e2874a (proposed) yes",
+                      "#e2874a (not proposed)", "#e2874a \u00b2proposed", "#e2874a pro~~posed~~", "#e2874a (  proposed)"[:9] + "( x proposed)", "proposed #e2874a"):
+            with self.subTest(value=value):
+                p = _palette.parse_tables(one(value))
+                self.assertEqual((p.light, p.proposed), ({}, set()))
+                self.assertEqual(len(p.problems), 1, "the row is named, and has no value")
 
     def test_an_empty_cell_or_a_placeholder_is_a_row_not_filled_in_which_is_not_a_mistake(self):
         for value in ("", "`#[…]`", "#[…]", "#[...]", "#...", "#…", "[hex]", "[…]", "#[hex]", "[ ]", "-", "—", "–", "--", "---", "—–-"):
@@ -1299,7 +1410,7 @@ class Rule9Proposals(unittest.TestCase):
                 self.assertEqual((p.proposed, p.light, p.dark, p.brand), (set(), STARTER_LIGHT, STARTER_DARK, "#000000"), "it marked nothing, and nothing else changed")
                 self.assertEqual(codes(p), [("?", None, MARK)])
                 number = md.replace("\x00", "").splitlines().index(quote.strip('"')) + 1
-                word = _palette._MARK.search(quote).group().lower()
+                word = _palette._mark_in(quote)[2]
                 for part in ("Line %d, %s, holds the word \"%s\"" % (number, quote, word), "`| Muted | #a6abce (proposed) |`", "`### Dark theme (proposed)`", "marked no value",
                              "take the word out of that line", "inside a comment (`<!-- ... -->`)"):
                     self.assertIn(part, p.problems[0][3])
@@ -1344,7 +1455,10 @@ class Rule9Proposals(unittest.TestCase):
 
 
     EMPHASIS = ("_proposed_", "__proposed__", "*proposed*", "**proposed**", "`proposed`", "(_proposed_)", "~~proposed~~", "_proposal_", "__proposals__", "__Proposed__",
-                "proposed_palette", "proposed\u00b2", "proposed\u00b9", "PROPOSED\u2082", "_proposed", "proposed_")
+                "proposed_palette", "proposed\u00b2", "proposed\u00b9", "PROPOSED\u2082", "_proposed", "proposed_", "proposed\u2460", "~~proposal~~\u00b3", "(~~proposed~~)",
+                "(proposed\u00b2)", "~proposed~", "**~~proposed~~**", "(proposed)\u00b9", "proposed\u00bd")
+    # which of them is the mark after a colour and the whole of a heading's remark: the word with nothing joined to it
+    AS_A_MARK = re.compile("\\(?[*_`~]*propos(ed|als?)[*_`~\u00b2\u00b9\u00b3\u2082\u2460\u00bd]*\\)?[\u00b9]?", re.I)
 
     def test_the_word_with_emphasis_or_an_underscore_or_a_footnote_figure_beside_it_is_the_word_wherever_it_stands(self):
         # round 4: `| Muted | #a6abce | _proposed_ |` was read as confirmed and the check ended with 0, because an underscore
@@ -1356,13 +1470,13 @@ class Rule9Proposals(unittest.TestCase):
                 self.assertEqual((p.dark["muted"], p.proposed, p.problems), ("#a6abce", marked, []))
             with self.subTest(word=word, where="the value cell"):
                 p = _palette.parse_tables(brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` %s |" % word))
-                if re.fullmatch(r"\(?[*_`]*propos(ed|als?)[*_`]*\)?", word, re.I):
+                if self.AS_A_MARK.fullmatch(word):
                     self.assertEqual((p.dark["muted"], p.proposed, p.problems), ("#a6abce", marked, []), "emphasis around the mark is not counted")
                 else:
                     self.assertEqual((p.dark.get("muted"), p.proposed, codes(p)), (None, set(), [("dark", "muted", "palette-not-one-colour")]), "the row is named, and has no value")
             with self.subTest(word=word, where="a heading's brackets"):
-                p = _palette.parse_tables(brand_md().replace("### Dark theme", "### Dark theme (%s)" % word.strip("()")))
-                if re.fullmatch(r"\(?[*_`]*propos(ed|als?)[*_`]*\)?", word, re.I):
+                p = _palette.parse_tables(brand_md().replace("### Dark theme", "### Dark theme (%s)" % word.replace("(", "").replace(")", "")))
+                if self.AS_A_MARK.fullmatch(word):
                     self.assertEqual((p.proposed, p.problems), ({("dark", k) for k in STARTER_DARK}, []))
                 else:
                     self.assertEqual((p.proposed, p.dark, [c for _t, _k, c in codes(p)]), (set(), {}, ["palette-heading-remark", MARK]))
@@ -1377,6 +1491,44 @@ class Rule9Proposals(unittest.TestCase):
         for word in ("proposed1", "1proposed", "proposed2nd", "unproposed", "proposedly", "\u00e9proposed", "proposed\u00e9", "_unproposed_", "proposals3"):
             with self.subTest(word=word):
                 p = _palette.parse_tables(brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | %s |" % word) + "\nA %s line.\n" % word)
+                self.assertEqual((p.proposed, p.problems), (set(), []))
+
+    def test_the_word_with_a_character_inside_it_that_nobody_sees_is_the_word(self):
+        # round 5: `prop` + a soft hyphen + `osed` in a note cell or a sentence was no word to the search, and the check ended with 0
+        marked = {("dark", "muted")}
+        for hidden in ("\u00ad", "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff", "\x00", "&shy;", "&#173;", "&#x200B;", "&zwnj;"):
+            for word in ("prop%sosed" % hidden, "%sproposed" % hidden, "proposed%s" % hidden, "p%sr%so%sposal" % (hidden, hidden, hidden), "PROP%sOSALS" % hidden):
+                with self.subTest(word=word, where="a later cell"):
+                    p = _palette.parse_tables(brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | %s |" % word))
+                    self.assertEqual((p.dark["muted"], p.proposed, p.problems), ("#a6abce", marked, []))
+                with self.subTest(word=word, where="a sentence"):
+                    p = _palette.parse_tables(brand_md() + "\nThe dark values are %s still.\n" % word)
+                    self.assertEqual((p.proposed, [c for _t, _k, c in codes(p)]), (set(), [MARK]))
+                    self.assertIn('holds the word "propos', p.problems[0][3])
+                with self.subTest(word=word, where="the value cell"):
+                    p = _palette.parse_tables(brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` %s |" % word))
+                    self.assertIn(p.proposed, (marked, set()))
+                    if not p.proposed:  # (the word with the character at its end is the mark after the colour only where that character is one the cell is trimmed of)
+                        self.assertEqual(codes(p), [("dark", "muted", "palette-not-one-colour")])
+        # a character reference that spells a letter of it, and letters in their wide or mathematical form
+        for word in ("&#112;roposed", "propose&#x64;", "&#80;ROPOSED", "\uff50\uff52\uff4f\uff50\uff4f\uff53\uff45\uff44", "\U0001d429roposed", "propo\u017fed", "proposed\u2460",
+                     "\u24b6 proposed\u00b2\u00b3"):
+            with self.subTest(word=word):
+                p = _palette.parse_tables(brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | %s |" % word) + "\nNote: %s.\n" % word)
+                self.assertEqual((p.proposed, [c for _t, _k, c in codes(p)]), (marked, [MARK]))
+        # where the line is quoted, what does not show is written out, and the sentence says so
+        p = _palette.parse_tables(brand_md() + "\nThe dark values are prop\u00adosed still.\n")
+        for part in ('"The dark values are prop<U+00AD>osed still."', 'holds the word "proposed"', "is a character that does not show on the screen: take it out"):
+            self.assertIn(part, p.problems[0][3])
+        # the near-misses stay near-misses when seen that way: a letter or a digit joined to the word, also a wide one
+        for word in ("unprop\u00adosed", "proposed\uff11", "proposed&#49;", "\uff55\uff4eproposed", "prop\u00adosedly", "proposed\u0661"):
+            with self.subTest(word=word):
+                p = _palette.parse_tables(brand_md().replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | %s |" % word) + "\nA %s line.\n" % word)
+                self.assertEqual((p.proposed, p.problems), (set(), []))
+        # rule 9's stated limit: emphasis INSIDE the word, and a look-alike letter of another script, are not seen through
+        for word in ("**pro**posed", "pro_posed", "\u0440roposed", "prop\u03bfsed"):
+            with self.subTest(word=word):
+                p = _palette.parse_tables(brand_md() + "\nA %s line.\n" % word)
                 self.assertEqual((p.proposed, p.problems), (set(), []))
 
 class Rule10NothingIsReadFromAnywhereElse(unittest.TestCase):
@@ -1397,8 +1549,9 @@ class Rule10NothingIsReadFromAnywhereElse(unittest.TestCase):
                     self.assertEqual(codes(p), [("?", None, "palette-combined-table")])
                     for part in ("names both themes", header.strip("| "), "give each theme its own table", "`### Light theme`", "`### Dark theme`", "`| Token | Hex |`", "was not read"):
                         self.assertIn(part, p.problems[0][3])
-        # the near-miss: a header that says Hex and names ONE theme, or none, is a header that says Hex
-        for header in ("| Token | Hex | Dark |", "| Token | Hex | On light |", "| Token | Hex | Highlights, darker |", "| Token | Hex | Use |"):
+        # the near-miss: a header that says Hex and names the table's OWN theme, or none, is a header that says Hex
+        # (round 5: one that names the other theme alone is rule 2's label)
+        for header in ("| Token | Hex | Light |", "| Token | Hex | On light |", "| Token | Hex | Highlights, darker |", "| Token | Hex | Use |"):
             with self.subTest(header=header):
                 p = _palette.parse_tables("### Light theme\n" + header + "\n|---|---|---|\n" + "\n".join(l + " x |" for l in lines(STARTER_LIGHT)) + "\n")
                 self.assertEqual((p.light, p.problems), (STARTER_LIGHT, []))
@@ -1409,8 +1562,8 @@ class Rule10NothingIsReadFromAnywhereElse(unittest.TestCase):
         p = _palette.parse_tables("### Light theme\n" + self.COMBINED)
         self.assertEqual(p.light, {})
         self.assertEqual([c for _t, _k, c in codes(p)], ["palette-two-colours"] * 9)
-        # "Highlights" beside "Dark" names one theme: the header is quoted for what it calls the second column
-        p = _palette.parse_tables("### Light theme\n| Token | Highlights | Dark |\n|---|---|---|\n| Muted | #5a5a72 | #a6abce |\n")
+        # "Highlights" beside "Light" names one theme, the table's own: the header is quoted for what it calls the second column
+        p = _palette.parse_tables("### Light theme\n| Token | Highlights | Light |\n|---|---|---|\n| Muted | #5a5a72 | #a6abce |\n")
         self.assertEqual(([c for _t, _k, c in codes(p)], p.light), (["palette-header"], {}))
 
     def test_what_the_liberal_reader_did_is_gone(self):
@@ -1564,6 +1717,11 @@ class Rule12ColoursThatWereNotRead(unittest.TestCase):
         self.assertEqual((p.light, p.dark, p.brand, [c for _t, _k, c in codes(p)]), (STARTER_LIGHT, STARTER_DARK, "#000000", [NOT_READ, NOT_READ]))
         self.assertIn(self.REMEDY, of(p, NOT_READ)[0])
         self.assertNotIn("Colour palette", of(p, NOT_READ)[1], "said once")
+        # round 5: once in a run, however many lines are quoted (five) and counted (the rest)
+        p = _palette.parse_tables(guide + "".join("\nCard %d: #%06x.\n" % (n, n) for n in range(1, 9)))
+        self.assertEqual(len(of(p, NOT_READ)), 6)
+        self.assertEqual(sum(message.count("under a heading `## Colour palette`") for message in of(p, NOT_READ)), 1)
+        self.assertEqual("\n".join(of(p, NOT_READ)).count(self.REMEDY), 1)
         # followed, it ends the matter
         self.assertEqual(_palette.parse_tables(guide.replace("## Colours", "## Colour palette")).problems, [])
         # the near-misses: a text with no heading but the three is a pasted answer, and one that has the heading is told what is true of it
@@ -2080,7 +2238,19 @@ class Stylesheet(unittest.TestCase):
                   ("of backslashes", "\\" * mb), ("of escaped braces", "\\{" * (mb // 2)), ("of names written with an escape", "a{--b\\67:x}" * (mb // 11)), ("of the same in one block", "a{" + "--b\\67:x;" * (mb // 9) + "}"),
                   ("of ; at the top level", ";" * mb), ("of round bracket pairs", "()" * (mb // 2)), ("of square brackets that open", "[" * mb), ("of brackets in brackets in a value", ":root{--bg:" + "(" * (mb // 2) + ")" * (mb // 2) + "}"),
                   ("of rules that register a colour", "@property --bg{}" * (mb // 16)), ("of default namespaces", "@namespace url(x);" * (mb // 18)), ("of url( after an escape", "\\url(" * (mb // 5)),
-                  ("of lines written as a variable", ":root{" + "--bg:var(--x);" * (mb // 14) + "}"), ("of line breaks before a bracket too many", "\n" * mb + ")"))
+                  ("of lines written as a variable", ":root{" + "--bg:var(--x);" * (mb // 14) + "}"), ("of line breaks before a bracket too many", "\n" * mb + ")"),
+                  # round 5: 128 KB of the first of these took 13 seconds (0.04 now), because the block around a block was searched for through
+                  # every open bracket. The slowest of the round's shapes at a megabyte, blocks with a block in brackets each, takes 0.64 seconds
+                  # of processor time on Python 3.13 and 1.14 on 3.9 (load 8); the slowest of all is still "of brace pairs", 1.16 and 2.21.
+                  ("of brace pairs inside round brackets in a value", ":root { --x:" + "(" * (mb // 4) + "{}" * (mb // 4) + ")" * (mb // 4) + "; --bg:#fff }"),
+                  ("of the same inside square brackets", ":root { --x:" + "[" * (mb // 4) + "{}" * (mb // 4) + "]" * (mb // 4) + "; --bg:#fff }"),
+                  ("of the same in another rule, in both kinds of bracket", "a { --x:" + "([" * (mb // 8) + "{}" * (mb // 4) + "])" * (mb // 8) + " }"),
+                  ("of braces inside brackets inside braces", "a{(" * (mb // 4) + ")}" * (mb // 4)), ("of the same with square brackets", "a{[" * (mb // 4) + "]}" * (mb // 4)),
+                  ("of open braces, then open brackets, then brace pairs", "a{" * (mb // 8) + "(" * (mb // 8) + "{}" * (mb // 8) + ")" * (mb // 8) + "}" * (mb // 8)),
+                  ("of blocks with a block in brackets each", "a{(b{})}" * (mb // 8)), ("of round brackets, then one brace at the top level", "(" * mb + "{"),
+                  ("of imports", "@import 'x.css';" * (mb // 16)), ("of strings that run over a line end", "a{b:'\\41\n'}" * (mb // 11)),
+                  ("of backslashes before a line end in one string", "a{b:'" + "\\" * (mb - 1) + "\n"), ("of strings that end in backslashes", "'\\\\\\\n" * (mb // 5)),
+                  ("of hex digits before a line end in strings", ("'" + "\\" + "a" * 7 + "\n") * (mb // 10)), ("of url( with a backslash each", "url(\\))" * (mb // 7)))
         for name, text in shapes:
             with self.subTest(name=name):
                 start = time.process_time()
@@ -2152,12 +2322,13 @@ class Stylesheet(unittest.TestCase):
         for name, text, what in (
                 ("a ( never closed in a value", whole.replace("--bg: #ffffff;", "--bg: rgb(1,2; --other: 3px;", 1), "the `(` on line 15 is still open where the `}` on line 22 closes something else"),
                 ("a [ never closed in a value", whole.replace("--radius: 12px;", "--grid: [full;", 1), "the `[` on line 19 is still open where the `}` on line 22 closes something else"),
-                ("a ( never closed in a selector", whole + "\na:not(.b { color: red; }\n", "the `(` on line 90 is never closed"),
+                ("a ( never closed in a selector", whole + "\na:not(.b { color: red; }\n", "the `(` on line 90 is still open where the `{` on line 90 opens a block, so a browser "
+                                                                                             "takes that block for a part of what the bracket holds and for no rule"),
                 ("a ( never closed at the end", whole + "\na { color: rgb(1, 2, 3 ", "the `(` on line 90 is never closed"),
                 ("a ) too many", whole.replace("--radius: 12px;", "--radius: 12px);", 1), "the `)` on line 19 closes nothing: no `(` is open there"),
                 ("a ] too many at the top level", "]\n" + whole, "the `]` on line 1 closes nothing: no `[` is open there"),
                 ("closed by the other kind", whole.replace("--radius: 12px;", "--grid: [a);", 1), "the `)` on line 19 closes nothing: no `(` is open there"),
-                ("the line numbers are the file's own, whatever comments and strings stand above", "/*\n\n*/ a { content: 'x\\\ny'; }\n" + whole.replace("--radius: 12px;", "--grid: [a;", 1),
+                ("the line numbers are the file's own, whatever comments and strings stand above", "/*\n\n*/ a { content: '(';\n }\n" + whole.replace("--radius: 12px;", "--grid: [a;", 1),
                  "the `[` on line 23 is still open where the `}` on line 26 closes something else"),
                 ("closed in the wrong order", whole.replace("--radius: 12px;", "--grid: ([)];", 1), "the `[` on line 19 is still open where the `)` on line 19 closes something else"),
                 ("a url( never closed", whole + "\na { background: url(a.svg; }\n", "the `(` on line 90 is never closed"),
@@ -2169,11 +2340,45 @@ class Stylesheet(unittest.TestCase):
                 self.assertIn("The stylesheet's brackets do not pair up: " + what + ". So this check cannot tell where", str(cm.exception))
         # the near-misses: brackets that pair up, whatever they hold, and brackets that are no brackets
         for line in ("--grid: [full-start] 1fr [full-end];", "--grid: [; --ink: #000000; ];", "--calc: calc(100% - (2 * var(--gap, 1rem)));", "--x: (; --bg: #000000; );", "--x: ([()]);",
-                     '--s: "(";', "--s: '[';", "--u: url(a(b.svg);", "--u: url(a\\).svg);", "--e: \\(;", "--e: a\\[b;", "/* ( [ */", "--x: -url(());"):
+                     '--s: "(";', "--s: '[';", "--u: url(a(b.svg);", "/* ( [ */", "--x: -url(());"):
             with self.subTest(line=line):
                 self.assert_all_three_blocks(whole.replace("  --radius: 12px;\n", "  --radius: 12px;\n  " + line + "\n", 1))
         css = _palette.read_css(":root { --grid: [; --ink: #111111; ]; --bg: #ffffff; --shadow: 0 0 rgba(0, 0, 0, 0.5), (; --muted: #222222; ); }")
         self.assertEqual(css.light, {"bg": "#ffffff"}, "a line inside brackets is part of the value around it, and no line of the block")
+
+    def test_a_block_inside_brackets_where_a_browser_expects_a_rule_is_refused_like_a_bracket_that_does_not_pair_up(self):
+        # round 5, checked in a browser: `( a{} :root { ... } ) a{}` is ONE rule to Chromium, whose selector runs to the last `{`; every light
+        # variable was unset on the page, and this read the block inside the brackets as the :root block
+        whole = self.starter()
+        dark_at, media_at, rest_at = whole.index(':root[data-theme="dark"]'), whole.index("@media (prefers-color-scheme: dark)"), whole.index("*, *::before")
+        light, dark, media, rest = whole[:dark_at], whole[dark_at:media_at], whole[media_at:rest_at], whole[rest_at:]
+        inner = media[media.index("  :root:not"):media.rindex("}")]
+        for name, text, what in (
+                ("the light block in round brackets", "( a{} " + light + ") a{}\n" + dark + media + rest, "the `(` on line 1 is still open where the `{` on line 1 opens a block"),
+                ("in square brackets", "[ a{} " + light + "] a{}\n" + dark + media + rest, "the `[` on line 1 is still open where the `{` on line 1 opens a block"),
+                ("the dark block, with nothing else in the brackets", light + "(\n" + dark + ") a{}\n" + media + rest, "the `(` on line 24 is still open where the `{` on line 25 opens a block"),
+                ("in the brackets of an at-rule", "@supports ( a{} " + light + ") {}\n" + dark + media + rest, "the `(` on line 1 is still open where the `{` on line 1 opens a block"),
+                ("a bracket inside a bracket", light + "a:is((b{})) {}\n" + dark + media + rest, "the `(` on line 24 is still open where the `{` on line 24 opens a block"),
+                ("the rule in the media block", light + dark + media.replace(inner, "( a{}\n" + inner + ") a{}\n", 1) + rest, "the `(` on line 37 is still open where the `{` on line 37 opens a block"),
+                ("after the three blocks", whole + "\n[ x { } ]\n", "the `[` on line 90 is still open where the `{` on line 90 opens a block")):
+            with self.subTest(name=name):
+                self.assertNotEqual(text, whole)
+                with self.assertRaises(Refusal) as cm:
+                    _palette.read_css(text)
+                self.assertEqual(cm.exception.code, "css-unreadable")
+                for part in ("The stylesheet's brackets do not pair up: " + what + ", so a browser takes that block for a part of what the bracket holds and for no rule. So this check cannot tell",
+                             "Mend the stylesheet, then run this again."):
+                    self.assertIn(part, str(cm.exception))
+        # the near-misses. Brackets that are closed before the block opens are a selector's or an at-rule's own
+        for rule in ("a:not(.b) { color: red }", "a[href^='('] { color: red }", "@supports (display: grid) { a { color: red } }", "@media (min-width: 40em) and (hover: hover) { a { color: red } }",
+                     "a:is(b, c[d]) { e: f }"):
+            with self.subTest(rule=rule):
+                self.assert_all_three_blocks(rule + "\n" + whole)
+        # and inside a block (in a value, or in a block within another at-rule) a block in brackets is what it was before: a block of that block
+        css = _palette.read_css(whole.replace("  --radius: 12px;", "  --radius: 12px;\n  --json: [{}];", 1))
+        self.assertEqual([(b, m[:45]) for b, _v, m in css.problems], [("light", "The :root block holds another block inside it")])
+        self.assert_all_three_blocks(whole + "\nbody { --json: ({a: [b, {c: d}]}); }\n@supports (a: b) { ( x{} ) y {} }\n")
+        self.assertEqual(self.only(whole + "\nbody { --x: ( i { --bg: #000000 } ); }\n", "elsewhere")[:36], "--bg is also set in the rule `body {")
 
 
     def only(self, text, kind):
@@ -2197,8 +2402,7 @@ class Stylesheet(unittest.TestCase):
                                         ("after an at-rule with a block", whole.replace("}\n\n*, *::before", "};\n\n*, *::before", 1), 49, '";"'),
                                         # found by comparing with a browser: an @ is the start of a statement only with a name straight after it
                                         ("an @ with a space after it", "@ import 'x.css';\n" + whole, 1, '"@ import \'x.css\';"'),
-                                        ("an @ before a digit", "@1x;\n" + whole, 1, '"@1x;"'),
-                                        ("an @ before a backslash at the end of a line", "@\\\n@layer a, b;\n" + whole, 2, '"@\\ @layer a, b;"')):
+                                        ("an @ before a digit", "@1x;\n" + whole, 1, '"@1x;"')):
             with self.subTest(name=name):
                 message = self.only(text, "statement")
                 for part in ("Line %d of the stylesheet has a `;` where a browser expects a rule (%s)" % (line, quote), "no statement that starts with `@`",
@@ -2210,55 +2414,153 @@ class Stylesheet(unittest.TestCase):
         self.assertEqual([m[:8] for _b, _v, m in css.problems] + [css.problems[1][2]], ["Line 90 ", "2 more p", "2 more pieces like it; the next is on line 91."])
         self.assertEqual(_palette.read_css(";;" + whole).problems[1][2], "1 more piece like it; the next is on line 1.")
         # the near-misses: a statement that starts with @, a ; inside a block, inside brackets, a string or a comment, and one in a block inside another at-rule
-        for text in ("@import 'a.css';\n@layer base, theme;\n@foo bar;\n@media print;\n@-x-y z;\n@--x;\n@\\66oo;\n@_a;\n@\u00e9;\n" + whole, whole.replace("--radius: 12px;", "--radius: 12px;;;", 1), whole + "\na { color: red;; }\n",
+        for text in ("@import 'a.css';\n@layer base, theme;\n@foo bar;\n@media print;\n@-x-y z;\n@--x;\n@_a;\n@\u00e9;\n" + whole, whole.replace("--radius: 12px;", "--radius: 12px;;;", 1), whole + "\na { color: red;; }\n",
                      whole + "\n@supports (display: grid) { ; a { color: red } }\n", '@import url(a;b.css);\n@import "c;d.css";\n/* ; */\n' + whole,
                      whole + "\n@font-face { font-family: X; src: url(x.woff2); }\n", whole + "\n@media print { @page { margin: 0; } a { color: red; } }\n"):
             with self.subTest(text=text[:40]):
                 self.assert_all_three_blocks(text)
 
-    def test_an_escape_is_one_character_of_a_name_and_a_property_name_written_with_one_is_named(self):
-        # round 4, checked in a browser: `--b\67: #000` IS `--bg` (the page went black, before and after the edit), and an escaped quote
-        # in a selector started a "string" that hid the rest of its line
+    def kinds(self, text):
+        return [(t.block, t.kind) for t in _palette.scan_css(text).problems]
+
+    def test_a_backslash_anywhere_outside_a_string_and_a_comment_is_named_and_stops_the_editor(self):
+        # round 4, checked in a browser: `--b\67: #000` IS `--bg` (the page went black, before and after the edit). Round 4 then read escapes
+        # so that an escaped class name stayed ordinary, and round 5 found three more names an escape spells that this did not see: `u\72l(`
+        # is `url(` to Chromium (what follows up to the `)` is no code), `@n\61mespace` a default namespace, `@p\72operty` a registration.
+        # So no name written with a backslash is read any more, wherever it stands: it is one problem, and the editor does not write.
+        import _site
         whole = self.starter()
-        for name, text, line, shown in (("in the :root block", whole.replace("--bg: #ffffff;", "--bg: #ffffff;\n  --b\\67: #000000;", 1), 16, "`--b\\67`"),
-                                        ("in any other rule", whole + "\nbody { --b\\67 : #000000; }\n", 90, "`--b\\67`"),
-                                        ("with a blank after the digits", whole + "\nbody { --b\\000067 : #000000; }\n", 90, "`--b\\000067`"),
-                                        ("an escaped dash", whole + "\nbody { \\-\\-bg: #000000; }\n", 90, "`\\-\\-bg`"),
-                                        ("an escaped letter", whole + "\nbody { --b\\g: #000000; }\n", 90, "`--b\\g`"),
-                                        ("of a property that is no variable", whole + "\nbody { c\\6f lor: red; }\n", 90, "`c\\6f lor`"),
-                                        ("deep inside other blocks", whole + "\n@media print {\n @supports (a: b) {\n  i { x: y; --\\62 g: #000 }\n }\n}\n", 92, "`--\\62 g`")):
+        bakery = self.bakery()
+        message = None
+        for name, text, line, shown in (
+                ("a property name, in the :root block", whole.replace("--bg: #ffffff;", "--bg: #ffffff;\n  --b\\67: #000000;", 1), 16, "`--b\\67:`"),
+                ("in any other rule", whole + "\nbody { --b\\67 : #000000; }\n", 90, "`--b\\67`"),
+                ("with a blank after the digits", whole + "\nbody { --b\\000067 : #000000; }\n", 90, "`--b\\000067`"),
+                ("an escaped dash", whole + "\nbody { \\-\\-bg: #000000; }\n", 90, "`\\-\\-bg:`"),
+                ("of a property that is no variable", whole + "\nbody { c\\6f lor: red; }\n", 90, "`c\\6f`"),
+                ("deep inside other blocks", whole + "\n@media print {\n @supports (a: b) {\n  i { x: y; --\\62 g: #000 }\n }\n}\n", 92, "`--\\62`"),
+                ("a selector that spells :root", whole + "\n:r\\6f ot { --bg: #000000; }\n", 90, "`:r\\6f`"),
+                ("a selector with an escaped bracket", whole + "\n:root\\[data-theme\\] { --bg: #000000; }\n", 90, "`:root\\[data-theme\\]`"),
+                ("an at-rule's name", "@m\\65 dia print { :root { --bg: #000000 } }\n" + whole, 1, "`@m\\65`"),
+                # round 5: the function and the two at-rules that an escape spells
+                ("url( spelt with an escape, a quote inside it", whole.replace("  --bg: #ffffff;", "  --bg: #ffffff;\n  --x: u\\72l(a'b); --bg: #ff0000; /*'*/ );", 1), 16, "`u\\72l(a'b)`"),
+                ("the same in capitals", whole.replace("  --bg: #ffffff;", "  --bg: #ffffff;\n  --x: \\55 RL(a'b); --bg: #ff0000; /*'*/ );", 1), 16, "`\\55`"),
+                ("a default namespace spelt with an escape", "@n\\61mespace url(http://www.w3.org/2000/svg);\n" + whole, 1, "`@n\\61mespace`"),
+                ("the same, the first letter escaped", "@\\6e amespace url(urn:x);\n" + whole, 1, "`@\\6e`"),
+                ("a registration spelt with an escape", whole + "@p\\72operty --bg { syntax: '<color>'; inherits: false; initial-value: #ff0000; }\n", 89, "`@p\\72operty`"),
+                ("the same, the first letter escaped", whole + "@\\70roperty --bg { syntax: '<length>'; inherits: false; initial-value: 0px; }\n", 89, "`@\\70roperty`"),
+                ("a registration of a name written with a backslash", whole + "@property --b\\67 { syntax: '<color>'; inherits: true; initial-value: #fff; }\n", 89, "`--b\\67`"),
+                ("an import spelt with an escape", "@\\69mport 'x.css';\n" + whole, 1, "`@\\69mport`"),
+                # what round 4 took for ordinary: now named like the rest
+                ("a class name with an escaped colon", whole + "\n.sm\\:flex { display: flex }\n", 90, "`.sm\\:flex`"),
+                ("with escaped brackets and quotes", ".before\\:content-\\[\\'\\'\\]::before { content: '' }\n" + whole, 1, "`.before\\:content-\\[\\'\\'\\]::before`"),
+                ("with an escaped quote", '.q\\" { color: red }\n' + whole, 1, '`.q\\"`'),
+                ("with an escaped brace", whole + "\n.a\\{b { color: red }\n", 90, "`.a\\{b`"),
+                ("with an escaped semicolon", whole + "\n.a\\;b { color: red }\n", 90, "`.a\\;b`"),
+                ("with escaped round brackets", whole + "\n.w-\\[calc\\(100\\%-2rem\\)\\] { width: 1px }\n", 90, "`.w-\\[calc\\(100\\%-2rem\\)\\]`"),
+                ("in a value", whole.replace("--radius: 12px;", "--radius: 12px;\n  --note: \\--bg\\: x;", 1), 20, "`\\--bg\\:`"),
+                ("an escaped ; in a value", whole.replace("--radius: 12px;", "--radius: 12px;\n  --x: a\\;b;", 1), 20, "`a\\;b`"),
+                ("an escaped bracket in a value", whole.replace("--radius: 12px;", "--radius: 12px;\n  --e: \\(;", 1), 20, "`\\(`"),
+                ("in an unquoted address", whole.replace("--radius: 12px;", "--radius: 12px;\n  --u: url(a\\).svg);", 1), 20, "`url(a\\).svg)`"),
+                ("an escaped blank in a font's name", whole + "\na { font-family: a\\ b }\n", 90, "`a\\ b`"),
+                ("two backslashes", whole + "\n.x\\\\ { color: red }\n", 90, "`.x\\\\`"),
+                ("before a line end, outside a string", whole + "\na { --x: \\\n1; }\n", 90, "`\\<U+000A>1`"),
+                ("an @ before a backslash at the end of a line", "@\\\n@layer a, b;\n" + whole, 1, "`@\\<U+000A>@layer`"),
+                ("url( after a backslash", whole.replace("--radius: 12px;", "--radius: 12px;\n  --x: \\\\url(());", 1), 20, "`\\\\url(())`"),
+                ("the last character of the stylesheet", whole + ".end\\", 89, "`.end\\`")):
             with self.subTest(name=name):
-                message = self.only(text, "escape")
-                for part in ("Line %d of the stylesheet sets a property whose name is written with a backslash (%s)" % (line, shown), "`--b\\67` is `--bg` to a browser",
-                             "this check does not read such names", "Write the name out without the backslash."):
+                found = [t for t in _palette.scan_css(text).problems if t.kind == "escape"]
+                self.assertEqual([(t.block, t.variable) for t in found], [(None, None)], "one problem of the stylesheet, however many backslashes it holds")
+                message = found[0].message
+                for part in ("Line %d of the stylesheet writes a name with a backslash (%s). A backslash can spell any character" % (line, shown),
+                             "`--b\\67` is `--bg` to a browser, and `u\\72l(` is `url(`", "this check does not read a name written with one",
+                             "Write the name out without the backslash.", "(a class name with a colon in it), move that rule into another stylesheet."):
                     self.assertIn(part, message)
-        css = _palette.read_css(whole + "\nbody { --b\\67: #000; --\\69nk: #000; }\ni { --b\\67: #000 }\n")
-        self.assertEqual(css.problems[1][2], "2 more lines like it; the next is on line 90.")
-        # a rule whose SELECTOR is written with an escape is never one of the three blocks, and is named when it sets one of the colours
-        for rule, shown in ((":r\\6f ot { --bg: #000000; }", "`:r\\6f ot { ... }`"), (":root\\[data-theme\\] { --bg: #000000; }", "`:root\\[data-theme\\] { ... }`"),
-                            ('.q\\" { --bg: #000000 }', '`.q\\" { ... }`'), ("@m\\65 dia print { :root { --bg: #000000 } }", "`@m\\65 dia print { :root { ... } }`")):
-            with self.subTest(rule=rule):
-                self.assertIn("--bg is also set in the rule %s" % shown, self.only(whole + "\n" + rule + "\n", "elsewhere"))
-        # the near-misses: escapes in selectors, values and strings of rules that set none of the colours are ordinary (class names with a colon or brackets in them)
-        for rule in (".sm\\:flex { display: flex }", ".before\\:content-\\[\\'\\'\\]::before { content: '' }", '.q\\" { color: red }', ".a\\{b { color: red }", ".a\\;b { color: red }", ".w-\\[calc\\(100\\%-2rem\\)\\] { width: 1px }",
-                     "a::after { content: \"\\201C\"; }", "a { --note: \\--bg\\: x; }", "a { --x: \\; ; --y: \\} }", ":r\\6f ot { --gap: 2px }", "a { font-family: a\\ b }", ".x\\\\ { color: red }",
-                     "a { --x: \\\n1; }", ".end\\"):
+                self.assertIn((None, None, message), _palette.read_css(text).problems)
+                # and the editor does not write, with that sentence, whatever part of the palette it is asked to write
+                for which in (bakery, self.only_dark()):
+                    with self.assertRaises(Refusal) as cm:
+                        _site.edit_css(text, which)
+                    self.assertEqual(cm.exception.code, "css-layout")
+                    self.assertIn(message, str(cm.exception))
+        # several backslashes are one problem, which names the first
+        css = _palette.read_css(whole + "\nbody { --b\\67: #000; --\\69nk: #000; }\ni { --b\\67: #000 }\n.sm\\:flex { }\n")
+        self.assertEqual([m[:8] for _b, _v, m in css.problems if "backslash" in m], ["Line 90 "])
+        # where what follows the backslash leaves the brackets unpaired to this reading, the refusal is that sentence, and not one about brackets
+        for line, shown in (("--x: \\28 ;", "`\\28`"), ("--x: \\url(();", "`\\url(()`"), ("--x: a\\ ) b;", "`a\\ )`")):
+            with self.subTest(line=line):
+                text = whole.replace("--radius: 12px;", "--radius: 12px;\n  " + line.replace("\\28 ;", "\\28 ; --y: );"), 1)
+                with self.assertRaises(Refusal) as cm:
+                    _palette.read_css(text)
+                self.assertEqual(cm.exception.code, "css-unreadable")
+                self.assertIn("Line 20 of the stylesheet writes a name with a backslash (%s)." % shown, str(cm.exception))
+                self.assertNotIn("brackets", str(cm.exception))
+                with self.assertRaises(Refusal) as edit:
+                    _site.edit_css(text, bakery)
+                self.assertEqual(str(edit.exception), str(cm.exception))
+        # the near-misses: a backslash inside a string or a comment is ordinary, and so is one in a quoted address
+        for rule in ("a::after { content: \"\\201C\"; }", "a::before { content: '\\'' }", 'q::before { content: "\\"{"; }', "a { --esc: \"a\\\"; --bg: #000; \\\"\"; }", "/* .sm\\:flex { } and u\\72l( */",
+                     "a { background: url(\"a\\).svg\") }", "a { background: url( 'a\\\\b.svg' ) }", "a { content: '\\\\' }", "/* \\ */", "a { content: \"\\41 \\42\" '\\a' }",
+                     "@import 'a\\62.css';", "a[title='\\{'] { color: red }"):
             with self.subTest(rule=rule):
                 self.assert_all_three_blocks(whole + "\n" + rule + "\n")
-                self.assert_all_three_blocks(rule + "\n" + whole if not rule.endswith("\\") else whole + rule)
-        css = _palette.read_css(":root { --x: a\\;b; --bg: #ffffff; --y: \\\"; --ink: #111111; --z: \\{; }")
-        self.assertEqual((css.light, css.problems[:1]), ({"bg": "#ffffff", "ink": "#111111"}, css.problems[:1]), "an escaped ; { or quote ends no value and opens nothing")
+                self.assert_all_three_blocks(rule + "\n" + whole)
+                self.assertNotEqual(_site.edit_css(rule + "\n" + whole, bakery), rule + "\n" + whole)
 
-    def test_a_string_carried_over_a_line_end_goes_on_whichever_way_the_line_ends(self):
-        # round 4: after a backslash and CRLF the string was taken to end at the line end, and the quote that closes it to open a new one
+    def only_dark(self):
+        p = self.bakery()
+        p.light, p.brand = {}, None
+        return p
+
+    def test_a_string_that_a_browser_reads_on_over_the_end_of_its_line_is_named_and_stops_the_editor(self):
+        # round 4 followed a string over a backslash and a line end. Round 5, checked in a browser: a backslash and hex digits take ONE blank
+        # after them, a line end too, so `"a\41` + a line end goes on in Chromium as well, where this ended the string: it read a `--bg` line
+        # that was text to the browser, and the editor wrote into it. No string is followed over a line end any more: such a one is named.
+        import _site
         whole = self.starter()
         for end in ("\n", "\r\n", "\r", "\f"):
+            for name, tail in (("a backslash", "a\\"), ("a backslash and two hex digits", "a\\41"), ("and one", "\\9"), ("and six", "a\\00004A"), ("in capitals and small letters", "\\aF"),
+                               ("after an escaped backslash", "\\\\\\41"), ("after an escaped quote", "\\\"\\\'\\"), ("after another escape", "\\41 \\42")):
+                for quote in "\"'":
+                    with self.subTest(end=repr(end), name=name, quote=quote):
+                        line = "  --x: %s%s%s; --bg: #111111; %s ; /*%s*/" % (quote, tail, end, quote, quote)
+                        text = whole.replace("  --bg: #ffffff;", line + end + "  --bg: #ffffff;", 1)
+                        self.assertNotEqual(text, whole)
+                        found = [t for t in _palette.scan_css(text).problems if t.kind == "string"]
+                        self.assertEqual([(t.block, t.variable) for t in found], [(None, None)])
+                        for part in ("Line 15 of the stylesheet has a string that runs over the end of its line (%s: a backslash, or a backslash and a number, stands last on the line)"
+                                     % ("`" + quote + tail + "`"), "A browser reads the next line as a part of that string", "this check does not follow a string over a line end",
+                                     "Write the string on one line."):
+                            self.assertIn(part, found[0].message)
+                        for which in (self.bakery(), self.only_dark()):
+                            with self.assertRaises(Refusal) as cm:
+                                _site.edit_css(text, which)
+                            self.assertIn(found[0].message, str(cm.exception))
+            # in any other rule too, and several are one problem that names the first
+            text = "a::after { content: 'x\\" + end + "} :root { --bg: #000 }'; }" + end + "b { c: 'y\\41" + end + "' }" + end + whole
             with self.subTest(end=repr(end)):
-                self.assert_all_three_blocks(whole.replace(":root {\n", ':root {\n  --note: "a\\' + end + ' } --bg: #000; b";\n', 1))
-                self.assert_all_three_blocks("a::after { content: 'x\\" + end + "} :root { --bg: #000 }'; }\n" + whole)
-                # and a string that is never closed ends at the end of its line, whichever way the line ends
-                css = _palette.read_css(":root { --bg: #ffffff;" + end + ' --note: "a;' + end + " --ink: #111111;" + end + "}")
-                self.assertEqual(css.light, {"bg": "#ffffff"}, "as a browser has it: the line with the broken string takes the next one with it")
+                # what stands after such a string may leave the brackets unpaired to this reading (they pair up to a browser, which reads the
+                # string on): then the refusal is this sentence too, and not one about brackets
+                with self.assertRaises(Refusal) as cm:
+                    _palette.scan_css(text)
+                self.assertEqual(cm.exception.code, "css-unreadable")
+                self.assertTrue(str(cm.exception).startswith("Line 1 of the stylesheet has a string that runs over the end of its line (`'x\\`: "), str(cm.exception))
+                self.assertNotIn("brackets", str(cm.exception))
+                self.assertEqual(str(cm.exception).count("has a string that runs over"), 1)
+                with self.assertRaises(Refusal) as edit:
+                    _site.edit_css(text, self.bakery())
+                self.assertEqual(str(edit.exception), str(cm.exception))
+            # the near-misses. A string that is never closed and that a browser does not read on ends at the end of its line, to both:
+            # after an escaped backslash, after seven hex digits (six are the number, the seventh a letter), after a number and its one blank
+            for tail in ("a", "a\\\\", "\\1234567", "a\\41 ", "a\\41\t", "\\g", "\\41x", "\\\\41 \\\\", ""):
+                with self.subTest(end=repr(end), tail=tail):
+                    css = _palette.read_css(":root { --bg: #ffffff;" + end + ' --note: "' + tail + end + " --ink: #111111;" + end + "}")
+                    self.assertEqual((css.light, [m for b, _v, m in css.problems if b is None]), ({"bg": "#ffffff"}, []),
+                                     "as a browser has it: the line with the broken string takes the next one with it")
+            # and a string that is closed on its line is a string, whatever backslashes it holds
+            for line in ('--note: "a\\41";', "--note: 'a\\\\';", '--note: "\\"";', '--a: "x\\41 "; --b: "\\\\";', "--note: 'it\\'s';"):
+                with self.subTest(end=repr(end), line=line):
+                    self.assert_all_three_blocks(whole.replace(":root {\n", ":root {\n  " + line + end, 1))
 
     def test_a_rule_that_registers_one_of_the_colours_is_named(self):
         # round 4, checked in a browser: with `@property --bg { syntax: '<length>'; ... }` the page's --bg is 0px, whatever the block says
@@ -2267,8 +2569,7 @@ class Stylesheet(unittest.TestCase):
         for name, text, line, what, shown in (("after the blocks", whole + rule % "--bg", 89, "one of the palette's variables", "`@property --bg`"),
                                               ("before them", rule % "--brand" + whole, 1, "one of the palette's variables", "`@property --brand`"),
                                               ("in capitals, on its own lines", whole + "\n\n@PROPERTY\n--bg-soft" + (rule % "")[10:], 91, "one of the palette's variables", "`@PROPERTY --bg-soft`"),
-                                              ("inside another block", whole + "@layer base {\n" + rule % "--ink" + "}\n", 90, "one of the palette's variables", "`@property --ink`"),
-                                              ("a name written with a backslash", whole + rule % "--b\\67", 89, "a variable whose name is written with a backslash", "`@property --b\\67`")):
+                                              ("inside another block", whole + "@layer base {\n" + rule % "--ink" + "}\n", 90, "one of the palette's variables", "`@property --ink`")):
             with self.subTest(name=name):
                 message = self.only(text, "registered")
                 for part in ("Line %d of the stylesheet registers %s with an `@property` rule (%s)" % (line, what, shown), "has a type and a starting value of its own",
@@ -2295,10 +2596,11 @@ class Stylesheet(unittest.TestCase):
                 self.assert_all_three_blocks(statement + "\n" + whole)
 
     def test_url_is_the_word_itself_and_the_end_of_a_longer_name_is_a_function_like_any_other(self):
-        # found by comparing with a browser while round 4 was mended: `-url(`, `@url(`, `#url(` and `url(` after an escape or a character beyond
-        # ASCII are no addresses, so a bracket or a quote inside them counts; this read on to the next `)` and lost the browser's place
+        # found by comparing with a browser while round 4 was mended: `-url(`, `@url(`, `#url(` and `url(` after a character beyond ASCII are no
+        # addresses, so a bracket or a quote inside them counts; this read on to the next `)` and lost the browser's place. (Round 5: `url(`
+        # after a backslash is a stylesheet with a backslash in it, which is named whatever stands after it: the test of that is below.)
         whole = self.starter()
-        for before in ("-", "_", "x", "9", "@", "#", "\u00e9", "\u2028", "\ufeff", "\x00", "\\{", "\\3a ", "\\\\"):
+        for before in ("-", "_", "x", "9", "@", "#", "\u00e9", "\u2028", "\ufeff", "\x00"):
             with self.subTest(before=before):
                 with self.assertRaises(Refusal, msg="its ( is a bracket, and what it holds is read: the second ( is never closed"):
                     _palette.read_css(whole.replace("--radius: 12px;", "--x: %surl(();" % before, 1))
@@ -2385,6 +2687,84 @@ class Stylesheet(unittest.TestCase):
                 self.assertEqual([(block, variable) for block, variable, _m in css.problems], [("light", "--link")])
                 self.assertIn(part, css.problems[0][2])
                 self.assertNotIn("link", css.light)
+
+    # what Python's strip() takes for a blank and CSS does not (tests/test_colour.py has the colour reader's own test)
+    NOT_CSS_SPACE = ("\u00a0", "\u2003", "\u3000", "\u2028", "\u0085", "\x0b", "\x1c", "\x1d", "\x1e", "\x1f")
+
+    def test_a_blank_beside_a_value_that_css_does_not_take_for_white_space_makes_it_no_colour_and_the_editor_writes_over_it(self):
+        # round 5, checked in a browser: `--bg:` + a no-break space + `#ffffff;` (a line pasted from a web page) is no colour to Chromium,
+        # and the body had no background. This read #ffffff, and the editor left the line "as it stands" for a palette that wants #ffffff.
+        import _site
+        whole = self.starter()
+        want = _palette.Palette()
+        want.light, want.dark, want.brand = dict(STARTER_LIGHT), dict(STARTER_DARK), "#000000"
+        self.assertEqual(_site.edit_css(whole, want), whole, "the starter's stylesheet with its own palette comes back byte for byte")
+        for blank in self.NOT_CSS_SPACE:
+            for name, old, new, block, variable, written in (
+                    ("before the value", "  --bg: #ffffff;", "  --bg:%s#ffffff;" % blank, "light", "--bg", "  --bg:#ffffff;"),
+                    ("after it", "  --bg: #ffffff;", "  --bg: #ffffff%s;" % blank, "light", "--bg", "  --bg: #ffffff;"),
+                    ("on both sides, among plain blanks", "  --muted: #a6abce;", "  --muted: %s #a6abce %s ;" % (blank, blank), "dark", "--muted", "  --muted: #a6abce ;"),
+                    ("in the media block", "    --ink: #dce0f5;", "    --ink:\t%s#dce0f5;" % blank, "dark_media", "--ink", "    --ink:\t#dce0f5;"),
+                    ("inside a function", "  --bg: #ffffff;", "  --bg: rgb(255,%s255, 255);" % blank, "light", "--bg", "  --bg: #ffffff;"),
+                    ("before a colour name", "  --surface: #ffffff;", "  --surface: %swhite;" % blank, "light", "--surface", "  --surface: #ffffff;")):
+                with self.subTest(blank=repr(blank), name=name):
+                    text = whole.replace(old, new, 1)
+                    self.assertNotEqual(text, whole)
+                    css = _palette.read_css(text)
+                    self.assertEqual([(b, v) for b, v, _m in css.problems], [(block, variable)])
+                    self.assertNotIn(_palette.KEY_OF_VARIABLE[variable], {"light": css.light, "dark": css.dark, "dark_media": css.dark_media}[block])
+                    if name != "inside a function":
+                        self.assertIn("has a character before or after it that looks like a space and is none to a browser", css.problems[0][2])
+                    # the editor does not leave it as it stands: it writes the colour in the place of the value, the blank with it
+                    self.assertEqual(_site.edit_css(text, want), text.replace(new, written, 1))
+                    self.assert_all_three_blocks(_site.edit_css(text, want))
+        # the blanks CSS does take are only blanks: read, and left as they stand
+        for blank in (" ", "\t", "\n", "\r\n", "\f", " \t \n"):
+            with self.subTest(blank=repr(blank)):
+                text = whole.replace("  --bg: #ffffff;", "  --bg:%s#ffffff%s;" % (blank, blank), 1)
+                self.assert_all_three_blocks(text)
+                self.assertEqual(_site.edit_css(text, want), text)
+
+    def test_a_byte_order_mark_at_the_start_of_the_stylesheet_is_read_past_and_stays_where_it_is(self):
+        # round 5: with one, the `:root` block was "not there", while a browser reads the file (its decoder takes the mark off)
+        import _site
+        whole = self.starter()
+        for text in ("\ufeff" + whole, "\ufeff\n" + whole, "\ufeff/* colours */ " + whole, "\ufeff@import 'fonts.css';\n" + whole):
+            with self.subTest(text=text[:20]):
+                self.assert_all_three_blocks(text)
+                new = _site.edit_css(text, self.bakery())
+                self.assertEqual((new[0], new[1:]), ("\ufeff", _site.edit_css(text[1:], self.bakery())), "the mark stays, and everything else is written as without it")
+                self.assertEqual(_palette.read_css(new).light, T.BAKERY_LIGHT)
+        # only at the very start: anywhere else it is a character of a name, as it is to a browser
+        self.assertEqual({b for b, _v, _m in _palette.read_css("\n\ufeff" + whole).problems}, {"light"})
+        self.assertEqual({b for b, _v, _m in _palette.read_css("\ufeff\ufeff" + whole).problems}, {"light"})
+        self.assertEqual([b for b, _v, _m in _palette.read_css("\ufeff").problems], ["light", "dark", "dark_media"])
+
+    def test_a_stylesheet_that_brings_in_another_one_gets_a_note_and_no_problem(self):
+        # round 5, checked in a browser: `@import url("data:text/css,html:root{--bg:%23ff0000}");` before the starter's rules sets the page's
+        # background, and nothing said so. An import is ordinary (fonts), so it stops nothing: it is a note.
+        import _site
+        whole = self.starter()
+        self.assertEqual((_palette.read_css(whole).notes, _palette.scan_css(whole).notes), ([], []))
+        note = "line %d of the stylesheet brings in another stylesheet (`%s`), which this check does not read. If that one sets the site's colours, the page can show other colours than these."
+        for name, text, notes in (
+                ("one", '@import url("./fonts.css");\n' + whole, [note % (1, '@import url("./fonts.css");')]),
+                ("after a comment and a charset, in capitals, over two lines", '/* x */\n@charset "utf-8";\n\n@IMPORT\n  "a.css" screen ;\n' + whole, [note % (4, '@IMPORT "a.css" screen ;')]),
+                ("one that sets the colours", '@import url("data:text/css,html:root{--bg:%23ff0000}");\n' + whole, [note % (1, '@import url("data:text/css,html:root{--bg:%23ff0000}");')]),
+                ("two", "@import 'a.css';\n@import 'b.css';\n" + whole, [note % (1, "@import 'a.css';"), "1 more statement like it brings in another stylesheet; the next is on line 2."]),
+                ("four, one of them between the blocks", "@import 'a.css'; @import 'b.css';\n@import url(c.css);\n" + whole.replace(':root[data-theme="dark"]', '@import "d.css";\n:root[data-theme="dark"]', 1),
+                 [note % (1, "@import 'a.css';"), "3 more statements like it bring in other stylesheets; the next is on line 1."]),
+                ("a long one", "@import url('%s.css');\n" % ("f" * 90) + whole, [note % (1, "@import url('%s..." % ("f" * 47))])):
+            with self.subTest(name=name):
+                css = _palette.read_css(text)
+                self.assertEqual((css.notes, css.problems, css.found), (notes, [], {"light", "dark", "dark_media"}))
+                self.assertEqual(_palette.scan_css(text).notes, notes)
+                self.assertEqual(_palette.read_css(_site.edit_css(text, self.bakery())).light, T.BAKERY_LIGHT, "and the editor writes")
+        # the near-misses: an import inside a block (which no browser follows), in a comment or a string, and another statement
+        for text in ("@media print { @import 'a.css'; }\n" + whole, "/* @import 'a.css'; */\n" + whole, "a::after { content: \"@import 'a.css';\" }\n" + whole, "@layer base, theme;\n@charset 'x';\n" + whole,
+                     "@important x;\n" + whole, "@import-x 'a.css';\n" + whole):
+            with self.subTest(text=text[:30]):
+                self.assertEqual(_palette.read_css(text).notes, [])
 
 
 if __name__ == "__main__":

@@ -9,7 +9,6 @@ created (and only that), and leaves everything else alone. Standard library only
 
 from __future__ import annotations
 
-import errno
 import hashlib
 import json
 import os
@@ -71,7 +70,9 @@ def edit_css(text, palette):
     A value that already IS the colour wanted is left as it stands, in whatever spelling the reading takes
     (`#FFF8EE`, `#fff`, `rgb(255, 248, 238)`, and `var(--accent)` where the accent of that block is, or
     is being set to, the colour wanted): a stylesheet that already holds the palette comes back byte for
-    byte as it was."""
+    byte as it was. A value the reading does not take for a colour is written over, also where it only
+    looks like the colour wanted (a no-break space pasted beside it makes it none to a browser). A byte
+    order mark at the start of the text stays where it is."""
     import _palette as P
     sheet = P.scan_css(text)
     brand = P.VARIABLE["brand"]
@@ -164,10 +165,17 @@ _HEX = r"#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})"
 _CONFIG = {"themeColor": ("SITE", _HEX, "the theme colour", True),
            "logo": ("COMPANY", r"(?:(?!(?P=q))[^\\\n])*", "the address of the logo", False)}
 _CODE = {CONFIG: "config-layout", MANIFEST: "manifest-layout", GENERATOR: "og-layout"}
-# A plain line of a block in src/config.ts (see set_lines): blank, a `//` comment, or one whole entry on one line.
-_PLAIN = re.compile(r"[ \t]*(?:(?P<key>[A-Za-z_$][\w$]*)[ \t]*:[ \t]*(?:'[^'\\]*'|\"[^\"\\]*\"|-?\d[\w.]*|true|false|null)[ \t]*,[ \t]*)?(?://.*)?$")
+# What set_lines goes by in src/config.ts (see its rule).
+_COMMENT = r"/\*(?:[^*]|\*(?!/))*\*/"   # a comment that opens and closes on one line
+_TEXT = r"'[^'\\]*'|\"[^\"\\]*\""       # a quoted text of the simple kind: no backslash in it, so it ends at its second quote
+# A plain line of a block: blank, a comment, or one whole entry on one line.
+_PLAIN = re.compile(r"[ \t]*(?:(?P<key>[A-Za-z_$][\w$]*)[ \t]*:[ \t]*(?:%s|-?\d[\w.]*|true|false|null)[ \t]*,[ \t]*)?(?:%s[ \t]*)*(?://.*)?$" % (_TEXT, _COMMENT))
+_NOT_CODE = re.compile(r"(%s)|//.*|%s" % (_TEXT, _COMMENT))
 _TS_TYPE = r"[\w$.<>,|&\[\] \t]+"   # a type after a constant's name: nothing in it can open a text, a comment or a bracket of code
+_CLOSING = re.compile(r"\}[ \t]*(?:as[ \t]+const)?[ \t]*(?:satisfies[ \t]+%s)?[ \t]*;?[ \t]*(?://.*)?$" % _TS_TYPE)
+_ASSIGN = r"(?:=(?![=>])|[-+*/%&|^]=|\*\*=|<<=|>>>?=|&&=|\|\|=|\?\?=|\+\+|--)"   # what writes to what stands before it
 _MARKS = ("...", "[", "\\u", "\\x", "/*", "`")
+BOM = "\ufeff"
 
 
 def _same_colour(a, b):
@@ -216,69 +224,79 @@ def _not_as_the_starter(rel, what, where, line, found, do=None):
                                "that already says this is left exactly as it is." % (rel, what, where, line, found, do or "Write that one line there yourself"))
 
 
-def set_lines(rel, text, want, unchecked=None):
+def set_lines(rel, text, want, where=None):
     """Set values in one of the three files that hold a colour, or the logo's address, beside the
     stylesheet: (the new text, [(name, what it said, what it says now)] for each value that changed).
     `want` is {name: value}: `themeColor` and `logo` in src/config.ts, `theme_color` and
     `background_color` in public/manifest.webmanifest, the six colour names in
-    scripts/generate_og_cards.py (each colour as #rrggbb). `unchecked` is a list the caller hands in
-    to be told of each value that was left as it stands without (b) and (c) of the rule below being
-    met: (the file, the name, the number of the key's line, that line, the number of the line that
-    (b) or (c) does not take). Line numbers count from 1.
+    scripts/generate_og_cards.py (each colour as #rrggbb). `where` is a dict the caller hands in to be
+    told which line each value of src/config.ts or of the generator stands on, set or left as it is:
+    {name: the line's number, counted from 1}.
 
-    THE RULE. A value is edited only where the text leaves no doubt that the site reads it from that
-    line. Everything else is refused, before anything is written. Colours are compared as colours
-    (`#ABC`, `#aabbcc` and `#AABBCCFF` are one colour), and a value that already is the one wanted is
-    no change and is not edited, however it is spelt.
+    WHAT THE RULE IS FOR. It keeps this tool from editing where it plainly should not: a value is
+    edited only on a line written as the starter writes it, in a place where nothing that this tool
+    can see sets it again. It is a guard against wrong edits, not a proof of what the site reads. What
+    the report says of src/config.ts and of the generator rests on the read-back (_install.read_back):
+    once the files are written, the site's own Node is asked what it reads from src/config.ts, and
+    Python what the generator's names are bound to; a value that is not the one wanted ends the run
+    with everything put back.
+
+    Everything the rule does not take is refused, before anything is written. Colours are compared as
+    colours (`#ABC`, `#aabbcc` and `#AABBCCFF` are one colour), and a value that already is the one
+    wanted is no change and is not edited, however it is spelt. A byte order mark at the start of
+    src/config.ts or of the generator is read past and kept.
 
     src/config.ts. This tool does not read TypeScript: it goes by lines. `themeColor` is set in the
-    block of `SITE`, `logo` in the block of `COMPANY`.
-    (a) The opening line. One line of the file starts `export const SITE`, and it is exactly
-        `export const SITE = {`, with at most a type after the name (`export const SITE: Config = {`)
-        and a `//` comment after the brace. A wrapper (`Object.freeze({`, `define({`) or anything else
-        on that line is refused. The block ends with the first line below it that starts with `}`.
-    (b) Above the key. The key's line is the one line of the block that begins, after blanks, with
-        `themeColor:`. It holds the name, the value in quotes of either kind (a colour as `#hex`; no
-        backslash), a comma (which only the block's last entry may leave out) and an optional `//`
-        comment, and nothing else. EVERY line between the opening line and it is a PLAIN line: blank;
-        a `//` comment; or one whole entry on one line, `name: <value>,`, whose value is a quoted text
-        without a backslash, a number, `true`, `false` or `null`, with an optional `//` comment after
-        the comma. Nothing else: no `{`, `[`, `(`, backtick, `/*`, spread, and no value that runs on
-        to the next line. So the key's line is an entry of the block itself and is in no comment and
-        no text, however it is indented. The refusal names the first line that is not plain, and says
-        to move the key's line up to be the first line under the opening line.
-    (c) Below the key, down to the closing line. A line that is not a plain line holds none of `...`,
-        `[`, `\\u`, `\\x` (a spread, a computed key or a name spelt with an escape can set the value
-        again without naming it), and none of `/*`, a backtick or a `\\` at its end (after those this
-        tool can no longer tell a comment from code). Where moving the key's line up would not help
-        (one of these would then stand below it), the refusal says that this tool cannot edit the
-        block and that the value is to be set by hand. A key's line that already holds the value
-        wanted is then taken as it stands, whatever (b) and (c) find above and below it: there is
-        nothing to edit. That is never silent: where (b) or (c) would have refused an edit, the
-        value goes on the caller's `unchecked` list, and the install says in a note that it did not
-        check that the site reads the value from that line.
-        The name a second time. Below the key's line the name does not stand again as a word, except
-        in a `//` comment line and in the text or the comment of a plain line (`logoDark:
-        '/images/logo-dark.png',` does not name `logo` again), and, once a line held `/*`, a backtick
-        or a `\\` at its end, not there either. This is asked whatever the value is. Above the key the
-        name may stand in a text or a comment: those lines are plain.
-    (d) Above the opening line, a line that is not a `//` comment and holds `/*` or an odd number of
-        backticks is refused: the block itself could be inside a comment or a text that runs over
-        several lines. The refusal says to move the block to the top of the file.
-    (e) Outside the block, its closing line included, a line that holds the constant's name and the
-        key's name together (`SITE.themeColor`, `(SITE as any).themeColor = ...`), or `SITE[`, or
-        `Object.assign(SITE`, is refused: the object can be changed there after it was written. A `//`
-        comment line above the block does not count; one below it does, because there this tool
-        cannot tell a comment from code. A file with a line end that TypeScript reads and this tool
-        does not (a carriage return on its own, U+2028, U+2029) is refused.
-    What this does not see (the file is taken for TypeScript that runs): code that changes the object
-    without the constant's name and the key's name on one line (the object reached under another
-    name, `const s = SITE;` and on a later line `s.themeColor = ...`; or through a function; or the
-    key's name put together from pieces or held in a variable); a `}` at the start of a line that
-    closes something inside the block and not the block; above the block, a backtick inside a quoted
-    text or a regular expression, which is counted as a template string's; and a key's line that
-    already holds the value wanted, in a block where (b) or (c) is not met, which is left as she set
-    it and reported as not checked (the `unchecked` list, and the install's note).
+    block of `SITE`, `logo` in the block of `COMPANY`. Before a line of a block is looked at, what
+    cannot set a value is taken out of it: quoted texts of the simple kind (`'...'` or `"..."` with no
+    backslash in them), a `//` comment at its end, and comments that open and close on the line
+    (`/* ... */`). A line on which a quote is left over after that (a text with a backslash in it, a
+    regular expression) is looked at as it stands: this tool cannot tell where its texts end.
+    (a) The opening and the closing line. One line of the file starts `export const SITE`, and it is
+        exactly `export const SITE = {`, with at most a type after the name (`export const SITE:
+        Config = {`) and a `//` comment after the brace. A wrapper (`Object.freeze({`, `define({`) or
+        anything else on that line is refused. The block ends with the first line below it that
+        starts with `}`. After that brace the line holds at most `as const`, a `satisfies` clause, a
+        `;` and a `//` comment; with anything else there (`} && { ... };`) this tool does not edit
+        the block.
+    (b) The key's line, and above it. The key's line is the one line of the block that begins, after
+        blanks, with `themeColor:`. It holds the name, the value in quotes of either kind (a colour
+        as `#hex`; no backslash), a comma (which only the block's last entry may leave out) and an
+        optional `//` comment, and nothing else. A key written in quotes (`'themeColor': ...`) is
+        refused, with the line to write in its place. EVERY line between the opening line and the
+        key's line is a PLAIN line: blank; a comment; or one whole entry on one line, `name:
+        <value>,`, whose value is a quoted text without a backslash, a number, `true`, `false` or
+        `null`, with an optional comment after the comma. Nothing else: no `{`, `[`, `(`, backtick,
+        spread, and no value that runs on to the next line. The refusal names the first line that is
+        not plain, and says to move the key's line up to be the first line under the opening line.
+    (c) Below the key, down to the closing line. A line that is not plain holds, outside its texts
+        and comments, none of `...`, `[`, `\\u`, `\\x` (a spread, a computed key or a name spelt with
+        an escape can set the value again without naming it), and none of `/*` without its end, a
+        backtick or a `\\` at the line's end. After one of those three this tool can no longer tell
+        a comment or a text from code: every later line of the block is looked at as it stands, and
+        none of them is plain. Nor does such a line name the key again: as a word outside its texts
+        and comments, or as a text that is exactly the name (`'themeColor': ...`, `['themeColor']`).
+        Where moving the key's line up would not help (one of the marks would then stand below it),
+        the refusal says that this tool does not edit the block, and that the value is to be set by
+        hand.
+    (d) Above the opening line, a line that holds, outside its texts and comments, a `/*` without its
+        end or an odd number of backticks is refused: the block itself could be inside a comment or a
+        text that runs over several lines. The refusal says to move the block to the top of the file.
+    (e) Outside the block, its closing line included, a line that WRITES to the object is refused:
+        `SITE.themeColor = ...` (through a cast too, and with `+=` and the like, `++`, `--`),
+        `SITE[...] = ...`, `delete SITE. ...`, `Object.assign(SITE`, `Object.defineProperty(SITE` or
+        `defineProperties`, `Reflect.set(SITE`, `Reflect.defineProperty` or `deleteProperty`. A line
+        that only reads the value (`export const THEME = SITE.themeColor;`, `return SITE[k];`) is
+        not. A `//` comment line above the block does not count; one below it does, because there
+        this tool cannot tell a comment from code. A file with a line end that TypeScript reads and
+        this tool does not (a carriage return on its own, U+2028, U+2029) is refused.
+    A key's line that already holds the value wanted is left as it stands, whatever (b), (c) and the
+    closing line would have refused of an edit: there is nothing to edit. That is how a value set by
+    hand, in a block this tool does not edit, is taken. The one opening line, (d), (e), the key's
+    count and shape, and the name a second time are asked whatever the value is.
+    What these lines do not see is left to the read-back: the object changed under another name or
+    through a function; a `}` at a line's start that closes something inside the block and not the
+    block; a block that is text inside a template string which holds another one.
 
     scripts/generate_og_cards.py. The file is read with Python's own parser (`ast`), by the Python
     this tool runs on; one it cannot read is refused by name with the parser's line. EVERY place that
@@ -289,8 +307,10 @@ def set_lines(rel, text, want, unchecked=None):
     what a `match` captures and a type parameter. There must be exactly one, and it must be a plain
     assignment at the module's own level, alone on a line that starts with `NAME = (r, g, b)` (three
     whole numbers; a `# comment` after it is optional). A `from ... import *` anywhere is refused: it
-    could bind the name. What this does not see: code that sets the name without writing it
-    (`globals()[...]`, `exec`, `setattr` on the module).
+    could bind the name. What this does not see: a write that the parser does not show as a binding
+    of the name (`globals()[...] = ...`, `globals().update(BG_TOP=...)`, `sys.modules[__name__].BG_TOP
+    = ...`, `setattr` on the module, `exec`). The read-back sees what such a write leaves the name
+    bound to once the file's own top has run.
 
     public/manifest.webmanifest. The file is read as JSON first; one that is not valid JSON is
     refused as that, and so is one that holds `NaN` or `Infinity`, which Python's reader takes and
@@ -302,27 +322,29 @@ def set_lines(rel, text, want, unchecked=None):
     Three refusals are about a file as a whole and say so in a sentence of their own: a manifest that
     is not valid JSON, a generator this Python cannot read, a generator with `from ... import *`.
     Every other refusal is one kind of sentence: the line this tool looked for, in the starter's shape
-    and with the value wanted, at the start of a line of its own exactly as it is to be written; what
-    it found instead (with the line numbers); and the one thing the owner can do, after which the
-    next run goes through or says the next thing, not the same thing again. A line of hers that
-    already says the value is left as it is.
+    and with the value wanted, at the start of a line of its own exactly as it is to be written (for
+    the manifest, without its comma where it would be the last entry); what it found instead (with
+    the line numbers); and the one thing the owner can do, after which the next run goes through or
+    says the next thing, not the same thing again. A line of hers that already says the value is left
+    as it is.
     """
     if rel == MANIFEST:
         return _set_manifest(text, want)
+    mark, text = (BOM, text[len(BOM):]) if text.startswith(BOM) else ("", text)   # read past, and kept
     if rel == GENERATOR:
         tree, lines = _python(text), _text_lines(text, r"\r\n|\r|\n")   # the lines as Python counts them
     else:
         lines = _text_lines(text)
     edits, changes = [], []
     for name, new in want.items():
-        found = _config_line(lines, name, new, unchecked) if rel == CONFIG else _generator_line(tree, lines, name, new)
+        found = _config_line(lines, name, new, where) if rel == CONFIG else _generator_line(tree, lines, name, new, where)
         if found:
             start, end, old, written = found
             edits.append((start, end, written))
             changes.append((name, old, new))
     for start, end, written in sorted(edits, reverse=True):
         text = text[:start] + written + text[end:]
-    return text, changes
+    return mark + text, changes
 
 
 def _plain(line):
@@ -330,18 +352,47 @@ def _plain(line):
     return not line.endswith("\\") and bool(_PLAIN.match(line))
 
 
-def _mark(line):
-    """What a line holds that a line below the key may not hold unless it is plain, in words, or None."""
+def _code(line):
+    """(what of a line can be code, the quoted texts taken out of it): the line without its quoted texts of
+    the simple kind, a `//` comment at its end, and comments that open and close on it. Where a quote is left
+    over after that, this tool cannot tell where the line's texts end: the whole line then counts as code."""
+    texts = []
+
+    def out(m):
+        if m.group(1):
+            texts.append(m.group(1)[1:-1])
+        return " "
+    code = _NOT_CODE.sub(out, line)
+    return (line, []) if "'" in code or '"' in code else (code, texts)
+
+
+def _mark(code, line):
+    """What a line holds that a line below the key may not hold unless it is plain, in words, or None.
+    `code` is what of the line can be code (see _code)."""
     for mark in _MARKS:
-        if mark in line:
+        if mark in code:
             return "a backtick" if mark == "`" else "`%s`" % mark
     return "a `\\` at its end" if line.endswith("\\") else None
 
 
-def _config_line(lines, name, new, unchecked=None):
+def _writes(line, const, name):
+    """What a line outside the block does to the object, in words, where it writes to it (see (e) of set_lines); else None."""
+    if not re.search(r"(?<![\w$])%s(?![\w$])" % const, line):
+        return None
+    if re.search(r"\.[ \t]*%s(?![\w$])[ \t]*%s" % (name, _ASSIGN), line) or re.search(r"(?:\+\+|--)[ \t]*[\w$.()\[\] \t]*\.[ \t]*%s(?![\w$])" % name, line):
+        return "sets `%s` of `%s`" % (name, const)
+    if re.search(r"(?<![\w$.])%s[ \t]*\[.*\][ \t]*%s" % (const, _ASSIGN), line):
+        return "sets a value of `%s` by a key in brackets (`%s[`)" % (const, const)
+    if re.search(r"(?<![\w$.])delete(?![\w$]).*(?<![\w$])%s(?![\w$])" % const, line):
+        return "takes a value out of `%s` (`delete`)" % const
+    m = re.search(r"(Object|Reflect)[ \t]*\.[ \t]*(assign|definePropert(?:y|ies)|set|deleteProperty)[ \t]*\([ \t]*%s(?![\w$])" % const, line)
+    return "changes `%s` with `%s.%s(%s`" % (const, m.group(1), m.group(2), const) if m else None
+
+
+def _config_line(lines, name, new, where=None):
     """(start, end, the value now, the value to write) where the value of `name` must change; None where it
-    already is `new`. Refuses whatever the rule in set_lines does not allow. A value that already is `new`
-    in a block that (b) or (c) would not let this tool edit is noted on `unchecked` (see set_lines)."""
+    already is `new`. Refuses whatever the rule in set_lines does not allow. `where` is told the number of the
+    key's line (see set_lines)."""
     const, value, what, colour = _CONFIG[name]
     opening = "export const %s" % const
 
@@ -362,60 +413,70 @@ def _config_line(lines, name, new, unchecked=None):
         raise no("line %d opens the block another way: %s" % (top + 1, _quoted(lines[top][0])),
                  "Write the opening line as `%s = {` (a type after the name may stay, and a `//` comment after the brace), with that line as the first line under it" % opening)
     for i in range(top):
-        line = lines[i][0]
-        if not re.match(r"[ \t]*//", line) and ("/*" in line or line.count("`") % 2):
+        above = _code(lines[i][0])[0]
+        if "/*" in above or above.count("`") % 2:
             raise no("line %d, above the block, holds %s, so this tool cannot tell from the text that the block is not inside a comment or a text that runs over several lines"
-                     % (i + 1, "`/*`" if "/*" in line else "a backtick without its partner"), "Move the whole `%s` block to the top of the file" % opening)
+                     % (i + 1, "`/*`" if "/*" in above else "a backtick without its partner"), "Move the whole `%s` block to the top of the file" % opening)
     close = next((i for i in range(top + 1, len(lines)) if lines[i][0].startswith("}")), None)
     if close is None:
         raise no("no line after line %d that starts with `}`" % (top + 1), "Close the block with a `}` at the start of a line, with that line above it")
-    word = re.compile(r"(?<![\w$])%s(?![\w$])" % name)
     for i, (line, _s) in enumerate(lines):   # (e): outside the block, its closing line included
         if top <= i < close or (i < top and re.match(r"[ \t]*//", line)):
             continue
-        holds = ("`%s` and `%s`" % (const, name) if re.search(r"(?<![\w$])%s(?![\w$])" % const, line) and word.search(line) else
-                 "`%s[`" % const if re.search(r"(?<![\w$.])%s[ \t]*\[" % const, line) else
-                 "`Object.assign(%s`" % const if re.search(r"Object[ \t]*\.[ \t]*assign[ \t]*\([ \t]*%s(?![\w$])" % const, line) else None)
-        if holds:
-            raise no("line %d, outside the block, holds %s: there the object can be changed after it was written, so the block's own line need not be what the site reads" % (i + 1, holds),
+        does = _writes(line, const, name)
+        if does:
+            raise no("line %d, outside the block, %s: there the object is changed after it was written, so the block's own line need not be what the site reads" % (i + 1, does),
                      "Take that out of line %d (the value belongs in the block itself)" % (i + 1))
     keys = [i for i in range(top + 1, close) if re.match(r"[ \t]*%s[ \t]*:" % name, lines[i][0])]
     first = "the first line under the opening line (line %d)" % (top + 1)
     if not keys:
+        quoted = [i for i in range(top + 1, close) if re.match(r"[ \t]*(['\"])%s\1[ \t]*:" % name, lines[i][0])]
+        if len(quoted) == 1:
+            raise no("line %d is written another way: its key is in quotes (%s), and this tool takes the key as the starter writes it, without them" % (quoted[0] + 1, _quoted(lines[quoted[0]][0])),
+                     "Write that one line in its place")
         raise no("no line of the block (lines %d to %d) begins with `%s:`" % (top + 1, close + 1, name), "Write that one line as %s" % first)
     if len(keys) > 1:
         raise no("%d lines of the block begin with `%s:` (%s), so it cannot be known from the text which of them the site reads" % (len(keys), name, _at(keys)),
                  "Leave one of them, written as shown, and take the other%s out" % ("" if len(keys) == 2 else "s"))
     key = keys[0]
     line, start = lines[key]
-    sure = True   # whether a line below the key that looks plain is one: not after `/*`, a backtick or a `\` at a line's end
+    # Each line of the block: what of it can be code, the texts taken out of it, whether it is plain. From the first
+    # `/*` without its end, backtick or `\` at a line's end on, a line is taken as it stands, and is not plain.
+    code, sure = {}, True
+    for j in range(top + 1, close):
+        raw = lines[j][0]
+        code[j] = _code(raw) + (_plain(raw),) if sure else (raw, [], False)
+        sure = sure and not ("/*" in code[j][0] or "`" in code[j][0] or raw.endswith("\\"))
+    word = re.compile(r"(?<![\w$])%s(?![\w$])" % name)
     for j in range(key + 1, close):
-        below = lines[j][0]
-        if not (sure and _plain(below)):
-            if word.search(below):
-                raise no("line %d, below it in the same block, names `%s` again (%s), so it cannot be known from the text which value the site reads" % (j + 1, name, _quoted(below)),
-                         "Take the name out of line %d" % (j + 1))
-            sure = sure and not ("/*" in below or "`" in below or below.endswith("\\"))
+        outside, texts, plain = code[j]
+        if not plain and (word.search(outside) or name in texts):
+            raise no("line %d, below it in the same block, names `%s` again (%s), so it cannot be known from the text which value the site reads" % (j + 1, name, _quoted(lines[j][0])),
+                     "Take the name out of line %d" % (j + 1))
     m = None if line.endswith("\\") else re.match(r"[ \t]*%s[ \t]*:[ \t]*(?P<q>['\"])(?P<v>%s)(?P=q)[ \t]*(?P<comma>,?)[ \t]*(?://.*)?$" % (name, value), line)
     if not m:
         raise no("line %d is written another way: %s" % (key + 1, _quoted(line)), "Write that one line in its place")
-    if not m.group("comma") and any(lines[j][0].strip() and not re.match(r"[ \t]*//", lines[j][0]) for j in range(key + 1, close)):
+    if not m.group("comma") and any(not code[j][2] or _PLAIN.match(lines[j][0]).group("key") for j in range(key + 1, close)):   # anything below it but blank lines and comments
         raise no("line %d is written another way: it has no comma after the value, so the value can run on to the line below it (%s)" % (key + 1, _quoted(line)), "Write that one line in its place")
-    # (b) and (c): a refusal only where this tool has to edit the line; where it already says the value, a word to the caller
-    other = [j for j in range(top + 1, close) if j != key and not _plain(lines[j][0])]
-    marked = [j for j in other if _mark(lines[j][0])]
-    cannot = bool(marked) and (marked[-1] > key or other[0] < key)
-    at = next((j for j in marked if j > key), marked[0]) if cannot else other[0] if other and other[0] < key else None
+    if where is not None:
+        where[name] = key + 1
     old = m.group("v")
     if _same_colour(old, new) if colour else old == new:
-        if at is not None and unchecked is not None:
-            unchecked.append((CONFIG, name, key + 1, line, at + 1))
-        return None
-    if cannot:
+        return None   # left as it stands, whatever (b), (c) and the closing line say: the read-back is what says whether the site reads it
+    by_hand = "Set the value by hand: write that one line in place of line %d" % (key + 1)
+    if not _CLOSING.match(lines[close][0]):
+        raise no("line %d closes the block with more than its `}` (%s): after the brace this tool takes `as const`, a `satisfies` clause, a `;` and a `//` comment, and nothing else. "
+                 "With that on the closing line this tool cannot be sure from the text which value the site reads, so it does not edit this block" % (close + 1, _quoted(lines[close][0])), by_hand)
+    # (b) and (c): asked only where this tool has to edit the line
+    other = [j for j in range(top + 1, close) if j != key and not code[j][2]]
+    marked = [j for j in other if _mark(code[j][0], lines[j][0])]
+    if marked and (marked[-1] > key or other[0] < key):
+        at = next((j for j in marked if j > key), marked[0])
         raise no("line %d, in the same block, holds %s (%s). With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this block"
-                 % (at + 1, _mark(lines[at][0]), _quoted(lines[at][0])), "Set the value by hand: write that one line in place of line %d" % (key + 1))
-    if at is not None:
-        raise no("line %d, above it in the block, is not one whole entry on one line (%s). Above the `%s` line this tool takes only blank lines, `//` comments and entries written "
+                 % (at + 1, _mark(code[at][0], lines[at][0]), _quoted(lines[at][0])), by_hand)
+    if other and other[0] < key:
+        at = other[0]
+        raise no("line %d, above it in the block, is not one whole entry on one line (%s). Above the `%s` line this tool takes only blank lines, comments and entries written "
                  "`name: 'text',` (or a number, true, false, null in place of the text), so that it is sure the line is the block's own" % (at + 1, _quoted(lines[at][0]), name),
                  "Move the `%s` line up to be %s" % (name, first))
     return start + m.start("v"), start + m.end("v"), old, new
@@ -431,7 +492,7 @@ def _python(text):
     except (SyntaxError, ValueError, RecursionError, MemoryError) as e:
         where = "line %d: " % e.lineno if getattr(e, "lineno", None) else ""
         raise Refusal("og-layout", "%s is not Python that this tool can read (Python %d.%d says: %s%s), so this tool does not edit it. Mend that so that the file runs under "
-                                   "this Python, then run this again." % (GENERATOR, sys.version_info[0], sys.version_info[1], where, getattr(e, "msg", None) or str(e) or type(e).__name__)) from None
+                                   "this Python, or run this tool with the Python the site uses, then run this again." % (GENERATOR, sys.version_info[0], sys.version_info[1], where, getattr(e, "msg", None) or str(e) or type(e).__name__)) from None
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
             raise Refusal("og-layout", "%s, line %d: `from %s import *` brings in names this tool cannot see, and one of them could be a colour of the share cards, so this "
@@ -463,7 +524,7 @@ def _bindings(tree, name):
     return sorted(found, key=lambda n: (n.lineno, n.col_offset))
 
 
-def _generator_line(tree, lines, name, new):
+def _generator_line(tree, lines, name, new, where=None):
     """The same for one colour of the share-card generator: `new` is #rrggbb, the line holds three numbers."""
     import ast
     rgb = tuple(int(new[i:i + 2], 16) for i in (1, 3, 5))
@@ -485,6 +546,8 @@ def _generator_line(tree, lines, name, new):
         # (a line can look right and be no assignment of the file's own: a parameter on a line by itself inside `def f(` ... `)`)
         raise no("line %d sets it another way: %s%s" % (at + 1, _quoted(line), ", which does not begin at the start of the line" if line[:1] in (" ", "\t") else
                                                          ", which is a part of something that runs over several lines" if m else ""))
+    if where is not None:
+        where[name] = at + 1
     old = tuple(int(v) for v in m.group(2, 3, 4))
     if old == rgb:
         return None
@@ -493,18 +556,29 @@ def _generator_line(tree, lines, name, new):
 
 
 def _set_manifest(text, want):
-    """The manifest's own colours, by the rule in set_lines."""
-    def no(key, new, found, do):
-        return _not_as_the_starter(MANIFEST, 'the manifest\'s own "%s"' % key, ", at the manifest's top level", '"%s": "%s",' % (key, new), found, do)
+    """The manifest's own colours, by the rule in set_lines. The line a refusal shows is the line as it can
+    be written: without its comma where it would be the manifest's last entry (JSON takes no comma there),
+    and with a word on which lines it replaces where the entry it replaces is not one line of its own."""
+    def no(key, new, found, do, last=False):
+        return _not_as_the_starter(MANIFEST, 'the manifest\'s own "%s"' % key, ", at the manifest's top level", '"%s": "%s"%s' % (key, new, "" if last else ","), found,
+                                   do + (" (with no comma after it, as shown: it is the manifest's last entry)" if last else ""))
 
     def not_json(constant):
         raise ValueError("it holds %s, which JSON does not have" % constant)
 
-    def read(source):
-        try:
-            return json.loads(source, parse_constant=not_json)   # NaN and the infinities: Python's reader takes them, the site's JSON.parse does not
+    def read(source, tops=None):
+        try:   # NaN and the infinities: Python's reader takes them, the site's JSON.parse does not
+            return json.loads(source, parse_constant=not_json, object_pairs_hook=None if tops is None else lambda pairs: tops.append(pairs) or dict(pairs))
         except (ValueError, RecursionError) as e:
             return e
+
+    def first(key, new, found):
+        """The refusal that says to write the line as a new entry, at the top of the manifest."""
+        if not data:
+            return no(key, new, found, "Write that one line on a line of its own between the manifest's `{` and its `}`", last=True)
+        if not re.match(r"\s*\{[ \t]*\r?\n", text):   # the opening brace has something after it on its line: there is no "first line under" it
+            return no(key, new, found, "Write that one line on a line of its own right after the manifest's opening `{`")
+        return no(key, new, found, "Write that one line as the first line under the manifest's opening `{`")
 
     data = read(text)
     if isinstance(data, Exception):
@@ -520,21 +594,41 @@ def _set_manifest(text, want):
             continue
         lines = _text_lines(text)
         stands = [i for i, (line, _s) in enumerate(lines) for _m in re.finditer(re.escape('"%s"' % key), line)]
+        tops = []
+        read(text, tops)
+        ends = bool(tops and tops[-1]) and tops[-1][-1][0] == key   # the manifest's own entry of that name is its last one
         if not stands:
-            raise no(key, new, 'the name "%s" is not in the file' % key, "Write that one line as the first line under the manifest's opening `{`")
+            raise first(key, new, 'the name "%s" is not in the file' % key)
+        if len(stands) > 1 and key not in data:   # none of them is the manifest's own: there is no line of its own to set the value on
+            raise first(key, new, 'the name "%s" stands %d times in the file (%s), and none of them is an entry of the manifest\'s own' % (key, len(stands), _at(stands)))
         if len(stands) > 1:
             raise no(key, new, 'the name "%s" stands %d times in the file (%s), so the manifest\'s own line cannot be told from the text' % (key, len(stands), _at(stands)),
-                     "Set the value yourself on the manifest's own line (the last line of that name at its top level)")
+                     "Set the value yourself on the manifest's own line (the last line of that name at its top level)", last=ends)
         edited, n = re.subn(r'("%s"[ \t]*:[ \t]*)"(?:[^"\\\n]|\\.)*"' % key, lambda m: m.group(1) + '"%s"' % new, text, count=1)
         if not n:
-            raise no(key, new, "line %d is written another way: %s" % (stands[0] + 1, _quoted(lines[stands[0]][0])), "Write that one line in its place")
+            at = stands[0]
+            entry = re.search(r'"%s"\s*:\s*' % key, text)
+            try:
+                stop = json.JSONDecoder(parse_constant=not_json).raw_decode(text, entry.end())[1]   # where the entry's value ends
+            except (AttributeError, ValueError):   # the name stands there as a text, not as the name of an entry: nothing is to be written in its place
+                raise first(key, new, 'the name "%s" stands in the file (line %d) only as a text, not as the name of an entry' % (key, at + 1)) from None
+            comma = re.match(r"\s*,", text[stop:])
+            to = text.count("\n", 0, stop + (comma.end() if comma else 0))
+            found = "line %d is written another way: %s" % (at + 1, _quoted(lines[at][0]))
+            if text[lines[at][1]:entry.start()].strip() or lines[to][0][stop + (comma.end() if comma else 0) - lines[to][1]:].strip():
+                # other entries share its line: the shown line cannot take the place of a whole line
+                raise no(key, new, found + ", with something else before or after the entry on its line",
+                         'Set the value yourself on line %d: put "%s", in its quotes, where the value of "%s" stands now' % (at + 1, new, key))
+            raise no(key, new, found if to == at else found + ", and its value runs on to line %d" % (to + 1),
+                     "Write that one line in its place" if to == at else "Write that one line in place of lines %d to %d, which it replaces together" % (at + 1, to + 1),
+                     last=not comma and text[stop:].lstrip()[:1] == "}")
         after = read(edited)
         # compared as text: two readings of the same manifest are then the same whatever stands in them
         if isinstance(after, Exception) or json.dumps(after, sort_keys=True) != json.dumps(dict(data, **{key: new}), sort_keys=True):
             found = 'the one place where "%s" stands (line %d) is not the manifest\'s own entry: it belongs to something inside the manifest' % (key, stands[0] + 1)
             if key in data:   # the manifest has an entry of that name all the same: one whose name is not spelt in plain letters
-                raise no(key, new, found + ", and the manifest's own entry spells its name another way (with a `\\u` escape)", "Write that one line in place of the manifest's own entry")
-            raise no(key, new, found, "Write that one line as the first line under the manifest's opening `{`")
+                raise no(key, new, found + ", and the manifest's own entry spells its name another way (with a `\\u` escape)", "Write that one line in place of the manifest's own entry", last=ends)
+            raise first(key, new, found)
         changes.append((key, now, new))
         text, data = edited, after
     return text, changes
@@ -601,12 +695,12 @@ class Journal(object):
         if (not isinstance(rel, str) or not rel or rel.startswith("/") or "\\" in rel or "\x00" in rel
                 or os.path.isabs(rel) or ".." in rel.split("/")):
             raise Refusal("site-path", "The path %r is not inside the site." % str(rel)[:60])
-        here = self.site
-        for part in rel.split("/"):
+        here, parts = self.site, rel.split("/")
+        for n, part in enumerate(parts):
             here = os.path.join(here, part)
-            if os.path.islink(here):
-                raise Refusal("site-path", "%s is a link, and nothing is written through a link. Put the file or folder itself where the link is (or move the link "
-                                           "away), then run this again." % rel)
+            if os.path.islink(here):   # the link is named, not what would have gone below it
+                raise Refusal("site-path", "%s is a link, and nothing is written through a link%s. Put the file or folder itself where the link is (or move the link "
+                                           "away), then run this again." % ("/".join(parts[:n + 1]), "" if n + 1 == len(parts) else " (%s is below it)" % rel))
         return os.path.join(self.site, *rel.split("/"))
 
     def read(self, rel):
@@ -921,11 +1015,23 @@ class Journal(object):
                 if left is not None:
                     left.append((os.path.relpath(d, self.site).replace(os.sep, "/"), _why(e)))
 
+    def _all_named(self, path, rel, named):
+        """Whether a folder holds something, and nothing but what is named already: a path in `named`, or a
+        folder of which the same is true. An empty folder, and one that cannot be listed, is not that."""
+        try:
+            names = os.listdir(path)
+        except OSError:
+            return False
+        return bool(names) and all(
+            rel + "/" + n in named or (os.path.isdir(os.path.join(path, n)) and not os.path.islink(os.path.join(path, n))
+                                       and self._all_named(os.path.join(path, n), rel + "/" + n, named)) for n in names)
+
     def rollback(self):
         """Put every file back as it was, remove what the run made, leave the rest alone. Every file is
         tried, also after one could not be put back. Returns [(path, why)] for what could not be put back,
         each path once: empty when the site is as it was. A folder the run made and could not take away
-        again is one of them (it was not there before), unless it only holds a file that is named already."""
+        again is one of them (it was not there before), unless everything that is still in it is named
+        already: one thing in it that nobody named, or a folder that cannot be listed, and it is named."""
         left = []
         for rel in list(self._kept):
             try:
@@ -950,9 +1056,9 @@ class Journal(object):
             except FileNotFoundError:
                 pass  # it is gone, which is how it was
             except OSError as e:
-                # a folder this run made is still there: said, unless it only holds something that is named already
+                # a folder this run made is still there: said, unless all that it holds is named already
                 rel = os.path.relpath(d, self.site).replace(os.sep, "/")
-                if e.errno not in (errno.ENOTEMPTY, errno.EEXIST) or not any(_under(other, rel) for other, _why_not in left):
+                if not self._all_named(d, rel, {other for other, _why_not in left}):
                     left.append((rel, _why(e)))
         for rel in self._kept:   # last, when nothing of this run is left in them: the folders above a kept folder that were not there
             self._prune(rel, left)

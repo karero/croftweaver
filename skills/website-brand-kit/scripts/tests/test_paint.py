@@ -285,10 +285,10 @@ class EachSpellingOfAColourAsTheSitesRendererDrawsIt(unittest.TestCase):
             "rgb(255 0 0 / 1)", "rgb(255 0 0 / 100%)", "rgb(255 0 0/1)", "rgba(255 0 0 / 1)", "rgb(100% 0% 0% / 1)", "hsl(0 100% 50% / 1)", "hsl(0 100% 50% / 100%)", "hsla(0 100% 50% / 1)",
             # hsl with its percent signs, in each unit of angle
             "hsl(0,100%,50%)", "hsl(0 100% 50%)", "hsl(0deg, 100%, 50%)", "hsl(0.5turn 100% 50%)", "hsl(3.14159rad 100% 50%)", "hsl(200grad 100% 50%)", "hsl(-360, 100%, 50%)",
-            "hsl(720 100% 50%)", "hsl(0 150% 50%)", "hsl(22.2078 74.7573% 40.3922%)", "hsl(36030 100% 50%)", "hsl(100.25turn 100% 50%)", "hsl(12345.678 80% 40%)",
+            "hsl(720 100% 50%)", "hsl(22.2078 74.7573% 40.3922%)", "hsl(36030 100% 50%)", "hsl(100.25turn 100% 50%)", "hsl(12345.678 80% 40%)",
             "hsl(1e5 100% 50%)", "hsl(-359999 100% 50%)", "hsl(999.9turn 100% 50%)",
             # numbers far beyond the range of a colour are cut to it, by both
-            "rgb(1e99, 0, 255)", "rgb(-1e99 0 255)", "rgb(1e99%,0%,100%)", "hsl(0 1e99% 50%)", "hsl(0 100% 1e99%)", "hsl(0 -1e99% 50%)", "hsl(1e-99 100% 50%)")
+            "rgb(1e99, 0, 255)", "rgb(-1e99 0 255)", "rgb(1e99%,0%,100%)", "hsl(0 -1e99% 50%)", "hsl(0 100% -1e99%)", "hsl(1e-99 100% 50%)")
 
     def test_every_spelling_it_reads_for_a_paint_is_drawn_as_the_colour_it_reads(self):
         read = [_colour.parse_colour(fill, drawn=True) for fill in self.READ]
@@ -315,6 +315,11 @@ class EachSpellingOfAColourAsTheSitesRendererDrawsIt(unittest.TestCase):
             ("rgb(255,0,0/1)", black), ("rgb(255,0,0/100%)", black), ("hsl(0,100%,50%/1)", black),
             # commas and spaces mixed
             ("rgb(255 , 0 0)", black), ("rgb(255,0 0)", black),
+            # a saturation or a lightness over 100%: the renderer cuts it to 100%. Chromium 153 does not in the space form (in a stylesheet it
+            # shows these four as #0066cc, #5500d4, #ff0000 and #00ffff), so the hex this check would give is not the one a page shows.
+            ("hsl(200 300% 20%)", (0, 68, 102, 255)), ("hsl(270 150% 33.333%)", (85, 0, 170, 255)), ("hsl(0 150% 50%)", (255, 0, 0, 255)), ("hsl(0 100% 1e99%)", (255, 255, 255, 255)),
+            # a blank that CSS does not take for white space, stuck to the colour or inside it (a no-break space, a wide space)
+            ("\u00a0#ff0000", black), ("#ff0000\u00a0", black), ("\u2003red", black), ("rgb(255,\u00a00,0)", black),
         )
         fills = [fill for fill, _pixel in refused_and_drawn]
         for (fill, expected), pixel in zip(refused_and_drawn, self.drawn(fills)):
@@ -367,6 +372,34 @@ class Refusals(unittest.TestCase):
         for fill in ("notacolour", "rgb(1,2)", "lab(50% 40 59)", "var(--brand)"):
             with self.subTest(fill=fill):
                 refused(self, '<path fill="%s" %s/>' % (fill, D), "colour-unreadable")
+
+    def test_a_blank_beside_a_paint_that_css_does_not_take_for_white_space_makes_it_no_colour(self):
+        # round 5: Python's strip() takes a no-break space off a value, and the site's renderer draws black for a paint with one beside it
+        # (EachSpellingOfAColourAsTheSitesRendererDrawsIt holds the picture). The SVG check refuses such a value before the paint is read;
+        # the paint reader itself takes off only what CSS takes for white space, so the two cannot drift apart.
+        for blank in ("\u00a0", "\u2003", "\u3000", "\u2028", "\u0085"):
+            for attrs in ('fill="%s#b4531a"' % blank, 'fill="#b4531a%s"' % blank, 'fill="none" stroke="%sred" stroke-width="2"' % blank, 'style="fill: #b4531a%s"' % blank,
+                          'color="%s#b4531a" fill="currentColor"' % blank, 'fill="%sinherit"' % blank, 'fill="%snone" stroke="#111111"' % blank):
+                with self.subTest(attrs=attrs):
+                    with self.assertRaises(Refusal):
+                        _svg.clean_svg(svg('<path %s %s/>' % (attrs, D)))
+            # the paint reader alone, handed a tree whose values were not checked first
+            for props in ({"fill": blank + "#b4531a"}, {"fill": "none", "stroke": "red" + blank}, {"color": blank + "#b4531a", "fill": "currentColor"}, {"fill": blank + "inherit"},
+                          {"fill": "none" + blank}):
+                with self.subTest(props=props):
+                    node = _svg.Node("path")
+                    node.props = dict(props)
+                    with self.assertRaises(Refusal) as cm:
+                        _paint.resolve_paints(node, {"path"})
+                    self.assertEqual(cm.exception.code, "colour-unreadable")
+        # the blanks XML and CSS do take are only blanks
+        for attrs in ('fill=" #b4531a "', 'fill="\t#b4531a\n"', 'style="fill:\n  #b4531a "', 'color=" #b4531a\t" fill=" currentColor "'):
+            with self.subTest(attrs=attrs):
+                self.assertEqual(colours('<path %s %s/>' % (attrs, D)), ["#b4531a"])
+        self.assertEqual(colours('<g fill="#b4531a"><path fill=" inherit " %s/></g>' % D), ["#b4531a"])
+        node = _svg.Node("path")
+        node.props = {"fill": "\f#b4531a\r\n", "stroke": " inherit\t"}
+        self.assertEqual(_paint.resolve_paints(node, {"path"}), ["#b4531a"])
 
     def test_a_mark_with_nothing_visible_in_it(self):
         for body in ('<path fill="none" %s/>' % D, '<path fill="none" stroke="#111111" stroke-width="0" %s/>' % D,

@@ -18,9 +18,12 @@ from _refusal import Refusal
 
 HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "render.mjs")
 INTRINSIC = 1024  # the long side, in pixels, the drawing is given before it is scaled to each icon
-# How long the renderer may take over all the icons of one drawing. The check keeps out the drawings it knows to be
-# slow (measured 2026-10-13: the slowest one found inside its caps takes 0.8 seconds of processor time for an icon);
-# this is the backstop behind it.
+# How long the renderer may take over one call: all the icons it is asked for at once (three at the most). The check
+# keeps out the one kind of drawing it knows to be slow, a dashed outline cut into very many dashes (measured
+# 2026-10-13: the slowest dashed one inside its caps takes 0.8 seconds of processor time for an icon, 2.2 on a machine
+# at load 10). For every other drawing THIS is the bound: inside the check's caps, one outlined path of 40,000 to
+# 50,000 short turns took 11 to 12 seconds for one 512-pixel icon at load 10, and one clip path of 2,000 numbers that
+# 4,900 shapes are clipped by took 7. A drawing that passes the limit is refused with the sentence below.
 RENDER_SECONDS = 180
 _FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,60}$")
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -77,8 +80,8 @@ class Renderer(object):
         except FileNotFoundError:
             raise Refusal("no-node", NO_NODE) from None
         if code is None:
-            # the last line of defence against a drawing that is slow to draw (the check keeps out the ones it knows:
-            # see "what the grammar does not close" in _svg.py); with no drawing handed over, it is the computer
+            # the one bound on a drawing that is slow to draw and has no dashed outline (the check bounds those alone:
+            # see "nor how long a drawing takes to draw" in _svg.py); with no drawing handed over, it is the computer
             raise Refusal(
                 "render-failed",
                 "The renderer took more than %d seconds and was stopped.%s"

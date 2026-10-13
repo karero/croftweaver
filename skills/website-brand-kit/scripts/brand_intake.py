@@ -24,19 +24,70 @@ Usage:
   python3 brand_intake.py install --site my-site [--input logo.zip --pick a.svg --mono a-mono.svg] [--dry-run]
 """
 
-from __future__ import annotations
-
-import argparse
-import json
+# (No `from __future__ import annotations` here, as the other files have it: on Python 3.9 that line loads a
+# module, it cannot stand inside the guard below, and a Ctrl-C during it was a traceback. This file has no
+# annotations. `os` and `sys` are loaded before any file is run.)
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+STOPPED = "Stopped (Ctrl-C). Nothing was written."
 
-import _colour  # noqa: E402
-import _install  # noqa: E402
-import _palette  # noqa: E402
-from _refusal import Ask, Refusal  # noqa: E402
+
+def _say(text):
+    """Print what the command has to say (its report, or the one line of an early stop) and hand it over
+    at once. Nothing that goes wrong with standard output changes how the command ends: a reader that has
+    gone (`... | head`, a terminal that closed), an output that was closed (`>&-`: Python then has no
+    sys.stdout at all), one that cannot be written to. The run has its outcome by then and ends with that
+    status. Standard output is pointed at the null device in that case, so that Python does not complain
+    about the same stream once more when it closes it."""
+    try:
+        print(text)
+        sys.stdout.flush()
+    except (OSError, ValueError, AttributeError):
+        try:
+            null = os.open(os.devnull, os.O_WRONLY)
+            try:
+                os.dup2(null, sys.stdout.fileno())
+            finally:
+                os.close(null)
+        except (OSError, ValueError, AttributeError):
+            pass
+
+
+def _leave(code):
+    """End the process now, with this status. Python puts every signal back to what it does by default while
+    it shuts down, the ones an install watches too: a SIGTERM or a Ctrl-C that arrived in that moment ended
+    the process with the signal's status, after a report that said `done` (or `stopped`, or anything else)
+    with a status of its own. So nothing is left between the report and the end that a signal could change:
+    both streams are handed over, and the process ends without Python's shutting down. Nothing else waits
+    to be cleared up: a run removes its temporary folder and files itself."""
+    try:
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.flush()
+            except (OSError, ValueError, AttributeError):
+                pass
+    finally:
+        os._exit(code)
+
+
+try:
+    # Under the same guard as main() (see command_line): loading these takes a moment at the start of every run,
+    # and a Ctrl-C in that moment is a stop before anything was written, not a traceback.
+    import argparse
+    import json
+
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+    import _colour  # noqa: E402
+    import _install  # noqa: E402
+    import _palette  # noqa: E402
+    from _refusal import Ask, Refusal  # noqa: E402
+except KeyboardInterrupt:
+    if __name__ != "__main__":
+        raise
+    _say(STOPPED)
+    _leave(2)
 
 MAX_TEXT = 1024 * 1024
 
@@ -84,6 +135,7 @@ def cmd_palette(args, out):
     proposed = sorted(palette.proposed)
     unread = css.problems if css else []  # what the stylesheet holds and this check could not take as it stands
     no_primary = not palette.brand and "accent" in palette.light
+    notes = ([NO_PRIMARY] if no_primary else []) + (css.notes if css else [])  # said, and no reason for another exit status
 
     if bad:
         status, code = "fail", 1
@@ -109,7 +161,7 @@ def cmd_palette(args, out):
             "drift": [{"theme": t, "row": k, "document": d, "stylesheet": c} for t, k, d, c in drift],
             "dark_blocks_disagree": [{"row": k, "dark_block": a, "media_block": b} for k, a, b in disagree],
             "stylesheet_problems": [{"block": b, "variable": v, "message": m} for b, v, m in unread],
-            "notes": [NO_PRIMARY] if no_primary else [],
+            "notes": notes,
         }, ensure_ascii=True))
         return code
 
@@ -164,6 +216,8 @@ def cmd_palette(args, out):
             out.append("  %s: %s" % (_palette.LABEL[k], ", ".join(sides)))
     for block, variable, m in unread:
         out.append("Could not read the stylesheet: %s" % (m if variable is None else "%s in %s: %s" % (variable, _palette.BLOCK[block], m)))
+    for note in css.notes if css else []:  # (a stylesheet it brings in, which was not read)
+        out.append("Note: %s" % note)
     out.append("This check only reads files: nothing was written.")
     return code
 
@@ -217,24 +271,22 @@ def main(argv=None):
     except Refusal as r:
         out.append(str(r))
         code = 2
-    try:
-        print("\n".join(out))
-        sys.stdout.flush()
-    except BrokenPipeError:
-        # Nobody reads the report any more (`... | head`, a terminal that closed). The run ends with the status
-        # it has, and Python is kept from complaining about the same pipe once more when it closes the stream.
-        try:
-            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-        except (OSError, ValueError, AttributeError):
-            pass
+    _say("\n".join(out))
     return code
 
 
-if __name__ == "__main__":
+def command_line(argv=None):
+    """What `python3 brand_intake.py ...` runs: main(), and then the end of the process, at once, with
+    main's status (see _leave). A Ctrl-C before `install` began to watch for it, or during `palette`, is
+    said in one line: neither had written anything. (One that comes while Python itself is still starting
+    ends the process before any line of this file is reached.)"""
     try:
-        sys.exit(main())
+        code = main(argv)
     except KeyboardInterrupt:
-        # Ctrl-C before `install` began to watch for it, or during `palette`: neither had written anything. (One
-        # that comes while Python itself is still starting ends the process before this line is reached.)
-        print("Stopped (Ctrl-C). Nothing was written.")
-        sys.exit(2)
+        _say(STOPPED)
+        code = 2
+    _leave(code)
+
+
+if __name__ == "__main__":
+    command_line()

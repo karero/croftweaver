@@ -22,7 +22,8 @@ table: attribute or property, and the line it is held to.
 Everywhere: plain ASCII. A blank is a space, a tab or a line break, and blanks around a value
 are taken off (not around an id). A cap on a value's length counts the whole value, its sign,
 its unit and its percent sign included; and as it stands in the file, its blanks and all, no
-value is longer than 8,192 characters (`d` and `points`: 200,000).
+value is longer than 8,192 characters (`d` and `points`: 200,000), whether it stands in an
+attribute, in a style or in a rule (there a comment inside a value counts as so many blanks).
 
   number         an optional sign, digits, optionally a point FOLLOWED by digits, optionally e or
                  E with an optional sign and one or two digits: 5  -5  +.5  0.5  5e1  5E-02. Not
@@ -70,12 +71,20 @@ value is longer than 8,192 characters (`d` and `points`: 200,000).
                  most; written as `url(#id)`). The id is that of a <clipPath> in the file, and
                  stands on no other element of the file as it came: not on a second clip path,
                  not on the outer svg, not on anything that is left out (as `id` or as `xml:id`).
-  id             an ASCII letter or `_`, then letters, digits and `_ - . :`; 64 characters at most.
-                 This is the id a clip-path names, the one id that is kept. Every other id is
-                 left out without a word and is not read: nothing in the cleaned file is named
-                 by it (a style rule that named it has been written out as the values it gave).
-  class          names of ASCII letters, digits and `_ - .` with spaces between them; 200
-                 characters at most. Read for the style rules, never written.
+                 A clip path is a plain outline that clips shapes, and no more (_plain_clips).
+                 Refused by name, however it is set (an attribute, a style, a rule): a clip-path
+                 other than `none` on a <clipPath>, on anything inside one, or on the outer <svg>;
+                 and display, whatever it says, on a <clipPath> or on a <defs>.
+  id             an ASCII letter, a digit or `_`, then letters, digits and `_ - . :`; 64 characters
+                 at most. This is the id a clip-path names, the one id that is kept. (A style
+                 rule names an id as CSS names anything: no digit first.) Every other id is left
+                 out without a word and is not read at all, as a piece of a style either: nothing
+                 in the cleaned file is named by it (a style rule that named it has been written
+                 out as the values it gave).
+  class          names of visible ASCII characters with spaces between them; 200 characters at
+                 most. A name a style rule can name (letters, digits and `_ -`, begun as a CSS
+                 name is) is read for the style rules; any other (`md:h-8`, `w-1/2`) is passed
+                 over. Never written.
   viewBox        four numbers, as a number list; the third and fourth (the box's width and height)
                  from 0.01 to 1,000,000 and neither more than 20 times the other.
   preserveAspectRatio   none, or xMinYMin, xMidYMin ... xMaxYMax, then optionally meet or slice.
@@ -84,13 +93,23 @@ value is longer than 8,192 characters (`d` and `points`: 200,000).
                  it, or a number above zero and `%` (a share of the page: no size). With a
                  viewBox the two, when both are lengths, are in ONE unit and of the viewBox's own
                  shape to one part in a hundred: tools round the two apart, and within that line
-                 the cleaned file sets the drawing at most half a hundredth of the icon's side
-                 from where the file as it came had it. Two units, or another shape, would be a
-                 drawing the cleaned file sets differently in its icon. Without a viewBox both
-                 are plain or px, and they are the box.
+                 an edge of the drawing lies at most a hundredth of the icon's side from where the
+                 file as it came had it (half of that where the drawing is set in the middle of
+                 its room, as it is unless preserveAspectRatio says otherwise). That bounds how
+                 far an edge moves, not how many pixels change: a mark of fine lines can differ
+                 all over. Two units, or another shape, would be a drawing the cleaned file sets
+                 differently in its icon. Without a viewBox both are plain or px, and they are
+                 the box.
 
-Three values that only say "nothing here" are left out without a word: filter, mask or
-vector-effect of `none`, and mix-blend-mode of `normal`.
+The values that only say "nothing here" are left out without a word: filter, mask, vector-effect,
+marker, marker-start, marker-mid or marker-end of `none`, mix-blend-mode of `normal`, and
+isolation or image-rendering of `auto`. A property whose name starts `-inkscape-` (one editor's
+own, which no program draws) is left out of a style, all of them with one note.
+
+What is left out is not read. An attribute this check does not use (an `aria-label`, a
+`data-name`, another program's own), like an id that nothing names, is never written, so it can
+fetch and run nothing; it is not held to the grammar and not read as a piece of a style, whatever
+it says. (An event attribute and a link are refused by what they are, before that.)
 
 HOW FAR, AND HOW MANY DASHES. These rules are held once the box is known, on the values the
 cleaned file writes (_reach). They keep the picture one picture, and the renderer's work short.
@@ -106,8 +125,10 @@ cleaned file writes (_reach). They keep the picture one picture, and the rendere
                  smaller than a thousandth of the box's larger side, unless it is 0. Where it
                  applies to a shape that paints an outline (set on it, handed down, or from a
                  rule), the shape is a line, rect, circle, ellipse, polyline or polygon, not a
-                 <path>: its outline is then no longer than its numbers say (_outline). And all
-                 such outlines of a file together are cut into at most 100,000 dashes and gaps.
+                 <path>: its outline is then no longer than its numbers say (_outline: each
+                 number worked out as a program does, a share of the box's width for x and of
+                 its height for y, before one is taken from another). And all such outlines of a
+                 file together are cut into at most 100,000 dashes and gaps.
 
 Refused by name wherever they stand, beside what the element and attribute lists further down
 refuse: an element of the XInclude namespaces (the renderer fetches what it names), and a
@@ -122,9 +143,15 @@ arithmetic runs out (measured 2026-10-13: in a box of 10, a stroke a million wid
 transform is not). Such a file is cleaned as it is written and is drawn as the file that came is
 drawn, which need not be how a browser draws it. The icons step looks at what was really drawn:
 at the 32-pixel favicon and at one 256-pixel picture, not at every size, so a mark that came out
-blank at 512 pixels only would pass it. And the time the renderer takes is held for dashed
-outlines only, the one slow thing found (2026-10-13); behind that stands its time limit
-(_render.RENDER_SECONDS).
+blank at 512 pixels only would pass it.
+
+Nor how long a drawing takes to draw. The rules above bound DASHED outlines, and nothing else.
+Other drawings inside every cap are slow as well (measured 2026-10-13, one 512-pixel icon on a
+machine at load 10: 11 to 12 seconds for one outlined path of 40,000 to 50,000 short turns, 7 for
+one clip path of 2,000 numbers that 4,900 shapes are clipped by, 4 for 4,990 circles with wide
+outlines). For those the one bound is the time limit of the renderer's call
+(_render.RENDER_SECONDS, for all the icons of that call), and a file that passes it is refused
+there, with the sentence that says what to ask for.
 """
 
 from __future__ import annotations
@@ -160,9 +187,12 @@ MAX_ASPECT = 20
 MIN_BOX, MAX_BOX = 1e-2, 1e6
 # How far the outer svg's width and height may be from the shape of its viewBox: one part in a hundred. Tools round
 # the two apart (an export of 283.46px by 141.73px round a viewBox of 283.5 by 141.7), and the cleaned file, which
-# keeps the viewBox alone, then sets the drawing up to half a hundredth of the icon's side from where the file as it
-# came had it. Measured 2026-10-13: at the line itself (10 by 20.19 round 10 by 20) 3,348 of the 262,144 pixels of a
-# 512-pixel icon differ, all of them along the edges of the shapes, and none of a 32-pixel icon's.
+# keeps the viewBox alone, then has an edge of the drawing up to a hundredth of the icon's side from where the file as
+# it came had it: half a hundredth where the drawing is set in the middle of its room (the default), a whole one where
+# preserveAspectRatio pushes it to a side (xMinYMin, xMaxYMax, xMidYMax). Measured 2026-10-13 at the line itself (10
+# by 20.19 round 10 by 20), of the 262,144 pixels of a 512-pixel icon: 3,348 differ in the middle and up to 3,756 at a
+# side, all of them along the edges of the shapes, and none of a 32-pixel icon's. That is how far an edge moves, not
+# how much of a picture changes: of a mark of a hundred fine lines 98,240 to 113,226 pixels differ.
 ROOT_SLACK = 1e-2
 # the caps of the value grammar (see the top of this file)
 MAX_VALUE = 64                 # characters in one number, length, paint or id
@@ -226,8 +256,11 @@ PROPS = {
 PROPS_DROP = {
     "font", "font-family", "font-size", "font-weight", "font-style", "font-variant", "font-stretch",
     "letter-spacing", "word-spacing", "line-height", "text-anchor", "text-decoration", "text-rendering",
-    "cursor", "pointer-events", "enable-background", "-inkscape-font-specification",
+    "cursor", "pointer-events", "enable-background",
 }
+# One editor's own properties, which no program draws (-inkscape-stroke, -inkscape-font-specification): any
+# property whose name starts so is dropped from a style, all of them with the one note.
+EDITOR_PREFIX = "-inkscape-"
 GEOMETRY = {
     "d", "points", "x", "y", "cx", "cy", "r", "rx", "ry", "x1", "y1", "x2", "y2", "width", "height",
     "transform",
@@ -237,6 +270,7 @@ SILENT_ATTRS = {"version", "baseProfile", "role", "focusable", "tabindex", "xml:
 REFUSED_ATTRS = {
     "filter": ("filter", "The mark uses a filter effect, such as a blur or a shadow. Ask the tool for flat shapes only."),
     "mask": ("mask", "The mark uses a mask. Ask the tool for flat shapes only."),
+    "marker": ("marker", "The mark uses markers. Ask the tool for flat shapes only."),
     "marker-start": ("marker", "The mark uses markers. Ask the tool for flat shapes only."),
     "marker-mid": ("marker", "The mark uses markers. Ask the tool for flat shapes only."),
     "marker-end": ("marker", "The mark uses markers. Ask the tool for flat shapes only."),
@@ -253,8 +287,14 @@ REFUSED_ATTRS = {
 for _n in ("systemLanguage", "requiredExtensions", "requiredFeatures"):
     REFUSED_ATTRS[_n] = ("conditional", "A part of the drawing is shown only under a condition (%s), so one program draws it and another "
                                         "leaves it out. Ask the tool for a plain SVG without it." % _n)
-# The one value of each that says "nothing here": left out without a word, where any other value is refused.
-NO_EFFECT = {"filter": "none", "mask": "none", "vector-effect": "none", "mix-blend-mode": "normal"}
+# The one value of each that says "nothing here": left out without a word, where any other value is refused
+# (another value of `isolation` or `image-rendering` is refused in a style, as any property this check does not
+# read is, and as an attribute it is left out with a note, as any attribute this check does not use is).
+NO_EFFECT = {
+    "filter": "none", "mask": "none", "vector-effect": "none", "mix-blend-mode": "normal",
+    "marker": "none", "marker-start": "none", "marker-mid": "none", "marker-end": "none",
+    "isolation": "auto", "image-rendering": "auto",
+}
 
 # --- the value grammar -----------------------------------------------------------------
 # Each line of the grammar (see the top of this file) is one function: given the value with its
@@ -282,9 +322,11 @@ _NEXT = re.compile(r"(?:[ \t\r\n]+(?:,[ \t\r\n]*)?|,[ \t\r\n]*|(?=[+\-.]))(%s)" 
 # (`1,1 ,9,1` and `1 1-9 1` draw nothing), though it reads both between the two numbers of one point.
 _NEXT_POINT = re.compile(r"(?:[ \t\r\n]+|,[ \t\r\n]*)(%s)" % _NUM)
 _NOT_NEGATIVE = {"stroke-width", "r", "rx", "ry", "width", "height"}
-_IDENT = r"[A-Za-z_][A-Za-z0-9_\-.:]{0,%d}" % (MAX_VALUE - 1)
+# Measured 2026-10-13: the site's renderer and a browser both find a clip path by an id that starts with a digit
+# (one common design tool writes such ids on nearly every shape). A style rule cannot name one (`#8c` is no selector).
+_IDENT = r"[A-Za-z0-9_][A-Za-z0-9_\-.:]{0,%d}" % (MAX_VALUE - 1)
 _ID = re.compile(_IDENT)
-_CLASS = re.compile(r"(?:[A-Za-z0-9_\-.]+(?: +[A-Za-z0-9_\-.]+)*)?")
+_CLASS = re.compile(r"(?:[!-~]+(?: +[!-~]+)*)?")   # names of visible ASCII characters, spaces between them
 _KEYWORDS = {
     "fill-rule": {"nonzero", "evenodd"},
     "clip-rule": {"nonzero", "evenodd"},
@@ -427,6 +469,13 @@ def _clip_path(v):
 
 def _class(v):
     return None if len(v) <= MAX_CLASS and _CLASS.fullmatch(v) else "bad"
+
+
+def _classes(v):
+    """The names of a class value a style rule can name. Any other (`md:h-8`, `w-1/2`: the names of a
+    style library, on a pasted icon) is passed over: no selector this check reads could name it, a
+    program splits a class value at its blanks and nowhere else, and a class is never written."""
+    return frozenset(name for name in v.split(" ") if _css.is_name(name))
 
 
 def _root_size(v):
@@ -574,7 +623,8 @@ def _parse(data):
         raise Refusal(
             "doctype",
             "The file has a DOCTYPE line. That is how a file asks for other files to be pulled in, so it is "
-            "refused: ask the tool to export again without it, or send a different file.",
+            "refused. Open the file in a text editor and delete the line that starts <!DOCTYPE (it does not change "
+            "the drawing), or ask the tool for an export without it.",
         )
 
     def pi(target, _data):
@@ -718,18 +768,30 @@ def _read_attrs(node, attrs, notes, is_root):
             if uri not in (XLINK_NS, XML_NS):
                 dropped.append(local)
             continue
+        if NO_EFFECT.get(local) == value.strip(_BLANKS):
+            continue
         if local in REFUSED_ATTRS:
-            if NO_EFFECT.get(local) == value.strip(_BLANKS):
-                continue
             code, msg = REFUSED_ATTRS[local]
             raise Refusal(code, msg)
+        if local == "id":
+            # As it is written, and not read at all, by the style check either: a layer may be called `javascript:logo`.
+            # It is kept only where a clip path is named by it (_references), and then it is a name of the grammar.
+            node.id = value
+            continue
+        if local == "class":   # read for the style rules and never written: not a text the style check has to pass
+            node.classes = _classes(_validate("class", value))
+            continue
+        if local in SILENT_ATTRS or local.startswith(("data-", "aria-")):
+            continue
+        if not (local == "style" or local in PROPS or local in GEOMETRY or (is_root and local in ROOT_ONLY)
+                or (local == "clipPathUnits" and node.tag == "clipPath") or (node.tag == "style" and local in ("type", "media", "title"))):
+            dropped.append(local)
+            continue
+        # What is left out above is not read, as a piece of a style either: it is never written, so it can fetch and run
+        # nothing, and a label may well say `JavaScript: the logo`. What is kept, or read to decide something, is.
         _css.check_text(value)
         if local == "style":
             node.style_decls = _css.parse_declarations(value)
-        elif local == "id":
-            node.id = value  # as it is written, and not checked: it is kept only where a clip path is named by it (_references)
-        elif local == "class":
-            node.classes = frozenset(_validate("class", value).split())
         elif local in PROPS:
             node.props[local] = _validate(local, value)
         elif is_root and local == "transform" and value.strip():
@@ -766,10 +828,6 @@ def _read_attrs(node, attrs, notes, is_root):
                 "choose between and may leave it out, and other programs apply it all the same. Ask the tool for a "
                 "plainer export." % value.strip()[:40],
             )
-        elif local in SILENT_ATTRS or local.startswith(("data-", "aria-")):
-            continue
-        else:
-            dropped.append(local)
     if dropped:
         _note(notes, "left out attributes this check does not use: " + ", ".join(sorted(set(d[:30] for d in dropped))[:8]))
 
@@ -791,14 +849,19 @@ def _matches(sel, node):
 
 
 def _accept(prop, value, notes):
+    """One declaration of a style (the value with the blanks still round it): the value as the
+    cleaned file writes it, or None for a declaration that is left out."""
     if prop in PROPS:
         return _validate(prop, value)
     if prop in PROPS_DROP:
         _note(notes, "left out a style that only matters for text or an editor (%s)" % prop)
         return None
+    if prop.startswith(EDITOR_PREFIX):
+        _note(notes, "left out styles that only an editor reads (their names start %s)" % EDITOR_PREFIX)
+        return None
+    if NO_EFFECT.get(prop) == value.strip(_BLANKS):
+        return None
     if prop in REFUSED_ATTRS:
-        if NO_EFFECT.get(prop) == value.strip(_BLANKS):
-            return None
         code, msg = REFUSED_ATTRS[prop]
         raise Refusal(code, msg)
     raise Refusal(
@@ -921,6 +984,51 @@ def _box(root):
     return nums, " ".join(parts)
 
 
+def _plain_clips(root):
+    """A clip path is a plain outline that clips shapes, and that is all a logo needs of one. What goes
+    beyond it is refused by name, however it is set (an attribute, a style, a rule), because programs
+    do not draw it alike. Measured 2026-10-13, the site's renderer against a browser:
+    a clip-path on a <clipPath>, or on a shape inside one: two shapes inside, each clipped by a clip
+      path of its own, are drawn as nothing by the one and as 4,000 of 10,000 pixels by the other; two
+      clip paths that clip each other, 900 against 3,000; and a chain of them, each holding two shapes
+      clipped by the next, doubles a browser's work with every link (a cleaned file of 3,228
+      characters took one 26 seconds).
+    display on a <clipPath>, or on a <defs>: with `none` there the one still clips (3,000 of 10,000
+      pixels) and the other does not (10,000). Every value is refused there, `inline` and `block`
+      too, though both programs draw those alike: one rule, and no export was seen to need them.
+      A <g display="none"> round a clip path is drawn alike by both, and stays.
+    a clip-path on the outer <svg>: both measure that clip in the picture's pixels, not in the
+      drawing's units, so one file is whole at 32 pixels and a fifth of itself at 512."""
+    todo = [(root, False)]   # an element, and whether it stands inside a clip path
+    while todo:
+        node, inside = todo.pop()
+        clip = node.props.get("clip-path", "none")
+        if clip != "none" and node is root:
+            raise Refusal(
+                "root-clip-path",
+                "The outer <svg> element is clipped (clip-path=%r). Programs measure such a clip in the picture's pixels, "
+                "not in the drawing's own units, so the mark would be cut differently in a small icon and in a large one. "
+                "Ask the tool for the SVG without a clip on the outer svg element (it can stand on a group round the "
+                "shapes instead)." % clip[:40],
+            )
+        inside = inside or node.tag == "clipPath"
+        if clip != "none" and inside:
+            raise Refusal(
+                "clip-in-clip",
+                "A clip path in the file is clipped itself, or a shape inside it is (clip-path=%r on a <%s>). Programs "
+                "draw that in different ways, and some of them very slowly. Ask the tool for the SVG with each clip path "
+                "as one plain outline: with the clips applied to the shapes (flattened)." % (clip[:40], node.tag),
+            )
+        if "display" in node.props and node.tag in ("clipPath", "defs"):
+            raise Refusal(
+                "clip-display",
+                "The file sets display (%r) on a <%s>. Where that says `none`, one program clips with the clip paths there "
+                "all the same and another does not clip at all, so this check reads no display there, whatever it says. Ask "
+                "the tool for the SVG with no display set on its clip paths and on its <defs>." % (node.props["display"], node.tag),
+            )
+        todo.extend((child, inside) for child in node.children)
+
+
 def _references(root, ids):
     """A reference finds the same element in the cleaned file as in the file that came. The one
     reference this check keeps is a clip path's, `url(#name)`, and a program takes the FIRST element
@@ -974,21 +1082,31 @@ def _path_numbers(d):
             pos = m.end() if m else pos + 1
 
 
-def _amount(v, side):
-    """A length or a share, as a number of the drawing's own units. A share is taken of the box's
-    larger side: never less than what it is a share of."""
+def _amount(v, whole):
+    """A length, or a share of `whole`, as a number of the drawing's own units."""
     if v.endswith("%"):
-        return float(v[:-1]) * side / 100
+        return float(v[:-1]) * whole / 100
     return float(v[:-2] if v.endswith("px") else v)
 
 
-def _outline(node, side):
+def _whole(name, box):
+    """What a share in `name` is a share of, as a program works it out: the box's width for what
+    lies across, its height for what lies down, and for `r` the diagonal over the root of two."""
+    if name == "r":
+        return math.hypot(box[2], box[3]) / math.sqrt(2)
+    return box[2] if name in ("x", "x1", "x2", "cx", "rx", "width") else box[3]
+
+
+def _outline(node, box):
     """No less than the length of a shape's outline, from its numbers alone: a rectangle's four
     sides, a circle's or an ellipse's round, and each side of a line, a polyline or a polygon as its
-    way across and its way down together (a polyline is counted closed)."""
+    way across and its way down together (a polyline is counted closed). Each number is worked out
+    as a program works it out BEFORE two of them are taken from each other: a share of the box's
+    width for x and of its height for y. (Until 2026-10-13 every share was taken of the larger
+    side, so in a box 10 by 1 a line from y1="100%" to y2="10" counted as no length at all.)"""
     def of(name):
         v = node.attrs.get(name, "auto")
-        return 0.0 if v == "auto" else _amount(v, side)
+        return 0.0 if v == "auto" else _amount(v, _whole(name, box))
 
     if node.tag == "rect":
         return 2 * (abs(of("width")) + abs(of("height")))
@@ -1009,8 +1127,12 @@ def _reach(root, box):
     renderer's time as much as about the picture. Measured 2026-10-13, in a box of 10 and with
     dashes of 0.01: a path of 3,652 characters that went a hundred boxes out and back 500 times
     took the site's renderer 33 seconds of processor time for one icon, and one of 25,152
-    characters that crossed its own box 10,000 times took 10. With these rules the slowest drawing
-    found takes 0.8 seconds."""
+    characters that crossed its own box 10,000 times took 10. With these rules the slowest DASHED
+    drawing found takes 0.8 seconds on a quiet machine and 2.2 on one at load 10.
+
+    That is all these rules bound. A drawing with no dash in it can take longer inside every cap
+    (see "nor how long a drawing takes to draw" at the top of this file: 11 to 12 seconds an icon
+    was measured): for it the bound is the renderer's time limit, _render.RENDER_SECONDS."""
     side = max(box[2], box[3])
     far = MAX_FAR * side + max(abs(box[0]), abs(box[1]), abs(box[0] + box[2]), abs(box[1] + box[3]))
 
@@ -1037,7 +1159,7 @@ def _reach(root, box):
                 for m in _FUNCTION.finditer(value):
                     held(name, value, [float(n) for n in m.group(2).split()][1 if m.group(1) in _ANGLE_FIRST else 0:])
             elif name != "clipPathUnits" and value != "auto":
-                held(name, value, [_amount(value, side)])
+                held(name, value, [_amount(value, side)])   # a share of the larger side: never less than what it is a share of
         for name in ("stroke-width", "stroke-dashoffset"):
             if name in node.props:
                 held(name, node.props[name], [_amount(node.props[name], side)])
@@ -1063,7 +1185,7 @@ def _reach(root, box):
                     "long that outline is, and so how many dashes it is cut into. Ask the tool to turn the dashed outline "
                     "into shapes.",
                 )
-            pieces += _outline(node, side) * len(dashes) / sum(dashes)
+            pieces += _outline(node, box) * len(dashes) / sum(dashes)
             if pieces > MAX_DASH_PIECES:
                 raise Refusal(
                     "too-many-dashes",
@@ -1119,6 +1241,7 @@ def _emit(node, out, view_box=None):
 def _finish(root, notes, ids, current=None):
     box, written = _box(root)
     _cascade(root, notes)
+    _plain_clips(root)
     _references(root, ids)
     colours = _paint.resolve_paints(root, DRAWING, current)
     _reach(root, box)

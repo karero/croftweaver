@@ -8,6 +8,7 @@ tests run the real helper; the ones that draw need a `sharp` to borrow (see _tes
 
 import base64
 import json
+import math
 import os
 import re
 import shutil
@@ -943,6 +944,14 @@ def grammar_rows():
     for name, plain in (("x", "10"), ("width", "10"), ("cx", "10"), ("x2", "10"), ("y", "5"), ("height", "5"), ("cy", "5"), ("y2", "5")):
         shape, _other = SHAPES[name]   # a share is of the box's width for x and of its height for y
         rows.append(("position", "%s='50%%' in a box 20 by 10" % name, wide % (shape % "50%"), wide % (shape % plain), wide % (shape % "1")))
+    # the dash budget counts a line by its ends as a program works them out (a share of the width for x, of the height for y):
+    # a dashed line with one end a share and the other a plain number is drawn from the one to the other
+    high = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 20"><rect width="10" height="20" fill="#00f"/>%s</svg>'
+    dashed_line = '<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="#f00" stroke-width="2" stroke-dasharray="2 1"/>'
+    for box, what, form, plain in ((wide, "20 by 10", ("50%", "50%", "20", "10"), ("10", "5", "20", "10")), (wide, "20 by 10", ("0", "100%", "100%", "0"), ("0", "10", "20", "0")),
+                                   (wide, "20 by 10", ("10", "100%", "10", "1"), ("10", "10", "10", "1")), (high, "10 by 20", ("100%", "5", "1", "5"), ("10", "5", "1", "5")),
+                                   (high, "10 by 20", ("50%", "50%", "10", "20"), ("5", "10", "10", "20")), (high, "10 by 20", ("0", "100%", "100%", "0"), ("0", "20", "10", "0"))):
+        rows.append(("position", "a dashed line from %s,%s to %s,%s in a box %s" % (form + (what,)), box % (dashed_line % form), box % (dashed_line % plain), box % (dashed_line % ("1", "1", "2", "2"))))
     no_box = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="#00f"/>%s</svg>'
     rows.append(("position", "a share where the box is the width and height", no_box % '<rect width="50%" height="50%" fill="#f00"/>',
                  no_box % '<rect width="10" height="5" fill="#f00"/>', no_box % '<rect width="1" height="1" fill="#f00"/>'))
@@ -1018,16 +1027,43 @@ def grammar_rows():
     # --- clip-path, id, class
     rule("clip-path", "clip-path", ["url(#c)", "url( #c )", "url(#d-e.f:g_h)", " url(#c) "], "url(#c)", other="none", shape=CLIPS)
     rule("clip-path", "clip-path", ["none"], "none", other="url(#c)", shape=CLIPS)
-    for name in ("c", "_", "A", "a1", "clip0_12_34", "SVGID_1_", "a-b.c:d", "x" * 64):
+    # a clip path is a plain outline that clips shapes: what it may hold, and where it may stand
+    one, used = '<clipPath id="c"%s><rect%s width="3" height="10"/></clipPath>', '<rect clip-path="url(#c)" width="10" height="10" fill="#f00"/>'
+    unclipped = B % '<rect width="10" height="10" fill="#f00"/>'
+    for what, doc, plain in (
+            ("several plain shapes", B % ('<clipPath id="c"><rect width="3" height="10"/><circle cx="7" cy="5" r="2"/><polygon points="4 0 6 0 5 3"/><path d="M4 9h2v1h-2z"/></clipPath>' + used), None),
+            ("a transform on the clip path", B % (one % (' transform="translate(2 0) scale(1 .5)"', "") + used), B % ('<clipPath id="c"><rect x="2" width="3" height="5"/></clipPath>' + used)),
+            ("a transform on a shape inside", B % (one % ("", ' transform="translate(2)"') + used), B % ('<clipPath id="c"><rect x="2" width="3" height="10"/></clipPath>' + used)),
+            ("used by two shapes and a group", B % (one % ("", "") + used + '<rect clip-path="url(#c)" y="2" width="10" height="2" fill="#0f0"/><g clip-path="url(#c)"><rect y="6" width="10" height="2" fill="#ff0"/></g>'), None),
+            ("clip-path: none on the clip path", B % (one % (' clip-path="none"', "") + used), B % (one % ("", "") + used)),
+            ("clip-path: none on a shape inside", B % (one % ("", ' style="clip-path:none"') + used), B % (one % ("", "") + used)),
+            ("clip-path: none by a rule for everything", B % ("<style>*{clip-path:none}</style>" + one % ("", "") + used.replace("clip-path=", "style=").replace('"url(#c)"', '"clip-path:url(#c)"')), B % (one % ("", "") + used)),
+            ("a group that is not shown round the clip path", B % ('<g display="none">%s</g>' % (one % ("", "")) + used), B % (one % ("", "") + used)),
+            ("a group that is not shown round its defs", B % ('<g display="none"><defs>%s</defs></g>' % (one % ("", "")) + used), B % (one % ("", "") + used)),
+            ("the clip path inside a group that is clipped", B % ('<clipPath id="k"><rect width="10" height="5"/></clipPath><g clip-path="url(#k)">%s</g>' % (one % ("", "") + used)),
+             B % '<rect width="3" height="5" fill="#f00"/>'),
+            ("a shape inside that is not shown", B % ('<clipPath id="c"><rect display="none" width="3" height="10"/><rect x="6" width="2" height="10"/></clipPath>' + used),
+             B % '<rect x="6" width="2" height="10" fill="#f00"/>')):
+        rows.append(("clip-path", what, doc, plain, unclipped))
+    for name in ("c", "_", "A", "a1", "clip0_12_34", "SVGID_1_", "a-b.c:d", "x" * 64,
+                 # an id may start with a digit (one common design tool names its clip paths in hex digits)
+                 "8ce47d5fb1", "4a5b6c7d8e", "0", "007", "1e5", "9-9", "0x1f", "1.5", "7:a", "4" * 64):
         with_id = '<clipPath id="%s"><rect width="3" height="10"/></clipPath><rect clip-path="url(#%s)" width="10" height="10" fill="#f00"/>'
         rows.append(("id", "id=%r" % name, B % (with_id % (name, name)), B % (with_id % ("c", "c")), B % (with_id % (name, "other"))))
-    for name in ("a", "_a", "A1", "a-b_c", "x" * 64):   # the letters a style rule can name an id with
+    for name in ("8ce47d5fb1", "0", "1e5"):   # and is named so from a style and from a rule
+        clip = '<clipPath id="%s"><rect width="3" height="10"/></clipPath>' % name
+        for what, use in (("a style", '<rect style="clip-path: url( #%s )" width="10" height="10" fill="#f00"/>' % name),
+                          ("a rule", '<style>.k{clip-path:url(#%s)}</style><rect class="k" width="10" height="10" fill="#f00"/>' % name)):
+            rows.append(("id", "id=%r named from %s" % (name, what), B % (clip + use), B % (with_id % ("c", "c")), unclipped))
+    for name in ("a", "_a", "A1", "a-b_c", "layer-1", "x" * 64):   # the letters a style rule can name an id with (the id is then left out: the rule has applied)
         styled = '<style>#%s{fill:#f00}</style><rect id="%s" width="6" height="6"/>'
         rows.append(("id", "#%s in a rule" % name, B % (styled % (name, name)), B % (styled % ("a", "a")), B % (styled % (name, "other"))))
     # an id nothing is named by is left out, whatever it is written in: the drawing is the one without it
     shape = '<g %s><rect %s width="6" height="6" fill="#f00"/></g>'
-    for value in ("Frame 1", "Gr\u00f6\u00dfe", "8ce47d5fb1", "icon/logo", " a ", "", "c", "x" * 300):
+    for value in ("Frame 1", "Gr\u00f6\u00dfe", "8ce47d5fb1", "icon/logo", " a ", "", "c", "x" * 300, "expression(layer)", "javascript:logo", "url(logo.png)", "@import a"):
         rows.append(("id", "an id nothing is named by: %r" % value[:20], B % (shape % ('id="%s"' % value, 'id="%s"' % value)), B % (shape % ("", "")), None))
+    rows.append(("id", "attributes that are left out, whatever they say", B % (shape % ('aria-label="JavaScript: the logo" data-name="expression(layer)"', 'label="url(logo.png)" role="@import a"')),
+                 B % (shape % ("", "")), None))
     rows.append(("id", "ids on what is left out and on the outer svg", (B % ('<title id="t">x</title><metadata id="m"/>' + shape % ("", ""))).replace("<svg ", '<svg id="s" ', 1), B % (shape % ("", "")), None))
     rows.append(("id", "a rule names an id written with a blank: it does not apply", B % ('<style>#a{fill:#0f0}</style>' + shape % ("", 'id=" a"')), B % (shape % ("", "")),
                  B % ('<style>#a{fill:#0f0}</style>' + shape % ("", 'id="a"'))))
@@ -1047,9 +1083,14 @@ def grammar_rows():
             rows.append(("paint", "%s: inherit %s" % (prop, what), doc, plain, None))
     rows.append(("paint", "fill: inherit after another fill in one rule", B % ('<style>.p{fill:#00f;fill:inherit}</style><g fill="#f00">%s</g>' % SQUARE.replace(' fill="#f00"', "")),
                  B % ('<g fill="#f00">%s</g>' % SQUARE.replace(' fill="#f00"', "")), B % ('<g fill="#f00">%s</g>' % SQUARE.replace('fill="#f00"', 'fill="#00f"'))))
-    for names in ("b", "a b", " a  b ", "b a", "a b c-d e_f 0", "b b"):
+    for names in ("b", "a b", " a  b ", "b a", "a b c-d e_f 0", "b b",
+                  # a name no rule can name is passed over, wherever it stands among the others
+                  "h-6 w-6 md:h-8 hover:text-gray-500 b", "b md:h-8", "w-1/2 b top-0.5", "!mt-0 b [&amp;&gt;path]:x", "b.c b #b .b b,c"):
         classed = '<style>.b{fill:#f00}</style><rect class="%s" width="6" height="6"/>'
         rows.append(("class", "class=%r" % names, B % (classed % names), B % (classed % "b"), B % (classed % "a")))
+    for names in ("md:h-8", "hover:b", "b.c", ".b", "#b", "b,c", "b:hover", "w-1/2 [b]", "b/b b:b", "0b", "-"):   # and names nothing by any piece of itself
+        classed = '<style>.b{fill:#f00} .md{fill:#0f0} .h-8{fill:#0f0} .hover{fill:#0f0} .c{fill:#0f0} .w-1{fill:#0f0}</style><rect class="%s" width="6" height="6"/>'
+        rows.append(("class", "class=%r, which no rule names" % names, B % (classed % names), B % (classed % "a"), B % (classed % "b")))
     # --- the outer svg: viewBox, preserveAspectRatio, width and height
     tall = '<svg xmlns="http://www.w3.org/2000/svg" %s><rect width="10" height="20" fill="#00f"/><circle cx="5" cy="10" r="4.3" fill="#f00"/></svg>'
     for form in ("0 0 10 20", "0,0,10,20", "0, 0, 10, 20", "0 , 0 , 10 , 20", " 0 0 10 20 ", "0&#9;0&#10;10&#13;20", "0 0 1e1 2e1", "+0 -0 10.0 +20", "0 0 .1e2 20.00",
@@ -1086,6 +1127,16 @@ def grammar_rows():
     for prop, word in (("filter", "none"), ("mask", "none"), ("vector-effect", "none"), ("mix-blend-mode", "normal")):
         rows.append(("nothing here", "%s:%s in a rule" % (prop, word), B % ('<style>rect.q{%s:%s}</style><rect class="q" width="6" height="6" fill="#f00"/>' % (prop, word)),
                      B % '<rect width="6" height="6" fill="#f00"/>', None))
+    # an editor's leftovers, on a shape that could carry markers: no markers, no group of its own, no way of drawing pictures,
+    # and the editor's own properties (which no program draws)
+    bent = '<polyline %s points="1 1 6 1 6 6" fill="none" stroke="#f00" stroke-width="2"/>'
+    for attrs in ('marker="none"', 'marker-start="none" marker-mid="none" marker-end="none"', 'marker-start=" none "', 'style="marker:none"', 'style="marker-start:none;marker-mid:none;marker-end:none"',
+                  'isolation="auto"', 'image-rendering="auto"', 'style="isolation:auto"', 'style="image-rendering:auto"', 'style="isolation: auto ;image-rendering:auto;marker:none"',
+                  'style="-inkscape-stroke:none"', 'style="-inkscape-stroke:hairline;-inkscape-font-specification:Sans"',
+                  "style=\"fill:none;fill-opacity:1;stroke:#f00;stroke-width:2;marker:none;-inkscape-stroke:none;paint-order:normal;isolation:auto;mix-blend-mode:normal\""):
+        rows.append(("nothing here", attrs, B % (bent % attrs), B % (bent % ""), None))
+    for prop, word in (("marker", "none"), ("marker-start", "none"), ("marker-mid", "none"), ("marker-end", "none"), ("isolation", "auto"), ("image-rendering", "auto"), ("-inkscape-stroke", "none")):
+        rows.append(("nothing here", "%s:%s in a rule" % (prop, word), B % (('<style>polyline.q{%s:%s}</style>' % (prop, word)) + bent % 'class="q"'), B % (bent % ""), None))
     return rows
 
 
@@ -1186,6 +1237,36 @@ def refused_rows():
                       ("an id on a desc that is also a clip path's", B % ('<desc id="c"/>' + clip)), ("an id on a group that is also a clip path's", B % ('<g id="c"/>' + clip)),
                       ("an id on the outer svg that is also a clip path's", (B % clip).replace("<svg ", '<svg id="c" ', 1))):
         rows.append((what, "shared-id", doc, B % clip, "differs"))
+    # A clip path that is more than a plain outline, held against what a browser draws of it (Chromium, measured 2026-10-13).
+    # Two shapes inside, each clipped by a clip path of its own: the renderer draws nothing, a browser the two quarters.
+    halves = '<clipPath id="d"><rect width="10" height="5"/></clipPath><clipPath id="e"><rect y="5" width="10" height="5"/></clipPath>'
+    red = '<rect clip-path="url(#c)" width="10" height="10" fill="#f00"/>'
+    quarters = B % '<rect width="4" height="5" fill="#f00"/><rect x="6" y="5" width="4" height="5" fill="#f00"/>'
+    rows.append(("two shapes in a clip path, each clipped by another", "clip-in-clip",
+                 B % (halves + '<clipPath id="c"><rect width="4" height="10" clip-path="url(#d)"/><rect x="6" width="4" height="10" clip-path="url(#e)"/></clipPath>' + red), quarters, "differs"))
+    rows.append(("the same, set by a style and by a rule", "clip-in-clip",
+                 B % ("<style>.k{clip-path:url(#e)}</style>" + halves + '<clipPath id="c"><rect width="4" height="10" style="clip-path:url(#d)"/><rect class="k" x="6" width="4" height="10"/></clipPath>' + red),
+                 quarters, "differs"))
+    # two clip paths that clip each other: the renderer clips by both, a browser leaves the way back out
+    strip = B % '<rect width="3" height="10" fill="#f00"/>'
+    rows.append(("two clip paths that clip each other", "clip-in-clip",
+                 B % ('<clipPath id="d" clip-path="url(#c)"><rect width="10" height="3"/></clipPath><clipPath id="c" clip-path="url(#d)"><rect width="3" height="10"/></clipPath>' + red), strip, "differs"))
+    rows.append(("two clip paths whose shapes are clipped by each other", "clip-in-clip",
+                 B % ('<clipPath id="d"><rect width="10" height="3" clip-path="url(#c)"/></clipPath><clipPath id="c"><rect width="3" height="10" clip-path="url(#d)"/></clipPath>' + red), strip, "differs"))
+    # display on a clip path or on its defs: the renderer clips all the same, a browser does not clip at all
+    whole = B % '<rect width="10" height="10" fill="#f00"/>'
+    for what, doc in (("display='none' on a clip path", B % ('<clipPath id="c" display="none"><rect width="3" height="10"/></clipPath>' + red)),
+                      ("style='display:none' on a clip path", B % ('<clipPath id="c" style="display:none"><rect width="3" height="10"/></clipPath>' + red)),
+                      ("clipPath{display:none}", B % ('<style>clipPath{display:none}</style><clipPath id="c"><rect width="3" height="10"/></clipPath>' + red)),
+                      ("#c{display:none} for a clip path", B % ('<style>#c{display:none}</style><clipPath id="c"><rect width="3" height="10"/></clipPath>' + red)),
+                      ("display='none' on the defs round a clip path", B % ('<defs display="none"><clipPath id="c"><rect width="3" height="10"/></clipPath></defs>' + red)),
+                      ("defs{display:none}", B % ('<style>defs{display:none}</style><defs><clipPath id="c"><rect width="3" height="10"/></clipPath></defs>' + red))):
+        rows.append((what, "clip-display", doc, whole, "differs"))
+    # a clip-path on the outer svg is measured in the picture's pixels: a clip 100 wide leaves a small icon whole and cuts a large one
+    for what, root in (("clip-path on the outer svg", 'clip-path="url(#c)"'), ("style='clip-path' on the outer svg", 'style="clip-path:url(#c)"')):
+        rows.append((what, "root-clip-path", (B % '<clipPath id="c"><rect width="100" height="1000"/></clipPath><rect width="10" height="10" fill="#f00"/>').replace("<svg ", "<svg %s " % root, 1), whole, "differs"))
+    rows.append(("svg{clip-path} for the outer svg", "root-clip-path", B % '<style>svg{clip-path:url(#c)}</style><clipPath id="c"><rect width="100" height="1000"/></clipPath><rect width="10" height="10" fill="#f00"/>',
+                 whole, "differs"))
     # `display: inherit` on a shape inside a clip path, however it gets there: the renderer draws nothing of what is clipped
     inside = '<clipPath id="c"><rect %s width="3" height="10"/></clipPath><rect clip-path="url(#c)" width="10" height="10" fill="#f00"/>'
     for what, doc in (("display='inherit' on a shape inside a clip path", B % (inside % 'display="inherit"')), ("*{display:inherit} beside a clip path", B % ("<style>*{display:inherit}</style>" + inside % "")),
@@ -1291,40 +1372,62 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
                 self.assertNotEqual(outcome[prop, form], "read", form)
         self.assertGreater(len(kept), 100)
 
-    def test_a_size_a_tool_rounded_apart_from_its_viewbox_moves_the_drawing_by_no_more_than_an_edge(self):
+    def test_a_size_a_tool_rounded_apart_from_its_viewbox_moves_an_edge_by_no_more_than_a_hundredth_of_the_icons_side(self):
         # The outer svg's width and height may be up to one part in a hundred from the shape of its viewBox (an export of
         # 283.46px by 141.73px round a viewBox of 283.5 by 141.7 was refused). The cleaned file keeps the viewBox alone, so
-        # within that line it is NOT the file as it came pixel for pixel: the drawing sits up to half a hundredth of the
-        # icon's side away. What is held here is that it is no more: only the edges of the shapes differ (measured
-        # 2026-10-13 at the line itself: 3,348 of 262,144 pixels at 512, none at 32), and past the line far more do.
+        # within that line it is NOT the file as it came pixel for pixel: the drawing is set a little smaller in its room,
+        # and where the room is left over is said by preserveAspectRatio. In the middle (the default) every edge moves by
+        # up to half a hundredth of the icon's side; pushed to one side (xMinYMin, xMaxYMax, xMidYMax) the far edge moves
+        # by a whole hundredth (measured 2026-10-13: 4 to 6 pixels of 512). What is held here is that it is no more: the
+        # pixels that differ lie along the edges of the shapes, in a band a hundredth of the side wide. Measured at the
+        # line itself, of the 262,144 pixels of a 512-pixel icon: 3,348 in the middle, up to 3,756 pushed to a side, none
+        # of a 32-pixel icon's; past the line (10 by 20.5) 8,548. That is a bound on how far an edge moves, NOT on how
+        # many pixels differ: a mark of a hundred fine lines differs in 98,240 to 113,226 of them (the last rows).
         tall = '<svg xmlns="http://www.w3.org/2000/svg" %s><rect width="10" height="20" fill="#00f"/><circle cx="5" cy="10" r="4.3" fill="#f00"/></svg>'
-        within = [("10", "20.19"), ("10", "19.81"), ("10.09", "20"), ("9.91", "20"), ("283.46px", "566.93px"), ("10mm", "20.19mm"), ("1em", "2.019em"), ("10", "20.1"), ("10.05pt", "20pt")]
+        edges = 2 * (10 + 20) + 2 * math.pi * 4.3   # the length of every edge in that drawing, in its own units (the box is 20 high)
+        band = lambda size: edges * size / 20 * (size / 100 + 2)   # that length in pixels, times a hundredth of the side and a soft edge on either side
+        sizes = [("10", "20.19"), ("10", "19.81"), ("10.09", "20"), ("9.91", "20"), ("283.46px", "566.93px"), ("10mm", "20.19mm"), ("1em", "2.019em"), ("10", "20.1"), ("10.05pt", "20pt")]
+        aspects = ("", "xMidYMid", "xMinYMin", "xMaxYMax", "xMidYMax", "xMidYMin", "xMinYMid", "xMaxYMin meet", "xMidYMid slice", "xMinYMin slice", "xMaxYMax slice", "none")
+        within = [(width, height, "") for width, height in sizes] + [(width, height, aspect) for width, height in sizes[:4] for aspect in aspects[1:]]
         # (a size that is too WIDE for its viewBox only adds room at the sides, which a square icon has anyway: too tall is what shows)
         beyond = [("10", "20.5"), ("10", "21"), ("10", "24"), ("10mm", "20.5mm"), ("1em", "2.05em")]
+        attrs = lambda width, height, aspect: 'viewBox="0 0 10 20" width="%s" height="%s"%s' % (width, height, ' preserveAspectRatio="%s"' % aspect if aspect else "")
         jobs = []
-        for width, height in within:
-            doc = tall % ('viewBox="0 0 10 20" width="%s" height="%s"' % (width, height))
+        for row in within:
+            doc = tall % attrs(*row)
             jobs.append({"texts": [doc, _svg.clean_svg(doc.encode()).text], "pairs": [[0, 1]]})
         for width, height in beyond:
-            doc = tall % ('viewBox="0 0 10 20" width="%s" height="%s"' % (width, height))
-            with self.assertRaises(Refusal) as cm:
-                _svg.clean_svg(doc.encode())
-            self.assertEqual(cm.exception.code, "root-size")
-            jobs.append({"texts": [doc, tall % 'viewBox="0 0 10 20"'], "pairs": [[0, 1]]})
+            for aspect in ("", "xMinYMin", "xMidYMax"):
+                doc = tall % attrs(width, height, aspect)
+                with self.assertRaises(Refusal) as cm:
+                    _svg.clean_svg(doc.encode())
+                self.assertEqual(cm.exception.code, "root-size")
+            jobs.append({"texts": [tall % attrs(width, height, ""), tall % 'viewBox="0 0 10 20"'], "pairs": [[0, 1]]})
+        # a mark of a hundred fine lines, at the line itself: an edge moves by no more, and that is the whole of a line's width
+        stripes = '<svg xmlns="http://www.w3.org/2000/svg" %%s><path d="%s" stroke="#f00" stroke-width=".1"/></svg>' % "".join("M0 %.2fh10" % (0.05 + 0.2 * i) for i in range(100))
+        fine = [("10", "20.19", "xMidYMax"), ("10", "20.19", "xMinYMin"), ("10", "20.19", "")]
+        for row in fine:
+            doc = stripes % attrs(*row)
+            jobs.append({"texts": [doc, _svg.clean_svg(doc.encode()).text], "pairs": [[0, 1]]})
         answers = pictures(self, self.site.dir, jobs)
-        edge = lambda size: size * size // 50   # a fiftieth of the icon's pixels: the edges of its shapes, half a hundredth of its side wide
-        seen = 0
-        for (width, height), answer in zip(within, answers):
-            with self.subTest(width=width, height=height):
-                all_drawn(self, answer, "%s by %s" % (width, height))
+        seen, middle = 0, 0
+        for (width, height, aspect), answer in zip(within, answers):
+            with self.subTest(width=width, height=height, aspect=aspect):
+                all_drawn(self, answer, "%s by %s %s" % (width, height, aspect))
                 for size, got in zip(SIZES, answer["pairs"][0]):
-                    self.assertLessEqual(got["over"], edge(size), "at %d pixels %d pixels differ" % (size, got["over"]))
+                    self.assertLessEqual(got["over"], band(size), "at %d pixels %d pixels differ" % (size, got["over"]))
                     seen = max(seen, got["over"])
-        self.assertGreater(seen, 0, "within the line the two are not the same picture, and this test says so")
+                    middle = max(middle, got["over"] if aspect in ("", "xMidYMid") else 0)
+        self.assertGreater(middle, 0, "within the line the two are not the same picture, and this test says so")
+        self.assertGreater(seen, middle, "pushed to one side an edge moves further than in the middle")
         for (width, height), answer in zip(beyond, answers[len(within):]):
             with self.subTest(width=width, height=height):
                 all_drawn(self, answer, "%s by %s" % (width, height))
-                self.assertGreater(answer["pairs"][0][-1]["over"], edge(SIZES[-1]), "past the line more than the edges differ in a large icon")
+                self.assertGreater(answer["pairs"][0][-1]["over"], seen, "past the line more differs in a large icon than anywhere at the line")
+        for row, answer in zip(fine, answers[len(within) + len(beyond):]):
+            with self.subTest(fine=row):
+                all_drawn(self, answer, "fine lines, %s by %s %s" % row)
+                self.assertGreater(answer["pairs"][0][-1]["over"], SIZES[-1] * SIZES[-1] // 8, "a mark of fine lines differs all over in a large icon")
 
     def test_a_file_as_it_came_may_be_one_the_renderer_cannot_draw_small_where_the_cleaned_file_is_drawn(self):
         # A search with generated files (2026-10-13) reported "zero-sized image" for a file as it came, at 32 pixels, with
@@ -1343,11 +1446,16 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
         self.assertEqual(answer["pairs"][0][1]["over"], 0, "and where both are drawn they are one picture")
         the_same(self, answer["pairs"][1], "the cleaned file, and the drawing by its viewBox alone")
 
-    def test_the_slowest_drawings_inside_the_caps_are_drawn_in_seconds(self):
-        # An accepted file is drawn in a time that fits a logo. Measured 2026-10-13 (processor time of the renderer for
-        # one icon, load average 3 to 12): before the caps, a dashed path of 3,652 characters that ran a hundred boxes out
-        # and back took 33 seconds and one of 25,152 characters inside its box 10; each of the drawings below, which
-        # use all of what the caps allow, takes under a second (the slowest 0.8). The line held here is ten seconds.
+    def test_the_dashed_outlines_the_caps_allow_are_drawn_in_seconds(self):
+        # The caps of the check (_svg._reach) bound DASHED outlines, the one kind of slow drawing they were made for.
+        # Measured 2026-10-13 (processor time of the renderer for one icon, load average 3 to 12): before the caps, a dashed
+        # path of 3,652 characters that ran a hundred boxes out and back took 33 seconds and one of 25,152 characters
+        # inside its box 10; each of the drawings below, which use all of what the caps allow, takes under a second on a
+        # quiet machine (the slowest 0.8) and 2.2 on one at load 10. The line held here is ten seconds.
+        # What is NOT dashed is not bounded by these caps, and is not held here: one outlined path of 40,000 to 50,000
+        # short turns took 11 to 12 seconds an icon at load 10, and one clip path of 2,000 numbers used by 4,900 shapes 7.
+        # For those the bound is the time limit of the renderer's call (_render.RENDER_SECONDS: see
+        # test_a_renderer_that_takes_too_long_is_stopped_and_the_refusal_says_what_to_ask_for).
         dashes = 'fill="none" stroke="#f00" stroke-width="2" stroke-dasharray="%s"'
         inside = {
             "100 lines across the box, dashes a thousandth of it": '<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.01") * 100,
@@ -1357,8 +1465,8 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
             "dots along 100 lines": '<line y1="5" x2="10" y2="5" stroke-linecap="round" %s/>' % (dashes % "0 0.02") * 100,
             "a polygon of 1,000 slanted sides": '<polygon points="%s" %s/>' % ("0 0 10 10 0 10 10 0 " * 250, dashes % "0.2"),
             "100 lines, each begun a hundred boxes into its dashes": '<line y1="5" x2="10" y2="5" stroke-dashoffset="1010" %s/>' % (dashes % "0.01") * 100,
-            "a path of 200,000 characters that runs a hundred boxes out and back": '<path d="M0 5%s" fill="none" stroke="#f00" stroke-width="2"/>' % ("H1010H0" * 28570),
-            "the same with an outline a hundred boxes wide": '<path d="M0 5%s" fill="none" stroke="#f00" stroke-width="1010"/>' % ("H9H0" * 49998),
+            "100 lines with one end a share and one a plain number": '<line x1="100%%" y1="50%%" x2="0" y2="5" %s/>' % (dashes % "0.01") * 100,
+            "111 rects with one side a share": '<rect width="45%%" height="0" %s/>' % (dashes % "0.01") * 111,
         }
         renderer = _render.Renderer(self.site.dir)
         for what, inner in inside.items():
@@ -1373,7 +1481,8 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
         # one step past the caps each of these is refused, so the renderer never meets it
         for inner, code in (('<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.01") * 101, "too-many-dashes"), ('<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.0099"), "dash-too-small"),
                             ('<path d="M0 5%s" %s/>' % ("H1010H0" * 500, dashes % "0.01"), "dashed-path"), ('<path d="M0 5%s" %s/>' % ("H10H0" * 5000, dashes % "0.01"), "dashed-path"),
-                            ('<path d="M0 5H60000H0" fill="none" stroke="#f00"/>', "too-far"), ('<line y1="5" x2="10" y2="5" stroke-dashoffset="1e9" %s/>' % (dashes % "0.01"), "too-far")):
+                            ('<path d="M0 5H60000H0" fill="none" stroke="#f00"/>', "too-far"), ('<line y1="5" x2="10" y2="5" stroke-dashoffset="1e9" %s/>' % (dashes % "0.01"), "too-far"),
+                            ('<line x1="100%%" y1="50%%" x2="0" y2="5" %s/>' % (dashes % "0.01") * 101, "too-many-dashes"), ('<rect width="45%%" height="0" %s/>' % (dashes % "0.01") * 112, "too-many-dashes")):
             with self.subTest(inner=inner[:60]):
                 with self.assertRaises(Refusal) as cm:
                     _svg.clean_svg((B % inner).encode())

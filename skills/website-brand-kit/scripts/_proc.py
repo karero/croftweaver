@@ -18,9 +18,12 @@ import time
 
 GRACE = 5   # seconds a command and what it started get to clear up after themselves once they are told to stop, before they are killed
 POLL = 0.25  # seconds between two looks at what is still running while it is being stopped (each look runs `ps`)
+LOOKS = 3   # how often `ps` is asked for one look when it did not end well, before that look does without the list
 # What the handler of the watched signals (_install._stop) and the lines below share: how deep the run is in lines
-# that must not be cut short, a stop that came meanwhile, and whether a stop still counts.
-_HOLD = {"depth": 0, "pending": None, "deaf": False}
+# that must not be cut short, a stop that came meanwhile, and whether a stop still counts. And one word for the
+# report: whether the last stopping had to do without the list of processes (see _stop_all), so that no report
+# says more was stopped than this file could know.
+_HOLD = {"depth": 0, "pending": None, "deaf": False, "unlisted": False}
 
 
 class Interrupted(BaseException):
@@ -49,20 +52,27 @@ def _listing():
     """What is running, as far as `ps` says: {process id: (its parent, its group, when it started)},
     processes that have ended and only wait to be collected left out. None where `ps` cannot be asked
     (Windows; a system whose `ps` does not know these columns), and where it did not end well: a `ps`
-    that was stopped half way (a second Ctrl-C reaches it too) has printed a part of the list, and a
-    part of the list is not taken for the list."""
-    try:
-        r = subprocess.run(["ps", "-Ao", "pid=,ppid=,pgid=,stat=,lstart="], capture_output=True, text=True, errors="replace", timeout=60)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if r.returncode:
-        return None
-    table = {}
-    for line in r.stdout.splitlines():
-        parts = line.split(None, 4)
-        if len(parts) >= 4 and all(v.isdigit() for v in parts[:3]) and not parts[3].startswith("Z"):
-            table[int(parts[0])] = (int(parts[1]), int(parts[2]), parts[4].strip() if len(parts) > 4 else "")
-    return table or None
+    that was stopped half way has printed a part of the list, and a part of the list is not taken for
+    the list.
+
+    `ps` is started in a session of its own. A Ctrl-C in a terminal goes to every process of this
+    program's group, and a second one, pressed while the first is being answered, would otherwise end
+    the `ps` that the stopping runs: the stopping would then know less than it could. One that still
+    did not end well is asked again, LOOKS times in all."""
+    apart = {"start_new_session": True} if os.name == "posix" else {}
+    for _look in range(LOOKS):
+        try:
+            r = subprocess.run(["ps", "-Ao", "pid=,ppid=,pgid=,stat=,lstart="], capture_output=True, text=True, errors="replace", timeout=60, **apart)
+        except (OSError, subprocess.SubprocessError):
+            return None   # no `ps` here, or one that does not come back: asking again would not help
+        table = {}
+        for line in r.stdout.splitlines() if not r.returncode else ():
+            parts = line.split(None, 4)
+            if len(parts) >= 4 and all(v.isdigit() for v in parts[:3]) and not parts[3].startswith("Z"):
+                table[int(parts[0])] = (int(parts[1]), int(parts[2]), parts[4].strip() if len(parts) > 4 else "")
+        if table:
+            return table
+    return None
 
 
 def _wait(p, timeout):
@@ -112,15 +122,20 @@ def _stop_all(p):
 
     What is reached, on macOS and Linux: every process in the command's own group (it is started in a
     group of its own, and what it starts stays there unless it leaves on purpose); and every process that
-    descends from the command by parent at the moment the stopping begins, wherever it has moved (a
-    preview server started in a session of its own is still its starter's child). A process outside the
-    group is signalled by its own number, and only while `ps` shows that number with the same start time.
+    `ps` shows as descending from the command by parent, wherever it has moved (a preview server started
+    in a session of its own is still its starter's child). That family is collected again at every look,
+    POLL seconds apart, for as long as the stopping lasts: a child that is started while its starter is
+    being stopped joins it, is told to end, and is killed with the rest. A process outside the group is
+    signalled by its own number, and only while `ps` shows that number with the same start time.
 
-    What is not reached: a process that left the group AND whose parent had already ended when the
-    stopping began (a program that makes itself a daemon; a child in a session of its own whose starter
-    ended without stopping it). Nothing ties such a process to this run any more. On Windows only what
-    the command started while it still runs is reached (taskkill with /T), all at once; once the command
-    has ended there, nothing can be asked about what it left."""
+    What is not reached: a process that left the group AND whose parent had already ended when it was
+    first looked for. That is a program that makes itself a daemon; a child in a session of its own whose
+    starter ended without stopping it before the stopping began; and one that was started in a session of
+    its own during the stopping, by a starter that ended before the next look (POLL seconds at most).
+    Nothing ties such a process to this run any more. Where `ps` cannot be asked, or did not answer at the
+    first look or the last, no more than the command's own group is known to be stopped, and
+    _HOLD["unlisted"] says so for the report. On Windows only what the command started while it still runs is reached (taskkill with /T),
+    all at once; once the command has ended there, nothing can be asked about what it left."""
     if os.name != "posix":
         if p.poll() is None:
             try:
@@ -134,17 +149,22 @@ def _stop_all(p):
         p.wait()
         return
 
-    table = _listing()
-    family, todo = {}, [p.pid]
-    while todo and table:   # everything that descends from the command, noted before anything is stopped: afterwards the parents are gone
-        parent = todo.pop()
-        for pid, (its_parent, _group, started) in table.items():
-            if its_parent == parent and pid not in family:
-                family[pid] = started
-                todo.append(pid)
+    family = {}   # every process a look found to descend from the command: {its number: when it started}
 
-    def running(now):
-        return {pid: group for pid, (_parent, group, started) in now.items() if group == p.pid or family.get(pid) == started}
+    def look():
+        """What of it is running now, {process id: its group}; None where the list could not be read.
+        A child of the command, or of a process that is in the family and still running, joins the family."""
+        table = _listing()
+        if table is None:
+            return None
+        grew = True
+        while grew:
+            grew = False
+            for pid, (parent, _group, started) in table.items():
+                if pid not in family and (parent == p.pid or (parent in table and family.get(parent) == table[parent][2])):
+                    family[pid] = started
+                    grew = True
+        return {pid: group for pid, (_parent, group, started) in table.items() if group == p.pid or family.get(pid) == started}
 
     def tell(sig, pids):
         if pids is None or p.pid in pids.values():   # somebody is in the group (or `ps` cannot say): the group as a whole
@@ -168,24 +188,34 @@ def _stop_all(p):
         except OSError:
             return True
 
-    pids = running(table) if table else None
-    if pids != {}:
-        tell(signal.SIGTERM, pids)
-        end = time.monotonic() + GRACE
-        while time.monotonic() < end:
-            time.sleep(POLL)
-            now = _listing() if table else None
-            pids = running(now) if now else None
-            if pids == {} or (pids is None and gone()):
+    pids = look()
+    unlisted = pids is None   # what descended from the command when the stopping began was not seen
+    outside = False           # whether the last list that could be read showed any of it outside the command's own group
+
+    def nothing_left():
+        # a look that could not be made says nothing of a process outside the group: the group's word is taken only where none was seen
+        return pids == {} or (pids is None and not outside and gone())
+
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        if nothing_left():
+            break
+        told, end = set(), time.monotonic() + GRACE   # (killed is not gone at once: nothing of it may still be writing when the files are put back)
+        while True:
+            if pids is None:
+                if None not in told:
+                    told.add(None)
+                    tell(sig, None)
+            else:
+                tell(sig, {pid: group for pid, group in pids.items() if pid not in told})   # at the first look everything; later what has joined since
+                told.update(pids)
+                outside = any(group != p.pid for group in pids.values())
+            if time.monotonic() >= end:
                 break
-        if pids != {} and not (pids is None and gone()):
-            tell(signal.SIGKILL, pids)
-            end = time.monotonic() + GRACE   # killed is not gone at once: nothing of it may still be writing when the files are put back
-            while time.monotonic() < end:
-                time.sleep(POLL)
-                now = _listing() if table else None
-                if (running(now) == {}) if now else gone():
-                    break
+            time.sleep(POLL)
+            pids = look()
+            if nothing_left():
+                break
+    _HOLD["unlisted"] = unlisted or pids is None   # said of this stopping, the last one: it is the one a stop from outside ends in
     if p.poll() is None:   # whatever `ps` showed: the command itself is never waited for without an end
         try:
             p.kill()

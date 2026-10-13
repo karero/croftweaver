@@ -23,6 +23,11 @@ EVERY caller, so that one colour has one hex whoever asks:
   - a hue of more than a thousand turns either way (`hsl(1e9 100% 50%)`): the renderer works with
     less exact numbers and draws another colour for it, and black beyond what it can hold.
   - hsl() or hsla() whose saturation or lightness has no % sign: the renderer draws black.
+  - hsl() or hsla() with a saturation or a lightness over 100%. The renderer cuts each down to 100%
+    (it draws `hsl(200 300% 20%)` as #004466). Chromium 153 does that in the comma form only: in a
+    stylesheet it shows `hsl(200 300% 20%)` as #0066cc and `hsl(270deg 150% 33.333%)` as #5500d4
+    (cut: #5500aa), and `hsl(0 100% 1e99%)` as #00ffff where the renderer draws white. So such a
+    colour has no one hex. (Below 0% both take 0%, and it is read.)
   - an alpha written after a slash in the comma form (`rgb(255,0,0/1)`): the renderer draws black. An
     alpha of exactly 1 (or 100%) is read in the two forms the renderer draws as the solid colour: as
     a fourth value after commas, and after a slash in the space form.
@@ -31,6 +36,10 @@ refused, because the renderer does not read it and draws black, so the file as i
 show the colour this check lists. A palette table and a stylesheet are never drawn by that
 renderer (a browser reads the stylesheet, and the table is only turned into hex), so there oklch()
 is read as CSS has it. tests/test_paint.py holds a picture of each of these, drawn by the renderer.
+A blank around a colour, or between its numbers, is one CSS takes for white space: a space, a tab, a
+line feed, a carriage return or a form feed (SPACE). Python's own strip() and split() also take a
+no-break space, a wide space, a line separator and a few control characters, which no browser reads
+past: `--bg:` with a no-break space pasted before `#ffffff` is no colour to a browser, and none here.
 Standard library only.
 """
 
@@ -87,13 +96,15 @@ _VALUE = re.compile(r"^(%s)(%%|deg|grad|rad|turn)?$" % _NUM)
 _HEX = re.compile(r"^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 _FUNC = re.compile(r"^([a-zA-Z]+)\((.*)\)$", re.S)
 _GAMUT_EPS = 0.0005
+SPACE = " \t\r\n\f"  # what CSS takes for white space, and all that is taken off a colour or stands between its numbers
+_SPACES = re.compile("[%s]+" % SPACE)
 
 
 def _unreadable(text, why="a colour format this check does not read"):
     return Refusal(
         "colour-unreadable",
         "The colour %r is not one this check can read (%s). Write it as #rrggbb, rgb(), hsl(), oklch() or a "
-        "CSS colour name." % (text.strip()[:40], why),
+        "CSS colour name." % (text.strip(SPACE)[:40], why),
     )
 
 
@@ -101,7 +112,7 @@ def _alpha(text):
     return Refusal(
         "colour-alpha",
         "The colour %r is see-through. This check reads flat, solid colours only: ask for the same colour without "
-        "transparency." % text.strip()[:40],
+        "transparency." % text.strip(SPACE)[:40],
     )
 
 
@@ -119,7 +130,7 @@ def _hex(r, g, b):
 
 def _num(token, text, allow=("", "%")):
     """One number with an optional unit, as (value, unit)."""
-    m = _VALUE.match(token.strip())
+    m = _VALUE.match(token.strip(SPACE))
     if not m or (m.group(2) or "") not in allow:
         raise _unreadable(text)
     if len(m.group(1)) > MAX_NUMBER_CHARS:
@@ -162,8 +173,8 @@ def _split_args(body, text, legacy_ok):
         if len(parts) == 4 and alpha is None:
             alpha = parts.pop()
     else:
-        parts = body.split()
-    parts = [p.strip() for p in parts]
+        parts = [p for p in _SPACES.split(body) if p]
+    parts = [p.strip(SPACE) for p in parts]
     if len(parts) != 3 or not all(parts):
         raise _unreadable(text)
     if alpha is not None:
@@ -179,7 +190,10 @@ def _hsl(parts, text):
             raise _unreadable(text, "the saturation and the lightness of hsl() each need a % sign")
     s, _ = _num(parts[1], text, ("%",))
     l, _ = _num(parts[2], text, ("%",))
-    s, l = max(0.0, min(100.0, s)) / 100.0, max(0.0, min(100.0, l)) / 100.0
+    if s > 100.0 or l > 100.0:
+        # hsl(270deg 150% 33.333%): #5500aa with the saturation cut to 100% (so the renderer draws it), #5500d4 in Chromium
+        raise _unreadable(text, "the saturation or the lightness of hsl() is over 100%")
+    s, l = max(0.0, s) / 100.0, max(0.0, l) / 100.0
     c = (1 - abs(2 * l - 1)) * s
     x = c * (1 - abs((h / 60.0) % 2 - 1))
     m = l - c / 2
@@ -213,7 +227,7 @@ def _oklch(parts, text):
         raise Refusal(
             "colour-gamut",
             "The colour %r lies outside the colours a screen can show (sRGB), so it has no exact hex. Ask for it again "
-            "as #rrggbb." % text.strip()[:40],
+            "as #rrggbb." % text.strip(SPACE)[:40],
         )
     enc = [12.92 * c if c <= 0.0031308 else 1.055 * max(c, 0.0) ** (1 / 2.4) - 0.055 for c in (max(0.0, min(1.0, c)) for c in lin)]
     return _hex(*(c * 255 for c in enc))
@@ -231,16 +245,23 @@ def parse_colour(text, current=None, drawn=False):
 
 
 def _parse(text, current, drawn):
-    t = (text or "").strip()
+    t = (text or "").strip(SPACE)
     if not t:
         raise _unreadable(text or "", "it is empty")
+    if t != t.strip():
+        raise Refusal(
+            "colour-unreadable",
+            "The colour %r has a character before or after it that looks like a space and is none to a browser (a "
+            "no-break space, as a line copied from a web page can have), so a browser takes the whole value for no "
+            "colour. Delete the blanks around the colour and type them again." % t.strip()[:40],
+        )
     if not t.isascii():
         # digits of another script would be read as numbers, and a letter such as the Kelvin sign lower-cases to a plain "k"
         raise _unreadable(t, "it holds a letter, a digit or a space that is not a plain one")
     low = t.lower()
     if low == "currentcolor":
         if current:
-            return _parse(current, None, drawn)
+            return parse_colour(current, None, drawn)  # through the guarded entry, like any other text
         raise Refusal(
             "colour-current",
             "The mark paints with currentColor, which takes the colour of the page around it, so its colour cannot be "

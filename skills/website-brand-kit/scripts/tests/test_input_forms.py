@@ -9,8 +9,12 @@ checked at all.
 
 import contextlib
 import io
+import json
 import os
+import shutil
+import signal
 import struct
+import subprocess
 import sys
 import tempfile
 import unicodedata
@@ -19,7 +23,9 @@ import warnings
 import zipfile
 
 import _testutil as T
+import brand_intake
 import _input
+import _install
 import _svg
 import _zipin
 from _refusal import Ask, Refusal
@@ -149,6 +155,31 @@ def refused(testcase, fn, code):
     testcase.assertEqual(cm.exception.code, code, "refused, but for %r: %s" % (cm.exception.code, cm.exception))
     testcase.assertTrue(len(str(cm.exception)) > 10)
     return cm.exception
+
+
+def through_the_command(testcase, data, *extra, name="pack.zip"):
+    """What the intake's own command makes of a file: `brand_intake.py install --site SITE --input FILE --dry-run
+    --json`, the call the assistant makes, on a site made from the starter (with no image tool in it: a file the
+    check has read is stopped at the next step, where the icons would be drawn). The command's answer, as a dict."""
+    tmp = tempfile.TemporaryDirectory()
+    testcase.addCleanup(tmp.cleanup)
+    site = T.make_starter_site(os.path.join(tmp.name, "site"), with_modules=False)
+    path = os.path.join(tmp.name, name)
+    with open(path, "wb") as f:
+        f.write(data)
+    out = io.StringIO()
+    stops = [getattr(signal, n) for n in _install.SIGNALS if hasattr(signal, n)]
+    before = [(s, signal.getsignal(s)) for s in stops]   # an install leaves the stop signals handled: a test goes on living
+    try:
+        with contextlib.redirect_stdout(out):
+            brand_intake.main(["install", "--site", site, "--input", path, "--dry-run", "--json"] + list(extra))
+    finally:
+        for s, handler in before:
+            signal.signal(s, handler)
+    return json.loads(out.getvalue())
+
+
+READ = ("sharp-missing", "no-node")   # where the command stops a file that the check has read, in a site with no image tool
 
 
 class RealZip(unittest.TestCase):
@@ -407,48 +438,159 @@ class ZipRefusals(unittest.TestCase):
         pkg = _zipin.open_zip(crafted_zip(name=b"pack/a b.svg"))
         self.assertEqual((pkg.svg_names, pkg.read_svg("pack/a b.svg")), (["pack/a b.svg"], SVG))
 
-    def test_an_entry_with_a_second_name_in_its_notes_is_refused_unless_it_is_the_first_name_again(self):
-        # An entry may carry a second, "Unicode" name in its notes (the way older tools write a name with letters beyond
-        # ASCII). Newer versions of the zip reader go by that name and older ones by the first, and Python 3.13 cuts
-        # the second one at a NUL without a word: `plain.svg` with a second name of `a.svg<NUL>hidden.exe` was listed,
-        # shown and picked as `a.svg`. So a second name is the first one again, byte for byte, or the package is refused.
+    def test_a_second_name_in_an_entrys_notes_is_its_name_where_it_belongs_to_the_entry_and_refuses_the_package_where_not(self):
+        # An entry may carry a second, "Unicode" name in its notes: the way tools write a name with letters beyond ASCII.
+        # Newer versions of the zip reader go by that name and older ones by the first, and Python 3.13 cuts the second
+        # one at a NUL without a word: `plain.svg` with a second name of `a.svg<NUL>hidden.exe` was listed, shown and
+        # picked as `a.svg`. So ONE name is gone by, the same on every Python. A second name is that name where it
+        # belongs to the entry: its bytes are the first name's again, or its checksum is the first name's (what the note
+        # is for: the first name in the old DOS letters, the same name in UTF-8 beside it). Then it is held like any name.
         def listed(data):
             pkg = _zipin.open_zip(data)
             return pkg.svg_names + pkg.other_names
 
-        for first, second in ((b"plain.svg", b"a.svg\0hidden.exe"), (b"plain.svg", b"a.svg\0"), (b"a.svg", b"a.svg\0"), (b"a.svg", b"a\0.svg"), (b"a.svg", b"\0"),
-                              (b"plain.svg", b"a.svg\0\xe2\x80\x8bhidden"), (b"a.svg", b"b.svg"), (b"a.svg", b"a.png"), (b"a.txt", b"a.svg"), (b"header.png", b"logo.svg"),
-                              (b"logo.svg", "logo\u202egvs.exe".encode("utf-8")), (b"a.svg", b"../a.svg"), (b"a.svg", "a\u2800.svg".encode("utf-8")), (b"a.svg", b" a.svg"),
-                              (b"a.svg", b"a.svg "), (b"a.svg", b"/etc/a.svg"), (b"a.svg", b"A.svg"), (b"a.svg", b"a.sv"), (b"a.svg", b"a.svgg"), (b"a.svg", b""),
-                              (b"a.svg", b"\xff\xfe not utf-8"), (b"caf\x82.svg", "caf\u00e9.svg".encode("utf-8")), (b"cafe.svg", "caf\u00e9.svg".encode("utf-8"))):
-            for crc_of in (first, second, b"something else"):   # the reader goes by the second name only when its checksum fits the first: the intake does not ask
+        cafe, logo = "caf\u00e9.svg", "\u30ed\u30b4.svg"
+        # (first name, second name, what becomes of the package when the second name's checksum is the first name's)
+        rows = ((b"plain.svg", b"a.svg\0hidden.exe", "zip-path"), (b"plain.svg", b"a.svg\0", "zip-path"), (b"a.svg", b"a.svg\0", "zip-path"), (b"a.svg", b"a\0.svg", "zip-path"),
+                (b"a.svg", b"\0", "zip-path"), (b"plain.svg", b"a.svg\0\xe2\x80\x8bhidden", "zip-path"), (b"logo.svg", "logo\u202egvs.exe".encode("utf-8"), "zip-path"),
+                (b"a.svg", "a\u2800.svg".encode("utf-8"), "zip-path"), (b"a.svg", "a\u200b.svg".encode("utf-8"), "zip-path"), (b"a.svg", b" a.svg", "zip-path"), (b"a.svg", b"a.svg ", "zip-path"),
+                (b"a.svg", b"a  b.svg", "zip-path"), (b"a.svg", b"../a.svg", "zip-path"), (b"a.svg", b"/etc/a.svg", "zip-path"), (b"a.svg", b"C:a.svg", "zip-path"), (b"a.svg", b"p\\a.svg", "zip-path"),
+                (b"a.svg", b"a/b/c.svg", "zip-nested"), (b"a.svg", b"a" * 200 + b".svg", "zip-name"),
+                (b"a.svg", b"", "zip-second-name"), (b"a.svg", b"\xff\xfe not utf-8", "zip-second-name"), (b"a.svg", b"caf\x82.svg", "zip-second-name"), (b"a.svg", b"a\xc3.svg", "zip-second-name"),
+                # the first name in the old letters and the name in UTF-8 beside it: what the note is for
+                (b"caf\x82.svg", cafe.encode("utf-8"), [cafe]), (b"cafe.svg", cafe.encode("utf-8"), [cafe]), (b"m\x84rk.svg", "m\u00e4rk.svg".encode("utf-8"), ["m\u00e4rk.svg"]),
+                (b"??.svg", logo.encode("utf-8"), [logo]), (b"LOGO~1.SVG", b"pack/my logo final.svg", ["pack/my logo final.svg"]), (b"a.svg", b"b.svg", ["b.svg"]), (b"a.svg", b"A.svg", ["A.svg"]),
+                (b"a.txt", b"a.svg", ["a.svg"]), (b"header.png", b"logo.svg", ["logo.svg"]), (b"a.svg", b"a.png", ["a.png"]), (b"a.svg", b"a.sv", ["a.sv"]), (b"a.svg", b"a.svgg", ["a.svgg"]))
+        for first, second, fits in rows:
+            for crc_of in (first, second, b"something else"):   # with another checksum the second name is not this entry's, whatever it says
                 with self.subTest(first=first, second=second, crc_of=crc_of):
                     data = second_name_zip(first, [second], crc_of=crc_of)
-                    if second.startswith(b"\xff") and crc_of == first and read_through(data) == "zip-bad":
+                    if crc_of == first and isinstance(fits, list):
+                        self.assertEqual(listed(data), fits)
+                        self.assertEqual(read_through(data, pick=fits[0]), ["#b4531a"] if fits[0].lower().endswith(".svg") else "zip-no-svg")
+                        if fits[0] != first.decode("cp437"):   # the first name is not a name of the package any more: one name, not two
+                            self.assertEqual(read_through(data, pick=first.decode("cp437")), "no-such-file" if fits[0].lower().endswith(".svg") else "zip-no-svg")
+                        continue
+                    code = fits if crc_of == first else "zip-second-name"
+                    if code == "zip-second-name" and crc_of == first and read_through(data) == "zip-bad":
                         continue   # a second name that is no UTF-8: a reader that goes by second names turns the package down itself
-                    err = refused(self, lambda: _zipin.open_zip(data), "zip-second-name")
+                    err = refused(self, lambda: _zipin.open_zip(data), code)
                     self.assertTrue(str(err).isascii() and str(err).isprintable(), ascii(str(err)))
-                    for word in ("two names", ascii(first.decode("cp437")), "plain zip"):
-                        self.assertIn(word, str(err))
-                    self.assertEqual(read_through(data), "zip-second-name")
-                    self.assertEqual(read_through(data, pick="a.svg"), "zip-second-name")
-        # two such notes, one of them honest; a note cut short; a note of a version this check does not know
-        for data in (second_name_zip(b"a.svg", [b"a.svg", b"b.svg"]), second_name_zip(b"a.svg", [b"b.svg", b"a.svg"]), second_name_zip(b"a.svg", [b"a.svg"], version=2),
+                    if code == "zip-second-name":
+                        for word in ("two names", ascii(first.decode("cp437")), "plain zip"):
+                            self.assertIn(word, str(err))
+                    elif code == "zip-path" and b"\0" in second:
+                        self.assertIn("\\x00", str(err))   # the name is shown whole, the NUL spelled out
+                    self.assertEqual(read_through(data), code)
+                    self.assertEqual(read_through(data, pick="a.svg"), code)
+        # two such notes that do not say one name; a note cut short; a note of a version this check does not know
+        for data in (second_name_zip(b"a.svg", [b"a.svg", b"b.svg"]), second_name_zip(b"a.svg", [b"b.svg", b"a.svg"]), second_name_zip(b"a.svg", [b"b.svg", b"c.svg"]),
+                     second_name_zip(b"a.svg", [b"a.svg", b""]), second_name_zip(b"a.svg", [b"a.svg", b"a.svg\0"]), second_name_zip(b"a.svg", [b"a.svg"], version=2),
                      second_name_zip(b"a.svg", [b"a.svg"], version=0), second_name_zip(b"a.svg", [b"a.svg"], cut=3), second_name_zip(b"a.svg", [b"a.svg"], cut=9),
                      second_name_zip(b"a.svg", [b"a.svg"], before=struct.pack("<HH", 0x9999, 4) + b"\0" * 4, cut=1)):
-            self.assertIn(read_through(data, pick="a.svg"), ("zip-second-name", "zip-bad"))   # (some versions of the reader turn a note that is cut short down themselves)
+            self.assertIn(read_through(data, pick="a.svg"), ("zip-second-name", "zip-bad", "zip-path"))   # (some versions of the reader turn a note that is cut short down themselves)
         self.assertEqual(read_through(second_name_zip(b"a.svg", [b"a.svg", b"b.svg"])), "zip-second-name")
-        # the same name again is one name: the way a tool writes a name beyond ASCII, with the same bytes in both places
-        for first in (b"a.svg", b"pack/a b.svg", "caf\u00e9.svg".encode("utf-8"), "\u30ed\u30b4.svg".encode("utf-8")):
+        self.assertEqual(read_through(second_name_zip(b"a.svg", [b"b.svg", b"c.svg"])), "zip-second-name")
+        self.assertEqual(listed(second_name_zip(b"a.svg", [b"b.svg", b"b.svg"])), ["b.svg"])
+        # the same bytes again are one name, whatever the checksum says: the way one common tool writes a name beyond ASCII.
+        # The name is its UTF-8 reading on every Python (an older reader gave `caf<box-drawing signs>.svg`)
+        for first in (b"a.svg", b"pack/a b.svg", cafe.encode("utf-8"), logo.encode("utf-8")):
             for data in (second_name_zip(first, [first]), second_name_zip(first, [first, first]), second_name_zip(first, [first], before=struct.pack("<HH", 0x9999, 4) + b"\0" * 4),
-                         second_name_zip(first, [first], utf8=True)):
+                         second_name_zip(first, [first], utf8=True), second_name_zip(first, [first], crc_of=b"something else"), second_name_zip(first, [first], crc_of=b"x", utf8=True)):
                 with self.subTest(first=first):
-                    goes_by = zipfile.ZipFile(io.BytesIO(data)).infolist()[0].filename
-                    self.assertEqual(listed(data), [goes_by])
-                    self.assertEqual(read_through(data, pick=goes_by), ["#b4531a"])
+                    self.assertEqual(listed(data), [first.decode("utf-8")])
+                    self.assertEqual(read_through(data, pick=first.decode("utf-8")), ["#b4531a"])
         # a note of another kind is no name, whatever it holds
         other = struct.pack("<HH", 0x7076, 10) + b"\x01\0\0\0\0b.svg"
         self.assertEqual(read_through(second_name_zip(b"a.svg", [], before=other)), ["#b4531a"])
+        # and a NUL in the entry's own name refuses the package whichever name it goes by
+        self.assertEqual(read_through(second_name_zip(b"a.svg\0x", [b"a.svg"])), "zip-path")
+
+    def test_a_name_beyond_ascii_that_is_not_marked_as_utf8_is_read_as_utf8_where_it_is_utf8(self):
+        # Zips made on a Mac (its zip tool, and its Compress) write a name as UTF-8 and do not mark it so, and write no
+        # second name: `m<a umlaut>rk.svg` was offered to the owner as `m` and two box-drawing signs, on every Python.
+        names = ["m\u00e4rk.svg", "caf\u00e9 au lait.svg", "\u30ed\u30b4.svg", "\u05dc\u05d5\u05d2\u05d5.svg", "e\u0301.svg", "\U0001f600.svg", "gr\u00f6\u00dfe/m\u00e4rk.svg", "na\u00efve/plain.svg"]
+        for name in names:
+            with self.subTest(name=ascii(name)):
+                data = crafted_zip(name=name.encode("utf-8"))
+                self.assertEqual(zipfile.ZipFile(io.BytesIO(data)).infolist()[0].filename, name.encode("utf-8").decode("cp437"), "the reader does read it in the old letters")
+                self.assertEqual(_zipin.open_zip(data).svg_names, [name])
+                self.assertEqual(read_through(data, pick=name), ["#b4531a"])
+                self.assertEqual(read_through(data, pick=name.encode("utf-8").decode("cp437")), "no-such-file")
+                # marked as UTF-8 it is the same name
+                self.assertEqual(_zipin.open_zip(crafted_zip(name=name.encode("utf-8"), central={"flags": 0x800}, local={"flags": 0x800})).svg_names, [name])
+        # the question the owner is asked holds the names as they are
+        with self.assertRaises(Ask) as cm:   # (the package is one a Mac's zip tool wrote)
+            _input.mark(_input.load(T.read_bytes(os.path.join(T.FIXTURES, "zip-tool-names-beyond-ascii.zip"))))
+        self.assertEqual(cm.exception.options, ["m\u00e4rk.svg", "\u30ed\u30b4.svg"])
+        self.assertEqual(cm.exception.shown, ["m\u00e4rk.svg", "\u30ed\u30b4.svg"])
+        self.assertEqual(read_through(T.read_bytes(os.path.join(T.FIXTURES, "zip-tool-names-beyond-ascii.zip")), pick="\u30ed\u30b4.svg"), ["#b4531a"])
+        # a name that is NOT UTF-8 stays as the reader gives it (the old DOS letters: byte 0x82 is an e with an acute accent there)
+        for raw, shown in ((b"caf\x82.svg", "caf\u00e9.svg"), (b"m\x84rk.svg", "m\u00e4rk.svg"), (b"a\xc3.svg", "a\u251c.svg"), (b"\xe3\x83.svg", "\u03c0\u00e2.svg"), (b"\xc3\x28.svg", "\u251c(.svg")):
+            with self.subTest(raw=raw):
+                self.assertEqual(_zipin.open_zip(crafted_zip(name=raw)).svg_names, [shown])
+        # read as UTF-8, a name is held like any other: what cannot be seen in it refuses the package, spelled out
+        for name in ("m\u00e4rk\u200b.svg", "m\u00e4rk\u00a0x.svg", "\u00e4\u202egvs.exe", " \u00e4.svg", "\u00e4\0.svg", "\u00e4.svg\0hidden"):
+            with self.subTest(name=ascii(name)):
+                err = refused(self, lambda: _zipin.open_zip(crafted_zip(name=name.encode("utf-8"))), "zip-path")
+                self.assertTrue(str(err).isascii() and str(err).isprintable(), ascii(str(err)))
+        refused(self, lambda: _zipin.open_zip(crafted_zip(name=("../\u00e4.svg").encode("utf-8"))), "zip-path")
+        # two names that are one name once they are read alike are still two files with the same name
+        refused(self, lambda: _zipin.open_zip(self.two_entries("m\u00e4rk.svg".encode("utf-8"), "ma\u0308rk.svg".encode("utf-8"))), "zip-duplicate")
+        self.assertEqual(_zipin.open_zip(self.two_entries("m\u00e4rk.svg".encode("utf-8"), b"mark.svg")).svg_names, ["m\u00e4rk.svg", "mark.svg"])
+
+    def test_the_names_of_a_package_through_the_command_the_assistant_runs(self):
+        # the one door production has: the question it asks holds the names as they are, a pick by such a name is read,
+        # and a second name that does not belong to its entry refuses the package, on every Python
+        cafe, mark, logo = "caf\u00e9.svg", "m\u00e4rk.svg", "\u30ed\u30b4.svg"
+        tool = T.read_bytes(os.path.join(T.FIXTURES, "zip-tool-names-beyond-ascii.zip"))   # as a Mac's zip tool wrote it: UTF-8, not marked
+        answer = through_the_command(self, tool)
+        self.assertEqual(answer["status"], "needs-decision", answer)
+        self.assertEqual([(ask["code"], ask["options"]) for ask in answer["asks"]], [("which-file", [mark, logo])])
+        for pick in (mark, logo):
+            self.assertIn(through_the_command(self, tool, "--pick", pick)["code"], READ)
+        self.assertEqual(through_the_command(self, tool, "--pick", mark.encode("utf-8").decode("cp437"))["code"], "no-such-file")
+        # the first name in the old letters, the name in UTF-8 in a note beside it, the note's checksum the first name's
+        noted = second_name_zip(b"caf\x82.svg", [cafe.encode("utf-8")])
+        self.assertIn(through_the_command(self, noted)["code"], READ)
+        self.assertIn(through_the_command(self, noted, "--pick", cafe)["code"], READ)
+        # the same bytes in both places, whatever the checksum; and a note that belongs to another name
+        self.assertIn(through_the_command(self, second_name_zip(cafe.encode("utf-8"), [cafe.encode("utf-8")], crc_of=b"x"), "--pick", cafe)["code"], READ)
+        answer = through_the_command(self, second_name_zip(b"plain.svg", [b"a.svg"], crc_of=b"other.svg"))
+        self.assertEqual((answer["status"], answer["code"]), ("refused", "zip-second-name"))
+        self.assertIn("two names", answer["message"])
+        answer = through_the_command(self, second_name_zip(b"plain.svg", [b"a.svg" + bytes(1) + b"hidden.exe"]))
+        self.assertEqual((answer["status"], answer["code"]), ("refused", "zip-path"))
+
+    def two_entries(self, first, second):
+        """A zip of two stored files whose names are written as these bytes, neither marked as UTF-8."""
+        out, directory = b"", b""
+        for name in (first, second):
+            crc = zipfile.crc32(SVG)
+            directory += struct.pack("<4s6H3L5H2L", b"PK\x01\x02", 0x031E, 20, 0, 0, 0, 0x21, crc, len(SVG), len(SVG), len(name), 0, 0, 0, 0, 0, len(out)) + name
+            out += struct.pack("<4s5H3L2H", b"PK\x03\x04", 20, 0, 0, 0, 0x21, crc, len(SVG), len(SVG), len(name), 0) + name + SVG
+        return out + directory + struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 2, 2, len(directory), len(out), 0)
+
+    def test_a_package_from_this_computers_own_zip_tool_shows_its_names_as_they_are(self):
+        # whatever the tool here writes for a name beyond ASCII (UTF-8 unmarked on a Mac; UTF-8 with a second name of
+        # the same bytes elsewhere): the names the owner is shown are the names the files have
+        tool = shutil.which("zip")
+        if not tool:
+            self.skipTest("there is no zip tool on this computer (the same package as a Mac's tool wrote it is read in the test above)")
+        names = ["m\u00e4rk.svg", "\u30ed\u30b4.svg", "plain.svg"]
+        with tempfile.TemporaryDirectory() as folder:
+            try:
+                for name in names:
+                    with open(os.path.join(folder, name), "wb") as f:
+                        f.write(SVG)
+            except (OSError, UnicodeError) as e:
+                self.skipTest("this computer's file system does not take such names (%s)" % type(e).__name__)
+            subprocess.run([tool, "-q", "-X", "pack.zip"] + names, cwd=folder, check=True, timeout=60, capture_output=True)
+            data = T.read_bytes(os.path.join(folder, "pack.zip"))
+        got = _zipin.open_zip(data).svg_names
+        self.assertEqual(sorted(unicodedata.normalize("NFC", n) for n in got), sorted(names))
+        for name in got:
+            self.assertEqual(read_through(data, pick=name), ["#b4531a"])
 
     def test_what_the_zip_reader_has_to_say_about_odd_bytes_is_kept_from_the_owner(self):
         # Python 3.13's reader prints a UserWarning for some packages ("Overlapped entries", "Empty unicode path extra

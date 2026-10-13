@@ -29,6 +29,7 @@ _FRAGMENT = re.compile(r"""[ \t\r\n]*(?:#NAME|"#NAME"|'#NAME')[ \t\r\n]*\)""".re
 _FETCH = re.compile(r"(?<![A-Za-z0-9_\-])(?:-[a-z]+-)?(?:image-set|image|src)\(", re.I)
 _IDENT = r"-?[A-Za-z_][A-Za-z0-9_\-]*"
 _SIMPLE = re.compile(r"^(\*|%s)?((?:[.#]%s)*)$" % (_IDENT, _IDENT))
+_NAME = re.compile(_IDENT)
 _PART = re.compile(r"([.#])(%s)" % _IDENT)
 _PROPERTY = re.compile(r"-?[a-z][a-z0-9\-]*")
 MAX_PARTS = 8   # the .class and #id names one selector may join
@@ -54,8 +55,15 @@ def _name_chr(m):
     return c if c.isalnum() or c in "-_" else "\ufffd"
 
 
+def is_name(text):
+    """Could a selector this reader takes name `text`, as a class or as an id?"""
+    return _NAME.fullmatch(text) is not None
+
+
 def strip_comments(text):
-    return _COMMENT.sub(lambda m: m.group(1) or " ", text)
+    """Each comment as blanks, as many as it had characters: where a comment stood inside a value,
+    the value is as long as it stands in the file (a cap on its length counts them)."""
+    return _COMMENT.sub(lambda m: m.group(1) or " " * len(m.group()), text)
 
 
 def check_urls(text):
@@ -72,8 +80,8 @@ def check_urls(text):
 
 def check_text(text):
     """The checks every piece of CSS text passes, whatever it will be used for. Returns the text
-    without its comments, its escapes still in place: a caller decodes the values it keeps, never
-    the text it is about to split."""
+    with blanks where its comments were, its escapes still in place: a caller decodes the values
+    it keeps, never the text it is about to split."""
     bare = strip_comments(text)
     # Checked with the comments and without them: wherever a renderer thinks a comment starts
     # (`"/*" url(x) "*/"`, `\2f * url(x)`), it sees no more than was checked. And each of those
@@ -137,7 +145,8 @@ def check_split(text, sheet=False):
 
 def parse_declarations(text):
     """`a: b; c: d` into [(prop, value)]. A property is written in small letters and a value is
-    handed on as it is written: nothing is put into lower case, nothing is decoded."""
+    handed on as it is written: nothing is put into lower case, nothing is decoded, and the blanks
+    round it still stand (who keeps the value takes them off, and holds its length with them)."""
     t = check_text(text)
     check_split(t)
     out = []
@@ -146,8 +155,8 @@ def parse_declarations(text):
             continue
         if ":" not in part:
             raise Refusal("css-unreadable", "A style in the file is not written as property: value.")
-        prop, value = part.split(":", 1)
-        prop, value = prop.strip(_BLANKS), value.strip(_BLANKS)
+        prop, raw = part.split(":", 1)
+        prop, value = prop.strip(_BLANKS), raw.strip(_BLANKS)
         if re.search(r"!\s*important", value, re.I):
             raise Refusal("css-unreadable", "A style in the file uses !important, which this check does not read.")
         if prop != prop.lower() and prop.isascii() and _PROPERTY.fullmatch(prop.lower()) and value:
@@ -159,7 +168,7 @@ def parse_declarations(text):
             )
         if not _PROPERTY.fullmatch(prop) or not value:
             raise Refusal("css-unreadable", "A style in the file is not written as property: value.")
-        out.append((prop, value))
+        out.append((prop, raw))
     return out
 
 

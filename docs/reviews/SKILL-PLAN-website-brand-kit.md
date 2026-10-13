@@ -11,10 +11,10 @@ purpose; the business in the scenarios is made up.
 | 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 10 and the closing wording pass answered and handled (each round verified the one before; round 10's answers are not yet verified); the intake accepts SVG only (decision 8) | merged on main (#245, #246, #247), later rounds' answers by pull request; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
 | 2 | Close the open decisions below | ▶ D1 to D6 settled (D5's refinement, D6 and the `brand-handoff` folder name by the maintainer on 2026-10-11); D7 (intake language, zip reader) settled at the start of the build, 2026-10-11, by the build's author as the plan left it (below); the handoff step was tried on 2026-10-11 and one trial showed how files leave the design project (D3) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26; rerun 2026-10-11 under the pinned Node 24.21.0 with the same numbers (one claim sharpened: the no-`viewBox` case). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
-| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 943 tests (after review round 4's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
+| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7); first, rerun the spike under the pinned Node 24 | ✅ built, not yet reviewed (row 7): the intake (`palette`, `install`), 995 tests (after review round 5's fixes), a `make test-brand-kit` target, a `clean.yml` job (`website-brand-kit-tests`, Python 3.9 and 3.12) and a `template-tests.yml` job (`brand-kit-skill`, the real-site run). The two jobs have not run in CI: the branch is not pushed. Windows was not tried | branch `feat/website-brand-kit` (local); spike: "Spike result" below; what differs from this plan: "What the build changed" below |
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ✅ written, not yet reviewed (row 7) | branch `feat/website-brand-kit`, commit `b75db71` |
 | 6 | Hooks into the other skills (listed under "Hooks") | ✅ written 2026-10-12, not yet reviewed (row 7): `new-website` (the intro, a step 2b row and section, the copy list now twenty-six, §3 step 4 and step 5), `README.md` (layout, the optional-skills paragraph), `website-qa` (one row), `website-design-system` (the tokens paragraph), `website-content-guide` (the `BRAND.md` line), the `BRAND.md` template (D6's rows; a test holds it to the palette prompt row for row), the count comment in `check_skill_budgets.sh`. `check_model_agnostic.sh` re-run inside `make check`: still green | branch `feat/website-brand-kit` (local) |
-| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ rounds 1 to 4 run (102, 102, about 105 and about 93 findings), fixed; round 4's fixes not yet re-verified | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
+| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ rounds 1 to 5 run (102, 102, about 105, about 93 and about 72 findings), fixed; round 5's fixes not yet re-verified | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
 | 8 | Evals, with and without the skill, as `website-story` had | ▶ five evals written (`evals/evals.json`, three fixture files); not yet run with and without the skill | branch `feat/website-brand-kit`, commit `b75db71` |
 | 9 | Release note line in 0.32 | ⏸ waits for row 7 (#212 is merged and v0.31 is out) | — |
 
@@ -698,6 +698,28 @@ known to the build's authors. Each is a judgment the maintainer may overrule.
   - Stops: SIGQUIT is a stop like the other three; a stop can no longer leave the tool
     waiting for ever on a Python without `os.waitid` (the tool does its own waiting, for
     the site's tests and for the renderer, in a new module `_proc.py`).
+- **Changed by review round 5 (2026-10-13):**
+  - **Read-back.** After the files are written and before the site's tests run, the tool
+    asks the site's own Node what `SITE.themeColor` and `COMPANY.logo` are, and Python
+    what the share-card script's colours are. A value that is not what the run set puts
+    everything back (exit 1, status `read-back-failed`); where the question cannot be
+    asked (no Node, a Node that cannot read TypeScript, a file it cannot load) the run
+    goes on with one note per file. The report's claim about those two files rests on
+    this, not on the line rule, which stays as a guard against wrong edits. A dry run
+    writes nothing and cannot ask, and says so. Reason: rounds 3, 4 and 5 each found a
+    TypeScript file on which a rule that reads lines was wrong about what the site reads.
+  - The stylesheet scanner refuses any backslash outside a string, a string that runs
+    over a line end, and a block opened inside round or square brackets; an `@import`
+    gives a note. It reads a value's blanks as CSS does (a no-break space is not one).
+  - A clip path is a plain outline that clips shapes: no `clip-path` on or inside a
+    `<clipPath>` or on the outer element, no `display` on a `<clipPath>` or `<defs>`. A
+    clip id may start with a digit. `-inkscape-` properties are dropped with a note.
+  - Palette: a short line or a header row that names the other theme (`Dark`,
+    `Dark mode`, `| Token (dark) | Hex |`) is a problem; a palette inside a code fence
+    is not read.
+  - Stops: the list of processes is read in a session of its own and asked again when
+    it fails; the command line leaves with the report's own status whatever arrives
+    after the report.
 - **Not built:** a command that checks a logo file before a site exists. The contrast check
   on a palette is the only early check, as "Shape" says; a logo the intake will refuse
   (text, a gradient, a picture) is found out at the intake. Counter-argument: she would

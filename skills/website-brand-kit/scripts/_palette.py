@@ -18,7 +18,9 @@ this reads is what that writes.
 
 from __future__ import annotations
 
+import html
 import re
+import unicodedata
 from collections import namedtuple
 
 import _colour
@@ -94,12 +96,17 @@ _SECTION = re.compile(r"(brand|light theme|dark theme)(?: ?\(([^()]*)\))?")
 _REMARK_BRAND = "fixed, theme-independent"  # the template's own remark on `### Brand`
 _REMARK_MARK = re.compile(r"propos(?:ed|als?)")
 _PALETTE = re.compile(r"colou?r palette")  # rule 0: the heading of the part of a longer text that holds the palette
-# The mark (rule 9), as a whole word: no letter and no digit is joined to it. An underscore beside it is emphasis
-# (`_proposed_`) and a raised or lowered figure a footnote mark (`proposed²`): neither makes it another word.
-_JOINED = "[^\\W_\u00b2\u00b3\u00b9\u2070-\u209f]"
-_MARK = re.compile(r"(?<!%s)propos(?:ed|als?)(?!%s)" % (_JOINED, _JOINED), re.I)
-# The mark after the colour of a value cell: in brackets or after a space, emphasis marks around it or not.
-_MARK_AFTER = re.compile(r"(?: ?[*_`]*\( ?[*_`]*propos(?:ed|als?)[*_`]* ?\)[*_`]*| [*_`]*propos(?:ed|als?)[*_`]*)$", re.I)
+_WORD = re.compile(r"propos(?:ed|als?)", re.I)  # the mark (rule 9); _mark_in says where it stands as a whole word
+_MARK_WORDS = ("proposals", "proposed", "proposal")
+_AROUND_MARK = "*_`~"  # what may stand around the mark and is not counted: emphasis marks, backticks, a strike-through
+_OTHER_THEME = {"light": "dark", "dark": "light"}
+_THEME_WORD = {word: re.compile(r"(?<![^\W_])%s(?![^\W_])" % word, re.I) for word in _OTHER_THEME}  # as a whole word
+# Rule 2: the words a line may be made of and still be a label for a theme ("Dark mode", "The dark theme - night").
+_LABEL_WORDS = frozenset("dark light theme mode the values colours colors tokens palette for night day".split())
+_TAG = re.compile(r"</?[A-Za-z][^<>]*>")
+_NUMBERED = re.compile(r"[>*+\- ]*[0-9]{1,9}[.)](?: |$)")
+_WORDS = re.compile(r"[^\W_]+")
+_FENCE = re.compile(r"(`{3,})[^`]*|(~{3,}).*")  # the line that opens a fenced code block
 _SEPARATOR = re.compile(r":?-+:?")
 _PLACEHOLDER = re.compile(r"#?\[([^\[\]#0-9]*)\]|#?(?:\.\.\.|…)|[-–—]+")
 # A colour written as a value (rule 12): a # with 3, 4, 6 or 8 hex digits, with no letter, digit or & straight before
@@ -120,6 +127,106 @@ Row = namedtuple("Row", "line label key cells looks above_separator long")
 
 
 _EMPHASIS = re.compile(r"[*_`]")
+
+
+def _figure(ch):
+    """Is this a figure that is no digit of a number: a raised or lowered one (`²`), a circled one, a fraction
+    (Unicode's category No)? Beside the mark it is a footnote mark, and joins nothing."""
+    return ch > "\x7f" and unicodedata.category(ch) == "No"
+
+
+def _seen(text):
+    """A line as the search for the word (rule 9) looks at it, so that a character nobody sees does not hide the
+    word: HTML character references resolved (`&#112;roposed`, `prop&shy;osed`); every character that does not
+    show taken out (Unicode's category Cf: a soft hyphen, a zero-width space or joiner, a byte-order mark; and a
+    NUL); a figure that is no digit (see _figure) made a blank; and the rest in its compatibility form (NFKC),
+    in which full-width and mathematical letters are plain ones."""
+    text = html.unescape(text)
+    if not text.isascii() or "\x00" in text:
+        text = "".join(" " if _figure(c) else c for c in text if c != "\x00" and (c < "\x80" or unicodedata.category(c) != "Cf"))
+        text = unicodedata.normalize("NFKC", text)
+    return text
+
+
+def _mark_in(text):
+    """Where the mark stands in `text` as a whole word (rule 9): (start, end, the word in lower case), or None.
+    The places are in the text as _seen gives it, which is the text itself unless it holds a character reference
+    or a character beyond ASCII. No letter and no digit is joined to the word; an underscore beside it is
+    emphasis (`_proposed_`), and a figure that is no digit a footnote mark (`proposed²`, `proposed①`)."""
+    if not text.isascii() or "&" in text or "\x00" in text:
+        text = _seen(text)
+    m = _WORD.search(text)
+    while m:
+        before, after = text[m.start() - 1:m.start()], text[m.end():m.end() + 1]
+        if not (before.isalnum() and not _figure(before)) and not (after.isalnum() and not _figure(after)):
+            return m.start(), m.end(), m.group().lower()
+        m = _WORD.search(text, m.end())
+    return None
+
+
+def _mark_after(text):
+    """Where the mark after the colour of a value cell begins (rule 5), or None: the word at the end of the cell,
+    in round brackets or after a space. Emphasis marks, backticks and a strike-through around it are not
+    counted, and neither is a footnote figure after it (`#a6abce ~~proposed~~`, `#a6abce (**proposed**)`,
+    `#a6abce proposed²`). Every character is looked at once, from the end, so no cell makes this slow."""
+    def back(at, takes):
+        while at and takes(text[at - 1]):
+            at -= 1
+        return at
+
+    def word(at):
+        return next((at - len(w) for w in _MARK_WORDS if text[max(0, at - len(w)):at].lower() == w), None)
+
+    around = _AROUND_MARK.__contains__
+    after = lambda ch: ch in _AROUND_MARK or _figure(ch)  # noqa: E731
+    at = back(len(text), after)
+    if text[at - 1:at] == ")":
+        at -= 1
+        start = word(back(at - 1 if text[at - 1:at] == " " else at, after))
+        if start is None:
+            return None
+        at = back(start, around)
+        at = at - 1 if text[at - 1:at] == " " else at
+        if text[at - 1:at] != "(":
+            return None
+        at = back(at - 1, around)
+        return at - 1 if text[at - 1:at] == " " else at
+    start = word(at)
+    if start is None:
+        return None
+    at = back(start, around)
+    return at - 1 if text[at - 1:at] == " " else None
+
+
+def _label_words(line):
+    """The words of a line of text as rule 2 looks at it for a label, in lower case: without a list or quote
+    marker at its start, HTML tags, bracketed remarks (nested ones too), emphasis and punctuation."""
+    m = _NUMBERED.match(line)
+    out, depth = [], 0
+    for ch in _TAG.sub(" ", line[m.end():] if m else line):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif not depth:
+            out.append(ch)
+    return _WORDS.findall("".join(out).lower())
+
+
+def _fenced(lines):
+    """The places (counted from 0) of the lines that stand inside a fenced code block: after a line that begins
+    with three or more backticks (and has no backtick after them) or three or more tildes, up to the next line
+    that is nothing but that many of the same mark, or more; or to the end of the text."""
+    inside, fence = set(), None
+    for at, line in enumerate(lines):
+        if fence is None:
+            m = _FENCE.fullmatch(line) if line[:3] in ("```", "~~~") else None
+            fence = m and (m.group(1) or m.group(2))
+        elif line.startswith(fence) and not line.strip(fence[0]):
+            fence = None
+        else:
+            inside.add(at)
+    return inside
 
 
 def _plain(text):
@@ -169,7 +276,8 @@ def _section(plain):
     name, remark = m.group(1).split()[0], m.group(2)  # "brand", "light", "dark"
     if remark is None or (name == "brand" and remark.strip() == _REMARK_BRAND):
         return name, ""
-    return name, "proposed" if _REMARK_MARK.fullmatch(remark.strip()) else "other"
+    bare = "".join(c for c in remark if c != "~" and not _figure(c)).strip()  # `(~~proposed~~)`, `(proposed²)`: rule 9
+    return name, "proposed" if _REMARK_MARK.fullmatch(bare) else "other"
 
 
 def _level(line):
@@ -215,11 +323,11 @@ def _colour_in(text):
 def _look(cell):
     """What one cell holds (see Look). A colour is a colour only when it is the whole cell: backticks may stand
     around it and the mark `(proposed)` after it, and nothing else."""
-    marked = bool(_MARK.search(cell))
+    marked = bool(_mark_in(cell))
     text = _unwrap(cell)
-    after = _MARK_AFTER.search(text)
-    if after:
-        text = _unwrap(text[:after.start()].strip())
+    after = _mark_after(text) if marked else None  # (the mark after a colour is the word, whole: without the word there is none)
+    if after is not None:
+        text = _unwrap(text[:after].strip())
     if not text:
         return Look("empty", None, cell, marked, False, False, None)
     if _is_placeholder(text):
@@ -297,6 +405,8 @@ class _Reader(object):
         self.whole = True     # no heading says `Colour palette`: the whole text is the palette (rule 0)
         self.foreign = False  # a heading that names none of the three sections was met: the text holds more than the three tables
         self.caption = None   # the last line of text above the table being collected
+        self.caption_at = 0   # its number
+        self.fenced = set()   # the places (from 0) of the lines inside a fenced code block: none of them is a heading (rule 0)
         self.rows = []        # the table being collected
         self.said = set()     # numbers of the lines whose colours were read, or are named by a problem of their row or table
         self.mark_read = set()  # numbers of the lines on which the word is read as a mark (rule 9)
@@ -308,6 +418,8 @@ class _Reader(object):
     def read(self, text):
         text, unclosed = _without_comments(text)
         lines = [" ".join(raw.split()) for raw in text.splitlines()]
+        if "```" in text or "~~~" in text:
+            self.fenced = _fenced(lines)
         first, last = self.where_to_look(lines)
         if unclosed and first < unclosed <= last:
             self.problem("?", None, "palette-comment-open",
@@ -318,7 +430,7 @@ class _Reader(object):
             if not line:
                 self.end_table()
                 continue
-            if _MARK.search(line):
+            if _mark_in(line):
                 self.marks.append((number, line))
             if _colour_in(line):
                 self.colours.append((number, line))
@@ -326,7 +438,7 @@ class _Reader(object):
                 self.table_line(number, line)
                 continue
             self.end_table()
-            if _is_heading(line):
+            if self.is_heading(number - 1, line):
                 self.heading_line(number, line)
             else:
                 self.text_line(number, line)
@@ -350,10 +462,14 @@ class _Reader(object):
         self.name_what_was_not_read()
         return p
 
+    def is_heading(self, at, line):
+        """Is the line at this place (counted from 0) a heading? Inside a fenced code block no line is."""
+        return _is_heading(line) and at not in self.fenced
+
     def where_to_look(self, lines):
         """Rule 0: (how many lines stand before the part of the text that is the palette, the number of its last
         line). The whole text, unless one heading says `Colour palette`: then the part under that heading."""
-        heads = [at for at, line in enumerate(lines) if _is_heading(line)]
+        heads = [at for at, line in enumerate(lines) if self.is_heading(at, line)]
         found = [at for at in heads if len(lines[at]) <= MAX_LINE and _PALETTE.fullmatch(_plain(_heading(lines[at])))]
         if not found:
             return 0, len(lines)
@@ -373,7 +489,7 @@ class _Reader(object):
         stray, heading = [], None
         for at in list(range(first)) + list(range(last, len(lines))):
             line = lines[at]
-            if _is_heading(line):
+            if self.is_heading(at, line):
                 heading = at if len(line) <= MAX_LINE and _section(_plain(_heading(line)))[0] else None
             elif line.startswith("|") and heading is not None:
                 stray.append(heading)
@@ -436,7 +552,7 @@ class _Reader(object):
         self.unmarked = None
 
     def text_line(self, number, line):
-        self.caption = line
+        self.caption, self.caption_at = line, number
         if not self.section:
             return
         if self.tables:
@@ -444,14 +560,19 @@ class _Reader(object):
                 self.closed = line
         elif self.label is None and len(line) <= MAX_LINE:
             other = _section(_plain(line).rstrip(":").strip())[0]
+            what = "is the name of another section"
+            if not other and self.section in THEMES:
+                words = _label_words(line)
+                if _OTHER_THEME[self.section] in words and _LABEL_WORDS.issuperset(words):
+                    other, what = _OTHER_THEME[self.section], "reads as a label for the other theme"
             if other and other != self.section:
                 self.label = line
                 here, there = HEADING[self.section], HEADING[other]
                 self.problem("?", None, "palette-label",
-                             "Line %d, %s, stands between the heading `%s` and its table, and it is the name of another section. A "
+                             "Line %d, %s, stands between the heading `%s` and its table, and it %s. A "
                              "line of text is not a heading, so this check cannot tell which of the two the table belongs to, and it "
                              "read no table under that heading. If the table belongs under `%s`, write that line as a heading (`%s`); "
-                             "if it belongs under `%s`, take the line out." % (number, _quoted(line), here, there, there, here))
+                             "if it belongs under `%s`, take the line out.%s" % (number, _quoted(line), here, what, there, there, here, _unseen(line)))
 
     def table_line(self, number, line):
         if len(line) > MAX_LINE:
@@ -474,8 +595,8 @@ class _Reader(object):
         as a value that was not read and that no problem of its own row or table names."""
         marks = [(n, line) for n, line in self.marks if n not in self.mark_read]
         for at, (number, line) in enumerate(marks[:MOST_NAMED]):
-            m = _MARK.search(line)
-            said = "Line %d, %s, holds the word \"%s\"" % (number, _quoted(line, 80, m.span()), m.group().lower())
+            start, end, word = _mark_in(line)  # (where it stands in the line as _seen gives it: near enough for a quote cut around it)
+            said = "Line %d, %s, holds the word \"%s\"" % (number, _quoted(line, 80, (min(start, len(line)), min(end, len(line)))), word)
             if at == 0:
                 said += (". This check reads that word as a mark only in a row whose colour it reads (`| Muted | #a6abce (proposed) |`) "
                          "and in brackets after one of the three headings (`### Dark theme (proposed)`), so here it marked no value. If "
@@ -518,11 +639,17 @@ class _Reader(object):
             return "under `%s`" % HEADING[self.section]
         if self.section:
             return "after the line %s, further down under `%s`" % (_quoted(self.caption or self.closed), HEADING[self.section])
+        if self.caption and self.in_a_fence():
+            return "under the line %s, which stands inside a code block (between two lines of ``` or ~~~), where this check takes no line for a heading" % _quoted(self.caption)
         if self.caption:
             return "under the line %s, which is not a heading (a heading is one to six # and then a space: `### Light theme`)" % _quoted(self.caption)
         if self.heading is None:
             return "above the first heading"
         return "under the heading %s" % _quoted(self.heading)
+
+    def in_a_fence(self):
+        """Is the line above the table being read one that would be a heading, were it not inside a fenced code block?"""
+        return bool(self.caption) and self.caption_at - 1 in self.fenced and _is_heading(self.caption)
 
     def clash(self, label, where, old, new):
         return Refusal(
@@ -587,7 +714,13 @@ class _Reader(object):
         # a header row whose first cell is the name of another section than the one the table stands under (rule 2)
         other = _section(_plain(header.cells[0]).rstrip(":").strip())[0] if header and filed else None
         other = other if other != filed else None
-        if not (both_themes or filed is None or wrong_header or other):
+        # or one that says the other theme's word in any of its cells, and not its own
+        word = None
+        if header and filed in THEMES and not other:
+            cells = " | ".join(header.cells)
+            if _THEME_WORD[_OTHER_THEME[filed]].search(cells) and not _THEME_WORD[filed].search(cells):
+                word = _OTHER_THEME[filed]
+        if not (both_themes or filed is None or wrong_header or other or word):
             for row in known:
                 self.row(row, filed, hex_header)
             return
@@ -598,19 +731,23 @@ class _Reader(object):
                          "theme from one table: give each theme its own table, one under `### Light theme` and one under `### Dark "
                          "theme`, each starting with the header row `| Token | Hex |`. The table was not read."
                          % (names, self.where(), _quoted(" | ".join(header.cells))))
-        elif other and not both_themes:
-            here, there = HEADING[filed], HEADING[other]
+        elif (other or word) and not both_themes:
+            here, there = HEADING[filed], HEADING[other or word]
             self.problem("?", None, "palette-label",
-                         "Line %d, the header row %s, calls its first column by the name of another section, and its table stands "
+                         "Line %d, the header row %s, %s, and its table stands "
                          "under `%s`. This check cannot tell which of the two the table belongs to, so it did not read the table. If "
                          "the table belongs under `%s`, write that heading on a line of its own above it; if it belongs under `%s`, "
-                         "call the first column \"Token\" (`| Token | Hex |`)."
-                         % (header.line, _quoted("| %s |" % " | ".join(header.cells)), here, there, here))
+                         "%s (`| Token | Hex |`)."
+                         % (header.line, _quoted("| %s |" % " | ".join(header.cells)),
+                            "calls its first column by the name of another section" if other else "says \"%s\"" % word, here, there, here,
+                            "call the first column \"Token\"" if other else "take that word out of the header row"))
         elif claims and filed is None and self.label is None:
             if self.section:
                 advice = ("A line of text is not a heading, and this check does not guess whether it was meant as one. If the table "
                           "belongs to another theme, write that theme's heading above it; if it carries on the table before it, take "
                           "the line out from between the two.")
+            elif self.in_a_fence():
+                advice = "Take the two lines that open and close the code block out, so that the headings inside it count."
             else:
                 advice = "Write the heading the table belongs to on a line of its own above it."
             if wrong_header:
@@ -718,7 +855,12 @@ def parse_tables(text):
     0. WHERE THE CHECK LOOKS. (Comments are blanked first: rule 1.) A HEADING, here and in every rule
        below, is a line that starts with one to six `#` followed by a blank or by the end of the line.
        A line that starts with `#` in any other way (`#1: ...`, `#Brand`, a hex colour, seven `#`) is a
-       line of text like any other: it ends no section, and rules 9 and 12 hold for it.
+       line of text like any other: it ends no section, and rules 9 and 12 hold for it. So is every line
+       INSIDE A FENCED CODE BLOCK: after a line that begins with three or more backticks (and has no
+       backtick after them) or with three or more tildes, up to the next line that is nothing but that
+       mark again, as many or more; or to the end of the text. A `# comment` in a code sample ends no
+       section, and a table under a `### Light theme` written inside a fence stands under no heading
+       (rule 7's problem says so, and says to take the two fence lines out).
        If exactly one heading line of the text says `Colour palette` or `Color palette` and nothing
        else (at any level; emphasis marks and backticks taken out, wherever in the words they stand,
        case ignored), the palette is that SECTION: from that heading's line to the next heading of
@@ -753,8 +895,9 @@ def parse_tables(text):
     2. SECTIONS. Only a heading line (rule 0 says what one is) names a section, and only when its text
        (emphasis marks and backticks taken out, case ignored) is exactly `Brand`, `Light theme` or `Dark
        theme`, with no remark or with one of these two in round brackets after it: the mark
-       (`(proposed)`, `(proposal)` or `(proposals)`, in English: rule 9), or, on `Brand` only, the
-       template's own `(fixed, theme-independent)`.
+       (`(proposed)`, `(proposal)` or `(proposals)`, in English: rule 9; a strike-through and a
+       footnote figure beside the word are not counted), or, on `Brand` only, the template's own
+       `(fixed, theme-independent)`.
        One of the three names with ANY OTHER bracketed remark (`### Dark theme (vorgeschlagen)`, `###
        Light theme (draft)`, `### Brand (proposed by the studio)`) names NO section: a problem quotes
        the heading and says which remark is read there, and no table under it is read. (A mark in
@@ -766,10 +909,21 @@ def parse_tables(text):
        - a line of text of at most 2,000 characters between a section's heading and its first table
          that is the name of ANOTHER section, alone or with a bracketed remark (`**Light theme**`,
          `Dark theme:` or `Light theme (hell)` under `### Brand`; emphasis marks and a colon at its
-         end are not counted): no table under that heading is read. Any other line there (a sentence
-         on the mood) is only text.
+         end are not counted): no table under that heading is read.
+       - such a line under `### Light theme` or `### Dark theme` that reads as a label for the OTHER
+         theme. That is: with a list or quote marker at its start, HTML tags, bracketed remarks (nested
+         ones too), emphasis and punctuation taken out, it holds the other theme's word (`dark` under
+         Light, `light` under Dark) and every word of it is one of dark, light, theme, mode, the,
+         values, colours, colors, tokens, palette, for, night, day (`Dark`, `Dark mode`, `The dark
+         theme`, `- Dark theme values`, `Dark theme (see (note))`). No table under that heading is
+         read. Any other line there is only text (a sentence on the mood: "Warm paper, dark ink.").
+         The limit: a longer sentence that says the table is for the other theme ("This table is for
+         the dark theme of the site.") is not understood, and the table is read under its heading.
        - a header row (rule 6) whose first cell is such a name of another section (`| Dark theme |
-         Hex |` under `### Light theme`): that table is not read.
+         Hex |` under `### Light theme`), or, under a theme's heading, a header row in which any cell
+         holds the other theme's word as a whole word (case ignored) and no cell holds its own (`|
+         Token (dark) | Hex |`, `| Token | Hex | Dark theme |` under `### Light theme`): that table
+         is not read. (A header row that holds both words is rule 10's.)
 
     3. TABLES. A table is a run of lines that start with `|`; a blank line, or any other line, ends it.
        Separator rows (`|---|`) are skipped. The first table under a section's heading belongs to that
@@ -786,8 +940,9 @@ def parse_tables(text):
        always. The cells after it are notes: no value is ever taken from them.
 
     5. THE VALUE CELL holds exactly one colour and nothing else: backticks may stand around it, and the
-       mark after it (`(proposed)`, or the word after a space; emphasis marks around the mark are not
-       counted: `#a6abce _proposed_`, `#a6abce (**proposed**)`). The colour is what
+       mark after it (`(proposed)`, or the word after a space; emphasis marks, a strike-through and a
+       footnote figure around the mark are not counted: `#a6abce _proposed_`, `#a6abce
+       (**proposed**)`, `#a6abce ~~proposed~~`, `#a6abce proposed²`). The colour is what
        `_colour.parse_colour` reads as a whole (a hex, rgb(), hsl(), oklch(), a CSS colour name).
        - Empty, or a placeholder (`#[…]`, `#...`, `[hex]`, one or more dashes): the row is not filled
          in, which is not a mistake. A colour written as a value further along such a row was not read,
@@ -831,8 +986,15 @@ def parse_tables(text):
        word: no letter and no digit joined to it (`unproposed` and `proposed1` are other words). What
        else stands beside it does not make it another word: emphasis marks and backticks (`*proposed*`,
        `__proposals__`, `` `proposed` ``), an underscore (`_proposed_`, `proposed_palette`), a
-       strike-through (`~~proposed~~`), brackets, a raised footnote figure (`proposed²`). It is read
-       in three places, and only there:
+       strike-through (`~~proposed~~`), brackets, a footnote figure (`proposed²`, `proposed①`: any
+       figure that is no digit of a number, raised, lowered, circled or a fraction).
+       The search for the word looks at each line as a reader sees it: HTML character references are
+       resolved (`&#112;roposed`, `prop&shy;osed`), characters that do not show are taken out (a soft
+       hyphen, a zero-width space or joiner, a byte-order mark, a NUL), and letters in a wide or
+       mathematical form count as plain ones. The limit of that: emphasis INSIDE the word
+       (`**pro**posed`) and a look-alike letter of another script (a Cyrillic `р` for the `p`) make
+       it another word, which is passed over without a word.
+       The mark is read in three places, and only there:
        - in the value cell of a row that rules 3 to 7 read, and in any later cell of that row: the row's
          value is a proposal. The check errs towards asking: "not proposed" marks too. Where the value
          cell of such a row is empty or a placeholder, a problem says the row is marked as a proposal
@@ -935,6 +1097,7 @@ class Css(object):
         self.brand = None
         self.problems = []   # [(block or None, variable or None, message)]: a value it cannot read, a block it did not find or did not take, a colour set outside the three blocks
         self.found = set()   # which of "light", "dark", "dark_media" the stylesheet has in the starter's form, once
+        self.notes = []      # what the owner should know and is no problem: a stylesheet this one brings in, which was not read
 
 
 _CSS_BREAK = re.compile(r"\r\n|[\n\r\f]")
@@ -949,8 +1112,12 @@ def _line_number(text, at):
 def _unpaired(text, opened, closer):
     """The refusal for brackets that do not pair up. `opened` is where the innermost bracket stands that is still
     open, or None when no bracket of the closing one's kind is open at all; `closer` is where a closing bracket
-    stands that does not close it, or None at the end of the text."""
-    if opened is None:
+    stands that does not close it (or a `{` that opens a block inside round or square brackets, where a browser
+    expects a rule), or None at the end of the text."""
+    if closer is not None and text[closer] == "{":
+        what = ("the `%s` on line %d is still open where the `{` on line %d opens a block, so a browser takes that block for a part of "
+                "what the bracket holds and for no rule" % (text[opened], _line_number(text, opened), _line_number(text, closer)))
+    elif opened is None:
         what = "the `%s` on line %d closes nothing: no `%s` is open there" % (text[closer], _line_number(text, closer), _CLOSES[text[closer]])
     elif closer is None:
         what = "the `%s` on line %d is never closed" % (text[opened], _line_number(text, opened))
@@ -997,33 +1164,31 @@ _DARK_MEDIA_LIKE = re.compile(r"@media\b.*prefers-color-scheme\s*:\s*dark", re.I
 _DARK_LIKE = re.compile(r"data-theme\s*=\s*[\"']?dark", re.I)
 _SQUEEZE = re.compile("[%s]+" % _CSS_SPACE)
 
-# What is no plain text of a stylesheet: a comment, a string, an unquoted url(...), and an escape. `url(` is the
-# word `url` itself: where a letter, a digit, `_`, `-`, `@`, `#`, a character beyond ASCII, a NUL (which a browser
-# reads as one) or an escape stands straight before it, it is the end of a longer name (`-url(`, `@url(`), which
+# What is no plain text of a stylesheet: a comment, a string, an unquoted url(...), and a backslash. `url(` is the
+# word `url` itself: where a letter, a digit, `_`, `-`, `@`, `#`, a backslash, a character beyond ASCII or a NUL
+# (which a browser reads as one) stands straight before it, it is the end of a longer name (`-url(`, `@url(`), which
 # is a function like any other.
-_CSS_SKIP = re.compile("/\\*|[\"']|(?<![\\w\\-@#\\x00\u0080-\U0010ffff])url\\(|\\\\", re.I)
-# A string runs to its closing quote, or to the end of its line when it is never closed (a line ends at a line feed,
-# a carriage return or a form feed). A backslash takes the character after it with it, and a line end in either
-# spelling (LF or CRLF), which carries the string on to the next line. Each character is taken by one alternative
-# only, so the pattern cannot be made slow.
-_CSS_STRING = {q: re.compile(r"%s(?:[^%s\\\n\r\f]|\\(?:\r\n|[\s\S])?)*(?:%s|(?=[\n\r\f])|\Z)" % (q, q, q)) for q in "\"'"}
-# An escape outside a string: a backslash with one to six hex digits and one blank after them, or with any one other
-# character. (Before a line end a backslash is no escape, and is taken alone.)
-_CSS_ESCAPE = re.compile(r"\\(?:[0-9a-fA-F]{1,6}(?:\r\n|[ \t\n\r\f])?|[^\n\r\f])?")
+_CSS_SKIP = re.compile("/\\*|[\"']|(?<![\\w\\-@#\\\\\\x00\u0080-\U0010ffff])url\\(|\\\\", re.I)
+# A string runs to its closing quote (group 1), or to the end of its line when it is never closed (a line ends at a
+# line feed, a carriage return or a form feed). A backslash takes the character after it with it, but no line end:
+# no string is followed over a line end (_runs_over says which a browser would follow). Each character is taken by
+# one alternative only, so the pattern cannot be made slow.
+_CSS_STRING = {q: re.compile(r"%s(?:[^%s\\\n\r\f]|\\[^\n\r\f])*(?:(%s)|\\?(?=[\n\r\f]|\Z))" % (q, q, q)) for q in "\"'"}
 _CSS_URL = re.compile(r"(?:[^)\\]|\\[\s\S]?)*")  # what an unquoted url( holds, up to its )
 _CSS_STRUCTURE = re.compile(r"[{};()\[\]]")
 _CSS_PIECE = re.compile(r"[;()\[\]]")
 _CSS_PROPERTY = re.compile(r"{s}(--[\w-]+){s}:".format(s=_S))
-_CSS_ESCAPED_NAME = re.compile(r"{s}([\w-]*\\[\w\\-]*){s}:".format(s=_S))  # in `code`, where an escape is a run of backslashes
-# The start of an @-statement: `@` and the first character of a name straight after it. (An `@` before anything else,
-# a backslash before a line end too, is a character on its own, and what follows it is no statement.)
-_AT_NAME = "(?:-?[A-Za-z_\\x00\u0080-\U0010ffff]|--|-?\\\\(?![\n\r\f]|\\Z))"
+# The start of an @-statement: `@` and the first character of a name straight after it. (An `@` before anything else
+# is a character on its own, and what follows it is no statement.)
+_AT_NAME = "(?:-?[A-Za-z_\\x00\u0080-\U0010ffff]|--)"
 _AT_STATEMENT = re.compile("%s@%s" % (_S, _AT_NAME))
-_AT_MEDIA = re.compile(r"{s}@media(?![\w\\-])".format(s=_S), re.I)
+_AT_MEDIA = re.compile(r"{s}@media(?![\w-])".format(s=_S), re.I)
 _AT_NAMESPACE = re.compile(r"""{s}@namespace{s}(?:url\(|["'])""".format(s=_S), re.I)  # one without a prefix: the default namespace
-_AT_PROPERTY = re.compile(r"@property(?![\w\\-]){s}(.*)".format(s=_S), re.I | re.S)
+_AT_IMPORT = re.compile(r"{s}@import(?![\w-])".format(s=_S), re.I)
+_AT_PROPERTY = re.compile(r"@property(?![\w-]){s}(.*)".format(s=_S), re.I | re.S)
 _IMPORTANT = re.compile(r"!{s}important{s}\Z".format(s=_S), re.I)
 _VAR = re.compile(r"var\({s}(--[\w-]+){s}\)".format(s=_S))
+_HEX_DIGITS = "0123456789abcdefABCDEF"
 
 
 def _squeeze(text):
@@ -1037,7 +1202,7 @@ Rule = namedtuple("Rule", "start open close children")
 Line = namedtuple("Line", "name start end important")
 # One thing the scanner cannot take as it stands. `block` is the one of the three it is about, or None for something
 # outside them; `variable` the custom property, or None; `kind` is "missing", "twice", "nested" or "variable" (of a
-# block), or "elsewhere", "statement", "namespace", "escape" or "registered" (of the stylesheet: block None).
+# block), or "elsewhere", "statement", "namespace", "escape", "string" or "registered" (of the stylesheet: block None).
 Trouble = namedtuple("Trouble", "block variable message kind")
 
 
@@ -1049,6 +1214,7 @@ class Sheet(object):
         self.spans = {}      # {block: {custom property: (start, end)}}
         self.unsure = {}     # {block: {custom property: ("twice" or "important", why it has no one value)}}
         self.problems = []   # [Trouble]
+        self.notes = []      # sentences for the owner that are no problem and stop nothing: a stylesheet this one brings in
 
     def value(self, block, variable):
         """The value of a custom property of a block as it is written, comments left out."""
@@ -1056,16 +1222,34 @@ class Sheet(object):
         return _squeeze(self._plain[start:end])
 
 
+def _runs_over(body):
+    """Does a string that stops at a line end go on in a browser? `body` is what stands between its opening quote
+    and that line end. It does where a backslash stands last (the line end is then no part of the string, and the
+    string goes on), or a backslash and one to six hex digits (they spell one character, and that takes one blank
+    after it with it, a line end too). The backslash must itself be one that is not taken by a backslash before it."""
+    at, digits = len(body), 0
+    while at and digits < 6 and body[at - 1] in _HEX_DIGITS:
+        at, digits = at - 1, digits + 1
+    slashes = 0
+    while at and body[at - 1] == "\\":
+        at, slashes = at - 1, slashes + 1
+    return slashes % 2 == 1
+
+
 def _css_code(text):
-    """Two copies of a stylesheet, each exactly as long as the text, so that a place in one is the same place in
-    the text: `plain` has every comment blanked; `code` has the comments, the insides of strings and the insides
-    of unquoted url(...) blanked, and every escape (a backslash and what it takes with it) written as a run of
-    backslashes, so that every { } ; ( ) [ ] : and quote left in it is one the stylesheet means. A /* inside a
-    string is part of the string, a quote inside a comment is part of the comment, and an escaped quote, brace,
-    bracket, colon or semicolon is a character of a name."""
+    """(plain, code, escape, string). `plain` and `code` are two copies of a stylesheet, each exactly as long as the
+    text, so that a place in one is the same place in the text: `plain` has every comment blanked; `code` has the
+    comments, the insides of strings and the insides of unquoted url(...) blanked, and a backslash outside a string
+    written, with the character after it, as two backslashes (so that `\\{` opens nothing). A /* inside a string is
+    part of the string, and a quote inside a comment is part of the comment.
+
+    `escape` is where the first backslash stands that is outside a string and outside a comment, or None; `string`
+    is where the first string begins that a browser reads on over the end of its line (_runs_over), or None. Up to
+    the first of the two, every { } ; ( ) [ ] : and quote left in `code` is one the stylesheet means; after it this
+    reading and a browser's may part, which is why scan_css makes each a problem that stops the editor."""
     if not _CSS_SKIP.search(text):
-        return text, text
-    plain, code, at, n, escaped_to = [], [], 0, len(text), -1
+        return text, text, None, None
+    plain, code, at, n, escape, string = [], [], 0, len(text), None, None
     while at < n:
         m = _CSS_SKIP.search(text, at)
         if not m:
@@ -1079,17 +1263,17 @@ def _css_code(text):
             plain.append(" " * (end - start))
             code.append(" " * (end - start))
         elif token in _CSS_STRING:
-            end = _CSS_STRING[token].match(text, start).end()
+            m = _CSS_STRING[token].match(text, start)
+            end = m.end()
+            if string is None and not m.group(1) and end < n and _runs_over(text[start + 1:end]):
+                string = start
             plain.append(text[start:end])
             code.append(token + " " * (end - start - 1))
         elif token == "\\":
-            end = escaped_to = _CSS_ESCAPE.match(text, start).end()
+            end = min(n, start + 2)
+            escape = start if escape is None else escape
             plain.append(text[start:end])
             code.append("\\" * (end - start))
-        elif start == escaped_to:  # `url(` straight after an escape: the end of a longer name
-            end = start + 4
-            plain.append(text[start:end])
-            code.append(text[start:end])
         else:  # url(
             inside = start + 4
             while inside < n and text[inside] in _CSS_SPACE:
@@ -1098,35 +1282,49 @@ def _css_code(text):
                 end = start + 4  # a quoted address: the string is taken on the next round
                 code.append(text[start:end])
             else:
-                end = _CSS_URL.match(text, inside).end()  # (an escaped bracket inside it does not end it)
+                end = _CSS_URL.match(text, inside).end()  # (a bracket behind a backslash does not end it)
                 code.append(text[start:start + 4] + " " * (end - start - 4))
+                if escape is None and text.find("\\", inside, end) >= 0:
+                    escape = text.find("\\", inside, end)
             plain.append(text[start:end])
         at = end
     plain.append(text[at:])
     code.append(text[at:])
-    return "".join(plain), "".join(code)
+    return "".join(plain), "".join(code), escape, string
 
 
 def _rules(text, code):
     """(the blocks of a stylesheet at its top level, each with the blocks inside it; [(start, end)] of every piece
     that ends in `;` where a browser expects a rule and that is no @-statement; [(start, end)] of every top-level
-    `@namespace` statement that sets a default namespace). The three kinds of bracket, { ( and
-    [, must pair up and nest, each closed by its own kind: anything else is refused, because a browser reads on
-    from an unclosed bracket to wherever it is closed, through the end of the block and of every block after it.
+    `@namespace` statement that sets a default namespace; [(start, end)] of every top-level `@import` statement).
+    The three kinds of bracket, { ( and [, must pair up and nest, each closed by its own kind: anything else is
+    refused, because a browser reads on from an unclosed bracket to wherever it is closed, through the end of the
+    block and of every block after it.
 
     A `;` inside round or square brackets is part of a value. Elsewhere it ends a statement (`@import ...;`) or a
     line of a block, and the next block begins after it. Where a browser expects rules and not lines (at the top
     level, and directly inside a top-level `@media { }`), only a statement that starts with `@` ends at its `;`:
     after anything else (`color: red;`, a `;` alone after a `}`) a browser reads on and takes the `;` and what
-    follows for the selector of the next rule, which it then drops. Those are the pieces returned."""
-    top, stack, start, loose, namespaces = [], [], 0, [], []  # stack: (bracket, where it stands) and, for a {, also (where its rule begins, its children, holds rules?)
+    follows for the selector of the next rule, which it then drops. Those are the pieces returned.
+
+    In those same two places a `{` inside round or square brackets is refused like a bracket that does not pair
+    up: a browser takes `( a{} :root { ... } ) a{}` for ONE rule, whose selector is everything up to the last `{`,
+    so the block inside the brackets is no rule to it. (Inside any other block, such a `{ }` is taken for a block
+    in that block, as before: in one of the three colour blocks that is "nested", which stops the editor.)"""
+    # stack: every bracket that is open, as (bracket, where it stands) and, for a {, also (where its rule begins, its
+    # children, holds rules?); braces: the { among them, so that the block around a block is found without a search
+    top, stack, braces, start, loose, namespaces, imports = [], [], [], 0, [], [], []
     for m in _CSS_STRUCTURE.finditer(code):
         at, ch = m.start(), m.group()
         if ch in "([":
             stack.append((ch, at))
             continue
         if ch == "{":
-            stack.append((ch, at, start, [], not stack and bool(_AT_MEDIA.match(code, start, at))))
+            if stack and stack[-1][0] != "{" and (not braces or braces[-1][4]):
+                raise _unpaired(text, stack[-1][1], at)
+            entry = (ch, at, start, [], not stack and bool(_AT_MEDIA.match(code, start, at)))
+            stack.append(entry)
+            braces.append(entry)
         elif ch == ";":
             if stack and stack[-1][0] != "{":
                 continue
@@ -1134,32 +1332,34 @@ def _rules(text, code):
                 loose.append((start, at + 1))
             elif not stack and _AT_NAMESPACE.match(code, start, at):
                 namespaces.append((start, at + 1))
+            elif not stack and _AT_IMPORT.match(code, start, at):
+                imports.append((start, at + 1))
         else:
             if not stack or stack[-1][0] != _CLOSES[ch]:
                 raise _unpaired(text, stack[-1][1] if any(entry[0] == _CLOSES[ch] for entry in stack) else None, at)
             opened = stack.pop()
             if ch != "}":
                 continue
-            parent = next((entry for entry in reversed(stack) if entry[0] == "{"), None)
-            (parent[3] if parent else top).append(Rule(opened[2], opened[1], at, opened[3]))
+            braces.pop()
+            (braces[-1][3] if braces else top).append(Rule(opened[2], opened[1], at, opened[3]))
         start = at + 1
     if stack:
         raise _unpaired(text, stack[-1][1], None)
-    return top, loose, namespaces
+    return top, loose, namespaces, imports
 
 
 def _selector(plain, rule):
     return _squeeze(plain[rule.start:rule.open])
 
 
-def _pieces(code, rule, holding):
+def _pieces(code, rule):
     """Where each piece of a block's own text begins and ends: what stands between two `;`, a `;` inside round or
     square brackets being part of a value. The blocks inside it, with what stands before their {, are theirs. Only
-    the stretches that hold the text `holding` are looked at."""
+    the stretches that hold a `--` are looked at."""
     begin = rule.open + 1
     for child in rule.children + [None]:
         end = rule.close if child is None else child.start
-        if code.find(holding, begin, end) >= 0:
+        if code.find("--", begin, end) >= 0:
             depth, piece = 0, begin
             for m in _CSS_PIECE.finditer(code, begin, end):
                 ch = m.group()
@@ -1176,13 +1376,7 @@ def _pieces(code, rule, holding):
 
 def _lines(plain, code, rule):
     """The lines of a block that set a custom property, in order: [Line]. Lines of the blocks inside it are theirs."""
-    return [line for line in (_line(plain, code, begin, end) for begin, end in _pieces(code, rule, "--")) if line]
-
-
-def _escaped_names(code, rule):
-    """Where a line of a block sets a property whose name is written with an escape: [(start, end)] of the names."""
-    found = (_CSS_ESCAPED_NAME.match(code, begin, end) for begin, end in _pieces(code, rule, "\\"))
-    return [m.span(1) for m in found if m]
+    return [line for line in (_line(plain, code, begin, end) for begin, end in _pieces(code, rule)) if line]
 
 
 def _line(plain, code, begin, end):
@@ -1227,21 +1421,28 @@ def scan_css(text):
       `!important` (or that the `:root` block marks `!important`, which wins over a dark block's line).
     - `problems`: [Trouble(block, variable, message, kind)], everything about the palette's colours that cannot
       be taken as it stands: the list below says what, and `kind` says which.
+    - `notes`: sentences for the owner about something that is no problem and stops nothing (point 13).
+
+    THE PROMISE is the value of the palette's ten variables on the page's root element, as this one file sets
+    it: what a clean scan reads for a variable is what a browser has for it there, and what the editor writes
+    is what a browser then has. It is not a promise about what each rule of the stylesheet does with the
+    variables: a rule that paints with a colour of its own (`body { background: #ff0000 }`) is outside it.
 
     The three blocks are: at the top level, a rule whose selector is exactly `:root`; one whose selector is
     exactly `:root[data-theme="dark"]` (either kind of quote); and, inside a top-level `@media
     (prefers-color-scheme: dark)`, a rule whose selector is exactly `:root:not([data-theme])`. Space and
-    comments around a selector do not count, and neither does what line it starts on.
+    comments around a selector do not count, and neither does what line it starts on. A byte order mark at the
+    very start of the text is read past (every place in the text stays where it is).
 
     A comment is not text, and a `/*` inside a string is not a comment. A brace, a bracket, a `;` or a `--name:`
-    inside a string or an unquoted url(...) is not one, and neither is one behind a backslash (an escape: the
-    backslash and the character after it, or up to six hex digits and one blank, are one character of a name).
-    A string that a backslash carries over a line end goes on, whether the line ends in LF or CRLF.
+    inside a string or an unquoted url(...) is not one. A string ends at its closing quote, or at the end of
+    its line.
 
     This is a scanner of the starter's shape, not a browser. It does not work out which rule wins; it names
     WHAT COULD MAKE THE PAGE SHOW ANOTHER VALUE THAN THE BLOCK'S LINE SAYS, and the editor refuses on each
     (a problem of a block stops the editor when it has to write to that block; a problem of the stylesheet,
-    block None, stops it always):
+    block None, stops it always). Where it cannot be sure it does not try harder: it stops, with a sentence
+    that says what to change.
 
      1. One of the three blocks is not there, or stands in another shape ("missing").
      2. One of them stands more than once ("twice"), also where the second sets no colour: no spans.
@@ -1250,29 +1451,45 @@ def scan_css(text):
         lines), or marked `!important` in the `:root` block and set in a dark block as well, where the
         `:root` line wins ("variable").
      5. Any OTHER rule, at any depth, sets a palette variable ("elsewhere", block None): `body { --bg: ... }`,
-        `:root.dark { ... }`, a `:root` rule inside another at-rule, a step of `@keyframes`, and a rule whose
-        selector is written with an escape (`:r\\6f ot` spells `:root`; such a rule is never one of the three).
-     6. A line anywhere sets a property whose NAME is written with an escape ("escape", block None): `--b\\67`
-        spells `--bg`, and this scanner does not read escaped names. (An escape in a selector that sets no
-        palette variable, as in `.sm\\:flex`, is ordinary and named by nothing.)
-     7. A piece that ends in `;`, is no @-statement and stands where a browser expects a rule: at the top
+        `:root.dark { ... }`, a `:root` rule inside another at-rule, a step of `@keyframes`.
+     6. A BACKSLASH ANYWHERE outside a string and outside a comment ("escape", block None; the first one is
+        named). A backslash spells a character, and this scanner reads no name written with one: `--b\\67` is
+        `--bg` to a browser, `:r\\6f ot` is `:root`, `u\\72l(` is `url(` (what follows, up to the `)`, is then
+        no code), and an at-rule's name may be written with one too: Chromium 153 makes an `@property` rule
+        of `@\\70roperty --bg { ... }` and of `@p\\72operty --bg { ... }`, a default namespace of `@\\6e
+        amespace url(urn:x);` and of `@n\\61mespace url(urn:x);`, and an import of `@\\69mport ...` (round
+        5: the page then showed another colour, or none of the palette). So also a class name with an
+        escaped colon (`.sm\\:flex`) stops the editor. Inside a string a backslash is ordinary (`content:
+        "\\201C"`), with point 7.
+     7. A string in which a backslash, or a backslash and one to six hex digits, stands directly before the
+        end of the line, and that is not closed on that line ("string", block None; the first one is named).
+        A browser reads such a string on over the line end; this scanner follows no string over a line end,
+        so from there on the two would read different things.
+     8. A piece that ends in `;`, is no @-statement and stands where a browser expects a rule: at the top
         level or directly inside a top-level `@media` ("statement", block None). A browser drops the rule
         after it (`};` before a block, `color: red;` before `:root`, `@media (...) {;`). An @-statement before
         a block (`@import ...;`) does not hide it.
-     8. An `@property` rule registers a palette variable, or a name written with an escape ("registered",
-        block None): the variable then has a type and a start value of its own.
-     9. A top-level `@namespace` statement without a prefix ("namespace", block None): with a default
+     9. An `@property` rule registers a palette variable ("registered", block None): the variable then has a
+        type and a start value of its own.
+    10. A top-level `@namespace` statement without a prefix ("namespace", block None): with a default
         namespace, `:root` matches only a root element of that namespace, which a web page's may not be.
-    10. Brackets that do not pair up, each `{`, `(` and `[` closed by its own kind in the right order: refused
+    11. Brackets that do not pair up, each `{`, `(` and `[` closed by its own kind in the right order: refused
         as a whole (Refusal "css-unreadable"), because a browser reads on from a bracket that is not closed
-        through the end of the block and of the blocks after it.
-    11. A value written as `var(--other)`: see `read_css`, which reads it only where it points at another
+        through the end of the block and of the blocks after it. The same refusal for a `{` inside round or
+        square brackets where a browser expects a rule (at the top level, or directly inside a top-level
+        `@media`): `( a{} :root { ... } ) a{}` is one rule to a browser, and its `:root` block sets nothing.
+    12. A value written as `var(--other)`: see `read_css`, which reads it only where it points at another
         palette variable. The editor writes over such a value like over any other.
+    13. Not a problem, a NOTE: a top-level `@import` statement. The stylesheet it brings in is not read, and
+        it can set the colours too, so `notes` says on which line the first one stands and how many more
+        there are. An import is ordinary (fonts): it stops nothing.
 
-    What it cannot see, and does not name: anything outside this one file (another stylesheet, one brought in
-    by `@import`, a `style` attribute, a script).
+    What it cannot see, and does not name: anything outside this one file (another stylesheet, what one
+    brought in by `@import` holds, a `style` attribute, a script).
     The work grows with the length of the text and no faster."""
-    plain, code = _css_code(text)
+    plain, code, escape, string = _css_code(text)
+    if text[:1] == "\ufeff":  # a byte order mark: read past, and left in the text, so that every place stays where it is
+        plain, code = " " + plain[1:], " " + code[1:]
     sheet = Sheet(plain)
     taken = {block: [] for block in BLOCKS}
     elsewhere = []   # [(rule as a message shows it, its selector, in a block for the dark preference?, the variables it sets)]
@@ -1295,7 +1512,35 @@ def scan_css(text):
             for child in reversed(rule.children):
                 todo.append((child, around, deeper or len(inside) == 2, in_dark_media))
 
-    top, loose, namespaces = _rules(text, code)
+    early = []  # what this reading does not follow: from the first of them on, it and a browser may read different things
+    if escape is not None:
+        end = escape + 2
+        while end < len(plain) and end - escape < 30 and plain[end] not in _CSS_SPACE + "{};":
+            end += 1
+        start = escape
+        while start and escape - start < 30 and plain[start - 1] not in _CSS_SPACE + "{};":
+            start -= 1
+        early.append(("escape", "Line %d of the stylesheet writes a name with a backslash (`%s`). A backslash can spell any character "
+                                "(`--b\\67` is `--bg` to a browser, and `u\\72l(` is `url(`), and this check does not read a name written "
+                                "with one, so it cannot tell what the stylesheet says from there on. Write the name out without the "
+                                "backslash. Where a name cannot be written without one (a class name with a colon in it), move that rule "
+                                "into another stylesheet."
+                      % (_line_number(text, escape), _visible(plain[start:end]))))
+    if string is not None:
+        end = string
+        while end < len(text) and text[end] not in "\n\r\f":
+            end += 1
+        early.append(("string", "Line %d of the stylesheet has a string that runs over the end of its line (`%s`: a backslash, or a "
+                                "backslash and a number, stands last on the line). A browser reads the next line as a part of that "
+                                "string, and this check does not follow a string over a line end, so it cannot tell what the stylesheet "
+                                "says from there on. Write the string on one line."
+                      % (_line_number(text, string), _visible(("..." if end - string > 40 else "") + text[max(string, end - 40):end]))))
+    try:
+        top, loose, namespaces, imports = _rules(text, code)
+    except Refusal:
+        if early:  # the brackets may well pair up to a browser: the reason this cannot tell is the one already found
+            raise Refusal("css-unreadable", " ".join(message for _kind, message in early)) from None
+        raise
     for rule in top:
         selector = plain[rule.start:rule.open].strip(_CSS_SPACE)
         if _IS_LIGHT.fullmatch(selector):
@@ -1422,37 +1667,37 @@ def scan_css(text):
                 "page's own root element is in that namespace, so a web page may show none of the palette, and this check does not "
                 "work that out. Take the statement out, or give the namespace a prefix (`@namespace svg url(...);`)."
                 % (_line_number(text, end - 1), _quoted(_squeeze(plain[start:end]))))
-    escaped, registered, todo = [], [], list(top)
-    any_escape = "\\" in code
+    for kind, message in early:
+        trouble(None, None, kind, message)
+    registered, todo = [], list(top)
     while todo:  # every rule of the stylesheet, at any depth (each looks at its own text only, so the work stays linear)
         rule = todo.pop()
         todo.extend(rule.children)
-        if any_escape:
-            escaped.extend(_escaped_names(code, rule))
         if code.find("@", rule.start, rule.open) >= 0:
             m = _AT_PROPERTY.fullmatch(_squeeze(code[rule.start:rule.open]))
-            if m and (m.group(1) in KEY_OF_VARIABLE or "\\" in m.group(1)):
+            if m and m.group(1) in KEY_OF_VARIABLE:
                 registered.append((rule.open - len(code[rule.start:rule.open].lstrip(_CSS_SPACE)), rule.open))
-    escaped.sort()
     registered.sort()
-    if escaped:
-        start, end = escaped[0]
-        trouble(None, None, "escape",
-                "Line %d of the stylesheet sets a property whose name is written with a backslash (`%s`). A backslash can spell any "
-                "character, so that name may be one of the palette's variables in another spelling (`--b\\67` is `--bg` to a "
-                "browser), and this check does not read such names. Write the name out without the backslash."
-                % (_line_number(text, start), _visible(plain[start:end].strip(_CSS_SPACE)[:40])))
-        more(escaped, "escape", "line like it", "lines like it")
     if registered:
         start, end = registered[0]
-        shown = _squeeze(plain[start:end])
         trouble(None, None, "registered",
-                "Line %d of the stylesheet registers %s with an `@property` rule (`%s`). A registered variable has a type and a "
-                "starting value of its own, so the page may show another colour than the block's line says, and this check does not "
-                "read that rule. Take the rule out, or set the colours by hand."
-                % (_line_number(text, start), "a variable whose name is written with a backslash" if "\\" in shown else "one of the palette's variables",
-                   _visible(shown[:60])))
+                "Line %d of the stylesheet registers one of the palette's variables with an `@property` rule (`%s`). A registered "
+                "variable has a type and a starting value of its own, so the page may show another colour than the block's line "
+                "says, and this check does not read that rule. Take the rule out, or set the colours by hand."
+                % (_line_number(text, start), _visible(_squeeze(plain[start:end])[:60])))
         more(registered, "registered", "rule like it", "rules like it")
+    if imports:
+        start, end = imports[0]
+        start += len(plain[start:end]) - len(plain[start:end].lstrip(_CSS_SPACE))
+        shown = _squeeze(plain[start:end])
+        sheet.notes.append("line %d of the stylesheet brings in another stylesheet (`%s`), which this check does not read. If that one "
+                           "sets the site's colours, the page can show other colours than these."
+                           % (_line_number(text, start), _visible(shown if len(shown) <= 60 else shown[:60] + "...")))
+        if len(imports) > 1:
+            n = len(imports) - 1
+            sheet.notes.append("%d more statement%s like it bring%s in %s; the next is on line %d."
+                               % (n, "" if n == 1 else "s", "s" if n == 1 else "", "another stylesheet" if n == 1 else "other stylesheets",
+                                  _line_number(text, imports[1][1] - 1)))
     return sheet
 
 
@@ -1468,8 +1713,9 @@ def read_css(text):
       names the variable.
     - Any other rule that sets one of the palette's variables (`body { --bg: ... }`, `:root.dark { ... }`,
       a `:root` rule inside another at-rule) is a problem that names the rule and the variable.
-    - Whatever else `scan_css` lists (a `;` that makes a browser drop the next rule, a property name written
-      with an escape, an `@property` rule for a colour) is a problem too.
+    - Whatever else `scan_css` lists (a `;` that makes a browser drop the next rule, a backslash outside a
+      string, a string that runs over a line end, an `@property` rule for a colour, a default namespace) is a
+      problem too.
     - A value written as `var(--other)` is read ONLY where `--other` is another of the palette's variables
       (the starter's `--link: var(--accent)`): those are the variables the scan holds to "once in its block,
       nowhere else, not `!important`". It is read as that variable's value where the block itself sets it
@@ -1479,10 +1725,13 @@ def read_css(text):
       that says to write the colour out: nothing holds such a variable to one value (another rule may set
       it, and this check would not know).
     - A value that is no colour this check reads is a problem that names the variable.
-    - Brackets that do not pair up are refused."""
+    - Brackets that do not pair up are refused.
+    - `notes` holds what the owner should know and is no problem: a stylesheet this one brings in with
+      `@import`, which was not read."""
     sheet = scan_css(text)
     css = Css()
     css.problems = [(t.block, t.variable, t.message) for t in sheet.problems]
+    css.notes = list(sheet.notes)
     css.found = set(sheet.spans)
     for block, target in (("light", css.light), ("dark", css.dark), ("dark_media", css.dark_media)):
         if block in sheet.spans:

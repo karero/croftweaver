@@ -64,13 +64,13 @@ def resolve_paints(root, drawing, current=None):
                 del props[k]
         eff = dict(inherited)
         if "color" in props:
-            v = props["color"].strip()
+            v = props["color"].strip(_colour.SPACE)  # only what CSS takes for white space: a no-break space beside a colour makes it none
             if v.lower() == "inherit":
                 del props["color"]
             else:
                 props["color"] = eff["color"] = _colour.parse_colour(v, current=inherited["color"] or current, drawn=True)
         for k in ("fill", "stroke"):
-            if k not in props or props[k].strip().lower() == "inherit":
+            if k not in props or props[k].strip(_colour.SPACE).lower() == "inherit":
                 props.pop(k, None)
                 # A paint handed down as currentColor was written out above as the colour it had there. A
                 # renderer may instead give it the colour `color` is changed to here (the site's own does):
@@ -83,7 +83,7 @@ def resolve_paints(root, drawing, current=None):
                         "colours cannot be known from it. Ask for the SVG with every colour written out.",
                     )
                 continue
-            v = props[k].strip()
+            v = props[k].strip(_colour.SPACE)
             eff["current"] = tuple(c for c in eff["current"] if c != k) + ((k,) if v.lower() == "currentcolor" else ())
             if v.lower() == "none":
                 props[k] = eff[k] = "none"
