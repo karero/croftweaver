@@ -171,11 +171,12 @@ def md(value, limit: int = 120) -> str:
 
 
 class Resp:
-    __slots__ = ("url", "status", "ctype", "headers", "body", "note", "redirect_to")
+    __slots__ = ("url", "status", "ctype", "headers", "body", "note", "redirect_to", "via")
 
     def __init__(self, url, status=0, ctype="", headers=None, body=b"", note="", redirect_to=""):
         self.url, self.status, self.ctype, self.headers = url, status, ctype, headers
         self.body, self.note, self.redirect_to = body, note, redirect_to
+        self.via: List[int] = []  # the status of each redirect followed on the way to `url`
 
     def text(self) -> str:
         m = re.search(r"charset=([\w-]+)", self.ctype or "", re.I)
@@ -241,6 +242,7 @@ class Fetcher:
         """One address of this site. A redirect within the site is followed; one that leaves
         it comes back as `redirect_to`, unfetched."""
         resp = Resp(url, note="too many redirects")
+        via: List[int] = []
         for _ in range(MAX_HOPS + 1):
             if origin_of(url) != self.origin:
                 resp = Resp(url, note="on another host, not asked")
@@ -260,8 +262,10 @@ class Fetcher:
                 resp.note = "redirects to another host (%s), not followed" % urllib.parse.urlsplit(nxt).netloc
                 resp.redirect_to = nxt
                 break
+            via.append(resp.status)
             url = nxt
             resp = Resp(url, note="too many redirects")
+        resp.via = via
         self.log.append({"url": resp.url, "status": resp.status, "bytes": len(resp.body), "problem": resp.problem()})
         return resp
 

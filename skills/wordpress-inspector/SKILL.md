@@ -2,14 +2,15 @@
 name: wordpress-inspector
 description: >
   Count what a live WordPress site holds before anyone promises to move it. Read-only, from
-  the outside: no login, no backup, no plugin. scripts/wp_inventory.py asks the site's own
-  public addresses (REST API, sitemap, robots.txt, home page) and reports every content type
-  with its number of published records, the sitemap's addresses, where the two disagree, the
-  page builder and forms it saw, and what it could not see. It says plainly when a count is
-  incomplete. The first step of a move to a new site, and the basis for an estimate. Stdlib
+  the outside: no login, no backup. scripts/wp_inventory.py asks the site's public addresses
+  (REST API, sitemap) and reports each content type with its number of records, where the
+  sitemap disagrees, the page builder and forms it saw, and when the count is incomplete:
+  the basis for an estimate. After the move, scripts/check_move.py asks the new site for
+  every old address and lists each one that is missing or was sent to the home page. Stdlib
   Python. Trigger phrases: "how big is this WordPress site", "count the pages", "inventory
-  the WordPress site", "what would it take to move this site", "WordPress migration
-  estimate", "what plugins does this site use", "is the crawl complete".
+  the WordPress site", "WordPress migration estimate", "what plugins does this site use",
+  "is the crawl complete", "did every page make the move", "check the redirects after the
+  move", "are any old addresses broken".
 ---
 
 # WordPress inspector: count the site before you promise to move it
@@ -76,9 +77,44 @@ Say this to the owner before they rely on the numbers:
 Those need the site's backup or a login. The language of each record is a guess, for German
 and English only; treat it as a hint.
 
+## After the move: does every old address still lead somewhere?
+
+Content is lost at this step more often than at any other: a page nobody rebuilt, a redirect
+nobody wrote. `urls.csv` from the count is the list to check against.
+
+```bash
+python3 skills/wordpress-inspector/scripts/check_move.py ./inventory/urls.csv https://preview.example.com --out ./move-check
+```
+
+Give it the new site's deployed address, the preview or the live one. A preview server on
+your own computer does not apply the host's redirect rules, so every redirect would read as
+missing. Any list of old addresses works in place of `urls.csv`: a text file, one per line.
+
+Read `move-check.md` with the owner. Each old address ends as one of:
+
+- **kept**: the new site answers at the same address.
+- **redirected**: the new site forwards it to another of its pages.
+- **off the site**: forwarded to another host, such as a shop. Listed, not followed.
+- **missing**: the new site says "not found". Build the page or write the redirect.
+- **sent home**: a deep address forwarded to the home page. To a reader and to a search
+  engine that page is gone, so it counts as a finding. Point it at the page that replaced it.
+- **unreadable**: the new site refused or was busy. Run it again.
+
+Some pages are dropped on purpose. Write those addresses into a text file, one per line, and
+pass it with `--let-go let-go.txt`; they then read **let go**. Agree that list with the owner:
+it is the record of what was given up.
+
+The report also counts temporary redirects (302, 307). A moved page needs a permanent one
+(301), or search engines keep the old address.
+
+Exit code 0 means every address is accounted for, 1 that there are findings, 2 that the run
+could not start. One reason for 2: the new site answers "found" for an address that cannot
+exist. Give it a real "not found" page first, or nothing can be checked.
+
 ## What this skill does not do
 
-It does not move anything. It counts, so that the next decision rests on numbers.
+It does not move anything. It counts before the move and checks after it, so that both
+decisions rest on numbers.
 
 ## Tests
 

@@ -298,7 +298,9 @@ skills/            the suite skills (canonical)
   wordpress-inspector (read-only, any live WordPress site: counts every content type,
                    the sitemap's addresses and where the two disagree, names the page
                    builder and forms it saw, and says when the count is incomplete; the
-                   first step before moving a site, and the basis for an estimate)
+                   first step before moving a site, and the basis for an estimate. After
+                   the move it asks the new site for every old address and lists each
+                   one that is missing or was sent to the home page)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
   website-story    (optional story layer — the home page as the customer's story:

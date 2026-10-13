@@ -345,7 +345,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Run the WordPress inventory tests (stub sites on 127.0.0.1, no real requests)
+      - name: Run the wordpress-inspector tests (stub sites on 127.0.0.1, no real requests)
         run: make test-wordpress-inventory PYTHON=python
   cloudflare-check-tests:
     # Node's standard library only, so nothing is installed. 18 is the oldest Node the script
