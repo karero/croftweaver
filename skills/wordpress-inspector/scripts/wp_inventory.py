@@ -31,8 +31,9 @@ What it keeps to:
   - robots.txt, under the name "wordpress-inventory", by the rules of RFC 9309 as the toolkit's facts
     check implements them (the longest matching rule wins, * and $ count). An address it may not read is skipped and listed. A
     robots.txt that is refused (401, 403) or cannot be read stops the run.
-  - A sitemap that declares a document type is not parsed: a sitemap needs none, and one
-    can carry entity tricks that exhaust an older Python's XML parser.
+  - A sitemap with a document type, or in UTF-16, is never handed to the XML parser: a
+    sitemap needs no document type, and one can carry entity tricks that exhaust an older
+    Python's parser. Such a file is a gap in the count.
   - A pause between requests (--delay) and a ceiling on their number (--max-requests).
   - A refusal, a "please wait" or maintenance page, or any web page where data was due is
     never counted as content. It makes the count incomplete.
@@ -471,7 +472,7 @@ def read_type(fetcher: Fetcher, rest: Rest, slug: str, info: dict, site_host: st
                     continue
                 seen_ids.add(rec["id"])
             else:
-                no_id += 1  # still counted and listed; without an id a repeat cannot be told from a second record
+                no_id += 1  # still counted and listed; without a usable id a repeat cannot be told from a second record
             content = rec.get("content") if isinstance(rec.get("content"), dict) else {}
             a = analyse(str(content.get("rendered") or ""))
             stats.append((rec, a))
@@ -485,7 +486,7 @@ def read_type(fetcher: Fetcher, rest: Rest, slug: str, info: dict, site_host: st
         elif repeats:
             out["note"] = "%s records were handed out twice, so the list changed or repeated while it was read" % repeats
         elif no_id:
-            out["note"] = "%s records came without an id, so a repeat could not be told from a second record" % no_id
+            out["note"] = "%s records came without a usable id (a number or a text), so a repeat could not be told from a second record" % no_id
         elif out["fetched"] != out["total"]:
             out["note"] = "the site reports %s records, %s were handed out" % (out["total"], out["fetched"])
     out["complete"] = not out["note"]
@@ -521,6 +522,35 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
+_PROLOG_SKIP = re.compile(rb"\s*(?:<\?.*?\?>|<!--.*?-->)", re.S)
+_HTML_PAGE = re.compile(rb"<html[\s>]|<!DOCTYPE\s+html", re.I)
+
+
+def sitemap_refusal(body: bytes) -> str:
+    """Why these bytes are not handed to the XML parser, or "" when they are.
+
+    No document type may reach the parser: it can declare entities that expand without end,
+    and the parser of an older Python (expat before 2.4) has no guard. A document type can
+    stand only in the prolog: before the first element, after nothing but the XML
+    declaration, comments, processing instructions and white space. The words inside a
+    comment do not count. The look below reads the bytes as ASCII, which is what the parser
+    does for every encoding it accepts except UTF-16: expat takes only encodings that write
+    XML's own characters as ASCII does (the note on XML_UnknownEncodingHandler in expat.h;
+    a document type in EBCDIC is a parse error, which a test pins). UTF-16 is known by its
+    NUL bytes and refused outright; the sitemap protocol asks for UTF-8."""
+    if b"\x00" in body:
+        return "holds NUL bytes (UTF-16, or no text at all), where a sitemap must be UTF-8"
+    pos = 3 if body[:3] == b"\xef\xbb\xbf" else 0
+    while True:
+        m = _PROLOG_SKIP.match(body, pos)
+        if not m:
+            break
+        pos = m.end()
+    if re.match(rb"\s*<!DOCTYPE", body[pos:pos + 4096], re.I):
+        return "declares a document type, which a sitemap does not need"
+    return ""
+
+
 def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent: List[str]) -> List[dict]:
     """Every sitemap file reachable from `starts`. `broken` collects each file that could not be
     read; `absent` collects each start address that holds no sitemap at all (not found, or
@@ -548,18 +578,23 @@ def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent
             if len(body) > SITEMAP_MAX_BYTES:
                 broken.append("sitemap %s: unpacks to more than the limit of %d MB; not read" % (sm, SITEMAP_MAX_BYTES // (1024 * 1024)))
                 continue
-        # A web page served at a start address means no sitemap lives there. Anything else that
-        # cannot be read whole is a gap: a cut-off file must never pass for a missing one.
-        a_page = sm in first and "html" in (resp.ctype or "").lower()
-        if re.search(rb"<!DOCTYPE", body, re.I):
-            (absent if a_page else broken).append(
-                "sitemap %s: %s" % (sm, "not a sitemap" if a_page else "declares a document type, which a sitemap does not need; not read"))
-            continue
-        try:
-            root = ET.fromstring(body)
-        except (ET.ParseError, LookupError, ValueError):  # damaged, or an encoding the parser does not know
-            (absent if a_page else broken).append(
-                "sitemap %s: %s" % (sm, "not a sitemap" if a_page else "not valid XML (cut off, damaged or in an unknown encoding)"))
+        # The rules, in order. (1) Bytes with a document type, or in UTF-16, never reach the
+        # parser. (2) Bytes that do not parse are not a sitemap that was read.
+        # (3) Either case is a gap, with one exception: a web page at a start address means no
+        # sitemap lives there. The page is known by its own markup, not by a header: a cut-off
+        # sitemap sent as text/html holds no <html>, and must never pass for a missing one.
+        why = sitemap_refusal(body)
+        root = None
+        if not why:
+            try:
+                root = ET.fromstring(body)
+            except (ET.ParseError, LookupError, ValueError):
+                why = "is not valid XML (cut off or damaged)"
+        if why:
+            if sm in first and _HTML_PAGE.search(body):
+                absent.append("sitemap %s: a web page, not a sitemap" % sm)
+            else:
+                broken.append("sitemap %s: %s; not read" % (sm, why))
             continue
         kind = _local(root.tag)
         if kind not in ("sitemapindex", "urlset"):
@@ -826,7 +861,7 @@ def render(d: dict) -> str:
     add("## What this count cannot see")
     add("")
     add("- Drafts, private records and anything behind a login. A password-protected record may be counted, but its text is not read.")
-    add("- A content type the site's REST API does not list. WordPress's own internal types (menus, templates, patterns, fonts) are left out on purpose, and media is one number.")
+    add("- A content type the site's REST API does not list. WordPress's own internal types (menus, templates, patterns, styles, fonts) are left out on purpose, and media is one number.")
     add("- Content a plugin draws inside a page, such as a directory shown in pop-ups: it counts as one page.")
     add("- Fields a plugin keeps to itself, such as a session's start time or its speakers.")
     add("- The media files themselves, redirects set inside WordPress, and form entries.")

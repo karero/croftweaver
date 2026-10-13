@@ -1,16 +1,17 @@
 ---
 name: wordpress-inspector
 description: >
-  Count what a live WordPress site holds before anyone promises to move it. Read-only, from
-  the outside: no login, no backup. scripts/wp_inventory.py asks the site's public addresses
-  (REST API, sitemap) and reports each content type the API lists (WordPress's internal
-  ones left out) with its number of records, where the sitemap disagrees, signs of a page builder and forms, and when the
-  count is incomplete: the basis for an estimate. After the move, scripts/check_move.py asks
-  the new site for each listed address and names those missing or sent to the home page. Stdlib
-  Python. Trigger phrases: "how big is this WordPress site", "count the pages", "inventory
-  the WordPress site", "WordPress migration estimate", "what plugins does this site use",
-  "is the crawl complete", "did every page make the move", "check the redirects after the
-  move", "are any old addresses broken".
+  Count what a live WordPress site holds before anyone promises to move it. Read-only,
+  from the outside: no login, no backup. scripts/wp_inventory.py asks the site's public
+  addresses (REST API, sitemap) and reports each content type the API lists (WordPress's
+  internal ones left out) with its number of records, where the sitemap disagrees, signs
+  of a page builder and forms, and when the count is incomplete: the basis for an
+  estimate. After the move, scripts/check_move.py asks the new site for each listed
+  address and names those missing or sent to the home page. Stdlib Python. Trigger
+  phrases: "how big is this WordPress site", "count the pages", "inventory the WordPress
+  site", "WordPress migration estimate", "what plugins does this site use", "is the crawl
+  complete", "did every page make the move", "check the redirects after the move", "are
+  any old addresses broken".
 ---
 
 # WordPress inspector: count the site before you promise to move it
@@ -54,9 +55,10 @@ Keep that folder out of any public repository: it lists another party's addresse
    Clear the gaps before you estimate. Exit code 0 means complete, 1 incomplete, 2 the run
    could not start.
 2. **Content types.** The count covers the types the site's REST API lists, apart from
-   WordPress's own internal ones (menus, templates, patterns, fonts); media is one number.
-   Posts and pages are WordPress's own. Any other type comes from a plugin (events, speakers, products,
-   jobs): ask who keeps it up to date, and how often it changes, before you price it.
+   WordPress's own internal ones (menus, templates, patterns, styles, fonts); media is one
+   number. Posts and pages are WordPress's own. Any other type comes from a plugin (events,
+   speakers, products, jobs): ask who keeps it up to date, and how often it changes, before
+   you price it.
 3. **"Left as raw shortcode text".** The text the site hands out for such a record holds a
    code such as `[vc_row]` or `[gallery ids="1,2"]` where content should be: a page builder,
    a gallery or another plugin wrote it. This is a sign, not proof. Open two or three of
@@ -107,10 +109,10 @@ Read `move-check.md` with the owner. Each old address ends as one of:
 - **off the site**: forwarded to another host, such as a shop. Not followed; the report
   lists each with its target, for you to check.
 - **missing**: the new site says "not found". Build the page or write the redirect.
-- **sent home**: a deep address forwarded to the home page. (The old home address itself,
-  `/` or `/index.php`, may go wherever the new home page lives.) A reader who follows an old link
+- **sent home**: a deep address forwarded to the home page. A reader who follows an old link
   to it lands on the front page and has to search again, so it counts as a finding. Point
-  it at the page that replaced it.
+  it at the page that replaced it. The old home address itself (`/`, `/index.php`,
+  `/index.html` or `/index.htm`) may go wherever the new home page lives.
 - **unreadable**: the new site refused or was busy. Run it again.
 
 Some pages are dropped on purpose. Write those addresses into a text file, one per line, and

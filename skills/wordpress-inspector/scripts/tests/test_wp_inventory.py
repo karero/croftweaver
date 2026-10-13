@@ -398,6 +398,61 @@ class SitemapReading(unittest.TestCase):
                 self.assertEqual((code, data["complete"], data["sitemap"]["urls"]), (1, False, 0))
                 self.assertIn("not valid XML", " ".join(data["incomplete_because"]))
 
+    def test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap(self):
+        # the header may lie; a page is known by its own markup, and a cut-off sitemap has none
+        cut = "<?xml version='1.0'?>%s<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>http://x.test/a/</loc></url><url><lo"
+        for lead in ("", "<!-- %s -->" % ("x" * 5000)):
+            with self.subTest(lead=len(lead)):
+                site = Site()
+                site.sitemaps = {}
+                site.extra["/sitemap_index.xml"] = (200, "text/html; charset=utf-8", cut % lead)
+                with serve(site):
+                    code, data, _, _, _ = run(site.base())
+                self.assertEqual((code, data["complete"]), (1, False))
+                self.assertIn("not valid XML", " ".join(data["incomplete_because"]))
+
+    def test_a_document_type_in_any_encoding_never_reaches_the_parser(self):
+        # the invariant: no document type reaches the parser, however it is written
+        bomb = ("<?xml version='1.0'%s?><!DOCTYPE urlset [<!ENTITY a 'aaaaaaaaaa'><!ENTITY b '&a;&a;&a;&a;'>]>"
+                "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>http://x.test/&b;/</loc></url></urlset>")
+        cases = {
+            "utf-16 with a byte-order mark": (bomb % " encoding='UTF-16'").encode("utf-16"),
+            "utf-16 little-endian, no mark": (bomb % "").encode("utf-16-le"),
+            "utf-16 big-endian, no mark": (bomb % "").encode("utf-16-be"),
+            "utf-32": (bomb % "").encode("utf-32"),
+            "latin-1, declared": (bomb % " encoding='ISO-8859-1'").encode("latin-1"),
+            "an 8-bit code page, declared": (bomb % " encoding='cp1252'").encode("cp1252"),
+            # the declaration in ASCII, the rest in a code page whose letters are other bytes
+            "EBCDIC after an ASCII declaration": b"<?xml version='1.0' encoding='cp500'?>" + (bomb % "").split("?>", 1)[1].encode("cp500"),
+            "utf-8 after a comment and a processing instruction": (
+                bomb % "").replace("?><!DOCTYPE", "?>\n<!-- note -->\n<?xml-stylesheet href='a.xsl'?>\n  <!DOCTYPE").encode(),
+            "utf-8 with a byte-order mark": b"\xef\xbb\xbf" + (bomb % "").encode(),
+        }
+        for name, body in cases.items():
+            with self.subTest(name=name):
+                if not name.startswith("EBCDIC"):  # that one the parser itself cannot read: the run below pins it
+                    self.assertNotEqual(wi.sitemap_refusal(body), "")
+                site = Site()
+                site.sitemaps = {}
+                site.extra["/sitemap_index.xml"] = (200, "text/xml", body)
+                with serve(site):
+                    code, data, _, _, _ = run(site.base())
+                self.assertEqual((code, data["complete"], data["sitemap"]["urls"]), (1, False, 0))
+
+    def test_the_words_of_a_comment_are_not_a_document_type(self):
+        ok = ("%s<?xml version='1.0' encoding='UTF-8'?>\n<!-- made by a plugin; no <!DOCTYPE here -->\n<?xml-stylesheet href='a.xsl'?>\n"
+              "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><!-- <!DOCTYPE x> --><url><loc>http://x.test/\u00e4/</loc></url></urlset>")
+        for name, body in (("plain", (ok % "").encode()), ("with a byte-order mark", b"\xef\xbb\xbf" + (ok % "").encode()),
+                           ("in Latin-1, declared", (ok % "").replace("UTF-8", "ISO-8859-1").encode("latin-1"))):
+            with self.subTest(name=name):
+                self.assertEqual(wi.sitemap_refusal(body), "")
+                site = Site()
+                site.sitemaps = {}
+                site.extra["/sitemap_index.xml"] = (200, "text/xml", body)
+                with serve(site):
+                    code, data, _, _, _ = run(site.base())
+                self.assertEqual((code, data["sitemap"]["urls"]), (0, 1))
+
     def test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash(self):
         for enc in ("bogus-enc", "utf-7"):
             with self.subTest(enc=enc):
@@ -499,14 +554,14 @@ class RecordCounting(unittest.TestCase):
     def test_records_without_an_id_cannot_pass_for_a_full_count(self):
         # two rows with no id may be one record twice; the count must not call that complete
         site = Site()
-        for bad in (None, "", True):
+        for bad in (None, "", True, 1.5, [7], {"n": 7}):
             with self.subTest(bad=bad):
                 site.records["talk"] = [dict(site.rec(0, "talk", "/talk/x/", "<p>x</p>"), id=bad) for _ in range(2)]
                 with serve(site):
                     code, data, _, _, _ = run(site.base())
                 talk = types(data)["talk"]
                 self.assertEqual((code, talk["complete"], talk["fetched"]), (1, False, 2))
-                self.assertIn("without an id", talk["note"])
+                self.assertIn("without a usable id", talk["note"])
 
     def test_a_total_that_changes_between_pages_is_said(self):
         site = Site()

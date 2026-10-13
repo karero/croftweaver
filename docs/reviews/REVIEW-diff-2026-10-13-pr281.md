@@ -8,6 +8,7 @@ Files in the change: `Makefile`, `README.md`, `.github/workflows/clean.yml`, `sk
 |---|---|---|---|---|---|
 | 1 | `6413463` | full, `f4b21bd...6413463` without `docs/reviews/` (90,508 bytes) | Codex: codex-cli 0.162.1, gpt-6.1-sol, config.toml's effort, read-only sandbox. melious: glm-5.3, HTTP API, text only. fresh-eyes: sonnet sub-agent, read-only by instruction, could run the tests | codex 548 s, 100,271 tokens; melious 548 s, 65,860 tokens; fresh-eyes 271 s, 154,605 tokens | 10 / 5 / 15 (34 raw: fresh-eyes 3/2/9, Codex 10/3/0, melious 1/0/6). UNVERIFIABLE: 9 asked, 2 led to a wording change (F14, and the password-protected line under F13) |
 | 2 | `802b977` | delta since `6413463` without `docs/reviews/` (72,680 bytes), with the round-1 findings as `--verify` | Codex: codex-cli 0.162.1, gpt-6.1-sol, effort medium, read-only sandbox. melious: glm-5.3, HTTP API, text only | codex 296 s, 84,386 tokens; melious 844 s, 80,874 tokens | 4 / 2 / 2 (10 raw: Codex 4/1/0, melious 0/2/3; one RISK is F12 again). Confirmed fixed by a reviewer: 26 of 30. UNVERIFIABLE: 8 asked, none confirmed; two led to softer wording (the robots.txt and Markdown sentences) |
+| 3 | `70f5649` | delta since `802b977` without `docs/reviews/` (17,781 bytes), with round 2's findings as `--verify` | Codex: codex-cli 0.162.1, gpt-6.1-sol, effort medium, read-only sandbox. melious: glm-5.3, HTTP API, text only | codex 212 s, 58,278 tokens; melious 222 s, 27,754 tokens | 2 / 0 / 4 (8 raw: Codex 2/0/0, melious 0/1/5). Confirmed fixed by a reviewer: F32, F33, F34, F36, F37. UNVERIFIABLE: 7 asked, 1 confirmed (the list of internal types lacked "styles"; reworded) |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -41,13 +42,19 @@ Files in the change: `Makefile`, `README.md`, `.github/workflows/clean.yml`, `sk
 | F28 | NIT | fresh-eyes | 1 | a refused robots.txt (401, 403) was read as "no rules" | fixed, locally_verified, externally_reverified (round 2) | the run stops, as the facts check does; test `test_a_refused_or_unreadable_robots_file_stops_the_run` (401, 403, 429, 500) |
 | F29 | NIT | melious | 1 | `--user-agent` changes the name sent, not the name robots.txt is read under | fixed, locally_verified, externally_reverified (round 2) | said in the option's help text |
 | F30 | NIT | fresh-eyes | 1 | "left as raw shortcode text" counts any plugin's code, not only a page builder's | fixed, locally_verified, externally_reverified (round 2) | SKILL.md step 3 says so |
-| F31 | BUG | Codex, melious | 2 | a cut-off sitemap at a guessed address was filed "absent" when its first element sat beyond the first 4,000 bytes | fixed, locally_verified | the 4,000-byte look is gone: a start address is "absent" only for a not-found answer or a web page (served as HTML); anything else that does not parse is a gap. Invariant: a sitemap is read whole or is a gap. Variants tested: no lead, a 5,000-byte comment, 6,000 blank lines; a page with and without a document type. `caused-by: F7 (partial)` |
-| F32 | BUG | Codex | 2 | records without an id skipped the repeat check, so two copies read as two records and a complete count | fixed, locally_verified | a record whose id is missing, empty or not a number or text makes the type incomplete; test `test_records_without_an_id_cannot_pass_for_a_full_count` (None, empty, a boolean). `caused-by: F6 (partial)` |
-| F33 | BUG | Codex | 2 | the XML parser also raises `LookupError` (unknown encoding) and `ValueError` (some multibyte encodings); both escaped as a crash | fixed, locally_verified | reproduced on Python 3.9.6 and 3.15.0, then caught; test `test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash`. `caused-by: F7 (introduced)` |
-| F34 | BUG | Codex | 2 | "each content type the API lists" was still wider than the code: WordPress's internal types are skipped and media is one number | fixed, locally_verified | SKILL.md (description and step 2), README and the report's "cannot see" list say so |
-| F35 | RISK | melious | 2 | sitemap bytes from any site were handed to the XML parser with document types allowed; the Python a Mac ships with has expat 2.2.8, older than the entity-expansion guard | fixed, locally_verified | a body with a document type is never parsed (a gap, or "absent" for a web page at a start address); test `test_a_sitemap_with_a_document_type_is_refused_unparsed`. `caused-by: F7 (introduced)` |
-| F36 | NIT | melious | 2 | an old home address spelled `/index.html` or `/index.php` still read "sent home" | fixed, locally_verified | `HOME_FILES`; test `test_the_old_home_page_under_its_file_name_is_not_sent_home` |
-| F37 | NIT | melious | 2 | the "unpacks to more than 50 MB" message hard-coded the limit | fixed, locally_verified | the message takes it from `SITEMAP_MAX_BYTES` |
+| F31 | BUG | Codex, melious | 2 | a cut-off sitemap at a guessed address was filed "absent" when its first element sat beyond the first 4,000 bytes | fixed in part, completed in round 3's fixes (F39); locally_verified | the 4,000-byte look is gone: a start address is "absent" only for a not-found answer or a web page (served as HTML); anything else that does not parse is a gap. Invariant: a sitemap is read whole or is a gap. Variants tested: no lead, a 5,000-byte comment, 6,000 blank lines; a page with and without a document type. `caused-by: F7 (partial)` |
+| F32 | BUG | Codex | 2 | records without an id skipped the repeat check, so two copies read as two records and a complete count | fixed, locally_verified, externally_reverified (round 3) | a record whose id is missing, empty or not a number or text makes the type incomplete; test `test_records_without_an_id_cannot_pass_for_a_full_count` (None, empty, a boolean). `caused-by: F6 (partial)` |
+| F33 | BUG | Codex | 2 | the XML parser also raises `LookupError` (unknown encoding) and `ValueError` (some multibyte encodings); both escaped as a crash | fixed, locally_verified, externally_reverified (round 3) | reproduced on Python 3.9.6 and 3.15.0, then caught; test `test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash`. `caused-by: F7 (introduced)` |
+| F34 | BUG | Codex | 2 | "each content type the API lists" was still wider than the code: WordPress's internal types are skipped and media is one number | fixed, locally_verified, externally_reverified (round 3) | SKILL.md (description and step 2), README and the report's "cannot see" list say so |
+| F35 | RISK | melious | 2 | sitemap bytes from any site were handed to the XML parser with document types allowed; the Python a Mac ships with has expat 2.2.8, older than the entity-expansion guard | fixed in part, completed in round 3's fixes (F38); locally_verified | a body with a document type is never parsed (a gap, or "absent" for a web page at a start address); test `test_a_sitemap_with_a_document_type_is_refused_unparsed`. `caused-by: F7 (introduced)` |
+| F36 | NIT | melious | 2 | an old home address spelled `/index.html` or `/index.php` still read "sent home" | fixed, locally_verified, externally_reverified (round 3) | `HOME_FILES`; test `test_the_old_home_page_under_its_file_name_is_not_sent_home` |
+| F37 | NIT | melious | 2 | the "unpacks to more than 50 MB" message hard-coded the limit | fixed, locally_verified, externally_reverified (round 3) | the message takes it from `SITEMAP_MAX_BYTES` |
+| F38 | BUG | Codex, melious (as RISK) | 3 | the document-type guard looked for ASCII letters, so a document type written in UTF-16 reached the parser and its entities were expanded | fixed, locally_verified | `sitemap_refusal`: bytes with a NUL (UTF-16) are refused, and the document type is looked for in the prolog only. Invariant: no document type reaches the parser, however it is written. Variants tested: UTF-16 with a mark, little-endian and big-endian without, UTF-32, Latin-1 and cp1252 declared, after a comment and a processing instruction, behind a UTF-8 mark, EBCDIC after an ASCII declaration. Measured on Python 3.9.6 and 3.13.16: the parser reads Latin-1 and unmarked UTF-16 documents with a document type and expands their entities; an EBCDIC one is a parse error. `caused-by: F35 (partial)` |
+| F39 | BUG | Codex, melious (as NIT) | 3 | a cut-off sitemap sent with a `text/html` header at a guessed address was filed "absent" | fixed, locally_verified | a web page is known by its own markup (`<html`, `<!DOCTYPE html`), not by the header; test `test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap`. `caused-by: F31 (partial)` |
+| F40 | NIT | melious | 3 | the words `<!DOCTYPE` inside a comment made a sound sitemap a gap | fixed, locally_verified | only the prolog is read for a document type; test `test_the_words_of_a_comment_are_not_a_document_type` |
+| F41 | NIT | melious | 3 | "came without an id" also covered an id that is a fraction or a list | fixed, locally_verified | "without a usable id (a number or a text)"; the test covers a fraction, a list and an object |
+| F42 | NIT | melious | 3 | re-flowed paragraphs in SKILL.md ran past the file's line width | fixed, locally_verified | re-wrapped; one command line in a code block stays long |
+| F43 | NIT | melious | 3 | SKILL.md named `/` and `/index.php` as the old home, the code also takes `/index.html` and `/index.htm` | fixed, locally_verified | SKILL.md names all four |
 
 Waivers and deferrals: none. F12 waits for the owner: add the checks to the ruleset, or waive in words.
 
@@ -618,3 +625,275 @@ FAILED (failures=1)
 `make check`: exit status 0.
 
 Notes on the rounds: three round-2 findings (F31, F33, F35) come from one round-1 fix, the sitemap reader of F7. Round 3 is owed by F31, F32 and F33.
+
+## Test records after the round-3 fixes (author's machine, before round 4)
+
+<details><summary>tests-python3.13.txt</summary>
+
+```
+$ python3 -m unittest discover -v -s skills/wordpress-inspector/scripts/tests
+test_a_cell_the_inventory_defused_is_read_back_as_the_address (test_check_move.AddressList.test_a_cell_the_inventory_defused_is_read_back_as_the_address) ... ok
+test_addresses_on_another_host_are_listed_and_skipped (test_check_move.AddressList.test_addresses_on_another_host_are_listed_and_skipped) ... ok
+test_the_same_address_twice_is_asked_once (test_check_move.AddressList.test_the_same_address_twice_is_asked_once) ... ok
+test_with_and_without_the_closing_slash_are_two_addresses (test_check_move.AddressList.test_with_and_without_the_closing_slash_are_two_addresses) ... ok
+test_a_probe_that_was_refused_or_busy_proves_nothing (test_check_move.CannotStart.test_a_probe_that_was_refused_or_busy_proves_nothing) ... ok
+test_a_site_that_forwards_everything_to_another_host (test_check_move.CannotStart.test_a_site_that_forwards_everything_to_another_host) ... ok
+test_a_site_that_forwards_everything_to_its_home_page (test_check_move.CannotStart.test_a_site_that_forwards_everything_to_its_home_page) ... ok
+test_a_site_that_says_found_for_everything (test_check_move.CannotStart.test_a_site_that_says_found_for_everything) ... ok
+test_an_address_list_that_cannot_be_parsed (test_check_move.CannotStart.test_an_address_list_that_cannot_be_parsed) ... ok
+test_no_addresses_and_no_site (test_check_move.CannotStart.test_no_addresses_and_no_site) ... ok
+test_a_busy_answer_is_never_read_as_kept_or_missing (test_check_move.EveryAddressEndsSomewhere.test_a_busy_answer_is_never_read_as_kept_or_missing) ... ok
+test_a_deep_address_forwarded_to_the_home_page_is_a_finding (test_check_move.EveryAddressEndsSomewhere.test_a_deep_address_forwarded_to_the_home_page_is_a_finding) ... ok
+test_a_missing_closing_slash_is_not_a_lost_page (test_check_move.EveryAddressEndsSomewhere.test_a_missing_closing_slash_is_not_a_lost_page) ... ok
+test_a_redirect_loop_is_a_finding (test_check_move.EveryAddressEndsSomewhere.test_a_redirect_loop_is_a_finding) ... ok
+test_a_redirect_that_leads_to_a_missing_page_is_missing (test_check_move.EveryAddressEndsSomewhere.test_a_redirect_that_leads_to_a_missing_page_is_missing) ... ok
+test_a_redirect_to_an_address_that_is_no_web_address_is_unreadable_not_a_crash (test_check_move.EveryAddressEndsSomewhere.test_a_redirect_to_an_address_that_is_no_web_address_is_unreadable_not_a_crash) ... ok
+test_a_redirect_to_an_address_with_a_query_is_not_the_home_page (test_check_move.EveryAddressEndsSomewhere.test_a_redirect_to_an_address_with_a_query_is_not_the_home_page) ... ok
+test_a_redirect_to_another_host_is_listed_not_followed (test_check_move.EveryAddressEndsSomewhere.test_a_redirect_to_another_host_is_listed_not_followed) ... ok
+test_a_temporary_redirect_is_accounted_for_but_flagged (test_check_move.EveryAddressEndsSomewhere.test_a_temporary_redirect_is_accounted_for_but_flagged) ... ok
+test_a_temporary_redirect_to_another_host_is_flagged_too (test_check_move.EveryAddressEndsSomewhere.test_a_temporary_redirect_to_another_host_is_flagged_too) ... ok
+test_all_accounted_for_exits_0 (test_check_move.EveryAddressEndsSomewhere.test_all_accounted_for_exits_0) ... ok
+test_kept_redirected_and_missing_are_told_apart (test_check_move.EveryAddressEndsSomewhere.test_kept_redirected_and_missing_are_told_apart) ... ok
+test_an_address_dropped_on_purpose_is_not_a_finding (test_check_move.LetGo.test_an_address_dropped_on_purpose_is_not_a_finding) ... ok
+test_only_the_listed_address_is_let_go (test_check_move.LetGo.test_only_the_listed_address_is_let_go) ... ok
+test_a_deep_address_is_sent_home_by_either_route (test_check_move.TheHomePage.test_a_deep_address_is_sent_home_by_either_route) ... ok
+test_the_old_home_address_is_not_sent_home (test_check_move.TheHomePage.test_the_old_home_address_is_not_sent_home) ... ok
+test_the_old_home_page_under_its_file_name_is_not_sent_home (test_check_move.TheHomePage.test_the_old_home_page_under_its_file_name_is_not_sent_home) ... ok
+test_the_inventorys_address_list_drives_the_check (test_check_move.TheRealChain.test_the_inventorys_address_list_drives_the_check) ... ok
+test_a_site_that_is_not_wordpress_and_has_no_sitemap (test_wp_inventory.CannotStart.test_a_site_that_is_not_wordpress_and_has_no_sitemap) ... ok
+test_not_a_web_address (test_wp_inventory.CannotStart.test_not_a_web_address) ... ok
+test_nothing_answers (test_wp_inventory.CannotStart.test_nothing_answers) ... ok
+test_a_plugins_own_content_type_is_found_without_being_named (test_wp_inventory.FullCount.test_a_plugins_own_content_type_is_found_without_being_named) ... ok
+test_every_record_is_counted_and_the_run_says_complete (test_wp_inventory.FullCount.test_every_record_is_counted_and_the_run_says_complete) ... ok
+test_languages_mixed_in_one_tree_show_up (test_wp_inventory.FullCount.test_languages_mixed_in_one_tree_show_up) ... ok
+test_no_page_text_is_written_to_disk (test_wp_inventory.FullCount.test_no_page_text_is_written_to_disk) ... ok
+test_pages_whose_builder_markup_arrives_unrendered_are_flagged (test_wp_inventory.FullCount.test_pages_whose_builder_markup_arrives_unrendered_are_flagged) ... ok
+test_published_records_missing_from_the_sitemap_are_surfaced (test_wp_inventory.FullCount.test_published_records_missing_from_the_sitemap_are_surfaced) ... ok
+test_sitemap_addresses_no_record_explains_are_surfaced (test_wp_inventory.FullCount.test_sitemap_addresses_no_record_explains_are_surfaced) ... ok
+test_text_from_the_site_cannot_break_the_report_table (test_wp_inventory.FullCount.test_text_from_the_site_cannot_break_the_report_table) ... ok
+test_the_address_list_has_one_row_per_address (test_wp_inventory.FullCount.test_the_address_list_has_one_row_per_address) ... ok
+test_what_the_site_is_built_with (test_wp_inventory.FullCount.test_what_the_site_is_built_with) ... ok
+test_wordpress_own_machinery_is_not_counted_as_content (test_wp_inventory.FullCount.test_wordpress_own_machinery_is_not_counted_as_content) ... ok
+test_a_busy_site_is_not_counted (test_wp_inventory.IncompleteCounts.test_a_busy_site_is_not_counted) ... ok
+test_a_maintenance_page_in_place_of_data_is_not_counted (test_wp_inventory.IncompleteCounts.test_a_maintenance_page_in_place_of_data_is_not_counted) ... ok
+test_a_site_that_keeps_robots_out_of_the_rest_api_is_not_asked (test_wp_inventory.IncompleteCounts.test_a_site_that_keeps_robots_out_of_the_rest_api_is_not_asked) ... ok
+test_fewer_records_than_the_site_reports (test_wp_inventory.IncompleteCounts.test_fewer_records_than_the_site_reports) ... ok
+test_the_request_limit_stops_the_run_and_says_so (test_wp_inventory.IncompleteCounts.test_the_request_limit_stops_the_run_and_says_so) ... ok
+test_a_bracketed_word_is_a_shortcode_only_with_a_closing_tag_an_attribute_or_an_underscore (test_wp_inventory.Pieces.test_a_bracketed_word_is_a_shortcode_only_with_a_closing_tag_an_attribute_or_an_underscore) ... ok
+test_a_cell_a_spreadsheet_would_run_is_defused (test_wp_inventory.Pieces.test_a_cell_a_spreadsheet_would_run_is_defused) ... ok
+test_an_address_on_another_host_never_matches_one_of_the_sites (test_wp_inventory.Pieces.test_an_address_on_another_host_never_matches_one_of_the_sites) ... ok
+test_short_text_gets_no_language (test_wp_inventory.Pieces.test_short_text_gets_no_language) ... ok
+test_text_from_the_site_cannot_write_a_link_into_the_report (test_wp_inventory.Pieces.test_text_from_the_site_cannot_write_a_link_into_the_report) ... ok
+test_a_list_that_repeats_itself_is_not_a_full_count (test_wp_inventory.RecordCounting.test_a_list_that_repeats_itself_is_not_a_full_count) ... ok
+test_a_total_that_changes_between_pages_is_said (test_wp_inventory.RecordCounting.test_a_total_that_changes_between_pages_is_said) ... ok
+test_a_type_registered_under_a_plugins_own_namespace_is_read_there (test_wp_inventory.RecordCounting.test_a_type_registered_under_a_plugins_own_namespace_is_read_there) ... ok
+test_a_type_without_a_total_is_incomplete_and_says_why (test_wp_inventory.RecordCounting.test_a_type_without_a_total_is_incomplete_and_says_why) ... ok
+test_media_or_a_grouping_without_a_usable_count_is_incomplete (test_wp_inventory.RecordCounting.test_media_or_a_grouping_without_a_usable_count_is_incomplete) ... ok
+test_records_without_an_id_cannot_pass_for_a_full_count (test_wp_inventory.RecordCounting.test_records_without_an_id_cannot_pass_for_a_full_count) ... ok
+test_two_addresses_that_differ_only_in_the_query_are_two_addresses (test_wp_inventory.RecordCounting.test_two_addresses_that_differ_only_in_the_query_are_two_addresses) ... ok
+test_a_group_that_names_this_tool_replaces_the_group_for_everyone (test_wp_inventory.Robots.test_a_group_that_names_this_tool_replaces_the_group_for_everyone) ... ok
+test_a_refused_or_unreadable_robots_file_stops_the_run (test_wp_inventory.Robots.test_a_refused_or_unreadable_robots_file_stops_the_run) ... ok
+test_a_wildcard_rule_keeps_the_tool_out_of_the_rest_api (test_wp_inventory.Robots.test_a_wildcard_rule_keeps_the_tool_out_of_the_rest_api) ... ok
+test_the_longest_rule_wins_and_allow_wins_a_tie (test_wp_inventory.Robots.test_the_longest_rule_wins_and_allow_wins_a_tie) ... ok
+test_wildcards_and_the_end_mark_count (test_wp_inventory.Robots.test_wildcards_and_the_end_mark_count) ... ok
+test_a_cut_off_sitemap_at_a_guessed_address_is_a_gap_too (test_wp_inventory.SitemapReading.test_a_cut_off_sitemap_at_a_guessed_address_is_a_gap_too) ... ok
+test_a_cut_off_sitemap_is_a_gap_wherever_its_first_element_sits (test_wp_inventory.SitemapReading.test_a_cut_off_sitemap_is_a_gap_wherever_its_first_element_sits) ... ok
+test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap (test_wp_inventory.SitemapReading.test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap) ... ok
+test_a_document_type_in_any_encoding_never_reaches_the_parser (test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) ... ok
+test_a_packed_sitemap_is_read_and_one_that_unpacks_too_large_is_a_gap (test_wp_inventory.SitemapReading.test_a_packed_sitemap_is_read_and_one_that_unpacks_too_large_is_a_gap) ... ok
+test_a_sitemap_cut_off_in_the_middle_is_a_gap_not_a_shorter_sitemap (test_wp_inventory.SitemapReading.test_a_sitemap_cut_off_in_the_middle_is_a_gap_not_a_shorter_sitemap) ... ok
+test_a_sitemap_named_under_the_sites_other_spelling_is_asked_on_the_site (test_wp_inventory.SitemapReading.test_a_sitemap_named_under_the_sites_other_spelling_is_asked_on_the_site) ... ok
+test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash (test_wp_inventory.SitemapReading.test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash) ... ok
+test_a_sitemap_whose_elements_carry_a_prefix_is_read (test_wp_inventory.SitemapReading.test_a_sitemap_whose_elements_carry_a_prefix_is_read) ... ok
+test_a_sitemap_with_a_document_type_is_refused_unparsed (test_wp_inventory.SitemapReading.test_a_sitemap_with_a_document_type_is_refused_unparsed) ... ok
+test_a_web_page_at_a_guessed_address_is_not_a_gap (test_wp_inventory.SitemapReading.test_a_web_page_at_a_guessed_address_is_not_a_gap) ... ok
+test_guessed_addresses_that_are_busy_or_refused_make_the_count_incomplete (test_wp_inventory.SitemapReading.test_guessed_addresses_that_are_busy_or_refused_make_the_count_incomplete) ... ok
+test_no_sitemap_anywhere_is_not_a_gap (test_wp_inventory.SitemapReading.test_no_sitemap_anywhere_is_not_a_gap) ... ok
+test_the_words_of_a_comment_are_not_a_document_type (test_wp_inventory.SitemapReading.test_the_words_of_a_comment_are_not_a_document_type) ... ok
+test_a_redirect_to_another_host_is_reported_not_followed (test_wp_inventory.StaysOnTheSite.test_a_redirect_to_another_host_is_reported_not_followed) ... ok
+test_a_rest_api_reached_by_query_string_is_read_too (test_wp_inventory.StaysOnTheSite.test_a_rest_api_reached_by_query_string_is_read_too) ... ok
+test_a_sitemap_file_on_another_host_is_reported_not_asked (test_wp_inventory.StaysOnTheSite.test_a_sitemap_file_on_another_host_is_reported_not_asked) ... ok
+test_the_start_address_may_move_to_the_sites_real_host_and_the_report_names_it (test_wp_inventory.StaysOnTheSite.test_the_start_address_may_move_to_the_sites_real_host_and_the_report_names_it) ... ok
+
+----------------------------------------------------------------------
+Ran 82 tests in 51.474s
+
+OK
+exit status: 0
+```
+
+</details>
+
+<details><summary>tests-python3.9.txt</summary>
+
+```
+$ /usr/bin/python3 -m unittest discover -v -s skills/wordpress-inspector/scripts/tests
+test_a_cell_the_inventory_defused_is_read_back_as_the_address (test_check_move.AddressList) ... ok
+test_addresses_on_another_host_are_listed_and_skipped (test_check_move.AddressList) ... ok
+test_the_same_address_twice_is_asked_once (test_check_move.AddressList) ... ok
+test_with_and_without_the_closing_slash_are_two_addresses (test_check_move.AddressList) ... ok
+test_a_probe_that_was_refused_or_busy_proves_nothing (test_check_move.CannotStart) ... ok
+test_a_site_that_forwards_everything_to_another_host (test_check_move.CannotStart) ... ok
+test_a_site_that_forwards_everything_to_its_home_page (test_check_move.CannotStart) ... ok
+test_a_site_that_says_found_for_everything (test_check_move.CannotStart) ... ok
+test_an_address_list_that_cannot_be_parsed (test_check_move.CannotStart) ... ok
+test_no_addresses_and_no_site (test_check_move.CannotStart) ... ok
+test_a_busy_answer_is_never_read_as_kept_or_missing (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_deep_address_forwarded_to_the_home_page_is_a_finding (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_missing_closing_slash_is_not_a_lost_page (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_redirect_loop_is_a_finding (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_redirect_that_leads_to_a_missing_page_is_missing (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_redirect_to_an_address_that_is_no_web_address_is_unreadable_not_a_crash (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_redirect_to_an_address_with_a_query_is_not_the_home_page (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_redirect_to_another_host_is_listed_not_followed (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_temporary_redirect_is_accounted_for_but_flagged (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_a_temporary_redirect_to_another_host_is_flagged_too (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_all_accounted_for_exits_0 (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_kept_redirected_and_missing_are_told_apart (test_check_move.EveryAddressEndsSomewhere) ... ok
+test_an_address_dropped_on_purpose_is_not_a_finding (test_check_move.LetGo) ... ok
+test_only_the_listed_address_is_let_go (test_check_move.LetGo) ... ok
+test_a_deep_address_is_sent_home_by_either_route (test_check_move.TheHomePage) ... ok
+test_the_old_home_address_is_not_sent_home (test_check_move.TheHomePage) ... ok
+test_the_old_home_page_under_its_file_name_is_not_sent_home (test_check_move.TheHomePage) ... ok
+test_the_inventorys_address_list_drives_the_check (test_check_move.TheRealChain) ... ok
+test_a_site_that_is_not_wordpress_and_has_no_sitemap (test_wp_inventory.CannotStart) ... ok
+test_not_a_web_address (test_wp_inventory.CannotStart) ... ok
+test_nothing_answers (test_wp_inventory.CannotStart) ... ok
+test_a_plugins_own_content_type_is_found_without_being_named (test_wp_inventory.FullCount) ... ok
+test_every_record_is_counted_and_the_run_says_complete (test_wp_inventory.FullCount) ... ok
+test_languages_mixed_in_one_tree_show_up (test_wp_inventory.FullCount) ... ok
+test_no_page_text_is_written_to_disk (test_wp_inventory.FullCount) ... ok
+test_pages_whose_builder_markup_arrives_unrendered_are_flagged (test_wp_inventory.FullCount) ... ok
+test_published_records_missing_from_the_sitemap_are_surfaced (test_wp_inventory.FullCount) ... ok
+test_sitemap_addresses_no_record_explains_are_surfaced (test_wp_inventory.FullCount) ... ok
+test_text_from_the_site_cannot_break_the_report_table (test_wp_inventory.FullCount) ... ok
+test_the_address_list_has_one_row_per_address (test_wp_inventory.FullCount) ... ok
+test_what_the_site_is_built_with (test_wp_inventory.FullCount) ... ok
+test_wordpress_own_machinery_is_not_counted_as_content (test_wp_inventory.FullCount) ... ok
+test_a_busy_site_is_not_counted (test_wp_inventory.IncompleteCounts) ... ok
+test_a_maintenance_page_in_place_of_data_is_not_counted (test_wp_inventory.IncompleteCounts) ... ok
+test_a_site_that_keeps_robots_out_of_the_rest_api_is_not_asked (test_wp_inventory.IncompleteCounts) ... ok
+test_fewer_records_than_the_site_reports (test_wp_inventory.IncompleteCounts) ... ok
+test_the_request_limit_stops_the_run_and_says_so (test_wp_inventory.IncompleteCounts) ... ok
+test_a_bracketed_word_is_a_shortcode_only_with_a_closing_tag_an_attribute_or_an_underscore (test_wp_inventory.Pieces) ... ok
+test_a_cell_a_spreadsheet_would_run_is_defused (test_wp_inventory.Pieces) ... ok
+test_an_address_on_another_host_never_matches_one_of_the_sites (test_wp_inventory.Pieces) ... ok
+test_short_text_gets_no_language (test_wp_inventory.Pieces) ... ok
+test_text_from_the_site_cannot_write_a_link_into_the_report (test_wp_inventory.Pieces) ... ok
+test_a_list_that_repeats_itself_is_not_a_full_count (test_wp_inventory.RecordCounting) ... ok
+test_a_total_that_changes_between_pages_is_said (test_wp_inventory.RecordCounting) ... ok
+test_a_type_registered_under_a_plugins_own_namespace_is_read_there (test_wp_inventory.RecordCounting) ... ok
+test_a_type_without_a_total_is_incomplete_and_says_why (test_wp_inventory.RecordCounting) ... ok
+test_media_or_a_grouping_without_a_usable_count_is_incomplete (test_wp_inventory.RecordCounting) ... ok
+test_records_without_an_id_cannot_pass_for_a_full_count (test_wp_inventory.RecordCounting) ... ok
+test_two_addresses_that_differ_only_in_the_query_are_two_addresses (test_wp_inventory.RecordCounting) ... ok
+test_a_group_that_names_this_tool_replaces_the_group_for_everyone (test_wp_inventory.Robots) ... ok
+test_a_refused_or_unreadable_robots_file_stops_the_run (test_wp_inventory.Robots) ... ok
+test_a_wildcard_rule_keeps_the_tool_out_of_the_rest_api (test_wp_inventory.Robots) ... ok
+test_the_longest_rule_wins_and_allow_wins_a_tie (test_wp_inventory.Robots) ... ok
+test_wildcards_and_the_end_mark_count (test_wp_inventory.Robots) ... ok
+test_a_cut_off_sitemap_at_a_guessed_address_is_a_gap_too (test_wp_inventory.SitemapReading) ... ok
+test_a_cut_off_sitemap_is_a_gap_wherever_its_first_element_sits (test_wp_inventory.SitemapReading) ... ok
+test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap (test_wp_inventory.SitemapReading) ... ok
+test_a_document_type_in_any_encoding_never_reaches_the_parser (test_wp_inventory.SitemapReading) ... ok
+test_a_packed_sitemap_is_read_and_one_that_unpacks_too_large_is_a_gap (test_wp_inventory.SitemapReading) ... ok
+test_a_sitemap_cut_off_in_the_middle_is_a_gap_not_a_shorter_sitemap (test_wp_inventory.SitemapReading) ... ok
+test_a_sitemap_named_under_the_sites_other_spelling_is_asked_on_the_site (test_wp_inventory.SitemapReading) ... ok
+test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash (test_wp_inventory.SitemapReading) ... ok
+test_a_sitemap_whose_elements_carry_a_prefix_is_read (test_wp_inventory.SitemapReading) ... ok
+test_a_sitemap_with_a_document_type_is_refused_unparsed (test_wp_inventory.SitemapReading) ... ok
+test_a_web_page_at_a_guessed_address_is_not_a_gap (test_wp_inventory.SitemapReading) ... ok
+test_guessed_addresses_that_are_busy_or_refused_make_the_count_incomplete (test_wp_inventory.SitemapReading) ... ok
+test_no_sitemap_anywhere_is_not_a_gap (test_wp_inventory.SitemapReading) ... ok
+test_the_words_of_a_comment_are_not_a_document_type (test_wp_inventory.SitemapReading) ... ok
+test_a_redirect_to_another_host_is_reported_not_followed (test_wp_inventory.StaysOnTheSite) ... ok
+test_a_rest_api_reached_by_query_string_is_read_too (test_wp_inventory.StaysOnTheSite) ... ok
+test_a_sitemap_file_on_another_host_is_reported_not_asked (test_wp_inventory.StaysOnTheSite) ... ok
+test_the_start_address_may_move_to_the_sites_real_host_and_the_report_names_it (test_wp_inventory.StaysOnTheSite) ... ok
+
+----------------------------------------------------------------------
+Ran 82 tests in 51.118s
+
+OK
+exit status: 0
+```
+
+</details>
+
+<details><summary>undo-each-fix.txt</summary>
+
+```
+== F38 let NUL bytes (UTF-16) through
+   in wp_inventory.py, replaced:     if b" " in body:
+   by:     if False:
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='utf-16 with a byte-order mark')
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='utf-16 little-endian, no mark')
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='utf-16 big-endian, no mark')
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='utf-32')
+Ran 54 tests in 33.102s
+FAILED (failures=4)
+
+== F38 let a document type through
+   in wp_inventory.py, replaced:     if re.match(rb"\s*<!DOCTYPE", body[pos:pos + 4096], re.I):
+   by:     if False:
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='latin-1, declared')
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='an 8-bit code page, declared')
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='utf-8 after a comment and a processing instruction')
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='utf-8 with a byte-order mark')
+FAIL: test_a_sitemap_with_a_document_type_is_refused_unparsed (tests.test_wp_inventory.SitemapReading.test_a_sitemap_with_a_document_type_is_refused_unparsed)
+Ran 54 tests in 32.879s
+FAILED (failures=5)
+
+== F38 look right after the declaration only
+   in wp_inventory.py, replaced:     while True:
+        m = _PROLOG_SKIP.match(body, pos)
+        if not m:
+            break
+        pos = m.end()
+   by:     m = re.match(rb"\s*<\?xml.*?\?>", body[pos:], re.S)
+    pos += m.end() if m else 0
+FAIL: test_a_document_type_in_any_encoding_never_reaches_the_parser (tests.test_wp_inventory.SitemapReading.test_a_document_type_in_any_encoding_never_reaches_the_parser) (name='utf-8 after a comment and a processing instruction')
+Ran 54 tests in 33.728s
+FAILED (failures=1)
+
+== F40 take a comment's words for a document type
+   in wp_inventory.py, replaced:     if re.match(rb"\s*<!DOCTYPE", body[pos:pos + 4096], re.I):
+   by:     if re.search(rb"<!DOCTYPE", body, re.I):
+FAIL: test_the_words_of_a_comment_are_not_a_document_type (tests.test_wp_inventory.SitemapReading.test_the_words_of_a_comment_are_not_a_document_type) (name='plain')
+FAIL: test_the_words_of_a_comment_are_not_a_document_type (tests.test_wp_inventory.SitemapReading.test_the_words_of_a_comment_are_not_a_document_type) (name='with a byte-order mark')
+FAIL: test_the_words_of_a_comment_are_not_a_document_type (tests.test_wp_inventory.SitemapReading.test_the_words_of_a_comment_are_not_a_document_type) (name='in Latin-1, declared')
+Ran 54 tests in 33.166s
+FAILED (failures=3)
+
+== F39 trust the header to say what is a web page
+   in wp_inventory.py, replaced:             if sm in first and _HTML_PAGE.search(body):
+   by:             if sm in first and "html" in (resp.ctype or "").lower():
+FAIL: test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap (tests.test_wp_inventory.SitemapReading.test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap) (lead=0)
+FAIL: test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap (tests.test_wp_inventory.SitemapReading.test_a_cut_off_sitemap_sent_as_a_web_page_is_still_a_gap) (lead=5009)
+Ran 54 tests in 34.466s
+FAILED (failures=2)
+
+== F33 let an unknown encoding crash the run
+   in wp_inventory.py, replaced: except (ET.ParseError, LookupError, ValueError):
+   by: except ET.ParseError:
+ERROR: test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash (tests.test_wp_inventory.SitemapReading.test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash) (enc='bogus-enc')
+ERROR: test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash (tests.test_wp_inventory.SitemapReading.test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash) (enc='utf-7')
+Ran 54 tests in 36.710s
+FAILED (errors=2)
+
+== F41 take a fraction for an id
+   in wp_inventory.py, replaced: isinstance(rec.get("id"), (int, str)) and not isinstance(rec.get("id"), bool)
+   by: rec.get("id") is not None and not isinstance(rec.get("id"), (bool, list, dict))
+FAIL: test_records_without_an_id_cannot_pass_for_a_full_count (tests.test_wp_inventory.RecordCounting.test_records_without_an_id_cannot_pass_for_a_full_count) (bad=1.5)
+Ran 54 tests in 35.772s
+FAILED (failures=1)
+
+```
+
+</details>
+
+`make check`: exit status 0.
+
+Two guards written for F38 were taken out again before this commit: a strict UTF-8 check and a check of the declared encoding. Undoing either made no test fail, and the measurement above says why: every encoding the parser accepts, UTF-16 apart, writes XML's own characters as ASCII does, so the look for a document type reads what the parser reads. They would also have turned a sound Latin-1 sitemap into a gap.
+
+Notes on the rounds: round 4 is earned by F38 and F39, the substantive BUGs of round 3. Both continue chains that start at F7, the sitemap reader (F7, F35, F38 and F7, F31, F39). The reader's rules are now written out in order in `read_sitemaps` and `sitemap_refusal`; if round 4 finds a further defect there, the option to put to the owner is to stop parsing XML from other people's sites with the standard library at all.
