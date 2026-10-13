@@ -230,6 +230,14 @@ class TheHomePage(unittest.TestCase):
             code, rows, _, _ = run([OLD + "/", OLD + "/about/"], site.base())
         self.assertEqual((code, rows[OLD + "/"]["result"]), (0, "redirected"))
 
+    def test_the_old_home_page_under_its_file_name_is_not_sent_home(self):
+        site = self.site()
+        site.redirects["/index.php"] = (301, "/")
+        site.redirects["/index.html"] = (301, "/en/")
+        with serve(site):
+            code, rows, _, _ = run([OLD + "/index.php", OLD + "/index.html"], site.base())
+        self.assertEqual((code, {r["result"] for r in rows.values()}), (0, {"redirected"}))
+
     def test_a_deep_address_is_sent_home_by_either_route(self):
         with serve(self.site()) as site:
             code, rows, _, _ = run([OLD + "/programme/", OLD + "/speakers/"], site.base())

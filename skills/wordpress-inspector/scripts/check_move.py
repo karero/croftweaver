@@ -59,6 +59,7 @@ USER_AGENT = "wordpress-inventory/0.1 (move check, read-only)"
 FINDINGS = ("missing", "sent home", "unreadable")
 ORDER = ("kept", "redirected", "off the site", "let go") + FINDINGS
 TEMPORARY = (302, 303, 307)
+HOME_FILES = ("index.html", "index.htm", "index.php")  # "/index.php" is the old home page under another name
 CSV_FIELDS = ["old_address", "result", "status", "ends_at", "temporary_redirect", "note"]
 
 
@@ -150,6 +151,7 @@ def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay:
     host = fetcher.origin[1]
     root_key = wi.path_key(base + "/", host)      # the home address as asked
     home_keys = {root_key, wi.path_key(home.url, host)}  # ... and where it ends ("/en/", "/index.html")
+    old_home = {root_key} | {wi.path_key("%s/%s" % (base, f), host) for f in HOME_FILES}
 
     # Only a plain "not found" for an address that cannot exist lets kept and missing be told apart.
     probe = fetcher.get("%s/no-such-page-%s/" % (base, secrets.token_hex(8)))
@@ -174,7 +176,7 @@ def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay:
         elif not problem:
             ends_at = resp.url
             # the old home address may be forwarded wherever the home page lives; a deep address may not
-            if wi.path_key(resp.url, host) in home_keys and asked_key != root_key:
+            if wi.path_key(resp.url, host) in home_keys and asked_key not in old_home:
                 result = "sent home"
             else:
                 result = "redirected"

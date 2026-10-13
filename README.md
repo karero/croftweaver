@@ -296,7 +296,8 @@ skills/            the suite skills (canonical)
                    page against the term it owns per audience; runs weekly beside
                    the AI check)
   wordpress-inspector (read-only, any live WordPress site: counts each content type the
-                   site's REST API lists, the sitemap's addresses and where the two
+                   site's REST API lists (WordPress's internal ones left out, media as
+                   one number), the sitemap's addresses and where the two
                    disagree, shows signs of a page builder and forms, and says when
                    the count is incomplete; the first step before moving a site, and
                    the basis for an estimate. After the move it asks the new site for

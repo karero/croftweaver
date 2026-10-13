@@ -376,12 +376,47 @@ class SitemapReading(unittest.TestCase):
         self.assertIn("No sitemap was found", report)
 
     def test_a_web_page_at_a_guessed_address_is_not_a_gap(self):
+        for page in ("<html><body>Nothing here</body></html>",
+                     "<!DOCTYPE html><html><body><p>Nothing here<br></body></html>"):
+            with self.subTest(page=page[:15]):
+                site = Site()
+                site.sitemaps = {}
+                site.extra["/sitemap_index.xml"] = (200, "text/html; charset=utf-8", page)
+                with serve(site):
+                    code, data, _, _, _ = run(site.base())
+                self.assertEqual((code, data["complete"]), (0, True))
+
+    def test_a_cut_off_sitemap_is_a_gap_wherever_its_first_element_sits(self):
+        # the invariant: a sitemap is read whole or it is a gap, never a quietly missing one
+        start = "<?xml version='1.0'?>%s<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>{base}/a/</loc></url><url><lo"
+        for lead in ("", "<!-- %s -->" % ("x" * 5000), "\n" * 6000):
+            with self.subTest(lead=len(lead)):
+                site = Site()
+                site.sitemaps = {"/sitemap_index.xml": start % lead}
+                with serve(site):
+                    code, data, _, _, _ = run(site.base())
+                self.assertEqual((code, data["complete"], data["sitemap"]["urls"]), (1, False, 0))
+                self.assertIn("not valid XML", " ".join(data["incomplete_because"]))
+
+    def test_a_sitemap_the_parser_cannot_decode_is_a_gap_not_a_crash(self):
+        for enc in ("bogus-enc", "utf-7"):
+            with self.subTest(enc=enc):
+                site = Site()
+                site.sitemaps = {"/sitemap_index.xml": "<?xml version='1.0' encoding='%s'?><urlset><url><loc>{base}/a/</loc></url></urlset>" % enc}
+                with serve(site):
+                    code, data, _, _, _ = run(site.base())
+                self.assertEqual((code, data["complete"]), (1, False))
+
+    def test_a_sitemap_with_a_document_type_is_refused_unparsed(self):
+        # entity tricks need a document type; the Python a Mac ships with has no guard against them
+        bomb = ("<?xml version='1.0'?><!DOCTYPE urlset [<!ENTITY a 'aaaaaaaaaa'><!ENTITY b '&a;&a;&a;&a;&a;&a;&a;&a;'>]>"
+                "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>{base}/&b;/</loc></url></urlset>")
         site = Site()
-        site.sitemaps = {}
-        site.extra["/sitemap_index.xml"] = (200, "text/html", "<html><body>Nothing here</body></html>")
+        site.sitemaps = {"/sitemap_index.xml": bomb}
         with serve(site):
             code, data, _, _, _ = run(site.base())
-        self.assertEqual((code, data["complete"]), (0, True))
+        self.assertEqual((code, data["sitemap"]["urls"]), (1, 0))
+        self.assertIn("declares a document type", " ".join(data["incomplete_because"]))
 
     def test_guessed_addresses_that_are_busy_or_refused_make_the_count_incomplete(self):
         for status in (503, 403, 429):
@@ -460,6 +495,18 @@ class RecordCounting(unittest.TestCase):
         self.assertEqual((code, post["complete"], post["fetched"]), (1, False, 100))
         self.assertIn("handed out twice", post["note"])
         self.assertEqual(sum(1 for r in rows if r["type"] == "post"), 100)
+
+    def test_records_without_an_id_cannot_pass_for_a_full_count(self):
+        # two rows with no id may be one record twice; the count must not call that complete
+        site = Site()
+        for bad in (None, "", True):
+            with self.subTest(bad=bad):
+                site.records["talk"] = [dict(site.rec(0, "talk", "/talk/x/", "<p>x</p>"), id=bad) for _ in range(2)]
+                with serve(site):
+                    code, data, _, _, _ = run(site.base())
+                talk = types(data)["talk"]
+                self.assertEqual((code, talk["complete"], talk["fetched"]), (1, False, 2))
+                self.assertIn("without an id", talk["note"])
 
     def test_a_total_that_changes_between_pages_is_said(self):
         site = Site()

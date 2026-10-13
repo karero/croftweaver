@@ -28,9 +28,11 @@ What it keeps to:
   - Only the host you name. A redirect to another host is reported, not followed. The one
     exception is the start address itself (example.com -> www.example.com), which it adopts
     and names in the report.
-  - robots.txt, under the name "wordpress-inventory", read as RFC 9309 reads it (the longest
-    matching rule wins, * and $ count). An address it may not read is skipped and listed. A
+  - robots.txt, under the name "wordpress-inventory", by the rules of RFC 9309 as the toolkit's facts
+    check implements them (the longest matching rule wins, * and $ count). An address it may not read is skipped and listed. A
     robots.txt that is refused (401, 403) or cannot be read stops the run.
+  - A sitemap that declares a document type is not parsed: a sitemap needs none, and one
+    can carry entity tricks that exhaust an older Python's XML parser.
   - A pause between requests (--delay) and a ceiling on their number (--max-requests).
   - A refusal, a "please wait" or maintenance page, or any web page where data was due is
     never counted as content. It makes the count incomplete.
@@ -183,7 +185,7 @@ def md(value, limit: int = 120) -> str:
     """Text from the site, made safe for a Markdown table cell."""
     s = re.sub(r"\s+", " ", "" if value is None else str(value)).strip()
     s = s.replace("\\", "\\\\").replace("|", "\\|").replace("`", "'").replace("<", "&lt;")
-    s = s.replace("[", "\\[").replace("]", "\\]")  # no link or image can be written into the report
+    s = s.replace("[", "\\[").replace("]", "\\]")  # CommonMark reads an escaped bracket as text, so it opens no link or image
     return s if len(s) <= limit else s[: limit - 1] + "…"
 
 
@@ -443,7 +445,7 @@ def read_type(fetcher: Fetcher, rest: Rest, slug: str, info: dict, site_host: st
     out = {"type": slug, "name": str(info.get("name") or slug), "total": None, "fetched": 0, "complete": False, "note": ""}
     stats = []
     seen_ids = set()
-    repeats = 0
+    repeats = no_id = 0
     route = str(info.get("rest_namespace") or "wp/v2").strip("/") + "/" + str(info["rest_base"]).strip("/")
     page, pages = 1, 1
     while page <= pages:
@@ -463,11 +465,13 @@ def read_type(fetcher: Fetcher, rest: Rest, slug: str, info: dict, site_host: st
         for rec in data:
             if not isinstance(rec, dict):
                 continue
-            if rec.get("id") is not None:
+            if isinstance(rec.get("id"), (int, str)) and not isinstance(rec.get("id"), bool) and rec["id"] != "":
                 if rec["id"] in seen_ids:
                     repeats += 1
                     continue
                 seen_ids.add(rec["id"])
+            else:
+                no_id += 1  # still counted and listed; without an id a repeat cannot be told from a second record
             content = rec.get("content") if isinstance(rec.get("content"), dict) else {}
             a = analyse(str(content.get("rendered") or ""))
             stats.append((rec, a))
@@ -480,6 +484,8 @@ def read_type(fetcher: Fetcher, rest: Rest, slug: str, info: dict, site_host: st
             out["note"] = "the site did not report a total"
         elif repeats:
             out["note"] = "%s records were handed out twice, so the list changed or repeated while it was read" % repeats
+        elif no_id:
+            out["note"] = "%s records came without an id, so a repeat could not be told from a second record" % no_id
         elif out["fetched"] != out["total"]:
             out["note"] = "the site reports %s records, %s were handed out" % (out["total"], out["fetched"])
     out["complete"] = not out["note"]
@@ -540,16 +546,20 @@ def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent
                 broken.append("sitemap %s: cannot be unpacked" % sm)
                 continue
             if len(body) > SITEMAP_MAX_BYTES:
-                broken.append("sitemap %s: unpacks to more than the 50 MB a sitemap may be; not read" % sm)
+                broken.append("sitemap %s: unpacks to more than the limit of %d MB; not read" % (sm, SITEMAP_MAX_BYTES // (1024 * 1024)))
                 continue
-        looks_like_one = re.search(rb"<([A-Za-z_][\w.-]*:)?(sitemapindex|urlset)\b", body[:4000]) is not None
+        # A web page served at a start address means no sitemap lives there. Anything else that
+        # cannot be read whole is a gap: a cut-off file must never pass for a missing one.
+        a_page = sm in first and "html" in (resp.ctype or "").lower()
+        if re.search(rb"<!DOCTYPE", body, re.I):
+            (absent if a_page else broken).append(
+                "sitemap %s: %s" % (sm, "not a sitemap" if a_page else "declares a document type, which a sitemap does not need; not read"))
+            continue
         try:
             root = ET.fromstring(body)
-        except ET.ParseError:
-            if looks_like_one or sm not in first:
-                broken.append("sitemap %s: not valid XML (cut off or damaged)" % sm)
-            else:
-                absent.append("sitemap %s: not a sitemap" % sm)
+        except (ET.ParseError, LookupError, ValueError):  # damaged, or an encoding the parser does not know
+            (absent if a_page else broken).append(
+                "sitemap %s: %s" % (sm, "not a sitemap" if a_page else "not valid XML (cut off, damaged or in an unknown encoding)"))
             continue
         kind = _local(root.tag)
         if kind not in ("sitemapindex", "urlset"):
@@ -816,7 +826,7 @@ def render(d: dict) -> str:
     add("## What this count cannot see")
     add("")
     add("- Drafts, private records and anything behind a login. A password-protected record may be counted, but its text is not read.")
-    add("- A content type the site's REST API does not list.")
+    add("- A content type the site's REST API does not list. WordPress's own internal types (menus, templates, patterns, fonts) are left out on purpose, and media is one number.")
     add("- Content a plugin draws inside a page, such as a directory shown in pop-ups: it counts as one page.")
     add("- Fields a plugin keeps to itself, such as a session's start time or its speakers.")
     add("- The media files themselves, redirects set inside WordPress, and form entries.")
