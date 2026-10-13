@@ -25,12 +25,17 @@ def unseen(char):
     return char != " " and (unicodedata.category(char) in _UNSEEN or bool(_UNSEEN_TOO.match(char)))
 
 
+_NOT_PLAIN = re.compile("[^ -~\n]")  # all but the plain ASCII letters, digits and signs, the plain space and a line break
+
+
 def spelled(text):
     """`text` with every character that cannot be seen spelled out (`\\u200b`, `\\xa0`), so that
-    what is shown is what is there. A line break stays one: a message may have several lines."""
-    if text.isascii() and text.isprintable():
+    what is shown is what is there. A line break stays one: a message may have several lines. One
+    pass: a text that Python calls printable holds nothing of the categories in _UNSEEN, and in any
+    other only the characters that are not plain ASCII are looked at, each once."""
+    if text.isprintable() and (text.isascii() or not _UNSEEN_TOO.search(text)):
         return text
-    return "".join(c.encode("unicode_escape").decode("ascii") if c != "\n" and unseen(c) else c for c in text)
+    return _NOT_PLAIN.sub(lambda m: m.group().encode("unicode_escape").decode("ascii") if unseen(m.group()) else m.group(), text)
 
 
 class Refusal(Exception):

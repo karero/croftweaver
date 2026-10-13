@@ -15,6 +15,7 @@ import contextlib
 import encodings.aliases
 import io
 import json
+import math
 import os
 import re
 import signal
@@ -126,11 +127,19 @@ def through_the_command(testcase, data, *extra, name="logo.svg"):
 READ = ("sharp-missing", "no-node")   # where the command stops a file that the check has read, in a site with no image tool
 
 
+def without_doctype(data):
+    """What the DOCTYPE sentence says to do, done: the declaration deleted, from its `<!DOCTYPE` to the `>` that closes
+    it, and nothing else."""
+    start = data.index(b"<!DOCTYPE")
+    return data[:start] + data[data.index(b">", start) + 1:]
+
+
 class ThroughTheCommand(unittest.TestCase):
     """The rules of 2026-10-13, each through the one door production has: the intake's own command, given a file."""
 
     def test_what_the_check_refuses_the_command_refuses_with_the_same_sentence_and_what_it_reads_goes_on_to_the_icons(self):
         clip = '<clipPath id="c"><rect width="4" height="4"/></clipPath>'
+        big_clip = '<clipPath id="c"><polygon points="%s"/></clipPath>' % ("1 2 " * 1000)   # 2,000 numbers
         dashed = 'stroke="#111111" stroke-dasharray="0.01"'
         rows = (
             ("a dashed line with one end a share, past the budget", ('<svg %s viewBox="0 0 10 1">%s<path fill="#111111" d="M0 0h1v1z"/></svg>' % (NS, '<line y1="100%%" y2="10" %s/>' % dashed * 112)).encode(), "too-many-dashes"),
@@ -143,10 +152,20 @@ class ThroughTheCommand(unittest.TestCase):
             ("display on a clip path", bare(clip.replace("<clipPath ", '<clipPath display="none" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), "clip-display"),
             ("a clip-path on the outer svg", bare(clip + '<rect width="9" height="9"/>', root='clip-path="url(#c)"'), "root-clip-path"),
             ("a plain clip path whose id starts with a digit", bare(clip.replace('"c"', '"8ce47d5fb1"') + '<g clip-path="url(#8ce47d5fb1)"><rect width="9" height="9"/></g>'), None),
-            ("a DOCTYPE line", b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + svg(), "doctype"),
+            ("a DOCTYPE on a line of its own", b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + svg(), "doctype"),
             ("an editor's leftovers in a style", bare('<path style="fill:#111111;marker:none;isolation:auto;image-rendering:auto;-inkscape-stroke:none" d="M0 0h9v9z"/>'), None),
             ("the class names of a style library", svg(root='class="h-6 w-6 md:h-8 hover:text-gray-500"'), None),
             ("a label that reads like a piece of a style", svg(root='role="img" aria-label="JavaScript: the logo" data-name="expression(layer)"'), None),
+            # the rules of round 6
+            ("a DOCTYPE over two lines", b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + svg(), "doctype"),
+            ("a DOCTYPE on the line of the svg", b'<?xml version="1.0"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">' + svg(), "doctype"),
+            ("a DOCTYPE with definitions of its own", b'<!DOCTYPE svg [\n<!ENTITY ns_svg "http://www.w3.org/2000/svg">\n]>\n' + svg(ns='xmlns="&ns_svg;"'), "doctype"),
+            ("a clip path measured by the box of what it clips", bare(clip.replace("<clipPath ", '<clipPath clipPathUnits="objectBoundingBox" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), "clip-units"),
+            ("the same clip path in the drawing's own units", bare(clip.replace("<clipPath ", '<clipPath clipPathUnits="userSpaceOnUse" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), None),
+            ("a shape inside a clip path scaled to nothing", bare(clip.replace("<rect ", '<rect transform="scale(0)" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), "flat-transform"),
+            ("the same shape scaled to a half", bare(clip.replace("<rect ", '<rect transform="scale(.5)" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), None),
+            ("clip paths used so often and so large that a browser draws for seconds", bare(big_clip + '<rect clip-path="url(#c)" width="9" height="9"/>' * 101), "clip-work"),
+            ("the same clip path, used as often as the cap takes", bare(big_clip + '<rect clip-path="url(#c)" width="9" height="9"/>' * 100), None),
         )
         for what, data, code in rows:
             with self.subTest(what=what):
@@ -159,10 +178,32 @@ class ThroughTheCommand(unittest.TestCase):
                     self.assertIn(answer["code"], READ, answer["message"])   # read: the run went on to the image tool
                     self.assertEqual(answer["notes"], _svg.clean_svg(data).notes)
                 self.assertEqual(answer["written"], [])
-        answer = through_the_command(self, rows[10][1])
-        self.assertIn("delete the line that starts <!DOCTYPE", answer["message"])
-        answer = through_the_command(self, rows[11][1])
+        by_name = dict((what, data) for what, data, _code in rows)
+        for what in ("a DOCTYPE on a line of its own", "a DOCTYPE over two lines", "a DOCTYPE on the line of the svg"):
+            self.assertEqual(through_the_command(self, by_name[what])["message"], _svg.DOCTYPE)
+            self.assertIn(through_the_command(self, without_doctype(by_name[what]))["code"], READ, "with the declaration deleted, as the sentence says, the file is read")
+        self.assertEqual(through_the_command(self, by_name["a DOCTYPE with definitions of its own"])["message"], _svg.DOCTYPE_DEFINES)
+        answer = through_the_command(self, by_name["an editor's leftovers in a style"])
         self.assertEqual(answer["notes"], ["left out styles that only an editor reads (their names start -inkscape-)"])
+
+    def test_a_refusal_of_a_file_in_a_package_says_which_file_it_is(self):
+        # a package hands over two files, the mark and its one-colour version: a refusal that named neither left the owner
+        # to open both (and the assistant's instructions said so)
+        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + svg()
+        package = T.build_zip([("pack/mark.svg", svg()), ("pack/mark-mono.svg", doctype), ("pack/gr\u00f6\u00dfe.svg", svg("<text>x</text>"))])
+        for pick, mono, code, about, sentence in (("pack/mark.svg", "pack/mark-mono.svg", "doctype", "pack/mark-mono.svg", _svg.DOCTYPE),
+                                                  ("pack/mark-mono.svg", "pack/mark.svg", "doctype", "pack/mark-mono.svg", _svg.DOCTYPE),
+                                                  ("pack/gr\u00f6\u00dfe.svg", "pack/mark-mono.svg", "text", "pack/gr\u00f6\u00dfe.svg", str(refused(self, svg("<text>x</text>"), "text"))),
+                                                  ("pack/mark-mono.svg", None, "doctype", "pack/mark-mono.svg", _svg.DOCTYPE)):
+            with self.subTest(pick=pick, mono=mono):
+                answer = through_the_command(self, package, "--pick", pick, *(["--mono", mono] if mono else []), name="pack.zip")
+                self.assertEqual((answer["status"], answer["code"]), ("refused", code))
+                self.assertEqual(answer["message"], "In the package, the file %r: %s" % (about, sentence))
+        self.assertIn(through_the_command(self, package, "--pick", "pack/mark.svg", name="pack.zip")["code"], READ)
+        # one SVG alone in a package is named as well, and a file that is no package is not called one
+        answer = through_the_command(self, T.build_zip([("only.svg", doctype)]), name="pack.zip")
+        self.assertEqual(answer["message"], "In the package, the file 'only.svg': " + _svg.DOCTYPE)
+        self.assertEqual(through_the_command(self, doctype)["message"], _svg.DOCTYPE)
 
 
 class RealMark(unittest.TestCase):
@@ -281,25 +322,78 @@ class Hostile(unittest.TestCase):
 
     def test_a_doctype_is_refused_with_the_way_out_that_exists(self):
         # Three common drawing programs write a DOCTYPE into every file, and one of them cannot leave it out: "export again
-        # without it" was no way out. The line can be taken out by hand, and the drawing is the same without it.
+        # without it" was no way out. The declaration can be taken out by hand, and the drawing is the same without it.
+        # What is taken out is the DECLARATION, not "the line that starts <!DOCTYPE": that sentence deleted the whole
+        # drawing where the declaration shares its line with the <svg, and left half a declaration where it runs over two.
         public = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
-        for head in (b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + public + b"\n", public, b"<!DOCTYPE svg>", b"<!doctype svg>\n", b"<!-- made by a tool -->\n" + public,
-                     b'<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "x">]>'):
-            with self.subTest(head=head[:40]):
-                err = refused(self, head + svg(), "doctype") if b"doctype svg" not in head else None
-                for data in (head + svg(), T.build_zip([("logo.svg", head + svg())])):   # through the door the intake uses, as a file and inside a package
-                    with self.assertRaises(_svg.Refusal) as cm:
-                        _svg.clean_svg(_input.mark(_input.load(data)).colour)
-                    self.assertIn(cm.exception.code, ("doctype", "not-xml"))   # (in small letters it is no DOCTYPE to XML at all)
-                if err is not None:
-                    self.assertEqual(cm.exception.code, "doctype")
-                    for word in ("DOCTYPE line", "text editor", "delete the line that starts <!DOCTYPE", "does not change the drawing", "ask the tool for an export without it"):
-                        self.assertIn(word, str(err))
-                    self.assertNotIn("export again", str(err))
-        # what the sentence says to do works: the same file with that line taken out is read
-        with_line = b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + public + b"\n" + svg()
-        without = b"\n".join(line for line in with_line.split(b"\n") if not line.startswith(b"<!DOCTYPE"))
-        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(without)).colour).colours, ["#b4531a"])
+        xml = b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
+        plain = {
+            "on a line of its own": xml + b"\n" + public + b"\n" + svg(),
+            "first in the file": public + svg(),
+            "over two lines": xml + b"\n" + public.replace(b'" "', b'"\n  "') + b"\n" + svg(),
+            "over three lines, as a Windows program breaks them": xml + b"\r\n" + public.replace(b" PUBLIC ", b"\r\n\tPUBLIC ").replace(b'" "', b'"\r\n\t"') + b"\r\n" + svg(),
+            "on the line of the svg": xml + public + svg(),
+            "the whole file on one line, no declaration of XML": public + svg(),
+            "after a comment": b"<!-- made by a tool -->\n" + public + b"\n" + svg(),
+            "the shortest there is": b"<!DOCTYPE svg>" + svg(),
+            "with a blank before it closes": b'<!DOCTYPE svg SYSTEM "svg11.dtd" >\n' + svg(),
+            "an address with a square bracket in it": b'<!DOCTYPE svg SYSTEM "a[1].dtd">' + svg(),
+        }
+        for what, data in plain.items():
+            with self.subTest(what=what):
+                err = refused(self, data, "doctype")
+                self.assertEqual(str(err), _svg.DOCTYPE)
+                # what the sentence says to do works, wherever the lines break: the declaration deleted, and nothing else
+                self.assertNotIn(b"<!DOCTYPE", without_doctype(data))
+                self.assertEqual(_svg.clean_svg(_input.mark(_input.load(without_doctype(data))).colour).colours, ["#b4531a"])
+        for word in ("DOCTYPE declaration", "text editor", "delete the declaration itself", "everything from <!DOCTYPE to the > that closes it", "wherever the lines break",
+                     "and nothing else", "the drawing is the same without it", "ask the tool for an export without a DOCTYPE"):
+            self.assertIn(word, _svg.DOCTYPE)
+        for word in ("export again", "the line that starts", "DOCTYPE line", "square brackets"):
+            self.assertNotIn(word, _svg.DOCTYPE)
+        # the old sentence, done to the letter, on the two shapes it failed for
+        lines_gone = lambda data: b"\n".join(line for line in data.split(b"\n") if not line.startswith(b"<!DOCTYPE"))
+        self.assertEqual(refused(self, lines_gone(plain["over two lines"]), "not-xml").code, "not-xml")
+        self.assertNotIn(b"<svg", lines_gone(plain["the whole file on one line, no declaration of XML"]))
+
+        # A declaration that holds definitions of its own (the part in square brackets) is the other form: the file
+        # may use the names it defines (one common tool writes the addresses of its namespaces so), and is then not
+        # readable once the declaration is gone. Its sentence does not say to delete it.
+        entities = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" [\n\t<!ENTITY ns_extend "http://ns.example/Extensibility/1.0/">\n\t<!ENTITY ns_svg "http://www.w3.org/2000/svg">\n]>\n'
+        uses_them = xml + b"\n" + entities + svg(ns='xmlns:x="&ns_extend;" xmlns="&ns_svg;"')
+        defines = {
+            "definitions the svg then uses": uses_them,
+            "one definition, on one line": b'<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "x">]>' + svg(),
+            "a definition that names a file": b'<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]>' + svg(),
+            "definitions nothing uses": xml + b"\n" + entities + svg(),
+            "empty brackets": b"<!DOCTYPE svg []>" + svg(),
+            "brackets on a line of their own": b"<!DOCTYPE svg\n[\n]\n>\n" + svg(),
+        }
+        for what, data in defines.items():
+            with self.subTest(what=what):
+                self.assertEqual(str(refused(self, data, "doctype")), _svg.DOCTYPE_DEFINES)
+        for word in ("DOCTYPE declaration", "definitions of its own", "square brackets", "cannot simply be deleted", "Ask the tool for an export without a DOCTYPE"):
+            self.assertIn(word, _svg.DOCTYPE_DEFINES)
+        for word in ("text editor", "delete the declaration", "the drawing is the same"):
+            self.assertNotIn(word, _svg.DOCTYPE_DEFINES)
+        # and that is true of the file that uses its names: with the whole declaration deleted it cannot be read
+        gone = uses_them.replace(entities, b"")
+        self.assertNotIn(b"DOCTYPE", gone)
+        refused(self, gone, "not-xml")
+
+        # through the door the intake uses, as a file and inside a package (where the refusal says which file)
+        for form, data in ((_svg.DOCTYPE, plain["over two lines"]), (_svg.DOCTYPE, plain["on the line of the svg"]), (_svg.DOCTYPE_DEFINES, uses_them)):
+            with self.assertRaises(_svg.Refusal) as cm:
+                _svg.clean_svg(_input.mark(_input.load(data)).colour)
+            self.assertEqual((cm.exception.code, str(cm.exception)), ("doctype", form))
+            with self.assertRaises(_svg.Refusal) as cm:
+                _svg.clean_svg(_input.mark(_input.load(T.build_zip([("pack/logo.svg", data)]))).colour)
+            self.assertEqual((cm.exception.code, str(cm.exception)), ("doctype", "In the package, the file 'pack/logo.svg': " + form))
+        # in small letters it is no DOCTYPE to XML at all: not this refusal, and not a file that is read
+        for data in (b"<!doctype svg>\n" + svg(), T.build_zip([("logo.svg", b"<!doctype svg>\n" + svg())])):
+            with self.assertRaises(_svg.Refusal) as cm:
+                _svg.clean_svg(_input.mark(_input.load(data)).colour)
+            self.assertEqual(cm.exception.code, "not-xml")
 
     def test_text_is_refused_with_the_way_out(self):
         # Scenario 14: the owner is told what to ask the tool for.
@@ -1060,10 +1154,10 @@ class Styles(unittest.TestCase):
 
     def test_clip_path_units_are_kept_on_a_clip_path(self):
         inner = '<defs><clipPath id="c" clipPathUnits="%s"><rect width="1" height="1"/></clipPath></defs>' + self.SHAPE % 'clip-path="url(#c)"'
-        for value in ("objectBoundingBox", "userSpaceOnUse"):
-            clean = _svg.clean_svg(bare(inner % value))
-            self.assertIn('<clipPath id="c" clipPathUnits="%s">' % value, clean.text)
-            self.assertEqual(clean.notes, [])
+        clean = _svg.clean_svg(bare(inner % "userSpaceOnUse"))
+        self.assertIn('<clipPath id="c" clipPathUnits="userSpaceOnUse">', clean.text)
+        self.assertEqual(clean.notes, [])
+        refused(self, bare(inner % "objectBoundingBox"), "clip-units")   # by name: see AKeyword
         refused(self, bare(inner % "somethingElse"), "bad-value")
         # on any other element it means nothing: left out, and said
         clean = _svg.clean_svg(bare(self.SHAPE % 'clipPathUnits="objectBoundingBox"'))
@@ -1584,13 +1678,13 @@ class ATransform(Line):
     def test_what_it_takes(self):
         values = ["", " ", "translate(1)", "translate(1 2)", "translate(1,2)", "translate( 1 , 2 )", "translate(1-2)", "translate(.5.5)", "translate(-1.5e1-2)",
                   "scale(2)", "scale(2 3)", "scale(-1)", "rotate(45)", "rotate(45 1 1)", "rotate(45,1,1)", "rotate(-45.5 1e1 .5)", "skewX(10)", "skewY(-10)",
-                  "matrix(1 0 0 1 0 0)", "matrix(1,0,0,1,0,0)", "matrix(1 0 0 1-5 3)", "matrix(.5.5.5.5.5.5)", "translate(1,2) scale(2)", "rotate(45 1 1),scale(2)",
+                  "matrix(1 0 0 1 0 0)", "matrix(1,0,0,1,0,0)", "matrix(1 0 0 1-5 3)", "matrix(.5.5-.5.5.5.5)", "translate(1,2) scale(2)", "rotate(45 1 1),scale(2)",
                   "translate(1) , scale(2)", "translate(1)scale(2)", "translate(1)\nscale(2)\trotate(3)", " translate(1 2) ", "translate(%d)" % FAR, "scale(1e-9)",
                   "scale(1) " * _svg.MAX_TRANSFORMS, "translate(" + "0" * 63 + "1)",
                   # a blank before the bracket: SVG allows it, and the site's renderer reads it as a browser does (measured 2026-10-13)
                   "translate (1)", "translate\t(1 2)", "scale (2)", "rotate \n (45 1 1)", "translate (1)scale  (2)", "matrix  (1 0 0 1 2 3)", "skewX (10) , skewY\r(10)"]
         self.takes("transform", [set_out(v) for v in values], tag="g", more="")
-        for value, written in (("translate(1,2) scale(2)", "translate(1 2) scale(2)"), ("matrix(.5.5.5.5.5.5)", "matrix(.5 .5 .5 .5 .5 .5)"), ("translate(1)scale(2)", "translate(1) scale(2)"),
+        for value, written in (("translate(1,2) scale(2)", "translate(1 2) scale(2)"), ("matrix(.5.5-.5.5.5.5)", "matrix(.5 .5 -.5 .5 .5 .5)"), ("translate(1)scale(2)", "translate(1) scale(2)"),
                                ("rotate(45 1 1),scale(2)", "rotate(45 1 1) scale(2)"), ("translate (1)scale  (2)", "translate(1) scale(2)"), (" ", ""),
                                ("translate( 1 , 2 )", "translate(1 2)"), ("translate(1)\nscale(2)\trotate(3)", "translate(1) scale(2) rotate(3)")):
             self.assertEqual(set_out(value)[1], written)
@@ -1609,7 +1703,94 @@ class ATransform(Line):
 
     def test_more_than_a_logo_needs_is_refused_as_that(self):
         self.turns_down("transform", ["scale(1) " * (_svg.MAX_TRANSFORMS + 1), "scale(1)" * 40000, "translate(1e10)", "translate(1 9e99)", "matrix(1 0 0 1 4e38 0)",
-                                      "translate(" + "0" * 64 + "1)", "translate(1)" + " " * _svg.MAX_RAW, "translate" + " " * _svg.MAX_RAW + "(1)"], "value-too-long", tag="g", more="")
+                                      "translate(" + "0" * 64 + "1)", "translate(1)" + " " * _svg.MAX_RAW, "translate" + " " * _svg.MAX_RAW + "(1)",
+                                      "scale(0) " * (_svg.MAX_TRANSFORMS + 1)], "value-too-long", tag="g", more="")
+
+    # NO TRANSFORM SQUASHES WHAT IT IS APPLIED TO FLAT, OR ALL BUT FLAT. Measured 2026-10-13, on one of two shapes inside
+    # a clip path: for a scale of nothing the site's renderer draws nothing at all of what is clipped, where a browser
+    # clips by the other shape; for a skew of a quarter turn it is the browser that draws nothing (the pictures are in
+    # test_render.py). The line is how flat a square comes out: no thinner than a ten-thousandth of its length.
+    FLAT = [
+        # a scale with a nothing in it, however the nothing is written; and one the renderer reads as nothing (it reads a number in single precision)
+        "scale(0)", "scale(0 0)", "scale(1 0)", "scale(0 1)", "scale(0,5)", "scale(-0)", "scale(+0.0)", "scale(0e5)", "scale(.0 1)", "scale( 0 )", "scale (0)", "scale(1e-46)", "scale(1e-99)",
+        "scale(1 1e-46)", "scale(1e-10)", "scale(-1e-10 1e-10)",
+        # a matrix whose a times d is its b times c, or all but
+        "matrix(0 0 0 0 0 0)", "matrix(0 0 0 0 5 5)", "matrix(1 2 2 4 0 0)", "matrix(1 0 0 0 0 5)", "matrix(0 1 0 0 0 0)", "matrix(.1 .3 .1 .3 0 0)", "matrix(.1 .3 .7 2.1 0 0)", "matrix(-1 2 2 -4 1 1)",
+        "matrix(1 2 2 4.0000000000000009 0 0)", "matrix(1 2 2 4.0001 0 0)", "matrix(1e-99 0 0 1e-99 0 0)", "matrix(1e-46 0 0 1 0 0)", "matrix(1 0 100 1 0 0)", "matrix(1,0,0,1e-4,0,0)",
+        # a skew of a quarter turn, or within about half a degree of one, and any number of half turns on from there
+        "skewX(90)", "skewY(90)", "skewX(-90)", "skewY(-90)", "skewX(270)", "skewY(450)", "skewX(-270)", "skewX(9e1)", "skewX(90.0)", "skewX(+90)", "skewX(89.999999)", "skewX(90.0000001)",
+        "skewX(89.5)", "skewY(90.5)", "skewX(89.43)", "skewX(990)", "skewY(630)",
+        # one of several, wherever it stands in the list
+        "translate(1) scale(0)", "scale(0) scale(1)", "rotate(45) scale(1 0) rotate(-45)", "scale(2),skewX(90)", "translate(1)matrix(1 2 2 4 0 0)translate(2)", "scale(1) " * 15 + "scale(0)",
+        # all of them together, none of them flat alone: steep skews, stretches at an angle
+        "skewX(89.4) skewX(89.4)", "skewX(89.4) skewY(89.4) " * 8, "skewX(60) skewY(60) " * 8, "scale(100 1) rotate(45) " * 8, "matrix(1 1 1 1.01 0 0) matrix(1 1 1 1.01 0 0) matrix(1 1 1 1.01 0 0)",
+        "scale(1 .001) rotate(45) scale(1 .001)",
+    ]
+    NOT_FLAT = [
+        "scale(1)", "scale(-1)", "scale(-1 1)", "scale(.001)", "scale(1e-9)", "scale(1e-9 1e-9)", "scale(1 .001)", "scale(.001 1)", "scale(100 1)", "scale(%d .7)" % FAR, "scale(1e-9) " * 16,
+        "matrix(1 0 0 1 0 0)", "matrix(0 1 -1 0 0 0)", "matrix(.866 .5 -.5 .866 3 4)", "matrix(1 0 99 1 0 0)", "matrix(1 2 2 5 0 0)", "matrix(1e-9 0 0 1e-9 0 0)", "matrix(0 1e-9 -1e-9 0 0 0)",
+        "matrix(-1 0 0 1 64 0)", "matrix(1.3333 0 0 -1.3333 0 64)",
+        "skewX(0)", "skewX(45)", "skewY(-30)", "skewX(80)", "skewX(89)", "skewX(89.4)", "skewX(-89.4)", "skewY(89.4)", "skewX(90.6)", "skewX(180)", "skewX(269.4)", "skewY(360)", "skewX(91)",
+        "rotate(90)", "rotate(89.999999)", "rotate(1e9)", "rotate(90 5 5)", "translate(0)", "translate(0 0)", "translate(%d)" % FAR,
+        "skewX(45) skewY(45) skewX(45)", "scale(100 1) rotate(45) scale(100 1)", "rotate(30) scale(2 1) rotate(-30)", "translate(1) " * 16, "rotate(22.5) " * 16, "scale(1 .01) rotate(90) scale(1 .01)",
+    ]
+
+    def test_a_transform_that_squashes_what_it_is_applied_to_flat_is_refused_by_name(self):
+        for value in self.FLAT:
+            for doc in (svg('<g transform="%s"/>' % value), svg('<rect transform="%s" width="9" height="9"/>' % value),
+                        svg('<clipPath id="c"><rect transform="%s" width="3" height="9"/><rect x="5" width="2" height="9"/></clipPath><rect clip-path="url(#c)" width="9" height="9"/>' % value),
+                        svg('<clipPath id="c" transform="%s"><rect width="3" height="9"/></clipPath>' % value), svg('<defs><g transform="%s"><path d="M0 0h1v1z"/></g></defs>' % value)):
+                with self.subTest(value=value[:50], doc=doc[150:190]):
+                    err = refused(self, doc, "flat-transform")
+                    for said in ("a transform", "flat", "what is left to draw", "Ask the tool", "transforms applied to the shapes"):
+                        self.assertIn(said, str(err))
+        # the sentence shows the one function that does it, or (where only all of them together do) where the list starts
+        self.assertIn("(scale(0))", str(refused(self, svg('<g transform="translate(1)  scale(0) rotate(5)"/>'), "flat-transform")))
+        self.assertIn("(skewX( 90 ))", str(refused(self, svg('<g transform="rotate(5),skewX( 90 )"/>'), "flat-transform")))
+        self.assertIn("(skewX(89.4) skewX(89.4))", str(refused(self, svg('<g transform="skewX(89.4)\nskewX(89.4)"/>'), "flat-transform")))
+        self.assertLess(len(str(refused(self, svg('<g transform="%s"/>' % ("skewX(60) skewY(60) " * 8)), "flat-transform"))), 400)
+        # on the outer svg a transform is refused as that, whatever it does
+        refused(self, svg(root='transform="scale(0)"'), "root-transform")
+        # and it is a transform that is held so: a size of nothing is a shape that draws nothing, in every program
+        self.assertEqual(_svg.clean_svg(svg('<rect width="0" height="0" fill="#111111"/><circle r="0"/>')).colours[-1], "#b4531a")
+
+    def test_a_transform_that_leaves_a_shape_its_form_is_kept(self):
+        self.takes("transform", [set_out(v) for v in self.NOT_FLAT], tag="g", more="")
+        for value in self.NOT_FLAT:   # and inside a clip path, on the clip path and on what it clips
+            with self.subTest(value=value[:50]):
+                doc = svg('<clipPath id="c" transform="%s"><rect transform="%s" width="3" height="9"/><rect x="5" width="2" height="9"/></clipPath><rect transform="%s" clip-path="url(#c)" width="9" height="9"/>'
+                          % (value, value, value))
+                self.assertEqual(_svg.clean_svg(doc).text.count(' transform="%s"' % set_out(value)[1]), 3)
+
+    def test_the_line_between_flat_and_not_is_how_thin_a_square_comes_out(self):
+        self.assertEqual((_svg.MAX_SQUASH, _svg.MIN_AREA), (10000, 1e-18))
+        # a skew: its tangent stays under 100, which is 89.427 degrees and a little
+        line = math.degrees(math.atan(math.sqrt(_svg.MAX_SQUASH - 2)))
+        self.assertAlmostEqual(line, 89.427, places=3)
+        for turns in (0, 1, 2, -1, -3):
+            for name in ("skewX", "skewY"):
+                for sign in (1, -1):
+                    inside, outside = sign * (line - 0.001) + 180 * turns, sign * (line + 0.001) + 180 * turns
+                    with self.subTest(name=name, inside=inside):
+                        _svg.clean_svg(svg('<g transform="%s(%.6f)"/>' % (name, inside)))
+                        refused(self, svg('<g transform="%s(%.6f)"/>' % (name, outside)), "flat-transform")
+        # a stretch one way: a ten-thousandth as thick as it is long is where it ends
+        for kept, flat in (("scale(1 .00011)", "scale(1 .0001)"), ("scale(.00011 1)", "scale(.0001 1)"), ("scale(9000 1)", "scale(10001 1)"), ("matrix(1 0 99.9 1 0 0)", "matrix(1 0 100 1 0 0)"),
+                           ("matrix(1 99.9 0 1 0 0)", "matrix(1 100 0 1 0 0)"), ("matrix(1 2 2 4.01 0 0)", "matrix(1 2 2 4.001 0 0)"),
+                           # and an area: a thousand million times smaller each way is the least one function leaves
+                           ("scale(1e-9)", "scale(.99e-9)"), ("scale(1e-8 2e-10)", "scale(1e-8 .5e-10)"), ("matrix(0 1e-9 -1e-9 0 0 0)", "matrix(0 1e-9 -.99e-9 0 0 0)")):
+            with self.subTest(kept=kept, flat=flat):
+                _svg.clean_svg(bare('<g transform="%s"><rect width="9" height="9"/></g>' % kept).replace(b'viewBox="0 0 64 64"', b'viewBox="0 0 640 640"'))
+                refused(self, svg('<g transform="%s"/>' % flat), "flat-transform")
+        # sixteen of the smallest scale there is still leave a number a program can work with: nothing multiplies to nothing
+        product = (float("1e-9") ** 2) ** _svg.MAX_TRANSFORMS
+        self.assertGreater(product, 2.3e-308)
+
+    def test_a_flat_transform_is_refused_through_the_door_the_intake_uses(self):
+        doc = bare('<clipPath id="c"><rect transform="scale(0)" width="3" height="9"/><rect x="5" width="2" height="9"/></clipPath><rect clip-path="url(#c)" width="9" height="9"/>')
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "flat-transform").code, "flat-transform")
+        err = refused(self, _input.mark(_input.load(T.build_zip([("pack/logo.svg", doc)]))).colour, "flat-transform")
+        self.assertTrue(str(err).startswith("In the package, the file 'pack/logo.svg': The file has a transform"), str(err))
 
 
 class PathData(Line):
@@ -1638,7 +1819,7 @@ class AKeyword(Line):
 
     def test_the_words_are_the_ones_in_the_table(self):
         self.assertEqual({k: sorted(v) for k, v in _svg._KEYWORDS.items() if k != "clipPathUnits"}, {k: sorted(v) for k, v in self.WORDS.items()})
-        self.assertEqual(sorted(_svg._KEYWORDS["clipPathUnits"]), ["objectBoundingBox", "userSpaceOnUse"])
+        self.assertEqual(sorted(_svg._KEYWORDS["clipPathUnits"]), ["userSpaceOnUse"])
 
     def test_what_it_takes(self):
         for name, words in self.WORDS.items():
@@ -1660,12 +1841,37 @@ class AKeyword(Line):
                                         "stroke\u00a0fill", "stroke" + " " * _svg.MAX_VALUE + "fill", "markers markers"], "bad-value")
 
     def test_clip_path_units_on_a_clip_path(self):
-        inner = '<defs><clipPath id="c" clipPathUnits="%s"><rect width="1" height="1"/></clipPath></defs><rect clip-path="url(#c)" width="9" height="9"/>'
-        for word in ("objectBoundingBox", "userSpaceOnUse", " userSpaceOnUse "):
-            self.assertIn('clipPathUnits="%s"' % word.strip(), _svg.clean_svg(bare(inner % word)).text)
-        for word in ("", "objectboundingbox", "userspaceonuse", "ObjectBoundingBox", "strokeWidth", "userSpace", "userSpaceOnUse objectBoundingBox", "inherit", "userSpaceOnUse\u00a0"):
+        # A clip path is measured in the drawing's own units: `userSpaceOnUse`, written or left out. Measured by the box
+        # of the shape it clips (`objectBoundingBox`) it is refused by name. Measured 2026-10-13: where the clip path
+        # also carries a transform, the site's renderer draws 4,000 of 10,000 pixels and a browser 5,000; a straight
+        # line clipped so (a box with no height) is drawn whole by the one and not at all by the other. No export seen
+        # uses that unit (64 files in the styles of design tools).
+        inner = '<defs><clipPath id="c" %s><rect width="1" height="1"/></clipPath></defs><rect clip-path="url(#c)" width="9" height="9"/>'
+        for word in ("userSpaceOnUse", " userSpaceOnUse ", "&#9;userSpaceOnUse&#10;"):
+            self.assertIn('<clipPath id="c" clipPathUnits="userSpaceOnUse">', _svg.clean_svg(bare(inner % ('clipPathUnits="%s"' % word))).text)
+        left_out = _svg.clean_svg(bare(inner % ""))
+        self.assertIn('<clipPath id="c">', left_out.text)
+        self.assertEqual(left_out.notes, [])
+        for word in ("objectBoundingBox", " objectBoundingBox ", "&#9;objectBoundingBox&#10;", "\nobjectBoundingBox"):
+            for more in ("", ' transform="translate(.6)"', ' transform=""'):
+                for used in ('<rect clip-path="url(#c)" width="9" height="9"/>', '<line clip-path="url(#c)" y1="5" x2="9" y2="5" stroke="#111111"/>', '<g clip-path="url(#c)"/>', ""):
+                    with self.subTest(word=word, more=more, used=used[:20]):
+                        doc = bare('<clipPath id="c" clipPathUnits="%s"%s><rect width="1" height="1"/></clipPath>' % (word, more) + used + '<rect width="9" height="9"/>')
+                        err = refused(self, doc, "clip-units")
+                        for said in ("clip path", "the box of the shape it clips", 'clipPathUnits="objectBoundingBox"', "different ways", "Ask the tool", "the drawing's own units",
+                                     'clipPathUnits="userSpaceOnUse"', "clips applied to the shapes"):
+                            self.assertIn(said, str(err))
+        for word in ("", "objectboundingbox", "userspaceonuse", "ObjectBoundingBox", "strokeWidth", "userSpace", "userSpaceOnUse objectBoundingBox", "objectBoundingBox userSpaceOnUse", "inherit",
+                     "userSpaceOnUse\u00a0", "objectBoundingBox\u00a0", "objectBoundingBoxx"):
             with self.subTest(word=word):
-                refused(self, bare(inner % word), "bad-value")
+                refused(self, bare(inner % ('clipPathUnits="%s"' % word)), "bad-value")
+        # with a prefix it is not the attribute a program reads (left out, as any prefixed attribute is); on anything but a clip path it means nothing
+        self.assertNotIn("clipPathUnits", _svg.clean_svg(bare(inner.replace("<defs>", '<defs xmlns:x="urn:editor">') % 'x:clipPathUnits="objectBoundingBox"')).text)
+        self.assertNotIn("clipPathUnits", _svg.clean_svg(bare('<g clipPathUnits="objectBoundingBox"><rect width="9" height="9"/></g>')).text)
+        # through the door the intake uses, as a file and inside a package
+        doc = bare(inner % 'clipPathUnits="objectBoundingBox"')
+        self.assertEqual(refused(self, _input.mark(_input.load(doc)).colour, "clip-units").code, "clip-units")
+        self.assertEqual(refused(self, _input.mark(_input.load(T.build_zip([("pack/logo.svg", doc)]))).colour, "clip-units").code, "clip-units")
 
 
 class APaint(Line):
@@ -2028,6 +2234,79 @@ class APlainClipPath(unittest.TestCase):
         self.assertEqual(refused(self, _input.mark(_input.load(T.build_zip([("logo.svg", doc)]))).colour, "root-clip-path").code, "root-clip-path")
 
 
+class ClipWork(unittest.TestCase):
+    """CLIP PATHS DO NOT HOLD SO MUCH, FOR HOW OFTEN THEY ARE USED, THAT A BROWSER HAS FAR MORE WORK THAN A LOGO GIVES IT.
+    A browser's work grows with (the elements clipped by a clip path) times (what the clip path holds), a browser has
+    no time limit, and the cleaned file is the site's favicon.svg. Measured 2026-10-13 in Chromium at 512 pixels: 11.9
+    seconds for 4,900 shapes clipped by one path of 400 turns, a file inside every other cap. So that product is
+    counted, by the numbers the clip path's shapes hold, summed over the file, and capped at MAX_CLIP_WORK. It is a
+    count, and what is held here is the count: it is no bound on a browser's time (the top of _svg.py says what a
+    file just under it took one)."""
+
+    USE = '<rect clip-path="url(#c)" width="9" height="9"/>'
+
+    @staticmethod
+    def polygon(numbers, name="c"):
+        return '<clipPath id="%s"><polygon points="%s"/></clipPath>' % (name, "1 2 " * (numbers // 2))
+
+    def at_the_cap_and_one_step_over(self, what, at, over):
+        with self.subTest(what=what):
+            self.assertIn(' clip-path="url(#', _svg.clean_svg(bare(at)).text)
+            err = refused(self, bare(over), "clip-work")
+            for said in ("clip paths", "so often", "hold so much", "far more work for a browser than a logo is", "{:,}".format(_svg.MAX_CLIP_WORK), "Ask the tool", "clips applied to the shapes"):
+                self.assertIn(said, str(err))
+
+    def test_the_numbers_of_each_clip_path_times_the_elements_it_clips_come_to_no_more_than_the_cap(self):
+        self.assertEqual(_svg.MAX_CLIP_WORK, 200000)
+        both = self.at_the_cap_and_one_step_over
+        # one clip path of 2,000 numbers, used by 100 shapes; one of 40 numbers, used by 5,000 less the few elements round them
+        both("many numbers, a hundred uses", self.polygon(2000) + self.USE * 100, self.polygon(2000) + self.USE * 101)
+        both("a few numbers, thousands of uses", self.polygon(40) + self.USE * 4990, self.polygon(42) + self.USE * 4990)
+        # what is counted: the numbers of path data (an arc's flags are no numbers), of points, and one for each other number that places or sizes a shape
+        path = '<clipPath id="c"><path d="M0 0%s"/></clipPath>'
+        both("the numbers of path data", path % ("L1 1" * 999) + self.USE * 100, path % ("L1 1" * 1000) + self.USE * 100)
+        both("an arc's flags are no numbers", path % ("a5 5 0 1 1 1 1" * 399 + "h1h1h1") + self.USE * 100, path % ("a5 5 0 1 1 1 1" * 399 + "h1h1h1h1") + self.USE * 100)
+        shapes = '<clipPath id="c">%s</clipPath>'
+        both("a rect of four numbers", shapes % ('<rect x="1" y="1" width="4" height="4"/>' * 20) + self.USE * 2500, shapes % ('<rect x="1" y="1" width="4" height="4"/>' * 20) + self.USE * 2501)
+        # a circle of three numbers, a line of four, an ellipse of four, a rect of two, a polyline of eight: 21, forty times over
+        mixed = shapes % ('<circle cx="1" cy="1" r="1"/><line x1="1" y1="1" x2="2" y2="2"/><ellipse cx="1" cy="1" rx="2" ry="1"/><rect width="9" height="9"/><polyline points="1 1 2 2 3 3 4 4"/>' * 40)
+        both("every kind of shape, by its own numbers", mixed + self.USE * 238, mixed + self.USE * 239)
+        # a transform is no number of a shape; a shape inside a group inside the clip path is one of its shapes
+        both("a transform's numbers are not counted, a shape in a group is", '<clipPath id="c" transform="matrix(1 0 0 1 2 3)"><g><polygon transform="matrix(1 0 0 1 2 3)" points="%s"/></g></clipPath>' % ("1 2 " * 1000)
+             + self.USE * 100, '<clipPath id="c"><g><polygon points="%s"/></g></clipPath>' % ("1 2 " * 1000) + self.USE * 101)
+        # every element clipped by it is one use, however the clip is set: an attribute, a style, a rule; a group is one use, whatever it holds
+        clip = self.polygon(2000)
+        both("set by a style", clip + '<rect style="clip-path:url(#c)" width="9" height="9"/>' * 100, clip + '<rect style="clip-path: url( #c )" width="9" height="9"/>' * 101)
+        both("set by a rule", "<style>.k{clip-path:url(#c)}</style>" + clip + '<rect class="k" width="9" height="9"/>' * 100, "<style>.k{clip-path:url(#c)}</style>" + clip + '<rect class="k" width="9" height="9"/>' * 101)
+        both("set by a rule for every rect", "<style>rect{clip-path:url(#c)}</style>" + clip + '<rect width="9" height="9"/>' * 100, "<style>rect{clip-path:url(#c)}</style>" + clip + '<rect width="9" height="9"/>' * 101)
+        both("groups, each one use whatever it holds", clip + ('<g clip-path="url(#c)">%s</g>' % ('<rect width="9" height="9"/>' * 20)) * 100, clip + ('<g clip-path="url(#c)"><rect width="9" height="9"/></g>') * 101)
+        both("a group and the shapes in it", clip + '<g clip-path="url(#c)">%s</g>' % (self.USE * 99), clip + '<g clip-path="url(#c)">%s</g>' % (self.USE * 100))
+        both("shapes that are not shown are uses too", clip + self.USE * 99 + self.USE.replace("<rect ", '<rect display="none" '), clip + self.USE * 100 + self.USE.replace("<rect ", '<rect display="none" '))
+        # summed over the file: many clip paths, each used once; two, each used fifty times
+        both("a hundred clip paths", "".join(self.polygon(2000, "c%d" % i) + self.USE.replace("#c", "#c%d" % i) for i in range(100)),
+             "".join(self.polygon(2000, "c%d" % i) + self.USE.replace("#c", "#c%d" % i) for i in range(101)))
+        both("two clip paths", self.polygon(2000) + self.polygon(2000, "d") + (self.USE + self.USE.replace("#c", "#d")) * 50, self.polygon(2000) + self.polygon(2000, "d") + (self.USE + self.USE.replace("#c", "#d")) * 50 + self.USE)
+
+    def test_a_clip_path_nothing_is_clipped_by_costs_nothing_and_ordinary_files_are_far_from_the_cap(self):
+        unused = "".join(self.polygon(2000, "u%d" % i) for i in range(40))
+        self.assertEqual(_svg.clean_svg(bare(unused + '<rect width="9" height="9" fill="#111111"/>')).colours, ["#111111"])
+        self.assertIn('clip-path="url(#c)"', _svg.clean_svg(bare(unused + self.polygon(2000) + self.USE * 100)).text)
+        # what exports hold: a frame clipped once by a rect; an icon set, every icon clipped by its own small frame
+        frame = '<clipPath id="c"><rect width="64" height="64" rx="8"/></clipPath><g clip-path="url(#c)">%s</g>' % ('<path d="M1 1h9v9z"/>' * 200)
+        icons = "".join('<clipPath id="i%d"><path d="M0 0h24v24H0z"/></clipPath><g clip-path="url(#i%d)"><path d="M1 1h9v9z"/></g>' % (i, i) for i in range(1000))
+        for doc in (frame, icons):
+            self.assertIn(" clip-path=", _svg.clean_svg(bare(doc)).text)
+
+    def test_the_largest_files_at_the_cap_are_judged_in_bounded_time_through_the_door_the_intake_uses(self):
+        docs = [bare(self.polygon(2000) + self.USE * 100), bare(self.polygon(2000) + self.USE * 101), bare(self.polygon(40) + self.USE * 4990), bare(self.polygon(42) + self.USE * 4990),
+                bare("".join(self.polygon(2000, "c%d" % i) + self.USE.replace("#c", "#c%d" % i) for i in range(101)))]
+        got = [out["code"] for out in judged(self, docs, how="intake", each=5.0)]
+        self.assertEqual(got, ["ok", "clip-work", "ok", "clip-work", "clip-work"])
+        err = refused(self, _input.mark(_input.load(T.build_zip([("pack/logo.svg", docs[1])]))).colour, "clip-work")
+        self.assertTrue(str(err).startswith("In the package, the file 'pack/logo.svg': The file uses its clip paths so often"), str(err))
+        self.assertIn("come to 202,000;", str(err))   # 2,000 numbers, 101 times: the sentence says what was counted
+
+
 class AClass(Line):
     """class: names of visible ASCII characters with spaces between them; 200 characters at most. A name a style rule
     can name (letters, digits, `_ -`, begun as a CSS name is) is read for the rules; any other is passed over. Never written."""
@@ -2342,10 +2621,11 @@ class TheGrammarIsTheTable(unittest.TestCase):
 
     def test_a_line_answers_none_or_why_not_and_nothing_else(self):
         for name, line in sorted(_svg.GRAMMAR.items()):
-            for value in ("", "5", "-5", "5px", "5mm", "50%", "none", "auto", "a", "url(#a)", "0 0 9 9", "translate(1)", "M0 0", "x" * 300, "1 " * 5000, "9e99", "\u00a0"):
+            for value in ("", "5", "-5", "5px", "5mm", "50%", "none", "auto", "a", "url(#a)", "0 0 9 9", "translate(1)", "scale(0)", "skewX(90)", "M0 0", "x" * 300, "1 " * 5000, "9e99", "\u00a0"):
                 with self.subTest(name=name, value=value[:20]):
                     why = line(value)
-                    self.assertTrue(why is None or why in ("bad", "unit", "below zero") or (isinstance(why, tuple) and why[0] == "long" and why[1]), why)
+                    self.assertTrue(why is None or why in ("bad", "unit", "below zero") or (isinstance(why, tuple) and why[0] in ("long", "flat") and why[1]), why)
+        self.assertEqual(_svg.GRAMMAR["transform"]("translate(1) scale(0)"), ("flat", "scale(0)"))
 
     def test_the_cleaned_text_holds_only_what_the_grammar_wrote(self):
         # every attribute of a cleaned file is in the table, and its value passes its own line again
@@ -2446,7 +2726,7 @@ class HowFarADrawingReaches(unittest.TestCase):
         moved = '<g transform="%s"><rect width="4" height="4"/></g>'
         for near, far in (("translate(1010)", "translate(1011)"), ("translate(0 -1010)", "translate(0 -1011)"), ("translate(5,5) translate(-1010)", "translate(5,5) translate(-1011)"),
                           ("scale(1010)", "scale(1011)"), ("scale(1 -1010)", "scale(1 -1011)"), ("matrix(1 0 0 1 1010 -1010)", "matrix(1 0 0 1 0 1011)"),
-                          ("matrix(1010 0 0 1 0 0)", "matrix(1 1011 0 1 0 0)"), ("rotate(45 1010 0)", "rotate(45 1011 0)"), ("rotate(45,0,-1010)", "rotate(45,0,-1011)"),
+                          ("matrix(1010 0 0 1 0 0)", "matrix(1 1011 -1011 1 0 0)"), ("rotate(45 1010 0)", "rotate(45 1011 0)"), ("rotate(45,0,-1010)", "rotate(45,0,-1011)"),
                           ("rotate(100000)", "rotate(100000 0 1e9)"), ("rotate(1e9) skewX(5000) skewY(-1e9)", "rotate(1e9) skewX(5000) skewY(-1e9) translate (1011)"),
                           ("translate (1010)", "scale  (1011)")):
             self.near_and_far(moved, near, far, name="transform")

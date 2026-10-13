@@ -663,8 +663,6 @@ class PaletteCommand(unittest.TestCase):
             ("the mark with a footnote figure after the colour", good.replace("| Muted | `#a6abce` |", "| Muted | #a6abce proposed\u00b2 |"), 3, ("Dark theme, Muted: #a6abce",)),
             ("the mark with a circled figure in a later cell", good.replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | proposed\u2460 |"), 3, ("Dark theme, Muted: #a6abce",)),
             ("the word with a soft hyphen inside it, in a later cell", good.replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | prop\u00adosed |"), 3, ("Dark theme, Muted: #a6abce",)),
-            ("the word with a character reference inside it, in a sentence", good + "\nThe dark values are prop&shy;osed.\n", 2,
-             ('Not read: Line 32, "The dark values are prop&shy;osed.", holds the word "proposed"',)),
             ("the word with a zero-width space inside it, in a sentence", good + "\nThe dark values are pro\u200bposed.\n", 2,
              ('Not read: Line 32, "The dark values are pro<U+200B>posed.", holds the word "proposed"', "is a character that does not show on the screen: take it out")),
             ("a label for the other theme under a theme's heading", swapped.replace("### Light theme\n", "### Light theme\n\nDark mode\n\n"), 2,
@@ -689,6 +687,154 @@ class PaletteCommand(unittest.TestCase):
         guide = "# Guide\n\n## Colours\n\n" + good + "\n## Cards\n" + "".join("\nCard %d: #%06x.\n" % (n, n) for n in range(1, 9))
         code, out, err = run("palette", self.write(guide, name="guide.md"))
         self.assertEqual((code, err, out.count("under a heading `## Colour palette`")), (2, "", 1), out)
+
+    def test_each_reading_that_round_6_found_wrong_ends_as_it_should_through_the_command(self):
+        good = pasted()
+        swapped = good.replace("### Light theme", "### L").replace("### Dark theme", "### Light theme").replace("### L\n", "### Dark theme\n")
+        under_light = lambda line: swapped.replace("### Light theme\n", "### Light theme\n\n%s\n\n" % line)  # noqa: E731
+        label = "stands between the heading `### Light theme` and its table, and it reads as a label for the other theme"
+        cases = (
+            # each of these ended with 0 ("pass"), the dark table read as the light theme
+            ("a label for the other theme in brackets", under_light("(Dark theme)"), 2, ('Not read: Line 21, "(Dark theme)", ' + label,)),
+            ("the label after another word, in brackets", under_light("Palette (dark)"), 2, ('Not read: Line 21, "Palette (dark)", ' + label,)),
+            ("a label in one word", under_light("Darkmode"), 2, ('Not read: Line 21, "Darkmode", ' + label,)),
+            ("night for dark", under_light("Night mode"), 2, ('Not read: Line 21, "Night mode", ' + label,)),
+            ("a label word that the list lacked", under_light("Dark colour scheme"), 2, ('Not read: Line 21, "Dark colour scheme", ' + label,)),
+            ("a label with a soft hyphen in the word", under_light("Dar\u00adk theme table"), 2,
+             ('Not read: Line 21, "Dar<U+00AD>k theme table", ' + label, "is a character that does not show on the screen: take it out")),
+            ("a header cell that is such a label in one word", swapped.replace("### Light theme\n| Token | Hex |", "### Light theme\n| Token | Hex | Darkmode |"), 2,
+             ('Not read: Line 20, the header row "| Token | Hex | Darkmode |", says "darkmode", and its table stands under `### Light theme`', "take that word out of the header row")),
+            # the word with a character nobody sees inside it, of the three categories round 6 added
+            ("the word with a variation selector inside it, in a sentence", good + "\nThe dark values are pro\ufe0fposed.\n", 2, ('holds the word "proposed"',)),
+            ("the word struck through by combining strokes, in a later cell", good.replace("| Muted | `#a6abce` |", "| Muted | `#a6abce` | p\u0336r\u0336o\u0336p\u0336o\u0336s\u0336e\u0336d\u0336 |"), 3,
+             ("Dark theme, Muted: #a6abce",)),
+            ("the word with a control character inside it, in a sentence", good + "\nThe dark values are pro\x01posed.\n", 2,
+             ('Not read: Line 32, "The dark values are pro<U+0001>posed.", holds the word "proposed"',)),
+            # only the line that opens a code block was copied: the sentence says what is there
+            ("a palette after an opening fence line that nothing closes", "```markdown\n" + good, 2,
+             ("(line 1 opens one with ``` or ~~~, and no line after it closes it)", "Take line 1, which opens the code block, out, so that the headings after it count.")),
+            ("a palette between two fence lines", "```markdown\n" + good + "```\n", 2, ("Take the two lines that open and close the code block out, so that the headings inside it count.",)),
+            # a heading's remark with a strike-through inside the word is another remark
+            ("a strike-through inside the word of a heading's remark", good.replace("### Dark theme", "### Dark theme (pro~posed)"), 2,
+             ('Not read: Line 19, the heading "### Dark theme (pro~posed)", names none of the three sections',)),
+            ("currentColor in a cell", good.replace("| Muted | `#a6abce` |", "| Muted | currentColor |"), 2,
+             ("Could not read a value: Muted (dark theme): The colour is written as currentColor, which is whatever colour the text around it has and no colour of its own. Write the "
+              "colour itself, as #rrggbb.",)),
+            ("a gradient in a cell", good.replace("| Muted | `#a6abce` |", "| Muted | url(#fade) |"), 2,
+             ("Could not read a value: Muted (dark theme): The colour 'url(#fade)' is a gradient or a pattern. This check reads one flat colour: write it as #rrggbb.",)),
+        )
+        for name, text, want, parts in cases:
+            with self.subTest(name=name):
+                code, out, err = run("palette", self.write(text, name="case.md"))
+                self.assertEqual((code, err), (want, ""), out)
+                for part in parts:
+                    self.assertIn(part, out)
+                self.assertNotIn("The mark paints", out)
+        # What is fine stays fine, with 0: a sentence on the mood that names the heading's own theme too, a header cell that is a note, and the
+        # brand guide's own template filled in completely. And the limits rule 2 and rule 9 state end with 0 as well: a character reference, a
+        # wide letter and emphasis inside the word are not seen through (resolving them was the traceback and the stall below).
+        fine = (("a mood line that names both themes", good.replace("### Light theme\n", "### Light theme\n\nLight for day, dark for night.\n\n")),
+                ("a mood line with the other theme's word", good.replace("### Light theme\n", "### Light theme\n\nWarm paper, dark ink.\n\n")),
+                ("a header row with a comparison column", good.replace("### Light theme\n| Token | Hex |\n|---|---|", "### Light theme\n| Token | Hex | Contrast on dark ink |\n|---|---|---|")),
+                ("the same under the dark theme", good.replace("### Dark theme\n| Token | Hex |\n|---|---|", "### Dark theme\n| Token | Hex | Light equivalent |\n|---|---|---|")),
+                ("the guide's template, filled in", filled_guide()),
+                ("the limit: a character reference inside the word", good + "\nThe dark values are prop&shy;osed, &#112;roposed.\n"),
+                ("the limit: a label with a character reference", under_light("Dark&nbsp;mode")), ("the limit: a label with emphasis inside the word", under_light("The da**rk** theme")),
+                ("the limit: a longer sentence", under_light("This table is for the dark theme of the site.")))
+        for name, text in fine:
+            with self.subTest(name=name):
+                code, out, err = run("palette", self.write(text, name="fine.md"))
+                self.assertEqual((code, err), (0, ""), out)
+
+    def test_no_text_that_round_6_found_ends_in_a_traceback_or_stalls_the_command(self):
+        # A character reference of more than 4,300 digits was a traceback on Python 3.13 (`palette - --json` printed no JSON) and 11 seconds of
+        # processor time for a megabyte on 3.9; a long run of combining characters took 52 seconds for half a megabyte on 3.9; and rows of cells
+        # that begin a colour and hold a letter beyond ASCII took 21 and 31 seconds. Each is read in about a second now, and ends as it should.
+        # (Measured as the processor time of the command itself, where the system counts it for a child.)
+        good, mb = pasted(), 1000 * 1000
+        shapes = (("a reference of 5,000 digits", good + "\nA &#" + "9" * 5000 + ";roposed line.\n", 0),
+                  ("a megabyte that is one reference", good + "\n&#" + "1" * mb + ";\n", 0),
+                  ("a megabyte of two combining characters after a letter, and the word", good + "\nA" + "\u0315" * (mb // 4) + "\u0300" * (mb // 4) + " proposed\n", 2),
+                  ("a megabyte of mixed combining characters around the word", good + "\n" + "pro\u0336\u0315\u0300\ufe0f\u20ddposed \u0301\n" * (mb // 26), 2),
+                  ("a megabyte of rows whose cells begin a colour and hold a letter beyond ASCII", "### Light theme\n" + ("|#\u00e9" * 660 + "\n") * 375, 2),
+                  ("the same with a character nobody sees", "### Light theme\n" + ("|#\ufe0f" * 400 + "\n") * 495, 2))
+        for name, text, want in shapes:
+            with self.subTest(name=name):
+                self.assertLess(len(text.encode("utf-8")), 1024 * 1024, "under the megabyte the command reads")
+                before = os.times()
+                code, out, err = run("palette", "-", "--json", stdin=text)
+                after = os.times()
+                took = (after.children_user + after.children_system) - (before.children_user + before.children_system)
+                self.assertEqual((code, err), (want, ""), out[:300])
+                data = json.loads(out)
+                self.assertEqual((data["exit"], data["status"]), (want, "pass" if want == 0 else "incomplete"))
+                if "the word" in name:
+                    self.assertIn('holds the word "proposed"', data["problems"][0]["message"])
+                self.assertLess(took, 6.0, "the command took %.2f s of processor time" % took)
+
+    def test_each_stylesheet_that_round_6_found_misread_ends_as_it_should_through_the_command(self):
+        whole = T.read(os.path.join(self.dir, "global.css"))
+        doc = self.write(brand_md())
+        mark = "Could not read the stylesheet: Line %d of the stylesheet holds an HTML comment mark (`%s`). A browser passes over such a mark in some places of a stylesheet"
+        cases = (
+            # each of these ended with 0 before: "pass", no drift, and a page that showed #ff0000 or no colour at all
+            ("an HTML comment mark before url( in a value", whole.replace("  --bg: #ffffff;", "  --bg: #ffffff;\n  --x: <!--url(a'b); --bg: #ff0000; /*'*/ );", 1), 2,
+             (mark % (16, "<!--"), "Take the mark out. (A comment in a stylesheet is written `/* ... */`.)")),
+            ("an HTML comment mark before a registration", '<!-- @property --bg { syntax: "<color>"; inherits: false; initial-value: #ff0000; }\n' + whole, 2, (mark % (1, "<!--"),)),
+            ("the closing mark, last", whole + "-->\n", 2, (mark % (89, "-->"),)),
+            ("a mark that leaves a bracket open to this reading", whole + "\na { b: <!--url(') }\n", 2,
+             ("Cannot check the palette: Line 90 of the stylesheet holds an HTML comment mark (`<!--`).", "Nothing was written.")),
+            ("a line of another rule whose value holds a block", whole + "\nhtml:root { --bg: #ff0000 {} }\n", 2,
+             ("Could not read the stylesheet: --bg is also set in the rule `html:root { --bg: #ff0000 { ... } }`, outside the three blocks that hold the palette",)),
+            ("the same on :root twice, with nothing before the block", whole + "\n:root:root { --accent: {} }\n", 2,
+             ("Could not read the stylesheet: --accent is also set in the rule `:root:root { --accent: { ... } }`, outside the three blocks",)),
+            # a sentence that spoke of a mark where there is none
+            ("currentColor for a colour", whole.replace("  --muted: #a6abce;", "  --muted: currentColor;", 1), 2,
+             ("Could not read the stylesheet: --muted in the :root[data-theme=\"dark\"] block: The colour is written as currentColor, which is whatever colour the text around it has and "
+              "no colour of its own. Write the colour itself, as #rrggbb.",)),
+            ("a picture for a colour", whole.replace("  --muted: #a6abce;", "  --muted: url(fade.png);", 1), 2,
+             ("Could not read the stylesheet: --muted in the :root[data-theme=\"dark\"] block: The colour 'url(fade.png)' is a gradient or a pattern. This check reads one flat colour: "
+              "write it as #rrggbb.",)),
+            # what stays fine: a mark inside a comment or a string, and a block after something that only holds a colour's name
+            ("the marks inside a comment and a string", whole + '\n/* <!-- --> */\na::before { content: "<!-- -->"; }\n', 0, ("30 of 30 pairs pass.",)),
+            ("a feature query that names a colour", whole + "\n@supports (--bg: red) { a { color: red } }\n", 0, ("30 of 30 pairs pass.",)),
+        )
+        for name, text, want, parts in cases:
+            with self.subTest(name=name):
+                code, out, err = run("palette", doc, "--css", self.css(text))
+                self.assertEqual((code, err), (want, ""), out)
+                for part in parts:
+                    self.assertIn(part, out)
+                self.assertNotIn("The mark paints", out)
+                if want == 0:
+                    self.assertNotIn("stylesheet", out.replace("the stylesheet given", ""))
+                data = json.loads(run("palette", doc, "--css", self.css(text), "--json")[1])
+                self.assertEqual((data["exit"], data["status"]), (want, "pass" if want == 0 else "unreadable" if parts[0].startswith("Cannot") else "incomplete"))
+
+    def test_the_install_stops_on_what_round_6_found_in_a_stylesheet(self):
+        # the same stylesheets through the other door, as a dry run: the install does not write, with the check's own sentence
+        script = [sys.executable, SCRIPT, "install", "--test-command", "true", "--dry-run", "--with-colours"]
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        whole = T.starter_file("src/styles/global.css")
+        cases = (("an HTML comment mark before url( in a value", whole.replace("  --bg: #ffffff;", "  --bg: #ffffff;\n  --x: <!--url(a'b); --bg: #ff0000; /*'*/ );", 1),
+                  "Line 16 of the stylesheet holds an HTML comment mark (`<!--`)."),
+                 ("an HTML comment mark before a registration", '<!-- @property --bg { syntax: "<color>"; inherits: false; initial-value: #ff0000; }\n' + whole,
+                  "Line 1 of the stylesheet holds an HTML comment mark (`<!--`)."),
+                 ("a line of another rule whose value holds a block", whole + "\nhtml:root { --bg: #ff0000 {} }\n", "--bg is also set in the rule `html:root { --bg: #ff0000 { ... } }`"),
+                 ("the same on :root twice", whole + "\n:root:root { --accent: {} }\n", "--accent is also set in the rule `:root:root { --accent: { ... } }`"))
+        for name, text, part in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                site = T.make_starter_site(os.path.join(tmp, "site"), with_modules=False)
+                with open(os.path.join(site, "BRAND.md"), "w", encoding="utf-8") as f:
+                    f.write(brand_md(light=T.BAKERY_LIGHT, dark=T.BAKERY_DARK, primary="#b4531a"))
+                sheet = os.path.join(site, "src", "styles", "global.css")
+                with open(sheet, "w", encoding="utf-8", newline="") as f:
+                    f.write(text)
+                before = T.read_bytes(sheet)
+                r = subprocess.run(script + ["--site", site], capture_output=True, text=True, encoding="utf-8", env=env, timeout=120)
+                self.assertEqual((r.returncode, r.stderr), (2, ""), r.stdout)
+                self.assertIn(part, r.stdout)
+                self.assertEqual(T.read_bytes(sheet), before, "a refusal writes nothing")
 
     def test_each_stylesheet_that_round_5_found_misread_ends_as_it_should_through_the_command(self):
         whole = T.read(os.path.join(self.dir, "global.css"))

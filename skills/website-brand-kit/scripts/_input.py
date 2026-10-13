@@ -42,7 +42,7 @@ class Source(object):
 
 class Mark(object):
     def __init__(self, colour, mono, source, name):
-        self.colour = colour  # the bytes of the mark that will be checked
+        self.colour = colour  # the bytes of the mark that will be checked (from a package: a _svg.Member, which knows its name)
         self.mono = mono      # the one-colour twin the owner named, or None
         self.source = source  # always "svg": kept for the caller that still reads it
         self.name = name
@@ -138,15 +138,23 @@ def load(data):
 
 def _member(package, name):
     """One .svg entry of a package, held to what its bytes ARE like any other file: a page or a
-    picture that was only named .svg is refused as that, with its way out."""
-    data = package.read_svg(name)
-    if _kind(data) != "svg":
+    picture that was only named .svg is refused as that, with its way out. The entry is the one
+    the owner named, in whichever Unicode form the name was typed (ZipPackage.named), and its
+    bytes come back knowing the package's own name for it: every refusal of a package's file, here
+    and in the check, says which file it is."""
+    held = package.named(name)
+    data = package.read_svg(name if held is None else held)   # (a name that is not there is refused there, as it was typed)
+    try:
+        kind = _kind(data)
+    except Refusal as r:
+        raise _svg.in_package(held, r) from None
+    if kind != "svg":
         raise Refusal(
             "unknown-file",
             "The file %r in the package is not an SVG drawing, whatever its name says. Pick another file, or ask for "
-            "a package of SVG files." % name[:80],
+            "a package of SVG files." % held[:80],
         )
-    return data
+    return _svg.Member(data, held)
 
 
 def mark(source, pick=None, mono=None):
@@ -182,4 +190,5 @@ def mark(source, pick=None, mono=None):
                 names,
             )
         pick = names[0]
-    return Mark(_member(pkg, pick), _member(pkg, mono) if mono else None, "svg", pick)
+    colour = _member(pkg, pick)
+    return Mark(colour, _member(pkg, mono) if mono else None, "svg", colour.name)

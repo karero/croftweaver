@@ -400,6 +400,43 @@ class Refusals(unittest.TestCase):
         node = _svg.Node("path")
         node.props = {"fill": "\f#b4531a\r\n", "stroke": " inherit\t"}
         self.assertEqual(_paint.resolve_paints(node, {"path"}), ["#b4531a"])
+        # round 6: `display`, `visibility` and `stroke-width` were still trimmed with Python's strip(). Handed a tree that was not checked
+        # first, a no-break space beside `none` or `inherit` now makes it another value there too; the blanks CSS takes are still only blanks.
+        def painted(outer, inner):
+            group, shape = _svg.Node("g"), _svg.Node("path")
+            group.props, shape.props = dict(outer), dict({"fill": "#b4531a"}, **inner)
+            group.children = [shape]
+            try:
+                return _paint.resolve_paints(group, {"path"})
+            except Refusal as e:
+                return e.code
+
+        for blank in ("\u00a0", "\u2003", "\u0085", "\x0b", "\x1c"):
+            with self.subTest(blank=ascii(blank)):
+                self.assertEqual(painted({}, {"display": blank + "none"}), ["#b4531a"], "not the word `none`: the shape counts as drawn, and its colour is listed")
+                self.assertEqual(painted({"display": "none" + blank}, {}), ["#b4531a"])
+                self.assertEqual(painted({"visibility": "hidden"}, {"visibility": blank + "inherit"}), ["#b4531a"], "not the word `inherit`: a value of its own")
+                self.assertEqual(painted({"stroke": "#111111", "stroke-width": "0"}, {"fill": "none", "stroke-width": "inherit" + blank}), ["#111111"], "a width of its own, and not the 0 above")
+        # (through the door the install uses, such a value never gets as far as the paint reader: the SVG check refuses it first)
+        for attrs in ('display="\u00a0none"', 'visibility="\u00a0inherit"', 'stroke-width="inherit\u00a0" stroke="#111111"', 'style="display:none\u2003"'):
+            with self.subTest(attrs=ascii(attrs)):
+                with self.assertRaises(Refusal):
+                    _svg.clean_svg(svg('<path fill="#b4531a" %s %s/>' % (attrs, D)))
+        for blank in (" ", "\t", "\n", "\r", "\f", " \t\r\n\f"):
+            with self.subTest(blank=ascii(blank)):
+                self.assertEqual(painted({}, {"display": blank + "none" + blank}), "blank-mark")
+                self.assertEqual(painted({"visibility": "hidden"}, {"visibility": blank + "INHERIT" + blank}), "blank-mark")
+                self.assertEqual(painted({"stroke": "#111111", "stroke-width": "0"}, {"fill": "none", "stroke-width": blank + "inherit" + blank}), "blank-mark")
+
+    def test_a_paint_that_cannot_be_read_is_not_told_to_be_written_as_oklch_which_a_mark_is_not_read_from(self):
+        # round 6, through the door the install uses for a mark: the sentence named oklch() among the ways to write the colour
+        for fill in ("lab(50% 40 59)", "notacolour", "rgb(1,2)", "hsl(0 150% 50%)"):
+            with self.subTest(fill=fill):
+                err = refused(self, '<path fill="%s" %s/>' % (fill, D), "colour-unreadable")
+                self.assertTrue(str(err).endswith("Write it as #rrggbb, rgb(), hsl() or a CSS colour name."), str(err))
+                self.assertNotIn("oklch", str(err))
+        err = refused(self, '<g color="lab(50%% 40 59)"><path fill="currentColor" %s/></g>' % D, "colour-unreadable")
+        self.assertNotIn("oklch", str(err))
 
     def test_a_mark_with_nothing_visible_in_it(self):
         for body in ('<path fill="none" %s/>' % D, '<path fill="none" stroke="#111111" stroke-width="0" %s/>' % D,

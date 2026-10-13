@@ -369,6 +369,65 @@ class Refused(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(_colour.parse_colour(text, drawn=True), _colour.parse_colour(text))
 
+    def test_a_refusal_speaks_of_a_mark_only_where_there_is_one_and_names_only_the_spellings_its_caller_reads(self):
+        # round 6: `--bg: currentColor` in a stylesheet was answered with "The mark paints with currentColor", where there is no mark; and a
+        # mark's paint that could not be read was told to write it "as ... oklch()", which is refused for a mark
+        def message(text, **kw):
+            with self.assertRaises(Refusal) as cm:
+                _colour.parse_colour(text, **kw)
+            return str(cm.exception)
+
+        for text in ("currentColor", "CurrentColor", "url(#g)", "URL(x.png)", " url( 'a' ) "):
+            with self.subTest(text=text):
+                written, drawn = message(text), message(text, drawn=True)
+                self.assertNotIn("mark", written, "a cell of the palette, or a line of the stylesheet")
+                self.assertIn("as #rrggbb.", written)
+                self.assertIn("The mark paints with", drawn)
+        self.assertEqual(message("currentColor"), "The colour is written as currentColor, which is whatever colour the text around it has and no colour of its own. Write the colour "
+                                                  "itself, as #rrggbb.")
+        self.assertEqual(message("url(#g)"), "The colour 'url(#g)' is a gradient or a pattern. This check reads one flat colour: write it as #rrggbb.")
+        for text in ("lab(50% 40 59)", "rgb(1,2)", "notacolour", "hsl(0 150% 50%)", "rgb(%s,0,0)" % ("9" * 400), "", "#12345", "rgb(50%, 0, 0)", "hsl(1e9 100% 50%)", "\u00e9", "255."):
+            with self.subTest(text=text[:20]):
+                self.assertTrue(message(text).endswith(" Write it as #rrggbb, rgb(), hsl(), oklch() or a CSS colour name."), message(text))
+                self.assertTrue(message(text, drawn=True).endswith(" Write it as #rrggbb, rgb(), hsl() or a CSS colour name."), message(text, drawn=True))
+                self.assertNotIn("oklch", message(text, drawn=True), "a mark's paint is not read from oklch(), so it is not told to be written so")
+                self.assertEqual(message(text, drawn=True).replace("hsl() or", "hsl(), oklch() or"), message(text), "the two differ in that and in nothing else")
+                # and what currentColor stands for is told the same
+                self.assertNotIn("oklch", message("currentColor", current=text or "x y", drawn=True))
+                self.assertIn("oklch() or a CSS colour name.", message("currentColor", current=text or "x y"))
+
+    def test_the_sentence_of_a_refusal_is_spelled_out_in_one_pass_and_reads_as_it_did(self):
+        # round 6: a megabyte of cells that begin a colour and hold a letter beyond ASCII took 21 seconds, because each built a refusal whose
+        # sentence was looked at character by character, a table lookup and a pattern each. Now a sentence without anything unseen in it is
+        # passed through, and in any other only the characters that are not plain ASCII are looked at.
+        from _refusal import spelled, unseen
+
+        def one_by_one(text):
+            return "".join(c.encode("unicode_escape").decode("ascii") if c != "\n" and unseen(c) else c for c in text)
+
+        samples = ["", "plain", "two\nlines", "caf\u00e9", "a\u200bb", "a\ufe0fb", "a\u00a0b", "\x00\x1f\x7f\x9b", "tab\tand\rreturn", "\u2028\u2029", "\U000e0041\U000e0100", "\ud800",
+                   "\u3164\u115f\u2800", "e\u0301", "\U0001f600", "a b", "\ufeff", "\u0378", "\ue000", "~ {}|", "\u00e9\n\u200b\n"]
+        samples += ["The colour %r is not one this check can read." % s for s in samples] + [a + b for a in samples for b in samples]
+        for text in samples:
+            self.assertEqual(spelled(text), one_by_one(text), ascii(text))
+        self.assertEqual(spelled("a\u200bb\u00e9\n\ufe0f"), "a\\u200bb\u00e9\n\\ufe0f")
+        # counted, not timed: how many characters are looked up for one sentence (the megabyte itself is timed in test_palette and test_cli_palette)
+        import _refusal
+        looked = []
+        real, _refusal.unseen = _refusal.unseen, lambda c: looked.append(c) or real(c)
+        try:
+            for text, most in (("#12345", 0), ("#\u00e9", 0), ("#\u00e9\u00e8 caf\u00e9", 0), ("#\ufe0f", 1), ("#\u200b", 0), ("#\ufe0f\u00e9\u3164", 3), ("#" + "\ufe0f\u00e9" * 30, 40)):
+                with self.subTest(text=ascii(text)):
+                    del looked[:]
+                    with self.assertRaises(Refusal) as cm:
+                        _colour.parse_colour(text)
+                    self.assertEqual(cm.exception.code, "colour-unreadable")
+                    self.assertGreater(len(str(cm.exception)), 100)
+                    self.assertLessEqual(len(looked), most, "only what is not plain ASCII is looked up, and nothing at all in a sentence without a character nobody sees")
+                    self.assertFalse([c for c in str(cm.exception) if real(c)])
+        finally:
+            _refusal.unseen = real
+
     def test_an_oklch_chroma_below_zero_is_zero_as_css_has_it_not_the_opposite_hue(self):
         # CSS Color 4 clamps a negative chroma to 0 when the value is parsed: a browser shows a grey.
         # Read as it stood, -0.1 at hue 210 came out as +0.1 at hue 30, a brown the owner never saw.

@@ -49,10 +49,23 @@ class ZipPackage(object):
         self.other_names = other_names
         self.ignored = ignored
 
+    def named(self, typed):
+        """The package's own name for the `.svg` file the owner named, or None. The name as it was typed, where
+        that is in the list. Otherwise the one name that is the same name in Unicode's other form: a Mac's own
+        "Compress" writes an accented letter as the letter and its accent (two characters), and a name that is
+        typed, or typed again from a list, has it as one. Two names that differ only so are one name to open_zip
+        as well (it refuses a package that holds both), so there is never more than one to take."""
+        if typed in self.svg_names:
+            return typed
+        form = unicodedata.normalize("NFC", typed) if isinstance(typed, str) else None
+        same = [name for name in self.svg_names if unicodedata.normalize("NFC", name) == form]
+        return same[0] if len(same) == 1 else None
+
     def read_svg(self, name):
         """The bytes of one `.svg` entry, never more than the entry says it holds."""
-        if name not in self.svg_names:
-            raise Refusal("no-such-file", "There is no SVG called %r in the package." % name[:80])
+        typed, name = name, self.named(name)
+        if name is None:
+            raise Refusal("no-such-file", "There is no SVG called %r in the package." % typed[:80])
         info = self._infos[name]
         try:
             with warnings.catch_warnings():   # as in open_zip
@@ -169,14 +182,17 @@ def open_zip(data):
         # The name is the whole name, as the entry holds it (see _name), never the reader's `filename`: the reader cuts
         # that at its first NUL (so `a.svg\0hidden` would be shown as `a.svg`) and turns this computer's own path
         # separator into a slash. `held` is the entry's own name field: a NUL or a backslash there refuses the
-        # package too, whichever name the entry goes by.
+        # package too, whichever name the entry goes by. A NUL is looked for by itself, in the name that will be
+        # shown and in the name field: with a second name taken by its checksum it can stand in a note alone, and
+        # that it also counts as a character that cannot be seen is another rule's business.
         name, held = _name(zi), zi.orig_filename
-        if _unseen(name) or "\0" in held:  # first: every later message shows the name
+        shown_odd = _unseen(name) or "\0" in name
+        if shown_odd or "\0" in held:  # first: every later message shows the name
             raise Refusal(
                 "zip-path",
                 "The package has a file whose name holds something that cannot be seen: a hidden character, or a blank "
                 "at its start, at its end or twice in a row (spelled out, the name starts %s). So the whole package is "
-                "refused. Ask for a package with plain file names." % ascii((name if _unseen(name) else held)[:60]),
+                "refused. Ask for a package with plain file names." % ascii((name if shown_odd else held)[:60]),
             )
         if (
             not name

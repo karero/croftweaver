@@ -48,6 +48,11 @@ MASTER = "public/favicon.svg"
 # The first line of the favicon this tool installs, and how a later run knows the file as its own: a favicon
 # that somebody wrote by hand may be a cleaned SVG too, so that alone does not show who wrote it.
 MARK = "<!-- Installed by the website-brand-kit skill (brand_intake.py install) from the logo it was given. When the site's colours change, the icons are drawn again from this file. -->\n"
+# The same line for a mark that was given in `currentColor`: it also names the colour the mark is drawn in here, the
+# Primary of the day. The line above means a mark with colours of its own (and so does every file installed before
+# this second form was there).
+MARK_CURRENT = MARK[:-5] + " The logo was given in currentColor and is drawn here in %s. -->\n"
+_MARK_LINE = re.compile(re.escape(MARK[:-5].encode("utf-8")) + rb"(?: The logo was given in currentColor and is drawn here in (#[0-9a-f]{6})\.)? -->\n")
 BOM = "﻿"
 STYLESHEET = "src/styles/global.css"
 OTHER_FILES = (_site.CONFIG, _site.MANIFEST, _site.GENERATOR)  # the colours' other three homes
@@ -55,8 +60,13 @@ PILLOW_MISSING = "Pillow, the image library the generator draws with, is not ins
 ONE_COLOUR_ICONS = ("the app icons were drawn with a one-colour version of the logo, so this run left them as they are (this tool keeps the colour version only, and "
                     "cannot tell what those icons sit on). To draw them for the new colours, run this again with the package the logo came in: --input, with --pick "
                     "and --mono as before")
+# A logo this tool installed keeps the colours it was drawn in when the palette changes. What can be done about it
+# depends on how the mark was given: one in `currentColor` is drawn in the new Primary from its package; one with
+# colours of its own is the same drawing whenever it is installed, and this tool recolours nothing.
+KEPT_CURRENT = ("the logo was given in `currentColor` and was drawn in the Primary of that day (%s). It keeps that colour: this tool draws it in the Primary the palette has "
+                "now (%s) only from the package it came in. For that, run this again with the package: --input, with --pick and --mono as before")
 KEPT_COLOURS = ("the logo keeps %s it was installed with (%s), which the palette no longer holds: this run changes the site's colours and leaves the logo's files as they "
-                "are. To draw the logo in the new colours, run this again with the package it came in: --input, with --pick and --mono as before")
+                "are, and this tool recolours nothing. For the logo in the new colours, ask the design tool for the mark in them, then run this again with that package: --input")
 NO_EMBLEM = ("the share cards get no emblem from this tool (the logo, shown faintly on each card): it leaves the LOGO line in scripts/generate_og_cards.py exactly as it is. "
              "The og-images skill says how to put the logo on the cards")
 
@@ -284,23 +294,30 @@ def last_lines(output):
 # lines can be wrong about what the site reads. So the report's word on those two files rests on this: once
 # they are written, the site's own Node imports src/config.ts and says what SITE.themeColor and COMPANY.logo
 # are, and Python loads the generator (as a module, so that it draws nothing) and says what the colours'
-# names are bound to. Each program answers in one line of JSON, the last line it prints.
+# names are bound to. Each program answers in one line of JSON that starts with a mark made for this run (the
+# file may print lines of its own, before and after), and ends the process as soon as it has printed it.
 
 _ASK_NODE = """
 import { pathToFileURL } from 'node:url';
+const [file, mark] = process.argv.slice(1);
+// (what JSON cannot carry is sent as JavaScript writes it: NaN after `SITE.themeColor++`, say)
+const shown = (value) => (value === undefined || value === null ? null : ['string', 'boolean', 'object'].includes(typeof value) || Number.isFinite(value) ? value : String(value));
 let said;
 try {
-  const m = await import(pathToFileURL(process.argv[1]).href);
-  said = JSON.stringify({ read: { themeColor: m.SITE?.themeColor ?? null, logo: m.COMPANY?.logo ?? null } });
+  const m = await import(pathToFileURL(file).href);
+  said = { read: { themeColor: shown(m.SITE?.themeColor), logo: shown(m.COMPANY?.logo) } };
 } catch (e) {
-  said = JSON.stringify({ code: String((e && e.code) || ''), why: String((e && e.message) || e), node: process.version });
+  said = { code: String((e && e.code) || ''), why: String((e && e.message) || e), node: process.version };
 }
-console.log('\\n' + said);
+console.log('\\n' + mark + JSON.stringify(said));
+process.exit(0);   // at once: a timer the file left running neither holds the answer back nor prints after it
 """
 _ASK_PYTHON = """
 import importlib.util, json, os, sys
 sys.dont_write_bytecode = True   # nothing is written into the site: no __pycache__ beside the file
-path, names = sys.argv[1], sys.argv[2:]
+path, mark, names = sys.argv[1], sys.argv[2], sys.argv[3:]
+out = sys.stdout                 # the answer goes where this was started to write, whatever the file does with sys.stdout
+sys.argv = [path]                # as when the file is run: its own name, and none of this script's arguments
 sys.path.insert(0, os.path.dirname(path))   # as when the file is run: what stands beside it can be imported
 try:
     spec = importlib.util.spec_from_file_location('brand_kit_read_back', path)
@@ -309,51 +326,73 @@ try:
     said = {'read': {}}
     for name in names:
         value = getattr(module, name, None)
-        said['read'][name] = list(value) if isinstance(value, tuple) and all(type(c) is int for c in value) else repr(value)
+        said['read'][name] = list(value) if isinstance(value, (tuple, list)) and all(type(c) is int for c in value) else repr(value)
+except SystemExit as e:
+    said = {'ended': e.code if type(e.code) is int else 0 if e.code is None else 1, 'why': '' if type(e.code) is int or e.code is None else str(e.code)}
 except BaseException as e:
-    said = {'why': str(e) if isinstance(e, SystemExit) else '%s: %s' % (type(e).__name__, e)}
-print('\\n' + json.dumps(said))
+    said = {'why': '%s: %s' % (type(e).__name__, e)}
+out.write('\\n' + mark + json.dumps(said) + '\\n')
+out.flush()
+os._exit(0)   # at once: nothing the file set up to run at the end (atexit, a thread) follows the answer or holds the process
 """
 
 
-def _answer(printed):
-    """The last line a program printed, read as the JSON object it was asked for; None when it is not one."""
-    try:
-        said = json.loads([l for l in printed.split("\n") if l.strip()][-1])
-    except (IndexError, ValueError, RecursionError):
-        return None
-    return said if isinstance(said, dict) else None
+def _answer(printed, mark):
+    """What a program answered: the JSON object on the last line it printed that starts with this run's mark,
+    wherever that line stands in its output; None when there is no such line, or it is not one."""
+    for line in reversed(printed.split("\n")):
+        if line.startswith(mark):
+            try:
+                said = json.loads(line[len(mark):])
+            except (ValueError, RecursionError):
+                return None
+            return said if isinstance(said, dict) else None
+    return None
 
 
-def _first_line(text):
-    return ([l.strip() for l in _plain(text).splitlines() if l.strip()] or ["it did not say why"])[0][:200].rstrip(".")
+def _first_line(text, site, none="it did not say why"):
+    """The first line of what a program said, for a note: with the site's folder written as `.`, so that a long
+    path is not what the 200 characters are spent on."""
+    for folder in sorted({os.path.realpath(site), site}, key=len, reverse=True):
+        text = text.replace(folder, ".")
+    return ([l.strip() for l in _plain(text).splitlines() if l.strip()] or [none])[0][:200].rstrip(".")
+
+
+def _unanswered(who, code, errors, site):
+    """Why there is no answer from a program that ran and ended: said as that, not as a file it could not load."""
+    said = _first_line(errors, site, "")
+    return "%s ended without answering (its exit status was %s%s)" % (who, code, ": " + said if said else "")
 
 
 def _reads_config(site):
     """What the site's own Node reads from src/config.ts: ({"themeColor": ..., "logo": ...}, None), or
     (None, why it could not be asked). Node 22.18 and newer read a TypeScript file as it stands. One before
     that says it does not know the extension, and is asked once more with --experimental-strip-types (the
-    starter allows Node from 22.12, which reads TypeScript only with that)."""
+    starter allows Node from 22.12, which reads TypeScript only with that). Where that second asking fails
+    too, its reason is the one given; a Node that does not know the flag (before 22.6: it ends with status 9)
+    is said to read no TypeScript."""
     node = shutil.which("node")
     if not node:
         return None, "Node is not installed here, or is not on the path"
-    first = None
+    mark, version = "read-back-%s:" % os.urandom(8).hex(), "its version is not known"
     for more in ([], ["--experimental-strip-types"]):
         try:
-            code, printed, errors = _run([node] + more + ["--input-type=module", "-e", _ASK_NODE, os.path.join(site, "src", "config.ts")], site, READ_BACK_SECONDS)
+            code, printed, errors = _run([node] + more + ["--input-type=module", "-e", _ASK_NODE, os.path.join(site, "src", "config.ts"), mark], site, READ_BACK_SECONDS)
         except OSError as e:
             return None, "Node could not be started (%s)" % (e.strerror or e)
         if code is None:
             return None, "Node took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
-        said = _answer(printed)
-        if said is not None and isinstance(said.get("read"), dict):
-            return said["read"], None
-        first = first or said or {"why": _first_line(errors)}
-        if first.get("code") != "ERR_UNKNOWN_FILE_EXTENSION":
+        said = _answer(printed, mark)
+        if said is None and more and code == 9:
             break
-    if first.get("code") == "ERR_UNKNOWN_FILE_EXTENSION":
-        return None, "the Node on this computer (%s) does not read a TypeScript file" % _first_line(str(first.get("node") or "its version is not known"))
-    return None, "Node could not load the file (%s)" % _first_line(str(first.get("why") or ""))
+        if said is None:
+            return None, _unanswered("Node", code, errors, site)
+        if isinstance(said.get("read"), dict):
+            return said["read"], None
+        if said.get("code") != "ERR_UNKNOWN_FILE_EXTENSION":
+            return None, "Node could not load the file (%s)" % _first_line(str(said.get("why") or ""), site)
+        version = str(said.get("node") or version)
+    return None, "the Node on this computer (%s) does not read a TypeScript file" % _first_line(version, site)
 
 
 def _reads_generator(site, names):
@@ -367,18 +406,25 @@ def _reads_generator(site, names):
             break
     else:
         return None, "no Python was found on the path (python3, py or python)"
+    mark = "read-back-%s:" % os.urandom(8).hex()
     try:
-        code, printed, errors = _run(python + ["-c", _ASK_PYTHON, os.path.join(site, "scripts", "generate_og_cards.py")] + list(names), site, READ_BACK_SECONDS,
+        code, printed, errors = _run(python + ["-c", _ASK_PYTHON, os.path.join(site, "scripts", "generate_og_cards.py"), mark] + list(names), site, READ_BACK_SECONDS,
                                      env=dict(os.environ, PYTHONIOENCODING="utf-8"))
     except OSError as e:
         return None, "Python could not be started (%s)" % (e.strerror or e)
     if code is None:
         return None, "Python took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
-    said = _answer(printed) or {"why": _first_line(errors)}
+    said = _answer(printed, mark)
+    if said is None:
+        return None, _unanswered("Python", code, errors, site)
     if isinstance(said.get("read"), dict):
         return said["read"], None
     why = str(said.get("why") or "")
-    return None, PILLOW_MISSING if "Pillow is required" in why or "No module named 'PIL'" in why else "Python could not load the file (%s)" % _first_line(why)
+    if "Pillow is required" in why or "No module named 'PIL'" in why:
+        return None, PILLOW_MISSING
+    if "ended" in said:   # the file's own top ended the program (sys.exit): it was read, and did not get as far as its colours being asked
+        return None, "the file ended with status %s while it was loaded%s" % (said["ended"], " (%s)" % _first_line(why, site) if why else "")
+    return None, "Python could not load the file (%s)" % _first_line(why, site)
 
 
 def _as_read(rel, value):
@@ -391,9 +437,19 @@ def _as_read(rel, value):
 def read_back(site, wanted):
     """Ask Node and Python what they read from the files this run set values in. `wanted` is {file: {name:
     the value wanted}} for src/config.ts and the generator. Returns {file: {"status": ...}}, the status being
-    "ok" (every value is read as wanted, colours compared as colours), "differs" (with "values": [{"name",
-    "reads", "wanted"}] for each that is not), or "not-checked" (with "why": the program could not be asked,
-    or could not load the file)."""
+    "ok" (every value is read as wanted, colours compared as colours; a colour of the generator is a tuple or
+    a list of three whole numbers), "differs" (with "values": [{"name", "reads", "wanted"}] for each that is
+    not), or "not-checked" (with "why": the program could not be asked, or did not answer).
+
+    What this does not show:
+    - Each file is asked once, in this run's environment. A value that depends on the build's environment,
+      the date or the branch can be another in the built site.
+    - The generator is loaded as a module. What its `if __name__ == "__main__":` part does to the names
+      afterwards (`globals().update(BG_TOP=...)` there) is not seen, and the cards are drawn with that.
+    - A file that sets out to forge the answer can: it is handed the mark with the rest of the arguments.
+    - Asking runs the site's own code. What that code writes while it is asked (a config that writes a file
+      when it is imported) is the site's doing: this tool neither puts it back nor names it.
+    No card is looked at, and nothing is asked a second time under another environment."""
     out = {}
     for rel, want in wanted.items():
         if not want:
@@ -485,9 +541,10 @@ def install(a, out):
     included: the signals are watched from the first step on, the planning too.
 
     A dry run does everything a real run does up to the first write, and stops there. So the two can differ
-    in one way: after writing, a real run asks Node and Python what the site reads (read_back), and ends
-    with exit status 1 and everything put back where that is not what it set. A dry run writes nothing and
-    cannot ask; its report says so.
+    in one way: after writing, a real run asks Node and Python what the site reads (read_back). Where that
+    is not what it set, it ends with exit status 1 and everything put back; where it could not ask, it goes
+    on and says so in a note that no dry run shows. A dry run writes nothing and cannot ask; its report
+    says so.
 
     Once the run has its outcome (done, a question, a dry run, a refusal, red tests, a stop), the signals
     do nothing any more, and that stays so when this returns: the report is still to be printed, and a
@@ -588,22 +645,32 @@ def _css_problems(css):
 
 
 def _own_master(master, primary):
-    """Whose the installed favicon is: ("ours", the cleaned mark) when it is this tool's own file, as this
-    tool wrote it; ("changed", None) when it starts with this tool's line and is not as this tool wrote
-    it; ("other", None) when it does not start with that line. Either sign alone shows nothing: a favicon
+    """Whose the installed favicon is: ("ours", the cleaned mark, the colour its line says it is drawn in
+    where it was given in `currentColor`, else None) when it is this tool's own file, as this tool wrote
+    it; ("changed", None, None) when it starts with this tool's line and is not as this tool wrote it;
+    ("other", None, None) when it does not start with that line. Either sign alone shows nothing: a favicon
     somebody wrote by hand may be clean, and one that was edited afterwards still has the line. Line ends
     and a byte order mark in front are not held against it: a checkout that turns the line ends into CRLF,
     or an editor that saves the file with the mark, leaves the file this tool's own."""
     text = master[len(BOM.encode("utf-8")):] if master.startswith(BOM.encode("utf-8")) else master
     text = text.replace(b"\r\n", b"\n")
-    if not text.startswith(MARK.encode("utf-8")):
-        return "other", None
-    body = text[len(MARK.encode("utf-8")):]
+    line = _MARK_LINE.match(text)
+    if not line:
+        return "other", None, None
+    body = text[line.end():]
     try:
         again = _svg.clean_svg(body, current=primary)
     except Refusal:
-        return "changed", None
-    return ("ours", again) if again.text.encode("utf-8") == body else ("changed", None)
+        return "changed", None, None
+    return ("ours", again, line.group(1).decode("ascii") if line.group(1) else None) if again.text.encode("utf-8") == body else ("changed", None, None)
+
+
+def _given_in_current(source, clean, primary):
+    """Whether a mark was given in `currentColor`: cleaned with another colour for it, it is another drawing."""
+    try:
+        return _svg.clean_svg(source, current="#000000" if primary != "#000000" else "#ffffff").text != clean.text
+    except Refusal:
+        return True
 
 
 def _sits_on(colours, palette):
@@ -704,7 +771,7 @@ def _install(a, site, out, data):
              "src/styles/global.css:"] + _css_problems(css) +
             ["Mend that in the stylesheet (the three colour blocks as the starter writes them, each colour once), then run this again."]))
     # whose the installed favicon is: asked only now, when the colours it is held against are known to be all there
-    whose, kept = _own_master(master_bytes, primary) if master_bytes is not None else (None, None)
+    whose, kept, drawn = _own_master(master_bytes, primary) if master_bytes is not None else (None, None, None)
 
     # --- the colours, set in memory in all four files that hold one ---------------------------
     # What the palette changes, as she reads it: said in every report from here on, and asked about
@@ -762,9 +829,11 @@ def _install(a, site, out, data):
     # with a file (--input) or without one (--with-logo).
     clean = mono_clean = None
     src_name = src_bytes = None
+    source = master_bytes   # what the favicon is drawn from: her file, or the favicon the site has
     if a.input:
         src_bytes, src_path = read_input(a.input)
         mk = _input.mark(_input.load(src_bytes), pick=a.pick, mono=a.mono)
+        source = mk.colour
         clean = _svg.clean_svg(mk.colour, current=primary)
         mono_clean = _svg.clean_svg(mk.mono, current=primary) if mk.mono else None
         src_name = _safe_name(src_path)
@@ -787,6 +856,10 @@ def _install(a, site, out, data):
     # the background it was given. Such icons are left as they are, with a note, and nothing is asked.
     redraw = a.with_logo and not a.input
     renderer = None
+    # A mark given in `currentColor` was drawn in the Primary of the day, and no run without its package draws it in another.
+    stale = kept is not None and not a.input and drawn not in (None, primary)
+    if stale:
+        notes.append(KEPT_CURRENT % (drawn, primary))
     if master_bytes is not None and want_colours and not asked_for_logo:
         now = palette_from_css(css)
         moves = _icons.backgrounds(pal) != _icons.backgrounds(now)
@@ -811,9 +884,9 @@ def _install(a, site, out, data):
                              "That does not hold the colours back. Once it is put right%s, run this again with --with-logo to draw the icons again" % (
                                  str(r).strip().splitlines()[0].rstrip(".:") + ".",
                                  " (in the site's folder: npm install --include=optional)" if r.code == "sharp-missing" else ""))
-        if kept is not None and not redraw:
-            # The logo's files stay as they are, in the colours they were drawn in (a mark given in `currentColor` was
-            # drawn in the Primary of that day). Where the palette drops one of those colours, that is said: nothing is recoloured.
+        if kept is not None and not redraw and not stale:
+            # The logo's files stay as they are, in the colours they were drawn in. Where the palette drops one of those
+            # colours, that is said: nothing is recoloured. (Never beside the note above: one of the two is the one to act on.)
             lost = [c for c in _palette.check_mark(kept.colours, pal).outside if c not in _palette.check_mark(kept.colours, now).outside]
             if lost:
                 notes.append(KEPT_COLOURS % ("the colour" if len(lost) == 1 else "the colours", ", ".join(lost)))
@@ -846,7 +919,8 @@ def _install(a, site, out, data):
             icons = _icons.build(clean, mono_clean, pal, renderer, workdir)
             notes.extend(icons.notes)
             files = dict(icons.files)
-            files[MASTER] = MARK.encode("utf-8") + files[MASTER]
+            given = drawn if clean is kept else primary if _given_in_current(source, clean, primary) else None
+            files[MASTER] = (MARK_CURRENT % _colour.parse_colour(given) if given else MARK).encode("utf-8") + files[MASTER]   # (as #rrggbb: the line is read again by the next run)
             # Two questions, two sets of colours. Every colour an installed file paints with is held against
             # the palette. Only the colour version ever stands on the page (the favicon, the logo); the
             # one-colour version sits on the app icons' own background, so its colours are not asked about there.
@@ -930,7 +1004,8 @@ def _install(a, site, out, data):
                 out.append("  nothing: every file is already as this run would write it")
             out.append("  the share cards under %s would be made again" % CARDS)
             if any(wanted.values()):
-                out.append("A real run then asks %s what the site reads from %s, and puts everything back if that is not what it set. A dry run writes nothing, so it cannot ask." % (
+                out.append("A real run then asks %s what the site reads from %s: it puts everything back if that is not what it set, and adds a note where it could not ask. "
+                           "A dry run writes nothing, so it cannot ask." % (
                     " and ".join(who for who, rel in (("the site's Node", _site.CONFIG), ("Python", _site.GENERATOR)) if wanted.get(rel)),
                     " and ".join(rel for rel in (_site.CONFIG, _site.GENERATOR) if wanted.get(rel))))
             out.extend(_changes_lines(changes, "would change"))

@@ -98,14 +98,14 @@ _FUNC = re.compile(r"^([a-zA-Z]+)\((.*)\)$", re.S)
 _GAMUT_EPS = 0.0005
 SPACE = " \t\r\n\f"  # what CSS takes for white space, and all that is taken off a colour or stands between its numbers
 _SPACES = re.compile("[%s]+" % SPACE)
+# How an unreadable colour is told to be written: in a palette or a stylesheet, and as the paint of a mark (`drawn`),
+# where oklch() is refused.
+_WRITE = "Write it as #rrggbb, rgb(), hsl(), oklch() or a CSS colour name."
+_WRITE_DRAWN = "Write it as #rrggbb, rgb(), hsl() or a CSS colour name."
 
 
 def _unreadable(text, why="a colour format this check does not read"):
-    return Refusal(
-        "colour-unreadable",
-        "The colour %r is not one this check can read (%s). Write it as #rrggbb, rgb(), hsl(), oklch() or a "
-        "CSS colour name." % (text.strip(SPACE)[:40], why),
-    )
+    return Refusal("colour-unreadable", "The colour %r is not one this check can read (%s). %s" % (text.strip(SPACE)[:40], why, _WRITE))
 
 
 def _alpha(text):
@@ -236,12 +236,21 @@ def _oklch(parts, text):
 def parse_colour(text, current=None, drawn=False):
     """`text` as '#rrggbb' (lower case). `current` is what currentColor means here, if anything.
     `drawn` says the colour is a paint of a file the site's renderer draws as it came (a mark): then
-    oklch(), which that renderer does not read, is refused (see the top of this file). Whatever the
-    text is, this returns a colour or raises Refusal, and nothing else."""
+    oklch(), which that renderer does not read, is refused (see the top of this file), and a refusal
+    speaks of the mark; without it a refusal speaks of a colour that somebody wrote (a cell of the
+    palette, a line of the stylesheet). Whatever the text is, this returns a colour or raises Refusal,
+    and nothing else."""
     try:
         return _parse(text, current, drawn)
     except OverflowError:  # no number the grammar lets through gets here (tests/test_colour.py tries); if one ever does, it is refused by name
-        raise _unreadable((text or "")[:40], "it holds a number too large to work with") from None
+        refusal = _unreadable((text or "")[:40], "it holds a number too large to work with")
+    except Refusal as e:
+        if not drawn:
+            raise  # as it is, at no cost: a megabyte of cells that are no colour builds one refusal each
+        refusal = e
+    if drawn and str(refusal).endswith(_WRITE):
+        refusal = Refusal(refusal.code, str(refusal)[:-len(_WRITE)] + _WRITE_DRAWN)
+    raise refusal from None
 
 
 def _parse(text, current, drawn):
@@ -265,15 +274,18 @@ def _parse(text, current, drawn):
         raise Refusal(
             "colour-current",
             "The mark paints with currentColor, which takes the colour of the page around it, so its colour cannot be "
-            "known from the file. Ask for the SVG with the colour written out.",
+            "known from the file. Ask for the SVG with the colour written out." if drawn else
+            "The colour is written as currentColor, which is whatever colour the text around it has and no colour of its "
+            "own. Write the colour itself, as #rrggbb.",
         )
     if low == "transparent":
         raise _alpha(t)
     if low.startswith("url("):
         raise Refusal(
             "colour-gradient",
-            "The mark paints with %r, a gradient or a pattern. This check reads flat colours only: ask the tool for the "
-            "same mark in flat colours." % t[:40],
+            ("The mark paints with %r, a gradient or a pattern. This check reads flat colours only: ask the tool for the "
+             "same mark in flat colours." if drawn else
+             "The colour %r is a gradient or a pattern. This check reads one flat colour: write it as #rrggbb.") % t[:40],
         )
     m = _HEX.match(t)
     if m:

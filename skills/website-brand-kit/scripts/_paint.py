@@ -91,11 +91,11 @@ def resolve_paints(root, drawing, current=None):
                 props[k] = eff[k] = _colour.parse_colour(v, current=eff["color"] or current, drawn=True)
         for k in ("stroke-width", "visibility"):
             if k in props:
-                if props[k].strip().lower() == "inherit":
+                if props[k].strip(_colour.SPACE).lower() == "inherit":
                     del props[k]
                 else:
                     eff[k] = props[k]
-        shown = painted and props.get("display", "").strip() != "none"
+        shown = painted and props.get("display", "").strip(_colour.SPACE) != "none"
         if shown and node.tag in drawing and eff["visibility"] not in ("hidden", "collapse"):
             if node.tag != "line" and eff["fill"] != "none":
                 add(eff["fill"])

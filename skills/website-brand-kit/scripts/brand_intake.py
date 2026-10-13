@@ -31,6 +31,54 @@ import os
 import sys
 
 STOPPED = "Stopped (Ctrl-C). Nothing was written."
+SHOWN = 5   # seconds a terminal gets to take the report before its own setting is put back (see _terminal)
+
+
+def _stopped(argv):
+    """The one line of a stop before anything was written: as JSON where the run was asked for JSON. (Written
+    out by hand: the stop may have come while `json` was being loaded.)"""
+    return '{"status": "stopped", "exit": 2, "message": "%s"}' % STOPPED if "--json" in argv else STOPPED
+
+
+def _terminal(fd=None):
+    """Keep a terminal from throwing the report away. A terminal empties its output queue when the interrupt
+    key is typed, unless its NOFLSH setting is on: a Ctrl-C typed while the report was on its way (the run
+    no longer listens by then) cut the report short, or left nothing of it. Called with nothing, this
+    switches NOFLSH on where standard output is a terminal that this process is in the foreground of (from
+    the background, changing a terminal's settings would stop the process), and returns what to call it
+    with afterwards; None where there is nothing to do or it cannot be done (no terminal, no `termios`, the
+    setting already on). Called with that, it waits until the terminal has taken what was written (SHOWN
+    seconds at most) and switches NOFLSH off again.
+
+    How far this reaches: macOS says how much the terminal has not taken yet, so there the whole report is
+    safe. Linux does not (it answers "nothing" at once), so there the setting covers the writing alone: of
+    a report that a slow terminal has not taken yet, a Ctrl-C typed after this can still throw away what
+    lies beyond the first 4,095 bytes."""
+    try:
+        import termios
+        if fd is None:
+            fd = sys.stdout.fileno()
+            if not os.isatty(fd) or os.tcgetpgrp(fd) != os.getpgrp():
+                return None
+            now = termios.tcgetattr(fd)
+            if now[3] & termios.NOFLSH:
+                return None
+            now[3] |= termios.NOFLSH
+            termios.tcsetattr(fd, termios.TCSANOW, now)
+            return fd
+        import fcntl
+        import struct
+        import time
+        try:
+            end = time.monotonic() + SHOWN
+            while struct.unpack("i", fcntl.ioctl(fd, termios.TIOCOUTQ, b"\0\0\0\0"))[0] and time.monotonic() < end:
+                time.sleep(0.005)
+        finally:
+            now = termios.tcgetattr(fd)
+            now[3] &= ~termios.NOFLSH
+            termios.tcsetattr(fd, termios.TCSANOW, now)
+    except Exception:   # (termios has an error of its own, which cannot be named where there is no termios)
+        return None
 
 
 def _say(text):
@@ -39,7 +87,9 @@ def _say(text):
     gone (`... | head`, a terminal that closed), an output that was closed (`>&-`: Python then has no
     sys.stdout at all), one that cannot be written to. The run has its outcome by then and ends with that
     status. Standard output is pointed at the null device in that case, so that Python does not complain
-    about the same stream once more when it closes it."""
+    about the same stream once more when it closes it. A terminal is kept from throwing the lines away on
+    Ctrl-C while they are on their way (see _terminal)."""
+    held = _terminal()
     try:
         print(text)
         sys.stdout.flush()
@@ -52,6 +102,9 @@ def _say(text):
                 os.close(null)
         except (OSError, ValueError, AttributeError):
             pass
+    finally:
+        if held is not None:
+            _terminal(held)
 
 
 def _leave(code):
@@ -86,7 +139,7 @@ try:
 except KeyboardInterrupt:
     if __name__ != "__main__":
         raise
-    _say(STOPPED)
+    _say(_stopped(sys.argv[1:]))
     _leave(2)
 
 MAX_TEXT = 1024 * 1024
@@ -277,14 +330,21 @@ def main(argv=None):
 
 def command_line(argv=None):
     """What `python3 brand_intake.py ...` runs: main(), and then the end of the process, at once, with
-    main's status (see _leave). A Ctrl-C before `install` began to watch for it, or during `palette`, is
-    said in one line: neither had written anything. (One that comes while Python itself is still starting
-    ends the process before any line of this file is reached.)"""
+    main's status (see _leave): also where main ends through argparse (`--help`, an argument it does not
+    take), which leaves by sys.exit. A Ctrl-C before `install` began to watch for it, or during `palette`,
+    is said in one line (one JSON object where `--json` was asked for): neither had written anything.
+
+    What no line of this file can answer: a Ctrl-C while Python itself is still starting ends the process
+    before this file is reached. And until `install` watches the signals (the tool's first moments, while
+    its modules are loaded and the arguments read), a SIGTERM, or a SIGHUP from a terminal that was closed,
+    ends the process with the signal's own status and no line. Nothing is written by then."""
     try:
         code = main(argv)
     except KeyboardInterrupt:
-        _say(STOPPED)
+        _say(_stopped(sys.argv[1:] if argv is None else argv))
         code = 2
+    except SystemExit as e:   # argparse has printed what it had to say
+        code = e.code if type(e.code) is int else 0 if e.code is None else 1
     _leave(code)
 
 

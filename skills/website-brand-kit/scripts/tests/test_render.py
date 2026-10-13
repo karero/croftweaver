@@ -8,7 +8,6 @@ tests run the real helper; the ones that draw need a `sharp` to borrow (see _tes
 
 import base64
 import json
-import math
 import os
 import re
 import shutil
@@ -574,7 +573,9 @@ const sharp = require('sharp');
 # its opacity (so a see-through pixel is the same pixel whatever colour it carries). Standard output, for each row:
 # {errors: [per text, per size: null or why it was not drawn], pairs: [per pair, per size: {max, over, far} or null]},
 # where `max` is the largest difference in any channel of any pixel, `over` the pixels that differ by more than `same`
-# and `far` those that differ by more than `far`.
+# and `far` those that differ by more than `far`. Asked for with `edges`, also {edges: [per text, per size: null or
+# {drawn, red}]}: where the picture's edges are, as the box [left, top, right, bottom] (in whole pixels) round the
+# pixels that are more than half there, and round the red ones among them (the mark of these tests' drawings).
 _PICTURES = r"""
 const sharp = require('sharp');
 sharp.cache(false);
@@ -604,9 +605,19 @@ async function picture(svg, size) {
   for (let i = 0; i < data.length; i += 4) for (let c = 0; c < 3; c++) data[i + c] = Math.round((data[i + c] * data[i + 3]) / 255);
   return data;
 }
+function edges(data, size) {
+  const drawn = [size, size, -1, -1], red = [size, size, -1, -1];
+  const grow = (box, x, y) => { if (x < box[0]) box[0] = x; if (y < box[1]) box[1] = y; if (x > box[2]) box[2] = x; if (y > box[3]) box[3] = y; };
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const i = 4 * (y * size + x);
+    if (data[i + 3] >= 128) grow(drawn, x, y);
+    if (data[i + 3] >= 128 && data[i] >= 128 && data[i + 2] < 128) grow(red, x, y);
+  }
+  return { drawn: drawn[2] < 0 ? null : drawn, red: red[2] < 0 ? null : red };
+}
 (async () => {
   const req = JSON.parse(require('fs').readFileSync(0, 'utf8'));
-  const out = req.rows.map((row) => ({ errors: row.texts.map(() => []), pairs: row.pairs.map(() => []) }));
+  const out = req.rows.map((row) => ({ errors: row.texts.map(() => []), pairs: row.pairs.map(() => []), edges: row.texts.map(() => []) }));
   for (const size of req.sizes) {
     let known = new Map(); // the same text is drawn once: many rows share the text they are held against
     for (let r = 0; r < req.rows.length; r++) {
@@ -621,6 +632,7 @@ async function picture(svg, size) {
         }
         drawn.push(p);
         out[r].errors[t].push(typeof p === 'string' ? p : null);
+        if (req.edges) out[r].edges[t].push(typeof p === 'string' ? null : edges(p, size));
       }
       row.pairs.forEach(([i, j], n) => {
         const a = drawn[i], b = drawn[j];
@@ -645,9 +657,9 @@ SAME = 2            # two pictures are the same when no channel of any pixel dif
 FAR = 32            # and they differ when more than a quarter of the icon's side in pixels differ by more than this
 
 
-def pictures(testcase, site_dir, rows):
+def pictures(testcase, site_dir, rows, edges=False):
     """Draw and compare `rows` ([{texts, pairs}]) at every size; see _PICTURES."""
-    r = subprocess.run(["node", "-e", _PICTURES], input=json.dumps({"sizes": SIZES, "same": SAME, "far": FAR, "rows": rows}), cwd=site_dir,
+    r = subprocess.run(["node", "-e", _PICTURES], input=json.dumps({"sizes": SIZES, "same": SAME, "far": FAR, "rows": rows, "edges": edges}), cwd=site_dir,
                        capture_output=True, text=True, timeout=1800)
     testcase.assertEqual(r.returncode, 0, r.stderr[-400:])
     return json.loads(r.stdout)
@@ -996,6 +1008,15 @@ def grammar_rows():
                         ("rotate(3e1&#10;,&#10;5,5)&#10;,&#10;translate(1-1)", "rotate(30 5 5) translate(1 -1)")):
         rows.append(("transform", "transform=%r" % form[:60], B % (moved % form), B % (moved % plain) if plain else None, B % (moved % "translate(1 1)")))
     rows.append(("transform", "transform='' moves nothing", B % (moved % ""), B % '<rect width="4" height="4" fill="#f00"/>', B % (moved % "translate(1 1)")))
+    # A transform leaves a shape its form: none squashes it flat, or all but flat (those are refused: refused_rows). What
+    # stays, up to the line: a small scale, a stretch one way, a steep skew, and several that together stay inside it.
+    # Measured 2026-10-13 against Chromium, each on one of two shapes inside a clip path, where a flat one is drawn
+    # differently: every one of these is drawn alike by the two (at most 2 pixels of 10,000 apart).
+    for form, plain in (("scale(.001)", "scale(.001 .001)"), ("scale(1e-9)", "scale(1e-9 1e-9)"), ("scale(1 .001)", None), ("scale(.001 1)", None), ("scale(2 .001)", None),
+                        ("skewX(80)", None), ("skewX(89.4)", None), ("skewX(-89.4)", None), ("skewY(89.4)", None), ("skewX(269.4)", "skewX(89.4)"), ("skewX(90.6)", "skewX(-89.4)"),
+                        ("matrix(1 0 99 1 0 0)", None), ("matrix(1 99 0 1 0 0)", None), ("matrix(1 2 2 5 0 0)", None), ("matrix(1e-9 0 0 1e-9 0 0)", "scale(1e-9)"),
+                        ("skewX(45) skewY(45) skewX(45)", None), ("scale(100 1) rotate(45) scale(100 1)", None), ("scale(1e-9) " * 16, None)):
+        rows.append(("transform", "transform=%r, which leaves a shape its form" % form[:40], B % (moved % form), B % (moved % plain) if plain else None, B % (moved % "translate(1 1)")))
     # --- path data
     for form in ("M0 0h5v5z", "M0,0H5V5Z", "M0 0h5.v5.e0z", "M0 0h.5e1v+5z", "M0 0l5 0 0 5z", "m0 0 5 0 0 5z", "M0 0L5 0L5 5", "M 0 0 H 5 V 5 Z", "M0 0h5v5-5-5",
                  "M0 0Q5 0 5 0T5 5", "M0 0C5 0 5 0 5 0S5 5 5 5", "M0 0A9 9 0 0 0 5 0L5 5Z", "M0 0a9 9 0 005 0l0 5z"):
@@ -1021,9 +1042,16 @@ def grammar_rows():
     clipped = '<clipPath id="c"><path class="p" d="M1 1h8v8h-8zM3 3h4v4h-4z"/></clipPath><rect clip-path="url(#c)" width="10" height="10" fill="#f00"/>'
     rule("keyword", "clip-rule", ["evenodd"], "evenodd", other="nonzero", shape=clipped)
     rule("keyword", "clip-rule", ["nonzero"], "nonzero", other="evenodd", shape=clipped)
-    units = '<clipPath id="c" clipPathUnits="%s"><rect width=".5" height=".5"/></clipPath><rect clip-path="url(#c)" width="8" height="8" fill="#f00"/>'
-    rows.append(("keyword", "clipPathUnits='objectBoundingBox'", B % (units % "objectBoundingBox"), None, B % (units % "userSpaceOnUse")))
-    rows.append(("keyword", "clipPathUnits='userSpaceOnUse'", B % (units % "userSpaceOnUse"), None, B % (units % "objectBoundingBox")))
+    # a clip path is measured in the drawing's own units, written or left out (measured by the box of what it clips it is
+    # refused: refused_rows). The other value is only drawn here, to see that the renderer does read the word.
+    units = '<clipPath id="c"%s><rect width=".5" height=".5"/></clipPath><rect clip-path="url(#c)" width="8" height="8" fill="#f00"/>'
+    in_the_box = B % (units % ' clipPathUnits="objectBoundingBox"')
+    for form in ("userSpaceOnUse", " userSpaceOnUse ", "&#9;userSpaceOnUse&#10;"):
+        rows.append(("keyword", "clipPathUnits=%r" % form, B % (units % (' clipPathUnits="%s"' % form)), B % (units % ""), in_the_box))
+    line = '<clipPath id="c"%s><rect width="5" height="10"/></clipPath><line clip-path="url(#c)" y1="5" x2="10" y2="5" stroke="#f00" stroke-width="4"/>'
+    rows.append(("keyword", "clipPathUnits='userSpaceOnUse' with a transform on the clip path", B % (units % ' clipPathUnits="userSpaceOnUse" transform="translate(.6) scale(8)"'),
+                 B % '<rect x=".6" width="4" height="4" fill="#f00"/>', in_the_box))
+    rows.append(("keyword", "clipPathUnits='userSpaceOnUse' on a straight line", B % (line % ' clipPathUnits="userSpaceOnUse"'), B % (line % ""), B % (line % ' clipPathUnits="objectBoundingBox"')))
     # --- clip-path, id, class
     rule("clip-path", "clip-path", ["url(#c)", "url( #c )", "url(#d-e.f:g_h)", " url(#c) "], "url(#c)", other="none", shape=CLIPS)
     rule("clip-path", "clip-path", ["none"], "none", other="url(#c)", shape=CLIPS)
@@ -1045,6 +1073,13 @@ def grammar_rows():
             ("a shape inside that is not shown", B % ('<clipPath id="c"><rect display="none" width="3" height="10"/><rect x="6" width="2" height="10"/></clipPath>' + used),
              B % '<rect x="6" width="2" height="10" fill="#f00"/>')):
         rows.append(("clip-path", what, doc, plain, unclipped))
+    # one of two shapes inside a clip path, made small or sheared steeply by a transform that is NOT flat: what is clipped
+    # is drawn, clipped by the other shape (and by what is left of this one)
+    two = '<clipPath id="c"><rect width="3" height="10" transform="%s"/><rect x="5" width="2" height="10"/></clipPath>' + used
+    other_alone = B % '<rect x="5" width="2" height="10" fill="#f00"/>'
+    for form, plain in (("scale(.001)", None), ("scale(1e-9)", other_alone), ("scale(1 .001)", None), ("skewX(89.4)", None), ("skewY(89.4)", None), ("matrix(1 0 99 1 0 0)", None),
+                        ("scale(1e-9) " * 16, other_alone), ("skewX(45) skewY(45) skewX(45)", None)):
+        rows.append(("clip-path", "one of two shapes inside with transform=%r" % form[:40], B % (two % form), plain, unclipped))
     for name in ("c", "_", "A", "a1", "clip0_12_34", "SVGID_1_", "a-b.c:d", "x" * 64,
                  # an id may start with a digit (one common design tool names its clip paths in hex digits)
                  "8ce47d5fb1", "4a5b6c7d8e", "0", "007", "1e5", "9-9", "0x1f", "1.5", "7:a", "4" * 64):
@@ -1273,6 +1308,28 @@ def refused_rows():
                       ("rect{display:inherit} under clipPath{display:inline}", B % ("<style>clipPath{display:inline}rect{display:inherit}</style>" + inside % "")),
                       ("style='display:inherit' under clipPath{display:block}", B % ("<style>clipPath{display:block}</style>" + inside % 'style="display:inherit"'))):
         rows.append((what, "bad-value", doc, B % (inside % ""), "differs"))
+    # A clip path measured by the box of the shape it clips, held against what a browser draws of it (Chromium, measured
+    # 2026-10-13). With a transform on the clip path as well, the renderer moves the clip by six tenths of the SHAPE
+    # and a browser by six tenths of a unit; and a straight line, whose box has no height (or no width), is drawn
+    # whole by the renderer and not at all by a browser.
+    in_the_box = '<clipPath id="c" clipPathUnits="objectBoundingBox"%s><rect width="%s" height="%s"/></clipPath>'
+    nothing = B % ""
+    for what, doc, browser in (
+            ("a clip in the box's units with a transform on the clip path", B % (in_the_box % (' transform="translate(.6)"', ".5", "1") + red), B % '<rect x=".6" width="5" height="10" fill="#f00"/>'),
+            ("a clip in the box's units on a straight line", B % (in_the_box % ("", ".5", "1") + '<line clip-path="url(#c)" x1="0" y1="5" x2="10" y2="5" stroke="#f00" stroke-width="4"/>'), nothing),
+            ("a clip in the box's units on an upright line of two points", B % (in_the_box % ("", "1", ".5") + '<polyline clip-path="url(#c)" points="5 0 5 10" fill="none" stroke="#f00" stroke-width="4"/>'), nothing),
+            ("a clip in the box's units on a group that holds a line", B % (in_the_box % ("", ".5", "1") + '<g clip-path="url(#c)"><line x1="0" y1="5" x2="10" y2="5" stroke="#f00" stroke-width="4"/></g>'), nothing)):
+        rows.append((what, "clip-units", doc, browser, "differs"))
+    # A transform that squashes one of two shapes inside a clip path flat (Chromium, measured 2026-10-13). For a scale of
+    # nothing, however it comes about, the renderer draws nothing at all of what is clipped, and a browser clips by the
+    # other shape. For a skew of a quarter turn, or nearly, it is the browser that draws nothing.
+    two = '<clipPath id="c"><rect width="3" height="10" transform="%s"/><rect x="5" width="2" height="10"/></clipPath>' + red
+    other_alone = B % '<rect x="5" width="2" height="10" fill="#f00"/>'
+    for form in ("scale(0)", "scale(1 0)", "scale(0 1)", "matrix(0 0 0 0 0 0)", "matrix(1 2 2 4 0 0)", "matrix(1 0 0 0 0 5)", "scale(1e-46)", "scale(1e-40) " * 5, "translate(1) scale(0)",
+                 "rotate(45) scale(1 0)", "skewX(89.4) skewY(89.4) " * 8):
+        rows.append(("one of two shapes in a clip path with transform=%r" % form[:40], "flat-transform", B % (two % form), other_alone, "differs"))
+    for form in ("skewX(90)", "skewX(89.99999)", "skewX(270)"):
+        rows.append(("one of two shapes in a clip path with transform=%r" % form, "flat-transform", B % (two % form), nothing, "differs"))
     # an include: the renderer fetches what it names (here, what the address itself holds) and draws it, or applies its styles
     xi = 'xmlns:xi="http://www.w3.org/2001/XInclude"'
     red = "data:image/svg+xml;base64," + base64.b64encode(b'<rect xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="#f00"/>').decode("ascii")
@@ -1372,20 +1429,35 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
                 self.assertNotEqual(outcome[prop, form], "read", form)
         self.assertGreater(len(kept), 100)
 
+    def edges_hold(self, came, cleaned, what, share=0.01):
+        """THE BOUND ITSELF: every edge of the drawing lies at most a hundredth of the icon's side (`share`) from where the
+        file as it came had it. `came` and `cleaned` are where the edges are in the two pictures (per size: the box
+        round the drawn pixels and the box round the red mark). An edge is found in whole pixels, so one pixel is
+        allowed for that. The furthest any edge has moved, as a share of the side."""
+        furthest = 0.0
+        for size, before, after in zip(SIZES, came, cleaned):
+            for part in ("drawn", "red"):
+                self.assertTrue(before[part] and after[part], "%s: at %d pixels nothing of the %s part is there" % (what, size, part))
+                for edge, a, b in zip(("left", "top", "right", "bottom"), before[part], after[part]):
+                    self.assertLessEqual(abs(a - b), size * share + 1, "%s: at %d pixels the %s edge of the %s part has moved by %d pixels" % (what, size, edge, part, abs(a - b)))
+                    furthest = max(furthest, abs(a - b) / size)
+        return furthest
+
     def test_a_size_a_tool_rounded_apart_from_its_viewbox_moves_an_edge_by_no_more_than_a_hundredth_of_the_icons_side(self):
         # The outer svg's width and height may be up to one part in a hundred from the shape of its viewBox (an export of
         # 283.46px by 141.73px round a viewBox of 283.5 by 141.7 was refused). The cleaned file keeps the viewBox alone, so
         # within that line it is NOT the file as it came pixel for pixel: the drawing is set a little smaller in its room,
         # and where the room is left over is said by preserveAspectRatio. In the middle (the default) every edge moves by
         # up to half a hundredth of the icon's side; pushed to one side (xMinYMin, xMaxYMax, xMidYMax) the far edge moves
-        # by a whole hundredth (measured 2026-10-13: 4 to 6 pixels of 512). What is held here is that it is no more: the
-        # pixels that differ lie along the edges of the shapes, in a band a hundredth of the side wide. Measured at the
-        # line itself, of the 262,144 pixels of a 512-pixel icon: 3,348 in the middle, up to 3,756 pushed to a side, none
-        # of a 32-pixel icon's; past the line (10 by 20.5) 8,548. That is a bound on how far an edge moves, NOT on how
-        # many pixels differ: a mark of a hundred fine lines differs in 98,240 to 113,226 of them (the last rows).
+        # by up to a whole hundredth. What is held here is THAT: where the edges are (edges_hold), at every size and for
+        # every way of setting the drawing in its room, at the line. Measured 2026-10-13: at the line no edge moves by
+        # more than 4 pixels of 512 (2 in the middle), and none of a 32-pixel icon's moves at all. Until then the test
+        # counted the pixels that differ, and a drawing moved down by 20 pixels passed it (15,124 pixels differ, and
+        # the count allowed 15,861): the controls below are that drawing and five more. The counts, for the record, of
+        # the 262,144 pixels of a 512-pixel icon at the line itself: 3,348 in the middle, up to 3,756 pushed to a
+        # side, none of a 32-pixel icon's; past the line (10 by 20.5) 8,548. A bound on how far an edge moves is NOT
+        # one on how many pixels differ: a mark of a hundred fine lines differs in 98,240 to 113,226 of them.
         tall = '<svg xmlns="http://www.w3.org/2000/svg" %s><rect width="10" height="20" fill="#00f"/><circle cx="5" cy="10" r="4.3" fill="#f00"/></svg>'
-        edges = 2 * (10 + 20) + 2 * math.pi * 4.3   # the length of every edge in that drawing, in its own units (the box is 20 high)
-        band = lambda size: edges * size / 20 * (size / 100 + 2)   # that length in pixels, times a hundredth of the side and a soft edge on either side
         sizes = [("10", "20.19"), ("10", "19.81"), ("10.09", "20"), ("9.91", "20"), ("283.46px", "566.93px"), ("10mm", "20.19mm"), ("1em", "2.019em"), ("10", "20.1"), ("10.05pt", "20pt")]
         aspects = ("", "xMidYMid", "xMinYMin", "xMaxYMax", "xMidYMax", "xMidYMin", "xMinYMid", "xMaxYMin meet", "xMidYMid slice", "xMinYMin slice", "xMaxYMax slice", "none")
         within = [(width, height, "") for width, height in sizes] + [(width, height, aspect) for width, height in sizes[:4] for aspect in aspects[1:]]
@@ -1409,25 +1481,46 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
         for row in fine:
             doc = stripes % attrs(*row)
             jobs.append({"texts": [doc, _svg.clean_svg(doc.encode()).text], "pairs": [[0, 1]]})
-        answers = pictures(self, self.site.dir, jobs)
-        seen, middle = 0, 0
+        # The control: the drawing as it came, held against itself moved. By 4 hundredths of its height (20 pixels of 512)
+        # the bound must NOT hold, by a third of a hundredth it must; and so that the control is about the bound and not
+        # about one picture, moved each way.
+        plain = tall % 'viewBox="0 0 10 20"'
+        moved = [("down, too far", tall % 'viewBox="0 -0.8 10 20"', False), ("up, too far", tall % 'viewBox="0 0.8 10 20"', False), ("to the side, too far", tall % 'viewBox="0.8 0 10 20"', False),
+                 ("smaller, too far", tall % 'viewBox="-0.6 -1.2 11.2 22.4"', False), ("down, a little", tall % 'viewBox="0 -0.06 10 20"', True), ("smaller, a little", tall % 'viewBox="-0.03 -0.06 10.06 20.12"', True)]
+        for _what, text, _holds in moved:
+            jobs.append({"texts": [plain, text], "pairs": [[0, 1]]})
+        answers = pictures(self, self.site.dir, jobs, edges=True)
+        seen, middle, furthest, furthest_in_the_middle = 0, 0, 0.0, 0.0
         for (width, height, aspect), answer in zip(within, answers):
             with self.subTest(width=width, height=height, aspect=aspect):
                 all_drawn(self, answer, "%s by %s %s" % (width, height, aspect))
-                for size, got in zip(SIZES, answer["pairs"][0]):
-                    self.assertLessEqual(got["over"], band(size), "at %d pixels %d pixels differ" % (size, got["over"]))
+                in_the_middle = aspect in ("", "xMidYMid")   # set in the middle of its room, an edge moves by half as much at most
+                gone = self.edges_hold(answer["edges"][0], answer["edges"][1], "%s by %s %s" % (width, height, aspect), share=0.005 if in_the_middle else 0.01)
+                furthest = max(furthest, gone)
+                furthest_in_the_middle = max(furthest_in_the_middle, gone if in_the_middle else 0.0)
+                for got in answer["pairs"][0]:
                     seen = max(seen, got["over"])
                     middle = max(middle, got["over"] if aspect in ("", "xMidYMid") else 0)
         self.assertGreater(middle, 0, "within the line the two are not the same picture, and this test says so")
-        self.assertGreater(seen, middle, "pushed to one side an edge moves further than in the middle")
+        self.assertGreater(furthest_in_the_middle, 0, "and its edges are not where they were")
+        self.assertGreater(furthest, furthest_in_the_middle, "pushed to one side an edge moves further than set in the middle")
         for (width, height), answer in zip(beyond, answers[len(within):]):
             with self.subTest(width=width, height=height):
                 all_drawn(self, answer, "%s by %s" % (width, height))
                 self.assertGreater(answer["pairs"][0][-1]["over"], seen, "past the line more differs in a large icon than anywhere at the line")
-        for row, answer in zip(fine, answers[len(within) + len(beyond):]):
+        for row, answer in zip(fine, answers[len(within) + len(beyond):len(within) + len(beyond) + len(fine)]):
             with self.subTest(fine=row):
                 all_drawn(self, answer, "fine lines, %s by %s %s" % row)
                 self.assertGreater(answer["pairs"][0][-1]["over"], SIZES[-1] * SIZES[-1] // 8, "a mark of fine lines differs all over in a large icon")
+                self.edges_hold(answer["edges"][0], answer["edges"][1], "fine lines, %s by %s %s" % row)   # and its edges are where they were, to the hundredth
+        for (what, _text, holds), answer in zip(moved, answers[len(answers) - len(moved):]):
+            with self.subTest(moved=what):
+                all_drawn(self, answer, what)
+                if holds:
+                    self.edges_hold(answer["edges"][0], answer["edges"][1], what)
+                else:
+                    with self.assertRaises(AssertionError, msg="a drawing moved %s passed for one whose edges are where they were" % what):
+                        self.edges_hold(answer["edges"][0], answer["edges"][1], what)
 
     def test_a_file_as_it_came_may_be_one_the_renderer_cannot_draw_small_where_the_cleaned_file_is_drawn(self):
         # A search with generated files (2026-10-13) reported "zero-sized image" for a file as it came, at 32 pixels, with
@@ -1446,16 +1539,20 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
         self.assertEqual(answer["pairs"][0][1]["over"], 0, "and where both are drawn they are one picture")
         the_same(self, answer["pairs"][1], "the cleaned file, and the drawing by its viewBox alone")
 
-    def test_the_dashed_outlines_the_caps_allow_are_drawn_in_seconds(self):
-        # The caps of the check (_svg._reach) bound DASHED outlines, the one kind of slow drawing they were made for.
-        # Measured 2026-10-13 (processor time of the renderer for one icon, load average 3 to 12): before the caps, a dashed
-        # path of 3,652 characters that ran a hundred boxes out and back took 33 seconds and one of 25,152 characters
-        # inside its box 10; each of the drawings below, which use all of what the caps allow, takes under a second on a
-        # quiet machine (the slowest 0.8) and 2.2 on one at load 10. The line held here is ten seconds.
-        # What is NOT dashed is not bounded by these caps, and is not held here: one outlined path of 40,000 to 50,000
-        # short turns took 11 to 12 seconds an icon at load 10, and one clip path of 2,000 numbers used by 4,900 shapes 7.
-        # For those the bound is the time limit of the renderer's call (_render.RENDER_SECONDS: see
-        # test_a_renderer_that_takes_too_long_is_stopped_and_the_refusal_says_what_to_ask_for).
+    def test_the_dash_budget_counts_the_dashes_of_these_drawings_and_the_renderer_draws_each_of_them(self):
+        # A REGRESSION FOR THE DASH COUNT, and no promise about time. The budget of the check (_svg._reach) bounds the
+        # NUMBER of dashes a file's outlines are cut into. Before it, a dashed path of 3,652 characters that ran a hundred
+        # boxes out and back took the renderer 33 seconds of processor time for one icon, and one of 25,152 characters
+        # inside its box 10 (measured 2026-10-13, load average 3 to 12). Each drawing below is cut into as many dashes as
+        # the budget takes, or nearly, with an outline 2 wide and plain joins; the slowest of them was measured at 0.8
+        # seconds on a quiet machine, 2.2 at load 10 and 3.2 at load 90 to 460. The line held here, ten seconds of
+        # processor time, lies between the two: a budget that has stopped counting is caught by it, and that is all it
+        # is for.
+        # It is NOT a bound on how long a dashed drawing takes. The renderer's time also grows with how wide and how
+        # round each dash is: inside every cap, a dashed polygon with an outline 10 wide and round joins took 7.3 seconds
+        # at 240 sides and was stopped after 60 at 500 sides, and 159 dashed circles with round caps 10 wide took 14.2.
+        # For every drawing, dashed or not, how long it takes is bounded by the time limit of the renderer's call alone
+        # (_render.RENDER_SECONDS: see test_a_renderer_that_takes_too_long_is_stopped_and_the_refusal_says_what_to_ask_for).
         dashes = 'fill="none" stroke="#f00" stroke-width="2" stroke-dasharray="%s"'
         inside = {
             "100 lines across the box, dashes a thousandth of it": '<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.01") * 100,
@@ -1470,7 +1567,7 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
         }
         renderer = _render.Renderer(self.site.dir)
         for what, inner in inside.items():
-            clean = _svg.clean_svg((B % inner).encode())   # each of them is inside every cap: the check takes it
+            clean = _svg.clean_svg((B % inner).encode())   # each of them is inside the budget: the check takes it
             for size in SIZES:
                 with self.subTest(what=what, size=size):
                     started, clock = os.times(), time.time()
@@ -1478,7 +1575,7 @@ class TheValueGrammarIsDrawnAsItIsRead(unittest.TestCase):
                     ended = os.times()
                     used = (ended.children_user + ended.children_system) - (started.children_user + started.children_system)
                     self.assertLess(used or (time.time() - clock), 10.0, "%s took the renderer %.1f seconds at %d pixels" % (what, used, size))
-        # one step past the caps each of these is refused, so the renderer never meets it
+        # one step past the budget, or past the rule it stands on, each of these is refused, so the renderer never meets it
         for inner, code in (('<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.01") * 101, "too-many-dashes"), ('<line y1="5" x2="10" y2="5" %s/>' % (dashes % "0.0099"), "dash-too-small"),
                             ('<path d="M0 5%s" %s/>' % ("H1010H0" * 500, dashes % "0.01"), "dashed-path"), ('<path d="M0 5%s" %s/>' % ("H10H0" * 5000, dashes % "0.01"), "dashed-path"),
                             ('<path d="M0 5H60000H0" fill="none" stroke="#f00"/>', "too-far"), ('<line y1="5" x2="10" y2="5" stroke-dashoffset="1e9" %s/>' % (dashes % "0.01"), "too-far"),

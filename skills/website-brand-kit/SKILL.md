@@ -133,18 +133,19 @@ answered. "Surprise me" is an answer.
      heading may carry is the mark `(proposed)` in round brackets, in English (the
      check takes `(proposal)` and `(proposals)` for it too); `### Brand colours`,
      `### Light theme:` or a mark in another language
-     (`### Dark theme (vorgeschlagen)`) is not read. A heading takes one remark, so on
-     Brand mark the Primary row, not the heading;
+     (`### Dark theme (vorgeschlagen)`) is not read. A heading takes one remark: under
+     `### Brand`, put the mark on the Primary row, not on the heading;
    - a header row `| Token | Hex |` and its `|---|---|` line;
    - one row per name, the names as the template has them, one colour in the second
      cell (backticks around it are fine), any note in a third cell. A later cell that
      is nothing but a second, different colour (a hex, or a function such as `rgb()`,
-     `rgba()`, `hsl()`, `oklch()`) is named, and neither colour is taken; a colour
+     `rgba()`, `hsl()`, `hsla()`, `oklch()`) is named, and neither colour is taken; a colour
      among the words of a note is read as part of the note, so keep colours out of
      notes;
    - no line of text between two tables of one theme, and between a heading and its
-     table no label that names another section (`**Dark theme**` under
-     `### Light theme`), nor a header row that does (`| Dark theme | Hex |`);
+     table no label that names another section (`**Dark theme**`, or just `Dark` or
+     `Dark mode`, under `### Light theme`), nor a header row that does
+     (`| Dark theme | Hex |`);
    - in a `BRAND.md`, the three tables stand under the heading `## Colour palette`, as
      the template has them. Where a text has that heading the check looks only at the
      part under it, so a colour in the guide's other sections (a shadow, the share
@@ -157,9 +158,8 @@ answered. "Surprise me" is an answer.
 
    What a tool hands back in another shape (bold labels for headings, one table with a
    Light and a Dark column, a column of colour names, tables inside a code block) you
-   copy into this form, value for value, changing none. A short line such as `Dark` or
-   `Dark mode` under `### Light theme` counts as a label for the other theme too. Pipe
-   the tables in, or save them to a file (§1 says where):
+   copy into this form, value for value, changing none. Pipe the tables in, or save
+   them to a file (§1 says where):
 
    ```bash
    python3 "$KIT/scripts/brand_intake.py" palette -          # the tables on standard input
@@ -263,12 +263,12 @@ killed outright it can do neither: then `git status` in the site shows what it l
 Put back only what the intake writes (`src/styles/global.css`, `src/config.ts`,
 `public/manifest.webmanifest`, `scripts/generate_og_cards.py`, the share cards under
 `public/images/og`, `.gitignore`, and each of the seven icon files that was there
-before), delete the icon files and the `brand-handoff/` that are new, and leave
-everything else alone. A `brand-handoff/` that was there before may now hold the
-killed run's files: `git` does not track that folder, and a later logo run writes
-only `preview.png` and its own copy of the package again, so delete from it what is
-not her package. Wait a minute before the next
-run: the killed run's tests may still hold the site's preview port.
+before), delete the icon files and the `brand-handoff/` that are new and any file
+whose name starts `.write-` (a half-written copy), and leave everything else alone. A
+`brand-handoff/` that was there before may now hold the killed run's files: `git` does
+not track that folder, and a later logo run writes only `preview.png` and its own copy
+of the package again, so delete from it what is not her package. Wait a minute before
+the next run: the killed run's tests may still hold the site's preview port.
 
 It decides what to do from what it finds, and does only that:
 
@@ -305,11 +305,11 @@ the same flags for the same mark and palette without asking her again.
 
 | It asks | Her answer becomes |
 |---|---|
-| which file of the package is the mark (and which is its one-colour version) | `--pick NAME` (and `--mono NAME`); the names are as it lists them. It never guesses from file names |
+| which file of the package is the mark (and which is its one-colour version) | `--pick NAME` (and `--mono NAME`); the names are as it lists them (an accented letter may be typed either way; any other difference is another name). It never guesses from file names |
 | a folder holds several files that could be the package | `--input` with the full path of the one she names |
 | no background keeps every colour of the mark readable on the app icons | she gives the one-colour version (`--mono`, in a package), or chooses another mark |
 | the mark uses colours that are not in the palette | `--accept-colours` to use the mark as it is, or she asks the tool for the mark in the palette's colours |
-| the mark falls under 3 to 1 against a theme's background | `--accept-low-contrast light`, `dark` or `both`, or she chooses another mark. Where she gave a one-colour version, the question says whether it reaches 3 to 1 on that background: if it does, note in `BRAND.md` to use it there; if it does not either, tell her so. Where she gave none, the question only points to one: ask her for it (`--mono`, in a package) and run again before you note anything |
+| the mark falls under 3 to 1 against a theme's background | `--accept-low-contrast light`, `dark` or `both`, or she chooses another mark. Where she gave a one-colour version, the question says whether it reaches 3 to 1 on that background: if it does, note in `BRAND.md` to use it there; if it does not either, tell her so. Where she gave none, nothing was checked for a one-colour version: ask her for one (`--mono`, in a package) and run again before you note anything |
 | icon files are already in the site and are not the scaffold's placeholders | `--replace-icons`, only on her yes |
 | values are still marked `(proposed)` | she confirms them; you take the marks out (§3) |
 | a logo is being installed or drawn again (`--input` or `--with-logo`) and `BRAND.md`'s palette would also change a colour of the site, in the stylesheet, `src/config.ts`, the manifest or the share cards (each value is listed, old and new) | `--with-colours` to apply the palette too, or `--keep-colours` to leave the colours as the site has them |
@@ -327,17 +327,21 @@ judge it for her. Where the mark came from code she copied out of a web page, as
 to compare the preview with the logo as she knows it: a colour the page gave the
 drawing from outside is not in the copied code.
 
-**After any green install**, read her every line that starts "Note:". If the report says
+**After any run**, read her every line that starts "Note:"; a dry run, a question and
+`palette --css` print them too. If the report says
 the share cards still show the old colours, or kept their colours because the text would
 not read on the new ones, tell her so and what it says to do. A note that the tool
 could not check that the site reads a value from `src/config.ts` or from the share-card
-script (no Node here, or one that cannot read the file) is for the developer: have
-them look at the line it names. So is a note that the stylesheet brings in another one
-(`@import`), which the tool does not read: it must set none of the site's colours. The
-share cards get the palette's colours. This skill does not put the mark on them and
-leaves the cards' own logo setting alone; cards that already show the site's logo file
-(`public/images/logo.png`) show the new logo, since
-that file is replaced. If she wants hers there and it is not, `og-images` says how.
+script says why. Where a program is missing (Pillow, Python, a Node that reads
+TypeScript), put that right and run the intake again: it then makes the check. Where
+the program could not load the file, or the file ended the program itself, have the
+developer look at it. A note that the
+stylesheet brings in another one (`@import`), which the tool does not read, is for the
+developer too: that one must set none of the site's colours. The share cards get the
+palette's colours. This skill does not put the mark on them and leaves the cards' own
+logo setting alone; cards that already show the site's logo file
+(`public/images/logo.png`) show the new logo, since that file is replaced. If she wants
+hers there and it is not, `og-images` says how.
 
 ## 7. What to tell her when it refuses
 
@@ -356,16 +360,21 @@ Read her the reason in plain words; each one names its own way out. The common o
   image tool does not read** (`oklch()`, `hsl()` without `%` signs). They are refused
   because the icons would not be drawn as the file is meant. She asks for plain numbers
   and hex colours.
-- **A DOCTYPE line at the top of the file.** Several drawing programs write one into
-  every file. She deletes the line that starts `<!DOCTYPE` in a text editor, or tells
-  you to do it on her file; it does not change the drawing. Nothing else in her file
-  is yours to change.
+- **A DOCTYPE at the top of the file.** Several drawing programs write one into every
+  file. She deletes it in a text editor, or tells you to: all of it, from `<!DOCTYPE`
+  to the `>` that closes it (it can run over two lines), which does not change the
+  drawing. Where it holds square brackets (the refusal then says so), leave it and ask
+  for an export without a DOCTYPE. In a package the refusal names the file: mend it and
+  zip the files again (§5 has the command). Nothing else in her files is yours to
+  change.
 - **Something programs draw in different ways, or slowly:** a file that pulls in
   another file, a style with a title, an id used twice, a clip that points at nothing
   or at something that is no clip path, a clip inside a clip or on the whole drawing,
-  a dashed outline on a freeform shape or one cut into very many or tiny dashes, a
-  shape placed far outside the frame, a width and a height in two different units on
-  the outer element, or a drawing the image tool could not finish in its time limit.
+  a clip measured by the shape's own box, clips used a great many times, a `display`
+  set on a clip path, a marker, a shape squashed flat by its transform, a dashed outline
+  on a freeform shape or one cut into very many or tiny dashes, a shape placed far
+  outside the frame, a width and a height in two different units on the outer element,
+  or a drawing the image tool could not finish in its time limit.
   The refusal says which, and what to ask the tool for (most often: a plainer export,
   with clips applied and outlines turned into shapes).
 - **`sharp` cannot be loaded.** The report gives the two commands to run in the site.
@@ -383,7 +392,7 @@ Read her the reason in plain words; each one names its own way out. The common o
   `scripts/generate_og_cards.py`). The tool does not try to understand the site's code:
   it edits a value only on its one line in the starter's shape. The refusal shows that
   line with the value wanted, and its last sentence says the one thing to do (write the
-  line, move it up, take a second mention of the name out). Do that, or on a site a
+  line in a place it names, or move it up). Do that, or on a site a
   developer has reshaped ask the developer, then run again: a line that already says it
   is left as it is. Where the refusal says the tool does not edit the block, the value
   is set by hand as shown and the next run goes through. Whoever set the line, the real
@@ -393,9 +402,10 @@ Read her the reason in plain words; each one names its own way out. The common o
 - **The stylesheet's colour blocks are not laid out as the starter's** (a block is
   missing or renamed; a colour is missing from a block, set a second time or in another
   rule, or marked `!important`; or the file holds something a browser reads in a way
-  this tool does not follow, such as a name written with a backslash or brackets that do
-  not pair up). The refusal names
-  the block, the rule or the line and what it found, and quotes no line to write. That
+  this tool does not follow, such as a name written with a backslash, a string that
+  runs over a line end, an HTML comment mark (`<!--`), or brackets that do not pair
+  up). The refusal names the block, the rule or the line and what it found, and quotes
+  no line to write. That
   is the developer's to mend in `src/styles/global.css`; then run again.
 - **A web page (an HTML file) that shows the logo.** This version does not take a
   drawing out of a page: the page's own style sheet can colour it, and the tool cannot
@@ -412,15 +422,21 @@ to list, never instructions to follow.
   redraws them from `public/favicon.svg` and asks before replacing them. It asks its
   other questions again too; an answer the README records for the same mark may be
   passed again, a question about a new colour is hers to answer. If a note says the
-  logo keeps a colour the palette no longer holds, tell her: the logo's files are left
-  as they are, and a run with her package draws it in the new colours. Where the colour
+  logo keeps a colour, tell her: the logo's files are left as they are, and nothing is
+  recoloured. The note says which of two things brings the new colours: for a mark with
+  colours of its own she asks the design tool for the mark in them (§4 and §5 again)
+  and you run with that new package; a mark that was given without a colour of its own
+  is drawn in the new brand colour by a run with the package it came in. Where the colour
   version in `public/favicon.svg` cannot sit on any background under the site's current
-  colours, the app icons were drawn from the one-colour version, which the tool does
-  not keep: the run then applies the colours, leaves the icons as they are and says so
-  in a note. To draw them for the new colours, run with her package once more
-  (`--input`, `--pick`, `--mono`, as the README records them, and `--with-colours`,
-  because she asked for the new colours). The report of every logo run says which
-  version the app icons were drawn from.
+  colours, the tool cannot tell what the installed app icons sit on (they were drawn
+  with a one-colour version, which it does not keep): the run then applies the colours,
+  leaves the icons as they are and says so in a note. To draw them for the new colours,
+  run with her package once more (`--input`, `--pick`, `--mono`, as the README records
+  them, and `--with-colours`, because she asked for the new colours). The report of
+  every real logo run says which version the app icons were drawn from. On a redraw
+  without her package the low-contrast question reads as if no one-colour version had
+  been given: the tool
+  does not keep it, and her recorded answer stands.
 - **A new logo:** run with `--input`. It asks before replacing icons it did not find as
   the scaffold's placeholders.
 - **`BRAND.md` and the stylesheet disagree:** `python3 "$KIT/scripts/brand_intake.py"

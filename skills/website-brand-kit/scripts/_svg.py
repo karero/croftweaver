@@ -8,8 +8,8 @@ reason in words the owner can act on. Harmless extras (a title, editor metadata)
 out and listed in `notes`.
 
 What is refused and why is in the plan (docs/reviews/SKILL-PLAN-website-brand-kit.md, "SVG
-safety"). The parser is expat, used directly: it reports a DOCTYPE before it expands
-anything, and every DOCTYPE is refused, so no entity is ever declared, let alone expanded.
+safety"). The parser is expat, used directly: it reports a DOCTYPE before it reads what the
+DOCTYPE defines, and every DOCTYPE is refused, so no entity is ever declared, let alone expanded.
 Nothing here recurses deeper than MAX_DEPTH. Standard library only (Python 3.9+).
 
 THE VALUE GRAMMAR. What this check reads is what is drawn: every value it keeps, and every value
@@ -54,6 +54,15 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                  number list of exactly that many numbers, `)`. Between two of them: blanks, one
                  comma, or nothing. It may be empty. Written into the cleaned file as
                  `name(a b c) name(d)`.
+                 None of them, nor all of them together, squashes what it is applied to flat,
+                 or all but flat: one program then draws nothing of a shape that another still
+                 draws (refused by name). Flat is a square squashed to less than a ten-thousandth
+                 as thick as it is long: for matrix(a b c d e f), a times d less b times c comes
+                 to less than a ten-thousandth of a, b, c and d each squared and added up. A
+                 scale and a skew are matrices too: scale(0), scale(1 .0001), and skewX and skewY
+                 from about 89.43 degrees to 90.57 (a tangent of 100 or more) and at every half
+                 turn on from there. And one of them alone leaves of an area no less than 1e-18
+                 of it (not scale(1e-10): a thousand million times smaller each way is the least).
   path data      d: the letters MmZzLlHhVvCcSsQqTtAa, digits, `+ - . ,`, e and E, and blanks;
                  200,000 characters at most. (Read by the renderer's own reader, as it was.)
   keyword        exactly one of the words the renderer and a browser both read:
@@ -61,7 +70,9 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                    stroke-linecap: butt round square      stroke-linejoin: miter round bevel
                    visibility: visible hidden collapse    display: inline block none
                    shape-rendering: auto optimizeSpeed crispEdges geometricPrecision
-                   clipPathUnits (on a clipPath): userSpaceOnUse objectBoundingBox
+                   clipPathUnits (on a clipPath): userSpaceOnUse, which is what it means left
+                   out as well. `objectBoundingBox` is refused by name: the clip is then measured
+                   by the box of the shape it clips, and programs work that out in different ways
                    paint-order: normal, or one to three of fill stroke markers, each once
                    (written with one blank between two of them)
   paint          fill, stroke, color: at most 64 of the characters a colour is written in
@@ -75,6 +86,12 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                  Refused by name, however it is set (an attribute, a style, a rule): a clip-path
                  other than `none` on a <clipPath>, on anything inside one, or on the outer <svg>;
                  and display, whatever it says, on a <clipPath> or on a <defs>.
+                 Nor do clip paths hold so much, for how often they are used, that a browser has
+                 far more work with the file than a logo gives it (a browser has no time limit,
+                 and the cleaned file is the site's favicon.svg): for each clip path, the numbers
+                 its shapes hold times the elements clipped by it, summed over the file, come to
+                 200,000 at most (_references). That keeps out the files that took a browser
+                 longest; it is no bound on a browser's time (see "nor how long", below).
   id             an ASCII letter, a digit or `_`, then letters, digits and `_ - . :`; 64 characters
                  at most. This is the id a clip-path names, the one id that is kept. (A style
                  rule names an id as CSS names anything: no digit first.) Every other id is left
@@ -112,7 +129,9 @@ fetch and run nothing; it is not held to the grammar and not read as a piece of 
 it says. (An event attribute and a link are refused by what they are, before that.)
 
 HOW FAR, AND HOW MANY DASHES. These rules are held once the box is known, on the values the
-cleaned file writes (_reach). They keep the picture one picture, and the renderer's work short.
+cleaned file writes (_reach). They keep the picture one picture, and keep out the two kinds of
+file that took the renderer longest when they were measured (they do not bound its time: see
+"nor how long a drawing takes to draw", below).
 
   how far        a number that places or sizes a shape is no further from zero than the box's own
                  farthest edge and a hundred times its larger side beyond it (in a box of 10 from
@@ -145,13 +164,27 @@ drawn, which need not be how a browser draws it. The icons step looks at what wa
 at the 32-pixel favicon and at one 256-pixel picture, not at every size, so a mark that came out
 blank at 512 pixels only would pass it.
 
-Nor how long a drawing takes to draw. The rules above bound DASHED outlines, and nothing else.
-Other drawings inside every cap are slow as well (measured 2026-10-13, one 512-pixel icon on a
-machine at load 10: 11 to 12 seconds for one outlined path of 40,000 to 50,000 short turns, 7 for
-one clip path of 2,000 numbers that 4,900 shapes are clipped by, 4 for 4,990 circles with wide
-outlines). For those the one bound is the time limit of the renderer's call
-(_render.RENDER_SECONDS, for all the icons of that call), and a file that passes it is refused
-there, with the sentence that says what to ask for.
+Nor how long a drawing takes to draw. The dash budget above bounds the NUMBER of dashes a file's
+outlines are cut into, and no more than that: how long the renderer takes also grows with how
+wide and how round each dash is (measured 2026-10-13 at load 90 to 460: a dashed polygon inside
+every cap, its outline 10 wide with round joins, took 7.3 seconds of processor time for one icon
+at 240 sides and was stopped after 60 at 500 sides, a file of 2,702 characters). Drawings with no
+dash in them are slow inside every cap as well (one 512-pixel icon at load 10: 11 to 12 seconds
+for one outlined path of 40,000 to 50,000 short turns, 4 for 4,990 circles with wide outlines).
+So for EVERY drawing, dashed or not, how long it takes is bounded by one thing: the time limit of
+the renderer's call (_render.RENDER_SECONDS, for all the icons of that call). A file that passes
+it is refused there, with the sentence that says what to ask for.
+
+A browser has no such limit, and nothing here bounds how long one takes over the cleaned file.
+The count of clip work (see `clip-path`) keeps out what took one longest: 11.9 seconds at 512
+pixels for 4,900 shapes clipped by one path of 400 turns (Chromium, load 10 to 13). Under that
+count a browser's time still grows with the number of clipped shapes alone, unless the clip path
+is one plain rect. Measured 2026-10-13 (Chromium, wall clock, load 13): 4,990 shapes clipped by
+one path of 19 turns, a count of 199,600, took 4.2 seconds at 512 pixels and 0.4 at 32, the size a
+favicon is drawn at; clipped by one circle, 1.6 and 0.1; by one rect, 0.2 and 0.1; and 249 shapes
+clipped by one path of 400 turns, 199,698, took 0.2. (On the same machine at load 110 to 135 the
+first of those took 5.0 to 7.3 seconds. The renderer's processor time for one 512-pixel icon of
+the four: 0.8 to 1.1 seconds, 0.3, 0.1 and 1.4.)
 """
 
 from __future__ import annotations
@@ -191,8 +224,10 @@ MIN_BOX, MAX_BOX = 1e-2, 1e6
 # it came had it: half a hundredth where the drawing is set in the middle of its room (the default), a whole one where
 # preserveAspectRatio pushes it to a side (xMinYMin, xMaxYMax, xMidYMax). Measured 2026-10-13 at the line itself (10
 # by 20.19 round 10 by 20), of the 262,144 pixels of a 512-pixel icon: 3,348 differ in the middle and up to 3,756 at a
-# side, all of them along the edges of the shapes, and none of a 32-pixel icon's. That is how far an edge moves, not
-# how much of a picture changes: of a mark of a hundred fine lines 98,240 to 113,226 pixels differ.
+# side, all of them along the edges of the shapes, and none of a 32-pixel icon's; no edge has moved by more than 4
+# pixels of the 512, or 2 in the middle (tests/test_render.py finds the edges and holds them to the hundredth). That
+# is how far an edge moves, not how much of a picture changes: of a mark of a hundred fine lines 98,240 to 113,226
+# pixels differ.
 ROOT_SLACK = 1e-2
 # the caps of the value grammar (see the top of this file)
 MAX_VALUE = 64                 # characters in one number, length, paint or id
@@ -207,6 +242,11 @@ MAX_TRANSFORMS = 16            # functions in `transform`
 MAX_PATH = 200_000             # characters of path data, and of `points`
 MAX_CLASS = 200                # characters of `class`
 MAX_URL = 80                   # characters of a url(#id), its brackets and blanks included
+# What squashes a shape flat (see `transform` at the top, and _flattens).
+MAX_SQUASH = 10000             # how many times as long as it is thick a transform may leave a square
+MIN_AREA = 1e-18               # the least one function of a transform leaves of an area: a thousand million times smaller each way
+# A browser's work on clip paths: for each one, the numbers its shapes hold times the elements clipped by it, summed.
+MAX_CLIP_WORK = 200000
 
 # --- elements --------------------------------------------------------------------------
 
@@ -300,7 +340,8 @@ NO_EFFECT = {
 # Each line of the grammar (see the top of this file) is one function: given the value with its
 # blanks taken off, it answers None when the value is in the grammar, and otherwise why not:
 # "bad" (not the form), "unit" (a number with a unit this line does not take), "below zero",
-# or ("long", what there is too much of). GRAMMAR says which line each name is held to.
+# ("long", what there is too much of), or ("flat", the function of a transform that squashes a
+# shape flat). GRAMMAR says which line each name is held to.
 
 _BLANKS = " \t\r\n"  # what XML and CSS call white space; Python's strip(), split() and \s also take a no-break space
 # ASCII digits only, and no part of a number can be read two ways: every pattern built from it
@@ -338,7 +379,10 @@ _KEYWORDS = {
     # clipped, where a browser clips as if the word were not there
     "display": {"inline", "block", "none"},
     "shape-rendering": {"auto", "optimizeSpeed", "crispEdges", "geometricPrecision"},
-    "clipPathUnits": {"userSpaceOnUse", "objectBoundingBox"},
+    # `objectBoundingBox` is refused by name before this line is asked (_read_attrs): measured 2026-10-13, with a
+    # transform on the clip path as well the site's renderer and a browser clip differently (4,000 against 5,000 of
+    # 10,000 pixels), and a straight line clipped so is drawn whole by the one and not at all by the other
+    "clipPathUnits": {"userSpaceOnUse"},
 }
 _PAINT_ORDER = {"fill", "stroke", "markers"}
 _FUNCTION = re.compile(r"(matrix|translate|scale|rotate|skewX|skewY)[ \t\r\n]*\(([^()]*)\)")
@@ -434,14 +478,54 @@ def _dashes(v):
     return _too_much(numbers, MAX_DASHES, "dashes") or ("below zero" if any(n.startswith("-") for n in numbers) else None)
 
 
+def _linear(name, numbers):
+    """What one function of a transform does to a shape's form: the a, b, c and d of its matrix (where it moves the
+    shape to changes nothing here)."""
+    n = [float(x) for x in numbers]
+    if name == "matrix":
+        return n[0], n[1], n[2], n[3]
+    if name == "scale":
+        return n[0], 0.0, 0.0, n[-1]
+    if name == "rotate":
+        turn = math.radians(n[0])
+        return math.cos(turn), math.sin(turn), -math.sin(turn), math.cos(turn)
+    if name == "skewX":
+        return 1.0, 0.0, math.tan(math.radians(n[0])), 1.0
+    if name == "skewY":
+        return 1.0, math.tan(math.radians(n[0])), 0.0, 1.0
+    return 1.0, 0.0, 0.0, 1.0
+
+
+def _flattens(matrix, least=0.0):
+    """Does a transform squash what it is applied to flat, or all but flat? Measured 2026-10-13, on one of two
+    shapes inside a clip path. scale(0), scale(1 0), a matrix whose a times d is its b times c: the site's renderer
+    draws nothing at all of what is clipped, a browser clips by the other shape. The same for a scale so small
+    that the renderer, which reads a number in single precision, takes it for 0 (scale(1e-46)); for small scales
+    that multiply to nothing (five of scale(1e-40)); and for sixteen steep skews, none of them flat, that multiply
+    to a matrix too lopsided to work with (skewX(89.4) skewY(89.4), eight times over). A skew near a quarter turn
+    the other way round: the renderer clips by the other shape and a browser draws less (skewX(89.999)) or nothing
+    (skewX(89.99999), skewX(90)); at 89.99 degrees, a tangent of 5,730, the two still agree.
+    So the line is not "exactly 0". It is how flat a square comes out, about as thin for its length as a times d
+    less b times c is for a, b, c and d squared and added up: no thinner than one to MAX_SQUASH (a skew's tangent
+    stays under 100). `least` is the smallest area that may be left, for one function alone: no sixteen such
+    multiply to nothing."""
+    a, b, c, d = matrix
+    area = abs(a * d - b * c)
+    return not (area >= least and area * MAX_SQUASH >= a * a + b * b + c * c + d * d)   # (`not`: a number too large to work with is turned down too)
+
+
 def _transform(v):
-    pos, count, why = 0, 0, None
+    pos, count, why, all_of_them = 0, 0, None, (1.0, 0.0, 0.0, 1.0)
     while pos < len(v):
         m = _FUNCTION.match(v, _BETWEEN.match(v, pos).end() if count else pos)
         numbers = _numbers(m.group(2).strip(_BLANKS)) if m else None
         if numbers is None or len(numbers) not in _TAKES[m.group(1)]:
             return "bad"
         why, pos, count = why or _too_much(numbers), m.end(), count + 1
+        if why is None and count <= MAX_TRANSFORMS:
+            (a, b, c, d), (e, f, g, h) = all_of_them, _linear(m.group(1), numbers)
+            all_of_them = (a * e + c * f, b * e + d * f, a * g + c * h, b * g + d * h)
+            why = ("flat", m.group()) if _flattens((e, f, g, h), MIN_AREA) else ("flat", v) if _flattens(all_of_them) else None
     return ("long", "more than %d transforms" % MAX_TRANSFORMS) if count > MAX_TRANSFORMS else why
 
 
@@ -567,6 +651,13 @@ def _validate(name, value, grammar=GRAMMAR):
         raise Refusal("length-unit", UNIT % (name, v[:40]))
     if why == "bad":
         raise _bad(name, value)
+    if why[0] == "flat":
+        raise Refusal(
+            "flat-transform",
+            "The file has a transform that squashes what it is applied to flat, or all but flat (%s). Programs do not "
+            "agree on what is left to draw then: one draws nothing of a shape that another still draws. Ask the tool "
+            "for the SVG without that part, or with its transforms applied to the shapes." % " ".join(why[1].split())[:40],
+        )
     raise _too_long(name, why[1])
 
 
@@ -587,6 +678,22 @@ class Node(object):
         self.parent = parent
 
 
+class Member(bytes):
+    """The bytes of one file of a package, which know the file's name: clean_svg says the name in
+    every refusal of such a file (a package may hand over two files, the mark and its one-colour
+    version, and a refusal that names neither leaves the owner to guess)."""
+
+    def __new__(cls, data, name):
+        self = super().__new__(cls, data)
+        self.name = name
+        return self
+
+
+def in_package(name, refusal):
+    """The same refusal, said of one file of a package by its name."""
+    return Refusal(refusal.code, "In the package, the file %r: %s" % (name[:80], refusal))
+
+
 class Clean(object):
     """The result: the cleaned text, the box, what was left out, and the tree for the next step."""
 
@@ -596,6 +703,25 @@ class Clean(object):
         self.notes = notes
         self.root = root
         self.colours = colours  # the colours the mark paints with, as hex, in the order first used
+
+
+# The two forms of a DOCTYPE, each with the way out that exists for it. A declaration can stand on a line of its
+# own, run over several lines, or share its line with the <svg that follows: what is deleted is the declaration, from
+# its `<!DOCTYPE` to its `>`, not "the line". One that defines names of its own (one common tool's "save as" writes
+# the addresses of its namespaces so, and the outer <svg> then uses them) cannot be deleted: without the
+# definitions the rest of the file is not readable (measured 2026-10-13).
+DOCTYPE = (
+    "The file has a DOCTYPE declaration. That is how a file asks for other files to be pulled in, so it is refused. "
+    "Open the file in a text editor and delete the declaration itself: everything from <!DOCTYPE to the > that "
+    "closes it, wherever the lines break, and nothing else (the drawing is the same without it). Or ask the tool "
+    "for an export without a DOCTYPE."
+)
+DOCTYPE_DEFINES = (
+    "The file has a DOCTYPE declaration that holds definitions of its own (the part in square brackets). That is "
+    "how a file asks for other files to be pulled in, so it is refused. This one cannot simply be deleted: the rest "
+    "of the file may use the names it defines, and is then not readable without them. Ask the tool for an export "
+    "without a DOCTYPE (a plain SVG, without the tool's own editing data)."
+)
 
 
 def _split(name):
@@ -619,13 +745,9 @@ def _parse(data):
     ids = {}   # every id in the file as it came, and how often it stands there: see _references
     state = {"depth": 0, "count": 0, "skip": 0, "skipped": "", "root": None, "stack": [], "style": 0, "ns": ""}
 
-    def start_doctype(*_a):
-        raise Refusal(
-            "doctype",
-            "The file has a DOCTYPE line. That is how a file asks for other files to be pulled in, so it is "
-            "refused. Open the file in a text editor and delete the line that starts <!DOCTYPE (it does not change "
-            "the drawing), or ask the tool for an export without it.",
-        )
+    def start_doctype(_name, _system, _public, defines):
+        # called before anything the declaration defines itself (the part in square brackets) is read
+        raise Refusal("doctype", DOCTYPE_DEFINES if defines else DOCTYPE)
 
     def pi(target, _data):
         if target.lower() == "xml-stylesheet":
@@ -800,6 +922,14 @@ def _read_attrs(node, attrs, notes, is_root):
                 "The outer <svg> element has a transform (%r). The cleaned file would lose it and the drawing would "
                 "shift or change size: ask the tool for the SVG without a transform on the outer svg element."
                 % value.strip()[:40],
+            )
+        elif local == "clipPathUnits" and value.strip(_BLANKS) == "objectBoundingBox":   # (on a <clipPath>: anywhere else it was left out above)
+            raise Refusal(
+                "clip-units",
+                "A clip path in the file is measured by the box of the shape it clips (clipPathUnits=\"objectBoundingBox\"). "
+                "Programs work that box out in different ways, so the mark would not be cut the same everywhere. Ask the tool "
+                "for the clip in the drawing's own units (clipPathUnits=\"userSpaceOnUse\"), or for the SVG with the clips "
+                "applied to the shapes.",
             )
         elif local in GEOMETRY or (is_root and local in ROOT_ONLY) or (local == "clipPathUnits" and node.tag == "clipPath"):
             node.attrs[local] = _validate(local, value, ROOT_GRAMMAR if is_root else GRAMMAR)
@@ -1035,9 +1165,11 @@ def _references(root, ids):
     that carries the name, whatever it is: a <title id="c"> before the <clipPath id="c"> made the
     file that came unclipped and the cleaned file clipped (measured 2026-10-13). So the name stands
     once in the whole file as it came (`ids`: on what is left out and on the outer svg too), and on a
-    clip path. Every other id is left out, unchecked: nothing in the cleaned file is named by it."""
+    clip path. Every other id is left out, unchecked: nothing in the cleaned file is named by it.
+
+    And the clip paths do not hold more, for how often they are used, than MAX_CLIP_WORK (below)."""
     clips = set(n.id for n in _walk(root) if n.tag == "clipPath" and n.id is not None)
-    used = set()
+    used = {}   # each clip path that is used, and how many elements are clipped by it
     for n in _walk(root):
         value = n.props.get("clip-path", "none")
         if value == "none":
@@ -1056,10 +1188,35 @@ def _references(root, ids):
                 "A shape in the file is clipped by something that is not a clip path, or is not in the file at all "
                 "(clip-path=%r). Programs draw that in different ways. Ask the tool for a plainer export." % value[:40],
             )
-        used.add(name)
+        used[name] = used.get(name, 0) + 1
+    # A browser's work grows with (the elements clipped by a clip path) times (what the clip path holds), and a
+    # browser has no time limit: the cleaned file is installed as favicon.svg. Measured 2026-10-13 in Chromium at 512
+    # pixels (load 10 to 13): 11.9 seconds for 4,900 shapes clipped by one path of 400 turns, a file inside every
+    # other cap. So that product is counted, by the numbers the clip path's shapes hold, and capped. What the cap
+    # leaves is said at the top of this file ("nor how long a drawing takes to draw"): a browser's time for many
+    # shapes clipped by a small path, which this product does not see.
+    work = sum(used[n.id] * _clip_numbers(n) for n in _walk(root) if n.tag == "clipPath" and n.id in used)
+    if work > MAX_CLIP_WORK:
+        raise Refusal(
+            "clip-work",
+            "The file uses its clip paths so often, and they hold so much, that drawing it is far more work for a browser "
+            "than a logo is (the numbers in each clip path times the shapes clipped by it come to %s; this check takes up "
+            "to %s). Ask the tool for the SVG with the clips applied to the shapes." % ("{:,}".format(work), "{:,}".format(MAX_CLIP_WORK)),
+        )
     for n in _walk(root):
         if n.tag != "clipPath" or n.id not in used:
             n.id = None
+
+
+def _clip_numbers(clip):
+    """How many numbers the shapes inside a clip path hold: those of path data and of `points`, and one for each
+    other attribute that places or sizes a shape. What a clip path costs a program to clip by, near enough."""
+    count = 0
+    for n in _walk(clip):
+        if n.tag in DRAWING:
+            for name, value in n.attrs.items():
+                count += len(_path_numbers(value)) if name == "d" else len(value.split()) if name == "points" else name != "transform"
+    return count
 
 
 def _path_numbers(d):
@@ -1127,12 +1284,15 @@ def _reach(root, box):
     renderer's time as much as about the picture. Measured 2026-10-13, in a box of 10 and with
     dashes of 0.01: a path of 3,652 characters that went a hundred boxes out and back 500 times
     took the site's renderer 33 seconds of processor time for one icon, and one of 25,152
-    characters that crossed its own box 10,000 times took 10. With these rules the slowest DASHED
-    drawing found takes 0.8 seconds on a quiet machine and 2.2 on one at load 10.
+    characters that crossed its own box 10,000 times took 10. Both are refused now.
 
-    That is all these rules bound. A drawing with no dash in it can take longer inside every cap
-    (see "nor how long a drawing takes to draw" at the top of this file: 11 to 12 seconds an icon
-    was measured): for it the bound is the renderer's time limit, _render.RENDER_SECONDS."""
+    What the budget bounds is the NUMBER of dashes, and that is all it bounds. It does not bound
+    how long a drawing takes: the renderer's time also grows with how wide and how round each dash
+    is (inside every cap, a dashed polygon with an outline 10 wide and round joins was stopped
+    after 60 seconds), and a drawing with no dash in it can be slow as well. How long a drawing
+    takes is bounded for every drawing, dashed or not, by the time limit of the renderer's call
+    (_render.RENDER_SECONDS), and a file that passes it is refused there: see "nor how long a
+    drawing takes to draw" at the top of this file."""
     side = max(box[2], box[3])
     far = MAX_FAR * side + max(abs(box[0]), abs(box[1]), abs(box[0] + box[2]), abs(box[1] + box[3]))
 
@@ -1264,10 +1424,15 @@ def clean_svg(data, source="svg", current=None):
 
     `data` is an .svg file or pasted SVG code, and `source` says so: "svg" is the one value there
     is (a drawing is no longer taken out of a web page). `current` is what `currentColor` means,
-    if the caller says."""
-    if source != "svg":
-        raise Refusal("web-page", WEB_PAGE)
-    if len(data) > MAX_BYTES:
-        raise Refusal("too-large", "The file is larger than %d KB, far more than a logo needs." % (MAX_BYTES // 1024))
-    root, notes, ids = _parse(data)
-    return _finish(root, notes, ids, current)
+    if the caller says. Where `data` is a file of a package (a Member), a refusal names the file."""
+    try:
+        if source != "svg":
+            raise Refusal("web-page", WEB_PAGE)
+        if len(data) > MAX_BYTES:
+            raise Refusal("too-large", "The file is larger than %d KB, far more than a logo needs." % (MAX_BYTES // 1024))
+        root, notes, ids = _parse(data)
+        return _finish(root, notes, ids, current)
+    except Refusal as r:
+        if not isinstance(data, Member):
+            raise
+        raise in_package(data.name, r) from None
