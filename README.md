@@ -257,10 +257,10 @@ stamps, `whats-new`) — a release just names a milestone. Versions step by **0.
 # ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip
 git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
-# The plugin is installed from the branch `stable`: move it to the release, or plugin
-# users stay on the one before. The release-tag workflow checks both pushes against the
-# version; a red run means the number was not raised.
-git push origin 'v0.11^{commit}:refs/heads/stable'
+# The plugin is installed from the branch `stable`. The release-tag workflow, started by
+# the tag, checks the version against it and moves `stable` to the release. If that run
+# is red, plugin users are still on the release before: put right what it names, then
+# move the branch yourself:  git push origin 'v0.11^{commit}:refs/heads/stable'
 gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \
   --generate-notes                # or write the notes by hand
 ```
@@ -372,7 +372,7 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 .claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
-                   from the branch `stable`, which each release moves to its tag (make test-plugin)
+                   from the branch `stable`, which the release-tag workflow moves to each release (make test-plugin)
 packages/      (repo only: the zip does not hold it)
   create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
                    into the assistant's skills folder. The maintainer publishes it to npm (make test-create)

@@ -317,9 +317,11 @@ Decided by the owner on 2026-10-12:
   the skill's own folder in a SKILL.md, with one sentence for other assistants.
 - **Releases only.** The marketplace entry installs from the branch `stable`, and
   `plugin.json` carries the release's number. A release raises the number in its pull
-  request and, once its tag is pushed, moves `stable` to the tag
-  (`README.md`, "Releases & versioning"). The first version of this named the tag itself
-  in the entry; main would then have named, at every release, a tag that did not exist yet.
+  request; when its tag is pushed, the `release-tag` workflow checks the number against the
+  tag and moves `stable` to it (`README.md`, "Releases & versioning"). The first version
+  of this named the tag itself in the entry; main would then have named, at every release,
+  a tag that did not exist yet. The second left the move of `stable` to a command in the
+  release steps, which a release could forget with nothing to notice.
 - **Own marketplace first.** The two files in `.claude-plugin/` make this repo its own
   marketplace. Anthropic's directory, which is what would put it one click away in the
   app, can follow.
@@ -355,10 +357,12 @@ Known limits:
 - Nothing can be installed from GitHub before release 0.32 creates the branch `stable`.
   The owner chose to merge this change with that release, so the README is not ahead of it.
 - A release that forgets to raise the number passes every check on its pull request. The
-  `release-tag` workflow compares the number with the pushed tag, and with the tag `stable`
-  is moved to, after the fact: a red run is the notice.
-- A release that forgets to move `stable` leaves plugin users on the release before, and
-  nothing notices.
+  `release-tag` workflow then fails on the pushed tag and does not move `stable`: plugin
+  users stay on the release before until the number is raised and the branch moved by
+  hand. A red run on the tag is the only notice.
+- The workflow has not run yet: it starts on a tag pushed after it is on main, so release
+  0.32 is its first run. Its two shell steps are run by tests against a throwaway
+  repository; that GitHub starts it, and lets it push, is not.
 - A copy of `website-permissions` inside a site has no `new-website` beside it. Its
   commands then take the two files from an installed suite: the folder `SKILLS_ROOT`
   names, `~/.claude/skills`, or the plugin's folder under Claude Code's configuration

@@ -45,7 +45,7 @@ name: clean
 # macOS and Windows. The installer needs nothing beyond node; its tests also need git, and
 # zip and tar where the runner has them. And the tests of the Claude Code plugin
 # (`make test-plugin`), which need node, git and bash; release-tag.yml runs them again
-# when a release tag is pushed or the branch `stable` moves, with the tag to compare.
+# when a release tag is pushed, with the tag to compare, before it moves the branch `stable`.
 on:
   push:
     branches: [main]

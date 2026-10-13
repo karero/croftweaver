@@ -257,3 +257,100 @@ test('with no suite to copy from it fails, and writes neither file', () => {
   assert.notEqual(copied.status, 0);
   assert.deepEqual([copied.settings, copied.hook], [null, null]);
 });
+
+// The release-tag workflow's two shell steps, taken from the workflow file itself: the lines
+// under `run: |` of the step with that name.
+function workflowStep(name) {
+  const lines = read('.github', 'workflows', 'release-tag.yml').split('\n');
+  const at = lines.findIndex((line) => line.trim() === `- name: ${name}`);
+  assert.ok(at >= 0, `no step named ${JSON.stringify(name)} in release-tag.yml`);
+  const run = lines.findIndex((line, i) => i > at && line.trim() === 'run: |');
+  const next = lines.findIndex((line, i) => i > at && line.trimStart().startsWith('- '));
+  assert.ok(run > at && (next < 0 || run < next), `the step ${JSON.stringify(name)} has no run block`);
+  const body = [];
+  for (const line of lines.slice(run + 1)) {
+    if (line.trim() !== '' && !line.startsWith('          ')) break;
+    body.push(line.slice(10));
+  }
+  return body.join('\n');
+}
+
+// A throwaway repository with a bare `origin`, as the workflow's checkout would have it.
+function releaseRepo() {
+  const dir = tmp();
+  const origin = path.join(dir, 'origin.git');
+  const work = path.join(dir, 'work');
+  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null',
+    GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com' };
+  const git = (...args) => execFileSync('git', args, { cwd: work, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  fs.mkdirSync(work);
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin], { env });
+  git('init', '-q', '-b', 'main');
+  git('remote', 'add', 'origin', origin);
+  const commit = (message) => { git('commit', '-q', '--allow-empty', '-m', message); return git('rev-parse', 'HEAD'); };
+  const stable = () => execFileSync('git', ['--git-dir', origin, 'rev-parse', '-q', '--verify', 'refs/heads/stable'], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  const step = (name, vars) => {
+    const out = path.join(dir, `output-${Math.random().toString(36).slice(2)}`);
+    fs.writeFileSync(out, '');
+    const run = spawnSync('bash', ['-c', `set -e\n${workflowStep(name)}`], { cwd: work, env: { ...env, GITHUB_OUTPUT: out, ...vars }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return { status: run.status, log: run.stdout + run.stderr, output: fs.readFileSync(out, 'utf8') };
+  };
+  return { git, commit, stable, step };
+}
+
+test('the workflow takes only a release\'s tag for a release', () => {
+  const { commit, git, step } = releaseRepo();
+  commit('release 0.32');
+  git('tag', 'v0.32');
+  const find = (vars) => step('Find the release this run is about', vars);
+
+  assert.deepEqual([find({ PUSHED: 'tag', NAME: 'v0.32' }).status, find({ PUSHED: 'tag', NAME: 'v0.32' }).output], [0, 'tag=v0.32\n']);
+  assert.equal(find({ PUSHED: 'tag', NAME: 'v10.2' }).output, 'tag=v10.2\n');
+  // Not releases: the run ends well and does nothing, as the later steps ask for a tag.
+  for (const name of ['v0.33-rc1', 'v1', 'v0.3.1', 'vnext', 'v0.32a']) {
+    const found = find({ PUSHED: 'tag', NAME: name });
+    assert.deepEqual([found.status, found.output], [0, 'tag=\n'], name);
+    assert.match(found.log, /::notice::/);
+  }
+  // `stable` moved by hand: the commit has to be a release's.
+  assert.equal(find({ PUSHED: 'branch', NAME: 'stable' }).output, 'tag=v0.32\n');
+  commit('not a release');
+  const untagged = find({ PUSHED: 'branch', NAME: 'stable' });
+  assert.equal(untagged.status, 1);
+  assert.match(untagged.log, /::error::stable was moved to a commit that carries no release tag/);
+});
+
+test('the workflow moves stable to a release that is on main, forward only', () => {
+  const { commit, git, stable, step } = releaseRepo();
+  const move = (name) => step('Move stable to the release', { NAME: name });
+  const first = commit('release 0.32');
+  git('tag', 'v0.32');
+  git('push', '-q', 'origin', 'main', 'v0.32');
+
+  // The first release creates the branch.
+  git('checkout', '-q', 'v0.32');
+  assert.equal(move('v0.32').status, 0);
+  assert.equal(stable(), first);
+
+  git('checkout', '-q', 'main');
+  const second = commit('release 0.33');
+  git('tag', 'v0.33');
+  git('push', '-q', 'origin', 'main', 'v0.33');
+  git('checkout', '-q', 'v0.33');
+  assert.equal(move('v0.33').status, 0);
+  assert.equal(stable(), second);
+
+  // A tag on a commit that never reached main does not move it.
+  git('checkout', '-q', '-b', 'side', 'v0.32');
+  commit('a release cut from a side branch');
+  git('tag', 'v0.34');
+  const side = move('v0.34');
+  assert.equal(side.status, 1);
+  assert.match(side.log, /::error::v0\.34 is not on main: stable stays where it is/);
+  assert.equal(stable(), second);
+
+  // An older release pushed again does not move it back.
+  git('checkout', '-q', 'v0.32');
+  assert.notEqual(move('v0.32').status, 0);
+  assert.equal(stable(), second);
+});
