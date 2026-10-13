@@ -585,16 +585,23 @@ def parse_sitemap(body: bytes) -> Tuple[str, List[str], str]:
         # whose document type has no system identifier, which XML does not allow. No look at
         # the bytes is made to tell it apart: every such look so far read some file otherwise
         # than the parser does. At a guessed address that page is reported as a gap, by name.
-        return "", [], "is not valid XML (cut off, damaged or in an unknown encoding)"
+        return "", [], "is not valid XML (cut off, damaged, in an unknown encoding, or a web page of a kind the XML parser cannot name)"
     return seen["root"] or "", locs, ""
 
 
-def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent: List[str]) -> List[dict]:
+def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent: List[str],
+                  only_tried: bool = False) -> List[dict]:
     """Every sitemap file reachable from `starts`. `broken` collects each file that could not be
     read; `absent` collects each start address that holds no sitemap at all (not found, or
-    something else lives there). A file an index names is never merely absent."""
+    something else lives there). A file an index names is never merely absent. With
+    `only_tried`, the start addresses are guesses, and each note about one says so: the reader
+    of the report must be able to tell a guess that failed from a sitemap the site names."""
     queue, seen, files = list(starts), set(), []
     first = set(starts)
+
+    def named(sm: str) -> str:
+        return "sitemap %s%s" % (sm, " (a usual address, only tried)" if only_tried and sm in first else "")
+
     while queue and len(seen) < MAX_SITEMAP_FILES:
         sm = queue.pop(0)
         if sm in seen:
@@ -603,7 +610,7 @@ def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent
         resp = fetcher.get(sm, SITEMAP_MAX_BYTES)
         problem = resp.problem()
         if problem:
-            (absent if sm in first and resp.status in (404, 410) and not resp.note else broken).append("sitemap %s: %s" % (sm, problem))
+            (absent if sm in first and resp.status in (404, 410) and not resp.note else broken).append("%s: %s" % (named(sm), problem))
             continue
         body = resp.body
         if body[:2] == b"\x1f\x8b":
@@ -611,19 +618,20 @@ def read_sitemaps(fetcher: Fetcher, starts: List[str], broken: List[str], absent
                 with gzip.GzipFile(fileobj=io.BytesIO(body)) as gz:
                     body = gz.read(SITEMAP_MAX_BYTES + 1)
             except (OSError, EOFError):
-                broken.append("sitemap %s: cannot be unpacked" % sm)
+                broken.append("%s: cannot be unpacked" % named(sm))
                 continue
             if len(body) > SITEMAP_MAX_BYTES:
-                broken.append("sitemap %s: unpacks to more than the limit of %d MB; not read" % (sm, SITEMAP_MAX_BYTES // (1024 * 1024)))
+                broken.append("%s: unpacks to more than the limit of %d MB; not read" % (named(sm), SITEMAP_MAX_BYTES // (1024 * 1024)))
                 continue
         # A web page or another kind of document at a start address means no sitemap lives
         # there. Anywhere else, and for anything that could not be read whole, it is a gap.
         kind, locs, why = parse_sitemap(body)
         if why or kind not in ("urlset", "sitemapindex"):
+            sent_as = (resp.ctype or "").split(";")[0].strip() or "no content type"
             if not why and sm in first:
-                absent.append("sitemap %s: %s, not a sitemap" % (sm, "a web page" if kind == "page" else "another kind of document"))
+                absent.append("%s: %s, not a sitemap" % (named(sm), "a web page" if kind == "page" else "another kind of document"))
             else:
-                broken.append("sitemap %s: %s; not read" % (sm, why or "not a sitemap"))
+                broken.append("%s: %s; sent as %s; not read" % (named(sm), why or "a web page or another kind of document, not a sitemap", sent_as))
             continue
         if kind == "sitemapindex":
             queue.extend(urllib.parse.urljoin(sm, x) for x in locs)
@@ -733,7 +741,7 @@ def inventory(start: str, delay: float, timeout: float, max_requests: int, user_
     if not files:
         for guess in ("sitemap_index.xml", "wp-sitemap.xml", "sitemap.xml"):
             broken, absent = [], []
-            files = read_sitemaps(fetcher, [urllib.parse.urljoin(base, guess)], broken, absent)
+            files = read_sitemaps(fetcher, [urllib.parse.urljoin(base, guess)], broken, absent, only_tried=True)
             gaps.extend(broken)  # refused, busy or damaged is a gap; "not found" at a guessed address is not
             if files:
                 break

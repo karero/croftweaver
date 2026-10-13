@@ -394,7 +394,28 @@ class SitemapReading(unittest.TestCase):
         with serve(site):
             code, data, _, report, _ = run(site.base())
         self.assertEqual((code, data["complete"]), (1, False))
-        self.assertIn("/sitemap_index.xml: is not valid XML", report)
+        # the note says what the run knows: the address was a guess, what came back, and that it may be a page
+        self.assertIn("/sitemap_index.xml (a usual address, only tried): is not valid XML", report)
+        self.assertIn("a web page of a kind the XML parser cannot name); sent as text/html; not read", report)
+
+    def test_a_sitemap_the_site_names_is_a_real_gap_whatever_answers_there(self):
+        # robots.txt or an index says a sitemap is there; a web page in its place means addresses are missing
+        page = "<!DOCTYPE html><html><body><p>Error<br></body></html>"
+        site = Site()
+        with serve(site):
+            site.robots += "Sitemap: %s/sitemap_index.xml\n" % site.base()
+            site.extra["/post-sitemap.xml"] = (200, "text/html", page)      # a file the index names
+            code, data, _, report, _ = run(site.base())
+        self.assertEqual((code, data["complete"], data["sitemap"]["urls"]), (1, False, 2))
+        self.assertIn("/post-sitemap.xml: a web page or another kind of document, not a sitemap; sent as text/html; not read", report)
+        site = Site()
+        with serve(site):
+            site.robots += "Sitemap: %s/sitemap_index.xml\n" % site.base()
+            site.extra["/sitemap_index.xml"] = (200, "text/html", page)    # the file robots.txt names
+            code, data, _, report, _ = run(site.base())
+        self.assertEqual((code, data["complete"]), (1, False))
+        self.assertIn("/sitemap_index.xml: a web page, not a sitemap", report)
+        self.assertNotIn("only tried", report)
 
     def test_a_cut_off_sitemap_is_a_gap_wherever_its_first_element_sits(self):
         # the invariant: a sitemap is read whole or it is a gap, never a quietly missing one
@@ -450,7 +471,7 @@ class SitemapReading(unittest.TestCase):
         # letters the parser cannot read as XML at all (EBCDIC after an ASCII declaration, UTF-32)
         for body in (b"<?xml version='1.0' encoding='cp500'?>" + (bomb % ("", "")).split("?>", 1)[1].encode("cp500"),
                      (bomb % ("", "")).encode("utf-32")):
-            self.assertEqual(wi.parse_sitemap(body), ("", [], "is not valid XML (cut off, damaged or in an unknown encoding)"))
+            self.assertEqual(wi.parse_sitemap(body), ("", [], "is not valid XML (cut off, damaged, in an unknown encoding, or a web page of a kind the XML parser cannot name)"))
 
     def test_the_words_of_a_comment_are_not_a_document_type(self):
         ok = ("%s<?xml version='1.0' encoding='UTF-8'?>\n<!-- made by a plugin; no <!DOCTYPE here -->\n<?xml-stylesheet href='a.xsl'?>\n"
@@ -474,15 +495,19 @@ class SitemapReading(unittest.TestCase):
         self.assertEqual(wi.parse_sitemap(doc.encode()), ("urlset", ["http://x.test/a?b=1&c=2"], ""))
         self.assertEqual(wi.parse_sitemap(b"<sitemapindex><sitemap><loc>/s1.xml</loc></sitemap></sitemapindex>"), ("sitemapindex", ["/s1.xml"], ""))
         for page in (b"<!DOCTYPE html><html><p>x<br></html>",
+                     b"\xef\xbb\xbf<!DOCTYPE html><html><p>x<br></html>",
                      b"<!-- served by a cache -->\n" + b" " * 3000 + b"<!DOCTYPE html><html><p>x<br></html>",
                      b"<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html><p>x<br></html>"):
             self.assertEqual(wi.parse_sitemap(page), ("page", [], ""))
         # a document type that only looks like a page's, in front of a cut-off sitemap, is refused or unreadable, never a page
-        damaged = "is not valid XML (cut off, damaged or in an unknown encoding)"
+        damaged = "is not valid XML (cut off, damaged, in an unknown encoding, or a web page of a kind the XML parser cannot name)"
         refused = "declares a document type, which a sitemap does not need"
         cut = b"<urlset><url><lo"
         self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE htmlx [<!ENTITY a 'b'>]>" + cut), ("", [], refused))
         self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html-foo SYSTEM 'x'>" + cut), ("", [], refused))
+        # A file that declares itself an HTML page is one, whatever follows: the reader stops there
+        # and reads no further. No sitemap begins that way, so no cut-off sitemap is lost by it.
+        self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE html>" + cut), ("page", [], ""))
         for name in (b"html-foo", b"html:foo", b"html.foo", b"html"):
             # PUBLIC with no system identifier: XML cannot read it, so the reader names nothing
             self.assertEqual(wi.parse_sitemap(b"<!DOCTYPE " + name + b" PUBLIC 'x'>" + cut), ("", [], damaged))

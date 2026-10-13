@@ -52,10 +52,14 @@ Keep that folder out of any public repository: it lists another party's addresse
 ## Read the result with the owner
 
 1. **Is the count complete?** The report's first lines say so. If not, it names each gap.
-   Clear the gaps before you estimate. A gap that names a sitemap address: open that address
-   in a browser. If it shows an ordinary web page, the site keeps no sitemap there and that
-   gap is settled. Exit code 0 means complete, 1 incomplete, 2 the run
-   could not start.
+   Clear the gaps before you estimate. Exit code 0 means complete, 1 incomplete, 2 the run
+   could not start. Two kinds of gap name a sitemap address:
+   - marked "a usual address, only tried": the script guessed it, because robots.txt names
+     no sitemap. Open the address in a browser. If it shows an ordinary web page, the site
+     keeps no sitemap there and this gap is settled.
+   - not marked so: robots.txt or a sitemap index names that file, so the site says a
+     sitemap is there and the count lacks its addresses. A web page in its place is an
+     error on the site. Have it repaired, or count those pages another way.
 2. **Content types.** The count covers the types the site's REST API lists, apart from
    WordPress's own internal ones (menus, templates, patterns, styles, fonts); media is one
    number. Posts and pages are WordPress's own. Any other type comes from a plugin (events,
