@@ -12,10 +12,10 @@ keep improving SEO and GEO (how your site shows up in AI answers), week by week.
 
 **Already have a website?** Part of Croftweaver works on a site that is already live, on any
 stack, without a rebuild: the checks and measurements. They are Search Console insights, the
-weekly AI check, the SEO audit, the positioning check, and the facts check. The ready-made
-test suite and the two link audits need the Croftweaver starter, the facts check does not
-run a page's JavaScript, and there is no automatic import of an existing site yet. See
-[Croftweaver for established sites](https://croftweaver.com/established-sites).
+weekly AI check, the SEO audit, the positioning check, and the facts check. Three limits:
+the ready-made test suite and the two link audits need the Croftweaver starter, the facts
+check does not run a page's JavaScript, and there is no automatic import of an existing site
+yet. See [Croftweaver for established sites](https://croftweaver.com/established-sites).
 
 **Who maintains it.** Croftweaver is maintained by Daniel Melter (Munich). It grew out of
 GenAI Wednesday Munich. The [LICENSE](LICENSE) file names the same person as copyright
