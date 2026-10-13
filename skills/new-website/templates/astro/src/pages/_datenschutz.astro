@@ -144,7 +144,10 @@ import { SITE } from '../config';
       zusammen mit einem Wert, der alle 24 Stunden ersetzt wird, eine Kennung.
       Solange dieser Wert gilt und diese Angaben gleich bleiben, erkennt das
       Werkzeug daher denselben Browser wieder und zählt ihn als einen
-      Besucher. Ist der Wert ersetzt, erkennt es diesen Browser nicht mehr wieder; nur ein Besuch, der in diesem Moment noch offen ist, wird als derselbe Besuch fortgeführt. Auf einer anderen Website erkennt es ihn ebenfalls nicht. Die
+      Besucher. Ist der Wert ersetzt, erkennt es diesen Browser nicht mehr
+      wieder; nur ein Besuch, der in diesem Moment noch läuft (mit Aktivität
+      in den letzten 30 Minuten), wird als derselbe Besuch fortgeführt. Auch
+      auf einer anderen Website erkennt es diesen Browser nicht. Die
       einzelnen Ereignisse (zum Beispiel jeder Seitenaufruf sowie
       Scrolltiefe und aktive Zeit, die beim Verlassen einer Seite oder beim
       Wechsel zu etwas anderem gesendet werden) und die Sitzungsdatensätze

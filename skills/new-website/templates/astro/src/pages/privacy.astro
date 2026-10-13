@@ -12,7 +12,11 @@
 //      file downloads and form submissions (keep a sentence only if that
 //      measurement is ticked in Plausible's installer, which ticks all three by
 //      default; the page then describes what the instance does); and the
-//      storage period.
+//      storage period. The clause "only a visit that is still going ... continues as the
+//      same visit" describes Plausible's own session lookup (self-hosted Community
+//      Edition, checked for v3.2.1: lib/plausible/session/cache_store.ex, find_session).
+//      With Plausible Cloud keep it only if Plausible confirms the same; with another
+//      analytics tool delete it together with the paragraph.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
@@ -122,7 +126,10 @@ import { SITE } from '../config';
       plus a value that is replaced every 24 hours, it forms an identifier.
       While that value lasts, and as long as those inputs stay the same, the
       tool therefore recognises the same browser and counts it as one
-      visitor. Once the value is replaced, it can no longer recognise that browser; only a visit that is still open at that moment continues as the same visit. It cannot recognise it on another website. The individual
+      visitor. Once the value is replaced, it can no longer recognise that
+      browser; only a visit that is still going at that moment (one with
+      activity in the last 30 minutes) continues as the same visit. Nor can
+      the tool recognise that browser on another website. The individual
       events (for example each page view, and the scroll depth and engaged
       time sent when you leave a page or switch away from it) and the
       session records are stored with this identifier, the page address, the
