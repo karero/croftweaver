@@ -305,7 +305,8 @@ skills/            the suite skills (canonical)
                    copied to every site, never runs unasked)
   website-tagline  (optional line under the logo — starts from the purpose, shows
                    the owner six to eight lines, the owner picks one: TAGLINE.md +
-                   SITE.tagline; copied to every site, never runs unasked)
+                   SITE.tagline, and an opt-in tagline.spec.ts for a site that shows
+                   the line; the skill is copied to every site, never runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
@@ -446,9 +447,11 @@ that has the list, a listed name in a file the script scans stops the build, unl
 file is gitignored or the match is this repo's own `karero/croftweaver` reference (or its former
 name, `karero/website-builder`). The name check also covers `scripts/`,
 since those files ship in the zip; the generic catches leave `scripts/` out, because its
-files define their patterns. The name check skips only `LICENSE`, which carries the
-owner's name. A genuine false positive is fixed by tightening a pattern in the script —
-never by loosening it. The same `make check` (and the same CI workflow) also keeps
+files define their patterns. In the repo both also cover `packages/`, which the zip does
+not hold. The name check skips only `LICENSE`, which carries the owner's name, and the
+installer's copy of it (`packages/create-croftweaver/LICENSE`) while that copy is the same
+file byte for byte. A genuine false positive is fixed by tightening a pattern in the
+script — never by loosening it. The same `make check` (and the same CI workflow) also keeps
 `independent-review` free of the model names and tags the pattern in
 `scripts/check_model_agnostic.sh` knows, outside its setup guide and its list of the models
 the Melious seat may run, and holds every skill to its size budgets
