@@ -1,0 +1,79 @@
+name: release-tag
+# Runs when a release tag is pushed, and when the branch `stable` is moved by hand.
+#
+# The Claude Code plugin is installed from `stable`, and plugin.json's version is what tells
+# Claude Code that there is an update. Nothing on a pull request can tell that a release
+# forgot to raise that number, and nothing at all would notice a release whose tag was
+# pushed while `stable` stayed where it was: plugin users would stay on the release before.
+# So, on a release tag (v0.32), this compares the number with the tag and then moves
+# `stable` to the tag itself, if the tag is on main and `stable` can move forward to it.
+# A red run means the release has not reached plugin users: put right what the failed step
+# names, then push `stable` by hand (README.md, "Releases & versioning").
+#
+# A push made by a workflow starts no other workflow, so the run on `stable` only happens
+# when a person moved the branch. It then checks that the commit is a release and carries
+# its number.
+on:
+  push:
+    tags: ['v*']
+    branches: [stable]
+
+jobs:
+  plugin-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # the last step pushes the branch `stable`; nothing else is written
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # all of main: the pushed commit is compared with it
+          fetch-tags: true # asked for by name: a run on stable looks for the tag on its commit
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Find the release this run is about
+        id: release
+        env:
+          PUSHED: ${{ github.ref_type }}
+          NAME: ${{ github.ref_name }}
+        run: |
+          # Only a release's tag (v0.32) is a release. Any other tag that starts with v, a
+          # trial one say, is not this workflow's business, on a commit of `stable` either.
+          is_release() {
+            case "$1" in
+              v[0-9]*.[0-9]*) case "${1#v}" in *[!0-9.]*|*.*.*) return 1 ;; esac ;;
+              *) return 1 ;;
+            esac
+          }
+          tag=""
+          if [ "$PUSHED" = tag ]; then
+            if is_release "$NAME"; then tag="$NAME"; else echo "::notice::$NAME is not a release tag like v0.32: nothing to do"; fi
+          else
+            found=0
+            for t in $(git tag --points-at HEAD --list 'v*'); do
+              if is_release "$t"; then tag="$t"; found=$((found + 1)); fi
+            done
+            case "$found" in
+              0) echo "::error::stable was moved to a commit that carries no release tag"; exit 1 ;;
+              1) ;;
+              *) echo "::error::the commit stable points at carries more than one release tag"; exit 1 ;;
+            esac
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Check that the plugin carries this release's number
+        if: steps.release.outputs.tag != ''
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: make test-plugin
+      - name: Move stable to the release
+        if: github.ref_type == 'tag' && steps.release.outputs.tag != ''
+        env:
+          NAME: ${{ github.ref_name }}
+        run: |
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            echo "::error::$NAME is not on main: stable stays where it is"
+            exit 1
+          fi
+          # No force: a tag older than the release stable is on is refused by the push.
+          git push origin HEAD:refs/heads/stable

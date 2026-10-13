@@ -139,7 +139,38 @@ from it.
 ### Quick start — build your first site
 
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
-Console/API account). Then, **three steps**:
+Console/API account).
+
+**The short way.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
+skills. It runs in any terminal, on Windows too:
+
+```bash
+npm create croftweaver
+```
+
+It copies the skills of the latest release into `~/.claude/skills/` and tells you the next
+step, which is step 3 below. To update, run it again. For Codex add `-- --codex`, for
+Antigravity `-- --antigravity`.
+
+**As a Claude Code plugin**, from release 0.32 on. Claude Code installs the suite itself:
+no Node, no script, no folder to keep.
+
+```bash
+claude plugin marketplace add https://github.com/karero/croftweaver.git
+claude plugin install croftweaver@croftweaver
+```
+
+(The address is written out in full so that nothing needs a GitHub key.)
+
+Then go to step 3. As a plugin the skills carry its name in front
+(`/croftweaver:new-website`). You stay on the release you installed until you run
+`claude plugin update croftweaver@croftweaver`, or turn on auto-update for the marketplace
+under `/plugin`; what lands on main between releases does not reach you. Use one route:
+with the plugin and a copy in `~/.claude/skills/` (from `npm create croftweaver` or
+`install.sh`), every skill is listed twice. The same holds in a site built with the suite,
+for the skills the site carries.
+
+**By hand**, in three steps:
 
 ```bash
 # 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo.
@@ -176,7 +207,11 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `~/.claude/skills/` directly, those are symlinks into the repo). If you cloned,
 > `git pull` therefore updates every installed skill at once — nothing to re-install;
 > to undo an update, `git revert` is equally live. From a zip, re-run
-> `./scripts/install.sh` in a newer unzipped copy.
+> `./scripts/install.sh` in a newer unzipped copy. After `npm create croftweaver` the
+> installed skills are copies, not symlinks: run the command again, and it replaces them
+> with the latest release. A site scaffolded from those copies is stamped
+> `suite_commit: unknown`, as one scaffolded from a zip is, so `make whats-new` has no
+> baseline for it.
 >
 > Sites already scaffolded by `new-website` hold frozen **copies** of the skills and
 > don't update with the suite. Each carries a `SUITE-VERSION` stamp recording the suite
@@ -206,7 +241,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
 > never marked MISSING.
 >
-> **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
+> **Windows:** `npm create croftweaver` (above) runs in any terminal. By hand, run
+> `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
 > (`Copy-Item -Recurse -Force .\skills\* "$env:USERPROFILE\.claude\skills\"`).
 
@@ -219,10 +255,21 @@ stamps, `whats-new`) — a release just names a milestone. Versions step by **0.
 (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
+# First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
+# ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip
-git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
-gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \
+# The tag takes its name from that number (0.11.0 gives v0.11), so the two cannot differ.
+# A number that was not raised names the last release's tag, and git refuses to make it.
+v="v$(node -p 'require("./.claude-plugin/plugin.json").version.replace(/\.0$/, "")')"
+git tag -a "$v" -m "Croftweaver ${v#v}" && git push origin "$v"
+gh release create "$v" dist/croftweaver.zip --title "${v#v}" --latest \
   --generate-notes                # or write the notes by hand
+# The plugin is installed from the branch `stable`. The release-tag workflow, started by
+# the tag, checks the number against it and moves `stable` to the release. A red run means
+# plugin users are still on the release before. If the step that moves the branch failed,
+# move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
+# If the check of the number failed, the tag was not made as above: leave `stable` where
+# it is, and plugin users get the next release.
 ```
 
 Zip users download the newest release from the Releases page; clone users keep using
@@ -290,6 +337,10 @@ skills/            the suite skills (canonical)
                    background in both themes, a safety check of the SVG, the seven icon files;
                    asked about once after positioning, copied to every site, never
                    runs unasked)
+  website-tagline  (optional line under the logo — starts from the purpose, shows
+                   the owner six to eight lines, the owner picks one: TAGLINE.md +
+                   SITE.tagline, and an opt-in tagline.spec.ts for a site that shows
+                   the line; the skill is copied to every site, never runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
@@ -323,6 +374,7 @@ scripts/
 docs/          (these ship in the zip, except the two marked repo only; docs/reviews/ and docs/local/ do not ship either)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
+  CLOUDFLARE-CHECKLIST.md  the Cloudflare settings a site relies on (HTTPS, privacy, search and AI visibility), each with its dashboard path, and an outside check where one exists
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
@@ -332,6 +384,11 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
+.claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
+                   from the branch `stable`, which the release-tag workflow moves to each release (make test-plugin)
+packages/      (repo only: the zip does not hold it)
+  create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
+                   into the assistant's skills folder. The maintainer publishes it to npm (make test-create)
 ```
 
 ### Opt-in and on-demand setup skills
@@ -375,12 +432,12 @@ none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
-Five more skills are optional in a different way: `website-motion`, `website-story`,
-`website-brand-kit`, `website-scorecard` and `website-positioning-check` are **copied into
-every site** so the recipient can use them later, but **never run unless asked**
-(`website-story` is offered once, after positioning, with a plain-language explanation;
+Six more skills are optional in a different way: `website-motion`, `website-story`,
+`website-brand-kit`, `website-scorecard`, `website-tagline` and `website-positioning-check`
+are **copied into every site** so the recipient can use them later, but **never run unless
+asked** (`website-story` is offered once, after positioning, with a plain-language explanation;
 `website-brand-kit` is asked about once, right after it, with one plain question; the
-other three only on request).
+other four only on request).
 
 ### Use it locally
 
@@ -427,11 +484,14 @@ that has the list, a listed name in a file the script scans stops the build, unl
 file is gitignored or the match is this repo's own `karero/croftweaver` reference (or its former
 name, `karero/website-builder`). The name check also covers `scripts/`,
 since those files ship in the zip; the generic catches leave `scripts/` out, because its
-files define their patterns. The name check skips only `LICENSE`, which carries the
-owner's name. A genuine false positive is fixed by tightening a pattern in the script —
-never by loosening it. The same `make check` (and the same CI workflow) also keeps
-`independent-review` free of concrete model names outside its setup guide
-(`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
+files define their patterns. In the repo both also cover `packages/`, which the zip does
+not hold. The name check skips only `LICENSE`, which carries the owner's name, and the
+installer's copy of it (`packages/create-croftweaver/LICENSE`) while that copy is the same
+file byte for byte. A genuine false positive is fixed by tightening a pattern in the
+script — never by loosening it. The same `make check` (and the same CI workflow) also keeps
+`independent-review` free of the model names and tags the pattern in
+`scripts/check_model_agnostic.sh` knows, outside its setup guide and its list of the models
+the Melious seat may run, and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 
 ### Merging stacked PRs
@@ -475,3 +535,8 @@ third-party text: `website-positioning` uses April Dunford's positioning compone
 by Donald Miller's StoryBrand framework
 ([*Building a StoryBrand 2.0*](https://storybrand.com/building-a-storybrand-book-new/));
 StoryBrand is a trademark of its owner and neither author endorses this project.
+
+If you built a site with Croftweaver, we would be glad of a link back to
+[croftweaver.com/partner-assets](https://croftweaver.com/partner-assets), with the badge or as
+plain text. It is a request, not a condition: the MIT license asks only that its notice stays
+with copies of the software.

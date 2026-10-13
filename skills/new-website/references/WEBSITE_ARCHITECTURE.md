@@ -61,7 +61,10 @@ the free plan's daily Functions requests run out, a Pages project can still serv
 site ("Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`), whereas a Worker set to run before its static
 files answers 429 instead ([Workers static
 assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)).
-Moving the kit to Workers is one decision for the whole kit, not one to make per site.
+That last reason holds only for a move that keeps code in front of every request, as the
+middleware does; a move without it is untried. Moving the kit to Workers is one decision for
+the whole kit, not one to make per site. `docs/PAGES-OR-WORKERS.md` in the Croftweaver folder
+weighs it and records the decision of 2026-10-11 to stay on Pages for now.
 
 ---
 
@@ -185,7 +188,7 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 - **`src/layouts/Base.astro`**: canonical, OG/Twitter, JSON-LD, analytics script.
 - **`src/components/`**: `Header`, `Footer`, `PageHero`, `Subnav`, `EmailLink` (build-time obfuscated).
 - **`src/content/`** (if blog/events/team): Content Collections + Zod schema.
-- **`public/_headers`**: CSP, HSTS, `X-Content-Type-Options`, cache (`/_astro/* immutable`, `/images/* 30d`).
+- **`public/_headers`**: CSP, `X-Content-Type-Options` and the other security headers. HSTS is a Cloudflare dashboard setting, not in this file (`docs/CLOUDFLARE-CHECKLIST.md`, section 2).
 - **`public/_redirects`**: legacy → clean-URL 301s.
 - **`functions/_middleware.ts`**: `noindex` the `*.pages.dev` preview deploys; after go-live,
   301 the project alias `<project>.pages.dev` to the live domain (Production variable
@@ -245,7 +248,7 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 3. **Playwright + axe** green: 0 a11y violations all routes light *and* dark; all routes 200;
    button contrast ≥4.5:1; tone-of-voice spec passes.
 4. `@astrojs/sitemap` emits a clean sitemap (no `.html`); `robots.txt` allows production; previews `noindex`.
-5. CSP/HSTS headers (`public/_headers`); legacy URLs 301 (`public/_redirects`).
+5. CSP and the other security headers (`public/_headers`); HSTS set in the Cloudflare dashboard (`docs/CLOUDFLARE-CHECKLIST.md`, section 2); legacy URLs 301 (`public/_redirects`).
 6. Tier 2/3: endpoint/DB works on the preview deploy, within the Part-3 CPU/memory/connection limits.
 
 ---

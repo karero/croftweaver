@@ -25,7 +25,7 @@ not this guide — it's a read-only diagnostic, not a voice/EEAT audit.
 
 ## Outputs
 
-- **`CONTENT_GUIDE.md`** (from `~/.claude/skills/new-website/templates/content-guide.md`)
+- **`CONTENT_GUIDE.md`** (from the `new-website` skill's `templates/content-guide.md`)
   — ToV rules, EEAT checklist, page inventory with target titles, per-page-type
   copy templates, new-page checklist. Reads positioning/audience from `POSITIONING.md`.
 - **`POSITIONING.md`** is owned by `website-positioning`; this guide consumes it

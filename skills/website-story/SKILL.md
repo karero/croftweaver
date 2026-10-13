@@ -63,8 +63,8 @@ This text lives here, once. `new-website` §2a reads it from here; do not restat
 
 ## 1. Outputs
 
-- **`STORY.md`** (from `~/.claude/skills/website-story/templates/story.md`, or the
-  site's own `.claude/skills/website-story/templates/story.md` on a handed-off repo):
+- **`STORY.md`** (from this skill's `templates/story.md`; the bundled copy of the skill
+  on a handed-off repo has it too, as `.claude/skills/website-story/templates/story.md`):
   the story elements, the one-liner, and the seven-section home page map. It goes next
   to `POSITIONING.md`: the repo root on a new site, or `docs/` on a site that keeps its
   strategy documents there. Look in both places before concluding either file is missing.
@@ -72,7 +72,8 @@ This text lives here, once. `new-website` §2a reads it from here; do not restat
 
 Explicitly **not** touched: `POSITIONING.md`, `tests/positioning.spec.ts`,
 `SITE.tagline` in `src/config.ts`, and the "Brand in one line" in `BRAND.md`. Those
-are positioning surfaces and stay with `website-positioning`.
+are positioning surfaces and stay with `website-positioning`, except `SITE.tagline`,
+which belongs to `website-tagline`.
 
 ## 2. Derive the story from the positioning
 
@@ -224,8 +225,8 @@ the site's `npm test`.
   for everyone is a painkiller for someone.
 - Stakes that are overdone read as a threat and lose the reader; one true cost
   beats three invented ones.
-- The one-liner is not the `<title>` and not the tagline. Those stay with
-  positioning and SEO limits.
+- The one-liner is not the `<title>` and not the tagline. The `<title>` stays with
+  positioning and SEO limits; the tagline belongs to `website-tagline`.
 - Do not restate the positioning inside `STORY.md`; link to it. Two sources of
   truth drift.
 - No lead magnet is better than a fabricated one.
@@ -235,7 +236,8 @@ the site's `npm test`.
 
 ## Boundaries (do not duplicate)
 
-- **Positioning, the spine, the tagline** → `website-positioning`.
+- **Positioning, the spine** → `website-positioning`.
+- **The tagline (the short line under the logo)** → `website-tagline` (optional).
 - **Tone of voice, EEAT** → `website-content-guide`.
 - **Quick fresh-eyes check of an existing site** → `website-positioning-check`.
 - **Writing the actual copy** → `copywriting` (reads `STORY.md` for the home page).

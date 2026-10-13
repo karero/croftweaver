@@ -19,7 +19,8 @@ it; a row is only as good as its evidence.
 | B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
 | C | Forms: a contact form with a submission test (`website-forms`) | **dropped 2026-10-08**: the skill and its CI job were removed; a mail-app contact form skill replaces it, planned separately. Section C below is kept as the record of what was built | the pull request that removed it |
 | D | Import: bring an existing site under the gate | scenarios only | — |
-| E | Install: one-line install, marketplace listing | blocked on the rename; both names claimed on npm 2026-10-06 with placeholder packages | `npm view webcroft`, `npm view create-webcroft` |
+| E1 | Install: a plugin for Claude Code (own marketplace in this repo) | built and merged, not released: the manifests and the skills' paths are in; the marketplace entry installs from the branch `stable`, which release 0.32 creates, so nothing can be installed from GitHub until that release is cut. Not run: a live session that loads the plugin (see E1 below) | the pull request that carries this row; `claude plugin validate --strict .` |
+| E2 | Install: one line, `npm create croftweaver` | built, reviewed and published: the package is `packages/create-croftweaver`, on npm as `create-croftweaver` 0.1.0 since 2026-10-12 | karero/croftweaver#268; `npm view create-croftweaver version dist.shasum` gives 0.1.0 and `2394930488d0025bdfaede0b7026f2dc2fed251b`, the checksum of the reviewed commit's pack |
 
 ## Build order, and why
 
@@ -34,10 +35,11 @@ it; a row is only as good as its evidence.
    existing site has a contact form, and an import that drops it loses a working
    feature.
 4. **Import (D).** The largest piece. Needs A and C.
-5. **Install (E).** Last only because it is blocked, not because it matters least: the
-   package name depends on a rename that has not landed in this repo, and publishing
-   to a registry or a marketplace is the owner's own action. Once the name is settled
-   it is small, and worth pulling forward.
+5. **Install (E).** Last only because it was blocked, not because it matters least: the
+   package name depended on the rename, and publishing to a registry or a marketplace is
+   the owner's own action. The rename landed as Croftweaver (#212), and the one-line
+   install (E2) was pulled forward and built on 2026-10-12, and the plugin (E1) the same
+   day; the plugin waits for release 0.32.
 
 The strongest argument against this order: install first, because nobody benefits
 from better checks in a kit they did not install, and the packaging could ship under
@@ -296,7 +298,144 @@ Done when the imported site passes the whole suite with every old address accoun
 
 ## E. Install
 
+### E1. A plugin for Claude Code (built 2026-10-12, waits for release 0.32)
+
 | # | Given | When | Then |
 |---|---|---|---|
-| 1 | Claude Code, nothing installed | the user adds the plugin with one command | all skills are available, no clone and no script |
-| 2 | no assistant-specific setup | the user runs the `npm create` command | the skills are installed and the first step is explained |
+| 1 | Claude Code, nothing installed, and release 0.32 or a later one is out | the user runs `claude plugin marketplace add https://github.com/karero/croftweaver.git` and `claude plugin install croftweaver@croftweaver` | all skills are available under the plugin's name (`croftweaver:new-website`), with no clone, no script and no Node |
+| 2 | the suite installed as the plugin only | the user says "new website" | the scaffold finds the suite in the plugin's own folder and copies the templates and the site's skills from there |
+| 3 | a plugin user on 0.32, and 0.33 comes out | the user runs `claude plugin update croftweaver@croftweaver`, or has auto-update on | they get 0.33. Between releases nothing changes for them, whatever is merged to main |
+| 4 | the suite installed any other way: `scripts/install.sh`, `npm create croftweaver`, Codex, Antigravity, or the copies inside a site | a skill needs one of its own files | it finds it: the skills name their files relative to their own folder, not to `~/.claude/skills/` |
+| 5 | a site that carries its own copies of the skills, opened by a user who has the plugin | Claude Code starts | each of those skills is listed twice, once as the site's and once as the plugin's |
+
+Decided by the owner on 2026-10-12:
+
+- **Paths relative to the skill.** No skill names `~/.claude/skills/<name>/` for its files
+  any more. Prose says "this skill's `templates/…`" or "the `new-website` skill's
+  `templates/…`". The three places that give a command (`facts-check`,
+  `website-permissions`, the lookup in `new-website`) use the name Claude Code replaces by
+  the skill's own folder in a SKILL.md, with one sentence for other assistants.
+  `website-permissions` copies from its own folder: it carries the allowlist and the sync
+  hook itself, the same two files `new-website` has, so that its copy inside a site needs
+  nothing beside it (the owner's choice after three review findings on a lookup for them).
+- **Releases only.** The marketplace entry installs from the branch `stable`, and
+  `plugin.json` carries the release's number. A release raises the number in its pull
+  request; when its tag is pushed, the `release-tag` workflow checks the number against the
+  tag and moves `stable` to it (`README.md`, "Releases & versioning"). The first version
+  of this named the tag itself in the entry; main would then have named, at every release,
+  a tag that did not exist yet. The second left the move of `stable` to a command in the
+  release steps, which a release could forget with nothing to notice.
+- **Own marketplace first.** The two files in `.claude-plugin/` make this repo its own
+  marketplace. Anthropic's directory, which is what would put it one click away in the
+  app, can follow.
+
+Checked on 2026-10-12 against Claude Code 2.1.287 and its documentation
+(https://code.claude.com/docs/en/skills, https://code.claude.com/docs/en/plugins/publish,
+https://code.claude.com/docs/en/plugins/host-marketplace):
+
+- `claude plugin validate --strict .` passes.
+- An entry that names a branch works as the release step needs it to. Tried on 2026-10-13
+  with a throwaway git repository as the plugin's source (`"source": "url"`, `"ref":
+  "stable"`), a marketplace added from a folder, and a throwaway configuration folder: the
+  install took the files at `stable` and not what main had gained since; `claude plugin
+  update` said "already at the latest version (0.32.0)" while main moved and also after a
+  release 0.33 was tagged; once `stable` was moved to that tag it said "updated from 0.32.0
+  to 0.33.0".
+- The entry in this repo is of that kind: `"source": "url"` with the repo's full https
+  address. Tried the same day from GitHub with this pull request's branch as the `ref`,
+  into a throwaway configuration folder: installed, version 0.32.0, 35 skills, with the
+  files only that branch has. (`"source": "github"` with `karero/croftweaver` installed
+  as well. It is not used: that form is fetched over SSH where it can be, and Claude
+  Code's documentation says an update does not fall back to https, so a user without a
+  GitHub key would not get one. The README gives the marketplace's address in full for
+  the same reason.) What was not tried is an update from GitHub itself: that needs two
+  releases.
+- Installed from a copy of this tree as a local marketplace, into a throwaway configuration
+  folder: 35 skills, and every folder and file the scaffold copies is there, the
+  templates' `.gitignore` included. The files land under
+  `plugins/cache/croftweaver/croftweaver/<version>/`.
+- The lines `new-website` gives the assistant to find the suite are run by tests, with
+  the skill's folder filled in as Claude Code does and left as written as another
+  assistant would, also in a shell that takes an unset variable as an error; the lines
+  `website-permissions` gives are run from a copy of the skill in a folder named
+  `Sam's Bakery` (`make test-plugin`).
+
+Known limits:
+
+- No live session has loaded the plugin yet. What was observed, on 2026-10-13 in a
+  signed-in Claude Code session with a probe skill in a project's `.claude/skills/`: the
+  name is replaced by the skill's folder in prose, in double quotes, in single quotes and
+  inside a fenced block; the forms with `:-` and `:=` after the name are left as written.
+  That it is the same for a plugin's skill is the documentation's word.
+- Nothing can be installed from GitHub before release 0.32 creates the branch `stable`.
+  The owner first chose to merge this change with that release and then, on 2026-10-13, to
+  merge it at once: held back, it met main's changes to shared files again and again, and
+  its guard did not yet watch the skills arriving on main. Until that release the README's
+  plugin commands fail; its paragraph says "from release 0.32 on".
+- A release that forgets to raise the number passes every check on its pull request. The
+  README's release steps take the tag's name from the number, so git then refuses the tag,
+  which exists already. A tag made by hand with another name gets a red `release-tag` run,
+  and `stable` stays: plugin users get the next release.
+- The workflow has not run yet: it starts on a tag pushed after it is on main, so release
+  0.32 is its first run. Its two shell steps are run by tests against a throwaway
+  repository; that GitHub starts it, and lets it push, is not.
+- The allowlist and the sync hook exist twice, in `new-website` and in
+  `website-permissions`. A test holds them equal; a change to one that forgets the other
+  fails `make test-plugin`.
+- The folder Claude Code fills in stands between double quotes. A folder name with a
+  double quote, a dollar sign, a backtick or a backslash in it breaks those lines; one with
+  a space or an apostrophe does not.
+- Row 5: the doubled listing costs context in every session in such a site.
+- A site scaffolded from the plugin is stamped `suite_commit: unknown`, as from a zip.
+- The documentation names a single command that adds the marketplace and installs
+  (`claude plugin install <plugin> --marketplace <source>`) from Claude Code 2.1.292 on.
+  It was not tried here.
+- `scripts/check_clean.sh` does not read `.claude-plugin/` either (`docs/BUGLOG.md`).
+
+Done when, after release 0.32, a computer that has only the plugin scaffolds a site from
+"new website".
+
+### E2. One line: `npm create croftweaver` (built 2026-10-12)
+
+| # | Given | When | Then |
+|---|---|---|---|
+| 1 | a computer with Node 22.12 or newer and no Croftweaver skills | the user runs `npm create croftweaver` | every skill of the latest release is in `~/.claude/skills/` as a folder of its own; the output names the release, the number of skills and the next step: restart the assistant in the websites folder and say "new website" |
+| 2 | skills installed this way from 0.31; then 0.32 comes out, without one skill and with a new one | the user runs the command again | the folder matches 0.32: each skill is replaced whole, the new one is added, the one that left is removed |
+| 3 | a folder `copywriting` in the skills folder that the user got somewhere else | the command runs | that folder is moved to `skills-before-croftweaver-…` beside the skills folder, the output says where it went, and Croftweaver's `copywriting` is installed |
+| 4 | skills linked from a cloned or unzipped toolkit folder by `scripts/install.sh` | the command runs | the links stay and the output says they update from that folder; with `-- --force` each link becomes a copy, and the toolkit folder is not touched |
+| 5 | a Codex or an Antigravity user | the user adds `-- --codex` or `-- --antigravity` | the skills go to `~/.agents/skills/` or `~/.gemini/config/skills/` |
+| 6 | no connection, or a download that is cut short, damaged or not a Croftweaver release | the command runs | it says why, changes nothing in the skills folder, and ends with an error |
+| 7 | a Windows terminal without Git Bash or WSL | the user runs the command | the same as row 1 |
+
+How it works: the package holds no skills. It downloads `croftweaver.zip` from the latest
+GitHub release and unpacks it itself, so it is published once and every later release
+reaches users without a new npm version. It keeps a list of what it copied
+(`.croftweaver.json` in the skills folder), which is how it tells its own copies from a
+folder someone else put there.
+
+Known limits:
+
+- It needs Node, which the gentle guide (`docs/GETTING-STARTED.md`) does not ask for until
+  a site is built. So it is the route for someone at home in a terminal, and the starter
+  prompt stays the route for everyone else.
+- The download is trusted because it comes from the release page over HTTPS. Nothing else
+  checks it, as with a zip downloaded by hand.
+- Behind a company proxy the download can fail where `npm` itself works: Node's own
+  download does not read npm's proxy settings.
+- Row 7 is proven by the CI job on a Windows runner only, not on a person's machine. The
+  real skills are installed there from a zip that git writes. The test that zips them with
+  the `zip` tool, as `scripts/package.sh` does for a release, runs on Linux and macOS only:
+  the Windows runner has no `zip`.
+- A site scaffolded from these copies is stamped `suite_commit: unknown`, as one from a zip
+  is (`skills/new-website/SKILL.md`, the step that writes `SUITE-VERSION`), so
+  `make whats-new` has no baseline for it.
+- The command tells its own copies from other folders by name (`.croftweaver.json`), not by
+  content. A folder the user puts under the name of a skill it installed is replaced at the
+  next run, or removed once the release drops that skill, without a backup.
+
+Done when the owner has published the package and one run of `npm create croftweaver` on a
+computer without the skills ends at row 1. Both happened on 2026-10-12: the owner published
+0.1.0, and `npm create croftweaver@latest`, once plain and once with `-- --codex`, each put
+the 34 skills of release 0.31 into the right folder of an empty home folder, the same files
+as `git archive v0.31 skills`. That was on macOS; rows 2 to 6 rest on the tests, row 7 on
+the Windows runner.

@@ -67,7 +67,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # whats-new.sh: verify-windows runs the recovery command it prints.
-              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-brand-kit/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
+              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
               \"*) run=true ;;
             esac
           done <<EOF
@@ -510,11 +510,130 @@ jobs:
           # One check per line. A skipped test is not a pass: the run must name it "ok".
           grep -q 'test_scenario_8_.* ok$' e2e.log
 
+  # The website-tagline skill ships one test that lives in a SITE, never in the starter,
+  # so the jobs above do not run it. This builds a site from the starter and shows a
+  # tagline on its home page. The starter has no header, so the line sits under the
+  # page's <h1>: the test checks the element it is pointed at, wherever that is. The
+  # test then runs three ways: unconfigured (every test must sit out), on a correct site
+  # (green, with the whole suite), and on each mistake the test exists for (red, in the
+  # test that names the mistake). The edits use perl, not sed -i, so the same lines run
+  # unchanged on a Mac; \x27 is an apostrophe inside a single-quoted perl program.
+  tagline-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, with the test copied in and not configured
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          cp "$GITHUB_WORKSPACE/skills/website-tagline/templates/tagline.spec.ts" tests/
+          # The test knows the starter's placeholder by heart. If the starter's value
+          # changes and the test's copy does not, the test would call a site with no
+          # tagline fine, so the two are compared here.
+          placeholder="$(sed -n "s/^ *tagline: '\(.*\)',\$/\1/p" src/config.ts)"
+          [ -n "$placeholder" ] || { echo "::error::no tagline value found in the starter's src/config.ts"; exit 1; }
+          grep -Fq "const PLACEHOLDER = '$placeholder';" tests/tagline.spec.ts || { echo "::error::the starter ships tagline '$placeholder'; tagline.spec.ts expects another placeholder"; exit 1; }
+          # The later steps take the value from here, so this job holds no third copy of it.
+          printf '%s' "$placeholder" > "$RUNNER_TEMP/placeholder"
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          # An unconfigured copy reports "not applicable": nothing passes, nothing fails.
+          out="$(CI= npx playwright test tests/tagline.spec.ts --reporter=line 2>&1)" || { printf '%s\n' "$out"; echo "::error::the unconfigured test did not exit 0"; exit 1; }
+          printf '%s\n' "$out" | tail -n 4
+          printf '%s\n' "$out" | grep -Eq '^ +[0-9]+ skipped' || { echo "::error::no test was skipped"; exit 1; }
+          if printf '%s\n' "$out" | grep -Eq '^ +[0-9]+ (passed|failed)'; then echo "::error::an unconfigured test passed or failed instead of sitting out"; exit 1; fi
+      - name: The site shows a tagline that reads SITE.tagline; the test and the whole suite are green
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          perl -pi -e "s|selector: '',|selector: '.tagline',|" tests/tagline.spec.ts
+          PLACEHOLDER="$(cat "$RUNNER_TEMP/placeholder")" perl -pi -e 's|tagline: \x27\Q$ENV{PLACEHOLDER}\E\x27,|tagline: \x27Your books done. Your evenings back.\x27,|' src/config.ts
+          # The two comment lines are decoys: the line inside a longer word is not a second
+          # copy, so the "typed once" test has to stay green with them in the file. The
+          # second is bordered by a digit and a letter from outside the basic plane, which
+          # take two places each in a string.
+          perl -pi -e 's|^(\s*)<h1>\{SITE\.name\}</h1>|$1<h1>{SITE.name}</h1>\n$1<!-- xYour books done. Your evenings back.x -->\n$1<!-- 𝟙Your books done. Your evenings back.𐐀 -->\n$1<p class="tagline">{SITE.tagline}</p>|' src/pages/index.astro
+          # One check per line: in "a && b" a failing a does not stop the step.
+          grep -q "selector: '.tagline'," tests/tagline.spec.ts
+          grep -q "tagline: 'Your books done. Your evenings back.'," src/config.ts
+          grep -q '<p class="tagline">{SITE.tagline}</p>' src/pages/index.astro
+          grep -q 'xYour books done. Your evenings back.x' src/pages/index.astro
+          grep -q '𝟙Your books done. Your evenings back.𐐀' src/pages/index.astro
+          cp src/pages/index.astro "$RUNNER_TEMP/index.good" && cp src/config.ts "$RUNNER_TEMP/config.good"
+          npm run check
+          npm test
+          out="$(CI= npx playwright test tests/tagline.spec.ts --reporter=line 2>&1)" || { printf '%s\n' "$out"; exit 1; }
+          printf '%s\n' "$out" | grep -Eq '^ +4 passed' || { printf '%s\n' "$out"; echo "::error::the four tagline tests did not all pass"; exit 1; }
+      # A guard that cannot fail guards nothing. Each case makes one mistake on the good
+      # site and must turn exactly one test red: the one whose name says what is wrong.
+      - name: Each mistake turns its own test red
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          # The reporter prints every test's name as it runs, passed or not. Only its
+          # numbered list of failures ("  1) [chromium] › tests/...") says which one failed.
+          failed_test_is() { printf '%s\n' "$1" | grep -E '^ +[0-9]+\) ' | grep -Fq "$2"; }
+          red() {   # red "<what was done>" "<part of the failing test's name>" ["<part of its message>"]
+            if out="$(CI= npx playwright test tests/tagline.spec.ts --reporter=line 2>&1)"; then
+              printf '%s\n' "$out" | tail -n 6; echo "::error::$1: the test stayed green"; exit 1
+            fi
+            printf '%s\n' "$out" | grep -Eq '^ +1 failed' || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: not exactly one test failed"; exit 1; }
+            failed_test_is "$out" "$2" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the failing test is not \"$2\""; exit 1; }
+            if [ -n "${3:-}" ]; then
+              printf '%s\n' "$out" | grep -Fq "$3" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the failure does not say \"$3\""; exit 1; }
+            fi
+            echo "red as expected ($2${3:+; $3}): $1"
+            last="$out"
+            cp "$RUNNER_TEMP/index.good" src/pages/index.astro && cp "$RUNNER_TEMP/config.good" src/config.ts
+          }
+          perl -pi -e 's|\{SITE\.tagline\}</p>|Your books done. Your evenings back.</p>|' src/pages/index.astro
+          grep -q '<p class="tagline">Your books done. Your evenings back.</p>' src/pages/index.astro
+          red "the line typed into the page as well" "the line is typed once"
+          # The name check itself, on that same run: it must refuse a test that passed.
+          if failed_test_is "$last" "is a paragraph, not a heading"; then echo "::error::the name check accepts a test that did not fail"; exit 1; fi
+          perl -pi -e 's|<p class="tagline">\{SITE\.tagline\}</p>|<h2 class="tagline">{SITE.tagline}</h2>|' src/pages/index.astro
+          grep -q '<h2 class="tagline">' src/pages/index.astro
+          red "the line set as a heading" "is a paragraph, not a heading"
+          perl -pi -e 's|\{SITE\.tagline\}</p>|Your books done.</p>|' src/pages/index.astro
+          grep -q '<p class="tagline">Your books done.</p>' src/pages/index.astro
+          red "another line on the page than in the config" "is SITE.tagline, word for word"
+          perl -pi -e 's|^(\s*)(<p class="tagline">\{SITE\.tagline\}</p>)|$1$2\n$1$2|' src/pages/index.astro
+          [ "$(grep -c '<p class="tagline">{SITE.tagline}</p>' src/pages/index.astro)" = 2 ]
+          red "the line shown twice" "is SITE.tagline, word for word"
+          # A copy written with an escaped apostrophe: the page shows the right line, and
+          # the source holds it a second time in a form a plain search would miss.
+          perl -pi -e 's|tagline: \x27Your books done. Your evenings back.\x27,|tagline: "Freelancers\x27 evenings back.",|' src/config.ts
+          grep -q "tagline: \"Freelancers' evenings back.\"," src/config.ts
+          perl -pi -e 's|^(import \{ SITE \} from \x27\.\./config\x27;)|$1\nconst again = \x27Freelancers\\\x27 evenings back.\x27;|; s|\{SITE\.tagline\}</p>|{again}</p>|' src/pages/index.astro
+          grep -Fq "const again = 'Freelancers\\' evenings back.';" src/pages/index.astro
+          grep -q '<p class="tagline">{again}</p>' src/pages/index.astro
+          red "the line typed again with an escaped apostrophe" "the line is typed once"
+          # The same, with the apostrophe as a character reference in the page, in a
+          # spelling with leading zeros that only a full decoder reads.
+          perl -pi -e 's|tagline: \x27Your books done. Your evenings back.\x27,|tagline: "Freelancers\x27 evenings back.",|' src/config.ts
+          grep -q "tagline: \"Freelancers' evenings back.\"," src/config.ts
+          perl -pi -e 's|\{SITE\.tagline\}</p>|Freelancers&#00000039; evenings back.</p>|' src/pages/index.astro
+          grep -q '<p class="tagline">Freelancers&#00000039; evenings back.</p>' src/pages/index.astro
+          red "the line typed again with a character reference" "the line is typed once"
+          PLACEHOLDER="$(cat "$RUNNER_TEMP/placeholder")" perl -pi -e 's|tagline: \x27Your books done. Your evenings back.\x27,|tagline: \x27$ENV{PLACEHOLDER}\x27,|' src/config.ts
+          grep -Fq "tagline: '$(cat "$RUNNER_TEMP/placeholder")'," src/config.ts
+          red "the starter's placeholder left in the config" "is a real line within the limits" "placeholder"
+          # Nine words in 31 characters, then six words in 67: each limit on its own.
+          perl -pi -e "s|tagline: 'Your books done. Your evenings back.',|tagline: 'We do it so you can get on now.',|" src/config.ts
+          grep -q "tagline: 'We do it so you can get on now.'," src/config.ts
+          red "a line of nine short words" "is a real line within the limits" "has 9 words"
+          perl -pi -e "s|tagline: 'Your books done. Your evenings back.',|tagline: 'Uncomplicated bookkeeping for independent professionals everywhere.',|" src/config.ts
+          grep -q "professionals everywhere.'," src/config.ts
+          red "a line of six long words" "is a real line within the limits" "has 67 characters"
+
   # The one check main's ruleset requires from this workflow. It passes when every job
   # above passed (the change touched their paths) or every job was skipped (it did not),
   # and fails on anything else: a failure, a cancel, a skip where a run was due.
   template-tests-ok:
-    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, brand-kit-skill]
+    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, brand-kit-skill, tagline-skill]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -522,9 +641,9 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           RUN: ${{ needs.changes.outputs.run }}
-          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }} ${{ needs.brand-kit-skill.result }}
+          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }} ${{ needs.brand-kit-skill.result }} ${{ needs.tagline-skill.result }}
         run: |
-          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, brand-kit-skill: $RESULTS"
+          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, brand-kit-skill, tagline-skill: $RESULTS"
           [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
           case "$RUN" in
             true) want=success ;;
