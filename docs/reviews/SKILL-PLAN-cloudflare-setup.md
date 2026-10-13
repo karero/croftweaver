@@ -12,8 +12,8 @@ domain; script step 7 reports a failure on a finished setup; and D1's reason is 
 because the settings can be written before the domain is attached.
 
 **What happens next** (maintainer, 2026-10-13: "Trial run first, go back to two yeses"):
-the spike of plan step 4 runs first, as the section "The spike" describes. Then this file
-is rewritten once, from what the spike showed and with two yeses (D1), and that text goes
+the spike of plan step 4 ran first (done 2026-10-13, see "Seen in the spike"). Now this
+file is rewritten once, from what the spike showed and with two yeses (D1), and that text goes
 through a new PLAN gate.
 
 Two series of steps run through this file. **Plan steps** are the rows of the status
@@ -26,7 +26,7 @@ table. **Script steps** are the nine things the script does, under "Shape".
 | 1 | Requirements and scenarios (this file) | ⚠ written; the PLAN gate (High) stopped after round 3, not converging. Rounds 1 and 2 are worked in, round 3 is open. How to go on is the maintainer's decision | this file; trail: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work) | ✅ merged 2026-10-12. The script that runs its outside checks followed the same day | karero/croftweaver#266 (`7642954`); the check script: karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended"). D2 and D3 changed the same day: the script lives in the kit ("In the kit"). D1 changed twice on 2026-10-13: first to three stages with a yes for each ("Three, one per stage"), asked for with a reason round 3 showed to be false (H3); then back to two yeses ("go back to two yeses") | section "Decisions D1 to D7" |
-| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ▶ started 2026-10-13. The observations that need no token and the read-only calls are made ("Seen in the spike"); so are the calls on the throwaway project, the settings calls and the pull-request cases. Open: writing the domain's record, the cases with an existing record, and the DNS records (observations 7 and 10), which wait for a DNS row in the token; whether Fail open reaches the live build (6); Bing's record (8). A second throwaway project, `cf-setup-spike-2`, exists; the domain `spike.croftweaver.com` is attached to the first and pending. The throwaway repository exists, built from the starter. The maintainer chose the domain to try on ("croftweaver.com", with a host of its own for the domain step). Waits for the token and for the GitHub app's authorization | the private repository `karero/cf-setup-spike` at `98d7742` |
+| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ✅ done 2026-10-13, apart from two points: whether a change to Fail open reaches the build that is live (Cloudflare does not record it), and Bot Management's PUT with only some fields (not tried on a live zone). The answers are under "Seen in the spike"; the body of this file is not yet rewritten from them | 140 captures, kept outside every repository; the private repository `karero/cf-setup-spike` |
 | 5 | The script and its tests against a stub of Cloudflare's API. Two pull requests: the project and domain stages (script steps 1 to 7), then the settings stage (script steps 8 and 9) | ⏸ not started | — |
 | 6 | The kit's files that say otherwise today are changed with the script (list under "Hooks") | ⏸ not started | — |
 | 7 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
@@ -549,6 +549,40 @@ maintainer gave one go-ahead for the list of them):
   connected to the same repository later, built nothing for a pull request that was
   already open; it built that pull request's next commit. With two projects on one
   repository, each puts its own check on a pull request, named after the project.
+
+**Seen in the spike, 2026-10-13, the DNS calls** (captures 104 to 140, after the maintainer
+added the DNS row to the token):
+
+- **The script writes the domain's record, and the domain then turns active**
+  (observation 7). With the domain attached and pending, a proxied CNAME from the host
+  to the project's `pages.dev` address was created. The verification turned `active`
+  after about a minute and the domain after two and a half. The host then served the
+  production build.
+- **An existing record is left alone by the attach call, and one update turns it into
+  the needed one.** A host with an A record elsewhere was attached: Cloudflare kept the
+  record and reported "CNAME record not set". One PATCH of that record, to type CNAME
+  with the project's address, was accepted and kept the record's id. No delete was
+  needed. The domain was active two minutes later. Both orders work: attach first, or
+  record first.
+- **A computer that asked for the host before its record existed can go on getting "no
+  such host"** for a while. Here plain requests from the Mac failed for minutes after
+  the domain was active, while a request sent to the address the nameserver gave
+  succeeded. The script's first request to a new domain has to allow for that.
+- **TXT records** (observation 10). A second TXT at a name that has one was accepted and
+  both were served. The zone's nameserver showed a new record within four seconds. The
+  same TXT sent a second time was refused with code 81058, "An identical record already
+  exists", so a second run cannot double a record. A CNAME at a name that has one was
+  refused with code 81053.
+- **Node's resolver, set to the nameserver's address,** returned both TXT records.
+- **Bing's record** (observation 8) is in the zone since the launch: a CNAME whose name
+  is a code of 32 hexadecimal characters and whose target is `verify.bing.com`, DNS
+  only. The swapped entry of the launch day had `verify.bing.com` as its name, which is
+  what scenario 29's rule looks for.
+
+**Left in place by the spike, to be removed on the maintainer's word:** the Pages
+projects `cf-setup-spike` and `cf-setup-spike-2`, each with one attached host
+(`spike.` and `spike2.` of the trial domain); those two CNAME records and two TXT records
+at `_spike-test`; the private repository `karero/cf-setup-spike`; and the token.
 
 **Read in Cloudflare's API reference, 2026-10-12, not tried:**
 
