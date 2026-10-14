@@ -418,6 +418,103 @@ class RoundOne(AnalyticsTest):
                 self.assertTrue((self.site_dir / "analytics" / folder / name).is_file())
 
 
+class RoundTwo(AnalyticsTest):
+    """Review round 2. Invariant A again: the staging name is a written path too, and every git answer
+    is read for errors. Invariant C again: the kept AI evidence is what the kept page shows."""
+
+    def fresh_repo(self, name, rules):
+        d = self.site_dir.parent / name
+        d.mkdir()
+        git("init", "-q", cwd=d)
+        (d / ".gitignore").write_text(rules)
+        return d
+
+    def test_a_the_staging_name_is_checked_like_the_final_name(self):
+        self.reports()
+        rules = "analytics/*.md\nanalytics/*.html\nanalytics/**/*.json\nanalytics/**/*.csv\nanalytics/**/*.html\nanalytics/**/*.txt\n"
+        d = self.fresh_repo("partial-snap", rules)
+        code, _, err = self.cli(snap, SITE, "--site-dir", str(d))
+        self.assertEqual(code, 1, "the .partial names are not ignored by these rules")
+        self.assertIn(".partial", err)
+        self.assertFalse((d / "analytics").exists())
+        d = self.fresh_repo("partial-import", "analytics/**/*.zip\n")
+        code, _, err = self.cli(ar, "import", SITE, str(self.google_zip()), "--keep-in", str(d))
+        self.assertEqual(code, 1)
+        self.assertIsNone(self.saved("google"))
+
+    def test_a_a_failed_copy_leaves_no_partial_file(self):
+        self.repo()
+        def half_copy(src, dst, *a, **k):
+            Path(dst).write_bytes(b"half")
+            raise OSError("disk full")
+        with mock.patch("shutil.copy2", side_effect=half_copy):
+            code, _, _ = self.cli(ar, "import", SITE, str(self.google_zip()), "--keep-in", str(self.site_dir))
+        self.assertEqual(code, 1)
+        self.assertEqual([p for p in (self.site_dir / "analytics").rglob("*") if p.is_file()]
+                         if (self.site_dir / "analytics").exists() else [], [])
+        self.assertIsNone(self.saved("google"), "the copy failed before the import was saved")
+
+    def test_a_git_errors_after_the_first_question_refuse_too(self):
+        self.repo()
+        self.reports()
+        bad_index = self.site_dir.parent / "bad-index"
+        bad_index.write_bytes(b"this is not a git index")
+        with mock.patch.dict(os.environ, {"GIT_INDEX_FILE": str(bad_index)}):
+            code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 1)
+        self.assertIn("Git could not", err)
+        self.assertFalse((self.site_dir / "analytics").exists())
+
+    def test_a_a_folder_git_calls_no_work_tree_is_refused(self):
+        self.repo()
+        self.reports()
+        code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir / ".git"))
+        self.assertEqual(code, 1)
+        self.assertIn("not inside a git work tree", err)
+
+    def test_c_the_kept_answers_are_those_the_kept_page_shows(self):
+        self.repo()
+        self.reports()
+        older, later = "20261005T070000Z-1-1-aaaa", "20261013T070000Z-2-2-bbbb"
+        for run in (older, later):
+            d = self.cfg / "geo" / "answers" / SITE / run
+            d.mkdir(parents=True)
+            (d / "gemini-knows-broad-1.txt").write_text(run)
+        (self.cfg / "geo" / "geo_history.csv").write_text(
+            "run_id,site,engine,mode,slot\n"
+            f"{older},{SITE},gemini,knows,broad\n"
+            f"{RUN},{SITE},openai,finds,broad\n"
+            f"{later},{SITE},gemini,knows,broad\n")      # a run after the page: its page was never written
+        code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        answers = self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers"
+        self.assertTrue((answers / older).is_dir(), "the page (built at RUN) shows gemini's answer from the older run")
+        self.assertFalse((answers / later).exists(), "a run after the page is not on it")
+
+    def test_c_a_missing_answers_folder_is_named(self):
+        self.repo()
+        self.reports()
+        gone = "20261001T070000Z-3-3-cccc"
+        (self.cfg / "geo" / "geo_history.csv").write_text(
+            f"run_id,site,engine,mode,slot\n{gone},{SITE},gemini,knows,broad\n{RUN},{SITE},openai,finds,broad\n")
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"AI-check answers of run {gone}: not on this computer", out)
+
+    def test_c_leftover_links_are_found_in_any_quoting_and_in_the_run_page(self):
+        self.repo()
+        self.reports()
+        g = self.cfg / "reports" / SITE / "google.html"
+        g.write_text(g.read_text() + "<a HREF='../../geo/answers/x.txt'>x</a>", encoding="utf-8")
+        page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
+        page.write_text(page.read_text() + '<a href="../../geo/answers/y.txt">y</a>', encoding="utf-8")
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertIn("warning: seo.html still links", out)
+        self.assertIn(f"warning: 2026-10-12_geo-run/{RUN}.html still links", out)
+        self.assertIn("warning: geo.html still links", out)
+
+
 class Starter(unittest.TestCase):
     def test_b1_new_sites_keep_the_folder_off_github(self):
         gi = Path(__file__).resolve().parents[4] / "skills/new-website/templates/.gitignore"

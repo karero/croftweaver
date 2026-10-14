@@ -37,6 +37,8 @@ from _history import normalize_site  # noqa: E402
 import _analytics  # noqa: E402
 import search_report  # noqa: E402
 
+LEFTOVER = re.compile(r"""href\s*=\s*["']\.\./""", re.IGNORECASE)                  # any link up and out
+RUN_LEFTOVER = re.compile(r"""href\s*=\s*["']\.\./(?!seo\.html["'])""", re.IGNORECASE)  # in a run folder: only ../seo.html
 GEO_LINK = re.compile(r'href="\.\./\.\./geo/reports/[^"/]+/[^"/]+\.html"')      # on the Google page
 GOOGLE_LINK = re.compile(r'href="\.\./\.\./\.\./reports/[^"/]+/google\.html"')    # on an AI-check page
 RUN_ID = re.compile(r"^(\d{4})(\d{2})(\d{2})T")
@@ -70,13 +72,15 @@ def base_dir() -> Path:
     return Path(os.path.expanduser("~")) / ".config" / "gsc-insights"
 
 
-def referenced_runs(site):
-    """The runs the AI-check page draws on: it shows each assistant's latest answer to each question,
-    whichever run it came from (geo_check.build_report), so its evidence is every such run."""
+def referenced_runs(site, page_run):
+    """The runs the kept AI-check page draws on. geo_check.build_report shows each assistant's latest
+    answer to each question (engine, mode, slot), whichever run it came from; for the page built at
+    page_run, "latest" means up to page_run — later runs, if any, are not on that page."""
     p = base_dir() / "geo" / "geo_history.csv"
     try:
         with open(p, newline="", encoding="utf-8-sig") as f:
-            rows = [r for r in csv.DictReader(f) if r.get("site") == site and r.get("run_id")]
+            rows = [r for r in csv.DictReader(f)
+                    if r.get("site") == site and r.get("run_id") and r["run_id"] <= page_run]
     except OSError:
         return set()
     latest = {}
@@ -115,10 +119,14 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
                 (stage / newest.name).write_text(GOOGLE_LINK.sub('href="../seo.html"' if has_google else 'href="#"', page),
                                                  encoding="utf-8")
                 kept.append((folder, stage / newest.name))
-                for run in sorted(referenced_runs(site) | {newest.stem}):
+                if RUN_LEFTOVER.search((stage / newest.name).read_text(encoding="utf-8")):
+                    out.append(f"warning: {folder}/{newest.name} still links into the hidden settings folder; tell the owner")
+                for run in sorted(referenced_runs(site, newest.stem) | {newest.stem}):
                     answers = base_dir() / "geo" / "answers" / site / run
                     if answers.is_dir():
                         kept.append((f"{folder}/answers", answers))
+                    else:
+                        out.append(f"AI-check answers of run {run}: not on this computer, so not kept")
             else:
                 out.append(f"AI-check run: {newest.name} carries no run date, so its answers were not kept")
         else:
@@ -152,7 +160,7 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
         for name, text in top.items():
             (a / name).write_text(text, encoding="utf-8")
             out.insert(0, f"{name}: written")
-            if 'href="../' in text:
+            if LEFTOVER.search(text):
                 out.append(f"warning: {name} still links into the hidden settings folder; tell the owner")
         for folder, src in kept:
             dest, new = _analytics.keep(site_dir, folder, src)

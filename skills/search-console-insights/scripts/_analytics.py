@@ -70,13 +70,22 @@ def check_kept_off(site_dir, rels, commit_ok=False):
         first = (inside.stderr.strip().splitlines() or ["no message"])[0]
         raise NotKeptOff(f"Git could not say whether {site_dir}/analytics/ stays off GitHub ({first}). "
                          "Nothing was saved.")
+    if inside.stdout.strip() != "true":     # e.g. inside a .git folder: no work tree to judge
+        raise NotKeptOff(f"{site_dir} is not inside a git work tree git can judge. Nothing was saved.")
     paths = [f"analytics/{r}" for r in rels]
-    tracked = [p for p in _git(site_dir, "ls-files", "-z", "--", *paths).stdout.split("\0") if p]
+    listed = _git(site_dir, "ls-files", "-z", "--", *paths)
+    if listed.returncode != 0:
+        raise NotKeptOff(f"Git could not list what it tracks in {site_dir} "
+                         f"({(listed.stderr.strip().splitlines() or ['no message'])[0]}). Nothing was saved.")
+    tracked = [p for p in listed.stdout.split("\0") if p]
     if tracked:
         raise NotKeptOff(f"Git already tracks {tracked[0]}, so rewriting it would put the change on GitHub. "
                          "Nothing was saved. (If the owner chose to keep analytics/ in a private repo, pass --commit-ok.)")
-    out = _git(site_dir, "check-ignore", "--no-index", "-z", "--stdin", stdin="\0".join(paths) + "\0").stdout
-    ignored = {p for p in out.split("\0") if p}
+    checked = _git(site_dir, "check-ignore", "--no-index", "-z", "--stdin", stdin="\0".join(paths) + "\0")
+    if checked.returncode not in (0, 1):        # 1 = none of them ignored, an answer; anything else an error
+        raise NotKeptOff(f"Git could not say what it ignores in {site_dir} "
+                         f"({(checked.stderr.strip().splitlines() or ['no message'])[0]}). Nothing was saved.")
+    ignored = {p for p in checked.stdout.split("\0") if p}
     missing = [p for p in paths if p not in ignored]
     if missing:
         raise NotKeptOff(f"Git would put {site_dir}/{missing[0]} on GitHub. Add the line /analytics/ to the "
@@ -111,9 +120,11 @@ def plan(site_dir, folder, src):
         n += 1
         dest = dest_dir / _numbered(src.name, n)
     base = f"{folder}/{dest.name}"
+    staging = f"{folder}/{dest.name}.partial"          # keep() copies here first: checked like the rest
     if src.is_dir():
-        return dest, [f"{base}/{p.relative_to(src).as_posix()}" for p in sorted(src.rglob("*")) if p.is_file()] or [base]
-    return dest, [base]
+        files = [p.relative_to(src).as_posix() for p in sorted(src.rglob("*")) if p.is_file()]
+        return dest, ([f"{base}/{f}" for f in files] + [f"{staging}/{f}" for f in files]) or [base, staging]
+    return dest, [base, staging]
 
 
 def keep(site_dir, folder, src):
@@ -129,11 +140,15 @@ def keep(site_dir, folder, src):
         shutil.rmtree(tmp)
     elif tmp.exists():
         tmp.unlink()
-    if Path(src).is_dir():
-        shutil.copytree(src, tmp)
-    else:
-        shutil.copy2(src, tmp)
-    os.replace(tmp, dest)
+    try:
+        if Path(src).is_dir():
+            shutil.copytree(src, tmp)
+        else:
+            shutil.copy2(src, tmp)
+        os.replace(tmp, dest)
+    except OSError:
+        unkeep(tmp)            # no half copy left behind under a name git might not ignore
+        raise
     return dest, True
 
 

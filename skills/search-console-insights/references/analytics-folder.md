@@ -27,8 +27,8 @@ writes into that day's folder again.
    before this), add it with its comment from the starter and commit only that, as
    "keep analytics/ off GitHub". The scripts check every path they write and refuse, writing
    nothing, when git would pick one up or already tracks it. For the files you write yourself
-   (`actions.md`, `eeat.md`, the facts and positioning checks), check first that
-   `git check-ignore -q analytics/x` succeeds in the site folder.
+   (`actions.md`, `eeat.md`, the facts and positioning checks), check first that,
+   in the site folder, for each file you will write, `git check-ignore -q --no-index analytics/<file>` succeeds and `git ls-files -- analytics/<file>` prints nothing.
 3. **Only on the owner's ask, and only in a private repo,** keep the folder in the repo: name
    that it holds their data, ask once, then remove the line and pass `--commit-ok`. In a public
    repo say no, as the AI check's rule already does (`geo-check.md`, "Keep them out of a public repo").
@@ -52,9 +52,10 @@ Run these from this skill's folder with `~/.config/gsc-insights/venv/bin/python`
   (create the dated folder first: `mkdir -p analytics/<today>_facts-check`). Exit code 1 means
   findings, not a failure.
 - **The positioning check**, when `POSITIONING.md` exists and pages were added or changed since
-  the last verdict: in the site folder, `git log --since=<the last verdict's date> --name-only --
-  src/` lists them (with no git, compare the site's pages with the list at the end of the last
-  verdict). Run the website-positioning-check skill on those pages and save its verdict to
+  the last verdict. In the site folder, `git log --since=<the last verdict's date> --name-only --
+  <pages folder>` lists the committed ones and `git status --porcelain -- <pages folder>` the rest
+  (the pages folder is `src/` in a site built with this toolkit; another site, ask). With no git,
+  judge every page. Run the website-positioning-check skill on those pages and save its verdict to
   `analytics/<today>_positioning-check/verdict.md`, starting with "The assistant's judgment, not a
   measurement" and ending with the pages judged and the full list of the site's pages. Nothing
   added or changed: skip it and say so.

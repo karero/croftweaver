@@ -21,7 +21,7 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 | Round | Head | Seats | BUG / RISK / NIT (after dedup) | Notes |
 |---|---|---|---|---|
 | 1 | f3cea24 | Codex (401 s, 91k tokens), GLM 5.3 on melious (346 s, 37k), fresh-eyes Sonnet (184 s, 135k) | 11 / 6 / 3 | four invariants; 18 of the 20 fixed, 2 refuted with evidence |
-| 2 (verification) | e496a75 | Codex (medium), GLM 5.3 on melious | running | delta f3cea24..e496a75 |
+| 2 (verification) | e496a75 | Codex medium (291 s, 63k tokens), GLM 5.3 on melious (417 s, 41k) | 3 / 5 / 5 (F21–F31) | delta f3cea24..e496a75; three round-1 fixes partial (F1 → F21, F6 → F22, F10 → F23): round 3 owed |
 
 ## Findings
 
@@ -51,6 +51,20 @@ Sources: C = Codex, G = GLM 5.3, S = fresh-eyes Sonnet. Invariants: **A** nothin
 | F18 | RISK | G | link rewrite | a link of an unknown shape would stay pointing into hidden settings, silently | fixed | the snapshot prints a warning for any `href="../` left in a top-level page; test |
 | F19 | RISK | G | facts-check flags | `--out`, `--json`, `--history` and exit 1 unverified | refuted | `facts_check.py` usage (lines 16–21) and argparse (1570–1572); S and C verified the same |
 | F20 | NIT | G | snapshot | silent skips | fixed | every missing part is named |
+
+| F21 | BUG | C (G NIT) | `plan`/`keep` | caused-by: F1 (partial). (A) the `.partial` staging name was written but never checked; a failed copy could leave it | fixed | `plan()` lists each staging path with its final path; a failed copy removes its staging file; tests: rules that ignore the final names but not `.partial` (snapshot and import), and a copy that fails half-way |
+| F22 | BUG | C | `check_kept_off` | caused-by: F6 (partial). (A) a failing `git ls-files` (unreadable index) read as "nothing tracked" | fixed | every git answer's exit code is read: `ls-files` must succeed, `check-ignore` must answer 0 or 1; test with a broken `GIT_INDEX_FILE` |
+| F23 | BUG | C | `referenced_runs` | caused-by: F10 (partial). (C) the run set came from today's history, not the kept page's: a run after the page (its page never written) shifted it | fixed | only rows up to the page's own run (the page's view when it was built: `build_report` takes the latest per (engine, mode, slot)); test with an older displayed run and a later unpublished one |
+| F24 | RISK | C, G | three pointers | (A) the precondition for files the assistant writes tested a sample path, and not tracked status | fixed | per file: `git check-ignore -q --no-index` succeeds and `git ls-files` prints nothing |
+| F25 | RISK | C (G NIT) | positioning trigger | committed changes only; `src/` assumed | fixed | `git log` plus `git status --porcelain` on the pages folder (`src/` here; other sites, ask); no git: judge every page |
+| F26 | RISK | C (G NIT) | leftover-link warning | double-quoted lowercase only; the kept run page unchecked | fixed | any quoting or case; the run page checked too (only `../seo.html` allowed there); test |
+| F27 | RISK | G | `check_kept_off` | `rev-parse` can say `false` with exit 0 | fixed | anything but `true` refuses; test with the `.git` folder as the site folder |
+| F28 | RISK | G | `referenced_runs` | the page's selection rule and the site spelling were assumed | refuted | read `geo_check.build_report` (lines 1232–1239): rows filtered by `r.get("site") == site` with `site = normalize_site(domain)`, latest per `(engine, mode, slot)`; the snapshot does the same (its mode filter only drops keys, so the kept set is a superset) |
+| F29 | NIT | C, G | snapshot | a missing answers folder was skipped silently | fixed | named in the output; test |
+| F30 | — | C | F7, E-E-A-T (UNVERIFIABLE) | the same questions as round 1 | stands as recorded | evidence in F7's row and below |
+| F31 | — | G | `check_kept_off` callers (UNVERIFIABLE) | a string caller would be iterated by character | refuted by reading | the only callers, `do_import` and `snapshot`, pass lists |
+
+Fix chains: F1 → F21, F6 → F22, F10 → F23 (two links each).
 
 Codex's E-E-A-T question settled by Google's own page: "E-E-A-T itself isn't a specific ranking
 factor" (Search Central, "Creating helpful, reliable, people-first content", updated 2026-10-05);
