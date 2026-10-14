@@ -36,6 +36,13 @@ Five rounds, 17 findings (3 BUG, 5 RISK, 9 NIT), plus two follow-ups. The copy c
 | F16 | NIT | melious | 4 | `["tests"]` as an assigned value passes | covered by F13 | named in the comment |
 | F17 | NIT | melious | 4 | `require('./x'); // tests` is a false alarm | accepted | fails closed; costs a rewording |
 
+Light gate for the follow-ups (Codex, medium, read-only; test code, log rows and this trail only):
+
+| Round | Head | BUG/RISK/NIT | What |
+|---|---|---|---|
+| L1 | `e3db316` (the two BUGLOG rows) | 1 / 0 / 0 | the F18 row said only an unreadable folder slips by; the code check below already failed the run. Fixed: the row says this one check passes vacuously and the run still fails |
+| L2 | `61477f7` (F18–F19 fixed) | 0 / 1 / 0 | `test_modules` ignored `find` errors, so an unreadable subfolder gave a partial name list. Fixed after the gate, locally verified only: it now fails and prints nothing, and the caller then has no names, which fails "the toolkit's brand kit tests are found"; a test runs it on a folder that is not there and fails without the fix; a `chmod 000` subfolder gives status 1 and no names, readable gives `a\|b` |
+
 Waivers and deferrals: F13, by the maintainer's choice in chat after round 4 (tripwire, not a parser).
 
 Follow-ups (round 5, outside its delta). Logged as BUGLOG rows, then fixed in this PR on the maintainer's word (the pre-0.32 sweep), with a Light review (Codex, medium) of the rows and of the fix:

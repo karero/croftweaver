@@ -218,11 +218,16 @@ check "scaffold: the folder whats-new.sh names stays behind"    test ! -e "$PSD/
 # error (2: a folder it could not read) are both false; what grep printed is kept in <out>.
 finds_none() { local out="$1"; shift; grep "$@" > "$out" 2>&1; [ "$?" -eq 1 ]; }
 fails() { ! "$@"; }
-# test_modules <dir>: the name of every *.py under <dir>, in subfolders too, joined by "|".
-test_modules() { find "$1" -name '*.py' | sed 's#.*/##; s/\.py$//' | sort -u | paste -sd'|' -; }
+# test_modules <dir>: the name of every *.py under <dir>, in subfolders too, joined by "|". Fails,
+# printing nothing, when find could not read all of <dir>: a partial list would let imports pass.
+test_modules() {
+  local files; files="$(find "$1" -name '*.py')" || return 1
+  printf '%s\n' "$files" | sed 's#.*/##; s/\.py$//' | sort -u | paste -sd'|' -
+}
 check "scaffold: a folder grep cannot read is not called clean" fails finds_none "$T/none" -rl x "$T/no-such-folder"
 mkdir -p "$T/mods/sub" && : > "$T/mods/a.py" && : > "$T/mods/sub/b.py" && : > "$T/mods/sub/c.txt"
 check "scaffold: a module in a subfolder is named too"           test "$(test_modules "$T/mods")" = "a|b"
+check "scaffold: a folder find cannot read gives no names"      fails test_modules "$T/no-such-folder"
 # The folder can stay behind only while nothing a site's assistant reads asks to run it.
 check "scaffold: no brand kit instruction runs its tests"       finds_none "$T/runs" -rlE 'scripts/tests|unittest|pytest' --include='*.md' "$PSD/website-brand-kit"
 [ ! -s "$T/runs" ] || sed 's/^/     /' "$T/runs"
@@ -234,7 +239,7 @@ check "scaffold: no brand kit instruction runs its tests"       finds_none "$T/r
 # after a space (how the scripts' comments name test files). It does NOT catch every way: an import
 # continued on the next line, or a ["tests"] list joined into a path later, passes. When in doubt
 # it fails, so a false alarm costs a rewording.
-mods="$(test_modules "$HERE/../skills/website-brand-kit/scripts/tests")"
+mods="$(test_modules "$HERE/../skills/website-brand-kit/scripts/tests")" || mods=""
 check "scaffold: the toolkit's brand kit tests are found"        test -n "$mods"
 case "$mods" in *[!A-Za-z0-9_\|]*) mods=" a module name that is not a plain name: $mods" ;; esac
 check "scaffold: their module names are plain names"            lacks "$mods" " a module name that is not"
