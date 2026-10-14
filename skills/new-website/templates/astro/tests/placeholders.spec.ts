@@ -329,17 +329,71 @@ async function readPage(page: Page): Promise<{ text: string; lang: string }> {
   const { text, jsonLd, lang } = await page.evaluate((shownAsText) => {
     const exempt = 'code, pre, kbd, samp, [data-placeholder-exempt]';
     const body = document.body.cloneNode(true) as HTMLElement;
+    // A space around every element the browser lays out as a block (and every <br>), for
+    // the first of the readings below. Layout is read from the live page, because a copy
+    // has none. A hidden element (display: none) has no layout of its own to ask, so the
+    // browser is asked how it lays out a bare element of the same tag on this page: a
+    // hidden <span> or <del> stays inline, a hidden <div> is a block. A block is what the
+    // browser calls block, flex, grid, table (and table parts), list-item or flow-root, or
+    // what stays `none` when bare (script, template, rp); every other answer is inline:
+    // inline*, contents, and ruby, which is what Chromium answers for <ruby>. A hidden
+    // element the page has registered as a custom element is not asked: a bare one would
+    // run that element's own code on the page under test. It counts as inline, which is
+    // the browser's answer for a custom element the page does not style.
+    const live = Array.from(document.body.querySelectorAll('*'));
+    const copied = Array.from(body.querySelectorAll('*'));
+    const bare = new Map<string, string>();
+    const displayOfBare = (el: Element) => {
+      const tag = el.tagName;
+      if (customElements.get(el.localName)) return 'inline';
+      if (!bare.has(tag)) {
+        // In the element's own namespace: an SVG <text> is a block, an HTML element of
+        // that name is not.
+        const probe = document.createElementNS(el.namespaceURI, el.localName);
+        document.body.append(probe);
+        bare.set(tag, getComputedStyle(probe).display);
+        probe.remove();
+      }
+      return bare.get(tag)!;
+    };
+    const spaces: Text[] = [];
+    live.forEach((el, i) => {
+      let display = getComputedStyle(el).display;
+      if (display === 'none') display = displayOfBare(el);
+      const block = /^(block|flex|grid|table|list-item|flow-root|-webkit-box|none)/.test(display);
+      if (!block && el.tagName !== 'BR') return;
+      const before = new Text(' ');
+      const after = new Text(' ');
+      copied[i].before(before);
+      copied[i].after(after);
+      spaces.push(before, after);
+    });
     body.querySelectorAll(`script, style, noscript, ${exempt}`).forEach((el) => el.remove());
     // Text nodes, not innerText: content the layout hides (a closed <details>, a
     // collapsed menu) is still served and still indexed.
-    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-    const nodes: string[] = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode.nodeValue ?? '');
-    // Two readings of the same copy, because neither is safe alone. Fused: a word or
-    // slot split by inline markup stays whole ("Lo<em>rem</em>"). Spaced: one block's
-    // last word never fuses with the next block's first ("pricesTODO"). Fused comes
-    // first, so a leftover both readings see is printed in its unbroken spelling.
-    const copy = [nodes.join(''), nodes.join(' ')];
+    const textNodes = () => {
+      const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+      const nodes: string[] = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode.nodeValue ?? '');
+      return nodes;
+    };
+    const bounded = textNodes();
+    spaces.forEach((space) => space.remove());
+    const served = textNodes();
+    // Three readings of the same copy, because none is safe alone. Fused, with a space
+    // around each block: a word or slot split by inline markup stays whole
+    // ("Lo<em>rem</em>"), also at the start of a block the HTML puts no space before:
+    // "<p>Prices</p><p>Lo<em>rem</em> ipsum</p>" reads "PricesLorem ipsum" without those
+    // spaces and "Prices Lo rem ipsum" with one between all text nodes, and neither is a
+    // match. Fused as served, with no spaces added: an element the page lays out as a
+    // block inside a word (a floated first letter, the items of a flex heading) does not
+    // split it, and neither does a wrong answer about a hidden element. Spaced: one inline
+    // element's last word never fuses with the next one's first ("pricesTODO"). The fused
+    // readings come first, so a leftover several readings see is printed in its unbroken
+    // spelling. Not seen by any of the three: a leftover split by inline markup at the
+    // start of an inline element that follows another one with no space between them
+    // ("<span>Prices</span><span>Lo<em>rem</em> ipsum</span>").
+    const copy = [bounded.join(''), served.join(''), served.join(' ')];
     // Same <head> surfaces as tone.spec.ts: user-facing in SERPs and share cards.
     const metaSel = [
       'meta[name="description"]',
@@ -392,6 +446,25 @@ test('placeholders — the page reading reaches each surface it claims', async (
        SLOT] soon.</p>
     <p>Lo<em>rem</em> ipsum.</p>
     <span>prices</span><span>TODO</span>
+    <p>Prices</p><p>do<em>lor</em> sit amet</p><p>Terms</p><p><b>FIX</b>ME</p><p>Rates<br><b>XX</b>X</p>
+    <p>Sizes</p><p>dum<span hidden>my</span> text</p><div hidden>Fees</div><div hidden><b>blind</b>text</div>
+    <p>Notes</p><p>place<del hidden>holder</del> text</p>
+    <p>Dates</p><p>dum<ins hidden>my</ins> copy</p><p>Names</p><p>place<ruby hidden>holder</ruby> copy</p>
+    <p>Towns</p><p>muster<button hidden>stadt</button></p><p>Firms</p><p>muster<ruby>firma</ruby></p>
+    <ul><li>Stock</li><li>dum<em>my</em> content</li></ul><table><tr><td>Cost</td><td>place<b>holder</b> image</td></tr></table>
+    <div>Shelf<div style="display:flow-root">place<b>holder</b> content</div></div>
+    <div>Crate<div style="display:-webkit-box">tex<i>t</i> goes here</div></div>
+    <div>Bench<div style="display:flex"><span style="display:contents">your head<em style="display:contents">line</em> here</span></div></div>
+    <div>Chest<div style="display:grid"><span style="display:contents">co<em style="display:contents">py</em> goes here</span></div></div>
+    <p><span style="float:left">J</span>ohn doe</p> <h2 style="display:flex"><span>muster</span><span>strasse</span></h2>
+    <p>ma<script></script>x mustermann</p>
+    <style>body > u { display: block; }</style> <p>eri<u hidden>ka</u> mustermann</p>
+    <script>customElements.define('x-probe', class extends HTMLElement {
+      connectedCallback() { window.mounted = (window.mounted || 0) + 1; }
+    });</script>
+    <x-probe hidden></x-probe>
+    <style>x-note { display: block; }</style> <div>Vault<x-note style="display:none">platz<b>halter</b>text</x-note></div>
+    <svg width="1" height="1"><title>Rows</title><text style="display:none">ja<tspan>ne</tspan> doe</text></svg>
     <details><summary>More</summary><p>[FOLDED SLOT]</p></details>
     <img alt="[ALT SLOT]" src="data:,">
     <button aria-label="[LABEL SLOT]">Go</button>
@@ -420,8 +493,38 @@ test('placeholders — the page reading reaches each surface it claims', async (
   expect(mustFind.filter((m) => hits(m) !== 1), 'planted slots not found exactly once').toEqual([]);
   expect(findings.find((f) => squash(f.match) === '[INNERSLOT]')?.match, 'printed in its unbroken spelling').toBe('[INNER SLOT]');
   // The two leftovers that only one of the two readings can see.
-  expect(findings.some((f) => f.label === 'filler text'), '"Lo<em>rem</em> ipsum" needs the fused reading').toBe(true);
-  expect(findings.some((f) => f.label === 'author note'), '"prices" + "TODO" needs the spaced reading').toBe(true);
+  const found = (label: string, match: string) => findings.some((f) => f.label === label && squash(f.match).toLowerCase() === match);
+  expect(found('filler text', 'loremipsum'), '"Lo<em>rem</em> ipsum" needs the fused reading').toBe(true);
+  expect(found('author note', 'todo'), '"prices" + "TODO" needs the spaced reading').toBe(true);
+  // A leftover split by inline markup at the start of a block, with no space in the HTML
+  // before that block: only the fused reading with its block boundaries sees these.
+  expect(found('filler text', 'dolorsitamet'), '"<p>Prices</p><p>do<em>lor</em> sit amet</p>"').toBe(true);
+  expect(found('author note', 'fixme'), '"<p>Terms</p><p><b>FIX</b>ME</p>"').toBe(true);
+  expect(found('author note', 'xxx'), '"Rates<br><b>XX</b>X"').toBe(true);
+  // Hidden elements: a hidden inline piece of a word still fuses, a hidden block still ends one.
+  expect(found('placeholder wording', 'dummytext'), '"dum<span hidden>my</span> text"').toBe(true);
+  expect(found('placeholder wording', 'blindtext'), '"<div hidden>Fees</div><div hidden><b>blind</b>text</div>"').toBe(true);
+  expect(found('placeholder wording', 'placeholdertext'), '"place<del hidden>holder</del> text": no list of tags, the browser says <del> is inline').toBe(true);
+  expect(found('placeholder wording', 'dummycopy'), '"dum<ins hidden>my</ins> copy"').toBe(true);
+  expect(found('placeholder wording', 'placeholdercopy'), '"place<ruby hidden>holder</ruby> copy": Chromium lays <ruby> out as "ruby", which is inline').toBe(true);
+  expect(found('placeholder wording', 'musterstadt'), '"muster<button hidden>stadt</button>": inline-block').toBe(true);
+  expect(found('placeholder wording', 'musterfirma'), '"muster<ruby>firma</ruby>": a <ruby> that is shown').toBe(true);
+  // The other kinds of block. What a flex or grid box holds is laid out as blocks itself,
+  // unless it is display: contents; only then does the box's own boundary decide.
+  expect(found('placeholder wording', 'dummycontent'), '"<li>Stock</li><li>dum<em>my</em> content</li>": list-item').toBe(true);
+  expect(found('placeholder wording', 'placeholderimage'), '"<td>Cost</td><td>place<b>holder</b> image</td>": table-cell').toBe(true);
+  expect(found('placeholder wording', 'placeholdercontent'), '"Shelf<div style="display:flow-root">place<b>holder</b> content</div>"').toBe(true);
+  expect(found('placeholder wording', 'textgoeshere'), '"Crate<div style="display:-webkit-box">tex<i>t</i> goes here</div>"').toBe(true);
+  expect(found('placeholder wording', 'yourheadlinehere'), '"Bench<div style="display:flex">…your head<em>line</em> here…</div>", the children display: contents: flex').toBe(true);
+  expect(found('placeholder wording', 'copygoeshere'), '"Chest<div style="display:grid">…co<em>py</em> goes here…</div>", the children display: contents: grid').toBe(true);
+  // What only the fused reading as served sees: the spaces around blocks split these.
+  expect(found('placeholder wording', 'johndoe'), '"<span style="float:left">J</span>ohn doe": a floated first letter is a block').toBe(true);
+  expect(found('placeholder wording', 'musterstrasse'), '"<span>muster</span><span>strasse</span>" in a flex heading: each item is a block').toBe(true);
+  expect(found('placeholder wording', 'maxmustermann'), '"ma<script></script>x mustermann": a script counts as a block').toBe(true);
+  expect(found('placeholder wording', 'erikamustermann'), '"eri<u hidden>ka</u> mustermann" where the page styles "body > u" as a block: the bare <u> is asked, and answers wrongly').toBe(true);
+  expect(found('placeholder wording', 'janedoe'), '"<title>Rows</title><text style="display:none">ja<tspan>ne</tspan> doe</text>" in an <svg>: a hidden SVG <text> is a block, an HTML element of that name is not').toBe(true);
+  expect(found('placeholder wording', 'platzhaltertext'), '"Vault<x-note style="display:none">platz<b>halter</b>text</x-note>", which the page styles as a block and has not registered: it is asked like any other tag').toBe(true);
+  expect(await page.evaluate(() => (window as unknown as { mounted: number }).mounted), 'a hidden custom element must not be built a second time to ask for its layout').toBe(1);
   const mustSkip = [
     ...notShown.map((t) => `UNSEEN ${t.toUpperCase()}`),
     'IN CODE', 'IN PRE', 'IN KBD', 'IN SAMP', 'EXEMPT NOTE', 'EXEMPT ALT', 'IN NOSCRIPT', 'IN STYLE',

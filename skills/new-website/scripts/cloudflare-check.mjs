@@ -69,7 +69,7 @@ export const ITEMS = [
     lookFor: 'there is no outside check for this one' },
   { id: 'ai', section: 4, title: 'AI crawlers: allow',
     path: 'Your domain → Security → Settings → filter by Bot traffic → Configure AI bot policies',
-    lookFor: 'Search, Agent and Training each set to Allow (do not block)' },
+    lookFor: 'Search, Agent and Training each set to Allow (do not block); AI Labyrinth Off; Bot Preference Sync Off unless you block Training; the content-bot block Off, which may show only through the API' },
   { id: 'robots', section: 5, title: 'Your own robots.txt' },
   { id: 'build', section: 5, title: 'The build that is live' },
   { id: 'scripts', section: 5, title: 'No scripts you didn\'t add' },
@@ -737,7 +737,7 @@ export function evaluate(obs, target, opts) {
   const silent = crawlers.filter((c) => c.error).map((c) => c.name);
   const named = [...(rb?.named ?? []), ...(rb?.signals ? ['(content-signal lines)'] : [])];
   const aiPath = ITEMS.find((i) => i.id === 'ai').path;
-  const aiHand = `The policy itself is in the dashboard (${aiPath}) and cannot be read from outside.`;
+  const aiHand = `The policies are in the dashboard (${aiPath}) and cannot be read from outside. Nor can the switches the checklist lists after the policies: AI Labyrinth, Bot Preference Sync (Off unless you block Training; what it adds shows in robots.txt) and the content-bot block.`;
   if (!seen) skip('ai', notChecked);
   else if (refused.length) put('ai', 'look', `these crawler names were refused: ${refused.join(', ')}. If you chose to block Training that is expected; otherwise set Search, Agent and Training to Allow.`, section(4));
   else if (rb?.blocksAll) put('ai', 'look', 'robots.txt tells every crawler to stay out, AI crawlers included.', section(4));
