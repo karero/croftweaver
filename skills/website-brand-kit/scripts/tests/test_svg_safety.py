@@ -248,7 +248,7 @@ class ThroughTheCommand(unittest.TestCase):
                 self.assertEqual((answer["code"], answer["message"]), ("not-xml", _svg.NO_SUCH_NAME))
                 self.assertEqual(through_the_command(self, data.replace(name, plain))["code"], "not-xml")   # the character alone: not XML
                 self.assertIn(through_the_command(self, data.replace(name, written))["code"], READ)    # as the sentence says: read
-        self.assertIn("(but & as &amp; and < as &lt;, in small letters: those two cannot stand alone), or take the name out", _svg.NO_SUCH_NAME)
+        self.assertIn("(but write & as &amp; and < as &lt;, in small letters: those two cannot stand alone), or take the name out", _svg.NO_SUCH_NAME)
         # in a package the sentence is the same, said of the file by its name
         answer = through_the_command(self, T.build_zip([("pack/logo.svg", pasted["a no-break space in a title"])]), name="pack.zip")
         self.assertEqual((answer["code"], answer["message"]), ("not-xml", "In the package, the file 'pack/logo.svg': " + _svg.NO_SUCH_NAME))

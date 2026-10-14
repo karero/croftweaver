@@ -627,6 +627,7 @@ class Rule1Lines(unittest.TestCase):
                          ("a megabyte of lines that each hold a colour that is not read", "- Muted: #5a5a72\n" * 61000),
                          ("a megabyte of lines that each hold the word", "a proposal\n" * 95000),
                          ("a megabyte of comments", "<!-- #123456 -->\n" * 61000), ("a megabyte of comments that never close", "<!--" * 262144),
+                         ("a megabyte of comments that end at --!>, with no --> anywhere", "<!-- #123456 --!>\n" * 58000),
                          ("a megabyte of functions that never close", "- " + "rgb(" * 262000), ("a megabyte of hashes and digits", "#12345 " * 149000),
                          ("a megabyte of labels", "### Light theme\n" + "**Dark theme**\n" * 69000), ("a megabyte of one-pipe lines", "### Light theme\n" + "|\n" * 524000),
                          ("a megabyte of rows that are each see-through", "### Light theme\n" + "|Muted|#1118|\n" * 74000),
@@ -3471,6 +3472,10 @@ class StylesheetQuotes(unittest.TestCase):
         self.assertTrue(quoted)
         for t in quoted:
             self.assertEqual(t.count(_palette._UNSEEN_NOTE), 1)
+        # and a note (no problem, said beside the check) carries it too: an import with a hidden character in its address
+        note = _palette.read_css('@import url("a\u200bb.css");\n' + whole).notes[0]
+        self.assertIn("<U+200B>", note)
+        self.assertTrue(note.endswith(_palette._UNSEEN_NOTE))
 
 
 if __name__ == "__main__":

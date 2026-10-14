@@ -1324,10 +1324,12 @@ class PaletteCommand(unittest.TestCase):
 
 
 class APressWhileTheReportIsSaid(unittest.TestCase):
+    @unittest.skipIf(os.name != "posix", "os.kill with SIGINT sends a Ctrl-C only on POSIX; on Windows it ends the process")
     def test_a_programs_own_handler_gets_the_press_after_the_report(self):
         # (round 10 follow-up) a Ctrl-C while the report is said is held until it is out. It was raised again only where
         # the handler before was Python's own, so a program that runs main() with a handler of its own never heard of it.
-        # It now gets the press once, after the whole report, and main() still returns the check's status.
+        # It now gets the press once, after the whole report, with the frame the press came in, and main() still returns
+        # the check's status.
         import io
         import signal
         import brand_intake
@@ -1338,7 +1340,7 @@ class APressWhileTheReportIsSaid(unittest.TestCase):
             real_say(text)
 
         brand_intake._say = say_with_a_press
-        before = signal.signal(signal.SIGINT, lambda *_a: heard.append(1))
+        before = signal.signal(signal.SIGINT, lambda signum, frame: heard.append((signum, frame is not None)))
         out = io.StringIO()
         try:
             with tempfile.TemporaryDirectory() as tmp:
@@ -1353,7 +1355,7 @@ class APressWhileTheReportIsSaid(unittest.TestCase):
         finally:
             brand_intake._say = real_say
             signal.signal(signal.SIGINT, before)
-        self.assertEqual((code, heard), (1, [1]))
+        self.assertEqual((code, heard), (1, [(signal.SIGINT, True)]))
         self.assertIn("27 of 30 pairs pass.", out.getvalue())
 
 

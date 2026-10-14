@@ -387,6 +387,9 @@ def _cells(line):
     return [c.strip() for c in line.split("|")]
 
 
+_COMMENT_END = re.compile("-->|--!>")
+
+
 def _without_comments(text):
     """(the text without a byte-order mark at its start and with every HTML comment blanked, the number of the
     line on which a comment opens that is never closed, or None). A blanked comment keeps its line breaks, so
@@ -402,13 +405,14 @@ def _without_comments(text):
             out.append(text[at:])
             break
         # A comment ends at the first `-->` (`<!-->` and `<!--->` are whole comments) or `--!>`, as a browser ends one
-        # (HTML's comment states; `<!--!>` and `<!---!>` do not end there, so `--!>` is looked for from after `<!--`).
-        # The second search stops where the first found its end, so the whole reading stays linear in the text.
-        dashes = text.find("-->", start + 2)
-        bang = text.find("--!>", start + 4, len(text) if dashes < 0 else dashes + 3)
-        if dashes < 0 and bang < 0:
+        # (HTML's comment states; `<!--!>` and `<!---!>` do not end there, so a `--!>` counts from after `<!--`). One
+        # search finds whichever comes first and stops there, so the reading stays linear in the text.
+        m = _COMMENT_END.search(text, start + 2)
+        while m and m.group() == "--!>" and m.start() < start + 4:
+            m = _COMMENT_END.search(text, m.start() + 1)
+        if not m:
             unclosed = len((text[:start] + "x").splitlines())
-        end = len(text) if dashes < 0 and bang < 0 else bang + 4 if bang >= 0 else dashes + 3
+        end = m.end() if m else len(text)
         out.append(text[at:start])
         out.append(_NOT_A_BREAK.sub(" ", text[start:end]))
         at = end
@@ -1841,9 +1845,9 @@ def scan_css(text):
         start, end = imports[0]
         start += len(plain[start:end]) - len(plain[start:end].lstrip(_CSS_SPACE))
         shown = _squeeze(plain[start:end])
-        sheet.notes.append("line %d of the stylesheet brings in another stylesheet (`%s`), which this check does not read. If that one "
-                           "sets the site's colours, the page can show other colours than these."
-                           % (_line_number(text, start), _visible(shown if len(shown) <= 60 else shown[:60] + "...")))
+        sheet.notes.append(_noted("line %d of the stylesheet brings in another stylesheet (`%s`), which this check does not read. If that one "
+                                  "sets the site's colours, the page can show other colours than these."
+                                  % (_line_number(text, start), _visible(shown if len(shown) <= 60 else shown[:60] + "..."))))
         if len(imports) > 1:
             n = len(imports) - 1
             sheet.notes.append("%d more statement%s like it bring%s in %s; the next is on line %d."

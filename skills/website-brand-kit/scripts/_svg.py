@@ -816,8 +816,8 @@ DOCTYPE_DEFINES = (
 NO_SUCH_NAME = (
     "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;, "
     "for example &nbsp;). Where the name stands for a character, as it does on a web page, open the file in a text "
-    "editor and put the character itself in its place (but & as &amp; and < as &lt;, in small letters: those two cannot "
-    "stand alone), or take the name out, its & and its ; too. Where the file had "
+    "editor and put the character itself in its place (but write & as &amp; and < as &lt;, in small letters: those two "
+    "cannot stand alone), or take the name out, its & and its ; too. Where the file had "
     "a DOCTYPE declaration that was deleted, the " + NEEDS_AN_EXPORT
 )
 
