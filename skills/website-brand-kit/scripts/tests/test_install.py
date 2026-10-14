@@ -1560,6 +1560,18 @@ class OnlyALogo(SiteCase):
         self.assertTrue(any(l.startswith("Note: " + note) for l in data["report"]), data["report"])
         self.assertEqual(self.snapshot(), before)
 
+    def test_a_question_comes_with_every_note_of_what_the_run_would_do(self):
+        # FFR-3: the question stopped the run before the notes of what it would do were added, so a report that asked
+        # left out "COMPANY.logo ... this run would point it at /images/logo.png". Asked, she sees all the run would do.
+        self.put("src/config.ts", self.read("src/config.ts").replace("logo: '/images/logo.png',", "logo: '/brand/own-logo.svg',"))
+        hidden = self.package("hidden.svg", rects((2, 2, 28, 28, "#123456"), (2, 2, 28, 28, "#16162a")))
+        before = self.snapshot()
+        code, out = self.intake("--input", hidden, "--accept-low-contrast", "both", brand=False)
+        self.assertEqual(code, 3, out)
+        self.assertIn("I need your decision before I go on. Nothing was written.", out)
+        self.assertIn("Note: COMPANY.logo in src/config.ts points at /brand/own-logo.svg; this run would point it at /images/logo.png", out)
+        self.assertEqual(self.snapshot(), before)
+
     def test_a_question_asked_before_the_mark_is_drawn_carries_the_notes_made_so_far(self):
         # two packages in the folder, and a palette that is half filled in: she is told both at once
         self.brand_md(BAKERY_BRAND_MD.replace("| Soft background | `#fef5e8` |\n", ""))
@@ -2971,12 +2983,12 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         T.require_pillow(self)
         self.brand_md()
         code, out = self.intake("--dry-run")
-        self.assertIn("  the share cards under public/images/og would be made again", out.splitlines())
+        self.assertIn("  then the share-card generator would run again (a dry run does not check that it can)", out.splitlines())
         code, out = self.intake()
         self.assertEqual(out.splitlines()[out.splitlines().index("Written:") + 5], "  the share cards under public/images/og, made again")
         code, out = self.intake("--dry-run")   # everything is in already: no file would be written, and the cards would still be made again
         at = out.splitlines().index("  nothing: every file is already as this run would write it")
-        self.assertEqual(out.splitlines()[at + 1], "  the share cards under public/images/og would be made again")
+        self.assertEqual(out.splitlines()[at + 1], "  then the share-card generator would run again (a dry run does not check that it can)")
         code, out = self.intake()
         self.assertEqual(code, 0, out)
         at = out.splitlines().index("Written:")
@@ -5881,6 +5893,31 @@ class BothParts(SiteCase):
         import _png
         pic = _png.decode(self.bytes("public/icon-maskable-512.png"))
         self.assertEqual(_png.at(pic, 0, 0), (0xff, 0xfa, 0xf2, 255), "the new light background is under the maskable icon")
+
+
+
+class TemporaryFilesOfACommand(unittest.TestCase):
+    def test_a_file_made_before_one_that_cannot_be_made_is_closed(self):
+        # (round 10 follow-up) the three files for a command's output were made in one statement, so where the second or
+        # the third could not be made (no file handles left, a full disk), the earlier ones were left to the garbage
+        # collector. Each is now closed as the error leaves _run, and the error itself goes on to the caller.
+        import _proc
+        made, real = [], _proc.tempfile.TemporaryFile
+
+        def second_fails(*args, **kwargs):
+            if len(made) == 1:
+                raise OSError(24, "Too many open files")
+            made.append(real(*args, **kwargs))
+            return made[-1]
+
+        _proc.tempfile.TemporaryFile = second_fails
+        try:
+            with self.assertRaises(OSError):
+                _proc._run([sys.executable, "-c", "pass"], cwd=None, timeout=30)
+        finally:
+            _proc.tempfile.TemporaryFile = real
+        self.assertEqual(len(made), 1)
+        self.assertTrue(made[0].closed, "the first file is closed, not left open")
 
 
 if __name__ == "__main__":

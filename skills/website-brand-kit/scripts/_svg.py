@@ -44,7 +44,7 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                  No comma first, last or twice. Written into the cleaned file with one blank
                  between two numbers, however the file spaced it.
                    points (an even count, 2,000 numbers at most; it may be empty). Between two
-                   POINTS, that is after every second number: blanks, or a comma and then blanks,
+                   POINTS, that is after every second number: blanks, or a comma with or without blanks after it,
                    and nothing else (the renderer reads no comma after a blank there, and no
                    number run on to the one before)
                    stroke-dasharray (`none`, or 1 to 16 numbers, none with a minus sign; see
@@ -392,7 +392,8 @@ _PERCENT = re.compile(r"(%s)%%" % _NUM)
 _WITH_UNIT = re.compile(r"%s(?:px|pt|pc|mm|cm|in|em|ex|rem|ch|vw|vh|vmin|vmax|Q|%%)" % _NUM)
 # what stands between two numbers of a list, and the second of them: each alternative begins with another character
 _NEXT = re.compile(r"(?:[ \t\r\n]+(?:,[ \t\r\n]*)?|,[ \t\r\n]*|(?=[+\-.]))(%s)" % _NUM)
-# What stands between two POINTS of `points`, and the first number of the second: blanks, or a comma and then blanks.
+# What stands between two POINTS of `points`, and the first number of the second: blanks, or a comma with or without
+# blanks after it (`0,0,10,10` and `0,0, 10,10` both read).
 # Measured 2026-10-13: the site's renderer reads no comma after a blank there and no number run on to the one before
 # (`1,1 ,9,1` and `1 1-9 1` draw nothing), though it reads both between the two numbers of one point.
 _NEXT_POINT = re.compile(r"(?:[ \t\r\n]+|,[ \t\r\n]*)(%s)" % _NUM)
@@ -815,7 +816,8 @@ DOCTYPE_DEFINES = (
 NO_SUCH_NAME = (
     "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;, "
     "for example &nbsp;). Where the name stands for a character, as it does on a web page, open the file in a text "
-    "editor and put the character itself in its place, or take the name out, its & and its ; too. Where the file had "
+    "editor and put the character itself in its place (but & as &amp; and < as &lt;, in small letters: those two cannot "
+    "stand alone), or take the name out, its & and its ; too. Where the file had "
     "a DOCTYPE declaration that was deleted, the " + NEEDS_AN_EXPORT
 )
 

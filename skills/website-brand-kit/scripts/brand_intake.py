@@ -314,6 +314,8 @@ def main(argv=None):
         signal.signal(signal.SIGINT, was)
     if came and was is signal.default_int_handler:
         raise KeyboardInterrupt
+    if came and callable(was):   # a program that runs main() with its own handler gets the press it would have had
+        was(signal.SIGINT, None)
     return code
 
 

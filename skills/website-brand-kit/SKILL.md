@@ -52,7 +52,8 @@ This text lives here, once. `new-website` reads it from here; do not restate it.
 - **Asked once** during a build, right after `POSITIONING.md` is filled (and
   `STORY.md`, if she chose the story), before the content guide. A part she has and
   wants used: hold it for the intake (§6). A part she lacks and wants no help with:
-  say nothing more; it stays as the site has it.
+  say nothing more; it stays as the site has it. Asking never holds up the step she
+  asked for: if the question comes up late, ask it once and go on with that step.
 - **Later, on any site made from the starter**, when the owner asks ("I need a logo",
   "new colours"). Read the site's `POSITIONING.md` and `BRAND.md` first.
 - **Prerequisite:** a filled `POSITIONING.md`. Without it a logo has no direction; run
@@ -149,10 +150,11 @@ answered. "Surprise me" is an answer.
      table no label that names another section (`**Dark theme**`, or just `Dark`,
      `Dark mode` or `Night`, under `### Light theme`), nor a header row that does
      (`| Dark theme | Hex |`). A word that only begins so (`Darkened`, `Lightness`) is
-     no label. A no-break space (Option+Space on a Mac, or pasted text) is read as a
-     plain space; any other `<U+...>` in a line the check quotes is a character that does
-     not show on the screen: take it out (a `<U+00A0>` there is a no-break space: make it a
-     plain space). One kind stops the check before it reads anything, wherever in the
+     no label. A no-break space (Option+Space on a Mac, or pasted text) counts as a plain
+     space wherever the check reads a line, so it never stops the check alone; a line the
+     check quotes for another reason shows it as `<U+00A0>`: make that a plain space too.
+     Any other `<U+...>` in a quoted line is a character that does not show on the screen:
+     take it out. One kind stops the check before it reads anything, wherever in the
      file it stands: a line break that is no plain new line (pasted text can bring one;
      the check names it, such as `U+2028` or `U+000B`). The output that names it also
      says that no row was found: do not rewrite the tables for that. Delete the character
@@ -192,7 +194,8 @@ answered. "Surprise me" is an answer.
 no soft background. Propose the missing values, write each into the table with the
 mark `(proposed)` after it (`` `#e2874a (proposed)` ``), and run the check again: it
 lists each proposal, and for a proposed text colour its ratio on each background. Show
-her those lines and ask her to confirm or change each one. Take a mark out only when
+her those lines as printed, each ratio as the check gives it (not rounded), and ask her
+to confirm or change each one. Take a mark out only when
 she has confirmed that value. The intake stops and asks (exit 3) while a palette still
 carries a mark. Write the mark in English, exactly
 `(proposed)`, whatever language you speak with her: the check looks for that word, in
@@ -389,8 +392,8 @@ common ones:
   drawing needs it: ask for an export without a DOCTYPE.
 - **A name that nothing defines (`&nbsp;`, `&copy;`).** Pasted code can hold a web
   page's name for a character, written between `&` and `;`. She puts the character
-  itself in its place or takes the name out, or tells you to, then you run the check
-  again. If the file had a DOCTYPE that was deleted, the drawing needs what that brought
+  itself in its place (`&amp;` and `&lt;` for `&` and `<`, which cannot stand alone) or
+  takes the name out, or tells you to, then you run the check again. If the file had a DOCTYPE that was deleted, the drawing needs what that brought
   in: ask for an export without a DOCTYPE. Beyond these two, nothing in her files is
   yours to change.
 - **Something programs draw in different ways, or slowly:** a file that pulls in

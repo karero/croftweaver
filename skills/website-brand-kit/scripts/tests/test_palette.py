@@ -485,6 +485,20 @@ class Rule1Lines(unittest.TestCase):
         self.assertIn("Line 2,", p.problems[0][3])
         self.assertIn("Line 14,", p.problems[1][3], "a blanked comment keeps its line breaks, so every line keeps its number")
 
+    def test_a_comment_ends_where_a_browser_ends_it_also_at_dash_dash_bang(self):
+        # FFR-3: a comment ended only at `-->`, but a browser ends one at `--!>` too, so a row between `--!>` and the next
+        # `-->` was blanked here while the page showed it.
+        p = _palette.parse_tables("### Light theme\n<!-- note --!>\n" + plain(STARTER_LIGHT) + "<!-- later -->\n")
+        self.assertEqual((p.light, p.problems), (STARTER_LIGHT, []))
+        # and what is not an end stays inside: `<!--!>` and `<!---!>` open a comment that runs on to its real end
+        for opening in ("<!--!>", "<!---!>"):
+            with self.subTest(opening=opening):
+                p = _palette.parse_tables("### Light theme\n%s | Muted | #777777 |\n-->\n" % opening + plain(STARTER_LIGHT))
+                self.assertEqual((p.light, p.problems), (STARTER_LIGHT, []))
+        # `<!----!>` is a whole comment to a browser
+        p = _palette.parse_tables("### Light theme\n<!----!>\n" + plain(STARTER_LIGHT))
+        self.assertEqual((p.light, p.problems), (STARTER_LIGHT, []))
+
     def test_a_comment_that_is_never_closed_runs_to_the_end_and_is_named(self):
         p = _palette.parse_tables("### Light theme\n" + plain(STARTER_LIGHT) + "\n<!-- the dark theme, later\n### Dark theme\n" + plain(STARTER_DARK))
         self.assertEqual((p.light, p.dark), (STARTER_LIGHT, {}))
@@ -3432,6 +3446,31 @@ class Stylesheet(unittest.TestCase):
                      "@important x;\n" + whole, "@import-x 'a.css';\n" + whole):
             with self.subTest(text=text[:30]):
                 self.assertEqual(_palette.read_css(text).notes, [])
+
+
+
+class StylesheetQuotes(unittest.TestCase):
+    """A stylesheet message quotes the stylesheet. To CSS a tab, a line end or a form feed is a blank, so the quote shows
+    it as one: written as <U+0009> it looked like a hidden character to take out, and the owner would have been told to
+    remove a tab. Any other character that does not show is written as <U+...>, and then the message says what that is,
+    as the palette's own messages do."""
+
+    def test_a_tab_is_shown_as_a_blank_and_a_hidden_character_is_explained(self):
+        whole = T.starter_file("src/styles/global.css")
+        with self.assertRaises(Refusal) as tab:
+            _palette.read_css(whole + 'a::after { content: "a\tb\\\n" }\n')
+        self.assertIn('(`"a b\\`:', str(tab.exception))
+        self.assertNotIn("<U+", str(tab.exception))
+        with self.assertRaises(Refusal) as hidden:
+            _palette.read_css(whole + 'a::after { content: "a\u200bb\\\n" }\n')
+        self.assertIn("<U+200B>", str(hidden.exception))
+        self.assertTrue(str(hidden.exception).endswith(_palette._UNSEEN_NOTE))
+        # a problem the scan reports (not a refusal) carries the sentence too, once
+        css = _palette.read_css(whole + "@media print {\n\t:root\u200b { --bg: #fff; } }\n")
+        quoted = [t[2] for t in css.problems if "<U+200B>" in t[2]]
+        self.assertTrue(quoted)
+        for t in quoted:
+            self.assertEqual(t.count(_palette._UNSEEN_NOTE), 1)
 
 
 if __name__ == "__main__":
