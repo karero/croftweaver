@@ -29,6 +29,7 @@ left out of the artifact).
 | 2 (verification) | 1c20966 | Codex medium (245 s, 59k tokens); GLM 5.3 on ollama (487 s) standing in for melious, whose reply was cut off at the 300 s limit while still arriving | 4 / 3 / 6 (F18–F28) | delta fef0408..1c20966 with the plan; `make test` 238 OK, `make check` exit 0 before the round. 2 BUGs were round-1 fixes left partial (F1, F2); round 3 owed. 6 UNVERIFIABLE questions, 1 checked and refuted (below) |
 | 3 (verification) | 0118cf2 | Codex medium (321 s, 76k tokens), GLM 5.3 on melious (443 s, 34k) | 2 / 3 / 2 (F29–F35) | delta 1c20966..0118cf2; `make test` 244 OK, `make check` exit 0 before the round. F30 is a substantive BUG: round 4 earned (named here, as the budget asks past round 3) |
 | 4 (verification) | 3090c40 | Codex medium (340 s, 67k tokens), GLM 5.3 on melious (328 s, 22k) | 1 / 1 / 2 (F36–F39) | delta 0118cf2..3090c40; `make test` 246 OK, `make check` exit 0 before the round. F36 is a substantive BUG: round 5 earned |
+| 5 (verification) | 296d55c | Codex (medium), GLM 5.3 on melious (900 s limit) | running | delta 3090c40..296d55c; `make test` 248 OK, `make check` exit 0 before the round |
 
 ## Findings
 
