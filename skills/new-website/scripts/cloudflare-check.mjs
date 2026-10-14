@@ -507,20 +507,19 @@ function cloudflareGroup(value) {
 
 // Cloudflare's script monitor (Client-side security, formerly Page Shield) has browsers report
 // the scripts a page loads to csp-reporting.cloudflare.com, on a sample of pages. It shows in a
-// report-to group named cf-csp-endpoint, in a reporting-endpoints entry and in a report-only
-// policy; any one of the three names it. A report-to value that parses is judged by its groups,
-// one that does not by its text, as the other two headers are.
-const MONITOR_TEXT = /(?:^|[^a-z0-9.-])csp-reporting\.cloudflare\.com(?![a-z0-9.-])/i;
+// report-to group, in a reporting-endpoints entry and in a report-only policy; any one of the
+// three names it. Each is judged by the host of an address it reports to, never by a group's
+// name or by text that quotes the host elsewhere in the value (a path, a query, a user name).
+const monitorHost = (u) => {
+  try { return /(^|\.)csp-reporting\.cloudflare\.com$/i.test(new URL(u).hostname.replace(/\.$/, '')); } catch { return false; }
+};
 function cloudflareMonitor(value, asReportTo) {
   if (asReportTo) {
-    const monitorHost = (e) => {
-      try { return /(^|\.)csp-reporting\.cloudflare\.com$/i.test(new URL(e.url).hostname); } catch { return false; }
-    };
     let groups = null;
-    try { groups = JSON.parse(`[${value}]`).flat(); } catch { /* judged by its text below */ }
-    if (groups) return groups.some((g) => g && (g.group === 'cf-csp-endpoint' || (Array.isArray(g.endpoints) && g.endpoints.some(monitorHost))));
+    try { groups = JSON.parse(`[${value}]`).flat(); } catch { /* the addresses in its text are judged below */ }
+    if (groups) return groups.some((g) => g && Array.isArray(g.endpoints) && g.endpoints.some((e) => e && monitorHost(e.url)));
   }
-  return MONITOR_TEXT.test(value);
+  return (value.match(/https?:\/\/[^\s"',;<>)]+/gi) ?? []).some(monitorHost);
 }
 
 // robots.txt, read the way a crawler reads it: groups of User-agent lines with their rules.
@@ -676,15 +675,21 @@ export function evaluate(obs, target, opts) {
     const nel = policies.length > 0;
     const age = Number.isFinite(live?.max_age) ? ` (max_age ${live.max_age} seconds)` : '';
     const aliasNel = alias && !alias.error && (header(alias, 'nel') || header(alias, 'report-to'))
-      ? ' The pages.dev address still sends them; the header rule cannot reach it, and no way to remove them there has been found.' : '';
+      ? ' The pages.dev address still sends nel and report-to headers; the header rule cannot reach it, and no way to remove them there has been found.' : '';
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
-    if (nel && live !== undefined) put('nel', 'fail', `the answer carries a nel header${age}: Network Error Logging is on${via}.`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
-    else if (cfReport) put('nel', 'fail', `the answer carries Cloudflare's NEL reporting group in a report-to header${via}.`, `Remove it with the header rule. ${section(3)}`);
-    else if (withdrawn) put('nel', 'look', `the nel header says max_age 0, which tells browsers to forget the policy${via}.${aliasNel}`, section(3));
-    else if (monitor) put('nel', 'look', `no nel header, but Cloudflare's script monitor is on${via}. On a sample of pages Cloudflare adds a content-security-policy-report-only header and a report-to group, cf-csp-endpoint, so visitors' browsers send reports to csp-reporting.cloudflare.com. That is not NEL. If you did not choose it, switch off Continuous script monitoring (this zone's Security → Settings, filter by Client-side abuse). It comes on a sample of pages, so a clean run does not prove it is off.${aliasNel}`, section(3));
+    // The script monitor is named wherever it is seen, beside a NEL failure too: it is not NEL,
+    // and the header rule for NEL does not remove it.
+    const monitorWhat = "Cloudflare adds a content-security-policy-report-only header and a report-to group, cf-csp-endpoint, to a sample of pages, so visitors' browsers send reports to csp-reporting.cloudflare.com. That is not NEL.";
+    const monitorAlso = monitor ? ` Cloudflare's script monitor is switched on as well: ${monitorWhat}` : '';
+    const monitorFix = "Your domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring: Off. The checklist's header rule for NEL does not remove it.";
+    const sampleNote = " Cloudflare's script monitor adds its headers to a sample of pages only, so this one answer cannot show that it is off.";
+    if (nel && live !== undefined) put('nel', 'fail', `the answer carries a nel header${age}: Network Error Logging is on${via}.${monitorAlso}`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
+    else if (cfReport) put('nel', 'fail', `the answer carries Cloudflare's NEL reporting group in a report-to header${via}.${monitorAlso}`, `Remove it with the header rule. ${section(3)}`);
+    else if (withdrawn) put('nel', 'look', `the nel header says max_age 0, which tells browsers to forget the policy${via}.${monitorAlso}${aliasNel}`, section(3));
+    else if (monitor) put('nel', 'look', `no nel header, but Cloudflare's script monitor is switched on${via}: ${monitorWhat}${aliasNel}`, monitorFix);
     else if (reports.length) put('nel', 'look', `no nel header, but a report-to header is sent${via}. If it is not yours, remove it with the header rule; if your site sets its own reporting groups, leave it.${aliasNel}`, section(3));
-    else if (offPage) put('nel', 'look', `no nel and no report-to header, judged from the ${home.status} answer, not the page.${aliasNel}`);
-    else put('nel', 'ok', `no nel and no report-to header on the home page.${aliasNel}`);
+    else if (offPage) put('nel', 'look', `no nel and no report-to header, judged from the ${home.status} answer, not the page.${sampleNote}${aliasNel}`);
+    else put('nel', 'ok', `no nel and no report-to header on the home page.${sampleNote}${aliasNel}`);
   }
 
   // 5. What Cloudflare adds to the page: cookies and scripts.
