@@ -28,7 +28,8 @@ and runs the commands; the skills cannot run anything by themselves.
   The full list is in [Writes outside your site's folder](#writes-outside-your-sites-folder).
 - **In Claude Code, routine build commands run without asking**, because each site made
   with Claude Code gets a permission list (see
-  [What runs without asking](#what-runs-without-asking)). That list also lets `node`,
+  [What runs without asking](#what-runs-without-asking); this is how Claude Code's
+  documentation describes the list, not tried here in a live session). That list also lets `node`,
   `npm run` and `git push` run without asking. It saves clicks; it is not a safety fence.
 - **Releases carry no checksum file and no signature of our own.** GitHub shows a SHA-256
   for each download. See [Releases](#releases).
@@ -37,7 +38,10 @@ and runs the commands; the skills cannot run anything by themselves.
 
 **Claude Code.** Every new site made with Claude Code gets `.claude/settings.json`
 ([template](../skills/new-website/templates/claude/settings.json)). The `website-permissions`
-skill installs the same file into an existing site. It has three parts:
+skill installs the same file into an existing site. It has three parts. What each part
+does below is how Claude Code's
+[permission documentation](https://code.claude.com/docs/en/permissions) describes it; it
+was read, not tried in a live session.
 
 - **Runs without asking:** `npm install`, `npm ci`, `npm run …`, `npm test …`, `npm exec …`,
   `npx astro`, `npx keystatic`, `npx playwright`, `wrangler pages dev` and `wrangler whoami`
@@ -52,8 +56,7 @@ skill installs the same file into an existing site. It has three parts:
   (docs.astro.build, developers.cloudflare.com, keystatic.com).
 - **Blocked:** `rm -rf`, `git push --force` and `git push -f`, `git reset --hard`,
   `gh repo delete`, `wrangler delete` and `wrangler pages delete` (with or without `npx`).
-  Claude Code's [permission documentation](https://code.claude.com/docs/en/permissions)
-  says a block rule prevents the command; it does not ask. You run such a command yourself
+  The documentation says a block rule prevents the command; it does not ask. You run such a command yourself
   if you really mean it. (Some skill texts say these commands "still ask". This was read
   from the documentation, not tried in a live session.)
 - **Everything else asks first**, as long as Claude Code is in its normal mode. If you
@@ -90,7 +93,7 @@ These are instructions only: `ai-seo`, `copywriting`, `customer-research`, `sche
 through Google's and Cloudflare's pages; the assistant drafts the values) and
 `website-motion` (it copies one test file into the site).
 
-Three more name a few commands:
+Two more name a few commands:
 
 - `business-listings-setup` has the assistant request each profile address your site
   links to (Google, LinkedIn and the like), the way `outgoing-link-audit` does, to see
@@ -98,8 +101,6 @@ Three more name a few commands:
 - `image` shows example commands for image tools (`cwebp`, `mogrify`, `jpegoptim`) and a
   `curl` that reads a page's image list. It may suggest an image service (Gemini, Flux,
   Ideogram, OpenAI) that you use with your own account and key.
-- `website-permissions` copies `.claude/settings.json` and the sync hook script it
-  registers (`git-stand.mjs`, which runs `git fetch`) into the site (see above).
 
 ### Skills that run the site's own build and tests
 
@@ -163,6 +164,9 @@ message. There is no form server.
   weekly AI check. `schedule_tracking.sh install` sets up a weekly run on macOS, and only
   on an explicit yes. Once per site per session it runs `schedule_tracking.sh status`, which
   only reads.
+- **`website-permissions`** copies `.claude/settings.json` and the sync hook script it
+  registers (`git-stand.mjs`, which runs `git fetch`) into the site (see
+  [What runs without asking](#what-runs-without-asking)).
 - **`seo-reposition`** uses `search-console-insights`' scripts (`serp_check.py` and the
   Search Console data) and may offer `independent-review`.
 - **`independent-review`** is for people who change the toolkit or their site's code. It
@@ -250,9 +254,10 @@ What touches the maintainer's own places:
 - After launch, `new-website` asks you once whether you want a "Built with Croftweaver"
   credit in your footer. Only if you say yes does the assistant read the badge code and
   files from croftweaver.com; like any web request, that one shows up in croftweaver.com's
-  server logs. The skill tells the assistant to save the badge in your site. The site's
-  security header lets images load only from the site itself (`img-src 'self' data:`), so
-  your visitors' browsers do not fetch a badge from croftweaver.com. The credit is a link
+  server logs. The skill tells the assistant to save the badge in your site. The starter's
+  security header (`public/_headers`) lets images load only from the site itself or as
+  inline data (`img-src 'self' data:`), so a browser that applies it does not fetch a
+  badge from croftweaver.com. (Read from the starter; not tested on a live site.) The credit is a link
   to croftweaver.com.
 - `croftweaver.com` and `github.com/karero/croftweaver` otherwise appear only as links.
 
