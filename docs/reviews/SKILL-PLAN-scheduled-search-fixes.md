@@ -10,8 +10,8 @@ scenarios are made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ▶ rewritten for Option 0 after the decisions; not reviewed | draft PR #286 (branch `docs/scheduled-search-fixes-requirements`) |
-| 2 | Owner answers the open decisions | ✅ D0 to D10 decided 2026-10-14; D11 open | owner's answers in chat, 2026-10-14 |
-| 3 | Review gate on this file (Normal: a plan, so never Light) | ⏸ waits for D11 | — |
+| 2 | Owner answers the open decisions | ✅ D0 to D11 decided 2026-10-14 | owner's answers in chat, 2026-10-14 |
+| 3 | Review gate on this file (Normal: a plan, so never Light) | ⏸ next | — |
 | 4 | Design plan (the mechanism), then build, then its own review gate | ⏸ waits for 3 | — |
 | 5 | Release note line in 0.32 (D10) | ⏸ waits for 4 | — |
 
@@ -153,7 +153,8 @@ the full suite. Red: fix the wording within the same four places and push again.
 - **"Not this one."** The owner can turn a proposal down in plain words, in the session or
   by closing the pull request. That page and query are not proposed again for 12 weeks,
   and the next report says until when.
-- **Measuring (see D11).** The clock starts when the change is **live**, not when it is
+- **Measuring (D11: in v1).** When the owner acts on a proposal, the toolkit keeps which
+  page, query and pull request it was, so the report can follow it. The clock starts when the change is **live**, not when it is
   merged: on a two-stage site nothing is live before `npm run ship`. 28 full days later
   (plus Search Console's lag), the report compares 28 days after with the 28 days before,
   against the site's untouched pages as a control, and says "consistent with", never
@@ -263,7 +264,7 @@ the pull request shows the old and new wording and "This search sends people to 
 see your report for the numbers", with no impressions or positions. Later pull requests
 for this site do not ask again.
 
-**8. Measuring after the change is live (if D11 keeps it in v1).**
+**8. Measuring after the change is live.**
 Given a two-stage site where the pull request of scenario 1 was merged on 2026-11-03 and
 shipped live on 2026-11-05 (the live page shows the new title).
 When the report of 2026-12-07 compares 2026-11-05 to 2026-12-02 with 2026-10-08 to
@@ -325,9 +326,4 @@ The questions that come with it (which assistants, how runs are paid) are reopen
 | D8 | When croftweaver.com may name it | Only once it ships |
 | D9 | The 7-day Google sign-in | Tracked separately: `docs/BUGLOG.md`, merged in #290 |
 | D10 | Release | In 0.32 |
-
-**Open:**
-
-| # | Decision | Proposal (judgment) |
-|---|---|---|
-| D11 | Measuring the result (R3, scenario 8) in v1, or later. It needs the report to know which proposal was acted on and when it went live, which is most of the new work; without it, the owner sees the change but not whether it helped | Later: v1 ships the proposal and the tested edit, in 0.32; measuring follows in the next release |
+| D11 | Measuring the result (R3, scenario 8) in v1, or later | In v1: the proposal, the tested edit and the 28-day comparison all ship in 0.32 |
