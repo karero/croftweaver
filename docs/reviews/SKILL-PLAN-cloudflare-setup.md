@@ -29,7 +29,7 @@ table. **Script steps** are what the script does, numbered under "Shape".
 | 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ⏸ not started; waits for karero/croftweaver#319 to merge | — |
 | 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ⏸ not started | — |
 | 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
-| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ✅ done 2026-10-14; the first domain named turned out to be in use, so most steps ran on a second, empty one. Results under "Seen in the second trial": Bot Preference Sync is `bot_preference_sync_enabled`; which switch `is_robots_txt_managed` is stays unknown, and setting it to `true` is refused. Cleaned up on the maintainer's word | 78 captures (T2-001 to T2-078), kept outside every repository; the checklist's field fix: karero/croftweaver#319 (open) |
+| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ✅ done 2026-10-14; the first domain named turned out to be in use, so most steps ran on a second, empty one. Results under "Seen in the second trial": Bot Preference Sync is `bot_preference_sync_enabled`; which switch `is_robots_txt_managed` is stays unknown, and setting it to `true` is refused. Cleaned up on the maintainer's word on the spare zone; the two header rules written on the first zone are the maintainer's to remove by hand | 78 captures (T2-001 to T2-078), kept outside every repository; the checklist's field fix: karero/croftweaver#319 (open) |
 | 10 | One real site set up with it, start to finish, with the owner watching | ⏸ not started | — |
 | 11 | Release note line | ⏸ not started | — |
 
@@ -92,7 +92,7 @@ R7. **Nothing is destroyed.** The script deletes nothing. The one existing DNS r
 may change is the host's own address record, inside the second yes. It does not repair a
 site that is live (decision 7). One case is left open on purpose: where a zone has no
 response-header ruleset, the PUT that creates one could replace a ruleset someone else
-creates in the same moment (script step 12; "Judgment calls").
+creates in the same moment, and nothing would show it (script step 12; "Judgment calls").
 
 R8. **Safe to run again.** Each write is one call. A run cut off between two writes leaves
 a state the next run with the same code reads and carries on from (scenario 39). A run on
@@ -147,7 +147,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 24 | her apex has an A and an AAAA record; or her site is on `www`, which has an A record and a TXT record; or the token cannot read DNS | `launch` runs | it refuses: it will not attach a domain whose records it cannot see or would have to delete, and points to "Going live" | three stub states; no attach call |
 | 25 | the same as 23, but Cloudflare answers `error` on a later run | `launch` runs with the code | it ends with 1 and Cloudflare's words; the domain stays attached; the report gives the old record, read from the comment the script wrote on the record, so it can be put back by hand | stub: `error` on the third run |
 | 26 | the domain turns out to serve another commit, or no `build.txt` | `launch` reaches the check | it reports a failure and stops before the forwarding | stub site |
-| 27 | the NEL switch reads off, and the domain still sends the headers | `launch` reaches the NEL line | one add-rule call holding only the new rule, the two existing rules untouched; with no ruleset for the phase, one call creates it with the rule; with the kit's rule already there, nothing is added and the run ends with 1; with `--skip nel-rule` no rule is written and `nel` is listed as left to Lena, status 0 | stub ruleset with two rules; none; one holding the kit's rule |
+| 27 | the NEL switch reads off, and the domain still sends the headers | `launch` reaches the NEL line | one add-rule call holding only the new rule, the two existing rules untouched; with no ruleset for the phase, one call creates it with the rule, unless the read just before that call finds one, and then the add-rule call is used; with the kit's rule already there, nothing is added and the run ends with 1; with `--skip nel-rule` no rule is written and `nel` is listed as left to Lena, status 0 | stub ruleset with two rules; none; none at first and one at the second read; one holding the kit's rule |
 | 28 | the domain serves the head of `production`, built by Cloudflare; the project has one other variable and one secret | `launch` reaches the forwarding | it saves `CANONICAL_URL` alone, starts one production build, ends with 4; a later run finds it done and the check's `canonical` item `ok`, and ends with 0 | stub; a stub site for the 301 |
 | 29 | the domain was attached earlier and is active, and the head of `production` is newer than the live build; or another variable changed since the live build; or the live build was uploaded | `launch` reaches the forwarding | it says "the variable is saved, but no build has picked it up", names the other difference, sends no deployment call, and ends with 1 | three stub states |
 | 30 | Lena does not want the forwarding | `launch` runs with `--skip canonical` | the question does not name it, and `CANONICAL_URL` is not written | stub: no variable write |
@@ -347,8 +347,8 @@ branch of its time, capture 055).
    `content_bots_protection` and `bot_preference_sync_enabled` off. Bot Preference Sync is
    `bot_preference_sync_enabled`, the field that puts Cloudflare's lines in `robots.txt`
    (T2-062 to T2-064); a PUT that set it to `false` was accepted (T2-063).
-   `is_robots_txt_managed` is left out of the PUT: a field left out keeps its value
-   (T2-061, T2-062), and Cloudflare refused to set it to `true` (T2-065), so sending it as
+   `is_robots_txt_managed` is left out of the PUT: other fields left out kept their values
+   (T2-061, T2-062), though leaving this one out was not tried ("Not verified" 2), and Cloudflare refused to set it to `true` (T2-065), so sending it as
    read could fail on a zone where it reads `true`. Each
    line says it changes the whole domain, names the zone's proxied hosts (the site's own
    host too, if it already serves something), and says what changes for a visitor there.
@@ -373,7 +373,7 @@ branch of its time, capture 055).
    build, and the run says the push that does is the production branch's: on a two-stage
    site that is `npm run ship`, on the owner's word, once `main` has a commit that
    `production` lacks (a merged pull request; ship pushes nothing while the two are equal,
-   `templates/astro/scripts/ship.sh:165`). Ship's own last check then reports an old
+   `skills/new-website/templates/astro/scripts/ship.sh:165`). Ship's own last check then reports an old
    build, since no domain is attached; that is expected, and the proof comes on setup's
    next run. On a single-stage site the push is a merge to `main`. A failed push build counts as proof of the connection and is reported as a
    failed build. Each run without proof names the likely causes (the connection was never
@@ -455,8 +455,8 @@ check comes with the launch stage, since no request may reach the domain before 
     to the phase creates the ruleset with the rule (T2-023). Whether a rule another person
     adds at the same moment survives was not tried; nor what happens when someone creates
     the ruleset between the read that finds none and the PUT that creates it, which may
-    replace theirs. The script reads the phase again just before that PUT, and reads the
-    ruleset back after it: rules other than the kit's are reported, with 1. The rule took
+    replace theirs without any sign. The script reads the phase again just before that PUT;
+    if a ruleset is there by then, it uses the add-one-rule call instead. The rule took
     effect within seconds on the site the checklist records, so this run ends with 4, and
     the next runs `nel` again; a failure then ends with 1.
 13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and
@@ -625,7 +625,8 @@ field descriptions); the Bot Management update call's own description.
    project has it from its first build.
 2. Settled by the second trial for the fields a PUT leaves out (T2-061, T2-062): they kept
    their values, a `true` among them; the script's PUT leaves out `is_robots_txt_managed`,
-   `ai_bots_migration_opt_out` and `using_latest_model`. Every PUT of the trials sent
+   `ai_bots_migration_opt_out` and `using_latest_model`, and with `--skip ai` also
+   `bot_preference_sync_enabled`, which was tried as left out. Every PUT of the trials sent
    `is_robots_txt_managed`, so leaving that one field out was not tried; the read-back
    shows it, and plan step 10 is the first try. A PUT that turns Bot Fight Mode off
    from on was not tried: both zones read it off. The script still reads the whole object
@@ -682,9 +683,9 @@ Facts above were seen; these were weighed. Each with the strongest case against.
   the headers, and the second question gets one more line.
 - **Creating the response-header ruleset.** Seen: both zones of the second trial had none
   (T2-018, T2-041), so a new site's zone needs it created, and the creating PUT writes the
-  whole ruleset. Judgment: create it, read the phase just before, read it back after, and
-  report foreign rules with 1, rather than leave the rule to the owner. *Against:* in the
-  moment between those reads, a ruleset someone else creates is replaced and only reported;
+  whole ruleset. Judgment: create it, after reading the phase once more just before, rather
+  than leave the rule to the owner. *Against:* a ruleset someone else creates between that
+  read and the PUT is replaced, and nothing shows it, since the PUT writes the whole list;
   R7 names it as the one exception.
 - **Settings on setup day.** Seen: only HSTS and the forwarding must wait (the checklist,
   first paragraph). Judgment: write the rest with the first yes (D1). *Against:* if the
@@ -792,4 +793,6 @@ Plan step 7 brings these in line in the same pull requests as the script:
 The first version's gate: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md`. This version's:
 `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`, at High depth, because the script changes a
 Cloudflare account with a token and can make a site public. That trail says, for each of
-the first gate's open findings H1 to H26, how this version deals with it.
+the first gate's open findings H1 to H26, how this version deals with it. The second
+trial's results have their own gate: `docs/reviews/REVIEW-plan-2026-10-14-pr320.md`, also
+at High depth, under way on 2026-10-14.
