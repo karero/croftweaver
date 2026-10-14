@@ -1,12 +1,15 @@
 # Review trail: enquiry-count follow-ups (W2, H4), branch fix/enquiry-count-follow-ups
 
-DIFF gate. **Depth: Normal**: the starter's test is copied into owners' sites, and `new-website/SKILL.md` is an instruction file, so Light does not apply. Round 1: Codex, GLM 5.3 on melious, fresh-eyes (sonnet).
+DIFF gate. **Depth: Normal**: the starter's test is copied into owners' sites, and `new-website/SKILL.md` is an instruction file, so Light does not apply. Round 1: Codex, GLM 5.3 on melious, fresh-eyes (sonnet); round 2 the pair.
+
+**Verdict: gate passed.** 2 rounds, 7 findings (0 BUG, 2 RISK, 5 NIT), all fixed; no substantive BUG, so no wording pass is owed. W2 and H4 from #287's trail are closed by this change: Firefox and WebKit measured, self-hosted CE source read (its query path left open, owner docs repeat only Plausible's documentation), the `%` test on `pagesWithEmail`.
 
 ## Rounds
 
 | Round | Head | Reviewers | BUG / RISK / NIT | Outcome |
 |---|---|---|---|---|
 | 1 | f328f8d | codex 302 s 90k tok; melious glm-5.3 291 s 17k tok; fresh-eyes (sonnet) 103 s 112k tok | 0 / 2 / 5 | fixes change test logic; round 2 owed |
+| 2 | 74ec1de (verify f328f8d..74ec1de) | codex (medium) 109 s 58k tok; melious glm-5.3 51 s 10k tok | 0 / 0 / 0 | clean; rounds end |
 
 ## Findings
 
