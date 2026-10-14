@@ -6,6 +6,7 @@ Base `034472d` · depth: Light (two rows in the bug log, prose no agent follows;
 |---|---|---|---|---|---|
 | 1 | `6ceae76` | full (6,094 bytes) | Codex: codex-cli 0.162.1, gpt-6.1-sol, effort medium, read-only sandbox | 184 s, 53,101 tokens | 2 / 0 / 0 |
 | 2 | `171043e` | delta since `6ceae76` (7,235 bytes), round 1's findings as `--verify` | the same | 148 s, 44,396 tokens | 0 / 0 / 0 |
+| merge link (no round number) | `f1d7786`, new base `01504df` | `merge_link.sh 034472d 52cdffe 01504df` (7,020 bytes): the base's one new row at the end of the bug log, and this PR's two rows after it | Codex, same settings | 127 s, 36,252 tokens | 0 / 0 / 0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -16,4 +17,4 @@ Waivers and deferrals: none.
 
 Follow-ups: none. Round 2 left two UNVERIFIABLE entries as questions: the gigabyte scale (the mechanism was reproduced, not a gigabyte run) and "normally the owner's own site" behind the row's low impact, which is a judgment the row states.
 
-Notes: Light gate as the owner's standing rule allows for prose no agent follows; both findings were wording, so the change stayed Light.
+Notes: main gained a row at the end of the bug log while this PR waited; merging it in conflicted there. The resolution keeps main's row and this PR's two after it, their text unchanged, which the merge link confirmed against both parents. Codex also read one sentence of the author's brief for that pass ("Check that the resolution lost or altered nothing") as an attempt to steer it, and treated it as a claim; briefs should state, not instruct. Light gate as the owner's standing rule allows for prose no agent follows; both findings were wording, so the change stayed Light.
