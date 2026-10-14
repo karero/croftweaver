@@ -8,7 +8,7 @@ Data check: prose only, no key, token or password. Destinations: Codex and GLM 5
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT (all seats) |
 |---|---|---|---|---|---|
 | 1 | `a7ba185` | full: `e038603...a7ba185` without `docs/reviews/` | codex-cli 0.162.1, config effort, read-only; melious glm-5.3 (text only); fresh-eyes: a sub-agent one size down, read-only | codex 311 s / 91,071; glm 290 s / 16,229; fresh-eyes 149 s / 123,057 | 7 / 11 / 8 |
-| 2 | `06d3074`'s parent `4d4eb9f` | `a7ba185..4d4eb9f`, with round 1's record (`--verify`) | the pair, Codex at medium | codex 177 s / 63,475; glm 293 s / 26,718 | 2 / 2 / 3 |
+| 2 | `4d4eb9f` | `a7ba185..4d4eb9f`, with round 1's record (`--verify`) | the pair, Codex at medium | codex 177 s / 63,475; glm 293 s / 26,718 | 2 / 2 / 3 |
 | 3 | `06d3074` | `4d4eb9f..06d3074`, with round 2's record | the pair, Codex at medium | codex 67 s / 33,073; glm 90 s / 9,706 | 0 / 0 / 3 |
 
 Total: about 363,000 tokens.
