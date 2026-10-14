@@ -15,7 +15,7 @@ the real files and the API probe proved draft 1 wrong — the changes are marked
 | Build, test-first | **done** 2026-10-14: `ai_reports.py`, the AI section in `search_report.py`, `references/ai-reports.md`, SKILL.md 1.8.0; 23 new tests (A1–A10 and the reading rules), 9 deliberate breakages of key rules each caught; the six real exports read into a throwaway home, totals match a separate count; page checked light and dark, phone width | this commit; `scripts/tests/test_ai_reports.py` |
 | Owner's OK on A2 and A7 wording (draft 2: no download date in either file) | **approved** 2026-10-14 (chat) | — |
 | DIFF gate (Normal: Codex + GLM 5.3) | 5 rounds, 44 findings (13 BUG, 10 RISK, 21 NIT; trail rows F1–F45, F45 being questions); rounds ended 2026-10-14 after round 5 had no substantive BUG; closing re-gate (Codex) of the post-round-5 fixes clean on 1136a76; merge of main and its link check: see the trail | trail: `REVIEW-diff-2026-10-14-feat-search-ai-reports-fef0408.md` |
-| PR | **merge ordered** by the owner ("Merge 295", said on 2026-10-14; auto-merge armed, so the PR merges once its required checks pass); the merge itself and its date are on the PR | karero/croftweaver#295 |
+| PR | **merge ordered** by the owner ("Merge 295", said on 2026-10-14); the merge itself and its date are on the PR | karero/croftweaver#295 |
 
 ## Facts (checked 2026-10-14)
 
