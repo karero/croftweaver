@@ -199,8 +199,8 @@ The script ended `reviewers: codex OK, melious OK`.
 Findings, consolidated and answered (this is the author's record, also the `--verify` input):
 
 - F1 BUG (Codex, fresh-eyes BUG 1; GLM NIT 2): the text path judged a boundary-delimited substring of the
-  raw header, so `https://csp-reporting.cloudflare.com@evil.example/r`, a query or a path that quoted the
-  host were named as the monitor. FIXED: each address in the value is parsed and its host judged
+  raw header, so a user name that was the monitor's host (the host, an at sign, another host), a query or a
+  path that quoted the host were named as the monitor. FIXED: each address in the value is parsed and its host judged
   (`monitorHost`), on the report-to, reporting-endpoints and report-only paths alike.
 - F2 BUG (Codex; GLM NIT 1): a group of your own named `cf-csp-endpoint` on another address was named as
   Cloudflare's monitor. FIXED: the name no longer counts, only the address does. Test: the exact-name

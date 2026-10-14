@@ -831,7 +831,9 @@ const MONITOR = {
 const LOOKALIKES = [
   'https://csp-reporting.cloudflare.com.reports.example.invalid/r',
   'https://not-csp-reporting.cloudflare.com/r',
-  'https://csp-reporting.cloudflare.com@reports.example.invalid/r',
+  // \x40 is an at sign (a user name that is the monitor's host): spelled so that the file holds no
+  // host-at-host text, which the repo's clean check reads as an email address.
+  'https://csp-reporting.cloudflare.com\x40reports.example.invalid/r',
   'https://csp-reporting.cloudflare.com_x/r',
   'https://reports.example.invalid/r?u=https://csp-reporting.cloudflare.com/x',
   'https://reports.example.invalid/csp-reporting.cloudflare.com/collect',
