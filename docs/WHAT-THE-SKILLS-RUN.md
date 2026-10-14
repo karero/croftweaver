@@ -365,11 +365,14 @@ What protects a download today:
 [skills.sh](https://skills.sh) shows audit results from Gen Agent Trust Hub, Socket and
 Snyk. Checked on 2026-10-14:
 
-- It lists the repository under its old name,
-  [karero/website-builder](https://skills.sh/karero/website-builder), with 29 of today's 36
+- At that check it listed the repository under its old name,
+  [karero/website-builder](https://skills.sh/karero/website-builder), with 29 of the then 36
   skills. `facts-check`, `website-contact-form`, `website-scorecard`, `website-story`,
-  `website-tagline`, `website-team-setup` and `wordpress-inspector` are missing.
-  `skills.sh/karero/croftweaver` does not exist.
+  `website-tagline`, `website-team-setup` and `wordpress-inspector` were missing, and
+  `skills.sh/karero/croftweaver` did not exist. Later that day, after one install under the
+  new name, the listing moved to
+  [karero/croftweaver](https://www.skills.sh/karero/croftweaver) with all 37 skills, and the
+  old address forwards there (the README's install section says the same).
 - The audits are from 6 July to 6 September 2026, so they describe older versions.
 - **Socket:** pass on all 29.
 - **Gen Agent Trust Hub:** pass on 28. Warning on `outgoing-link-audit`: it runs a shell
