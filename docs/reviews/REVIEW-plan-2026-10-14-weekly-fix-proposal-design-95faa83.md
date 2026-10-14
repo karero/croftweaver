@@ -56,3 +56,21 @@ the requirements' R3 and scenario 8 were amended to match.
 | 11 | GLM | NIT | How the default branch is found was missing | Moot (DD7) |
 | 12 | GLM | NIT | What "reopened" does was missing | Fixed: it cancels the decline |
 | 13 | GLM | NIT | The stop-word list was not named | Fixed: listed in §3.2 |
+
+## Round 3 — verification at fa5343b, 2026-10-14
+
+Codex and GLM 5.3 on melious. Both confirmed round 2's fixes landed, and that the moots
+under DD7 are real (the machinery is gone). Codex 4 findings, GLM 4; merged, 6: 2 BUG,
+1 RISK, 3 NIT. All fixed.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|---|---|---|---|
+| 1 | Codex, GLM | BUG + RISK | The probe's fallback looked back 40 days, the report's about 16 months | Fixed: the probe imports the report's `HISTORY_DAYS` |
+| 2 | Codex, GLM | BUG + RISK | A rollback to the old title after the first "new" check moved the before-window onto new-page days | Fixed: both edges fixed at the first new check; any later title other than the new one interrupts the measuring |
+| 3 | Codex | RISK | The old title with a new layout suffix could pass as "new" when the new title is a shortening | Fixed: the whole rendered title is recorded and compared whole |
+| 4 | Codex | NIT | R1 still said "anchored on the date the change went live" | Fixed |
+| 5 | GLM | NIT | DD6's row still had P2 with the owner | Fixed |
+| 6 | GLM | NIT | §1, §2 and DD0 did not state one reason why T2 waits | Fixed: a trustworthy page figure (P1) |
+
+Round 3 had BUGs, both residues of earlier fixes; a Codex fix check and the wording pass
+follow in one full read.

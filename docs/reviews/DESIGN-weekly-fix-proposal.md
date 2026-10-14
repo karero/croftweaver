@@ -81,10 +81,11 @@ Safari, Chrome and Firefox at https://www.google.de/search?q=ai+events+munich&hl
 showed the result 9th in all three, with the same title and snippet as Serper, word for
 word. So on this sample Serper's text is Google's text, and Google keeps the page's
 description and rewrites its title. For T2 later: a new description has a fair chance of
-being shown; a new title may be rewritten again. P2 is settled; T2 still waits for a page
-figure it can trust (P1).
+being shown; a new title may be rewritten again. P2 is settled. T2 still waits, for one
+reason: P1 showed that a page's split by query held only 5% to 54% of its total, so T2
+needs a page figure it can trust before it ships.
 
-## 2. Recommendation: build T1 first, T2 after P1 and P2
+## 2. T1 first; T2 when a trustworthy page figure exists
 
 The documentation weakens T2 (seen but rarely clicked) on both legs: its figures come from
 a split Google says undercounts, and its decision rests on Serper text whose meaning
@@ -164,7 +165,7 @@ The reference tells the assistant to:
    the answer (`fix_proposal.py set <site> pr_figures yes|no`; the same command records
    the owner's spellings, `set <site> brand "radwerk, rad werk"`, which replace the guess);
 5. record the pull request and the page's new `<title>` text, not the pull request's
-   title (`fix_proposal.py acted <site> --pr <url> --new-title "<the page's new title>"`;
+   title (`fix_proposal.py acted <site> --pr <url> --new-title "<the whole new <title> of the built page>"`;
    the command reads the number and repository from the address).
 
 Every state write is a command, so the model never edits the JSON by hand.
@@ -184,23 +185,26 @@ Every state write is a command, so the model never edits the JSON by hand.
   report says "pull request 31 could not be checked; tell your assistant if it was
   closed".
 - **Live.** When the proposal is chosen, the report keeps the page's current `<title>`
-  (it fetched the page for the word check). Each later run fetches the page again. Three
-  outcomes: **new** (the fetched `<title>` contains the recorded new title, folded, and is
-  not the kept old one), **old** (it is the kept old one), **unknown** (a timeout, an
-  error, an answer other than 200, or a title that is neither). Unknown changes nothing.
+  (it fetched the page for the word check). The assistant records the **whole rendered**
+  new `<title>`, layout suffix included, read from the built page after the gate's build
+  (`--new-title`). Each later run fetches the page again and compares whole titles, folded
+  and with spaces collapsed. Three outcomes: **new** (equal to the recorded new title),
+  **old** (equal to the kept old one), **unknown** (a timeout, an error, an answer other
+  than 200, or any other title). Unknown changes nothing.
 - **Windows (DD8).** Measured from the weekly checks, not from the exact day: the
   before-window is the four full weeks ending on the last Sunday before the last **old**
   check; the after-window is the four full weeks starting on the first Monday on or after
   the first **new** check. With scenario 8's Monday checks (old on 2026-11-02, new on
-  2026-11-09) that gives 2026-10-05 to 2026-11-01 and 2026-11-09 to 2026-12-06. A missed or
-  unknown check only makes the gap between the windows wider; it never puts a day of the
-  new page into the before-window.
+  2026-11-09) that gives 2026-10-05 to 2026-11-01 and 2026-11-09 to 2026-12-06. Both edges
+  are fixed at the first **new** check: "the last old check" means the last one before
+  it. A missed or unknown check only makes the gap between the windows wider; it never puts
+  a day of the new page into the before-window.
 - **Before and after only (DD7).** The report shows the query's position, impressions and
   clicks in both windows and says: "This compares one search before and after the change.
   It does not check what else changed on your site or in Google's results." It never says
-  "consistent with". If a check during the after-window finds a title that is neither the
-  old nor the new one, the page has changed again: the report shows the figures up to
-  that week and says so. Comparing against the rest of the site is later work.
+  "consistent with". If a check during the after-window finds any title other than the
+  new one (the old one back, or a third), the page has changed again: the report shows the
+  figures up to that week and says so. Comparing against the rest of the site is later work.
 - **Results** go into the state file, so the comparison is computed once and the page
   shows it from then on.
 
@@ -208,8 +212,8 @@ Every state write is a command, so the model never edits the JSON by hand.
 
 - **Pure functions** in `fix_proposal.py`: choosing (each exclusion, the 50 floor, ties,
   folding, the word check with short words and a query of stop words only), the three
-  live outcomes (a shortened new title that sits inside the old one included) and the
-  window edges, the pull request states (open, merged, closed, reopened, unknown), and a
+  live outcomes (a shortened new title inside the old one, and the old title with a new
+  layout suffix) and the window edges (a rollback after the first new check included), the pull request states (open, merged, closed, reopened, unknown), and a
   page that changes again during the after-window. The dates of the requirements'
   scenarios 1, 2, 4, 6 and 8 are test cases as written.
 - **Through the real entry point** (global rule 9): `search_report.build` with the fake
@@ -242,12 +246,12 @@ owner's sites, P2 with one Serper search).
 
 | # | Decision | Answer |
 |---|---|---|
-| DD0 | T1 only in v1, T2 after P1 and P2 | Yes (§2) |
+| DD0 | T1 only in v1; T2 when a trustworthy page figure exists | Yes (§2) |
 | DD1 | State on the owner's computer, beside the settings | Yes: nothing about search figures enters the site's repository |
 | DD2 | Live detection by finding the new title on the live page | Yes: needs no access to the hosting, works on both publish models |
 | DD3 | Control: any other change under `src/` or `public/` in the span means no comparison | Replaced by DD7 |
 | DD4 | The owner's sentence names the skill | Yes: the description has no room for new trigger phrases |
 | DD5 | Brand spellings start from the domain and are shown until confirmed | Yes: a proposal on day one, with the guess visible |
-| DD6 | Run P1 on one of the owner's sites and P2 with one Serper search | Yes; P1 done (§1), P2 with the owner |
+| DD6 | Run P1 on one of the owner's sites and P2 with one Serper search | Yes; both done 2026-10-14 (§1) |
 | DD7 | Measuring in v1: before and after of the one search, without the comparison against the rest of the site, and never "consistent with" | Yes (owner, 2026-10-14): the comparison drew BUGs in both review rounds |
 | DD8 | Windows from the weekly checks that saw the old and the new page, not from the exact day | Yes (owner, 2026-10-14) |

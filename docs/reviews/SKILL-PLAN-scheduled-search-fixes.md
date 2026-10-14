@@ -88,8 +88,8 @@ Code picks the proposal from the numbers; the report calls no assistant.
 - **The window** is the report page's own: four full weeks, Monday to Sunday, ending on
   the last Sunday whose data Google marks complete (`search_report.py` reads Google's
   first incomplete date). The proposal, its figures and every drill-down behind it use
-  that window; the measuring uses the same rule, anchored on the date the change went live
-  (R3). The weekly text tracker's 28 days end on another day, so the proposal names its
+  that window; the measuring uses the same rule, from the weekly checks that saw the old
+  and the new page (R3). The weekly text tracker's 28 days end on another day, so the proposal names its
   window and the tracker's own tables keep theirs.
 - **Drill-downs on the report's dates.** Today's `gsc_query.py --page`/`--query` take a
   number of days ending two days back, not dates, so they cannot be used as they are.
@@ -375,6 +375,6 @@ The questions that come with it (which assistants, how runs are paid) are reopen
 | D11 | Measuring the result (R3, scenario 8) in v1, or later | In v1: the proposal, the tested edit and the 28-day comparison all ship in 0.32 |
 
 **Changed by the design plan (DD0, owner, 2026-10-14):** v1 in 0.32 ships T1 only. T2 (seen,
-rarely clicked) and scenario 3 wait until the by-eye Serper check (P2) and a better page
-measure: on one real site a page's split by query held 5% to 54% of its total
+rarely clicked) and scenario 3 wait for a page figure that can be trusted (the by-eye
+Serper check, P2, passed the same day): on one real site a page's split by query held 5% to 54% of its total
 (`DESIGN-weekly-fix-proposal.md`, §1).

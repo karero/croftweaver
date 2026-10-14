@@ -15,6 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/search-console-insights/scripts"))
 import gsc_query as g  # noqa: E402
+import search_report as sr  # noqa: E402  (its HISTORY_DAYS, so the fallback looks as far back)
 
 CFG = Path.home() / ".config/gsc-insights"
 SITE = "sc-domain:" + sys.argv[1]
@@ -60,7 +61,7 @@ print(f"[1] recent range: metadata={'yes' if recent.get('metadata') else 'no'} f
 if fid:
     finished = dt.date.fromisoformat(fid) - dt.timedelta(days=1)
 else:   # the report's fallbacks: the last day with a final-data row, else three days back
-    days = [r["keys"][0] for r in rows(today - dt.timedelta(days=40), today, ["date"])]
+    days = [r["keys"][0] for r in rows(today - dt.timedelta(days=sr.HISTORY_DAYS), today, ["date"])]
     finished = dt.date.fromisoformat(max(days)) if days else today - dt.timedelta(days=3)
 end = finished - dt.timedelta(days=(finished.weekday() + 1) % 7)
 start = end - dt.timedelta(days=27)
