@@ -1,6 +1,6 @@
 # DIFF review — release checksums: a SHA256SUMS file beside the zip
 
-Base `f4eb2ab` (origin/main when the branch was made; main merged in at `c5e8e44`) · depth: Normal (a release script and its test; not High: it changes no install or deploy path, and the zip itself is built as before) · verdict: open
+Base `f4eb2ab` (origin/main when the branch was made; main merged in at `c5e8e44`) · depth: Normal (a release script and its test; not High: it changes no install or deploy path, and the zip itself is built as before) · verdict: CLEAN (see the end)
 
 Owner's decision behind the change (2026-10-14, in chat): "yes to: Release checksums: the smallest honest step is a SHA-256 file with each release, plus marking releases immutable on GitHub", then "start the checksums PR". Marking releases immutable is a repository setting, not part of this diff.
 
@@ -21,3 +21,6 @@ Tools on this Mac (macOS 26.7.1): `/sbin/sha256sum` and `/usr/bin/shasum`; `sha2
 | 1 | `46742bd` | full: `origin/main...46742bd` without `docs/reviews/`, 6 files, with the test records and package.sh | codex-cli 0.162.1, config effort, read-only; melious glm-5.3 | codex 1 BUG; glm 3 NIT |
 
 Round-1 test records: `bash scripts/test_package_leak.sh` "all checks passed" with two new checks (a failing checksum tool fails the build; it leaves no SHA256SUMS); with the new cleanup removed, "FAIL a failing checksum tool leaves no SHA256SUMS". PowerShell 7 (`pwsh`) on this Mac: `(Get-FileHash croftweaver.zip -Algorithm SHA256).Hash` printed `3248AA86…87814F3`, the same hash as `SHA256SUMS` in capitals.
+| 2 | `d8fc553` | delta of round 1's fixes, the author's record of round 1 | same | codex none (S1 to S4 confirmed); glm 2 NIT (line wrapping in README.md), fixed by a hand rewrap |
+
+Verdict: CLEAN — two rounds of the pair, 6 findings before dedup (1 BUG, 0 RISK, 5 NIT), all fixed. Round 2 found no BUG or RISK; its two NITs were line wrapping, fixed without a further round.
