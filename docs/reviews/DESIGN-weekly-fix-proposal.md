@@ -194,6 +194,12 @@ Every state write is a command, so the model never edits the JSON by hand.
   installed and signed in. Closed without merging counts as the owner's "not this one"
   (R3): the 12 weeks start on the `closedAt` day, not the day the report noticed;
   reopened cancels that. Merged: the proposal waits to be seen live.
+- **Only rounds in progress are followed.** A round is archived once it is measured, or turned
+  down and its 12 weeks are over; from then on the report no longer asks GitHub about its pull
+  request. Reopening such an old pull request is outside what the report tracks: the owner
+  says so, and a new proposal for that page then starts its own round. (Cut during the build's
+  review, round 4: following every archived pull request every week was the third fix of the
+  same kind.)
 - **Nothing is released by a timer.** While the pull request is open, or merged but not
   seen live, the page stays excluded (R1) and each report says what is waiting: "your
   proposal of 2 November is waiting in pull request 31", or "merged, not seen on the live

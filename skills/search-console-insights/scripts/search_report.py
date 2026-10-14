@@ -552,7 +552,8 @@ def render_proposal(view, site, today):
         parts.append(
             f"<p>Too little data to propose a change this week: shown {_n(view['total'])} times in 4 weeks "
             f"({H(view['window'][0])} to {H(view['window'][1])}), {_n(view['brand'])} of them for your name. The first "
-            f"thing that would lead to a proposal: a search shown {fp.T1_MIN_IMPRESSIONS} times at position 8 to 20 "
+            f"thing that would lead to a proposal: a search shown {fp.T1_MIN_IMPRESSIONS} times at position "
+            f"{fp.T1_POSITION[0]:g} to {fp.T1_POSITION[1]:g} "
             "whose words are not yet on the page it leads to.</p>")
     lines = []
     for r in view["follow"]:

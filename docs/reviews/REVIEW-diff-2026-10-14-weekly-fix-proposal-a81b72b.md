@@ -81,3 +81,14 @@ Codex 2 BUG, GLM 2 RISK and 2 NIT; one overlap merged: 5 findings, 2 BUG, 2 RISK
 
 Round 3 had BUGs, so round 4 follows (the script's rule: kinds named, and a cut for each kind
 that earned an earlier round).
+
+## Round 4 — verification at e6e477d, 2026-10-14 (`--earned-by pr-state-refresh,three-places`, cut named)
+
+Codex 1 BUG and 1 RISK, GLM 1 NIT: 3 findings. 1 fixed, 1 settled by a cut, 1 refuted. The two
+round-3 fixes verified landed.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|---|---|---|---|
+| 1 | Codex | BUG | An archived round's closed pull request, reopened later, is never asked about, so its page is not blocked | Cut, not patched: the third fix of the same kind (following pull requests) would have meant asking GitHub about every archived pull request every week. The report follows a pull request only while its round is in progress; design §3.4 and the reference say so, and that a reopened old pull request is the owner's to mention |
+| 2 | Codex | RISK | The thin-data sentence still wrote "8 to 20" as text | Fixed: from `T1_POSITION` |
+| 3 | GLM | NIT | "4 weeks" is written out, not taken from a constant | Refuted: the four-week window is the report page's own, written the same way across the whole page (`fetch_google`, the headline, the tables); a change to it would be page-wide, not this feature's |
