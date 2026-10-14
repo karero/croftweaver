@@ -1,5 +1,8 @@
 # Security Policy
 
+What the skills run on your computer, which services they talk to, what they write outside
+your site's folder and where your keys are kept: [docs/WHAT-THE-SKILLS-RUN.md](docs/WHAT-THE-SKILLS-RUN.md).
+
 ## Reporting a Vulnerability
 
 Please report security vulnerabilities privately — do not open a public issue.
