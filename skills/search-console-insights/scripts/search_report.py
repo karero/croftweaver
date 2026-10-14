@@ -359,9 +359,11 @@ def follow_proposals(state, service, prop, country, finished, today, read_page, 
     """Each run: ask GitHub about every recorded pull request, look at the live page, and measure
     once the after-window's data is complete. Nothing is released by a timer."""
     for rec in state["proposals"].values():
-        if not rec.get("pr") or rec.get("result"):
+        if not rec.get("pr") or (rec.get("result") and (rec["pr"].get("state") or "").upper() != "OPEN"):
             continue
         fp.apply_pr_state(rec, gh(rec["pr"]["repo"], rec["pr"]["number"]), today)
+        if rec.get("result"):
+            continue         # measured; only the pull request's state was still worth asking
         if rec.get("declined_on") or not rec.get("new_title"):
             continue
         page = read_page(rec["page"])
@@ -509,7 +511,7 @@ def proposal_line(view, alert=None):
     if view.get("had_candidates"):
         return "none this week; passed over: " + "; ".join(f"“{q}”: {_plain_reason(w)}" for q, w in view["notes"])
     if "total" in view and view.get("enough"):
-        return "none this week (no search at position 8 to 20 with its words missing from its page)"
+        return "none this week (no search met every condition for a proposal)"
     if "total" in view:
         return f"none this week (too little data: shown {_n(view['total'])} times in 4 weeks)"
     return None
@@ -532,9 +534,8 @@ def render_proposal(view, site, today):
             f'{cur["position"]:.1f}; {_n(cur["page_impressions"])} of those times on this page. Its title, heading '
             f'and first paragraph do not yet say it.{since}</p>'
             f'<p>To make the change, say to your assistant:</p><p><code>{H(cur["sentence"])}</code></p>'
-            "<p class=\"note\">Your assistant checks it against your positioning first, changes those three "
-            "places (and the page's description only if the new title would leave it wrong), runs your site's "
-            "tests, and opens a pull request for you to look at. Nothing goes live until you merge it.</p></section>")
+            "<p class=\"note\">Your assistant checks it against your positioning first, changes only those three "
+            "places, runs your site's tests, and opens a pull request for you to look at. Nothing goes live until you merge it.</p></section>")
     elif view.get("unavailable"):
         parts.append("<p>No proposal this week: Google's search-by-page numbers could not be loaded.</p>")
     elif view.get("had_candidates"):
@@ -542,8 +543,9 @@ def render_proposal(view, site, today):
         parts.append(f"<p>No proposal this week. Searches looked at and passed over: {H(reasons)}.</p>")
     elif "total" in view and view.get("enough"):
         parts.append(
-            "<p>No proposal this week: none of your searches is close to page 1 (position 8 to 20) with "
-            "its words missing from the page it leads to. Nothing to fix from the search data this week.</p>")
+            "<p>No proposal this week: no search met every condition for one (at position 8 to 20, shown at "
+            "least 50 times in 4 weeks, on a page shown at least 10 times, its words not yet on that "
+            "page).</p>")
     elif "total" in view:
         parts.append(
             f"<p>Too little data to propose a change this week: shown {_n(view['total'])} times in 4 weeks "

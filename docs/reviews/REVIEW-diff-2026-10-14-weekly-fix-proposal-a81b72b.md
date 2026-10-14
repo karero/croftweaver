@@ -50,3 +50,18 @@ broken once in a copy to see a test fail.
 | 20 | GLM | NIT | ISO dates on the owner's page | Fixed |
 | 21 | GLM | NIT | The status row said "not pushed" | Fixed |
 | 22 | GLM | NIT | Scenario 6's test depends on the real date | Refuted: it fails only on a clock before 17 August 2026; the clock only moves on |
+
+## Round 2 — verification at 1e7ea82, 2026-10-14
+
+Codex 5 findings (4 BUG, 1 NIT), GLM 3 NIT; one overlap merged: 7 findings, 4 BUG, 3 NIT.
+Both seats confirmed the other round-1 fixes landed. 5 fixed, 1 fixed by a cut, 1 refuted.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|---|---|---|---|
+| 1 | Codex | BUG | Round 1's "open blocks first" left a measured page blocked for good: measured records were no longer asked about | Fixed: a measured record whose last state is OPEN is still asked; report test |
+| 2 | Codex | BUG | The page floor counted only this search's share of the page | Fixed: the page's own non-brand total, over all its searches |
+| 3 | Codex | BUG | The sentence still did not name the description the reference allowed | Fixed by a cut: v1 never changes the description, so sentence and edit name the same three places (reference, report, evals, design §3.1) |
+| 4 | Codex | BUG | The busy-site wording claimed a page check that had not happened | Fixed: it lists the conditions instead |
+| 5 | Codex, GLM | NIT | Scenario 6's test still depends on the real clock | Fixed after all: the clock is held still through `fix_proposal._today` |
+| 6 | GLM | NIT | A command waiting for the lock gave no sign | Fixed: it says it is waiting for the weekly report |
+| 7 | GLM | NIT | `import fcntl` breaks the commands on Windows | Refuted: `_history.py`, imported for `normalize_site`, already imports `fcntl` at the top, and native Windows is out of scope (requirements R6) |

@@ -56,8 +56,8 @@ newest one still in progress. `--page <address>` picks an earlier one.
    places the sentence names. On a collection entry, the title often is the H1 too.
 5. **Make the edit** in those three places (below). Work the search's words in as a person
    would say them; the exact phrase is not required, every word is, and a compound counts
-   ("Fahrradreparatur" carries "fahrrad" and "reparatur"). Touch the meta `description`
-   only if the new title would leave it wrong, and then say so in the pull request.
+   ("Fahrradreparatur" carries "fahrrad" and "reparatur"). Leave the meta `description` as
+   it is: the sentence does not name it.
 6. **Run the gate** the way `AGENTS.md` §2 says: the pre-push hook runs the full suite, or
    `npm run verify` where the hook is not on. If a test refuses the change (a title over the
    limit, a word `tone.spec.ts` bans, a term `positioning.spec.ts` requires), fix the wording
@@ -86,7 +86,7 @@ newest one still in progress. `--page <address>` picks an earlier one.
 ## What you may change, and what you may not
 
 **Change only:** the page's `title`, its `<h1>` and its first paragraph, on an existing page or
-collection entry; its meta `description` only if the new title would leave it wrong.
+collection entry. Not its meta `description`: the sentence does not name it.
 
 **Never, in this task:** create, delete or rename a page; touch redirects, `noindex`,
 `robots.txt`, the sitemap, `public/_headers`, `src/config.ts`, `astro.config.mjs`,
@@ -99,7 +99,7 @@ good wording needs a fact, ask the owner for it; do not write a `[MISSING: …]`
 Keep the form of address, the language and the voice of `CONTENT_GUIDE.md` and `BRAND.md`.
 
 **What wins:** `POSITIONING.md` over the search data; the wording rules (tone, the title
-limit in `AGENTS.md` §6, a description of 140 to 160 characters) over the search's exact
+limit in `AGENTS.md` §6) over the search's exact
 words; the terms `positioning.spec.ts` requires stay.
 
 ## When the owner says no

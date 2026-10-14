@@ -48,6 +48,11 @@ STOP_WORDS = frozenset(fold(w) for w in (
 
 # ─── state ─────────────────────────────────────────────────────────────────────────────────
 
+def _today() -> dt.date:
+    """Today's date; one place, so a test can hold the clock still."""
+    return dt.date.today()
+
+
 def base_dir() -> Path:
     return Path(os.path.expanduser("~")) / ".config" / "gsc-insights"
 
@@ -73,7 +78,11 @@ def locked(site: str):
     base_dir().mkdir(parents=True, exist_ok=True)
     # Beside the settings, not in sites/: a site that never had a proposal gets no file there.
     with open(base_dir() / f".{p.name[:-len('.json')]}.lock", "a") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("Waiting for the weekly report to finish with this site …", file=sys.stderr)
+            fcntl.flock(f, fcntl.LOCK_EX)
         try:
             yield
         finally:
@@ -258,12 +267,14 @@ def t1_candidates(query_rows, query_page_rows, spellings) -> list:
     """Striking-distance searches, strongest first. `query_rows` are the window's ["query"] rows
     (position by property), `query_page_rows` its ["query", "page"] rows. A search whose page
     cannot be proved from the rows is left out: it is never guessed."""
-    pages = {}
+    pages, page_total = {}, {}
     for r in query_page_rows:
         q, page = r["keys"][0], r["keys"][1]
         imp = r.get("impressions", 0)
         if q not in pages or imp > pages[q][1]:
             pages[q] = (page, imp)
+        if not is_brand(q, spellings):
+            page_total[page] = page_total.get(page, 0) + imp
     out = []
     for r in query_rows:
         q = r["keys"][0]
@@ -273,7 +284,7 @@ def t1_candidates(query_rows, query_page_rows, spellings) -> list:
         if is_brand(q, spellings) or q not in pages:
             continue
         page, on_page = pages[q]
-        if on_page < NOISE_IMPRESSIONS:      # R1: a page under the noise floor is never proposed
+        if page_total.get(page, 0) < NOISE_IMPRESSIONS:   # R1: the page's own non-brand floor
             continue
         out.append({"kind": "T1", "query": q, "page": page, "position": pos, "impressions": imp,
                     "clicks": r.get("clicks", 0), "page_impressions": on_page})
@@ -428,7 +439,7 @@ def apply_pr_state(rec: dict, gh, today=None) -> dict:
     if gh["state"] == "MERGED":
         pr["merged_at"] = gh.get("mergedAt")
     elif gh["state"] == "CLOSED" and rec.get("decline_reason") != "closed":
-        closed = (gh.get("closedAt") or "")[:10] or (today or dt.date.today()).isoformat()
+        closed = (gh.get("closedAt") or "")[:10] or (today or _today()).isoformat()
         rec["declined_on"], rec["decline_reason"] = closed, "closed"
     return rec
 
@@ -525,7 +536,7 @@ def cmd_show(site, args):
     if rec.get("pr"):
         print(f"Pull request: {rec['pr']['url']} ({rec['pr'].get('state') or 'state not checked yet'})")
     until = declined_until(rec)
-    if until and dt.date.today() < until:
+    if until and _today() < until:
         print(f"Turned down until: {until.isoformat()}")
     return 0
 
@@ -533,7 +544,7 @@ def cmd_show(site, args):
 def cmd_decline(site, args):
     state = load_state(site)
     key, rec = _target(state, args.page)
-    rec["declined_on"] = dt.date.today().isoformat()
+    rec["declined_on"] = _today().isoformat()
     rec["decline_reason"] = args.reason
     save_state(site, state)
     print(f"Turned down; not proposed again before {declined_until(rec).isoformat()}.")

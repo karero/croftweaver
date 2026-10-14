@@ -139,11 +139,11 @@
     {
       "id": 11,
       "prompt": "/search-console-insights work 'fahrrad reparatur leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur",
-      "expected_output": "Should follow references/fix-proposal.md: read the proposal with `fix_proposal.py show radwerk-plagwitz.example` before editing; work in the site's repository on a new content/ branch from the newest main per AGENTS.md; read POSITIONING.md before editing; change only the title, H1 and first paragraph of the page the address leads to (the meta description only if the new title would leave it wrong); run the site's full test suite (pre-push hook or npm run verify); read the built page's whole <title> from dist/; open a pull request showing old and new wording; record it with `fix_proposal.py acted … --pr … --new-title …`; and say nothing goes live until the owner merges. Must not merge, publish, or touch tests.",
+      "expected_output": "Should follow references/fix-proposal.md: read the proposal with `fix_proposal.py show radwerk-plagwitz.example` before editing; work in the site's repository on a new content/ branch from the newest main per AGENTS.md; read POSITIONING.md before editing; change only the title, H1 and first paragraph of the page the address leads to, never the meta description; run the site's full test suite (pre-push hook or npm run verify); read the built page's whole <title> from dist/; open a pull request showing old and new wording; record it with `fix_proposal.py acted … --pr … --new-title …`; and say nothing goes live until the owner merges. Must not merge, publish, or touch tests.",
       "assertions": [
         "Reads the proposal with fix_proposal.py show before editing",
         "Reads POSITIONING.md before making the edit",
-        "Changes only the title, H1 and first paragraph (the meta description only if the new title would leave it wrong)",
+        "Changes only the title, H1 and first paragraph, not the meta description",
         "Runs the site's full test suite before opening the pull request",
         "Records the pull request with fix_proposal.py acted, passing the built page's whole <title>",
         "Does not merge, publish, or change any test"

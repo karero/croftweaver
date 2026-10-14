@@ -144,8 +144,9 @@ class Scenarios(ProposalReportTest):
 
     def test_scenario_6_the_owners_no_holds_and_the_page_says_until_when(self):
         self.build("2026-11-02")
-        self.assistant("decline", SITE)
-        until = dt.date.today() + dt.timedelta(days=fp.DECLINE_DAYS)
+        with mock.patch.object(fp, "_today", return_value=D("2026-11-02")):   # the scenario's clock
+            self.assistant("decline", SITE)
+        until = D("2027-01-25")
         page = self.build("2026-11-09")
         self.assertNotIn(html.escape(f"Work “{QUERY}”"), page)
         self.assertIn(html.escape(f"“{QUERY}” on /reparatur: turned down; not proposed again before {until:%d %B %Y}."), page)
@@ -237,8 +238,8 @@ class Scenarios(ProposalReportTest):
                         query_pages=[qp("fahrradladen leipzig", PAGE, 4000)])
         page = self.build("2026-11-02", google=g)
         self.assertNotIn("Too little data", page)
-        self.assertIn("none of your searches is close to page 1", page)
-        self.assertIn("no search at position 8 to 20", self.log)
+        self.assertIn("no search met every condition for one", page)
+        self.assertIn("no search met every condition for a proposal", self.log)
 
     def test_github_out_of_reach_after_an_answer_is_named(self):
         self.build("2026-11-02")
@@ -261,6 +262,20 @@ class Scenarios(ProposalReportTest):
                                   "06 December 2026"), page)
         self.assertEqual([c["outcome"] for c in self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]["checks"]],
                          ["old", "new"])
+
+    def test_a_measured_page_is_freed_once_github_no_longer_says_open(self):
+        # Round 2: measured records were never asked about again, so a last-known OPEN blocked
+        # the page for good.
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        st = self.state()
+        rec = st["proposals"][fp.proposal_key(PAGE, QUERY)]
+        rec["pr"]["state"], rec["result"] = "OPEN", {"too_soon": True, "interrupted": "2026-11-12"}
+        fp.state_path(SITE).write_text(json.dumps(st), encoding="utf-8")
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-20T10:00:00Z", "closedAt": None}
+        self.build("2026-12-14", page=new_page, gh=merged)
+        rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+        self.assertEqual((rec["pr"]["state"], fp.page_block(rec)), ("MERGED", ""))
 
     def test_a_title_that_is_neither_old_nor_new_asks_for_a_check(self):
         self.build("2026-11-02")

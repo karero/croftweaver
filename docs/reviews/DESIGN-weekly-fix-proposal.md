@@ -107,7 +107,7 @@ highest-return item on a small site, and dropping it halves what the proposal ca
 | Fetching what it needs | `scripts/search_report.py`, `fetch_google` | One more dimension group per window, `["query", "page"]`, paged as `run_query` already pages; plus the candidate page's live HTML |
 | Showing it | `search_report.py`, `render` | One section at the end: "One thing to fix this week" |
 | State and the owner's answers, per site | `~/.config/gsc-insights/sites/<site>-proposals.json` (new) | Proposals shown, declined, acted on, live observations, results; and the owner's answers: `brand` (spellings) and `pr_figures` (yes / no / unasked) |
-| What the assistant does when asked | `references/fix-proposal.md` (new) | Instructions: check positioning, edit the four places, run the gate, open the pull request, record it |
+| What the assistant does when asked | `references/fix-proposal.md` (new) | Instructions: check positioning, edit the three places the sentence names, run the gate, open the pull request, record it |
 | How the assistant gets there | `SKILL.md` | A pointer to the reference; the description stays as it is (it is at 998 of 1,024 characters) |
 | The weekly log | `track.sh` | One line naming the proposal, or why there is none |
 
@@ -115,8 +115,10 @@ The owner's answers live in the new state file, **not** in `sites/<site>.json`: 
 and `schedule_tracking.sh` rewrite that file whole on every run, so anything else in it
 would be lost. Nothing is written into the site's repository except the edit itself.
 
-The **four places** are the requirements' R2 list: the page's `title`, its meta
-`description`, its H1 and its first paragraph.
+The **three places** an edit changes are the ones the owner's sentence names: the page's
+`title`, its H1 and its first paragraph. R2 also allows the meta description; v1 leaves it
+alone, so the sentence and the edit always name the same places (cut during the build's
+review, round 2).
 
 ### 3.2 Choosing (code)
 
@@ -174,7 +176,7 @@ The reference tells the assistant to:
 2. read `POSITIONING.md`; on a conflict, quote the line, make no edit, and record it
    (`fix_proposal.py decline <site> --reason positioning`);
 3. follow the site's own `AGENTS.md` for branch, wording rules, gate and pull request;
-   change only the four places;
+   change only the three places the sentence names;
 4. on a public repository, ask about figures once if `pr_figures` is unasked, and record
    the answer (`fix_proposal.py set <site> pr_figures yes|no`; the same command records
    the owner's spellings, `set <site> brand "radwerk, rad werk"`, which replace the guess);

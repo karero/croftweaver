@@ -100,6 +100,10 @@ class CandidateTests(unittest.TestCase):
         rows = [q("a b", 60, 12.0)]
         self.assertEqual(fp.t1_candidates(rows, [qp("a b", PAGE, 7)], SPELLINGS), [])
         self.assertEqual(len(fp.t1_candidates(rows, [qp("a b", PAGE, 10)], SPELLINGS)), 1)
+        # The floor is the page's own non-brand total, over all its searches (round 2), and
+        # searches for the business by name do not lift a page over it.
+        self.assertEqual(len(fp.t1_candidates(rows, [qp("a b", PAGE, 7), qp("c d", PAGE, 100)], SPELLINGS)), 1)
+        self.assertEqual(fp.t1_candidates(rows, [qp("a b", PAGE, 7), qp("radwerk plagwitz", PAGE, 100)], SPELLINGS), [])
 
     def test_a_search_with_no_proved_page_is_never_guessed(self):
         self.assertEqual(fp.t1_candidates([q("a b", 300, 12.0)], [], SPELLINGS), [])
