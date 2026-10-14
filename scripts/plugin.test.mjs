@@ -50,6 +50,27 @@ test('the plugin and the marketplace entry name the same plugin, and the entry i
   assert.equal(entry.version, undefined);
 });
 
+// Codex reads its own marketplace file first, and the plugin's number from the same
+// .claude-plugin/plugin.json as Claude Code (seen with Codex CLI 0.162.1). Its entry must
+// install what Claude Code's installs: the same plugin, from the same address and branch.
+test('the Codex marketplace offers the same plugin from the same place, with the fields Codex asks for', () => {
+  const plugin = JSON.parse(read('.claude-plugin', 'plugin.json'));
+  const claude = JSON.parse(read('.claude-plugin', 'marketplace.json'));
+  const codex = JSON.parse(read('.agents', 'plugins', 'marketplace.json'));
+  // Users install it as croftweaver@croftweaver in both.
+  assert.equal(codex.name, claude.name);
+  assert.equal(codex.plugins.length, 1);
+  const [entry] = codex.plugins;
+  assert.equal(entry.name, plugin.name);
+  assert.deepEqual(entry.source, claude.plugins[0].source);
+  // OpenAI's documentation says every entry carries these three. The CLI installed from the
+  // Claude Code entry, which has none of them; the documentation is what asks.
+  assert.deepEqual(entry.policy, { installation: 'AVAILABLE', authentication: 'ON_INSTALL' });
+  assert.equal(typeof entry.category, 'string');
+  // The number lives in plugin.json only, as for Claude Code.
+  assert.equal(entry.version, undefined);
+});
+
 // Nothing on a pull request can tell that a release forgot to raise the number: the last
 // one is as well-formed as the next. The release-tag workflow runs this with the tag a
 // release pushed, and with the tag `stable` was moved to.
@@ -101,18 +122,22 @@ function block(file, first, end) {
 }
 
 // The lines new-website tells the assistant to run to find the installed suite, taken from
-// SKILL.md itself: from the SKILLS_ROOT test to the end of the PROJECT_SKILLS_DIR one.
-const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'if [ -z "${SKILLS_ROOT:-}" ]; then', 'mkdir <site> && cd <site> && git init');
+// SKILL.md itself: from where Codex's folder is set to the end of the PROJECT_SKILLS_DIR test.
+const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'codex_home="$(', 'mkdir <site> && cd <site> && git init');
 
 // Runs lines of a skill as an assistant would: `filled` is what stands in place of the name
 // in braces (Claude Code), or null to leave the text as written (any other assistant).
 // `strict` runs the lines with unset variables as errors. That is set in the script, not
 // by `bash -u`: Debian's bash reads /etc/bash.bashrc when its input is a socket, as it is
-// here on a CI runner, and that file itself trips over an unset PS1 under -u.
-function bash(script, { filled, home, env = {}, cwd, strict = false }) {
-  const text = `${strict ? 'set -u\n' : ''}${filled === null ? script : script.replaceAll(VAR, filled)}`;
-  return spawnSync('bash', ['-c', text], { env: { PATH: process.env.PATH, HOME: home, ...env }, cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+// here on a CI runner, and that file itself trips over an unset PS1 under -u. `errexit`
+// adds `set -eo pipefail`; `shell` runs the lines in another shell (zsh) instead of bash.
+function bash(script, { filled, home, env = {}, cwd, strict = false, errexit = false, shell = 'bash' }) {
+  const text = `${errexit ? 'set -eo pipefail\n' : ''}${strict ? 'set -u\n' : ''}${filled === null ? script : script.replaceAll(VAR, filled)}`;
+  return spawnSync(shell, ['-c', text], { env: { PATH: process.env.PATH, HOME: home, ...env }, cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
+
+// The shells the lookup is run in: bash always, zsh where it is installed (a Mac's default).
+const SHELLS = ['bash', ...(spawnSync('zsh', ['-c', 'true']).status === 0 ? ['zsh'] : [])];
 
 function runLookup(options) {
   const run = bash(`${lookup()}\nprintf '%s\\n%s\\n' "$SKILLS_ROOT" "$PROJECT_SKILLS_DIR"\n`, options);
@@ -165,6 +190,81 @@ test('an assistant that fills nothing in still finds its own install, and the un
   assert.deepEqual(runLookup({ filled: null, home }), { root: path.join(home, '.claude', 'skills'), project: '.claude/skills' });
 });
 
+// Codex fills nothing in, so a Codex plugin is found where Codex keeps it:
+// <CODEX_HOME or ~/.codex>/plugins/cache/<marketplace>/<plugin>/<version>/skills. An update
+// replaced the version folder (seen with Codex CLI 0.162.1); should there be more than one,
+// the last by name is taken.
+const codexPlugin = (codexHome, version = '0.32.0') => path.join(codexHome, 'plugins', 'cache', 'croftweaver', 'croftweaver', version, 'skills');
+
+test('an assistant that fills nothing in finds the suite installed as a Codex plugin, and bundles for Codex', () => {
+  const home = tmp();
+  const plugin = codexPlugin(path.join(home, '.codex'));
+  suiteAt(plugin);
+  for (const strict of [false, true]) {
+    assert.deepEqual(runLookup({ filled: null, home, strict }), { root: plugin, project: '.agents/skills' });
+  }
+
+  // CODEX_HOME moves Codex's folder: the lookup follows it, however it is written (slashes
+  // at the end or doubled, relative to the folder the assistant runs in, an exported
+  // CDPATH), none of which may send the site's skills to .claude/skills.
+  const elsewhere = tmp();
+  const moved = codexPlugin(path.join(elsewhere, 'codex home'));
+  suiteAt(moved);
+  const decoy = tmp();
+  suiteAt(codexPlugin(path.join(decoy, 'codex home')));
+  for (const shell of SHELLS) {
+    for (const codexHome of [path.join(elsewhere, 'codex home'), `${path.join(elsewhere, 'codex home')}/`, `${elsewhere}//codex home//`, 'codex home']) {
+      const found = runLookup({ filled: null, home: tmp(), cwd: elsewhere, env: { CODEX_HOME: codexHome, CDPATH: decoy }, shell });
+      assert.deepEqual(found, { root: moved, project: '.agents/skills' }, `${shell}: ${codexHome}`);
+    }
+  }
+
+  // Two versions left behind: the last by name, whatever order the folder lists them in.
+  const two = tmp();
+  suiteAt(codexPlugin(path.join(two, '.codex'), '0.33.0'));
+  suiteAt(codexPlugin(path.join(two, '.codex'), '0.32.0'));
+  assert.equal(runLookup({ filled: null, home: two }).root, codexPlugin(path.join(two, '.codex'), '0.33.0'));
+
+  // It comes last: a suite in one of the home folders still wins, as before.
+  suiteAt(path.join(home, '.claude', 'skills'));
+  assert.equal(runLookup({ filled: null, home }).root, path.join(home, '.claude', 'skills'));
+  // And the copy that is running wins over it.
+  const running = path.join(tmp(), 'skills');
+  suiteAt(running);
+  assert.equal(runLookup({ filled: path.join(running, 'new-website'), home }).root, running);
+});
+
+// On a Mac the shell may be zsh, for Claude Code and Codex alike. There a file pattern that
+// matches nothing is an error that stops the command, so the lookup must not use one.
+test('in zsh the lookup runs without an error, with and without a Codex plugin',
+  { skip: spawnSync('zsh', ['-c', 'true']).status === 0 ? false : 'zsh is not installed here' }, () => {
+    const zsh = (home) => spawnSync('zsh', ['-c', `${lookup()}\nprintf '%s\\n%s\\n' "$SKILLS_ROOT" "$PROJECT_SKILLS_DIR"\n`],
+      { env: { PATH: process.env.PATH, HOME: home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const empty = tmp();
+    const none = zsh(empty);
+    assert.deepEqual([none.status, none.stderr, none.stdout], [0, '', `${path.join(empty, '.claude', 'skills')}\n.claude/skills\n`]);
+    const home = tmp();
+    suiteAt(codexPlugin(path.join(home, '.codex')));
+    const found = zsh(home);
+    assert.deepEqual([found.status, found.stderr, found.stdout], [0, '', `${codexPlugin(path.join(home, '.codex'))}\n.agents/skills\n`]);
+  });
+
+// An assistant or a person may run the lines under `set -euo pipefail`. Before the Codex
+// plugin the lookup passed there; a search that finds no Codex folder must not stop it,
+// whether a candidate matches or none does.
+test('under set -euo pipefail the lookup still runs to the end, in bash and in zsh', () => {
+  const strict = (shell, home, filled) => bash(`${lookup()}\nprintf '%s\\n' "$SKILLS_ROOT"\n`, { filled, home, strict: true, errexit: true, shell });
+  for (const shell of SHELLS) {
+    const running = path.join(tmp(), 'skills');
+    suiteAt(running);
+    const found = strict(shell, tmp(), path.join(running, 'new-website'));
+    assert.deepEqual([found.status, found.stderr, found.stdout], [0, '', `${running}\n`], shell);
+    const empty = tmp();
+    const none = strict(shell, empty, null);
+    assert.deepEqual([none.status, none.stderr, none.stdout], [0, '', `${path.join(empty, '.claude', 'skills')}\n`], shell);
+  }
+});
+
 test('left as written, the name is an empty value, not an unset variable, and its candidate is passed over', () => {
   // Claude Code leaves the form with := alone (seen in a live session), so this line reaches
   // every assistant; without it a strict shell stops at the unset name.
@@ -189,8 +289,8 @@ test('an explicit SKILLS_ROOT is honoured, and with nothing installed the defaul
 });
 
 test('the two guides that repeat the lookup for testers repeat it as it is', () => {
-  const loop = lookup().split('\n').filter((line) => /^\s*(: "\$\{CLAUDE_SKILL_DIR:=\}"|for d in|\[ "\$d" != \/\.\. \])/.test(line)).map((line) => line.trim());
-  assert.equal(loop.length, 3);
+  const loop = lookup().split('\n').filter((line) => /^\s*(codex_home=|: "\$\{CLAUDE_SKILL_DIR:=\}"|codex_plugin=|for d in|\[ "\$d" != \/\.\. \])/.test(line)).map((line) => line.trim());
+  assert.equal(loop.length, 5);
   for (const guide of ['CODEX-TEST.md', 'ANTIGRAVITY-TEST.md']) {
     const lines = read('docs', guide).split('\n').map((line) => line.trim());
     for (const line of loop) assert.ok(lines.includes(line), `docs/${guide} lacks: ${line}`);

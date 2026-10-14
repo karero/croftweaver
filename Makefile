@@ -59,7 +59,7 @@ test-cloudflare-check: ## run the Cloudflare check's tests (Node 18+, standard l
 test-create: ## run the create-croftweaver tests (the `npm create croftweaver` installer; needs node and a git checkout, and on macOS and Linux zip and tar for one test; a stub of the release download on 127.0.0.1, no real requests). Not part of check/package: the handoff zip does not hold packages/
 	@cd packages/create-croftweaver && $(NODE) --test
 
-test-plugin: ## run the tests of the Claude Code plugin (.claude-plugin/) and of the rule that lets the skills run from a plugin's folder: no skill names ~/.claude/skills/<name>/ for its files (needs node 20 or newer, git and bash). Not part of check/package: the handoff zip does not hold .claude-plugin/
+test-plugin: ## run the tests of the Claude Code and Codex plugin (.claude-plugin/, .agents/plugins/) and of the rule that lets the skills run from a plugin's folder: no skill names ~/.claude/skills/<name>/ for its files (needs node 20 or newer, git and bash). Not part of check/package: the handoff zip does not hold .claude-plugin/
 	@$(NODE) --test scripts/plugin.test.mjs
 
 # A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.
