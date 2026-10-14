@@ -47,9 +47,10 @@
 // script sets no cookies and writes nothing to the device. It sends the page
 // address and the referrer, scroll depth and engaged time (and, if ticked in
 // Plausible, the address of clicked outbound links and downloaded files), and
-// one "Email Tap" event, the page and nothing else, for each click on an email
-// address or the contact form's button (a custom event, so wider than bare
-// counting). It also reads one local-storage flag (plausible_ignore, which lets you exclude
+// one "Email Tap" event for each click on an email address or the contact
+// form's button, with the page address and the referrer as every Plausible
+// event has them, and neither the address nor anything typed (a custom event,
+// so wider than bare counting). It also reads one local-storage flag (plausible_ignore, which lets you exclude
 // your own visits) and navigator.webdriver (a bot check); neither is sent. The
 // EDPB (Guidelines 2/2023 v2.0, para 33) says JavaScript that instructs the
 // browser to send information "clearly falls within the scope of Article
@@ -151,7 +152,8 @@ import { SITE } from '../config';
       SIND: Es zählt abgeschickte Formulare auf der Website, aber nicht, was Sie eingeben.]
       Außerdem zählt es jeden Klick auf eine E-Mail-Adresse auf dieser Website
       und auf eine Schaltfläche, die Ihr E-Mail-Programm öffnet, zusammen mit
-      der Seite, auf der er geschah. Weder die E-Mail-Adresse noch etwas, das
+      der Seite, auf der er geschah, und der Seite oder Website, von der Sie
+      kamen. Weder die E-Mail-Adresse noch etwas, das
       Sie eingegeben haben, wird dabei gesendet.
       Aus der IP-Adresse leitet das Werkzeug Ihren ungefähren Standort ab
       und speichert die IP-Adresse nicht in seinen eigenen Datensätzen. Aus

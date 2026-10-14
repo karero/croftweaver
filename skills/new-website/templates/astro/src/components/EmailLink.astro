@@ -42,9 +42,10 @@ const label = text ?? emailHint(address, lang);
     }
     // Count the click as an "Email Tap" event, the site's one conversion: the visitor opened
     // their mail program to write. window.plausible exists only on the live build with
-    // analytics on (Base.astro), so elsewhere nothing happens. Only the event name goes out:
-    // the address is not part of it. The privacy page says so; a goal of the same name must
-    // exist in Plausible before launch, or the taps are not shown.
+    // analytics on (Base.astro), so elsewhere nothing happens. The address is not part of
+    // it; Plausible adds the page and the referrer, as to every event. The privacy page says
+    // so. A goal of the same name must exist in Plausible before launch, or the taps are not
+    // shown.
     a.addEventListener('click', () => {
       try {
         (window as unknown as { plausible?: (name: string) => void }).plausible?.('Email Tap');

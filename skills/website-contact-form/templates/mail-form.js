@@ -81,8 +81,8 @@
 
       // Count the press as an "Email Tap" event, the same one the starter's email link
       // sends: the visitor opened their mail program to write. window.plausible exists
-      // only on the live build with analytics on, so elsewhere nothing happens. Only the
-      // event name goes out, nothing the visitor typed.
+      // only on the live build with analytics on, so elsewhere nothing happens. Nothing the
+      // visitor typed goes with it; Plausible adds the page and the referrer, as to every event.
       try {
         if (typeof window.plausible === 'function') window.plausible('Email Tap');
       } catch (e) {

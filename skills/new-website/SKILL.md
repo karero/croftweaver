@@ -157,8 +157,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
      **The enquiry count comes with it.** Each click on an email address, and each press
-     of the contact form's button, sends one "Email Tap" event (the page, nothing
-     typed, no address). In Plausible, under the site's Settings > Goals, add a goal of
+     of the contact form's button, sends one "Email Tap" event (with the page and the
+     referrer, as every event; no address, nothing typed). In Plausible, under the site's Settings > Goals, add a goal of
      type "Custom event" named exactly `Email Tap` **before launch**: Plausible shows an
      event only once its goal exists and does not count earlier ones. Filtered by that
      goal, the dashboard shows which sources and pages bring enquiries. It counts

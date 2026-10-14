@@ -34,8 +34,10 @@
 //      cookies and writes nothing to the device. It sends the page address and the
 //      referrer, scroll depth and engaged time (and, if ticked in Plausible, the
 //      address of clicked outbound links and downloaded files), and one "Email Tap"
-//      event, the page and nothing else, for each click on an email address or the
-//      contact form's button (a custom event, so wider than bare counting). It also reads one
+//      event for each click on an email address or the contact form's button, with
+//      the page address and the referrer as every Plausible event has them, and
+//      neither the address nor anything typed (a custom event, so wider than bare
+//      counting). It also reads one
 //      local-storage flag (plausible_ignore, which lets you exclude your own
 //      visits) and navigator.webdriver (a bot check); neither is sent. The EDPB
 //      (Guidelines 2/2023 v2.0, para 33) says JavaScript that instructs the browser
@@ -127,8 +129,9 @@ import { SITE } from '../config';
       [DELETE UNLESS FORM SUBMISSIONS IS TICKED IN PLAUSIBLE: It counts
       submissions of forms on the site, but not what you enter.]
       It also counts each click on an email address on this site, and on a
-      button that opens your email program, together with the page it was on.
-      Neither the email address nor anything you typed is sent.
+      button that opens your email program, together with the page it was on
+      and the page or site you came from. Neither the email address nor
+      anything you typed is sent.
       The tool derives your
       approximate location from the IP address and does not keep the IP
       address in its own records. From your IP address, your browser data
