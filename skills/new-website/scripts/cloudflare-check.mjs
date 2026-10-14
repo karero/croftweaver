@@ -515,19 +515,37 @@ const monitorHost = (u) => {
   if (typeof u !== 'string') return false;
   try { return /(^|\.)csp-reporting\.cloudflare\.com$/i.test(new URL(u).hostname.replace(/\.$/, '')); } catch { return false; }
 };
+// A reporting-endpoints header is a dictionary: name="address", name="address";parameter="x".
+// Only a member's own string is an address; a parameter is not, and a string may hold \" or a comma.
+function endpointAddresses(value) {
+  const members = [];
+  let current = '';
+  let quoted = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (quoted && c === '\\') { current += c + (value[i + 1] ?? ''); i++; continue; }
+    if (c === '"') quoted = !quoted;
+    if (c === ',' && !quoted) { members.push(current); current = ''; continue; }
+    current += c;
+  }
+  members.push(current);
+  return members
+    .map((m) => /^\s*[A-Za-z*][A-Za-z0-9_.*-]*\s*=\s*"((?:[^"\\]|\\.)*)"/.exec(m))
+    .filter(Boolean)
+    .map((m) => m[1].replace(/\\(.)/g, '$1'));
+}
 function cloudflareMonitor(name, value) {
   if (name === 'report-to') { // a list of JSON groups; a value that does not parse is not read
     let groups;
     try { groups = JSON.parse(`[${value}]`).flat(); } catch { return false; }
     return groups.some((g) => g && Array.isArray(g.endpoints) && g.endpoints.some((e) => e && monitorHost(e.url)));
   }
-  if (name === 'reporting-endpoints') { // name="address", name="address"
-    return [...value.matchAll(/"([^"]*)"/g)].some((m) => monitorHost(m[1]));
-  }
-  // content-security-policy-report-only: policies split at commas, directives at semicolons
-  return value.split(/[;,]/).some((d) => {
-    const [directive, ...addresses] = d.trim().split(/\s+/);
-    return /^report-uri$/i.test(directive) && addresses.some(monitorHost);
+  if (name === 'reporting-endpoints') return endpointAddresses(value).some(monitorHost);
+  // content-security-policy-report-only: policies split at commas, directives at semicolons, and
+  // in each policy the FIRST report-uri is the one in force (a duplicate directive is ignored)
+  return value.split(',').some((policy) => {
+    const first = policy.split(';').map((d) => d.trim().split(/\s+/)).find(([directive]) => /^report-uri$/i.test(directive));
+    return first ? first.slice(1).some(monitorHost) : false;
   });
 }
 

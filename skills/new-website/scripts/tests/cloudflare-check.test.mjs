@@ -870,6 +870,12 @@ test('any one of the script monitor\'s three headers names it, however the addre
     'an upper-case address in a policy': { 'content-security-policy-report-only': "default-src 'self'; report-uri HTTPS://CSP-REPORTING.CLOUDFLARE.COM/R" },
     'an upper-case directive name': { 'content-security-policy-report-only': `default-src 'self'; REPORT-URI ${MONITOR_URL}` },
     'two policies, the monitor in the second': { 'content-security-policy-report-only': `default-src 'self', report-uri ${MONITOR_URL}` },
+    'two policies, each with its own report-uri': { 'content-security-policy-report-only': `report-uri https://reports.example.invalid/r, default-src 'self'; report-uri ${MONITOR_URL}` },
+    'the first of two report-uri directives': { 'content-security-policy-report-only': `report-uri ${MONITOR_URL}; report-uri https://reports.example.invalid/r` },
+    'the second member of a dictionary': { 'reporting-endpoints': `a="https://reports.example.invalid/r", b="${MONITOR_URL}"` },
+    'a comma inside the first member\'s address': { 'reporting-endpoints': `a="https://reports.example.invalid/r?x=1,2", b="${MONITOR_URL}"` },
+    'a parameter after the monitor\'s address': { 'reporting-endpoints': `a="${MONITOR_URL}";p=1` },
+    'an escaped quote in the first member': { 'reporting-endpoints': `a="x\\"y", b="${MONITOR_URL}"` },
     'a trailing dot on the host': { 'reporting-endpoints': 'g="https://csp-reporting.cloudflare.com./r"' },
     'a port': { 'reporting-endpoints': 'g="https://csp-reporting.cloudflare.com:443/r"' },
   };
@@ -925,6 +931,9 @@ test('a group or an address of your own is not the script monitor, whatever it i
     'the host inside a query that follows a comma (two policies)': { 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/r?x=,https://csp-reporting.cloudflare.com/r" },
     'the host only listed as a source': { 'content-security-policy-report-only': "default-src 'self'; connect-src https://csp-reporting.cloudflare.com" },
     'an address that is not a quoted string': { 'reporting-endpoints': 'g=https://csp-reporting.cloudflare.com/r' },
+    'a parameter that quotes the host': { 'reporting-endpoints': 'g="https://reports.example.invalid/r";note="https://csp-reporting.cloudflare.com/r"' },
+    'an escaped quote inside an address': { 'reporting-endpoints': 'g="https://reports.example.invalid/\\"https://csp-reporting.cloudflare.com/r"' },
+    'a duplicate report-uri: the first is the one in force': { 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/r; report-uri https://csp-reporting.cloudflare.com/r" },
   };
   for (const [what, headers] of Object.entries(notReported)) {
     await withSite(homeWith(headers), async (s) => {
