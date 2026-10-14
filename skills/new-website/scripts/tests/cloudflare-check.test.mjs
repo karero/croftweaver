@@ -841,8 +841,8 @@ const LOOKALIKES = [
 
 // The monitor is no item of its own: the NEL line names it and points to its switch, and step 5 of the
 // checklist's NEL item says where the switch is. One path, said the same way in three places: this fix
-// text, the checklist and references/CLOUDFLARE_CHECK.md (the test at the end of this file keeps their
-// copies in step with this one).
+// text, the checklist and references/CLOUDFLARE_CHECK.md (the test "the items are the checklist's items,
+// and the paths are its paths" keeps their copies in step with this one).
 const MONITOR_PATH = 'Security → Settings → filter by Client-side abuse → Continuous script monitoring';
 
 test('the script monitor is named, with the path to its switch, not shown as a bare report-to header', () =>
@@ -1592,7 +1592,10 @@ test('the counting loop in the reference reads clean, header or other, and count
   const gone = await site();
   const address = gone.origin;
   await gone.close();
-  assert.deepEqual(await loopOutput(address), ['3 other status=000 exit=7'], 'a closed port');
+  // curl 7 is "could not connect"; whether this curl also writes `status=000` first varies, as for a rejected address.
+  const refused = await loopOutput(address);
+  assert.equal(refused.length, 1, 'a closed port');
+  assert.match(refused[0], /^3 other status=(000|none) exit=7$/, 'a closed port');
   // An address curl rejects before it asks anything. Some curl versions then write `status=000`, some write
   // nothing and the loop says `status=none`; none of them counts, and the exit code is not zero.
   const rejected = await loopOutput('http://127.0.0.1:99999');

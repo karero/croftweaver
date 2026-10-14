@@ -123,7 +123,7 @@ items are a `look`, never `ok`.
   ```bash
   for i in $(seq 1 100); do
     { curl -sS --http1.1 -o /dev/null -D - -w 'status=%{http_code}\n' "https://yourdomain.invalid/?cb=$RANDOM"; echo "exit=$?"; } 2>/dev/null |
-      awk 'BEGIN { s = "status=none"; e = "exit=none" }
+      awk 'BEGIN { s = "status=none" }
            { sub(/\r$/, "") }
            tolower($0) ~ /^(report-to|reporting-endpoints|content-security-policy-report-only):/ { h = 1 }
            /^status=/ { s = $0 }
