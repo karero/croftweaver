@@ -10,6 +10,12 @@
 # a removed skill, that the two ways out still work, and that a site with only ordinary
 # updates reads exactly as before.
 #
+# Cases 9 and 10 pin the one folder a site never gets: the brand kit's scripts/tests, the
+# toolkit's own 1.7 MB test suite. A refresh must not bring it back, a change inside it alone
+# must not tell a site to refresh, and new-website's copy step (run here as SKILL.md writes
+# it) must leave out the same folder whats-new.sh names. Another skill's tests still travel:
+# wordpress-inspector's SKILL.md runs its own.
+#
 # It enters the way a reader does: it runs whats-new.sh on a site folder, and judges what
 # the report prints and what exit status and stamp come back.
 #
@@ -145,6 +151,102 @@ check "leftover: refresh says it was removed upstream"          has "$err" "was 
 check "leftover: refresh leaves the stamp"                      test "$(stamp "$S8")" = "$OLD"
 check "leftover: the site's copy is not overwritten"            test "$(cat "$S8/.claude/skills/beta/SKILL.md")" = "# beta"
 rm -rf "$SUITE/skills/beta"
+
+# --- 9. the brand kit's scripts/tests stays behind on --refresh, and a change inside it alone
+# is not an update. alpha's tests stand for a skill whose tests travel.
+SB="$T/suite-bk" BK=skills/website-brand-kit
+mkdir -p "$SB/scripts" "$SB/$BK/scripts/tests" "$SB/skills/alpha/scripts/tests"
+cp "$HERE/whats-new.sh" "$SB/scripts/whats-new.sh"
+printf '# brand kit\n' > "$SB/$BK/SKILL.md"
+printf 'print(1)\n' > "$SB/$BK/scripts/brand_intake.py"
+printf '# test 1\n' > "$SB/$BK/scripts/tests/test_x.py"
+printf '# alpha\n' > "$SB/skills/alpha/SKILL.md"
+printf '# test 1\n' > "$SB/skills/alpha/scripts/tests/test_a.py"
+$git -C "$SB" init -q && $git -C "$SB" add -A && $git -C "$SB" commit -q -m "two skills"
+B0="$($git -C "$SB" rev-parse HEAD)"
+# The site as the scaffold leaves it at B0: the brand kit without its tests, alpha with them.
+S9="$T/bk-site"; mkdir -p "$S9/.claude/skills"
+cp -R "$SB/$BK" "$SB/skills/alpha" "$S9/.claude/skills/"
+rm -rf "$S9/.claude/$BK/scripts/tests"
+printf 'suite_commit: %s\ncopied: 2026-10-01\n' "$B0" > "$S9/.claude/skills/SUITE-VERSION"
+$git -C "$S9" init -q && $git -C "$S9" add -A && $git -C "$S9" commit -q -m site
+printf '# brand kit, edited\n' > "$SB/$BK/SKILL.md"
+printf '# test 2\n' > "$SB/$BK/scripts/tests/test_x.py"
+printf '# test 2\n' > "$SB/skills/alpha/scripts/tests/test_a.py"
+$git -C "$SB" add -A && $git -C "$SB" commit -q -m "edit both"
+B1="$($git -C "$SB" rev-parse HEAD)"
+bash "$SB/scripts/whats-new.sh" --refresh "$S9" >/dev/null 2>&1; rc=$?
+check "brand kit refresh: exit status 0"                        test "$rc" -eq 0
+check "brand kit refresh: the stamp moves to the suite's head"  test "$(stamp "$S9")" = "$B1"
+check "brand kit refresh: its SKILL.md is the new one"          test "$(cat "$S9/.claude/$BK/SKILL.md")" = "# brand kit, edited"
+check "brand kit refresh: its scripts arrive"                   test -f "$S9/.claude/$BK/scripts/brand_intake.py"
+check "brand kit refresh: its scripts/tests stays behind"       test ! -e "$S9/.claude/$BK/scripts/tests"
+check "brand kit refresh: alpha's tests still travel"           test "$(cat "$S9/.claude/skills/alpha/scripts/tests/test_a.py")" = "# test 2"
+$git -C "$S9" add -A && $git -C "$S9" commit -q -m refreshed
+printf '# test 3\n' > "$SB/$BK/scripts/tests/test_x.py"
+$git -C "$SB" add -A && $git -C "$SB" commit -q -m "brand kit tests only"
+out="$(bash "$SB/scripts/whats-new.sh" "$S9" 2>&1)"
+check "brand kit tests only: the report says up to date"        has "$out" "Up to date"
+printf '# brand kit, edited again\n' > "$SB/$BK/SKILL.md"
+$git -C "$SB" add -A && $git -C "$SB" commit -q -m "brand kit skill again"
+out="$(bash "$SB/scripts/whats-new.sh" "$S9" 2>&1)"
+check "brand kit edit: listed as an update"                     has "$out" "  website-brand-kit"
+check "brand kit edit: lists the commit that changed it"        has "$out" "brand kit skill again"
+check "brand kit edit: leaves out the tests-only commit"        lacks "$out" "brand kit tests only"
+# A git that cannot read the exclude (stood in for by a wrapper that refuses it) must stop the
+# report, not leave the list of changes empty and call the site up to date.
+mkdir -p "$T/oldgit"
+printf '#!/bin/sh\nfor a; do case "$a" in ":(exclude)"*) echo "fatal: Invalid pathspec magic" >&2; exit 128 ;; esac; done\nexec "%s" "$@"\n' "$(command -v git)" > "$T/oldgit/git"
+chmod +x "$T/oldgit/git"
+out="$(PATH="$T/oldgit:$PATH" bash "$SB/scripts/whats-new.sh" "$S9" 2>&1)"; rc=$?
+check "git refusing the exclude: the report fails"              test "$rc" -ne 0
+check "git refusing the exclude: says git could not list"       has "$out" "git could not list"
+check "git refusing the exclude: never says up to date"         lacks "$out" "Up to date"
+
+# --- 10. new-website's copy step, run as SKILL.md writes it, against this checkout's skills
+LEFT="$(sed -n "s/^LEFT_BEHIND='\(.*\)'\$/\1/p" "$HERE/whats-new.sh")"
+check "scaffold: whats-new.sh names the folder left behind"     test -n "$LEFT"
+step="$(awk '/^   mkdir -p "\$PROJECT_SKILLS_DIR"$/ { f = 1 } f && /^   ```$/ { exit } f' "$HERE/../skills/new-website/SKILL.md")"
+check "scaffold: the copy step is found in SKILL.md"            has "$step" "cp -RL"
+PSD="$T/scaffold/.claude/skills"
+SKILLS_ROOT="$HERE/../skills" PROJECT_SKILLS_DIR="$PSD" bash -c "set -e; $step" >"$T/scaffold.log" 2>&1; rc=$?
+check "scaffold: the copy step exits 0"                         test "$rc" -eq 0
+check "scaffold: the brand kit arrives"                         test -f "$PSD/website-brand-kit/SKILL.md"
+check "scaffold: its scripts arrive"                            test -f "$PSD/website-brand-kit/scripts/brand_intake.py"
+check "scaffold: the folder whats-new.sh names stays behind"    test ! -e "$PSD/$LEFT"
+# finds_none <out> <grep args>: true only when grep finds nothing (exit 1). A match (0) and an
+# error (2: a folder it could not read) are both false; what grep printed is kept in <out>.
+finds_none() { local out="$1"; shift; grep "$@" > "$out" 2>&1; [ "$?" -eq 1 ]; }
+fails() { ! "$@"; }
+# test_modules <dir>: the name of every *.py under <dir>, in subfolders too, joined by "|". Fails,
+# printing nothing, when find could not read all of <dir>: a partial list would let imports pass.
+test_modules() {
+  local files; files="$(find "$1" -name '*.py')" || return 1
+  printf '%s\n' "$files" | sed 's#.*/##; s/\.py$//' | sort -u | paste -sd'|' -
+}
+check "scaffold: a folder grep cannot read is not called clean" fails finds_none "$T/none" -rl x "$T/no-such-folder"
+mkdir -p "$T/mods/sub" && : > "$T/mods/a.py" && : > "$T/mods/sub/b.py" && : > "$T/mods/sub/c.txt"
+check "scaffold: a module in a subfolder is named too"           test "$(test_modules "$T/mods")" = "a|b"
+check "scaffold: a folder find cannot read gives no names"      fails test_modules "$T/no-such-folder"
+# The folder can stay behind only while nothing a site's assistant reads asks to run it.
+check "scaffold: no brand kit instruction runs its tests"       finds_none "$T/runs" -rlE 'scripts/tests|unittest|pytest' --include='*.md' "$PSD/website-brand-kit"
+[ ! -s "$T/runs" ] || sed 's/^/     /' "$T/runs"
+# Nor should its code reach for the folder. This is a tripwire for the usual ways, read and not
+# run: it catches a line that starts with `import` or `from`, or calls `require(`, and names the
+# tests package or one of its modules (names from the toolkit's own folder); `scripts/tests`
+# anywhere; and a `tests` path segment right after a quote, a slash or a dot. It lets through a
+# quoted "tests" in brackets or before a colon (a key, as `_install.py` uses one), and `tests/…`
+# after a space (how the scripts' comments name test files). It does NOT catch every way: an import
+# continued on the next line, or a ["tests"] list joined into a path later, passes. When in doubt
+# it fails, so a false alarm costs a rewording.
+mods="$(test_modules "$HERE/../skills/website-brand-kit/scripts/tests")" || mods=""
+check "scaffold: the toolkit's brand kit tests are found"        test -n "$mods"
+case "$mods" in *[!A-Za-z0-9_\|]*) mods=" a module name that is not a plain name: $mods" ;; esac
+check "scaffold: their module names are plain names"            lacks "$mods" " a module name that is not"
+W='[^A-Za-z0-9_]'
+PAT="^[[:space:]]*(from|import)$W([^#]*$W)?(tests|$mods)($W|\$)|require[[:space:]]*\\(.*$W(tests|$mods)($W|\$)|scripts/tests|[\"'/.]tests([/.]|[\"']([^]:]|\$))"
+check "scaffold: no brand kit file reaches for its tests"        finds_none "$T/reach" -rnE "$PAT" "$PSD/website-brand-kit"
+[ ! -s "$T/reach" ] || sed 's/^/     /' "$T/reach"
 
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"
