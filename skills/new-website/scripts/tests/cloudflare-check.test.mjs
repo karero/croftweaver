@@ -1561,6 +1561,9 @@ function loopOutput(address, before = '') {
 
 test('the counting loop in the reference reads clean, header or other, and counts only a 200 that curl finished', async (t) => {
   if (!BASH) {
+    // On CI the loop must be able to run: a runner image that loses the shell or a tool is a failure there,
+    // not coverage quietly gone. Elsewhere the test is skipped, and the skip is printed.
+    assert.ok(!process.env.CI, 'CI has no POSIX shell with curl, awk, seq, sort and uniq for the counting loop test');
     t.skip('the loop runs in a POSIX shell with curl and awk (Git Bash on Windows)');
     return;
   }
