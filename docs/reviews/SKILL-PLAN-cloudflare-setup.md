@@ -26,7 +26,7 @@ table. **Script steps** are what the script does, numbered under "Shape".
 | 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ⏸ not started | — |
 | 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ⏸ not started | — |
 | 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
-| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list ("Not verified" 2, 3, 9, 10) | ⏸ needs the maintainer's choice: a spare domain, or the maintainer's word to make these first tries on the real site in plan step 10 | — |
+| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list ("Not verified" 2, 3, 9, 10) | ⏸ not started; the maintainer named a spare domain on Cloudflare for it (2026-10-14) | — |
 | 10 | One real site set up with it, start to finish, with the owner watching | ⏸ not started | — |
 | 11 | Release note line | ⏸ not started | — |
 
@@ -147,9 +147,9 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 29 | the domain was attached earlier and is active, and the head of `production` is newer than the live build; or another variable changed since the live build; or the live build was uploaded | `launch` reaches the forwarding | it says "the variable is saved, but no build has picked it up", names the other difference, sends no deployment call, and ends with 1 | three stub states |
 | 30 | Lena does not want the forwarding | `launch` runs with `--skip canonical` | the question does not name it, and `CANONICAL_URL` is not written | stub: no variable write |
 | 31 | the domain was attached by hand and is active | `launch` runs | it checks no launch condition and attaches nothing; its question names only the forwarding and the NEL rule, and the commit it expects the domain to serve: that of the newest production deployment that succeeded; while a newer one is queued or building, it ends with 4 | stub: a live build and a newer queued one |
+| 41 | `setup` ran with `--skip bot`, and Bot Fight Mode is on; or it ran without, and someone has since turned Always Use HTTPS off | `launch` runs with `--skip bot`; then the second case without any `--skip` | the `bot` failure is listed as left to Lena, status 0; the `https` failure gives 1 | stub site with the cookie; stub site with no redirect |
 | | **Every stage** | | | |
 | 32 | both stages ran last month | each runs again | no write call, no question, status 0 | stub holding the end state |
-| 41 | `setup` ran with `--skip bot`, and Bot Fight Mode is on; or it ran without, and someone has since turned Always Use HTTPS off | `launch` runs with `--skip bot`; then the second case without any `--skip` | the `bot` failure is listed as left to Lena, status 0; the `https` failure gives 1 | stub site with the cookie; stub site with no redirect |
 | 33 | the token has no end date; or the zone list shows a second zone; or token verify is refused | any stage runs | it refuses before any write, says which, and asks for a narrower token | stub: no `expires_on`; two zones; 403 on verify |
 | 34 | the token is in `.dev.vars`, and git tracks that file, or does not ignore it | any stage runs | it stops before reading the file and says how to ignore it | two fixture repositories |
 | 35 | Cloudflare gave the project the address `lenas-backstube-9x2.pages.dev` | the stages check and report | every check and line uses that address; `lenas-backstube.pages.dev` is asked nowhere | stub `subdomain`; the stub site records the hosts asked |
@@ -242,7 +242,7 @@ omits `expires_on` (capture 001; with an end date it carries one, capture 003). 
 whose end date is more than seven days ahead (the checklist: "a week at most"), one whose
 verify call is refused, and one whose zone list shows more than this site's zone (capture
 002 showed one zone for a token limited to one). It also lists the accounts the token
-reaches and refuses more than one; the account in the code is that one (the accounts list
+reaches and refuses more than one, and refuses a token whose accounts list is refused; the account in the code is that one (the accounts list
 was read in the reference, not tried). The question also asks Lena to have set Account
 Resources to her one account.
 
@@ -402,8 +402,9 @@ check comes with the launch stage, since no request may reach the domain before 
     as fits in 100 characters (Cloudflare's limit on the Free plan, read in the reference,
     not tried; the script uses 100 on every plan). So every later run can print the old
     record and it can be put back by hand; the part of the owner's comment that did not fit
-    is printed in that run. An old record too long for it never gets this far
-    (script step 8). The trial wrote
+    is printed in that run. Script step 8 refused an old record too long for this;
+    one that has grown too long since the question changes nothing here, and the run
+    ends with 1, printing it in full and saying to change it by hand. The trial wrote
     comments on new records (captures 104, 129); a PATCH that sets one was not tried. If
     that PATCH is refused, the run ends with 1, the host's record unchanged and the domain
     pending, and says to change the record by hand. Runs end with 4 until the
@@ -442,18 +443,43 @@ check comes with the launch stage, since no request may reach the domain before 
     `canonical` item; if that still fails, it says the build is done and the forwarding
     does not answer, and ends with 1.
 
-The run ends with the whole check script, its lines passed on as it judged them: a `fail`
-on something either stage set gives 1, and so does an item marked `blocked` (the page
-could not be judged, so nothing was seen) and any request in the check's `unanswered` list
-(an empty answer is never a pass); a `fail` on an item left by hand (Web Analytics, say)
-or on a line Lena left out with `--skip`, and `look`, `hand` and `skip`, give 0 and are
-listed for Lena as what they are. Each `--skip` id names the check item it leaves to Lena:
-`https`, `tls`, `email`, `bot`, `ai` and `canonical` their own item (`tls` is a `hand` item
-in any case); `nel` and `nel-rule` both the `nel` item. `launch` takes the same
-`--skip` ids as `setup`, and only those it is given count: `setup`'s report prints the
-`launch` command with the ids it was run with. A `fail` on an item no `--skip` of this run
-names gives 1, whatever the reason, and the line says that if the setting was left out on
-purpose, the same `--skip` belongs on this command too. The report gives, for each thing set, what it was, what it is now, and how that was
+The run ends with the whole check script. Its exit status follows from the check's JSON,
+in this order, and nothing else:
+
+1. Any request in `unanswered`, or any item marked `blocked`: 1 (nothing was seen, and an
+   empty answer is never a pass), whatever the rest says.
+2. Otherwise, any item whose state is `fail`, unless the table below gives that item's
+   `fail` 0, or names a `--skip` id that this run was given: 1.
+3. Otherwise: 0. Every `look`, `hand` and `skip`, and every `fail` that rule 2 lets through,
+   is listed for Lena as what it is.
+
+| Check item | Set by | A `fail` gives |
+|---|---|---|
+| `pages` | `setup` (the project) | 1 |
+| `build-settings` | `setup` | never `fail`: a `hand` item |
+| `domain` | `launch` | 1 |
+| `fail-open` | `setup` | never `fail`: a `hand` item |
+| `canonical` | `launch` | 1; 0 with `--skip canonical` |
+| `https` | `setup` | 1; 0 with `--skip https` |
+| `tls` | `setup` | never `fail`: a `hand` item |
+| `hsts` | nobody: Lena, later | never `fail`: the script never passes `--hsts-on` |
+| `nel` | `setup` (switch), `launch` (rule) | 1; 0 with `--skip nel-rule` |
+| `bot` | `setup` | 1; 0 with `--skip bot` |
+| `analytics` | nobody: Lena, by hand | 0 |
+| `email` | `setup` | 1; 0 with `--skip email` |
+| `hints` | nobody: Lena, by hand | never `fail`: a `hand` item |
+| `ai` | `setup` | never `fail` (a refusal is a `look`) |
+| `robots` | the site's own file | 1: the site is now public and its `robots.txt` keeps crawlers out |
+| `build` | `launch` checks it first (script step 11) | 1 |
+| `scripts` | nobody | never `fail` (another path is a `look`) |
+
+The ids are the check script's (`CLOUDFLARE_CHECK.md`, "For an assistant"); a test fails
+when its list and this table differ. `launch` accepts every `--skip` id `setup` does, plus
+`canonical` and `nel-rule`; on `launch`, `tls`, `ai` and `nel` change no exit status (`nel`
+is the switch, which `launch` does not write). Only the ids a run is given count: `setup`'s
+report prints the `launch` command with the ids it was run with, and a `fail` that gives 1
+says that if the setting was left out on purpose, its `--skip` belongs on the command.
+The report gives, for each thing set, what it was, what it is now, and how that was
 checked. Fail open, the build settings, Minimum TLS Version and the AI fields have no
 outside check: "read back through the API only", with the checklist's ssllabs test named
 for Lena to run. The report names the live address and, on a two-stage site, the address
@@ -545,9 +571,8 @@ field descriptions); the Bot Management update call's own description.
 3. The apex. The trial attached hosts below the zone, never the apex, where Cloudflare
    flattens a CNAME (read in the reference, not tried). If the PATCH or the domain's
    verification behaves differently there, the run ends with 1 or 4 and the old record is
-   in the record's comment. Plan step 9 settles it: a trial on a spare domain, or the
-   maintainer's word that the first try is on the real site in plan step 10, with the
-   owner watching (asked on 2026-10-14).
+   in the record's comment. Plan step 9 settles it, on the spare domain the maintainer named on
+   2026-10-14, before the real site of plan step 10.
 4. What the host answers between the record change and `active`. Not observed; the
    question says "a few minutes of errors" on the strength of the trial's timings.
 5. Which dashboard switch `is_robots_txt_managed` is. The checklist reads it as Bot
