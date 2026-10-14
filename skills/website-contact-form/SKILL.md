@@ -201,9 +201,10 @@ named in it. Like the kit's other legal drafts, a baseline, not legal advice.
 the starter's email link sends (nothing typed goes with it). Section 3 of the starter's
 privacy page (EN `privacy.astro`; German `_datenschutz.astro`, served as
 `datenschutz.astro` once a German site renames it) already says so ("a button that opens your
-email program"). A site from before 0.32 lacks that sentence, and its
-`src/components/EmailLink.astro`, which shows the address under the form, lacks the click
-listener the sentence also describes: take both from the starter. The form sends its event
+email program"). A site made before it lacks that sentence, and its
+`src/components/EmailLink.astro`, which shows the address under the form, has no click
+listener (no `addEventListener` in it), which the sentence also describes: take both from
+the starter. The form sends its event
 either way, so the sentence is not optional on a site that runs Plausible. In Plausible's
 installer leave "Form submissions" unticked: whether Plausible would count this form a
 second time was not checked.

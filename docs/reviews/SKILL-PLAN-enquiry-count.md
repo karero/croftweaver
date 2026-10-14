@@ -14,7 +14,7 @@ the scenarios is made up.
 | 3 | Contact form skill: the button reports the event; test | ▶ built, green EN and DE copies; each new test failed on a deliberate break | branch `feat/enquiry-count` |
 | 4 | Privacy pages EN and DE; interview Q5; README setup step; launch checklist | ▶ written; also `config.ts` names the two call sites (D3) | branch `feat/enquiry-count` |
 | 5 | Release-note row in `docs/BUGLOG.md` | ▶ written (row of 2026-10-14) | branch `feat/enquiry-count` |
-| 6 | Review gate (Normal: runtime code in the starter) | ⏸ not started | — |
+| 6 | Review gate (High: privacy text and data a live site sends) | ▶ rounds 1 to 3 and the final full read done; wording pass and closeout next | trail `REVIEW-diff-2026-10-14-feat-enquiry-count.md` |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
@@ -111,6 +111,9 @@ form), the goal to add in Plausible, and the privacy sentence to add, EN and DE.
   the docs say which. Cloudflare Web Analytics (website-build-kit's choice) has no custom
   events as far as known (not checked today); GA4 (marketingskills) sets cookies and brings
   the banner the starter avoids.
+
+- **D4. A tap counts as interaction.** Plausible's default (`interactive` true): a visit
+  with a tap is not a bounce. Decided by the owner on 2026-10-14: keep it.
 
 ## How the tests enter (Rule 9)
 
