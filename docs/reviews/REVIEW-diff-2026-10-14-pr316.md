@@ -22,3 +22,7 @@ Base `ebc3f39` (origin/main after the merge at `b6fddb4`) · depth: Normal (Code
 Waivers and deferrals: none yet.
 
 Test record (outputs kept by the author): the brand-kit suite on a copy of the tree, `sharp` from a scratch install of the starter (Node 26.11.1), a python3 with Pillow first on PATH. Before round 1, at `eb3a086`: Python 3.9.6 with `REQUIRE_SHARP=1`, 1,080 tests OK (4 skipped by design); Python 3.13.16, 1,080 OK (4 skipped); the two real-site tests (`BRAND_KIT_E2E_SITE` on the throwaway starter) OK. Before the change, origin/main on Python 3.9.6 without `sharp`: 1,074 OK (156 skipped).
+
+Merge of main at `007faae`: main added one row (the pages.dev reading guide) among the rows this PR closes. Resolved by keeping this PR's six closed rows and putting main's row after the `want_logo` row, where main has it. Checked by script: the file has main's 141 lines, no row of main is missing, and the 19 lines that differ differ only in their Status cell.
+
+The owner wrote "Merge 316" before round 2. Auto-merge was set on CI (the brand-kit tests run there with `sharp` and Pillow required); round 2 runs beside it on round 1's fixes, and a BUG from it before the merge stops auto-merge.
