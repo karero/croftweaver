@@ -15,7 +15,7 @@ purpose; the business in the scenarios is made up.
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ✅ written, not yet reviewed (row 7) | branch `feat/website-brand-kit`, commit `b75db71` |
 | 6 | Hooks into the other skills (listed under "Hooks") | ✅ written 2026-10-12, not yet reviewed (row 7): `new-website` (the intro, a step 2b row and section, the copy list now twenty-six, §3 step 4 and step 5), `README.md` (layout, the optional-skills paragraph), `website-qa` (one row), `website-design-system` (the tokens paragraph), `website-content-guide` (the `BRAND.md` line), the `BRAND.md` template (D6's rows; a test holds it to the palette prompt row for row), the count comment in `check_skill_budgets.sh`. `check_model_agnostic.sh` re-run inside `make check`: still green | branch `feat/website-brand-kit` (local) |
 | 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ eleven rounds run (102, 102, about 105, about 93, about 72, about 58, about 49, about 39, about 45, then a lean round 10 and a Codex-only round 11), the final full read (Kimi K3) and the wording pass. Round 9's config advice was cut on the maintainer's choice; round 11 was clean; the full read's one BUG (the feel was never asked) is fixed and was read by the wording pass only. Merging waits for the maintainer's word | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
-| 8 | Evals, with and without the skill, as `website-story` had | ✅ run once on 2026-10-14, each eval with and without the skill, graded by a separate agent: with the skill 28 of 30 assertions, without it 10 of 30. The skill did worse than no skill on eval 5 (it held the content guide back); its follow-ups are BUGLOG rows | "Evals (step 8)" below; the eval files merged with #283 (`6b6193d`); the follow-ups are in #301 |
+| 8 | Evals, with and without the skill, as `website-story` had | ✅ run once on 2026-10-14, each eval with and without the skill, graded by a separate agent: with the skill 28 of 30 assertions, without it 10 of 30 (strict grading; 15 or 16 read literally). The skill did worse than no skill on eval 5 (it held the content guide back); its follow-ups are BUGLOG rows | "Evals (step 8)" below; the eval files merged with #283 (`6b6193d`); the follow-ups are in #301 |
 | 9 | Release note line in 0.32 | ⏸ waits for row 7 (#212 is merged and v0.31 is out) | — |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked · ⚠ deviated
@@ -915,16 +915,18 @@ workspace (outputs, grading, benchmark, review page) is kept outside the repo.
 In all, 28 of 30 assertions with the skill and 10 of 30 without (the mean of the five pass rates:
 92% and 39%). Time per run: 79 s on average with the skill, 66 s without; tokens: about 521,000
 and 426,000 over the five runs. One run per side, so nothing here measures how much a run varies.
-The grader failed a negative assertion that held only by chance (eval 4's PNG was not converted
-because the fixture has no PNG, while the reply promised to convert it) and an assertion about
-something the run never made; read literally, the runs without the skill score 15 or 16 of 30.
+The grader failed negative assertions that held only by chance (eval 4's PNG was not converted
+because the fixture has no PNG, while the reply promised to convert it) and assertions about
+things a run never made, six in all, each in a run without the skill; read literally, the runs without the skill score 15 or 16 of 30.
 
 What follows from it, each a row in `docs/BUGLOG.md`: SKILL.md §0 should say that asking the
 brand question late never holds up the step she asked for; the proposals' ratios should be shown
 as the check prints them; and the evals need a `logo.png` for eval 4, a `POSITIONING.md` for
 eval 5 (that run had none, so part of its pause was fair) and an assertion in eval 1 that she is
-asked to paste her pick back for a check. In evals 1 and 2, two assertions each passed for both runs, so they told nothing
-apart; eval 4 never tests a real PNG, since its fixture has none. None of this was changed in the skill: that is the follow-ups' sweep.
+asked to paste her pick back for a check. Some assertions passed for both runs and so told nothing apart (two each in evals 1, 2
+and 4, three in eval 5); eval 4 never tests a real PNG, since its fixture has none. No assertion
+covers the file of proposals eval 3's run wrote into her folder, which the skill allows. The
+runs' own `echo =====` lines failed under zsh in four runs; the skill has no such command. None of this was changed in the skill: that is the follow-ups' sweep.
 
 ## Review trail
 
