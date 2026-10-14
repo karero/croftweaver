@@ -78,7 +78,7 @@ type Counted = Window & { __taps?: unknown[][]; plausible?: unknown };
 async function pagesWithEmail(request: import('@playwright/test').APIRequestContext, baseURL: string) {
   const found: string[] = [];
   for (const p of PAGES) {
-    if (/\sdata-email="/.test(await (await request.get(new URL(p, baseURL).href)).text())) found.push(p);
+    if (/\sdata-email=/.test(await (await request.get(new URL(p, baseURL).href)).text())) found.push(p);
   }
   return found;
 }

@@ -40,14 +40,18 @@ Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
   (`lib/plausible/ingestion/event.ex`) drops events only for bot, spam, IP and blocklist
   reasons, never for a missing goal, and an event goal's filter
   (`lib/plausible/stats/goals.ex`, `goal_condition`) is `e.name == ^goal.event_name` over
-  the chosen dates, with no limit from the goal's creation. So a self-hosted instance
-  would show earlier events once the goal exists, unlike the documentation's wording. The
-  advice holds either way: add the goal before launch.
-- Delivery and payload, measured 2026-10-14 on croftweaver.com's live per-site script
+  the chosen dates, with no limit from the goal's creation in that function. The rest of
+  the query path that uses it was not traced, and Plausible's cloud service runs the same
+  code while its documentation says earlier events are not counted, so whether earlier
+  events show was left open. The owner docs repeat only the documentation; the advice
+  holds either way: add the goal before launch.
+- Request sent and payload, measured 2026-10-14 on croftweaver.com's live per-site script
   (v33), event requests intercepted locally, in Playwright's Chromium 153, Firefox 155 and
   WebKit 26.6: a real link click and the form's exact sequence each sent one event with
-  the page and the referrer (WebKit cut the referrer to its site, `https://www.example.org/`,
-  as Safari does), and the page stayed. Only Chromium reports the mailto: request to
+  the page and the referrer (WebKit sent only the referrer's site,
+  `https://www.example.org/`; whether Safari does the same was not checked), and the page
+  stayed. Each request was answered locally: no Plausible server received it, and no content
+  blocker was in the way. Only Chromium reports the mailto: request to
   Playwright; in the other two the event is seen leaving, the mail program is not.
   WebKit is Safari's engine, not Safari itself.
 - The dashboard, filtered by a goal, shows which sources and pages bring conversions. That
