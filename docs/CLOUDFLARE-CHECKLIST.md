@@ -171,10 +171,10 @@ cookies, scripts or tracking you didn't choose.
      then count with the loop in
      [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
      your own domain. The count should read `100 clean` (after we switched it off we made
-     200 requests and saw no `report-to:` line). An `other` line did not count: use the
-     address your site answers on, as the reference says, or tell your assistant what the
-     line says. If you can't find the switch, or a `header` count shows after you switched
-     it off, tell your assistant.
+     200 requests and saw no `report-to:` line). An `other` line did not count: tell your
+     assistant what the line says. The reference says which address to use. If you can't
+     find the switch, or a `header` count shows after you switched it off, tell your
+     assistant.
      *The trade-off:* you give up Cloudflare's view of the scripts your visitors load. The
      switch may be marked Global. If it says so, it may apply to every domain in your
      account: look at your other sites before you switch it off.
@@ -280,7 +280,8 @@ curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|repor
 
 You want a 200 status line (`HTTP/2 200`, or `HTTP/1.1 200 OK` on an older curl) and
 nothing else until you switch HSTS on (section 2). A 3xx status line means something else
-is redirecting your live domain: find out what before you trust the rest. A `nel:` line
+is answering for your live domain, usually a redirect: find out what before you trust the
+rest. A `nel:` line
 means NEL is still on, and so does a `report-to:` line that names `cf-nel`. A `report-to:`
 line that sends to an address on `csp-reporting.cloudflare.com` is Cloudflare's script
 monitor (section 3, step 5), and a clean answer does not show it is off. A `report-to:`
