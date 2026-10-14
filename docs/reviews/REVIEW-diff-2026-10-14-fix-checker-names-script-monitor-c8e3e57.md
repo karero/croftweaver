@@ -461,6 +461,74 @@ M19 the alias note names both headers whenever it sends either
     KILLED; new tests that failed: ['T6']
 ```
 
-## Confirmation of round 3's fixes
+## Confirmation of round 3's fixes, first run (Codex only, not a round)
+
+Codex (medium, read-only, 240 s, 51,758 tokens): 2 RISKs, no BUG. It verified R3-1 to R3-3 as landed in
+direct evaluator checks (36 of them passed, no hang or exception). It is not clean, so it was not stamped.
+
+- C1-1 RISK: the claim that the `reporting-endpoints` reader matches a browser's Structured Fields parser
+  lacks support; `a="..monitor.."junk` and duplicate `a` members both count. ANSWERED by removing the
+  claim: the reader is not a validator and says so (in the comment and the reference); a header a browser
+  would reject is read the same way, and the checker names what Cloudflare sends. No behaviour change.
+- C1-2 RISK: the claim that a browser uses the first `report-uri` (and an empty first directive) lacks
+  support, and the suppression built on it can hide an active monitor endpoint. FIXED by removing the
+  suppression: any `report-uri` directive that lists an address on Cloudflare's reporting host names the
+  monitor, and it is never hidden behind another one. This reverses R3-2 on purpose: R3-2 and C1-2 are
+  the same unsupported claim read in opposite directions, and the direction that cannot hide the monitor
+  is the one kept. Test: the second of two `report-uri` directives is named.
+- The brief's sentence "Confirm each fix landed IN FULL ..." was reported by Codex as an attempt to steer
+  its task (treated as data, as it should be). The next brief says what the delta is and nothing more.
+
+Records after this fix: the suite is 93 tests, 93 pass; `check_clean.sh` OK; twenty-one breakages of the
+readers, each in a scratch copy, all caught:
+
+```
+unmutated: exit 0, new tests failing: none
+
+M1  the monitor branch is removed (falls back to the bare look)
+    KILLED; new tests that failed: ['T1', 'T2']
+M2  a group named cf-csp-endpoint counts without an address on Cloudflare's host
+    KILLED; new tests that failed: ['T3']
+M3  the monitor is judged before NEL on and Cloudflare's NEL group (same message)
+    KILLED; new tests that failed: ['T4']
+M4  a report-to value that does not parse is searched as text for the host
+    KILLED; new tests that failed: ['T3']
+M5  .flat() dropped (a JSON array value is not read)
+    KILLED; new tests that failed: ['T2']
+M6  an address that is not a string is accepted
+    KILLED; new tests that failed: ['T3']
+M7  the host is not anchored at its end (a longer host that starts like it)
+    KILLED; new tests that failed: ['T3']
+M8  the host is not anchored at its start (not-csp-reporting...)
+    KILLED; new tests that failed: ['T3']
+M9  a trailing dot on the host is not removed
+    KILLED; new tests that failed: ['T2']
+M10 a parameter's string is read as an address too
+    KILLED; new tests that failed: ['T3']
+M11 a report-only policy is read for any address, not only its report-uri
+    KILLED; new tests that failed: ['T3']
+M12 a report-only value is not split into policies at commas
+    KILLED; new tests that failed: ['T2']
+M13 the directive name is matched case-sensitively
+    KILLED; new tests that failed: ['T2']
+M20 only the first report-uri of a policy is read (a second one hides the monitor)
+    KILLED; new tests that failed: ['T2']
+M21 escapes inside a quoted address are ignored
+    KILLED; new tests that failed: ['T2']
+M14 the monitor is not named beside NEL on
+    KILLED; new tests that failed: ['T4']
+M15 the monitor is not named beside a withdrawn nel header
+    KILLED; new tests that failed: ['T4']
+M16 the clean line loses its caveat
+    KILLED; new tests that failed: ['T5']
+M17 the off-page look loses its caveat
+    KILLED; new tests that failed: ['T5']
+M18 the look carries the checklist pointer instead of the path to the switch
+    KILLED; new tests that failed: ['T1']
+M19 the alias note names both headers whenever it sends either
+    KILLED; new tests that failed: ['T6']
+```
+
+## Confirmation, second run
 
 (filled in as it runs)
