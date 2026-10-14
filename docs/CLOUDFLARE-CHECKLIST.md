@@ -354,12 +354,17 @@ look but not change anything):
 |---|---|
 | Zone → Zone Settings → Edit | Always Use HTTPS, Minimum TLS Version, Email Address Obfuscation, the NEL switch |
 | Zone → Transform Rules → Edit | the rule that removes the NEL headers |
-| Zone → Bot Management → Edit | Bot Fight Mode, the AI crawler policies and the three switches after them (`is_robots_txt_managed`, `crawler_protection`, `content_bots_protection`), all on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
+| Zone → Bot Management → Edit | Bot Fight Mode, the AI crawler policies and the three switches after them (`bot_preference_sync_enabled`, `crawler_protection`, `content_bots_protection`), all on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
 | Zone → Zone → Read | finding your domain by name |
 | Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
 
 Cloudflare documents these calls. We have run only the Transform Rules call on live sites,
 so for the others the assistant should read each setting back, and you run section 5.
+Bot Preference Sync is the field `bot_preference_sync_enabled`. A trial on a spare domain
+(14 October 2026) showed it: with that field on and Training disallowed, Cloudflare put its
+own lines in front of the site's `robots.txt`, and with it off the site's own file came
+back within seconds. A similar field, `is_robots_txt_managed`, did not do that, and
+Cloudflare refused to switch it on.
 
 Then set **Zone Resources** to your one domain and **Account Resources** to your account
 only (Pages Edit covers the whole account). Set **TTL** to an end date of tomorrow, a week
