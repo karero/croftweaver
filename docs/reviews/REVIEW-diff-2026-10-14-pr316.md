@@ -6,6 +6,7 @@ Base `ebc3f39` (origin/main after the merge at `b6fddb4`) · depth: Normal (Code
 |---|---|---|---|---|---|
 | 1 | `eb3a086` | full (78,169 bytes: a context note with the test record, then the diff) | Codex: gpt-6.1-sol, config effort, read-only; GLM 5.3 on melious.ai (text only) | codex 457 s, 111,876 tokens; glm 792 s, 70,358 tokens | 4 / 2 / 4 |
 | 2 | `37a246c` | delta since `eb3a086` on this PR's own files (31,344 bytes), round 1's findings and the author's record as `--verify` | the same, Codex at medium | codex 259 s, 167,628 tokens; glm 532 s, 42,420 tokens | 1 / 2 (one finding, both seats) / 2 (one finding, both seats) |
+| 3 | `62279f4` | delta since `37a246c` on this PR's own files (11,164 bytes; `docs/reviews/` left out), round 2's findings and the author's record | the same | codex 182 s, 48,451 tokens; glm 202 s, 19,409 tokens | 2 / 2 (one finding, both seats) / 2 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -22,6 +23,10 @@ Base `ebc3f39` (origin/main after the merge at `b6fddb4`) · depth: Normal (Code
 | S11 | BUG | Codex | 2 | the trail's merge note said main's bug log had 141 lines; it has 140 (the author's script counted the empty piece after the last line break) | fixed | the note says 140; the preservation itself was confirmed |
 | S5 again | RISK | Codex, GLM | 2 | the namespaces refutation still rested on a quotation, with no browser evidence | refuted, now with a measurement | Chromium 153 and Firefox 155 (Playwright, a page with `:root { --bg: red }` and `html { ... }`): with no `@namespace`, with the page's own XHTML namespace as default, and with only a prefixed namespace, both rules apply; with another default namespace (`http://example.com/foo`) neither applies. So `:root` alone is bound by a default namespace, as the sentence says; the BUGLOG row now gives the measurement |
 | S8 again | NIT | Codex, GLM | 2 | after a backslash a tab or form feed still shows as `<U+0009>` or `<U+000C>` with nothing saying what it is | fixed | the quote still shows the character exactly; the message now adds which blank each such mark is ("In the quote, <U+0009> is a tab: the character after the backslash, as the file has it."), without the "take it out" note; a test for a tab, a form feed and a line end |
+| S12 | BUG | Codex (GLM as NIT) | 3 | `_blanks_named` read the shown quote, so the six letters `<U+0009>` written in a file were named a tab | fixed; locally_verified | it reads the raw characters; a regression with the letters written out names no blank |
+| S13 | BUG | GLM | 3 | the trail's count still said 141 | refuted | the trail says 140 since `62279f4`; round 3's artifact left `docs/reviews/` out, so the seat could not see it |
+| S5 a third time | RISK | Codex, GLM | 3 | the browser measurement was narrated, not shown | answered | the probe script and its whole output are now in this trail ("The namespace probe" below) |
+| S14 | NIT | GLM | 3 | the carriage return was named in the row and not tested | fixed | the test drives a carriage return too |
 
 Waivers and deferrals: none yet.
 
@@ -29,4 +34,47 @@ Test record (outputs kept by the author): the brand-kit suite on a copy of the t
 
 Merge of main at `007faae`: main added one row (the pages.dev reading guide) among the rows this PR closes. Resolved by keeping this PR's six closed rows and putting main's row after the `want_logo` row, where main has it. Checked by script: the file has main's 140 lines, no row of main is missing, and the 19 lines that differ differ only in their Status cell.
 
-After round 2's BUG (S11) auto-merge was turned off, as said; the fixes above came first, then it was set again. The owner wrote "Merge 316" before round 2. Auto-merge was set on CI (the brand-kit tests run there with `sharp` and Pillow required); round 2 runs beside it on round 1's fixes, and a BUG from it before the merge stops auto-merge.
+After round 2's BUG (S11), and again after round 3's (S12), auto-merge was turned off, as said; the fixes above came first, then it was set again. The owner wrote "Merge 316" before round 2. Auto-merge was set on CI (the brand-kit tests run there with `sharp` and Pillow required); round 2 runs beside it on round 1's fixes, and a BUG from it before the merge stops auto-merge.
+
+## The namespace probe (S5), as run on 2026-10-14
+
+Run with Node 26.11.1 from a scratch install of the starter (Playwright as the starter pins it), `node nsprobe.mjs`:
+
+```js
+import { chromium, firefox } from "playwright";
+const css = (ns) => `${ns}
+:root { --bg: rgb(255, 0, 0); }
+html { --type-sel: yes; }`;
+const cases = {
+  "no @namespace": "",
+  "default namespace = XHTML (the page's own)": '@namespace url("http://www.w3.org/1999/xhtml");',
+  "default namespace = another": '@namespace url("http://example.com/foo");',
+  "prefixed namespace only": '@namespace svg url("http://www.w3.org/2000/svg");',
+};
+for (const [label, launcher] of [["chromium", chromium], ["firefox", firefox]]) {
+  const b = await launcher.launch();
+  const p = await b.newPage();
+  for (const [name, ns] of Object.entries(cases)) {
+    await p.setContent(`<!doctype html><html><head><style>${css(ns)}</style></head><body></body></html>`);
+    const r = await p.evaluate(() => { const s = getComputedStyle(document.documentElement); return [s.getPropertyValue("--bg").trim() || "(unset)", s.getPropertyValue("--type-sel").trim() || "(unset)"]; });
+    console.log(`${label} | ${name} | :root sets --bg: ${r[0]} | html sets --type-sel: ${r[1]}`);
+  }
+  console.log(`${label} version ${b.version()}`);
+  await b.close();
+}
+```
+
+Its whole output:
+
+```
+chromium | no @namespace | :root sets --bg: rgb(255, 0, 0) | html sets --type-sel: yes
+chromium | default namespace = XHTML (the page's own) | :root sets --bg: rgb(255, 0, 0) | html sets --type-sel: yes
+chromium | default namespace = another | :root sets --bg: (unset) | html sets --type-sel: (unset)
+chromium | prefixed namespace only | :root sets --bg: rgb(255, 0, 0) | html sets --type-sel: yes
+chromium version 153.0.8010.12
+firefox | no @namespace | :root sets --bg: rgb(255, 0, 0) | html sets --type-sel: yes
+firefox | default namespace = XHTML (the page's own) | :root sets --bg: rgb(255, 0, 0) | html sets --type-sel: yes
+firefox | default namespace = another | :root sets --bg: (unset) | html sets --type-sel: (unset)
+firefox | prefixed namespace only | :root sets --bg: rgb(255, 0, 0) | html sets --type-sel: yes
+firefox version 155.0
+```

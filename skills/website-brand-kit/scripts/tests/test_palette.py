@@ -3474,13 +3474,17 @@ class StylesheetQuotes(unittest.TestCase):
             self.assertEqual(t.count(_palette._UNSEEN_NOTE), 1)
         # after a backslash the character is the one the backslash stands before, so it is shown exactly: a tab there is
         # <U+0009>, and the message says what that is (and gives no "take it out", which would be the wrong advice)
-        for blank, mark, what in (("\t", "<U+0009>", "a tab"), ("\f", "<U+000C>", "a form feed"), ("\n", "<U+000A>", "a line end")):
+        for blank, mark, what in (("\t", "<U+0009>", "a tab"), ("\f", "<U+000C>", "a form feed"), ("\n", "<U+000A>", "a line end"), ("\r", "<U+000D>", "a carriage return")):
             with self.subTest(blank=mark):
                 found = [t for t in _palette.scan_css(whole + "\na { --x: \\%s1; }\n" % blank).problems if t.kind == "escape"]
                 self.assertEqual(len(found), 1)
                 self.assertIn("`\\%s1`" % mark, found[0].message)
                 self.assertIn("(In the quote, %s is %s: the character after the backslash, as the file has it.)" % (mark, what), found[0].message)
                 self.assertNotIn(_palette._UNSEEN_NOTE, found[0].message)
+        # the sentence goes by the characters, not by the quote: the same six letters written in the file name no blank
+        found = [t for t in _palette.scan_css(whole + "\na { --x: \\<U+0009>1; }\n").problems if t.kind == "escape"]
+        self.assertEqual(len(found), 1)
+        self.assertNotIn("In the quote,", found[0].message)
         # and a note (no problem, said beside the check) carries it too: an import with a hidden character in its address
         note = _palette.read_css('@import url("a\u200bb.css");\n' + whole).notes[0]
         self.assertIn("<U+200B>", note)

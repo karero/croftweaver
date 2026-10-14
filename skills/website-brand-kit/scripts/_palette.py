@@ -276,14 +276,15 @@ def _css_shown(text):
 _HIDDEN_IN_QUOTE = re.compile(r"<U\+(?!000[9ACD]>)[0-9A-F]{4,6}>")   # a <U+...> that is not one of CSS's own blanks
 
 
-_BLANK_NAMES = (("<U+000A>", "a line end"), ("<U+000D>", "a carriage return"), ("<U+0009>", "a tab"), ("<U+000C>", "a form feed"))
+_BLANK_NAMES = (("\n", "a line end"), ("\r", "a carriage return"), ("\t", "a tab"), ("\f", "a form feed"))
 
 
-def _blanks_named(quote):
-    """A sentence that names what each of CSS's own blanks written as <U+...> in `quote` is, or nothing. Said where a
-    quote shows them exactly (after a backslash, where the character is the one the backslash stands before): none of
-    them is a character to take out, so _noted's sentence would be the wrong advice there."""
-    named = ["%s is %s" % (mark, what) for mark, what in _BLANK_NAMES if mark in quote]
+def _blanks_named(raw):
+    """A sentence that names what each of CSS's own blanks in the piece `raw` is, as its quote shows it (<U+0009> and
+    so on), or nothing. Read from the characters themselves, not from the quote, where the same six letters could be
+    written in the file. Said where a quote shows them exactly (after a backslash, where the character is the one the
+    backslash stands before): none of them is a character to take out, so _noted's sentence would be the wrong advice."""
+    named = ["<U+%04X> is %s" % (ord(c), what) for c, what in _BLANK_NAMES if c in raw]
     return " (In the quote, %s: the character after the backslash, as the file has it.)" % ", ".join(named) if named else ""
 
 
@@ -1679,7 +1680,7 @@ def scan_css(text):
                                 "with one, so it cannot tell what the stylesheet says from there on. Write the name out without the "
                                 "backslash. Where a name cannot be written without one (a class name with a colon in it), move that rule "
                                 "into another stylesheet.%s"
-                      % (_line_number(text, escape), _visible(plain[start:end]), _blanks_named(_visible(plain[start:end])))))   # (a line end after the backslash is the point: shown)
+                      % (_line_number(text, escape), _visible(plain[start:end]), _blanks_named(plain[start:end]))))   # (a line end after the backslash is the point: shown)
     if string is not None:
         end = string
         while end < len(text) and text[end] not in "\n\r\f":
