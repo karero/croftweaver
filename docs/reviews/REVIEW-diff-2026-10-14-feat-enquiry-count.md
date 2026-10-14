@@ -16,6 +16,7 @@ Requirements: `docs/reviews/SKILL-PLAN-enquiry-count.md` (owner-approved 2026-10
 | Round | Head | Reviewers | Findings (BUG/RISK/NIT) | Outcome |
 |---|---|---|---|---|
 | 1 | e1ab9d7 | codex (gpt-6.1-sol, config effort) 293 s 91k tok; melious glm-5.3 261 s 21k tok; fresh-eyes (claude-opus-5-5) 204 s 127k tok | 1 / 5 / 6 | one wording BUG fixed; payload and delivery claims measured; next round owed by the fixes |
+| 2 | 02a26c3 (verify e1ab9d7..02a26c3) | codex (config effort) 278 s 88k tok; melious glm-5.3 136 s 15k tok; fresh-eyes (claude-opus-5-5) 190 s 122k tok | 1 / 1 / 6 | F1's fix opened G1 (substantive); round 3 owed |
 
 ## Findings
 
@@ -34,3 +35,13 @@ Requirements: `docs/reviews/SKILL-PLAN-enquiry-count.md` (owner-approved 2026-10
 | F11 | NIT | fresh-eyes | 1 | brief, record M3 | M3's description did not explain three failures. | fixed (record) | M3 ADDED an unguarded call at the top of submit, the old call kept: a valid press counted twice, a refused press counted, a throwing tracker threw. Moving the call alone is M6 (round 2 records) |
 
 Round 1 also asked (UNVERIFIABLE, not findings): self-hosted CE goal behaviour (open, advice safe either way); whether "Form submissions" would count the press (open, docs say untick); the author's test records (kept in the scratchpad; summarised in the brief).
+| G1 | BUG | fresh-eyes (codex: RISK) | 2 | `website-contact-form/SKILL.md` §4 | F1's option "or leave the sentence out" lets the new `mail-form.js` send an event the privacy page never mentions. caused-by: F1 (introduced) | fixed, locally_verified | option removed: take both; the sentence is not optional on a site with Plausible |
+| G2 | NIT | fresh-eyes | 2 | same paragraph | names only the EN page | fixed | adds "(German: `_datenschutz.astro`)" |
+| G3 | RISK | codex | 2 | Q5, `config.ts` | Plausible delivery, payload, goal and bounce claims re-raised as unsupported. | refuted | no new evidence in the re-raise; fresh-eyes read the live per-site script this round: `fetch(...,{keepalive:!0})`, `L.u=k||location.href, L.d=i.domain, L.r=document.referrer||null`, props only from `m.props`/`i.customProperties` (Base.astro's `plausible.init()` passes none), `i:false` only when `interactive===false`; and followed both doc quotes |
+| G4 | NIT | codex, melious | 2 | `email.spec.ts` `pagesWithEmail` | `data-email="` still matches `data-other-data-email="`. caused-by: F8 (partial) | fixed | literal regex `/\sdata-email="/` |
+| G5 | NIT | fresh-eyes, codex | 2 | `new-website/SKILL.md:152` | rewrap left a 98-column line. caused-by: F9 (partial) | fixed | rewrapped |
+| G6 | NIT | fresh-eyes, melious | 2 | `email.spec.ts:75` | 108-column comment line. caused-by: F10 (introduced) | fixed | rewrapped |
+| G7 | NIT | melious | 2 | `EmailLink.astro:46` | over-width comment line | refuted | longest new comment line is 94 columns; the file's own pre-existing line 26 is 100 |
+| G8 | NIT | fresh-eyes | 2 | probe record | field labelled `keepalive` actually records `sec-fetch-mode` (null) | fixed (record) | the label is wrong; the live script does set `keepalive:!0` (G3) |
+
+Round 2, outside scope: the BUGLOG row said "Plausible does not count events sent before the goal exists" without the documentation attribution; reworded with the round 2 fixes (record prose, for the wording pass).

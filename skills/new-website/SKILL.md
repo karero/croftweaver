@@ -149,8 +149,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      script, no consent banner) is enough for search & referral traffic.
    - "Which sources bring enquiries?" or other real decisions from traffic data
      (campaigns, content strategy) → **Plausible** (cookieless; running it without
-     a consent banner is a position to have reviewed, see the header of `privacy.astro` and, for a
-     German-only site, `_datenschutz.astro`). In its installer, untick the
+     a consent banner is a position to have reviewed, see the header of `privacy.astro`
+     and, for a German-only site, `_datenschutz.astro`). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
      unless you keep the privacy page's slot sentence for each one you leave ticked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
