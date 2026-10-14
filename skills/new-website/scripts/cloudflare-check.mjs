@@ -15,7 +15,10 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const UA = 'Mozilla/5.0 (compatible; croftweaver-cloudflare-check/1)';
-const MONTH = 2629800; // seconds in an average month; the dashboard offers whole months
+// The dashboard's "1 month" is 30 days (2592000 seconds), shorter than an average calendar month
+// (2629800): a site set to exactly one month must not be called shorter than one. Its 6 and 12
+// months are 15552000 and 31536000, so "about N months" is a rounding.
+const MONTH = 2592000;
 const MAX_BODY = 5_000_000; // bytes of a page read before judging what we have
 const MAX_HOPS = 3; // redirects followed on the home page, to the same address only
 const CF_COOKIE = /^(__cf_bm|cf_clearance|__cflb|_cfuvid)$/; // the names Cloudflare's own cookies carry
