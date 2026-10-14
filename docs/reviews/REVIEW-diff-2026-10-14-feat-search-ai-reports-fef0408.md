@@ -140,8 +140,8 @@ failures, 7 errors across their subtests) and pass now.
 ## Verdict, waivers, follow-ups
 
 **Verdict:** CLEAN once F46's confirmation passes (row above). Every BUG is fixed or refuted: the
-refutations F19 (part), F29 and F40 have the owner's agreement, quoted in their rows. RISKs F16
-(the typo folder) and F31 are waived by the owner, quoted in their rows; F20 and F32 stand as
+refutations F19 (part), F29 and F40 have the owner's agreement, quoted in their rows. F16's typo-folder
+NIT and F31's RISK are waived by the owner, quoted in their rows; F20 and F32 stand as
 recorded (re-raises without new evidence, the real exports being the owner's site data).
 
 **Seen pair for the stamp:** base = `git merge-base origin/main HEAD`, head = the head F46's
@@ -149,8 +149,9 @@ confirmation saw. Codex is the seat with an unbroken chain (rounds 1–5, the re
 link, the confirmation); melious's chain broke in round 2 (cut off; GLM 5.3 on ollama stood in),
 and fresh-eyes' ended at round 1 by design.
 
-**Follow-ups:** none from the rounds. Outside this change: `scripts/check_clean.sh` does not scan
-`docs/reviews/`, where a real site name sat in this plan before round 1 (caught by hand).
+**Follow-ups:** none from the rounds. Outside this change: a real site name sat in this plan
+before round 1 and was caught by hand. `scripts/check_clean.sh` scans `docs/` (its `SCAN_BASE`),
+but its private, gitignored name list does not hold that name; adding it is the owner's call.
 
 **Notes:** Rounds 4 and 5 ran past round 3, earned by F30 and F36. The F1 chain (F1 → F18 → F30 →
 F36) was closed by a boundary, not one more shape; the F2 chain (F2 → F19 → F29) ended on the
