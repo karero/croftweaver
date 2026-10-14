@@ -1,7 +1,7 @@
 # DIFF review — branch feat/search-ai-reports — Google's and Bing's own AI reports (search-console-insights 1.8.0)
 
-Base `e038603` · depth: Normal (shipped runtime code; nothing in the High row) · verdict: OPEN until
-the re-gate below is clean · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
+Base `e038603` · depth: Normal (shipped runtime code; nothing in the High row) · verdict: CLEAN (seen pair: merge-base
+01504df, head d0ae6a4; later commits touch this trail only) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
 works in this worktree and created the branch by renaming the harness's branch for it); POST
 AUTHORITY not yet held (no PR; one is opened only on the owner's word).
 
@@ -37,7 +37,8 @@ left out of the artifact).
 | 5 (verification) | 296d55c | Codex medium (207 s, 62k tokens), GLM 5.3 on melious (224 s, 22k) | 1 / 0 / 5 (F40–F45) | delta 3090c40..296d55c; `make test` 248 OK, `make check` exit 0 before the round. F40 refuted with the owner's agreement, so no substantive BUG: **the rounds end** (stop condition a2). The NIT fixes and F40's hardening are locally_verified, not externally re-verified until the re-gate below |
 | re-gate (not a round) | 1136a76 | Codex medium only (105 s, 58k tokens): the seat with an unbroken chain (melious's broke in round 2) | 0 / 0 / 0 | delta 296d55c..1136a76: F40's hardening, F41, F43, F44 at full scope; the trail and the plan's status row for factual contradictions only. Clean; it confirmed the prose hunks hold no code. `make test` 249 OK, `make check` exit 0 before it |
 | merge link (not a round) | ac928c7 | Codex medium only (216 s, 79k tokens) | 1 / 0 / 0 (F46, record only) | `origin/main` merged at 0b903d3 (49 commits; new merge-base 01504df); `merge_link.sh e038603 1136a76 01504df -- docs/WHAT-THE-SKILLS-RUN.md` lists no change in the change's own files, so the merge left them as reviewed. Its one file is that extra path, which is new on main, so the script prints the whole file as added (401 lines); this change's own edit to it is one sentence (`git diff 01504df..HEAD -- docs/WHAT-THE-SKILLS-RUN.md`), and that sentence plus the plan's status row were the artifact. Codex re-derived the path list with read-only git (the script's temp folder was denied in its sandbox), confirmed the skill's files are unchanged since 1136a76, and checked the sentence against `ai_reports.py` under a network audit: local files in, local JSON out. `make test` 249 OK, `make check` exit 0 on ac928c7. It read the scope note as "prompt injection"; it is the scope the skill prepends to a narrow pass |
-| confirmation of F46 (not a round) | — | Codex medium only | pending | the delta of F46's fix alone |
+| confirmation of F46 (not a round) | a71e7fd | Codex medium only | 2 / 0 / 0 (record) | F46's own contradiction gone, but the fix added two wrong record sentences ("check_clean.sh does not scan docs/reviews/"; "RISKs F16 …", F16 being a NIT); both corrected in d0ae6a4 |
+| confirmation of that fix (the last allowed) | d0ae6a4 | Codex medium only | 0 / 0 / 0 | both corrections verified, no new contradiction; the private name list's count (0) is the author's measurement, which the seat could not reproduce without seeing the list |
 
 ## Findings
 
@@ -139,13 +140,13 @@ failures, 7 errors across their subtests) and pass now.
 
 ## Verdict, waivers, follow-ups
 
-**Verdict:** CLEAN once F46's confirmation passes (row above). Every BUG is fixed or refuted: the
+**Verdict:** CLEAN: F46's fix confirmed on d0ae6a4 (rows above). Every BUG is fixed or refuted: the
 refutations F19 (part), F29 and F40 have the owner's agreement, quoted in their rows. F16's typo-folder
 NIT and F31's RISK are waived by the owner, quoted in their rows; F20 and F32 stand as
 recorded (re-raises without new evidence, the real exports being the owner's site data).
 
-**Seen pair for the stamp:** base = `git merge-base origin/main HEAD`, head = the head F46's
-confirmation saw. Codex is the seat with an unbroken chain (rounds 1–5, the re-gate, the merge
+**Seen pair for the stamp:** base = `git merge-base origin/main HEAD`, head = d0ae6a4, the head the
+last confirmation saw. Codex is the seat with an unbroken chain (rounds 1–5, the re-gate, the merge
 link, the confirmation); melious's chain broke in round 2 (cut off; GLM 5.3 on ollama stood in),
 and fresh-eyes' ended at round 1 by design.
 
