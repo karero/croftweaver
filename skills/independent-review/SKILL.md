@@ -138,8 +138,8 @@ Codex's effort for any run.
 2. **Run the external half** (Normal and High; Light runs its one seat instead). First read the
    gate's PR/MR comment for a round already running (`references/closeout.md`, "A round claim";
    advisory). Set Codex's
-   effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
-   verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
+   effort from the depth row first — at High, `CODEX_EFFORT=config` in round 1; a verification
+   round's default, medium, is right at every depth: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
    [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
    directory; depth and round feed the cost log, and a run with no `--depth` says so; the notice
    past round 8 needs `--round` on every round, a redesign restarts at 1; a wording pass, final
@@ -342,7 +342,9 @@ Codex's effort for any run.
    re-breaks something an earlier round fixed (even once); or when MOST of a round's findings
    re-cover ground a prior pass reported clean, or re-raise a dispositioned finding (fixed,
    refuted, waived, deferred, or open on a missing prerequisite) without new evidence; or when the
-   count plateaus two rounds on mostly such findings. Then redesign, or take the open items to the
+   count plateaus two rounds on mostly such findings; or when one kind brings a substantive BUG
+   two rounds running (step 6, "Cut, don't patch": findings on code the last fixes added count as
+   new ground, so a patch chain can look healthy here). Then redesign, or take the open items to the
    owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
    only under step 5). "Stopped: not converging" goes in the trail. Long form:
    `references/rationale.md`.
