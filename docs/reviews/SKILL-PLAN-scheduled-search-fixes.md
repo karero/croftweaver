@@ -12,7 +12,7 @@ scenarios are made up.
 | 1 | Requirements and scenarios (this file) | ✅ rewritten for Option 0 after the decisions; reviewed (step 3) | PR #286 (branch `docs/scheduled-search-fixes-requirements`) |
 | 2 | Owner answers the open decisions | ✅ D0 to D11 decided 2026-10-14 | owner's answers in chat, 2026-10-14 |
 | 3 | Review gate on this file (Normal: a plan, so never Light) | ✅ 3 rounds, 32 findings once duplicates between the two seats are merged (round 1: 15; round 2: 11; round 3: 6, no BUG); all fixed, except one copy of the competitor recipe declined; wording pass: 8 findings (3 BUG, 5 RISK), 7 fixed, 1 refuted; fix check: no BUG, 3 RISK on outside services and the competitor, owner-waived 2026-10-14 (checked in the design plan) | trail `REVIEW-plan-2026-10-14-scheduled-search-fixes-ac8b71b.md` |
-| 4 | Design plan (the mechanism), first confirming Google's and Serper's behaviour (the waived RISKs), then build, then its own review gate | ▶ design plan reviewed and merged (PR #297); build steps 2 to 5 done, PR #302 (branch `feat/weekly-fix-proposal`), in review | `DESIGN-weekly-fix-proposal.md`; trail `REVIEW-plan-2026-10-14-weekly-fix-proposal-design-95faa83.md` |
+| 4 | Design plan (the mechanism), first confirming Google's and Serper's behaviour (the waived RISKs), then build, then its own review gate | ▶ design plan reviewed and merged (PR #297); build steps 2 to 5 done and reviewed (Normal gate closed 2026-10-14, 48 findings), PR #302 | `DESIGN-weekly-fix-proposal.md`; trail `REVIEW-plan-2026-10-14-weekly-fix-proposal-design-95faa83.md` |
 | 5 | Release note line in 0.32 (D10) | ⏸ waits for 4 | — |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked · ⚠ deviated
