@@ -373,7 +373,8 @@ check comes with the launch stage, since no request may reach the domain before 
     and runs the check's `canonical` item.
 
 The run ends with the whole check script, its lines passed on as it judged them: a `fail`
-on something either stage set gives 1; a `fail` on an item left by hand (Web Analytics,
+on something either stage set gives 1, and so does an item marked `blocked` (the page
+could not be judged, so nothing was seen); a `fail` on an item left by hand (Web Analytics,
 say), and `look`, `hand` and `skip`, give 0 and are listed for Lena as what they are. The report gives, for each thing set, what it was, what it is now, and how that was
 checked. Fail open, the build settings, Minimum TLS Version and the AI fields have no
 outside check: "read back through the API only", with the checklist's ssllabs test named
@@ -564,8 +565,9 @@ Plan step 7 brings these in line in the same pull requests as the script:
   Pages project's name (the first part of its `.pages.dev` address)".
 - `CLOUDFLARE_CHECK.md` and the check script's messages: "By hand, always", the new options,
   and each place that takes `<name>.pages.dev` for the project's address.
-- `templates/PUBLISHING.md`, "Deploy by command", and `templates/AGENTS.md`'s "Preview
-  before merging", which send the owner to `website-team-setup` §6 to connect.
+- `templates/PUBLISHING.md`, "Deploy by command", which says a site put online with a token
+  has no GitHub connection; and `templates/AGENTS.md`'s "Preview before merging", which
+  sends the owner to `website-team-setup` §6 to connect.
 - `search-console-setup`, which calls the verification record a human step.
 
 ## Review trail
