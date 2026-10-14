@@ -15,7 +15,7 @@ purpose; the business in the scenarios is made up.
 | 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ✅ written, not yet reviewed (row 7) | branch `feat/website-brand-kit`, commit `b75db71` |
 | 6 | Hooks into the other skills (listed under "Hooks") | ✅ written 2026-10-12, not yet reviewed (row 7): `new-website` (the intro, a step 2b row and section, the copy list now twenty-six, §3 step 4 and step 5), `README.md` (layout, the optional-skills paragraph), `website-qa` (one row), `website-design-system` (the tokens paragraph), `website-content-guide` (the `BRAND.md` line), the `BRAND.md` template (D6's rows; a test holds it to the palette prompt row for row), the count comment in `check_skill_budgets.sh`. `check_model_agnostic.sh` re-run inside `make check`: still green | branch `feat/website-brand-kit` (local) |
 | 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ▶ eleven rounds run (102, 102, about 105, about 93, about 72, about 58, about 49, about 39, about 45, then a lean round 10 and a Codex-only round 11), the final full read (Kimi K3) and the wording pass. Round 9's config advice was cut on the maintainer's choice; round 11 was clean; the full read's one BUG (the feel was never asked) is fixed and was read by the wording pass only. Merging waits for the maintainer's word | trail `REVIEW-diff-2026-10-12-feat-website-brand-kit-4e83f4a.md` |
-| 8 | Evals, with and without the skill, as `website-story` had | ▶ five evals written (`evals/evals.json`, three fixture files); not yet run with and without the skill | branch `feat/website-brand-kit`, commit `b75db71` |
+| 8 | Evals, with and without the skill, as `website-story` had | ✅ run once on 2026-10-14, each eval with and without the skill, graded by a separate agent: with the skill 28 of 30 assertions, without it 10 of 30. The skill did worse than no skill on eval 5 (it held the content guide back); its follow-ups are BUGLOG rows | "Evals (step 8)" below; the eval files merged with #283 (`6b6193d`); the follow-ups are in #301 |
 | 9 | Release note line in 0.32 | ⏸ waits for row 7 (#212 is merged and v0.31 is out) | — |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked · ⚠ deviated
@@ -893,6 +893,38 @@ line why it asks differently.
 A generated mark can look like an existing one, and each tool sets its own terms on
 commercial use. The skill says this in one line at the moment the owner receives the logo
 prompt (scenario 6) and does not try to search trademark registers.
+
+## Evals (step 8, 2026-10-14)
+
+Run as `website-story`'s were: each of the five evals in `evals/evals.json` ran once with the
+skill and once without it, each run a fresh sub-agent on the host's own model, which got the
+owner's message, a project folder holding only that eval's fixture files, and one reply to give.
+The runs with the skill read a copy of the skill without its `evals/` and `scripts/tests/`
+folders; the runs without it had no skill and were told not to read the repository. A separate
+agent graded every run against the eval's assertions, with the same standard for both. The
+workspace (outputs, grading, benchmark, review page) is kept outside the repo.
+
+| Eval | With the skill | Without it | What told them apart |
+|---|---|---|---|
+| 1, the palette prompt from her likes | 9 of 9 | 2 of 9 | without the skill the run chose six colours itself and wrote two files into her folder; with it, the three-palette prompt with her likes, her dislike and the positioning's facts |
+| 2, a pasted palette | 6 of 6 | 2 of 6 | with the skill the check was run and printed the three dark-theme failures exactly (3.58, 3.34 and 3.11 to 1); without it, a hand-written contrast script, a range and a fix the assistant chose |
+| 3, her own colours, no dark theme | 5 of 6 | 0 of 6 | without the skill the run turned the dark theme down for her and wrote a stylesheet without asking; with it, every gap proposed and marked, her yes asked for. Its miss: the proposed dark colours' ratios shown rounded ("14 to 16"), not as the check printed them |
+| 4, a PNG logo only | 5 of 5 | 2 of 5 | without the skill the run promised to make the icons from the PNG; with it, an SVG asked for and both ways on offered |
+| 5, the brand question at the content guide | 3 of 4 | 4 of 4 | both asked the question once and plainly; with the skill the run then held the content guide back until she answers, which SKILL.md §0 does not rule out |
+
+In all, 28 of 30 assertions with the skill and 10 of 30 without (the mean of the five pass rates:
+92% and 39%). Time per run: 79 s on average with the skill, 66 s without; tokens: about 521,000
+and 426,000 over the five runs. One run per side, so nothing here measures how much a run varies.
+The grader failed a negative assertion that held only by chance (eval 4's PNG was not converted
+because the fixture has no PNG, while the reply promised to convert it) and an assertion about
+something the run never made; read literally, the runs without the skill score 15 or 16 of 30.
+
+What follows from it, each a row in `docs/BUGLOG.md`: SKILL.md §0 should say that asking the
+brand question late never holds up the step she asked for; the proposals' ratios should be shown
+as the check prints them; and the evals need a `logo.png` for eval 4, a `POSITIONING.md` for
+eval 5 (that run had none, so part of its pause was fair) and an assertion in eval 1 that she is
+asked to paste her pick back for a check. In evals 1, 2 and 4 two assertions each passed whatever the run did (in eval 4
+because its fixture has no PNG). None of this was changed in the skill: that is the follow-ups' sweep.
 
 ## Review trail
 
