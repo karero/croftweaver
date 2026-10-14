@@ -55,8 +55,10 @@ fid = (recent.get("metadata") or {}).get("firstIncompleteDate")
 print(f"[1] recent range: metadata={'yes' if recent.get('metadata') else 'no'} firstIncompleteDate={fid}; "
       f"range ending {old_end}: metadata={'yes' if old.get('metadata') else 'no'} {old.get('metadata')}")
 
-# The window the report would use: 28 days ending the day before the first incomplete date.
-end = (dt.date.fromisoformat(fid) - dt.timedelta(days=1)) if fid else today - dt.timedelta(days=3)
+# The window the report page uses (search_report.py, fetch_google): four full weeks ending on the
+# last Sunday on or before the last finished day (the day before the first incomplete date).
+finished = (dt.date.fromisoformat(fid) - dt.timedelta(days=1)) if fid else today - dt.timedelta(days=3)
+end = finished - dt.timedelta(days=(finished.weekday() + 1) % 7)
 start = end - dt.timedelta(days=27)
 print(f"    window {start}..{end}")
 

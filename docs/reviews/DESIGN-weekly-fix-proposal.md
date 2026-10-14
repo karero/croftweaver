@@ -29,7 +29,7 @@ sample answers are the source):
 |---|---|---|
 | Cached or live? | "We do not cache anything so the returned response will reflect the latest" | One live search per T2 check, at most once per report |
 | Are `title` and `snippet` what Google displayed? | Not stated; the samples look like it | Not trusted until check P2 compares them by eye with Google |
-| Country and language | Set "by specifying the country and language" (`gl`, `hl`); `serp_check.py` already maps them | Taken from the site's country setting, as `serp_check.py` does |
+| Country and language | Set "by specifying the country and language" (`gl`, `hl`) | For T2 later: the site's country setting is three letters (`deu`), while `serp_check.py` expects two (`de`) and picks the language from them; the code must convert first |
 | Price | 2,500 free queries; paid packs from $1.00 per 1,000 (50k for $50), "Credits valid for 6 months"; whether free credits expire is not stated | R4's row stays as written |
 
 **Still open after reading, settled by two small checks with the owner's OK:**
@@ -46,7 +46,9 @@ The competitor RISK needs no check here: it concerns the requirements' "Why", no
 build.
 
 **P1 results (2026-10-14, one real site, read-only; the script is
-`docs/reviews/fix-proposal-probe/fix_probe.py` and prints counts only):**
+`docs/reviews/fix-proposal-probe/fix_probe.py` and prints counts only; it uses the report
+page's window rule, and a rerun after review round 1 gave the same output, since the last
+finished day was a Sunday):**
 
 ```
 [1] recent range: metadata=yes firstIncompleteDate=2026-10-12; range ending 2026-09-24: metadata=no None
@@ -75,8 +77,8 @@ build.
 snippet for it was the page's own meta description, word for word. Serper's title was not
 the page's `<title>`: the same words in another order, with the brand first, a rewrite.
 Two of the ten results came back with no snippet at all. Whether Google itself showed the
-same title and snippet is the by-eye half, still with the owner. Either way it matters for
-T2 later: on this page Google keeps the description and rewrites the title, so a "new
+same title and snippet is the by-eye half, still with the owner. If it did, it matters for
+T2 later: on this page the result keeps the description and rewrites the title, so a "new
 title" proposal could be rewritten too.
 
 ## 2. Recommendation: build T1 first, T2 after P1 and P2
@@ -84,7 +86,7 @@ title" proposal could be rewritten too.
 The documentation weakens T2 (seen but rarely clicked) on both legs: its figures come from
 a split Google says undercounts, and its decision rests on Serper text whose meaning
 Serper does not state. T1 (striking distance) needs neither: query rows by property, one
-drill-down, the page's own HTML. It is also the low-volume playbook's first item.
+drill-down, the page's own HTML. It is also the low-volume playbook's second item (`SKILL.md`, "Low-volume playbook").
 
 **Decided (DD0, owner, 2026-10-14):** v1 for 0.32 ships T1, the edit, and the measuring. T2 follows
 when P1 shows the undercount is small enough to trust a 100-impression floor and P2 shows
@@ -98,39 +100,55 @@ highest-return item on a small site, and dropping it halves what the proposal ca
 | Part | File | Kind |
 |---|---|---|
 | Choosing the proposal, the cool-off, live detection, measuring | `scripts/fix_proposal.py` (new) | Pure functions plus a small command line; code decides, no model |
-| Fetching what it needs | `scripts/search_report.py`, `fetch_google` | One more request per window: `["query", "page"]`; plus the candidate page's live HTML |
+| Fetching what it needs | `scripts/search_report.py`, `fetch_google` | One more dimension group per window, `["query", "page"]`, paged as `run_query` already pages; plus the candidate page's live HTML |
 | Showing it | `search_report.py`, `render` | One section at the end: "One thing to fix this week" |
-| State per site | `~/.config/gsc-insights/sites/<site>-proposals.json` (new) | Shown, declined, acted on, live dates, results |
-| Settings per site | `~/.config/gsc-insights/sites/<site>.json` (exists) | Gains `brand` (spellings), `repo` (the site's folder), `pr_figures` (yes / no / unasked) |
+| State and the owner's answers, per site | `~/.config/gsc-insights/sites/<site>-proposals.json` (new) | Proposals shown, declined, acted on, live observations, results; and the owner's answers: `brand` (spellings), `repo` (the site's folder), `pr_figures` (yes / no / unasked) |
 | What the assistant does when asked | `references/fix-proposal.md` (new) | Instructions: check positioning, edit the four places, run the gate, open the pull request, record it |
 | How the assistant gets there | `SKILL.md` | A pointer to the reference; the description stays as it is (it is at 998 of 1,024 characters) |
 | The weekly log | `track.sh` | One line naming the proposal, or why there is none |
 
-Nothing is written into the site's repository except the edit itself. State stays on the
-owner's computer, beside the settings and history that are already there.
+The owner's answers live in the new state file, **not** in `sites/<site>.json`: `track.sh`
+and `schedule_tracking.sh` rewrite that file whole on every run, so anything else in it
+would be lost. Nothing is written into the site's repository except the edit itself.
+
+The **four places** are the requirements' R2 list: the page's `title`, its meta
+`description`, its H1 and its first paragraph.
 
 ### 3.2 Choosing (code)
 
-- **Brand spellings:** `sites/<site>.json` `brand`, a list. Until the owner confirms one,
+- **Fresh data only.** A proposal is chosen only from data fetched in this run. When
+  `build` falls back to saved data (`search_report.py`, `build`, the `except` branch),
+  the page shows no new proposal and says why (scenario 9); a proposal already acted on
+  keeps its own line.
+- **Brand spellings:** the state file's `brand`, a list. Until the owner confirms one,
   the report uses the domain's first label with hyphens as spaces and as nothing
   ("radwerk plagwitz", "radwerkplagwitz") and says "counted as your business name: …;
   tell your assistant if that is wrong". Matching uses `_lang_normalize.fold`, so
   umlaut spellings match.
-- **T1:** from the window's `["query"]` rows: not brand, average position 8 to 20, at
-  least 50 impressions. For each, from the `["query", "page"]` rows: the page with most of
-  its impressions. Then the page's live HTML is fetched once (the report's first request
-  to the owner's own site; a timeout or a non-200 answer drops the candidate and the report
-  says why). The query is "already on the page" when every word of 3 or more letters,
-  folded, appears in the title, the H1 and the first paragraph taken together.
+- **T1 candidates:** from the window's `["query"]` rows (position by property): not brand,
+  average position 8 to 20, at least 50 impressions. For each, from the
+  `["query", "page"]` rows: the page with most of its impressions.
+- **The page check:** the candidate page's live HTML is fetched once. A timeout, an
+  answer other than 200, or a page without a `<title>` drops the candidate, and the
+  report says why. The query counts as **already on the page**, and is dropped, when
+  every word of it appears as a whole word, folded, in the title, the H1 and the first
+  paragraph taken together. Every word counts, short ones too ("ki"); only a short list
+  of articles and prepositions in German and English is left out, and a query left with
+  no word to check is never "already on the page".
 - **Excluded:** everything in R1's "never proposed" list, read from the state file (open
-  pull request, merged but not live, measuring not finished, declined within 12 weeks).
+  pull request, merged but not live, measuring not finished, declined within 12 weeks),
+  and a query already on the page.
 - **One proposal:** most impressions wins.
 
 ### 3.3 Acting (the assistant, guided by `references/fix-proposal.md`)
 
 The owner says the report's sentence, which names the skill so the assistant loads it
 without relying on the description: *"search-console-insights: make this week's fix for
-radwerk-plagwitz.example"*. The reference tells the assistant to:
+radwerk-plagwitz.example"*. Whether that sentence alone loads the skill in a fresh
+session is not known; step 4 tries it cold in Claude Code and in Codex before the
+wording is final.
+
+The reference tells the assistant to:
 
 1. read the proposal from the state file (`fix_proposal.py show <site>`), never from
    memory;
@@ -139,50 +157,71 @@ radwerk-plagwitz.example"*. The reference tells the assistant to:
 3. follow the site's own `AGENTS.md` for branch, wording rules, gate and pull request;
    change only the four places;
 4. on a public repository, ask about figures once if `pr_figures` is unasked, and record
-   the answer;
-5. record the pull request (`fix_proposal.py acted <site> --pr <url> --title "<new title>"`),
-   so the report can follow it.
+   the answer (`fix_proposal.py set <site> pr_figures yes|no`; the same command records
+   `brand` and `repo`);
+5. record the pull request and the page's new `<title>` text, not the pull request's
+   title (`fix_proposal.py acted <site> --pr <url> --new-title "<the page's new title>"`).
 
 Every state write is a command, so the model never edits the JSON by hand.
 
-### 3.4 Live, and measuring (code)
+### 3.4 Following the pull request, live, and measuring (code)
 
-- **Live:** each report run fetches the changed page and looks for the recorded new title.
-  The first run that finds it marks the change live; the run before it, the last that did
-  not. The before-window ends on the Sunday before that last "not yet" run; the
-  after-window starts on the Monday after the first "live" run. A slow detection only
-  delays the measuring; it never mixes the two sides.
-- **Control (DD3):** needs the site's folder (`repo` in the settings, asked once). The
-  report runs `git log` there, read-only, for the span of both windows. Any commit that
-  touches `src/` or `public/` other than the proposal's own leaves no control, and the
-  report says "other changes to the site in these weeks; no comparison". Without a folder:
-  "the site's folder is not known; no comparison".
+- **Pull request state.** Each run asks GitHub for the recorded pull request's state with
+  `gh pr view <url> --json state,mergeCommit` when `gh` is installed and signed in.
+  Closed without merging counts as the owner's "not this one" (R3): the 12 weeks start
+  that day. Merged: the merge commit is recorded. Without `gh`, or when it fails, the
+  state stays as it was; after **6 weeks** with neither a merge nor a live page, the
+  proposal is released, the page can be proposed again, and the weekly log says so.
+- **Live.** Each run fetches the changed page and looks for the recorded new title, as a
+  folded substring of the fetched `<title>`. Three outcomes: **old** (fetched, the new
+  title absent), **new** (fetched, present), **unknown** (timeout, error, not 200).
+  Unknown changes nothing.
+- **Windows.** The before-window is the four full weeks ending on the last Sunday before
+  the last **old** observation; the after-window is the four full weeks starting on the
+  first Monday on or after the first **new** observation. With the weekly Monday run of
+  scenario 8 (old on 2026-11-02, new on 2026-11-09) that gives 2026-10-05 to 2026-11-01
+  and 2026-11-09 to 2026-12-06, as the requirements say. A slow detection only delays the
+  measuring; an unknown run never moves either edge.
+- **Control (DD3).** Needs the site's folder (`repo`, asked once). The report runs
+  `git fetch` there, then `git log` on the remote default branch for the whole span, from
+  the before-window's first day to the after-window's last, the gap included. Commits
+  whose message names the recorded pull request ("#31", as GitHub's merge and squash
+  messages do) are the proposal's own. Any other commit that changes anything outside
+  `docs/` and Markdown files at the top of the repository (the documentation-only rule
+  of the starter's `ci.yml`) leaves no control: the report says "other changes to the site
+  in these weeks; no comparison". If the folder is unknown or the fetch fails: "the site's
+  history could not be checked; no comparison".
 - **Results** go into the state file, so the comparison is computed once and the page
   shows it from then on.
 
 ## 4. Tests
 
 - **Pure functions** in `fix_proposal.py`: choosing (each exclusion, the 50 floor, ties,
-  folding), the word check, the window arithmetic for live detection, the control rule.
-  The dates of the requirements' scenarios 1, 2, 4, 6 and 8 are test cases as written.
+  folding, the word check with short words and a query of stop words only), the three
+  live outcomes and the window edges, the pull request states (open, merged, closed,
+  reopened, unknown, the 6-week release), the control rule with the proposal's own commit,
+  a shared file and a documentation-only commit. The dates of the requirements'
+  scenarios 1, 2, 4, 6 and 8 are test cases as written.
 - **Through the real entry point** (global rule 9): `search_report.build` with the fake
   Search Console service `test_search_report.py` already uses (`FakeGoogle`) and a local
-  HTTP server for the live page, as `_geo_stub.py` serves the AI check's tests. One test per requirements scenario
-  that the report can show (1, 2, 6, 8, 9).
+  HTTP server for the live page, as `_geo_stub.py` serves the AI check's tests. One test
+  per requirements scenario that the report can show (1, 2, 6, 8, 9), and one where Google
+  fails while an eligible proposal sits in the saved data.
 - **The command line** through `subprocess`, the way the owner's assistant calls it.
 - **The assistant's part** (scenarios 1, 4, 5, 7): evals in `evals/evals.json`, run with
-  and without the reference, as `website-story` had.
+  and without the reference, as `website-story` had; plus the cold start of §3.3.
+- **Scenario 3** (seen but not clicked) has no test in v1: T2 waits (§2).
 
 ## 5. Steps
 
 | # | Step | Waits for |
 |---|---|---|
 | 1 | P1 probe (done 2026-10-14) and P2 (Serper side done 2026-10-14; the by-eye compare with the owner) | — |
-| 2 | `fix_proposal.py` and its pure tests | DD0 to DD5 |
+| 2 | `fix_proposal.py` and its pure tests | — |
 | 3 | The report: fetch, render, state, entry-point tests | 2 |
-| 4 | `references/fix-proposal.md`, the SKILL.md pointer, evals | 3 |
+| 4 | `references/fix-proposal.md`, the SKILL.md pointer, evals, the cold start | 3 |
 | 5 | `track.sh` line; `make check` and CI | 3 |
-| 6 | Review gate, Normal (code, no untrusted input beyond the owner's own pages) | 5 |
+| 6 | Review gate, Normal (code, no untrusted input beyond the owner's own pages) | 4 and 5 |
 | 7 | Release note line for 0.32 | 6 |
 
 ## 6. Decisions for the owner
