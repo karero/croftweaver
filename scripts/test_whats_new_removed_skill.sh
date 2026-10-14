@@ -214,9 +214,18 @@ check "scaffold: the copy step exits 0"                         test "$rc" -eq 0
 check "scaffold: the brand kit arrives"                         test -f "$PSD/website-brand-kit/SKILL.md"
 check "scaffold: its scripts arrive"                            test -f "$PSD/website-brand-kit/scripts/brand_intake.py"
 check "scaffold: the folder whats-new.sh names stays behind"    test ! -e "$PSD/$LEFT"
+# finds_none <out> <grep args>: true only when grep finds nothing (exit 1). A match (0) and an
+# error (2: a folder it could not read) are both false; what grep printed is kept in <out>.
+finds_none() { local out="$1"; shift; grep "$@" > "$out" 2>&1; [ "$?" -eq 1 ]; }
+fails() { ! "$@"; }
+# test_modules <dir>: the name of every *.py under <dir>, in subfolders too, joined by "|".
+test_modules() { find "$1" -name '*.py' | sed 's#.*/##; s/\.py$//' | sort -u | paste -sd'|' -; }
+check "scaffold: a folder grep cannot read is not called clean" fails finds_none "$T/none" -rl x "$T/no-such-folder"
+mkdir -p "$T/mods/sub" && : > "$T/mods/a.py" && : > "$T/mods/sub/b.py" && : > "$T/mods/sub/c.txt"
+check "scaffold: a module in a subfolder is named too"           test "$(test_modules "$T/mods")" = "a|b"
 # The folder can stay behind only while nothing a site's assistant reads asks to run it.
-runs="$(grep -rlE 'scripts/tests|unittest|pytest' --include='*.md' "$PSD/website-brand-kit" 2>/dev/null)"
-check "scaffold: no brand kit instruction runs its tests"       test -z "$runs"
+check "scaffold: no brand kit instruction runs its tests"       finds_none "$T/runs" -rlE 'scripts/tests|unittest|pytest' --include='*.md' "$PSD/website-brand-kit"
+[ ! -s "$T/runs" ] || sed 's/^/     /' "$T/runs"
 # Nor should its code reach for the folder. This is a tripwire for the usual ways, read and not
 # run: it catches a line that starts with `import` or `from`, or calls `require(`, and names the
 # tests package or one of its modules (names from the toolkit's own folder); `scripts/tests`
@@ -224,17 +233,15 @@ check "scaffold: no brand kit instruction runs its tests"       test -z "$runs"
 # quoted "tests" in brackets or before a colon (a key, as `_install.py` uses one), and `tests/…`
 # after a space (how the scripts' comments name test files). It does NOT catch every way: an import
 # continued on the next line, or a ["tests"] list joined into a path later, passes. When in doubt
-# it fails, so a false alarm costs a rewording. grep exits 1 for no match; 2 (a folder it could not
-# read) fails too.
-mods="$(cd "$HERE/../skills/website-brand-kit/scripts/tests" && ls *.py | sed 's/\.py$//' | paste -sd'|' -)"
+# it fails, so a false alarm costs a rewording.
+mods="$(test_modules "$HERE/../skills/website-brand-kit/scripts/tests")"
 check "scaffold: the toolkit's brand kit tests are found"        test -n "$mods"
 case "$mods" in *[!A-Za-z0-9_\|]*) mods=" a module name that is not a plain name: $mods" ;; esac
 check "scaffold: their module names are plain names"            lacks "$mods" " a module name that is not"
 W='[^A-Za-z0-9_]'
 PAT="^[[:space:]]*(from|import)$W([^#]*$W)?(tests|$mods)($W|\$)|require[[:space:]]*\\(.*$W(tests|$mods)($W|\$)|scripts/tests|[\"'/.]tests([/.]|[\"']([^]:]|\$))"
-grep -rnE "$PAT" "$PSD/website-brand-kit" > "$T/reach" 2>&1; rc=$?
-check "scaffold: no brand kit file reaches for its tests"        test "$rc" -eq 1
-[ "$rc" -eq 1 ] || sed 's/^/     /' "$T/reach"
+check "scaffold: no brand kit file reaches for its tests"        finds_none "$T/reach" -rnE "$PAT" "$PSD/website-brand-kit"
+[ ! -s "$T/reach" ] || sed 's/^/     /' "$T/reach"
 
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"

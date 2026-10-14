@@ -1,6 +1,6 @@
 # DIFF review — fix/site-copy-without-brand-kit-tests — the brand kit's scripts/tests stays out of sites
 
-Base `661ec0e` · depth: Normal (a copy step in an instruction file, and a script a person runs) · verdict: CLEAN, with one owner decision (F13) and two follow-ups
+Base `661ec0e` · depth: Normal (a copy step in an instruction file, and a script a person runs) · verdict: CLEAN, with one owner decision (F13); the two follow-ups F18–F19 fixed in the pre-0.32 sweep, Light review
 
 Files in the change: `skills/new-website/SKILL.md`, `scripts/whats-new.sh`, `scripts/test_whats_new_removed_skill.sh`, `README.md`, and this trail.
 
@@ -38,10 +38,10 @@ Five rounds, 17 findings (3 BUG, 5 RISK, 9 NIT), plus two follow-ups. The copy c
 
 Waivers and deferrals: F13, by the maintainer's choice in chat after round 4 (tripwire, not a parser).
 
-Follow-ups (round 5, outside its delta; not fixed here):
+Follow-ups (round 5, outside its delta). Logged as BUGLOG rows, then fixed in this PR on the maintainer's word (the pre-0.32 sweep), with a Light review (Codex, medium) of the rows and of the fix:
 
-- F18 NIT — the `*.md` instruction check (`runs="$(grep -rlE … 2>/dev/null)"`) discards grep's exit status, so an unreadable folder would pass it; the arrival checks catch a missing one.
-- F19 NIT — the module names come from top-level `*.py` in `scripts/tests` only; a module in its `fixtures/` folder would not be named (the path arms still catch written-out paths).
+- F18 NIT — the `*.md` instruction check (`runs="$(grep -rlE … 2>/dev/null)"`) discards grep's exit status, so an unreadable folder would pass it; the arrival checks catch a missing one, and the code check below fails on it too. FIXED: both greps go through `finds_none`, true only on grep's exit 1; a missing folder stands in for an unreadable one in the test (both make BSD grep exit 2, measured with a `chmod 000` folder).
+- F19 NIT — the module names come from top-level `*.py` in `scripts/tests` only; a module in its `fixtures/` folder would not be named (the path arms still catch written-out paths). FIXED: `test_modules` reads every `*.py` under the folder; a test names a module in a subfolder.
 
 ## Test records (author's machine)
 
