@@ -295,6 +295,18 @@ class Scenarios(ProposalReportTest):
             rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
             self.assertEqual((asked, rec["pr"]["state"], fp.page_block(rec)), ([31], "OPEN", "pull request open"), last)
 
+    def test_two_different_titles_on_one_day_are_both_kept(self):
+        # Round 6: a second "other" title on the same day was dropped, so correcting the recorded
+        # title to it could not find the look that saw it.
+        self.build("2026-11-09")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", "Fahrradreparatur | Example")
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-09T10:00:00Z", "closedAt": None}
+        for title in ("Something unrelated", NEW_TITLE):
+            self.build("2026-11-09", page=lambda url, t=title: {"title": t, "h1": "", "first_paragraph": ""}, gh=merged)
+        self.assistant("acted", SITE, "--page", PAGE, "--pr", PR, "--new-title", NEW_TITLE)
+        rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+        self.assertEqual([c["outcome"] for c in rec["checks"]], ["old", "other", "new"])
+
     def test_a_title_that_is_neither_old_nor_new_asks_for_a_check(self):
         self.build("2026-11-02")
         self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)

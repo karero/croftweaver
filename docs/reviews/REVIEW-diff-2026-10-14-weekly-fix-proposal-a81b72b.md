@@ -108,3 +108,20 @@ merged): 8 distinct. All fixed.
 | 5 | code | BUG | Eval 12 asked to decline a proposal whose search differs from the owner's sentence, while the reference says to stop | Fixed: the sentence names the proposal's own search; eval 12 tests the positioning only |
 | 6 | rest | BUG | A closing GitHub reported later overwrote the owner's newer "no" | Fixed: an owner's own decline is never overwritten |
 | 7 | both | RISK | The design stated as certain that the slash sentence loads the skill | Fixed: worded as what the cold runs of 2026-10-14 showed |
+
+## Round 6 — Codex checks the final read's fixes, at 7cbc8cb (`--earned-by title-correction,pr-state-refresh,page-reader`, cut named)
+
+The final read's fixes verified landed, except as below. 4 findings: 3 BUG, 1 RISK. 1 fixed,
+3 refuted.
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| 1 | BUG | Looks saved without a title keep their old judgment when the title is corrected | Refuted: no saved state predates this change (the feature has not shipped); the one look without a title is the first, made when the proposal is chosen, and it was the old title |
+| 2 | BUG | Two different "other" titles on one day collapsed into one look | Fixed: a same-day look is kept when its title differs; test, and the test fails with the fix taken out |
+| 3 | BUG | An expired, closed round is still asked about, so a reopened pull request blocks its page | Refuted: the design now says so on purpose (R1 keeps a page with an open pull request out); the documents were corrected to it in the final read |
+| 4 | RISK | No retained transcripts of the cold runs (third time) | Refuted: the results are in design §3.3 with the versions used; the runs can be repeated; transcripts of a session do not belong in this public repository |
+
+**Gate closed 2026-10-14.** 4 cross-model rounds, a final read in two parts, and a fix check:
+52 findings (merged per round), 40 fixed, 12 refuted or settled by a cut. The last fix (one
+condition, #2 above) was not sent through another round; its test fails without it. Each
+round after the third named its kinds and its cut, as the script requires.

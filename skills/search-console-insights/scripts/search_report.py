@@ -350,7 +350,8 @@ def _check_today(rec, today, outcome, title=None):
     stay, in the order they were made (fix_proposal.windows reads them that way)."""
     checks = list(rec.get("checks", []))
     last = checks[-1] if checks else None
-    if not (last and last.get("date") == today.isoformat() and last.get("outcome") == outcome):
+    if not (last and last.get("date") == today.isoformat() and last.get("outcome") == outcome
+            and last.get("title") == title):
         look = {"date": today.isoformat(), "outcome": outcome}
         if title is not None:
             look["title"] = title     # kept, so a corrected new title can judge it again
