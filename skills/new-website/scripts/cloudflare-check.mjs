@@ -15,12 +15,12 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const UA = 'Mozilla/5.0 (compatible; croftweaver-cloudflare-check/1)';
-// The threshold is a project choice: the one month the checklist starts with, taken as 30 days (2592000
-// seconds). Live headers on 14 October 2026 showed 2592000, 15552000 and 31536000 (30, 180 and 365 days);
-// Cloudflare's pages give months, not seconds, so the mapping is observed, not documented. An average
-// calendar month, 2629800, is longer: a site at 2592000 must not be called shorter than one month.
-// "About N months" below counts 30-day months, so a year reads 12.17 and rounds to 12.
-const MONTH = 2592000;
+const MONTH = 2629800; // seconds in an average month; the dashboard offers whole months
+// The least a month can be: February in a common year. A max-age under it is shorter than the one month
+// the checklist starts with whatever Cloudflare counts a month as. (An average month, MONTH, is longer, and
+// a live site's header read 2592000 seconds, 30 days, on 14 October 2026: compared with MONTH it was
+// called shorter than one month.)
+const SHORTEST_MONTH = 28 * 86400;
 const MAX_BODY = 5_000_000; // bytes of a page read before judging what we have
 const MAX_HOPS = 3; // redirects followed on the home page, to the same address only
 const CF_COOKIE = /^(__cf_bm|cf_clearance|__cflb|_cfuvid)$/; // the names Cloudflare's own cookies carry
@@ -689,7 +689,7 @@ export function evaluate(obs, target, opts) {
       const months = Math.round(age / MONTH);
       const shown = `on: max-age ${age} (about ${months} month${months === 1 ? '' : 's'}), subdomains ${sub ? 'on' : 'off'}, preload ${pre ? 'on' : 'off'}.`;
       if (!(age > 0)) put('hsts', 'look', `${sts}: a max-age of 0, or none, switches HSTS off in browsers.`, section(2));
-      else if (age < MONTH) put('hsts', 'look', `${shown} That is shorter than the one month (${MONTH} seconds) the checklist starts with.`, section(2));
+      else if (age < SHORTEST_MONTH) put('hsts', 'look', `${shown} That is shorter than the one month (at least 28 days, ${SHORTEST_MONTH} seconds) the checklist starts with.`, section(2));
       else if (pre) put('hsts', 'look', `${shown} The checklist says preload Off: it needs 12 months and can lock visitors out if HTTPS ever breaks.`, section(2));
       else if (offPage) put('hsts', 'look', `${shown} Judged from the ${home.status} answer, not the page.`);
       else put('hsts', 'ok', shown);
