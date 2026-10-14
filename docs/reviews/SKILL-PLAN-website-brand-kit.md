@@ -923,8 +923,8 @@ What follows from it, each a row in `docs/BUGLOG.md`: SKILL.md §0 should say th
 brand question late never holds up the step she asked for; the proposals' ratios should be shown
 as the check prints them; and the evals need a `logo.png` for eval 4, a `POSITIONING.md` for
 eval 5 (that run had none, so part of its pause was fair) and an assertion in eval 1 that she is
-asked to paste her pick back for a check. In evals 1, 2 and 4 two assertions each passed whatever the run did (in eval 4
-because its fixture has no PNG). None of this was changed in the skill: that is the follow-ups' sweep.
+asked to paste her pick back for a check. In evals 1 and 2, two assertions each passed for both runs, so they told nothing
+apart; eval 4 never tests a real PNG, since its fixture has none. None of this was changed in the skill: that is the follow-ups' sweep.
 
 ## Review trail
 
