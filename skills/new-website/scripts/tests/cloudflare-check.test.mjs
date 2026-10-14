@@ -798,6 +798,70 @@ test('a reporting group is judged by what it is: one of your own named like Clou
   });
 });
 
+// ---- Cloudflare's script monitor (Client-side security): reports to csp-reporting.cloudflare.com
+
+const MONITOR_URL = 'https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=abc123';
+const MONITOR = {
+  'content-security-policy-report-only': `script-src 'unsafe-inline' 'unsafe-eval'; connect-src 'none'; report-uri ${MONITOR_URL}; report-to cf-csp-endpoint`,
+  'report-to': `{"group":"cf-csp-endpoint","max_age":86400,"endpoints":[{"url":"${MONITOR_URL}"}]}`,
+  'reporting-endpoints': `cf-csp-endpoint="${MONITOR_URL}"`,
+};
+
+test('the script monitor is named, not shown as a bare report-to header', () =>
+  withSite(homeWith(MONITOR), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.equal(r.code, 0, 'a look does not fail the run');
+    assert.match(r.by.nel.detail, /script monitor/);
+    assert.match(r.by.nel.detail, /csp-reporting\.cloudflare\.com/);
+    assert.match(r.by.nel.detail, /Continuous script monitoring/);
+    assert.match(r.by.nel.detail, /sample/);
+    assert.doesNotMatch(r.by.nel.detail, /its own reporting groups/, 'not the text for a header that is not known');
+  }));
+
+test('any one of the script monitor\'s three headers names it', async () => {
+  for (const name of Object.keys(MONITOR)) {
+    await withSite(homeWith({ [name]: MONITOR[name] }), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'look', name);
+      assert.match(r.by.nel.detail, /script monitor/, name);
+    });
+  }
+  await withSite(homeWith({ 'report-to': `not json, but ${MONITOR_URL}` }), async (s) => {
+    const r = await check(s.origin);
+    assert.match(r.by.nel.detail, /script monitor/, 'a report-to value that does not parse is judged by its text');
+  });
+});
+
+test('a group of your own is not the script monitor, and NEL on still fails beside it', async () => {
+  await withSite(homeWith({
+    'report-to': '{"group":"my-csp-endpoint","max_age":86400,"endpoints":[{"url":"https://reports.example.invalid/csp"}]}',
+    'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/csp",
+  }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.doesNotMatch(r.by.nel.detail, /script monitor/, 'yours is yours');
+    assert.match(r.by.nel.detail, /its own reporting groups/);
+  });
+  await withSite(homeWith({ ...MONITOR, nel: '{"report_to":"cf-nel","max_age":604800}' }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'fail');
+    assert.equal(r.code, 1);
+  });
+  await withSite(homeWith({ ...MONITOR, 'report-to': `${MONITOR['report-to']}, {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4"}]}` }), async (s) => {
+    assert.equal((await check(s.origin)).by.nel.state, 'fail', 'Cloudflare\'s NEL group beside the monitor\'s is still a failure');
+  });
+});
+
+test('an address that only looks like Cloudflare\'s reporting host is not the script monitor', async () => {
+  for (const url of ['https://csp-reporting.cloudflare.com.reports.example.invalid/r', 'https://not-csp-reporting.cloudflare.com/r']) {
+    await withSite(homeWith({ 'content-security-policy-report-only': `default-src 'self'; report-uri ${url}` }), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'ok', url);
+    });
+  }
+});
+
 test('a robots.txt or build.txt larger than what is read is not judged whole', async () => {
   const huge = (type) => (req, res, url) => {
     if (url.pathname === '/robots.txt' || url.pathname === '/build.txt') {

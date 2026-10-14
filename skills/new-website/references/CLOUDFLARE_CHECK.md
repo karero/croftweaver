@@ -70,7 +70,7 @@ nowhere to go, is said so and the page is not judged.
 | Send pages.dev to your domain (1) | `<name>.pages.dev` answers 301 to your domain (needs `--project`) | It answers 200 or goes elsewhere: `CANONICAL_URL` is not in effect |
 | Always Use HTTPS (2) | `http://domain/` answers 301 or 308 to `https://domain/`, as an address | No redirect, or one to another address |
 | HSTS (2) | The `strict-transport-security` header, read as directives: max-age in months, subdomains, preload | Missing, with `--hsts-on` |
-| NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look` |
+| NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look`. So is Cloudflare's script monitor (Client-side security), which the line names: a `cf-csp-endpoint` group, or the address csp-reporting.cloudflare.com in a reporting header or a report-only policy |
 | Bot Fight Mode off (3) | No Cloudflare cookie, and no `/cdn-cgi/challenge-platform/` address in the page's tags or scripts | Either is there. A cookie of your own is a `look` |
 | Web Analytics off (3) | No `<script src>` at `static.cloudflareinsights.com` and no `data-cf-beacon` attribute | It is there |
 | Email Address Obfuscation off (3) | No `email-decode.min.js` at Cloudflare's path, no `/cdn-cgi/l/email-protection` link and no `data-cfemail` attribute | Any is there |
@@ -103,6 +103,9 @@ items are a `look`, never `ok`.
   once.
 - **TLS 1.0 and 1.1.** The machine running the script often cannot speak them. Use
   ssllabs.com/ssltest, as the checklist says.
+- **A header Cloudflare sends on a sample of pages.** The script monitor's headers come on
+  some pages only (about 1 request in 20 on the one site we saw it on). A run that sees none
+  does not prove it is off: ask for the home page a hundred times and count.
 - **Crawler Hints, Fail open and the build settings.** They have no outside check. The report
   lists them as `by hand` with their path.
 - **What a visitor from another country, or a visitor who is logged in, gets.** The script asks
