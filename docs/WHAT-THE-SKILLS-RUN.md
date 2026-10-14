@@ -74,8 +74,11 @@ What this list does and does not protect:
 - The block rules match the command as written. Besides `git push --force` and
   `git push -f` at the start, three rules catch a force flag or a `+` later in a push, so
   `git push origin main --force` and `git push origin +main` are blocked too.
-  `git push --delete` is allowed: tidying up merged branches needs it. (Read from the
-  rules and from Claude Code's documented matching; not tried in a live session.)
+  `git push --delete` is allowed: tidying up merged branches needs it. Tested on
+  2026-10-14 with Claude Code 2.1.287, run headless with these settings in a throwaway
+  repository: all seven force-push forms tried were blocked, and `--delete`, a plain push
+  and `--follow-tags` ran. With the rules as they were before, five of the seven ran,
+  `git push --force-with-lease` at the start among them.
 - `find` with `-delete` or `-exec` should still ask: Claude Code's documentation says a
   `find` rule cannot approve a `find` that deletes, writes or runs commands. (Read, not
   tried in a live session.)
@@ -386,8 +389,10 @@ private vulnerability reporting, on the repository's Security tab.
 
 ## What was not checked
 
-- Whether Claude Code's block and allow rules behave as its documentation describes; this
-  was read, not tried.
+- Whether Claude Code's block and allow rules behave as its documentation describes,
+  beyond the push test above; the rest was read, not tried. The test ran headless, where a
+  command that is not allowed is refused without a question, so it shows that the force
+  pushes did not run, not that a blocked command never asks.
 - Whether Codex and Antigravity ignore `.claude/settings.json`; this was read from the
   toolkit's own setup notes.
 - What Astro, Wrangler, npm, Playwright and the AI services do with the data they receive,
