@@ -117,7 +117,7 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
    - **Before posting,** re-read both values and stamp only if both match. If either moved,
      re-gate the new pair with **every seat the stamp relies on** (the seats with an unbroken
      chain, clean ones included — a seat with no findings still has to have SEEN what you certify;
-     at High depth that includes fresh-eyes for each part it saw in every link) — by the chain rule where it still holds for that
+     at High depth that includes fresh-eyes, for every part it has seen in its chain) — by the chain rule where it still holds for that
      seat, else in full; rebuild the verdict from those runs alone, mark
      superseded raw sections, and re-check. **At most two attempts,** then surface an actively
      moving branch. These re-gates don't count as rounds (step 6(b)). If a re-gate can't run, do

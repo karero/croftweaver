@@ -34,8 +34,8 @@ CI will catch. Pick the depth by that (Review depth, below), name it and why in 
 skip silently. With a config diff, send the code that reads the config too.
 
 **Split a big change.** Decide before round 1. A change with more than about 2,000 lines of code
-(tests not counted), or with more than one reader of files from outside (a parser, an upload
-check, an importer) of any real size, is gated per component, each in its own PR as it is built:
+(tests not counted), or with more than one reader of files from outside of any real size (a parser, an
+upload check, an importer), is gated per component, each in its own PR as it is built:
 a kind of defect settled in the first component's gate is then not found again, round after
 round, in each of the others (`references/rationale.md`, "Rounds that did not converge"). Where
 the owner keeps one PR, the trail names its **parts** before round 1, each with its file list;
@@ -120,7 +120,7 @@ names the depth and why, and the host tells the owner the depth before round 1 r
 |---|---|---|---|
 | **Light** | copy, docs and content nobody executes; test-only changes; small fixes to tooling that touches no user data and no production path; a website-content plan | ONE seat, no script: the host's own diff review (Claude Code: `/code-review` at `medium`; no diff or no such command: `double-knuth`). `--first-success` instead when a cross-model seat is wanted | 1, plus one if it found a BUG |
 | **Normal** (default) | everything else | the standard pair + fresh-eyes on a mid-tier host-family model (Claude Code: the Agent tool's `sonnet` option) in round 1; verification rounds: the pair only, Codex at medium effort (the `--verify` default) | step 6 |
-| **High** | auth or permissions, payments or billing, personal data, deletion or migrations, secrets, security boundaries, public API or contract changes, deploy or infra, privacy or legal texts | the pair + fresh-eyes on the host's own model; Codex at config.toml's effort (`CODEX_EFFORT=config`) in round 1. Verification rounds: the pair, Codex at medium (at config effort for a fix that touches a High trigger: auth, permissions, payments, a security boundary, deletion), and fresh-eyes on each part a fix changed (step 6's test of what owes a round) | step 6 |
+| **High** | auth or permissions, payments or billing, personal data, deletion or migrations, secrets, security boundaries, public API or contract changes, deploy or infra, privacy or legal texts | the pair + fresh-eyes on the host's own model; Codex at config.toml's effort (`CODEX_EFFORT=config`) in round 1. Verification rounds: the pair, Codex at medium (at config effort for a fix that touches anything this row's For column names), and fresh-eyes on each part a fix changed (step 6's test of what owes a round) | step 6 |
 
 **Light is same-family by design** on a Claude Code host and needs no cross-model seat — the
 owner's standing choice (2026-09-26) for low-consequence changes; the trail says "Light gate".
@@ -141,7 +141,7 @@ Codex's effort for any run.
    gate's PR/MR comment for a round already running (`references/closeout.md`, "A round claim";
    advisory). Set Codex's
    effort from the depth row first — at High, `CODEX_EFFORT=config` in round 1 and for a fix that
-   touches a High trigger; otherwise a verification round's default is medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
+   touches anything the High row's For column names; otherwise a verification round's default is medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
    [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
    directory; depth and round feed the cost log, and a run with no `--depth` says so; the notice
    past round 8 needs `--round` on every round, a redesign restarts at 1; a wording pass, final
@@ -193,13 +193,13 @@ Codex's effort for any run.
      block, needs no sign-off; listed for the owner (step 8), who may reopen it. Never a BUG.
 
    **Severity follows what the user meets, not what a reviewer can build** (a DIFF gate on code;
-   a plan, a runbook or a legal text is graded as before). A BUG is a wrong result reported as
+   a plan, a runbook or a legal text is graded without the made-by-hand demotion). A BUG is a wrong result reported as
    success, a user's file left changed or lost, a crash, a hang or an uncaught error, a security
    bypass (outside input that gets past a check meant to stop it), or a defect that ordinary
    input meets. A finding that needs input made by hand to break the tool, and that ends in a
    safe stop, is a NIT, however wrong its sentence. A **safe stop** is a refusal or a report the
    tool chose to make, with its own exit status: nothing written, nothing wrong reported as
-   success; a crash is never one. **ORDINARY** input is what a normal user of the tool reaches
+   success; a crash, a hang or an uncaught error is never one. **ORDINARY** input is what a normal user of the tool reaches
    without building it to break the tool: a file a common program exported, a value typed or
    pasted, a site as its own tools leave it. **MADE BY HAND** is input shaped to reach a corner:
    a crafted archive, a stylesheet a reviewer wrote for the test, a signal timed to a
@@ -253,7 +253,7 @@ Codex's effort for any run.
    pass. A refuted BUG gets no reviewer's second look this way, so name it to the owner with its
    evidence before the gate closes (step 8).
    - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`.
-     A change with named parts sends only the parts a fix changed; at High, the final full read
+     A change with named parts sends only the parts whose files changed since the last round; at High, the final full read
      reads the others again.
      After a merge of the base or a rebase, the **merge link** instead, not a full round: what
      changed in the change's own files since the last review, merge effects included, plus any
