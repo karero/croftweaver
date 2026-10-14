@@ -85,6 +85,8 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # self-match). The name denylist covers the same docs EXCEPT LICENSE, which legitimately
 # carries the owner's real name + clone URLs (2026-07-17: widened from skills/-only after
 # docs/reviews/*.md review artifacts slipped a client name past a skills/-only scan).
+# README.md is scanned, with one allowance: it may name the maintainer, who is the copyright
+# holder LICENSE names (section 1 says how narrow that is).
 # It DOES cover scripts/: the names live in the gitignored list, not in any script, so
 # nothing there can match itself; the list's own lines are dropped below. (2026-10-06: a
 # client site's name sat in a comment in a script that ships in the handoff zip.)
@@ -251,6 +253,39 @@ if [ -f "$DENYLIST_FILE" ]; then
   # exact path and under the same condition, and only while the copy is the root file byte
   # for byte: one that has drifted is scanned like any other file. Another package with a
   # copy of its own needs its path here.
+  # README.md at the repo's root may say who maintains the suite: the copyright holder, as
+  # LICENSE's own copyright line spells the name. (2026-10-13: an AI assistant with web
+  # search read the README and answered that it names no maintainer.) That name is blanked
+  # in README.md's hits, then each line is looked at again: the name alone passes, and
+  # another listed name beside it still fails, as do a part of the name, another spelling
+  # of it, the name inside a longer word, and the name in any other file. A longer word is
+  # the name with a letter, a digit or _ right beside it, or any byte above \177: the é of
+  # a longer name, and a curly quote or a long dash too, since telling those from letters
+  # would take a table of Unicode. Stricter than the edges the list is matched with, on
+  # purpose: what is blanked here is not looked at again, and a name left unblanked only
+  # fails the run. (The comparison with \177 is by bytes: awk is run in the C locale here,
+  # whatever the caller's.) The name is read from LICENSE at run time, so this script,
+  # which the check scans, never holds it, and it is compared as plain text (awk's index),
+  # so nothing in it is read as a pattern: it is everything after the year or range of
+  # years, punctuation included. A LICENSE without such a line allows nothing. Either way,
+  # a hit in README.md comes with a line that says what README.md may hold.
+  holder="$(sed -n '/^Copyright (c) [0-9][0-9-]* /{s///;s/[[:space:]]*$//;p;q;}' LICENSE)"
+  blank_maintainer() { # stdin: hits → stdout, the holder's name blanked in README.md's lines
+    HOLDER="$holder" LC_ALL=C awk '
+      function inword(c) { return c ~ /[A-Za-z0-9_]/ || c > "\177" }
+      BEGIN { h = ENVIRON["HOLDER"]; n = length(h) }
+      n && /^README\.md:[0-9]+:/ {
+        s = $0; out = ""; p = ""
+        while ((i = index(s, h)) > 0) {
+          b = (i > 1) ? substr(s, i - 1, 1) : p
+          a = substr(s, i + n, 1)
+          out = out substr(s, 1, i - 1) ((inword(b) || inword(a)) ? h : "MAINTAINER")
+          p = substr(h, n, 1); s = substr(s, i + n)
+        }
+        $0 = out s
+      }
+      { print }'
+  }
   if [ -n "$NAMES" ]; then
     # An entry anchored with ^ finds its lines but is never reported: the post-filter below
     # looks for it after "file:line:", where ^ cannot match. Refuse such entries (a count
@@ -268,14 +303,24 @@ if [ -f "$DENYLIST_FILE" ]; then
     hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
-      # gf() never fails, so under pipefail a failure here is sed's, and its hits are lost.
+      # gf() never fails, so under pipefail a failure here is sed's or awk's, and its hits
+      # are lost.
       *) hits="$(printf '%s\n' "$hits" \
            | gf -vE "$self" \
+           | blank_maintainer \
            | sed -E -e ':a' \
                -e 's#(^|[^A-Za-z0-9_.-])karero/croftweaver(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
                -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
            | gf -iE "^✗ scan error|^Binary file |:[0-9]+:((.*$E)?(${NAMES})($E|\$)|.*\\b(${NAMES})\\b)")" \
            || hits="✗ scan error (the name filter failed) — hits may be missing" ;;
+    esac
+    case "$hits" in
+      README.md:[0-9]*|*$'\n'README.md:[0-9]*)
+        if [ -n "$holder" ]; then
+          echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name (everything after the year, punctuation included), with no letter, digit, _ or non-ASCII character right beside it; anything else in README.md is reported"
+        else
+          echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name, and LICENSE has no line \"Copyright (c) <year> <name>\": a name in README.md is reported like any other"
+        fi ;;
     esac
     report "personal/site identifier" "$hits"
     names_checked=1
