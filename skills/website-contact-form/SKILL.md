@@ -199,7 +199,8 @@ named in it. Like the kit's other legal drafts, a baseline, not legal advice.
 
 **With Plausible on**, a press of the button sends one "Email Tap" event, the same one
 the starter's email link sends (nothing typed goes with it). Section 3 of the starter's
-privacy page (German: `_datenschutz.astro`) already says so ("a button that opens your
+privacy page (EN `privacy.astro`; German `_datenschutz.astro`, served as
+`datenschutz.astro` once a German site renames it) already says so ("a button that opens your
 email program"). A site from before 0.32 lacks that sentence, and its
 `src/components/EmailLink.astro`, which shows the address under the form, lacks the click
 listener the sentence also describes: take both from the starter. The form sends its event

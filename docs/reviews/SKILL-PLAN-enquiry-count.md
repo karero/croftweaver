@@ -28,7 +28,8 @@ Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
   `website-contact-form` skill, whose button opens the visitor's own mail program. A form
   that sends is out on purpose (owner, 2026-10-14).
 - The site never learns whether the visitor pressed Send. So the honest thing to count is
-  the step the site can see: the visitor opened their mail program to write to the owner.
+  the step the site can see: the visitor asked to write to the owner (whether a mail
+  program opened, the site never learns either).
 
 ## Plausible facts this rests on (docs.plausible.io "custom event goals", read 2026-10-14)
 
