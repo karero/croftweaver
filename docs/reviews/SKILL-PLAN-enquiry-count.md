@@ -5,16 +5,17 @@ analytics with one conversion event set up by default, so arrivals can be tied t
 enquiries." Where this plan and the shipped files disagree, the files win. The business in
 the scenarios is made up.
 
-## Status — 2026-10-14 · branch base origin/main e038603
+## Status — 2026-10-14 · merged to main (#287 as `55efb9c`, #294 as `3519d2d`)
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ✅ approved by the owner 2026-10-14, with D1 "Email Tap", D2 Q5 stays optional, D3 Plausible only | in chat |
-| 2 | Starter: the email link reports the event; test | ✅ built, local suite green (99 passed, 1 skipped by design); each new test failed on a deliberate break | branch `feat/enquiry-count` |
-| 3 | Contact form skill: the button reports the event; test | ✅ built, green EN and DE copies; each new test failed on a deliberate break | branch `feat/enquiry-count` |
-| 4 | Privacy pages EN and DE; interview Q5; README setup step; launch checklist | ✅ written; also `config.ts` names the two call sites (D3) | branch `feat/enquiry-count` |
-| 5 | Release-note row in `docs/BUGLOG.md` | ✅ written (row of 2026-10-14), read by the wording pass | branch `feat/enquiry-count` |
-| 6 | Review gate (High: privacy text and data a live site sends) | ✅ passed at 7d7e595: 3 rounds, final full read, wording pass; 27 findings | trail `REVIEW-diff-2026-10-14-feat-enquiry-count-e1ab9d7.md` |
+| 2 | Starter: the email link reports the event; test | ✅ built, local suite green (99 passed, 1 skipped by design); each new test failed on a deliberate break | karero/croftweaver#287, merged as `55efb9c` |
+| 3 | Contact form skill: the button reports the event; test | ✅ built, green EN and DE copies; each new test failed on a deliberate break | karero/croftweaver#287, merged as `55efb9c` |
+| 4 | Privacy pages EN and DE; interview Q5; README setup step; launch checklist | ✅ written; also `config.ts` names the two call sites (D3) | karero/croftweaver#287, merged as `55efb9c` |
+| 5 | Release-note row in `docs/BUGLOG.md` | ✅ written (row of 2026-10-14), read by the wording pass | karero/croftweaver#287, merged as `55efb9c` |
+| 6 | Review gate (High: privacy text and data a live site sends) | ✅ passed at 7d7e595: 3 rounds, final full read, wording pass; 27 findings | trail `REVIEW-diff-2026-10-14-feat-enquiry-count-e1ab9d7.md`; review comment on #287 |
+| 7 | Follow-ups from the gate: H4 (the `%` test's loose match) and W2 (other browsers, self-hosted goals) | ✅ H4 fixed; W2 narrowed: Firefox and WebKit measured, the rest open as a `docs/BUGLOG.md` row (2026-10-14) | karero/croftweaver#294, merged as `3519d2d`; trail `REVIEW-diff-2026-10-14-fix-enquiry-count-follow-ups-f328f8d.md` |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
