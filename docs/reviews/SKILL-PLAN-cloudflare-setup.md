@@ -728,7 +728,10 @@ the token is deleted by the owner.
    AI crawlers out, which the spike read on the live zone: the link maze for AI scrapers
    (`crawler_protection`), the block on content bots (`content_bots_protection`), and
    Cloudflare's managed `robots.txt` (`is_robots_txt_managed`). The checklist names them
-   too (plan step 6). Training stays a line the owner can leave out (`--skip ai`). What
+   too (plan step 6). Training crawlers are let in by default as well: the maintainer
+   weighed it (2026-10-14: "Add it to training. I think the upside is bigger, than the
+   contrary"). An owner who decides otherwise leaves the line out with `--skip ai`, since
+   the checklist calls it the owner's choice. What
    "disabled" does in each of these fields is read from Cloudflare's field descriptions,
    not yet seen in a test.
 
