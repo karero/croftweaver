@@ -389,6 +389,35 @@ class CommandLineTests(unittest.TestCase):
         self.assertNotEqual(out.returncode, 0)
         self.assertEqual(self.path.read_text(encoding="utf-8"), "[1, 2]")
 
+    def after_next_report(self):
+        """The report after the owner acted: the page is in progress, so there is no current proposal."""
+        st = self.state()
+        st["current"] = None
+        self.path.write_text(json.dumps(st), encoding="utf-8")
+
+    def test_a_later_no_finds_the_proposal_already_acted_on(self):
+        # Found by the evals (2026-10-14): once the report ran again, decline said "no proposal".
+        self.seed()
+        self.run_cli("acted", SITE, "--pr", "https://github.com/example-owner/radwerk/pull/31", "--new-title", NEW_TITLE)
+        self.after_next_report()
+        out = self.run_cli("decline", SITE)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+        self.assertEqual(rec["declined_on"], dt.date.today().isoformat())
+        self.assertEqual(fp.page_block(rec), "")       # a "no" in words frees the page, like closing it
+
+    def test_a_wrong_recorded_title_can_be_corrected_by_page(self):
+        self.seed()
+        self.run_cli("acted", SITE, "--pr", "https://github.com/example-owner/radwerk/pull/31",
+                     "--new-title", "Fahrradreparatur in Leipzig-Plagwitz | Example")
+        self.after_next_report()
+        out = self.run_cli("acted", SITE, "--page", PAGE, "--pr", "https://github.com/example-owner/radwerk/pull/31",
+                           "--new-title", NEW_TITLE)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]["new_title"], NEW_TITLE)
+        out = self.run_cli("decline", SITE, "--page", "https://radwerk-plagwitz.example/kontakt")
+        self.assertNotEqual(out.returncode, 0)
+
     def test_commands_on_a_site_with_no_proposal_say_so(self):
         out = self.run_cli("decline", SITE)
         self.assertNotEqual(out.returncode, 0)

@@ -256,6 +256,20 @@ Every state write is a command, so the model never edits the JSON by hand.
   and without the reference, as `website-story` had; plus the cold start of §3.3.
 - **Scenario 3** (seen but not clicked) has no test in v1: T2 waits (§2).
 
+**Eval iteration 1 (2026-10-14).** Evals 11 to 14 each ran once with the skill as built and
+once with the skill as on `main` (no reference), in a copy of the starter site with a
+`/reparatur` page, a filled `POSITIONING.md` and a seeded proposal; the network was stood in
+for. Graded by the session that wrote the reference, on the evals' own assertions (not a
+separate grader, unlike `website-story`): with the skill 18 of 18, without it 12 of 18. The
+baseline edited the page against the positioning (eval 12), never read the proposal through
+the command and never recorded the pull request (11, 13, 14), and asked about figures but did
+not record the answer (14). Eval 13 did not discriminate (both shortened the title and ran the
+tests again); it now also asserts the `acted` record. The runs showed one gap, fixed: after
+the next report, `decline` and a corrected `acted` found no proposal; both now fall back to
+the newest one in progress, and take `--page`. The fixture's own gaps (starter values left in
+`src/config.ts`, the page missing from `PAGES`, no `dist/` offline) were noticed by every run
+and are not findings about the skill.
+
 ## 5. Steps
 
 | # | Step | Waits for |

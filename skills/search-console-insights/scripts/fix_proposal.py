@@ -3,8 +3,8 @@
 fix_proposal.py — the weekly fix proposal: choosing it, the owner's answers, following it.
 
     fix_proposal.py show <site>
-    fix_proposal.py decline <site> [--reason owner|positioning]
-    fix_proposal.py acted <site> --pr <pull request address> --new-title "<the built page's whole <title>>"
+    fix_proposal.py decline <site> [--reason owner|positioning] [--page <address>]
+    fix_proposal.py acted <site> --pr <pull request address> --new-title "<the built page's whole <title>>" [--page <address>]
     fix_proposal.py set <site> brand "<spelling>, <spelling>"
     fix_proposal.py set <site> pr_figures yes|no
 
@@ -266,8 +266,8 @@ def page_block(rec: dict) -> str:
     """Why this record keeps its page out of new proposals, or "" (R1: an open pull request, one
     merged but not seen live, a measuring not finished). Nothing here is released by a timer."""
     pr = rec.get("pr")
-    if not pr or rec.get("decline_reason") == "closed":
-        return ""
+    if not pr or rec.get("declined_on"):
+        return ""          # a "no" (in words or by closing the pull request) frees the page
     if rec.get("result"):
         return ""
     state = (pr.get("state") or "").upper()
@@ -326,7 +326,7 @@ def record_shown(state: dict, proposal: dict, window, today: dt.date) -> dict:
     the live page: the title was the old one on that day."""
     key = proposal_key(proposal["page"], proposal["query"])
     rec = state["proposals"].get(key) or {}
-    if rec.get("pr") and (rec.get("result") or rec.get("decline_reason") == "closed"):
+    if rec.get("pr") and (rec.get("result") or rec.get("declined_on")):
         # The same search, proposed again after an earlier round finished: that round keeps its
         # own record (and its result stays on the page); this one starts fresh.
         state.setdefault("done", []).append(rec)
@@ -451,12 +451,24 @@ def ready_to_measure(w: dict, finished: dt.date) -> bool:
 
 # ─── the commands ──────────────────────────────────────────────────────────────────────────
 
-def _current(state: dict):
+def _target(state: dict, page=None):
+    """The record a command acts on: the one for `page` when given (the newest shown), else the
+    report's current proposal, else the newest one still in progress (acted on, not measured, not
+    turned down). After the owner acts, the next report has no current proposal for that page, so
+    a later "no" or a corrected title still finds its record."""
+    recs = state["proposals"]
+    if page:
+        found = [(k, r) for k, r in recs.items() if r.get("page") == page.strip()]
+        if not found:
+            raise SystemExit(f"No proposal for {page} on record.")
+        return max(found, key=lambda kr: kr[1].get("last_shown") or "")
     key = state.get("current")
-    rec = state["proposals"].get(key) if key else None
-    if not rec:
-        raise SystemExit("There is no proposal for this site yet. Open the weekly report first.")
-    return key, rec
+    if key and recs.get(key):
+        return key, recs[key]
+    waiting = [(k, r) for k, r in recs.items() if r.get("pr") and not r.get("result") and not r.get("declined_on")]
+    if waiting:
+        return max(waiting, key=lambda kr: kr[1].get("last_shown") or "")
+    raise SystemExit("There is no proposal for this site yet. Open the weekly report first.")
 
 
 def cmd_show(site, args):
@@ -485,7 +497,7 @@ def cmd_show(site, args):
 
 def cmd_decline(site, args):
     state = load_state(site)
-    key, rec = _current(state)
+    key, rec = _target(state, args.page)
     rec["declined_on"] = dt.date.today().isoformat()
     rec["decline_reason"] = args.reason
     save_state(site, state)
@@ -495,7 +507,7 @@ def cmd_decline(site, args):
 
 def cmd_acted(site, args):
     state = load_state(site)
-    key, rec = _current(state)
+    key, rec = _target(state, args.page)
     try:
         repo, number = parse_pr_url(args.pr)
     except ValueError as e:
@@ -536,10 +548,12 @@ def main(argv=None):
     s = sub.add_parser("decline", help="The owner turned the current proposal down.")
     s.add_argument("site")
     s.add_argument("--reason", choices=("owner", "positioning"), default="owner")
+    s.add_argument("--page", help="The page's address, for a proposal that is no longer the report's current one.")
     s = sub.add_parser("acted", help="Record the pull request made for the current proposal.")
     s.add_argument("site")
     s.add_argument("--pr", required=True, help="The pull request's address on GitHub.")
     s.add_argument("--new-title", required=True, help="The built page's whole new <title>.")
+    s.add_argument("--page", help="The page's address, to correct the record of an earlier proposal.")
     s = sub.add_parser("set", help="Record one of the owner's answers.")
     s.add_argument("site")
     s.add_argument("name", choices=("brand", "pr_figures"))

@@ -346,7 +346,7 @@ def follow_proposals(state, service, prop, country, finished, today, read_page, 
         if not rec.get("pr") or rec.get("result"):
             continue
         fp.apply_pr_state(rec, gh(rec["pr"]["repo"], rec["pr"]["number"]))
-        if rec.get("decline_reason") == "closed" or not rec.get("new_title"):
+        if rec.get("declined_on") or not rec.get("new_title"):
             continue
         page = read_page(rec["page"])
         _check_today(rec, today, fp.classify_title(page.get("title") if page else None,

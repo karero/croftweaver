@@ -24,13 +24,15 @@ folder:
 
 ```bash
 ~/.config/gsc-insights/venv/bin/python scripts/fix_proposal.py show <site>
-~/.config/gsc-insights/venv/bin/python scripts/fix_proposal.py decline <site> [--reason positioning]
-~/.config/gsc-insights/venv/bin/python scripts/fix_proposal.py acted <site> --pr <pull request address> --new-title "<the built page's whole <title>>"
+~/.config/gsc-insights/venv/bin/python scripts/fix_proposal.py decline <site> [--reason positioning] [--page <address>]
+~/.config/gsc-insights/venv/bin/python scripts/fix_proposal.py acted <site> --pr <pull request address> --new-title "<the built page's whole <title>>" [--page <address>]
 ~/.config/gsc-insights/venv/bin/python scripts/fix_proposal.py set <site> brand "<spelling>, <spelling>"
 ~/.config/gsc-insights/venv/bin/python scripts/fix_proposal.py set <site> pr_figures yes|no
 ```
 
-`<site>` is the bare domain (`radwerk-plagwitz.example`).
+`<site>` is the bare domain (`radwerk-plagwitz.example`). Without `--page`, `decline` and
+`acted` work on the report's current proposal, or, once the owner has acted on it, on the
+newest one still in progress. `--page <address>` picks an earlier one.
 
 ## Step by step
 
@@ -103,7 +105,8 @@ words; the terms `positioning.spec.ts` requires stay.
 ## When the owner says no
 
 "Not this one", in any words, or closing the pull request: run
-`fix_proposal.py decline <site>`. The report does not propose that search on that page again
+`fix_proposal.py decline <site>` (add `--page <address>` if the owner means an earlier
+proposal than the report's current one). The report does not propose that search on that page again
 for 12 weeks and says until when. Closing the pull request is noticed by the report on its
 own (it asks GitHub with `gh`), counted from the day it was closed.
 
@@ -117,5 +120,9 @@ own (it asks GitHub with `gh`), counted from the day it was closed.
 - **"The name it counts as my business is wrong."** Record the spellings people use:
   `fix_proposal.py set <site> brand "radwerk, rad werk"`. Searches for the business by name
   are never proposed: they say nothing about how the site is found.
+- **"The report says the page changed in another way."** The title recorded with `acted` is
+  not what the live page shows (a different layout suffix, a later edit). Read the live
+  page's `<title>`, check with the owner that it is the change they merged, and record it:
+  `fix_proposal.py acted <site> --page <address> --pr <same address> --new-title "<live title>"`.
 - **"Can it just make the change every week without me?"** Not today: every change goes
   through a pull request the owner merges. That is the point of the tests.

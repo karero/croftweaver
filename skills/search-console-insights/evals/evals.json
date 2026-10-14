@@ -170,7 +170,8 @@
         "Shortens the title rather than changing the test",
         "Does not use --no-verify",
         "Keeps the change within the four places",
-        "Runs the suite again before opening the pull request"
+        "Runs the suite again before opening the pull request",
+        "Records the pull request with fix_proposal.py acted, passing the shortened title"
       ],
       "files": []
     },
