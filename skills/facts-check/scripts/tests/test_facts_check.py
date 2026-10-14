@@ -1506,5 +1506,72 @@ class Cli(unittest.TestCase):
         self.assertIn("--init", err.getvalue())
 
 
+class SitemapReader(unittest.TestCase):
+    """The sitemap is read by the XML parser alone and stopped at a document type, so a sitemap
+    cannot make the run expand nested entities into gigabytes. Kept small on purpose: were the
+    stop gone, a large entity tree would exhaust the test run, and on the python3 a Mac ships
+    with nothing else would limit it."""
+
+    Fake = FetcherRules.Fake
+    NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    BOMB = ("<?xml version='1.0'%s?>%s<!DOCTYPE urlset [<!ENTITY a 'aaaaaaaaaa'><!ENTITY b '&a;&a;&a;&a;'>]>"
+            "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'><url><loc>https://x.com/&b;/</loc></url></urlset>")
+    REFUSED = "declares a document type, which a sitemap does not need; not read"
+
+    def read(self, body):
+        notes = []
+        pages = fc.sitemap_urls(self.Fake({"https://x.com/sm.xml": (200, "application/xml", body)}),
+                                ["https://x.com/sm.xml"], 10, notes)
+        return pages, notes
+
+    def test_a_document_type_stops_the_reader_however_it_is_written(self):
+        cases = {
+            "plain": (self.BOMB % ("", "")).encode(),
+            "after 5,000 spaces, no declaration": (self.BOMB % ("", " " * 5000)).split("?>", 1)[1].encode(),
+            "after a comment and a processing instruction": (self.BOMB % ("", "<!-- x -->\n<?xml-stylesheet href='a.xsl'?>\n")).encode(),
+            "behind a UTF-8 byte-order mark": b"\xef\xbb\xbf" + (self.BOMB % ("", "")).encode(),
+            "utf-16 with a byte-order mark": (self.BOMB % (" encoding='UTF-16'", "")).encode("utf-16"),
+            "utf-16 little-endian, no mark": (self.BOMB % ("", "")).encode("utf-16-le"),
+            "latin-1, declared": (self.BOMB % (" encoding='ISO-8859-1'", "")).encode("latin-1"),
+        }
+        for name, body in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(self.read(body), ([], ["sitemap https://x.com/sm.xml: " + self.REFUSED]))
+
+    def test_an_encoding_the_parser_does_not_know_is_a_note_not_a_crash(self):
+        # it raised LookupError (and ValueError for utf-7) out of main() before
+        for enc in ("bogus-enc", "utf-7"):
+            with self.subTest(enc=enc):
+                body = ("<?xml version='1.0' encoding='%s'?><urlset><url><loc>https://x.com/a</loc></url></urlset>" % enc).encode()
+                self.assertEqual(self.read(body), ([], ["sitemap https://x.com/sm.xml: not valid XML"]))
+
+    def test_what_the_reader_takes_for_a_page(self):
+        sm = ("<sm:urlset xmlns:sm='%s' xmlns:image='http://www.google.com/schemas/sitemap-image/1.1'>"
+              "<sm:url><sm:loc> https://x.com/a?b=1&amp;c=2 </sm:loc><image:image><image:loc>https://x.com/i.png</image:loc>"
+              "</image:image></sm:url><sm:url><sm:loc></sm:loc></sm:url><sm:loc>https://x.com/stray</sm:loc>"
+              "<sm:url><x><sm:loc>https://x.com/deep</sm:loc></x></sm:url></sm:urlset>" % self.NS).encode()
+        self.assertEqual(self.read(sm), (["https://x.com/a?b=1&c=2"], []))
+        sound = ("<?xml version='1.0' encoding='UTF-16'?><urlset xmlns='%s'><url><loc>https://x.com/u</loc></url></urlset>"
+                 % self.NS).encode("utf-16")
+        self.assertEqual(self.read(sound), (["https://x.com/u"], []))
+        # a comment's words are no document type
+        commented = ("<?xml version='1.0'?><!-- no <!DOCTYPE here --><urlset xmlns='%s'><!-- <!DOCTYPE x> -->"
+                     "<url><loc>https://x.com/c</loc></url></urlset>" % self.NS).encode()
+        self.assertEqual(self.read(commented), (["https://x.com/c"], []))
+
+    def test_a_cut_off_or_foreign_file_lists_no_page(self):
+        cut = ("<urlset xmlns='%s'><url><loc>https://x.com/a</loc></url><url><lo" % self.NS).encode()
+        self.assertEqual(self.read(cut), ([], ["sitemap https://x.com/sm.xml: not valid XML"]))
+        self.assertEqual(self.read(b"<rss version='2.0'><channel><item><loc>https://x.com/r</loc></item></channel></rss>"), ([], []))
+
+    def test_a_run_whose_sitemap_declares_entities_reads_no_page_and_says_why(self):
+        # the call main() makes: run() with a sitemap, then the page budget is never touched
+        f = self.Fake({"https://x.com/sm.xml": (200, "application/xml", (self.BOMB % ("", "")).encode())})
+        result = fc.run({"site": "https://x.com", "sitemap": "https://x.com/sm.xml", "facts": [
+            {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
+        self.assertEqual((result["read"], result["pages_listed"]), ([], 0))
+        self.assertIn("sitemap https://x.com/sm.xml: " + self.REFUSED, result["notes"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -71,9 +71,9 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from typing import Dict, List, Optional, Tuple
+from xml.parsers import expat
 
 USER_AGENT = "facts-check/1.0 (read-only site consistency check)"
 MAX_BYTES = 5 * 1024 * 1024
@@ -1089,17 +1089,12 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
         if len(body) > SITEMAP_MAX_BYTES:
             notes.append("sitemap %s: larger than the 50 MB a sitemap may be; not read" % sm)
             continue
-        try:
-            root = ET.fromstring(body)
-        except ET.ParseError:
-            notes.append("sitemap %s: not valid XML" % sm)
+        kind, locs, problem = read_sitemap_xml(body)
+        if problem:
+            notes.append("sitemap %s: %s" % (sm, problem))
             continue
-        # Only <url><loc> and <sitemap><loc>: image:loc and video:*_loc are not pages.
-        locs = [loc.text.strip()
-                for entry in root if _local(entry.tag) in ("url", "sitemap")
-                for loc in entry if _local(loc.tag) == "loc" and loc.text and loc.text.strip()]
         locs = [clean_address(u) for u in locs]
-        if _local(root.tag) == "sitemapindex":
+        if kind == "sitemapindex":
             queue.extend(locs)
         else:
             for u in locs:
@@ -1123,8 +1118,62 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
     return pages[:limit]
 
 
-def _local(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1]
+class _StopReading(Exception):
+    pass
+
+
+def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
+    """(kind, addresses, problem): kind is the first element's name ("urlset", "sitemapindex",
+    or another document's, which lists no address), or "" when the file could not be read.
+
+    The XML parser reads the file alone, in whatever encoding it is written, and is stopped at
+    a document type: a sitemap needs none, and one can declare nested entities that grow a few
+    hundred bytes into gigabytes of text. Expat limits that growth from 2.4.0 (CVE-2013-0340);
+    the python3 a Mac ships with carries expat 2.2.8. Stopping at the document-type event comes
+    before any declaration inside it is read. skills/wordpress-inspector/scripts/wp_inventory.py,
+    parse_sitemap, reads sitemaps the same way, where it was measured and reviewed (PR 281);
+    it makes one exception this reader does not need, to tell a web page from a sitemap.
+    Addresses are the text of <loc> directly inside <url> or <sitemap>, whatever prefix the
+    elements carry: image:loc and video:*_loc sit deeper and are not pages."""
+    seen = {"root": None}
+    path: List[str] = []
+    locs: List[str] = []
+    text: List[str] = []
+    parser = expat.ParserCreate(namespace_separator="}")
+    parser.buffer_text = True
+
+    def doctype(name, system_id, public_id, has_internal_subset):
+        raise _StopReading
+
+    def start(name, attrs):
+        local = name.rsplit("}", 1)[-1]
+        if seen["root"] is None:
+            seen["root"] = local
+        path.append(local)
+
+    def end(name):
+        if len(path) == 3 and path[-1] == "loc" and path[1] in ("url", "sitemap"):
+            loc = "".join(text).strip()
+            if loc:
+                locs.append(loc)
+        del text[:]
+        path.pop()
+
+    def chars(data):
+        if path and path[-1] == "loc":
+            text.append(data)
+
+    parser.StartDoctypeDeclHandler = doctype
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.CharacterDataHandler = chars
+    try:
+        parser.Parse(body, True)
+    except _StopReading:
+        return "", [], "declares a document type, which a sitemap does not need; not read"
+    except (expat.ExpatError, LookupError, ValueError):  # cut off or damaged, or an encoding the parser does not know
+        return "", [], "not valid XML"
+    return seen["root"] or "", locs, ""
 
 
 def default_sitemaps(fetcher: Fetcher, site: str) -> List[str]:
