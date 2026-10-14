@@ -1516,10 +1516,12 @@ test('the items are the checklist\'s items, and the paths are its paths', (t) =>
 
 // Step 5 of the checklist sends the owner to a shell loop in references/CLOUDFLARE_CHECK.md and says what it
 // should read. The loop is run here as written, with three requests and a local address for the placeholder,
-// against an answer that is clean, one that carries a monitor header, a redirect, a closed port, and a body
-// cut short after a 200 status line (curl exits 18 while the status is 200).
+// against an answer that is clean, ones that carry each monitor header, a redirect, a server error, a body cut
+// short after a 200 status line, a closed port, an address curl rejects, and stand-in curls that write nothing
+// or end their lines with a carriage return. It runs on the Windows leg too, in Git Bash, which is where the
+// checklist sends a Windows owner.
 function countingLoop(address) {
-  const reference = readFileSync(path.join(HERE, '..', '..', 'references', 'CLOUDFLARE_CHECK.md'), 'utf8');
+  const reference = readFileSync(path.join(HERE, '..', '..', 'references', 'CLOUDFLARE_CHECK.md'), 'utf8').replace(/\r\n/g, '\n');
   const fenced = /```bash\n([\s\S]*?)\n\s*```/.exec(reference.slice(reference.indexOf('A header Cloudflare sends on a sample of pages')));
   assert.ok(fenced, 'the reference has no counting loop');
   const loop = fenced[1].split('\n').map((l) => l.replace(/^ {2}/, '')).join('\n'); // the block sits in a list item
@@ -1527,37 +1529,60 @@ function countingLoop(address) {
   return loop.replace('seq 1 100', 'seq 1 3').replace('https://yourdomain.invalid', address);
 }
 
-// Asynchronous on purpose: the sites are servers in this process, and a blocking call would stop them answering.
-function loopOutput(address, env = process.env) {
+// A POSIX shell with the tools the loop uses. On Windows only Git Bash counts: a `bash` that is WSL's runs
+// the loop in another network and cannot reach the servers started here.
+function findBash() {
+  const candidates = process.platform === 'win32'
+    ? ['bash', 'C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe']
+    : ['bash'];
+  for (const candidate of candidates) {
+    const r = spawnSync(candidate, ['-c', 'uname -s; command -v curl && command -v awk && command -v seq && command -v sort && command -v uniq'], { encoding: 'utf8' });
+    if (r.status !== 0) continue;
+    if (process.platform !== 'win32' || /^(MSYS|MINGW)/i.test(r.stdout.split('\n')[0])) return candidate;
+  }
+  return null;
+}
+const BASH = findBash();
+
+// The script goes to a file and bash runs the file, so no multi-line argument is quoted between Node and bash.
+// `before` is shell text put ahead of the loop (a stand-in `curl` function). Asynchronous on purpose: the sites
+// are servers in this process, and a blocking call would stop them answering.
+function loopOutput(address, before = '') {
+  const dir = mkdtempSync(path.join(tmpdir(), 'count-loop-'));
+  const file = path.join(dir, 'loop.sh');
+  writeFileSync(file, `${before}${countingLoop(address)}\n`);
   return new Promise((resolve) => {
-    execFile('bash', ['-c', countingLoop(address)], { encoding: 'utf8', timeout: 60_000, env }, (err, stdout) => {
+    execFile(BASH, [file.replace(/\\/g, '/')], { encoding: 'utf8', timeout: 60_000 }, (err, stdout) => {
+      rmSync(dir, { recursive: true, force: true });
       resolve(stdout.split('\n').map((l) => l.trim()).filter(Boolean));
     });
   });
 }
 
 test('the counting loop in the reference reads clean, header or other, and counts only a 200 that curl finished', async (t) => {
-  const tools = process.platform === 'win32' ? { status: 1 } : spawnSync('bash', ['-c', 'command -v curl && command -v awk && command -v seq && command -v sort && command -v uniq']);
-  if (tools.status !== 0) {
-    t.skip('the loop runs in a POSIX shell with curl and awk (Git Bash or WSL on Windows)');
+  if (!BASH) {
+    t.skip('the loop runs in a POSIX shell with curl and awk (Git Bash on Windows)');
     return;
   }
   const answer = (fn) => (req, res, url) => { if (isHome(url)) { fn(res); return true; } return false; };
   const cases = [
-    ['an answer without the headers', undefined, ['3 clean']],
-    ['an answer with report-to', homeWith({ 'report-to': '{"group":"cf-csp-endpoint","max_age":86400}' }), ['3 header']],
-    ['an answer with the report-only header', homeWith({ 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/x" }), ['3 header']],
-    ['an answer with reporting-endpoints', homeWith({ 'reporting-endpoints': 'cf-csp-endpoint="https://reports.example.invalid/x"' }), ['3 header']],
-    ['a redirect', answer((res) => { res.writeHead(301, { location: '/elsewhere' }); res.end(); }), ['3 other status=301 exit=0']],
-    ['a server error', answer((res) => { res.writeHead(503); res.end('down'); }), ['3 other status=503 exit=0']],
+    ['an answer without the headers', undefined, /^3 clean$/],
+    ['an answer with report-to', homeWith({ 'report-to': '{"group":"cf-csp-endpoint","max_age":86400}' }), /^3 header$/],
+    ['an answer with the report-only header', homeWith({ 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/x" }), /^3 header$/],
+    ['an answer with reporting-endpoints', homeWith({ 'reporting-endpoints': 'cf-csp-endpoint="https://reports.example.invalid/x"' }), /^3 header$/],
+    ['a redirect', answer((res) => { res.writeHead(301, { location: '/elsewhere' }); res.end(); }), /^3 other status=301 exit=0$/],
+    ['a server error', answer((res) => { res.writeHead(503); res.end('down'); }), /^3 other status=503 exit=0$/],
+    // curl reports a body cut short as 18 (partial file) where it sees a clean close and 56 where it sees a reset.
     ['a body cut short after a 200 status line', answer((res) => {
       res.writeHead(200, { 'content-length': '100' });
       res.write('short', () => res.socket.destroy());
-    }), ['3 other status=200 exit=18']],
+    }), /^3 other status=200 exit=(18|56)$/],
   ];
   for (const [label, tweak, want] of cases) {
     await withSite(tweak, async (s) => {
-      assert.deepEqual(await loopOutput(s.origin), want, label);
+      const lines = await loopOutput(s.origin);
+      assert.equal(lines.length, 1, `${label}: ${lines.join(' | ')}`);
+      assert.match(lines[0], want, label);
     });
   }
   // A port nothing listens on: curl cannot connect, there is no status, and nothing counts.
@@ -1565,19 +1590,15 @@ test('the counting loop in the reference reads clean, header or other, and count
   const address = gone.origin;
   await gone.close();
   assert.deepEqual(await loopOutput(address), ['3 other status=000 exit=7'], 'a closed port');
-  // An address curl rejects before it asks anything. Some curl versions then write `status=000`, some
-  // write nothing, and the loop says `status=none`; none of them counts, and the exit code is 3.
+  // An address curl rejects before it asks anything. Some curl versions then write `status=000`, some write
+  // nothing and the loop says `status=none`; none of them counts, and the exit code is not zero.
   const rejected = await loopOutput('http://127.0.0.1:99999');
   assert.equal(rejected.length, 1, 'an address curl cannot use');
-  assert.match(rejected[0], /^3 other status=(000|none) exit=3$/, 'an address curl cannot use');
-  // A curl that fails before it writes anything at all (some versions do for a rejected address): the
-  // loop still prints a line, with `status=none`. A stand-in curl on the path makes that certain.
-  const stub = mkdtempSync(path.join(tmpdir(), 'curl-stub-'));
-  try {
-    writeFileSync(path.join(stub, 'curl'), '#!/bin/sh\nexit 3\n', { mode: 0o755 });
-    assert.deepEqual(await loopOutput('http://127.0.0.1:1', { ...process.env, PATH: `${stub}${path.delimiter}${process.env.PATH}` }),
-      ['3 other status=none exit=3'], 'a curl that writes nothing');
-  } finally {
-    rmSync(stub, { recursive: true, force: true });
-  }
+  assert.match(rejected[0], /^3 other status=(000|none) exit=[1-9][0-9]*$/, 'an address curl cannot use');
+  // Stand-in curls, as shell functions so no path or file mode is involved: one that fails before it
+  // writes anything (the loop still prints a line, with `status=none`), and ones that end their lines
+  // with a carriage return, as a Windows curl may (the answer still reads clean, or header).
+  assert.deepEqual(await loopOutput('http://127.0.0.1:1', 'curl() { return 3; }\n'), ['3 other status=none exit=3'], 'a curl that writes nothing');
+  assert.deepEqual(await loopOutput('http://127.0.0.1:1', "curl() { printf 'status=200\\r\\n'; }\n"), ['3 clean'], 'lines that end in a carriage return');
+  assert.deepEqual(await loopOutput('http://127.0.0.1:1', "curl() { printf 'Report-To: {}\\r\\nstatus=200\\r\\n'; }\n"), ['3 header'], 'a header line that ends in a carriage return');
 });

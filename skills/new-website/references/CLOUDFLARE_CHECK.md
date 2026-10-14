@@ -115,7 +115,8 @@ items are a `look`, never `ok`.
   resolve, RFC 6761, section 6.4), so an unedited run prints `other` lines. Each answer is `clean` only
   if curl succeeded, the final status is 200 and none of the monitor's three headers
   (`report-to`, `reporting-endpoints`, `content-security-policy-report-only`) is there. It is
-  `header` if one is there on such an answer (a site that sets one itself counts too).
+  `header` if one is there on such an answer (a site that sets one itself counts too). A
+  carriage return at the end of a line, which a Windows curl may write, is ignored.
   Anything else is `other`, with its status and curl's exit code (`none` where curl never
   got far enough to report one), and does not count:
 
@@ -123,6 +124,7 @@ items are a `look`, never `ok`.
   for i in $(seq 1 100); do
     { curl -sS --http1.1 -o /dev/null -D - -w 'status=%{http_code}\n' "https://yourdomain.invalid/?cb=$RANDOM"; echo "exit=$?"; } 2>/dev/null |
       awk 'BEGIN { s = "status=none"; e = "exit=none" }
+           { sub(/\r$/, "") }
            tolower($0) ~ /^(report-to|reporting-endpoints|content-security-policy-report-only):/ { h = 1 }
            /^status=/ { s = $0 }
            /^exit=/ { e = $0 }
