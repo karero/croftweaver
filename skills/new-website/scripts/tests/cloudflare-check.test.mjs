@@ -646,10 +646,30 @@ test('--project: the alias that forwards to the domain passes the forward, and i
       assert.equal(r.by.canonical.state, 'ok');
       assert.equal(r.by.pages.state, 'look', 'a local address is not known to be a pages.dev project');
       assert.equal(r.by.nel.state, 'ok');
-      assert.match(r.by.nel.detail, /pages\.dev address still sends them/);
+      assert.match(r.by.nel.detail, /pages\.dev address still sends a nel header and a report-to header; .* remove them there/);
       assert.equal(r.code, 0);
     });
   });
+});
+
+test('--project: the alias note names the header the alias sends, not both', async () => {
+  for (const [headers, said, notSaid] of [
+    [{ nel: '{"max_age":604800}' }, /still sends a nel header; .* remove it there/, /report-to header/],
+    [{ 'report-to': '{"group":"cf-nel"}' }, /still sends a report-to header; .* remove it there/, /nel header/],
+  ]) {
+    await withSite(undefined, async (live) => {
+      await withSite((req, res) => {
+        res.writeHead(301, { location: `https://${live.host}/?cb=1`, ...headers });
+        res.end();
+        return true;
+      }, async (alias) => {
+        const r = await check(live.origin, '--project', alias.origin);
+        const note = r.by.nel.detail.slice(r.by.nel.detail.indexOf('The pages.dev address'));
+        assert.match(note, said);
+        assert.doesNotMatch(note, notSaid, 'the home\'s own words are not part of the alias note');
+      });
+    });
+  }
 });
 
 test('--project: an alias that answers 200 means the forward is not set, and the causes are listed', async () => {
@@ -795,6 +815,172 @@ test('a reporting group is judged by what it is: one of your own named like Clou
   });
   await withSite(homeWith({ 'report-to': 'not json at all' }), async (s) => {
     assert.equal((await check(s.origin)).by.nel.state, 'look');
+  });
+});
+
+// ---- Cloudflare's script monitor (Client-side security): reports to csp-reporting.cloudflare.com
+
+const MONITOR_URL = 'https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=abc123';
+// The names are spelled as Cloudflare spells them on the wire; Node hands them over in lower case.
+const MONITOR = {
+  'Content-Security-Policy-Report-Only': `script-src 'unsafe-inline' 'unsafe-eval'; connect-src 'none'; report-uri ${MONITOR_URL}; report-to cf-csp-endpoint`,
+  'Report-To': `{"group":"cf-csp-endpoint","max_age":86400,"endpoints":[{"url":"${MONITOR_URL}"}]}`,
+  'Reporting-Endpoints': `cf-csp-endpoint="${MONITOR_URL}"`,
+};
+// Addresses that only look like Cloudflare's reporting host. None of them reports there.
+const LOOKALIKES = [
+  'https://csp-reporting.cloudflare.com.reports.example.invalid/r',
+  'https://not-csp-reporting.cloudflare.com/r',
+  // \x40 is an at sign (a user name that is the monitor's host): spelled so that the file holds no
+  // host-at-host text, which the repo's clean check reads as an email address.
+  'https://csp-reporting.cloudflare.com\x40reports.example.invalid/r',
+  'https://csp-reporting.cloudflare.com_x/r',
+  'https://reports.example.invalid/r?u=https://csp-reporting.cloudflare.com/x',
+  'https://reports.example.invalid/csp-reporting.cloudflare.com/collect',
+];
+
+test('the script monitor is named, with the path to its switch, not shown as a bare report-to header', () =>
+  withSite(homeWith(MONITOR), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.equal(r.code, 0, 'a look does not fail the run');
+    assert.match(r.by.nel.detail, /script monitor is switched on/);
+    assert.match(r.by.nel.detail, /csp-reporting\.cloudflare\.com/);
+    assert.match(r.by.nel.detail, /sample/);
+    assert.doesNotMatch(r.by.nel.detail, /its own reporting groups/, 'not the text for a header that is not known');
+    assert.match(r.by.nel.fix, /Client-side abuse/);
+    assert.match(r.by.nel.fix, /Continuous script monitoring/);
+    assert.match(r.by.nel.fix, /NEL does not remove it/, 'the checklist\'s NEL rule is not the way to remove it');
+  }));
+
+test('any one of the script monitor\'s three headers names it, however the address is written', async () => {
+  for (const name of Object.keys(MONITOR)) {
+    await withSite(homeWith({ [name]: MONITOR[name] }), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'look', name);
+      assert.match(r.by.nel.detail, /script monitor is switched on/, name);
+    });
+  }
+  const spellings = {
+    'a report-to that is a JSON array': { 'report-to': `[{"group":"g","endpoints":[{"url":"${MONITOR_URL}"}]}]` },
+    'two groups in one value, the monitor second': { 'report-to': `{"group":"mine","endpoints":[{"url":"https://reports.example.invalid/r"}]}, {"group":"x","endpoints":[{"url":"${MONITOR_URL}"}]}` },
+    'a group named something else, reporting to Cloudflare\'s host': { 'report-to': `{"group":"whatever","endpoints":[{"url":"${MONITOR_URL}"}]}` },
+    'a sub-host in a report-to group': { 'report-to': '{"group":"g","endpoints":[{"url":"https://a.csp-reporting.cloudflare.com/r"}]}' },
+    'a sub-host in a report-only policy': { 'content-security-policy-report-only': "default-src 'self'; report-uri https://a.csp-reporting.cloudflare.com/r" },
+    'an upper-case address in a policy': { 'content-security-policy-report-only': "default-src 'self'; report-uri HTTPS://CSP-REPORTING.CLOUDFLARE.COM/R" },
+    'an upper-case directive name': { 'content-security-policy-report-only': `default-src 'self'; REPORT-URI ${MONITOR_URL}` },
+    'two policies, the monitor in the second': { 'content-security-policy-report-only': `default-src 'self', report-uri ${MONITOR_URL}` },
+    'two policies, each with its own report-uri': { 'content-security-policy-report-only': `report-uri https://reports.example.invalid/r, default-src 'self'; report-uri ${MONITOR_URL}` },
+    'the first of two report-uri directives': { 'content-security-policy-report-only': `report-uri ${MONITOR_URL}; report-uri https://reports.example.invalid/r` },
+    'the second of two report-uri directives (never hidden behind the first)': { 'content-security-policy-report-only': `default-src 'self'; report-uri https://reports.example.invalid/r; report-uri ${MONITOR_URL}` },
+    'the second member of a dictionary': { 'reporting-endpoints': `a="https://reports.example.invalid/r", b="${MONITOR_URL}"` },
+    'a comma inside the first member\'s address': { 'reporting-endpoints': `a="https://reports.example.invalid/r?x=1,2", b="${MONITOR_URL}"` },
+    'a parameter after the monitor\'s address': { 'reporting-endpoints': `a="${MONITOR_URL}";p=1` },
+    'an escaped quote in the first member': { 'reporting-endpoints': `a="x\\"y", b="${MONITOR_URL}"` },
+    'a trailing dot on the host': { 'reporting-endpoints': 'g="https://csp-reporting.cloudflare.com./r"' },
+    'a port': { 'reporting-endpoints': 'g="https://csp-reporting.cloudflare.com:443/r"' },
+  };
+  for (const [what, headers] of Object.entries(spellings)) {
+    await withSite(homeWith(headers), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'look', what);
+      assert.match(r.by.nel.detail, /script monitor is switched on/, what);
+    });
+  }
+});
+
+test('a group or an address of your own is not the script monitor, whatever it is called or quotes', async () => {
+  const own = { 'report-to': '{"group":"my-csp-endpoint","max_age":86400,"endpoints":[{"url":"https://reports.example.invalid/csp"}]}' };
+  await withSite(homeWith({ ...own, 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/csp" }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.doesNotMatch(r.by.nel.detail, /script monitor/, 'yours is yours');
+    assert.match(r.by.nel.detail, /its own reporting groups/);
+  });
+  // Cloudflare's group name on an address that is not Cloudflare's: it reports to you, not there.
+  await withSite(homeWith({ 'report-to': '{"group":"cf-csp-endpoint","max_age":86400,"endpoints":[{"url":"https://reports.example.invalid/csp"}]}' }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.doesNotMatch(r.by.nel.detail, /script monitor/, 'a group named like Cloudflare\'s is yours when it reports elsewhere');
+  });
+  for (const url of LOOKALIKES) {
+    await withSite(homeWith({ 'report-to': `{"group":"g","max_age":86400,"endpoints":[{"url":"${url}"}]}` }), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'look', url);
+      assert.doesNotMatch(r.by.nel.detail, /script monitor/, `report-to: ${url}`);
+    });
+    for (const [header, value] of [['Reporting-Endpoints', `g="${url}"`], ['Content-Security-Policy-Report-Only', `default-src 'self'; report-uri ${url}`]]) {
+      await withSite(homeWith({ [header]: value }), async (s) => {
+        const r = await check(s.origin);
+        assert.equal(r.by.nel.state, 'ok', `${header}: ${url}`);
+      });
+    }
+  }
+  // not an address the header reports to
+  const quoted = {
+    'a report-to value that does not parse is not read for addresses': { 'report-to': `not json, but ${MONITOR_URL}` },
+    'an endpoint address that is not a string': { 'report-to': `{"group":"g","endpoints":[{"url":["${MONITOR_URL}"]}]}` },
+  };
+  for (const [what, headers] of Object.entries(quoted)) {
+    await withSite(homeWith(headers), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'look', what);
+      assert.doesNotMatch(r.by.nel.detail, /script monitor is switched on/, what);
+    });
+  }
+  const notReported = {
+    'the host inside a query that follows a comma (two policies)': { 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/r?x=,https://csp-reporting.cloudflare.com/r" },
+    'the host only listed as a source': { 'content-security-policy-report-only': "default-src 'self'; connect-src https://csp-reporting.cloudflare.com" },
+    'an address that is not a quoted string': { 'reporting-endpoints': 'g=https://csp-reporting.cloudflare.com/r' },
+    'a parameter that quotes the host': { 'reporting-endpoints': 'g="https://reports.example.invalid/r";note="https://csp-reporting.cloudflare.com/r"' },
+    'an escaped quote inside an address': { 'reporting-endpoints': 'g="https://reports.example.invalid/\\"https://csp-reporting.cloudflare.com/r"' },
+  };
+  for (const [what, headers] of Object.entries(notReported)) {
+    await withSite(homeWith(headers), async (s) => {
+      assert.equal((await check(s.origin)).by.nel.state, 'ok', what);
+    });
+  }
+  // the host quoted as a NAME, outside any address
+  await withSite(homeWith({ 'Reporting-Endpoints': 'csp-reporting.cloudflare.com="https://reports.example.invalid/r"' }), async (s) => {
+    assert.equal((await check(s.origin)).by.nel.state, 'ok', 'a name that reads like the host is not an address');
+  });
+});
+
+test('NEL on still fails beside the script monitor, and the monitor is named there too', async () => {
+  await withSite(homeWith({ ...MONITOR, nel: '{"report_to":"cf-nel","max_age":604800}' }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'fail');
+    assert.equal(r.code, 1);
+    assert.match(r.by.nel.detail, /script monitor is switched on as well/);
+  });
+  const withNelGroup = { ...MONITOR, 'Report-To': `${MONITOR['Report-To']}, {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4"}]}` };
+  await withSite(homeWith(withNelGroup), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'fail', 'Cloudflare\'s NEL group beside the monitor\'s is still a failure');
+    assert.match(r.by.nel.detail, /script monitor is switched on as well/);
+  });
+  await withSite(homeWith({ ...MONITOR, nel: '{"max_age":0}' }), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.match(r.by.nel.detail, /max_age 0/, 'the withdrawal is still said');
+    assert.match(r.by.nel.detail, /script monitor is switched on as well/, 'and the monitor is not hidden behind it');
+  });
+});
+
+test('a clean NEL line says that one answer cannot show the script monitor is off', async () => {
+  await withSite(homeWith({}), async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'ok');
+    assert.match(r.by.nel.detail, /sample of pages only, so this one answer cannot show that it is off/);
+  });
+  await withSite((req, res, url) => {
+    if (isHome(url)) { res.writeHead(301, { location: 'https://www.elsewhere.invalid/' }); res.end(); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.match(r.by.nel.detail, /judged from the 301 answer/);
+    assert.match(r.by.nel.detail, /sample of pages only, so this one answer cannot show that it is off/);
   });
 });
 
