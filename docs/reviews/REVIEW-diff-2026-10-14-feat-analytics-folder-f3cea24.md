@@ -21,6 +21,7 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 | Round | Head | Seats | BUG / RISK / NIT (after dedup) | Notes |
 |---|---|---|---|---|
 | 1 | f3cea24 | Codex (401 s, 91k tokens), GLM 5.3 on melious (346 s, 37k), fresh-eyes Sonnet (184 s, 135k) | 11 / 6 / 3 | four invariants; 18 of the 20 fixed, 2 refuted with evidence |
+| 2 (verification) | e496a75 | Codex (medium), GLM 5.3 on melious | running | delta f3cea24..e496a75 |
 
 ## Findings
 
