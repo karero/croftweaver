@@ -9,8 +9,9 @@ This is the second version. The first went through a PLAN gate that stopped afte
 rounds without converging (`docs/reviews/REVIEW-plan-2026-10-12-pr265.md`); then a trial
 run on a throwaway project answered the questions that gate had left open. This text is
 written once from that trial, with two yeses (D1), and passed a new PLAN gate on 2026-10-14
-(trail under "Review trail"). What no one has tried yet is listed under "Not verified";
-plan step 9 tries it before the real site of plan step 10.
+(trail under "Review trail"). What no one has tried yet is listed under "Not verified", each
+item with what settles it; plan step 9 tries the untried Cloudflare calls before the real
+site of plan step 10.
 
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are what the script does, numbered under "Shape".
