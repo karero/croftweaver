@@ -1,6 +1,6 @@
 # PLAN gate preconditions — the full reasoning
 
-Read from SKILL.md's "PLAN gate preconditions" section, which summarizes the three
+Read from SKILL.md's "PLAN gate preconditions" section, which summarizes the four
 checks; this file carries the complete rationale, scope, and — just as important —
 what each check does NOT establish. "Procedure step N", "the Reviewer stack", and
 "item 3" (a Reviewer-stack entry) below refer to SKILL.md; "the clerk procedure"
@@ -86,3 +86,19 @@ owner's call, not a failure of the gate.
 gate. A plan whose first step is "write the requirements" has none to gate yet: say so to the
 owner in the same way, since the rest of that plan is reviewed against requirements that do not
 exist.
+
+## 4. Is the plan split into components that are gated one by one?
+
+A plan for more than about 2,000 lines of code (tests not counted), or for more than one reader of
+outside input (code that parses files or data a user or another system hands in: an upload check,
+an importer, a config reader), names its components, and each is built and gated in its own PR.
+**The host checks this itself**, like the others. If the plan does not split, ask the owner before
+round 1: split it, or go on knowing the cost.
+
+Why: one plan built as one PR of five readers of outside files reached nine rounds and about
+37 million tokens (`rationale.md`, "The earned-by kind and the cut"); a kind of defect fixed in one
+reader was found again in the next, round after round. Split, the first component's gate settles the
+kind before the others copy it.
+
+What this does not cover: a DIFF gate with no plan. There the host can still tell the owner, before
+round 1, that the change is over the size and offer to split it; it is not a precondition there.
