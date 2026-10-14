@@ -17,7 +17,7 @@ a path says "Security → Settings → filter by …", you land on one long page
 a filter box: pick the filter, then find the setting by name.
 
 The paths come from Cloudflare's own documentation, read on 2026-10-12 (the AI switches in
-section 4 on 2026-10-14), and from
+section 4 and the script monitor in section 3 on 2026-10-14), and from
 [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
 for three project steps in section 1 (attach the domain, Fail open, and the
 `CANONICAL_URL` variable under Production). None was re-checked in a dashboard for this
@@ -119,8 +119,8 @@ Your privacy page says what the site sets and runs: no cookies, and at most the 
 measurement tool you chose when the site was built. These settings stop Cloudflare adding
 cookies, scripts or tracking you didn't choose.
 
-- [ ] **Network Error Logging (NEL): Off.** A look, a switch, a check, and a rule if the
-  header is still there.
+- [ ] **Network Error Logging (NEL): Off.** A look, a switch, a check, a rule if the
+  header is still there, and a second switch for Cloudflare's script monitor.
   *What it is:* the browser keeps a note, and if it can't reach your site it sends a short
   error report to Cloudflare. Chrome, Edge and other Chromium browsers do this; Firefox
   and Safari don't. When we looked on 12 October 2026, Cloudflare's header set the note to
@@ -140,7 +140,9 @@ cookies, scripts or tracking you didn't choose.
      it there. Switch it **Off**. Any zone administrator can switch it back on. If the
      switch is missing or greyed out, go straight to step 4.
   3. **Check.** Run the same command again. The `nel:` and `report-to:` lines should be
-     gone.
+     gone. A `nel:` line, or a `report-to:` line that names `cf-nel`, is still NEL: step 4,
+     whatever else the command shows. A `report-to:` line that sends to an address on
+     `csp-reporting.cloudflare.com` is Cloudflare's script monitor: step 5.
   4. **If they are still there, add a rule that removes them.** When we tried this on a
      Pages site, the switch alone did not stop the header: the setting read "off" through
      Cloudflare's API, and the header was still served half an hour later. Your domain →
@@ -148,18 +150,44 @@ cookies, scripts or tracking you didn't choose.
      NEL headers". Under *When incoming requests match*, choose **All incoming requests**.
      Under *Modify response header*, choose **Remove** and enter the header name `NEL`.
      Select **Set new header**, choose **Remove** again and enter `Report-To`. **Deploy.**
-     On the same site this removed both headers within seconds. The rule removes
+     On the same site this removed both headers within seconds. The rule is set to remove
      `Report-To` from every response, so if your site later sets reporting groups of its
      own, narrow the rule first.
+  5. **Switch off Cloudflare's script monitor too, whatever the command showed.**
+     Your domain → Security → Settings → filter by **Client-side abuse** →
+     **Continuous script monitoring**. Cloudflare's page shows turning it on; this is the
+     same switch.
+     *What it is:* Cloudflare says it adds a `content-security-policy-report-only` header to
+     a sample of pages, and that the visitor's browser then sends reports to Cloudflare
+     ([how it works](https://developers.cloudflare.com/client-side-security/how-it-works/)).
+     It is not NEL. On the one site where we saw it, the answers that carried it also had a
+     `report-to:` line that names `cf-csp-endpoint` and sends to
+     `csp-reporting.cloudflare.com`: 2 of 40 answers on 14 October 2026. Step 4's rule had
+     been set there on 12 October. We did not read it when we counted, so we can't say
+     whether it was working then.
+     *Why off:* the visitor's browser sends reports to Cloudflare, and the privacy page this
+     kit writes doesn't mention it. If you keep it on, say so on your privacy page.
+     *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
+     then count with the loop in
+     [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
+     your own domain. The count should read `100 clean` (after we switched it off we made
+     200 requests and saw no `report-to:` line). An `other` line did not count: tell your
+     assistant what the line says. The reference says which address to use. If you can't
+     find the switch, or a `header` count shows after you switched it off, tell your
+     assistant.
+     *The trade-off:* you give up Cloudflare's view of the scripts your visitors load. The
+     switch may be marked Global. If it says so, it may apply to every domain in your
+     account: look at your other sites before you switch it off.
 
-  Visitors who came in before can keep the old note until that many seconds have passed
-  (604800 seconds is seven days). The `<project>.pages.dev` address is outside your domain,
-  so the rule can't reach it, and we have found no way to remove the headers there.
-  Sending that address to your live domain (section 1) moves visitors on; it removes
-  nothing. The last command in section 5 shows whether that address still sends them. If
-  the header is still there on your own domain after the rule, tell your assistant or ask
-  Cloudflare Support. Cloudflare's support article describes a flag, `nel___enable`, that
-  stops NEL being enabled on a zone.
+  Visitors who came in before can keep the old NEL note until that many seconds have
+  passed (the `max_age` from step 1; 604800 seconds is seven days). The
+  `<project>.pages.dev` address is outside your domain, so the rule can't reach it, and we
+  have found no way to remove the headers there. Sending that address to your live domain
+  (section 1) moves visitors on; it removes nothing. The last command in section 5 shows
+  whether that address still sends them. If a `nel:` line, or a `report-to:` line that
+  names `cf-nel`, is still there on your own domain after the rule, tell your assistant or
+  ask Cloudflare Support. Cloudflare's support article describes a flag, `nel___enable`,
+  that stops NEL being enabled on a zone.
 - [ ] **Bot Fight Mode: Off.**
   Your domain → Security → Settings → filter by **Bot traffic** → Bot fight mode.
   *Why:* Cloudflare says JavaScript detections come with it and can't be switched off.
@@ -251,9 +279,11 @@ curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|repor
 ```
 
 You want a 200 status line (`HTTP/2 200`, or `HTTP/1.1 200 OK` on an older curl) and
-nothing else until you switch HSTS on (section 2). A 3xx status line means something else
-is redirecting your live domain: find out what before you trust the rest. A `nel:` line
-means NEL is still on, and so does a `report-to:` line that names `cf-nel`; a `report-to:`
+nothing else until you switch HSTS on (section 2). A 3xx status line is not the 200 you want:
+find out what answers with it, and why, before you trust the rest. A `nel:` line
+means NEL is still on, and so does a `report-to:` line that names `cf-nel`. A `report-to:`
+line that sends to an address on `csp-reporting.cloudflare.com` is Cloudflare's script
+monitor (section 3, step 5), and a clean answer does not show it is off. A `report-to:`
 line of your own is yours to judge. A `set-cookie:` line means
 something is setting a cookie: tell your assistant. Once HSTS is on you also want a
 `strict-transport-security:` line with `max-age=` followed by the seconds for the months
@@ -354,7 +384,8 @@ look at the output. An API can say a setting is off while the site still sends t
 as it did for NEL on the site we tried.
 
 **What stays by hand:** Crawler Hints (the kit's notes say Cloudflare has no API for it),
-the off switch for Cloudflare Web Analytics, and the Pages choice on the create screen if
+the off switch for Cloudflare Web Analytics, the script monitor's switch (section 3, step
+5; we did not look for an API call for it), and the Pages choice on the create screen if
 you connect through Git.
 
 **When it is done,** delete the token: My Profile → API Tokens → ⋯ → Delete. Then ask the
@@ -394,3 +425,7 @@ Read 2026-10-14, for the three AI switches in section 4: Cloudflare's
 [AI Labyrinth](https://developers.cloudflare.com/bots/additional-configurations/ai-labyrinth/)
 and [Security settings](https://developers.cloudflare.com/security/settings/) pages, and
 the managed robots.txt page and the Bot Management API reference again.
+Read 2026-10-14, for the script monitor in section 3: Cloudflare's client-side security
+[how it works](https://developers.cloudflare.com/client-side-security/how-it-works/) and
+[get started](https://developers.cloudflare.com/client-side-security/get-started/) pages,
+and the Security settings page again.

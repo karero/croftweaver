@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import https from 'node:https';
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -858,6 +858,12 @@ const LOOKALIKES = [
   'https://reports.example.invalid/csp-reporting.cloudflare.com/collect',
 ];
 
+// The monitor is no item of its own: the NEL line names it and points to its switch, and step 5 of the
+// checklist's NEL item says where the switch is. One path, said the same way in three places: this fix
+// text, the checklist and references/CLOUDFLARE_CHECK.md (the test "the items are the checklist's items,
+// and the paths are its paths" keeps their copies in step with this one).
+const MONITOR_PATH = 'Security → Settings → filter by Client-side abuse → Continuous script monitoring';
+
 test('the script monitor is named, with the path to its switch, not shown as a bare report-to header', () =>
   withSite(homeWith(MONITOR), async (s) => {
     const r = await check(s.origin);
@@ -867,9 +873,10 @@ test('the script monitor is named, with the path to its switch, not shown as a b
     assert.match(r.by.nel.detail, /csp-reporting\.cloudflare\.com/);
     assert.match(r.by.nel.detail, /sample/);
     assert.doesNotMatch(r.by.nel.detail, /its own reporting groups/, 'not the text for a header that is not known');
+    assert.ok(r.by.nel.fix.includes(MONITOR_PATH), `the fix does not carry the path "${MONITOR_PATH}"`);
     assert.match(r.by.nel.fix, /Client-side abuse/);
     assert.match(r.by.nel.fix, /Continuous script monitoring/);
-    assert.match(r.by.nel.fix, /NEL does not remove it/, 'the checklist\'s NEL rule is not the way to remove it');
+    assert.match(r.by.nel.fix, /removes only the NEL and Report-To headers/, 'the checklist\'s NEL rule does not switch the monitor off');
   }));
 
 test('any one of the script monitor\'s three headers names it, however the address is written', async () => {
@@ -1512,5 +1519,111 @@ test('the items are the checklist\'s items, and the paths are its paths', (t) =>
     const want = item.path.replace(/`/g, '').replace(/\s+/g, ' ');
     assert.ok(flat.includes(want), `the checklist does not say "${want}"`);
   }
+  assert.ok(flat.includes(MONITOR_PATH), `the checklist does not say where the script monitor's switch is: "${MONITOR_PATH}"`);
+  // The reference that ships with the script says it too, and is the third copy of the path.
+  const reference = readFileSync(path.join(HERE, '..', '..', 'references', 'CLOUDFLARE_CHECK.md'), 'utf8')
+    .replace(/\*\*|`/g, '').replace(/\s+/g, ' ');
+  assert.ok(reference.includes(MONITOR_PATH), `references/CLOUDFLARE_CHECK.md does not say "${MONITOR_PATH}"`);
+  // Step 5 quotes what the reference's counting loop prints. The test further down runs that loop and
+  // asserts the same word, so a renamed label or another count leaves one of the two failing.
+  assert.ok(reference.includes('seq 1 100'), 'the reference counts something other than 100 answers');
+  assert.ok(flat.includes('100 clean'), 'step 5 no longer quotes the count the loop prints');
   assert.ok(text.includes('**No scripts you didn\'t add:**'), 'section 5 still has the source-search bullet the "scripts" item stands for');
+});
+
+// ---- the counting loop in the reference
+
+// Step 5 of the checklist sends the owner to a shell loop in references/CLOUDFLARE_CHECK.md and says what it
+// should read. The loop is run here as written, with three requests and a local address for the placeholder,
+// against an answer that is clean, ones that carry each monitor header, a redirect, a server error, a body cut
+// short after a 200 status line, a closed port, an address curl rejects, and stand-in curls that write nothing
+// or end their lines with a carriage return. It runs on the Windows leg too, in Git Bash, which is where the
+// checklist sends a Windows owner.
+function countingLoop(address) {
+  const reference = readFileSync(path.join(HERE, '..', '..', 'references', 'CLOUDFLARE_CHECK.md'), 'utf8').replace(/\r\n/g, '\n');
+  const fenced = /```bash\n([\s\S]*?)\n\s*```/.exec(reference.slice(reference.indexOf('A header Cloudflare sends on a sample of pages')));
+  assert.ok(fenced, 'the reference has no counting loop');
+  const loop = fenced[1].split('\n').map((l) => l.replace(/^ {2}/, '')).join('\n'); // the block sits in a list item
+  assert.ok(loop.includes('seq 1 100') && loop.includes('https://yourdomain.invalid/'), 'the loop is not the one step 5 describes');
+  return loop.replace('seq 1 100', 'seq 1 3').replace('https://yourdomain.invalid', address);
+}
+
+// A POSIX shell with the tools the loop uses. On Windows only Git Bash counts: a `bash` that is WSL's runs
+// the loop in another network and cannot reach the servers started here.
+function findBash() {
+  const candidates = process.platform === 'win32'
+    ? ['bash', 'C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe']
+    : ['bash'];
+  for (const candidate of candidates) {
+    const r = spawnSync(candidate, ['-c', 'uname -s; command -v curl && command -v awk && command -v seq && command -v sort && command -v uniq'], { encoding: 'utf8' });
+    if (r.status !== 0) continue;
+    if (process.platform !== 'win32' || /^(MSYS|MINGW)/i.test(r.stdout.split('\n')[0])) return candidate;
+  }
+  return null;
+}
+const BASH = findBash();
+
+// The script goes to a file and bash runs the file, so no multi-line argument is quoted between Node and bash.
+// `before` is shell text put ahead of the loop (a stand-in `curl` function). Asynchronous on purpose: the sites
+// are servers in this process, and a blocking call would stop them answering.
+function loopOutput(address, before = '') {
+  const dir = mkdtempSync(path.join(tmpdir(), 'count-loop-'));
+  const file = path.join(dir, 'loop.sh');
+  writeFileSync(file, `${before}${countingLoop(address)}\n`);
+  return new Promise((resolve) => {
+    execFile(BASH, [file.replace(/\\/g, '/')], { encoding: 'utf8', timeout: 60_000 }, (err, stdout) => {
+      rmSync(dir, { recursive: true, force: true });
+      resolve(stdout.split('\n').map((l) => l.trim()).filter(Boolean));
+    });
+  });
+}
+
+test('the counting loop in the reference reads clean, header or other, and counts only a 200 that curl finished', async (t) => {
+  if (!BASH) {
+    // On CI the loop must be able to run: a runner image that loses the shell or a tool is a failure there,
+    // not coverage quietly gone. Elsewhere the test is skipped, and the skip is printed.
+    assert.ok(!process.env.CI, 'CI has no POSIX shell with curl, awk, seq, sort and uniq for the counting loop test');
+    t.skip('the loop runs in a POSIX shell with curl and awk (Git Bash on Windows)');
+    return;
+  }
+  const answer = (fn) => (req, res, url) => { if (isHome(url)) { fn(res); return true; } return false; };
+  const cases = [
+    ['an answer without the headers', undefined, /^3 clean$/],
+    ['an answer with report-to', homeWith({ 'report-to': '{"group":"cf-csp-endpoint","max_age":86400}' }), /^3 header$/],
+    ['an answer with the report-only header', homeWith({ 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/x" }), /^3 header$/],
+    ['an answer with reporting-endpoints', homeWith({ 'reporting-endpoints': 'cf-csp-endpoint="https://reports.example.invalid/x"' }), /^3 header$/],
+    ['a redirect', answer((res) => { res.writeHead(301, { location: '/elsewhere' }); res.end(); }), /^3 other status=301 exit=0$/],
+    ['a server error', answer((res) => { res.writeHead(503); res.end('down'); }), /^3 other status=503 exit=0$/],
+    // curl reports a body cut short as 18 (partial file) where it sees a clean close and 56 where it sees a reset.
+    ['a body cut short after a 200 status line', answer((res) => {
+      res.writeHead(200, { 'content-length': '100' });
+      res.write('short', () => res.socket.destroy());
+    }), /^3 other status=200 exit=(18|56)$/],
+  ];
+  for (const [label, tweak, want] of cases) {
+    await withSite(tweak, async (s) => {
+      const lines = await loopOutput(s.origin);
+      assert.equal(lines.length, 1, `${label}: ${lines.join(' | ')}`);
+      assert.match(lines[0], want, label);
+    });
+  }
+  // A port nothing listens on: curl cannot connect, there is no status, and nothing counts.
+  const gone = await site();
+  const address = gone.origin;
+  await gone.close();
+  // curl 7 is "could not connect"; whether this curl also writes `status=000` first varies, as for a rejected address.
+  const refused = await loopOutput(address);
+  assert.equal(refused.length, 1, 'a closed port');
+  assert.match(refused[0], /^3 other status=(000|none) exit=7$/, 'a closed port');
+  // An address curl rejects before it asks anything. Some curl versions then write `status=000`, some write
+  // nothing and the loop says `status=none`; none of them counts, and the exit code is not zero.
+  const rejected = await loopOutput('http://127.0.0.1:99999');
+  assert.equal(rejected.length, 1, 'an address curl cannot use');
+  assert.match(rejected[0], /^3 other status=(000|none) exit=[1-9][0-9]*$/, 'an address curl cannot use');
+  // Stand-in curls, as shell functions so no path or file mode is involved: one that fails before it
+  // writes anything (the loop still prints a line, with `status=none`), and ones that end their lines
+  // with a carriage return, as a Windows curl may (the answer still reads clean, or header).
+  assert.deepEqual(await loopOutput('http://127.0.0.1:1', 'curl() { return 3; }\n'), ['3 other status=none exit=3'], 'a curl that writes nothing');
+  assert.deepEqual(await loopOutput('http://127.0.0.1:1', "curl() { printf 'status=200\\r\\n'; }\n"), ['3 clean'], 'lines that end in a carriage return');
+  assert.deepEqual(await loopOutput('http://127.0.0.1:1', "curl() { printf 'Report-To: {}\\r\\nstatus=200\\r\\n'; }\n"), ['3 header'], 'a header line that ends in a carriage return');
 });

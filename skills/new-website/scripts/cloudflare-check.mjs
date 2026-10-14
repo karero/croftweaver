@@ -717,10 +717,10 @@ export function evaluate(obs, target, opts) {
       ? ` The pages.dev address still sends ${aliasSends.map((h) => `a ${h} header`).join(' and ')}; the header rule cannot reach it, and no way to remove ${aliasSends.length > 1 ? 'them' : 'it'} there has been found.` : '';
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
     // The script monitor is named wherever it is seen, beside a NEL failure too: it is not NEL,
-    // and the header rule for NEL does not remove it.
-    const monitorWhat = "Cloudflare adds a content-security-policy-report-only header and a report-to group, cf-csp-endpoint, to a sample of pages, so visitors' browsers send reports to csp-reporting.cloudflare.com. That is not NEL.";
+    // and the header rule for NEL removes only NEL and Report-To, so it does not switch it off.
+    const monitorWhat = "Cloudflare says it adds a content-security-policy-report-only header to a sample of pages, and that visitors' browsers then send reports to Cloudflare. On the one site where this was seen it came with a report-to group, cf-csp-endpoint, at csp-reporting.cloudflare.com. That is not NEL.";
     const monitorAlso = monitor ? ` Cloudflare's script monitor is switched on as well: ${monitorWhat}` : '';
-    const monitorFix = "Your domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring: Off. The checklist's header rule for NEL does not remove it.";
+    const monitorFix = "Your domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring: Off. The checklist's header rule for NEL removes only the NEL and Report-To headers; it does not switch the monitor off.";
     const sampleNote = " Cloudflare's script monitor adds its headers to a sample of pages only, so this one answer cannot show that it is off.";
     if (nel && live !== undefined) put('nel', 'fail', `the answer carries a nel header${age}: Network Error Logging is on${via}.${monitorAlso}`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
     else if (cfReport) put('nel', 'fail', `the answer carries Cloudflare's NEL reporting group in a report-to header${via}.${monitorAlso}`, `Remove it with the header rule. ${section(3)}`);
