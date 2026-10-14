@@ -1,7 +1,7 @@
 # DIFF review — branch feat/search-ai-reports — Google's and Bing's own AI reports (search-console-insights 1.8.0)
 
 Base `e038603` · depth: Normal (shipped runtime code; nothing in the High row) · verdict: CLEAN (seen pair: merge-base
-01504df, head d0ae6a4; bridged to merge-base 3519d2d by an empty merge link; later commits touch this trail only) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
+3b2e5db, head 64faf89: the code as seen on d0ae6a4, carried by empty merge links; the plan's PR row as seen on 64faf89; later commits touch this trail only) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
 works in this worktree and created the branch by renaming the harness's branch for it); POST
 AUTHORITY not yet held (no PR; one is opened only on the owner's word).
 
@@ -40,6 +40,10 @@ left out of the artifact).
 | confirmation of F46 (not a round) | a71e7fd | Codex medium only | 2 / 0 / 0 (record) | F46's own contradiction gone, but the fix added two wrong record sentences ("check_clean.sh does not scan docs/reviews/"; "RISKs F16 …", F16 being a NIT); both corrected in d0ae6a4 |
 | confirmation of that fix (the last allowed) | d0ae6a4 | Codex medium only | 0 / 0 / 0 | both corrections verified, no new contradiction; the private name list's count (0) is the author's measurement, which the seat could not reproduce without seeing the list |
 | second merge link (not a round) | e842451 | none needed | — | the PR was behind `main` (PR 294 merged); `origin/main` merged at e842451, new merge-base 3519d2d. `merge_link.sh 01504df d0ae6a4 3519d2d -- docs/WHAT-THE-SKILLS-RUN.md` printed nothing (0 bytes): nothing of the change moved, so no seat had anything to read. `git diff d0ae6a4 HEAD` on the change's files is empty; `make test` 249 OK, `make check` exit 0 on e842451 |
+| third and fourth merges of main (not rounds) | d37b8bf | none needed | — | `main` moved again (PR 283 and others); merged at f4ed5d4 and d37b8bf, merge-base 3b2e5db; `merge_link.sh` printed nothing for each; `git diff d0ae6a4 HEAD` on the change's files empty; `make test` 249 OK on d37b8bf |
+| the plan's PR row, asked for by the owner (not a round) | 2bfff3a | Codex medium (83 s, 23k tokens), GLM 5.3 on melious (129 s, 8k) | 1 / 1 / 1 (F47–F49, record) | the row said "merged" on the owner's order: both seats, a merge ordered is not a merge (F47, BUG); "reaches `main` only through that merge" an unguarded claim (F48, G); the date could read as the merge date (F49, G). Reworded in 8a15039 |
+| confirmation of that fix | 8a15039 | Codex medium | 0 / 1 / 0 (F50, record) | the three fixed; the rewording added a prediction ("merges once its required checks pass") — removed in 64faf89 |
+| confirmation of that fix (the last allowed) | 64faf89 | Codex medium | 0 / 0 / 0 | clean: the row records the owner's dated order and points to the PR for the merge |
 
 ## Findings
 
@@ -104,6 +108,10 @@ Round 4 questions checked and refuted by reading: `others` is a list built by `a
 
 Fix chains: F1 → F18 → F30 → F36 (four links; closed by the boundary in F36) and F2 → F19 → F29 (three links; the owner was told and chose, see F29). Round 2's new tests (7, with 16 subtests) all fail on 1c20966 and pass now.
 | F46 | BUG (record) | C (merge link) | plan status row; the merge link's scope note | "merge … and its link check: see the trail" pointed at no entry, and the note did not tell the script's whole-file output from the one-sentence edit | fixed | the merge-link row above records both, with the commands; not substantive (the review record, not what the product does), so it takes the wording pass's one confirmation, not a round |
+| F47 | BUG (record) | C, G (owner-asked review of the PR row) | plan PR row | "merged" recorded a merge that had only been ordered | fixed | "merge ordered by the owner (…said on 2026-10-14)" |
+| F48 | RISK (record) | G | plan PR row | "this row reaches `main` only through that merge": a topology claim nothing guards | fixed | clause removed |
+| F49 | NIT (record) | G | plan PR row | the date could read as the merge date | fixed | "said on 2026-10-14" |
+| F50 | RISK (record) | C (confirmation) | plan PR row | the rewording predicted the merge would follow passing checks | fixed | clause removed; confirmed clean on 64faf89 |
 
 ## Evidence (for F6, F7 and the plan's own claims)
 
