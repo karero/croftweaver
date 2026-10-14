@@ -47,10 +47,7 @@ test.describe('without JavaScript', () => {
 // is served with one such link added, and EmailLink's own script turns it into the link.
 test('email — a % in an address reaches the mail program unchanged', async ({ page, request, baseURL }) => {
   // The first page whose HTML carries an EmailLink, so its script is on the page too.
-  let path: string | undefined;
-  for (const p of PAGES) {
-    if ((await (await request.get(new URL(p, baseURL!).href)).text()).includes('data-email=')) { path = p; break; }
-  }
+  const [path] = await pagesWithEmail(request, baseURL!);
   test.skip(!path, 'no page shows an address through EmailLink');
   const address = 'a%41@example.com';
   const data = Buffer.from(address.split('').reverse().join(''), 'utf-8').toString('base64');
