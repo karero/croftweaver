@@ -212,7 +212,8 @@ changed on GitHub. It never pulls, merges or changes files.
 > sandbox/approval model.
 It blocks destructive/irreversible commands (`rm -rf`, the usual force pushes,
 `git reset --hard`, `wrangler … delete`, `gh repo delete`): Claude Code refuses them
-outright, with no question, so run one yourself in a terminal if you really mean it. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
+outright, with no question, so run one yourself in a terminal if you really mean it. A
+force flag bundled with others (`git push -uf`) is not caught: a rule only matches text. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
 remove them from `allow` if you'd rather confirm each push.
 
 `settings.json` is committed (shared project policy). Personal/secret overrides go in

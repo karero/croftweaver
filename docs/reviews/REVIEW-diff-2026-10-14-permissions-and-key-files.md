@@ -45,3 +45,10 @@ The test script and its full output are kept in the session's scratchpad; the sc
 
 | Round | Head | Artifact | Reviewers | BUG/RISK/NIT |
 |---|---|---|---|---|
+| 1 | `a388ea1` | full: `origin/main...a388ea1` without `docs/reviews/`, 12 files, with the test records | codex-cli 0.162.1, config effort, read-only; melious glm-5.3 | codex 2 RISK; glm 1 BUG, 1 RISK, 2 NIT |
+| 2 | `5367049` | delta `a388ea1..5367049`, the author's record of round 1 | same | codex 1 BUG, 2 RISK; glm 2 RISK, 2 NIT, and 1 BUG (`.env*` wording) |
+
+Further test records:
+
+- Bundled force flags, 2026-10-14, same harness, branch settings: `git push -uf origin main` RAN, `git push origin main -vf` RAN. Not blocked by design (see round 1).
+- Wrangler 4.151.0 (`npx -y wrangler@4`), empty `XDG_CONFIG_HOME`, `WRANGLER_SEND_METRICS=false`, a fake token: no token anywhere, "You are not authenticated"; token only in `.dev.vars`, "You are not authenticated"; `CLOUDFLARE_API_TOKEN` in the shell, a request to `/user/tokens/verify` that Cloudflare rejected ("Invalid format for Authorization header"). So Wrangler reads the shell variable and not `.dev.vars`.

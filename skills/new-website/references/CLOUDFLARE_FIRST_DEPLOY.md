@@ -64,8 +64,8 @@ live fast with zero dashboard time.
   Not `.dev.vars`: that file holds the Worker's own local settings, and Cloudflare's list of
   where Wrangler reads its own variables from names the shell and a `.env` file, not
   `.dev.vars` ([system environment variables](https://developers.cloudflare.com/workers/wrangler/system-environment-variables/)).
-  The starter `.gitignore` also excludes `.env*` and `.dev.vars`, a backstop in case a
-  copy lands in a file in a generated site.
+  The starter `.gitignore` also excludes `.env`, `.env.*` (but not `.env.example`) and
+  `.dev.vars`, a backstop in case a copy lands in a file in a generated site.
   *(This suite repo additionally runs a `clean` CI gate that scans the distributed skill
   package for stray tokens — that gate does **not** run in generated sites.)*
 - **Never** commit it, paste it into a tracked file, or put it in the README.

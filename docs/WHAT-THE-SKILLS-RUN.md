@@ -321,11 +321,11 @@ the new release no longer has.
 | melious.ai key | `MELIOUS_API_KEY`, or `~/.config/reviewers/melious.env` (the setup guide says to make it readable only by you) |
 | ollama.com key | `OLLAMA_API_KEY` |
 | Codex, Antigravity, GitHub, Cloudflare sign-ins | each tool's own login |
-| Cloudflare API token | an environment variable for the session; the guide asks for a narrow token that expires in about a week |
+| Cloudflare API token | an environment variable for the session (Wrangler 4.151.0 read a token from the shell and not from `.dev.vars`, tested 2026-10-14); the guide asks for a narrow token that expires in about a week |
 
 All of these live outside the site's folder. The site's `.gitignore` also excludes `.env`,
-`.env.*`, `.dev.vars`, `.wrangler/`, and `client_secret*.json` and `token.json` at its top
-level, in case a copy lands there. The review tool passes
+`.env.*`, `.dev.vars`, `.wrangler/` and, at the site's top level, `client_secret*.json` and
+`token.json`, in case a copy lands there. The review tool passes
 its keys to `curl` through standard input, not on the command line. The Bing script
 removes the key from error messages before they reach a log; a test guards this.
 

@@ -63,8 +63,10 @@ wherever it stands in the command), `git reset --hard`, `gh repo delete`,
 `wrangler pages delete`, `wrangler delete`. **Do not move these to `allow`.** A rule only
 matches text: a force flag bundled with others (`git push -uf`) still runs, since a rule
 broad enough to catch it would also block `--follow-tags` and branch names with `-f` in
-them. On a shared site, GitHub's branch rules (`website-team-setup`) refuse a force push to
-`main` whatever the command looks like.
+them. Where `website-team-setup` could set GitHub's branch rules (§5-A: a public repo, or
+a private one on a paid plan), GitHub refuses a force push to `main` whatever the command
+looks like. A free private repo gets only the local pre-push guard (§5-B), which
+`--no-verify` skips.
 
 ## 3. Extend it safely when a new prompt recurs
 
