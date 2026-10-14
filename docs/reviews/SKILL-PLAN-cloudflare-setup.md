@@ -721,6 +721,17 @@ the token is deleted by the owner.
 7. **The script sets up; it does not repair a live site.** A project that already serves
    a domain with the wrong production branch is left alone (scenario 4).
 
+8. **Open to every AI crawler, not to a list of names** (maintainer, 2026-10-14: "yes to:
+   the three switches go into the plan's rewrite and into the checklist"). Besides the
+   three AI crawler policies (`ai_search`, `ai_user`, `ai_training`) and the rule
+   `ai_bots_protection`, the settings stage turns off three more switches that can keep
+   AI crawlers out, which the spike read on the live zone: the link maze for AI scrapers
+   (`crawler_protection`), the block on content bots (`content_bots_protection`), and
+   Cloudflare's managed `robots.txt` (`is_robots_txt_managed`). The checklist names them
+   too (plan step 6). Training stays a line the owner can leave out (`--skip ai`). What
+   "disabled" does in each of these fields is read from Cloudflare's field descriptions,
+   not yet seen in a test.
+
 ## Decisions D1 to D7
 
 Closed by the maintainer. The argument against each stays here as the record of what was
