@@ -65,8 +65,9 @@ matches text: a force flag bundled with others (`git push -uf`) still runs, sinc
 broad enough to catch it would also block `--follow-tags` and branch names with `-f` in
 them. Where `website-team-setup` could set GitHub's branch rules (§5-A: a public repo, or
 a private one on a paid plan), its rule against force pushes (`non_fast_forward`) makes
-GitHub refuse a force push to `main` whatever the command looks like (per GitHub's
-documentation; not tested by this kit). A free private repo gets only the local pre-push guard (§5-B), which
+GitHub refuse a force push to `main` whatever the command looks like (GitHub's
+[Block force pushes](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#block-force-pushes)
+rule; not tested by this kit). A free private repo gets only the local pre-push guard (§5-B), which
 `--no-verify` skips.
 
 ## 3. Extend it safely when a new prompt recurs
