@@ -227,7 +227,7 @@ class Scenarios(ProposalReportTest):
         self.assertIn("How people find you on Google", page)
         rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
         self.assertNotIn("result", rec)
-        self.assertEqual(rec["checks"][-1], {"date": "2026-12-14", "outcome": "new"})
+        self.assertEqual((rec["checks"][-1]["date"], rec["checks"][-1]["outcome"]), ("2026-12-14", "new"))
         measure = {(QUERY, "2026-10-05", "2026-11-01"): {"impressions": 279, "clicks": 2, "position": 11.4},
                    (QUERY, "2026-11-09", "2026-12-06"): {"impressions": 402, "clicks": 9, "position": 7.9}}
         page = self.build("2026-12-14", google=self.google("2026-12-14", measure=measure), page=new_page, gh=merged)
@@ -327,6 +327,13 @@ class _Pages(BaseHTTPRequestHandler):
         if self.path == "/reparatur":
             body = f"<html><head><title>{OLD_TITLE}</title></head><body><h1>Reparatur</h1></body></html>".encode()
             self.send_response(200)
+        elif self.path == "/odd-charset":
+            body = f"<html><head><title>{OLD_TITLE}</title></head></html>".encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=x-no-such-charset")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         elif self.path == "/huge":
             body = b"<title>x</title>" + b"a" * (sr.PAGE_MAX_BYTES + 10)
             self.send_response(200)
@@ -359,6 +366,7 @@ class LivePageReader(unittest.TestCase):
 
     def test_a_missing_or_oversized_page_is_unreadable(self):
         self.assertIsNone(sr.read_live_page(self.base + "/gone", "127.0.0.1"))
+        self.assertIsNone(sr.read_live_page(self.base + "/odd-charset", "127.0.0.1"))   # never a crash
         self.assertIsNone(sr.read_live_page(self.base + "/huge", "127.0.0.1"))
 
     def test_a_redirect_is_followed_only_on_the_site(self):

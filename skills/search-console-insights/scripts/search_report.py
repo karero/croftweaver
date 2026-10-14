@@ -323,11 +323,11 @@ def read_live_page(url, site):
                 return None
             body = resp.read(PAGE_MAX_BYTES + 1)
             charset = resp.headers.get_content_charset() or "utf-8"
-    except Exception:
+        if len(body) > PAGE_MAX_BYTES:
+            return None
+        return fp.parse_page(body.decode(charset, errors="replace"))
+    except Exception:          # an unknown charset or a broken page is unreadable, never a crash
         return None
-    if len(body) > PAGE_MAX_BYTES:
-        return None
-    return fp.parse_page(body.decode(charset, errors="replace"))
 
 
 def measure_search(service, prop, country, query, w):
@@ -344,14 +344,17 @@ def measure_search(service, prop, country, query, w):
     return out
 
 
-def _check_today(rec, today, outcome):
+def _check_today(rec, today, outcome, title=None):
     """Add this run's look at the live page. A second run on the same day adds a look only when it
     saw something else, so an "old" in the morning and a "new" after the change went live both
     stay, in the order they were made (fix_proposal.windows reads them that way)."""
     checks = list(rec.get("checks", []))
     last = checks[-1] if checks else None
     if not (last and last.get("date") == today.isoformat() and last.get("outcome") == outcome):
-        checks.append({"date": today.isoformat(), "outcome": outcome})
+        look = {"date": today.isoformat(), "outcome": outcome}
+        if title is not None:
+            look["title"] = title     # kept, so a corrected new title can judge it again
+        checks.append(look)
     rec["checks"] = sorted(checks, key=lambda c: c["date"])
 
 
@@ -369,8 +372,8 @@ def follow_proposals(state, service, prop, country, finished, today, read_page, 
         if rec.get("declined_on") or not rec.get("new_title"):
             continue
         page = read_page(rec["page"])
-        _check_today(rec, today, fp.classify_title(page.get("title") if page else None,
-                                                   rec.get("old_title"), rec["new_title"]))
+        title = page.get("title") if page else None
+        _check_today(rec, today, fp.classify_title(title, rec.get("old_title"), rec["new_title"]), title)
         w = fp.windows(rec["checks"])
         if w and w["weeks"] == 0 and w["interrupted"]:
             rec["result"] = {"too_soon": True, "interrupted": w["interrupted"]}

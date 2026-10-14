@@ -92,3 +92,19 @@ round-3 fixes verified landed.
 | 1 | Codex | BUG | An archived round's closed pull request, reopened later, is never asked about, so its page is not blocked | Cut, not patched: the third fix of the same kind (following pull requests) would have meant asking GitHub about every archived pull request every week. The report follows a pull request only while its round is in progress; design §3.4 and the reference say so, and that a reopened old pull request is the owner's to mention |
 | 2 | Codex | RISK | The thin-data sentence still wrote "8 to 20" as text | Fixed: from `T1_POSITION` |
 | 3 | GLM | NIT | "4 weeks" is written out, not taken from a constant | Refuted: the four-week window is the report page's own, written the same way across the whole page (`fetch_google`, the headline, the tables); a change to it would be page-wide, not this feature's |
+
+## Final full read and wording pass — Codex at 1ad32d4, 2026-10-14 (round 5, `--earned-by wording`)
+
+The change was 127 KB, over the script's 117 KB limit for one artifact, so it was read in two
+parts: the code, and the rest. 9 findings: 7 BUG, 2 RISK (one RISK raised in both parts,
+merged): 8 distinct. All fixed.
+
+| # | Part | Kind | Finding | Disposition |
+|---|---|---|---|---|
+| 1 | code | BUG | Correcting a recorded title kept looks judged against the wrong title, and their result | Fixed: each look keeps the title it saw; a corrected title judges them again and drops the result |
+| 2 | both | BUG | The design and the reference said measured or expired rounds stop being followed; the code follows every round on record until merged and measured | Fixed: the documents describe the code (a round is archived only when the same search is proposed again) |
+| 3 | code | BUG | An unknown charset raised outside the page reader's error handling and cost the section | Fixed: decoding is inside it; local-server test |
+| 4 | code | BUG | `show` called the title from before the change "Current title" | Fixed: "Title before the proposal" |
+| 5 | code | BUG | Eval 12 asked to decline a proposal whose search differs from the owner's sentence, while the reference says to stop | Fixed: the sentence names the proposal's own search; eval 12 tests the positioning only |
+| 6 | rest | BUG | A closing GitHub reported later overwrote the owner's newer "no" | Fixed: an owner's own decline is never overwritten |
+| 7 | both | RISK | The design stated as certain that the slash sentence loads the skill | Fixed: worded as what the cold runs of 2026-10-14 showed |

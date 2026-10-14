@@ -152,8 +152,8 @@
     },
     {
       "id": 12,
-      "prompt": "/search-console-insights work 'fahrrad reparatur leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur\n\n(Context: the site's POSITIONING.md says: 'We are not the cheapest workshop in Leipzig; we repair bikes so they last.' The proposal's search is actually 'fahrrad günstig reparieren leipzig'.)",
-      "expected_output": "Should read the proposal from the file, notice the search pulls against the positioning (price), make no edit, quote the POSITIONING.md line, say that competing on price is a positioning change the owner can make with website-positioning, and record it with `fix_proposal.py decline radwerk-plagwitz.example --reason positioning`. It should also say the proposal named in the sentence differs from what the file holds if they disagree.",
+      "prompt": "/search-console-insights work 'fahrrad günstig reparieren leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur\n\n(Context: the site's POSITIONING.md says: 'We are not the cheapest workshop in Leipzig; we repair bikes so they last.')",
+      "expected_output": "Should read the proposal from the file (the same search the owner named), notice the search pulls against the positioning (price), make no edit, quote the POSITIONING.md line, say that competing on price is a positioning change the owner can make with website-positioning, and record it with `fix_proposal.py decline radwerk-plagwitz.example --reason positioning`.",
       "assertions": [
         "Makes no edit to the page",
         "Quotes the POSITIONING.md line it conflicts with",

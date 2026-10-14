@@ -438,7 +438,9 @@ def apply_pr_state(rec: dict, gh, today=None) -> dict:
         rec.pop("decline_reason", None)
     if gh["state"] == "MERGED":
         pr["merged_at"] = gh.get("mergedAt")
-    elif gh["state"] == "CLOSED" and rec.get("decline_reason") != "closed":
+    elif gh["state"] == "CLOSED" and not rec.get("declined_on"):
+        # The owner's own "no" (in words, or for the positioning) stands as given; a closing
+        # GitHub reports later never moves its date.
         closed = (gh.get("closedAt") or "")[:10] or (today or _today()).isoformat()
         rec["declined_on"], rec["decline_reason"] = closed, "closed"
     return rec
@@ -532,7 +534,7 @@ def cmd_show(site, args):
     print(f"Window: {rec['window'][0]} to {rec['window'][1]}")
     print(f"Figures: average position {rec['position']:.1f}, {rec['impressions']} impressions, "
           f"{rec['page_impressions']} of them on this page")
-    print(f"Current title: {rec['old_title']}")
+    print(f"Title before the proposal: {rec['old_title']}")
     if rec.get("pr"):
         print(f"Pull request: {rec['pr']['url']} ({rec['pr'].get('state') or 'state not checked yet'})")
     until = declined_until(rec)
@@ -562,6 +564,13 @@ def cmd_acted(site, args):
         raise SystemExit("The new title is the same as the current one, so the live page could not "
                          "show whether the change is out. Record the built page's new <title>.")
     rec["pr"] = {"url": args.pr.strip(), "repo": repo, "number": number, "state": None}
+    if rec.get("new_title") and norm_title(rec["new_title"]) != norm_title(args.new_title):
+        # A corrected title: every look that kept the title it saw is judged again against the
+        # corrected one, and a comparison measured from the old judgment no longer stands.
+        for c in rec.get("checks", []):
+            if "title" in c:
+                c["outcome"] = classify_title(c["title"], rec.get("old_title"), args.new_title)
+        rec.pop("result", None)
     rec["new_title"] = " ".join(args.new_title.split())
     rec.pop("declined_on", None)
     rec.pop("decline_reason", None)

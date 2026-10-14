@@ -262,6 +262,13 @@ class PullRequestTests(unittest.TestCase):
         r["pr"]["state"], r["result"] = "OPEN", {"weeks": 4}
         self.assertEqual(fp.page_block(r), "pull request open")
 
+    def test_an_old_closing_never_shortens_the_owners_own_no(self):
+        # Final read: a closing GitHub reported later moved a newer decline back in time.
+        r = self.rec()
+        r["declined_on"], r["decline_reason"] = "2026-10-14", "owner"
+        r = fp.apply_pr_state(r, {"state": "CLOSED", "closedAt": "2026-01-01T00:00:00Z"})
+        self.assertEqual((r["declined_on"], r["decline_reason"]), ("2026-10-14", "owner"))
+
     def test_only_github_pull_request_addresses_are_taken(self):
         self.assertEqual(fp.parse_pr_url("https://github.com/example-owner/site/pull/31"), ("example-owner/site", 31))
         for bad in ("https://gitlab.com/a/b/-/merge_requests/3", "github.com/a/b/pull/3", "#31"):
@@ -478,6 +485,25 @@ class CommandLineTests(unittest.TestCase):
         out = self.run_cli("show", SITE)
         self.assertIn("pull/31", out.stdout)
         self.assertNotIn("Proposal: none", out.stdout)
+
+    def test_a_corrected_title_judges_the_kept_looks_again(self):
+        # Final read: a corrected title kept looks judged against the wrong one, and their result.
+        self.seed()
+        self.run_cli("acted", SITE, "--pr", "https://github.com/example-owner/radwerk/pull/31",
+                     "--new-title", "Fahrradreparatur in Leipzig-Plagwitz | Example")
+        st = self.state()
+        rec = st["proposals"][fp.proposal_key(PAGE, QUERY)]
+        rec["checks"].append({"date": "2026-11-09", "outcome": "other", "title": NEW_TITLE})
+        rec["result"] = {"too_soon": True, "interrupted": "2026-11-12"}
+        st["current"] = None
+        self.path.write_text(json.dumps(st), encoding="utf-8")
+        out = self.run_cli("acted", SITE, "--page", PAGE, "--pr", "https://github.com/example-owner/radwerk/pull/31",
+                           "--new-title", NEW_TITLE)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+        self.assertEqual([c["outcome"] for c in rec["checks"]], ["old", "new"])
+        self.assertNotIn("result", rec)
+        self.assertIn("Title before the proposal: " + OLD_TITLE, self.run_cli("show", SITE).stdout)
 
     def test_a_site_name_cannot_lead_the_file_out_of_its_folder(self):
         for bad in ("../../outside", "a/b.example", "..", "nodot"):

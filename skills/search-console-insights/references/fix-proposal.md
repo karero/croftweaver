@@ -108,10 +108,10 @@ words; the terms `positioning.spec.ts` requires stay.
 `fix_proposal.py decline <site>` (add `--page <address>` if the owner means an earlier
 proposal than the report's current one). The report does not propose that search on that page again
 for 12 weeks and says until when. Closing the pull request is noticed by the report on its
-own (it asks GitHub with `gh`), counted from the day it was closed. The report follows a pull
-request only while its proposal is in progress; once that round is measured, or turned down
-and its 12 weeks are over, an old pull request reopened later is not followed. If the owner
-reopens one, say so and check the page by hand.
+own (it asks GitHub with `gh`), counted from the day it was closed. The report keeps asking
+about a pull request until it is merged and measured, so a reopened one keeps its page out of
+new proposals. Only a round the report has archived (when the same search was proposed again)
+is no longer followed; if the owner reopens such an old pull request, check the page by hand.
 
 ## Questions owners ask
 
