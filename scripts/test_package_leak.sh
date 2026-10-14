@@ -20,11 +20,11 @@ trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/repo/scripts" "$T/bin"
 cp "$HERE/package.sh" "$T/repo/scripts/package.sh"
 
-# Stubs: zip writes one line where the zip would go (so there is a file to checksum); unzip -Z1
+# Stubs: zip writes one line to the .zip it is given (so there is a file to checksum); unzip -Z1
 # prints the listing under test, unzip -l a total line.
 cat >"$T/bin/zip" <<'EOF'
 #!/bin/sh
-printf 'stub zip\n' >"$3"
+for a in "$@"; do case "$a" in *.zip) printf 'stub zip\n' >"$a" ;; esac; done
 EOF
 cat >"$T/bin/unzip" <<'EOF'
 #!/bin/sh
@@ -107,6 +107,14 @@ done
 { cat "$T/required"; echo "docs/BUGLOG.md.html"; echo "skills/x/docs/BUGLOG.md"; } >"$T/lookalike.list"
 run lookalike
 check "look-alike names are not trackers: exit 0" rc_is lookalike 0
+
+# A checksum tool that fails must fail the build and leave no SHA256SUMS behind.
+mkdir -p "$T/badsum"
+for t in sha256sum shasum; do printf '#!/bin/sh\nexit 1\n' >"$T/badsum/$t"; chmod +x "$T/badsum/$t"; done
+PATH="$T/badsum:$T/bin:$PATH" LISTING="$T/clean.list" bash "$T/repo/scripts/package.sh" >"$T/badsum.out" 2>&1
+echo $? >"$T/badsum.rc"
+check "a failing checksum tool fails the build: exit 1" rc_is badsum 1
+check "a failing checksum tool leaves no SHA256SUMS" no_sums
 
 # A scan that errors must fail, not read as "nothing leaked": awk stubbed to fail, on a clean listing.
 mkdir -p "$T/badawk"

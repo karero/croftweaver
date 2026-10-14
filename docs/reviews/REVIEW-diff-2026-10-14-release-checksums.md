@@ -18,3 +18,6 @@ Tools on this Mac (macOS 26.7.1): `/sbin/sha256sum` and `/usr/bin/shasum`; `sha2
 
 | Round | Head | Artifact | Reviewers | BUG/RISK/NIT |
 |---|---|---|---|---|
+| 1 | `46742bd` | full: `origin/main...46742bd` without `docs/reviews/`, 6 files, with the test records and package.sh | codex-cli 0.162.1, config effort, read-only; melious glm-5.3 | codex 1 BUG; glm 3 NIT |
+
+Round-1 test records: `bash scripts/test_package_leak.sh` "all checks passed" with two new checks (a failing checksum tool fails the build; it leaves no SHA256SUMS); with the new cleanup removed, "FAIL a failing checksum tool leaves no SHA256SUMS". PowerShell 7 (`pwsh`) on this Mac: `(Get-FileHash croftweaver.zip -Algorithm SHA256).Hash` printed `3248AA86…87814F3`, the same hash as `SHA256SUMS` in capitals.

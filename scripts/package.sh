@@ -143,5 +143,6 @@ echo "zip integrity OK — all critical files present, no internal artifacts"
 if command -v sha256sum >/dev/null 2>&1; then sum=(sha256sum)
 elif command -v shasum >/dev/null 2>&1; then sum=(shasum -a 256)
 else echo "FAIL — neither sha256sum nor shasum found: cannot write dist/SHA256SUMS."; exit 1; fi
-(cd "$OUT" && "${sum[@]}" croftweaver.zip) >"$OUT/SHA256SUMS"
+(cd "$OUT" && "${sum[@]}" croftweaver.zip) >"$OUT/SHA256SUMS" \
+  || { rm -f "$OUT/SHA256SUMS"; echo "FAIL — ${sum[0]} could not checksum the zip."; exit 1; }
 echo "wrote $OUT/SHA256SUMS: $(cut -c1-16 "$OUT/SHA256SUMS")…"

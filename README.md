@@ -297,8 +297,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 
 Every version is a git tag + a [GitHub Release](https://github.com/karero/croftweaver/releases)
 whose notes are the human-readable "what's new", with the handoff zip attached as the
-download asset and a `SHA256SUMS` file beside it. Underneath, updates stay commit-based (`git pull`, `SUITE-VERSION`
-stamps, `whats-new`) — a release just names a milestone. Versions step by **0.01**
+download asset and a `SHA256SUMS` file beside it. Underneath, updates stay commit-based
+(`git pull`, `SUITE-VERSION` stamps, `whats-new`) — a release just names a milestone. Versions step by **0.01**
 (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
@@ -324,9 +324,9 @@ gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --l
 Zip users download the newest release from the Releases page; clone users keep using
 `git pull` and don't need to care about tags. To check a downloaded zip, put `SHA256SUMS`
 from the same release beside it and run `shasum -a 256 -c SHA256SUMS` (macOS) or
-`sha256sum -c SHA256SUMS` (Linux); it prints `croftweaver.zip: OK`. On Windows,
-`Get-FileHash croftweaver.zip` in PowerShell prints the hash: compare it with the one in
-`SHA256SUMS` (it prints capitals, the file small letters).
+`sha256sum -c SHA256SUMS` (Linux); it prints `croftweaver.zip: OK`. On Windows, run
+`(Get-FileHash croftweaver.zip -Algorithm SHA256).Hash` in PowerShell and compare the hash it
+prints with the one in `SHA256SUMS` (it prints capitals, the file small letters).
 
 ### Using with Google Antigravity
 
