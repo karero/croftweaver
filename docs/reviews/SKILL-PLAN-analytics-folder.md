@@ -51,6 +51,9 @@ analytics/                         kept off GitHub (.gitignore: /analytics/)
   2026-10-14_google-ai-report/     Google's generative AI download, as received
   2026-10-14_bing-ai-report/       Bing's AI Performance download, as received
   2026-10-07_geo-run/              one AI-check run: its page and every answer word for word
+  facts-history.csv                one line per facts check: pages read, mismatches, outdated values
+  2026-10-14_facts-check/          one facts check: facts-report.md and facts-report.json
+  2026-10-14_positioning-check/    one positioning check: verdict.md (the assistant's judgment)
 ```
 
 The top level is what the owner reads; the dated folders are the evidence `actions.md` links to.
@@ -116,6 +119,22 @@ publishes no E-E-A-T score and these tools collect no signal for it.
 **B12 — The owner's existing AI-check results** *(draft 2)*. The owner's one site with results in
 `docs/geo/` (a private repo) moves them to `analytics/<run date>_geo-run/` with `git mv`, so that
 repo keeps tracking them (the owner's choice, B5). A separate change in that site's repo.
+
+**B13 — The facts check** *(draft 2, owner's addition)*. Given the site has a facts list
+(`facts.json`, which stays where the owner keeps it: it is the owner's list, not analytics), when
+the folder is updated (B9), then the facts check runs with its report in
+`<date>_facts-check/` and one line added to `analytics/facts-history.csv`. A figure on a live page
+that no longer matches the list becomes a P1 entry in `actions.md`. Why: a site that blogs or posts
+news quotes its figures again and again, and an old number in a new post is the commonest drift.
+
+**B14 — The positioning check** *(draft 2, owner's addition)*. Given `POSITIONING.md` exists, when
+the folder is updated and the site has pages it did not have at the last verdict (new posts, news),
+then the assistant runs the positioning check on the new and changed pages and saves its verdict
+(Clear / Blurred / Broken, the biggest gap, the fixes) to `<date>_positioning-check/verdict.md`,
+marked as judgment. Blurred or Broken findings become entries in `actions.md`. With no new pages
+since the last verdict, it is skipped and the update says so. *(The "only when pages are new"
+trigger is the assistant's proposal, to avoid paying for the same judgment every week: the owner
+may overrule it.)*
 
 **B8 — Nothing else changes.** The weekly job, the report pages and `~/.config/gsc-insights/`
 work as today; the folder is a kept copy, not where the skill reads from.
