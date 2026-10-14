@@ -762,10 +762,11 @@ inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --dep
 rows_join_gate() {   # rows_join_gate <log> <lines before> <gate id>: there are new rows, and each carries the id
   tail -n +"$(($2 + 1))" "$1" | awk -F'\t' -v g="$3" 'NF { n++; if (g == "" || $14 != g) bad = 1 } END { exit (n > 0 && !bad) ? 0 : 1 }'
 }
-gate_before="$(cat "$G/.git/independent-review-gate")"; lines_before="$(wc -l <"$GL")"
+# Line 1 is the open gate; line 2, when there is one, the gate it follows (review_log.sh new-gate).
+gate_before="$(sed -n 1p "$G/.git/independent-review-gate")"; lines_before="$(wc -l <"$GL")"
 inrepo gatenr bash "$SCRIPT" "$T/change.diff" --depth normal
 check "gates: a run with no --round is logged, under the open gate's id" rows_join_gate "$GL" "$lines_before" "$gate_before"
-check "gates: a run with no --round starts no gate" [ "$(cat "$G/.git/independent-review-gate")" = "$gate_before" ]
+check "gates: a run with no --round starts no gate" [ "$(sed -n 1p "$G/.git/independent-review-gate")" = "$gate_before" ]
 check "gates: --round 1 leaves an id in the repo's git dir" [ -s "$G/.git/independent-review-gate" ]
 check "gates: every line carries a gate id" awk -F'\t' 'NR > 1 && ($14 == "" || $14 == "-") {bad=1} END {exit bad}' "$GL"
 check "gates: two ids, the late host seat in the second" \
@@ -1489,9 +1490,10 @@ check "noperl: no perl at all: named as missing, not as too old" \
 #     the exit code, the reviewers line and the cost log's outcome column are as at round 8. A
 #     13-round gate had no owner decision recorded past round 8; a refusal would stop the process,
 #     so this is a line the caller reads in the round's own output.
-run round8 REVIEW_LOG="$T/round8.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 8
-run round9 REVIEW_LOG="$T/round9.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 9
-run round12 bash "$SCRIPT" "$T/change.diff" --depth normal --round 12
+#     Each names --earned-by: a round past 3 is refused without it (test_round_checks.sh).
+run round8 REVIEW_LOG="$T/round8.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 8 --earned-by stub-kind
+run round9 REVIEW_LOG="$T/round9.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 9 --earned-by stub-kind
+run round12 bash "$SCRIPT" "$T/change.diff" --depth normal --round 12 --earned-by stub-kind
 run noround bash "$SCRIPT" "$T/change.diff"
 check "round 8: no past-round-8 notice" lacks round8.out "is past round 8"
 check "round 9: the notice names the round, the step and the owner" \

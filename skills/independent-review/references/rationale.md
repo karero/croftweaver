@@ -510,3 +510,54 @@ ran after the first, and 75 of them found no BUG.
 Where the numbers come from: the trails, read partly by a model whose extraction was checked by
 hand on two trails and against a parser on 17. Timings were recorded for part of the passes only.
 The cost log held nothing: on the owner's machine its directory was not writable.
+
+## The earned-by kind and the cut — why the script checks it, and what was left out
+
+The trigger. One DIFF gate at High depth in October 2026 (the brand-kit skill, PR 283) ran nine
+rounds over about 31 hours before the owner granted the next ones one at a time (eleven in all), and used about 37 million tokens: about 21.5 million for the reviewer
+seats, the rest for the fixers and the host. Findings per round: 102, 102, about 105, 93, 72, 58,
+49, 39, 45. One kind of finding, the advice a tool gave for a reshaped config file, brought BUGs in
+rounds 3 to 9, each time for another shape of file; a cut in round 10 (the advice taken out)
+ended it. The cuts of round 3 (a feature dropped, a scanner replaced by a strict rule) never came
+back.
+
+What the record showed. Every gate with four rounds or more (45 gates, 303 rounds) was replayed
+against the rules then proposed:
+- The old stop rule ("STOP patching when a verified fix re-breaks something an earlier round
+  fixed", on main since July 2026) had its trigger met in 34 of the 45 gates, and the rounds went
+  on in about 30 of them. In the brand-kit gate it was met in rounds 2 to 8. Its outlets
+  ("redesign" counted for one part inside the same PR; "a chain of fixes is the gate working")
+  let every round through. A rule in prose that the host weighs itself is not followed under the
+  pull of one more fix. Hence the check in the script: a round past 3 names the kind that earned
+  it, and a kind that comes back needs a cut the host has to name.
+- Fresh-eyes was the largest single cost: 11 of the 21.5 million reviewer tokens in that gate,
+  because a sub-agent with the whole tree reads widely. BUGs only fresh-eyes found: 9 in round 1,
+  6, 5 and 4 in rounds 2 to 4, then 10 in rounds 5 to 9 (about two a round), at about 1.2 million
+  tokens a round. Hence
+  fresh-eyes at High in rounds 1 to 3, on the round's change from round 2; the final full read
+  still reads the whole.
+- Nobody saw the running total until the owner asked. Hence the script prints it each run.
+
+Left out, and why:
+- A severity bar that would make a BUG found only with input made by hand a NIT where the tool
+  stops safely. Replayed on the 45 gates it would have saved 1 round of 303 read strictly: late
+  rounds on code were earned by tracebacks, hangs, a wrong "Done", files changed, not by safe
+  stops. It is also the realism filter this file already rejects above: the author who wants the
+  rounds to stop is the wrong judge.
+- A notice instead of a refusal for a kind that comes back. The owner prefers warnings; here he
+  chose the refusal (2026-10-14), since a warning is what the old stop rule was. One flag satisfies
+  it; the cost is that the host must name the cut, in the log.
+- Moving the owner's decision from round 8 to round 5: not chosen.
+- The optional `caused-by` note on a trail row (above, after PR 230): dropped from SKILL.md. It
+  changed no rule, the host wrote it about its own fixes, and the `--earned-by` kinds in the log
+  now show the same chain without depending on the host to note it.
+- How the checks can be satisfied without changing anything (naming another kind from the same
+  round, renaming a kind, restarting at round 1, leaving `--round` off): the script compares kinds
+  in a normalised form and across every earlier round, and its running-total line shows the
+  owner the kinds, the cuts, the runs without a round and the gate a restart follows. A host that
+  names kinds dishonestly is not stopped; it is made visible.
+
+What this does not show: that the gate finds the same real defects with fresh-eyes only in rounds
+1 to 3: in the brand-kit gate 34 BUGs were found by fresh-eyes alone, 14 of them in rounds 4 to 9,
+and those would have been left to the pair and the final full read; and how many rounds the cut check saves (an estimate of 15 to 25 rounds over the 45
+gates, not a measurement). Judge both by the cost log's rounds and tokens per gate.
