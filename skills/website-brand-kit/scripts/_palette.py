@@ -276,6 +276,17 @@ def _css_shown(text):
 _HIDDEN_IN_QUOTE = re.compile(r"<U\+(?!000[9ACD]>)[0-9A-F]{4,6}>")   # a <U+...> that is not one of CSS's own blanks
 
 
+_BLANK_NAMES = (("<U+000A>", "a line end"), ("<U+000D>", "a carriage return"), ("<U+0009>", "a tab"), ("<U+000C>", "a form feed"))
+
+
+def _blanks_named(quote):
+    """A sentence that names what each of CSS's own blanks written as <U+...> in `quote` is, or nothing. Said where a
+    quote shows them exactly (after a backslash, where the character is the one the backslash stands before): none of
+    them is a character to take out, so _noted's sentence would be the wrong advice there."""
+    named = ["%s is %s" % (mark, what) for mark, what in _BLANK_NAMES if mark in quote]
+    return " (In the quote, %s: the character after the backslash, as the file has it.)" % ", ".join(named) if named else ""
+
+
 def _noted(message):
     """A stylesheet message with the sentence that says what <U+...> is, where a quote in it holds a character that does
     not show. A tab, line end or form feed written so (after a backslash, where it matters) is no such character."""
@@ -1667,8 +1678,8 @@ def scan_css(text):
                                 "(`--b\\67` is `--bg` to a browser, and `u\\72l(` is `url(`), and this check does not read a name written "
                                 "with one, so it cannot tell what the stylesheet says from there on. Write the name out without the "
                                 "backslash. Where a name cannot be written without one (a class name with a colon in it), move that rule "
-                                "into another stylesheet."
-                      % (_line_number(text, escape), _visible(plain[start:end]))))   # (a line end after the backslash is the point: shown)
+                                "into another stylesheet.%s"
+                      % (_line_number(text, escape), _visible(plain[start:end]), _blanks_named(_visible(plain[start:end])))))   # (a line end after the backslash is the point: shown)
     if string is not None:
         end = string
         while end < len(text) and text[end] not in "\n\r\f":
