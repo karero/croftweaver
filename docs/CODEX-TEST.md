@@ -37,10 +37,12 @@ This is the exact logic the scaffold runs. On a machine that also has Claude Cod
 Antigravity, force Codex's path first:
 ```bash
 export SKILLS_ROOT=~/.agents/skills           # needed if Claude Code or Antigravity is also installed
+codex_home="$(CDPATH= cd -- "${CODEX_HOME:-$HOME/.codex}" 2>/dev/null && pwd)" || codex_home="${CODEX_HOME:-$HOME/.codex}"
 if [ -z "${SKILLS_ROOT:-}" ]; then
   SKILLS_ROOT="$HOME/.claude/skills"
   : "${CLAUDE_SKILL_DIR:=}"
-  for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
+  codex_plugin="$(find "$codex_home/plugins/cache/croftweaver/croftweaver" -mindepth 2 -maxdepth 2 -type d -name skills 2>/dev/null | sort | tail -n 1)" || codex_plugin=
+  for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills" "${codex_plugin:-/..}"; do
     [ "$d" != /.. ] && [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
   done
 fi
