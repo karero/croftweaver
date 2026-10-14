@@ -5,9 +5,9 @@ its skills run, which services they talk to, what they write outside your site's
 where your keys are kept, and how a release is made. It was written by reading the scripts
 and the skill files, not from memory.
 
-**Checked on 2026-10-14, against `main` at commit `e038603`, and the changes up to `034472d`
-read again.** A later change can make a
-line here wrong. Where something could not be checked, the line says so.
+**Checked on 2026-10-14, against `main` at commit `e038603`; the changes up to `034472d`
+were read again.** A later change can make a line here wrong. Where something could not be
+checked, the line says so.
 
 A skill is a set of written instructions for your AI assistant (Claude Code, Codex or
 Antigravity). Some skills also bring small scripts. The assistant reads the instructions
