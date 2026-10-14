@@ -71,8 +71,9 @@ What this list does and does not protect:
   --force` and `git push origin +main` do not begin with `git push --force`, so they fall
   under the `git push` rule and run without asking. So does `git push --delete`. (Read from
   the rules and from Claude Code's documented matching; not tried in a live session.)
-- `find` with `-delete` or `-exec` still asks: Claude Code's documentation says a `find`
-  rule cannot approve a `find` that deletes, writes or runs commands.
+- `find` with `-delete` or `-exec` should still ask: Claude Code's documentation says a
+  `find` rule cannot approve a `find` that deletes, writes or runs commands. (Read, not
+  tried in a live session.)
 
 **Codex and Antigravity** do not read `.claude/settings.json`. They use their own approval
 settings, which Croftweaver does not change.
@@ -89,7 +90,7 @@ These are instructions only: `ai-seo`, `copywriting`, `customer-research`, `sche
 through Google's and Cloudflare's pages; the assistant drafts the values) and
 `website-motion` (it copies one test file into the site).
 
-Three more bring no scripts but name a few commands:
+Three more name a few commands:
 
 - `business-listings-setup` has the assistant request each profile address your site
   links to (Google, LinkedIn and the like), the way `outgoing-link-audit` does, to see
@@ -97,8 +98,8 @@ Three more bring no scripts but name a few commands:
 - `image` shows example commands for image tools (`cwebp`, `mogrify`, `jpegoptim`) and a
   `curl` that reads a page's image list. It may suggest an image service (Gemini, Flux,
   Ideogram, OpenAI) that you use with your own account and key.
-- `website-permissions` copies `.claude/settings.json` and its hook into the site (see
-  above).
+- `website-permissions` copies `.claude/settings.json` and the sync hook script it
+  registers (`git-stand.mjs`, which runs `git fetch`) into the site (see above).
 
 ### Skills that run the site's own build and tests
 
@@ -123,7 +124,8 @@ What the site's own scripts do (from `package.json` in the
 - `npm install` also runs `scripts/wire-hooks.mjs`. When the site is the top folder of its
   git repository, it points the repository's git hooks at `scripts/hooks`
   (`git config core.hooksPath scripts/hooks`, for this repository only). The pre-push hook
-  then runs `npm run verify` before each push, except a push that only deletes a branch.
+  then runs `npm run verify` before each push, except a push that only deletes branches or
+  tags.
 - `npm run ship` (two-stage sites) pushes `main` to the `production` branch on GitHub,
   which makes Cloudflare publish the live site, then reads the live `build.txt` until it
   shows the new commit. It refuses to run on a branch other than `main`, with unsaved
@@ -132,7 +134,7 @@ What the site's own scripts do (from `package.json` in the
 `website-contact-form` builds a `mailto:` link: the visitor's own mail program sends the
 message. There is no form server.
 
-### Skills with their own scripts
+### Skills that run scripts
 
 - **`new-website`** creates the site folder (in the folder you confirm), runs `git init`,
   `npm create astro@latest`, copies the templates and 26 skills into the site, and runs the
@@ -204,6 +206,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | melious.ai | `independent-review`, only when a model is named for it | your `MELIOUS_API_KEY` | sends the plan or code change |
 | Google Antigravity | `independent-review`, only when you ask for it | your Antigravity sign-in | sends the plan or code change |
 | Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs` | none | reads only |
+| docs.astro.build, developers.cloudflare.com, keystatic.com | the assistant, when it looks up documentation (allowed without asking in Claude Code) | none | reads only |
 | Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views go to the analytics address you set |
 
 Some details:
@@ -241,12 +244,16 @@ Croftweaver sends nothing to its maintainer. This was checked in two passes:
 
 What touches the maintainer's own places:
 
-- `npm create croftweaver` reads the release zip from GitHub, and Claude Code reads the
-  plugin from GitHub.
+- `npm create croftweaver` reads the release zip from GitHub, Claude Code reads the plugin
+  from GitHub, and a `git clone` of the toolkit (one of the README's install routes) reads
+  it from GitHub.
 - After launch, `new-website` asks you once whether you want a "Built with Croftweaver"
   credit in your footer. Only if you say yes does the assistant read the badge code and
-  files from croftweaver.com. The badge is then saved in your site, so your visitors load
-  it from your site, not from croftweaver.com; the credit is a link to croftweaver.com.
+  files from croftweaver.com; like any web request, that one shows up in croftweaver.com's
+  server logs. The skill tells the assistant to save the badge in your site. The site's
+  security header lets images load only from the site itself (`img-src 'self' data:`), so
+  your visitors' browsers do not fetch a badge from croftweaver.com. The credit is a link
+  to croftweaver.com.
 - `croftweaver.com` and `github.com/karero/croftweaver` otherwise appear only as links.
 
 Two tools the site uses collect anonymous usage data by default, for their own makers and
@@ -277,10 +284,11 @@ with its own terms.
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |
 | a short-lived folder in your temp folder | `website-scorecard` | each scorecard run | deleted at the end of the run |
 
-Inside the site's own `.git` folder, the sync hook (`.claude/hooks/git-stand.mjs`, at
+In the site repository's git folder, the sync hook (`.claude/hooks/git-stand.mjs`, at
 session start and again once the last sync is 2 hours old) keeps a small marker file,
-`.git/claude-git-stand`. If `.git` cannot be written, the file goes to your temp folder
-instead.
+`claude-git-stand`: normally `.git/claude-git-stand`, and for a git worktree in that
+worktree's folder under the main checkout's `.git/worktrees/`. If the git folder cannot be
+written, the file goes to your temp folder instead.
 
 `git config core.hooksPath` is set for the site's repository only, never globally. No
 script writes to the keychain, `crontab`, Windows Task Scheduler or `systemd`. On Linux
