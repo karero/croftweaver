@@ -108,6 +108,10 @@ page-by-page inventory, or generic marketing advice.
 
 ## Handoff
 
+If the site has an `analytics/` folder, save the verdict to
+`analytics/<date>_positioning-check/verdict.md`: first line "The assistant's judgment, not a
+measurement", the list of pages judged at the end, so the next check can tell which pages are new.
+
 If the user asks to fix the findings, update the positioning source of truth with
 `website-positioning`, then use `copywriting` for page copy. Run the site's normal
 tests and `website-review` after consequential changes.

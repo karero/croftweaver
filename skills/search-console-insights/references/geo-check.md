@@ -378,18 +378,19 @@ full URL from the saved answer. An engine citing an address shows that it exists
 still works, so say nothing until you have opened it. If it serves the site, **ask the owner**
 whether that copy is meant to exist before suggesting any change; it may be intentional.
 
-**Hand the results over as files in the owner's repo.** The reports and answers sit in the hidden
-`~/.config/gsc-insights/` folder, which the Claude desktop app may not open (links into it did not
-open when tried once), so a link to a path there may do nothing for the owner. Copy the report
-page(s) and the answers of the run into the site's repo (for example `docs/geo/<date>/`), put the
-readable summary next to them, and send the files to the owner.
+**Hand the results over as files in the site's `analytics/` folder.** The reports and answers sit
+in the hidden `~/.config/gsc-insights/` folder, which the Claude desktop app may not open (links into
+it did not open when tried once), so a link to a path there may do nothing for the owner. Run
+`analytics_snapshot.py` (see `analytics-folder.md`): it copies the newest run's page and answers to
+`analytics/<run date>_geo-run/` and the page to `analytics/geo.html`, with the links between the
+pages working. Results kept earlier under `docs/geo/` stay where they are.
 
 - **Keep them out of a public repo.** The reports and answers hold the questions, the answers
-  word for word, and every listed source. Commit them only to a **private** repo; for a public one,
-  send the files to the owner and commit nothing, or commit only a summary you wrote.
-- **The "Also see" link breaks in a copy.** A report page may link to the Google page by a relative
-  path (`../../../reports/<domain>/google.html`). In the copy that link does not work; tell the
-  owner so, rather than letting them find a dead link.
+  word for word, and every listed source. The `analytics/` folder is kept off GitHub by the site's
+  `.gitignore`; commit it only to a **private** repo and only on the owner's ask.
+- **The "Also see" link breaks in a hand-made copy.** A report page links to the Google page by a
+  relative path (`../../../reports/<domain>/google.html`); `analytics_snapshot.py` rewrites it, a
+  copy made by hand does not. Tell the owner, rather than letting them find a dead link.
 - **Before moving or deleting a file** another session or a note might point at, search for its
   path first.
 

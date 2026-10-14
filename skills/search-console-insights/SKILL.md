@@ -16,7 +16,7 @@ description: >
   SEO report", "does AI name my business", "weekly AI check", "show me my AI
   report".
 metadata:
-  version: 1.8.0
+  version: 1.9.0
 ---
 
 # Search Console insights
@@ -435,8 +435,8 @@ from it that apply every time:
 - **Show results as the report page** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report`), not raw files.
 - **Google and Bing results the same way:** `~/.config/gsc-insights/venv/bin/python scripts/search_report.py <domain>` prints the path of the owner's page; open it. Owners ask *"show me my Google report"*; with several sites, ask which one. It uses the settings the weekly job last recorded unless given `--keywords`/`--country`; a job set up before this page existed records them on its next weekly run; until then the page falls back to the history, so for a site with its own history file pass `--csv <that file>`.
   Owners ask for it in their own words: *"show me my AI report"*, *"how is my business doing with AI?"*.
-- **Google's and Bing's own AI reports** (real answers, not our questions): the owner downloads them; read
-  `references/ai-reports.md` before importing one or talking about its numbers. "No data yet" is a result.
+- **Google's and Bing's own AI reports** (real answers, not our questions): the owner downloads them; read `references/ai-reports.md` before importing one or
+  talking about its numbers. "No data yet" is a result. Keep reports and downloads in the site's `analytics/` folder: `references/analytics-folder.md`.
 - **You draft the questions; you never answer them.** The whole point is a buyer's
   un-primed question to an engine that knows nothing about this conversation.
 

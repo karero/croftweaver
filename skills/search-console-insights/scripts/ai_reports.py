@@ -7,6 +7,10 @@ ai_reports.py — read Google's and Bing's own AI reports, which the owner downl
     ai_reports.py not-shown <domain>                  # Search Console shows no generative AI
                                                       # report for this site (scenario A3)
 
+`import … --keep-in <site folder>` also keeps the download in the site's analytics/ folder
+(<date>_google-ai-report/ or <date>_bing-ai-report/), after checking git would ignore it; see
+_analytics.py and docs/reviews/SKILL-PLAN-analytics-folder.md (B2–B5).
+
 Neither report can be read by a program, so the owner downloads it and this script keeps what it
 read in ~/.config/gsc-insights/reports/<site>/ai-google.json or ai-bing.json, where
 search_report.py shows it. The latest file replaces the earlier one. A file it cannot read, or
@@ -32,6 +36,7 @@ from urllib.parse import urlsplit
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _history import normalize_site  # noqa: E402
+import _analytics  # noqa: E402
 
 DAY = re.compile(r"^(\d{4}-\d{2}-\d{2})(?: - (\d{4}-\d{2}-\d{2}))?$")   # a day, or a week "a - b"
 NAME_DOMAIN = re.compile(r"^((?:[a-z0-9-]+\.)+[a-z]{2,})[-_]")          # "example.com-Perf…", "example.com_AIPerf…"
@@ -268,20 +273,15 @@ def save(site, source, record):
     return path
 
 
-def do_import(site, path: Path):
+def do_import(site, path: Path, keep_in=None, commit_ok=False):
     if not path.exists():
         raise Refused(f"{path} does not exist.")
+    site_dir = _analytics.site_folder(keep_in) if keep_in else None
     check_name(path, site)
     suffix = path.suffix.lower()
     if path.is_dir() or suffix == ".zip":
-        rec = parse_google(read_bundle(path), site)
-        save(site, "google", dict(rec, file=path.name))
-        if rec["state"] == "empty":
-            return "Google: your download shows no impressions in AI answers. Saved; that is a result, not a fault."
-        n = len(rec["pages"])
-        return (f"Google: {rec['total']:,} impression{'s' if rec['total'] != 1 else ''} in AI answers, "
-                f"{rec['first']} to {rec['last']}, {n} page{'s' if n != 1 else ''}. Saved.")
-    if suffix == ".csv":
+        source, rec = "google", parse_google(read_bundle(path), site)
+    elif suffix == ".csv":
         try:
             text = path.read_bytes().decode("utf-8-sig")
         except (UnicodeDecodeError, OSError) as e:
@@ -290,13 +290,27 @@ def do_import(site, path: Path):
         if head and len(head[0]) == 2:
             raise Refused("This is one file from Google's download. Give me the whole .zip, or the folder it "
                           "unzipped to. Nothing was saved.")
-        rec = parse_bing(text)
-        save(site, "bing", dict(rec, file=path.name))
+        source, rec = "bing", parse_bing(text)
+    else:
+        raise Refused(f"{path.name} is not a CSV or zip file. Export the report as CSV. Nothing was saved.")
+    folder = f"{_analytics.folder_date(path.name, today()).isoformat()}_{source}-ai-report"
+    if site_dir:     # B4: checked before anything is saved, so a refusal leaves nothing half done
+        _analytics.check_kept_off(site_dir, f"{folder}/{path.name}", commit_ok)
+    save(site, source, dict(rec, file=path.name))
+    kept = ""
+    if site_dir:
+        dest, new = _analytics.keep(site_dir, folder, path)
+        kept = f" Kept a copy in {dest.parent}." if new else f" A copy was already there: {dest}."
+    if source == "google":
         if rec["state"] == "empty":
-            return "Bing: no citations in AI answers yet. Saved; that is a result, not a fault."
-        c = rec["citations"]
-        return f"Bing: {c:,} citation{'s' if c != 1 else ''}, {rec['first']} to {rec['last']}. Saved."
-    raise Refused(f"{path.name} is not a CSV or zip file. Export the report as CSV. Nothing was saved.")
+            return "Google: your download shows no impressions in AI answers. Saved; that is a result, not a fault." + kept
+        n = len(rec["pages"])
+        return (f"Google: {rec['total']:,} impression{'s' if rec['total'] != 1 else ''} in AI answers, "
+                f"{rec['first']} to {rec['last']}, {n} page{'s' if n != 1 else ''}. Saved." + kept)
+    if rec["state"] == "empty":
+        return "Bing: no citations in AI answers yet. Saved; that is a result, not a fault." + kept
+    c = rec["citations"]
+    return f"Bing: {c:,} citation{'s' if c != 1 else ''}, {rec['first']} to {rec['last']}. Saved." + kept
 
 
 def main(argv=None):
@@ -305,6 +319,10 @@ def main(argv=None):
     imp = sub.add_parser("import", help="read a downloaded report")
     imp.add_argument("domain")
     imp.add_argument("file")
+    imp.add_argument("--keep-in", metavar="SITE_FOLDER", default=None,
+                     help="also keep the download in SITE_FOLDER/analytics/ (git must ignore it)")
+    imp.add_argument("--commit-ok", action="store_true",
+                     help="the owner chose to keep analytics/ in a private repo: skip the git check")
     ns = sub.add_parser("not-shown", help="record that Search Console shows no AI report for this site")
     ns.add_argument("domain")
     args = ap.parse_args(argv)
@@ -320,8 +338,8 @@ def main(argv=None):
             print("Google: no AI report shown for this site; recorded as checked today."
                   + (f" This replaces the download you added earlier ({had})." if had else ""))
         else:
-            print(do_import(site, Path(os.path.expanduser(args.file))))
-    except Refused as e:
+            print(do_import(site, Path(os.path.expanduser(args.file)), args.keep_in, args.commit_ok))
+    except (Refused, _analytics.NotKeptOff) as e:
         print(f"✗ {e}", file=sys.stderr)
         return 1
     except OSError as e:
