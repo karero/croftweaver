@@ -214,3 +214,61 @@ test('mail form — every text of the form keeps to the site\'s tone rules, in e
     Object.entries(texts).flatMap(([key, text]) => toneViolations(text, lang).map((v: string) => `  • ${lang}.${key}: ${v}`)));
   expect(found, `texts in src/components/mail-form-text.ts break the tone rules:\n${found.join('\n')}`).toEqual([]);
 });
+
+// The site's one conversion: the button reports one "Email Tap" event, the same one the
+// starter's email link sends, and nothing the visitor typed goes with it. Plausible runs
+// on the live build only (Base.astro writes window.plausible there), so each test puts
+// its own recorder in its place, under the same name, before the page's scripts run, and
+// presses the real button.
+type Counted = Window & { __taps?: unknown[][]; plausible?: unknown };
+const countTaps = () => {
+  const w = window as Counted;
+  w.__taps = [];
+  w.plausible = (...args: unknown[]) => { w.__taps!.push(args); };
+};
+
+test('mail form — the button reports one "Email Tap" event, with nothing the visitor typed', async ({ page }) => {
+  await page.addInitScript(countTaps);
+  await page.goto(PAGE);
+  const lang = await formLanguage(page);
+  const typed = 'Kitchen worktop, oak, 3 metres';
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill(typed);
+  await pressSend(page);
+  const taps = await page.evaluate(() => (window as Counted).__taps);
+  expect(taps).toEqual([['Email Tap']]);
+  expect(JSON.stringify(taps), 'an event carries what the visitor typed').not.toContain('oak');
+  expect(JSON.stringify(taps), 'an event carries the address').not.toContain('@');
+});
+
+test('mail form — a press with an empty message, or one of spaces, reports no event', async ({ page }) => {
+  await page.addInitScript(countTaps);
+  await page.goto(PAGE);
+  const lang = await formLanguage(page);
+  const message = form(page).getByLabel(TEXT[lang].message, { exact: true });
+  const send = form(page).getByRole('button', { name: TEXT[lang].send, exact: true });
+  // The refusal shows as the message field taking the focus, as in the tests above; the
+  // count would run inside the same submit handler, so by then it has had its chance.
+  await send.click();
+  await expect(message).toBeFocused();
+  await message.fill('   ');
+  await send.focus();
+  await send.click();
+  await expect(message).toBeFocused();
+  expect(await page.evaluate(() => (window as Counted).__taps)).toEqual([]);
+});
+
+test('mail form — with no tracker, a broken one or one that throws, the mail still opens and nothing breaks', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(PAGE);
+  const lang = await formLanguage(page);
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('Hello');
+  // No tracker: this build has none, and the test says so before it presses.
+  expect(await page.evaluate(() => typeof (window as Counted).plausible)).toBe('undefined');
+  expect(parse(await pressSend(page)).address).toBe(TO);
+  await page.evaluate(() => { (window as Counted).plausible = () => { throw new Error('tracker failure'); }; });
+  expect(parse(await pressSend(page)).address).toBe(TO);
+  await page.evaluate(() => { (window as Counted).plausible = 'not a function'; });
+  expect(parse(await pressSend(page)).address).toBe(TO);
+  expect(errors, 'a press raised an error on the page').toEqual([]);
+});

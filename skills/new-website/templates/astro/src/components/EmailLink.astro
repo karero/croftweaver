@@ -37,7 +37,21 @@ const label = text ?? emailHint(address, lang);
       a.removeAttribute('data-email');
       a.removeAttribute('data-subject');
     } catch {
-      /* leave the no-JS hint in place */
+      /* leave the no-JS hint in place; a link that opens nothing counts nothing */
+      continue;
     }
+    // Count the click as an "Email Tap" event, the site's one conversion: the visitor asked
+    // to write an email (whether a mail program opened, the site never learns).
+    // window.plausible exists only on the live build with analytics on (Base.astro), so
+    // elsewhere nothing happens. The address is not part of it; Plausible adds the page and
+    // the referrer, as to every event. The privacy page says so. A goal of the same name must
+    // exist in Plausible before launch, or the taps are not shown.
+    a.addEventListener('click', () => {
+      try {
+        (window as unknown as { plausible?: (name: string) => void }).plausible?.('Email Tap');
+      } catch {
+        /* counting must never get in the way of opening the mail program */
+      }
+    });
   }
 </script>
