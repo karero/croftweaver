@@ -925,7 +925,7 @@ as the check prints them; and the evals need a `logo.png` for eval 4, a `POSITIO
 eval 5 (that run had none, so part of its pause was fair) and an assertion in eval 1 that she is
 asked to paste her pick back for a check. Some assertions passed for both runs and so told nothing apart (two each in evals 1, 2
 and 4, three in eval 5); eval 4 never tests a real PNG, since its fixture has none. No assertion
-covers the file of proposals eval 3's run wrote into her folder, which the skill allows. The
+covers the separate file of proposals eval 3's run wrote into her folder. The
 runs' own `echo =====` lines failed under zsh in four runs; the skill has no such command. None of this was changed in the skill: that is the follow-ups' sweep.
 
 ## Review trail
