@@ -216,11 +216,11 @@ gt() { (cd "$T/repo" && bash "$LOG_SH" gate "$@" 2>&1); }
 use_gate G10
 run --round 6 --earned-by beta;   check "mixed seats: another seat's cut does not settle beta" 2 "Kind beta earned rounds 4, 5 of this gate too"
 run --round 6 --earned-by alpha;  check "mixed seats: alpha, cut on its own row, is settled" $P "" "Kind alpha"
-got="$(gt --id G10 | sed -n 2p)"; want="kinds: 4 alpha,beta; 5 alpha,beta (cut alpha: removed alpha)"
+got="$(gt --id G10 | grep '^kinds: ')"; want="kinds: 4 alpha,beta; 5 alpha,beta (cut alpha: removed alpha)"
 [ "$got" = "$want" ] && ok "gate: a cut that settled one of a round's kinds names that kind" || fail "gate --id G10 kinds: got [$got], want [$want]"
 line G10 5 fresh-eyes - beta "removed beta" >>"$LOG"
 run --round 6 --earned-by beta;   check "mixed seats: beta's own cut, on a third row, settles it" $P "" "Kind beta"
-got="$(gt --id G10 | sed -n 2p)"; want="kinds: 4 alpha,beta; 5 alpha,beta (cut alpha: removed alpha; cut beta: removed beta)"
+got="$(gt --id G10 | grep '^kinds: ')"; want="kinds: 4 alpha,beta; 5 alpha,beta (cut alpha: removed alpha; cut beta: removed beta)"
 [ "$got" = "$want" ] && ok "gate: every distinct cut of a round, each with its kinds" || fail "gate --id G10 two cuts: got [$got], want [$want]"
 use_gate G1
 
