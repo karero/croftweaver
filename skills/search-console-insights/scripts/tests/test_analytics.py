@@ -677,6 +677,29 @@ class MergeLink(AnalyticsTest):
         self.assertEqual(len(kept), 1)
         self.assertIn("it is not matched to seo.html", out)
 
+    def test_the_record_is_kept_whatever_became_of_the_data(self):
+        self.repo()
+        self.google_page()
+        (self.cfg / "sites").mkdir(exist_ok=True)
+        (self.cfg / "sites" / f"{SITE}-proposals.json").write_text('{"proposals": []}')
+        data = self.cfg / "reports" / SITE / "google-data.json"
+        good = data.read_text()
+        cases = {"no saved data": lambda: data.unlink(),
+                 "data the page does not show": lambda: data.write_text(good.replace("1", "2", 1)),
+                 "data with no readable date": lambda: data.write_text('{"fetched": "soon"}')}
+        for i, (why, damage) in enumerate(cases.items()):
+            with self.subTest(why):
+                d = self.site_dir.parent / f"case{i}"
+                d.mkdir()
+                git("init", "-q", cwd=d)
+                (d / ".gitignore").write_text("/analytics/\n")
+                data.write_text(good)
+                damage()
+                code, out, err = self.cli(snap, SITE, "--site-dir", str(d))
+                self.assertEqual(code, 0, err)
+                self.assertEqual(len(list((d / "analytics").glob(f"2026-10-14_gsc/{SITE}-proposals.json"))), 1,
+                                 "kept in today's folder when the data was not kept")
+
     def test_a_broken_log_stream_does_not_cost_the_google_page(self):
         class BrokenStream(io.StringIO):
             def write(self, s):

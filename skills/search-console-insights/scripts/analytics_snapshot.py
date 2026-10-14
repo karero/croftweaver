@@ -152,6 +152,7 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
                 out.append(f"AI-check run: {newest.name} carries no run date, so its answers were not kept")
         else:
             out.append("AI check: not set up for this site")
+        gsc_date = None                     # the data's date when it is kept, for the proposal record below
         if data.exists() and google_unreadable:
             out.append("Search Console data: not kept, because the page it belongs to cannot be read to check it")
         elif data.exists():
@@ -171,24 +172,25 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
             else:      # keep the bytes just checked, not a re-read of a file a refresh may be rewriting
                 (stage / data.name).write_bytes(raw)
                 kept.append((f"{fetched.isoformat()}_gsc", stage / data.name))
-                # The page's fix-proposal section shows figures from the proposal's own record, which no
-                # fingerprint covers: kept beside the data as it is now, and said so (merge link, F53).
-                try:
-                    proposals = fix_proposal.state_path(site)
-                except ValueError:
-                    proposals = None
-                if has_google and proposals is not None and proposals.is_file():
-                    try:
-                        (stage / proposals.name).write_bytes(proposals.read_bytes())
-                        kept.append((f"{fetched.isoformat()}_gsc", stage / proposals.name))
-                        out.append("Fix proposal: its record is kept as it is now; unlike the data, it is not "
-                                   "matched to seo.html")
-                    except OSError:
-                        out.append("Fix proposal: its record cannot be read, so it was not kept")
+                gsc_date = fetched
                 if has_google and shown is None:
                     out.append("Search Console data: seo.html predates its fingerprint, so the match was not checked")
         else:
             out.append("Search Console data: none saved yet (run search_report.py)")
+        # seo.html's fix-proposal section shows figures from the proposal's own record, which no fingerprint
+        # covers: kept whenever the page is, as it is now, and said so (merge link, F53) — in the data's folder
+        # when the data was kept, else in today's.
+        try:
+            proposals = fix_proposal.state_path(site)
+        except ValueError:
+            proposals = None
+        if has_google and proposals is not None and proposals.is_file():
+            try:
+                (stage / proposals.name).write_bytes(proposals.read_bytes())
+                kept.append((f"{(gsc_date or today()).isoformat()}_gsc", stage / proposals.name))
+                out.append("Fix proposal: its record is kept as it is now; unlike the data, it is not matched to seo.html")
+            except OSError:
+                out.append("Fix proposal: its record cannot be read, so it was not kept")
         if brows:
             try:
                 latest = dt.date.fromisoformat(max(r.get("date", "") for r in brows))
