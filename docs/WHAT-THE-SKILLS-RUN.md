@@ -55,11 +55,11 @@ was read, not tried in a live session.
   `exiftool`), file commands (`ls`, `cat`, `head`, `tail`, `wc`, `tree`, `find`, `grep`,
   `rg`, `mkdir`, `cp`, `mv`, `touch`, `echo`, `open`), and reading three documentation sites
   (docs.astro.build, developers.cloudflare.com, keystatic.com).
-- **Blocked:** `rm -rf`, `git push --force` and `git push -f`, `git reset --hard`,
-  `gh repo delete`, `wrangler delete` and `wrangler pages delete` (with or without `npx`).
-  The documentation says a block rule prevents the command; it does not ask. You run such a command yourself
-  if you really mean it. (Some skill texts say these commands "still ask". This was read
-  from the documentation, not tried in a live session.)
+- **Blocked:** `rm -rf`, any force push (`--force`, `--force-with-lease`, `-f` or a
+  `+branch`, wherever it stands in the command), `git reset --hard`, `gh repo delete`,
+  `wrangler delete` and `wrangler pages delete` (with or without `npx`). The documentation
+  says a block rule prevents the command; it does not ask. You run such a command yourself
+  if you really mean it.
 - **Everything else asks first**, as long as Claude Code is in its normal mode. If you
   switch Claude Code to a mode that approves everything, nothing asks.
 
@@ -71,10 +71,11 @@ What this list does and does not protect:
   say so. Those are written rules for the assistant, not something Claude Code enforces.
 - `git push` and `gh repo create` are allowed on purpose. `SETUP.md` in each site says to
   take them out of the list if you would rather confirm each push.
-- The block rules match the command as written, from its start. `git push origin main
-  --force` and `git push origin +main` do not begin with `git push --force`, so they fall
-  under the `git push` rule and run without asking. So does `git push --delete`. (Read from
-  the rules and from Claude Code's documented matching; not tried in a live session.)
+- The block rules match the command as written. Besides `git push --force` and
+  `git push -f` at the start, three rules catch a force flag or a `+` later in a push, so
+  `git push origin main --force` and `git push origin +main` are blocked too.
+  `git push --delete` is allowed: tidying up merged branches needs it. (Read from the
+  rules and from Claude Code's documented matching; not tried in a live session.)
 - `find` with `-delete` or `-exec` should still ask: Claude Code's documentation says a
   `find` rule cannot approve a `find` that deletes, writes or runs commands. (Read, not
   tried in a live session.)
@@ -314,22 +315,17 @@ the new release no longer has.
 | melious.ai key | `MELIOUS_API_KEY`, or `~/.config/reviewers/melious.env` (the setup guide says to make it readable only by you) |
 | ollama.com key | `OLLAMA_API_KEY` |
 | Codex, Antigravity, GitHub, Cloudflare sign-ins | each tool's own login |
-| Cloudflare API token | an environment variable for the session; the guide asks for a narrow token that expires in about a week, and also names `.dev.vars` in the site (git ignores it), though whether Wrangler reads its sign-in token from that file was not checked |
+| Cloudflare API token | an environment variable for the session; the guide asks for a narrow token that expires in about a week |
 
-All of these live outside the site's folder, except `.dev.vars`, which the site's
-`.gitignore` excludes along with `.env`, `.env.*` and `.wrangler/`. The review tool passes
+All of these live outside the site's folder. The site's `.gitignore` also excludes `.env`,
+`.env.*`, `.dev.vars`, `.wrangler/`, `client_secret*.json` and `token.json`, in case a copy
+lands there. The review tool passes
 its keys to `curl` through standard input, not on the command line. The Bing script
 removes the key from error messages before they reach a log; a test guards this.
 
-Known gaps:
-
-- `~/.config/gsc-insights/.env` is made readable only by you when `geo_check.py
-  --prepare-env` adds lines to it. A file you create or edit by hand keeps whatever
-  permissions it gets. `client_secret.json` is never tightened.
-- If you run `gsc_query.py` from a site folder without `--client-secret`, it looks for
-  `client_secret.json` in that folder. The site's `.gitignore` does not list
-  `client_secret.json` or `token.json`, so a copy placed there could be committed.
-  Keep them in `~/.config/gsc-insights/`.
+Known gap: `~/.config/gsc-insights/.env` is made readable only by you when `geo_check.py
+--prepare-env` adds lines to it. A file you create or edit by hand keeps whatever
+permissions it gets. `client_secret.json` is never tightened.
 
 ## Releases
 

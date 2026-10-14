@@ -4,9 +4,9 @@ description: >
   Cut the number of permission prompts on a new-website repo to near-zero for the
   routine build loop, while keeping destructive actions gated. Installs the bundled
   `.claude/settings.json` allowlist into the project, explains the allow/deny model
-  (npm / astro / playwright / git commit / gh-read / image tools / the link script
-  are pre-approved; `rm -rf`, `git push --force`, `git reset --hard`, and any
-  `wrangler/gh … delete` stay prompted), and safely EXTENDS the allowlist from the
+  (npm / astro / playwright / git commit and push / gh read verbs and repo create /
+  image tools / the link script are pre-approved; `rm -rf`, any force push,
+  `git reset --hard`, and any `wrangler/gh … delete` are blocked), and safely EXTENDS the allowlist from the
   commands you keep approving — narrowly, never with a blanket wildcard. The allowlist
   travels with the repo, so a handoff party also gets the quiet build loop. Trigger
   phrases: "reduce permission prompts", "too many permission prompts", "stop asking me
@@ -18,7 +18,7 @@ description: >
 
 A build is a tight loop of `npm`/`astro`/`playwright`/`git` calls. Approving each one
 by hand is friction with no safety benefit — those commands can't hurt you. This skill
-gets the repo to "quiet for the safe stuff, still asks for the dangerous stuff", and
+gets the repo to "quiet for the safe stuff, blocked for the dangerous stuff", and
 keeps it that way as the project grows.
 
 ## 1. Install the bundled allowlist (the 90% fix)
@@ -52,13 +52,15 @@ project) after editing so the new rules take effect.
 `npm install/ci/run/test/exec`, `astro`, `playwright`, `node`, the **git write subset**
 (`add`, `commit`, `branch`, `checkout`, `switch`, `merge`, `restore`, `stash`,
 `fetch`, `pull`, `push`), `gh` **read** verbs (`auth status`, `repo view`,
-`pr view/list`), `wrangler pages dev` / `whoami`, the image tools (`cwebp`, `avifenc`,
+`pr view/list`) plus one write, `gh repo create`, `wrangler pages dev` / `whoami`, the image tools (`cwebp`, `avifenc`,
 `magick`, `oxipng`, `svgo`, `exiftool`, …), file inspection (`ls`/`cat`/`grep`/`rg`/
 `find` …), and `bash scripts/check_external_links.sh` (the outgoing-link sweep).
 
-**Always gated (`deny`)** — irreversible or destructive, must stay prompted:
-`rm -rf`, `git push --force` / `-f`, `git reset --hard`, `gh repo delete`,
-`wrangler pages delete`, `wrangler delete`. **Do not move these to `allow`.**
+**Blocked (`deny`)** — irreversible or destructive. Claude Code refuses these outright,
+it does not ask; the owner runs one by hand in a terminal if they really mean it:
+`rm -rf`, any force push (`--force`, `--force-with-lease`, `-f` or a `+branch`, wherever
+it stands in the command), `git reset --hard`, `gh repo delete`, `wrangler pages delete`,
+`wrangler delete`. **Do not move these to `allow`.**
 
 ## 3. Extend it safely when a new prompt recurs
 

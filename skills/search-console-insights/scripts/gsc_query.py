@@ -18,9 +18,11 @@ surfaces the highest-leverage things:
 Read-only: it uses the `webmasters.readonly` scope and never writes to GSC.
 
 Auth: OAuth "installed app" (desktop) flow. You download an OAuth client
-once from Google Cloud Console (Desktop app type) as `client_secret.json`;
-the first run opens a browser for consent and caches a refresh token at
-~/.config/gsc-insights/token.json so later runs are non-interactive.
+once from Google Cloud Console (Desktop app type) as
+~/.config/gsc-insights/client_secret.json (the default; --client-secret or
+$GSC_CLIENT_SECRET point elsewhere); the first run opens a browser for consent
+and caches a refresh token at ~/.config/gsc-insights/token.json so later runs
+are non-interactive.
 
 Usage:
   python gsc_query.py \
@@ -43,6 +45,9 @@ from _lang_normalize import match_keywords as _match_keywords
 
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 DEFAULT_TOKEN = Path.home() / ".config" / "gsc-insights" / "token.json"
+# Beside the token, as insights.py and search_report.py read it. Never the current folder:
+# run from a site's folder, a client file found there could end up committed.
+DEFAULT_SECRET = DEFAULT_TOKEN.parent / "client_secret.json"
 # Same default + override as track.sh's CSV, so an ad-hoc run with --keywords
 # builds the same history a scheduled track.sh run would -- no separate
 # "remember to seed it" step. --no-csv opts a single run out.
@@ -465,7 +470,7 @@ def main():
                     help="Comma-separated target keywords.")
     ap.add_argument("--out", default="", help="Write the Markdown report to this file.")
     ap.add_argument("--client-secret",
-                    default=os.environ.get("GSC_CLIENT_SECRET", "client_secret.json"))
+                    default=os.environ.get("GSC_CLIENT_SECRET", str(DEFAULT_SECRET)))
     ap.add_argument("--token", default=str(DEFAULT_TOKEN))
     def _country(v: str) -> str:
         # GSC matches lowercase alpha-3; the natural mistake is alpha-2 ('de',

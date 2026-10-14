@@ -132,7 +132,8 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
      enable **Google Search Console API**.
    - **APIs & Services → Credentials → Create credentials → OAuth client ID** →
      Application type **Desktop app** → Create → **Download JSON** → save it as
-     `client_secret.json` (point at it with `--client-secret` or `$GSC_CLIENT_SECRET`).
+     `~/.config/gsc-insights/client_secret.json`, where every script looks for it (point
+     elsewhere with `--client-secret` or `$GSC_CLIENT_SECRET`). Never in the site's folder.
    - Add yourself as a **test user**: APIs & Services → **Google Auth Platform** (the
      2024+ name for the OAuth consent screen) → **Audience** tab → **Test users** → Add.
      Without this, consent is blocked for an external app in "Testing".

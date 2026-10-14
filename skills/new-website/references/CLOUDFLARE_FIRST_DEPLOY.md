@@ -60,9 +60,12 @@ live fast with zero dashboard time.
 
 ### Hand it to the agent safely — never the repo
 
-- Provide it as a session env var: `export CLOUDFLARE_API_TOKEN=…` (Wrangler reads this),
-  or a gitignored `.dev.vars` (also Wrangler-recognised). The starter `.gitignore` excludes
-  `.env*` and `.dev.vars`, so it's the **primary** leak protection in a generated site.
+- Provide it as a session env var: `export CLOUDFLARE_API_TOKEN=…` (Wrangler reads this).
+  Not `.dev.vars`: that file holds the Worker's own local settings, and Cloudflare's list of
+  where Wrangler reads its own variables from names the shell and a `.env` file, not
+  `.dev.vars` ([system environment variables](https://developers.cloudflare.com/workers/wrangler/system-environment-variables/)).
+  The starter `.gitignore` excludes `.env*` and `.dev.vars`, so it's the **primary** leak
+  protection in a generated site.
   *(This suite repo additionally runs a `clean` CI gate that scans the distributed skill
   package for stray tokens — that gate does **not** run in generated sites.)*
 - **Never** commit it, paste it into a tracked file, or put it in the README.
@@ -73,7 +76,7 @@ live fast with zero dashboard time.
    and ask for a custom token with the permissions above.
 2. **Expiring + minimal.** Confirm the token has an end date and only the needed scopes
    before using it; if it looks over-scoped (e.g. "All zones"), say so and ask them to narrow it.
-3. **Never commit the credential** — env var or gitignored `.dev.vars` only; the starter
+3. **Never commit the credential** — a session env var only; the starter
    `.gitignore` is the backstop.
 4. **Confirm before each account-modifying command** — state what it will do (create project
    `X`, deploy, add a DNS record for `Y`) and run it only on the owner's go-ahead.
