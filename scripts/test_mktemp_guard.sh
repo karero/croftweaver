@@ -47,6 +47,7 @@ SCRIPTS=(
   scripts/test_whats_new_removed_skill.sh
   skills/independent-review/scripts/check_prompt_sync.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
+  skills/independent-review/scripts/test_round_checks.sh
   skills/independent-review/scripts/test_sweep_claims.sh
 )
 # Scripts that mention mktemp and have no case here: "path|reason".

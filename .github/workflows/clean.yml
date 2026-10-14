@@ -14,7 +14,9 @@ name: clean
 # limit: limit values, the shrink-only allowlist for pre-existing overages, and the
 # warn-only SKILL.md line budget all live in scripts/check_skill_budgets.sh. It also runs
 # independent-review's own checks, in skills/independent-review/scripts/: whether a reviewer that
-# fails is reported rather than hidden (test_failed_tier_report.sh), which reviewer output counts
+# fails is reported rather than hidden (test_failed_tier_report.sh), whether a round past 3 names the
+# kind of finding that earned it and a kind earning two rounds running brings a cut
+# (test_round_checks.sh, in the same job), which reviewer output counts
 # as a review (test_looks_like_review.sh), whether SKILL.md's prompt matches the script's
 # (check_prompt_sync.sh), whether its Perl programs need no newer Perl than they declare
 # (check_perl_minimum.sh, with Perl::MinimumVersion from apt), and whether the claims sweep
@@ -154,6 +156,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check a failed reviewer is reported, not hidden behind exit 0
         run: bash skills/independent-review/scripts/test_failed_tier_report.sh
+      - name: Check the round checks refuse a round past 3 with no kind, and a kind earning two rounds running with no cut
+        run: bash skills/independent-review/scripts/test_round_checks.sh
   review-validator:
     runs-on: ubuntu-latest
     steps:

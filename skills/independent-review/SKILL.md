@@ -44,34 +44,20 @@ skip silently. With a config diff, send the code that reads the config too.
    document, that document has passed its own gate as it stands now, before the plan's round 1.
    If it has not, ask the owner before round 1: gate it first, or go on knowing the plan's
    rounds may be paid twice.
+4. A plan for more than about 2,000 lines of code, or for more than one reader of outside input
+   (code that parses files or data a user or another system hands in), names its components, each
+   built and gated in its own PR. If not, ask the owner before round 1: split it, or go on knowing
+   that one kind of defect will be found again in each component.
 
 ## Reviewer stack
 
-1. **Codex CLI** — `codex exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0
-   -c skills.include_instructions=false`, in the caller's cwd so it can check claims against the
-   tree. Model and effort from `~/.codex/config.toml`; `CODEX_MODEL=<tag>` overrides the model for
-   one run. Sandbox enforcement and project-context leaks are open (R-SANDBOX, R-PROJCTX in
-   `docs/reviews/OPEN-FINDINGS-independent-review.md`).
-2. **ollama cloud** — the first `:cloud` tag in `ollama list`, auto-detected; `OLLAMA_MODEL`
-   overrides. Text only, no tools. **No ollama CLI** (e.g. a cloud session): set
-   `OLLAMA_MODEL=<name>:cloud` and the script calls ollama's HTTP API instead, authenticated by
-   `OLLAMA_API_KEY` or the environment's API credential for `ollama.com` (the network policy must
-   allow that host); `OLLAMA_TRANSPORT=api|cli` forces one. The API path also logs tokens.
-   **Melious fallback:** with `MELIOUS_MODEL=<model>` set (one of the ids listed in
-   `scripts/melious_models.txt`, by the owner's rule of 2026-10-12: the script refuses any other
-   name with exit 2 before any reviewer starts, in every mode, and an id the list marks `light`
-   unless the run says `--depth light`; Kimi and every other model run on ollama, and a model
-   ollama cannot serve has no seat that round; the script sets no default), a round whose
-   ollama seat did not count — no model or CLI, a failure such
-   as a quota refusal, or a local sanity pass — sends the same text-only prompt to Melious's
-   OpenAI-compatible API (`api.melious.ai`) instead, so the pair keeps its second reviewer. Auth:
-   `MELIOUS_API_KEY`, `~/.config/reviewers/melious.env`, or the environment's API credential for
-   that host. A reasoning model can spend the whole reply budget (`MELIOUS_MAX_TOKENS`, 96000)
-   thinking, and the provider can leak its reasoning into the reply: the seat keeps what follows
-   the final-review marker it asks for (`references/setup-guide.md`). `--seat melious` runs it
-   alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
-   tokens too. **`SECOND_SEAT=melious`** (with `MELIOUS_MODEL`) swaps the roles: Melious runs
-   with Codex, and ollama stands in only when Melious did not count.
+1. **Codex CLI** — asks for a read-only sandbox (enforcement is open: R-SANDBOX in
+   `docs/reviews/OPEN-FINDINGS-independent-review.md`), in the caller's cwd so it can check claims against the tree; model
+   and effort from `~/.codex/config.toml` (`CODEX_MODEL`, `CODEX_EFFORT` override them).
+2. **The second seat** — an ollama `:cloud` model (auto-detected; `OLLAMA_MODEL` overrides; text
+   only), or Melious (`MELIOUS_MODEL`, an id from `scripts/melious_models.txt`; `SECOND_SEAT=melious`
+   runs it beside Codex, ollama standing in when it fails). Transports, auth, fallbacks and the
+   model list's rules: `references/setup-guide.md`, "The two script seats in detail".
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
    primitive: a separate fresh session, or record the pass as *degraded*.
@@ -112,7 +98,7 @@ names the depth and why, and the host tells the owner the depth before round 1 r
 |---|---|---|---|
 | **Light** | copy, docs and content nobody executes; test-only changes; small fixes to tooling that touches no user data and no production path; a website-content plan | ONE seat, no script: the host's own diff review (Claude Code: `/code-review` at `medium`; no diff or no such command: `double-knuth`). `--first-success` instead when a cross-model seat is wanted | 1, plus one if it found a BUG |
 | **Normal** (default) | everything else | the standard pair + fresh-eyes on a mid-tier host-family model (Claude Code: the Agent tool's `sonnet` option) in round 1; verification rounds: the pair only, Codex at medium effort (the `--verify` default) | step 6 |
-| **High** | auth or permissions, payments or billing, personal data, deletion or migrations, secrets, security boundaries, public API or contract changes, deploy or infra, privacy or legal texts | the pair + fresh-eyes on the host's own model EVERY round; Codex at config.toml's effort every round (`CODEX_EFFORT=config`) | step 6 |
+| **High** | auth or permissions, payments or billing, personal data, deletion or migrations, secrets, security boundaries, public API or contract changes, deploy or infra, privacy or legal texts | the pair + fresh-eyes on the host's own model in rounds 1 to 3 (from round 2 on the round's change only); Codex at config.toml's effort every round (`CODEX_EFFORT=config`) | step 6 |
 
 **Light is same-family by design** on a Claude Code host and needs no cross-model seat — the
 owner's standing choice (2026-09-26) for low-consequence changes; the trail says "Light gate".
@@ -160,7 +146,7 @@ Codex's effort for any run.
    <plan>` lists every such sentence in the file outside fenced code. Check each as
    `references/claims-sweep.md` says.
 3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
-   round 1 only at Normal, every round at High, never at Light — started in the background
+   round 1 only at Normal, rounds 1 to 3 at High, never at Light — started in the background
    BEFORE the script so every seat runs at once.
 
    **Cost log.** The script logs its own seats. Log each seat the host runs — fresh-eyes, a Light
@@ -168,7 +154,9 @@ Codex's effort for any run.
    <name> --model <m> --seconds <s> --tokens <t> --gate <plan|diff> --depth <d> --round <N>`
    (a Claude Code sub-agent reports its duration and tokens). The script's `--round 1` starts a
    gate; every line logged after it from the same worktree carries that gate's id. A Light gate
-   that runs no script starts one with `scripts/review_log.sh new-gate`. The log is local, never committed;
+   that runs no script starts one with `scripts/review_log.sh new-gate`. The script ends each run
+   with the gate's running total (rounds, seat runs, tokens); from round 4 on, give it to the
+   owner with the round's update (step 8). The log is local, never committed;
    `scripts/review_log.sh summary` compares depths and seats across PRs.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
@@ -244,7 +232,7 @@ Codex's effort for any run.
      rule applies the same way: a carried row closes a re-raise only where its evidence covers the
      reasoning raised). Pass it with
      `--verify <file>`: the script sends it with the round's scope (`PROMPT_VERIFY`; at High
-     depth the fresh-eyes pass gets the same text, file and artifact) — confirm each fix landed in full and each
+     depth, in rounds 2 and 3, the fresh-eyes pass gets the same text, file and artifact) — confirm each fix landed in full and each
      deferral meets step 5's conditions, check what changed for new problems, list the rest under
      OUTSIDE SCOPE, and don't report clean to oblige.
    - **Triage OUTSIDE SCOPE:** a BUG is a finding; a RISK/NIT is a follow-up. Scope is the host's
@@ -273,8 +261,17 @@ Codex's effort for any run.
    **The round budget (6(b)).** Round 1 always runs; rounds 2–3 run when owed (above).
    **After round 3, a round is earned only
    by the previous round finding a substantive BUG** — however many, rising or falling: a chain of
-   fixes that each expose the next real defect is the gate working. A round without one ends the
-   rounds: open RISK/NIT go to the owner as ONE decision (fix locally — `locally_verified`, "not
+   fixes that each expose the next real defect is the gate working, until one kind comes back.
+   Run such a round with `--earned-by <kinds>`: every kind with a substantive BUG in the previous
+   round, comma-separated, each one short name for one invariant in one piece of code
+   (`config-advice,zip-names`); the script refuses round 4 and later without it. **Cut, don't
+   patch:** where a kind earned an earlier round of the gate too, the fix since then must be a
+   cut, not another patch: take the feature out, or replace it by a strict rule that accepts only
+   the input it names and refuses the rest, with a test that ordinary input still passes.
+   Refusing the one input the last BUG used is a patch. Where the cost log can tell, the script
+   refuses that round without `--cut "<what was removed or replaced>"`, and logs it; where it
+   cannot, it warns. The owner sees the kinds and cuts in the script's running-total line. A round
+   that finds no substantive BUG ends the rounds: open RISK/NIT go to the owner as ONE decision (fix locally — `locally_verified`, "not
    externally re-verified" — or waive), and the remaining wording goes to the wording pass.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
@@ -311,19 +308,13 @@ Codex's effort for any run.
    re-breaks something an earlier round fixed (even once); or when MOST of a round's findings
    re-cover ground a prior pass reported clean, or re-raise a dispositioned finding (fixed,
    refuted, waived, deferred, or open on a missing prerequisite) without new evidence; or when the
-   count plateaus two rounds on mostly such findings. Then redesign, or take the open items to the
+   count plateaus two rounds on mostly such findings. Step 6's cut comes first; a kind that comes
+   back after its cut stops the patching here. Then redesign, or take the open items to the
    owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
    only under step 5). "Stopped: not converging" goes in the trail. Long form:
    `references/rationale.md`.
-   *Fix chains (optional).* A trail row may carry `caused-by: F12 (partial)`: the id of the earlier
-   finding whose fix caused this one, and how — `introduced`, `partial` (left it half done) or
-   `regression` (a verified fix re-broke what an earlier round fixed: the stop above applies as
-   written). When three rows chain (F12, then F18, then F31), the owner update (step 8) says so
-   once and names the option: replace the code by the real component or a spec-first rewrite.
-   Within the budget (step 6) rounds go on unless the owner says otherwise. No rule depends on
-   the note: it changes neither when a round is owed nor the stop above.
 8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,
-   fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost
+   fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost (and, from round 4, the script's running-total line)
    (the `timings:` line; the host seats' duration and tokens) and any follow-ups.
    The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. Once the pair and
