@@ -149,6 +149,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 31 | the domain was attached by hand and is active | `launch` runs | it checks no launch condition and attaches nothing; its question names only the forwarding and the NEL rule, and the commit it expects the domain to serve: that of the newest production deployment that succeeded; while a newer one is queued or building, it ends with 4 | stub: a live build and a newer queued one |
 | | **Every stage** | | | |
 | 32 | both stages ran last month | each runs again | no write call, no question, status 0 | stub holding the end state |
+| 41 | `setup` ran with `--skip bot`, and Bot Fight Mode is on; or it ran without, and someone has since turned Always Use HTTPS off | `launch` runs with `--skip bot`; then the second case without any `--skip` | the `bot` failure is listed as left to Lena, status 0; the `https` failure gives 1 | stub site with the cookie; stub site with no redirect |
 | 33 | the token has no end date; or the zone list shows a second zone; or token verify is refused | any stage runs | it refuses before any write, says which, and asks for a narrower token | stub: no `expires_on`; two zones; 403 on verify |
 | 34 | the token is in `.dev.vars`, and git tracks that file, or does not ignore it | any stage runs | it stops before reading the file and says how to ignore it | two fixture repositories |
 | 35 | Cloudflare gave the project the address `lenas-backstube-9x2.pages.dev` | the stages check and report | every check and line uses that address; `lenas-backstube.pages.dev` is asked nowhere | stub `subdomain`; the stub site records the hosts asked |
@@ -242,7 +243,8 @@ whose end date is more than seven days ahead (the checklist: "a week at most"), 
 verify call is refused, and one whose zone list shows more than this site's zone (capture
 002 showed one zone for a token limited to one). It also lists the accounts the token
 reaches and refuses more than one; the account in the code is that one (the accounts list
-was read in the reference, not tried).
+was read in the reference, not tried). The question also asks Lena to have set Account
+Resources to her one account.
 
 **What the token may do** is learned by trying. A refused read answers 403, code 10000,
 "Authentication error", and does not say which row is missing (capture 015); a read can
@@ -372,7 +374,8 @@ check comes with the launch stage, since no request may reach the domain before 
      tokens that differ: it cannot tell, and refuses;
    - the token can read the zone's DNS records, and the host has at most one address
      record (A, AAAA or CNAME); below the apex, also no record of another type, which a
-     CNAME cannot stand beside (scenario 24; the trial did not try it).
+     CNAME cannot stand beside (scenario 24; the trial did not try it); and that record's
+     type, content and proxy state fit in the 100 characters of script step 10.
 
    These are the script's own stops, not the launch check: that stays `new-website` §4
    and the site's tests, and the question says so. When the domain is already attached
@@ -399,8 +402,8 @@ check comes with the launch stage, since no request may reach the domain before 
     as fits in 100 characters (Cloudflare's limit on the Free plan, read in the reference,
     not tried; the script uses 100 on every plan). So every later run can print the old
     record and it can be put back by hand; the part of the owner's comment that did not fit
-    is printed in that run. If the old record alone does not fit, the script changes
-    nothing, and the question had already said the record is to be changed by hand. The trial wrote
+    is printed in that run. An old record too long for it never gets this far
+    (script step 8). The trial wrote
     comments on new records (captures 104, 129); a PATCH that sets one was not tried. If
     that PATCH is refused, the run ends with 1, the host's record unchanged and the domain
     pending, and says to change the record by hand. Runs end with 4 until the
@@ -446,10 +449,11 @@ could not be judged, so nothing was seen) and any request in the check's `unansw
 or on a line Lena left out with `--skip`, and `look`, `hand` and `skip`, give 0 and are
 listed for Lena as what they are. Each `--skip` id names the check item it leaves to Lena:
 `https`, `tls`, `email`, `bot`, `ai` and `canonical` their own item (`tls` is a `hand` item
-in any case); `nel` and `nel-rule` both the `nel` item. `launch` does not know which ids
-`setup` was given, so it reads them from the zone: a setting that the API reads at another
-value than the checklist's was left out, by `--skip` or by hand, and its item counts as
-left to Lena. A `fail` where the API reads the checklist's value counts against the script. The report gives, for each thing set, what it was, what it is now, and how that was
+in any case); `nel` and `nel-rule` both the `nel` item. `launch` takes the same
+`--skip` ids as `setup`, and only those it is given count: `setup`'s report prints the
+`launch` command with the ids it was run with. A `fail` on an item no `--skip` of this run
+names gives 1, whatever the reason, and the line says that if the setting was left out on
+purpose, the same `--skip` belongs on this command too. The report gives, for each thing set, what it was, what it is now, and how that was
 checked. Fail open, the build settings, Minimum TLS Version and the AI fields have no
 outside check: "read back through the API only", with the checklist's ssllabs test named
 for Lena to run. The report names the live address and, on a two-stage site, the address
@@ -493,6 +497,7 @@ projects; hosts of their own below the zone, never its apex):
 | Creating a project starts no build; a deployment call with an empty form builds the head of the production branch, as production, `ad_hoc` | 028, 030 |
 | A second call while the first is queued starts a second build; both ran to the end | 031, 033 to 040 |
 | A Cloudflare build and an upload are both `ad_hoc`; Cloudflare's has `clone_repo` and `build` `success`, an upload has them `idle`; `source.type` is `github` on all | 021 to 026, 040 |
+| A push to the production branch builds a production deployment, `github:push` (18 of them on the live project) | 021 to 026 |
 | A PATCH holding only the change keeps every other variable and secret (secret, plain variable, build setting, production branch, Fail open) | 048 to 062 |
 | Fail open for one environment alone: 400, code 8000066 | 050, 053 |
 | A changed production branch changes nothing served until the next build; a deployment records the production branch of its time | 052, 054, 055 |
@@ -561,7 +566,9 @@ field descriptions); the Bot Management update call's own description.
    12), and a PATCH that sets a record's `comment`, and the comment's length limit (script
    step 10). A refused rule call ends the NEL line "by hand"; a refused record PATCH ends
    the run with 1, as script step 10 says. The accounts list of "The token" is not tried
-   either.
+   either; if it shows less than the token reaches, a token with a broader account scope
+   passes, and only the question's line asking Lena to have set Account Resources to her
+   one account stands in its way.
 10. Which values `preview_deployment_setting` takes besides `all`, the trial's project's
     (capture 027). The script treats every other value as "a pull request may not build".
 11. Whether a CNAME is refused beside a record of another type below the apex. The script
