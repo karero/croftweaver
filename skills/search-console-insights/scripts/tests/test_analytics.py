@@ -11,6 +11,7 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 """
 import contextlib
 import datetime as dt
+import hashlib
 import io
 import json
 import os
@@ -590,7 +591,7 @@ class RoundThree(AnalyticsTest):
         self.google_page_through_search_report()
         data = self.cfg / "reports" / SITE / "google-data.json"
         checked = data.read_bytes()
-        real_keep = _analytics_keep = __import__("_analytics").keep
+        real_keep = __import__("_analytics").keep
         def refresh_then_keep(site_dir, folder, src):
             data.write_text("{}")            # a refresh rewrites the live file mid-snapshot
             return real_keep(site_dir, folder, src)
@@ -601,12 +602,10 @@ class RoundThree(AnalyticsTest):
         self.assertEqual([k.read_bytes() for k in kept], [checked])
 
     def test_c_the_saved_data_file_is_exactly_the_fingerprinted_bytes(self):
-        import search_report as sr
         self.google_page_through_search_report()
         data = self.cfg / "reports" / SITE / "google-data.json"
         page = (self.cfg / "reports" / SITE / "google.html").read_text(encoding="utf-8")
         fp = re.search(r'name="gsc-data-sha256" content="([0-9a-f]{64})"', page).group(1)
-        import hashlib
         self.assertEqual(hashlib.sha256(data.read_bytes()).hexdigest(), fp)
         self.assertNotIn(b"\r\n", data.read_bytes(), "written as bytes: no newline translation on any platform")
 
@@ -624,6 +623,37 @@ class RoundThree(AnalyticsTest):
         self.assertEqual(code, 0, err)
         self.assertIn("Search Console data: its fetch date cannot be read", out)
         self.assertTrue((self.site_dir / "analytics" / "seo.html").is_file())
+
+    def test_c_an_unreadable_google_page_is_named_as_the_page_and_the_rest_written(self):
+        self.repo()
+        self.reports()
+        page = self.cfg / "reports" / SITE / "google.html"
+        page.chmod(0)
+        try:
+            if os.access(page, os.R_OK):
+                self.skipTest("running as a user who can read any file")
+            code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        finally:
+            page.chmod(0o644)
+        self.assertEqual(code, 0, err)
+        self.assertIn("seo.html: the Google & Bing page cannot be read", out)
+        self.assertIn("the page it belongs to cannot be read", out, "its data is not kept unchecked")
+        self.assertTrue((self.site_dir / "analytics" / "geo.html").is_file(), "the rest is written")
+
+    def test_c_the_page_is_read_once_so_copy_and_check_agree(self):
+        self.repo()
+        self.google_page_through_search_report()
+        page = self.cfg / "reports" / SITE / "google.html"
+        reads = []
+        real = Path.read_text
+        def counting(self_path, *a, **k):
+            if self_path == page:
+                reads.append(1)
+            return real(self_path, *a, **k)
+        with mock.patch.object(Path, "read_text", counting):
+            code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(reads), 1)
 
 class Starter(unittest.TestCase):
     def test_b1_new_sites_keep_the_folder_off_github(self):

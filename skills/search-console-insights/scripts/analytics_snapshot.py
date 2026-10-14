@@ -108,12 +108,22 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
     if not (google.exists() or data.exists() or geo_pages or brows):
         raise _analytics.NotKeptOff(f"There are no reports for {site} yet: build them first "
                                     "(search_report.py, geo_check.py --report). Nothing was written.")
-    has_google, has_geo = google.exists(), bool(geo_pages)
+    has_geo = bool(geo_pages)
     out, top, kept = [], {"README.md": README.format(site=site)}, []
+    # The Google page is read once: seo.html and the data check use the same text (F50).
+    google_text, google_unreadable = None, False
+    if google.exists():
+        try:
+            google_text = google.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            google_unreadable = True
+    has_google = google_text is not None
     with tempfile.TemporaryDirectory() as tmpd:
         stage = Path(tmpd)
         if has_google:
-            top["seo.html"] = GEO_LINK.sub('href="geo.html"' if has_geo else 'href="#"', google.read_text(encoding="utf-8"))
+            top["seo.html"] = GEO_LINK.sub('href="geo.html"' if has_geo else 'href="#"', google_text)
+        elif google_unreadable:
+            out.append("seo.html: the Google & Bing page cannot be read, so it was not copied")
         else:
             out.append("seo.html: no Google & Bing page yet (run search_report.py)")
         if has_geo:
@@ -140,11 +150,13 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
                 out.append(f"AI-check run: {newest.name} carries no run date, so its answers were not kept")
         else:
             out.append("AI check: not set up for this site")
-        if data.exists():
+        if data.exists() and google_unreadable:
+            out.append("Search Console data: not kept, because the page it belongs to cannot be read to check it")
+        elif data.exists():
             # The data is the page's evidence only when it is what the page shows: the page carries the
             # fingerprint of its data (search_report.data_fingerprint), and a failed save leaves an older file.
+            shown = _Page(google_text).meta.get("gsc-data-sha256") if has_google else None
             try:
-                shown = _Page(google.read_text(encoding="utf-8")).meta.get("gsc-data-sha256") if has_google else None
                 raw = data.read_bytes()
                 fetched = dt.date.fromisoformat(str(json.loads(raw.decode("utf-8")).get("fetched")))
             except (ValueError, OSError, AttributeError, UnicodeDecodeError):

@@ -24,7 +24,7 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 | 2 (verification) | e496a75 | Codex medium (291 s, 63k tokens), GLM 5.3 on melious (417 s, 41k) | 3 / 5 / 5 (F21–F31) | delta f3cea24..e496a75; three round-1 fixes partial (F1 → F21, F6 → F22, F10 → F23): round 3 owed |
 | 3 (verification) | 6ebb7cf | Codex medium (328 s, 68k tokens), GLM 5.3 on melious (424 s, 33k) | 2 / 4 / 4 (F32–F41) | delta e496a75..6ebb7cf; F32 and F33 substantive: round 4 earned (kinds ai-evidence, gsc-evidence); F32 is the third link of F10 → F23, so the fix is a cut, not a patch |
 | 4 (verification) | 7cb141a | Codex medium (391 s, 84k tokens), GLM 5.3 on melious (515 s, 44k) | 2 / 3 / 2 (F42–F48) | delta 6ebb7cf..7cb141a; earned by ai-evidence, gsc-evidence. F42 and F43 substantive: round 5 earned by the same two kinds, so it needs a cut (below) |
-| 5 (verification) | f74764a | Codex (medium), GLM 5.3 on melious | running | delta 7cb141a..f74764a; earned by F42 (ai-evidence) and F43 (gsc-evidence), with the cut: the inference deleted, the data written as exact bytes; `make test` 290 OK, `make check` exit 0 |
+| 5 (verification) | f74764a | Codex medium (280 s, 64k tokens), GLM 5.3 on melious (158 s, 21k) | 0 / 1 / 3 (F49–F52; Codex's two BUG labels triaged below) | delta 7cb141a..f74764a, with the cut. No substantive BUG: **the rounds end** (stop condition a2). Its fixes are locally_verified, not externally re-verified until the closing re-gate |
 
 ## Findings
 
@@ -85,6 +85,11 @@ Sources: C = Codex, G = GLM 5.3, S = fresh-eyes Sonnet. Invariants: **A** nothin
 | F46 | NIT | G | tests | three reads without `encoding` | fixed | `encoding="utf-8"` |
 | F47 | NIT | G | snapshot | blank lines before `GEO_LINK` | fixed | two blank lines |
 | F48 | — | host | `test_analytics.py` | run alone, it could not import the fake Google of `test_search_report` (discovery hid it) | fixed | the tests folder on `sys.path`; the file passes alone and in the suite |
+
+| F49 | BUG (record) | C (round 5) | F45's row | "fixed" overstated it: an earlier read of `google.html` was still unguarded | fixed (record and code) | F45 was partial; see F51 |
+| F50 | RISK (Codex: BUG) | C | snapshot | (C) `google.html` read twice: a refresh between the reads could pair page A's copy with page B's fingerprint | fixed | the page is read once and that text serves both; test counts one read. **Rated RISK, not BUG (the author's judgment, told to the owner):** it is F44's kind, which Codex itself rated RISK in round 4 — it needs a refresh to land between two reads in one run |
+| F51 | NIT | C, G | snapshot | an unreadable `google.html` stopped the snapshot, and was named as the data file | fixed | named as the page; its data is not kept unchecked; the rest is written; test with a page the user cannot read |
+| F52 | NIT | G | tests | an unused import and alias; `hashlib` imported mid-test | fixed | — |
 
 Fix chains: F1 → F21, F6 → F22 (two links each); F10 → F23 → F32 → F42 (ended by deleting the inference);
 F33 → F43 (two links). Earlier: F10 → F23 → F32 (three links, ended by a cut: the page

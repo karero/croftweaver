@@ -11,7 +11,7 @@ layout and B9–B12 from the owner's answers the same day (marked *(draft 2)*).
 | Decisions D1–D4, and the layout choices L1–L4 | **decided** 2026-10-14: D1–D4 as recommended; L1–L4 as recorded below | "Decisions" below |
 | Build, test-first | **done** 2026-10-14: starter `.gitignore`; `_analytics.py`; `ai_reports.py --keep-in`; `analytics_snapshot.py`; `references/analytics-folder.md` and pointers (SKILL.md 1.9.0, ai-reports, geo-check, facts-check, positioning-check); 15 new tests at round 1 (16 was a miscount), 25 after its fixes; 11 deliberate breakages each caught (one only after a test was added); `make test` 264 OK, `make check` exit 0 at round 1 | this commit; `scripts/tests/test_analytics.py` |
 | B12: the owner's `docs/geo/` moved into `analytics/` | not started (a change in that site's repo, after this one) | — |
-| Review gate | round 1 done (see trail), fixes in; round 2 next | `REVIEW-diff-2026-10-14-feat-analytics-folder-f3cea24.md` |
+| Review gate | 5 rounds, rounds ended after round 5 (no substantive BUG); closing re-gate of round 5's fixes next | `REVIEW-diff-2026-10-14-feat-analytics-folder-f3cea24.md` |
 | PR | not started | — |
 
 ## Why
