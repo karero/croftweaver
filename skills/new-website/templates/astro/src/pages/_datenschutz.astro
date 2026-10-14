@@ -26,7 +26,13 @@
 //      is ticked in Plausible's installer, which ticks all three by default;
 //      the page then describes what the instance does); and the
 //      storage period. Then delete '/datenschutz' from
-//      UNFILLED_UNTIL_LAUNCH (the test turns red until you do).
+//      UNFILLED_UNTIL_LAUNCH (the test turns red until you do). The clause "nur ein
+//      Besuch ... wird als derselbe Besuch fortgeführt" describes Plausible's own
+//      session lookup (self-hosted Community Edition, checked for v3.2.1: on_event
+//      and find_session in lib/plausible/session/cache_store.ex, register_session in
+//      lib/plausible/ingestion/event.ex, salts.ex, and the RotateSalts cron in
+//      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
+//      the same; with another analytics tool delete it together with the paragraph.
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
 //   your German privacy page lives at the locale-prefixed route
 //   (/de/privacy); use this text as its content.
@@ -145,7 +151,9 @@ import { SITE } from '../config';
       Solange dieser Wert gilt und diese Angaben gleich bleiben, erkennt das
       Werkzeug daher denselben Browser wieder und zählt ihn als einen
       Besucher. Ist der Wert ersetzt, erkennt es diesen Browser nicht mehr
-      wieder; auf einer anderen Website erkennt es ihn ebenfalls nicht. Die
+      wieder; nur ein Besuch, der in diesem Moment noch läuft (mit Aktivität
+      in den letzten rund 30 Minuten), wird als derselbe Besuch fortgeführt.
+      Auch auf einer anderen Website erkennt es diesen Browser nicht. Die
       einzelnen Ereignisse (zum Beispiel jeder Seitenaufruf sowie
       Scrolltiefe und aktive Zeit, die beim Verlassen einer Seite oder beim
       Wechsel zu etwas anderem gesendet werden) und die Sitzungsdatensätze
