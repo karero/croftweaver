@@ -121,6 +121,13 @@ class PageTests(unittest.TestCase):
         self.assertTrue(fp.query_on_page(QUERY, page(title="Fahrrad", h1="Reparatur", p="in Leipzig")))
         self.assertFalse(fp.query_on_page(QUERY, page()))
 
+    def test_a_german_compound_carries_the_words_written_apart(self):
+        # The owner's new title says "Fahrradreparatur"; the search was "fahrrad reparatur leipzig".
+        done = page(title="Fahrradreparatur in Leipzig-Plagwitz", h1="", p="")
+        self.assertTrue(fp.query_on_page(QUERY, done))
+        # A compound with something else in it does not count: "fahrradladen" is not "fahrrad reparatur".
+        self.assertFalse(fp.query_on_page(QUERY, page(title="Fahrradladen in Leipzig", h1="", p="")))
+
     def test_a_search_of_stop_words_only_is_never_already_on_the_page(self):
         self.assertFalse(fp.query_on_page("in der", page(title="in der")))
 
@@ -165,6 +172,16 @@ class ChooseTests(unittest.TestCase):
         self.assertEqual(notes, [(QUERY, "turned down until 2027-01-25")])
         prop, _ = fp.choose(self.cands, self.state, D("2027-01-25"), lambda url: page())
         self.assertEqual(prop["query"], QUERY)
+
+    def test_a_finished_round_keeps_its_record_when_the_search_comes_back(self):
+        rec = fp.record_shown(self.state, dict(self.cands[0], old_title=OLD_TITLE),
+                              (D("2026-09-28"), D("2026-10-25")), D("2026-11-02"))
+        rec["pr"] = {"url": "u", "repo": "o/r", "number": 31, "state": "MERGED"}
+        rec["result"] = {"weeks": 4}
+        again = fp.record_shown(self.state, dict(self.cands[0], old_title=NEW_TITLE),
+                                (D("2027-02-01"), D("2027-02-28")), D("2027-03-08"))
+        self.assertEqual((again["shown"], "pr" in again), ("2027-03-08", False))
+        self.assertEqual([r["result"] for r in self.state["done"]], [{"weeks": 4}])
 
     def test_an_open_or_unchecked_pull_request_keeps_the_whole_page_out(self):
         rec = fp.record_shown(self.state, dict(self.cands[0], old_title=OLD_TITLE),

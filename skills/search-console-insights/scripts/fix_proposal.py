@@ -56,7 +56,7 @@ def state_path(site: str) -> Path:
 
 def empty_state(site: str) -> dict:
     return {"version": 1, "site": normalize_site(site), "brand": None, "pr_figures": "unasked",
-            "current": None, "proposals": {}}
+            "current": None, "proposals": {}, "done": []}
 
 
 def load_state(site: str) -> dict:
@@ -184,14 +184,25 @@ def parse_page(text: str) -> dict:
 
 
 def query_on_page(query: str, page: dict) -> bool:
-    """True when every word of the query, as a whole word and folded, appears in the title, the
-    H1 and the first paragraph taken together (design §3.2). Short words count ("ki"); only
-    STOP_WORDS are left out. A query with no word left is never "already on the page"."""
+    """True when every word of the query appears in the title, the H1 and the first paragraph
+    taken together (design §3.2): as a whole word, folded, or written together with its
+    neighbours as one word, the way German writes compounds ("fahrrad reparatur" is on a page
+    that says "Fahrradreparatur"). Short words count ("ki"); only STOP_WORDS are left out. A
+    query with no word left is never "already on the page"."""
     want = [w for w in words_of(query) if w not in STOP_WORDS]
     if not want:
         return False
     have = set(words_of(" ".join(page.get(k) or "" for k in ("title", "h1", "first_paragraph"))))
-    return all(w in have for w in want)
+    i = 0
+    while i < len(want):
+        if want[i] in have:
+            i += 1
+            continue
+        joined = next((j for j in range(i + 1, len(want)) if "".join(want[i:j + 1]) in have), None)
+        if joined is None:
+            return False
+        i = joined + 1
+    return True
 
 
 def norm_title(t) -> str:
@@ -315,6 +326,11 @@ def record_shown(state: dict, proposal: dict, window, today: dt.date) -> dict:
     the live page: the title was the old one on that day."""
     key = proposal_key(proposal["page"], proposal["query"])
     rec = state["proposals"].get(key) or {}
+    if rec.get("pr") and (rec.get("result") or rec.get("decline_reason") == "closed"):
+        # The same search, proposed again after an earlier round finished: that round keeps its
+        # own record (and its result stays on the page); this one starts fresh.
+        state.setdefault("done", []).append(rec)
+        rec = {}
     rec.update({k: proposal[k] for k in ("kind", "query", "page", "position", "impressions",
                                           "clicks", "page_impressions", "old_title")})
     rec.setdefault("shown", today.isoformat())
