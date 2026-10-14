@@ -856,7 +856,7 @@ test('the script monitor is named, with the path to its switch, not shown as a b
     assert.ok(r.by.nel.fix.includes(MONITOR_PATH), `the fix does not carry the path "${MONITOR_PATH}"`);
     assert.match(r.by.nel.fix, /Client-side abuse/);
     assert.match(r.by.nel.fix, /Continuous script monitoring/);
-    assert.match(r.by.nel.fix, /NEL does not remove it/, 'the checklist\'s NEL rule is not the way to remove it');
+    assert.match(r.by.nel.fix, /rule for NEL did not remove it on the one site/, 'the checklist\'s NEL rule is not the way to remove it');
   }));
 
 test('any one of the script monitor\'s three headers names it, however the address is written', async () => {
@@ -1500,5 +1500,9 @@ test('the items are the checklist\'s items, and the paths are its paths', (t) =>
     assert.ok(flat.includes(want), `the checklist does not say "${want}"`);
   }
   assert.ok(flat.includes(MONITOR_PATH), `the checklist does not say where the script monitor's switch is: "${MONITOR_PATH}"`);
+  // The reference that ships with the script says it too, and is the third copy of the path.
+  const reference = readFileSync(path.join(HERE, '..', '..', 'references', 'CLOUDFLARE_CHECK.md'), 'utf8')
+    .replace(/\*\*|`/g, '').replace(/\s+/g, ' ');
+  assert.ok(reference.includes(MONITOR_PATH), `references/CLOUDFLARE_CHECK.md does not say "${MONITOR_PATH}"`);
   assert.ok(text.includes('**No scripts you didn\'t add:**'), 'section 5 still has the source-search bullet the "scripts" item stands for');
 });

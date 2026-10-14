@@ -70,7 +70,7 @@ nowhere to go, is said so and the page is not judged.
 | Send pages.dev to your domain (1) | `<name>.pages.dev` answers 301 to your domain (needs `--project`) | It answers 200 or goes elsewhere: `CANONICAL_URL` is not in effect |
 | Always Use HTTPS (2) | `http://domain/` answers 301 or 308 to `https://domain/`, as an address | No redirect, or one to another address |
 | HSTS (2) | The `strict-transport-security` header, read as directives: max-age in months, subdomains, preload | Missing, with `--hsts-on` |
-| NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look`. So is Cloudflare's script monitor (Client-side security), which the line names: a `report-to` group, a `reporting-endpoints` entry or a `report-uri` of a report-only policy that lists an address on csp-reporting.cloudflare.com, judged by the host of that address and not by a name. It names what Cloudflare sends and does not decide what a browser would do with a header. NEL on still fails, and the line names the monitor beside it |
+| NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look`. So is Cloudflare's script monitor (Client-side security), which the line names: a `report-to` group, a `reporting-endpoints` entry or a `report-uri` of a report-only policy that lists an address on csp-reporting.cloudflare.com, judged by the host of that address and not by a name. It names what Cloudflare sends and does not decide what a browser would do with a header. NEL on still fails, and the line names the monitor beside it. The script reports the monitor as a `look`; the checklist asks for its switch Off (section 3, step 5) |
 | Bot Fight Mode off (3) | No Cloudflare cookie, and no `/cdn-cgi/challenge-platform/` address in the page's tags or scripts | Either is there. A cookie of your own is a `look` |
 | Web Analytics off (3) | No `<script src>` at `static.cloudflareinsights.com` and no `data-cf-beacon` attribute | It is there |
 | Email Address Obfuscation off (3) | No `email-decode.min.js` at Cloudflare's path, no `/cdn-cgi/l/email-protection` link and no `data-cfemail` attribute | Any is there |
@@ -104,19 +104,23 @@ items are a `look`, never `ok`.
 - **TLS 1.0 and 1.1.** The machine running the script often cannot speak them. Use
   ssllabs.com/ssltest, as the checklist says.
 - **A header Cloudflare sends on a sample of pages.** The script monitor's headers came on 2 of
-  40 requests on the one site we saw it on, and on none of 200 after it was switched off. A run
-  that sees none does not show it is off, and neither does any number of requests: how often
-  Cloudflare sends them is not documented. The switch is at Your domain → Security → Settings →
-  filter by Client-side abuse → Continuous script monitoring; after switching it off, count
-  requests to see that the headers stopped. This prints how many of 100 answered with one of
-  the monitor's three headers (`report-to`, `reporting-endpoints` or
-  `content-security-policy-report-only`; a site that sets one itself counts too), how many
-  without one, and how many failed:
+  40 requests on the one site we saw it on, and a `report-to` header on none of 200 after it
+  was switched off. A run that sees none does not show it is off, and neither does any number
+  of requests: how often Cloudflare sends them is not documented. The switch is at Your
+  domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring.
+  After switching it off, count requests: 100 answers without the headers make it unlikely
+  that they are still being sent, and do not exclude it. Replace `yourdomain.com` with your
+  domain. This prints how many of 100 answered with one of the monitor's three headers
+  (`report-to`, `reporting-endpoints` or `content-security-policy-report-only`; a site that
+  sets one itself counts too), how many without one, and how many failed, each with the
+  status line of the answer. Only answers that are `200` count: a redirect or an error page
+  has none of the headers either:
 
   ```bash
   for i in $(seq 1 100); do
-    h=$(curl -sS --http1.1 -D - -o /dev/null "https://example.com/?cb=$RANDOM") || { echo failed; continue; }
-    if printf '%s\n' "$h" | grep -qiE '^(report-to|reporting-endpoints|content-security-policy-report-only):'; then echo header; else echo none; fi
+    h=$(curl -sS --http1.1 -D - -o /dev/null "https://yourdomain.com/?cb=$RANDOM") || { echo failed; continue; }
+    s=$(printf '%s\n' "$h" | head -n 1 | tr -d '\r')
+    if printf '%s\n' "$h" | grep -qiE '^(report-to|reporting-endpoints|content-security-policy-report-only):'; then echo "header $s"; else echo "none $s"; fi
   done | sort | uniq -c
   ```
 - **Crawler Hints, Fail open and the build settings.** They have no outside check. The report
