@@ -147,9 +147,10 @@ The **four places** are the requirements' R2 list: the page's `title`, its meta
 
 ### 3.3 Acting (the assistant, guided by `references/fix-proposal.md`)
 
-The owner says the report's sentence, which names the skill so the assistant loads it
-without relying on the description: *"search-console-insights: make this week's fix for
-radwerk-plagwitz.example"*. Whether that sentence alone loads the skill in a fresh
+The owner says the report's sentence. It starts with the skill's name, so the assistant
+loads it without relying on the description, and then names the search, every place and
+the page, as R1 asks: *"search-console-insights: work 'fahrrad reparatur leipzig' into the
+title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur"*. Whether that sentence alone loads the skill in a fresh
 session is not known; step 4 tries it cold in Claude Code and in Codex before the
 wording is final.
 
@@ -174,9 +175,10 @@ Every state write is a command, so the model never edits the JSON by hand.
 
 - **Pull request state.** `acted` records the pull request's number and repository
   (`owner/name`) beside its address. Each run asks GitHub with
-  `gh pr view <number> --repo <owner/name> --json state,mergedAt` when `gh` is installed
-  and signed in. Closed without merging counts as the owner's "not this one" (R3): the 12
-  weeks start that day; reopened cancels that. Merged: the proposal waits to be seen live.
+  `gh pr view <number> --repo <owner/name> --json state,mergedAt,closedAt` when `gh` is
+  installed and signed in. Closed without merging counts as the owner's "not this one"
+  (R3): the 12 weeks start on the `closedAt` day, not the day the report noticed;
+  reopened cancels that. Merged: the proposal waits to be seen live.
 - **Nothing is released by a timer.** While the pull request is open, or merged but not
   seen live, the page stays excluded (R1) and each report says what is waiting: "your
   proposal of 2 November is waiting in pull request 31", or "merged, not seen on the live
@@ -187,35 +189,44 @@ Every state write is a command, so the model never edits the JSON by hand.
 - **Live.** When the proposal is chosen, the report keeps the page's current `<title>`
   (it fetched the page for the word check). The assistant records the **whole rendered**
   new `<title>`, layout suffix included, read from the built page after the gate's build
-  (`--new-title`). Each later run fetches the page again and compares whole titles, folded
-  and with spaces collapsed. Three outcomes: **new** (equal to the recorded new title),
-  **old** (equal to the kept old one), **unknown** (a timeout, an error, an answer other
-  than 200, or any other title). Unknown changes nothing.
+  (`--new-title`). `acted` refuses a new title that equals the old one once folded and
+  with spaces collapsed, since the two could not be told apart. Each later run fetches the
+  page again and compares whole titles the same way. Four outcomes: **new** (equal to the
+  recorded new title), **old** (equal to the kept old one), **other** (a readable title
+  that is neither), **unreadable** (a timeout, an error, an answer other than 200, no
+  `<title>`). Unreadable changes nothing. Other, before the first new check, means the
+  page changed in another way: the report says so and keeps waiting; after it, see below.
 - **Windows (DD8).** Measured from the weekly checks, not from the exact day: the
   before-window is the four full weeks ending on the last Sunday before the last **old**
   check; the after-window is the four full weeks starting on the first Monday on or after
   the first **new** check. With scenario 8's Monday checks (old on 2026-11-02, new on
   2026-11-09) that gives 2026-10-05 to 2026-11-01 and 2026-11-09 to 2026-12-06. Both edges
   are fixed at the first **new** check: "the last old check" means the last one before
-  it. A missed or unknown check only makes the gap between the windows wider; it never puts
-  a day of the new page into the before-window.
+  it. A missed or unreadable check only makes the gap between the windows wider; it never
+  puts a day of the new page into the before-window.
 - **Before and after only (DD7).** The report shows the query's position, impressions and
   clicks in both windows and says: "This compares one search before and after the change.
   It does not check what else changed on your site or in Google's results." It never says
   "consistent with". If a check during the after-window finds any title other than the
   new one (the old one back, or a third), the page has changed again: the report shows the
   figures up to that week and says so. Comparing against the rest of the site is later work.
-- **Results** go into the state file, so the comparison is computed once and the page
-  shows it from then on.
+- **The figures** come from two requests made for this purpose, one per window, filtered
+  to the proposal's query (`equals`, lowercased, as the report's key searches are) with the
+  report's country setting and property; the rolling proposal window is not used. They are
+  fetched once the complete data (R1) reaches the after-window's last Sunday, and the
+  result goes into the state file, so the comparison is computed once and the page shows
+  it from then on.
 
 ## 4. Tests
 
 - **Pure functions** in `fix_proposal.py`: choosing (each exclusion, the 50 floor, ties,
-  folding, the word check with short words and a query of stop words only), the three
-  live outcomes (a shortened new title inside the old one, and the old title with a new
-  layout suffix) and the window edges (a rollback after the first new check included), the pull request states (open, merged, closed, reopened, unknown), and a
-  page that changes again during the after-window. The dates of the requirements'
-  scenarios 1, 2, 4, 6 and 8 are test cases as written.
+  folding, the word check with short words and a query of stop words only); the four live
+  outcomes (a shortened new title inside the old one, the old title with a new layout
+  suffix, an unreadable answer, and a new title equal to the old one, which `acted`
+  refuses); the window edges, a rollback after the first new check included; the pull
+  request states (open, merged, closed between two checks, reopened, unknown); and a page
+  that changes again during the after-window. The dates of the requirements' scenarios 1,
+  2, 4, 6 and 8 are test cases as written.
 - **Through the real entry point** (global rule 9): `search_report.build` with the fake
   Search Console service `test_search_report.py` already uses (`FakeGoogle`) and a local
   HTTP server for the live page, as `_geo_stub.py` serves the AI check's tests. One test

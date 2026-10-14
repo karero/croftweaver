@@ -74,3 +74,16 @@ under DD7 are real (the machinery is gone). Codex 4 findings, GLM 4; merged, 6: 
 
 Round 3 had BUGs, both residues of earlier fixes; a Codex fix check and the wording pass
 follow in one full read.
+
+## Final full read and wording pass — Codex at 8b7de92, 2026-10-14
+
+Round 3's fixes verified landed. 6 findings: 2 BUG, 4 RISK. 5 fixed, 1 refuted.
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| 1 | BUG | A third title was "unknown, changes nothing" in one place and "interrupts the measuring" in another | Fixed: four outcomes; "other" (readable, neither title) is told apart from "unreadable" |
+| 2 | BUG | The owner's sentence had lost the search, the places and the page that R1 asks for | Fixed: the sentence starts with the skill's name and names all three |
+| 3 | RISK | An unchanged or case-only title could match old and new at once | Fixed: `acted` refuses a new title equal to the old one |
+| 4 | RISK | A closure between two weekly checks started the 12 weeks late | Fixed: `closedAt` is read and used |
+| 5 | RISK | The measuring windows had no fetch of their own | Fixed: two query-filtered requests, one per window, with the report's country and property, made once the data is complete |
+| 6 | RISK | Google's behaviour (completeness, position, omissions, limits) not proven | Refuted: outside the agreed severity bar; §1 cites the documentation, and probe P1 captured both the metadata-present and the metadata-absent case on a real site |
