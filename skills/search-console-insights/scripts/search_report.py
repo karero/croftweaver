@@ -40,6 +40,7 @@ S6_SHOWN = 15               # rows shown in "just below page 1"
 S7_MAX_POSITION, S7_MIN_IMPRESSIONS, S7_MAX_CTR = 10.0, 20, 0.02   # gsc_query.py's low-CTR rule
 TRACKER_WINDOW = "28"
 STALE_RECORD_DAYS = 14      # a weekly record older than two weeks is named on the page
+STALE_AI_DAYS = 35          # A7: a downloaded AI report whose last day is older than this says so
 
 
 def base_dir() -> Path:
@@ -592,7 +593,124 @@ COUNTRY_NAMES = {"deu": "Germany", "che": "Switzerland", "aut": "Austria", "usa"
                  "gbr": "the United Kingdom", "fra": "France", "ita": "Italy", "esp": "Spain", "nld": "the Netherlands"}
 
 
-def render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw=frozenset()):
+def _day(d):
+    return f"{d.day} {d:%B %Y}"
+
+
+def _span(first, last, sep):
+    """'12 July and 13 October 2026' / '12 July – 13 October 2026': the year once when both share it."""
+    a, b = dt.date.fromisoformat(first), dt.date.fromisoformat(last)
+    left = f"{a.day} {a:%B}" if a.year == b.year else _day(a)
+    return f"{left}{sep}{_day(b)}"
+
+
+def load_ai(site):
+    """What ai_reports.py saved for this site: {'google': …, 'bing': …}; a missing or damaged file is None."""
+    need = {("google", "data"): ("total", "first", "last"), ("google", "empty"): (),
+            ("google", "not_shown"): (), ("bing", "data"): ("citations", "days", "days_cited", "first", "last"),
+            ("bing", "empty"): ("first", "last")}
+    out = {}
+    for source in ("google", "bing"):
+        p = report_dir(site) / f"ai-{source}.json"
+        try:
+            j = json.loads(p.read_text(encoding="utf-8"))
+            keys = need.get((source, j.get("state"))) if isinstance(j, dict) else None
+            ok = keys is not None and all(j.get(k) is not None for k in keys)
+            for k in keys if ok else ():     # a hand-edited record: dates must be dates, counts whole numbers
+                if k in ("first", "last"):
+                    dt.date.fromisoformat(j[k])
+                elif not isinstance(j[k], int):
+                    ok = False
+            out[source] = j if ok else None
+        except (ValueError, TypeError, OSError):
+            out[source] = None
+    return out
+
+
+def ai_section(ai, site, today):
+    """Google's and Bing's own AI reports (docs/reviews/SKILL-PLAN-ai-reports.md, A1–A10): an empty or
+    missing report is said in words, never as a 0, and never as a warning."""
+    g, b = ai.get("google"), ai.get("bing")
+    parts = ["<h2>Google's and Bing's AI answers</h2>"]
+    if not g and not b:
+        parts.append("<p>Google and Bing now count how often your site appears in their AI answers, but they don't "
+                     "let programs read those numbers. Download the reports and say <i>“here's my AI report from "
+                     "Google”</i> (or Bing), and I'll add them here.</p>")
+        return "".join(parts)
+    parts.append('<p class="sub">Counted by Google and Bing themselves, from the reports you downloaded: real '
+                 "answers people saw, not questions we asked.</p>")
+
+    def old(rec):
+        last = rec.get("last")
+        try:
+            if last and (today - dt.date.fromisoformat(last)).days > STALE_AI_DAYS:
+                return (f'<p class="note">These numbers end on {H(_day(dt.date.fromisoformat(last)))}; '
+                        "download a new report for newer ones.</p>")
+        except ValueError:
+            pass
+        return ""
+
+    def times(n):
+        return f"{_n(n)} time{'s' if n != 1 else ''}"
+
+    card = ['<section class="card"><h3>Google: AI Overviews and AI Mode</h3>']
+    if not g:
+        card.append("<p>Not added yet. In Search Console, open the generative AI report, export it, and say "
+                    "<i>“here's my AI report from Google”</i>.</p>")
+    elif g["state"] == "not_shown":
+        when = g.get("checked") or ""
+        try:
+            when = _day(dt.date.fromisoformat(when))
+        except ValueError:
+            pass
+        card.append(f"<p>Google doesn't show an AI report for this site yet (you checked on {H(when)}). Google shows "
+                    "it once a site has appeared in its AI answers often enough.</p>")
+    elif g["state"] == "empty":
+        covers = (f"your download covers {H(_span(g['first'], g['last'], ' – '))}" if g.get("first")
+                  else "your download has no rows")
+        card.append(f"<p>No impressions in Google's AI answers yet ({covers}). That is normal for a small site.</p>")
+        card.append(old(g))
+    else:
+        card.append(f'<p class="move">Your site was shown {times(g["total"])} in Google\'s AI answers (AI Overviews and '
+                    f'AI Mode) between {H(_span(g["first"], g["last"], " and "))}.</p>')
+        pages = g.get("pages") or []
+        if pages:
+            # A path that Google lists under two addresses (with and without www.) is shown in full
+            # both times, so no two rows of the table read the same.
+            paths = [show_page(u, site) for u, _ in pages[:15]]
+            label = lambda i: paths[i] if paths.count(paths[i]) == 1 else pages[i][0]
+            card.append("<table><tr><th>Your page</th><th>Shown</th></tr>"
+                        + "".join(f"<tr><td>{H(label(i))}</td><td>{_n(n)}</td></tr>" for i, (u, n) in enumerate(pages[:15]))
+                        + "</table>")
+            if len(pages) > 15:
+                card.append(f'<p class="note">And {len(pages) - 15} more pages in your download.</p>')
+            card.append('<p class="note">One answer can show several of your pages, so the pages add up to more '
+                        "than the total.</p>")
+        if g.get("search_type"):
+            card.append(f'<p class="note">Your download counts “{H(g["search_type"])}”.</p>')
+        card.append(old(g))
+    parts.append("".join(card) + "</section>")
+
+    card = ["<section class=\"card\"><h3>Bing: Copilot and Bing's AI summaries</h3>"]
+    if not b:
+        card.append("<p>Not added yet. In Bing Webmaster Tools, open AI Performance, export it, and say "
+                    "<i>“here's my AI report from Bing”</i>.</p>")
+    elif b["state"] == "empty":
+        card.append(f"<p>No citations in Bing's AI answers yet (your download covers "
+                    f"{H(_span(b['first'], b['last'], ' – '))}). That is normal for a small site.</p>")
+        card.append(old(b))
+    else:
+        card.append(f"<p class=\"move\">Bing's AI answers (Copilot and Bing's AI summaries) cited your pages "
+                    f"{times(b['citations'])} between {H(_span(b['first'], b['last'], ' and '))}, on "
+                    f"{_n(b['days_cited'])} of those {_n(b['days'])} days.</p>")
+        card.append('<p class="note">A citation means your page was shown as a source. Bing counts a sample, and a '
+                    "citation says nothing about visits.</p>")
+        card.append(old(b))
+    parts.append("".join(card) + "</section>")
+    return "".join(parts)
+
+
+def render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw=frozenset(), ai=None):
     parts = []
     finished = dt.date.fromisoformat(data["finished"]) if data else None
     weeks = complete_weeks(data["daily"], finished) if data else []
@@ -765,6 +883,8 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
     else:
         parts.append("<p>Bing is not connected yet. Ask me <i>“connect Bing”</i> and I'll walk you through it.</p>")
 
+    parts.append(ai_section(ai or {}, site, today))
+
     if ai_link:
         parts.append(f'<p class="sub" style="margin-top:32px">Also see: <a href="{H(ai_link)}">Does AI name you?</a> — your AI report.</p>')
     else:
@@ -849,7 +969,7 @@ def build(domain, args, service_factory=make_service, today=None):
         bing_state = "unknown"
     ai = newest_ai_page(site)
     ai_link = f"../../geo/reports/{site}/{ai.name}" if ai else None
-    page = render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw)
+    page = render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw, load_ai(site))
     out = out_dir / "google.html"
     write_atomic(out, page)
     if ai:
