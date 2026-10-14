@@ -972,6 +972,61 @@ test('a group or an address of your own is not the script monitor, whatever it i
   });
 });
 
+// With Client-Side Security Advanced the monitor can report to the site's own host instead, at
+// /cdn-cgi/script-monitor/report (Cloudflare's settings page). The header then names the page's own
+// host, written in full or relative to the page; the line names the monitor and says where it reports.
+const OWN_PATH = '/cdn-cgi/script-monitor/report';
+const ownHostHome = (make) => (req, res, url) => {
+  if (!isHome(url)) return false;
+  send(res, 200, 'text/html', '<p>Hi</p>', make(`http://${req.headers.host}`));
+  return true;
+};
+
+test('the script monitor reporting to the site\'s own host is named too, in each header and however the address is written', async () => {
+  const forms = {
+    'report-to, full address': (o) => ({ 'report-to': `{"group":"cf-csp-endpoint","max_age":86400,"endpoints":[{"url":"${o}${OWN_PATH}?m=1"}]}` }),
+    'reporting-endpoints, full address': (o) => ({ 'reporting-endpoints': `cf-csp-endpoint="${o}${OWN_PATH}?m=1"` }),
+    'report-only policy, full address': (o) => ({ 'content-security-policy-report-only': `script-src 'unsafe-inline'; report-uri ${o}${OWN_PATH}?m=1` }),
+    'report-only policy, relative address': () => ({ 'content-security-policy-report-only': `script-src 'unsafe-inline'; report-uri ${OWN_PATH}?m=1` }),
+    'report-to, relative address': () => ({ 'report-to': `{"group":"g","endpoints":[{"url":"${OWN_PATH}"}]}` }),
+  };
+  for (const [what, make] of Object.entries(forms)) {
+    await withSite(ownHostHome(make), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'look', what);
+      assert.match(r.by.nel.detail, /script monitor is switched on/, what);
+      assert.match(r.by.nel.detail, /site's own address, \/cdn-cgi\/script-monitor\/report/, what);
+      assert.match(r.by.nel.detail, /Client-Side Security Advanced/, what);
+      assert.ok(r.by.nel.fix.includes(MONITOR_PATH), what);
+    });
+  }
+  // Cloudflare's own host does not get the own-host sentence.
+  await withSite(homeWith({ 'report-to': MONITOR['Report-To'] }), async (s) => {
+    const r = await check(s.origin);
+    assert.match(r.by.nel.detail, /script monitor is switched on/);
+    assert.doesNotMatch(r.by.nel.detail, /site's own address/, 'the sentence is for the own host only');
+  });
+  // Not the monitor: another host with the path, the path spelled as on Cloudflare's own host, a longer
+  // or shorter path on the own host, and the path only in a query.
+  const notIt = {
+    'the path on another host': () => `https://reports.example.invalid${OWN_PATH}`,
+    'the underscore spelling on the own host': (o) => `${o}/cdn-cgi/script_monitor/report`,
+    'a longer path on the own host': (o) => `${o}${OWN_PATH}/more`,
+    'a shorter path on the own host': (o) => `${o}/cdn-cgi/script-monitor`,
+    'the path only in a query': (o) => `${o}/csp?next=${OWN_PATH}`,
+  };
+  for (const [what, address] of Object.entries(notIt)) {
+    await withSite(ownHostHome((o) => ({ 'report-to': `{"group":"g","endpoints":[{"url":"${address(o)}"}]}` })), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'look', what);
+      assert.doesNotMatch(r.by.nel.detail, /script monitor/, `report-to: ${what}`);
+    });
+    await withSite(ownHostHome((o) => ({ 'content-security-policy-report-only': `default-src 'self'; report-uri ${address(o)}` })), async (s) => {
+      assert.equal((await check(s.origin)).by.nel.state, 'ok', `report-only policy: ${what}`);
+    });
+  }
+});
+
 test('NEL on still fails beside the script monitor, and the monitor is named there too', async () => {
   await withSite(homeWith({ ...MONITOR, nel: '{"report_to":"cf-nel","max_age":604800}' }), async (s) => {
     const r = await check(s.origin);

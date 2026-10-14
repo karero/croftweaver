@@ -525,6 +525,19 @@ const monitorHost = (u) => {
   if (typeof u !== 'string') return false;
   try { return /(^|\.)csp-reporting\.cloudflare\.com$/i.test(new URL(u).hostname.replace(/\.$/, '')); } catch { return false; }
 };
+// With Client-Side Security Advanced, Cloudflare can send the same reports to the site's own host
+// instead, at this path (Cloudflare's settings page, read 14 October 2026: hyphens here, an
+// underscore in the path on its own host). Only this exact path on the checked page's host counts,
+// and an address written relative to the page is read against it. /cdn-cgi/ is Cloudflare's, so a
+// site's own reporting endpoint does not live there.
+const OWN_HOST_REPORT_PATH = '/cdn-cgi/script-monitor/report';
+const ownHostReport = (page) => (u) => {
+  if (typeof u !== 'string' || !page) return false;
+  try {
+    const a = new URL(u, page);
+    return a.hostname.replace(/\.$/, '') === new URL(page).hostname.replace(/\.$/, '') && a.pathname === OWN_HOST_REPORT_PATH;
+  } catch { return false; }
+};
 // A reporting-endpoints header is written as a dictionary: name="address", name="address";p="x".
 // The string after a member's `=` is its address; a parameter's string is not, and a string may hold
 // \" or a comma. This is not a Structured Fields validator.
@@ -545,19 +558,20 @@ function endpointAddresses(value) {
     .filter(Boolean)
     .map((m) => m[1].replace(/\\(.)/g, '$1'));
 }
-function cloudflareMonitor(name, value) {
+// isMonitor judges one address: monitorHost, or ownHostReport(page) for the site's own host.
+function cloudflareMonitor(name, value, isMonitor = monitorHost) {
   if (name === 'report-to') { // a list of JSON groups; a value that does not parse is not read
     let groups;
     try { groups = JSON.parse(`[${value}]`).flat(); } catch { return false; }
-    return groups.some((g) => g && Array.isArray(g.endpoints) && g.endpoints.some((e) => e && monitorHost(e.url)));
+    return groups.some((g) => g && Array.isArray(g.endpoints) && g.endpoints.some((e) => e && isMonitor(e.url)));
   }
-  if (name === 'reporting-endpoints') return endpointAddresses(value).some(monitorHost);
+  if (name === 'reporting-endpoints') return endpointAddresses(value).some(isMonitor);
   // content-security-policy-report-only: policies are written split at commas, directives at
   // semicolons; any report-uri directive that lists the address names it (never hidden behind
   // another one: whether a browser uses a duplicate is not decided here)
   return value.split(',').some((policy) => policy.split(';').some((d) => {
     const [directive, ...addresses] = d.trim().split(/\s+/);
-    return /^report-uri$/i.test(directive) && addresses.some(monitorHost);
+    return /^report-uri$/i.test(directive) && addresses.some(isMonitor);
   }));
 }
 
@@ -708,8 +722,10 @@ export function evaluate(obs, target, opts) {
     const withdrawn = policies.length > 0 && !live;
     const reports = values('report-to');
     const cfReport = reports.some((v) => cloudflareGroup(v) === true);
-    const monitor = ['report-to', 'reporting-endpoints', 'content-security-policy-report-only']
-      .some((name) => values(name).some((v) => cloudflareMonitor(name, v)));
+    const monitorAt = (isMonitor) => ['report-to', 'reporting-endpoints', 'content-security-policy-report-only']
+      .some((name) => values(name).some((v) => cloudflareMonitor(name, v, isMonitor)));
+    const monitorOwn = monitorAt(ownHostReport(home.url));
+    const monitor = monitorOwn || monitorAt(monitorHost);
     const nel = policies.length > 0;
     const age = Number.isFinite(live?.max_age) ? ` (max_age ${live.max_age} seconds)` : '';
     const aliasSends = alias && !alias.error ? ['nel', 'report-to'].filter((h) => header(alias, h)) : [];
@@ -718,7 +734,7 @@ export function evaluate(obs, target, opts) {
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
     // The script monitor is named wherever it is seen, beside a NEL failure too: it is not NEL,
     // and the header rule for NEL removes only NEL and Report-To, so it does not switch it off.
-    const monitorWhat = "Cloudflare says it adds a content-security-policy-report-only header to a sample of pages, and that visitors' browsers then send reports to Cloudflare. On the one site where this was seen it came with a report-to group, cf-csp-endpoint, at csp-reporting.cloudflare.com. That is not NEL.";
+    const monitorWhat = `Cloudflare says it adds a content-security-policy-report-only header to a sample of pages, and that visitors' browsers then send reports to Cloudflare. On the one site where this was seen it came with a report-to group, cf-csp-endpoint, at csp-reporting.cloudflare.com. That is not NEL.${monitorOwn ? " Here the reports go to the site's own address, /cdn-cgi/script-monitor/report, which Cloudflare offers with Client-Side Security Advanced." : ''}`;
     const monitorAlso = monitor ? ` Cloudflare's script monitor is switched on as well: ${monitorWhat}` : '';
     const monitorFix = "Your domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring: Off. The checklist's header rule for NEL removes only the NEL and Report-To headers; it does not switch the monitor off.";
     const sampleNote = " Cloudflare's script monitor adds its headers to a sample of pages only, so this one answer cannot show that it is off.";
