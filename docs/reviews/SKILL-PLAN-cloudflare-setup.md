@@ -9,8 +9,9 @@ This is the second version. The first went through a PLAN gate that stopped afte
 rounds without converging (`docs/reviews/REVIEW-plan-2026-10-12-pr265.md`); then a trial
 run on a throwaway project answered the questions that gate had left open. This text is
 written once from that trial, with two yeses (D1), and passed a new PLAN gate on 2026-10-14
-(trail under "Review trail"). A second trial (plan step 9) tried the calls the first left
-untried, and its results are written in. What no one has tried yet is listed under "Not
+(trail under "Review trail"). A second trial (plan step 9) tried most of the calls the
+first left untried; its results are written in, and that change has a PLAN gate of its own,
+`docs/reviews/REVIEW-plan-2026-10-14-pr320.md`. What no one has tried yet is listed under "Not
 verified".
 
 Two series of steps run through this file. **Plan steps** are the rows of the status
@@ -20,12 +21,12 @@ table. **Script steps** are what the script does, numbered under "Shape".
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ✅ rewritten from the trial on 2026-10-14; PLAN gate (High) clean the same day, after six rounds, a final full read and a wording pass | this file; trail: `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`. First version and its gate: karero/croftweaver#265 (`b5bf49e`), `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
+| 1 | Requirements and scenarios (this file) | ✅ rewritten from the trial on 2026-10-14; PLAN gate (High) clean the same day, after six rounds, a final full read and a wording pass. The second trial's results: PLAN gate (High) under way | this file; trails: `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`, `docs/reviews/REVIEW-plan-2026-10-14-pr320.md`. First version and its gate: karero/croftweaver#265 (`b5bf49e`), `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist and its check script reach `main` | ✅ merged 2026-10-12 | karero/croftweaver#266 (`7642954`); karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions | ✅ D1 to D7 on 2026-10-12, D1 final on 2026-10-13, decision 8 on 2026-10-14 | sections "Decisions taken" and "Decisions D1 to D7" |
-| 4 | Trial run on a throwaway repository and project | ✅ 2026-10-13, apart from two points: "Not verified" 1 is still open, 2 was settled by plan step 9 | 159 captures, kept outside every repository; the private throwaway repository |
+| 4 | Trial run on a throwaway repository and project | ✅ 2026-10-13, apart from two points: "Not verified" 1 is still open, 2 was settled in part by plan step 9 | 159 captures, kept outside every repository; the private throwaway repository |
 | 5 | The checklist names the three more AI switches of decision 8 | ✅ merged 2026-10-14 (another session's work) | karero/croftweaver#285 (`321d26f`) |
-| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ⏸ not started | — |
+| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ⏸ not started; waits for karero/croftweaver#319 to merge | — |
 | 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ⏸ not started | — |
 | 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
 | 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ✅ done 2026-10-14; the first domain named turned out to be in use, so most steps ran on a second, empty one. Results under "Seen in the second trial": Bot Preference Sync is `bot_preference_sync_enabled`; which switch `is_robots_txt_managed` is stays unknown, and setting it to `true` is refused. Cleaned up on the maintainer's word | 78 captures (T2-001 to T2-078), kept outside every repository; the checklist's field fix: karero/croftweaver#319 (open) |
@@ -89,7 +90,9 @@ shows it. Where no outside check exists, the report says "read back through the 
 
 R7. **Nothing is destroyed.** The script deletes nothing. The one existing DNS record it
 may change is the host's own address record, inside the second yes. It does not repair a
-site that is live (decision 7).
+site that is live (decision 7). One case is left open on purpose: where a zone has no
+response-header ruleset, the PUT that creates one could replace a ruleset someone else
+creates in the same moment (script step 12; "Judgment calls").
 
 R8. **Safe to run again.** Each write is one call. A run cut off between two writes leaves
 a state the next run with the same code reads and carries on from (scenario 39). A run on
@@ -153,7 +156,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 41 | `setup` ran with `--skip bot`, and Bot Fight Mode is on; or it ran without, and someone has since turned Always Use HTTPS off | `launch` runs with `--skip bot`; then the second case without any `--skip` | the `bot` failure is listed as left to Lena, status 0; the `https` failure gives 1 | stub site with the cookie; stub site with no redirect |
 | | **Every stage** | | | |
 | 32 | both stages ran last month | each runs again | no write call, no question, status 0 | stub holding the end state |
-| 33 | the token has no end date; or the zone list shows a second zone; or token verify is refused; or the zone list is refused | any stage runs | it refuses before any write and names the token to make instead: no end date, one with an end date; a second zone, one limited to her zone; verify refused, a new token (the old one may be revoked or not yet valid); zone list refused, one with the Zone → Zone → Read row | stub: no `expires_on`; two zones; a 403 on verify; a 403 on the zone list |
+| 33 | the token has no end date; or the zone list shows a second zone; or token verify is refused; or the zone list is refused | any stage runs | it refuses before any write and names the token to make instead: no end date, one with an end date; a second zone, one limited to her zone, adding that a token narrowed just now may need a few minutes; verify refused, a new token (the old one may be revoked or not yet valid); zone list refused, one with the Zone → Zone → Read row | stub: no `expires_on`; two zones, the second on page 2 of the list; a 403 on verify; a 403 on the zone list |
 | 34 | the token is in `.dev.vars`, and git tracks that file, or does not ignore it | any stage runs | it stops before reading the file and says how to ignore it | two fixture repositories |
 | 35 | Cloudflare gave the project the address `lenas-backstube-9x2.pages.dev` | the stages check and report | every check and line uses that address; `lenas-backstube.pages.dev` is asked nowhere | stub `subdomain`; the stub site records the hosts asked |
 | 36 | both stages are done on Lena's two-stage site | `launch` reports | it names the live address, the address of `main`'s newest preview build as Cloudflare lists it, the forwarding, which lines are "read back through the API only", and what is left by hand (Crawler Hints, the Web Analytics switch, the script monitor's switch, HSTS with its earliest day, deleting the token), and that previews can be put behind a sign-in | snapshot of the report |
@@ -215,9 +218,9 @@ own writes do not change it.
 What is there now (the record the host has, a setting's old value) is shown in the
 question but not in the code. A change made by someone else between the question and the
 yes therefore needs no new yes when it leaves the end state the same. That is a judgment
-(see "Judgment calls"). For `launch` a new commit, and for either stage a new host in the
-zone or a changed flag, gives a new question and a new code; the old code then changes
-nothing. `setup`'s code names no commit: its first build (script step 4) is of whatever
+(see "Judgment calls"). A change to any input listed above gives a new question and a new
+code, and the old code then changes nothing: for `launch` a new commit, for either stage a
+new proxied host where the code names the hosts, or a changed flag among those listed. `setup`'s code names no commit: its first build (script step 4) is of whatever
 head the production branch has when it runs.
 
 **No run waits long.** A run has one deadline, 55 seconds after it starts, which leaves
@@ -452,7 +455,8 @@ check comes with the launch stage, since no request may reach the domain before 
     to the phase creates the ruleset with the rule (T2-023). Whether a rule another person
     adds at the same moment survives was not tried; nor what happens when someone creates
     the ruleset between the read that finds none and the PUT that creates it, which may
-    replace theirs. The script reads the phase again just before that PUT. The rule took
+    replace theirs. The script reads the phase again just before that PUT, and reads the
+    ruleset back after it: rules other than the kit's are reported, with 1. The rule took
     effect within seconds on the site the checklist records, so this run ends with 4, and
     the next runs `nel` again; a failure then ends with 1.
 13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and
@@ -530,9 +534,10 @@ test-cloudflare-check` tests the check script, in the same CI workflow
 test's own git config sends to a local folder (`url.<folder>.insteadOf`), so the script
 reads an owner and a repository as in real use (not tried).
 
-The stub's answers are the two trials' captures. Where neither trial has one (the domain
-statuses `error`, `blocked` and `deactivated`, a refused settings write, a slow answer), an
-answer is made from Cloudflare's reference and marked so. Before a capture is committed, every name, id and
+The stub's answers are the two trials' captures. Where neither trial has one (for example the
+domain statuses `error`, `blocked` and `deactivated`, a refused settings write or DNS read,
+a refused token verify, a failed build, a slow answer, a zone list of two pages), an answer
+is made from Cloudflare's reference and marked so. Before a capture is committed, every name, id and
 address in it is replaced by the scenarios' made-up ones: the token, the account's and
 the zone's ids, the account's name, any email address, the zone's name and nameservers,
 IP addresses, the GitHub owner and repository with their numeric ids, project names and
@@ -588,18 +593,18 @@ Node 18.
 own outside every repository; a token of the plan's rows; a throwaway repository with a
 three-file site and one throwaway project). The first domain named turned out to hold live
 services; T2-012 to T2-029 ran there, and only the project and two header rules were
-written, both removed. Everything from T2-030 ran on an empty spare zone.
+written: the project was removed, the two rules are the maintainer's to remove by hand. Everything from T2-030 ran on an empty spare zone.
 
 | What | Captures |
 |---|---|
 | The zone list shows a token's reach in zones: eight, until the token was narrowed, then one. The narrowing showed only after some minutes | T2-002, T2-004, T2-007, T2-008, T2-011 |
-| The accounts list does not show a token's reach: with the plan's rows, 200 and an empty list; with Account → Account Settings → Read added, two accounts | T2-003, T2-005, T2-009, T2-031 |
+| The accounts list: with the plan's rows, 200 and an empty list; with Account → Account Settings → Read added, two accounts, while what the token's Account Resources named was not recorded | T2-003, T2-005, T2-009, T2-031 |
 | An empty zone's defaults: Always Use HTTPS off, Minimum TLS 1.0, Email Address Obfuscation on, NEL on (the zone in use read the same) | T2-036 to T2-039, T2-012 to T2-015 |
 | With previews off (`preview_deployment_setting: none`, kept as sent), a push to a pull request leaves a `github:push` preview deployment marked `is_skipped`, never built; a push to the production branch builds, `github:push`, in about 30 seconds | T2-021, T2-026 to T2-029 |
 | A missing response-header ruleset answers code 10003; one PUT to the phase creates it with one rule; the call that adds one rule appends and leaves the first rule's id and version as they were | T2-018, T2-023 to T2-025 |
-| The apex behaves like a host below the zone: attaching keeps its A record, "CNAME record not set"; one PATCH to a proxied CNAME, with a comment, keeps the id; verification active after about a minute, the domain after 2 minutes 18 seconds; the apex then served the production build | T2-042 to T2-056 |
+| An apex holding only an A record behaves like a host below the zone: attaching keeps its A record, "CNAME record not set"; one PATCH to a proxied CNAME, with a comment, keeps the id; verification active after about a minute, the domain after 2 minutes 18 seconds; the apex then served the production build | T2-042 to T2-056 |
 | A record comment holds 100 characters; 101 is refused, code 9313 | T2-057, T2-058 |
-| A Bot Management PUT that changes a value works and keeps the three fields it leaves out, `bot_preference_sync_enabled: true` among them; `ai_training` takes `disallow`; a PUT with `ai_training: block` and `is_robots_txt_managed: true` was refused (10400), and so was one with `is_robots_txt_managed: true` alone | T2-059 to T2-062, T2-065, T2-066 |
+| A Bot Management PUT that changes a value works and keeps the three fields it leaves out, `bot_preference_sync_enabled: true` among them; `ai_training` takes `disallow`, and a PUT that changed it back to `disabled` was accepted and read back (T2-073, T2-077); a PUT with `ai_training: block` and `is_robots_txt_managed: true` was refused (10400), and so was one with `is_robots_txt_managed: true` alone | T2-059 to T2-062, T2-065, T2-066 |
 | `bot_preference_sync_enabled` is Bot Preference Sync: on, with training disallowed, Cloudflare put 132 lines of its own in front of the site's `robots.txt`; off, the site's own file came back within 15 seconds | T2-061 to T2-064 |
 | The checklist's NEL rule removed `NEL` and `Report-To` from the apex within 20 seconds | T2-067 |
 | Removed on the maintainer's word: the domain, the apex record, the test record, the ruleset, the project; Bot Management put back as found, read back the same | T2-069 to T2-078 |
@@ -620,7 +625,9 @@ field descriptions); the Bot Management update call's own description.
    project has it from its first build.
 2. Settled by the second trial for the fields a PUT leaves out (T2-061, T2-062): they kept
    their values, a `true` among them; the script's PUT leaves out `is_robots_txt_managed`,
-   `ai_bots_migration_opt_out` and `using_latest_model`. A PUT that turns Bot Fight Mode off
+   `ai_bots_migration_opt_out` and `using_latest_model`. Every PUT of the trials sent
+   `is_robots_txt_managed`, so leaving that one field out was not tried; the read-back
+   shows it, and plan step 10 is the first try. A PUT that turns Bot Fight Mode off
    from on was not tried: both zones read it off. The script still reads the whole object
    back; a field it did not mean to change that reads differently ends the line as "by
    hand", with 1.
@@ -642,8 +649,9 @@ field descriptions); the Bot Management update call's own description.
 8. Node 18: everything the script uses must exist there; CI runs the tests on it.
 9. Settled by the second trial: the calls that create a ruleset for a phase and add one
    rule to it (T2-023 to T2-025), a PATCH that sets a record's `comment` and its limit of
-   100 characters (T2-046, T2-057, T2-058), and the accounts list, which does not show a
-   token's reach (T2-003, T2-031). Not tried: two people adding rules at the same moment.
+   100 characters (T2-046, T2-057, T2-058), and the accounts list, which is empty with the
+   plan's rows (T2-003, T2-009); what it shows with an Account Settings Read row stays open
+   (T2-031), and the script does not use it. Not tried: two people adding rules at the same moment.
 10. `preview_deployment_setting` takes `none` besides `all` (T2-021); other values were not
     tried. The script treats every value but `all` as "a pull request may not build".
 11. Whether a CNAME is refused beside a record of another type below the apex. The script
@@ -672,6 +680,12 @@ Facts above were seen; these were weighed. Each with the strongest case against.
   ask for the rule as "if needed" in the second yes, rather than adding it on setup day
   without looking. *Against:* until launch the domain's old site, if any, keeps sending
   the headers, and the second question gets one more line.
+- **Creating the response-header ruleset.** Seen: both zones of the second trial had none
+  (T2-018, T2-041), so a new site's zone needs it created, and the creating PUT writes the
+  whole ruleset. Judgment: create it, read the phase just before, read it back after, and
+  report foreign rules with 1, rather than leave the rule to the owner. *Against:* in the
+  moment between those reads, a ruleset someone else creates is replaced and only reported;
+  R7 names it as the one exception.
 - **Settings on setup day.** Seen: only HSTS and the forwarding must wait (the checklist,
   first paragraph). Judgment: write the rest with the first yes (D1). *Against:* if the
   domain still serves an old site, it gets them days before the new one is live; the list
