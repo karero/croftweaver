@@ -87,3 +87,16 @@ Round 3's fixes verified landed. 6 findings: 2 BUG, 4 RISK. 5 fixed, 1 refuted.
 | 4 | RISK | A closure between two weekly checks started the 12 weeks late | Fixed: `closedAt` is read and used |
 | 5 | RISK | The measuring windows had no fetch of their own | Fixed: two query-filtered requests, one per window, with the report's country and property, made once the data is complete |
 | 6 | RISK | Google's behaviour (completeness, position, omissions, limits) not proven | Refuted: outside the agreed severity bar; §1 cites the documentation, and probe P1 captured both the metadata-present and the metadata-absent case on a real site |
+
+## Fix check — Codex at c323c93, 2026-10-14
+
+Four of the final read's five fixes verified. 2 findings:
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| 1 | BUG | An interrupted measuring had no fetch rule for its shortened window | Fixed: the after-window ends on the last Sunday before the interrupting check, is fetched once complete, stored as interrupted and shown with its number of weeks; no full week means no figures |
+| 2 | RISK | Google's behaviour, again (fifth time) | Refuted, as in the final read: outside the agreed bar; §1's sources and probe P1 |
+
+Gate closed after this fix, 2026-10-14: 3 rounds, a final read and a fix check, 48
+findings: 40 fixed, 6 moot after DD7, 2 refuted. The last fix (one paragraph) was not
+sent through another round.

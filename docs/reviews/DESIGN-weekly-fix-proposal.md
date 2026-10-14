@@ -216,6 +216,11 @@ Every state write is a command, so the model never edits the JSON by hand.
   fetched once the complete data (R1) reaches the after-window's last Sunday, and the
   result goes into the state file, so the comparison is computed once and the page shows
   it from then on.
+- **When the measuring is interrupted** (a check after the first new one finds another
+  title), the after-window ends on the last Sunday before that check. If that leaves no
+  full week, the report shows no figures and says the page changed again too soon to
+  measure. Otherwise the shortened window is fetched once its last Sunday is complete,
+  stored as interrupted, and shown with the number of weeks it covers.
 
 ## 4. Tests
 
