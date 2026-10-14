@@ -505,6 +505,55 @@ function cloudflareGroup(value) {
   return groups.some((g) => g && (g.group === 'cf-nel' || (Array.isArray(g.endpoints) && g.endpoints.some(nelHost))));
 }
 
+// Cloudflare's script monitor (Client-side security, formerly Page Shield) has browsers report
+// the scripts a page loads to csp-reporting.cloudflare.com, on a sample of pages. It shows in a
+// report-to group, in a reporting-endpoints entry and in the report-uri of a report-only policy;
+// any one of the three names it. This names what Cloudflare sends; it does not decide what a
+// browser would make of a header (a malformed one is read the same way, and an address that a
+// browser would ignore, a duplicate directive for one, still names it). Each header is read by the
+// syntax it is written in, and only the addresses it lists to REPORT TO are judged, by their host:
+// not a group's name, and not text that quotes the host in a path, a query or a user name, or that
+// lists it as a source.
+const monitorHost = (u) => {
+  if (typeof u !== 'string') return false;
+  try { return /(^|\.)csp-reporting\.cloudflare\.com$/i.test(new URL(u).hostname.replace(/\.$/, '')); } catch { return false; }
+};
+// A reporting-endpoints header is written as a dictionary: name="address", name="address";p="x".
+// The string after a member's `=` is its address; a parameter's string is not, and a string may hold
+// \" or a comma. This is not a Structured Fields validator.
+function endpointAddresses(value) {
+  const members = [];
+  let current = '';
+  let quoted = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (quoted && c === '\\') { current += c + (value[i + 1] ?? ''); i++; continue; }
+    if (c === '"') quoted = !quoted;
+    if (c === ',' && !quoted) { members.push(current); current = ''; continue; }
+    current += c;
+  }
+  members.push(current);
+  return members
+    .map((m) => /^\s*[A-Za-z*][A-Za-z0-9_.*-]*\s*=\s*"((?:[^"\\]|\\.)*)"/.exec(m))
+    .filter(Boolean)
+    .map((m) => m[1].replace(/\\(.)/g, '$1'));
+}
+function cloudflareMonitor(name, value) {
+  if (name === 'report-to') { // a list of JSON groups; a value that does not parse is not read
+    let groups;
+    try { groups = JSON.parse(`[${value}]`).flat(); } catch { return false; }
+    return groups.some((g) => g && Array.isArray(g.endpoints) && g.endpoints.some((e) => e && monitorHost(e.url)));
+  }
+  if (name === 'reporting-endpoints') return endpointAddresses(value).some(monitorHost);
+  // content-security-policy-report-only: policies are written split at commas, directives at
+  // semicolons; any report-uri directive that lists the address names it (never hidden behind
+  // another one: whether a browser uses a duplicate is not decided here)
+  return value.split(',').some((policy) => policy.split(';').some((d) => {
+    const [directive, ...addresses] = d.trim().split(/\s+/);
+    return /^report-uri$/i.test(directive) && addresses.some(monitorHost);
+  }));
+}
+
 // robots.txt, read the way a crawler reads it: groups of User-agent lines with their rules.
 function readRobots(body) {
   const groups = [];
@@ -652,17 +701,27 @@ export function evaluate(obs, target, opts) {
     const withdrawn = policies.length > 0 && !live;
     const reports = values('report-to');
     const cfReport = reports.some((v) => cloudflareGroup(v) === true);
+    const monitor = ['report-to', 'reporting-endpoints', 'content-security-policy-report-only']
+      .some((name) => values(name).some((v) => cloudflareMonitor(name, v)));
     const nel = policies.length > 0;
     const age = Number.isFinite(live?.max_age) ? ` (max_age ${live.max_age} seconds)` : '';
-    const aliasNel = alias && !alias.error && (header(alias, 'nel') || header(alias, 'report-to'))
-      ? ' The pages.dev address still sends them; the header rule cannot reach it, and no way to remove them there has been found.' : '';
+    const aliasSends = alias && !alias.error ? ['nel', 'report-to'].filter((h) => header(alias, h)) : [];
+    const aliasNel = aliasSends.length
+      ? ` The pages.dev address still sends ${aliasSends.map((h) => `a ${h} header`).join(' and ')}; the header rule cannot reach it, and no way to remove ${aliasSends.length > 1 ? 'them' : 'it'} there has been found.` : '';
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
-    if (nel && live !== undefined) put('nel', 'fail', `the answer carries a nel header${age}: Network Error Logging is on${via}.`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
-    else if (cfReport) put('nel', 'fail', `the answer carries Cloudflare's NEL reporting group in a report-to header${via}.`, `Remove it with the header rule. ${section(3)}`);
-    else if (withdrawn) put('nel', 'look', `the nel header says max_age 0, which tells browsers to forget the policy${via}.${aliasNel}`, section(3));
+    // The script monitor is named wherever it is seen, beside a NEL failure too: it is not NEL,
+    // and the header rule for NEL does not remove it.
+    const monitorWhat = "Cloudflare adds a content-security-policy-report-only header and a report-to group, cf-csp-endpoint, to a sample of pages, so visitors' browsers send reports to csp-reporting.cloudflare.com. That is not NEL.";
+    const monitorAlso = monitor ? ` Cloudflare's script monitor is switched on as well: ${monitorWhat}` : '';
+    const monitorFix = "Your domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring: Off. The checklist's header rule for NEL does not remove it.";
+    const sampleNote = " Cloudflare's script monitor adds its headers to a sample of pages only, so this one answer cannot show that it is off.";
+    if (nel && live !== undefined) put('nel', 'fail', `the answer carries a nel header${age}: Network Error Logging is on${via}.${monitorAlso}`, `Switch it off and, if the header stays, add the header rule. ${section(3)}`);
+    else if (cfReport) put('nel', 'fail', `the answer carries Cloudflare's NEL reporting group in a report-to header${via}.${monitorAlso}`, `Remove it with the header rule. ${section(3)}`);
+    else if (withdrawn) put('nel', 'look', `the nel header says max_age 0, which tells browsers to forget the policy${via}.${monitorAlso}${aliasNel}`, section(3));
+    else if (monitor) put('nel', 'look', `no nel header, but Cloudflare's script monitor is switched on${via}: ${monitorWhat}${aliasNel}`, monitorFix);
     else if (reports.length) put('nel', 'look', `no nel header, but a report-to header is sent${via}. If it is not yours, remove it with the header rule; if your site sets its own reporting groups, leave it.${aliasNel}`, section(3));
-    else if (offPage) put('nel', 'look', `no nel and no report-to header, judged from the ${home.status} answer, not the page.${aliasNel}`);
-    else put('nel', 'ok', `no nel and no report-to header on the home page.${aliasNel}`);
+    else if (offPage) put('nel', 'look', `no nel and no report-to header, judged from the ${home.status} answer, not the page.${sampleNote}${aliasNel}`);
+    else put('nel', 'ok', `no nel and no report-to header on the home page.${sampleNote}${aliasNel}`);
   }
 
   // 5. What Cloudflare adds to the page: cookies and scripts.
