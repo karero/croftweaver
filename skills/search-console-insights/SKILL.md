@@ -16,7 +16,7 @@ description: >
   SEO report", "does AI name my business", "weekly AI check", "show me my AI
   report".
 metadata:
-  version: 1.7.0
+  version: 1.8.0
 ---
 
 # Search Console insights
@@ -36,6 +36,7 @@ GSC has collected and turns it into the 2–3 highest-leverage moves.
 | **Trend over time** | `track.sh` + `_history.py` | — | Appends each run to a CSV and prints week-over-week position movement (▲/▼) |
 | **Weekly auto-tracking** | `schedule_tracking.sh` | — | Opt-in launchd job (per site) that runs the tracker weekly so history builds unattended |
 | **Google & Bing report page** | `search_report.py` | same GSC sign-in; never opens a browser | One page for the owner: visits and times shown per week (up to 16 months), each key search's position (3 months), searches just below page 1, pages shown often but rarely clicked, Bing from the history. Rebuilt by the weekly job; its counting rules are in the script's header |
+| **Google's and Bing's own AI reports** | `ai_reports.py` | none: the owner downloads each report | Real impressions in Google's AI Overviews and AI Mode, real citations in Copilot; shown on the Google & Bing page. See `references/ai-reports.md` |
 | **Does AI name you? (GEO)** | `geo_check.py` | One OpenRouter key for all four chat assistants (prepaid once), or direct keys; Google via the SerpApi key; all optional | Asks up to four AI engines plus Google's AI Mode and AI Overview the owner's buyer questions, with and without web search; counts how often the business is named and cited; weekly trend. See `references/geo-check.md` |
 
 The GSC, Bing and Serper calls are **read-only** and on **free tiers** (GSC + Bing
@@ -434,6 +435,8 @@ from it that apply every time:
 - **Show results as the report page** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report`), not raw files.
 - **Google and Bing results the same way:** `~/.config/gsc-insights/venv/bin/python scripts/search_report.py <domain>` prints the path of the owner's page; open it. Owners ask *"show me my Google report"*; with several sites, ask which one. It uses the settings the weekly job last recorded unless given `--keywords`/`--country`; a job set up before this page existed records them on its next weekly run; until then the page falls back to the history, so for a site with its own history file pass `--csv <that file>`.
   Owners ask for it in their own words: *"show me my AI report"*, *"how is my business doing with AI?"*.
+- **Google's and Bing's own AI reports** (real answers, not our questions): the owner downloads them; read
+  `references/ai-reports.md` before importing one or talking about its numbers. "No data yet" is a result.
 - **You draft the questions; you never answer them.** The whole point is a buyer's
   un-primed question to an engine that knows nothing about this conversation.
 
