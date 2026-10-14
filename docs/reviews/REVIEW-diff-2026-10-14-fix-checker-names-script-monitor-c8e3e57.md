@@ -189,6 +189,122 @@ make check exit status: 0
 Skipped locally, not checked here: the Perl minimum-version check (CI runs it) and six cases without
 `/proc` (no unprivileged unshare on this machine). Neither concerns this change.
 
-## Rounds
+## Round 1 (DIFF, Normal depth), change `c8e3e57` (rebased as `cce7a87`)
 
-(filled in as they run)
+Seats: Codex (gpt-6.1-sol, read-only, 243 s, 61,614 tokens), GLM 5.3 on melious (287 s, 22,003 tokens),
+fresh-eyes (a Sonnet sub-agent with no shared context, 1,044 s, 292,506 tokens). Brief: the diff, the
+facts the change rests on (one live capture, Cloudflare's own pages) and the author's records above.
+The script ended `reviewers: codex OK, melious OK`.
+
+Findings, consolidated and answered (this is the author's record, also the `--verify` input):
+
+- F1 BUG (Codex, fresh-eyes BUG 1; GLM NIT 2): the text path judged a boundary-delimited substring of the
+  raw header, so `https://csp-reporting.cloudflare.com@evil.example/r`, a query or a path that quoted the
+  host were named as the monitor. FIXED: each address in the value is parsed and its host judged
+  (`monitorHost`), on the report-to, reporting-endpoints and report-only paths alike.
+- F2 BUG (Codex; GLM NIT 1): a group of your own named `cf-csp-endpoint` on another address was named as
+  Cloudflare's monitor. FIXED: the name no longer counts, only the address does. Test: the exact-name
+  collision.
+- F3 RISK (fresh-eyes RISK 2): six breakages survived the four new tests (parsed host guard, the name
+  clause, the parse path, `.flat()`, the `i` flag). FIXED: lookalikes through all three headers, the
+  collision, a JSON array value, an upper-case scheme, a trailing dot, a sub-host, a port. Then a weak
+  assertion was found by the new breakages (the clean line also says "script monitor", so a
+  `/script monitor/` match passed on the wrong state): the tests now assert the state and the phrase
+  "script monitor is switched on". 15 breakages tried, 14 caught, 1 equivalent (below).
+- F4 RISK (fresh-eyes RISK 3): the clean NEL line carried no caveat, so a site with the monitor on read
+  `ok` in about 19 of 20 runs. FIXED: the ok line and the off-page look say one answer cannot show it is
+  off. JUDGMENT: that is noise on sites that never had it; kept, because this file's other ok lines carry
+  scope notes ("A browser can see more: view the source once").
+- F5 RISK (fresh-eyes RISK 4): the look's fix was "See section 3 of the checklist", which has no entry for
+  the monitor, and whose NEL rule removes only NEL and Report-To. FIXED: the fix line carries the path to
+  the switch and says the NEL rule does not remove it. NOT DONE, by design: a paragraph in the checklist
+  itself (a runbook, High depth): a follow-up.
+- F6 RISK (fresh-eyes RISK 5): the reference turned 2 observations into a rate and a procedure. FIXED:
+  it states the observation (2 of 40; none of 200 after the switch-off), says a hundred clean requests
+  make it unlikely and not excluded, names the toggle as the proof, and gives a loop (run as written).
+- F7 NIT (GLM NIT 3, fresh-eyes NIT 6): a withdrawn `nel` header hid the monitor. FIXED: the monitor is
+  named beside NEL on, Cloudflare's NEL group and a withdrawn header ("switched on as well").
+- F8 NIT (GLM NIT 4, fresh-eyes NIT 7): "still sends them" had no antecedent. FIXED: "still sends nel and
+  report-to headers"; the pinned test follows.
+- F9 NIT (fresh-eyes NIT 8): wording: "this zone's", "sample" twice, "is on"/"comes on". FIXED, in this
+  file's own style ("Your domain → Security → Settings → filter by Client-side abuse").
+- F10 NIT (fresh-eyes NIT 9): a sub-host and a trailing dot were judged differently by the two paths.
+  FIXED: one address rule; the trailing dot is removed before the test.
+- F11 NIT (fresh-eyes NIT 10): the reference's "positives" paragraph. FIXED: one clause says the monitor's
+  headers come from one capture of a live site.
+- F12 NIT (GLM NIT 5): "Client-side security, formerly Page Shield" is not cited in the brief. NO CHANGE:
+  Cloudflare's own page https://developers.cloudflare.com/page-shield/ (read 2026-10-14) says
+  "Page Shield is now called Client-side security".
+- F13 UNVERIFIABLE (GLM): that Node hands header names over in lower case. SETTLED by test: the fixtures
+  now spell the names as Cloudflare does on the wire (`Report-To`, `Reporting-Endpoints`,
+  `Content-Security-Policy-Report-Only`) and the checker reads them.
+- F14 UNVERIFIABLE (fresh-eyes): that the toggle is per zone. NO CHANGE: the text says "Your domain →
+  Security → Settings", the zone's page; the "Global" badge is not explained by Cloudflare's get-started
+  page and is not relied on.
+- F15 (Codex): the first record of breakage M3 differed from a clean reorder because that mutant replaced
+  the message. FIXED in the record: M3 now moves the branch and keeps the message; only the test for NEL on
+  fails.
+
+## Records after round 1
+
+Rebased onto `origin/main` `f380fcb` before this work (no overlap with the three files; commits became
+`cce7a87` and `e67b69d`).
+
+### The checker's whole suite, `node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs`
+
+```
+ℹ tests 92
+ℹ suites 0
+ℹ pass 92
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19628.511834
+exit status: 0
+```
+(92 tests: the 87 that were there and 5 for this change; whole output kept in the session's scratchpad.)
+
+### Fifteen breakages of the revised change, each in a scratch copy of the three files
+
+```
+unmutated: exit 0, new tests failing: none
+
+M1  the monitor branch is removed (falls back to the bare look)
+    KILLED; new tests that failed: ['T1', 'T2']
+M2  a group named cf-csp-endpoint counts without an address on Cloudflare's host
+    KILLED; new tests that failed: ['T3']
+M3  the monitor is judged before NEL on and Cloudflare's NEL group (same message)
+    KILLED; new tests that failed: ['T4']
+M4  the text path matches the host as a substring, anywhere in the value
+    KILLED; new tests that failed: ['T3']
+M5  a report-to value that does not parse is not judged by its text
+    KILLED; new tests that failed: ['T2']
+M6  .flat() dropped (a JSON array value is not read)
+    KILLED; new tests that failed: ['T2']
+M7  the i flag dropped from the address finder (upper-case scheme)
+    KILLED; new tests that failed: ['T2']
+M8  the host is not anchored at its end (a longer host that starts like it)
+    KILLED; new tests that failed: ['T3']
+M9  the host is not anchored at its start (not-csp-reporting...)
+    KILLED; new tests that failed: ['T3']
+M10 a trailing dot on the host is not removed
+    KILLED; new tests that failed: ['T2']
+M11 the monitor is not named beside NEL on
+    KILLED; new tests that failed: ['T4']
+M12 the monitor is not named beside a withdrawn nel header
+    KILLED; new tests that failed: ['T4']
+M13 the clean line loses its caveat
+    KILLED; new tests that failed: ['T5']
+M14 the look carries the checklist pointer instead of the path to the switch
+    KILLED; new tests that failed: ['T1']
+M15 the host test is case-sensitive (equivalent: new URL lower-cases the host)
+    SURVIVED (equivalent: the URL parser lower-cases a host); new tests that failed: none
+```
+
+M15 is an equivalent mutant: `new URL(...).hostname` is lower-cased by the parser, so the `i` flag on the
+host test changes nothing.
+
+## Round 2
+
+(filled in as it runs)
