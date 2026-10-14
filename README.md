@@ -208,9 +208,9 @@ It asks which assistants to install for. Take all the skills (`--skill '*'`): `n
 copies its sibling skills into each new site, so a site built from a partial install is
 missing some. This route installs the newest state of `main`, not a release, and records no
 version, so a site built from it is stamped `suite_commit: unknown`. To update, run
-`npx skills update`. skills.sh lists a skill set under the name typed in this command, from
-the installs it counts (read in the `skills` command's code, version 1.7.2, in October
-2026); installs from before the rename are listed under `karero/website-builder`.
+`npx skills update`. skills.sh lists the suite at https://www.skills.sh/karero/croftweaver and
+counts the installs made with this command; its page under the old name,
+`karero/website-builder`, forwards there (seen on 2026-10-14).
 
 **By hand**, in three steps:
 
