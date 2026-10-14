@@ -305,6 +305,90 @@ M15 the host test is case-sensitive (equivalent: new URL lower-cases the host)
 M15 is an equivalent mutant: `new URL(...).hostname` is lower-cased by the parser, so the `i` flag on the
 host test changes nothing.
 
-## Round 2
+## Round 2 (DIFF verification, Normal depth), delta `cce7a87..873941c`
+
+Seats: Codex (medium, read-only, 276 s, 59,399 tokens) and GLM 5.3 on melious (485 s, 32,455 tokens); no
+fresh-eyes (round 1 only at Normal depth). The script ended `reviewers: codex OK, melious OK`.
+Result: 2 BUGs, 3 RISKs and one out-of-scope RISK from Codex; 3 NITs from GLM 5.3, no BUG or RISK.
+
+- R2-1 BUG (Codex): the address finder split values before judging hosts, so a `;` before a user name and a
+  comma inside a query still named the monitor. FIXED by reading each header by its own syntax, not by
+  hunting for addresses: `report-to` as JSON groups (a value that does not parse is not read),
+  `reporting-endpoints` as quoted strings, a report-only policy by the addresses of its `report-uri`
+  directive (policies split at commas, directives at semicolons: the browser's own CSP parser splits
+  there too). The comma-in-a-query shape is no longer named (its second half is not a `report-uri`
+  address); the `;` shape is named, which is what a browser would do: it reports to the part before the
+  `;`. Test: the comma shape; the `;` shape is not pinned.
+- R2-2 BUG (Codex): the pages.dev note said "nel and report-to headers" when either alone triggered it.
+  FIXED: it names the header or headers the alias sends ("a nel header", "a report-to header", both);
+  two new tests, and the old pin follows.
+- R2-3 RISK (Codex): the reference's loop counted a failed request as one without the header, so a dead
+  network printed `100 0`. FIXED: it prints `failed`, `none` and `header` apart; run as written against a
+  site that sends none (`100 none`) and against an address that always fails (`3 failed`).
+- R2-4 RISK (Codex): "a hundred requests make it unlikely" assumed a sampling model. FIXED: removed. The
+  reference says no number of requests shows it, that Cloudflare does not document how often it sends
+  them, and that the toggle is the proof.
+- R2-5 RISK (Codex): the clean-line test pinned "sample of pages only", not the conclusion. FIXED: it is
+  pinned on "so this one answer cannot show that it is off", on the 200 line and on the off-page look.
+- R2-6 RISK (Codex, out of scope): an array endpoint address was coerced to a monitor address, and a
+  `connect-src` address alone triggered detection. FIXED: only a string address counts, and only the
+  addresses of `report-uri`.
+- R2-7 NIT (GLM): a report-to value that parses to a bare string hid the addresses in its text. MOOT: the
+  text path is gone.
+- R2-8 NIT (GLM): the code comment said "reports to" while the policy path judged every address. FIXED:
+  the code now does what the comment says.
+- R2-9 NIT (GLM): the finder's stop set left out some closing characters. MOOT: there is no finder.
+- Found by `make check`, not by a reviewer: `scripts/check_clean.sh` reads a lookalike address of the form
+  host, at sign, other host as an email address, in the test file and in this trail (CI's `no-pii-secrets`
+  job runs it). FIXED: the test spells the at sign as `\x40`, and this trail says it in words.
+
+Records after round 2: the suite is 93 tests, 93 pass (the 87 that were there, 5 for the monitor, 1 for
+the alias note); the nineteen breakages below, each in a scratch copy of the three files, are all caught
+(the first `make check` of this round failed on the clean check above and was re-run after the fix).
+
+```
+unmutated: exit 0, new tests failing: none
+
+M1  the monitor branch is removed (falls back to the bare look)
+    KILLED; new tests that failed: ['T1', 'T2']
+M2  a group named cf-csp-endpoint counts without an address on Cloudflare's host
+    KILLED; new tests that failed: ['T3']
+M3  the monitor is judged before NEL on and Cloudflare's NEL group (same message)
+    KILLED; new tests that failed: ['T4']
+M4  a report-to value that does not parse is searched as text for the host
+    KILLED; new tests that failed: ['T3']
+M5  .flat() dropped (a JSON array value is not read)
+    KILLED; new tests that failed: ['T2']
+M6  an address that is not a string is accepted
+    KILLED; new tests that failed: ['T3']
+M7  the host is not anchored at its end (a longer host that starts like it)
+    KILLED; new tests that failed: ['T3']
+M8  the host is not anchored at its start (not-csp-reporting...)
+    KILLED; new tests that failed: ['T3']
+M9  a trailing dot on the host is not removed
+    KILLED; new tests that failed: ['T2']
+M10 reporting-endpoints is searched for any address in its text, not its quoted values
+    KILLED; new tests that failed: ['T3']
+M11 a report-only policy is read for any address, not only its report-uri
+    KILLED; new tests that failed: ['T3']
+M12 a report-only policy is split at semicolons only (not at commas between policies)
+    KILLED; new tests that failed: ['T2']
+M13 the directive name is matched case-sensitively
+    KILLED; new tests that failed: ['T2']
+M14 the monitor is not named beside NEL on
+    KILLED; new tests that failed: ['T4']
+M15 the monitor is not named beside a withdrawn nel header
+    KILLED; new tests that failed: ['T4']
+M16 the clean line loses its caveat
+    KILLED; new tests that failed: ['T5']
+M17 the off-page look loses its caveat
+    KILLED; new tests that failed: ['T5']
+M18 the look carries the checklist pointer instead of the path to the switch
+    KILLED; new tests that failed: ['T1']
+M19 the alias note names both headers whenever it sends either
+    KILLED; new tests that failed: ['T6']
+```
+
+## Round 3
 
 (filled in as it runs)
