@@ -324,8 +324,8 @@ the new release no longer has.
 | Cloudflare API token | an environment variable for the session (Wrangler 4.151.0 read a token from the shell and not from `.dev.vars`, tested 2026-10-14); the guide asks for a narrow token that expires in about a week |
 
 All of these live outside the site's folder. The site's `.gitignore` also excludes `.env`,
-`.env.*` (but not `.env.example`), `.dev.vars`, `.wrangler/` and, at the site's top level, `client_secret*.json` and
-`token.json`, in case a copy lands there. The review tool passes
+`.env.*` (but not `.env.example`), `.dev.vars`, `.wrangler/` and, at the site's top level,
+`client_secret*.json` and `token.json`, in case a copy lands there. The review tool passes
 its keys to `curl` through standard input, not on the command line. The Bing script
 removes the key from error messages before they reach a log; a test guards this.
 
