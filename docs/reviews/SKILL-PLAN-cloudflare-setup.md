@@ -147,10 +147,11 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 29 | the domain was attached earlier and is active, and the head of `production` is newer than the live build; or another variable changed since the live build; or the live build was uploaded | `launch` reaches the forwarding | it says "the variable is saved, but no build has picked it up", names the other difference, sends no deployment call, and ends with 1 | three stub states |
 | 30 | Lena does not want the forwarding | `launch` runs with `--skip canonical` | the question does not name it, and `CANONICAL_URL` is not written | stub: no variable write |
 | 31 | the domain was attached by hand and is active | `launch` runs | it checks no launch condition and attaches nothing; its question names only the forwarding and the NEL rule, and the commit it expects the domain to serve: that of the newest production deployment that succeeded; while a newer one is queued or building, it ends with 4 | stub: a live build and a newer queued one |
+| 42 | the live build records `CANONICAL_URL` as saved, and the `pages.dev` address still answers 200 | `launch` reaches the forwarding | no PATCH and no deployment call; it says the live build has the variable and the forwarding does not answer, with the checklist's causes, and ends with 1 | stub: deployment `env_vars` holding the variable; a stub site answering 200 |
 | 41 | `setup` ran with `--skip bot`, and Bot Fight Mode is on; or it ran without, and someone has since turned Always Use HTTPS off | `launch` runs with `--skip bot`; then the second case without any `--skip` | the `bot` failure is listed as left to Lena, status 0; the `https` failure gives 1 | stub site with the cookie; stub site with no redirect |
 | | **Every stage** | | | |
 | 32 | both stages ran last month | each runs again | no write call, no question, status 0 | stub holding the end state |
-| 33 | the token has no end date; or the zone list shows a second zone; or token verify is refused | any stage runs | it refuses before any write, says which, and asks for a narrower token | stub: no `expires_on`; two zones; 403 on verify |
+| 33 | the token has no end date; or the zone list shows a second zone; or token verify, the zone list or the accounts list is refused; or the accounts list shows two accounts | any stage runs | it refuses before any write, says which, and asks for a narrower token | stub: no `expires_on`; two zones; a 403 on each of the three reads; two accounts (made from the reference, marked so) |
 | 34 | the token is in `.dev.vars`, and git tracks that file, or does not ignore it | any stage runs | it stops before reading the file and says how to ignore it | two fixture repositories |
 | 35 | Cloudflare gave the project the address `lenas-backstube-9x2.pages.dev` | the stages check and report | every check and line uses that address; `lenas-backstube.pages.dev` is asked nowhere | stub `subdomain`; the stub site records the hosts asked |
 | 36 | both stages are done on Lena's two-stage site | `launch` reports | it names the live address, the address of `main`'s newest preview build as Cloudflare lists it, the forwarding, which lines are "read back through the API only", and what is left by hand (Crawler Hints, the Web Analytics switch, HSTS with its earliest day, deleting the token), and that previews can be put behind a sign-in | snapshot of the report |
@@ -240,8 +241,8 @@ argument; `.dev.vars` is refused if git tracks it or does not ignore it. It goes
 check script) has it removed. A token with no end date is refused: token verify then
 omits `expires_on` (capture 001; with an end date it carries one, capture 003). So is one
 whose end date is more than seven days ahead (the checklist: "a week at most"), one whose
-verify call is refused, and one whose zone list shows more than this site's zone (capture
-002 showed one zone for a token limited to one). It also lists the accounts the token
+verify call or zone list is refused, and one whose zone list shows more than this site's
+zone (capture 002 showed one zone for a token limited to one). It also lists the accounts the token
 reaches and refuses more than one, and refuses a token whose accounts list is refused; the account in the code is that one (the accounts list
 was read in the reference, not tried). The question also asks Lena to have set Account
 Resources to her one account.
@@ -316,8 +317,8 @@ branch of its time, capture 055).
    of the head of the production branch, the script starts one: the
    deployment call with an empty form builds that head (capture 030; creating a project
    starts none, capture 028). If the newest production build of that head failed, it
-   starts none and ends with 1, naming the failure. A project that serves a domain gets no build and no branch
-   change from this stage (decision 7; scenario 5).
+   starts none and ends with 1, naming the failure. A project that serves any custom domain, this site's or another, gets no
+   build and no branch change from this stage (decision 7; scenario 5).
 5. **The settings** the checklist lets an API set: Always Use HTTPS on, Minimum TLS
    Version 1.2, Email Address Obfuscation off, the NEL switch off (zone settings, a PATCH
    of `{"value": …}` each, read back; captures 067 to 078); Bot Fight Mode off and the AI
@@ -430,8 +431,11 @@ check comes with the launch stage, since no request may reach the domain before 
     effect within seconds on the site the checklist records, so this run ends with 4, and
     the next runs `nel` again; a failure then ends with 1.
 13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and
-    the domain and the check's `canonical` item is `ok`, there is nothing to do. Otherwise
-    it saves `CANONICAL_URL` alone, from Cloudflare's own name for the domain, in a PATCH
+    the domain and the check's `canonical` item is `ok`, there is nothing to do. If the
+    live build already records `CANONICAL_URL` with that value and `canonical` still fails,
+    it starts no build: it says the live build has the variable and the forwarding does
+    not answer, names the causes the checklist's section 5 lists for a 200 there, and ends
+    with 1 (scenario 42). Otherwise it saves `CANONICAL_URL` alone, from Cloudflare's own name for the domain, in a PATCH
     as in script step 3. A variable reaches only builds made after it (seen in the trial
     through a test function), so it then starts a production build, but only if the head of the production
     branch is the live commit, the live build was built by Cloudflare, and the live build's
@@ -501,7 +505,9 @@ test-cloudflare-check` tests the check script, in the same CI workflow
 test's own git config sends to a local folder (`url.<folder>.insteadOf`), so the script
 reads an owner and a repository as in real use (not tried).
 
-The stub's answers are the trial's captures. Before one is committed, every name, id and
+The stub's answers are the trial's captures. Where the trial has none (the accounts list,
+the calls of "Not verified" 9), an answer is made from Cloudflare's reference and marked so,
+until plan step 9 captures the real one. Before a capture is committed, every name, id and
 address in it is replaced by the scenarios' made-up ones: the token, the account's and
 the zone's ids, the account's name, any email address, the zone's name and nameservers,
 IP addresses, the GitHub owner and repository with their numeric ids, project names and
@@ -628,6 +634,9 @@ Facts above were seen; these were weighed. Each with the strongest case against.
   names that host on every line, and each line can be left out.
 
 ## Decisions taken
+
+Numbered 1 to 8 and cited as "decision N". The questions the maintainer closed are D1 to
+D7, in the next section.
 
 1. **Route B is the model** (2026-10-12). Previews per pull request and `npm run ship` are
    worth one authorization in the browser.
