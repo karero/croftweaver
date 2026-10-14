@@ -34,8 +34,8 @@ CI will catch. Pick the depth by that (Review depth, below), name it and why in 
 skip silently. With a config diff, send the code that reads the config too.
 
 **Split a big change.** Decide before round 1. A change with more than about 2,000 lines of code
-(tests not counted), or with more than one reader of files from outside of any real size (a parser, an
-upload check, an importer), is gated per component, each in its own PR as it is built:
+(tests not counted), or with more than one sizeable reader of files from outside (a parser, an upload
+check, an importer), is gated per component, each in its own PR as it is built:
 a kind of defect settled in the first component's gate is then not found again, round after
 round, in each of the others (`references/rationale.md`, "Rounds that did not converge"). Where
 the owner keeps one PR, the trail names its **parts** before round 1, each with its file list;

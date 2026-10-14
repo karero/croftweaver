@@ -429,8 +429,8 @@ find and undo; that is a standing owner decision, recorded here and in SKILL.md,
 session may extend to other changes. Normal runs fresh-eyes once, on a mid-tier model, because the
 cross-model pair carries the gate; High runs every seat at full strength in round 1, and in
 verification rounds sends fresh-eyes to the parts a fix changed and Codex at medium, except for a fix
-that touches anything High names ("Rounds that did not converge", below). Codex runs at medium there
-because those rounds check fixes and a small delta; a fix on a High trigger keeps config effort. Whether these
+that touches anything the High row's For column names ("Rounds that did not converge", below). Codex runs at medium there
+because those rounds check fixes and a small delta; a fix on anything that column names keeps config effort. Whether these
 trades pay off is to be judged from the trails' `timings:` lines and fresh-eyes token counts.
 
 ## Verification chains and the stamp; the cost log
