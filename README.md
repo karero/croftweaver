@@ -297,20 +297,22 @@ allowlist), then sequences the sibling skills through **positioning → content 
 
 Every version is a git tag + a [GitHub Release](https://github.com/karero/croftweaver/releases)
 whose notes are the human-readable "what's new", with the handoff zip attached as the
-download asset. Underneath, updates stay commit-based (`git pull`, `SUITE-VERSION`
+download asset and a `SHA256SUMS` file beside it. Underneath, updates stay commit-based (`git pull`, `SUITE-VERSION`
 stamps, `whats-new`) — a release just names a milestone. Versions step by **0.01**
 (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
 # First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
 # ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
-make smoke                        # clean-check + build + verify dist/croftweaver.zip
+make smoke                        # clean-check + build + verify dist/croftweaver.zip,
+                                  # then write its checksum to dist/SHA256SUMS
 # The tag takes its name from that number (0.11.0 gives v0.11), so the two cannot differ.
 # A number that was not raised names the last release's tag, and git refuses to make it.
 v="v$(node -p 'require("./.claude-plugin/plugin.json").version.replace(/\.0$/, "")')"
 git tag -a "$v" -m "Croftweaver ${v#v}" && git push origin "$v"
-gh release create "$v" dist/croftweaver.zip --title "${v#v}" --latest \
+gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --latest \
   --generate-notes                # or write the notes by hand
+# Both files go up in this one command: a release marked immutable takes no files later.
 # The plugin is installed from the branch `stable`. The release-tag workflow, started by
 # the tag, checks the number against it and moves `stable` to the release. A red run means
 # plugin users are still on the release before. If the step that moves the branch failed,
@@ -320,7 +322,11 @@ gh release create "$v" dist/croftweaver.zip --title "${v#v}" --latest \
 ```
 
 Zip users download the newest release from the Releases page; clone users keep using
-`git pull` and don't need to care about tags.
+`git pull` and don't need to care about tags. To check a downloaded zip, put `SHA256SUMS`
+from the same release beside it and run `shasum -a 256 -c SHA256SUMS` (macOS) or
+`sha256sum -c SHA256SUMS` (Linux); it prints `croftweaver.zip: OK`. On Windows,
+`Get-FileHash croftweaver.zip` in PowerShell prints the hash: compare it with the one in
+`SHA256SUMS` (it prints capitals, the file small letters).
 
 ### Using with Google Antigravity
 

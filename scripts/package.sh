@@ -7,6 +7,7 @@ REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT="$REPO_DIR/dist"
 mkdir -p "$OUT"
 rm -f "$OUT/croftweaver.zip" "$OUT/website-builder.zip"   # also clears a zip built under the old name
+rm -f "$OUT/SHA256SUMS"                                   # a stale one would describe another zip
 
 find "$REPO_DIR" -name .DS_Store -delete 2>/dev/null || true
 cd "$REPO_DIR"
@@ -135,3 +136,12 @@ leak_check '^docs/(BUGLOG|DECISIONS_PENDING)[.]md$' "maintainer tracker file(s)"
 leak_check '/node_modules/' "node_modules path(s)" \
   "Was it installed locally before building this release?"
 echo "zip integrity OK — all critical files present, no internal artifacts"
+
+# The release's checksum file: uploaded beside the zip (README, "Releases & versioning"), so a
+# downloaded copy can be compared with the one built here. Written last, and only for a zip
+# that passed every check above. sha256sum on Linux, shasum on macOS: the same line format.
+if command -v sha256sum >/dev/null 2>&1; then sum=(sha256sum)
+elif command -v shasum >/dev/null 2>&1; then sum=(shasum -a 256)
+else echo "FAIL — neither sha256sum nor shasum found: cannot write dist/SHA256SUMS."; exit 1; fi
+(cd "$OUT" && "${sum[@]}" croftweaver.zip) >"$OUT/SHA256SUMS"
+echo "wrote $OUT/SHA256SUMS: $(cut -c1-16 "$OUT/SHA256SUMS")…"

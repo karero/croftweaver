@@ -20,10 +20,11 @@ trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/repo/scripts" "$T/bin"
 cp "$HERE/package.sh" "$T/repo/scripts/package.sh"
 
-# Stubs: zip builds nothing; unzip -Z1 prints the listing under test, unzip -l a total line.
+# Stubs: zip writes one line where the zip would go (so there is a file to checksum); unzip -Z1
+# prints the listing under test, unzip -l a total line.
 cat >"$T/bin/zip" <<'EOF'
 #!/bin/sh
-exit 0
+printf 'stub zip\n' >"$3"
 EOF
 cat >"$T/bin/unzip" <<'EOF'
 #!/bin/sh
@@ -56,13 +57,26 @@ rc_is() { [ "$(cat "$T/$1.rc")" = "$2" ]; }
 has()   { grep -qF -- "$2" "$T/$1.out"; }
 lines() { [ "$(grep -c -- "$2" "$T/$1.out")" = "$3" ]; }
 
+# The checksum file a release uploads beside the zip. Why: a download is only worth comparing
+# with a checksum that describes the zip that was built and checked, never an older one.
+D="$T/repo/dist"
+sums_match() {
+  [ "$(grep -c . "$D/SHA256SUMS")" = 1 ] && grep -Eq '^[0-9a-f]{64}  croftweaver[.]zip$' "$D/SHA256SUMS" \
+    && (cd "$D" && if command -v sha256sum >/dev/null 2>&1; then sha256sum -c --status SHA256SUMS
+                   else shasum -a 256 -c -s SHA256SUMS; fi)
+}
+no_sums() { [ ! -e "$D/SHA256SUMS" ]; }
+
 listing clean 0 x
 run clean
 check "clean listing: exit 0" rc_is clean 0
 check "clean listing: integrity OK" has clean "zip integrity OK"
+check "clean listing: SHA256SUMS names the zip and matches it" sums_match
 
 listing small 50 skills/new-website/templates/astro/node_modules/pkg
+printf 'stale\n' >"$D/SHA256SUMS"   # left from an earlier build
 run small
+check "a failed build leaves no SHA256SUMS, not even an earlier one" no_sums
 check "50 node_modules paths: exit 1" rc_is small 1
 check "50 node_modules paths: counted" has small "FAIL — 50 node_modules path(s) leaked"
 check "50 node_modules paths: only the first 5 are listed" lines small '/node_modules/pkg' 5
