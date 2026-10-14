@@ -377,3 +377,8 @@ The questions that come with it (which assistants, how runs are paid) are reopen
 | D9 | The 7-day Google sign-in | Tracked separately: the `docs/BUGLOG.md` row added by #290 (merged 2026-10-14) |
 | D10 | Release | In 0.32 |
 | D11 | Measuring the result (R3, scenario 8) in v1, or later | In v1: the proposal, the tested edit and the 28-day comparison all ship in 0.32 |
+
+**Changed by the design plan (DD0, owner, 2026-10-14):** v1 in 0.32 ships T1 only. T2 (seen,
+rarely clicked) and scenario 3 wait until the by-eye Serper check (P2) and a better page
+measure: on one real site a page's split by query held 5% to 54% of its total
+(`DESIGN-weekly-fix-proposal.md`, §1).

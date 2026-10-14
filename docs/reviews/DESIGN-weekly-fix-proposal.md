@@ -45,6 +45,32 @@ sample answers are the source):
 The competitor RISK needs no check here: it concerns the requirements' "Why", not the
 build.
 
+**P1 results (2026-10-14, one real site, read-only; the script is
+`docs/reviews/fix-proposal-probe/fix_probe.py` and prints counts only):**
+
+```
+[1] recent range: metadata=yes firstIncompleteDate=2026-10-12; range ending 2026-09-24: metadata=no None
+    window 2026-09-14..2026-10-11
+[2] query rows=76; share of the property's impressions in listed queries: 28%
+[3] pages=31; query-and-page rows=87; top pages, split by query as a share of the page total:
+    page#1 100+: 54%  page#2 100+: 38%  page#3 100+: 6%  page#4 100+: 37%  page#5 100+: 12%
+    page#6 50-99: 8%  page#7 50-99: 5%  page#8 50-99: 12%  page#9 20-49: 33%  page#10 20-49: 20%
+[4] queries at position 8-20 with 50+ impressions (brand not removed): 2
+[4] queries at position 8-20 with 20+ impressions (brand not removed): 4
+[5] queries whose property position and weighted page position differ by 1+ places: 5 of 76
+```
+
+- **Missing metadata:** a range with nothing incomplete came back without `metadata`, so
+  "absent means complete" holds on this site.
+- **T2's figures:** a page's split by query held between 5% and 54% of the page's own
+  total. A "100 non-brand impressions" floor on that split would be measuring a small,
+  uneven slice. This settles DD0: T2 waits.
+- **T1 on a small site:** before brand queries are taken out, 2 queries met the 50-impression
+  floor in four weeks, 4 would at 20. Most weeks will have no proposal or the same one; that
+  is what R5 asks for, but it is worth knowing before 0.32.
+- **Position:** for 5 of 76 queries the two ways of averaging differ by a place or more, so
+  T1 must take its position from the query rows, as §1 says.
+
 ## 2. Recommendation: build T1 first, T2 after P1 and P2
 
 The documentation weakens T2 (seen but rarely clicked) on both legs: its figures come from
@@ -52,7 +78,7 @@ a split Google says undercounts, and its decision rests on Serper text whose mea
 Serper does not state. T1 (striking distance) needs neither: query rows by property, one
 drill-down, the page's own HTML. It is also the low-volume playbook's first item.
 
-**Proposal (decision DD0):** v1 for 0.32 ships T1, the edit, and the measuring. T2 follows
+**Decided (DD0, owner, 2026-10-14):** v1 for 0.32 ships T1, the edit, and the measuring. T2 follows
 when P1 shows the undercount is small enough to trust a 100-impression floor and P2 shows
 Serper's text matches Google's. *Against:* "seen but not clicked" is the playbook's
 highest-return item on a small site, and dropping it halves what the proposal can say.
@@ -143,7 +169,7 @@ Every state write is a command, so the model never edits the JSON by hand.
 
 | # | Step | Waits for |
 |---|---|---|
-| 1 | P1 probe and P2 eye-check, with the owner | the owner's OK |
+| 1 | P1 probe (done 2026-10-14) and P2 eye-check, with the owner | — |
 | 2 | `fix_proposal.py` and its pure tests | DD0 to DD5 |
 | 3 | The report: fetch, render, state, entry-point tests | 2 |
 | 4 | `references/fix-proposal.md`, the SKILL.md pointer, evals | 3 |
@@ -153,7 +179,10 @@ Every state write is a command, so the model never edits the JSON by hand.
 
 ## 6. Decisions for the owner
 
-| # | Decision | Proposal (judgment) |
+Answered by the owner on 2026-10-14: DD0 to DD5 as proposed; DD6 yes (P1 on one of the
+owner's sites, P2 with one Serper search).
+
+| # | Decision | Answer |
 |---|---|---|
 | DD0 | T1 only in v1, T2 after P1 and P2 | Yes (§2) |
 | DD1 | State on the owner's computer, beside the settings | Yes: nothing about search figures enters the site's repository |
@@ -161,4 +190,4 @@ Every state write is a command, so the model never edits the JSON by hand.
 | DD3 | Control: any other change under `src/` or `public/` in the span means no comparison | Yes for v1: never wrong, though often "no comparison" on a busy site. Matching changes to single pages is later work |
 | DD4 | The owner's sentence names the skill | Yes: the description has no room for new trigger phrases |
 | DD5 | Brand spellings start from the domain and are shown until confirmed | Yes: a proposal on day one, with the guess visible |
-| DD6 | Run P1 on one of the owner's sites and P2 with one Serper search | Asked separately |
+| DD6 | Run P1 on one of the owner's sites and P2 with one Serper search | Yes; P1 done (§1), P2 with the owner |
