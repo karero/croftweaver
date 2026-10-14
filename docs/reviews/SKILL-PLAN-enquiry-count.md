@@ -82,7 +82,8 @@ Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
   Plausible. Safari's version and settings were not recorded. Not tested, and set aside on
   purpose: content blocker extensions, and Firefox's own tracking protection. A visitor
   whose blocker stops the analytics script would not be counted, as the starter's privacy
-  page says; that is its stated opt-out. The mail program still opens either way (S7).
+  page says; that is its stated opt-out. Either way the site still asks the browser to
+  open the `mailto:` link (S7).
 - The dashboard, filtered by a goal, shows which sources and pages bring conversions. That
   is the "tie arrivals to enquiries" part; it needs no code of ours.
 

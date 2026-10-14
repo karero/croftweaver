@@ -2,7 +2,7 @@
 
 DIFF gate. Started **Light** (one `docs/BUGLOG.md` row); round 1's NIT asked for the plan to match, which made it **Normal** (the plan is an instruction file).
 
-**Verdict: gate passed.** 2 rounds, 9 findings (0 BUG, 2 RISK, 7 NIT), all fixed. The last round's fixes change only how the closed row and the plan read, so no further round was owed; a prose-only pass read them.
+**Verdict: gate passed.** 2 rounds, 9 findings (0 BUG, 2 RISK, 7 NIT), all fixed; the prose re-gate added C10 (RISK, wording), fixed and confirmed. The last round's fixes change only how the closed row and the plan read, so no further round was owed; a prose-only pass read them.
 
 ## Rounds
 
@@ -19,8 +19,9 @@ DIFF gate. Started **Light** (one `docs/BUGLOG.md` row); round 1's NIT asked for
 | C2 | NIT | codex | Light 1 | plan | still said Safari was unchecked | fixed | row 8 and a facts bullet added |
 | C3 | RISK | fresh-eyes | Normal 1 | BUGLOG status, plan row 8 | "every item measured, or out of scope" and "all settled" overstate: blockers and Firefox's tracking protection were set aside, not measured; "is not counted" stated as fact | fixed | "not tested, and set aside"; "would not be counted, as the privacy page says" |
 | C4 | NIT | melious | Normal 1 | BUGLOG, plan | the Firefox tracking-protection sub-item dropped silently | fixed | named, with the note that the live Firefox tap was received either way |
-| C5 | NIT | fresh-eyes | Normal 1 | BUGLOG row | the closure leaves out whether a blocker could stop the mail link | fixed | points to Base.astro's stub, the callers' try/catch, S7 and the no-tracker tests |
+| C5 | NIT | fresh-eyes | Normal 1 | BUGLOG row | the closure leaves out whether a blocker could stop the mail link | fixed | points to Base.astro's stub, the callers' try/catch, S7 and the no-tracker tests; worded as the `mailto:` request the tests check (C10) |
 | C6 | NIT | fresh-eyes, melious | Normal 1 | BUGLOG row, plan | "counted" names no instrument or view | fixed | "counted in Plausible"; the owner did not say which view, so none is claimed |
 | C7 | NIT | melious | Normal 1 | BUGLOG status cell | rationale in the status cell, unlike the file's terse statuses | fixed | "closed 2026-10-14" |
 | C8 | NIT | melious | Normal 1 | plan row 8 | inherits C3's overstatement | fixed | same wording as C3 |
 | C9 | NIT | fresh-eyes | Normal 1 | BUGLOG row | the same as C6, the "under Today" view | fixed | covered by C6 |
+| C10 | RISK | prose re-gate (codex) | re-gate | BUGLOG row, plan | "the mail program still opens" goes beyond the tests, which check the `mailto:` request only | fixed | "does not stop the site from asking the browser to open the `mailto:` link"; whether a mail program opens is the visitor's setup |
