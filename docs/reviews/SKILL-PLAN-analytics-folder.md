@@ -1,13 +1,14 @@
 # Plan — an analytics folder in each site's folder
 
-Draft 1, 2026-10-14: requirements as scenarios, for the owner to approve. No product code yet.
+Draft 2, 2026-10-14: B1–B8 and D1–D4 approved by the owner as recommended; draft 2 adds the folder's
+layout and B9–B12 from the owner's answers the same day (marked *(draft 2)*).
 
 ## Status
 
 | Step | State | Evidence |
 |---|---|---|
-| Requirements as scenarios (this document) | draft 1, **waiting for the owner** | this document |
-| Decisions D1–D4 | open | "Decisions" below |
+| Requirements as scenarios (this document) | B1–B8 **approved** 2026-10-14; layout and B9–B12 from the owner's answers (draft 2) | this document |
+| Decisions D1–D4, and the layout choices L1–L4 | **decided** 2026-10-14: D1–D4 as recommended; L1–L4 as recorded below | "Decisions" below |
 | Build, test-first | not started | — |
 | Review gate | not started | — |
 | PR | not started | — |
@@ -36,6 +37,26 @@ the site's own folder.
 5. On 2026-10-14 the owner's three private site repos got `analytics/ai-reports/2026-10-14/` by
    hand, kept out of git by a local `.git/info/exclude` line, not a committed `.gitignore` line.
 
+## The folder's layout *(draft 2)*
+
+```text
+analytics/                         kept off GitHub (.gitignore: /analytics/)
+  README.md                        what is here, where each file comes from, why it is not on GitHub
+  actions.md                       suggested actions by priority (P1–P3), dated, never deleted
+  eeat.md                          E-E-A-T checklist, judged by the assistant, dated sections
+  seo.html                         latest Google & Bing page (search, AI Overviews, Copilot)
+  geo.html                         latest "Does AI name you?" page
+  2026-10-14_gsc/                  raw Search Console data the page was built from
+  2026-10-14_bing/                 the site's Bing rows from the tracker's history
+  2026-10-14_google-ai-report/     Google's generative AI download, as received
+  2026-10-14_bing-ai-report/       Bing's AI Performance download, as received
+  2026-10-07_geo-run/              one AI-check run: its page and every answer word for word
+```
+
+The top level is what the owner reads; the dated folders are the evidence `actions.md` links to.
+"Over time" lives on the pages (16 months of Search Console, the AI check's weekly trend); a
+dated folder keeps what one snapshot was built from.
+
 ## Scenarios
 
 Dates and names are examples; the site is `example.com` in the folder `~/Websites/example`.
@@ -46,8 +67,8 @@ results hold the owner's data and stay off GitHub unless the owner asks).
 
 **B2 — The owner hands over a download.** Given `example.com-Performance-on-Search-Generative-AI-
 Features-2026-10-14.zip` in Downloads, when the owner says *"here's my AI report from Google"*,
-then a copy lands in `~/Websites/example/analytics/ai-reports/2026-10-14/` (the date from the file
-name when it has one, else today), it is imported from there, and the original in Downloads is
+then a copy lands in `~/Websites/example/analytics/2026-10-14_google-ai-report/` *(draft 2: the
+layout's name)* (the date from the file name when it has one, else today), it is imported from there, and the original in Downloads is
 left alone. The reply names the folder.
 
 **B3 — Nothing reaches GitHub unasked.** Given B2 on a public repo, when the owner runs
@@ -70,11 +91,41 @@ which folder the site lives in, or imports without keeping a copy if the owner p
 guesses a folder.
 
 **B7 — The AI check's results** (depends on D3). Given a weekly AI check has run, when the owner
-asks for the results as files, then they are copied to `analytics/geo/<date>/` (not
+asks for the results as files, then they are copied to `analytics/<run date>_geo-run/` (not
 `docs/geo/<date>/`), under the same rules as B3–B5.
+
+**B9 — The owner asks to update the folder** *(draft 2)*. Given reports exist for example.com,
+when the owner says *"update my analytics folder"* (or asks to see the reports), then the assistant
+runs one command that writes `seo.html`, `geo.html` (when the AI check is set up), `README.md`,
+and the dated raw folders it does not have yet: `<date>_gsc/` (the saved Google data), `<date>_bing/`
+(the site's Bing rows), `<run date>_geo-run/` (the newest AI-check run's page and answers). A folder
+that already exists for that date is left as it is. In the copies, `seo.html` and `geo.html` link
+to each other, never into the hidden settings folder.
+
+**B10 — Suggested actions** *(draft 2)*. Given a snapshot, when the assistant reviews it, then
+`actions.md` gains dated entries, each with a priority (P1 now, P2 soon, P3 when there is time),
+what to do, why, the evidence as a link into a dated folder, and a status. Nothing is deleted: a
+done action is marked done with its date, so the owner sees whether the numbers moved after it.
+
+**B11 — E-E-A-T** *(draft 2)*. Given a snapshot, when the assistant reviews the site, then
+`eeat.md` gains a dated section: each checklist item (who wrote it, about page, sources cited,
+contact, reviews and testimonials, dates on content) judged as met, partly, not yet, or can't
+tell, with one line why. The file says at the top that this is the assistant's judgment: Google
+publishes no E-E-A-T score and these tools collect no signal for it.
+
+**B12 — The owner's existing AI-check results** *(draft 2)*. The owner's one site with results in
+`docs/geo/` (a private repo) moves them to `analytics/<run date>_geo-run/` with `git mv`, so that
+repo keeps tracking them (the owner's choice, B5). A separate change in that site's repo.
 
 **B8 — Nothing else changes.** The weekly job, the report pages and `~/.config/gsc-insights/`
 work as today; the folder is a kept copy, not where the skill reads from.
+
+## Layout choices *(draft 2, decided by the owner 2026-10-14)*
+
+- **L1 — Names:** date first, ISO with dashes, lowercase source (`2026-10-14_gsc`).
+- **L2 — E-E-A-T:** in v1, as a judged checklist (B11).
+- **L3 — Who fills it:** the assistant, when asked (B9); the weekly job does not write there in v1.
+- **L4 — The existing `docs/geo/`:** moves into `analytics/` and stays committed in its private repo (B12).
 
 ## Decisions for the owner
 
@@ -95,4 +146,5 @@ work as today; the folder is a kept copy, not where the skill reads from.
 
 ## Not in scope
 
-Moving files that already exist; the toolkit's own repo; any upload or sharing of the folder.
+Moving files that already exist, except B12; the weekly job writing the folder (L3); removing
+old dated folders; the toolkit's own repo; any upload or sharing of the folder.
