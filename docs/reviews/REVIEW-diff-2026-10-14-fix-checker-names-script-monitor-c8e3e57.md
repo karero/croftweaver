@@ -389,6 +389,78 @@ M19 the alias note names both headers whenever it sends either
     KILLED; new tests that failed: ['T6']
 ```
 
-## Round 3
+## Round 3 (DIFF verification, Normal depth), delta `873941c..7986e32`
+
+Seats: Codex (medium, read-only, 242 s, 56,932 tokens) counted. GLM 5.3 on melious (448 s, 27,161 tokens)
+answered, and the script did not recognise the answer as a review ("output is not a review"); it is a
+real review and is counted here by hand from its raw file, as the script's own text says. The ollama-cloud
+stand-in failed at once (its session usage limit, 429). The script said: one reviewer counted, degraded.
+
+- R3-1 RISK (Codex): `reporting-endpoints` was read with a plain quoted-string pattern, so a parameter that
+  quoted the host, or an escaped quote inside an address, could still name the monitor. FIXED: it is read
+  as the dictionary it is: members split at commas outside quotes, only a member's own string is an
+  address, backslash escapes are undone, parameters are not read.
+- R3-2 RISK (Codex): a policy with two `report-uri` directives named the monitor from the second, which a
+  browser ignores. FIXED: the first `report-uri` of each policy is the one read.
+- R3-3 NIT (GLM, by hand): the same escaped-quote shape as R3-1. FIXED with it.
+- GLM confirmed every R2 answer as landed and found no BUG or RISK. Both seats' UNVERIFIABLE entries
+  (the Reporting API and CSP grammars as a browser applies them; Cloudflare's observed shapes, one site)
+  stand as unverified: the reference says the headers come from one capture of one site.
+- Codex's sandbox could not start local servers (`listen EPERM`), so it ran direct `evaluate()` calls and
+  not the suite: the suite's result is the author's record above.
+
+Records after round 3: the suite is 93 tests, 93 pass, exit 0; `check_clean.sh` OK; `make check` on the
+tree before this round's code change: exit 0 (1,150 lines of output, no failure marker; the Perl
+minimum-version check and six cases without /proc skipped on this machine, none concerns this change).
+Twenty-one breakages of the revised readers, each in a scratch copy, all caught:
+
+```
+unmutated: exit 0, new tests failing: none
+
+M1  the monitor branch is removed (falls back to the bare look)
+    KILLED; new tests that failed: ['T1', 'T2']
+M2  a group named cf-csp-endpoint counts without an address on Cloudflare's host
+    KILLED; new tests that failed: ['T3']
+M3  the monitor is judged before NEL on and Cloudflare's NEL group (same message)
+    KILLED; new tests that failed: ['T4']
+M4  a report-to value that does not parse is searched as text for the host
+    KILLED; new tests that failed: ['T3']
+M5  .flat() dropped (a JSON array value is not read)
+    KILLED; new tests that failed: ['T2']
+M6  an address that is not a string is accepted
+    KILLED; new tests that failed: ['T3']
+M7  the host is not anchored at its end (a longer host that starts like it)
+    KILLED; new tests that failed: ['T3']
+M8  the host is not anchored at its start (not-csp-reporting...)
+    KILLED; new tests that failed: ['T3']
+M9  a trailing dot on the host is not removed
+    KILLED; new tests that failed: ['T2']
+M10 a parameter's string is read as an address too
+    KILLED; new tests that failed: ['T3']
+M11 a report-only policy is read for any address, not only its report-uri
+    KILLED; new tests that failed: ['T3']
+M12 a report-only value is not split into policies at commas
+    KILLED; new tests that failed: ['T2']
+M13 the directive name is matched case-sensitively
+    KILLED; new tests that failed: ['T2']
+M20 a duplicate report-uri counts, not only the first
+    KILLED; new tests that failed: ['T3']
+M21 escapes inside a quoted address are ignored
+    KILLED; new tests that failed: ['T2']
+M14 the monitor is not named beside NEL on
+    KILLED; new tests that failed: ['T4']
+M15 the monitor is not named beside a withdrawn nel header
+    KILLED; new tests that failed: ['T4']
+M16 the clean line loses its caveat
+    KILLED; new tests that failed: ['T5']
+M17 the off-page look loses its caveat
+    KILLED; new tests that failed: ['T5']
+M18 the look carries the checklist pointer instead of the path to the switch
+    KILLED; new tests that failed: ['T1']
+M19 the alias note names both headers whenever it sends either
+    KILLED; new tests that failed: ['T6']
+```
+
+## Confirmation of round 3's fixes
 
 (filled in as it runs)
