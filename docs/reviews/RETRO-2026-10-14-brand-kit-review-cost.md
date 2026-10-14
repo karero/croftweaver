@@ -63,8 +63,8 @@ The causes, most important first. Each is the author's judgment, laid on the mea
    input, and every promise became a target.
 5. **Plumbing, which about doubled each round.** The whole suite (about 1,070 tests on two Pythons)
    ran three or four times a round: once per fixer and once by the host. Under the machine's load,
-   up to 667 from other sessions, one run took 15 to 40 minutes. Every round sent all four parts to
-   all three seats, each part with its change since the last round: a part with a small change still
+   up to 667 from other sessions, one run took 15 to 40 minutes. From round 2 on every round sent all four
+   parts (round 1: three) to all three seats, each part with its change since the last round: a part with a small change still
    cost a full set of seat runs, and the fresh-eyes seats read widely in the tree around it. On top
    came melious timeouts and three merges of a main that had moved 167 commits.
 6. **One PR for everything.** About 7,500 lines of new code and tests at round 1, 32,000 by round 9.
