@@ -28,8 +28,8 @@ and runs the commands; the skills cannot run anything by themselves.
   The full list is in [Writes outside your site's folder](#writes-outside-your-sites-folder).
 - **In Claude Code, routine build commands run without asking**, because each site made
   with Claude Code gets a permission list (see
-  [What runs without asking](#what-runs-without-asking); this is how Claude Code's
-  documentation describes the list, not tried here in a live session). That list also lets `node`,
+  [What runs without asking](#what-runs-without-asking); read from Claude Code's
+  documentation on permission rules, not tried in a live session). That list also lets `node`,
   `npm run` and `git push` run without asking. It saves clicks; it is not a safety fence.
 - **Releases carry no checksum file and no signature of our own.** GitHub shows a SHA-256
   for each download. See [Releases](#releases).
