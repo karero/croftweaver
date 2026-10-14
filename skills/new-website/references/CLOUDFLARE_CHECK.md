@@ -113,8 +113,8 @@ items are a `look`, never `ok`.
   domain. This prints how many of 100 answered with one of the monitor's three headers
   (`report-to`, `reporting-endpoints` or `content-security-policy-report-only`; a site that
   sets one itself counts too), how many without one, and how many failed, each with the
-  status line of the answer. Only answers that are `200` count: a redirect or an error page
-  has none of the headers either:
+  status line of the answer. Only answers that are `200` count: we did not check whether a
+  redirect or an error page carries the headers:
 
   ```bash
   for i in $(seq 1 100); do
