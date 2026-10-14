@@ -211,7 +211,10 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "Scaffolded: $copied at suite commit $short_base"
   echo
 
-  changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- skills/ ":(exclude)skills/$LEFT_BEHIND" | cut -d/ -f2 | sort -u)"
+  # `|| return`: the caller's `process_dir || FAIL=1` switches set -e off in here, so a git that
+  # failed (one that cannot read the exclude, say) would otherwise leave this empty: "Up to date".
+  changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- skills/ ":(exclude)skills/$LEFT_BEHIND" | cut -d/ -f2 | sort -u)" \
+    || { echo "error: git could not list the suite's skill changes since $short_base (above)." >&2; return 1; }
   stale=""
   for s in $changed; do
     [ -d "$skills_dir/$s" ] && stale="$stale $s"

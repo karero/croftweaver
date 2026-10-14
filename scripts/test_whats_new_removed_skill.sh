@@ -193,6 +193,15 @@ out="$(bash "$SB/scripts/whats-new.sh" "$S9" 2>&1)"
 check "brand kit edit: listed as an update"                     has "$out" "  website-brand-kit"
 check "brand kit edit: lists the commit that changed it"        has "$out" "brand kit skill again"
 check "brand kit edit: leaves out the tests-only commit"        lacks "$out" "brand kit tests only"
+# A git that cannot read the exclude (stood in for by a wrapper that refuses it) must stop the
+# report, not leave the list of changes empty and call the site up to date.
+mkdir -p "$T/oldgit"
+printf '#!/bin/sh\nfor a; do case "$a" in ":(exclude)"*) echo "fatal: Invalid pathspec magic" >&2; exit 128 ;; esac; done\nexec "%s" "$@"\n' "$(command -v git)" > "$T/oldgit/git"
+chmod +x "$T/oldgit/git"
+out="$(PATH="$T/oldgit:$PATH" bash "$SB/scripts/whats-new.sh" "$S9" 2>&1)"; rc=$?
+check "git refusing the exclude: the report fails"              test "$rc" -ne 0
+check "git refusing the exclude: says git could not list"       has "$out" "git could not list"
+check "git refusing the exclude: never says up to date"         lacks "$out" "Up to date"
 
 # --- 10. new-website's copy step, run as SKILL.md writes it, against this checkout's skills
 LEFT="$(sed -n "s/^LEFT_BEHIND='\(.*\)'\$/\1/p" "$HERE/whats-new.sh")"
@@ -208,6 +217,16 @@ check "scaffold: the folder whats-new.sh names stays behind"    test ! -e "$PSD/
 # The folder can stay behind only while nothing a site's assistant reads asks to run it.
 runs="$(grep -rlE 'scripts/tests|unittest|pytest' --include='*.md' "$PSD/website-brand-kit" 2>/dev/null)"
 check "scaffold: no brand kit instruction runs its tests"       test -z "$runs"
+# Nor may its code need the folder: every module of the copied scripts must import without it.
+if command -v python3 >/dev/null 2>&1; then
+  imp="$(cd "$PSD/website-brand-kit/scripts" && for f in *.py; do
+    python3 -I -c "import sys; sys.path.insert(0, '.'); import ${f%.py}" >/dev/null 2>&1 || echo "${f%.py}"
+  done)"
+  check "scaffold: every brand kit module imports without tests"  test -z "$imp"
+  [ -z "$imp" ] || printf '     failed to import: %s\n' $imp
+else
+  echo "SKIP scaffold: the brand kit import check needs python3"
+fi
 
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"
