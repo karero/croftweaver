@@ -15,9 +15,10 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const UA = 'Mozilla/5.0 (compatible; croftweaver-cloudflare-check/1)';
-// The dashboard's "1 month" is 30 days (2592000 seconds), shorter than an average calendar month
-// (2629800): a site set to exactly one month must not be called shorter than one. Its 6 and 12
-// months are 15552000 and 31536000, so "about N months" is a rounding.
+// What Cloudflare's dashboard sent for "1 month" in the live header of a site on 14 October 2026: 30 days,
+// 2592000 seconds, shorter than an average calendar month (2629800). Its pages give months, not seconds;
+// the 6 and 12 months seen then were 15552000 and 31536000. "About N months" below counts 30-day months,
+// so a year reads 12.17 and rounds to 12.
 const MONTH = 2592000;
 const MAX_BODY = 5_000_000; // bytes of a page read before judging what we have
 const MAX_HOPS = 3; // redirects followed on the home page, to the same address only
@@ -687,7 +688,7 @@ export function evaluate(obs, target, opts) {
       const months = Math.round(age / MONTH);
       const shown = `on: max-age ${age} (about ${months} month${months === 1 ? '' : 's'}), subdomains ${sub ? 'on' : 'off'}, preload ${pre ? 'on' : 'off'}.`;
       if (!(age > 0)) put('hsts', 'look', `${sts}: a max-age of 0, or none, switches HSTS off in browsers.`, section(2));
-      else if (age < MONTH) put('hsts', 'look', `${shown} That is shorter than the one month the checklist starts with.`, section(2));
+      else if (age < MONTH) put('hsts', 'look', `${shown} That is shorter than the one month (${MONTH} seconds) the checklist starts with.`, section(2));
       else if (pre) put('hsts', 'look', `${shown} The checklist says preload Off: it needs 12 months and can lock visitors out if HTTPS ever breaks.`, section(2));
       else if (offPage) put('hsts', 'look', `${shown} Judged from the ${home.status} answer, not the page.`);
       else put('hsts', 'ok', shown);
