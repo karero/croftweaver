@@ -257,7 +257,7 @@ without writing, lists the files it would write and each colour that would chang
 writes nothing. A dry run also ends with exit 0; it says "Dry run", and it has not made
 the share cards or run the site's tests. Only the real run does those, and only the
 real run can ask the site what it reads from what it wrote (below), so a real run can
-still end with exit 1 after a dry run that passed. (Where it does not edit
+still end with exit 1 after a dry run that passed. (Where its line rule refuses
 `src/config.ts`, a dry run too asks the site's Node what it reads from the file as it
 stands; that runs the config's own code.)
 
