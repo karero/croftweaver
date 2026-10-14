@@ -5,7 +5,7 @@ description: >
   routine build loop, while keeping destructive actions gated. Installs the bundled
   `.claude/settings.json` allowlist into the project, explains the allow/deny model
   (npm / astro / playwright / git commit and push / gh read verbs and repo create /
-  image tools / the link script are pre-approved; `rm -rf`, any force push,
+  image tools / the link script are pre-approved; `rm -rf`, the usual force pushes,
   `git reset --hard`, and any `wrangler/gh … delete` are blocked), and safely EXTENDS the allowlist from the
   commands you keep approving — narrowly, never with a blanket wildcard. The allowlist
   travels with the repo, so a handoff party also gets the quiet build loop. Trigger
@@ -58,9 +58,13 @@ project) after editing so the new rules take effect.
 
 **Blocked (`deny`)** — irreversible or destructive. Claude Code refuses these outright,
 it does not ask; the owner runs one by hand in a terminal if they really mean it:
-`rm -rf`, any force push (`--force`, `--force-with-lease`, `-f` or a `+branch`, wherever
-it stands in the command), `git reset --hard`, `gh repo delete`, `wrangler pages delete`,
-`wrangler delete`. **Do not move these to `allow`.**
+`rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or a `+branch`,
+wherever it stands in the command), `git reset --hard`, `gh repo delete`,
+`wrangler pages delete`, `wrangler delete`. **Do not move these to `allow`.** A rule only
+matches text: a force flag bundled with others (`git push -uf`) still runs, since a rule
+broad enough to catch it would also block `--follow-tags` and branch names with `-f` in
+them. On a shared site, GitHub's branch rules (`website-team-setup`) refuse a force push to
+`main` whatever the command looks like.
 
 ## 3. Extend it safely when a new prompt recurs
 

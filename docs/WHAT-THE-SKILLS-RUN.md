@@ -55,8 +55,8 @@ was read, not tried in a live session.
   `exiftool`), file commands (`ls`, `cat`, `head`, `tail`, `wc`, `tree`, `find`, `grep`,
   `rg`, `mkdir`, `cp`, `mv`, `touch`, `echo`, `open`), and reading three documentation sites
   (docs.astro.build, developers.cloudflare.com, keystatic.com).
-- **Blocked:** `rm -rf`, any force push (`--force`, `--force-with-lease`, `-f` or a
-  `+branch`, wherever it stands in the command), `git reset --hard`, `gh repo delete`,
+- **Blocked:** `rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or
+  a `+branch`, wherever it stands in the command), `git reset --hard`, `gh repo delete`,
   `wrangler delete` and `wrangler pages delete` (with or without `npx`). The documentation
   says a block rule prevents the command; it does not ask. You run such a command yourself
   if you really mean it.
@@ -78,7 +78,10 @@ What this list does and does not protect:
   2026-10-14 with Claude Code 2.1.287, run headless with these settings in a throwaway
   repository: all seven force-push forms tried were blocked, and `--delete`, a plain push
   and `--follow-tags` ran. With the rules as they were before, five of the seven ran,
-  `git push --force-with-lease` at the start among them.
+  `git push --force-with-lease` at the start among them. A force flag bundled with others
+  still runs (`git push -uf origin main` and `git push origin main -vf`, tested the same
+  day): a rule broad enough to catch it would also block `--follow-tags` and branch names
+  with `-f` in them.
 - `find` with `-delete` or `-exec` should still ask: Claude Code's documentation says a
   `find` rule cannot approve a `find` that deletes, writes or runs commands. (Read, not
   tried in a live session.)
@@ -321,8 +324,8 @@ the new release no longer has.
 | Cloudflare API token | an environment variable for the session; the guide asks for a narrow token that expires in about a week |
 
 All of these live outside the site's folder. The site's `.gitignore` also excludes `.env`,
-`.env.*`, `.dev.vars`, `.wrangler/`, `client_secret*.json` and `token.json`, in case a copy
-lands there. The review tool passes
+`.env.*`, `.dev.vars`, `.wrangler/`, and `client_secret*.json` and `token.json` at its top
+level, in case a copy lands there. The review tool passes
 its keys to `curl` through standard input, not on the command line. The Bing script
 removes the key from error messages before they reach a log; a test guards this.
 

@@ -23,8 +23,8 @@ pnpm-debug.log*
 .dev.vars
 .dev.vars.*
 # Google sign-in files for the Search Console reports: they belong in ~/.config/gsc-insights/
-client_secret*.json
-token.json
+/client_secret*.json
+/token.json
 
 # Cloudflare / wrangler
 .wrangler/
