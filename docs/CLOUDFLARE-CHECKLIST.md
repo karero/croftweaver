@@ -16,7 +16,8 @@ your **Pages project** (Workers & Pages → your project), and some to your **ac
 a path says "Security → Settings → filter by …", you land on one long page of settings with
 a filter box: pick the filter, then find the setting by name.
 
-The paths come from Cloudflare's own documentation, read on 2026-10-12, and from
+The paths come from Cloudflare's own documentation, read on 2026-10-12 (the AI switches in
+section 4 on 2026-10-14), and from
 [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
 for three project steps in section 1 (attach the domain, Fail open, and the
 `CANONICAL_URL` variable under Production). None was re-checked in a dashboard for this
@@ -204,7 +205,29 @@ cookies, scripts or tracking you didn't choose.
   still see the older **Block AI bots** setting, make sure it is Off. Cloudflare is
   retiring it. (`search-console-setup` still shows the older names, Security → Bots →
   Control AI crawlers. This list is the newer one.)
-  Cloudflare can also add its own managed `robots.txt` rules. Section 5 shows the file.
+  Three more switches can keep AI crawlers out. Set each to off, with the one exception
+  under Bot Preference Sync:
+  - **Bot Preference Sync: Off, unless you block Training.** Same place: Configure AI bot
+    policies → **Enable Bot Preference Sync**. This is Cloudflare's managed `robots.txt`:
+    when a policy is set to block or disallow, it puts Cloudflare's own lines for AI
+    crawlers, and a `Content-signal` line, in front of your file, or writes a file if you
+    have none. The file the kit made already says who may read your site. If you chose to
+    block or disallow Training, this switch is what writes that into `robots.txt`: then
+    leave it on. Cloudflare's settings page lists a setting called **Instruct AI bot
+    traffic with robots.txt** and links it to the documentation page for this switch.
+    Section 5 shows the file.
+  - **AI Labyrinth: Off.** Your domain → Security → Settings → filter by **Bot traffic** →
+    **AI Labyrinth**. It adds invisible links to your pages that lead AI crawlers which
+    ignore crawl rules and crawl without permission into an endless maze. Cloudflare says
+    only bots see the links and they don't affect your search ranking. Off is the kit's
+    choice: the file the kit made lets every crawler in, and we would rather your pages
+    carry only links you wrote.
+  - **Content bots: Off.** We found no page in Cloudflare's documentation that names this
+    switch or says where it is in the dashboard (searched 14 October 2026). Cloudflare's
+    API describes it as a rule that blocks automated traffic with low bot scores, apart
+    from verified bots in safe categories, so it can also refuse an AI crawler. If your
+    **Bot traffic** list shows a switch for content bots, turn it off. If not, ask your
+    assistant to read it through the API (section 6).
 
 ## 5. Check your work
 
@@ -246,7 +269,8 @@ You want your own file: the starter's begins `User-agent: *` and ends with a `Si
 line that names your own domain, not the starter's `example.com`. It should have no
 AI-crawler `Disallow` lines you didn't write, other than ones from a policy you set to
 block or disallow. If Cloudflare's own lines for AI crawlers show and you didn't ask for
-them, tell your assistant: Cloudflare can add a managed `robots.txt`.
+them, tell your assistant: Cloudflare can add a managed `robots.txt` (Bot Preference Sync,
+section 4).
 
 ```bash
 curl -sI http://yourdomain.com/ | grep -iE '^(HTTP/|location:)'
@@ -300,7 +324,7 @@ look but not change anything):
 |---|---|
 | Zone → Zone Settings → Edit | Always Use HTTPS, Minimum TLS Version, Email Address Obfuscation, the NEL switch |
 | Zone → Transform Rules → Edit | the rule that removes the NEL headers |
-| Zone → Bot Management → Edit | Bot Fight Mode and the AI crawler policies, both on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
+| Zone → Bot Management → Edit | Bot Fight Mode, the AI crawler policies and the three switches after them (`is_robots_txt_managed`, `crawler_protection`, `content_bots_protection`), all on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
 | Zone → Zone → Read | finding your domain by name |
 | Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
 
@@ -366,3 +390,7 @@ MDN's [Network Error Logging](https://developer.mozilla.org/en-US/docs/Web/HTTP/
 and its [browser compatibility data](https://github.com/mdn/browser-compat-data/blob/main/http/headers/NEL.json);
 [RFC 6797](https://www.rfc-editor.org/rfc/rfc6797) (HSTS) and
 [§ 25 TDDDG](https://www.gesetze-im-internet.de/ttdsg/__25.html).
+Read 2026-10-14, for the three AI switches in section 4: Cloudflare's
+[AI Labyrinth](https://developers.cloudflare.com/bots/additional-configurations/ai-labyrinth/)
+and [Security settings](https://developers.cloudflare.com/security/settings/) pages, and
+the managed robots.txt page and the Bot Management API reference again.
