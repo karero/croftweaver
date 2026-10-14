@@ -238,7 +238,8 @@ class Scenarios(ProposalReportTest):
                         query_pages=[qp("fahrradladen leipzig", PAGE, 4000)])
         page = self.build("2026-11-02", google=g)
         self.assertNotIn("Too little data", page)
-        self.assertIn("no search met every condition for one", page)
+        self.assertIn("no search met every condition for one (at position 8 to 20, shown at least 50 times in 4 "
+                      "weeks, on a page shown at least 10 times", page)
         self.assertIn("no search met every condition for a proposal", self.log)
 
     def test_github_out_of_reach_after_an_answer_is_named(self):
@@ -276,6 +277,23 @@ class Scenarios(ProposalReportTest):
         self.build("2026-12-14", page=new_page, gh=merged)
         rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
         self.assertEqual((rec["pr"]["state"], fp.page_block(rec)), ("MERGED", ""))
+
+    def test_a_measured_round_is_asked_about_until_github_says_merged(self):
+        # Round 3: a measured round whose last answer was unknown or closed was never asked again.
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        for last in (None, "CLOSED"):
+            st = self.state()
+            rec = st["proposals"][fp.proposal_key(PAGE, QUERY)]
+            rec["pr"]["state"], rec["result"] = last, {"too_soon": True, "interrupted": "2026-11-12"}
+            rec.pop("declined_on", None)
+            rec.pop("decline_reason", None)
+            fp.state_path(SITE).write_text(json.dumps(st), encoding="utf-8")
+            asked = []
+            reopened = lambda repo, number: asked.append(number) or {"state": "OPEN", "mergedAt": None, "closedAt": None}
+            self.build("2026-12-14", page=new_page, gh=reopened)
+            rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+            self.assertEqual((asked, rec["pr"]["state"], fp.page_block(rec)), ([31], "OPEN", "pull request open"), last)
 
     def test_a_title_that_is_neither_old_nor_new_asks_for_a_check(self):
         self.build("2026-11-02")

@@ -359,7 +359,9 @@ def follow_proposals(state, service, prop, country, finished, today, read_page, 
     """Each run: ask GitHub about every recorded pull request, look at the live page, and measure
     once the after-window's data is complete. Nothing is released by a timer."""
     for rec in state["proposals"].values():
-        if not rec.get("pr") or (rec.get("result") and (rec["pr"].get("state") or "").upper() != "OPEN"):
+        # A measured round is still asked about until GitHub says merged: an open, closed or
+        # never-answered pull request can still change, and an open one keeps its page out (R1).
+        if not rec.get("pr") or (rec.get("result") and (rec["pr"].get("state") or "").upper() == "MERGED"):
             continue
         fp.apply_pr_state(rec, gh(rec["pr"]["repo"], rec["pr"]["number"]), today)
         if rec.get("result"):
@@ -543,9 +545,9 @@ def render_proposal(view, site, today):
         parts.append(f"<p>No proposal this week. Searches looked at and passed over: {H(reasons)}.</p>")
     elif "total" in view and view.get("enough"):
         parts.append(
-            "<p>No proposal this week: no search met every condition for one (at position 8 to 20, shown at "
-            "least 50 times in 4 weeks, on a page shown at least 10 times, its words not yet on that "
-            "page).</p>")
+            f"<p>No proposal this week: no search met every condition for one (at position "
+            f"{fp.T1_POSITION[0]:g} to {fp.T1_POSITION[1]:g}, shown at least {fp.T1_MIN_IMPRESSIONS} times in 4 "
+            f"weeks, on a page shown at least {fp.NOISE_IMPRESSIONS} times, its words not yet on that page).</p>")
     elif "total" in view:
         parts.append(
             f"<p>Too little data to propose a change this week: shown {_n(view['total'])} times in 4 weeks "

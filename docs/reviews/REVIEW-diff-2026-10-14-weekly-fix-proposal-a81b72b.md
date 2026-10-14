@@ -65,3 +65,19 @@ Both seats confirmed the other round-1 fixes landed. 5 fixed, 1 fixed by a cut, 
 | 5 | Codex, GLM | NIT | Scenario 6's test still depends on the real clock | Fixed after all: the clock is held still through `fix_proposal._today` |
 | 6 | GLM | NIT | A command waiting for the lock gave no sign | Fixed: it says it is waiting for the weekly report |
 | 7 | GLM | NIT | `import fcntl` breaks the commands on Windows | Refuted: `_history.py`, imported for `normalize_site`, already imports `fcntl` at the top, and native Windows is out of scope (requirements R6) |
+
+## Round 3 — verification at c7872e5, 2026-10-14
+
+Codex 2 BUG, GLM 2 RISK and 2 NIT; one overlap merged: 5 findings, 2 BUG, 2 RISK, 1 NIT.
+3 fixed, 2 refuted.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|---|---|---|---|
+| 1 | Codex | BUG | Eval 13 still said "four places" | Fixed: title, H1 and first paragraph, never the description |
+| 2 | Codex, GLM | BUG + NIT | A measured round with an unknown or CLOSED last answer was never asked again | Fixed: one rule, a measured round is asked until GitHub says merged; test for both |
+| 3 | GLM | RISK | The busy-site sentence wrote 50 and 10 as text while the code holds them as constants | Fixed: the sentence takes them from the constants; the test checks the numbers |
+| 4 | GLM | RISK | The scenario 6 clock fix works only if the command runs in the test's process | Refuted: `assistant()` calls `fp.main` in-process (test_fix_proposal_report.py, `assistant`) |
+| 5 | GLM | NIT | A "changed again too soon" result is never measured again | Refuted: by design, R3 says the report then states it changed too soon to measure |
+
+Round 3 had BUGs, so round 4 follows (the script's rule: kinds named, and a cut for each kind
+that earned an earlier round).
