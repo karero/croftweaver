@@ -28,3 +28,4 @@ Follow-ups: the BUGLOG row above; `facts-check` and `wordpress-inspector` name t
 Notes: the Codex confirmation took the scope paragraph at the top of its artifact for an attempt to steer it and reviewed the link at full scope instead. Check records on `f4097bb`: `node --test scripts/plugin.test.mjs` exit 0 (20 tests, 19 pass, 1 skipped: the release-tag test); `make check` exit 0, "all checks passed". Raw reviewer output is in the pull request's review comment.
 
 After the owner's "Merge 300" (2026-10-14): origin/main (`cb1f867`, #295) was merged in as `a9638ba`; `merge_link.sh 8ed34ca 655799d cb1f867` is empty (nothing of this change moved), and the plugin tests pass. The stamp moves to the new head with no reviewer run: the diff-scope is byte-identical.
+Then origin/main (`b5bf49e`: #299, #265) was merged in as `6b7cb4b`; `merge_link.sh cb1f867 982ddc4 b5bf49e` is empty and the diff-scope byte-identical, so the stamp moved again with no reviewer run.
