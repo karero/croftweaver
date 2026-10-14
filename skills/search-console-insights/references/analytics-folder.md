@@ -13,7 +13,8 @@ analytics/
   2026-10-12_geo-run/   2026-10-14_facts-check/   2026-10-14_positioning-check/
 ```
 
-Dated folders put the date first, so they sort by time; a folder that exists is never rewritten.
+Dated folders put the date first, so they sort by time. The scripts never rewrite a dated folder
+that exists; a check run twice on one day writes into that day's folder again.
 
 ## Before the first file
 
