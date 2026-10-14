@@ -279,9 +279,8 @@ curl -sI "https://yourdomain.com/?cb=$(date +%s)" | grep -iE '^(HTTP/|nel:|repor
 ```
 
 You want a 200 status line (`HTTP/2 200`, or `HTTP/1.1 200 OK` on an older curl) and
-nothing else until you switch HSTS on (section 2). A 3xx status line means something else
-is answering for your live domain, usually a redirect: find out what before you trust the
-rest. A `nel:` line
+nothing else until you switch HSTS on (section 2). A 3xx status line is not the 200 you want:
+find out what answers with it, and why, before you trust the rest. A `nel:` line
 means NEL is still on, and so does a `report-to:` line that names `cf-nel`. A `report-to:`
 line that sends to an address on `csp-reporting.cloudflare.com` is Cloudflare's script
 monitor (section 3, step 5), and a clean answer does not show it is off. A `report-to:`
