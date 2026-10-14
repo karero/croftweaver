@@ -123,7 +123,7 @@ function block(file, first, end) {
 
 // The lines new-website tells the assistant to run to find the installed suite, taken from
 // SKILL.md itself: from where Codex's folder is set to the end of the PROJECT_SKILLS_DIR test.
-const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'codex_home="${CODEX_HOME:-$HOME/.codex}"', 'mkdir <site> && cd <site> && git init');
+const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'codex_home="$(', 'mkdir <site> && cd <site> && git init');
 
 // Runs lines of a skill as an assistant would: `filled` is what stands in place of the name
 // in braces (Claude Code), or null to leave the text as written (any other assistant).
@@ -200,13 +200,17 @@ test('an assistant that fills nothing in finds the suite installed as a Codex pl
     assert.deepEqual(runLookup({ filled: null, home, strict }), { root: plugin, project: '.agents/skills' });
   }
 
-  // CODEX_HOME moves Codex's folder: the lookup follows it, also written with a slash at
-  // the end, which must not send the site's skills to .claude/skills.
+  // CODEX_HOME moves Codex's folder: the lookup follows it, however it is written (slashes
+  // at the end or doubled, relative to the folder the assistant runs in, an exported
+  // CDPATH), none of which may send the site's skills to .claude/skills.
   const elsewhere = tmp();
   const moved = codexPlugin(path.join(elsewhere, 'codex home'));
   suiteAt(moved);
-  for (const codexHome of [path.join(elsewhere, 'codex home'), `${path.join(elsewhere, 'codex home')}/`]) {
-    assert.deepEqual(runLookup({ filled: null, home: tmp(), env: { CODEX_HOME: codexHome } }), { root: moved, project: '.agents/skills' }, codexHome);
+  const decoy = tmp();
+  suiteAt(codexPlugin(path.join(decoy, 'codex home')));
+  for (const codexHome of [path.join(elsewhere, 'codex home'), `${path.join(elsewhere, 'codex home')}/`, `${elsewhere}//codex home//`, 'codex home']) {
+    const found = runLookup({ filled: null, home: tmp(), cwd: elsewhere, env: { CODEX_HOME: codexHome, CDPATH: decoy } });
+    assert.deepEqual(found, { root: moved, project: '.agents/skills' }, codexHome);
   }
 
   // Two versions left behind: the last by name, whatever order the folder lists them in.
@@ -240,16 +244,20 @@ test('in zsh the lookup runs without an error, with and without a Codex plugin',
   });
 
 // An assistant or a person may run the lines under `set -euo pipefail`. Before the Codex
-// plugin the lookup passed there; a search that finds no Codex folder must not stop it.
+// plugin the lookup passed there; a search that finds no Codex folder must not stop it,
+// whether a candidate matches or none does.
 test('under set -euo pipefail the lookup still runs to the end, in bash and in zsh', () => {
   const shells = ['bash', ...(spawnSync('zsh', ['-c', 'true']).status === 0 ? ['zsh'] : [])];
+  const strict = (shell, home, filled) => spawnSync(shell, ['-c', `set -euo pipefail\n${filled === null ? lookup() : lookup().replaceAll(VAR, filled)}\nprintf '%s\\n' "$SKILLS_ROOT"\n`],
+    { env: { PATH: process.env.PATH, HOME: home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   for (const shell of shells) {
-    const home = tmp();
     const running = path.join(tmp(), 'skills');
     suiteAt(running);
-    const run = spawnSync(shell, ['-c', `set -euo pipefail\n${lookup().replaceAll(VAR, path.join(running, 'new-website'))}\nprintf '%s\\n' "$SKILLS_ROOT"\n`],
-      { env: { PATH: process.env.PATH, HOME: home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    assert.deepEqual([run.status, run.stderr, run.stdout], [0, '', `${running}\n`], shell);
+    const found = strict(shell, tmp(), path.join(running, 'new-website'));
+    assert.deepEqual([found.status, found.stderr, found.stdout], [0, '', `${running}\n`], shell);
+    const empty = tmp();
+    const none = strict(shell, empty, null);
+    assert.deepEqual([none.status, none.stderr, none.stdout], [0, '', `${path.join(empty, '.claude', 'skills')}\n`], shell);
   }
 });
 

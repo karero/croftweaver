@@ -320,14 +320,15 @@ full path (the output of `pwd` inside it):
    # the shell an empty value for it instead of an unset variable, the candidate reads
    # "/..", and the loop passes over it. Then Claude Code → Antigravity → Codex
    # (Claude is the default/primary), and last the suite installed as a Codex plugin, in
-   # Codex's folder (CODEX_HOME, without a slash at the end, or ~/.codex). An update leaves
-   # one version there; should there be more, the last by name is taken. It is found with
+   # Codex's folder (CODEX_HOME or ~/.codex, written as the shell names it after cd, as
+   # SKILLS_ROOT is, so the two compare). An update leaves one version there; should there
+   # be more, the last in name order is taken (0.9.0 sorts after 0.33.0). It is found with
    # `find`, because a pattern that matches nothing stops zsh with an error, and a failed
    # search leaves it empty, so the candidate reads "/.." as well. On a machine with
    # more than one installed, set it yourself — e.g. `export SKILLS_ROOT=~/.agents/skills` (Codex) or
    # `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
    # `export SKILLS_ROOT="$PWD/.agents/skills"`.
-   codex_home="${CODEX_HOME:-$HOME/.codex}"; codex_home="${codex_home%/}"
+   codex_home="$(CDPATH= cd -- "${CODEX_HOME:-$HOME/.codex}" 2>/dev/null && pwd)" || codex_home="${CODEX_HOME:-$HOME/.codex}"
    if [ -z "${SKILLS_ROOT:-}" ]; then
      SKILLS_ROOT="$HOME/.claude/skills"
      : "${CLAUDE_SKILL_DIR:=}"

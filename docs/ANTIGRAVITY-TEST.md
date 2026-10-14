@@ -35,7 +35,7 @@ This is the exact logic the scaffold runs. On a machine that ALSO has Claude Cod
 Antigravity's path first:
 ```bash
 export SKILLS_ROOT=~/.gemini/config/skills    # only needed if ~/.claude/skills also exists
-codex_home="${CODEX_HOME:-$HOME/.codex}"; codex_home="${codex_home%/}"
+codex_home="$(CDPATH= cd -- "${CODEX_HOME:-$HOME/.codex}" 2>/dev/null && pwd)" || codex_home="${CODEX_HOME:-$HOME/.codex}"
 if [ -z "${SKILLS_ROOT:-}" ]; then
   SKILLS_ROOT="$HOME/.claude/skills"
   : "${CLAUDE_SKILL_DIR:=}"
