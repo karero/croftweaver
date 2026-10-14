@@ -1528,9 +1528,9 @@ function countingLoop(address) {
 }
 
 // Asynchronous on purpose: the sites are servers in this process, and a blocking call would stop them answering.
-function loopOutput(address) {
+function loopOutput(address, env = process.env) {
   return new Promise((resolve) => {
-    execFile('bash', ['-c', countingLoop(address)], { encoding: 'utf8', timeout: 60_000 }, (err, stdout) => {
+    execFile('bash', ['-c', countingLoop(address)], { encoding: 'utf8', timeout: 60_000, env }, (err, stdout) => {
       resolve(stdout.split('\n').map((l) => l.trim()).filter(Boolean));
     });
   });
@@ -1547,6 +1547,7 @@ test('the counting loop in the reference reads clean, header or other, and count
     ['an answer without the headers', undefined, ['3 clean']],
     ['an answer with report-to', homeWith({ 'report-to': '{"group":"cf-csp-endpoint","max_age":86400}' }), ['3 header']],
     ['an answer with the report-only header', homeWith({ 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/x" }), ['3 header']],
+    ['an answer with reporting-endpoints', homeWith({ 'reporting-endpoints': 'cf-csp-endpoint="https://reports.example.invalid/x"' }), ['3 header']],
     ['a redirect', answer((res) => { res.writeHead(301, { location: '/elsewhere' }); res.end(); }), ['3 other status=301 exit=0']],
     ['a server error', answer((res) => { res.writeHead(503); res.end('down'); }), ['3 other status=503 exit=0']],
     ['a body cut short after a 200 status line', answer((res) => {
@@ -1564,4 +1565,19 @@ test('the counting loop in the reference reads clean, header or other, and count
   const address = gone.origin;
   await gone.close();
   assert.deepEqual(await loopOutput(address), ['3 other status=000 exit=7'], 'a closed port');
+  // An address curl rejects before it asks anything. Some curl versions then write `status=000`, some
+  // write nothing, and the loop says `status=none`; none of them counts, and the exit code is 3.
+  const rejected = await loopOutput('http://127.0.0.1:99999');
+  assert.equal(rejected.length, 1, 'an address curl cannot use');
+  assert.match(rejected[0], /^3 other status=(000|none) exit=3$/, 'an address curl cannot use');
+  // A curl that fails before it writes anything at all (some versions do for a rejected address): the
+  // loop still prints a line, with `status=none`. A stand-in curl on the path makes that certain.
+  const stub = mkdtempSync(path.join(tmpdir(), 'curl-stub-'));
+  try {
+    writeFileSync(path.join(stub, 'curl'), '#!/bin/sh\nexit 3\n', { mode: 0o755 });
+    assert.deepEqual(await loopOutput('http://127.0.0.1:1', { ...process.env, PATH: `${stub}${path.delimiter}${process.env.PATH}` }),
+      ['3 other status=none exit=3'], 'a curl that writes nothing');
+  } finally {
+    rmSync(stub, { recursive: true, force: true });
+  }
 });

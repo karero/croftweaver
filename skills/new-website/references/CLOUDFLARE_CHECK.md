@@ -112,16 +112,18 @@ items are a `look`, never `ok`.
   proof: on the one site, 2 of 40 answers carried them before the switch. Replace
   `yourdomain.invalid` with the address your site answers on, with `www.` if the bare name
   redirects. The placeholder cannot answer (`.invalid` is reserved for names that never
-  resolve, RFC 6761), so an unedited run prints `other` lines. Each answer is `clean` only
+  resolve, RFC 6761, section 6.4), so an unedited run prints `other` lines. Each answer is `clean` only
   if curl succeeded, the final status is 200 and none of the monitor's three headers
   (`report-to`, `reporting-endpoints`, `content-security-policy-report-only`) is there. It is
   `header` if one is there on such an answer (a site that sets one itself counts too).
-  Anything else is `other`, with its status and curl's exit code, and does not count:
+  Anything else is `other`, with its status and curl's exit code (`none` where curl never
+  got far enough to report one), and does not count:
 
   ```bash
   for i in $(seq 1 100); do
     { curl -sS --http1.1 -o /dev/null -D - -w 'status=%{http_code}\n' "https://yourdomain.invalid/?cb=$RANDOM"; echo "exit=$?"; } 2>/dev/null |
-      awk 'tolower($0) ~ /^(report-to|reporting-endpoints|content-security-policy-report-only):/ { h = 1 }
+      awk 'BEGIN { s = "status=none"; e = "exit=none" }
+           tolower($0) ~ /^(report-to|reporting-endpoints|content-security-policy-report-only):/ { h = 1 }
            /^status=/ { s = $0 }
            /^exit=/ { e = $0 }
            END { if (e == "exit=0" && s == "status=200") print (h ? "header" : "clean"); else print "other", s, e }'
