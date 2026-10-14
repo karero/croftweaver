@@ -40,6 +40,7 @@ S6_SHOWN = 15               # rows shown in "just below page 1"
 S7_MAX_POSITION, S7_MIN_IMPRESSIONS, S7_MAX_CTR = 10.0, 20, 0.02   # gsc_query.py's low-CTR rule
 TRACKER_WINDOW = "28"
 STALE_RECORD_DAYS = 14      # a weekly record older than two weeks is named on the page
+AI_HEADING = "<h2>Google's and Bing's AI answers</h2>"
 STALE_AI_DAYS = 35          # A7: a downloaded AI report whose last day is older than this says so
 
 
@@ -673,7 +674,7 @@ def ai_section(ai, site, today):
     """Google's and Bing's own AI reports (docs/reviews/SKILL-PLAN-ai-reports.md, A1–A10): an empty or
     missing report is said in words, never as a 0, and never as a warning."""
     g, b = ai.get("google"), ai.get("bing")
-    parts = ["<h2>Google's and Bing's AI answers</h2>"]
+    parts = [AI_HEADING]
     if not g and not b:
         parts.append("<p>Google and Bing now count how often your site appears in their AI answers, but they don't "
                      "let programs read those numbers. Download the reports and say <i>“here's my AI report from "
@@ -756,10 +757,13 @@ def ai_part(site, today):
     try:
         return ai_section(load_ai(site), site, today)
     except Exception as e:  # noqa: BLE001 - the boundary is the point
-        print(f"search_report: the saved AI reports could not be shown ({type(e).__name__}: {e})"[:300],
-              file=sys.stderr)
-        return ("<h2>Google's and Bing's AI answers</h2><p>The AI reports you added could not be read. Hand me "
-                "the downloads again and I'll add them.</p>")
+        try:      # the log is best-effort: a broken stderr must not cost the page (review F40)
+            print(f"search_report: the saved AI reports could not be shown ({type(e).__name__}: {e})"[:300],
+                  file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            pass
+        return (AI_HEADING + "<p>The AI reports you added could not be read. Hand me the downloads again and "
+                "I'll add them.</p>")
 
 
 def render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw=frozenset(), ai_html=None):
@@ -935,7 +939,7 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
     else:
         parts.append("<p>Bing is not connected yet. Ask me <i>“connect Bing”</i> and I'll walk you through it.</p>")
 
-    parts.append(ai_html if ai_html is not None else ai_section({}, site, today))
+    parts.append(ai_html if ai_html is not None else ai_part(site, today))
 
     if ai_link:
         parts.append(f'<p class="sub" style="margin-top:32px">Also see: <a href="{H(ai_link)}">Does AI name you?</a> — your AI report.</p>')

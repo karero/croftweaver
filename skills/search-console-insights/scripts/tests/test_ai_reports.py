@@ -358,7 +358,7 @@ class Reading(AiTest):
 
 
 class RoundOneFindings(AiTest):
-    """Review round 1 (docs/reviews/REVIEW-diff-2026-10-14-ai-reports.md). Invariant: a file is accepted
+    """Review round 1 (docs/reviews/REVIEW-diff-2026-10-14-feat-search-ai-reports-fef0408.md). Invariant: a file is accepted
     only once it is known to be the right report, and every number and date in it reads as one."""
 
     def refused(self, path):
@@ -593,7 +593,6 @@ class RoundThreeFindings(AiTest):
         self.assertIn("in Google's own, one of them always does", err)
 
 
-
 class RoundFourFindings(AiTest):
     """Review round 4. F1's chain (F1, F18, F30, F36) closed by a boundary, not one more shape: nothing in
     the saved AI files can stop the page being written."""
@@ -625,6 +624,16 @@ class RoundFourFindings(AiTest):
         self.assertIn("The AI reports you added could not be read.", section)
         self.assertIn("something unforeseen", err.getvalue(), "fail loud in the log too")
         self.assertIn("How people find you on Google", html, "the rest of the page is written")
+
+
+    def test_a_broken_log_stream_does_not_cost_the_page(self):
+        class BrokenStream(io.StringIO):
+            def write(self, s):
+                raise OSError("stderr is gone")
+        with mock.patch.object(sr, "ai_section", side_effect=RuntimeError("something unforeseen")), \
+                mock.patch.object(sr.sys, "stderr", BrokenStream()):
+            section, html = self.page()
+        self.assertIn("The AI reports you added could not be read.", section)
 
 
 if __name__ == "__main__":

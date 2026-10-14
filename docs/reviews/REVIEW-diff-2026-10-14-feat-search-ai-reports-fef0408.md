@@ -1,4 +1,9 @@
-# DIFF gate — Google's and Bing's own AI reports (search-console-insights 1.8.0)
+# DIFF review — branch feat/search-ai-reports — Google's and Bing's own AI reports (search-console-insights 1.8.0)
+
+Base `e038603` · depth: Normal (shipped runtime code; nothing in the High row) · verdict: OPEN until
+the re-gate below is clean · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
+works in this worktree and created the branch by renaming the harness's branch for it); POST
+AUTHORITY not yet held (no PR; one is opened only on the owner's word).
 
 Branch `feat/search-ai-reports`, base `origin/main` e038603. Plan and scenarios:
 `docs/reviews/SKILL-PLAN-ai-reports.md` (sent with the diff, since `docs/reviews/` is otherwise
@@ -29,7 +34,7 @@ left out of the artifact).
 | 2 (verification) | 1c20966 | Codex medium (245 s, 59k tokens); GLM 5.3 on ollama (487 s) standing in for melious, whose reply was cut off at the 300 s limit while still arriving | 4 / 3 / 6 (F18–F28) | delta fef0408..1c20966 with the plan; `make test` 238 OK, `make check` exit 0 before the round. 2 BUGs were round-1 fixes left partial (F1, F2); round 3 owed. 6 UNVERIFIABLE questions, 1 checked and refuted (below) |
 | 3 (verification) | 0118cf2 | Codex medium (321 s, 76k tokens), GLM 5.3 on melious (443 s, 34k) | 2 / 3 / 2 (F29–F35) | delta 1c20966..0118cf2; `make test` 244 OK, `make check` exit 0 before the round. F30 is a substantive BUG: round 4 earned (named here, as the budget asks past round 3) |
 | 4 (verification) | 3090c40 | Codex medium (340 s, 67k tokens), GLM 5.3 on melious (328 s, 22k) | 1 / 1 / 2 (F36–F39) | delta 0118cf2..3090c40; `make test` 246 OK, `make check` exit 0 before the round. F36 is a substantive BUG: round 5 earned |
-| 5 (verification) | 296d55c | Codex (medium), GLM 5.3 on melious (900 s limit) | running | delta 3090c40..296d55c; `make test` 248 OK, `make check` exit 0 before the round |
+| 5 (verification) | 296d55c | Codex medium (207 s, 62k tokens), GLM 5.3 on melious (224 s, 22k) | 1 / 0 / 5 (F40–F45) | delta 3090c40..296d55c; `make test` 248 OK, `make check` exit 0 before the round. F40 refuted with the owner's agreement, so no substantive BUG: **the rounds end** (stop condition a2). The NIT fixes and F40's hardening are locally_verified, not externally re-verified until the re-gate below |
 
 ## Findings
 
@@ -84,6 +89,13 @@ Round 3 questions checked and refuted by reading: the zip branch of `read_bundle
 | F39 | NIT | G | test file | three blank lines before a class | fixed | — |
 
 Round 4 questions checked and refuted by reading: `others` is a list built by `append`, so the refusal's order is the files' order and stable (G).
+
+| F40 | BUG | C (round 5) | `ai_part` | if writing the error to the log itself fails (stderr raising `OSError`), the page is not written | refuted, **owner agreed** (2026-10-14, "Refute, and harden it locally") — and hardened locally | a broken log stream is an environment failure outside the AI-file boundary F36 promises; the older log lines in `build()` fail the same way. Hardened anyway: the log line is best-effort (`try`/`except`). Test `test_a_broken_log_stream_does_not_cost_the_page` fails on 296d55c. locally_verified, not externally re-verified |
+| F41 | NIT | C, G | test file | three blank lines before `RoundFourFindings` (F39 again) | fixed | — |
+| F42 | NIT | G | `_ai_record_ok` | `days_cited` ≤ `days` compares raw values; digit strings would compare as text | refuted | `count()` accepts only `int` (not `bool`), so a string fails before the comparison: `isinstance(v, int) and not isinstance(v, bool) and v >= least` |
+| F43 | NIT | G | `render` | its default path called `ai_section({})` outside the boundary | fixed | the default is `ai_part(site, today)`; one path. locally_verified |
+| F44 | NIT | G | `ai_part` | the fallback repeated the section heading by hand | fixed | one constant, `AI_HEADING`. locally_verified |
+| F45 | — | G | questions | `sys` imported? other callers of `render`, `load_ai`, `ai_section`? | refuted by reading | `import sys` at the top; `grep` finds no caller outside `build()` and `ai_part()` |
 
 Fix chains: F1 → F18 → F30 → F36 (four links; closed by the boundary in F36) and F2 → F19 → F29 (three links; the owner was told and chose, see F29). Round 2's new tests (7, with 16 subtests) all fail on 1c20966 and pass now.
 
