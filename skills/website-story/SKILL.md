@@ -63,8 +63,8 @@ This text lives here, once. `new-website` §2a reads it from here; do not restat
 
 ## 1. Outputs
 
-- **`STORY.md`** (from `~/.claude/skills/website-story/templates/story.md`, or the
-  site's own `.claude/skills/website-story/templates/story.md` on a handed-off repo):
+- **`STORY.md`** (from this skill's `templates/story.md`; the bundled copy of the skill
+  on a handed-off repo has it too, as `.claude/skills/website-story/templates/story.md`):
   the story elements, the one-liner, and the seven-section home page map. It goes next
   to `POSITIONING.md`: the repo root on a new site, or `docs/` on a site that keeps its
   strategy documents there. Look in both places before concluding either file is missing.

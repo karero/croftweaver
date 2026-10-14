@@ -119,6 +119,8 @@ mkdir <site> && cd <site>
 git init
 # Where the suite is installed: ~/.claude/skills (Claude Code) · ~/.agents/skills (Codex)
 # · ~/.gemini/config/skills (Antigravity). Honour an explicit $SKILLS_ROOT; else auto-detect.
+# Installed as a Claude Code plugin, it is in none of the three: set SKILLS_ROOT to the
+# `skills` folder under the install path that `claude plugin list --json` prints.
 if [ -z "${SKILLS_ROOT:-}" ]; then
   SKILLS_ROOT="$HOME/.claude/skills"
   for d in "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
