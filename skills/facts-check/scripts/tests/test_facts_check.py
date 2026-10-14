@@ -1558,11 +1558,26 @@ class SitemapReader(unittest.TestCase):
         commented = ("<?xml version='1.0'?><!-- no <!DOCTYPE here --><urlset xmlns='%s'><!-- <!DOCTYPE x> -->"
                      "<url><loc>https://x.com/c</loc></url></urlset>" % self.NS).encode()
         self.assertEqual(self.read(commented), (["https://x.com/c"], []))
+        # text split by a child element inside <loc> is kept whole, in order
+        split = ("<urlset xmlns='%s'><url><loc>https://x.com/a<x/>b</loc></url></urlset>" % self.NS).encode()
+        self.assertEqual(self.read(split), (["https://x.com/ab"], []))
 
     def test_a_cut_off_or_foreign_file_lists_no_page(self):
         cut = ("<urlset xmlns='%s'><url><loc>https://x.com/a</loc></url><url><lo" % self.NS).encode()
         self.assertEqual(self.read(cut), ([], ["sitemap https://x.com/sm.xml: not valid XML"]))
-        self.assertEqual(self.read(b"<rss version='2.0'><channel><item><loc>https://x.com/r</loc></item></channel></rss>"), ([], []))
+        # another kind of document lists no page, even one with <url><loc> inside (round 1, Codex)
+        for body in (b"<rss version='2.0'><url><loc>https://x.com/wrong</loc></url></rss>",
+                     b"<rss version='2.0'><channel><item><loc>https://x.com/r</loc></item></channel></rss>"):
+            self.assertEqual(self.read(body), ([], ["sitemap https://x.com/sm.xml: not a sitemap (it opens with <rss>); not read"]))
+
+    def test_a_web_page_at_the_sitemap_address_is_named_as_one(self):
+        page = "sitemap https://x.com/sm.xml: a web page, not a sitemap; not read"
+        for body in (b"<!DOCTYPE html><html><body><p>Not found<br></body></html>",
+                     b"<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html></html>",
+                     b"<html><body><p>Not found<br></body></html>"):
+            self.assertEqual(self.read(body), ([], [page]))
+        # an html document type that declares entities is still never read past
+        self.assertEqual(self.read(b"<!DOCTYPE html [<!ENTITY a 'b'>]><urlset><url><loc>&a;</loc></url></urlset>"), ([], [page]))
 
     def test_a_run_whose_sitemap_declares_entities_reads_no_page_and_says_why(self):
         # the call main() makes: run() with a sitemap, then the page budget is never touched

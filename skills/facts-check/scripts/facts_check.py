@@ -1123,44 +1123,53 @@ class _StopReading(Exception):
 
 
 def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
-    """(kind, addresses, problem): kind is the first element's name ("urlset", "sitemapindex",
-    or another document's, which lists no address), or "" when the file could not be read.
+    """(kind, addresses, problem): kind is "urlset" or "sitemapindex", or "" with a problem when
+    the file is not a sitemap or could not be read.
 
     The XML parser reads the file alone, in whatever encoding it is written, and is stopped at
     a document type: a sitemap needs none, and one can declare nested entities that grow a few
-    hundred bytes into gigabytes of text. Expat limits that growth from 2.4.0 (CVE-2013-0340);
-    the python3 a Mac ships with carries expat 2.2.8. Stopping at the document-type event comes
-    before any declaration inside it is read. skills/wordpress-inspector/scripts/wp_inventory.py,
-    parse_sitemap, reads sitemaps the same way, where it was measured and reviewed (PR 281);
-    it makes one exception this reader does not need, to tell a web page from a sitemap.
+    hundred bytes into gigabytes of text. The stop is the whole defence; it comes before any
+    declaration inside the document type is read, on every expat version. (Expat itself limits
+    that growth from release 2.4.0, whose changelog names CVE-2013-0340; the /usr/bin/python3
+    of the Mac this was written on, 3.9.6, carries expat 2.2.8.) It is also stopped at a first
+    element other than <urlset> or <sitemapindex>: another kind of document lists no page.
+    skills/wordpress-inspector/scripts/wp_inventory.py, parse_sitemap, reads sitemaps the same
+    way, where it was measured and reviewed (PR 281).
     Addresses are the text of <loc> directly inside <url> or <sitemap>, whatever prefix the
     elements carry: image:loc and video:*_loc sit deeper and are not pages."""
-    seen = {"root": None}
+    seen = {"root": None, "doctype": None}
     path: List[str] = []
     locs: List[str] = []
     text: List[str] = []
     parser = expat.ParserCreate(namespace_separator="}")
     parser.buffer_text = True
 
+    def in_page_loc() -> bool:  # inside a <loc> that names a page, or inside a child of one
+        return len(path) >= 3 and path[2] == "loc" and path[1] in ("url", "sitemap")
+
     def doctype(name, system_id, public_id, has_internal_subset):
+        seen["doctype"] = name
         raise _StopReading
 
     def start(name, attrs):
         local = name.rsplit("}", 1)[-1]
         if seen["root"] is None:
             seen["root"] = local
+            if local not in ("urlset", "sitemapindex"):
+                raise _StopReading
         path.append(local)
+        if len(path) == 3 and in_page_loc():
+            del text[:]
 
     def end(name):
-        if len(path) == 3 and path[-1] == "loc" and path[1] in ("url", "sitemap"):
+        if len(path) == 3 and in_page_loc():
             loc = "".join(text).strip()
             if loc:
                 locs.append(loc)
-        del text[:]
         path.pop()
 
     def chars(data):
-        if path and path[-1] == "loc":
+        if in_page_loc():
             text.append(data)
 
     parser.StartDoctypeDeclHandler = doctype
@@ -1170,8 +1179,14 @@ def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
     try:
         parser.Parse(body, True)
     except _StopReading:
-        return "", [], "declares a document type, which a sitemap does not need; not read"
-    except (expat.ExpatError, LookupError, ValueError):  # cut off or damaged, or an encoding the parser does not know
+        if (seen["doctype"] or seen["root"] or "").lower() == "html":
+            return "", [], "a web page, not a sitemap; not read"
+        if seen["doctype"] is not None:
+            return "", [], "declares a document type, which a sitemap does not need; not read"
+        return "", [], "not a sitemap (it opens with <%s>); not read" % seen["root"]
+    # ExpatError: cut off or damaged. LookupError and ValueError: pyexpat's answers to an encoding
+    # it does not know or cannot map (utf-7, shift_jis); the handlers above raise neither.
+    except (expat.ExpatError, LookupError, ValueError):
         return "", [], "not valid XML"
     return seen["root"] or "", locs, ""
 
