@@ -14,7 +14,7 @@ the scenarios is made up.
 | 3 | Contact form skill: the button reports the event; test | ▶ built, green EN and DE copies; each new test failed on a deliberate break | branch `feat/enquiry-count` |
 | 4 | Privacy pages EN and DE; interview Q5; README setup step; launch checklist | ▶ written; also `config.ts` names the two call sites (D3) | branch `feat/enquiry-count` |
 | 5 | Release-note row in `docs/BUGLOG.md` | ▶ written (row of 2026-10-14) | branch `feat/enquiry-count` |
-| 6 | Review gate (High: privacy text and data a live site sends) | ▶ rounds 1 to 3 and the final full read done; wording pass and closeout next | trail `REVIEW-diff-2026-10-14-feat-enquiry-count.md` |
+| 6 | Review gate (High: privacy text and data a live site sends) | ▶ rounds 1 to 3 and the final full read done; wording pass and closeout next | trail `REVIEW-diff-2026-10-14-feat-enquiry-count-e1ab9d7.md` |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
