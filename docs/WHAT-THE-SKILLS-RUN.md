@@ -213,7 +213,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | Google Antigravity | `independent-review`, only when you ask for it | your Antigravity sign-in | sends the plan or code change |
 | Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs` | none | reads only |
 | docs.astro.build, developers.cloudflare.com, keystatic.com | the assistant, when it looks up documentation (allowed without asking in Claude Code) | none | reads only |
-| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass (with the page and referrer, without the address or anything typed), go to the analytics address you set |
+| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured |
 
 Some details:
 
