@@ -1,6 +1,6 @@
 # DIFF review — permissions wording, force-push rules, Google key files, the deploy token
 
-Base `3519d2d` (origin/main when the branch was made) · depth: Normal (starter settings, a runtime script and its tests, a skill instruction file; not High: no deploy, guard script or release change) · verdict: open
+Base `3519d2d` (origin/main when the branch was made) · depth: Normal (starter settings, a runtime script and its tests, a skill instruction file; not High: no deploy, guard script or release change) · verdict: CLEAN (see the end)
 
 Owner's decision behind the change (2026-10-14, in chat): "Fix the 5 follow-ups", after the recommendation table for the five mismatches found while writing `docs/WHAT-THE-SKILLS-RUN.md` (#292).
 
@@ -57,4 +57,4 @@ Owner's decision (2026-10-14, in chat), on the RISK both seats raised in rounds 
 | 3 | `b1acf3c` + trail | delta `5367049..` the owner's decision, the author's record of round 2 | same | codex 1 BUG, 2 RISK; glm none (1 NIT, not blocking) |
 | Confirmation (not a round) | `c327853` + reflow | delta of round 3's fixes, record of round 3 | codex (medium), alone | 2 RISK, both repeats asking for evidence: GitHub's rule now cited by its documentation page; the Wrangler record names `whoami` and the setup |
 
-Verdict: CLEAN — three rounds of the pair and a Codex confirmation; 23 findings before dedup (4 BUG, 12 RISK, 7 NIT), each fixed, waived by the owner (keeping `git push` allowed) or answered with a reason. The claims about Claude Code's rules, Wrangler's token and the bundled flags were settled by live tests, recorded above.
+Verdict: CLEAN — three rounds of the pair and a Codex confirmation; 20 findings before dedup (4 BUG, 11 RISK, 5 NIT), each fixed, waived by the owner (keeping `git push` allowed) or answered with a reason. The claims about Claude Code's rules, Wrangler's token and the bundled flags were settled by live tests, recorded above.
