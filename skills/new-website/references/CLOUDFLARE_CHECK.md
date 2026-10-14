@@ -70,7 +70,7 @@ nowhere to go, is said so and the page is not judged.
 | Send pages.dev to your domain (1) | `<name>.pages.dev` answers 301 to your domain (needs `--project`) | It answers 200 or goes elsewhere: `CANONICAL_URL` is not in effect |
 | Always Use HTTPS (2) | `http://domain/` answers 301 or 308 to `https://domain/`, as an address | No redirect, or one to another address |
 | HSTS (2) | The `strict-transport-security` header, read as directives: max-age in months, subdomains, preload | Missing, with `--hsts-on` |
-| NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look`. So is Cloudflare's script monitor (Client-side security), which the line names: a `report-to` group, a `reporting-endpoints` entry or a `report-uri` of a report-only policy that lists an address on csp-reporting.cloudflare.com, judged by the host of that address and not by a name. It names what Cloudflare sends and does not decide what a browser would do with a header. NEL on still fails, and the line names the monitor beside it |
+| NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look`. So is Cloudflare's script monitor (Client-side security), which the line names: a `report-to` group, a `reporting-endpoints` entry or a `report-uri` of a report-only policy that lists an address on csp-reporting.cloudflare.com, judged by the host of that address and not by a name. It names what Cloudflare sends and does not decide what a browser would do with a header. NEL on still fails, and the line names the monitor beside it. The script reports the monitor as a `look`; the checklist asks for its switch Off (section 3, step 5) |
 | Bot Fight Mode off (3) | No Cloudflare cookie, and no `/cdn-cgi/challenge-platform/` address in the page's tags or scripts | Either is there. A cookie of your own is a `look` |
 | Web Analytics off (3) | No `<script src>` at `static.cloudflareinsights.com` and no `data-cf-beacon` attribute | It is there |
 | Email Address Obfuscation off (3) | No `email-decode.min.js` at Cloudflare's path, no `/cdn-cgi/l/email-protection` link and no `data-cfemail` attribute | Any is there |
@@ -104,17 +104,31 @@ items are a `look`, never `ok`.
 - **TLS 1.0 and 1.1.** The machine running the script often cannot speak them. Use
   ssllabs.com/ssltest, as the checklist says.
 - **A header Cloudflare sends on a sample of pages.** The script monitor's headers came on 2 of
-  40 requests on the one site we saw it on, and on none of 200 after it was switched off. A run
-  that sees none does not show it is off, and neither does any number of requests: how often
-  Cloudflare sends them is not documented. The dashboard toggle is the proof: Your domain →
-  Security → Settings → filter by Client-side abuse → Continuous script monitoring. To count
-  requests yourself, this prints how many of 100 answered with a `report-to` header, how many
-  without one, and how many failed:
+  40 requests on the one site we saw it on, and a `report-to` header on none of 200 after it
+  was switched off. A run that sees none does not show it is off, and neither does any number
+  of requests: how often Cloudflare sends them is not documented. The switch is at Your
+  domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring.
+  After switching it off, count requests. 100 answers without the headers are a count, not a
+  proof: on the one site, 2 of 40 answers carried them before the switch. Replace
+  `yourdomain.invalid` with the address your site answers on, with `www.` if the bare name
+  redirects. The placeholder cannot answer (`.invalid` is reserved for names that never
+  resolve, RFC 6761, section 6.4), so an unedited run prints `other` lines. Each answer is `clean` only
+  if curl succeeded, the final status is 200 and none of the monitor's three headers
+  (`report-to`, `reporting-endpoints`, `content-security-policy-report-only`) is there. It is
+  `header` if one is there on such an answer (a site that sets one itself counts too). A
+  carriage return at the end of a line, which a Windows curl may write, is ignored.
+  Anything else is `other`, with its status and curl's exit code (`none` where curl never
+  got far enough to report one), and does not count:
 
   ```bash
   for i in $(seq 1 100); do
-    h=$(curl -sS --http1.1 -D - -o /dev/null "https://example.com/?cb=$RANDOM") || { echo failed; continue; }
-    if printf '%s\n' "$h" | grep -qi '^report-to:'; then echo header; else echo none; fi
+    { curl -sS --http1.1 -o /dev/null -D - -w 'status=%{http_code}\n' "https://yourdomain.invalid/?cb=$RANDOM"; echo "exit=$?"; } 2>/dev/null |
+      awk 'BEGIN { s = "status=none" }
+           { sub(/\r$/, "") }
+           tolower($0) ~ /^(report-to|reporting-endpoints|content-security-policy-report-only):/ { h = 1 }
+           /^status=/ { s = $0 }
+           /^exit=/ { e = $0 }
+           END { if (e == "exit=0" && s == "status=200") print (h ? "header" : "clean"); else print "other", s, e }'
   done | sort | uniq -c
   ```
 - **Crawler Hints, Fail open and the build settings.** They have no outside check. The report
@@ -172,7 +186,9 @@ The script's list of items and their dashboard paths is the checklist's. A test
 (`make test-cloudflare-check`) reads `docs/CLOUDFLARE-CHECKLIST.md` and fails when an item
 title or a dashboard path differs, so a renamed item cannot leave the script behind unnoticed.
 It does not compare what each check wants (six months, a 301 or 308, preload off): when the
-checklist changes a requirement, change the script and its tests by hand.
+checklist changes a requirement, change the script and its tests by hand. One more path is
+pinned, the script monitor's switch, which is no item of its own: the same string must stand in
+the script's fix text, the checklist and this file.
 
 The same test file runs the script as a program against small servers on `127.0.0.1` that
 play a site behind Cloudflare, with real requests and real exit statuses: one site that is

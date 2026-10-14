@@ -145,5 +145,54 @@ class NoBrowser(unittest.TestCase):
         self.assertIn("browser flow must never start", str(cm.exception))
 
 
+class DefaultClientFile(unittest.TestCase):
+    """Without --client-secret, the OAuth client file is read from ~/.config/gsc-insights,
+    never from the current folder. Why: run from a site's folder, the old default found a
+    client_secret.json there, and the site's .gitignore did not keep it out of a commit."""
+
+    def run_main(self, home_has_secret):
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            default = Path(d, "home", ".config", "gsc-insights", "client_secret.json")
+            default.parent.mkdir(parents=True)
+            if home_has_secret:
+                default.write_text("{}")
+            site = Path(d, "site")
+            site.mkdir()
+            (site / "client_secret.json").write_text("{}")  # the file the old default picked up
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com",
+                    "--token", os.path.join(d, "absent.json")]
+            env = {k: v for k, v in os.environ.items() if k != "GSC_CLIENT_SECRET"}
+            err = io.StringIO()
+            cwd = os.getcwd()
+            os.chdir(site)
+            try:
+                with mock.patch.dict(sys.modules, google_stubs(Creds(), calls)), \
+                        mock.patch.dict(os.environ, env, clear=True), \
+                        mock.patch.object(gsc_query, "DEFAULT_SECRET", default), \
+                        mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(err):
+                    try:
+                        gsc_query.main()
+                        code = None
+                    except SystemExit as e:
+                        code = e.code
+                    except AssertionError:  # the stub flow: reached the browser step
+                        code = "flow"
+            finally:
+                os.chdir(cwd)
+            return code, err.getvalue(), calls, str(default)
+
+    def test_a_client_file_in_the_current_folder_is_not_used(self):
+        code, err, calls, default = self.run_main(home_has_secret=False)
+        self.assertEqual(code, 2)
+        self.assertIn(f"OAuth client not found: {default}", err)
+        self.assertNotIn("browser flow", calls)
+
+    def test_the_file_in_the_config_folder_is_used(self):
+        code, _, calls, _ = self.run_main(home_has_secret=True)
+        self.assertEqual(code, "flow")
+        self.assertEqual(calls, ["browser flow"])
+
+
 if __name__ == "__main__":
     unittest.main()
