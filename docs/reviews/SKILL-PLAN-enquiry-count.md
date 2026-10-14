@@ -63,8 +63,9 @@ Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
   to yesterday, in both date paths: `build_datetime_range({:last_n_days, n}, …)` in
   `lib/plausible/stats/query_builder.ex`, and `put_input_date_range` in
   `lib/plausible/stats/legacy/legacy_query_builder.ex` (`Date.shift(day: -1)`). The
-  change is in the v3.0.0 changelog (2025-04-11): "Last `7d` and `30d` periods do not
-  include today anymore". The dashboard's own labels are "Today" and "Realtime"
+  v3.0.0 changelog (2025-04-11) records the change for two of them: "Last `7d` and `30d`
+  periods do not include today anymore"; the 28- and 91-day views rest on the v3.2.1
+  code above. The dashboard's own labels are "Today" and "Realtime"
   (`assets/js/dashboard/query-time-periods.ts`). So a test tap shows only under one of
   those two. The owner first looked under 28 days and saw nothing.
 - Request sent and payload, measured 2026-10-14 on croftweaver.com's live per-site script

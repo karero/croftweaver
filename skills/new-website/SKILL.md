@@ -166,8 +166,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      In Plausible, under the site's Settings > Goals, add a goal of type "Custom event"
      named exactly `Email Tap` **before launch**: Plausible's documentation says an
      event shows only once its goal exists and earlier ones are not counted. To see a
-     test tap, choose Today or Realtime: since Plausible 3.0 the "Last 7, 28, 30 and 91
-     days" views end yesterday. On a site just added to Plausible, a tap in its first
+     test tap, choose Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views
+     end yesterday (checked in version 3.2.1). On a site just added to Plausible, a tap in its first
      minute or so may not be kept; tap again a few minutes later. Filtered
      by that goal, the dashboard shows which sources and pages bring enquiries. It
      counts visitors who asked to write an email; whether their mail program opened,

@@ -2,11 +2,14 @@
 
 DIFF gate. **Depth: Normal**: it edits `new-website/SKILL.md` (an instruction file) and the plan.
 
+**Verdict: gate passed.** 2 rounds, 12 findings (0 BUG, 2 RISK, 10 NIT): 10 fixed, 2 refuted. Round 2's two NITs were fixed after the last round and read by the prose-only re-gate.
+
 ## Rounds
 
 | Round | Head | Reviewers | BUG / RISK / NIT | Outcome |
 |---|---|---|---|---|
 | 1 | 05d0e7a | codex 183 s 76k tok; melious glm-5.3 215 s 15k tok; fresh-eyes (sonnet) 137 s 117k tok | 0 / 2 / 8 | the fixes add owner advice; round 2 owed |
+| 2 | 5d67553 (verify 05d0e7a..5d67553) | codex (medium) 73 s 43k tok; melious glm-5.3 132 s 13k tok | 0 / 0 / 2 | clean by (a2); NITs fixed without another round |
 
 ## Findings
 
@@ -22,3 +25,5 @@ DIFF gate. **Depth: Normal**: it edits `new-website/SKILL.md` (an instruction fi
 | M8 | NIT | melious | 1 | BUGLOG | blocker state of the Firefox run unrecorded | fixed | row says none was turned on and the state was not recorded |
 | M9 | NIT | fresh-eyes | 1 | plan row 8 | counts differ between row 7 (four) and the original BUGLOG row (three) | refuted | both internally consistent; row 8 counts against row 7's four |
 | M10 | NIT | melious | 1 | `event_goal_join` not quoted in the brief | refuted | quoted in the round 2 brief; fresh-eyes read it at v3.2.1 and found no creation-time condition |
+| N1 | NIT | melious | 2 | Q5, README, plan, BUGLOG | "since Plausible 3.0" stretches the changelog line, which names only 7d and 30d | fixed | owner text now says "checked in version 3.2.1"; the plan ties 28d and 91d to the v3.2.1 code |
+| N2 | NIT | melious | 2 | BUGLOG | the blocker sentence reads as self-contradicting | fixed | "no blocker extension was used in any run, and whether Firefox's own tracking protection was on in the Playwright run was not recorded" |
