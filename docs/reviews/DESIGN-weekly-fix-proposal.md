@@ -71,6 +71,14 @@ build.
 - **Position:** for 5 of 76 queries the two ways of averaging differ by a place or more, so
   T1 must take its position from the query rows, as §1 says.
 
+**P2 so far (2026-10-14, one Serper search, the same site):** the site ranked 8th. Serper's
+snippet for it was the page's own meta description, word for word. Serper's title was not
+the page's `<title>`: the same words in another order, with the brand first, a rewrite.
+Two of the ten results came back with no snippet at all. Whether Google itself showed the
+same title and snippet is the by-eye half, still with the owner. Either way it matters for
+T2 later: on this page Google keeps the description and rewrites the title, so a "new
+title" proposal could be rewritten too.
+
 ## 2. Recommendation: build T1 first, T2 after P1 and P2
 
 The documentation weakens T2 (seen but rarely clicked) on both legs: its figures come from
@@ -169,7 +177,7 @@ Every state write is a command, so the model never edits the JSON by hand.
 
 | # | Step | Waits for |
 |---|---|---|
-| 1 | P1 probe (done 2026-10-14) and P2 eye-check, with the owner | — |
+| 1 | P1 probe (done 2026-10-14) and P2 (Serper side done 2026-10-14; the by-eye compare with the owner) | — |
 | 2 | `fix_proposal.py` and its pure tests | DD0 to DD5 |
 | 3 | The report: fetch, render, state, entry-point tests | 2 |
 | 4 | `references/fix-proposal.md`, the SKILL.md pointer, evals | 3 |
