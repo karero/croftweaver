@@ -27,7 +27,7 @@ table. **Script steps** are what the script does, numbered under "Shape".
 | 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ⏸ not started | — |
 | 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ⏸ not started | — |
 | 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
-| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list ("Not verified" 2, 3, 9, 10) | ⏸ not started; the maintainer named a spare domain on Cloudflare for it (2026-10-14) | — |
+| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ⏸ not started; the maintainer named a spare domain on Cloudflare for it (2026-10-14) | — |
 | 10 | One real site set up with it, start to finish, with the owner watching | ⏸ not started | — |
 | 11 | Release note line | ⏸ not started | — |
 
@@ -592,7 +592,9 @@ field descriptions); the Bot Management update call's own description.
    one, Cloudflare's lines in `robots.txt` stay. The check's `ai` item then reports
    rules for named crawlers as a `look` (its `robots` item judges only the `User-agent: *`
    group and the sitemap), which gives 0: the report lists it, and says that if those lines
-   are Cloudflare's, the switch did not take.
+   are Cloudflare's, the switch did not take. Plan step 9 settles it: it turns Bot
+   Preference Sync on and off in the dashboard, and each time reads both fields and the
+   served `robots.txt`.
 6. That the check script can make its requests through a resolver set to the zone's
    nameservers. Node's resolver answered a TXT lookup that way; an HTTPS request through it
    was not tried. Plan step 6 adds it to the check script with a test.
