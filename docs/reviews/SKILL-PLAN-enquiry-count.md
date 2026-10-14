@@ -16,6 +16,7 @@ the scenarios is made up.
 | 5 | Release-note row in `docs/BUGLOG.md` | ✅ written (row of 2026-10-14), read by the wording pass | karero/croftweaver#287, merged as `55efb9c` |
 | 6 | Review gate (High: privacy text and data a live site sends) | ✅ passed at 7d7e595: 3 rounds, final full read, wording pass; 27 findings | trail `REVIEW-diff-2026-10-14-feat-enquiry-count-e1ab9d7.md`; review comment on #287 |
 | 7 | Follow-ups from the gate: H4 (the `%` test's loose match) and W2 (other browsers, self-hosted goals) | ✅ H4 fixed; W2 narrowed: Playwright's Firefox and WebKit measured, with requests answered locally; real Safari, content blockers, a live Plausible server and self-hosted goal timing stay open as a `docs/BUGLOG.md` row (2026-10-14) | karero/croftweaver#294, merged as `3519d2d`; trail `REVIEW-diff-2026-10-14-fix-enquiry-count-follow-ups-f328f8d.md` |
+| 8 | The open-gaps row measured: self-hosted backfill, a real server, the dashboard's periods | ✅ two of four settled; Safari (not yet tapped) and content blockers stay open in the row | this change |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
@@ -37,15 +38,26 @@ Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 - An event is received but not shown until a goal of exactly the same name exists.
 - "Past events are not backfilled": a goal created after launch counts from that moment.
   So the goal must exist before launch.
-- Self-hosted (Community Edition v3.2.1, source read 2026-10-14, not run): ingestion
+- Self-hosted (Community Edition v3.2.1), measured 2026-10-14 on a throwaway local
+  instance (Docker, removed afterwards): three "Email Tap" events sent while the site had
+  no goal showed at once when the goal was created, and five after two more, through the
+  Stats API v2, grouped by goal and filtered by it. The source agrees: ingestion
   (`lib/plausible/ingestion/event.ex`) drops events only for bot, spam, IP and blocklist
-  reasons, never for a missing goal, and an event goal's filter
-  (`lib/plausible/stats/goals.ex`, `goal_condition`) is `e.name == ^goal.event_name` over
-  the chosen dates, with no limit from the goal's creation in that function. The rest of
-  the query path that uses it was not traced, and Plausible's cloud service runs the same
-  code while its documentation says earlier events are not counted, so whether earlier
-  events show was left open. The owner docs repeat only the documentation; the advice
-  holds either way: add the goal before launch.
+  reasons, never for a missing goal; goals load by site only (`for_site_query` in
+  `lib/plausible/goals/goals.ex`); filtering (`goal_condition` in
+  `lib/plausible/stats/goals.ex`) and grouping (`event_goal_join` in
+  `lib/plausible/stats/sql/expression.ex`) match stored events by name, with no limit
+  from the goal's creation. Whether Plausible's cloud service behaves the same was not
+  tested; its documentation says earlier events are not counted. The advice holds either
+  way: add the goal before launch.
+- A real server receiving a tap from Firefox, 2026-10-14: one tap from Playwright's
+  Firefox 155 to croftweaver.com's live instance at 13:25 UTC (page view and "Email Tap",
+  both answered 202), with the referrer `https://example.org/croftweaver-firefox-test`;
+  the owner saw the visit under Today, source example.org.
+- Dashboard periods (v3.2.1, `build_datetime_range({:last_n_days, n}, …)` in
+  `lib/plausible/stats/query_builder.ex`): the 7-, 28-, 30- and 91-day views run from n
+  days ago to yesterday, so a test tap shows only under Today or Realtime. The owner first
+  looked under 28 days and saw nothing.
 - Request sent and payload, measured 2026-10-14 on croftweaver.com's live per-site script
   (v33), event requests intercepted locally, in Playwright's Chromium 153, Firefox 155 and
   WebKit 26.6: a real link click and the form's exact sequence each sent one event with
