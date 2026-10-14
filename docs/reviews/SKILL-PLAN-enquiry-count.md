@@ -16,7 +16,7 @@ the scenarios is made up.
 | 5 | Release-note row in `docs/BUGLOG.md` | ✅ written (row of 2026-10-14), read by the wording pass | karero/croftweaver#287, merged as `55efb9c` |
 | 6 | Review gate (High: privacy text and data a live site sends) | ✅ passed at 7d7e595: 3 rounds, final full read, wording pass; 27 findings | trail `REVIEW-diff-2026-10-14-feat-enquiry-count-e1ab9d7.md`; review comment on #287 |
 | 7 | Follow-ups from the gate: H4 (the `%` test's loose match) and W2 (other browsers, self-hosted goals) | ✅ H4 fixed; W2 narrowed: Playwright's Firefox and WebKit measured, with requests answered locally; real Safari, content blockers, a live Plausible server and self-hosted goal timing stay open as a `docs/BUGLOG.md` row (2026-10-14) | karero/croftweaver#294, merged as `3519d2d`; trail `REVIEW-diff-2026-10-14-fix-enquiry-count-follow-ups-f328f8d.md` |
-| 8 | The open-gaps row measured: self-hosted backfill, a real server, the dashboard's periods | ✅ two of four settled; Safari (not yet tapped) and content blockers stay open in the row | this change |
+| 8 | The open-gaps row measured: self-hosted backfill, a real server, the dashboard's periods, real Safari | ✅ settled: backfill, a real server, the periods and real Safari; not tested and set aside: content blocker extensions and Firefox's own tracking protection, since a blocked script is the privacy page's stated opt-out | karero/croftweaver#298 (`de64ec8`); the row closed by this change |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
@@ -77,6 +77,13 @@ Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
   blocker was in the way. Only Chromium reports the mailto: request to
   Playwright; in the other two the event is seen leaving, the mail program is not.
   WebKit is Safari's engine, not Safari itself.
+- Real Safari, 2026-10-14: the owner tapped the email link once in a normal Safari window
+  and once in a private one on croftweaver.com, and reported both taps counted in
+  Plausible. Safari's version and settings were not recorded. Not tested, and set aside on
+  purpose: content blocker extensions, and Firefox's own tracking protection. A visitor
+  whose blocker stops the analytics script would not be counted, as the starter's privacy
+  page says; that is its stated opt-out. Either way the site still asks the browser to
+  open the `mailto:` link (S7).
 - The dashboard, filtered by a goal, shows which sources and pages bring conversions. That
   is the "tie arrivals to enquiries" part; it needs no code of ours.
 
