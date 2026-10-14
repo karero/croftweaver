@@ -32,8 +32,9 @@ and runs the commands; the skills cannot run anything by themselves.
   [What runs without asking](#what-runs-without-asking); read from Claude Code's
   documentation on permission rules, not tried in a live session). That list also lets `node`,
   `npm run` and `git push` run without asking. It saves clicks; it is not a safety fence.
-- **Releases carry no checksum file and no signature of our own.** GitHub shows a SHA-256
-  for each download. See [Releases](#releases).
+- **Releases carry no signature of our own.** From the next release on, a `SHA256SUMS`
+  file goes up beside the zip; v0.31 and earlier have none, but GitHub shows a SHA-256 for
+  each download. See [Releases](#releases).
 
 ## What runs without asking
 
@@ -340,9 +341,10 @@ How a release is made (README, "Releases & versioning", and
 [`.github/workflows/release-tag.yml`](../.github/workflows/release-tag.yml)):
 
 1. A pull request raises the version in `.claude-plugin/plugin.json`.
-2. `make smoke` runs the suite's checks (`make check`) and builds and checks
-   `dist/croftweaver.zip`.
-3. The maintainer tags the release (`v0.32`) and creates a GitHub release with the zip.
+2. `make smoke` runs the suite's checks (`make check`), builds and checks
+   `dist/croftweaver.zip`, then writes its checksum to `dist/SHA256SUMS`.
+3. The maintainer tags the release (`v0.32`) and creates a GitHub release with the zip and
+   `SHA256SUMS`, in one command.
 4. The tag starts a workflow that checks the version number and moves the branch `stable`
    to the release. The Claude Code plugin installs from `stable`.
 
@@ -351,10 +353,12 @@ What protects a download today:
 - GitHub shows a SHA-256 for each file on the release page. For v0.31,
   `croftweaver.zip` and `website-builder.zip` are the same file:
   `sha256:ac18578f2746af5a5e7f02fa6b30c45e869c4f86d973d994574c68407a952a76`.
-- There is no checksum file and no signature of our own. `npm create croftweaver` checks
-  each skill file it unpacks (its CRC) and refuses links and odd entries, but it does not
-  compare the download with a known checksum.
-- The release is not marked immutable on GitHub, so its files could be replaced after
+- Up to v0.31 there is no checksum file. From the next release on, `SHA256SUMS` sits beside
+  the zip; the README ("Releases & versioning") says how to check a download against it.
+- There is no signature of our own. `npm create croftweaver` checks each skill file it
+  unpacks (its CRC) and refuses links and odd entries, but it does not compare the download
+  with a known checksum.
+- v0.31 is not marked immutable on GitHub, so its files could be replaced after
   publishing.
 - Releases v0.29 to v0.31 are plain tags; the README's command makes annotated ones. The
   commit v0.31 points at is a merge commit signed by GitHub.
