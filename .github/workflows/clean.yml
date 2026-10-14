@@ -41,7 +41,10 @@ name: clean
 # (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
 # for the shell scripts, the site hook and the Makefile. And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`,
-# the facts-check tests (`make test-facts`), which need nothing beyond python3, and the
+# the facts-check tests (`make test-facts`), which need nothing beyond python3, the
+# website-brand-kit tests (`make test-brand-kit`), which borrow `sharp` from an install of the
+# starter and need Pillow, the wordpress-inspector tests (`make test-wordpress-inventory`), which
+# need nothing beyond python3, and the
 # Cloudflare check's tests (`make test-cloudflare-check`), which need nothing beyond Node. And it
 # runs the tests of the `npm create croftweaver` installer (`make test-create`), on Linux,
 # macOS and Windows. The installer needs nothing beyond node; its tests also need git, and

@@ -10,6 +10,7 @@ started (_stop_all). It knows neither the install nor the renderer. Standard lib
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -234,9 +235,9 @@ def _run(command, cwd, timeout, shell=False, env=None, encoding="utf-8", input=N
     is stopped with it (see _stop_all), so that none of it is still running when the site's files are put
     back or the tests are run a second time; only then is the output read."""
     group = {"start_new_session": True} if os.name == "posix" else {}
-    with _held():   # a stop between the making of a file and its name being taken away would leave the file behind
-        out, err, given = tempfile.TemporaryFile(), tempfile.TemporaryFile(), tempfile.TemporaryFile()
-    with out, err, given:
+    with contextlib.ExitStack() as files:   # each file is closed, also one made before a later one could not be
+        with _held():   # a stop between the making of a file and its name being taken away would leave the file behind
+            out, err, given = [files.enter_context(tempfile.TemporaryFile()) for _ in range(3)]
         if input is not None:
             given.write(input.encode(encoding or "utf-8"))
             given.seek(0)

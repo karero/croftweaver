@@ -236,8 +236,19 @@ class ThroughTheCommand(unittest.TestCase):
                 self.assertNotEqual(with_the_character, data)
                 for done in (with_the_character, without_the_name):   # what the first half says to do, done: the file is read
                     self.assertIn(through_the_command(self, done)["code"], READ)
-        self.assertIn("Where the name stands for a character, as it does on a web page, open the file in a text editor and put the character itself in its place, or take the name out",
+        self.assertIn("Where the name stands for a character, as it does on a web page, open the file in a text editor and put the character itself in its place",
                       _svg.NO_SUCH_NAME)
+        # & and < are the two characters that cannot stand alone: `&AMP;` and `&LT;` are no names XML knows (it has five,
+        # in small letters), and the character itself in their place makes a file that is not XML at all. The sentence
+        # names the small-letter names for those two, and done that way the file is read.
+        for name, plain, written in ((b"&AMP;", b"&", b"&amp;"), (b"&LT;", b"<", b"&lt;")):
+            with self.subTest(name=name):
+                data = svg("<title>A %s B</title>" % name.decode())
+                answer = through_the_command(self, data)
+                self.assertEqual((answer["code"], answer["message"]), ("not-xml", _svg.NO_SUCH_NAME))
+                self.assertEqual(through_the_command(self, data.replace(name, plain))["code"], "not-xml")   # the character alone: not XML
+                self.assertIn(through_the_command(self, data.replace(name, written))["code"], READ)    # as the sentence says: read
+        self.assertIn("(but write & as &amp; and < as &lt;, in small letters: those two cannot stand alone), or take the name out", _svg.NO_SUCH_NAME)
         # in a package the sentence is the same, said of the file by its name
         answer = through_the_command(self, T.build_zip([("pack/logo.svg", pasted["a no-break space in a title"])]), name="pack.zip")
         self.assertEqual((answer["code"], answer["message"]), ("not-xml", "In the package, the file 'pack/logo.svg': " + _svg.NO_SUCH_NAME))
@@ -507,7 +518,7 @@ class Hostile(unittest.TestCase):
         self.assertTrue(_svg.NO_SUCH_NAME.endswith(" Where the file had a DOCTYPE declaration that was deleted, the " + _svg.NEEDS_AN_EXPORT))
         self.assertTrue(_svg.NEEDS_AN_EXPORT.endswith("ask the tool for an export without a DOCTYPE."))
         for word in ("not readable as an SVG", "a name that nothing in it defines", "between & and ;", "for example &nbsp;", "DOCTYPE declaration",
-                     "Where the name stands for a character, as it does on a web page", "put the character itself in its place, or take the name out"):
+                     "Where the name stands for a character, as it does on a web page", "put the character itself in its place", "or take the name out"):
             self.assertIn(word, _svg.NO_SUCH_NAME)
         # (round 7 said of every such file that a DOCTYPE defines such names and that the drawing needs what it brought in:
         # untrue of pasted code that never had one. See the test after this one.)

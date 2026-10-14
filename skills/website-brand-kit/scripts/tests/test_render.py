@@ -971,7 +971,7 @@ def grammar_rows():
     poly, three = '<polygon points="%s" fill="#f00"/>', "1 1 9 1 5 9"
     for form in ("1 1 9 1 5 9", "1,1 9,1 5,9", "1,1,9,1,5,9", "1 , 1 9 , 1 5 , 9", " 1 1 9 1 5 9 ", "1&#10;1&#9;9&#13;1  5 9", "+1 +1 +9 +1 +5 +9", "1e0 1E0 .9e1 1.0 5 9",
                  "1 1 9 1 5 9 1 1", "1 1 9 1" + " " * 3000 + "5 9", "1" + "&#10;" * 500 + "1,9,1," + "&#9;" * 500 + "5 9",
-                 # between two points: blanks, or a comma and then blanks
+                 # between two points: blanks, or a comma with or without blanks after it
                  "1 1,9 1,5 9", "1 1, 9 1,&#10;5 9", "1,1,&#9;9,1, 5,9", "1 , 1&#10;9 , 1&#9;5 , 9", "1+1 9+1 5+9", "1.0.1e1 9 1,.5e1.9e1"):
         rows.append(("number list", "points=%r" % form[:40], B % (poly % form), B % (poly % three), B % (poly % "1 1 9 1 5 5")))
     rows.append(("number list", "points as far out as a number may be", B % (poly % "1 1 1010 1 5 -1010"), B % (poly % "1 1 1.01e3 1 5 -1.01e3"), B % (poly % three)))

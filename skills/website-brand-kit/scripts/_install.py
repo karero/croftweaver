@@ -1023,6 +1023,14 @@ def _install(a, site, out, data):
             if src_name:
                 plan.copy = (HANDOFF + "/" + _free_name(site, src_name, src_bytes), src_bytes)
             notes.append(NO_EMBLEM)
+        if plan.placeholders:
+            one = len(plan.placeholders) == 1
+            what = "%s %%s the scaffold's placeholder%s (the Astro logo)" % (" and ".join(plan.placeholders), "" if one else "s")
+            plan.pending.insert(0, (what % ("is" if one else "are") + ", which this run would replace", what % ("was" if one else "were") + ", now replaced",
+                                    what % ("is" if one else "are") + ": this run replaced %s and then put %s back" % (("it", "it") if one else ("them", "them")),
+                                    plan.placeholders))
+        notes.extend(would for would, _did, _back, _rels in plan.pending)
+        # the question comes after every note of what the run would do, so its report says all of it
         if plan.asks:
             lines = ["I need your decision before I go on. Nothing was written."]
             for k in plan.asks:
@@ -1032,13 +1040,6 @@ def _install(a, site, out, data):
             lines.extend(_notes_lines(data))
             data["asks"] = [{"code": k.code, "question": str(k), "options": k.options} for k in plan.asks]
             raise Stop(3, lines, "needs-decision")
-        if plan.placeholders:
-            one = len(plan.placeholders) == 1
-            what = "%s %%s the scaffold's placeholder%s (the Astro logo)" % (" and ".join(plan.placeholders), "" if one else "s")
-            plan.pending.insert(0, (what % ("is" if one else "are") + ", which this run would replace", what % ("was" if one else "were") + ", now replaced",
-                                    what % ("is" if one else "are") + ": this run replaced %s and then put %s back" % (("it", "it") if one else ("them", "them")),
-                                    plan.placeholders))
-        notes.extend(would for would, _did, _back, _rels in plan.pending)
 
         # --- what the run writes, and only that: a file that is already as it should be is left out ---
         for rel in texts:
@@ -1069,7 +1070,7 @@ def _install(a, site, out, data):
             out.extend("  " + w for w in would)
             if not would:
                 out.append("  nothing: every file is already as this run would write it")
-            out.append("  the share cards under %s would be made again" % CARDS)
+            out.append("  then the share-card generator would run again (a dry run does not check that it can)")
             if any(wanted.values()):
                 out.append("A real run then asks %s what the site reads from %s: it puts everything back if that is not what it set, and adds a note where it could not ask. "
                            "A dry run writes nothing, so it cannot ask what the site reads from what it would write." % (
