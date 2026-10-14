@@ -15,10 +15,11 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const UA = 'Mozilla/5.0 (compatible; croftweaver-cloudflare-check/1)';
-// What Cloudflare's dashboard sent for "1 month" in the live header of a site on 14 October 2026: 30 days,
-// 2592000 seconds, shorter than an average calendar month (2629800). Its pages give months, not seconds;
-// the 6 and 12 months seen then were 15552000 and 31536000. "About N months" below counts 30-day months,
-// so a year reads 12.17 and rounds to 12.
+// The threshold is a project choice: the one month the checklist starts with, taken as 30 days (2592000
+// seconds). Live headers on 14 October 2026 showed 2592000, 15552000 and 31536000 (30, 180 and 365 days);
+// Cloudflare's pages give months, not seconds, so the mapping is observed, not documented. An average
+// calendar month, 2629800, is longer: a site at 2592000 must not be called shorter than one month.
+// "About N months" below counts 30-day months, so a year reads 12.17 and rounds to 12.
 const MONTH = 2592000;
 const MAX_BODY = 5_000_000; // bytes of a page read before judging what we have
 const MAX_HOPS = 3; // redirects followed on the home page, to the same address only

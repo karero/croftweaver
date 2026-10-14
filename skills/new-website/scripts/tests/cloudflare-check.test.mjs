@@ -460,10 +460,9 @@ test('HSTS: read as directives: months, subdomains, preload; a lookalike or a sh
 });
 
 // The checklist says to start with 1 month when the domain moved recently. On a live site on 14 October
-// 2026 Cloudflare's dashboard sent that as 2592000 seconds (30 days), shorter than an average calendar
-// month (2629800). The check once compared with the calendar month, so a site set to 1 month was told
-// it was shorter than one month.
-test('HSTS: 2592000 seconds, the dashboard\'s 1 month, is not "shorter" than one month, and one second less is', async () => {
+// 2026 the header read 2592000 seconds (30 days), shorter than an average calendar month (2629800). The
+// check once compared with the calendar month, so a site at 2592000 was told it was shorter than one month.
+test('HSTS: 2592000 seconds (30 days) is not "shorter" than the one month the checklist starts with, and one second less is', async () => {
   const cases = [
     ['max-age=2592000; includeSubDomains', 'ok', /\(about 1 month\), subdomains on, preload off/],
     ['max-age=2591999', 'look', /\(about 1 month\).*shorter than the one month \(2592000 seconds\)/],
