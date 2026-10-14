@@ -79,6 +79,16 @@
         return;
       }
 
+      // Count the press as an "Email Tap" event, the same one the starter's email link
+      // sends: the visitor opened their mail program to write. window.plausible exists
+      // only on the live build with analytics on, so elsewhere nothing happens. Only the
+      // event name goes out, nothing the visitor typed.
+      try {
+        if (typeof window.plausible === 'function') window.plausible('Email Tap');
+      } catch (e) {
+        /* counting must never get in the way of opening the mail program */
+      }
+
       window.location.href = href;
     });
   });

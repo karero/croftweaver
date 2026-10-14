@@ -61,6 +61,11 @@ export const KNOWS_ABOUT: string[] = [];
 // Base.astro writes two tags: the script, and the short stub that calls
 // plausible.init(); without the stub the script never starts.
 //
+// The site's one conversion, the "Email Tap" event, is sent from
+// src/components/EmailLink.astro (and public/js/mail-form.js when the contact form is
+// installed). It needs a goal named exactly "Email Tap" in Plausible before launch. Another
+// analytics tool means changing those two calls and section 3 of the privacy page.
+//
 // IMPORTANT: PROD_BRANCH must equal the branch Cloudflare Pages calls "Production"
 // for THIS project (house convention: 'production'; Cloudflare's default is 'main').
 // A mismatch means analytics silently never loads — no error, no data.

@@ -25,7 +25,11 @@
 //      downloads and form submissions (keep a sentence only if that measurement
 //      is ticked in Plausible's installer, which ticks all three by default;
 //      the page then describes what the instance does); and the
-//      storage period. Then delete '/datenschutz' from
+//      storage period. The sentence on clicks on an email address ("Außerdem
+//      zählt es jeden Klick") describes the "Email Tap" event
+//      (src/components/EmailLink.astro, and the button of the
+//      website-contact-form skill's form); it goes with the paragraph, and stays
+//      as long as that counting does. Then delete '/datenschutz' from
 //      UNFILLED_UNTIL_LAUNCH (the test turns red until you do). The clause "nur ein
 //      Besuch ... wird als derselbe Besuch fortgeführt" describes Plausible's own
 //      session lookup (self-hosted Community Edition, checked for v3.2.1: on_event
@@ -42,8 +46,10 @@
 // purpose. Running without a banner is a position, not a settled fact. The
 // script sets no cookies and writes nothing to the device. It sends the page
 // address and the referrer, scroll depth and engaged time (and, if ticked in
-// Plausible, the address of clicked outbound links and downloaded files). It
-// also reads one local-storage flag (plausible_ignore, which lets you exclude
+// Plausible, the address of clicked outbound links and downloaded files), and
+// one "Email Tap" event, the page and nothing else, for each click on an email
+// address or the contact form's button (a custom event, so wider than bare
+// counting). It also reads one local-storage flag (plausible_ignore, which lets you exclude
 // your own visits) and navigator.webdriver (a bot check); neither is sent. The
 // EDPB (Guidelines 2/2023 v2.0, para 33) says JavaScript that instructs the
 // browser to send information "clearly falls within the scope of Article
@@ -143,6 +149,10 @@ import { SITE } from '../config';
       zählt Klicks auf Links zu Dateien, etwa PDFs, und sendet und speichert die Adresse der Datei.]
       [SATZ LÖSCHEN, WENN FORMULARÜBERMITTLUNGEN IN PLAUSIBLE NICHT ANGEKREUZT
       SIND: Es zählt abgeschickte Formulare auf der Website, aber nicht, was Sie eingeben.]
+      Außerdem zählt es jeden Klick auf eine E-Mail-Adresse auf dieser Website
+      und auf eine Schaltfläche, die Ihr E-Mail-Programm öffnet, zusammen mit
+      der Seite, auf der er geschah. Weder die E-Mail-Adresse noch etwas, das
+      Sie eingegeben haben, wird dabei gesendet.
       Aus der IP-Adresse leitet das Werkzeug Ihren ungefähren Standort ab
       und speichert die IP-Adresse nicht in seinen eigenen Datensätzen. Aus
       Ihrer

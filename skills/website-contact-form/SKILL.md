@@ -197,10 +197,18 @@ lost it; then write it, covering what is processed, why, the legal basis and how
 it is kept), and any field added in §2 step 5 that asks for more than the message is
 named in it. Like the kit's other legal drafts, a baseline, not legal advice.
 
+**With Plausible on**, a press of the button sends one "Email Tap" event, the same one
+the starter's email link sends (nothing typed goes with it). Section 3 of the starter's
+privacy page already says so ("a button that opens your email program"); a privacy page
+from before 0.32 lacks that sentence, so add it from the starter. In Plausible's installer
+leave "Form submissions" unticked: whether Plausible would count this form a second time
+was not checked.
+
 ## 5. What it does not do
 
-- **No sending, no storage, no count.** The site never learns whether a message was
-  sent. The owner's mailbox is the record.
+- **No sending, no storage, no count of sent messages.** The site never learns whether
+  a message was sent. The owner's mailbox is the record. With Plausible on, the press of
+  the button is counted (§4): a visitor who opened their mail program, not a message.
 - **No help for a visitor without a mail program**, beyond the address under the form
   and the sentence that points to it.
 - **Very long messages.** The form stops at 2,000 typed characters (`LIMITS` in

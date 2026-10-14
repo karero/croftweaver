@@ -147,8 +147,8 @@ non-expert can answer, and record the answers in the project `README.md`.
 5. **Analytics — will anyone act on the numbers? (optional)**
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
      script, no consent banner) is enough for search & referral traffic.
-   - Real decisions from traffic data (campaigns, content strategy) →
-     **Plausible** (cookieless; running it without a consent banner is a
+   - "Which sources bring enquiries?" or other real decisions from traffic data
+     (campaigns, content strategy) → **Plausible** (cookieless; running it without a consent banner is a
      position to have reviewed, see the header of `privacy.astro` and, for a
      German-only site, `_datenschutz.astro`). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
@@ -156,6 +156,13 @@ non-expert can answer, and record the answers in the project `README.md`.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
+     **The enquiry count comes with it.** Each click on an email address, and each press
+     of the contact form's button, sends one "Email Tap" event (the page, nothing
+     typed, no address). In Plausible, under the site's Settings > Goals, add a goal of
+     type "Custom event" named exactly `Email Tap` **before launch**: Plausible shows an
+     event only once its goal exists and does not count earlier ones. Filtered by that
+     goal, the dashboard shows which sources and pages bring enquiries. It counts
+     visitors who opened their mail program, not sent mails.
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
      banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the
@@ -550,6 +557,7 @@ hold Search Console Request Indexing until then.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
+      With Plausible: the `Email Tap` goal exists in Plausible (§1 Q5).
       German-market sites: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
       exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;
