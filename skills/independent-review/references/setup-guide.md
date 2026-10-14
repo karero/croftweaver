@@ -315,7 +315,7 @@ Moved here from SKILL.md's Reviewer stack, word for word.
    `MELIOUS_API_KEY`, `~/.config/reviewers/melious.env`, or the environment's API credential for
    that host. A reasoning model can spend the whole reply budget (`MELIOUS_MAX_TOKENS`, 96000)
    thinking, and the provider can leak its reasoning into the reply: the seat keeps what follows
-   the final-review marker it asks for (`references/setup-guide.md`). `--seat melious` runs it
+   the final-review marker it asks for (this guide). `--seat melious` runs it
    alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
    tokens too. **`SECOND_SEAT=melious`** (with `MELIOUS_MODEL`) swaps the roles: Melious runs
    with Codex, and ollama stands in only when Melious did not count.

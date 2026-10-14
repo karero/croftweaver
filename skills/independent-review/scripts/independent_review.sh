@@ -72,25 +72,32 @@
 #   git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/' \
 #     | independent_review.sh - --verify prior-findings.md --depth normal --round 2
 #                                                     # verification round (SKILL.md step 6)
-#   ... --round 4 --earned-by config-advice           # a round past 3 names the kind of finding
-#                                                     # that earned it (SKILL.md step 6)
-#   ... --round 5 --earned-by config-advice --cut "dropped the fallback parser"
-#                                                     # the same kind twice running: the fix
-#                                                     # since round 4 must be a cut, and says what
+#   ... --round 4 --earned-by config-advice,zip-names # a round past 3 names every kind of finding
+#                                                     # with a substantive BUG in the round before
+#                                                     # (SKILL.md step 6)
+#   ... --round 6 --earned-by config-advice --cut "dropped the fallback parser"
+#                                                     # a kind that comes back: the fix since the
+#                                                     # last round must be a cut, and says what
 #
 # ROUND CHECKS (SKILL.md step 6). Two of the step's rules are enforced here rather than left to
 # the prose, which a gate's runner read past in 34 of 45 long gates. Both refuse with exit 2
 # before any reviewer starts and before anything leaves the machine:
-#   - --round 4 or later needs --earned-by KIND (1 to 40 letters, digits, '.', '_' or '-'): the
-#     kind of finding that earned the round.
-#   - When the cost log recorded round N-1 of this gate with the same kind, round N needs
-#     --cut "TEXT" (one line, at most 300 characters): what the fix since then removed or refused,
-#     not a third patch.
-# Where the log is off (REVIEW_LOG=off) or cannot tell what round N-1 was, the cut check cannot
-# run: one warning line, and the review goes on. Bookkeeping never fails a review. A run with
-# no --round (the wording pass, the final full read) needs neither option. Both are recorded on
-# every cost-log line of the run, and the closing lines carry the gate's running total
-# (review_log.sh gate).
+#   - --round 4 or later needs --earned-by KIND[,KIND…]: every kind of finding with a
+#     substantive BUG in the round before (up to 8; each 1 to 40 letters, digits, '.', '_' or
+#     '-', not starting with '-').
+#   - A kind that earned any earlier round of this gate since its last cut needs --cut "TEXT"
+#     (one line, at most 300 characters): what the fix since then removed or refused, not another
+#     patch. Kinds compare lower-cased, without '.', '_' and '-', so a respelling is the same kind.
+# The checks cannot see what the host does not tell them: a host can name another kind, or leave
+# --round off. So the rest is VISIBILITY, in lines the owner reads: a kind whose name starts
+# another earlier one is named beside it; a round number below or equal to one already logged
+# says so; a run without --round on a gate past round 3 says it was not counted as a round; and
+# the closing lines carry the gate's running total, its kinds and cuts round by round, its runs
+# with no round, and the gate it follows after a restart (review_log.sh gate).
+# Where the log is off (REVIEW_LOG=off) or cannot answer, the cut check cannot run: one warning
+# line, and the review goes on. Bookkeeping never fails a review. A run with no --round (the
+# wording pass, the final full read) needs neither option. Both options are recorded on every
+# cost-log line of the run.
 # Env:
 #   (codex model + reasoning effort default from ~/.codex/config.toml — daily driver)
 #   CODEX_MODEL    (unset)           ad-hoc codex model override for THIS run only,
@@ -138,15 +145,17 @@
 #   WITH_ANTIGRAVITY (0)             set to 1 (or pass --with-antigravity) to include
 #                                    the Antigravity/agy tier for this run. Off by default.
 #   INDEPENDENT_REVIEW_CHECKS_ONLY (unset)  TEST ONLY (test_round_checks.sh): 1 makes the script
-#                                    exit 0 right after the option and round checks, before any
-#                                    reviewer runs or anything leaves the machine. Never set it
-#                                    for a real review: the run would review nothing.
+#                                    stop right after the option and round checks, before any
+#                                    reviewer runs or anything leaves the machine. It says
+#                                    "checks only: nothing was reviewed" on stdout and stderr and
+#                                    exits 5, a code no review run uses, so a shell that kept
+#                                    the variable can never pass for a clean round (exit 0).
 
 set -uo pipefail
 
 # --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity,
 #     --verify <prior-findings file>
-USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--earned-by KIND] [--cut \"TEXT\"] [--seat codex|ollama|melious|agy]"
+USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--earned-by KIND[,KIND...]] [--cut \"TEXT\"] [--seat codex|ollama|melious|agy]"
 FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND="" ; SEAT=""
 EARNED_BY="" ; CUT=""
 while [ $# -gt 0 ]; do
@@ -174,23 +183,35 @@ while [ $# -gt 0 ]; do
                --round:[1-9]|--round:[1-9][0-9]) ROUND="$1" ;;
                *) echo "bad value for $a: $1" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac; shift ;;
-    --earned-by) # the kind of finding that earned a round past 3 (ROUND CHECKS above). A spelled-out
-             # class, not A-Z: in some locales a range matches more than ASCII letters. No leading
-             # '-': `--earned-by --cut x` must not take the next flag as the kind.
+    --earned-by) # the kinds of finding that earned a round past 3 (ROUND CHECKS above). A
+             # spelled-out class, not A-Z: in some locales a range matches more than ASCII
+             # letters. No leading '-': `--earned-by --cut x` must not take the next flag as a kind.
              [ $# -gt 0 ] || { echo "--earned-by needs a kind" >&2; echo "$USAGE" >&2; exit 2; }
+             kinds_bad="bad value for --earned-by: \"$1\" (up to 8 kinds, comma-separated; each 1 to 40 letters, digits, '.', '_' or '-', with a letter or digit, not starting with '-'; e.g. config-advice,zip-names)"
              case "$1" in
-               ''|-*|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*)
-                 echo "bad value for --earned-by: \"$1\" (a kind is 1 to 40 letters, digits, '.', '_' or '-', not starting with '-', e.g. config-advice)" >&2; echo "$USAGE" >&2; exit 2 ;;
+               ''|,*|*,|*,,*|-*|*,-*|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._,-]*)
+                 echo "$kinds_bad" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac
-             [ ${#1} -le 40 ] || { echo "bad value for --earned-by: \"$1\" is longer than 40 characters" >&2; echo "$USAGE" >&2; exit 2; }
+             kinds_n=0 ; o_ifs="$IFS" ; IFS=,
+             for k in $1; do   # unquoted on purpose: split at the commas (no glob character passes the class)
+               kinds_n=$((kinds_n + 1))
+               case "$k" in *[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789]*) ;; *) kinds_n=99 ;; esac
+               [ ${#k} -le 40 ] || kinds_n=99
+             done
+             IFS="$o_ifs"
+             [ "$kinds_n" -le 8 ] || { echo "$kinds_bad" >&2; echo "$USAGE" >&2; exit 2; }
              EARNED_BY="$1"; shift ;;
-    --cut)   # what the fix since the last round removed or refused (ROUND CHECKS above)
+    --cut)   # what the fix since the last round removed or refused (ROUND CHECKS above). A value
+             # starting with '-' is the next flag (`--cut --local-only` would drop local-only mode);
+             # a tab would split the cost log's line.
              [ $# -gt 0 ] || { echo "--cut needs the text of what was removed or refused" >&2; echo "$USAGE" >&2; exit 2; }
              case "$1" in
-               '') echo "bad value for --cut: empty (say what was removed or refused)" >&2; exit 2 ;;
-               *$'\n'*|*$'\r'*) echo "bad value for --cut: more than one line (one line, at most 300 characters)" >&2; exit 2 ;;
+               -*) echo "bad value for --cut: \"$1\" starts with '-', which reads as the next flag: say what was removed or refused" >&2; echo "$USAGE" >&2; exit 2 ;;
+               *$'\n'*|*$'\r'*|*$'\t'*) echo "bad value for --cut: more than one line, or a tab (one line, at most 300 characters)" >&2; echo "$USAGE" >&2; exit 2 ;;
+               *[![:space:]]*) ;;
+               *) echo "bad value for --cut: empty or only blanks (say what was removed or refused)" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac
-             [ ${#1} -le 300 ] || { echo "bad value for --cut: ${#1} characters, more than 300" >&2; exit 2; }
+             [ ${#1} -le 300 ] || { echo "bad value for --cut: ${#1} characters, more than 300" >&2; echo "$USAGE" >&2; exit 2; }
              CUT="$1"; shift ;;
     -)       FILE="-" ;;
     -*)      echo "unknown flag: $a" >&2   # a typo'd flag must not silently change gate behavior
@@ -202,30 +223,75 @@ done
 [ -n "$FILE" ] || { echo "$USAGE" >&2; exit 2; }
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 # ROUND CHECKS (header). Here, before the artifact is read and before any reviewer starts, so a
-# refused round costs nothing and sends nothing.
+# refused round costs nothing and sends nothing. review_log.sh is run through bash and needs only
+# to be readable: a copy that lost its exec bit still answers.
 if [ -n "$ROUND" ] && [ "$ROUND" -ge 4 ] && [ -z "$EARNED_BY" ]; then
   echo "Round $ROUND is past round 3: name the kind of finding that earned it (SKILL.md step 6), as --earned-by <kind>, for example --earned-by config-advice." >&2
   exit 2
 fi
-# The cut check reads round N-1's kind from the cost log. A log that is off, missing or silent on
-# that round cannot answer, and a review must not fail for bookkeeping: say so, and go on.
-if [ -n "$ROUND" ] && [ "$ROUND" -ge 2 ] && [ -n "$EARNED_BY" ] && [ -z "$CUT" ]; then
-  prev_round=$((ROUND - 1)) ; prev_kind=""
-  if [ -x "$SCRIPT_DIR/review_log.sh" ]; then
-    prev_kind="$("$SCRIPT_DIR/review_log.sh" earned-by --round "$prev_round" 2>/dev/null)" || prev_kind=""
+# What the log knows about the current gate (review_log.sh round-check). Not for --round 1, which
+# starts a new gate: the old one's rounds do not apply to it.
+rc_gate="" ; rc_max=0 ; rc_maxruns=0 ; rc_below=0 ; rc_why="" ; rc_owed="" ; rc_like=""
+if [ "$ROUND" != 1 ]; then
+  set -- round-check   # the options are parsed: the positional parameters are free
+  [ -n "$ROUND" ] && set -- "$@" --round "$ROUND"
+  [ -n "$EARNED_BY" ] && set -- "$@" --kinds "$EARNED_BY"
+  if [ -r "$SCRIPT_DIR/review_log.sh" ]; then
+    rc_out="$(bash "$SCRIPT_DIR/review_log.sh" "$@" 2>/dev/null)" || rc_out=""
   else
-    prev_kind=$'?\t'"review_log.sh is missing beside this script"
+    rc_out=$'?\t'"review_log.sh is missing beside this script"
   fi
-  case "$prev_kind" in
-    "$EARNED_BY")
-      echo "Kind $EARNED_BY earned round $prev_round too. Two rounds running: the fix since then must be a cut, not a third patch (SKILL.md step 6). Say what was removed or refused: --cut \"<what>\"." >&2
-      exit 2 ;;
-    ''|'?'*)
-      why="${prev_kind#??}"
-      echo "warning: the cut check could not run (${why:-review_log.sh gave no answer}), so whether kind $EARNED_BY also earned round $prev_round is unknown; going on. If it did, the fix since then must be a cut: pass --cut \"<what>\" (SKILL.md step 6)." >&2 ;;
-  esac
+  while IFS=$'\t' read -r rc_tag rc_a rc_b rc_c rc_d; do
+    case "$rc_tag" in
+      '?')  rc_why="$rc_a" ;;
+      gate) rc_gate="$rc_a"; rc_max="$rc_b"; rc_maxruns="$rc_c"; rc_below="$rc_d" ;;
+      owed) rc_owed="$rc_owed$rc_a"$'\t'"$rc_b"$'\t'"$rc_c"$'\n' ;;
+      like) rc_like="$rc_like$rc_a"$'\t'"$rc_b"$'\t'"$rc_c"$'\n' ;;
+    esac
+  done <<<"$rc_out"
 fi
-[ "${INDEPENDENT_REVIEW_CHECKS_ONLY:-}" = 1 ] && exit 0   # tests only (header)
+if [ -z "$ROUND" ]; then
+  # The final full read and the wording pass run without --round, so this is a notice: a review
+  # round run this way would skip the checks above, and the owner should see that it did.
+  if [ -n "$rc_gate" ] && [ "$rc_max" -ge 4 ]; then
+    echo "note: no --round, so this run is not a round of gate $rc_gate, which is at round $rc_max: the round checks did not run, and the gate line counts it as a run with no round. Right for the final full read and the wording pass; a review round is --round $((rc_max + 1))." >&2
+  fi
+elif [ "$ROUND" -ge 2 ]; then
+  if [ -n "$rc_gate" ] && [ "$ROUND" -lt "$rc_max" ]; then
+    echo "warning: round $ROUND is below round $rc_max, the highest round gate $rc_gate has logged. A new round is $((rc_max + 1)); going on." >&2
+  elif [ -n "$rc_gate" ] && [ "$ROUND" -eq "$rc_max" ]; then
+    echo "note: re-run of round $ROUND: gate $rc_gate already logged $rc_maxruns seat run(s) for it. A new round is $((ROUND + 1))." >&2
+  fi
+  # The cut check. A log that is off, missing or holds no earlier round cannot answer, and a
+  # review must not fail for bookkeeping: say so, and go on.
+  if [ -n "$EARNED_BY" ] && [ -z "$CUT" ]; then
+    if [ -z "$rc_gate" ] || [ "$rc_below" -eq 0 ]; then
+      if [ -n "$rc_gate" ]; then rc_why="the log holds no round below $ROUND of gate $rc_gate"; fi
+      echo "warning: the cut check could not run (${rc_why:-review_log.sh gave no answer}), so whether $EARNED_BY earned an earlier round of this gate is unknown; going on. If one did, the fix since then must be a cut: pass --cut \"<what>\" (SKILL.md step 6)." >&2
+    else
+      # A name that starts another (config-advice / config-advice-yaml) may be the same kind
+      # under a finer name. Not refused, since it may not be; named, so the owner can judge.
+      while IFS=$'\t' read -r k other other_round; do
+        [ -n "$k" ] || continue
+        echo "note: kind $k looks like $other, which earned round $other_round of this gate: if they are one kind, a cut is owed (--cut \"<what>\"). Both names are in the gate line the owner reads." >&2
+      done <<<"$rc_like"
+      if [ -n "$rc_owed" ]; then
+        while IFS=$'\t' read -r k rounds logged_as; do
+          [ -n "$k" ] || continue
+          case "$rounds" in *,*) rounds="rounds $rounds" ;; *) rounds="round $rounds" ;; esac
+          [ "$logged_as" = "$k" ] && logged_as="" || logged_as=" (logged as $logged_as)"
+          echo "Kind $k$logged_as earned $rounds of this gate too, with no cut since. A kind that comes back needs a cut, not another patch (SKILL.md step 6). Say what was removed or refused: --cut \"<what>\"." >&2
+        done <<<"$rc_owed"
+        exit 2
+      fi
+    fi
+  fi
+fi
+if [ "${INDEPENDENT_REVIEW_CHECKS_ONLY:-}" = 1 ]; then   # tests only (header)
+  echo "checks only: nothing was reviewed (INDEPENDENT_REVIEW_CHECKS_ONLY=1, exit 5)"
+  echo "checks only: nothing was reviewed (INDEPENDENT_REVIEW_CHECKS_ONLY=1, exit 5)" >&2
+  exit 5
+fi
 # The embedded Perl programs live in perl/*.pl, each declaring the Perl it needs; check_perl_minimum.sh
 # holds them to it.
 PERL_DIR="$SCRIPT_DIR/perl"
@@ -1244,7 +1310,7 @@ codex_tokens() {
 # nothing is logged, nothing fails.
 log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
   local model="" effort="-" oc="${5%% (*}"
-  [ -x "$SCRIPT_DIR/review_log.sh" ] || return 0
+  [ -r "$SCRIPT_DIR/review_log.sh" ] || return 0
   case "$2" in
     codex)  model="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
             effort="${CODEX_EFFORT_EFFECTIVE:-config}" ;;
@@ -1252,7 +1318,7 @@ log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
     melious) model="${MELIOUS_MODEL:-}" ;;
     agy)    model="${AGY_MODEL:-default}" ;;
   esac
-  "$SCRIPT_DIR/review_log.sh" add --seat "$1" --model "${model:--}" --effort "$effort" \
+  bash "$SCRIPT_DIR/review_log.sh" add --seat "$1" --model "${model:--}" --effort "$effort" \
     --seconds "$3" --tokens "$4" --gate "$TYPE" --depth "$DEPTH" --round "$ROUND" \
     --outcome "$(printf '%s' "$oc" | tr ' ' '-')" --earned-by "$EARNED_BY" --cut "$CUT"
 }
@@ -1296,7 +1362,7 @@ report_round() {
   # The gate's running total, after this run's seats were logged: the cost so far sits beside
   # the decision on another round (SKILL.md step 6). Nothing when the log is off or holds no gate.
   local total=""
-  [ -x "$SCRIPT_DIR/review_log.sh" ] && total="$("$SCRIPT_DIR/review_log.sh" gate)"
+  [ -r "$SCRIPT_DIR/review_log.sh" ] && total="$(bash "$SCRIPT_DIR/review_log.sh" gate)"
   if [ -n "$total" ]; then printf '%s\n' "$total"; printf '%s\n' "$total" >&2; fi
   # The trail must name the depth (SKILL.md, Review depth), and a run without --depth is where
   # that gets forgotten.
@@ -1313,8 +1379,8 @@ fi
 # guard is needed — and without one, a missing CLI still shows in the summary.
 # --round 1 starts a gate in the cost log: every line logged from here on, the host's seats
 # included, carries its id until the next --round 1 (review_log.sh new-gate).
-if [ "$ROUND" = 1 ] && [ "${REVIEW_LOG:-}" != off ] && [ -x "$SCRIPT_DIR/review_log.sh" ]; then
-  "$SCRIPT_DIR/review_log.sh" new-gate >/dev/null 2>&1 || true
+if [ "$ROUND" = 1 ] && [ "${REVIEW_LOG:-}" != off ] && [ -r "$SCRIPT_DIR/review_log.sh" ]; then
+  bash "$SCRIPT_DIR/review_log.sh" new-gate >/dev/null 2>&1 || true
 fi
 OK=0 ; SUCCESS_COUNT=0
 # The Melious fallback stands in for the ollama seat whenever that seat did not count: its staged

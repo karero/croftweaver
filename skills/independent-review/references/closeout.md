@@ -68,7 +68,7 @@ Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OP
 | id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote (a parser or validator fix: the invariant and the variants or comparison, step 5) |
 Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction;
 the owner's grant for each round past 8, quoted.
-Follow-ups: one line each. Notes: at most five lines (degraded seats, rounds past 3 with the BUG
+Follow-ups: one line each. Notes: at most five lines, plus one per round past 3 (degraded seats, rounds past 3 with the BUG
 and the `--earned-by` kind that earned each, and each `--cut`, final full read, wording pass, stops).
 ```
 
@@ -110,8 +110,8 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      counts toward the stamp only if it produced a counted result in every link since its last full
      round — check the trail's per-round reviewer column, not just the recorded pair; a seat that
      FAILED or was skipped in a link has a gap there. At least one cross-model seat must hold an
-     unbroken chain. At Normal depth fresh-eyes' chain ends at round 1, at High at round 3, by design: its round-1
-     findings stay in the verdict, but it does not count toward the stamp for a later head and is
+     unbroken chain. At Normal depth fresh-eyes' chain ends at round 1, at High at round 3, by design: its findings
+     from the rounds it ran stay in the verdict, but it does not count toward the stamp for a later head and is
      not re-run for one. **A prose-only link covers prose only:** if its segment turns out to
      contain code, the chain breaks there and that segment needs a full-scope round.
    - **Before posting,** re-read both values and stamp only if both match. If either moved,

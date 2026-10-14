@@ -44,12 +44,15 @@ skip silently. With a config diff, send the code that reads the config too.
    document, that document has passed its own gate as it stands now, before the plan's round 1.
    If it has not, ask the owner before round 1: gate it first, or go on knowing the plan's
    rounds may be paid twice.
-4. A plan for more than about 2,000 lines of code, or for more than one reader of files from
-   outside, names its components, and each is built and gated in its own PR.
+4. A plan for more than about 2,000 lines of code, or for more than one reader of outside input
+   (code that parses files or data a user or another system hands in), names its components, each
+   built and gated in its own PR. If not, ask the owner before round 1: split it, or go on knowing
+   that one kind of defect will be found again in each component.
 
 ## Reviewer stack
 
-1. **Codex CLI** — read-only, in the caller's cwd so it can check claims against the tree; model
+1. **Codex CLI** — asks for a read-only sandbox (enforcement is open: R-SANDBOX in
+   `docs/reviews/OPEN-FINDINGS-independent-review.md`), in the caller's cwd so it can check claims against the tree; model
    and effort from `~/.codex/config.toml` (`CODEX_MODEL`, `CODEX_EFFORT` override them).
 2. **The second seat** — an ollama `:cloud` model (auto-detected; `OLLAMA_MODEL` overrides; text
    only), or Melious (`MELIOUS_MODEL`, an id from `scripts/melious_models.txt`; `SECOND_SEAT=melious`
@@ -259,13 +262,16 @@ Codex's effort for any run.
    **After round 3, a round is earned only
    by the previous round finding a substantive BUG** — however many, rising or falling: a chain of
    fixes that each expose the next real defect is the gate working, until one kind comes back.
-   Run such a round with `--earned-by <kind>`: one short name for one invariant in one piece of
-   code (`config-advice`, `zip-names`); the script refuses round 4 and later without it.
-   **Cut, don't patch:** where the same kind earned the round before, the fix since then must be
-   a cut, not a third patch: take the feature out, or refuse that input by name, with a test that
-   ordinary input still passes. The script refuses that round without `--cut "<what was removed
-   or refused>"`, and logs it. A round without one ends the
-   rounds: open RISK/NIT go to the owner as ONE decision (fix locally — `locally_verified`, "not
+   Run such a round with `--earned-by <kinds>`: every kind with a substantive BUG in the previous
+   round, comma-separated, each one short name for one invariant in one piece of code
+   (`config-advice,zip-names`); the script refuses round 4 and later without it. **Cut, don't
+   patch:** where a kind earned an earlier round of the gate too, the fix since then must be a
+   cut, not another patch: take the feature out, or replace it by a strict rule that accepts only
+   the input it names and refuses the rest, with a test that ordinary input still passes.
+   Refusing the one input the last BUG used is a patch. Where the cost log can tell, the script
+   refuses that round without `--cut "<what was removed or replaced>"`, and logs it; where it
+   cannot, it warns. The owner sees the kinds and cuts in the script's running-total line. A round
+   that finds no substantive BUG ends the rounds: open RISK/NIT go to the owner as ONE decision (fix locally — `locally_verified`, "not
    externally re-verified" — or waive), and the remaining wording goes to the wording pass.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
@@ -302,12 +308,13 @@ Codex's effort for any run.
    re-breaks something an earlier round fixed (even once); or when MOST of a round's findings
    re-cover ground a prior pass reported clean, or re-raise a dispositioned finding (fixed,
    refuted, waived, deferred, or open on a missing prerequisite) without new evidence; or when the
-   count plateaus two rounds on mostly such findings. Then redesign, or take the open items to the
+   count plateaus two rounds on mostly such findings. Step 6's cut comes first; a kind that comes
+   back after its cut stops the patching here. Then redesign, or take the open items to the
    owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
    only under step 5). "Stopped: not converging" goes in the trail. Long form:
    `references/rationale.md`.
 8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,
-   fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost
+   fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost (and, from round 4, the script's running-total line)
    (the `timings:` line; the host seats' duration and tokens) and any follow-ups.
    The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. Once the pair and
