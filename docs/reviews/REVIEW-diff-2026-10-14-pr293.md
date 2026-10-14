@@ -18,7 +18,10 @@ Follow-ups: none yet.
 
 ## Test records (author's machine, before round 1, head `7d6aabe`)
 
-<details><summary>tests-python3.13.txt</summary>\n\n```\n$ python3 -m unittest discover -v -s skills/facts-check/scripts/tests
+<details><summary>tests-python3.13.txt</summary>
+
+```
+$ python3 -m unittest discover -v -s skills/facts-check/scripts/tests
 test_a_charset_that_cannot_decode_text_falls_back_to_utf8 (test_facts_check.CheckPage.test_a_charset_that_cannot_decode_text_falls_back_to_utf8) ... ok
 test_a_repeated_description_is_one_finding (test_facts_check.CheckPage.test_a_repeated_description_is_one_finding) ... ok
 test_a_separator_or_a_sign_in_a_span_of_its_own_still_belongs_to_the_number (test_facts_check.CheckPage.test_a_separator_or_a_sign_in_a_span_of_its_own_still_belongs_to_the_number) ... ok
@@ -138,7 +141,14 @@ Ran 113 tests in 5.305s
 
 OK
 exit status: 0
-```\n\n</details>\n\n<details><summary>tests-python3.9.txt</summary>\n\n```\n$ /usr/bin/python3 -m unittest discover -v -s skills/facts-check/scripts/tests
+```
+
+</details>
+
+<details><summary>tests-python3.9.txt</summary>
+
+```
+$ /usr/bin/python3 -m unittest discover -v -s skills/facts-check/scripts/tests
 test_a_charset_that_cannot_decode_text_falls_back_to_utf8 (test_facts_check.CheckPage) ... ok
 test_a_repeated_description_is_one_finding (test_facts_check.CheckPage) ... ok
 test_a_separator_or_a_sign_in_a_span_of_its_own_still_belongs_to_the_number (test_facts_check.CheckPage) ... ok
@@ -258,7 +268,14 @@ Ran 113 tests in 6.066s
 
 OK
 exit status: 0
-```\n\n</details>\n\n<details><summary>undo-each-fix.txt</summary>\n\n```\n== read on past a document type
+```
+
+</details>
+
+<details><summary>undo-each-fix.txt</summary>
+
+```
+== read on past a document type
    in facts_check.py, replaced:     def doctype(name, system_id, public_id, has_internal_subset):
         raise _StopReading
    by:     def doctype(name, system_id, public_id, has_internal_subset):
@@ -312,7 +329,11 @@ FAIL: test_an_encoding_the_parser_does_not_know_is_a_note_not_a_crash (test_fact
 Ran 113 tests in 4.965s
 FAILED (failures=11)
 
-```\n\n</details>\n\n`undo-each-fix.txt`: each part of the fix undone on its own in a throwaway copy of `scripts/`, the tests run there on Python 3.9.6; a control run of the unchanged copy passed first. An earlier attempt is not counted: it named the test module so that it never loaded, and every undo showed the same import error.
+```
+
+</details>
+
+`undo-each-fix.txt`: each part of the fix undone on its own in a throwaway copy of `scripts/`, the tests run there on Python 3.9.6; a control run of the unchanged copy passed first. An earlier attempt is not counted: it named the test module so that it never loaded, and every undo showed the same import error.
 
 `make check`: exit status 0.
 
