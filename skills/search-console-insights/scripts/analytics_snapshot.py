@@ -8,7 +8,8 @@ Writes, inside <site folder>/analytics/:
   README.md                 what is here and why it stays off GitHub (rewritten each time)
   seo.html                  the latest Google & Bing page (search_report.py), linking to geo.html
   geo.html                  the latest "Does AI name you?" page, linking to seo.html
-  <date>_gsc/               google-data.json, what the Google page was built from (date: when fetched)
+  <date>_gsc/               google-data.json, what the Google page was built from (date: when fetched),
+                            and the fix proposal's record (<site>-proposals.json) as it is now
   <date>_bing/              bing-history.csv, this site's Bing rows from the tracker (date: the latest row)
   <run date>_geo-run/       the newest AI-check page, and the answers of every run it lists (meta geo-runs)
 
@@ -38,6 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _history import normalize_site  # noqa: E402
 import _analytics  # noqa: E402
 import search_report  # noqa: E402
+import fix_proposal  # noqa: E402
 
 
 
@@ -169,6 +171,20 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
             else:      # keep the bytes just checked, not a re-read of a file a refresh may be rewriting
                 (stage / data.name).write_bytes(raw)
                 kept.append((f"{fetched.isoformat()}_gsc", stage / data.name))
+                # The page's fix-proposal section shows figures from the proposal's own record, which no
+                # fingerprint covers: kept beside the data as it is now, and said so (merge link, F53).
+                try:
+                    proposals = fix_proposal.state_path(site)
+                except ValueError:
+                    proposals = None
+                if has_google and proposals is not None and proposals.is_file():
+                    try:
+                        (stage / proposals.name).write_bytes(proposals.read_bytes())
+                        kept.append((f"{fetched.isoformat()}_gsc", stage / proposals.name))
+                        out.append("Fix proposal: its record is kept as it is now; unlike the data, it is not "
+                                   "matched to seo.html")
+                    except OSError:
+                        out.append("Fix proposal: its record cannot be read, so it was not kept")
                 if has_google and shown is None:
                     out.append("Search Console data: seo.html predates its fingerprint, so the match was not checked")
         else:

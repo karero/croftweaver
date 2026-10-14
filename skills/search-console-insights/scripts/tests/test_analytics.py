@@ -655,6 +655,38 @@ class RoundThree(AnalyticsTest):
         self.assertEqual(code, 0, err)
         self.assertEqual(len(reads), 1)
 
+class MergeLink(AnalyticsTest):
+    """After merging main's fix proposal (merge link, docs/reviews/REVIEW-diff-2026-10-14-feat-analytics-folder-f3cea24.md):
+    the page shows the proposal's figures too, so its record is kept; and its log line is best-effort."""
+
+    def google_page(self, **patches):
+        import search_report as sr
+        import test_search_report as tsr
+        with mock.patch.object(sr, "base_dir", lambda: self.cfg), mock.patch.object(sr.fp, "base_dir", lambda: self.cfg):
+            return sr.build(SITE, SimpleNamespace(keywords=None, country=None, csv=None),
+                            service_factory=lambda: tsr.FakeGoogle(daily=tsr.daily_series(40)), today=tsr.TODAY)
+
+    def test_the_fix_proposals_record_is_kept_beside_the_data_and_said_to_be_unmatched(self):
+        self.repo()
+        self.google_page()
+        (self.cfg / "sites").mkdir(exist_ok=True)
+        (self.cfg / "sites" / f"{SITE}-proposals.json").write_text('{"proposals": []}')
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        kept = list((self.site_dir / "analytics").glob(f"*_gsc/{SITE}-proposals.json"))
+        self.assertEqual(len(kept), 1)
+        self.assertIn("it is not matched to seo.html", out)
+
+    def test_a_broken_log_stream_does_not_cost_the_google_page(self):
+        class BrokenStream(io.StringIO):
+            def write(self, s):
+                raise OSError("stderr is gone")
+        import search_report as sr
+        with mock.patch.object(sr.sys, "stderr", BrokenStream()):
+            out = self.google_page()
+        self.assertTrue(out.is_file(), "google.html is written even when the log cannot be")
+
+
 class Starter(unittest.TestCase):
     def test_b1_new_sites_keep_the_folder_off_github(self):
         gi = Path(__file__).resolve().parents[4] / "skills/new-website/templates/.gitignore"

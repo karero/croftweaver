@@ -26,6 +26,7 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 | 4 (verification) | 7cb141a | Codex medium (391 s, 84k tokens), GLM 5.3 on melious (515 s, 44k) | 2 / 3 / 2 (F42–F48) | delta 6ebb7cf..7cb141a; earned by ai-evidence, gsc-evidence. F42 and F43 substantive: round 5 earned by the same two kinds, so it needs a cut (below) |
 | 5 (verification) | f74764a | Codex medium (280 s, 64k tokens), GLM 5.3 on melious (158 s, 21k) | 0 / 1 / 3 (F49–F52; Codex's two BUG labels triaged below) | delta 7cb141a..f74764a, with the cut. No substantive BUG: **the rounds end** (stop condition a2). Its fixes are locally_verified, not externally re-verified until the closing re-gate |
 | re-gate (not a round) | 94c6c4a | Codex medium only (148 s, 50k tokens) | 0 / 0 / 0 | delta f74764a..94c6c4a: F50 and F51's code at full scope, the trail and plan row for facts only. Clean |
+| merge link (not a round) | 2f4b541 | Codex medium only (239 s, 169k tokens) | 2 / 0 / 0 (F53, F54) | `main` moved 48 commits, among them the weekly fix proposal, which also edits `SKILL.md` and `search_report.py`; merged without conflicts; `merge_link.sh` output reviewed with the callee list. `make test` 372 OK, `make check` exit 0 on the merge |
 
 ## Findings
 
@@ -91,6 +92,9 @@ Sources: C = Codex, G = GLM 5.3, S = fresh-eyes Sonnet. Invariants: **A** nothin
 | F50 | RISK (Codex: BUG) | C | snapshot | (C) `google.html` read twice: a refresh between the reads could pair page A's copy with page B's fingerprint | fixed | the page is read once and that text serves both; test counts one read. **Rated RISK, not BUG (the author's judgment, told to the owner):** it is F44's kind, which Codex itself rated RISK in round 4 — it needs a refresh to land between two reads in one run |
 | F51 | NIT | C, G | snapshot | an unreadable `google.html` stopped the snapshot, and was named as the data file | fixed | named as the page; its data is not kept unchecked; the rest is written; test with a page the user cannot read |
 | F52 | NIT | G | tests | an unused import and alias; `hashlib` imported mid-test | fixed | — |
+
+| F53 | BUG | C (merge link) | snapshot `_gsc` | after the merge the Google page also shows the fix proposal's before/after figures, from its own record, which the data's fingerprint does not cover | fixed | the record (`fix_proposal.state_path`) is kept beside the data, and the output says it is kept as it is now, not matched to the page; test |
+| F54 | BUG | C (merge link) | `search_report.build` | the fix proposal's new log line raised when stderr failed, so `google.html` was not written | fixed here, though this change did not introduce it | three lines, in a file this change edits; the session that wrote it is no longer live, and the owner prefers follow-ups fixed before a release. Best-effort like `ai_part`'s log; test through `search_report.build` with Google data |
 
 Fix chains: F1 → F21, F6 → F22 (two links each); F10 → F23 → F32 → F42 (ended by deleting the inference);
 F33 → F43 (two links). Earlier: F10 → F23 → F32 (three links, ended by a cut: the page

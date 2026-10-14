@@ -1342,7 +1342,10 @@ def build(domain, args, service_factory=make_service, today=None, page_reader=No
     proposal, proposal_alert = proposals_for_page(site, data, fresh, service, today, page_reader, gh)
     line = proposal_line(proposal, proposal_alert)
     if line:
-        print(f"Fix proposal: {line}", file=sys.stderr)
+        try:      # the log is best-effort: a broken stderr must not cost the owner's page
+            print(f"Fix proposal: {line}", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            pass
     if proposal_alert:
         alert = f"{alert} {proposal_alert}" if alert else proposal_alert
     ai = newest_ai_page(site)
