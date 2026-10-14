@@ -711,7 +711,7 @@ export function evaluate(obs, target, opts) {
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
     // The script monitor is named wherever it is seen, beside a NEL failure too: it is not NEL,
     // and the header rule for NEL removes only NEL and Report-To, so it does not switch it off.
-    const monitorWhat = "Cloudflare adds a content-security-policy-report-only header and a report-to group, cf-csp-endpoint, to a sample of pages, so visitors' browsers send reports to csp-reporting.cloudflare.com. That is not NEL.";
+    const monitorWhat = "Cloudflare adds a content-security-policy-report-only header to a sample of pages, and visitors' browsers then send reports to Cloudflare. On the one site where this was seen it came with a report-to group, cf-csp-endpoint, at csp-reporting.cloudflare.com. That is not NEL.";
     const monitorAlso = monitor ? ` Cloudflare's script monitor is switched on as well: ${monitorWhat}` : '';
     const monitorFix = "Your domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring: Off. The checklist's header rule for NEL removes only the NEL and Report-To headers; it does not switch the monitor off.";
     const sampleNote = " Cloudflare's script monitor adds its headers to a sample of pages only, so this one answer cannot show that it is off.";

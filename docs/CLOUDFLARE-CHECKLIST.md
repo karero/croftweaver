@@ -170,10 +170,10 @@ cookies, scripts or tracking you didn't choose.
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
      then count with the loop in
      [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
-     your own domain. Only answers with `status=200` count, and the count should read
-     `100 none status=200` (after we switched it off we made 200 requests and saw no
-     `report-to:` line). If you can't find the switch, or a `header` count shows after you
-     switched it off, tell your assistant.
+     your own domain. The count should read `100 clean` (after we switched it off we made
+     200 requests and saw no `report-to:` line). An `other` line did not count: fix the
+     address. If you can't find the switch, or a `header` count shows after you switched it
+     off, tell your assistant.
      *The trade-off:* you give up Cloudflare's view of the scripts your visitors load. The
      switch may be marked Global. If it says so, it may apply to every domain in your
      account: look at your other sites before you switch it off.

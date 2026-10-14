@@ -108,20 +108,23 @@ items are a `look`, never `ok`.
   was switched off. A run that sees none does not show it is off, and neither does any number
   of requests: how often Cloudflare sends them is not documented. The switch is at Your
   domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring.
-  After switching it off, count requests. 100 answers without the headers would be unlikely
-  if they still came as often as we saw (2 in 40), and do not exclude a lower rate. Replace
+  After switching it off, count requests. 100 answers without the headers are a count, not a
+  proof: on the one site, 2 of 40 answers carried them before the switch. Replace
   `yourdomain.invalid` with the address your site answers on, with `www.` if the bare name
-  redirects; the placeholder cannot answer, so an unedited run prints `status=000`. This
-  prints how many of 100 answered with one of the monitor's three headers (`report-to`,
-  `reporting-endpoints` or `content-security-policy-report-only`; a site that sets one
-  itself counts too) and how many without, each with the final status of the answer. Only
-  answers with `status=200` count: we did not check whether a redirect or an error page
-  carries the headers:
+  redirects. The placeholder cannot answer (`.invalid` is reserved for names that never
+  resolve, RFC 6761), so an unedited run prints `other` lines. Each answer is `clean` only
+  if curl succeeded, the final status is 200 and none of the monitor's three headers
+  (`report-to`, `reporting-endpoints`, `content-security-policy-report-only`) is there. It is
+  `header` if one is there on such an answer (a site that sets one itself counts too).
+  Anything else is `other`, with its status and curl's exit code, and does not count:
 
   ```bash
   for i in $(seq 1 100); do
-    curl -sS --http1.1 -o /dev/null -D - -w 'status=%{http_code}\n' "https://yourdomain.invalid/?cb=$RANDOM" |
-      awk 'BEGIN { h = "none" } tolower($0) ~ /^(report-to|reporting-endpoints|content-security-policy-report-only):/ { h = "header" } /^status=/ { print h, $0 }'
+    { curl -sS --http1.1 -o /dev/null -D - -w 'status=%{http_code}\n' "https://yourdomain.invalid/?cb=$RANDOM"; echo "exit=$?"; } 2>/dev/null |
+      awk 'tolower($0) ~ /^(report-to|reporting-endpoints|content-security-policy-report-only):/ { h = 1 }
+           /^status=/ { s = $0 }
+           /^exit=/ { e = $0 }
+           END { if (e == "exit=0" && s == "status=200") print (h ? "header" : "clean"); else print "other", s, e }'
   done | sort | uniq -c
   ```
 - **Crawler Hints, Fail open and the build settings.** They have no outside check. The report

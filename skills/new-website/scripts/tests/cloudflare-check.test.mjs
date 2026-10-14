@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import https from 'node:https';
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -1505,10 +1505,63 @@ test('the items are the checklist\'s items, and the paths are its paths', (t) =>
   const reference = readFileSync(path.join(HERE, '..', '..', 'references', 'CLOUDFLARE_CHECK.md'), 'utf8')
     .replace(/\*\*|`/g, '').replace(/\s+/g, ' ');
   assert.ok(reference.includes(MONITOR_PATH), `references/CLOUDFLARE_CHECK.md does not say "${MONITOR_PATH}"`);
-  // Step 5 quotes what the reference's counting loop prints: a renamed label or another count would
-  // leave the checklist stale.
-  assert.ok(reference.includes('seq 1 100') && reference.includes('status=%{http_code}') && /print h, \$0/.test(reference),
-    "the reference's counting loop changed: check the count step 5 quotes");
-  assert.ok(flat.includes('100 none status=200'), 'step 5 no longer quotes the count the loop prints');
+  // Step 5 quotes what the reference's counting loop prints. The test further down runs that loop and
+  // asserts the same word, so a renamed label or another count leaves one of the two failing.
+  assert.ok(reference.includes('seq 1 100'), 'the reference counts something other than 100 answers');
+  assert.ok(flat.includes('100 clean'), 'step 5 no longer quotes the count the loop prints');
   assert.ok(text.includes('**No scripts you didn\'t add:**'), 'section 5 still has the source-search bullet the "scripts" item stands for');
+});
+
+// ---- the counting loop in the reference
+
+// Step 5 of the checklist sends the owner to a shell loop in references/CLOUDFLARE_CHECK.md and says what it
+// should read. The loop is run here as written, with three requests and a local address for the placeholder,
+// against an answer that is clean, one that carries a monitor header, a redirect, a closed port, and a body
+// cut short after a 200 status line (curl exits 18 while the status is 200).
+function countingLoop(address) {
+  const reference = readFileSync(path.join(HERE, '..', '..', 'references', 'CLOUDFLARE_CHECK.md'), 'utf8');
+  const fenced = /```bash\n([\s\S]*?)\n\s*```/.exec(reference.slice(reference.indexOf('A header Cloudflare sends on a sample of pages')));
+  assert.ok(fenced, 'the reference has no counting loop');
+  const loop = fenced[1].split('\n').map((l) => l.replace(/^ {2}/, '')).join('\n'); // the block sits in a list item
+  assert.ok(loop.includes('seq 1 100') && loop.includes('https://yourdomain.invalid/'), 'the loop is not the one step 5 describes');
+  return loop.replace('seq 1 100', 'seq 1 3').replace('https://yourdomain.invalid', address);
+}
+
+// Asynchronous on purpose: the sites are servers in this process, and a blocking call would stop them answering.
+function loopOutput(address) {
+  return new Promise((resolve) => {
+    execFile('bash', ['-c', countingLoop(address)], { encoding: 'utf8', timeout: 60_000 }, (err, stdout) => {
+      resolve(stdout.split('\n').map((l) => l.trim()).filter(Boolean));
+    });
+  });
+}
+
+test('the counting loop in the reference reads clean, header or other, and counts only a 200 that curl finished', async (t) => {
+  const tools = process.platform === 'win32' ? { status: 1 } : spawnSync('bash', ['-c', 'command -v curl && command -v awk && command -v seq && command -v sort && command -v uniq']);
+  if (tools.status !== 0) {
+    t.skip('the loop runs in a POSIX shell with curl and awk (Git Bash or WSL on Windows)');
+    return;
+  }
+  const answer = (fn) => (req, res, url) => { if (isHome(url)) { fn(res); return true; } return false; };
+  const cases = [
+    ['an answer without the headers', undefined, ['3 clean']],
+    ['an answer with report-to', homeWith({ 'report-to': '{"group":"cf-csp-endpoint","max_age":86400}' }), ['3 header']],
+    ['an answer with the report-only header', homeWith({ 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/x" }), ['3 header']],
+    ['a redirect', answer((res) => { res.writeHead(301, { location: '/elsewhere' }); res.end(); }), ['3 other status=301 exit=0']],
+    ['a server error', answer((res) => { res.writeHead(503); res.end('down'); }), ['3 other status=503 exit=0']],
+    ['a body cut short after a 200 status line', answer((res) => {
+      res.writeHead(200, { 'content-length': '100' });
+      res.write('short', () => res.socket.destroy());
+    }), ['3 other status=200 exit=18']],
+  ];
+  for (const [label, tweak, want] of cases) {
+    await withSite(tweak, async (s) => {
+      assert.deepEqual(await loopOutput(s.origin), want, label);
+    });
+  }
+  // A port nothing listens on: curl cannot connect, there is no status, and nothing counts.
+  const gone = await site();
+  const address = gone.origin;
+  await gone.close();
+  assert.deepEqual(await loopOutput(address), ['3 other status=000 exit=7'], 'a closed port');
 });
