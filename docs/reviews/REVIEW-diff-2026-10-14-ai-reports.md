@@ -26,7 +26,7 @@ left out of the artifact).
 | Round | Head | Seats | BUG / RISK / NIT (after dedup) | Notes |
 |---|---|---|---|---|
 | 1 | fef0408 | Codex (318 s, 85k tokens), GLM 5.3 on melious (352 s, 36k), fresh-eyes Sonnet (232 s, 133k) | 5 / 4 / 8 | 12 UNVERIFIABLE questions asked, none confirmed as a finding (each points at evidence outside the repo, now recorded below) |
-| 2 (verification) | 1c20966 | Codex (medium), GLM 5.3 | running | delta fef0408..1c20966 with the plan; `make test` 238 OK, `make check` exit 0 before the round |
+| 2 (verification) | 1c20966 | Codex medium (245 s, 59k tokens); GLM 5.3 on ollama (487 s) standing in for melious, whose reply was cut off at the 300 s limit while still arriving | 4 / 3 / 6 (F18–F28) | delta fef0408..1c20966 with the plan; `make test` 238 OK, `make check` exit 0 before the round. 2 BUGs were round-1 fixes left partial (F1, F2); round 3 owed. 6 UNVERIFIABLE questions, 1 checked and refuted (below) |
 
 ## Findings
 
@@ -51,6 +51,21 @@ Ids are this gate's. Sources: C = Codex, G = GLM 5.3, S = fresh-eyes Sonnet.
 | F15 | NIT | S | SKILL.md description | the new import phrases are not among the triggers; "my AI report" means two pages | refuted | the description is at 997 of 1,024 characters (`check_skill_budgets.sh` warns from 900); "show me my AI report" still opens the AI page as before; the SKILL.md pointer sends the agent to `references/ai-reports.md` before any import |
 | F16 | NIT | S | `not-shown` | silently replaces a real download; a mistyped domain creates a folder that later counts as a site | fixed (the note) / waived (the typo folder: owner, 2026-10-14, "Leave it") | `test_not_shown_says_when_it_replaces_a_download` |
 | F17 | NIT | S | plan status table | a stale "DIFF gate: not started" row beside "running" | fixed | row removed |
+| F18 | BUG | C (round 2) | `_ai_record_ok`; `parse_google` | caused-by: F1 (partial). A saved page address that cannot be parsed (`https://[broken/`) still crashed the page; at import the same address raised a traceback, not a refusal | fixed, locally_verified | `host_of()` returns None for an unreadable address → refusal; saved records check each address with `urlsplit`. Test: 3 address variants at import, 1 saved |
+| F19 | BUG | C; G (2 RISKs) | `parse_google` | caused-by: F2 (partial). Identity still too loose: any value starting "web" (G: `Webcam`) and any metric matching itself passed; a headers-only bundle beside the ordinary report's wide files was saved as empty | fixed, locally_verified, except one input refuted | Invariant restated: Google's report is known by its structure — `Web` as a whole word (`WEB` regex), every view under one metric header, and with data at least one other view adding up to the chart's total (true of all three real exports: 564, 1,155, 193); the headers-only case also needs no wide file. Test: 6 variants. **Refuted under the severity bar:** two header-only `Name,Value` files beside a Web filter are still saved as "empty" — no real export produces it and the page then says "Your download shows no impressions", no number. Named to the owner |
+| F20 | RISK | C | plan Facts | F6/F7 re-raised: provider evidence not inspectable | stands as recorded (re-raise without new evidence) | The real exports hold the owner's site data and stay out of the repo. The settling observation GLM names — import the six real exports into a throwaway home and compare with an independent sum — is what was done, again at this round's head: unchanged totals |
+| F21 | BUG | C (outside scope); G (NIT) | `parse_google` | a second pages file replaced the first before the host check | fixed, locally_verified | a second pages file is refused. In the 6-variant test |
+| F22 | BUG | C (outside scope) | `references/ai-reports.md` | "The pages add up to more" kept F5's categorical claim | fixed | "can add up to more" |
+| F23 | RISK | C (outside scope) | `ai_reports.py` CLI | the import line still said "no impressions … yet" after F9 | fixed | "your download shows no impressions"; test |
+| F24 | NIT | G | F14's test | asserted only the exit code | refuted, and strengthened | the test failed on fef0408 (round-1 record), so it did discriminate; it now also asserts `known_sites() == {site}` |
+| F25 | NIT | G | `parse_google` docstring | "in any screen language" overstated: the "Web" word is read | fixed | docstring says which word is read and that a translated one is refused, never misread |
+| F26 | NIT | G | `_ai_record_ok` | a hand-edited "data" record with 0 would print "shown 0 times" | fixed | data needs total / citations ≥ 1; test |
+| F27 | NIT | G | `read_bundle` | `rglob("*.csv")` skipped `Seiten.CSV` | fixed | suffix compared in lower case; test |
+| F28 | NIT | G | `COUNT` | "1,155.000" read as 1155000 | fixed | one separator kind per count; test, 3 variants |
+
+Round 2 UNVERIFIABLE checked: G asked whether a one-column header over two-column rows raises IndexError at `head[1]`. Refuted: `len(head) != 2` skips the file before `head[1]` is read.
+
+Fix chains: F1 → F18 and F2 → F19, both partial fixes, two links each. Round 2's new tests (7, with 16 subtests) all fail on 1c20966 and pass now.
 
 ## Evidence (for F6, F7 and the plan's own claims)
 

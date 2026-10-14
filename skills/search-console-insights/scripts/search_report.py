@@ -615,8 +615,12 @@ def _ai_record_ok(source, j):
     """Every field the AI section reads, checked: a hand-edited or damaged record is treated as missing."""
     def date(v):
         return isinstance(v, str) and dt.date.fromisoformat(v)
-    def count(v):
-        return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+    def count(v, least=0):
+        return isinstance(v, int) and not isinstance(v, bool) and v >= least
+    def address(v):
+        from urllib.parse import urlsplit
+        return isinstance(v, str) and urlsplit(v) is not None      # raises ValueError on 'https://[broken/'
+
     def span_ok(j):
         return date(j.get("first")) and date(j.get("last")) and j["first"] <= j["last"]
     state = j.get("state")
@@ -628,12 +632,12 @@ def _ai_record_ok(source, j):
         return (j.get("first") is None and j.get("last") is None) or bool(span_ok(j))
     if source == "google" and state == "data":
         pages = j.get("pages", [])
-        return bool(span_ok(j)) and count(j.get("total")) and isinstance(pages, list) and all(
-            isinstance(r, list) and len(r) == 2 and isinstance(r[0], str) and count(r[1]) for r in pages)
+        return bool(span_ok(j)) and count(j.get("total"), 1) and isinstance(pages, list) and all(
+            isinstance(r, list) and len(r) == 2 and address(r[0]) and count(r[1], 1) for r in pages)
     if source == "bing" and state == "empty":
         return bool(span_ok(j))
     if source == "bing" and state == "data":
-        return bool(span_ok(j)) and all(count(j.get(k)) for k in ("citations", "days", "days_cited"))
+        return bool(span_ok(j)) and count(j.get("citations"), 1) and count(j.get("days"), 1) and count(j.get("days_cited"))
     return False
 
 

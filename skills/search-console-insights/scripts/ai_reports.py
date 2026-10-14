@@ -35,7 +35,9 @@ from _history import normalize_site  # noqa: E402
 
 DAY = re.compile(r"^(\d{4}-\d{2}-\d{2})(?: - (\d{4}-\d{2}-\d{2}))?$")   # a day, or a week "a - b"
 NAME_DOMAIN = re.compile(r"^((?:[a-z0-9-]+\.)+[a-z]{2,})[-_]")          # "example.com-Perf…", "example.com_AIPerf…"
-COUNT = re.compile(r"^(?:\d+|\d{1,3}(?:[,.' \u202f]\d{3})+)$")            # 1155, 1,155, 1.155 — never 1.5
+COUNT = re.compile(r"^(?:\d+|\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d{3})+|\d{1,3}(?:'\d{3})+|\d{1,3}(?: \d{3})+"
+                   r"|\d{1,3}(?:\u202f\d{3})+)$")   # 1155, 1,155, 1.155 (one separator kind) — never 1.5
+WEB = re.compile(r"^web\b", re.IGNORECASE)          # Google's search type "Web (text-based)"; never "Webcam"
 BING_HEADER = ["date", "citations", "cited pages"]
 
 
@@ -103,8 +105,9 @@ def read_bundle(path: Path):
     out = []
     try:
         if path.is_dir():
-            for p in sorted(path.rglob("*.csv")):
-                if not any(x.startswith(".") or x == "__MACOSX" for x in p.relative_to(path).parts):
+            for p in sorted(path.rglob("*")):
+                if p.is_file() and p.suffix.lower() == ".csv" and not any(
+                        x.startswith(".") or x == "__MACOSX" for x in p.relative_to(path).parts):
                     out.append((p.name, p.read_bytes().decode("utf-8-sig")))
         else:
             with zipfile.ZipFile(path) as z:
@@ -129,12 +132,23 @@ def _interval(text, name):
     return a, b
 
 
+def host_of(url):
+    """The address's host, or None when the address can't be read at all ('https://[broken/')."""
+    try:
+        return urlsplit(url).hostname or ""
+    except ValueError:
+        return None
+
+
 def parse_google(files, site):
-    """Google's generative AI report for Search, known by its contents in any screen language: a filter
-    file naming a Web search type, at most one chart file (dates) and one pages file (addresses), both
-    counting the same metric. Anything else is refused before a number is read."""
+    """Google's generative AI report for Search, known by its structure, not its words: a filter file
+    naming the Web search type, one chart (dates), at most one pages file (addresses) and the other
+    views (countries, devices), every view counting under the same metric header; and, when there is
+    data, at least one other view adding up to the chart's total, as in every real export. Dates,
+    addresses and counts read the same in any screen language; the one word read is "Web", which a
+    German screen writes in English too — a screen that translates it is refused, never misread."""
     chart = page_rows = search_type = None
-    metrics, seen, wide, headers_only, counted = set(), [], False, False, False
+    metrics, others, seen, wide, header_files = set(), [], [], False, 0
     for name, text in files:
         rows = rows_of(text)
         if not rows:
@@ -144,36 +158,35 @@ def parse_google(files, site):
         if len(head) != 2:
             wide = wide or len(head) >= 4
             continue
-        if not body:
-            headers_only = True
+        if not body:                                       # a view Google had no rows for
+            header_files += 1
+            metrics.add(head[1].strip().lower())
             continue
         if any(len(r) != 2 for r in body):
             raise Refused(f"{name} has rows with a different number of columns. Nothing was saved.")
         firsts, values = [r[0].strip() for r in body], [r[1].strip() for r in body]
-        if all(DAY.match(f) for f in firsts):
-            kind = "chart"
-        elif all(f.lower().startswith(("http://", "https://")) for f in firsts):
-            kind = "pages"
-        elif any(number(v) is None for v in values):      # the filter file: label, setting
-            web = [v for v in values if v.lower().startswith("web")]
+        is_chart = all(DAY.match(f) for f in firsts)
+        is_pages = not is_chart and all(f.lower().startswith(("http://", "https://")) for f in firsts)
+        counts = [number(v) for v in values]
+        if not is_chart and not is_pages and None in counts:     # the filter file: label, setting
+            web = [v for v in values if WEB.match(v)]
             if web and search_type is None:
                 search_type = web[0]
             continue
-        else:                                              # countries, devices: not used
-            counted = True
-            continue
-        counts = [number(v) for v in values]
         if None in counts:
             raise Refused(f"{name} has counts I can't read. Nothing was saved.")
-        counted = True
         metrics.add(head[1].strip().lower())
-        if kind == "chart":
+        if is_chart:
             if chart is not None:
                 raise Refused("This download has two files with dates in them; I can't tell which is the chart. "
                               "Nothing was saved.")
             chart = [_interval(f, name) + (n,) for f, n in zip(firsts, counts)]
-        else:
+        elif is_pages:
+            if page_rows is not None:
+                raise Refused("This download has two files of page addresses. Nothing was saved.")
             page_rows = list(zip(firsts, counts))
+        else:                                              # countries, devices
+            others.append(sum(counts))
     hint = (" This looks like Search Console's ordinary Performance report; open the generative AI report "
             "and export that instead." if wide else "")
     found = f" Found: {'; '.join(seen) or 'no CSV files'}."
@@ -181,17 +194,22 @@ def parse_google(files, site):
         raise Refused("This is not Google's generative AI report for Search: no file in it names the Web search "
                       f"type (the Discover report isn't read yet).{found}{hint} Nothing was saved.")
     if len(metrics) > 1:
-        raise Refused(f"The chart and the pages in this download count different things.{found} Nothing was saved.")
+        raise Refused(f"The files in this download count different things.{found} Nothing was saved.")
     if chart is None:
-        if headers_only and not counted:     # headers only: Google had no rows to give (A2)
+        if header_files >= 2 and not others and page_rows is None and not wide:   # A2: no rows to give
             return {"state": "empty", "first": None, "last": None, "total": 0, "pages": [], "search_type": search_type}
         raise Refused(f"This is not Google's generative AI report: I found no file with dates.{found}{hint} "
                       "Nothing was saved.")
     for url, _ in page_rows or []:
-        host = urlsplit(url).hostname or ""
+        host = host_of(url)
+        if host is None:
+            raise Refused(f"This download has a page address I can't read: {url}. Nothing was saved.")
         if not same_site(host, site):
             raise Refused(f"This download's pages belong to {host}, not {site}. Nothing was saved.")
     total = sum(n for _, _, n in chart)
+    if total > 0 and total not in others:
+        raise Refused(f"The chart's total ({total:,}) matches none of the other views in this download, as it "
+                      f"does in Google's own.{found} Nothing was saved.")
     shown = sorted(((u, n) for u, n in page_rows or [] if n > 0), key=lambda x: -x[1])
     return {"state": "data" if total > 0 else "empty", "first": min(a for a, _, _ in chart).isoformat(),
             "last": max(b for _, b, _ in chart).isoformat(), "total": total,
@@ -258,7 +276,7 @@ def do_import(site, path: Path):
         rec = parse_google(read_bundle(path), site)
         save(site, "google", dict(rec, file=path.name))
         if rec["state"] == "empty":
-            return "Google: no impressions in AI answers yet. Saved; that is a result, not a fault."
+            return "Google: your download shows no impressions in AI answers. Saved; that is a result, not a fault."
         n = len(rec["pages"])
         return (f"Google: {rec['total']:,} impression{'s' if rec['total'] != 1 else ''} in AI answers, "
                 f"{rec['first']} to {rec['last']}, {n} page{'s' if n != 1 else ''}. Saved.")

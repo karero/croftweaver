@@ -424,6 +424,7 @@ class RoundOneFindings(AiTest):
         (reports / ".DS_Store").write_bytes(b"\0")
         code, _, err = self.run_cli("import", SITE, str(self.bing_file(bing_csv([1, 0]), name="bing-ai.csv")))
         self.assertEqual(code, 0, err)
+        self.assertEqual(ar.known_sites(), {SITE}, "asserted where the site count is used, not only by the exit code")
 
     def test_counts_take_thousands_separators_and_never_decimals(self):
         cases = {"1,155": 1155, "1.155": 1155, "12": 12}
@@ -477,6 +478,86 @@ class RoundOneFindings(AiTest):
         (outer / "__MACOSX" / "._Seiten.csv").write_bytes(b"\x00\x05junk")
         code, _, err = self.run_cli("import", SITE, str(outer))
         self.assertEqual((code, self.saved("google")["total"]), (0, 9), err)
+
+
+
+class RoundTwoFindings(AiTest):
+    """Review round 2. Invariant (F2, again): Google's report is known by its structure — the Web search
+    type as a whole word, every view under one metric header, and a view that adds up to the chart's
+    total; every address readable, both at import and when the page reads a saved record."""
+
+    def refused(self, files, name):
+        code, _, err = self.run_cli("import", SITE, str(self.google_zip(files, name=name)))
+        self.assertEqual(code, 1, f"{name} was accepted")
+        self.assertIn("Nothing was saved", err, "a refusal, never a traceback")
+        self.assertIsNone(self.saved("google"))
+
+    def test_an_unreadable_page_address_is_refused_at_import_and_ignored_when_saved(self):
+        for i, url in enumerate(("https://[broken/", "http://[::1", "https://]x/")):
+            with self.subTest(url):
+                files = google_files(daily_chart([3] * 3), [(url, 9)])
+                self.refused(files, f"{SITE}-u{i}.zip")
+        d = self.home / ".config/gsc-insights/reports" / SITE
+        d.mkdir(parents=True)
+        (d / "ai-google.json").write_text(json.dumps({"state": "data", "total": 3, "first": "2026-07-12",
+                                                      "last": "2026-07-12", "pages": [["https://[broken/", 3]]}))
+        self.assertIn("don't let programs read", self.page()[0])
+
+    def test_reports_that_only_look_like_googles_are_refused(self):
+        web = "Filtern,Wert\nSuchtyp,Web (text-based)"
+        cases = {
+            "a filter value that only starts with web": dict(google_files(daily_chart([3] * 3), []),
+                                                             **{"Filter.csv": "Kanal,Wert\nKamera,Webcam"}),
+            "another web-word": dict(google_files(daily_chart([3] * 3), []),
+                                     **{"Filter.csv": "Referrer,Wert\nQuelle,Website xyz"}),
+            "a dated metric whose views add up to something else": {
+                "Diagramm.csv": "Datum,Umsatz\n2026-10-01,5\n2026-10-02,7",
+                "Seiten.csv": f"Seiten,Umsatz\nhttps://{SITE}/,12", "Land.csv": "Land,Umsatz\nDE,40", "Filter.csv": web},
+            "a dated metric with no other view": {"Diagramm.csv": "Datum,Umsatz\n2026-10-01,5", "Filter.csv": web},
+            "two pages files, the second one hiding another site": dict(
+                google_files(daily_chart([3] * 3), [("https://other-site.de/", 9)]),
+                **{"Seiten2.csv": f"Die häufigsten Seiten,Impressionen\nhttps://{SITE}/,9"}),
+            "headers only beside the ordinary report's wide files": {
+                "Diagramm.csv": "Datum,Impressionen", "Seiten.csv": "Seiten,Impressionen", "Filter.csv": web,
+                "Queries.csv": "Top queries,Clicks,Impressions,CTR,Position"},
+        }
+        for i, (why, files) in enumerate(cases.items()):
+            with self.subTest(why):
+                self.refused(files, f"{SITE}-i{i}.zip")
+
+    def test_a_saved_zero_is_never_shown_as_data(self):
+        d = self.home / ".config/gsc-insights/reports" / SITE
+        d.mkdir(parents=True)
+        (d / "ai-google.json").write_text(json.dumps({"state": "data", "total": 0, "first": "2026-07-12",
+                                                      "last": "2026-07-13", "pages": []}))
+        (d / "ai-bing.json").write_text(json.dumps({"state": "data", "citations": 0, "days": 2, "days_cited": 0,
+                                                    "first": "2026-07-14", "last": "2026-07-15"}))
+        section, _ = self.page()
+        self.assertIn("don't let programs read", section)
+        self.no_zero_figures(section)
+
+    def test_a_folder_with_upper_case_csv_names_is_read_whole(self):
+        d = self.downloads / GOOGLE_ZIP[:-4]
+        d.mkdir()
+        for n, text in google_files(daily_chart([3] * 3), [(f"https://{SITE}/", 9)]).items():
+            (d / (n[:-4] + ".CSV" if n.startswith("Seiten") else n)).write_text(text, encoding="utf-8")
+        code, _, err = self.run_cli("import", SITE, str(d))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.saved("google")["pages"], [[f"https://{SITE}/", 9]], "the pages file was not skipped")
+
+    def test_a_count_may_use_one_kind_of_separator_only(self):
+        for i, text in enumerate(("1,155.000", "1.155,000", "1 155,000")):
+            with self.subTest(text):
+                csv_text = bing_csv([1]).replace('"1","1"', f'"{text}","1"')
+                code, _, _ = self.run_cli("import", SITE, str(self.bing_file(csv_text, name=f"{SITE}_AIPerformance_m{i}.csv")))
+                self.assertEqual(code, 1)
+                self.assertIsNone(self.saved("bing"))
+
+    def test_the_import_line_for_an_empty_google_download_says_what_the_file_shows(self):
+        code, out, _ = self.run_cli("import", SITE, str(self.google_zip(google_files(daily_chart([0] * 5), []))))
+        self.assertEqual(code, 0)
+        self.assertIn("your download shows no impressions", out)
+        self.assertNotIn("yet", out)
 
 
 if __name__ == "__main__":

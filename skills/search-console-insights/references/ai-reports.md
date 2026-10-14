@@ -20,7 +20,8 @@ Owners say *"here's my AI report from Google"*, *"add my Bing AI numbers"*, or j
    (Search) → **Export** → CSV. It arrives as a zip; Safari may unzip it to a folder,
    which works too. Bing: Bing Webmaster Tools → **AI Performance** → **Export** → CSV. Don't ask
    them to rename the files: both already start with the domain, which is how the wrong site's
-   file is caught. Only a file that has lost its domain needs one, and the script says so.
+   file is caught. Only a file that has lost its domain needs one, and with more than one site the
+   script asks for it.
 2. **Read it:** `~/.config/gsc-insights/venv/bin/python scripts/ai_reports.py import <domain> <file or folder>`.
    It prints one line on success. On a refusal (exit 1) it says why and saves nothing: pass the
    reason on in plain words.
@@ -35,7 +36,7 @@ Owners say *"here's my AI report from Google"*, *"add my Bing AI numbers"*, or j
   data yet", never "0", and never suggest something is broken.
 - **Google writes "not available" as 0** in its download. A 0 on one day or one page is not
   evidence of anything.
-- **Google's total is the chart's.** The pages add up to more, because one answer can show
+- **Google's total is the chart's.** The pages can add up to more, because one answer can show
   several pages of the same site (rule 1 of "Reading the numbers" in `SKILL.md`, again).
 - **Google's download counts one search type**, named on the page (on 2026-10-14: "Web
   (text-based)").
