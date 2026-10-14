@@ -254,8 +254,10 @@ the same flags as the real run that follows: it makes every check that can be ma
 without writing, lists the files it would write and each colour that would change, and
 writes nothing. A dry run also ends with exit 0; it says "Dry run", and it has not made
 the share cards or run the site's tests. Only the real run does those, and only the
-real run can ask the site what it reads (below), so a real run can still end with
-exit 1 after a dry run that passed.
+real run can ask the site what it reads from what it wrote (below), so a real run can
+still end with exit 1 after a dry run that passed. (Where it does not edit
+`src/config.ts`, a dry run too asks the site's Node what it reads from the file as it
+stands; that runs the config's own code.)
 
 ```bash
 python3 "$KIT/scripts/brand_intake.py" install --site . --dry-run
@@ -416,8 +418,10 @@ common ones:
   it edits a value only on its one line in the starter's shape. The refusal shows that
   line with the value wanted. For the manifest and the share-card script its last
   sentence says what to do (write the line in a place it names, or leave one of two
-  lines). For `src/config.ts` it names no line: it says what the site reads now, and to
-  set the value in the file so that the site reads it, keeping every other entry. Do
+  lines). For `src/config.ts` it does not say which line to change or where to add one:
+  it says what the site reads now, and to set the value in the file so that the site
+  reads it, keeping every other entry. Where it could not ask the site's Node, it says
+  the one way that needs none: the line it shows, written as the block's own entry. Do
   that the way the file is written (on a site a developer has reshaped, ask the
   developer), then run again. Before it refuses `src/config.ts`, the tool asks the
   site's own Node what the site reads; where that is already the value wanted, it
@@ -436,7 +440,7 @@ common ones:
   what it found, and quotes no line to write. That is the developer's to mend in
   `src/styles/global.css`; then run again. One exception: a run that applies the
   palette writes the Primary over a brand colour that points at another variable, and
-  the list of changes says `Primary: a value this tool cannot read becomes` the new colour; a logo-only run, `--keep-colours` and `palette --css` stop there, and so
+  the list of changes says `Primary: a value this tool cannot read becomes <the new colour>`; a logo-only run, `--keep-colours` and `palette --css` stop there, and so
   does a run whose palette has no Primary to write, whatever the brand colour holds that
   the check cannot read (then she chooses: the colour written out in the stylesheet, or a
   Primary row in the palette).

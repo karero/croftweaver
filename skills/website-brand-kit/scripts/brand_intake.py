@@ -304,11 +304,14 @@ def main(argv=None):
         code = 2
     report = "\n".join(out)
     import signal
+    import threading
     came = []
-    was = signal.signal(signal.SIGINT, lambda *_a: came.append(1))   # a Ctrl-C until the report's end is held, then raised if it would have been (see command_line)
+    main = threading.current_thread() is threading.main_thread()   # (only the main thread may set a handler: elsewhere the report is said unheld)
+    was = signal.signal(signal.SIGINT, lambda *_a: came.append(1)) if main else None   # a Ctrl-C until the report's end is held, then raised if it would have been (see command_line)
     _OUTCOME[:] = [code]
     _say(report)
-    signal.signal(signal.SIGINT, was)
+    if main:
+        signal.signal(signal.SIGINT, was)
     if came and was is signal.default_int_handler:
         raise KeyboardInterrupt
     return code

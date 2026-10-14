@@ -496,13 +496,18 @@ def read_back(site, wanted):
 def _set_config(site, text, want, where, notes):
     """_site.set_lines for src/config.ts. Where that refuses, the site's own Node is asked first what it reads from the file
     as it stands (before anything is written, in a dry run too: asking only reads). Where that is every value wanted, the
-    file is left as it is, with a note; else the refusal stands, and says what Node reads or why it could not be asked."""
+    file is left as it is, with a note; else the refusal stands, and says what Node reads or why it could not be asked.
+    Where Node cannot be asked, the one way on that needs no Node is said too: the line shown, written as the block's
+    own entry, which the line rule takes as it stands (a key's line that already says the value is never edited).
+    Asking runs the site's own config code, as the read-back after writing does; a config that writes a file when it
+    is imported writes it, in a dry run too (this tool itself writes nothing then)."""
     try:
         return _site.set_lines(_site.CONFIG, text, want, where)
     except Refusal as r:
         got = read_back(site, {_site.CONFIG: want})[_site.CONFIG]
         if got["status"] != "ok":
-            raise Refusal(r.code, " ".join([str(r)] + (["This tool could not ask the site's Node what it reads: %s." % got["why"]] if "why" in got else
+            raise Refusal(r.code, " ".join([str(r)] + (["This tool could not ask the site's Node what it reads: %s. Without the site's Node, this tool takes the value only from the line shown above, "
+                                                     "written as the block's own entry in a block laid out as the starter lays it out." % got["why"]] if "why" in got else
                                                     ["The site reads %s now." % ("no value" if v["reads"] == "nothing" else v["reads"]) for v in got["values"]])))
     for name, value in want.items():
         where.pop(name, None)   # (no line of the file is the place of the value)
@@ -1067,7 +1072,7 @@ def _install(a, site, out, data):
             out.append("  the share cards under %s would be made again" % CARDS)
             if any(wanted.values()):
                 out.append("A real run then asks %s what the site reads from %s: it puts everything back if that is not what it set, and adds a note where it could not ask. "
-                           "A dry run writes nothing, so it cannot ask." % (
+                           "A dry run writes nothing, so it cannot ask what the site reads from what it would write." % (
                     " and ".join(who for who, rel in (("the site's Node", _site.CONFIG), ("Python", _site.GENERATOR)) if wanted.get(rel)),
                     " and ".join(rel for rel in (_site.CONFIG, _site.GENERATOR) if wanted.get(rel))))
             out.extend(_changes_lines(changes, "would change"))

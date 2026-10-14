@@ -106,6 +106,8 @@ STOP_SIGNALS = [getattr(signal, n) for n in _install.SIGNALS if hasattr(signal, 
 
 
 # (round 10) what every refusal of src/config.ts says to do, and what the install asks the site's Node before it refuses
+NO_NODE_WAY = ("Without the site's Node, this tool takes the value only from the line shown above, written as the block's own entry in a block laid out "
+               "as the starter lays it out.")
 CONFIG_ONE = "Set the value in the file yourself so that the site reads it (keep every other entry as it is), then run this again: this tool then asks the site's Node what the site reads."
 ALREADY = "src/config.ts does not set SITE.%s as the starter writes it, and the site reads %s there already (this tool asked the site's Node), so this run leaves that value as it is"
 YOURSELF = "Set the value in the file yourself so that the site reads it, then run this again."   # the end of the read-back's sentence
@@ -2048,7 +2050,7 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
 
     READ_OK = {"src/config.ts": {"status": "ok"}, "scripts/generate_og_cards.py": {"status": "ok"}}
     ASKS = ("A real run then asks the site's Node and Python what the site reads from src/config.ts and scripts/generate_og_cards.py: it puts everything back if that is not "
-            "what it set, and adds a note where it could not ask. A dry run writes nothing, so it cannot ask.")
+            "what it set, and adds a note where it could not ask. A dry run writes nothing, so it cannot ask what the site reads from what it would write.")
 
     def differs(self, rel, name, reads, wanted):
         """The read-back's one sentence (round 10): what the site reads, what this run wanted, and what to do."""
@@ -2318,7 +2320,23 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         finally:
             shutil.which = real
         self.assertEqual(code, 2, out)
-        self.assertTrue(out.split("\nNothing was written.")[0].endswith(". " + CONFIG_ONE + " This tool could not ask the site's Node what it reads: Node is not installed here, or is not on the path."), out)
+        self.assertTrue(out.split("\nNothing was written.")[0].endswith(". " + CONFIG_ONE + " This tool could not ask the site's Node what it reads: Node is not installed here, or is not on the path. "
+                        + NO_NODE_WAY), out)
+        # (round 10, fresh-eyes) the way on that needs no Node, followed: a config whose own value Node cannot be asked about
+        # (here: no Node; the same where Node cannot load the file, `import { BRAND } from './brand'`) went round in a loop,
+        # since a value set any other way could not be seen. Written as the shown line, the run goes through.
+        self.fresh()
+        self.put("src/config.ts", "const BRAND = { primary: '#000000' };\n" + shape("BRAND.primary"))
+        shutil.which = lambda name, *a, **k: None if name == "node" else real(name, *a, **k)
+        try:
+            code, out = self.intake()
+            self.assertEqual(code, 2, out)
+            self.assertIn(NO_NODE_WAY, out)
+            self.put("src/config.ts", "const BRAND = { primary: '#000000' };\n" + shape("'#b4531a'"))
+            code, out = self.intake()
+        finally:
+            shutil.which = real
+        self.assertEqual(code, 0, out)
 
     @POSIX
     def test_where_node_or_python_cannot_say_what_the_site_reads_the_run_goes_on_and_says_so_in_one_note_for_the_file(self):
@@ -3896,7 +3914,7 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
         self.assertIn("  logo: '/images/logo.png',\n  sameAs: ['https://example.org/us'],\n} as const;", listed)
         points = ", and COMPANY.logo points at public/images/logo.png."
         asks = ("A real run then asks the site's Node what the site reads from src/config.ts: it puts everything back if that is not what it set, and adds a note where it could not ask. "
-                "A dry run writes nothing, so it cannot ask.")
+                "A dry run writes nothing, so it cannot ask what the site reads from what it would write.")
         for label, text in (("the starter's own block", config), ("a list below the logo's line, which makes the block one this tool does not edit: the line already says the address", listed),
                             ("an address of her own, which the run sets", config.replace("logo: '/images/logo.png'", "logo: '/images/hers.png'"))):
             with self.subTest(label=label):

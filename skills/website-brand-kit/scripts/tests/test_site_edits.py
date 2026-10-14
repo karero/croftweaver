@@ -1104,7 +1104,7 @@ class Config(LineRule):
             ("a list above it", B.replace("  locale: 'en',\n", "  tags: ['a', 'b'],\n"), under(10, 9, "tags: ['a', 'b'],")),
             ("a template string above it", B.replace("  locale: 'en',\n", "  locale: `en`,\n"), under(10, 9, "locale: `en`,")),
             # the key as the block's last entry, below the text that runs over several lines, and written without a comma (round 7):
-            # the line shown has its comma, and written in place of the block's own it leaves a file that is TypeScript
+            # the line shown has its comma
             ("the key as the block's last entry, with no comma after it", B.replace(own, "").replace("} as const;", "  themeColor: '#000000'\n} as const;", 1), under(17, 14, "description:")),
             ("the key as the block's last entry, with its comma", B.replace(own, "").replace("} as const;", "  themeColor: '#000000',\n} as const;", 1), under(17, 14, "description:")),
             # (c) below the key
