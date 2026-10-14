@@ -1128,11 +1128,14 @@ def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
 
     The XML parser reads the file alone, in whatever encoding it is written, and is stopped at
     a document type: a sitemap needs none, and one can declare nested entities that grow a few
-    hundred bytes into gigabytes of text. The stop is the whole defence; it comes before any
-    declaration inside the document type is read, on every expat version. (Expat itself limits
-    that growth from release 2.4.0, whose changelog names CVE-2013-0340; the /usr/bin/python3
-    of the Mac this was written on, 3.9.6, carries expat 2.2.8.) It is also stopped at a first
-    element other than <urlset> or <sitemapindex>: another kind of document lists no page.
+    hundred bytes into gigabytes of text. Python's documentation of StartDoctypeDeclHandler says
+    it is called when expat begins the document type declaration, so the stop comes before any
+    declaration inside it is read; measured so on expat 2.2.8 and 2.7.4. A second stop, at the
+    first entity declaration, holds should that order ever differ: an entity is declared before
+    it can be used. (Expat itself limits that growth from release 2.4.0, whose changelog names
+    CVE-2013-0340; the /usr/bin/python3 of the Mac this was written on, 3.9.6, carries expat
+    2.2.8.) It is also stopped at a first element other than <urlset> or <sitemapindex>: another
+    kind of document lists no page.
     skills/wordpress-inspector/scripts/wp_inventory.py, parse_sitemap, reads sitemaps the same
     way, where it was measured and reviewed (PR 281).
     Addresses are the text of <loc> directly inside <url> or <sitemap>, whatever prefix the
@@ -1149,6 +1152,10 @@ def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
 
     def doctype(name, system_id, public_id, has_internal_subset):
         seen["doctype"] = name
+        raise _StopReading
+
+    def entity(name, *rest):
+        seen["doctype"] = seen["doctype"] or "?"
         raise _StopReading
 
     def start(name, attrs):
@@ -1169,10 +1176,11 @@ def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
         path.pop()
 
     def chars(data):
-        if in_page_loc():
+        if len(path) == 3 and in_page_loc():  # the <loc>'s own text; a child's text is not the address
             text.append(data)
 
     parser.StartDoctypeDeclHandler = doctype
+    parser.EntityDeclHandler = entity
     parser.StartElementHandler = start
     parser.EndElementHandler = end
     parser.CharacterDataHandler = chars

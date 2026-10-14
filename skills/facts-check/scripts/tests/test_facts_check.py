@@ -1558,9 +1558,14 @@ class SitemapReader(unittest.TestCase):
         commented = ("<?xml version='1.0'?><!-- no <!DOCTYPE here --><urlset xmlns='%s'><!-- <!DOCTYPE x> -->"
                      "<url><loc>https://x.com/c</loc></url></urlset>" % self.NS).encode()
         self.assertEqual(self.read(commented), (["https://x.com/c"], []))
-        # text split by a child element inside <loc> is kept whole, in order
-        split = ("<urlset xmlns='%s'><url><loc>https://x.com/a<x/>b</loc></url></urlset>" % self.NS).encode()
-        self.assertEqual(self.read(split), (["https://x.com/ab"], []))
+        # a <loc>'s own text is the address, in order around a child; the child's text is not part of it
+        split = ("<urlset xmlns='%s'><url><loc>https://x.com/a<x/>b</loc></url>"
+                 "<url><loc>https://x.com/c<x>junk</x>d</loc></url></urlset>" % self.NS).encode()
+        self.assertEqual(self.read(split), (["https://x.com/ab", "https://x.com/cd"], []))
+        # two <loc> in one <url> are two addresses, not one joined; a <loc> under another parent is none
+        two = ("<urlset xmlns='%s'><url><loc>https://x.com/1</loc><loc>https://x.com/2</loc></url>"
+               "<other><loc>https://x.com/no</loc></other></urlset>" % self.NS).encode()
+        self.assertEqual(self.read(two), (["https://x.com/1", "https://x.com/2"], []))
 
     def test_a_cut_off_or_foreign_file_lists_no_page(self):
         cut = ("<urlset xmlns='%s'><url><loc>https://x.com/a</loc></url><url><lo" % self.NS).encode()
