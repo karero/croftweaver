@@ -52,3 +52,5 @@ Further test records:
 
 - Bundled force flags, 2026-10-14, same harness, branch settings: `git push -uf origin main` RAN, `git push origin main -vf` RAN. Not blocked by design (see round 1).
 - Wrangler 4.151.0 (`npx -y wrangler@4`), empty `XDG_CONFIG_HOME`, `WRANGLER_SEND_METRICS=false`, a fake token: no token anywhere, "You are not authenticated"; token only in `.dev.vars`, "You are not authenticated"; `CLOUDFLARE_API_TOKEN` in the shell, a request to `/user/tokens/verify` that Cloudflare rejected ("Invalid format for Authorization header"). So Wrangler reads the shell variable and not `.dev.vars`.
+
+Owner's decision (2026-10-14, in chat), on the RISK both seats raised in rounds 1 and 2 that `git push` stays allowed while a bundled force flag still runs: asked "Keep push allowed" or "Make every push ask", the owner chose "Keep push allowed (Recommended)". The gap is disclosed in website-permissions §2, SETUP.md, the page and the BUGLOG release-notes row. Waived as a guard change; the wording stays under review.
