@@ -686,6 +686,11 @@ class ZipRefusals(unittest.TestCase):
         self.assertEqual((answer["status"], answer["code"], answer["written"]), ("refused", "zip-path", []))
         self.assertIn("it is character 71 of the name; spelled out, the name reads %s round it" % ascii("a" * 30 + c + ".svg"), answer["message"])
         self.assertTrue(answer["message"].isascii())
+        # a name written with each accent apart from its letter (as macOS writes one) counts each such pair as one
+        # character, as a person counts them: 70 letters "é" before the unknown character make it character 71, not 141
+        apart = "e\u0301" * 70 + c + ".svg"
+        said = str(refused(self, lambda: _zipin.open_zip(self.zip_((apart, SVG))), "zip-path"))
+        self.assertIn("it is character 71 of the name", said)
 
     def test_a_name_that_is_a_blank_or_ends_in_one_refuses_the_package(self):
         # `logo<U+2800>.svg` (the empty braille cell), a name of three spaces and an ideographic space all passed: Unicode files

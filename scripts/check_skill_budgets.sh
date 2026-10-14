@@ -18,8 +18,8 @@ DESC_HARD=1024
 DESC_WARN=900
 LINES_SOFT=500
 # Breakage tripwire, not an inventory ledger: it catches a broken glob/path
-# (0 files) or catastrophic loss, while tolerating routine removals. The suite
-# holds 35 skills as of 2026-10-12.
+# (0 files) or catastrophic loss, while tolerating routine removals. The real
+# count is not kept here, where it would go stale: `ls -d skills/*/` gives it.
 MIN_SKILLS=20
 
 # Descriptions over DESC_HARD that are tolerated for now, pinned so they can

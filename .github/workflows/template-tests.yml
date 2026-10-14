@@ -650,7 +650,10 @@ jobs:
             false) want=skipped ;;
             *) echo "::error::the changes job gave run='$RUN', neither true nor false"; exit 1 ;;
           esac
-          for r in $RESULTS; do
+          # one word per job named in RESULTS above (seven): a loop over the words would pass over an empty one unseen
+          set -- $RESULTS
+          [ "$#" -eq 7 ] || { echo "::error::expected 7 job results, got $#: '$RESULTS'"; exit 1; }
+          for r in "$@"; do
             [ "$r" = "$want" ] || { echo "::error::a job ended '$r' where '$want' was due"; exit 1; }
           done
           echo "template tests: every job $want"

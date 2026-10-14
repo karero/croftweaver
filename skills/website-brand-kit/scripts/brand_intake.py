@@ -307,13 +307,15 @@ def main(argv=None):
     import threading
     came = []
     main = threading.current_thread() is threading.main_thread()   # (only the main thread may set a handler: elsewhere the report is said unheld)
-    was = signal.signal(signal.SIGINT, lambda *_a: came.append(1)) if main else None   # a Ctrl-C until the report's end is held, then raised if it would have been (see command_line)
+    was = signal.signal(signal.SIGINT, lambda _signum, frame: came.append(frame)) if main else None   # a Ctrl-C until the report's end is held, then raised if it would have been (see command_line)
     _OUTCOME[:] = [code]
     _say(report)
     if main:
         signal.signal(signal.SIGINT, was)
     if came and was is signal.default_int_handler:
         raise KeyboardInterrupt
+    if came and callable(was):   # a program that runs main() with its own handler gets the press it would have had
+        was(signal.SIGINT, came[0])
     return code
 
 
