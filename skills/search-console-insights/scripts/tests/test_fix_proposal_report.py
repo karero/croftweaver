@@ -1,0 +1,395 @@
+"""The weekly fix proposal on the owner's report page, entered through search_report.build().
+
+Why: the report is where the owner meets the proposal, and the weekly job reaches it only through
+build(). A proposal chosen from saved data after Google failed, a thin site told it has work to
+do, a "no" forgotten a week later or a before-and-after that claims more than it checked would
+each reach the owner from here. Each test runs one scenario of
+docs/reviews/SKILL-PLAN-scheduled-search-fixes.md through build(), with the fake Google of
+test_search_report.py, a stand-in for the owner's live page and for GitHub, and the assistant's
+own commands (fix_proposal.main) in between, as the owner would see it week after week. The live
+page reader itself is tested against a local web server at the end.
+
+Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tests
+"""
+import contextlib
+import datetime as dt
+import html
+import io
+import json
+import os
+import sys
+import tempfile
+import threading
+import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, HERE)
+import fix_proposal as fp  # noqa: E402
+import search_report as sr  # noqa: E402
+from test_search_report import FakeGoogle  # noqa: E402
+
+SITE = "radwerk-plagwitz.example"
+PAGE = f"https://{SITE}/reparatur"
+QUERY = "fahrrad reparatur leipzig"
+OLD_TITLE = "Reparatur und Service | Radwerk Plagwitz"
+NEW_TITLE = "Fahrradreparatur in Leipzig-Plagwitz | Radwerk Plagwitz"
+PR = "https://github.com/example-owner/radwerk/pull/31"
+D = dt.date.fromisoformat
+
+# Report Mondays and the first date Google calls incomplete on each (a three-day lag).
+WEEKS = {"2026-11-02": "2026-10-30", "2026-11-09": "2026-11-06", "2026-11-16": "2026-11-13",
+         "2026-12-14": "2026-12-11"}
+
+
+def q(text, imp, pos, clicks=0):
+    return {"keys": [text], "impressions": imp, "position": pos, "clicks": clicks}
+
+
+def qp(text, page, imp):
+    return {"keys": [text, page], "impressions": imp}
+
+
+def daily(end, days=120, impressions=100):
+    return {(end - dt.timedelta(days=i)).isoformat(): (5, impressions, 9.0) for i in range(days)}
+
+
+def old_page(url):
+    return {"title": OLD_TITLE, "h1": "Reparatur und Service", "first_paragraph": "Wir reparieren Räder."}
+
+
+def new_page(url):
+    return {"title": NEW_TITLE, "h1": "Fahrradreparatur in Leipzig", "first_paragraph": "Wir reparieren Räder."}
+
+
+class ProposalReportTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name)
+        (self.home / ".config/gsc-insights").mkdir(parents=True)
+        self.env = mock.patch.dict(os.environ, {"HOME": str(self.home)}, clear=False)
+        self.env.start()
+        for k in ("GSC_HISTORY_CSV", "GSC_COUNTRY", "BING_API_KEY"):
+            os.environ.pop(k, None)
+        self.reads = []
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def google(self, monday, **kw):
+        fid = WEEKS[monday]
+        kw.setdefault("daily", daily(D(fid) - dt.timedelta(days=1)))
+        kw.setdefault("queries", [q(QUERY, 286, 11.6, 2), q("radwerk plagwitz", 900, 1.2, 80)])
+        kw.setdefault("query_pages", [qp(QUERY, PAGE, 271), qp(QUERY, f"https://{SITE}/", 15)])
+        return FakeGoogle(fid=fid, **kw)
+
+    def build(self, monday, google=None, page=old_page, gh=None, site=SITE):
+        g = google or self.google(monday)
+
+        def read(url):
+            self.reads.append(url)
+            return page(url)
+
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            out = sr.build(site, SimpleNamespace(keywords="", country=None, csv=None),
+                           service_factory=g if callable(g) and not isinstance(g, FakeGoogle) else (lambda: g),
+                           today=D(monday), page_reader=read, gh=gh or (lambda repo, number: None))
+        self.log = err.getvalue()          # what track.sh writes into the weekly log
+        return out.read_text(encoding="utf-8")
+
+    def state(self, site=SITE):
+        return json.loads(fp.state_path(site).read_text(encoding="utf-8"))
+
+    def assistant(self, *argv):
+        self.assertEqual(fp.main(list(argv)), 0)
+
+
+class Scenarios(ProposalReportTest):
+    def test_scenario_1_the_report_proposes_one_fix_and_the_sentence_to_say(self):
+        page = self.build("2026-11-02")
+        self.assertIn("One thing to fix this week", page)
+        self.assertIn(html.escape(f"Work “{QUERY}” into the title, heading and first paragraph of /reparatur"), page)
+        self.assertIn("In the 4 weeks 2026-09-28 to 2026-10-25", page)
+        self.assertIn("286 times, at an average position of 11.6; 271 of those times on this page", page)
+        self.assertIn(html.escape(f"/search-console-insights work '{QUERY}' into the title, heading and "
+                                  f"first paragraph of {PAGE}"), page)
+        self.assertEqual(self.reads, [PAGE])             # only the proposal's own page is read
+        st = self.state()
+        self.assertEqual(st["current"], fp.proposal_key(PAGE, QUERY))
+        self.assertEqual(st["proposals"][st["current"]]["old_title"], OLD_TITLE)
+        self.assertIn("Counted as your business name: radwerk plagwitz, radwerkplagwitz", page)
+        self.assertIn(f"Fix proposal: work “{QUERY}” into {PAGE} (shown 286 times in 4 weeks, average position 11.6)",
+                      self.log)
+
+    def test_scenario_2_a_thin_site_gets_an_honest_week_and_no_file(self):
+        site = "tonstube-kassel.example"
+        start = D("2026-09-28")
+        days = {(start + dt.timedelta(days=i)).isoformat(): (0, 4, 14.0) for i in range(16)}  # 16 × 4 = 64
+        queries = [q("tonstube kassel", 41, 1.0)] + [q(f"keramik {i}", 3, 14.0) for i in range(9)]
+        g = self.google("2026-11-02", daily=days, queries=queries,
+                        query_pages=[qp(r["keys"][0], f"https://{site}/", r["impressions"]) for r in queries])
+        page = self.build("2026-11-02", google=g, site=site)
+        self.assertIn("Too little data to propose a change this week: shown 64 times in 4 weeks "
+                      "(2026-09-28 to 2026-10-25), 41 of them for your name.", page)
+        self.assertIn(f"a search shown {fp.T1_MIN_IMPRESSIONS} times at position 8 to 20", page)
+        self.assertEqual(self.reads, [])
+        self.assertFalse(fp.state_path(site).exists())
+        self.assertIn("Fix proposal: none this week (too little data: shown 64 times in 4 weeks)", self.log)
+
+    def test_scenario_6_the_owners_no_holds_and_the_page_says_until_when(self):
+        self.build("2026-11-02")
+        with mock.patch.object(fp, "_today", return_value=D("2026-11-02")):   # the scenario's clock
+            self.assistant("decline", SITE)
+        until = D("2027-01-25")
+        page = self.build("2026-11-09")
+        self.assertNotIn(html.escape(f"Work “{QUERY}”"), page)
+        self.assertIn(html.escape(f"“{QUERY}” on /reparatur: turned down; not proposed again before {until:%d %B %Y}."), page)
+
+    def test_scenario_8_from_the_pull_request_to_before_and_after(self):
+        self.build("2026-11-02")                                          # old title seen
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-03T10:00:00Z", "closedAt": "2026-11-03T10:00:00Z"}
+
+        page = self.build("2026-11-09", page=new_page, gh=merged)         # new title seen
+        self.assertIn(html.escape("live; the before-and-after comparison appears once Google's numbers reach "
+                                  "06 December 2026"), page)
+        # The page stays out of new proposals, and the page says why in the owner's words.
+        self.assertIn(html.escape(f"“{QUERY}”: an earlier change to the same page is still being measured"), page)
+
+        measure = {(QUERY, "2026-10-05", "2026-11-01"): {"impressions": 279, "clicks": 2, "position": 11.4},
+                   (QUERY, "2026-11-09", "2026-12-06"): {"impressions": 402, "clicks": 9, "position": 7.9}}
+        page = self.build("2026-12-14", google=self.google("2026-12-14", measure=measure), page=new_page, gh=merged)
+        self.assertIn("position 11.4 → 7.9, shown 279 → 402 times, visits 2 → 9", page)
+        self.assertIn(html.escape("This compares one search before and after the change. It does not check "
+                                  "what else changed on your site or in Google's results."), page)
+        self.assertNotIn(html.escape(f"Work “{QUERY}”"), page)     # "Fahrradreparatur" now carries the words
+        self.assertNotIn("consistent with", page)
+        self.assertNotIn("caused", page)
+        rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+        self.assertEqual((rec["result"]["before"]["from"], rec["result"]["after"]["to"]), ("2026-10-05", "2026-12-06"))
+
+    def test_a_closed_pull_request_counts_as_no_from_its_closing_day(self):
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        closed = lambda repo, number: {"state": "CLOSED", "mergedAt": None, "closedAt": "2026-11-04T08:00:00Z"}
+        page = self.build("2026-11-09", gh=closed)
+        self.assertIn("you closed pull request 31; not proposed again before 27 January 2027", page)
+
+    def test_merged_but_not_live_names_the_publishing_step(self):
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-03T10:00:00Z", "closedAt": None}
+        page = self.build("2026-11-09", gh=merged)                        # still the old title live
+        self.assertIn("merged in pull request 31, not seen on the live site yet", page)
+        self.assertIn("npm run ship", page)
+
+    def test_github_out_of_reach_changes_nothing_and_says_so(self):
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        page = self.build("2026-11-09")                                   # gh answers None
+        self.assertIn("pull request 31 could not be checked; tell your assistant if it was closed", page)
+
+    def test_scenario_9_no_new_proposal_from_saved_data(self):
+        self.build("2026-11-02")
+        self.reads.clear()
+
+        def expired():
+            raise sr.SignInError("token expired")
+        page = self.build("2026-11-09", google=expired)
+        self.assertIn("No new proposal this week: Google's numbers could not be refreshed.", page)
+        self.assertNotIn(html.escape(f"Work “{QUERY}”"), page)
+        self.assertEqual(self.reads, [])
+        self.assertIn("Fix proposal: none new this week (Google's numbers could not be refreshed)", self.log)
+
+    def test_a_damaged_record_costs_its_line_not_the_page(self):
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        st = self.state()
+        st["proposals"][fp.proposal_key(PAGE, QUERY)]["result"] = {"weeks": 4}      # no before/after
+        fp.state_path(SITE).write_text(json.dumps(st), encoding="utf-8")
+        page = self.build("2026-11-09")
+        self.assertIn("How people find you on Google", page)
+        self.assertIn("One earlier proposal could not be read", page)
+
+    def test_a_failed_comparison_keeps_the_weeks_look_and_tries_again(self):
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-03T10:00:00Z", "closedAt": None}
+        self.build("2026-11-09", page=new_page, gh=merged)
+        measuring = lambda body: body.get("dimensions") == ["query"] and body.get("dimensionFilterGroups")
+        page = self.build("2026-12-14", google=self.google("2026-12-14", fail=measuring), page=new_page, gh=merged)
+        self.assertIn("How people find you on Google", page)
+        rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+        self.assertNotIn("result", rec)
+        self.assertEqual((rec["checks"][-1]["date"], rec["checks"][-1]["outcome"]), ("2026-12-14", "new"))
+        measure = {(QUERY, "2026-10-05", "2026-11-01"): {"impressions": 279, "clicks": 2, "position": 11.4},
+                   (QUERY, "2026-11-09", "2026-12-06"): {"impressions": 402, "clicks": 9, "position": 7.9}}
+        page = self.build("2026-12-14", google=self.google("2026-12-14", measure=measure), page=new_page, gh=merged)
+        self.assertIn("position 11.4 → 7.9", page)
+
+    def test_a_busy_site_with_nothing_in_reach_is_not_told_it_has_too_little_data(self):
+        g = self.google("2026-11-02", queries=[q("radwerk plagwitz", 900, 1.2), q("fahrradladen leipzig", 4000, 2.1)],
+                        query_pages=[qp("fahrradladen leipzig", PAGE, 4000)])
+        page = self.build("2026-11-02", google=g)
+        self.assertNotIn("Too little data", page)
+        self.assertIn("no search met every condition for one (at position 8 to 20, shown at least 50 times in 4 "
+                      "weeks, on a page shown at least 10 times", page)
+        self.assertIn("no search met every condition for a proposal", self.log)
+
+    def test_github_out_of_reach_after_an_answer_is_named(self):
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        opened = lambda repo, number: {"state": "OPEN", "mergedAt": None, "closedAt": None}
+        self.build("2026-11-09", gh=opened)
+        page = self.build("2026-11-16")                                    # gh answers None now
+        self.assertIn("waiting in pull request 31", page)
+        self.assertIn("GitHub could not be asked this week, so this is the last state it gave.", page)
+        self.assertIn("02 November 2026", page)                           # owner dates, not ISO
+
+    def test_a_second_report_on_the_day_the_change_went_live_keeps_both_looks(self):
+        # Round 1: the second run of the day replaced the morning's "old" look, and the page then
+        # waited forever for windows that could never form.
+        self.build("2026-11-09")                                          # old title, morning
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-09T10:00:00Z", "closedAt": None}
+        page = self.build("2026-11-09", page=new_page, gh=merged)        # live by the afternoon
+        self.assertIn(html.escape("live; the before-and-after comparison appears once Google's numbers reach "
+                                  "06 December 2026"), page)
+        self.assertEqual([c["outcome"] for c in self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]["checks"]],
+                         ["old", "new"])
+
+    def test_a_measured_page_is_freed_once_github_no_longer_says_open(self):
+        # Round 2: measured records were never asked about again, so a last-known OPEN blocked
+        # the page for good.
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        st = self.state()
+        rec = st["proposals"][fp.proposal_key(PAGE, QUERY)]
+        rec["pr"]["state"], rec["result"] = "OPEN", {"too_soon": True, "interrupted": "2026-11-12"}
+        fp.state_path(SITE).write_text(json.dumps(st), encoding="utf-8")
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-20T10:00:00Z", "closedAt": None}
+        self.build("2026-12-14", page=new_page, gh=merged)
+        rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+        self.assertEqual((rec["pr"]["state"], fp.page_block(rec)), ("MERGED", ""))
+
+    def test_a_measured_round_is_asked_about_until_github_says_merged(self):
+        # Round 3: a measured round whose last answer was unknown or closed was never asked again.
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        for last in (None, "CLOSED"):
+            st = self.state()
+            rec = st["proposals"][fp.proposal_key(PAGE, QUERY)]
+            rec["pr"]["state"], rec["result"] = last, {"too_soon": True, "interrupted": "2026-11-12"}
+            rec.pop("declined_on", None)
+            rec.pop("decline_reason", None)
+            fp.state_path(SITE).write_text(json.dumps(st), encoding="utf-8")
+            asked = []
+            reopened = lambda repo, number: asked.append(number) or {"state": "OPEN", "mergedAt": None, "closedAt": None}
+            self.build("2026-12-14", page=new_page, gh=reopened)
+            rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+            self.assertEqual((asked, rec["pr"]["state"], fp.page_block(rec)), ([31], "OPEN", "pull request open"), last)
+
+    def test_two_different_titles_on_one_day_are_both_kept(self):
+        # Round 6: a second "other" title on the same day was dropped, so correcting the recorded
+        # title to it could not find the look that saw it.
+        self.build("2026-11-09")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", "Fahrradreparatur | Example")
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-09T10:00:00Z", "closedAt": None}
+        for title in ("Something unrelated", NEW_TITLE):
+            self.build("2026-11-09", page=lambda url, t=title: {"title": t, "h1": "", "first_paragraph": ""}, gh=merged)
+        self.assistant("acted", SITE, "--page", PAGE, "--pr", PR, "--new-title", NEW_TITLE)
+        rec = self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]
+        self.assertEqual([c["outcome"] for c in rec["checks"]], ["old", "other", "new"])
+
+    def test_a_title_that_is_neither_old_nor_new_asks_for_a_check(self):
+        self.build("2026-11-02")
+        self.assistant("acted", SITE, "--pr", PR, "--new-title", NEW_TITLE)
+        merged = lambda repo, number: {"state": "MERGED", "mergedAt": "2026-11-03T10:00:00Z", "closedAt": None}
+        third = lambda url: {"title": "Fahrradreparatur | Example", "h1": "", "first_paragraph": ""}
+        page = self.build("2026-11-09", page=third, gh=merged)
+        self.assertIn("title is neither the old one nor the new one recorded for pull request 31", page)
+        self.assertNotIn("npm run ship", page)
+
+    def test_a_damaged_proposals_file_costs_the_section_not_the_page(self):
+        fp.state_path(SITE).parent.mkdir(parents=True, exist_ok=True)
+        fp.state_path(SITE).write_text("[]", encoding="utf-8")
+        page = self.build("2026-11-02")
+        self.assertIn("How people find you on Google", page)
+        self.assertIn("could not be worked out", page)
+        self.assertIn("Fix proposal: could not be worked out", self.log)
+        self.assertEqual(fp.state_path(SITE).read_text(encoding="utf-8"), "[]")
+
+
+class _Pages(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path in ("/away", "/home"):
+            # /away leaves the site (localhost is another host than 127.0.0.1); /home stays on it.
+            port = self.server.server_address[1]
+            host = "localhost" if self.path == "/away" else "127.0.0.1"
+            self.send_response(302)
+            self.send_header("Location", f"http://{host}:{port}/reparatur")
+            self.end_headers()
+            return
+        if self.path == "/reparatur":
+            body = f"<html><head><title>{OLD_TITLE}</title></head><body><h1>Reparatur</h1></body></html>".encode()
+            self.send_response(200)
+        elif self.path == "/odd-charset":
+            body = f"<html><head><title>{OLD_TITLE}</title></head></html>".encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=x-no-such-charset")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        elif self.path == "/huge":
+            body = b"<title>x</title>" + b"a" * (sr.PAGE_MAX_BYTES + 10)
+            self.send_response(200)
+        else:
+            body = b"not here"
+            self.send_response(404)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *a):
+        pass
+
+
+class LivePageReader(unittest.TestCase):
+    """read_live_page against a real local server: what the report reads from the owner's site."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), _Pages)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.base = f"http://127.0.0.1:{cls.srv.server_address[1]}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+
+    def test_the_owners_page_is_read(self):
+        self.assertEqual(sr.read_live_page(self.base + "/reparatur", "127.0.0.1")["title"], OLD_TITLE)
+
+    def test_a_missing_or_oversized_page_is_unreadable(self):
+        self.assertIsNone(sr.read_live_page(self.base + "/gone", "127.0.0.1"))
+        self.assertIsNone(sr.read_live_page(self.base + "/odd-charset", "127.0.0.1"))   # never a crash
+        self.assertIsNone(sr.read_live_page(self.base + "/huge", "127.0.0.1"))
+
+    def test_a_redirect_is_followed_only_on_the_site(self):
+        # Round 1: the first address was checked, the redirect's was not.
+        self.assertIsNone(sr.read_live_page(self.base + "/away", "127.0.0.1"))
+        self.assertEqual(sr.read_live_page(self.base + "/home", "127.0.0.1")["title"], OLD_TITLE)
+
+    def test_another_host_is_never_fetched(self):
+        self.assertIsNone(sr.read_live_page(self.base + "/reparatur", "radwerk-plagwitz.example"))
+        self.assertIsNone(sr.read_live_page("file:///etc/passwd", "127.0.0.1"))
+
+
+if __name__ == "__main__":
+    unittest.main()
