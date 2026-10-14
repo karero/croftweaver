@@ -35,6 +35,7 @@ left out of the artifact).
 | 3 (verification) | 0118cf2 | Codex medium (321 s, 76k tokens), GLM 5.3 on melious (443 s, 34k) | 2 / 3 / 2 (F29–F35) | delta 1c20966..0118cf2; `make test` 244 OK, `make check` exit 0 before the round. F30 is a substantive BUG: round 4 earned (named here, as the budget asks past round 3) |
 | 4 (verification) | 3090c40 | Codex medium (340 s, 67k tokens), GLM 5.3 on melious (328 s, 22k) | 1 / 1 / 2 (F36–F39) | delta 0118cf2..3090c40; `make test` 246 OK, `make check` exit 0 before the round. F36 is a substantive BUG: round 5 earned |
 | 5 (verification) | 296d55c | Codex medium (207 s, 62k tokens), GLM 5.3 on melious (224 s, 22k) | 1 / 0 / 5 (F40–F45) | delta 3090c40..296d55c; `make test` 248 OK, `make check` exit 0 before the round. F40 refuted with the owner's agreement, so no substantive BUG: **the rounds end** (stop condition a2). The NIT fixes and F40's hardening are locally_verified, not externally re-verified until the re-gate below |
+| re-gate (not a round) | 1136a76 | Codex medium only (105 s, 58k tokens): the seat with an unbroken chain (melious's broke in round 2) | 0 / 0 / 0 | delta 296d55c..1136a76: F40's hardening, F41, F43, F44 at full scope; the trail and the plan's status row for factual contradictions only. Clean; it confirmed the prose hunks hold no code. `make test` 249 OK, `make check` exit 0 before it |
 
 ## Findings
 
