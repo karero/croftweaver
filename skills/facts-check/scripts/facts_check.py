@@ -71,9 +71,9 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from typing import Dict, List, Optional, Tuple
+from xml.parsers import expat
 
 USER_AGENT = "facts-check/1.0 (read-only site consistency check)"
 MAX_BYTES = 5 * 1024 * 1024
@@ -1089,17 +1089,12 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
         if len(body) > SITEMAP_MAX_BYTES:
             notes.append("sitemap %s: larger than the 50 MB a sitemap may be; not read" % sm)
             continue
-        try:
-            root = ET.fromstring(body)
-        except ET.ParseError:
-            notes.append("sitemap %s: not valid XML" % sm)
+        kind, locs, problem = read_sitemap_xml(body)
+        if problem:
+            notes.append("sitemap %s: %s" % (sm, problem))
             continue
-        # Only <url><loc> and <sitemap><loc>: image:loc and video:*_loc are not pages.
-        locs = [loc.text.strip()
-                for entry in root if _local(entry.tag) in ("url", "sitemap")
-                for loc in entry if _local(loc.tag) == "loc" and loc.text and loc.text.strip()]
         locs = [clean_address(u) for u in locs]
-        if _local(root.tag) == "sitemapindex":
+        if kind == "sitemapindex":
             queue.extend(locs)
         else:
             for u in locs:
@@ -1123,8 +1118,89 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
     return pages[:limit]
 
 
-def _local(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1]
+class _StopReading(Exception):
+    pass
+
+
+def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
+    """(kind, addresses, problem): kind is "urlset" or "sitemapindex", or "" with a problem when
+    the file is not a sitemap or could not be read.
+
+    The XML parser reads the file alone, in whatever encoding it is written, and is stopped at
+    a document type: a sitemap needs none, and one can declare nested entities that grow a few
+    hundred bytes into gigabytes of text. Python's documentation of StartDoctypeDeclHandler says
+    it is called when expat begins the document type declaration, so the stop comes before any
+    declaration inside it is read; measured so on expat 2.2.8 and 2.7.4. A second stop sits at
+    the first entity declaration: on those two versions either stop alone refuses a 10-level
+    entity tree before any of it expands (measured, PR 293). (Expat itself limits that growth
+    from release 2.4.0, whose changelog names CVE-2013-0340; the /usr/bin/python3 of the Mac
+    this was written on, 3.9.6, carries expat 2.2.8.) It is also stopped at a first element
+    other than <urlset> or <sitemapindex>: another kind of document lists no page.
+    skills/wordpress-inspector/scripts/wp_inventory.py, parse_sitemap, reads sitemaps the same
+    way, where it was measured and reviewed (PR 281).
+    Addresses are the text of <loc> directly inside <url> or <sitemap>, whatever prefix the
+    elements carry: the <loc>'s own text, not the text of an element inside it. image:loc and
+    video:*_loc sit deeper and are not pages."""
+    seen = {"root": None, "doctype": None}
+    path: List[str] = []
+    locs: List[str] = []
+    text: List[str] = []
+    parser = expat.ParserCreate(namespace_separator="}")
+    parser.buffer_text = True
+
+    # `path` holds every open element, the root first (start() pushes each one, end() pops it), so
+    # a page's <loc> is always path[2], under path[1] = <url> or <sitemap>; len(path) == 3 means
+    # that <loc> itself is the innermost open element.
+    def in_page_loc() -> bool:  # inside a <loc> that names a page, or inside a child of one
+        return len(path) >= 3 and path[2] == "loc" and path[1] in ("url", "sitemap")
+
+    def doctype(name, system_id, public_id, has_internal_subset):
+        seen["doctype"] = name
+        raise _StopReading
+
+    def entity(name, *rest):
+        seen["doctype"] = seen["doctype"] or "?"
+        raise _StopReading
+
+    def start(name, attrs):
+        local = name.rsplit("}", 1)[-1]
+        if seen["root"] is None:
+            seen["root"] = local
+            if local not in ("urlset", "sitemapindex"):
+                raise _StopReading
+        path.append(local)
+        if len(path) == 3 and in_page_loc():
+            del text[:]
+
+    def end(name):
+        if len(path) == 3 and in_page_loc():
+            loc = "".join(text).strip()
+            if loc:
+                locs.append(loc)
+        path.pop()
+
+    def chars(data):
+        if len(path) == 3 and in_page_loc():  # the <loc>'s own text; a child's text is not the address
+            text.append(data)
+
+    parser.StartDoctypeDeclHandler = doctype
+    parser.EntityDeclHandler = entity
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.CharacterDataHandler = chars
+    try:
+        parser.Parse(body, True)
+    except _StopReading:
+        if (seen["doctype"] or seen["root"] or "").lower() == "html":
+            return "", [], "a web page, not a sitemap; not read"
+        if seen["doctype"] is not None:
+            return "", [], "declares a document type, which a sitemap does not need; not read"
+        return "", [], "not a sitemap (it opens with <%s>); not read" % seen["root"]
+    # ExpatError: cut off or damaged. LookupError and ValueError: pyexpat's answers to an encoding
+    # it does not know or cannot map (utf-7, shift_jis); the handlers above raise neither.
+    except (expat.ExpatError, LookupError, ValueError):
+        return "", [], "not valid XML"
+    return seen["root"] or "", locs, ""
 
 
 def default_sitemaps(fetcher: Fetcher, site: str) -> List[str]:
