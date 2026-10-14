@@ -9,10 +9,10 @@ scenarios are made up.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ▶ rewritten for Option 0 after the decisions; not reviewed | draft PR #286 (branch `docs/scheduled-search-fixes-requirements`) |
+| 1 | Requirements and scenarios (this file) | ✅ rewritten for Option 0 after the decisions; reviewed (step 3) | PR #286 (branch `docs/scheduled-search-fixes-requirements`) |
 | 2 | Owner answers the open decisions | ✅ D0 to D11 decided 2026-10-14 | owner's answers in chat, 2026-10-14 |
-| 3 | Review gate on this file (Normal: a plan, so never Light) | ▶ 3 rounds, 32 findings once duplicates between the two seats are merged (round 1: 15; round 2: 11; round 3: 6, no BUG); all fixed, except one copy of the competitor recipe declined; wording pass: 8 findings (3 BUG, 5 RISK), 7 fixed, 1 refuted; fix check: no BUG, 3 RISK on outside services and the competitor, proposed to the owner for waiver | trail `REVIEW-plan-2026-10-14-scheduled-search-fixes-ac8b71b.md` |
-| 4 | Design plan (the mechanism), then build, then its own review gate | ⏸ waits for 3 | — |
+| 3 | Review gate on this file (Normal: a plan, so never Light) | ✅ 3 rounds, 32 findings once duplicates between the two seats are merged (round 1: 15; round 2: 11; round 3: 6, no BUG); all fixed, except one copy of the competitor recipe declined; wording pass: 8 findings (3 BUG, 5 RISK), 7 fixed, 1 refuted; fix check: no BUG, 3 RISK on outside services and the competitor, owner-waived 2026-10-14 (checked in the design plan) | trail `REVIEW-plan-2026-10-14-scheduled-search-fixes-ac8b71b.md` |
+| 4 | Design plan (the mechanism), first confirming Google's and Serper's behaviour (the waived RISKs), then build, then its own review gate | ⏸ not started | — |
 | 5 | Release note line in 0.32 (D10) | ⏸ waits for 4 | — |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked · ⚠ deviated

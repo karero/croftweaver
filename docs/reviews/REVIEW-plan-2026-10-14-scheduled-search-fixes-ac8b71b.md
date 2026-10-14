@@ -86,10 +86,12 @@ all on things the repository cannot show:
 
 | # | Kind | Finding | Disposition |
 |---|---|---|---|
-| 1 | RISK | Google's completeness, filter and omitted-query behaviour is still unproven; "confirm in the design plan" does not close it | Proposed to the owner for waiver at the requirements stage: it is checked in the design plan, before any build |
-| 2 | RISK | Serper's freshness and the meaning of its title and snippet fields are unproven | Same: proposed for waiver, to be checked in the design plan |
-| 3 | RISK | The competitor claim (fourth time) | Same: proposed for waiver; the claim states what was read, where and when |
+| 1 | RISK | Google's completeness, filter and omitted-query behaviour is still unproven; "confirm in the design plan" does not close it | Owner-waived 2026-10-14 at the requirements stage: checked in the design plan, before any build |
+| 2 | RISK | Serper's freshness and the meaning of its title and snippet fields are unproven | Owner-waived 2026-10-14: checked in the design plan |
+| 3 | RISK | The competitor claim (fourth time) | Owner-waived 2026-10-14; the claim states what was read, where and when |
 
 The two remaining RISKs on outside services and the repeated competitor RISK are the
 same kind each round: claims about systems outside the repository. Another round would
 not settle them.
+
+Gate closed 2026-10-14: 3 rounds, a wording pass and a fix check; 43 findings, 38 fixed, 2 refuted, 3 owner-waived.
