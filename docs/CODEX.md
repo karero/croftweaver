@@ -18,7 +18,8 @@ codex plugin add croftweaver@croftweaver
 Codex keeps the plugin in its own folder (`~/.codex/plugins/cache/croftweaver/`), installs
 releases only, and `codex plugin marketplace upgrade` brings you the newest one. The skills
 carry the plugin's name in front: `$croftweaver:new-website`. Use this route or the one
-below, not both: with both, every skill is listed twice.
+below, not both: with both, every skill is listed twice. The same holds in a site built with
+the suite, for the skills the site carries in its `.agents/skills/`.
 
 **From a clone:**
 ```bash

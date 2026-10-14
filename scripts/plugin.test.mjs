@@ -63,9 +63,9 @@ test('the Codex marketplace offers the same plugin from the same place, with the
   const [entry] = codex.plugins;
   assert.equal(entry.name, plugin.name);
   assert.deepEqual(entry.source, claude.plugins[0].source);
-  // OpenAI's documentation says every entry carries these three; the CLI installs without
-  // them, the desktop app is what asks.
-  assert.deepEqual(Object.keys(entry.policy).sort(), ['authentication', 'installation']);
+  // OpenAI's documentation says every entry carries these three. The CLI installed from the
+  // Claude Code entry, which has none of them; the documentation is what asks.
+  assert.deepEqual(entry.policy, { installation: 'AVAILABLE', authentication: 'ON_INSTALL' });
   assert.equal(typeof entry.category, 'string');
   // The number lives in plugin.json only, as for Claude Code.
   assert.equal(entry.version, undefined);
@@ -122,8 +122,8 @@ function block(file, first, end) {
 }
 
 // The lines new-website tells the assistant to run to find the installed suite, taken from
-// SKILL.md itself: from the SKILLS_ROOT test to the end of the PROJECT_SKILLS_DIR one.
-const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'if [ -z "${SKILLS_ROOT:-}" ]; then', 'mkdir <site> && cd <site> && git init');
+// SKILL.md itself: from where Codex's folder is set to the end of the PROJECT_SKILLS_DIR test.
+const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'codex_home="${CODEX_HOME:-$HOME/.codex}"', 'mkdir <site> && cd <site> && git init');
 
 // Runs lines of a skill as an assistant would: `filled` is what stands in place of the name
 // in braces (Claude Code), or null to leave the text as written (any other assistant).
@@ -188,7 +188,8 @@ test('an assistant that fills nothing in still finds its own install, and the un
 
 // Codex fills nothing in, so a Codex plugin is found where Codex keeps it:
 // <CODEX_HOME or ~/.codex>/plugins/cache/<marketplace>/<plugin>/<version>/skills. An update
-// replaces the version folder (seen with Codex CLI 0.162.1), so there is one.
+// replaced the version folder (seen with Codex CLI 0.162.1); should there be more than one,
+// the last by name is taken.
 const codexPlugin = (codexHome, version = '0.32.0') => path.join(codexHome, 'plugins', 'cache', 'croftweaver', 'croftweaver', version, 'skills');
 
 test('an assistant that fills nothing in finds the suite installed as a Codex plugin, and bundles for Codex', () => {
@@ -199,11 +200,20 @@ test('an assistant that fills nothing in finds the suite installed as a Codex pl
     assert.deepEqual(runLookup({ filled: null, home, strict }), { root: plugin, project: '.agents/skills' });
   }
 
-  // CODEX_HOME moves Codex's folder: the lookup follows it.
+  // CODEX_HOME moves Codex's folder: the lookup follows it, also written with a slash at
+  // the end, which must not send the site's skills to .claude/skills.
   const elsewhere = tmp();
   const moved = codexPlugin(path.join(elsewhere, 'codex home'));
   suiteAt(moved);
-  assert.deepEqual(runLookup({ filled: null, home: tmp(), env: { CODEX_HOME: path.join(elsewhere, 'codex home') } }), { root: moved, project: '.agents/skills' });
+  for (const codexHome of [path.join(elsewhere, 'codex home'), `${path.join(elsewhere, 'codex home')}/`]) {
+    assert.deepEqual(runLookup({ filled: null, home: tmp(), env: { CODEX_HOME: codexHome } }), { root: moved, project: '.agents/skills' }, codexHome);
+  }
+
+  // Two versions left behind: the last by name, whatever order the folder lists them in.
+  const two = tmp();
+  suiteAt(codexPlugin(path.join(two, '.codex'), '0.33.0'));
+  suiteAt(codexPlugin(path.join(two, '.codex'), '0.32.0'));
+  assert.equal(runLookup({ filled: null, home: two }).root, codexPlugin(path.join(two, '.codex'), '0.33.0'));
 
   // It comes last: a suite in one of the home folders still wins, as before.
   suiteAt(path.join(home, '.claude', 'skills'));
@@ -229,6 +239,20 @@ test('in zsh the lookup runs without an error, with and without a Codex plugin',
     assert.deepEqual([found.status, found.stderr, found.stdout], [0, '', `${codexPlugin(path.join(home, '.codex'))}\n.agents/skills\n`]);
   });
 
+// An assistant or a person may run the lines under `set -euo pipefail`. Before the Codex
+// plugin the lookup passed there; a search that finds no Codex folder must not stop it.
+test('under set -euo pipefail the lookup still runs to the end, in bash and in zsh', () => {
+  const shells = ['bash', ...(spawnSync('zsh', ['-c', 'true']).status === 0 ? ['zsh'] : [])];
+  for (const shell of shells) {
+    const home = tmp();
+    const running = path.join(tmp(), 'skills');
+    suiteAt(running);
+    const run = spawnSync(shell, ['-c', `set -euo pipefail\n${lookup().replaceAll(VAR, path.join(running, 'new-website'))}\nprintf '%s\\n' "$SKILLS_ROOT"\n`],
+      { env: { PATH: process.env.PATH, HOME: home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    assert.deepEqual([run.status, run.stderr, run.stdout], [0, '', `${running}\n`], shell);
+  }
+});
+
 test('left as written, the name is an empty value, not an unset variable, and its candidate is passed over', () => {
   // Claude Code leaves the form with := alone (seen in a live session), so this line reaches
   // every assistant; without it a strict shell stops at the unset name.
@@ -253,8 +277,8 @@ test('an explicit SKILLS_ROOT is honoured, and with nothing installed the defaul
 });
 
 test('the two guides that repeat the lookup for testers repeat it as it is', () => {
-  const loop = lookup().split('\n').filter((line) => /^\s*(: "\$\{CLAUDE_SKILL_DIR:=\}"|codex_plugin=|for d in|\[ "\$d" != \/\.\. \])/.test(line)).map((line) => line.trim());
-  assert.equal(loop.length, 4);
+  const loop = lookup().split('\n').filter((line) => /^\s*(codex_home=|: "\$\{CLAUDE_SKILL_DIR:=\}"|codex_plugin=|for d in|\[ "\$d" != \/\.\. \])/.test(line)).map((line) => line.trim());
+  assert.equal(loop.length, 5);
   for (const guide of ['CODEX-TEST.md', 'ANTIGRAVITY-TEST.md']) {
     const lines = read('docs', guide).split('\n').map((line) => line.trim());
     for (const line of loop) assert.ok(lines.includes(line), `docs/${guide} lacks: ${line}`);

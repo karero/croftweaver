@@ -194,7 +194,8 @@ codex plugin add croftweaver@croftweaver
 a new Codex session in your websites folder and say `new website`. The skills carry the
 plugin's name in front (`$croftweaver:new-website`). Like the Claude Code plugin, it installs
 releases only; `codex plugin marketplace upgrade` brings you the newest one. Use one route
-here too: the plugin and a copy in `~/.agents/skills/` list every skill twice.
+here too: the plugin and a copy in `~/.agents/skills/` list every skill twice. The same holds
+in a site built with the suite, for the skills the site carries in its `.agents/skills/`.
 
 **With the `skills` command** ([skills.sh](https://skills.sh)), for Claude Code, Codex,
 Antigravity and other assistants:
@@ -207,9 +208,9 @@ It asks which assistants to install for. Take all the skills (`--skill '*'`): `n
 copies its sibling skills into each new site, so a site built from a partial install is
 missing some. This route installs the newest state of `main`, not a release, and records no
 version, so a site built from it is stamped `suite_commit: unknown`. To update, run
-`npx skills update`. skills.sh lists Croftweaver by the name typed in this command, from the
-installs it counts; installs made before the rename are listed under
-`karero/website-builder`.
+`npx skills update`. skills.sh lists a skill set under the name typed in this command, from
+the installs it counts (read in the `skills` command's code, version 1.7.2, in October
+2026); installs from before the rename are listed under `karero/website-builder`.
 
 **By hand**, in three steps:
 
@@ -440,6 +441,8 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   PROGRESS-TRACKER.html progress-tracker mockup
 .claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
                    from the branch `stable`, which the release-tag workflow moves to each release (make test-plugin)
+.agents/plugins/ (repo only) marketplace.json: the same plugin for Codex, from the same branch; Codex reads
+                   its name and number from .claude-plugin/plugin.json (make test-plugin)
 packages/      (repo only: the zip does not hold it)
   create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
                    into the assistant's skills folder. The maintainer publishes it to npm (make test-create)
