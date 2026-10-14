@@ -579,10 +579,12 @@ added the DNS row to the token):
   only. The swapped entry of the launch day had `verify.bing.com` as its name, which is
   what scenario 29's rule looks for.
 
-**Left in place by the spike, to be removed on the maintainer's word:** the Pages
-projects `cf-setup-spike` and `cf-setup-spike-2`, each with one attached host
-(`spike.` and `spike2.` of the trial domain); those two CNAME records and two TXT records
-at `_spike-test`; the private repository `karero/cf-setup-spike`; and the token.
+**Removed on 2026-10-14, on the maintainer's word:** the two throwaway Pages projects, with
+their hosts, and the four DNS records; the zone has its 14 earlier records again and the
+account its four earlier projects. Left for the maintainer: the private repository
+`karero/cf-setup-spike` (the GitHub sign-in the assistant uses may not delete a
+repository), the local folder of the trial, which holds the token in `.dev.vars`, and the
+token itself.
 
 **Read in Cloudflare's API reference, 2026-10-12, not tried:**
 
