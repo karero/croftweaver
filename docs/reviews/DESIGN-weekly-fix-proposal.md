@@ -107,7 +107,7 @@ highest-return item on a small site, and dropping it halves what the proposal ca
 | Fetching what it needs | `scripts/search_report.py`, `fetch_google` | One more dimension group per window, `["query", "page"]`, paged as `run_query` already pages; plus the candidate page's live HTML |
 | Showing it | `search_report.py`, `render` | One section at the end: "One thing to fix this week" |
 | State and the owner's answers, per site | `~/.config/gsc-insights/sites/<site>-proposals.json` (new) | Proposals shown, declined, acted on, live observations, results; and the owner's answers: `brand` (spellings) and `pr_figures` (yes / no / unasked) |
-| What the assistant does when asked | `references/fix-proposal.md` (new) | Instructions: check positioning, edit the four places, run the gate, open the pull request, record it |
+| What the assistant does when asked | `references/fix-proposal.md` (new) | Instructions: check positioning, edit the three places the sentence names, run the gate, open the pull request, record it |
 | How the assistant gets there | `SKILL.md` | A pointer to the reference; the description stays as it is (it is at 998 of 1,024 characters) |
 | The weekly log | `track.sh` | One line naming the proposal, or why there is none |
 
@@ -115,8 +115,10 @@ The owner's answers live in the new state file, **not** in `sites/<site>.json`: 
 and `schedule_tracking.sh` rewrite that file whole on every run, so anything else in it
 would be lost. Nothing is written into the site's repository except the edit itself.
 
-The **four places** are the requirements' R2 list: the page's `title`, its meta
-`description`, its H1 and its first paragraph.
+The **three places** an edit changes are the ones the owner's sentence names: the page's
+`title`, its H1 and its first paragraph. R2 also allows the meta description; v1 leaves it
+alone, so the sentence and the edit always name the same places (cut during the build's
+review, round 2).
 
 ### 3.2 Choosing (code)
 
@@ -147,12 +149,25 @@ The **four places** are the requirements' R2 list: the page's `title`, its meta
 
 ### 3.3 Acting (the assistant, guided by `references/fix-proposal.md`)
 
-The owner says the report's sentence. It starts with the skill's name, so the assistant
-loads it without relying on the description, and then names the search, every place and
-the page, as R1 asks: *"search-console-insights: work 'fahrrad reparatur leipzig' into the
-title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur"*. Whether that sentence alone loads the skill in a fresh
-session is not known; step 4 tries it cold in Claude Code and in Codex before the
-wording is final.
+The owner says the report's sentence. It starts with the skill's slash command, which in the
+cold runs below made both assistants load the skill without relying on the description, and then names the search,
+every place and the page, as R1 asks: *"/search-console-insights work 'fahrrad reparatur
+leipzig' into the title, heading and first paragraph of
+https://radwerk-plagwitz.example/reparatur"*.
+
+**Cold start, tried 2026-10-14** (fresh sessions, Claude Code 2.1.287 in plan mode and Codex
+0.162.1 in a read-only sandbox, the skill installed as it is on `main`):
+
+| Sentence | Where | Claude Code | Codex |
+|---|---|---|---|
+| "search-console-insights: work …" | empty folder | did not load the skill | loaded it (read `SKILL.md`) |
+| "search-console-insights: work …" | a copy of the starter site | did not load the skill; went straight to the page files | — |
+| "/search-console-insights work …" | empty folder | loaded it (ran the skill's scripts) | — |
+| "/search-console-insights work …" | a copy of the starter site | — | loaded it |
+
+So the sentence uses the slash form. Without the skill, the edit would still go through the
+site's own `AGENTS.md` and tests, but not through the proposal's rules (reading the proposal,
+the positioning check, recording the pull request).
 
 The reference tells the assistant to:
 
@@ -161,7 +176,7 @@ The reference tells the assistant to:
 2. read `POSITIONING.md`; on a conflict, quote the line, make no edit, and record it
    (`fix_proposal.py decline <site> --reason positioning`);
 3. follow the site's own `AGENTS.md` for branch, wording rules, gate and pull request;
-   change only the four places;
+   change only the three places the sentence names;
 4. on a public repository, ask about figures once if `pr_figures` is unasked, and record
    the answer (`fix_proposal.py set <site> pr_figures yes|no`; the same command records
    the owner's spellings, `set <site> brand "radwerk, rad werk"`, which replace the guess);
@@ -179,6 +194,11 @@ Every state write is a command, so the model never edits the JSON by hand.
   installed and signed in. Closed without merging counts as the owner's "not this one"
   (R3): the 12 weeks start on the `closedAt` day, not the day the report noticed;
   reopened cancels that. Merged: the proposal waits to be seen live.
+- **Which rounds are followed.** Every round on record is asked about until GitHub says merged
+  and the round is measured; a turned-down round too, so a reopened pull request blocks its
+  page again (R1). A round leaves the record, archived, only when the same search on the same
+  page is proposed again; archived rounds are not followed. (Cut during the build's review,
+  round 4: following archived rounds as well was the third fix of the same kind.)
 - **Nothing is released by a timer.** While the pull request is open, or merged but not
   seen live, the page stays excluded (R1) and each report says what is waiting: "your
   proposal of 2 November is waiting in pull request 31", or "merged, not seen on the live
@@ -242,6 +262,20 @@ Every state write is a command, so the model never edits the JSON by hand.
 - **The assistant's part** (scenarios 1, 4, 5, 7): evals in `evals/evals.json`, run with
   and without the reference, as `website-story` had; plus the cold start of §3.3.
 - **Scenario 3** (seen but not clicked) has no test in v1: T2 waits (§2).
+
+**Eval iteration 1 (2026-10-14).** Evals 11 to 14 each ran once with the skill as built and
+once with the skill as on `main` (no reference), in a copy of the starter site with a
+`/reparatur` page, a filled `POSITIONING.md` and a seeded proposal; the network was stood in
+for. Graded by the session that wrote the reference, on the evals' own assertions (not a
+separate grader, unlike `website-story`): with the skill 18 of 18, without it 12 of 18. The
+baseline edited the page against the positioning (eval 12), never read the proposal through
+the command and never recorded the pull request (11, 13, 14), and asked about figures but did
+not record the answer (14). Eval 13 did not discriminate (both shortened the title and ran the
+tests again); it now also asserts the `acted` record. The runs showed one gap, fixed: after
+the next report, `decline` and a corrected `acted` found no proposal; both now fall back to
+the newest one in progress, and take `--page`. The fixture's own gaps (starter values left in
+`src/config.ts`, the page missing from `PAGES`, no `dist/` offline) were noticed by every run
+and are not findings about the skill.
 
 ## 5. Steps
 

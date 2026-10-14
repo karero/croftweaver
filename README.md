@@ -266,6 +266,11 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > pinned: list its name in `<skills_dir>/REFRESH-KEEP` (one per line, `#` comments)
 > and `--refresh` will never touch it — reports mark it "(pinned)". Plain
 > `make whats-new` shows the suite's recent skill changes.
+>
+> One folder never reaches a site: `website-brand-kit/scripts/tests`, the toolkit's own
+> test suite. The scaffold and `--refresh` both leave it out, and a change inside it alone
+> is not reported as an update.
+>
 > Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
 > `AGENTS.md`, `PUBLISHING.md`, `SETUP.md`, `playwright.config.ts`,
 > `functions/_middleware.ts`, `.github/workflows/ci.yml`,

@@ -29,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _history import NOISE_IMPRESSIONS, normalize_site  # noqa: E402
+import fix_proposal as fp  # noqa: E402
 
 ROW_LIMIT = 25000
 HISTORY_DAYS = 16 * 31      # the ~16 months Google keeps; it returns what it has
@@ -264,6 +265,13 @@ def fetch_google(service, domain, settings, today):
         except Exception:
             top, more = None, 0
         s6.append({"query": r["keys"][0], "position": pos, "impressions": imp, "page": top, "more": more})
+    # The weekly fix proposal's search-and-page rows (DESIGN-weekly-fix-proposal.md §3.1). Optional,
+    # like the drill-downs above: without them there is no proposal this week, and the page says so.
+    try:
+        qprows, _ = run_query(service, prop, _body(start4, end4, ["query", "page"], country))
+        qp4 = [{"keys": r["keys"], "impressions": r.get("impressions", 0)} for r in qprows]
+    except Exception:
+        qp4 = None
     s7 = [{"page": r["keys"][0], "impressions": r.get("impressions", 0), "clicks": r.get("clicks", 0)}
           for r in prows
           if r.get("position") is not None and r["position"] <= S7_MAX_POSITION and r.get("impressions", 0) >= S7_MIN_IMPRESSIONS
@@ -276,7 +284,295 @@ def fetch_google(service, domain, settings, today):
                    "position": r.get("position")} for r in daily],
         "keys": keys, "window4": [start4.isoformat(), end4.isoformat()],
         "s6": sorted(s6, key=lambda x: -x["impressions"]), "s7": sorted(s7, key=lambda x: -x["impressions"]),
+        "q4": [{"keys": r["keys"], "impressions": r.get("impressions", 0), "clicks": r.get("clicks", 0),
+                "position": r.get("position")} for r in qrows],
+        "qp4": qp4,
     }
+
+
+# ─── the weekly fix proposal (DESIGN-weekly-fix-proposal.md §3) ─────────────────────────────
+
+PAGE_MAX_BYTES = 2_000_000
+
+
+def read_live_page(url, site):
+    """The owner's own page as parse_page() reads it, or None (a timeout, an error, a non-200
+    answer, another host). Only the site's own addresses are read: the report never fetches
+    anything else a Search Console row might name."""
+    from urllib.parse import urlsplit
+    import urllib.request
+
+    def own(address):
+        u = urlsplit(address or "")
+        return u.scheme in ("http", "https") and (u.hostname or "").lower() in (site, "www." + site)
+
+    class OwnPagesOnly(urllib.request.HTTPRedirectHandler):
+        """A redirect is followed only to the site's own pages, like the first address."""
+        def redirect_request(self, req, fp_, code, msg, headers, newurl):
+            if not own(newurl):
+                return None          # not followed: urllib then raises, and the page is unreadable
+            return super().redirect_request(req, fp_, code, msg, headers, newurl)
+
+    if not own(url):
+        return None
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "search-console-insights fix check"})
+        opener = urllib.request.build_opener(OwnPagesOnly)
+        with opener.open(req, timeout=20) as resp:
+            if resp.status != 200:
+                return None
+            body = resp.read(PAGE_MAX_BYTES + 1)
+            charset = resp.headers.get_content_charset() or "utf-8"
+        if len(body) > PAGE_MAX_BYTES:
+            return None
+        return fp.parse_page(body.decode(charset, errors="replace"))
+    except Exception:          # an unknown charset or a broken page is unreadable, never a crash
+        return None
+
+
+def measure_search(service, prop, country, query, w):
+    """One search's figures in the before and the after window: two requests made for this
+    purpose, filtered to the search, with the report's country and property (design §3.4)."""
+    out = {}
+    for side in ("before", "after"):
+        start, end = w[side]
+        rows, _ = run_query(service, prop, _body(start, end, ["query"], country, query.lower()))
+        row = rows[0] if rows else {}
+        out[side] = {"from": start.isoformat(), "to": end.isoformat(), "impressions": row.get("impressions", 0),
+                     "clicks": row.get("clicks", 0), "position": row.get("position")}
+    out["weeks"], out["interrupted"] = w["weeks"], w["interrupted"]
+    return out
+
+
+def _check_today(rec, today, outcome, title=None):
+    """Add this run's look at the live page. A second run on the same day adds a look only when it
+    saw something else, so an "old" in the morning and a "new" after the change went live both
+    stay, in the order they were made (fix_proposal.windows reads them that way)."""
+    checks = list(rec.get("checks", []))
+    last = checks[-1] if checks else None
+    if not (last and last.get("date") == today.isoformat() and last.get("outcome") == outcome
+            and last.get("title") == title):
+        look = {"date": today.isoformat(), "outcome": outcome}
+        if title is not None:
+            look["title"] = title     # kept, so a corrected new title can judge it again
+        checks.append(look)
+    rec["checks"] = sorted(checks, key=lambda c: c["date"])
+
+
+def follow_proposals(state, service, prop, country, finished, today, read_page, gh):
+    """Each run: ask GitHub about every recorded pull request, look at the live page, and measure
+    once the after-window's data is complete. Nothing is released by a timer."""
+    for rec in state["proposals"].values():
+        # A measured round is still asked about until GitHub says merged: an open, closed or
+        # never-answered pull request can still change, and an open one keeps its page out (R1).
+        if not rec.get("pr") or (rec.get("result") and (rec["pr"].get("state") or "").upper() == "MERGED"):
+            continue
+        fp.apply_pr_state(rec, gh(rec["pr"]["repo"], rec["pr"]["number"]), today)
+        if rec.get("result"):
+            continue         # measured; only the pull request's state was still worth asking
+        if rec.get("declined_on") or not rec.get("new_title"):
+            continue
+        page = read_page(rec["page"])
+        title = page.get("title") if page else None
+        _check_today(rec, today, fp.classify_title(title, rec.get("old_title"), rec["new_title"]), title)
+        w = fp.windows(rec["checks"])
+        if w and w["weeks"] == 0 and w["interrupted"]:
+            rec["result"] = {"too_soon": True, "interrupted": w["interrupted"]}
+        elif fp.ready_to_measure(w, finished):
+            try:
+                rec["result"] = measure_search(service, prop, country, rec["query"], w)
+            except Exception:
+                pass     # tried again next run; this run's look at the page is still kept
+
+
+def update_proposals(site, data, service, today, read_page, gh):
+    """Follow what is waiting, then choose this week's proposal from fresh data, under the site's
+    lock (the assistant's commands take it too). Returns what the page shows (proposal_view)."""
+    with fp.locked(site):
+        return _update_proposals(site, data, service, today, read_page, gh)
+
+
+def _update_proposals(site, data, service, today, read_page, gh):
+    state = fp.load_state(site)
+    finished = dt.date.fromisoformat(data["finished"])
+    follow_proposals(state, service, data["property"], data["country"], finished, today, read_page, gh)
+    spellings, _ = fp.brand_spellings(state, site)
+    start4, end4 = (dt.date.fromisoformat(x) for x in data["window4"])
+    if data.get("qp4") is None:
+        cands, notes, unavailable = [], [], True
+        proposal = None
+    else:
+        unavailable = False
+        cands = fp.t1_candidates(data.get("q4") or [], data["qp4"], spellings)
+        proposal, notes = fp.choose(cands, state, today, read_page)
+    if proposal:
+        fp.record_shown(state, proposal, (start4, end4), today)
+    else:
+        state["current"] = None
+    # A site that never had a proposal gets no file: nothing to remember yet.
+    if state["proposals"] or fp.state_path(site).exists():
+        fp.save_state(site, state)
+    return proposal_view(site, state, data, today, cands=cands, notes=notes, unavailable=unavailable)
+
+
+def proposal_view(site, state, data, today, cands=None, notes=None, unavailable=False, stale=False):
+    """Everything the section needs, from the state file and the window's figures."""
+    spellings, confirmed = fp.brand_spellings(state, site)
+    view = {"stale": stale, "unavailable": unavailable, "notes": notes or [], "had_candidates": bool(cands),
+            "spellings": spellings, "confirmed": confirmed, "current": None, "follow": []}
+    cur = state["proposals"].get(state.get("current")) if state.get("current") else None
+    if cur and not stale:
+        view["current"] = dict(cur, sentence=fp.sentence(cur))
+    view["cur_rec"] = cur if cur and not stale else None
+    for rec in list(state.get("done") or []) + list(state["proposals"].values()):
+        until = fp.declined_until(rec)
+        if until and today < until:
+            view["follow"].append(rec)          # turned down: the page says until when
+        elif rec.get("result") or (rec.get("pr") and not until):
+            view["follow"].append(rec)          # measured, or still in progress
+    if data:
+        s, e = data["window4"]
+        view["window"] = (s, e)
+        view["total"] = sum(r.get("impressions", 0) for r in data["daily"] if s <= r["date"] <= e)
+        nonbrand = [r for r in data.get("q4") or [] if not fp.is_brand(r["keys"][0], spellings)]
+        view["brand"] = sum(r.get("impressions", 0) for r in data.get("q4") or []
+                            if fp.is_brand(r["keys"][0], spellings))
+        # Enough data, just nothing in striking distance, is not "too little data".
+        view["enough"] = any(r.get("impressions", 0) >= fp.T1_MIN_IMPRESSIONS for r in nonbrand)
+    return view
+
+
+def _d(iso):
+    return f"{dt.date.fromisoformat(iso):%d %B %Y}" if iso else "an earlier week"
+
+
+def _follow_line(rec, site, today):
+    where = f"“{rec['query']}” on {show_page(rec['page'], site)}"
+    pr = rec.get("pr") or {}
+    until = fp.declined_until(rec)
+    if until and today < until:
+        how = (f"you closed pull request {pr.get('number')}" if rec.get("decline_reason") == "closed"
+               else "turned down")
+        return f"{where}: {how}; not proposed again before {until:%d %B %Y}."
+    res = rec.get("result")
+    if res and res.get("too_soon"):
+        return f"{where}: the page changed again too soon after the change went live to measure it."
+    if res:
+        b, a = res["before"], res["after"]
+        pos = lambda v: f"{v:.1f}" if v is not None else "not shown"
+        cut = (f" The page changed again on {_d(res['interrupted'])}, so the after side covers "
+               f"{res['weeks']} week{'s' if res['weeks'] != 1 else ''}.") if res.get("interrupted") else ""
+        return (f"{where}, before and after the change ({_d(b['from'])} to {_d(b['to'])}, then {_d(a['from'])} "
+                f"to {_d(a['to'])}): position {pos(b['position'])} → {pos(a['position'])}, shown "
+                f"{_n(b['impressions'])} → {_n(a['impressions'])} times, visits {_n(b['clicks'])} → "
+                f"{_n(a['clicks'])}.{cut} This compares one search before and after the change. It does not "
+                "check what else changed on your site or in Google's results.")
+    gh_note = (" GitHub could not be asked this week, so this is the last state it gave."
+               if pr.get("last_check_ok") is False and pr.get("state") else "")
+    w = fp.windows(rec.get("checks", []))
+    if w:
+        end = w["after"][1] if w["after"] else None
+        return (f"{where}: live; the before-and-after comparison appears once Google's numbers reach "
+                f"{end:%d %B %Y}." if end else f"{where}: live; measuring.") + gh_note
+    seen = [c["outcome"] for c in rec.get("checks", []) if c.get("outcome") != "unreadable"]
+    if seen and seen[-1] == "other":
+        return (f"{where}: the live page's title is neither the old one nor the new one recorded for pull "
+                f"request {pr.get('number')}. Ask your assistant to check it and record the title the "
+                "page shows.") + gh_note
+    state = (pr.get("state") or "").upper()
+    if state == "MERGED":
+        return (f"{where}: merged in pull request {pr.get('number')}, not seen on the live site yet. "
+                "On a site that publishes in two steps, that needs `npm run ship`.") + gh_note
+    if state == "OPEN":
+        return (f"{where}: your proposal of {_d(rec.get('shown'))} is waiting in pull request "
+                f"{pr.get('number')}.") + gh_note
+    return (f"{where}: pull request {pr.get('number')} could not be checked; tell your assistant if it "
+            "was closed.")
+
+
+def _plain_reason(why):
+    """fix_proposal's short reasons, in the owner's words."""
+    if why.startswith("turned down until "):
+        return f"you turned it down, until {why[len('turned down until '):]}"
+    return {"measuring": "an earlier change to the same page is still being measured",
+            "pull request open": "a pull request for the same page is still open",
+            "merged, not seen live yet": "a change to the same page is merged but not live yet",
+            "already on the page": "its words are already on the page",
+            "the page could not be read": "the page could not be read today"}.get(why, why)
+
+
+def proposal_line(view, alert=None):
+    """One line for the weekly log (track.sh shows the report's stderr): the proposal, or why
+    there is none. None when the page had no Google data at all."""
+    if view is None:
+        return f"could not be worked out ({alert})" if alert else None
+    cur = view.get("current")
+    if view.get("stale"):
+        return "none new this week (Google's numbers could not be refreshed)"
+    if cur:
+        return (f"work “{cur['query']}” into {cur['page']} (shown {_n(cur['impressions'])} times in 4 weeks, "
+                f"average position {cur['position']:.1f}); the sentence to say is on the report page")
+    if view.get("unavailable"):
+        return "none this week (Google's search-by-page numbers could not be loaded)"
+    if view.get("had_candidates"):
+        return "none this week; passed over: " + "; ".join(f"“{q}”: {_plain_reason(w)}" for q, w in view["notes"])
+    if "total" in view and view.get("enough"):
+        return "none this week (no search met every condition for a proposal)"
+    if "total" in view:
+        return f"none this week (too little data: shown {_n(view['total'])} times in 4 weeks)"
+    return None
+
+
+def render_proposal(view, site, today):
+    if view is None:
+        return ""
+    parts = ["<h2>One thing to fix this week</h2>"]
+    cur = view.get("current")
+    if view.get("stale"):
+        parts.append("<p>No new proposal this week: Google's numbers could not be refreshed.</p>")
+    elif cur:
+        since = "" if cur.get("shown") == today.isoformat() else f" Proposed since {H(_d(cur['shown']))}."
+        parts.append(
+            f'<section class="card"><p class="move">Work “{H(cur["query"])}” into the title, heading and first '
+            f'paragraph of {H(show_page(cur["page"], site))}.</p>'
+            f'<p>In the 4 weeks {H(cur["window"][0])} to {H(cur["window"][1])}, people searching for '
+            f'“{H(cur["query"])}” were shown your site {_n(cur["impressions"])} times, at an average position of '
+            f'{cur["position"]:.1f}; {_n(cur["page_impressions"])} of those times on this page. Its title, heading '
+            f'and first paragraph do not yet say it.{since}</p>'
+            f'<p>To make the change, say to your assistant:</p><p><code>{H(cur["sentence"])}</code></p>'
+            "<p class=\"note\">Your assistant checks it against your positioning first, changes only those three "
+            "places, runs your site's tests, and opens a pull request for you to look at. Nothing goes live until you merge it.</p></section>")
+    elif view.get("unavailable"):
+        parts.append("<p>No proposal this week: Google's search-by-page numbers could not be loaded.</p>")
+    elif view.get("had_candidates"):
+        reasons = "; ".join(f"“{q}”: {_plain_reason(why)}" for q, why in view["notes"])
+        parts.append(f"<p>No proposal this week. Searches looked at and passed over: {H(reasons)}.</p>")
+    elif "total" in view and view.get("enough"):
+        parts.append(
+            f"<p>No proposal this week: no search met every condition for one (at position "
+            f"{fp.T1_POSITION[0]:g} to {fp.T1_POSITION[1]:g}, shown at least {fp.T1_MIN_IMPRESSIONS} times in 4 "
+            f"weeks, on a page shown at least {fp.NOISE_IMPRESSIONS} times, its words not yet on that page).</p>")
+    elif "total" in view:
+        parts.append(
+            f"<p>Too little data to propose a change this week: shown {_n(view['total'])} times in 4 weeks "
+            f"({H(view['window'][0])} to {H(view['window'][1])}), {_n(view['brand'])} of them for your name. The first "
+            f"thing that would lead to a proposal: a search shown {fp.T1_MIN_IMPRESSIONS} times at position "
+            f"{fp.T1_POSITION[0]:g} to {fp.T1_POSITION[1]:g} "
+            "whose words are not yet on the page it leads to.</p>")
+    lines = []
+    for r in view["follow"]:
+        if r is view.get("cur_rec"):
+            continue
+        try:
+            lines.append(_follow_line(r, site, today))
+        except Exception:        # a damaged record costs its own line, never the page
+            lines.append(f"One earlier proposal could not be read ({r.get('page', 'unknown page')}).")
+    if lines:
+        parts.append("<h3>Earlier proposals</h3><ul>" + "".join(f"<li>{H(x)}</li>" for x in lines) + "</ul>")
+    if not view["confirmed"]:
+        parts.append(f'<p class="note">Counted as your business name: {H(", ".join(view["spellings"]))}. If that is '
+                     "wrong, tell your assistant the spellings people use.</p>")
+    return "".join(parts)
 
 
 # ─── counting (pure) ───────────────────────────────────────────────────────────────────────
@@ -766,7 +1062,8 @@ def ai_part(site, today):
                 "I'll add them.</p>")
 
 
-def render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw=frozenset(), ai_html=None):
+def render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw=frozenset(), ai_html=None,
+           proposal=None):
     parts = []
     finished = dt.date.fromisoformat(data["finished"]) if data else None
     weeks = complete_weeks(data["daily"], finished) if data else []
@@ -907,6 +1204,11 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
                          + "".join(f"<tr><td>{H(show_page(r['page'], site))}</td><td>{_n(r['impressions'])}</td><td>{_n(r['clicks'])}</td></tr>"
                                    for r in data["s7"][:15]) + "</table>")
 
+    try:
+        parts.append(render_proposal(proposal, site, today))
+    except Exception:
+        parts.append("<h2>One thing to fix this week</h2><p>This week's fix proposal could not be shown.</p>")
+
     parts.append("<h2>Bing</h2>")
     if bing_state == "lines":
         lines = bing_lines(rows, current_kw)
@@ -976,16 +1278,17 @@ def write_atomic(path: Path, text: str):
     os.replace(tmp, path)
 
 
-def build(domain, args, service_factory=make_service, today=None):
+def build(domain, args, service_factory=make_service, today=None, page_reader=None, gh=None):
     today = today or dt.date.today()
     site = normalize_site(domain)
     settings, rows = resolve_settings(domain, args)
     out_dir = report_dir(site)
     cache = out_dir / "google-data.json"
-    data, alert = None, None
+    data, alert, fresh, service = None, None, False, None
     try:
         service = service_factory()
         data = fetch_google(service, domain, settings, today)
+        fresh = True
     except Exception as e:
         signin = isinstance(e, SignInError)
         saved = None
@@ -1023,14 +1326,37 @@ def build(domain, args, service_factory=make_service, today=None):
         bing_state = "off"
     else:
         bing_state = "unknown"
+    proposal, proposal_alert = proposals_for_page(site, data, fresh, service, today, page_reader, gh)
+    line = proposal_line(proposal, proposal_alert)
+    if line:
+        print(f"Fix proposal: {line}", file=sys.stderr)
+    if proposal_alert:
+        alert = f"{alert} {proposal_alert}" if alert else proposal_alert
     ai = newest_ai_page(site)
     ai_link = f"../../geo/reports/{site}/{ai.name}" if ai else None
-    page = render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw, ai_part(site, today))
+    page = render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw, ai_part(site, today),
+                  proposal)
     out = out_dir / "google.html"
     write_atomic(out, page)
     if ai:
         rebuild_ai_page(domain)
     return out
+
+
+def proposals_for_page(site, data, fresh, service, today, page_reader=None, gh=None):
+    """(proposal_view, alert). A new proposal comes from fresh data only (scenario 9): with saved
+    data the page shows what is waiting and says there is no new proposal. A problem here never
+    costs the owner the rest of the page; it is named instead."""
+    if not data:
+        return None, None
+    read = page_reader or (lambda url: read_live_page(url, site))
+    ask = gh or fp.gh_pr_state
+    try:
+        if fresh:
+            return update_proposals(site, data, service, today, read, ask), None
+        return proposal_view(site, fp.load_state(site), data, today, stale=True), None
+    except Exception as e:
+        return None, f"This week's fix proposal could not be worked out ({_reason(e)})."
 
 
 def _reason(e):
