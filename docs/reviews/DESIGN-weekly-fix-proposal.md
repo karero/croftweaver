@@ -147,12 +147,25 @@ The **four places** are the requirements' R2 list: the page's `title`, its meta
 
 ### 3.3 Acting (the assistant, guided by `references/fix-proposal.md`)
 
-The owner says the report's sentence. It starts with the skill's name, so the assistant
-loads it without relying on the description, and then names the search, every place and
-the page, as R1 asks: *"search-console-insights: work 'fahrrad reparatur leipzig' into the
-title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur"*. Whether that sentence alone loads the skill in a fresh
-session is not known; step 4 tries it cold in Claude Code and in Codex before the
-wording is final.
+The owner says the report's sentence. It starts with the skill's slash command, so the
+assistant loads the skill without relying on the description, and then names the search,
+every place and the page, as R1 asks: *"/search-console-insights work 'fahrrad reparatur
+leipzig' into the title, heading and first paragraph of
+https://radwerk-plagwitz.example/reparatur"*.
+
+**Cold start, tried 2026-10-14** (fresh sessions, Claude Code 2.1.287 in plan mode and Codex
+0.162.1 in a read-only sandbox, the skill installed as it is on `main`):
+
+| Sentence | Where | Claude Code | Codex |
+|---|---|---|---|
+| "search-console-insights: work …" | empty folder | did not load the skill | loaded it (read `SKILL.md`) |
+| "search-console-insights: work …" | a copy of the starter site | did not load the skill; went straight to the page files | — |
+| "/search-console-insights work …" | empty folder | loaded it (ran the skill's scripts) | — |
+| "/search-console-insights work …" | a copy of the starter site | — | loaded it |
+
+So the sentence uses the slash form. Without the skill, the edit would still go through the
+site's own `AGENTS.md` and tests, but not through the proposal's rules (reading the proposal,
+the positioning check, recording the pull request).
 
 The reference tells the assistant to:
 

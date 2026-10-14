@@ -112,7 +112,7 @@ class Scenarios(ProposalReportTest):
         self.assertIn(html.escape(f"Work “{QUERY}” into the title, heading and first paragraph of /reparatur"), page)
         self.assertIn("In the 4 weeks 2026-09-28 to 2026-10-25", page)
         self.assertIn("286 times, at an average position of 11.6; 271 of those times on this page", page)
-        self.assertIn(html.escape(f"search-console-insights: work '{QUERY}' into the title, heading and "
+        self.assertIn(html.escape(f"/search-console-insights work '{QUERY}' into the title, heading and "
                                   f"first paragraph of {PAGE}"), page)
         self.assertEqual(self.reads, [PAGE])             # only the proposal's own page is read
         st = self.state()

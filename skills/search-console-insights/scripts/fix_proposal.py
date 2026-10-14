@@ -344,9 +344,11 @@ def record_shown(state: dict, proposal: dict, window, today: dt.date) -> dict:
 
 
 def sentence(proposal: dict) -> str:
-    """What the owner says to their assistant (design §3.3): the skill's name first, then the
-    search, every place and the page."""
-    return (f"search-console-insights: work '{proposal['query']}' into the title, heading and "
+    """What the owner says to their assistant (design §3.3): the skill's slash command first, then
+    the search, every place and the page. The slash form, because a cold Claude Code session given
+    the plain name went straight to the page files without loading the skill (2026-10-14); Codex
+    loaded it either way."""
+    return (f"/search-console-insights work '{proposal['query']}' into the title, heading and "
             f"first paragraph of {proposal['page']}")
 
 

@@ -141,7 +141,7 @@ class ChooseTests(unittest.TestCase):
         prop, notes = fp.choose(self.cands, self.state, D("2026-11-02"), lambda url: page())
         self.assertEqual((prop["query"], prop["old_title"]), (QUERY, OLD_TITLE))
         self.assertEqual(notes, [])
-        self.assertEqual(fp.sentence(prop), "search-console-insights: work 'fahrrad reparatur leipzig' "
+        self.assertEqual(fp.sentence(prop), "/search-console-insights work 'fahrrad reparatur leipzig' "
                          "into the title, heading and first paragraph of " + PAGE)
 
     def test_scenario_2_no_candidate_no_proposal(self):
