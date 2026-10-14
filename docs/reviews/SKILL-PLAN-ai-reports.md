@@ -15,7 +15,6 @@ the real files and the API probe proved draft 1 wrong — the changes are marked
 | Build, test-first | **done** 2026-10-14: `ai_reports.py`, the AI section in `search_report.py`, `references/ai-reports.md`, SKILL.md 1.8.0; 23 new tests (A1–A10 and the reading rules), 9 deliberate breakages of key rules each caught; the six real exports read into a throwaway home, totals match a separate count; page checked light and dark, phone width | this commit; `scripts/tests/test_ai_reports.py` |
 | Owner's OK on A2 and A7 wording (draft 2: no download date in either file) | **approved** 2026-10-14 (chat) | — |
 | DIFF gate (Normal: Codex + GLM 5.3) | running | trail: `REVIEW-diff-2026-10-14-ai-reports.md` |
-| DIFF gate | not started | — |
 | PR | not started | — |
 
 ## Facts (checked 2026-10-14)
@@ -95,8 +94,9 @@ those counts, and that the owner can download them and say *"here's my AI report
 
 **A2 — A site with no AI data yet (Google).** Given the owner hands over Google's export,
 covering 15 Jul – 13 Oct 2026, in which every impression is 0, when it is read and the page is
-built, then the Google part says: *"No impressions in Google's AI answers yet (your download
-covers 15 July – 13 October 2026). That is normal for a small site."* No 0 is printed, and no table or chart is drawn. The import
+built, then the Google part says: *"Your download shows no impressions in Google's AI answers (it
+covers 15 July – 13 October 2026). That is normal for a small site."* *(Changed after review round
+1, owner's OK 2026-10-14: Google writes "not available" as 0, so the card says what the file shows.)* No 0 is printed, and no table or chart is drawn. The import
 itself reports success.
 
 **A3 — Google shows no AI report for the site.** Given the owner opens Search Console on

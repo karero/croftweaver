@@ -18,9 +18,9 @@ Owners say *"here's my AI report from Google"*, *"add my Bing AI numbers"*, or j
 
 1. **Ask for the download if there is none.** Google: Search Console → the generative AI report
    (Search) → **Export** → CSV. It arrives as a zip; Safari may unzip it to a folder,
-   which works too. Bing: Bing Webmaster Tools → **AI Performance** → **Export** → CSV. Never ask
-   them to rename the files: both start with the domain, and that is how the wrong site's file is
-   caught.
+   which works too. Bing: Bing Webmaster Tools → **AI Performance** → **Export** → CSV. Don't ask
+   them to rename the files: both already start with the domain, which is how the wrong site's
+   file is caught. Only a file that has lost its domain needs one, and the script says so.
 2. **Read it:** `~/.config/gsc-insights/venv/bin/python scripts/ai_reports.py import <domain> <file or folder>`.
    It prints one line on success. On a refusal (exit 1) it says why and saves nothing: pass the
    reason on in plain words.

@@ -35,6 +35,8 @@ from _history import normalize_site  # noqa: E402
 
 DAY = re.compile(r"^(\d{4}-\d{2}-\d{2})(?: - (\d{4}-\d{2}-\d{2}))?$")   # a day, or a week "a - b"
 NAME_DOMAIN = re.compile(r"^((?:[a-z0-9-]+\.)+[a-z]{2,})[-_]")          # "example.com-Perf…", "example.com_AIPerf…"
+COUNT = re.compile(r"^(?:\d+|\d{1,3}(?:[,.' \u202f]\d{3})+)$")            # 1155, 1,155, 1.155 — never 1.5
+BING_HEADER = ["date", "citations", "cited pages"]
 
 
 class Refused(Exception):
@@ -54,12 +56,19 @@ def bare(host):
     return host[4:] if host.startswith("www.") else host
 
 
+def same_site(host, site):
+    """A Domain property covers its subdomains: blog.example.com is example.com's; evil-example.com is not."""
+    h, s = bare(host), bare(site)
+    return h == s or h.endswith("." + s)
+
+
 def known_sites():
     names = set()
-    for sub, pattern in (("sites", "*.json"), ("reports", "*")):
-        d = base_dir() / sub
-        if d.is_dir():
-            names |= {bare(p.stem if sub == "sites" else p.name) for p in d.glob(pattern)}
+    sites, reports = base_dir() / "sites", base_dir() / "reports"
+    if sites.is_dir():
+        names |= {bare(p.stem) for p in sites.glob("*.json") if not p.name.startswith(".")}
+    if reports.is_dir():      # folders only: a .DS_Store there is not a second site
+        names |= {bare(p.name) for p in reports.iterdir() if p.is_dir() and not p.name.startswith(".")}
     return names
 
 
@@ -77,9 +86,10 @@ def check_name(path: Path, site):
 
 
 def number(text):
-    """An impressions or citations count; thousands separators allowed. None if it isn't one."""
-    s = re.sub(r"[\s,.' ]", "", (text or "").strip())
-    return int(s) if s.isdigit() else None
+    """A whole count, thousands separators allowed ("1,155", "1.155"). None for anything else,
+    a decimal like "3.5" included: these reports count whole impressions and citations."""
+    s = (text or "").strip()
+    return int(re.sub(r"\D", "", s)) if COUNT.match(s) else None
 
 
 def rows_of(text):
@@ -93,8 +103,8 @@ def read_bundle(path: Path):
     out = []
     try:
         if path.is_dir():
-            for p in sorted(path.iterdir()):
-                if p.suffix.lower() == ".csv" and not p.name.startswith("."):
+            for p in sorted(path.rglob("*.csv")):
+                if not any(x.startswith(".") or x == "__MACOSX" for x in p.relative_to(path).parts):
                     out.append((p.name, p.read_bytes().decode("utf-8-sig")))
         else:
             with zipfile.ZipFile(path) as z:
@@ -107,8 +117,24 @@ def read_bundle(path: Path):
     return out
 
 
+def _interval(text, name):
+    m = DAY.match(text)
+    try:
+        a = dt.date.fromisoformat(m.group(1))
+        b = dt.date.fromisoformat(m.group(2) or m.group(1))
+    except ValueError:
+        raise Refused(f"{name} has a date I can't read: {text}. Nothing was saved.")
+    if b < a:
+        raise Refused(f"{name} has a period that ends before it starts: {text}. Nothing was saved.")
+    return a, b
+
+
 def parse_google(files, site):
-    chart, page_rows, search_type, seen, wide, counted, headers_only = None, None, "", [], False, False, False
+    """Google's generative AI report for Search, known by its contents in any screen language: a filter
+    file naming a Web search type, at most one chart file (dates) and one pages file (addresses), both
+    counting the same metric. Anything else is refused before a number is read."""
+    chart = page_rows = search_type = None
+    metrics, seen, wide, headers_only, counted = set(), [], False, False, False
     for name, text in files:
         rows = rows_of(text)
         if not rows:
@@ -121,33 +147,54 @@ def parse_google(files, site):
         if not body:
             headers_only = True
             continue
-        firsts, counts = [r[0].strip() for r in body], [number(r[1]) if len(r) > 1 else None for r in body]
-        counted = counted or any(c is not None for c in counts)
-        if body and all(DAY.match(f) for f in firsts) and None not in counts:
+        if any(len(r) != 2 for r in body):
+            raise Refused(f"{name} has rows with a different number of columns. Nothing was saved.")
+        firsts, values = [r[0].strip() for r in body], [r[1].strip() for r in body]
+        if all(DAY.match(f) for f in firsts):
+            kind = "chart"
+        elif all(f.lower().startswith(("http://", "https://")) for f in firsts):
+            kind = "pages"
+        elif any(number(v) is None for v in values):      # the filter file: label, setting
+            web = [v for v in values if v.lower().startswith("web")]
+            if web and search_type is None:
+                search_type = web[0]
+            continue
+        else:                                              # countries, devices: not used
+            counted = True
+            continue
+        counts = [number(v) for v in values]
+        if None in counts:
+            raise Refused(f"{name} has counts I can't read. Nothing was saved.")
+        counted = True
+        metrics.add(head[1].strip().lower())
+        if kind == "chart":
             if chart is not None:
                 raise Refused("This download has two files with dates in them; I can't tell which is the chart. "
                               "Nothing was saved.")
-            chart = [(DAY.match(f).group(1), DAY.match(f).group(2) or DAY.match(f).group(1), n)
-                     for f, n in zip(firsts, counts)]
-        elif body and all(f.lower().startswith(("http://", "https://")) for f in firsts) and None not in counts:
+            chart = [_interval(f, name) + (n,) for f, n in zip(firsts, counts)]
+        else:
             page_rows = list(zip(firsts, counts))
-        elif body and None in counts and not search_type:
-            search_type = body[0][1].strip() if len(body[0]) > 1 else ""   # the filter file: its first row
+    hint = (" This looks like Search Console's ordinary Performance report; open the generative AI report "
+            "and export that instead." if wide else "")
+    found = f" Found: {'; '.join(seen) or 'no CSV files'}."
+    if search_type is None:
+        raise Refused("This is not Google's generative AI report for Search: no file in it names the Web search "
+                      f"type (the Discover report isn't read yet).{found}{hint} Nothing was saved.")
+    if len(metrics) > 1:
+        raise Refused(f"The chart and the pages in this download count different things.{found} Nothing was saved.")
     if chart is None:
-        if headers_only and not wide and not counted:     # headers only: Google had no rows to give (A2)
+        if headers_only and not counted:     # headers only: Google had no rows to give (A2)
             return {"state": "empty", "first": None, "last": None, "total": 0, "pages": [], "search_type": search_type}
-        hint = (" This looks like Search Console's ordinary Performance report; open the generative AI report "
-                "and export that instead." if wide else "")
-        raise Refused("This is not Google's generative AI report: I found no file with dates and impressions. "
-                      f"Found: {'; '.join(seen) or 'no CSV files'}.{hint} Nothing was saved.")
+        raise Refused(f"This is not Google's generative AI report: I found no file with dates.{found}{hint} "
+                      "Nothing was saved.")
     for url, _ in page_rows or []:
         host = urlsplit(url).hostname or ""
-        if bare(host) != bare(site):
+        if not same_site(host, site):
             raise Refused(f"This download's pages belong to {host}, not {site}. Nothing was saved.")
     total = sum(n for _, _, n in chart)
     shown = sorted(((u, n) for u, n in page_rows or [] if n > 0), key=lambda x: -x[1])
-    return {"state": "data" if total > 0 else "empty", "first": min(a for a, _, _ in chart),
-            "last": max(b for _, b, _ in chart), "total": total,
+    return {"state": "data" if total > 0 else "empty", "first": min(a for a, _, _ in chart).isoformat(),
+            "last": max(b for _, b, _ in chart).isoformat(), "total": total,
             "pages": [list(p) for p in shown], "search_type": search_type}
 
 
@@ -176,7 +223,7 @@ def _dates(texts):
 
 def parse_bing(text):
     rows = rows_of(text)
-    if len(rows) < 2 or any(len(r) != 3 for r in rows):
+    if len(rows) < 2 or any(len(r) != 3 for r in rows) or [c.strip().lower() for c in rows[0]] != BING_HEADER:
         found = ", ".join(rows[0]) if rows else "nothing"
         raise Refused("This is not Bing's AI Performance export (Date, Citations, Cited Pages). "
                       f"Found: {found}. Nothing was saved.")
@@ -212,8 +259,9 @@ def do_import(site, path: Path):
         save(site, "google", dict(rec, file=path.name))
         if rec["state"] == "empty":
             return "Google: no impressions in AI answers yet. Saved; that is a result, not a fault."
-        return (f"Google: {rec['total']:,} impressions in AI answers, {rec['first']} to {rec['last']}, "
-                f"{len(rec['pages'])} pages. Saved.")
+        n = len(rec["pages"])
+        return (f"Google: {rec['total']:,} impression{'s' if rec['total'] != 1 else ''} in AI answers, "
+                f"{rec['first']} to {rec['last']}, {n} page{'s' if n != 1 else ''}. Saved.")
     if suffix == ".csv":
         try:
             text = path.read_bytes().decode("utf-8-sig")
@@ -227,7 +275,8 @@ def do_import(site, path: Path):
         save(site, "bing", dict(rec, file=path.name))
         if rec["state"] == "empty":
             return "Bing: no citations in AI answers yet. Saved; that is a result, not a fault."
-        return f"Bing: {rec['citations']:,} citations, {rec['first']} to {rec['last']}. Saved."
+        c = rec["citations"]
+        return f"Bing: {c:,} citation{'s' if c != 1 else ''}, {rec['first']} to {rec['last']}. Saved."
     raise Refused(f"{path.name} is not a CSV or zip file. Export the report as CSV. Nothing was saved.")
 
 
@@ -243,8 +292,14 @@ def main(argv=None):
     site = normalize_site(args.domain)
     try:
         if args.cmd == "not-shown":
+            old = base_dir() / "reports" / site / "ai-google.json"
+            try:
+                had = json.loads(old.read_text(encoding="utf-8")).get("file") if old.exists() else None
+            except (ValueError, OSError, AttributeError):
+                had = None
             save(site, "google", {"state": "not_shown", "checked": today().isoformat()})
-            print("Google: no AI report shown for this site; recorded as checked today.")
+            print("Google: no AI report shown for this site; recorded as checked today."
+                  + (f" This replaces the download you added earlier ({had})." if had else ""))
         else:
             print(do_import(site, Path(os.path.expanduser(args.file))))
     except Refused as e:

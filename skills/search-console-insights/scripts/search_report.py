@@ -598,30 +598,53 @@ def _day(d):
 
 
 def _span(first, last, sep):
-    """'12 July and 13 October 2026' / '12 July – 13 October 2026': the year once when both share it."""
+    """'12 July and 13 October 2026' / '12 July – 13 October 2026': the year once when both share it;
+    one day once ('14 July 2026')."""
     a, b = dt.date.fromisoformat(first), dt.date.fromisoformat(last)
+    if a == b:
+        return _day(a)
     left = f"{a.day} {a:%B}" if a.year == b.year else _day(a)
     return f"{left}{sep}{_day(b)}"
 
 
+def _between(first, last):
+    return f"on {_span(first, last, '')}" if first == last else f"between {_span(first, last, ' and ')}"
+
+
+def _ai_record_ok(source, j):
+    """Every field the AI section reads, checked: a hand-edited or damaged record is treated as missing."""
+    def date(v):
+        return isinstance(v, str) and dt.date.fromisoformat(v)
+    def count(v):
+        return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+    def span_ok(j):
+        return date(j.get("first")) and date(j.get("last")) and j["first"] <= j["last"]
+    state = j.get("state")
+    if source == "google" and state == "not_shown":
+        return bool(date(j.get("checked")))
+    if not isinstance(j.get("search_type", ""), (str, type(None))):
+        return False
+    if source == "google" and state == "empty":
+        return (j.get("first") is None and j.get("last") is None) or bool(span_ok(j))
+    if source == "google" and state == "data":
+        pages = j.get("pages", [])
+        return bool(span_ok(j)) and count(j.get("total")) and isinstance(pages, list) and all(
+            isinstance(r, list) and len(r) == 2 and isinstance(r[0], str) and count(r[1]) for r in pages)
+    if source == "bing" and state == "empty":
+        return bool(span_ok(j))
+    if source == "bing" and state == "data":
+        return bool(span_ok(j)) and all(count(j.get(k)) for k in ("citations", "days", "days_cited"))
+    return False
+
+
 def load_ai(site):
     """What ai_reports.py saved for this site: {'google': …, 'bing': …}; a missing or damaged file is None."""
-    need = {("google", "data"): ("total", "first", "last"), ("google", "empty"): (),
-            ("google", "not_shown"): (), ("bing", "data"): ("citations", "days", "days_cited", "first", "last"),
-            ("bing", "empty"): ("first", "last")}
     out = {}
     for source in ("google", "bing"):
         p = report_dir(site) / f"ai-{source}.json"
         try:
             j = json.loads(p.read_text(encoding="utf-8"))
-            keys = need.get((source, j.get("state"))) if isinstance(j, dict) else None
-            ok = keys is not None and all(j.get(k) is not None for k in keys)
-            for k in keys if ok else ():     # a hand-edited record: dates must be dates, counts whole numbers
-                if k in ("first", "last"):
-                    dt.date.fromisoformat(j[k])
-                elif not isinstance(j[k], int):
-                    ok = False
-            out[source] = j if ok else None
+            out[source] = j if isinstance(j, dict) and _ai_record_ok(source, j) else None
         except (ValueError, TypeError, OSError):
             out[source] = None
     return out
@@ -658,21 +681,18 @@ def ai_section(ai, site, today):
         card.append("<p>Not added yet. In Search Console, open the generative AI report, export it, and say "
                     "<i>“here's my AI report from Google”</i>.</p>")
     elif g["state"] == "not_shown":
-        when = g.get("checked") or ""
-        try:
-            when = _day(dt.date.fromisoformat(when))
-        except ValueError:
-            pass
+        when = _day(dt.date.fromisoformat(g["checked"]))
         card.append(f"<p>Google doesn't show an AI report for this site yet (you checked on {H(when)}). Google shows "
                     "it once a site has appeared in its AI answers often enough.</p>")
     elif g["state"] == "empty":
-        covers = (f"your download covers {H(_span(g['first'], g['last'], ' – '))}" if g.get("first")
-                  else "your download has no rows")
-        card.append(f"<p>No impressions in Google's AI answers yet ({covers}). That is normal for a small site.</p>")
+        # F9: Google writes "not available" as 0, so the card says what the file shows, not that there were none.
+        covers = (f"it covers {H(_span(g['first'], g['last'], ' – '))}" if g.get("first") else "it has no rows")
+        card.append(f"<p>Your download shows no impressions in Google's AI answers ({covers}). That is normal for a "
+                    "small site.</p>")
         card.append(old(g))
     else:
         card.append(f'<p class="move">Your site was shown {times(g["total"])} in Google\'s AI answers (AI Overviews and '
-                    f'AI Mode) between {H(_span(g["first"], g["last"], " and "))}.</p>')
+                    f'AI Mode) {H(_between(g["first"], g["last"]))}.</p>')
         pages = g.get("pages") or []
         if pages:
             # A path that Google lists under two addresses (with and without www.) is shown in full
@@ -684,8 +704,8 @@ def ai_section(ai, site, today):
                         + "</table>")
             if len(pages) > 15:
                 card.append(f'<p class="note">And {len(pages) - 15} more pages in your download.</p>')
-            card.append('<p class="note">One answer can show several of your pages, so the pages add up to more '
-                        "than the total.</p>")
+            card.append('<p class="note">One answer can show several of your pages, so the pages can add up to '
+                        "more than the total.</p>")
         if g.get("search_type"):
             card.append(f'<p class="note">Your download counts “{H(g["search_type"])}”.</p>')
         card.append(old(g))
@@ -701,8 +721,8 @@ def ai_section(ai, site, today):
         card.append(old(b))
     else:
         card.append(f"<p class=\"move\">Bing's AI answers (Copilot and Bing's AI summaries) cited your pages "
-                    f"{times(b['citations'])} between {H(_span(b['first'], b['last'], ' and '))}, on "
-                    f"{_n(b['days_cited'])} of those {_n(b['days'])} days.</p>")
+                    f"{times(b['citations'])} {H(_between(b['first'], b['last']))}"
+                    + (f", on {_n(b['days_cited'])} of those {_n(b['days'])} days" if b["days"] > 1 else "") + ".</p>")
         card.append('<p class="note">A citation means your page was shown as a source. Bing counts a sample, and a '
                     "citation says nothing about visits.</p>")
         card.append(old(b))

@@ -152,8 +152,8 @@ class Scenarios(AiTest):
         self.assertEqual(code, 0, "an empty report is a result, not a failure")
         self.assertEqual(self.saved("google")["state"], "empty")
         section, _ = self.page()
-        self.assertIn("No impressions in Google's AI answers yet (your download covers 12 July – 13 October 2026). "
-                      "That is normal for a small site.", section)
+        self.assertIn("Your download shows no impressions in Google's AI answers (it covers 12 July – 13 October "
+                      "2026). That is normal for a small site.", section)
         self.assertNotIn("<table", section)
         self.assertNotIn('class="alert"', section)
         self.no_zero_figures(section)
@@ -275,7 +275,7 @@ class Scenarios(AiTest):
         code, _, err = self.run_cli("import", SITE, str(self.google_zip(files)))
         self.assertEqual(code, 0, err)
         section, _ = self.page()
-        self.assertIn("No impressions in Google's AI answers yet (your download has no rows).", section)
+        self.assertIn("Your download shows no impressions in Google's AI answers (it has no rows).", section)
         self.no_zero_figures(section)
 
     def test_a9_another_sites_file_is_refused_by_its_name(self):
@@ -354,6 +354,129 @@ class Reading(AiTest):
         (d / "ai-bing.json").write_text('{"state": "empty", "first": "14/7/2026", "last": "2026-10-11"}')
         section, _ = self.page()
         self.assertIn("don't let programs read", section, "a count as text or a bad date reads as nothing added")
+
+
+
+class RoundOneFindings(AiTest):
+    """Review round 1 (docs/reviews/REVIEW-diff-2026-10-14-ai-reports.md). Invariant: a file is accepted
+    only once it is known to be the right report, and every number and date in it reads as one."""
+
+    def refused(self, path):
+        code, _, err = self.run_cli("import", SITE, str(path))
+        self.assertEqual(code, 1, f"{path.name} was accepted")
+        self.assertTrue(err.strip())
+        self.assertIsNone(self.saved("google"))
+        self.assertIsNone(self.saved("bing"))
+
+    def test_files_that_are_not_googles_search_report_are_refused(self):
+        filt = "Filtern,Wert\nSuchtyp,Web (text-based)"
+        cases = {
+            "a dated metric with no search type": {"Diagramm.csv": "Date,Revenue\n2026-10-01,5\n2026-10-02,7"},
+            "headers only, nothing Google's": {"x.csv": "Name,Value", "y.csv": "Name,Value"},
+            "the Discover report": dict(google_files(daily_chart([3] * 5), []),
+                                        **{"Filter.csv": "Filtern,Wert\nFeed,Discover"}),
+            "chart and pages count different things": {"Diagramm.csv": "Datum,Klicks\n2026-10-01,5",
+                                                       "Seiten.csv": f"Seiten,Impressionen\nhttps://{SITE}/,5",
+                                                       "Filter.csv": filt},
+        }
+        for i, (why, files) in enumerate(cases.items()):
+            with self.subTest(why):
+                self.refused(self.google_zip(files, name=f"{SITE}-case{i}.zip"))
+
+    def test_bing_files_with_other_columns_are_refused_and_padding_is_not(self):
+        for i, head in enumerate(('"Date","Clicks","Impressions"', '"Date","Visits","Pages"',
+                                  '"Date","Cited Pages","Citations"')):
+            with self.subTest(head):
+                self.refused(self.bing_file(bing_csv([1, 2]).replace('"Date","Citations","Cited Pages"', head),
+                                            name=f"{SITE}_AIPerformanceOverviewStats_{i}.csv"))
+        padded = bing_csv([1, 2]).replace('"Date","Citations","Cited Pages"', ' DATE , citations ,"Cited pages "')
+        code, _, err = self.run_cli("import", SITE, str(self.bing_file(padded)))
+        self.assertEqual(code, 0, err)
+
+    def test_a_pages_file_with_an_unreadable_count_is_refused_whoever_it_is_for(self):
+        for i, rows in enumerate((("https://other-site.de/", "broken"), (f"https://{SITE}/", "3.5"),
+                                  (f"https://{SITE}/", ""))):
+            with self.subTest(rows):
+                files = google_files(daily_chart([2] * 5), [])
+                files["Seiten.csv"] = f"Die häufigsten Seiten,Impressionen\n{rows[0]},{rows[1]}"
+                self.refused(self.google_zip(files, name=f"{SITE}-p{i}.zip"))
+
+    def test_impossible_dates_are_refused_before_anything_is_saved(self):
+        for i, row in enumerate(("2026-99-99,0", "2026-02-30,4", "2026-07-18 - 2026-07-12,4")):
+            with self.subTest(row):
+                files = google_files("Datum,Impressionen\n" + row, [])
+                self.refused(self.google_zip(files, name=f"{SITE}-d{i}.zip"))
+
+    def test_subdomains_are_the_same_site_and_look_alikes_are_not(self):
+        files = google_files(daily_chart([2] * 5), [(f"https://blog.{SITE}/a", 6), (f"https://WWW.{SITE.upper()}:443/", 4)])
+        code, _, err = self.run_cli("import", SITE, str(self.google_zip(files)))
+        self.assertEqual(code, 0, err)
+        for i, host in enumerate((f"evil-{SITE}", f"{SITE}.evil.de", f"not{SITE}")):
+            with self.subTest(host):
+                files = google_files(daily_chart([2] * 5), [(f"https://{host}/", 6)])
+                code, _, err = self.run_cli("import", SITE, str(self.google_zip(files, name=f"{SITE}-h{i}.zip")))
+                self.assertEqual(code, 1)
+                self.assertIn(host, err)
+
+    def test_a_finder_file_in_the_reports_folder_is_not_a_second_site(self):
+        reports = self.home / ".config/gsc-insights/reports"
+        (reports / SITE).mkdir(parents=True)
+        (reports / ".DS_Store").write_bytes(b"\0")
+        code, _, err = self.run_cli("import", SITE, str(self.bing_file(bing_csv([1, 0]), name="bing-ai.csv")))
+        self.assertEqual(code, 0, err)
+
+    def test_counts_take_thousands_separators_and_never_decimals(self):
+        cases = {"1,155": 1155, "1.155": 1155, "12": 12}
+        for i, (text, n) in enumerate(cases.items()):
+            with self.subTest(text):
+                csv_text = bing_csv([1]).replace('"1","1"', f'"{text}","1"')
+                code, _, err = self.run_cli("import", SITE, str(self.bing_file(csv_text, name=f"{SITE}_AIPerformance_{i}.csv")))
+                self.assertEqual((code, self.saved("bing")["citations"]), (0, n), err)
+        for i, text in enumerate(("3.5", "12,5", "1,15", "-1")):
+            with self.subTest(text):
+                csv_text = bing_csv([1]).replace('"1","1"', f'"{text}","1"')
+                code, _, _ = self.run_cli("import", SITE, str(self.bing_file(csv_text, name=f"{SITE}_AIPerformance_x{i}.csv")))
+                self.assertEqual(code, 1)
+
+    def test_damaged_records_of_every_shape_read_as_nothing_added(self):
+        d = self.home / ".config/gsc-insights/reports" / SITE
+        d.mkdir(parents=True)
+        good = {"state": "data", "total": 5, "first": "2026-07-12", "last": "2026-07-13", "pages": [], "search_type": "Web"}
+        bad_google = [{"state": "empty", "first": "2026-10-01"}, dict(good, pages="x"), dict(good, pages=[["/a"]]),
+                      dict(good, pages=[["/a", "3"]]), dict(good, search_type=5), dict(good, total=True),
+                      dict(good, first="2026-07-14"), {"state": "not_shown", "checked": 5}, {"state": "other"}]
+        for rec in bad_google:
+            with self.subTest(rec):
+                (d / "ai-google.json").write_text(json.dumps(rec))
+                section, _ = self.page()
+                self.assertIn("don't let programs read", section)
+        (d / "ai-google.json").write_text(json.dumps(good))
+        self.assertIn("shown 5 times", self.page()[0], "the good record itself is read")
+
+    def test_one_day_reads_as_one_day(self):
+        self.run_cli("import", SITE, str(self.bing_file(bing_csv([2]))))
+        self.run_cli("import", SITE, str(self.google_zip(google_files(daily_chart([4]), [(f"https://{SITE}/", 4)]))))
+        section, _ = self.page()
+        self.assertIn("cited your pages 2 times on 14 July 2026.", section)
+        self.assertIn("(AI Overviews and AI Mode) on 12 July 2026.", section)
+        self.assertIn("the pages can add up to more than the total", section, "never a claim that they do")
+
+    def test_not_shown_says_when_it_replaces_a_download(self):
+        self.run_cli("import", SITE, str(self.google_zip(google_files(daily_chart([1] * 5), []))))
+        code, out, _ = self.run_cli("not-shown", SITE)
+        self.assertEqual(code, 0)
+        self.assertIn(f"replaces the download you added earlier ({GOOGLE_ZIP})", out)
+
+    def test_a_folder_unzipped_twice_is_read(self):
+        outer = self.downloads / GOOGLE_ZIP[:-4]
+        inner = outer / GOOGLE_ZIP[:-4]
+        inner.mkdir(parents=True)
+        for n, text in google_files(daily_chart([3] * 3), []).items():
+            (inner / n).write_text(text, encoding="utf-8")
+        (outer / "__MACOSX").mkdir()
+        (outer / "__MACOSX" / "._Seiten.csv").write_bytes(b"\x00\x05junk")
+        code, _, err = self.run_cli("import", SITE, str(outer))
+        self.assertEqual((code, self.saved("google")["total"]), (0, 9), err)
 
 
 if __name__ == "__main__":
