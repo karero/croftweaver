@@ -198,7 +198,7 @@ Wrangler. The assistant starts it in the site's folder with a stage:
 `cloudflare-setup.mjs setup` or `cloudflare-setup.mjs launch`.
 
 **A yes is a second run with a code.** No run waits for typed input. A stage with
-something to change prints its question and a short code, writes nothing, and ends with 3.
+something to change prints its question and a short code (the first 16 characters of a SHA-256 of the inputs listed below), writes nothing, and ends with 3.
 The assistant shows Lena the question; on her yes it runs the same command with
 `--confirm <code>`. A stage with nothing to change asks nothing.
 
@@ -229,7 +229,7 @@ repository that does not exist, in the trial) and every run of the check script 
 the time left. The check script's `--timeout` bounds each answer, not the run, and a home
 page can take up to four answers, so the script passes a quarter of the time left; when
 that is under a second it skips the check and ends with 4. A program still running at the deadline is
-stopped.
+stopped, and killed if it has not ended a second later.
 A run that reaches the deadline ends with 4; the next run reads what is there. Where
 Cloudflare is not done (a build, a domain becoming active), the run also ends with 4 and
 says what it waits for; the assistant runs the same command again.
@@ -244,7 +244,7 @@ shows; see the end of script step 7). 1: something failed, was
 refused, or is not in effect. 2: the command was wrong. 3: waiting for a yes. 4: waiting
 for Cloudflare or for a push; run it again.
 
-**The token.** Read from `CLOUDFLARE_API_TOKEN` or from `.dev.vars`, never from an
+**The token.** Read from `CLOUDFLARE_API_TOKEN`, or, when that is not set, from `.dev.vars`; never from an
 argument; `.dev.vars` is refused if git tracks it or does not ignore it. It goes only to
 `api.cloudflare.com`, and the environment of every program the script starts (`git`, the
 check script) has it removed. A token with no end date is refused: token verify then
@@ -636,7 +636,8 @@ field descriptions); the Bot Management update call's own description.
    hand", with 1.
 3. Settled by the second trial for an apex that holds only an A record (T2-042 to
    T2-056): it behaves as a host below the zone does. An apex that also holds MX and TXT
-   records, as a domain with mail does, was not tried; if Cloudflare refuses the PATCH
+   records, as a domain with mail does, was not tried, nor an apex with no record at all,
+   where the script creates the CNAME (capture 104 created one below the zone); if Cloudflare refuses either write
    there, the run ends with 1 and the domain pending (script step 10). Plan step 10 is the
    first try.
 4. What the host answers between the record change and `active`. Not observed; the

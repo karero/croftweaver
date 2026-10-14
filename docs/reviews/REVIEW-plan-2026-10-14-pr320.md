@@ -9,6 +9,7 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-setup.md`, whole, with the section
 | 2 | `12ea3a0` | full, as a verification round (prior findings V1 to V23) | the same three seats, same versions and effort | Codex 355 s, 105,755 · Melious 557 s, 49,908 · fresh-eyes 332 s, 157,862 | 3 / 3 / 12 after merging duplicates (Codex 1/2/0, Melious 1/1/4, fresh-eyes 1/2/11), and outside scope 3 RISK, 1 NIT. V1, V2, V4, V6, V10 to V12, V14, V17, V18, V20, V22, V23 confirmed; V3, V5, V9, V13 in part |
 | 3 | `98a73bf` | full, as a verification round (prior findings X1 to X13, V13, V15, V16, V19) | the same three seats | Codex 300 s, 97,304 · Melious 544 s, 54,358 · fresh-eyes 254 s, 146,373 | 2 / 1 / 5 after merging duplicates (Codex 2/2/0, Melious 0/1/1, fresh-eyes 1/0/5), and outside scope 3 RISK, 2 NIT. X1 to X3 and X5 to X13 confirmed; X4 not |
 | 4 | `33aa45c` | full, as a verification round (prior findings Y1 to Y7, V15, V16); earned by Y1 (`--earned-by ruleset-create`, `--cut`: the read-back and its claim removed) | Codex and Melious, same versions and effort | Codex 224 s, 80,095 · Melious 288 s, 41,667 | 0 / 4 / 1 after merging duplicates (Codex 0/3/0, Melious 0/1/1), and outside scope 2 RISK, 2 NIT. Y1 to Y7 confirmed |
+| final full read (not a round) | `1c1918d` | full | ollama cloud, kimi-k2.7-code:cloud, text only (has not reviewed this plan before) | 329 s, tokens not reported | 0 / 9 / 3 (F1 to F12) |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -59,6 +60,18 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-setup.md`, whole, with the section
 | Z2 | RISK | Melious | 4 | The step 12 sentence places the race before the re-read | fixed, locally_verified (not externally re-verified) | script step 12: between the re-read and the PUT |
 | Z3 | RISK | Codex, Melious | 4 | V15 and V16, and the rulesets' and Bot Management's capture-based claims, still rest on captures no reviewer can open | open: missing prerequisite; waiver asked of the maintainer | the cleaned captures come with plan step 6, whose gate (plan step 8) can check them |
 | Z4 | NIT | Melious | 4 | (outside scope) "Within seconds" against the table's 20 seconds | fixed, locally_verified | script step 12 |
+| F1 | RISK | Kimi (final full read) | — | What `disabled` does in the AI fields rests on the reference | follow-up | as X14 |
+| F2 | RISK | Kimi (final full read) | — | Leaving out `is_robots_txt_managed` is untried | refuted in part | it is "Not verified" 2, with the read-back and plan step 10; the managed `robots.txt` is `bot_preference_sync_enabled`'s (T2-062 to T2-064), not this field's |
+| F3 | RISK | Kimi (final full read) | — | The code's length and make are unsaid | fixed, locally_verified | "the first 16 characters of a SHA-256 of the inputs" |
+| F4 | RISK | Kimi (final full read) | — | An apex with no record, where the script creates the CNAME, was not tried | fixed, locally_verified | "Not verified" 3 |
+| F5 | RISK | Kimi (final full read) | — | The placeholder test's path and names are fixed in the plan | refuted | they are the starter's (`templates/astro/tests/placeholders.spec.ts:84, 107`); a site without them gets "cannot tell" and a refusal (scenario 20), which is safe |
+| F6 | RISK | Kimi (final full read) | — | Cleaning captures is done by hand | refuted | "Tests" already asks for a test that every id, IP address, host name and hash in the fixtures is a made-up one |
+| F7 | RISK | Kimi (final full read) | — | Creating the ruleset can replace one made in the same moment | refuted | decided as a judgment call with its case against (X4, Y1); R7 names it |
+| F8 | RISK | Kimi (final full read) | — | A refused Bot Management write could pass as an `ai` `look` | refuted | a refused write is "by hand" with 1 in `setup` (scenario 14); the exit table is `launch`'s outside check |
+| F9 | RISK | Kimi (final full read) | — | How a program is stopped at the deadline is unsaid | fixed, locally_verified | "stopped, and killed if it has not ended a second later" |
+| F10 | NIT | Kimi (final full read) | — | Scenarios 41 and 42 out of order | refuted | as V19 |
+| F11 | NIT | Kimi (final full read) | — | Which token source wins is unsaid | fixed, locally_verified | the environment, then `.dev.vars` |
+| F12 | NIT | Kimi (final full read) | — | No one table of all `--skip` ids | refuted | step 5 lists `setup`'s, the end-status paragraph says `launch` takes those plus `canonical` and `nel-rule` |
 
 Waivers and deferrals: none.
 
