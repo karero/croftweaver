@@ -219,9 +219,19 @@ gate() {
       for (i = 1; i <= m; i++) {
         k = tolower(ks[i]); gsub(/[._-]/, "", k)
         if (k == "" || ((r, k) in has)) continue
-        has[r, k] = 1; kl[r] = kl[r] (kl[r] == "" ? "" : ",") ks[i]
+        has[r, k] = 1; nk[r]++; kl[r] = kl[r] (kl[r] == "" ? "" : ",") ks[i]
       }
-      if ($16 != "" && $16 != "-") ct[r] = $16
+      # Every distinct cut of the round, each with the kinds of the rows that carry it: a round
+      # whose seats logged two cuts shows both, and which kind each settled.
+      if ($16 == "" || $16 == "-") next
+      c = $16
+      if (!((r, c) in cidx)) { nc[r]++; cidx[r, c] = nc[r]; ctext[r, nc[r]] = c }
+      ci = cidx[r, c]
+      for (i = 1; i <= m; i++) {
+        k = tolower(ks[i]); gsub(/[._-]/, "", k)
+        if (k == "" || ((r, ci, k) in ck)) continue
+        ck[r, ci, k] = 1; ckn[r, ci]++; ckl[r, ci] = ckl[r, ci] (ckl[r, ci] == "" ? "" : ",") ks[i]
+      }
     }
     END {
       if (!n[1]) exit
@@ -230,8 +240,15 @@ gate() {
       printf ". Not counted: the fixes, the host'"'"'s own work, and fresh-eyes unless the host logged it.\n"
       s = ""
       for (i = 1; i <= 100; i++) {
-        if (!(i in kl) && !(i in ct)) continue
-        s = s (s == "" ? "" : "; ") i " " ((i in kl) ? kl[i] : "no kind") ((i in ct) ? " (cut: " ct[i] ")" : "")
+        if (!(i in kl) && !(i in nc)) continue
+        cs = ""
+        if (nc[i] == 1 && ckn[i, 1] + 0 == nk[i] + 0) cs = " (cut: " ctext[i, 1] ")"   # one cut, for all its kinds
+        else if (nc[i]) {
+          for (c = 1; c <= nc[i]; c++)
+            cs = cs (c == 1 ? " (" : "; ") "cut" (ckl[i, c] != "" ? " " ckl[i, c] : "") ": " ctext[i, c]
+          cs = cs ")"
+        }
+        s = s (s == "" ? "" : "; ") i " " ((i in kl) ? kl[i] : "no kind") cs
       }
       if (s != "") s = "kinds: " s
       if (noround) s = s (s == "" ? "" : "; ") plural(noround, "run") " with no round"
@@ -273,12 +290,15 @@ round_check() {
       runs[r]++
       if (want == "" || r >= want + 0) next
       below[r] = 1
+      # A cut settles only the kinds on the row that carries it: another seat of the same round
+      # may have logged a kind the cut was not about.
+      cut = ($16 != "" && $16 != "-")
       m = split($15, ks, ",")
       for (i = 1; i <= m; i++) {
         k = norm(ks[i]); if (k == "") continue
         has[r, k] = 1; seen[k] = 1; if (!(k in disp)) disp[k] = ks[i]
+        if (cut) cutr[r, k] = 1
       }
-      if ($16 != "" && $16 != "-") cutr[r] = 1
     }
     END {
       nb = 0; for (r in below) nb++
@@ -288,7 +308,7 @@ round_check() {
         g = norm(gs[j]); if (g == "" || (g in done)) continue
         done[g] = 1
         last = 0
-        for (r = 1; r < want + 0; r++) if (((r, g) in has) && (r in cutr)) last = r
+        for (r = 1; r < want + 0; r++) if ((r, g) in cutr) last = r
         rs = ""
         for (r = last + 1; r < want + 0; r++) if ((r, g) in has) rs = rs (rs == "" ? "" : ", ") r
         if (rs != "") printf "owed\t%s\t%s\t%s\n", gs[j], rs, disp[g]

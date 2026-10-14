@@ -208,6 +208,22 @@ line G8 7 codex 1 config-advice >>"$LOG"
 run --round 8 --earned-by config-advice;    check "the kind back again after the cut: refused, naming only rounds since it" 2 "Kind config-advice earned round 7 of this gate too"
 use_gate G1
 
+gt() { (cd "$T/repo" && bash "$LOG_SH" gate "$@" 2>&1); }
+# 8b. A cut settles only the kinds on the row that carries it (round 2, Codex). Gate G10: round
+#     4, codex alpha and ollama beta; round 5, codex alpha with a cut, ollama beta without one.
+{ line G10 4 codex 1 alpha; line G10 4 ollama-cloud 1 beta
+  line G10 5 codex 1 alpha "removed alpha"; line G10 5 ollama-cloud 1 beta; } >>"$LOG"
+use_gate G10
+run --round 6 --earned-by beta;   check "mixed seats: another seat's cut does not settle beta" 2 "Kind beta earned rounds 4, 5 of this gate too"
+run --round 6 --earned-by alpha;  check "mixed seats: alpha, cut on its own row, is settled" $P "" "Kind alpha"
+got="$(gt --id G10 | sed -n 2p)"; want="kinds: 4 alpha,beta; 5 alpha,beta (cut alpha: removed alpha)"
+[ "$got" = "$want" ] && ok "gate: a cut that settled one of a round's kinds names that kind" || fail "gate --id G10 kinds: got [$got], want [$want]"
+line G10 5 fresh-eyes - beta "removed beta" >>"$LOG"
+run --round 6 --earned-by beta;   check "mixed seats: beta's own cut, on a third row, settles it" $P "" "Kind beta"
+got="$(gt --id G10 | sed -n 2p)"; want="kinds: 4 alpha,beta; 5 alpha,beta (cut alpha: removed alpha; cut beta: removed beta)"
+[ "$got" = "$want" ] && ok "gate: every distinct cut of a round, each with its kinds" || fail "gate --id G10 two cuts: got [$got], want [$want]"
+use_gate G1
+
 # 9. When the log cannot answer, the cut check says so and the review goes on.
 REVIEW_LOG=off run --round 5 --earned-by config-advice
 check "REVIEW_LOG=off: warning, checks pass" $P "$WARN (the review cost log is off"
