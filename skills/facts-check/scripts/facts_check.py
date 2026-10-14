@@ -1130,16 +1130,17 @@ def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
     a document type: a sitemap needs none, and one can declare nested entities that grow a few
     hundred bytes into gigabytes of text. Python's documentation of StartDoctypeDeclHandler says
     it is called when expat begins the document type declaration, so the stop comes before any
-    declaration inside it is read; measured so on expat 2.2.8 and 2.7.4. A second stop, at the
-    first entity declaration, holds should that order ever differ: an entity is declared before
-    it can be used. (Expat itself limits that growth from release 2.4.0, whose changelog names
-    CVE-2013-0340; the /usr/bin/python3 of the Mac this was written on, 3.9.6, carries expat
-    2.2.8.) It is also stopped at a first element other than <urlset> or <sitemapindex>: another
-    kind of document lists no page.
+    declaration inside it is read; measured so on expat 2.2.8 and 2.7.4. A second stop sits at
+    the first entity declaration: on those two versions either stop alone refuses a 10-level
+    entity tree before any of it expands (measured, PR 293). (Expat itself limits that growth
+    from release 2.4.0, whose changelog names CVE-2013-0340; the /usr/bin/python3 of the Mac
+    this was written on, 3.9.6, carries expat 2.2.8.) It is also stopped at a first element
+    other than <urlset> or <sitemapindex>: another kind of document lists no page.
     skills/wordpress-inspector/scripts/wp_inventory.py, parse_sitemap, reads sitemaps the same
     way, where it was measured and reviewed (PR 281).
     Addresses are the text of <loc> directly inside <url> or <sitemap>, whatever prefix the
-    elements carry: image:loc and video:*_loc sit deeper and are not pages."""
+    elements carry: the <loc>'s own text, not the text of an element inside it. image:loc and
+    video:*_loc sit deeper and are not pages."""
     seen = {"root": None, "doctype": None}
     path: List[str] = []
     locs: List[str] = []
@@ -1147,6 +1148,9 @@ def read_sitemap_xml(body: bytes) -> Tuple[str, List[str], str]:
     parser = expat.ParserCreate(namespace_separator="}")
     parser.buffer_text = True
 
+    # `path` holds every open element, the root first (start() pushes each one, end() pops it), so
+    # a page's <loc> is always path[2], under path[1] = <url> or <sitemap>; len(path) == 3 means
+    # that <loc> itself is the innermost open element.
     def in_page_loc() -> bool:  # inside a <loc> that names a page, or inside a child of one
         return len(path) >= 3 and path[2] == "loc" and path[1] in ("url", "sitemap")
 
