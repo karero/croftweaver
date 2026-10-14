@@ -147,7 +147,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 24 | her apex has an A and an AAAA record; or her site is on `www`, which has an A record and a TXT record; or the token cannot read DNS | `launch` runs | it refuses: it will not attach a domain whose records it cannot see or would have to delete, and points to "Going live" | three stub states; no attach call |
 | 25 | the same as 23, but Cloudflare answers `error` on a later run | `launch` runs with the code | it ends with 1 and Cloudflare's words; the domain stays attached; the report gives the old record, read from the comment the script wrote on the record, so it can be put back by hand | stub: `error` on the third run |
 | 26 | the domain turns out to serve another commit, or no `build.txt` | `launch` reaches the check | it reports a failure and stops before the forwarding | stub site |
-| 27 | the NEL switch reads off, and the domain still sends the headers | `launch` reaches the NEL line | one add-rule call holding only the new rule, the two existing rules untouched; with no ruleset for the phase, one call creates it with the rule, unless the read just before that call finds one, and then the add-rule call is used; with the kit's rule already there, nothing is added and the run ends with 1; with `--skip nel-rule` no rule is written and `nel` is listed as left to Lena, status 0 | stub ruleset with two rules; none; none at first and one at the second read; one holding the kit's rule |
+| 27 | the NEL switch reads off, and the domain still sends the headers | `launch` reaches the NEL line | one add-rule call holding only the new rule, the two existing rules untouched; with no ruleset for the phase, one call creates it with the rule, unless the read just before that call finds one, and then the add-rule call is used, or nothing is added if it holds the kit's rule; with the kit's rule already there, nothing is added and the run ends with 1; with `--skip nel-rule` no rule is written and `nel` is listed as left to Lena, status 0 | stub ruleset with two rules; none; none at first and one at the second read, with and without the kit's rule; one holding the kit's rule |
 | 28 | the domain serves the head of `production`, built by Cloudflare; the project has one other variable and one secret | `launch` reaches the forwarding | it saves `CANONICAL_URL` alone, starts one production build, ends with 4; a later run finds it done and the check's `canonical` item `ok`, and ends with 0 | stub; a stub site for the 301 |
 | 29 | the domain was attached earlier and is active, and the head of `production` is newer than the live build; or another variable changed since the live build; or the live build was uploaded | `launch` reaches the forwarding | it says "the variable is saved, but no build has picked it up", names the other difference, sends no deployment call, and ends with 1 | three stub states |
 | 30 | Lena does not want the forwarding | `launch` runs with `--skip canonical` | the question does not name it, and `CANONICAL_URL` is not written | stub: no variable write |
@@ -453,11 +453,13 @@ check comes with the launch stage, since no request may reach the domain before 
     a ruleset, which left the rule already there, its id and its version untouched
     (T2-024, T2-025); where it has none (asking for it answers code 10003, T2-018), one PUT
     to the phase creates the ruleset with the rule (T2-023). Whether a rule another person
-    adds at the same moment survives was not tried; nor what happens when someone creates
-    the ruleset between the read that finds none and the PUT that creates it, which may
-    replace theirs without any sign. The script reads the phase again just before that PUT;
-    if a ruleset is there by then, it uses the add-one-rule call instead. The rule took
-    effect within seconds on the site the checklist records, so this run ends with 4, and
+    adds at the same moment survives was not tried; the script reads the phase again just
+    before the PUT that creates the ruleset, and if a ruleset is there by then, it treats it
+    as above: nothing added if the kit's rule is in it, the add-one-rule call if not. What
+    happens when someone creates the ruleset between that read and the PUT was not tried;
+    the PUT may replace theirs without any sign. The rule took
+    effect within seconds on the site the checklist records, and within 20 seconds in the
+    second trial (T2-067), so this run ends with 4, and
     the next runs `nel` again; a failure then ends with 1.
 13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and
     the domain and the check's `canonical` item is `ok`, there is nothing to do. If the

@@ -1,5 +1,5 @@
 # PLAN review — karero/croftweaver#320 — Cloudflare setup plan: the second trial's results
-Base `6c4c38d` · depth: High (the maintainer chose High for this plan; the script changes an account with a token and can make a site public) · verdict: OPEN, round 4 next (earned by Y1) · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and created the worktree and the branch)
+Base `6c4c38d` · depth: High (the maintainer chose High for this plan; the script changes an account with a token and can make a site public) · verdict: OPEN. Rounds ended after round 4 (no BUG); its RISK and NITs fixed locally; V15, V16 and the capture-evidence RISKs wait on the maintainer's waiver; wording pass next · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and created the worktree and the branch)
 
 Artifact: `docs/reviews/SKILL-PLAN-cloudflare-setup.md`, whole, with the sections this change touches named. The plan passed its own gate in karero/croftweaver#303 (`docs/reviews/REVIEW-plan-2026-10-14-pr303.md`); this is a new gate on the change. Raw reviewer output is in the pull request's review comment.
 
@@ -8,6 +8,7 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-setup.md`, whole, with the section
 | 1 | `72e652d` | full, changed sections named | Codex CLI, gpt-6.1-sol, config effort, read-only · Melious HTTP API, glm-5.3, text only · fresh-eyes sub-agent, claude-opus-5-5, read-only | Codex 508 s, 132,079 · Melious 370 s, 44,996 · fresh-eyes 285 s, 157,218 | 4 / 12 / 7 after merging duplicates (Codex 2/5/0, Melious 1/2/3, fresh-eyes 1/8/6) |
 | 2 | `12ea3a0` | full, as a verification round (prior findings V1 to V23) | the same three seats, same versions and effort | Codex 355 s, 105,755 · Melious 557 s, 49,908 · fresh-eyes 332 s, 157,862 | 3 / 3 / 12 after merging duplicates (Codex 1/2/0, Melious 1/1/4, fresh-eyes 1/2/11), and outside scope 3 RISK, 1 NIT. V1, V2, V4, V6, V10 to V12, V14, V17, V18, V20, V22, V23 confirmed; V3, V5, V9, V13 in part |
 | 3 | `98a73bf` | full, as a verification round (prior findings X1 to X13, V13, V15, V16, V19) | the same three seats | Codex 300 s, 97,304 · Melious 544 s, 54,358 · fresh-eyes 254 s, 146,373 | 2 / 1 / 5 after merging duplicates (Codex 2/2/0, Melious 0/1/1, fresh-eyes 1/0/5), and outside scope 3 RISK, 2 NIT. X1 to X3 and X5 to X13 confirmed; X4 not |
+| 4 | `33aa45c` | full, as a verification round (prior findings Y1 to Y7, V15, V16); earned by Y1 (`--earned-by ruleset-create`, `--cut`: the read-back and its claim removed) | Codex and Melious, same versions and effort | Codex 224 s, 80,095 · Melious 288 s, 41,667 | 0 / 4 / 1 after merging duplicates (Codex 0/3/0, Melious 0/1/1), and outside scope 2 RISK, 2 NIT. Y1 to Y7 confirmed |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -54,6 +55,10 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-setup.md`, whole, with the section
 | Y5 | NIT | fresh-eyes, Melious | 3 | "Review trail" does not name this gate | fixed, locally_verified | "Review trail" |
 | Y6 | NIT | fresh-eyes | 3 | V15 and V16 are not refuted but wait on captures no reviewer can open | fixed, locally_verified | both rows reopened with the missing prerequisite named; a waiver request goes to the maintainer |
 | Y7 | NIT | fresh-eyes | 3 | (outside scope) The `ship.sh` path is relative to `skills/new-website` without saying so | fixed, locally_verified | full path |
+| Z1 | RISK | Codex | 4 | The re-read that finds a ruleset goes straight to the add-rule call, skipping the check for the kit's rule | fixed, locally_verified (not externally re-verified) | script step 12 treats it as the first read does; scenario 27 |
+| Z2 | RISK | Melious | 4 | The step 12 sentence places the race before the re-read | fixed, locally_verified (not externally re-verified) | script step 12: between the re-read and the PUT |
+| Z3 | RISK | Codex, Melious | 4 | V15 and V16, and the rulesets' and Bot Management's capture-based claims, still rest on captures no reviewer can open | open: missing prerequisite; waiver asked of the maintainer | the cleaned captures come with plan step 6, whose gate (plan step 8) can check them |
+| Z4 | NIT | Melious | 4 | (outside scope) "Within seconds" against the table's 20 seconds | fixed, locally_verified | script step 12 |
 
 Waivers and deferrals: none.
 
