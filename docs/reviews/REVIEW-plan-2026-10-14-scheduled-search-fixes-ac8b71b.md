@@ -78,3 +78,18 @@ Codex alone (one reviewer, as the wording pass allows). 8 findings: 3 BUG, 5 RIS
 | 6 | RISK | The live result could be the wrong one (locale, the page not present) | Fixed: searched with the site's country and language; no T2 proposal unless the page's URL is in the results |
 | 7 | RISK | The competitor claim (third time) | Refuted: the sentence states what was read, where and when; the reviewer cannot read outside the repo. The owner may overrule |
 | 8 | RISK | The example sentence asked for a title fix while the proposal also changes the H1 and first paragraph | Fixed: the sentence names every place |
+
+## Fix check — verification at 39f548b, 2026-10-14
+
+Codex alone. The gate, same-page and owner-sentence fixes verified landed. No BUG; 3 RISK,
+all on things the repository cannot show:
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| 1 | RISK | Google's completeness, filter and omitted-query behaviour is still unproven; "confirm in the design plan" does not close it | Proposed to the owner for waiver at the requirements stage: it is checked in the design plan, before any build |
+| 2 | RISK | Serper's freshness and the meaning of its title and snippet fields are unproven | Same: proposed for waiver, to be checked in the design plan |
+| 3 | RISK | The competitor claim (fourth time) | Same: proposed for waiver; the claim states what was read, where and when |
+
+The two remaining RISKs on outside services and the repeated competitor RISK are the
+same kind each round: claims about systems outside the repository. Another round would
+not settle them.
