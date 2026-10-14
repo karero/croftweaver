@@ -646,10 +646,30 @@ test('--project: the alias that forwards to the domain passes the forward, and i
       assert.equal(r.by.canonical.state, 'ok');
       assert.equal(r.by.pages.state, 'look', 'a local address is not known to be a pages.dev project');
       assert.equal(r.by.nel.state, 'ok');
-      assert.match(r.by.nel.detail, /pages\.dev address still sends nel and report-to headers/);
+      assert.match(r.by.nel.detail, /pages\.dev address still sends a nel header and a report-to header; .* remove them there/);
       assert.equal(r.code, 0);
     });
   });
+});
+
+test('--project: the alias note names the header the alias sends, not both', async () => {
+  for (const [headers, said, notSaid] of [
+    [{ nel: '{"max_age":604800}' }, /still sends a nel header; .* remove it there/, /report-to header/],
+    [{ 'report-to': '{"group":"cf-nel"}' }, /still sends a report-to header; .* remove it there/, /nel header/],
+  ]) {
+    await withSite(undefined, async (live) => {
+      await withSite((req, res) => {
+        res.writeHead(301, { location: `https://${live.host}/?cb=1`, ...headers });
+        res.end();
+        return true;
+      }, async (alias) => {
+        const r = await check(live.origin, '--project', alias.origin);
+        const note = r.by.nel.detail.slice(r.by.nel.detail.indexOf('The pages.dev address'));
+        assert.match(note, said);
+        assert.doesNotMatch(note, notSaid, 'the home\'s own words are not part of the alias note');
+      });
+    });
+  }
 });
 
 test('--project: an alias that answers 200 means the forward is not set, and the causes are listed', async () => {
@@ -840,13 +860,14 @@ test('any one of the script monitor\'s three headers names it, however the addre
     });
   }
   const spellings = {
-    'a report-to value that does not parse is judged by the addresses in its text': { 'report-to': `not json, but ${MONITOR_URL}` },
     'a report-to that is a JSON array': { 'report-to': `[{"group":"g","endpoints":[{"url":"${MONITOR_URL}"}]}]` },
     'two groups in one value, the monitor second': { 'report-to': `{"group":"mine","endpoints":[{"url":"https://reports.example.invalid/r"}]}, {"group":"x","endpoints":[{"url":"${MONITOR_URL}"}]}` },
     'a group named something else, reporting to Cloudflare\'s host': { 'report-to': `{"group":"whatever","endpoints":[{"url":"${MONITOR_URL}"}]}` },
     'a sub-host in a report-to group': { 'report-to': '{"group":"g","endpoints":[{"url":"https://a.csp-reporting.cloudflare.com/r"}]}' },
     'a sub-host in a report-only policy': { 'content-security-policy-report-only': "default-src 'self'; report-uri https://a.csp-reporting.cloudflare.com/r" },
     'an upper-case address in a policy': { 'content-security-policy-report-only': "default-src 'self'; report-uri HTTPS://CSP-REPORTING.CLOUDFLARE.COM/R" },
+    'an upper-case directive name': { 'content-security-policy-report-only': `default-src 'self'; REPORT-URI ${MONITOR_URL}` },
+    'two policies, the monitor in the second': { 'content-security-policy-report-only': `default-src 'self', report-uri ${MONITOR_URL}` },
     'a trailing dot on the host': { 'reporting-endpoints': 'g="https://csp-reporting.cloudflare.com./r"' },
     'a port': { 'reporting-endpoints': 'g="https://csp-reporting.cloudflare.com:443/r"' },
   };
@@ -886,6 +907,28 @@ test('a group or an address of your own is not the script monitor, whatever it i
       });
     }
   }
+  // not an address the header reports to
+  const quoted = {
+    'a report-to value that does not parse is not read for addresses': { 'report-to': `not json, but ${MONITOR_URL}` },
+    'an endpoint address that is not a string': { 'report-to': `{"group":"g","endpoints":[{"url":["${MONITOR_URL}"]}]}` },
+  };
+  for (const [what, headers] of Object.entries(quoted)) {
+    await withSite(homeWith(headers), async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.nel.state, 'look', what);
+      assert.doesNotMatch(r.by.nel.detail, /script monitor is switched on/, what);
+    });
+  }
+  const notReported = {
+    'the host inside a query that follows a comma (two policies)': { 'content-security-policy-report-only': "default-src 'self'; report-uri https://reports.example.invalid/r?x=,https://csp-reporting.cloudflare.com/r" },
+    'the host only listed as a source': { 'content-security-policy-report-only': "default-src 'self'; connect-src https://csp-reporting.cloudflare.com" },
+    'an address that is not a quoted string': { 'reporting-endpoints': 'g=https://csp-reporting.cloudflare.com/r' },
+  };
+  for (const [what, headers] of Object.entries(notReported)) {
+    await withSite(homeWith(headers), async (s) => {
+      assert.equal((await check(s.origin)).by.nel.state, 'ok', what);
+    });
+  }
   // the host quoted as a NAME, outside any address
   await withSite(homeWith({ 'Reporting-Endpoints': 'csp-reporting.cloudflare.com="https://reports.example.invalid/r"' }), async (s) => {
     assert.equal((await check(s.origin)).by.nel.state, 'ok', 'a name that reads like the host is not an address');
@@ -913,12 +956,22 @@ test('NEL on still fails beside the script monitor, and the monitor is named the
   });
 });
 
-test('a clean NEL line says that one answer cannot show the script monitor is off', () =>
-  withSite(homeWith({}), async (s) => {
+test('a clean NEL line says that one answer cannot show the script monitor is off', async () => {
+  await withSite(homeWith({}), async (s) => {
     const r = await check(s.origin);
     assert.equal(r.by.nel.state, 'ok');
-    assert.match(r.by.nel.detail, /sample of pages only/);
-  }));
+    assert.match(r.by.nel.detail, /sample of pages only, so this one answer cannot show that it is off/);
+  });
+  await withSite((req, res, url) => {
+    if (isHome(url)) { res.writeHead(301, { location: 'https://www.elsewhere.invalid/' }); res.end(); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.nel.state, 'look');
+    assert.match(r.by.nel.detail, /judged from the 301 answer/);
+    assert.match(r.by.nel.detail, /sample of pages only, so this one answer cannot show that it is off/);
+  });
+});
 
 test('a robots.txt or build.txt larger than what is read is not judged whole', async () => {
   const huge = (type) => (req, res, url) => {

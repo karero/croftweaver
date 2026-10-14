@@ -507,19 +507,28 @@ function cloudflareGroup(value) {
 
 // Cloudflare's script monitor (Client-side security, formerly Page Shield) has browsers report
 // the scripts a page loads to csp-reporting.cloudflare.com, on a sample of pages. It shows in a
-// report-to group, in a reporting-endpoints entry and in a report-only policy; any one of the
-// three names it. Each is judged by the host of an address it reports to, never by a group's
-// name or by text that quotes the host elsewhere in the value (a path, a query, a user name).
+// report-to group, in a reporting-endpoints entry and in the report-uri of a report-only policy;
+// any one of the three names it. Each header is read by its own syntax, and only the addresses it
+// REPORTS TO are judged, by their host: not a group's name, and not text that quotes the host in a
+// path, a query or a user name, or that lists it as a source.
 const monitorHost = (u) => {
+  if (typeof u !== 'string') return false;
   try { return /(^|\.)csp-reporting\.cloudflare\.com$/i.test(new URL(u).hostname.replace(/\.$/, '')); } catch { return false; }
 };
-function cloudflareMonitor(value, asReportTo) {
-  if (asReportTo) {
-    let groups = null;
-    try { groups = JSON.parse(`[${value}]`).flat(); } catch { /* the addresses in its text are judged below */ }
-    if (groups) return groups.some((g) => g && Array.isArray(g.endpoints) && g.endpoints.some((e) => e && monitorHost(e.url)));
+function cloudflareMonitor(name, value) {
+  if (name === 'report-to') { // a list of JSON groups; a value that does not parse is not read
+    let groups;
+    try { groups = JSON.parse(`[${value}]`).flat(); } catch { return false; }
+    return groups.some((g) => g && Array.isArray(g.endpoints) && g.endpoints.some((e) => e && monitorHost(e.url)));
   }
-  return (value.match(/https?:\/\/[^\s"',;<>)]+/gi) ?? []).some(monitorHost);
+  if (name === 'reporting-endpoints') { // name="address", name="address"
+    return [...value.matchAll(/"([^"]*)"/g)].some((m) => monitorHost(m[1]));
+  }
+  // content-security-policy-report-only: policies split at commas, directives at semicolons
+  return value.split(/[;,]/).some((d) => {
+    const [directive, ...addresses] = d.trim().split(/\s+/);
+    return /^report-uri$/i.test(directive) && addresses.some(monitorHost);
+  });
 }
 
 // robots.txt, read the way a crawler reads it: groups of User-agent lines with their rules.
@@ -669,13 +678,13 @@ export function evaluate(obs, target, opts) {
     const withdrawn = policies.length > 0 && !live;
     const reports = values('report-to');
     const cfReport = reports.some((v) => cloudflareGroup(v) === true);
-    const monitor = reports.some((v) => cloudflareMonitor(v, true))
-      || values('reporting-endpoints').some((v) => cloudflareMonitor(v, false))
-      || values('content-security-policy-report-only').some((v) => cloudflareMonitor(v, false));
+    const monitor = ['report-to', 'reporting-endpoints', 'content-security-policy-report-only']
+      .some((name) => values(name).some((v) => cloudflareMonitor(name, v)));
     const nel = policies.length > 0;
     const age = Number.isFinite(live?.max_age) ? ` (max_age ${live.max_age} seconds)` : '';
-    const aliasNel = alias && !alias.error && (header(alias, 'nel') || header(alias, 'report-to'))
-      ? ' The pages.dev address still sends nel and report-to headers; the header rule cannot reach it, and no way to remove them there has been found.' : '';
+    const aliasSends = alias && !alias.error ? ['nel', 'report-to'].filter((h) => header(alias, h)) : [];
+    const aliasNel = aliasSends.length
+      ? ` The pages.dev address still sends ${aliasSends.map((h) => `a ${h} header`).join(' and ')}; the header rule cannot reach it, and no way to remove ${aliasSends.length > 1 ? 'them' : 'it'} there has been found.` : '';
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
     // The script monitor is named wherever it is seen, beside a NEL failure too: it is not NEL,
     // and the header rule for NEL does not remove it.
