@@ -26,7 +26,7 @@ table. **Script steps** are the nine things the script does, under "Shape".
 | 1 | Requirements and scenarios (this file) | ⚠ written; the PLAN gate (High) stopped after round 3, not converging. Rounds 1 and 2 are worked in, round 3 is open. How to go on is the maintainer's decision | this file; trail: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist reaches `main` (`docs/CLOUDFLARE-CHECKLIST.md`; another session's work) | ✅ merged 2026-10-12. The script that runs its outside checks followed the same day | karero/croftweaver#266 (`7642954`); the check script: karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions D1 to D7 below | ✅ all seven decided as recommended (maintainer, 2026-10-12: "all as recommended"). D2 and D3 changed the same day: the script lives in the kit ("In the kit"). D1 changed twice on 2026-10-13: first to three stages with a yes for each ("Three, one per stage"), asked for with a reason round 3 showed to be false (H3); then back to two yeses ("go back to two yeses") | section "Decisions D1 to D7" |
-| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ✅ done 2026-10-13, apart from two points: whether a change to Fail open reaches the build that is live (Cloudflare does not record it), and Bot Management's PUT with only some fields (not tried on a live zone). The answers are under "Seen in the spike"; the body of this file is not yet rewritten from them | 147 captures, kept outside every repository; the private repository `karero/cf-setup-spike` |
+| 4 | Spike on a throwaway repository and project: every write call once, the eight questions under "Not verified" and the observations round 3 added (section "The spike") | ✅ done 2026-10-13, apart from two points: whether a change to Fail open reaches the build that is live (Cloudflare does not record it), and Bot Management's PUT with only some fields (not tried on a live zone). The answers are under "Seen in the spike"; the body of this file is not yet rewritten from them | 147 captures, kept outside every repository; the private throwaway repository |
 | 5 | The script and its tests against a stub of Cloudflare's API. Two pull requests: the project and domain stages (script steps 1 to 7), then the settings stage (script steps 8 and 9) | ⏸ not started | — |
 | 6 | The kit's files that say otherwise today are changed with the script (list under "Hooks") | ⏸ not started | — |
 | 7 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
@@ -582,7 +582,7 @@ added the DNS row to the token):
 **Removed on 2026-10-14, on the maintainer's word:** the two throwaway Pages projects, with
 their hosts, and the four DNS records; the zone has its 14 earlier records again and the
 account its four earlier projects. Left for the maintainer: the private repository
-`karero/cf-setup-spike` (the GitHub sign-in the assistant uses may not delete a
+the private throwaway repository (the GitHub sign-in the assistant uses may not delete a
 repository), the local folder of the trial, which holds the token in `.dev.vars`, and the
 token itself.
 
