@@ -106,11 +106,11 @@ const SHOWN_AS_TEXT = ['text', 'search', 'email', 'tel', 'url', 'submit', 'butto
 // placeholder and keep the pull request a draft.
 const UNFILLED_UNTIL_LAUNCH = new Set<string>(['/privacy', '/impressum', '/manifest.webmanifest']);
 
-// A leftover is the same leftover however it is spaced. The page copy is read twice
-// (see readPage), and markup inside a slot puts spaces into one of the two readings:
-// "[BO<b>LD</b> SLOT]" is "[BOLD SLOT]" in one and "[BO LD SLOT]" in the other. So
-// findings, ALLOWLIST and DRAFT_TOKEN are compared with all whitespace removed
-// (squash); fold is only how a match is printed.
+// A leftover is the same leftover however it is spaced. The page copy is read three
+// times (see readPage), and markup inside a slot puts spaces into some of the readings:
+// "[BO<b>LD</b> SLOT]" is "[BOLD SLOT]" in the two fused ones and "[BO LD SLOT]" in the
+// spaced one. So findings, ALLOWLIST and DRAFT_TOKEN are compared with all whitespace
+// removed (squash); fold is only how a match is printed.
 const fold = (s: string) => s.replace(/\s+/g, ' ');
 const squash = (s: string) => s.replace(/\s+/g, '');
 const allowed = (match: string) => [...ALLOWLIST].some((a) => squash(a).toLowerCase() === squash(match).toLowerCase());
@@ -492,7 +492,8 @@ test('placeholders — the page reading reaches each surface it claims', async (
   const hits = (m: string) => findings.filter((f) => squash(f.match) === squash(`[${m}]`)).length;
   expect(mustFind.filter((m) => hits(m) !== 1), 'planted slots not found exactly once').toEqual([]);
   expect(findings.find((f) => squash(f.match) === '[INNERSLOT]')?.match, 'printed in its unbroken spelling').toBe('[INNER SLOT]');
-  // The two leftovers that only one of the two readings can see.
+  // Two leftovers that one kind of reading misses: "Lorem ipsum" needs a fused reading,
+  // "TODO" needs the spaced one.
   const found = (label: string, match: string) => findings.some((f) => f.label === label && squash(f.match).toLowerCase() === match);
   expect(found('filler text', 'loremipsum'), '"Lo<em>rem</em> ipsum" needs the fused reading').toBe(true);
   expect(found('author note', 'todo'), '"prices" + "TODO" needs the spaced reading').toBe(true);
