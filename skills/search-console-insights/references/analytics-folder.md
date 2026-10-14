@@ -45,7 +45,8 @@ Run these from this skill's folder with `~/.config/gsc-insights/venv/bin/python`
   check is set up), then `scripts/analytics_snapshot.py <domain> --site-dir <site folder>` (add
   `--csv <file>` when the Google & Bing page was built with one). It writes `README.md`,
   `seo.html`, `geo.html`, the Search Console data and Bing rows the page was built from, and the
-  AI-check page with the answers of every run it shows, and says what it skipped.
+  AI-check page with the answers of every run it lists, and says what it skipped. An AI-check page
+  built before pages listed their runs keeps no answers: rebuild it (`geo_check.py --report`) first.
 - **The facts check**, when the site has a facts list (`facts.json`, wherever the owner keeps it):
   run the facts-check skill's script from the site folder with
   `--out analytics/<today>_facts-check/facts-report.md --json analytics/<today>_facts-check/facts-report.json --history analytics/facts-history.csv`

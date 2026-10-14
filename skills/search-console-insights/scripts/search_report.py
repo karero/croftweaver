@@ -985,7 +985,7 @@ def data_fingerprint(data):
 def write_atomic(path: Path, text: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
+    tmp.write_bytes(text.encode("utf-8"))      # bytes as given: no CRLF on Windows, so data_fingerprint matches
     os.replace(tmp, path)
 
 

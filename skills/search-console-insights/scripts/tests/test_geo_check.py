@@ -1380,9 +1380,9 @@ class PageRecordsItsRuns(GeoTestCase):
         stub.engine_reply("gemini", "Bäckerei Example.")
         self.cli()
         page = geo_check.build_report(DOMAIN)
-        with open(geo_check.history_path(), newline="") as f:
+        with open(geo_check.history_path(), newline="", encoding="utf-8") as f:
             runs = sorted({r["run_id"] for r in csv.DictReader(f)})
-        named = re.search(r'<meta name="geo-runs" content="([^"]*)">', page.read_text()).group(1).split()
+        named = re.search(r'<meta name="geo-runs" content="([^"]*)">', page.read_text(encoding="utf-8")).group(1).split()
         self.assertEqual(named, runs)
         site = self.home / "site"
         site.mkdir()
@@ -1392,7 +1392,7 @@ class PageRecordsItsRuns(GeoTestCase):
         self.assertEqual(code, 0, out.getvalue())
         kept = list((site / "analytics").glob(f"*_geo-run/answers/{runs[0]}/*.txt"))
         self.assertTrue(kept, "the named run's answers are kept")
-        self.assertNotIn("inferred", out.getvalue(), "a page that names its runs needs no inference")
+        self.assertNotIn("built before pages listed their runs", out.getvalue())
 
 
 class ResultsAreNotCitations(GeoTestCase):

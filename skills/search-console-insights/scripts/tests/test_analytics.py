@@ -14,6 +14,7 @@ import datetime as dt
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -24,6 +25,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))     # test_search_report's fake Google
 import ai_reports as ar  # noqa: E402
 import analytics_snapshot as snap  # noqa: E402
 
@@ -112,6 +114,7 @@ class AnalyticsTest(unittest.TestCase):
             g = self.cfg / "geo" / "reports" / SITE
             g.mkdir(parents=True)
             (g / f"{RUN}.html").write_text(
+                f'<head><meta name="geo-runs" content="{RUN}"></head>'
                 f'<p>Also see: <a href="../../../reports/{SITE}/google.html">How people find you</a></p>', encoding="utf-8")
             a = self.cfg / "geo" / "answers" / SITE / RUN
             a.mkdir(parents=True)
@@ -360,10 +363,8 @@ class RoundOne(AnalyticsTest):
         a = self.cfg / "geo" / "answers" / SITE / older
         a.mkdir(parents=True)
         (a / "gemini-knows-broad-1.txt").write_text("an older run's answer")
-        (self.cfg / "geo" / "geo_history.csv").write_text(
-            "run_id,site,engine,mode,slot\n"
-            f"{older},{SITE},gemini,knows,broad\n"
-            f"{RUN},{SITE},openai,finds,broad\n")
+        page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
+        page.write_text(page.read_text(encoding="utf-8").replace(f'content="{RUN}"', f'content="{older} {RUN}"'), encoding="utf-8")
         code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
         self.assertEqual(code, 0, err)
         run = self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers"
@@ -481,11 +482,8 @@ class RoundTwo(AnalyticsTest):
             d = self.cfg / "geo" / "answers" / SITE / run
             d.mkdir(parents=True)
             (d / "gemini-knows-broad-1.txt").write_text(run)
-        (self.cfg / "geo" / "geo_history.csv").write_text(
-            "run_id,site,engine,mode,slot\n"
-            f"{older},{SITE},gemini,knows,broad\n"
-            f"{RUN},{SITE},openai,finds,broad\n"
-            f"{later},{SITE},gemini,knows,broad\n")      # a run after the page: its page was never written
+        page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
+        page.write_text(page.read_text(encoding="utf-8").replace(f'content="{RUN}"', f'content="{older} {RUN}"'), encoding="utf-8")      # a later run exists, but the page does not list it
         code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
         self.assertEqual(code, 0, err)
         answers = self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers"
@@ -496,8 +494,8 @@ class RoundTwo(AnalyticsTest):
         self.repo()
         self.reports()
         gone = "20261001T070000Z-3-3-cccc"
-        (self.cfg / "geo" / "geo_history.csv").write_text(
-            f"run_id,site,engine,mode,slot\n{gone},{SITE},gemini,knows,broad\n{RUN},{SITE},openai,finds,broad\n")
+        page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
+        page.write_text(page.read_text(encoding="utf-8").replace(f'content="{RUN}"', f'content="{gone} {RUN}"'), encoding="utf-8")
         code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
         self.assertEqual(code, 0, err)
         self.assertIn(f"AI-check answers of run {gone}: not on this computer", out)
@@ -557,11 +555,11 @@ class RoundThree(AnalyticsTest):
         d.mkdir(parents=True)
         (d / "gemini-knows-broad-1.txt").write_text("named by the page")
         page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
-        page.write_text(f'<head><meta name="geo-runs" content="{named} {RUN}"></head>' + page.read_text(), encoding="utf-8")
+        page.write_text(page.read_text(encoding="utf-8").replace(f'content="{RUN}"', f'content="{named} {RUN}"'), encoding="utf-8")
         code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
         self.assertEqual(code, 0, err)
         self.assertTrue((self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers" / named).is_dir())
-        self.assertNotIn("inferred", out)
+        self.assertNotIn("built before pages listed their runs", out)
 
     def test_c_links_are_read_as_a_browser_reads_them(self):
         self.repo()
@@ -575,22 +573,57 @@ class RoundThree(AnalyticsTest):
         self.assertIn("warning: seo.html still links", out, "an unquoted link is a link")
         self.assertNotIn(f"{RUN}.html still links", out, "../seo.html#top is the allowed link, with a fragment")
 
-    def test_c_run_ids_compare_by_their_time_not_their_spelling(self):
+    def test_c_a_page_from_before_run_lists_keeps_no_guessed_answers(self):
         self.repo()
         self.reports()
-        page_run = "20261012T070010Z-12-12-yyyy"
-        same_second = "20261012T070010Z-2-2-xxxx"           # sorts after page_run as a string
-        (self.cfg / "geo" / "reports" / SITE / f"{RUN}.html").rename(self.cfg / "geo" / "reports" / SITE / f"{page_run}.html")
-        for run in (page_run, same_second):
-            d = self.cfg / "geo" / "answers" / SITE / run
-            d.mkdir(parents=True)
-            (d / "a.txt").write_text(run)
-        (self.cfg / "geo" / "geo_history.csv").write_text(
-            f"run_id,site,engine,mode,slot\n{same_second},{SITE},gemini,knows,broad\n{page_run},{SITE},openai,finds,broad\n")
+        page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
+        page.write_text(re.sub(r'<head>.*?</head>', "", page.read_text(encoding="utf-8")), encoding="utf-8")
         code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
         self.assertEqual(code, 0, err)
-        self.assertTrue((self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers" / same_second).is_dir())
+        self.assertIn("was built before pages listed their runs", out)
+        self.assertIn("geo_check.py --report", out, "the fix is named")
+        self.assertFalse((self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers").exists(), "nothing guessed")
+        self.assertTrue((self.site_dir / "analytics" / "2026-10-12_geo-run" / f"{RUN}.html").is_file(), "the page is kept")
 
+    def test_c_the_kept_google_data_is_the_bytes_that_were_checked(self):
+        self.repo()
+        self.google_page_through_search_report()
+        data = self.cfg / "reports" / SITE / "google-data.json"
+        checked = data.read_bytes()
+        real_keep = _analytics_keep = __import__("_analytics").keep
+        def refresh_then_keep(site_dir, folder, src):
+            data.write_text("{}")            # a refresh rewrites the live file mid-snapshot
+            return real_keep(site_dir, folder, src)
+        with mock.patch.object(snap._analytics, "keep", side_effect=refresh_then_keep):
+            code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        kept = list((self.site_dir / "analytics").glob("*_gsc/google-data.json"))
+        self.assertEqual([k.read_bytes() for k in kept], [checked])
+
+    def test_c_the_saved_data_file_is_exactly_the_fingerprinted_bytes(self):
+        import search_report as sr
+        self.google_page_through_search_report()
+        data = self.cfg / "reports" / SITE / "google-data.json"
+        page = (self.cfg / "reports" / SITE / "google.html").read_text(encoding="utf-8")
+        fp = re.search(r'name="gsc-data-sha256" content="([0-9a-f]{64})"', page).group(1)
+        import hashlib
+        self.assertEqual(hashlib.sha256(data.read_bytes()).hexdigest(), fp)
+        self.assertNotIn(b"\r\n", data.read_bytes(), "written as bytes: no newline translation on any platform")
+
+    def test_c_an_unreadable_file_is_named_and_the_rest_written(self):
+        self.repo()
+        self.reports()
+        data = self.cfg / "reports" / SITE / "google-data.json"
+        data.chmod(0)                              # a file the snapshot cannot read at all
+        try:
+            if os.access(data, os.R_OK):
+                self.skipTest("running as a user who can read any file")
+            code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        finally:
+            data.chmod(0o644)
+        self.assertEqual(code, 0, err)
+        self.assertIn("Search Console data: its fetch date cannot be read", out)
+        self.assertTrue((self.site_dir / "analytics" / "seo.html").is_file())
 
 class Starter(unittest.TestCase):
     def test_b1_new_sites_keep_the_folder_off_github(self):

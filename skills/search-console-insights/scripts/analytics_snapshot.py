@@ -10,7 +10,7 @@ Writes, inside <site folder>/analytics/:
   geo.html                  the latest "Does AI name you?" page, linking to seo.html
   <date>_gsc/               google-data.json, what the Google page was built from (date: when fetched)
   <date>_bing/              bing-history.csv, this site's Bing rows from the tracker (date: the latest row)
-  <run date>_geo-run/       the newest AI-check page, and the answers of every run it shows
+  <run date>_geo-run/       the newest AI-check page, and the answers of every run it lists (meta geo-runs)
 
 A file already kept is never rewritten (different content under the same name is kept beside it,
 name-2); seo.html, geo.html and README.md are the latest views and are rewritten. A part that does
@@ -61,6 +61,8 @@ def leftover_links(text, allowed=()):
     """Links that still climb out of the analytics folder ("../…"), apart from the allowed ones."""
     return [h for h in _Page(text).hrefs
             if h.startswith("../") and h.split("#")[0].split("?")[0] not in allowed]
+
+
 GEO_LINK = re.compile(r'href="\.\./\.\./geo/reports/[^"/]+/[^"/]+\.html"')      # on the Google page
 GOOGLE_LINK = re.compile(r'href="\.\./\.\./\.\./reports/[^"/]+/google\.html"')    # on an AI-check page
 RUN_ID = re.compile(r"^(\d{4})(\d{2})(\d{2})T")
@@ -94,25 +96,6 @@ def base_dir() -> Path:
     return Path(os.path.expanduser("~")) / ".config" / "gsc-insights"
 
 
-def referenced_runs(site, page_run):
-    """The runs the kept AI-check page draws on. geo_check.build_report shows each assistant's latest
-    answer to each question (engine, mode, slot), whichever run it came from; for the page built at
-    page_run, "latest" means up to page_run — later runs, if any, are not on that page. Only for a
-    page written before pages recorded their runs (<meta name="geo-runs">): an inference.
-    Run ids start with their UTC time (YYYYMMDDTHHMMSSZ), compared as such."""
-    p = base_dir() / "geo" / "geo_history.csv"
-    try:
-        with open(p, newline="", encoding="utf-8-sig") as f:
-            rows = [r for r in csv.DictReader(f)
-                    if r.get("site") == site and r.get("run_id") and r["run_id"][:16] <= page_run[:16]]
-    except OSError:
-        return set()
-    latest = {}
-    for r in sorted(rows, key=lambda r: r["run_id"]):
-        latest[(r.get("engine"), r.get("mode"), r.get("slot"))] = r["run_id"]
-    return set(latest.values())
-
-
 def snapshot(site, site_dir, commit_ok=False, csv_path=None):
     """Returns the lines to print; raises _analytics.NotKeptOff when nothing may be written."""
     reports = base_dir() / "reports" / site
@@ -144,13 +127,10 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
                                                  encoding="utf-8")
                 kept.append((folder, stage / newest.name))
                 recorded = _Page(page).meta.get("geo-runs")
-                if recorded is not None:            # the runs the page itself says it shows
-                    runs = set(recorded.split())
-                else:
-                    runs = referenced_runs(site, newest.stem) | {newest.stem}
-                    out.append(f"AI-check page {newest.name} predates its list of runs: the runs it shows were "
-                               "inferred from the history")
-                for run in sorted(runs):
+                if recorded is None:                # no guessing: only the page knows which runs it shows
+                    out.append(f"AI-check answers: {newest.name} was built before pages listed their runs, so its "
+                               "answers were not kept; rebuild it (geo_check.py --report) and run this again")
+                for run in sorted(set((recorded or "").split())):
                     answers = base_dir() / "geo" / "answers" / site / run
                     if answers.is_dir():
                         kept.append((f"{folder}/answers", answers))
@@ -163,9 +143,9 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
         if data.exists():
             # The data is the page's evidence only when it is what the page shows: the page carries the
             # fingerprint of its data (search_report.data_fingerprint), and a failed save leaves an older file.
-            shown = _Page(google.read_text(encoding="utf-8")).meta.get("gsc-data-sha256") if has_google else None
-            raw = data.read_bytes()
             try:
+                shown = _Page(google.read_text(encoding="utf-8")).meta.get("gsc-data-sha256") if has_google else None
+                raw = data.read_bytes()
                 fetched = dt.date.fromisoformat(str(json.loads(raw.decode("utf-8")).get("fetched")))
             except (ValueError, OSError, AttributeError, UnicodeDecodeError):
                 fetched = None
@@ -174,8 +154,9 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
             elif shown is not None and shown != hashlib.sha256(raw).hexdigest():
                 out.append("Search Console data: the saved copy is not what seo.html shows (it could not be "
                            "saved when the page was built), so it was not kept")
-            else:
-                kept.append((f"{fetched.isoformat()}_gsc", data))
+            else:      # keep the bytes just checked, not a re-read of a file a refresh may be rewriting
+                (stage / data.name).write_bytes(raw)
+                kept.append((f"{fetched.isoformat()}_gsc", stage / data.name))
                 if has_google and shown is None:
                     out.append("Search Console data: seo.html predates its fingerprint, so the match was not checked")
         else:

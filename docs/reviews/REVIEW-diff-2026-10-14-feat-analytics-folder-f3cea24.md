@@ -23,7 +23,7 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 | 1 | f3cea24 | Codex (401 s, 91k tokens), GLM 5.3 on melious (346 s, 37k), fresh-eyes Sonnet (184 s, 135k) | 11 / 6 / 3 | four invariants; 18 of the 20 fixed, 2 refuted with evidence |
 | 2 (verification) | e496a75 | Codex medium (291 s, 63k tokens), GLM 5.3 on melious (417 s, 41k) | 3 / 5 / 5 (F21–F31) | delta f3cea24..e496a75; three round-1 fixes partial (F1 → F21, F6 → F22, F10 → F23): round 3 owed |
 | 3 (verification) | 6ebb7cf | Codex medium (328 s, 68k tokens), GLM 5.3 on melious (424 s, 33k) | 2 / 4 / 4 (F32–F41) | delta e496a75..6ebb7cf; F32 and F33 substantive: round 4 earned (kinds ai-evidence, gsc-evidence); F32 is the third link of F10 → F23, so the fix is a cut, not a patch |
-| 4 (verification) | 7cb141a | Codex (medium), GLM 5.3 on melious | running | delta 6ebb7cf..7cb141a; earned by F32 (ai-evidence) and F33 (gsc-evidence); `make test` 287 OK, `make check` exit 0 |
+| 4 (verification) | 7cb141a | Codex medium (391 s, 84k tokens), GLM 5.3 on melious (515 s, 44k) | 2 / 3 / 2 (F42–F48) | delta 6ebb7cf..7cb141a; earned by ai-evidence, gsc-evidence. F42 and F43 substantive: round 5 earned by the same two kinds, so it needs a cut (below) |
 
 ## Findings
 
@@ -77,7 +77,16 @@ Sources: C = Codex, G = GLM 5.3, S = fresh-eyes Sonnet. Invariants: **A** nothin
 | F40 | NIT | G | test | a read without `encoding` | fixed | `encoding="utf-8"` |
 | F41 | — | C | F7, E-E-A-T (UNVERIFIABLE) | as before | stands as recorded | — |
 
-Fix chains: F1 → F21, F6 → F22 (two links each); F10 → F23 → F32 (three links, ended by a cut: the page
+| F42 | BUG | C (round 4) | snapshot | caused-by: F32 (partial). (C) a page from before run lists still went through the inference, which can keep the wrong runs | fixed by a cut | the inference is gone (`referenced_runs` deleted): such a page is kept, its answers are not, and the output says to rebuild it with `geo_check.py --report`; test |
+| F43 | BUG | C (G RISK) | `search_report.write_atomic` | (C) text-mode writing turns `\n` into CRLF on native Windows, so the saved data never matched its fingerprint there | fixed | `write_atomic` writes `text.encode("utf-8")` as bytes; test asserts the file's SHA-256 equals the page's and holds no CRLF. **Limit:** this Mac writes LF either way, so the test passes on the old code too; the fix is right by construction, not shown failing here |
+| F44 | RISK | C | snapshot `_gsc` | (C) the bytes checked were not the bytes kept: `keep()` re-read the live file | fixed | the checked bytes are staged and kept; test rewrites the live file between check and keep |
+| F45 | BUG→NIT | G | snapshot `_gsc` | an unreadable `google-data.json` or `google.html` stopped the whole snapshot (`main` reports it; no traceback, so a NIT under the bar) | fixed | read inside the guarded block, named and skipped; test with a file the user cannot read |
+| F46 | NIT | G | tests | three reads without `encoding` | fixed | `encoding="utf-8"` |
+| F47 | NIT | G | snapshot | blank lines before `GEO_LINK` | fixed | two blank lines |
+| F48 | — | host | `test_analytics.py` | run alone, it could not import the fake Google of `test_search_report` (discovery hid it) | fixed | the tests folder on `sys.path`; the file passes alone and in the suite |
+
+Fix chains: F1 → F21, F6 → F22 (two links each); F10 → F23 → F32 → F42 (ended by deleting the inference);
+F33 → F43 (two links). Earlier: F10 → F23 → F32 (three links, ended by a cut: the page
 records its own evidence instead of the snapshot inferring it).
 
 Codex's E-E-A-T question settled by Google's own page: "E-E-A-T itself isn't a specific ranking
