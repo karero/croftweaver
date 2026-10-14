@@ -27,8 +27,9 @@ local cost log of the review script.
 | 10 (lean: the changed code only) | 10-14 morning | 1 ordinary BUG, a few NITs |
 | 11 (Codex alone, on round 10's fix) | 10-14 | clean |
 
-- **Time.** Each round took 3½ to 4½ hours: the seats (12 to 14 seat runs a round), consolidation,
-  the fixes, the whole test suite, and the record.
+- **Time.** Round 1 took under 2 hours and round 2 a little over 2; rounds 3 to 9 took 3 to 5 hours
+  each. A round was the seats (9 to 18 seat runs), consolidation, the fixes, the whole test suite,
+  and the record.
 - **Tokens, rounds 1 to 9.** Reviewer seats about 21.5 million, of which fresh-eyes about 11 million,
   Codex about 7 million and GLM about 2.7 million. Fixers about 16 million. Rounds 10 and 11, their
   fixers, the final full read and the wording pass added about 2 million.
@@ -62,9 +63,10 @@ The causes, most important first. Each is the author's judgment, laid on the mea
    input, and every promise became a target.
 5. **Plumbing, which about doubled each round.** The whole suite (about 1,070 tests on two Pythons)
    ran three or four times a round: once per fixer and once by the host. Under the machine's load,
-   up to 667 from other sessions, one run took 15 to 40 minutes. Each round also re-read every
-   part, also parts no fix had touched. On top came melious timeouts and three merges of a main
-   that had moved 167 commits.
+   up to 667 from other sessions, one run took 15 to 40 minutes. Every round sent all four parts to
+   all three seats, each part with its change since the last round: a part with a small change still
+   cost a full set of seat runs, and the fresh-eyes seats read widely in the tree around it. On top
+   came melious timeouts and three merges of a main that had moved 167 commits.
 6. **One PR for everything.** About 7,500 lines of new code and tests at round 1, 32,000 by round 9.
    A kind of defect fixed in one reader was found again in the next.
 
@@ -107,7 +109,9 @@ What it showed:
   found only with hand-made input a NIT where the tool stops safely. On code, late rounds were
   earned by tracebacks, hangs, a wrong "Done", files changed and bypasses, not by safe stops. Under
   a looser reading it saves about 12 rounds, and that reading turns a check that wrongly passes
-  hand-made input into a NIT. No real defect would have shipped either way.
+  hand-made input into a NIT. Read strictly, no real defect would have shipped; read loosely, at
+  most one runbook BUG and one plan RISK would have. The per-round marks are in the replay's working
+  notes, not in this repository, so these counts are the replay's word.
 - **The old stop rule's trigger was met in 34 of the 45 gates,** usually by round 2 or 3. The rounds
   went on in about 30 of them.
 - **17% of the late rounds were earned by findings about sentences,** mostly in the gates on the
@@ -132,13 +136,14 @@ The maintainer chose to replace the first draft by checks in the review script a
 
 - **The script asks what earned each late round.** From round 4, `--earned-by <kinds>` names every
   kind of finding that earned the round. A kind that earned an earlier round too, with no cut since,
-  is refused without `--cut "<what was removed or replaced>"`. A cut is taking the feature out, or
+  is refused without `--cut "<what was removed or replaced>"`, where the cost log can tell. With the
+  log off or unreadable, or with no record of the earlier round, the script warns and goes on. A cut is taking the feature out, or
   replacing it by a strict rule that accepts only the input it names. Refusing the one input the last
   BUG used is a patch.
 - **The script prints a running cost line after every run.** It shows rounds, seat runs, tokens
   logged, the kinds and cuts per round, runs without a round number, and which gate a restart
   follows. It also says what it does not count: the fixers, the host, and fresh-eyes unless logged.
-  From round 4 the host gives this line to the owner.
+  From round 4 the host gives this line to the owner. With no log, there is no line.
 - **Fresh-eyes at High depth runs in rounds 1 to 3.** The final full read still reads the whole.
 - **A plan for more than about 2,000 lines of code, or for several readers of outside input,** names
   its components, and each is gated in its own PR.
@@ -157,8 +162,9 @@ round. The script does not stop that; its cost line makes it visible to the owne
 - Whether a host names kinds honestly. The log keeps every kind and cut, and nothing checks them
   against the findings.
 
-Judge the change by the cost log's rounds and tokens per gate over the next long gates.
-`scripts/review_log.sh summary` compares them across PRs.
+Judge the change by the cost log's rounds and tokens per gate over the next long gates:
+`skills/independent-review/scripts/review_log.sh gate --id <gate>` gives one gate's line, and
+`review_log.sh summary` compares depths and seats across all logged runs.
 
 ## Smaller lessons for the next skill of this kind
 
