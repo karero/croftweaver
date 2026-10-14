@@ -1031,7 +1031,7 @@ test('the script monitor reporting to the site\'s own host is named too, in each
       assert.equal((await check(s.origin)).by.nel.state, 'ok', `reporting-endpoints: ${what}`);
     });
   }
-  // A redirect on the way to the page: only the page's own answer is read for an own-host address.
+  // A redirect on the way to the page: each answer's own-host address is read against that answer.
   const via = (onHop, onPage) => (req, res, url) => {
     const o = `http://${req.headers.host}`;
     if (isHome(url)) { send(res, 301, 'text/html', '', { location: `/de/?cb=${url.searchParams.get('cb')}`, ...onHop(o) }); return true; }
@@ -1041,7 +1041,14 @@ test('the script monitor reporting to the site\'s own host is named too, in each
   const policy = (o) => ({ 'content-security-policy-report-only': `default-src 'self'; report-uri ${o}${OWN_PATH}` });
   await withSite(via(policy, () => ({})), async (s) => {
     const r = await check(s.origin);
-    assert.doesNotMatch(r.by.nel.detail, /script monitor is switched on/, 'on the redirect only, not on the page');
+    assert.match(r.by.nel.detail, /site's own address/, 'on the redirect only, as the Cloudflare host is named on a hop too');
+  });
+  // a relative address on the hop is read against the hop (/), not the page (/de/)
+  await withSite(via(() => ({ 'reporting-endpoints': 'g="cdn-cgi/script-monitor/report"' }), () => ({})), async (s) => {
+    assert.match((await check(s.origin)).by.nel.detail, /site's own address/, 'a hop-relative address');
+  });
+  await withSite(via(() => ({}), () => ({ 'reporting-endpoints': 'g="cdn-cgi/script-monitor/report"' })), async (s) => {
+    assert.equal((await check(s.origin)).by.nel.state, 'ok', 'relative to /de/ it is /de/cdn-cgi/..., not the path');
   });
   await withSite(via(() => ({}), policy), async (s) => {
     const r = await check(s.origin);

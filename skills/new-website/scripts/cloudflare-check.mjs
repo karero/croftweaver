@@ -240,8 +240,9 @@ const header = (r, name) => {
 async function getHome(url, t, stamp) {
   const hops = [];
   const chain = []; // the headers of every answer on the way: NEL or a cookie on a hop counts
+  const chainUrls = []; // the address each of those answers came from, in the same order
   let r = await get(url, t);
-  if (!r.error) chain.push(r.headers);
+  if (!r.error) { chain.push(r.headers); chainUrls.push(r.url); }
   while (!r.error && r.status >= 300 && r.status < 400 && hops.length < MAX_HOPS) {
     if (!header(r, 'location')) break; // nowhere to go
     let next;
@@ -255,9 +256,9 @@ async function getHome(url, t, stamp) {
     if (next.href === r.url) break; // to the page we are on
     hops.push({ status: r.status, location: header(r, 'location') });
     r = await get(next.href, t);
-    if (!r.error) chain.push(r.headers);
+    if (!r.error) { chain.push(r.headers); chainUrls.push(r.url); }
   }
-  return { ...r, hops, chain };
+  return { ...r, hops, chain, chainUrls };
 }
 
 export async function observe(target, { timeoutMs, alias }) {
@@ -527,16 +528,15 @@ const monitorHost = (u) => {
 };
 // With Client-Side Security Advanced, Cloudflare can send the same reports to the site's own host
 // instead, at this path (Cloudflare's settings page, read 14 October 2026: hyphens here, an
-// underscore in the path on its own host). Only this exact path on the checked page's own origin
-// (scheme, host and port) counts, and an address written relative to the page is read against it.
+// underscore in the path on its own host). Only this exact path on the origin (scheme, host and
+// port) of the answer that carries the header counts, and an address written relative to that
+// answer is read against its address.
 const OWN_HOST_REPORT_PATH = '/cdn-cgi/script-monitor/report';
 const ownHostReport = (page) => (u) => {
   if (typeof u !== 'string' || !page) return false;
   try {
     const a = new URL(u, page);
-    const p = new URL(page);
-    const host = (x) => x.hostname.replace(/\.$/, '');
-    return a.protocol === p.protocol && a.port === p.port && host(a) === host(p) && a.pathname === OWN_HOST_REPORT_PATH;
+    return a.origin === new URL(page).origin && a.pathname === OWN_HOST_REPORT_PATH;
   } catch { return false; }
 };
 // A reporting-endpoints header is written as a dictionary: name="address", name="address";p="x".
@@ -723,12 +723,12 @@ export function evaluate(obs, target, opts) {
     const withdrawn = policies.length > 0 && !live;
     const reports = values('report-to');
     const cfReport = reports.some((v) => cloudflareGroup(v) === true);
-    const monitorAt = (isMonitor) => ['report-to', 'reporting-endpoints', 'content-security-policy-report-only']
-      .some((name) => values(name).some((v) => cloudflareMonitor(name, v, isMonitor)));
-    // An own-host address is judged on the final answer only, against that answer's address: a hop's
-    // relative address would otherwise be read against another URL (and a redirect is not a page).
-    const monitorOwn = ['report-to', 'reporting-endpoints', 'content-security-policy-report-only']
-      .some((name) => [].concat(home.headers?.[name] ?? []).some((v) => cloudflareMonitor(name, v, ownHostReport(home.url))));
+    const monitorHeaders = ['report-to', 'reporting-endpoints', 'content-security-policy-report-only'];
+    const monitorAt = (isMonitor) => monitorHeaders.some((name) => values(name).some((v) => cloudflareMonitor(name, v, isMonitor)));
+    // An own-host address is judged answer by answer, against the address of the answer that carries
+    // it: a hop's relative address is read against the hop, as the Cloudflare host is read on hops too.
+    const monitorOwn = (home.chain ?? []).some((h, i) => monitorHeaders
+      .some((name) => [].concat(h[name] ?? []).some((v) => cloudflareMonitor(name, v, ownHostReport(home.chainUrls?.[i])))));
     const monitor = monitorOwn || monitorAt(monitorHost);
     const nel = policies.length > 0;
     const age = Number.isFinite(live?.max_age) ? ` (max_age ${live.max_age} seconds)` : '';
