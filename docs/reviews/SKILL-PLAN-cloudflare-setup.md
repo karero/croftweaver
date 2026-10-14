@@ -26,7 +26,7 @@ table. **Script steps** are what the script does, numbered under "Shape".
 | 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ⏸ not started | — |
 | 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ⏸ not started | — |
 | 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
-| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off ("Not verified" 2, 3, 9, 10) | ⏸ needs the maintainer's choice: a spare domain, or the maintainer's word to make these first tries on the real site in plan step 10 | — |
+| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list ("Not verified" 2, 3, 9, 10) | ⏸ needs the maintainer's choice: a spare domain, or the maintainer's word to make these first tries on the real site in plan step 10 | — |
 | 10 | One real site set up with it, start to finish, with the owner watching | ⏸ not started | — |
 | 11 | Release note line | ⏸ not started | — |
 
@@ -124,7 +124,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 7 | a project of that name exists with no `source` | `setup` runs | it ends with 1: a Direct Upload project cannot be connected to GitHub; `website-team-setup` §6, item 9, has the way round | stub; no write call |
 | 8 | Lena made a project by hand under another name, connected to her repository; or two projects name it; or `--project` names one connected elsewhere; or `--project` names none that exists | `setup` runs | it adopts the first and creates nothing; it stops on the second and third; for the fourth its list says it will create a project of that name | four stub states |
 | 9 | the adopted project has a variable and a secret, and Fail open is off | `setup` runs with the code | one PATCH carries Fail open for both environments and no variable; both names are there before and after | stub; the PATCH body |
-| 10 | the project has never had a build Cloudflare started from a push; the assistant has pushed | `setup` runs, several times | each run ends with 4, asks for a push, and names the two likely causes and how to tell them apart; a failed push build is reported as "Cloudflare started a build of this commit and it failed" | stub: no `github:push` deployment; then one with `failure` |
+| 10 | the project has never had a build Cloudflare started from a push; the assistant has pushed | `setup` runs, several times | each run ends with 4, asks for a push, and names the likely causes and how to tell them apart; a failed push build is reported as "Cloudflare started a build of this commit and it failed" | stub: no `github:push` deployment; then one with `failure` |
 | 11 | the project may not build previews (`source.config.preview_deployment_setting` is not `all`) | `setup` runs | it says a pull request may not show the connection, and that the production branch's push can: on her two-stage site, `npm run ship` on her word | stub: previews off |
 | 12 | her zone has a second proxied host, `shop.lenas-backstube.example`, and her apex still points, proxied, at her old host | `setup` runs, then with `--skip tls`, then with that run's code | every setting line names both hosts and what changes for a visitor there; `--skip tls` drops the TLS line and gives another code; after the code each other setting reads as wanted, and TLS was not written | stub with both hosts |
 | 13 | Bot Management reads Bot Fight Mode on and AI training blocked | `setup` runs with the code; then a new question with `--skip ai` | the first PUT turns Bot Fight Mode off and every AI field to the checklist's value; with `--skip ai` the AI fields are sent as they were read | stub; the two PUT bodies |
@@ -137,7 +137,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 19 | at the head of `production`, `UNFILLED_UNTIL_LAUNCH` still lists `/privacy` | `launch` runs | it refuses, names the list's entries, and asks nothing | fixture repository; no call to the domain or the domains API |
 | 20 | a page under `src/` holds `[MISSING: opening hours]`; or a German site holds `[FEHLT: Öffnungszeiten]` with `DRAFT_TOKEN` and CI both `[FEHLT:`; or the two tokens differ, or `tests/placeholders.spec.ts` is missing | `launch` runs | it refuses, naming the file and line; for the German site the search it reports is for `[FEHLT:`; in the last case it says it cannot tell, and that the domain can be attached by hand | four fixture repositories |
 | 21 | the head of `production` has no good production build (below): its build is queued; or failed; or Cloudflare never built it; or the newest is uploaded, or was built while `main` was the production branch | `launch` runs | queued: it ends with 4. Otherwise it refuses and names which; for "never built" it says Cloudflare did not build this commit, so the connection may be broken, and gives no advice to run `npm run ship` | five stub states |
-| 22 | the project has no build Cloudflare started from a push after the newest one the script started | `launch` runs | it refuses: the connection was not shown | stub |
+| 22 | the project has no build Cloudflare started from a push, of any age; or it has an old one, and launch's own forwarding build came after it | `launch` runs | in the first case it refuses: the connection was not shown; in the second the proof stands and launch goes on | two stub states |
 | 23 | everything holds; her apex has one A record, at her old host | `launch` runs; Lena reads the question; it runs with the code, and again | the question named the domain, the commit, the record now and what it becomes, a few minutes of errors, the forwarding, and the NEL rule if needed. The first run with the code attaches the domain, changes the record, and ends with 4. A later run finds the domain active, sends its first request to the domain through the check script, sees the commit, and goes on | stub: pending, then active; the stub site records when the first request comes |
 | 24 | her apex has an A and an AAAA record; or her site is on `www`, which has an A record and a TXT record; or the token cannot read DNS | `launch` runs | it refuses: it will not attach a domain whose records it cannot see or would have to delete, and points to "Going live" | three stub states; no attach call |
 | 25 | the same as 23, but Cloudflare answers `error` on a later run | `launch` runs with the code | it ends with 1 and Cloudflare's words; the domain stays attached; the report gives the old record, read from the comment the script wrote on the record, so it can be put back by hand | stub: `error` on the third run |
@@ -146,7 +146,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 28 | the domain serves the head of `production`, built by Cloudflare; the project has one other variable and one secret | `launch` reaches the forwarding | it saves `CANONICAL_URL` alone, starts one production build, ends with 4; a later run finds it done and the check's `canonical` item `ok`, and ends with 0 | stub; a stub site for the 301 |
 | 29 | the domain was attached earlier and is active, and the head of `production` is newer than the live build; or another variable changed since the live build; or the live build was uploaded | `launch` reaches the forwarding | it says "the variable is saved, but no build has picked it up", names the other difference, sends no deployment call, and ends with 1 | three stub states |
 | 30 | Lena does not want the forwarding | `launch` runs with `--skip canonical` | the question does not name it, and `CANONICAL_URL` is not written | stub: no variable write |
-| 31 | the domain was attached by hand and is active | `launch` runs | it checks no launch condition and attaches nothing; its question names only the forwarding and the NEL rule, and the commit it expects the domain to serve: that of the newest production deployment | stub |
+| 31 | the domain was attached by hand and is active | `launch` runs | it checks no launch condition and attaches nothing; its question names only the forwarding and the NEL rule, and the commit it expects the domain to serve: that of the newest production deployment that succeeded; while a newer one is queued or building, it ends with 4 | stub: a live build and a newer queued one |
 | | **Every stage** | | | |
 | 32 | both stages ran last month | each runs again | no write call, no question, status 0 | stub holding the end state |
 | 33 | the token has no end date; or the zone list shows a second zone; or token verify is refused | any stage runs | it refuses before any write, says which, and asks for a narrower token | stub: no `expires_on`; two zones; 403 on verify |
@@ -216,8 +216,8 @@ question and a new code; the old code then changes nothing.
 time to report. Every API call, every `git ls-remote` (it took 24 seconds to fail on a
 repository that does not exist, in the trial) and every run of the check script gets only
 the time left. The check script's `--timeout` bounds each answer, not the run, and a home
-page can take up to four answers, so the script passes a quarter of the time left and
-skips the check when that is under a second. A program still running at the deadline is
+page can take up to four answers, so the script passes a quarter of the time left; when
+that is under a second it skips the check and ends with 4. A program still running at the deadline is
 stopped.
 A run that reaches the deadline ends with 4; the next run reads what is there. Where
 Cloudflare is not done (a build, a domain becoming active), the run also ends with 4 and
@@ -287,8 +287,9 @@ branch of its time, capture 055).
   list says one of that name will be created. Without `--project`: the one project whose
   `source` names this repository (owner and repository compared without regard to case);
   it stops if two do. If none does, a project named like the repository (lowercased, each
-  character other than a letter, digit or `-` made `-`, dashes trimmed from both ends, cut
-  to 58 characters as the check script's own rule allows; it stops if nothing is left),
+  character other than a letter, digit or `-` made `-`, cut to 58 characters as the check
+  script's own rule allows, then dashes trimmed from both ends; it stops if nothing is
+  left),
   with the same stops; if none, it will create one of that name.
 - **Its address** is the `subdomain` Cloudflare returns, never the name: in the trial the
   live project's name was not the first part of its `subdomain` (captures 019, 020).
@@ -342,8 +343,11 @@ branch of its time, capture 055).
    Until there is one, runs end with 4 and ask for a commit pushed to a pull request (D7).
    Where `source.config.preview_deployment_setting` is not `all`, a pull request may not
    build, and the run says the push that does is the production branch's: on a two-stage
-   site that is `npm run ship`, on the owner's word; on a single-stage site, a merge to
-   `main`. A failed push build counts as proof of the connection and is reported as a
+   site that is `npm run ship`, on the owner's word, once `main` has a commit that
+   `production` lacks (a merged pull request; ship pushes nothing while the two are equal,
+   `templates/astro/scripts/ship.sh:165`). Ship's own last check then reports an old
+   build, since no domain is attached; that is expected, and the proof comes on setup's
+   next run. On a single-stage site the push is a merge to `main`. A failed push build counts as proof of the connection and is reported as a
    failed build. Each run without proof names the likely causes (the connection was never
    made or is broken; builds are paused on the project; the build is still queued) and how
    to tell them apart in the dashboard. The stage also ends with 4
@@ -391,10 +395,12 @@ check comes with the launch stage, since no request may reach the domain before 
     same run: a proxied CNAME to the project's `pages.dev` address, created if the host
     has none (capture 104), or the one existing record changed to it with one PATCH, which
     keeps its id (capture 132). The same write puts the old record's type, content and
-    proxy state in the record's `comment` field, followed by the comment the record had,
-    cut to the length Cloudflare allows (100 characters on the Free plan: read in the
-    reference, not tried). So every later run can print the old record and it can be put
-    back by hand; whatever the cut left out is printed in that run. The trial wrote
+    proxy state in the record's `comment` field, then as much of the comment the record had
+    as fits in 100 characters (Cloudflare's limit on the Free plan, read in the reference,
+    not tried; the script uses 100 on every plan). So every later run can print the old
+    record and it can be put back by hand; the part of the owner's comment that did not fit
+    is printed in that run. If the old record alone does not fit, the script changes
+    nothing, and the question had already said the record is to be changed by hand. The trial wrote
     comments on new records (captures 104, 129); a PATCH that sets one was not tried. If
     that PATCH is refused, the run ends with 1, the host's record unchanged and the domain
     pending, and says to change the record by hand. Runs end with 4 until the
@@ -416,8 +422,9 @@ check comes with the launch stage, since no request may reach the domain before 
     a ruleset, so a rule another person adds at the same moment is not overwritten (read in
     the reference, not tried); where it has none, it creates that ruleset with the one rule.
     The trial tried only the PUT of a whole ruleset, which kept the existing rule, its id
-    and its version (captures 082 to 084). It runs
-    `nel` once more; a failure then ends with 1.
+    and its version (captures 082 to 084). The rule took
+    effect within seconds on the site the checklist records, so this run ends with 4, and
+    the next runs `nel` again; a failure then ends with 1.
 13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and
     the domain and the check's `canonical` item is `ok`, there is nothing to do. Otherwise
     it saves `CANONICAL_URL` alone, from Cloudflare's own name for the domain, in a PATCH
@@ -438,13 +445,16 @@ could not be judged, so nothing was seen) and any request in the check's `unansw
 (an empty answer is never a pass); a `fail` on an item left by hand (Web Analytics, say)
 or on a line Lena left out with `--skip`, and `look`, `hand` and `skip`, give 0 and are
 listed for Lena as what they are. Each `--skip` id names the check item it leaves to Lena:
-`https`, `tls`, `email`, `bot`, `ai` and `canonical` their own item; `nel` and `nel-rule`
-both the `nel` item. The report gives, for each thing set, what it was, what it is now, and how that was
+`https`, `tls`, `email`, `bot`, `ai` and `canonical` their own item (`tls` is a `hand` item
+in any case); `nel` and `nel-rule` both the `nel` item. `launch` does not know which ids
+`setup` was given, so it reads them from the zone: a setting that the API reads at another
+value than the checklist's was left out, by `--skip` or by hand, and its item counts as
+left to Lena. A `fail` where the API reads the checklist's value counts against the script. The report gives, for each thing set, what it was, what it is now, and how that was
 checked. Fail open, the build settings, Minimum TLS Version and the AI fields have no
 outside check: "read back through the API only", with the checklist's ssllabs test named
 for Lena to run. The report names the live address and, on a two-stage site, the address
 Cloudflare lists in `aliases` for `main`'s newest preview build (captures 021 to 026;
-read, not opened). It lists what is left by hand, HSTS with its earliest day, says that
+read, not opened), or, where `main` has no preview build, says so. It lists what is left by hand, HSTS with its earliest day, says that
 previews can be put behind a sign-in (D5), and reminds Lena to delete the token.
 
 **A finished setup** is one where every line of both lists reads as its end state, the
@@ -486,6 +496,7 @@ projects; hosts of their own below the zone, never its apex):
 | A PATCH holding only the change keeps every other variable and secret (secret, plain variable, build setting, production branch, Fail open) | 048 to 062 |
 | Fail open for one environment alone: 400, code 8000066 | 050, 053 |
 | A changed production branch changes nothing served until the next build; a deployment records the production branch of its time | 052, 054, 055 |
+| A deployment records its variables (a secret by name, its value empty) and its build settings | 030, 062, 063 |
 | A deployment does not record Fail open | 030, 055 |
 | A branch's preview address replaces `/` by `-` and moves to its newest build | 038 to 046 |
 | Token verify: no `expires_on` without an end date | 001, 003, 064, 148 |
@@ -656,14 +667,17 @@ Plan step 7 brings these in line in the same pull requests as the script:
   the script does not set, and the check script's `build-settings` line, which looks for
   it. Section 6 also gains the API field and value for each setting
   the script writes (the four AI policies and `disabled`, NEL's `{"enabled": false}`), so
-  that decision 2's test reads them there and not from a copy inside the test.
+  that decision 2's test reads them there and not from a copy inside the test. And
+  section 6's "Some changes replace a whole list, as the Transform Rules do", since the
+  script now adds one rule and sends nothing back.
 - `CLOUDFLARE_CHECK.md` and the check script's messages: "By hand, always", the new options,
   the local addresses the option table names (follow-up U2 of the first gate).
 - Every place in the kit that builds `<name>.pages.dev` from the project's name (a search
   for `pages.dev` finds them in `templates/PUBLISHING.md`, `CLOUDFLARE_FIRST_DEPLOY.md`,
   `new-website/SKILL.md`, `templates/AGENTS.md`, the template's README, `website-review`,
-  `website-qa`, `search-console-setup`, `references/WEBSITE_ARCHITECTURE.md`, the check
-  script and its reference).
+  `website-qa`, `search-console-setup`, `references/WEBSITE_ARCHITECTURE.md`,
+  `docs/PAGES-OR-WORKERS.md`, the comments of `templates/astro/functions/_middleware.ts`,
+  the check script and its reference, among others).
 - `templates/PUBLISHING.md`, "Deploy by command", which says a site put online with a token
   has no GitHub connection; and `templates/AGENTS.md`'s "Preview before merging", which
   sends the owner to `website-team-setup` §6 to connect.

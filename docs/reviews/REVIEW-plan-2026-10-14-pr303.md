@@ -1,5 +1,5 @@
 # PLAN review — karero/croftweaver#303 — Cloudflare setup plan, second version, from the trial
-Base `de64ec8` · depth: High (the script this plan describes changes a Cloudflare account with a token and can make a site public; the maintainer chose High for this plan) · verdict: OPEN, round 3 next · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and created the worktree and the branch)
+Base `de64ec8` · depth: High (the script this plan describes changes a Cloudflare account with a token and can make a site public; the maintainer chose High for this plan) · verdict: OPEN, round 4 next (earned by L1) · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and created the worktree and the branch)
 
 Artifact: `docs/reviews/SKILL-PLAN-cloudflare-setup.md`, second version. A new artifact with a new round count; the first version's gate is `docs/reviews/REVIEW-plan-2026-10-12-pr265.md`. Raw reviewer output is in the pull request's review comment. Each round sends the reviewers the plan and the table "The first gate's open findings" below, so the dispositions in it are reviewed too.
 
@@ -7,6 +7,7 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-setup.md`, second version. A new a
 |---|---|---|---|---|---|
 | 1 | `ee89210` | full, with the table below | Codex CLI, gpt-6.1-sol, config effort (high), read-only · Melious HTTP API, glm-5.3, text only · fresh-eyes sub-agent, claude-opus-5-5, read-only | Codex 823 s, 159,175 · Melious 910 s, 66,014 · fresh-eyes 681 s, 227,621 | 6 / 14 / 13 after merging duplicates (Codex 4/6/0, Melious 0/3/5, fresh-eyes 3/8/10). Unverifiable entries: 19 asked, 4 led to a change (J11, J14, J15, J16) |
 | 2 | `83337cd` | full, as a verification round (prior findings J1 to J33) | the same three seats, same versions and effort | Codex 493 s, 112,501 · Melious 517 s, 54,053 · fresh-eyes 521 s, 194,727 | 5 / 13 / 10 after merging duplicates (Codex 3/7/0, Melious 1/3/1, fresh-eyes 5/6/9), and two outside scope (K29, K30). 28 of 31 round-1 fixes confirmed; J5, J15 and J7 in part. Unverifiable entries: 13 asked, 3 led to a change (K10, K11, K14) |
+| 3 | `f506cab` | full, as a verification round (prior findings K1 to K30) | the same three seats, same versions and effort | Codex 319 s, 121,045 · Melious 333 s, 43,083 · fresh-eyes 298 s, 171,436 | 1 / 4 / 9 after merging duplicates (Codex 1/2/2, Melious 1/0/5, fresh-eyes 1/2/7), and two outside scope (L15, L16). 22 of 28 round-2 fixes confirmed in full; K1, K10, K21, K22, K23 and K29 in part. Unverifiable entries: 16 asked, 1 led to a change (L5) |
 
 ## The first gate's open findings
 
@@ -107,12 +108,27 @@ The first gate's follow-ups: U1 (the `canonical` comparison ignores the query) i
 | K25 | NIT | fresh-eyes | 2 | Decision 4 says the check script gains a `canonical` item it already has | fixed, locally_verified | decision 4; `cloudflare-check.mjs:57` |
 | K26 | NIT | fresh-eyes | 2 | The fixture test would fail on public hosts | fixed, locally_verified | "Tests": a short list of public hosts |
 | K27 | NIT | fresh-eyes | 2 | Creating a ruleset for a phase is not listed as untried | fixed, locally_verified | "Not verified" 9 |
-| K28 | NIT | Melious | 2 | A refused record PATCH is not "a line by hand" but a run that cannot go on | fixed, locally_verified | "Not verified" 9; script step 10 |
+| K28 | NIT | Melious | 2 | A refused record PATCH is not "a line by hand" but a run that cannot go on | fixed, locally_verified, externally_reverified (round 3) | "Not verified" 9; script step 10 |
+| L1 | BUG | Codex, Melious, fresh-eyes | 3 | Scenario 22 still holds the push-proof rule K1 cut ("after the newest one the script started"); a test built from it brings the rule back | fixed, locally_verified | scenario 22: no push build of any age refuses; an old push build followed by launch's forwarding build passes. caused-by: K1 (the cut missed one place) |
+| L2 | RISK | fresh-eyes | 3 | `launch` cannot know setup's `--skip` ids, so a setting skipped in setup fails the final check on every run | fixed, locally_verified | the end-status paragraph: `launch` reads them from the zone; a setting the API reads at another value than the checklist's counts as left to Lena |
+| L3 | RISK | fresh-eyes | 3 | With `main` equal to `production`, `npm run ship` pushes nothing, so no push build follows | fixed, locally_verified | script step 7: ship once `main` has a commit `production` lacks (`ship.sh:165`); ship's old-build note is expected on setup day |
+| L4 | RISK | Codex (Melious, fresh-eyes as NIT) | 3 | Cutting the comment to 100 characters can cut the old record itself | fixed, locally_verified | script step 10: the old record first and whole, 100 on every plan, the owner's comment takes what is left; an old record that does not fit is not changed |
+| L5 | RISK | Codex | 3 | The accounts list as proof of a token's account reach is unsupported | fixed, locally_verified | marked not tried ("Not verified" 9); plan step 9 now tries it |
+| L6 | NIT | fresh-eyes | 3 | Hooks still miss `docs/PAGES-OR-WORKERS.md` and the middleware's comments | fixed, locally_verified | "Hooks", now "among others" |
+| L7 | NIT | fresh-eyes, Codex | 3 | Trimming before cutting can leave an edge dash | fixed, locally_verified | "Which project": cut, then trim |
+| L8 | NIT | fresh-eyes, Codex | 3 | Scenario 31 still says the newest production deployment | fixed, locally_verified | scenario 31 |
+| L9 | NIT | fresh-eyes, Melious | 3 | Scenario 10 still says "two likely causes" | fixed, locally_verified | scenario 10 |
+| L10 | NIT | fresh-eyes | 3 | No exit status when the check is skipped for lack of time | fixed, locally_verified | "No run waits long": ends with 4 |
+| L11 | NIT | fresh-eyes | 3 | Hooks miss the checklist's "Some changes replace a whole list, as the Transform Rules do" | fixed, locally_verified | "Hooks" |
+| L12 | NIT | Melious | 3 | The skip map names `tls` and `bot` items the check script does not have | refuted | `CLOUDFLARE_CHECK.md`, "For an assistant": the ids include `tls` and `bot`; `tls` is a `hand` item, now said |
+| L13 | NIT | Melious | 3 | Plan step 9's list omits the accounts list and a long comment | fixed, locally_verified | status row 9 |
+| L14 | NIT | Melious | 3 | The report has no case for a two-stage site whose `main` has no preview build | fixed, locally_verified | the report paragraph |
 
 Waivers and deferrals: none.
 
-Follow-ups: K29 (RISK, fresh-eyes, round 2, outside scope) builds paused on a project read as a broken connection: worked in anyway, script step 7 names it as a cause. K30 (NIT, fresh-eyes, round 2, outside scope) the status table did not show the apex question: worked in as plan step 9.
+Follow-ups: K29 (RISK, fresh-eyes, round 2, outside scope) builds paused on a project read as a broken connection: worked in anyway, script step 7 names it as a cause. K30 (NIT, fresh-eyes, round 2, outside scope) the status table did not show the apex question: worked in as plan step 9. L15 (NIT, fresh-eyes, round 3, outside scope) step 13 cites capture 063 with no row in the trial's table: row added. L16 (NIT, fresh-eyes, round 3, outside scope) step 12 checks `nel` again at once, although the rule takes seconds: the run now ends with 4 and the next run checks.
 
 Notes:
 - Written once from the trial's 159 captures (kept outside every repository; cited by number). A sweep of absence and universal claims (`sweep_claims.sh --file`) ran before round 1; the claims about Cloudflare carry capture numbers or are marked not verified. `bash scripts/check_clean.sh` passed.
-- Round 2, convergence: K1 is a fix of round 1 (J5) that re-broke an earlier fix (H8's). Per the skill's step 7 the answer is a cut, not another patch: the rule J5 added was removed. K2, K3 and K9 also land on round 1's text. Taken to the maintainer before round 3.
+- Round 2, convergence: K1 is a fix of round 1 (J5) that re-broke an earlier fix (H8's). Per the skill's step 7 the answer is a cut, not another patch: the rule J5 added was removed. K2, K3 and K9 also land on round 1's text. Taken to the maintainer before round 3; the maintainer: "round 3, do not ask, if it's your recommendation, run the next round".
+- Round 4, earned by L1 (`--earned-by push-proof`). The kind earned round 3 too (K1), and the fix since is the cut's last piece: scenario 22's freshness clause removed, not patched. Fresh-eyes' chain ends at round 3 at High depth; round 4 runs the pair.
