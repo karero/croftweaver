@@ -10,11 +10,11 @@ the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ✅ approved by the owner 2026-10-14, with D1 "Email Tap", D2 Q5 stays optional, D3 Plausible only | in chat |
-| 2 | Starter: the email link reports the event; test | ▶ built, local suite green (99 passed, 1 skipped by design); each new test failed on a deliberate break | branch `feat/enquiry-count` |
-| 3 | Contact form skill: the button reports the event; test | ▶ built, green EN and DE copies; each new test failed on a deliberate break | branch `feat/enquiry-count` |
-| 4 | Privacy pages EN and DE; interview Q5; README setup step; launch checklist | ▶ written; also `config.ts` names the two call sites (D3) | branch `feat/enquiry-count` |
-| 5 | Release-note row in `docs/BUGLOG.md` | ▶ written (row of 2026-10-14) | branch `feat/enquiry-count` |
-| 6 | Review gate (High: privacy text and data a live site sends) | ▶ rounds 1 to 3 and the final full read done; wording pass and closeout next | trail `REVIEW-diff-2026-10-14-feat-enquiry-count-e1ab9d7.md` |
+| 2 | Starter: the email link reports the event; test | ✅ built, local suite green (99 passed, 1 skipped by design); each new test failed on a deliberate break | branch `feat/enquiry-count` |
+| 3 | Contact form skill: the button reports the event; test | ✅ built, green EN and DE copies; each new test failed on a deliberate break | branch `feat/enquiry-count` |
+| 4 | Privacy pages EN and DE; interview Q5; README setup step; launch checklist | ✅ written; also `config.ts` names the two call sites (D3) | branch `feat/enquiry-count` |
+| 5 | Release-note row in `docs/BUGLOG.md` | ✅ written (row of 2026-10-14), read by the wording pass | branch `feat/enquiry-count` |
+| 6 | Review gate (High: privacy text and data a live site sends) | ✅ passed at 7d7e595: 3 rounds, final full read, wording pass; 27 findings | trail `REVIEW-diff-2026-10-14-feat-enquiry-count-e1ab9d7.md` |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 

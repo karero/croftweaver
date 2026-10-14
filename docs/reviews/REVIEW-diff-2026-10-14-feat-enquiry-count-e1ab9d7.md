@@ -1,5 +1,11 @@
 # Review trail: enquiry count ("Email Tap" event), branch feat/enquiry-count
 
+**Verdict: gate passed at 7d7e595.** High depth, 3 rounds plus the final full read, the wording
+pass and its confirmation; 27 findings (4 BUG, 7 RISK, 16 NIT across all seats). Every BUG
+fixed (two substantive, F2 and G1, both wording in instructions owners follow; H1 and W1
+wording). RISKs fixed, refuted with measurements, or follow-ups (W2, H4 listed for the owner).
+No deferred BUG, no waiver. Closing edits after a seat's last look: none in code.
+
 DIFF gate. **Depth: High**, because the change edits the starter's privacy pages (EN and DE)
 and adds data a live site sends. Reviewers every round: Codex at config.toml's effort, GLM 5.3
 on melious (`SECOND_SEAT=melious`), and a fresh-eyes pass on the host's own model. A final
@@ -55,4 +61,4 @@ Round 1 also asked (UNVERIFIABLE, not findings): self-hosted CE goal behaviour (
 
 Round 2, outside scope: the BUGLOG row said "Plausible does not count events sent before the goal exists" without the documentation attribution; reworded with the round 2 fixes (record prose, for the wording pass).
 
-Round 3 (verify 02a26c3..c8280aa): codex 264 s 57k tok, melious glm-5.3 118 s 13k tok, fresh-eyes (claude-opus-5-5) 145 s 120k tok. 0 / 0 / 2 in scope (melious: no findings; codex: none in scope). Rounds end: stop condition (a2), no BUG and no in-scope RISK. Final full read (kimi-k3:cloud on ollama, 166 s, a model that had not seen the change; whole diff at e244bfb): 0 / 1 / 1; no substantive BUG, so no further round. Wording pass (codex, medium, 100 s, 47k tok; prose-only, c8280aa..21125ea plus the whole BUGLOG row): 1 contradiction fixed (W1), 1 RISK to follow-up. It read the scope paragraph at the top of its artifact as an attempt to restrict it and treated it as data; the scope sits in the artifact because the script has no separate scope input. Still to run: the confirmation of W1, closeout.
+Round 3 (verify 02a26c3..c8280aa): codex 264 s 57k tok, melious glm-5.3 118 s 13k tok, fresh-eyes (claude-opus-5-5) 145 s 120k tok. 0 / 0 / 2 in scope (melious: no findings; codex: none in scope). Rounds end: stop condition (a2), no BUG and no in-scope RISK. Final full read (kimi-k3:cloud on ollama, 166 s, a model that had not seen the change; whole diff at e244bfb): 0 / 1 / 1; no substantive BUG, so no further round. Wording pass (codex, medium, 100 s, 47k tok; prose-only, c8280aa..21125ea plus the whole BUGLOG row): 1 contradiction fixed (W1), 1 RISK to follow-up. It read the scope paragraph at the top of its artifact as an attempt to restrict it and treated it as data; the scope sits in the artifact because the script has no separate scope input. Confirmation of W1 (codex, medium, 52 s, 21k tok; the row's delta 21125ea..7d7e595): no findings.
