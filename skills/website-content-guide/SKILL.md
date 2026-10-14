@@ -25,13 +25,17 @@ not this guide — it's a read-only diagnostic, not a voice/EEAT audit.
 
 ## Outputs
 
-- **`CONTENT_GUIDE.md`** (from `~/.claude/skills/new-website/templates/content-guide.md`)
+- **`CONTENT_GUIDE.md`** (from the `new-website` skill's `templates/content-guide.md`)
   — ToV rules, EEAT checklist, page inventory with target titles, per-page-type
   copy templates, new-page checklist. Reads positioning/audience from `POSITIONING.md`.
 - **`POSITIONING.md`** is owned by `website-positioning`; this guide consumes it
   and must not restate the positioning (single source of truth).
 - **`BRAND.md`** is owned by `website-design-system`, but its positioning line
-  comes from `POSITIONING.md` — keep them consistent.
+  comes from `POSITIONING.md` — keep them consistent. Each of its two parts, the palette and
+  the logo, has its own source: what the owner brought or chose at `new-website` §2b
+  (her own colours or logo, or the ones the optional `website-brand-kit` helped her to)
+  stands, and is not changed here. A part she neither brought nor wanted help with
+  keeps the starter's default until `website-design-system` fills it.
 - **`STORY.md`** (optional, owned by `website-story`): when present, the home page's
   section order in the per-page-type copy template comes from its seven-section map.
   The voice rules here apply unchanged.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Guard: the skill suite is a handoff artifact — no personal names, contact info, or
-# credentials may enter it. Scans skills/ + root docs (and scripts/, for names only) and
-# exits 1 (with file:line) on any hit. Wired into `make check` and CI (.github/workflows/clean.yml).
+# credentials may enter it. Scans skills/ + root docs (and scripts/, for names only; and
+# packages/, where there is one) and exits 1 (with file:line) on any hit. Wired into
+# `make check` and CI (.github/workflows/clean.yml).
 #
 # Two kinds of check:
 #   • DENYLIST — specific known-private identifiers, read from an OPTIONAL gitignored
@@ -84,6 +85,8 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # self-match). The name denylist covers the same docs EXCEPT LICENSE, which legitimately
 # carries the owner's real name + clone URLs (2026-07-17: widened from skills/-only after
 # docs/reviews/*.md review artifacts slipped a client name past a skills/-only scan).
+# README.md is scanned, with one allowance: it may name the maintainer, who is the copyright
+# holder LICENSE names (section 1 says how narrow that is).
 # It DOES cover scripts/: the names live in the gitignored list, not in any script, so
 # nothing there can match itself; the list's own lines are dropped below. (2026-10-06: a
 # client site's name sat in a comment in a script that ships in the handoff zip.)
@@ -108,6 +111,14 @@ if [ -n "$MISSING" ]; then
   echo "legitimately lack one, drop it from SCAN_NAMES_ALL/SCAN_DOCS_ALL deliberately."
   exit 1
 fi
+# packages/ (the npm installer) is in the repo but not in the handoff zip, where `make check`
+# runs too, so it cannot be a required target above: it is scanned where it exists. A name
+# or an address in it reaches the public repo and the npm page. (2026-10-12: it was added
+# and no check read it.)
+SCAN_PRESENT=""
+[ -e packages ] && SCAN_PRESENT="packages"
+SCAN_NAMES="$SCAN_NAMES${SCAN_PRESENT:+ $SCAN_PRESENT}"
+SCAN_DOCS="$SCAN_DOCS${SCAN_PRESENT:+ $SCAN_PRESENT}"
 fail=0
 names_checked=0 names_skipped=""
 # grep prints a hit as file:line:text, and the filters below read the first ":<digits>:" as
@@ -119,7 +130,7 @@ names_checked=0 names_skipped=""
 # They print 4-space-indented, so masked mode withholds them like any scan line. Gitignored
 # files are refused too: they are on disk, where grep reads them. If find fails, the names
 # were not checked: fail too.
-odd_paths="$(find $SCAN_BASE scripts LICENSE \( -name "*"$'\n'"*" -o -name '*:[0-9]*:*' \) -print 2>/dev/null)" \
+odd_paths="$(find $SCAN_BASE scripts LICENSE $SCAN_PRESENT \( -name "*"$'\n'"*" -o -name '*:[0-9]*:*' \) -print 2>/dev/null)" \
   || { fail=1; echo "✗ scan error (find failed) — file names were not checked"; }
 if [ -n "$odd_paths" ]; then
   fail=1
@@ -237,6 +248,44 @@ if [ -f "$DENYLIST_FILE" ]; then
   # (docs/ ships whole in the zip) is scanned like any other. A line from a file named
   # like the list plus a colon (scripts/.clean-denylist:1:x) starts the same way, so with
   # such a file present nothing is dropped: the list then reports itself, loudly.
+  # The installer's LICENSE is a copy of the root one, which this scan leaves out for the
+  # owner's name. A scan of packages/ reads the copy, so its lines are dropped as well, by
+  # exact path and under the same condition, and only while the copy is the root file byte
+  # for byte: one that has drifted is scanned like any other file. Another package with a
+  # copy of its own needs its path here.
+  # README.md at the repo's root may say who maintains the suite: the copyright holder, as
+  # LICENSE's own copyright line spells the name. (2026-10-13: an AI assistant with web
+  # search read the README and answered that it names no maintainer.) That name is blanked
+  # in README.md's hits, then each line is looked at again: the name alone passes, and
+  # another listed name beside it still fails, as do a part of the name, another spelling
+  # of it, the name inside a longer word, and the name in any other file. A longer word is
+  # the name with a letter, a digit or _ right beside it, or any byte above \177: the é of
+  # a longer name, and a curly quote or a long dash too, since telling those from letters
+  # would take a table of Unicode. Stricter than the edges the list is matched with, on
+  # purpose: what is blanked here is not looked at again, and a name left unblanked only
+  # fails the run. (The comparison with \177 is by bytes: awk is run in the C locale here,
+  # whatever the caller's.) The name is read from LICENSE at run time, so this script,
+  # which the check scans, never holds it, and it is compared as plain text (awk's index),
+  # so nothing in it is read as a pattern: it is everything after the year or range of
+  # years, punctuation included. A LICENSE without such a line allows nothing. Either way,
+  # a hit in README.md comes with a line that says what README.md may hold.
+  holder="$(sed -n '/^Copyright (c) [0-9][0-9-]* /{s///;s/[[:space:]]*$//;p;q;}' LICENSE)"
+  blank_maintainer() { # stdin: hits → stdout, the holder's name blanked in README.md's lines
+    HOLDER="$holder" LC_ALL=C awk '
+      function inword(c) { return c ~ /[A-Za-z0-9_]/ || c > "\177" }
+      BEGIN { h = ENVIRON["HOLDER"]; n = length(h) }
+      n && /^README\.md:[0-9]+:/ {
+        s = $0; out = ""; p = ""
+        while ((i = index(s, h)) > 0) {
+          b = (i > 1) ? substr(s, i - 1, 1) : p
+          a = substr(s, i + n, 1)
+          out = out substr(s, 1, i - 1) ((inword(b) || inword(a)) ? h : "MAINTAINER")
+          p = substr(h, n, 1); s = substr(s, i + n)
+        }
+        $0 = out s
+      }
+      { print }'
+  }
   if [ -n "$NAMES" ]; then
     # An entry anchored with ^ finds its lines but is never reported: the post-filter below
     # looks for it after "file:line:", where ^ cannot match. Refuse such entries (a count
@@ -248,17 +297,30 @@ if [ -f "$DENYLIST_FILE" ]; then
     fi
     self='^scripts/\.clean-denylist:[0-9]+:'
     compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
+    cmp -s LICENSE packages/create-croftweaver/LICENSE 2>/dev/null \
+      && ! compgen -G 'packages/create-croftweaver/LICENSE:*' >/dev/null \
+      && self="$self|^packages/create-croftweaver/LICENSE:[0-9]+:"
     hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
-      # gf() never fails, so under pipefail a failure here is sed's, and its hits are lost.
+      # gf() never fails, so under pipefail a failure here is sed's or awk's, and its hits
+      # are lost.
       *) hits="$(printf '%s\n' "$hits" \
            | gf -vE "$self" \
+           | blank_maintainer \
            | sed -E -e ':a' \
                -e 's#(^|[^A-Za-z0-9_.-])karero/croftweaver(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
                -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
            | gf -iE "^✗ scan error|^Binary file |:[0-9]+:((.*$E)?(${NAMES})($E|\$)|.*\\b(${NAMES})\\b)")" \
            || hits="✗ scan error (the name filter failed) — hits may be missing" ;;
+    esac
+    case "$hits" in
+      README.md:[0-9]*|*$'\n'README.md:[0-9]*)
+        if [ -n "$holder" ]; then
+          echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name (everything after the year, punctuation included), with no letter, digit, _ or non-ASCII character right beside it; anything else in README.md is reported"
+        else
+          echo "· README.md may name the maintainer only as LICENSE's copyright line spells the name, and LICENSE has no line \"Copyright (c) <year> <name>\": a name in README.md is reported like any other"
+        fi ;;
     esac
     report "personal/site identifier" "$hits"
     names_checked=1

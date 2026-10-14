@@ -10,6 +10,18 @@ responsive design, SEO, accessibility checks, schema markup, tests, and launch s
 modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages). After launch, it helps you
 keep improving SEO and GEO (how your site shows up in AI answers), week by week.
 
+**Already have a website?** Part of Croftweaver works on a site that is already live, on any
+stack, without a rebuild: the checks and measurements. They are Search Console insights, the
+weekly AI check, the SEO audit, the positioning check, and the facts check. Three limits:
+the ready-made test suite and the two link audits need the Croftweaver starter, the facts
+check does not run a page's JavaScript, and there is no automatic import of an existing site
+yet. See [Croftweaver for established sites](https://croftweaver.com/established-sites).
+
+**Who maintains it.** Croftweaver is maintained by Daniel Melter (Munich). It grew out of
+GenAI Wednesday Munich. The [LICENSE](LICENSE) file names the same person as copyright
+holder, and the [imprint](https://croftweaver.com/imprint) names the company that operates
+the website croftweaver.com.
+
 > **Formerly website-builder.** Same project, new name. GitHub redirects old repository links
 > and existing clones here. To point a clone at the new address, run
 > `git remote set-url origin https://github.com/karero/croftweaver.git`.
@@ -152,6 +164,24 @@ It copies the skills of the latest release into `~/.claude/skills/` and tells yo
 step, which is step 3 below. To update, run it again. For Codex add `-- --codex`, for
 Antigravity `-- --antigravity`.
 
+**As a Claude Code plugin**, from release 0.32 on. Claude Code installs the suite itself:
+no Node, no script, no folder to keep.
+
+```bash
+claude plugin marketplace add https://github.com/karero/croftweaver.git
+claude plugin install croftweaver@croftweaver
+```
+
+(The address is written out in full so that nothing needs a GitHub key.)
+
+Then go to step 3. As a plugin the skills carry its name in front
+(`/croftweaver:new-website`). You stay on the release you installed until you run
+`claude plugin update croftweaver@croftweaver`, or turn on auto-update for the marketplace
+under `/plugin`; what lands on main between releases does not reach you. Use one route:
+with the plugin and a copy in `~/.claude/skills/` (from `npm create croftweaver` or
+`install.sh`), every skill is listed twice. The same holds in a site built with the suite,
+for the skills the site carries.
+
 **By hand**, in three steps:
 
 ```bash
@@ -237,10 +267,21 @@ stamps, `whats-new`) — a release just names a milestone. Versions step by **0.
 (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
+# First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
+# ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip
-git tag -a v0.11 -m "Croftweaver 0.11" && git push origin v0.11
-gh release create v0.11 dist/croftweaver.zip --title "0.11" --latest \
+# The tag takes its name from that number (0.11.0 gives v0.11), so the two cannot differ.
+# A number that was not raised names the last release's tag, and git refuses to make it.
+v="v$(node -p 'require("./.claude-plugin/plugin.json").version.replace(/\.0$/, "")')"
+git tag -a "$v" -m "Croftweaver ${v#v}" && git push origin "$v"
+gh release create "$v" dist/croftweaver.zip --title "${v#v}" --latest \
   --generate-notes                # or write the notes by hand
+# The plugin is installed from the branch `stable`. The release-tag workflow, started by
+# the tag, checks the number against it and moves `stable` to the release. A red run means
+# plugin users are still on the release before. If the step that moves the branch failed,
+# move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
+# If the check of the number failed, the tag was not made as above: leave `stable` where
+# it is, and plugin users get the next release.
 ```
 
 Zip users download the newest release from the Releases page; clone users keep using
@@ -295,6 +336,14 @@ skills/            the suite skills (canonical)
                    figure and retired phrase out; plus the positioning check, each
                    page against the term it owns per audience; runs weekly beside
                    the AI check)
+  wordpress-inspector (read-only, any live WordPress site: counts each content type the
+                   site's REST API lists (WordPress's internal ones left out, media as
+                   one number), the sitemap's addresses and where the two
+                   disagree, shows signs of a page builder and forms, and says when
+                   the count is incomplete; the first step before moving a site, and
+                   the basis for an estimate. After the move it asks the new site for
+                   each address the count listed and names those that are missing or
+                   were sent to the home page)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
   website-story    (optional story layer — the home page as the customer's story:
@@ -303,9 +352,15 @@ skills/            the suite skills (canonical)
   website-scorecard   (optional public scorecard — a dated section showing what the
                    site's own test gate checked, plus the owner's Lighthouse scores;
                    copied to every site, never runs unasked)
+  website-brand-kit   (optional colours and logo — three prompts for the owner's own
+                   design tool, then a checked install: every text colour on every
+                   background in both themes, a safety check of the SVG, the seven icon files;
+                   asked about once after positioning, copied to every site, never
+                   runs unasked)
   website-tagline  (optional line under the logo — starts from the purpose, shows
                    the owner six to eight lines, the owner picks one: TAGLINE.md +
-                   SITE.tagline; copied to every site, never runs unasked)
+                   SITE.tagline, and an opt-in tagline.spec.ts for a site that shows
+                   the line; the skill is copied to every site, never runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
@@ -349,6 +404,8 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
+.claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
+                   from the branch `stable`, which the release-tag workflow moves to each release (make test-plugin)
 packages/      (repo only: the zip does not hold it)
   create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
                    into the assistant's skills folder. The maintainer publishes it to npm (make test-create)
@@ -395,11 +452,12 @@ none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
-Five more skills are optional in a different way: `website-motion`, `website-story`,
-`website-scorecard`, `website-tagline` and `website-positioning-check` are **copied into
-every site** so the recipient can use them later, but **never run unless asked**
-(`website-story` is offered once, after positioning, with a plain-language explanation;
-the other four only on request).
+Six more skills are optional in a different way: `website-motion`, `website-story`,
+`website-brand-kit`, `website-scorecard`, `website-tagline` and `website-positioning-check`
+are **copied into every site** so the recipient can use them later, but **never run unless
+asked** (`website-story` is offered once, after positioning, with a plain-language explanation;
+`website-brand-kit` is asked about once, right after it, with one plain question; the
+other four only on request).
 
 ### Use it locally
 
@@ -446,9 +504,11 @@ that has the list, a listed name in a file the script scans stops the build, unl
 file is gitignored or the match is this repo's own `karero/croftweaver` reference (or its former
 name, `karero/website-builder`). The name check also covers `scripts/`,
 since those files ship in the zip; the generic catches leave `scripts/` out, because its
-files define their patterns. The name check skips only `LICENSE`, which carries the
-owner's name. A genuine false positive is fixed by tightening a pattern in the script —
-never by loosening it. The same `make check` (and the same CI workflow) also keeps
+files define their patterns. In the repo both also cover `packages/`, which the zip does
+not hold. The name check skips only `LICENSE`, which carries the owner's name, and the
+installer's copy of it (`packages/create-croftweaver/LICENSE`) while that copy is the same
+file byte for byte. A genuine false positive is fixed by tightening a pattern in the
+script — never by loosening it. The same `make check` (and the same CI workflow) also keeps
 `independent-review` free of the model names and tags the pattern in
 `scripts/check_model_agnostic.sh` knows, outside its setup guide and its list of the models
 the Melious seat may run, and holds every skill to its size budgets

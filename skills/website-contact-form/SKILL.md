@@ -68,9 +68,8 @@ setup, or a count of them), this is the wrong tool: see §0.
 | `public/js/mail-form.js` | `mail-form.js` | the script: shows the form, builds the `mailto:` link, opens it |
 | `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
 
-The templates are at `~/.claude/skills/website-contact-form/templates/` (Codex:
-`~/.agents/skills/…`), or in the site's own bundled copy on a handed-off repo. Install
-all four.
+The templates are in this skill's `templates/` folder, beside this SKILL.md; the bundled
+copy of the skill on a handed-off repo has them too. Install all four.
 
 **How it works, in one paragraph.** The owner's address goes into the HTML encoded the
 way `EmailLink` encodes it (`src/lib/obfuscate.ts`), never as plain text. The script, a
@@ -198,10 +197,24 @@ lost it; then write it, covering what is processed, why, the legal basis and how
 it is kept), and any field added in §2 step 5 that asks for more than the message is
 named in it. Like the kit's other legal drafts, a baseline, not legal advice.
 
+**With Plausible on**, a press of the button sends one "Email Tap" event, the same one
+the starter's email link sends (nothing typed goes with it). Section 3 of the starter's
+privacy page (EN `privacy.astro`; German `_datenschutz.astro`, served as
+`datenschutz.astro` once a German site renames it) already says so ("a button that opens your
+email program"). An older site's privacy page may lack that sentence, and its own
+`src/components/EmailLink.astro`, which shows the address under the form, may not count
+clicks yet (no `addEventListener` in it). Take whatever is missing from the starter: the
+sentence, the click listener, or both. The form sends its event
+either way, so the sentence is not optional on a site that runs Plausible. In Plausible's
+installer leave "Form submissions" unticked: whether Plausible would count this form a
+second time was not checked.
+
 ## 5. What it does not do
 
-- **No sending, no storage, no count.** The site never learns whether a message was
-  sent. The owner's mailbox is the record.
+- **No sending, no storage, no count of sent messages.** The site never learns whether
+  a message was sent. The owner's mailbox is the record. With Plausible on, the press of
+  the button is counted (§4): a visitor who asked to write, not an opened mail program
+  and not a message.
 - **No help for a visitor without a mail program**, beyond the address under the form
   and the sentence that points to it.
 - **Very long messages.** The form stops at 2,000 typed characters (`LIMITS` in

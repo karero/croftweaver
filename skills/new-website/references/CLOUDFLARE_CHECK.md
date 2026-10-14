@@ -15,7 +15,8 @@ what it is, and how to change it.
 The script belongs to the `new-website` skill. It is in the Croftweaver folder at
 `skills/new-website/scripts/cloudflare-check.mjs`, and in the installed skill at
 `$SKILLS_ROOT/new-website/scripts/cloudflare-check.mjs` (`~/.claude/skills`, `~/.agents/skills`
-or `~/.gemini/config/skills`, wherever the suite is installed). A scaffolded site does not
+or `~/.gemini/config/skills`, wherever the suite is installed; as a Claude Code plugin, the
+`skills` folder under the install path that `claude plugin list --json` prints). A scaffolded site does not
 carry a copy: `new-website` is not one of the skills copied into a site. Run it from
 anywhere; it reads no file of the site.
 

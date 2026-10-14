@@ -66,6 +66,10 @@ Lighthouse scores); it runs only when the owner asks for it. `website-tagline` i
 OPTIONAL skill for the short line under the logo (it starts from the purpose in
 `POSITIONING.md`, shows the owner six to eight lines and lets them pick one →
 `TAGLINE.md` + `SITE.tagline`); it too runs only when the owner asks for it.
+`website-brand-kit` is OPTIONAL help with colours and a logo for an owner who is not a
+designer (three prompts for the design tool she likes, then a checked install of the
+palette and the seven icon files); the owner is asked once at §2b, right after
+positioning and the story, and it never runs unasked.
 `website-team-setup` is the other on-demand skill — run it once when a **second person**
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
@@ -147,15 +151,24 @@ non-expert can answer, and record the answers in the project `README.md`.
 5. **Analytics — will anyone act on the numbers? (optional)**
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
      script, no consent banner) is enough for search & referral traffic.
-   - Real decisions from traffic data (campaigns, content strategy) →
-     **Plausible** (cookieless; running it without a consent banner is a
-     position to have reviewed, see the header of `privacy.astro` and, for a
-     German-only site, `_datenschutz.astro`). In its installer, untick the
+   - "Which sources bring enquiries?" or other real decisions from traffic data
+     (campaigns, content strategy) → **Plausible** (cookieless; running it without
+     a consent banner is a position to have reviewed, see the header of `privacy.astro`
+     and, for a German-only site, `_datenschutz.astro`). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
      unless you keep the privacy page's slot sentence for each one you leave ticked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
+     **The enquiry count comes with it.** Each click on an email address, and each
+     press of the contact form's button that passes its checks, sends one "Email Tap"
+     event (with the page and the referrer, as every event; no address, nothing typed).
+     In Plausible, under the site's Settings > Goals, add a goal of type "Custom event"
+     named exactly `Email Tap` **before launch**: Plausible's documentation says an
+     event shows only once its goal exists and earlier ones are not counted. Filtered
+     by that goal, the dashboard shows which sources and pages bring enquiries. It
+     counts visitors who asked to write an email; whether their mail program opened,
+     and whether they sent the mail, the site never learns.
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
      banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the
@@ -194,7 +207,8 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 1 | Insights: ICP, voice-of-customer, competitor scan | `customer-research` |
 | 2 | Positioning: what you offer, for whom, market category → `POSITIONING.md` (Dunford) | **`website-positioning`** |
 | 2a | Optional: the home page as the customer's story → `STORY.md` (offered once, §2a; positioning stays the source of truth) | `website-story` |
-| 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` | **`website-content-guide`** |
+| 2b | Optional: colours and a logo (asked once, §2b; her choices are made here, the install waits for the green baseline of §3 step 5) | `website-brand-kit` |
+| 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` (its palette and logo come from step 2b, where the owner brought or chose them) | **`website-content-guide`** |
 | 4 | Pages, clean URLs, nav, internal links | `site-architecture` |
 | 5 | Decision interview + scaffold the repo | **this skill** §1, §3 |
 | 6 | Build: mobile graphics, dark mode, theme tokens | **`website-design-system`** |
@@ -244,6 +258,34 @@ before asking. Once `POSITIONING.md` is filled (step 2) and before the content g
 
 Ask exactly once per build. Never run it unasked.
 
+## 2b. Colours and logo — ask once, after positioning and the story
+
+`website-brand-kit` is optional. It is a plain question, not a pitch. Once
+`POSITIONING.md` is filled (and §2a is answered) and before the content guide (step 3):
+
+1. Read **"The question"** in `website-brand-kit/SKILL.md` and ask it, as it stands
+   there, in the language the owner writes in.
+2. **She has a part and wants it used** → note the path of her logo file, which must
+   be an SVG, or her colours as hex values. No prompt is written for that part. Her own
+   colours still go through the skill's check (its §3 step 3) now.
+3. **She wants help with a part** → run now, before step 3, the steps before §6 that
+   `website-brand-kit` §0's table names for her answer, and only those (help with
+   colours alone does not start the logo steps, and the other way round), so the
+   palette exists when `BRAND.md`'s "Brand in one line" is written. These steps are a
+   conversation: nothing is written into a project yet (there is none).
+4. **She lacks a part and wants no help with it** → say nothing more about it. The site
+   keeps the starter's colours and the scaffold's placeholder icons for that part. The
+   skill still travels with the repo (§3 step 3).
+5. **Record the answers either way** with the decision-interview answers (what she has,
+   what she wanted help with, the path of her own logo file or of her package, and,
+   where she took the help, the palette and the variation she picked), so a later
+   session knows the question was asked and does not ask again. Until §3 step 4 writes
+   them into the project they live in this conversation: do that step in the same
+   session, or write them into a note in the folder you are working in.
+6. **The install comes later:** §3 step 5, on the green baseline.
+
+Ask exactly once per build. Never run it unasked.
+
 ## 3. Scaffold the project (handoff-ready)
 
 **Prerequisites (one-time).** Walk the user through `templates/SETUP.md` if needed —
@@ -269,15 +311,23 @@ full path (the output of `pwd` inside it):
    ```bash
    # Resolve where the suite is installed (the cp SOURCE). Per tool:
    #   ~/.claude/skills = Claude Code · ~/.agents/skills = Codex · ~/.gemini/config/skills = Antigravity
-   # Honour an explicit $SKILLS_ROOT; else auto-detect in priority order
-   # Claude Code → Antigravity → Codex (Claude is the default/primary). On a machine with
-   # more than one installed, set it yourself — e.g. `export SKILLS_ROOT=~/.agents/skills`
-   # (Codex) or `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
+   # Honour an explicit $SKILLS_ROOT; else auto-detect. First the folder this very skill was
+   # loaded from: in the first candidate of the loop below, Claude Code puts this skill's
+   # own folder where the name in braces stands, which also finds the suite when it is
+   # installed as a plugin and so sits in none of the three folders above. Claude Code
+   # replaces the name only where nothing follows it inside the braces, so the line before
+   # the loop reaches every assistant as written: where the name was left alone, it gives
+   # the shell an empty value for it instead of an unset variable, the candidate reads
+   # "/..", and the loop passes over it. Then Claude Code → Antigravity → Codex
+   # (Claude is the default/primary). On a machine with more than one installed, set it
+   # yourself — e.g. `export SKILLS_ROOT=~/.agents/skills` (Codex) or
+   # `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
    # `export SKILLS_ROOT="$PWD/.agents/skills"`.
    if [ -z "${SKILLS_ROOT:-}" ]; then
      SKILLS_ROOT="$HOME/.claude/skills"
-     for d in "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
-       [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
+     : "${CLAUDE_SKILL_DIR:=}"
+     for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
+       [ "$d" != /.. ] && [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
      done
    fi
    # Where bundled skills go IN the generated project (the cp DESTINATION). Claude default
@@ -338,7 +388,7 @@ full path (the output of `pwd` inside it):
    rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
    skills: agents read it, and its Language rule has them reply in the person's
    language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
-3. **Skills travel with the repo** — copy the twenty-five always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-seven always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -357,7 +407,8 @@ full path (the output of `pwd` inside it):
    the recipient can opt in later; it never runs on its own), `website-story`
    (optional story layer — same rule: copied, never runs unasked; offered once at §2a),
    `website-scorecard` (optional public scorecard — same rule: copied, never runs
-   unasked), `website-tagline` (optional line under the logo — same rule: copied,
+   unasked), `website-brand-kit` (optional colours and logo — same rule: copied, never
+   runs unasked; asked about once at §2b), `website-tagline` (optional line under the logo — same rule: copied,
    never runs unasked), and `website-team-setup` (copied so the day a second person joins, the session that
    sets up the team finds it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
@@ -390,6 +441,7 @@ full path (the output of `pwd` inside it):
          "$SKILLS_ROOT"/website-motion \
          "$SKILLS_ROOT"/website-story \
          "$SKILLS_ROOT"/website-scorecard \
+         "$SKILLS_ROOT"/website-brand-kit \
          "$SKILLS_ROOT"/website-tagline \
          "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
@@ -453,12 +505,19 @@ full path (the output of `pwd` inside it):
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3. `STORY.md` exists
    only if the owner opted in at §2a; `website-story` copies it from its own
    `templates/story.md`. `TAGLINE.md` exists only if the owner asked for a tagline;
-   `website-tagline` copies it from its own `templates/tagline.md`.
+   `website-tagline` copies it from its own `templates/tagline.md`. If the owner answered §2b: write her answers into the project
+   README beside the decision-interview answers, and, where she chose or brought a palette, fill `BRAND.md`'s
+   colour tables with it (`website-brand-kit` §5a says what goes where). These documents
+   are all that step 2b writes before the tests are green.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware suite out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
+   **If the owner has a palette or a logo from §2b**, run `website-brand-kit` §6 (the
+   intake) now, on the green baseline and before the first page: it checks the palette
+   and the logo, writes them into the site, runs these same tests again and puts every
+   file back if they go red. Commit once it is green.
 
 ## 3a. Outgoing-link sweep — ask, but only if the site links out
 
@@ -542,6 +601,7 @@ hold Search Console Request Indexing until then.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
+      With Plausible: the `Email Tap` goal exists in Plausible (§1 Q5).
       German-market sites: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
       exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;

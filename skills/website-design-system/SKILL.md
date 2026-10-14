@@ -15,9 +15,9 @@ description: >
 # Website design system
 
 Owns the **how it looks and performs visually** layer: mobile graphics, dark
-mode, and the theme tokens. Outputs/maintains `BRAND.md` (template in
-`~/.claude/skills/new-website/templates/brand.md`) and the token block in
-`~/.claude/skills/new-website/templates/astro/src/styles/global.css`. Image rules
+mode, and the theme tokens. Outputs/maintains `BRAND.md` (template: the `new-website`
+skill's `templates/brand.md`) and the token block in that skill's
+`templates/astro/src/styles/global.css`. Image rules
 are below (WebP/AVIF via Astro's `astro:assets`); the `images.spec.ts` test
 enforces them. For generating image assets, use the `image` skill.
 
@@ -78,7 +78,7 @@ enforces them. For generating image assets, use the `image` skill.
 
 Never put a plaintext email or `mailto:your@addr` in the HTML source — scrapers harvest it
 for spam within hours. Render every address through the **`EmailLink.astro`** component
-(`~/.claude/skills/new-website/templates/astro/src/components/EmailLink.astro` + its
+(`src/components/EmailLink.astro` in the `new-website` skill's `templates/astro/`, + its
 `lib/obfuscate.ts` helper): the address is reversed + base64-encoded at build time and
 reassembled in the browser, so the served HTML contains no readable address. No-JS visitors
 see a still-usable "name [at] domain [dot] com" hint.
@@ -92,8 +92,13 @@ checks this. Same idea for any phone number you don't want harvested.
 ## Brand tokens
 
 Mirror `BRAND.md`'s palette into the token block and keep them in sync. Define:
-brand/accent (fixed), and per-theme heading/ink/muted/line/bg/surface. The accent
-used for links must pass AA on the background in both themes.
+brand (fixed), and per-theme heading/ink/muted/accent/link/line/bg/bg-soft/surface. The
+accent and the link colour must pass AA on the background in both themes, which is why
+each theme has its own. The optional `website-brand-kit` does the mirroring with a
+check: its intake reads `BRAND.md`'s tables, holds every text colour to 4.5:1 on every
+background in both themes, and writes the values into all three colour blocks of
+`global.css` (light, dark, and the dark block for visitors without JavaScript). By hand,
+change all three blocks together.
 
 ## Done means
 

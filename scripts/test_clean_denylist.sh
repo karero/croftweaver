@@ -9,10 +9,12 @@
 # name reached main that way (2026-09-27). These cases pin that a worktree uses the main
 # checkout's list, that a copy with no git still skips (and says so, on its OK line too),
 # that CI's masked mode (CLEAN_MASK_NAMES=1) fails on a name without printing it,
-# that scripts/ is scanned for names without the list matching itself, and that this repo's
+# that scripts/ is scanned for names without the list matching itself, that packages/ is
+# scanned where there is one and not missed where there is none, and that this repo's
 # own short name in an issue or PR reference is not a leak, under the name it has now and
-# under the one it had before the rename. The names are made up; the real list never
-# appears in this repo.
+# under the one it had before the rename, and that README.md may name the maintainer, as
+# LICENSE's copyright line spells the name, while every other use of that name still fails.
+# The names are made up; the real list never appears in this repo.
 #
 # Usage: bash scripts/test_clean_denylist.sh
 set -u
@@ -67,10 +69,123 @@ printf '#!/usr/bin/env bash\n# first tried on the zorblequux site\n' >"$R/script
 expect "a listed name in a scripts/*.sh comment: fails" 1 "scripts/tool.sh" "$R"
 rm "$R/scripts/tool.sh"
 
-# In the main checkout, where the list is read either way, so only the self-reference
-# allowance decides these cases.
+# packages/ (the npm installer) is in the repo but not in the handoff zip, where the check
+# runs too: it is scanned where it exists, and a copy without it passes. The OK line names
+# what was scanned, so it tells the two apart. (2026-10-12: the folder was added and no
+# check read it.)
+expect "no packages/ (the handoff zip): passes, and the OK line does not name it" 0 \
+  "docs scripts; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q packages; then
+  printf 'FAIL the check names packages/ in a copy that has none\n'; fails=$((fails+1))
+fi
+mkdir -p "$R/packages/x" "$R/packages/create-croftweaver"
+printf 'plain notes\n' >"$R/packages/x/file"
+expect "packages/, clean: passes, and the OK line names it in both lists" 0 \
+  "docs scripts packages; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE packages" "$R"
+printf 'first tried on the zorblequux site\n' >"$R/packages/x/file"
+expect "a listed name in packages/x/file: fails" 1 "packages/x/file" "$R"
+printf 'write to bob@realmail.de\n' >"$R/packages/x/file"
+expect "an email in packages/x/file: fails" 1 "✗ email address" "$R"
+printf 'plain notes\n' >"$R/packages/x/file"
+: >"$R/packages/x/a:1:b"
+expect "a file name in packages/ holding a colon, a digit and later another colon: refused" 1 "a colon, a digit and later another colon" "$R"
+rm "$R/packages/x/a:1:b"
+# The installer's LICENSE is a copy of the root one, which the name check leaves out for the
+# owner's name. The copy is left out too, by exact path and only while it is the root file
+# byte for byte: a name in the file beside it fails, and so does a copy that has drifted.
+printf 'Copyright (c) zorblequux\n' | tee "$R/LICENSE" >"$R/packages/create-croftweaver/LICENSE"
+expect "a listed name in the installer's copy of LICENSE: passes" 0 "OK — no private names in:" "$R"
+printf 'made by zorblequux\n' >"$R/packages/create-croftweaver/README.md"
+expect "a listed name in the file beside that copy: fails" 1 "packages/create-croftweaver/README.md:1:" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "create-croftweaver/LICENSE"; then
+  printf 'FAIL the copy of LICENSE was reported beside the file that holds a name\n'; fails=$((fails+1))
+fi
+rm "$R/packages/create-croftweaver/README.md"
+printf 'Copyright (c) zorblequux\nall rights reserved\n' >"$R/packages/create-croftweaver/LICENSE"
+expect "a copy of LICENSE that differs from the root file: scanned, and fails" 1 "packages/create-croftweaver/LICENSE:1:" "$R"
+# grep prints file:line:text, so a hit in a file named like the copy plus a colon and a
+# number starts like the copy's own lines, and was dropped with them.
+printf 'MIT License\n' | tee "$R/LICENSE" >"$R/packages/create-croftweaver/LICENSE"
+printf 'ran zorblequux\n' >"$R/packages/create-croftweaver/LICENSE:12"
+expect "a listed name in a file named like that copy plus a colon: fails" 1 "create-croftweaver/LICENSE:12:1:" "$R"
+rm -r "$R/packages"; : >"$R/LICENSE"
+
 # The org name is split so this file, which the real check scans, holds no bare copy of it.
 org="kar""ero"
+# README.md may say who maintains the suite: the copyright holder, as LICENSE's copyright
+# line spells the name. (2026-10-13: the README named no maintainer, and an AI assistant
+# that read it said so.) Only that spelling passes, only in README.md, and a listed name
+# beside it still fails.
+printf 'MIT License\n\nCopyright (c) 2026 Zorblequux Flumm\n' >"$R/LICENSE"
+printf '# Kit\n\nMaintained by Zorblequux Flumm (Munich). Zorblequux Flumm, again.\n' >"$R/README.md"
+expect "the copyright holder named in README.md: passes" 0 "OK — no private names in:" "$R"
+printf 'Maintained by Zorblequux Flumm, and ask zorblequux.\n' >"$R/README.md"
+expect "README.md, the listed part of the name beside the whole name: fails" 1 "README.md:1:" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "LICENSE has no line"; then
+  printf 'FAIL the no-copyright-line note printed although LICENSE names a holder\n'; fails=$((fails+1))
+fi
+printf 'Maintained by zorblequux flumm.\n' >"$R/README.md"
+expect "README.md, the holder's name in another spelling: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by Zorblequux Flummery.\n' >"$R/README.md"
+expect "README.md, the holder's name inside a longer name: fails" 1 "README.md:1:" "$R"
+# A non-ASCII letter beside the name makes a longer name too. The list's own edges count
+# such a byte as an edge, so the hit is found; blanking the name there would hide it.
+printf 'Maintained by Zorblequux Flummé.\n' >"$R/README.md"
+expect "README.md, the holder's name before a non-ASCII letter: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by éZorblequux Flumm.\n' >"$R/README.md"
+expect "README.md, the holder's name after a non-ASCII letter: fails" 1 "README.md:1:" "$R"
+# The check compares bytes, in the C locale it sets itself: a caller's UTF-8 locale, where
+# an awk may read é as one character and order it by the locale, changes nothing. Without
+# such a locale on this machine the cases would prove nothing: skip, and say so.
+# (`locale -a` spells them C.utf8 and en_US.utf8 on Linux.)
+utf8=""; for l in C.UTF-8 C.utf8 en_US.UTF-8 en_US.utf8; do
+  if [ -z "$utf8" ] && locale -a 2>/dev/null | grep -qx "$l"; then utf8="$l"; fi
+done
+if [ -n "$utf8" ]; then
+  expect "the same, called from a UTF-8 locale: fails" 1 "README.md:1:" "$R" "LC_ALL=$utf8"
+  printf 'Maintained by Zorblequux Flummé.\n' >"$R/README.md"
+  expect "the holder's name before a non-ASCII letter, called from a UTF-8 locale: fails" 1 "README.md:1:" "$R" "LC_ALL=$utf8"
+else
+  echo "SKIP: no C.UTF-8 or en_US.UTF-8 locale here; the UTF-8 caller cases would prove nothing"
+fi
+# Any byte above \177 beside the name counts, a curly quote or a long dash too: the check
+# does not tell those from letters, and fails rather than guess.
+printf 'Maintained by “Zorblequux Flumm”.\n' >"$R/README.md"
+expect "README.md, the holder's name in curly quotes: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by "Zorblequux Flumm", (Zorblequux Flumm) and Zorblequux Flumm\n' >"$R/README.md"
+expect "README.md, the holder's name beside ASCII punctuation and at the end of a line: passes" 0 "OK — no private names in:" "$R"
+printf 'Maintained by Zorblequux Flumm of %s.\n' "$org" >"$R/README.md"
+expect "README.md, another listed name beside the holder's: fails" 1 "README.md:1:" "$R"
+printf 'Maintained by Zorblequux Flumm.\n' | tee "$R/README.md" >"$R/docs/notes.md"
+expect "the holder's name in a file other than README.md: fails" 1 "docs/notes.md:1:" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "README.md:1:"; then
+  printf 'FAIL README.md was reported beside the file that may not hold the name\n'; fails=$((fails+1))
+fi
+printf 'plain notes\n' >"$R/docs/notes.md"
+# A range of years is read like one year. A LICENSE with no such line allows nothing, and
+# the run says that this, not the README, is what changed.
+printf 'Copyright (c) 2024-2026 Zorblequux Flumm\n' >"$R/LICENSE"
+expect "LICENSE with a range of years, the holder named in README.md: passes" 0 "OK — no private names in:" "$R"
+printf 'MIT License\n' >"$R/LICENSE"
+expect "README.md names someone, LICENSE has no copyright line: fails, and says why" 1 "LICENSE has no line" "$R"
+# The note is printed when README.md's hit is not the first one, too (skills/ is scanned first).
+printf '# a skill\nfirst tried by zorblequux\n' >"$R/skills/SKILL.md"
+expect "the same, with a hit in another file listed first: still says why" 1 "LICENSE has no line" "$R"
+printf '# a skill\n' >"$R/skills/SKILL.md"
+# The name is everything after the year: a full stop there is part of it, so a README.md
+# without one fails, and the run says how the name is read.
+printf 'Copyright (c) 2026 Zorblequux Flumm.\n' >"$R/LICENSE"
+printf 'Maintained by Zorblequux Flumm (Munich).\n' >"$R/README.md"
+expect "LICENSE's line ends in a full stop, README.md's name does not: fails, and says how the name is read" 1 "punctuation included" "$R"
+printf 'plain notes\n' >"$R/README.md"
+expect "a clean README.md: no note about the maintainer" 0 "OK — no private names in:" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "may name the maintainer"; then
+  printf 'FAIL the note about the maintainer printed with no hit in README.md\n'; fails=$((fails+1))
+fi
+: >"$R/LICENSE"; : >"$R/README.md"
+
+# In the main checkout, where the list is read either way, so only the self-reference
+# allowance decides these cases.
 # Each name the repo has had: what it is called now, and what docs/reviews/ still links to.
 for repo in croftweaver website-builder; do
   printf 'fixed in %s/%s#131\nsee https://github.com/%s/%s.\ngit clone https://github.com/%s/%s.git\n%s/%s %s/%s,%s/%s\n' \
@@ -156,6 +271,11 @@ mkdir -p "$T/badsed"
 printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *SELF-REPO*) exit 4 ;; esac; done\nexec "%s" "$@"\n' "$(command -v sed)" >"$T/badsed/sed"
 chmod +x "$T/badsed/sed"; printf 'ran zorblequux\n' >"$R/docs/notes.md"
 expect "the name filter's sed failing: a scan error, not lost hits" 1 "the name filter failed" "$R" "PATH=$T/badsed:$PATH"
+# The same for the awk that blanks the maintainer's name in README.md's hits.
+mkdir -p "$T/badawk"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *MAINTAINER*) exit 4 ;; esac; done\nexec "%s" "$@"\n' "$(command -v awk)" >"$T/badawk/awk"
+chmod +x "$T/badawk/awk"
+expect "the name filter's awk failing: a scan error, not lost hits" 1 "the name filter failed" "$R" "PATH=$T/badawk:$PATH"
 printf 'plain notes\n' >"$R/docs/notes.md"
 # A filter grep that fails dropped every hit it was meant to filter. This grep fails when one
 # of its arguments holds FAILPAT; each filter in turn. (Which scan error is printed depends
@@ -207,6 +327,16 @@ masked() {
 printf 'ran ZorbleQuux and zorblequux\nand zorblequux again\n' >"$R/docs/notes.md"
 masked "masked: a listed name fails, and only a count is printed" 1 "    (2 line(s) withheld"
 printf 'plain notes\n' >"$R/docs/notes.md"
+mkdir -p "$R/packages/x"; printf 'ran zorblequux\n' >"$R/packages/x/file"
+masked "masked: a listed name in packages/ fails, and only a count is printed" 1 "    (1 line(s) withheld"
+rm -r "$R/packages"
+# CI runs masked: the maintainer named in README.md passes there too, and is not printed.
+printf 'Copyright (c) 2026 Zorblequux Flumm\n' >"$R/LICENSE"
+printf 'Maintained by Zorblequux Flumm (Munich).\n' >"$R/README.md"
+masked "masked: the copyright holder named in README.md: passes" 0 "OK — no private names in:"
+printf 'Maintained by Zorblequux Flumm, and ask zorblequux.\n' >"$R/README.md"
+masked "masked: a listed name beside the holder's in README.md: fails, only a count" 1 "    (1 line(s) withheld"
+: >"$R/LICENSE"; : >"$R/README.md"
 # A name in a file name, inside a word, in an email or a home path: other reports print
 # their lines too, and each of these leaked when only the name report was masked.
 printf 'met zorblequux and the zorblequux_team\nwrite to bob@zorblequux.de\nsee /Users/zorblequux/x\n' >"$R/docs/zorblequux_notes.md"
