@@ -119,7 +119,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 2 | the build has finished, and the assistant pushed a commit to a pull request, which Cloudflare built | `setup` runs again with the same code | no second create and no second build; it reports the push build and ends with 0 | stub: a `github:push` preview deployment |
 | 3 | the build is still queued | `setup` runs again with the code | it sends no deployment call and ends with 4 | stub: one queued production deployment |
 | 4 | a project connected to her repository has production branch `main` and no domain | `setup` runs | the list says "your live address would publish `main`, the preview; I will set the production branch to `production`" | stub project; the first write after the code is that PATCH |
-| 5 | the same project, but her domain is attached to it | `setup` runs | it ends with 1 and writes nothing: the site is live, the script does not repair it, and the checklist's section 1 says how to change the branch | stub project with a domain; no write call |
+| 5 | the same project, but her domain, or another custom domain, is attached to it | `setup` runs | it ends with 1 and writes nothing: the site is live, the script does not repair it, and the checklist's section 1 says how to change the branch | stub project with her domain; with another domain; no write call |
 | 6 | `PROD_BRANCH` is `production` and `origin` has no `production` branch | `setup` runs | it ends with 1: the two signs disagree. For two-stage the assistant creates the branch from the reviewed `main` on Lena's word (D6); for single-stage `PROD_BRANCH` becomes `main` | fixture repository; no write call |
 | 7 | a project of that name exists with no `source` | `setup` runs | it ends with 1: a Direct Upload project cannot be connected to GitHub; `website-team-setup` §6, item 9, has the way round | stub; no write call |
 | 8 | Lena made a project by hand under another name, connected to her repository; or two projects name it; or `--project` names one connected elsewhere; or `--project` names none that exists | `setup` runs | it adopts the first and creates nothing; it stops on the second and third; for the fourth its list says it will create a project of that name | four stub states |
@@ -151,7 +151,7 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 | 41 | `setup` ran with `--skip bot`, and Bot Fight Mode is on; or it ran without, and someone has since turned Always Use HTTPS off | `launch` runs with `--skip bot`; then the second case without any `--skip` | the `bot` failure is listed as left to Lena, status 0; the `https` failure gives 1 | stub site with the cookie; stub site with no redirect |
 | | **Every stage** | | | |
 | 32 | both stages ran last month | each runs again | no write call, no question, status 0 | stub holding the end state |
-| 33 | the token has no end date; or the zone list shows a second zone; or token verify, the zone list or the accounts list is refused; or the accounts list shows two accounts | any stage runs | it refuses before any write, says which, and asks for a narrower token | stub: no `expires_on`; two zones; a 403 on each of the three reads; two accounts (made from the reference, marked so) |
+| 33 | the token has no end date; or the zone list shows a second zone; or token verify or the zone list is refused; or the accounts list shows two accounts; or the accounts list is refused | any stage runs | in the first four cases it refuses before any write, says which, and names the token to make instead (one with an end date; one with the missing row; one limited to her zone; one limited to her account); in the last it goes on, and its question says the token's account scope could not be read | stub: no `expires_on`; two zones; a 403 on verify and on the zone list; two accounts and a 403 on the accounts list (made from the reference, marked so) |
 | 34 | the token is in `.dev.vars`, and git tracks that file, or does not ignore it | any stage runs | it stops before reading the file and says how to ignore it | two fixture repositories |
 | 35 | Cloudflare gave the project the address `lenas-backstube-9x2.pages.dev` | the stages check and report | every check and line uses that address; `lenas-backstube.pages.dev` is asked nowhere | stub `subdomain`; the stub site records the hosts asked |
 | 36 | both stages are done on Lena's two-stage site | `launch` reports | it names the live address, the address of `main`'s newest preview build as Cloudflare lists it, the forwarding, which lines are "read back through the API only", and what is left by hand (Crawler Hints, the Web Analytics switch, HSTS with its earliest day, deleting the token), and that previews can be put behind a sign-in | snapshot of the report |
@@ -242,10 +242,12 @@ check script) has it removed. A token with no end date is refused: token verify 
 omits `expires_on` (capture 001; with an end date it carries one, capture 003). So is one
 whose end date is more than seven days ahead (the checklist: "a week at most"), one whose
 verify call or zone list is refused, and one whose zone list shows more than this site's
-zone (capture 002 showed one zone for a token limited to one). It also lists the accounts the token
-reaches and refuses more than one, and refuses a token whose accounts list is refused; the account in the code is that one (the accounts list
-was read in the reference, not tried). The question also asks Lena to have set Account
-Resources to her one account.
+zone (capture 002 showed one zone for a token limited to one). The account in the code is the zone's own: the
+zone list names the account of each zone (capture 002). The script also asks for the list
+of accounts the token reaches (read in the reference, not tried) and refuses a token that
+shows more than one. If that read is refused, which the rows the plan asks for may cause,
+it goes on, and the question says the token's account scope could not be read. Either
+way, the question asks Lena to have set Account Resources to her one account.
 
 **What the token may do** is learned by trying. A refused read answers 403, code 10000,
 "Authentication error", and does not say which row is missing (capture 015); a read can
@@ -318,7 +320,9 @@ branch of its time, capture 055).
    deployment call with an empty form builds that head (capture 030; creating a project
    starts none, capture 028). If the newest production build of that head failed, it
    starts none and ends with 1, naming the failure. A project that serves any custom domain, this site's or another, gets no
-   build and no branch change from this stage (decision 7; scenario 5).
+   build and no branch change from this stage (decision 7): if its production branch is
+   the wrong one, the stage ends with 1 and writes nothing (scenario 5); if it is right,
+   the stage goes on with the rest of its list.
 5. **The settings** the checklist lets an API set: Always Use HTTPS on, Minimum TLS
    Version 1.2, Email Address Obfuscation off, the NEL switch off (zone settings, a PATCH
    of `{"value": …}` each, read back; captures 067 to 078); Bot Fight Mode off and the AI
@@ -447,7 +451,7 @@ check comes with the launch stage, since no request may reach the domain before 
     `canonical` item; if that still fails, it says the build is done and the forwarding
     does not answer, and ends with 1.
 
-The run ends with the whole check script. Its exit status follows from the check's JSON,
+A `launch` run ends with the whole check script. Its exit status follows from the check's JSON,
 in this order, and nothing else:
 
 1. Any request in `unanswered`, or any item marked `blocked`: 1 (nothing was seen, and an
@@ -597,9 +601,11 @@ field descriptions); the Bot Management update call's own description.
    12), and a PATCH that sets a record's `comment`, and the comment's length limit (script
    step 10). A refused rule call ends the NEL line "by hand"; a refused record PATCH ends
    the run with 1, as script step 10 says. The accounts list of "The token" is not tried
-   either; if it shows less than the token reaches, a token with a broader account scope
-   passes, and only the question's line asking Lena to have set Account Resources to her
-   one account stands in its way.
+   either: which row it needs, whether the rows the plan asks for allow it, and whether it
+   shows all the token reaches. If it is refused or shows less, a token with a broader
+   account scope passes, and only the question's line asking Lena to have set Account
+   Resources to her one account stands in its way. Plan step 9 tries it with the plan's
+   rows.
 10. Which values `preview_deployment_setting` takes besides `all`, the trial's project's
     (capture 027). The script treats every other value as "a pull request may not build".
 11. Whether a CNAME is refused beside a record of another type below the apex. The script
