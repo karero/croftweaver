@@ -33,3 +33,26 @@ Codex 14 findings, GLM 9; merged, 21: 9 BUG, 9 RISK, 3 NIT. All fixed.
 | 19 | GLM | NIT | The four places were not listed | Fixed |
 | 20 | GLM | NIT | Scenario 3 had no test and no reason | Fixed: T2 waits |
 | 21 | GLM | NIT | "One more request" could be read as unpaged | Fixed |
+
+## Round 2 — verification at 8bd8516, 2026-10-14
+
+Codex 7 findings, GLM 8; merged, 13: 4 BUG, 5 RISK, 4 NIT. Ten concerned the measuring,
+which had drawn BUGs in round 1 too. The owner cut it down (DD7: before and after only,
+no comparison against the rest of the site; DD8: windows from the weekly checks), and
+the requirements' R3 and scenario 8 were amended to match.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|---|---|---|---|
+| 1 | Codex, GLM | BUG | The 6-week release could free a page whose pull request is still open, or cut a 12-week decline short | Fixed: no timer; the page stays excluded while open or merged-not-live, and each report says what is waiting |
+| 2 | Codex | BUG | Windows from observations still differ from R3's exact live day | Fixed by amending R3 (DD8, owner) |
+| 3 | Codex | BUG | The probe's fallback without metadata did not match the report's | Fixed: same fallback (last final-data day, else three days back) |
+| 4 | Codex | BUG | The control's documentation rule left out `.claude/` | Moot: the control is out of v1 (DD7) |
+| 5 | Codex | RISK | A shortened new title can sit inside the old one and fake "live" | Fixed: the old title is kept; "new" requires a title that is not the old one |
+| 6 | Codex | RISK | `git log` on the default branch does not show what was published on a two-stage site | Moot (DD7) |
+| 7 | Codex, GLM | RISK | "#31" in a commit message is no proof of the proposal's own commit | Moot (DD7) |
+| 8 | GLM | RISK | A merged change never seen live had no exit | Fixed: it stays excluded and the report says "merged, not seen live yet", with the `npm run ship` hint; the owner can turn it down |
+| 9 | GLM | RISK | `gh pr view` with an address was untested | Fixed: number and repository stored; a stub `gh` in the command-line tests |
+| 10 | GLM | NIT | The brand list's command syntax was missing | Fixed |
+| 11 | GLM | NIT | How the default branch is found was missing | Moot (DD7) |
+| 12 | GLM | NIT | What "reopened" does was missing | Fixed: it cancels the decline |
+| 13 | GLM | NIT | The stop-word list was not named | Fixed: listed in §3.2 |

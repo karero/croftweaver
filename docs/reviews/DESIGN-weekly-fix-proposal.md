@@ -76,10 +76,13 @@ finished day was a Sunday):**
 **P2 so far (2026-10-14, one Serper search, the same site):** the site ranked 8th. Serper's
 snippet for it was the page's own meta description, word for word. Serper's title was not
 the page's `<title>`: the same words in another order, with the brand first, a rewrite.
-Two of the ten results came back with no snippet at all. Whether Google itself showed the
-same title and snippet is the by-eye half, still with the owner. If it did, it matters for
-T2 later: on this page the result keeps the description and rewrites the title, so a "new
-title" proposal could be rewritten too.
+Two of the ten results came back with no snippet at all. **The by-eye half (the owner, the same day):** Google, searched in private windows of
+Safari, Chrome and Firefox at https://www.google.de/search?q=ai+events+munich&hl=de&gl=de,
+showed the result 9th in all three, with the same title and snippet as Serper, word for
+word. So on this sample Serper's text is Google's text, and Google keeps the page's
+description and rewrites its title. For T2 later: a new description has a fair chance of
+being shown; a new title may be rewritten again. P2 is settled; T2 still waits for a page
+figure it can trust (P1).
 
 ## 2. Recommendation: build T1 first, T2 after P1 and P2
 
@@ -102,7 +105,7 @@ highest-return item on a small site, and dropping it halves what the proposal ca
 | Choosing the proposal, the cool-off, live detection, measuring | `scripts/fix_proposal.py` (new) | Pure functions plus a small command line; code decides, no model |
 | Fetching what it needs | `scripts/search_report.py`, `fetch_google` | One more dimension group per window, `["query", "page"]`, paged as `run_query` already pages; plus the candidate page's live HTML |
 | Showing it | `search_report.py`, `render` | One section at the end: "One thing to fix this week" |
-| State and the owner's answers, per site | `~/.config/gsc-insights/sites/<site>-proposals.json` (new) | Proposals shown, declined, acted on, live observations, results; and the owner's answers: `brand` (spellings), `repo` (the site's folder), `pr_figures` (yes / no / unasked) |
+| State and the owner's answers, per site | `~/.config/gsc-insights/sites/<site>-proposals.json` (new) | Proposals shown, declined, acted on, live observations, results; and the owner's answers: `brand` (spellings) and `pr_figures` (yes / no / unasked) |
 | What the assistant does when asked | `references/fix-proposal.md` (new) | Instructions: check positioning, edit the four places, run the gate, open the pull request, record it |
 | How the assistant gets there | `SKILL.md` | A pointer to the reference; the description stays as it is (it is at 998 of 1,024 characters) |
 | The weekly log | `track.sh` | One line naming the proposal, or why there is none |
@@ -132,9 +135,10 @@ The **four places** are the requirements' R2 list: the page's `title`, its meta
   answer other than 200, or a page without a `<title>` drops the candidate, and the
   report says why. The query counts as **already on the page**, and is dropped, when
   every word of it appears as a whole word, folded, in the title, the H1 and the first
-  paragraph taken together. Every word counts, short ones too ("ki"); only a short list
-  of articles and prepositions in German and English is left out, and a query left with
-  no word to check is never "already on the page".
+  paragraph taken together. Every word counts, short ones too ("ki"); only these are left out: der, die, das, den,
+  dem, des, ein, eine, und, oder, in, im, am, an, auf, für, mit, von, zu, bei; the, a, an,
+  and, or, in, on, at, for, of, to, with, near. A query left with no word to check is never
+  "already on the page".
 - **Excluded:** everything in R1's "never proposed" list, read from the state file (open
   pull request, merged but not live, measuring not finished, declined within 12 weeks),
   and a query already on the page.
@@ -158,39 +162,45 @@ The reference tells the assistant to:
    change only the four places;
 4. on a public repository, ask about figures once if `pr_figures` is unasked, and record
    the answer (`fix_proposal.py set <site> pr_figures yes|no`; the same command records
-   `brand` and `repo`);
+   the owner's spellings, `set <site> brand "radwerk, rad werk"`, which replace the guess);
 5. record the pull request and the page's new `<title>` text, not the pull request's
-   title (`fix_proposal.py acted <site> --pr <url> --new-title "<the page's new title>"`).
+   title (`fix_proposal.py acted <site> --pr <url> --new-title "<the page's new title>"`;
+   the command reads the number and repository from the address).
 
 Every state write is a command, so the model never edits the JSON by hand.
 
 ### 3.4 Following the pull request, live, and measuring (code)
 
-- **Pull request state.** Each run asks GitHub for the recorded pull request's state with
-  `gh pr view <url> --json state,mergeCommit` when `gh` is installed and signed in.
-  Closed without merging counts as the owner's "not this one" (R3): the 12 weeks start
-  that day. Merged: the merge commit is recorded. Without `gh`, or when it fails, the
-  state stays as it was; after **6 weeks** with neither a merge nor a live page, the
-  proposal is released, the page can be proposed again, and the weekly log says so.
-- **Live.** Each run fetches the changed page and looks for the recorded new title, as a
-  folded substring of the fetched `<title>`. Three outcomes: **old** (fetched, the new
-  title absent), **new** (fetched, present), **unknown** (timeout, error, not 200).
-  Unknown changes nothing.
-- **Windows.** The before-window is the four full weeks ending on the last Sunday before
-  the last **old** observation; the after-window is the four full weeks starting on the
-  first Monday on or after the first **new** observation. With the weekly Monday run of
-  scenario 8 (old on 2026-11-02, new on 2026-11-09) that gives 2026-10-05 to 2026-11-01
-  and 2026-11-09 to 2026-12-06, as the requirements say. A slow detection only delays the
-  measuring; an unknown run never moves either edge.
-- **Control (DD3).** Needs the site's folder (`repo`, asked once). The report runs
-  `git fetch` there, then `git log` on the remote default branch for the whole span, from
-  the before-window's first day to the after-window's last, the gap included. Commits
-  whose message names the recorded pull request ("#31", as GitHub's merge and squash
-  messages do) are the proposal's own. Any other commit that changes anything outside
-  `docs/` and Markdown files at the top of the repository (the documentation-only rule
-  of the starter's `ci.yml`) leaves no control: the report says "other changes to the site
-  in these weeks; no comparison". If the folder is unknown or the fetch fails: "the site's
-  history could not be checked; no comparison".
+- **Pull request state.** `acted` records the pull request's number and repository
+  (`owner/name`) beside its address. Each run asks GitHub with
+  `gh pr view <number> --repo <owner/name> --json state,mergedAt` when `gh` is installed
+  and signed in. Closed without merging counts as the owner's "not this one" (R3): the 12
+  weeks start that day; reopened cancels that. Merged: the proposal waits to be seen live.
+- **Nothing is released by a timer.** While the pull request is open, or merged but not
+  seen live, the page stays excluded (R1) and each report says what is waiting: "your
+  proposal of 2 November is waiting in pull request 31", or "merged, not seen on the live
+  site yet; on a two-stage site that needs `npm run ship`". The owner can turn it down in
+  words at any time. When `gh` is missing or fails, the state stays as it was and the
+  report says "pull request 31 could not be checked; tell your assistant if it was
+  closed".
+- **Live.** When the proposal is chosen, the report keeps the page's current `<title>`
+  (it fetched the page for the word check). Each later run fetches the page again. Three
+  outcomes: **new** (the fetched `<title>` contains the recorded new title, folded, and is
+  not the kept old one), **old** (it is the kept old one), **unknown** (a timeout, an
+  error, an answer other than 200, or a title that is neither). Unknown changes nothing.
+- **Windows (DD8).** Measured from the weekly checks, not from the exact day: the
+  before-window is the four full weeks ending on the last Sunday before the last **old**
+  check; the after-window is the four full weeks starting on the first Monday on or after
+  the first **new** check. With scenario 8's Monday checks (old on 2026-11-02, new on
+  2026-11-09) that gives 2026-10-05 to 2026-11-01 and 2026-11-09 to 2026-12-06. A missed or
+  unknown check only makes the gap between the windows wider; it never puts a day of the
+  new page into the before-window.
+- **Before and after only (DD7).** The report shows the query's position, impressions and
+  clicks in both windows and says: "This compares one search before and after the change.
+  It does not check what else changed on your site or in Google's results." It never says
+  "consistent with". If a check during the after-window finds a title that is neither the
+  old nor the new one, the page has changed again: the report shows the figures up to
+  that week and says so. Comparing against the rest of the site is later work.
 - **Results** go into the state file, so the comparison is computed once and the page
   shows it from then on.
 
@@ -198,16 +208,17 @@ Every state write is a command, so the model never edits the JSON by hand.
 
 - **Pure functions** in `fix_proposal.py`: choosing (each exclusion, the 50 floor, ties,
   folding, the word check with short words and a query of stop words only), the three
-  live outcomes and the window edges, the pull request states (open, merged, closed,
-  reopened, unknown, the 6-week release), the control rule with the proposal's own commit,
-  a shared file and a documentation-only commit. The dates of the requirements'
+  live outcomes (a shortened new title that sits inside the old one included) and the
+  window edges, the pull request states (open, merged, closed, reopened, unknown), and a
+  page that changes again during the after-window. The dates of the requirements'
   scenarios 1, 2, 4, 6 and 8 are test cases as written.
 - **Through the real entry point** (global rule 9): `search_report.build` with the fake
   Search Console service `test_search_report.py` already uses (`FakeGoogle`) and a local
   HTTP server for the live page, as `_geo_stub.py` serves the AI check's tests. One test
   per requirements scenario that the report can show (1, 2, 6, 8, 9), and one where Google
   fails while an eligible proposal sits in the saved data.
-- **The command line** through `subprocess`, the way the owner's assistant calls it.
+- **The command line** through `subprocess`, the way the owner's assistant calls it, with
+  a stub `gh` on the path answering each pull request state.
 - **The assistant's part** (scenarios 1, 4, 5, 7): evals in `evals/evals.json`, run with
   and without the reference, as `website-story` had; plus the cold start of §3.3.
 - **Scenario 3** (seen but not clicked) has no test in v1: T2 waits (§2).
@@ -216,7 +227,7 @@ Every state write is a command, so the model never edits the JSON by hand.
 
 | # | Step | Waits for |
 |---|---|---|
-| 1 | P1 probe (done 2026-10-14) and P2 (Serper side done 2026-10-14; the by-eye compare with the owner) | — |
+| 1 | P1 probe and P2 check (both done 2026-10-14) | — |
 | 2 | `fix_proposal.py` and its pure tests | — |
 | 3 | The report: fetch, render, state, entry-point tests | 2 |
 | 4 | `references/fix-proposal.md`, the SKILL.md pointer, evals, the cold start | 3 |
@@ -234,7 +245,9 @@ owner's sites, P2 with one Serper search).
 | DD0 | T1 only in v1, T2 after P1 and P2 | Yes (§2) |
 | DD1 | State on the owner's computer, beside the settings | Yes: nothing about search figures enters the site's repository |
 | DD2 | Live detection by finding the new title on the live page | Yes: needs no access to the hosting, works on both publish models |
-| DD3 | Control: any other change under `src/` or `public/` in the span means no comparison | Yes for v1: never wrong, though often "no comparison" on a busy site. Matching changes to single pages is later work |
+| DD3 | Control: any other change under `src/` or `public/` in the span means no comparison | Replaced by DD7 |
 | DD4 | The owner's sentence names the skill | Yes: the description has no room for new trigger phrases |
 | DD5 | Brand spellings start from the domain and are shown until confirmed | Yes: a proposal on day one, with the guess visible |
 | DD6 | Run P1 on one of the owner's sites and P2 with one Serper search | Yes; P1 done (§1), P2 with the owner |
+| DD7 | Measuring in v1: before and after of the one search, without the comparison against the rest of the site, and never "consistent with" | Yes (owner, 2026-10-14): the comparison drew BUGs in both review rounds |
+| DD8 | Windows from the weekly checks that saw the old and the new page, not from the exact day | Yes (owner, 2026-10-14) |

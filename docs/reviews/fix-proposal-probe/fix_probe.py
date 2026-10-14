@@ -57,7 +57,11 @@ print(f"[1] recent range: metadata={'yes' if recent.get('metadata') else 'no'} f
 
 # The window the report page uses (search_report.py, fetch_google): four full weeks ending on the
 # last Sunday on or before the last finished day (the day before the first incomplete date).
-finished = (dt.date.fromisoformat(fid) - dt.timedelta(days=1)) if fid else today - dt.timedelta(days=3)
+if fid:
+    finished = dt.date.fromisoformat(fid) - dt.timedelta(days=1)
+else:   # the report's fallbacks: the last day with a final-data row, else three days back
+    days = [r["keys"][0] for r in rows(today - dt.timedelta(days=40), today, ["date"])]
+    finished = dt.date.fromisoformat(max(days)) if days else today - dt.timedelta(days=3)
 end = finished - dt.timedelta(days=(finished.weekday() + 1) % 7)
 start = end - dt.timedelta(days=27)
 print(f"    window {start}..{end}")

@@ -175,25 +175,21 @@ session, or `core.hooksPath` not set). Red: fix the wording within the same four
 - **"Not this one."** The owner can turn a proposal down in plain words, in the session or
   by closing the pull request. That proposal (page and query for T1, page for T2) is not
   shown again for 12 weeks, and the next report says until when.
-- **Measuring (D11: in v1).** When the owner acts on a proposal, the toolkit keeps which
-  page, query (T1 only) and pull request it was, so the report can follow it. The clock
-  starts when the change is **live**, not when it is merged: on a two-stage site nothing is live
-  before `npm run ship`. The report compares the four full weeks starting the Monday after
-  the change went live with the four full weeks before the week it went live: for T1 the
-  query's figures, for T2 the page's non-brand totals. The comparison first appears in
-  the report whose complete data (R1) reaches the second window's last Sunday. It says
-  "consistent with", never "caused by" (SKILL.md rule 7).
-- **The control** is the site's other pages whose files did not change in the
-  repository from the start of the first window to the end of the second. A change to
-  anything pages share (layouts, components, styles, `src/config.ts`,
-  `astro.config.mjs`, the content config) in that span leaves no control at all. If the
-  control pages have fewer than 100 non-brand impressions in either window (judgment), the report shows the
-  changed page's figures, says there is too little to compare against, and makes no
-  "consistent with" claim.
-- **Another edit to the same page.** If the changed page's own files change again (any
-  edit, not only a proposal) between the start of the first window and the end of the
-  second, the report says the comparison mixes two changes and makes no "consistent
-  with" claim.
+- **Measuring (D11: in v1; DD7 and DD8, owner, 2026-10-14).** When the owner acts on a
+  proposal, the toolkit keeps which page, query and pull request it was, so the report can
+  follow it. The clock starts when the change is **live**, not when it is merged: on a
+  two-stage site nothing is live before `npm run ship`. The report sees the live page once
+  a week, so the windows come from those checks: the four full weeks ending on the last
+  Sunday before the last check that saw the old page, and the four full weeks starting on
+  the first Monday on or after the first check that saw the new one. The comparison first
+  appears in the report whose complete data (R1) reaches the second window's last Sunday.
+- **Before and after only, in v1 (DD7).** The report shows the query's position,
+  impressions and clicks in both windows and says it does not check what else changed on
+  the site or in Google's results. It never says "consistent with", and never "caused by"
+  (SKILL.md rule 7). Comparing against the rest of the site is later work.
+- **Another edit to the same page.** If a check during the after-window finds a title
+  that is neither the old nor the new one, the report shows the figures up to that week
+  and says the page changed again.
 - **To confirm in the design plan** against Google's Search Analytics documentation: how
   the first-incomplete-date metadata, query filters and the omission of rare queries
   behave, and what the report does when the completeness date is missing (today
@@ -312,17 +308,17 @@ for this site do not ask again.
 
 **8. Measuring after the change is live.**
 Given a two-stage site where the pull request of scenario 1 was merged on 2026-11-03 and
-shipped live on 2026-11-05 (the live page shows the new title), and no other page's files
-changed between 2026-10-05 and 2026-12-06.
+shipped live on 2026-11-05, and the weekly checks saw the old title on 2026-11-02 and the
+new one on 2026-11-09.
 When the report of 2026-12-14 compares 2026-11-09 to 2026-12-06 with 2026-10-05 to
 2026-11-01.
 Then it shows "fahrrad reparatur leipzig": position 11.4 → 7.9, impressions 279 → 402,
-clicks 2 → 9; the untouched pages' non-brand impressions 2,810 → 3,150 (+12%) in the same
-windows; and "consistent with the change; the rest of the site grew 12% in the same
-weeks". It does not say the change caused it.
-And given instead that the untouched pages had 70 non-brand impressions in the first
-window: the report shows the page's figures and says there is too little to compare
-against, with no "consistent with".
+clicks 2 → 9, and says "This compares one search before and after the change. It does not
+check what else changed on your site or in Google's results." It does not say the change
+caused the rise, nor that the rise is consistent with it.
+And given instead that the check of 2026-11-23 found a title that is neither the old nor
+the new one: the report shows the figures up to that week and says the page changed
+again.
 
 **9. Google's data is missing.**
 Given the weekly run of 2026-11-09 where Google's data fails with "the sign-in needs
