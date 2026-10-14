@@ -26,6 +26,7 @@ left out of the artifact).
 | Round | Head | Seats | BUG / RISK / NIT (after dedup) | Notes |
 |---|---|---|---|---|
 | 1 | fef0408 | Codex (318 s, 85k tokens), GLM 5.3 on melious (352 s, 36k), fresh-eyes Sonnet (232 s, 133k) | 5 / 4 / 8 | 12 UNVERIFIABLE questions asked, none confirmed as a finding (each points at evidence outside the repo, now recorded below) |
+| 2 (verification) | 1c20966 | Codex (medium), GLM 5.3 | running | delta fef0408..1c20966 with the plan; `make test` 238 OK, `make check` exit 0 before the round |
 
 ## Findings
 
@@ -83,4 +84,4 @@ check; stale at 35 days; `www.` not the same site; out-of-order dates accepted; 
 pages listed. Round 1's 11 new tests were also run against fef0408: all 11 fail there (22
 failures, 7 errors across their subtests) and pass now.
 
-**Test records after the round-1 fixes:** see the round-2 row.
+**Test records after the round-1 fixes** (head 1c20966): `make test` 238 tests OK, exit 0; `make check` exit 0.
