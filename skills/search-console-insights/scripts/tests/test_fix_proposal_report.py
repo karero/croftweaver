@@ -11,8 +11,10 @@ page reader itself is tested against a local web server at the end.
 
 Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tests
 """
+import contextlib
 import datetime as dt
 import html
+import io
 import json
 import os
 import sys
@@ -93,9 +95,12 @@ class ProposalReportTest(unittest.TestCase):
             self.reads.append(url)
             return page(url)
 
-        out = sr.build(site, SimpleNamespace(keywords="", country=None, csv=None),
-                       service_factory=g if callable(g) and not isinstance(g, FakeGoogle) else (lambda: g),
-                       today=D(monday), page_reader=read, gh=gh or (lambda repo, number: None))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            out = sr.build(site, SimpleNamespace(keywords="", country=None, csv=None),
+                           service_factory=g if callable(g) and not isinstance(g, FakeGoogle) else (lambda: g),
+                           today=D(monday), page_reader=read, gh=gh or (lambda repo, number: None))
+        self.log = err.getvalue()          # what track.sh writes into the weekly log
         return out.read_text(encoding="utf-8")
 
     def state(self, site=SITE):
@@ -119,6 +124,8 @@ class Scenarios(ProposalReportTest):
         self.assertEqual(st["current"], fp.proposal_key(PAGE, QUERY))
         self.assertEqual(st["proposals"][st["current"]]["old_title"], OLD_TITLE)
         self.assertIn("Counted as your business name: radwerk plagwitz, radwerkplagwitz", page)
+        self.assertIn(f"Fix proposal: work “{QUERY}” into {PAGE} (shown 286 times in 4 weeks, average position 11.6)",
+                      self.log)
 
     def test_scenario_2_a_thin_site_gets_an_honest_week_and_no_file(self):
         site = "tonstube-kassel.example"
@@ -133,6 +140,7 @@ class Scenarios(ProposalReportTest):
         self.assertIn(f"a search shown {fp.T1_MIN_IMPRESSIONS} times at position 8 to 20", page)
         self.assertEqual(self.reads, [])
         self.assertFalse(fp.state_path(site).exists())
+        self.assertIn("Fix proposal: none this week (too little data: shown 64 times in 4 weeks)", self.log)
 
     def test_scenario_6_the_owners_no_holds_and_the_page_says_until_when(self):
         self.build("2026-11-02")
@@ -196,6 +204,7 @@ class Scenarios(ProposalReportTest):
         self.assertIn("No new proposal this week: Google's numbers could not be refreshed.", page)
         self.assertNotIn(html.escape(f"Work “{QUERY}”"), page)
         self.assertEqual(self.reads, [])
+        self.assertIn("Fix proposal: none new this week (Google's numbers could not be refreshed)", self.log)
 
     def test_a_damaged_proposals_file_costs_the_section_not_the_page(self):
         fp.state_path(SITE).parent.mkdir(parents=True, exist_ok=True)
@@ -203,6 +212,7 @@ class Scenarios(ProposalReportTest):
         page = self.build("2026-11-02")
         self.assertIn("How people find you on Google", page)
         self.assertIn("could not be worked out", page)
+        self.assertIn("Fix proposal: could not be worked out", self.log)
         self.assertEqual(fp.state_path(SITE).read_text(encoding="utf-8"), "[]")
 
 

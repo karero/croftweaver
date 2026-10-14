@@ -449,6 +449,26 @@ def _plain_reason(why):
             "the page could not be read": "the page could not be read today"}.get(why, why)
 
 
+def proposal_line(view, alert=None):
+    """One line for the weekly log (track.sh shows the report's stderr): the proposal, or why
+    there is none. None when the page had no Google data at all."""
+    if view is None:
+        return f"could not be worked out ({alert})" if alert else None
+    cur = view.get("current")
+    if view.get("stale"):
+        return "none new this week (Google's numbers could not be refreshed)"
+    if cur:
+        return (f"work “{cur['query']}” into {cur['page']} (shown {_n(cur['impressions'])} times in 4 weeks, "
+                f"average position {cur['position']:.1f}); the sentence to say is on the report page")
+    if view.get("unavailable"):
+        return "none this week (Google's search-by-page numbers could not be loaded)"
+    if view.get("had_candidates"):
+        return "none this week; passed over: " + "; ".join(f"“{q}”: {_plain_reason(w)}" for q, w in view["notes"])
+    if "total" in view:
+        return f"none this week (too little data: shown {_n(view['total'])} times in 4 weeks)"
+    return None
+
+
 def render_proposal(view, site, today):
     if view is None:
         return ""
@@ -1238,6 +1258,9 @@ def build(domain, args, service_factory=make_service, today=None, page_reader=No
     else:
         bing_state = "unknown"
     proposal, proposal_alert = proposals_for_page(site, data, fresh, service, today, page_reader, gh)
+    line = proposal_line(proposal, proposal_alert)
+    if line:
+        print(f"Fix proposal: {line}", file=sys.stderr)
     if proposal_alert:
         alert = f"{alert} {proposal_alert}" if alert else proposal_alert
     ai = newest_ai_page(site)
