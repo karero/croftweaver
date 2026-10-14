@@ -210,9 +210,10 @@ changed on GitHub. It never pulls, merges or changes files.
 > Codex, durable project instructions live in `AGENTS.md` (the scaffold ships one; `CLAUDE.md`
 > imports it) and command approval in Codex's own rules/config. Antigravity uses its own
 > sandbox/approval model.
-It deliberately does **not** auto-allow destructive/irreversible commands (`rm -rf`,
-`git push --force`, `git reset --hard`, `wrangler … delete`, `gh repo delete`) — those still
-ask. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
+It blocks destructive/irreversible commands (`rm -rf`, the usual force pushes,
+`git reset --hard`, `wrangler … delete`, `gh repo delete`): Claude Code refuses them
+outright, with no question, so run one yourself in a terminal if you really mean it. A
+force flag bundled with others (`git push -uf`) is not caught: a rule only matches text. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
 remove them from `allow` if you'd rather confirm each push.
 
 `settings.json` is committed (shared project policy). Personal/secret overrides go in
