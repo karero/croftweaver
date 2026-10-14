@@ -352,6 +352,11 @@ skills/            the suite skills (canonical)
   website-scorecard   (optional public scorecard — a dated section showing what the
                    site's own test gate checked, plus the owner's Lighthouse scores;
                    copied to every site, never runs unasked)
+  website-brand-kit   (optional colours and logo — three prompts for the owner's own
+                   design tool, then a checked install: every text colour on every
+                   background in both themes, a safety check of the SVG, the seven icon files;
+                   asked about once after positioning, copied to every site, never
+                   runs unasked)
   website-tagline  (optional line under the logo — starts from the purpose, shows
                    the owner six to eight lines, the owner picks one: TAGLINE.md +
                    SITE.tagline, and an opt-in tagline.spec.ts for a site that shows
@@ -447,11 +452,12 @@ none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
-Five more skills are optional in a different way: `website-motion`, `website-story`,
-`website-scorecard`, `website-tagline` and `website-positioning-check` are **copied into
-every site** so the recipient can use them later, but **never run unless asked**
-(`website-story` is offered once, after positioning, with a plain-language explanation;
-the other four only on request).
+Six more skills are optional in a different way: `website-motion`, `website-story`,
+`website-brand-kit`, `website-scorecard`, `website-tagline` and `website-positioning-check`
+are **copied into every site** so the recipient can use them later, but **never run unless
+asked** (`website-story` is offered once, after positioning, with a plain-language explanation;
+`website-brand-kit` is asked about once, right after it, with one plain question; the
+other four only on request).
 
 ### Use it locally
 
