@@ -24,6 +24,7 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 | 2 (verification) | e496a75 | Codex medium (291 s, 63k tokens), GLM 5.3 on melious (417 s, 41k) | 3 / 5 / 5 (F21–F31) | delta f3cea24..e496a75; three round-1 fixes partial (F1 → F21, F6 → F22, F10 → F23): round 3 owed |
 | 3 (verification) | 6ebb7cf | Codex medium (328 s, 68k tokens), GLM 5.3 on melious (424 s, 33k) | 2 / 4 / 4 (F32–F41) | delta e496a75..6ebb7cf; F32 and F33 substantive: round 4 earned (kinds ai-evidence, gsc-evidence); F32 is the third link of F10 → F23, so the fix is a cut, not a patch |
 | 4 (verification) | 7cb141a | Codex medium (391 s, 84k tokens), GLM 5.3 on melious (515 s, 44k) | 2 / 3 / 2 (F42–F48) | delta 6ebb7cf..7cb141a; earned by ai-evidence, gsc-evidence. F42 and F43 substantive: round 5 earned by the same two kinds, so it needs a cut (below) |
+| 5 (verification) | f74764a | Codex (medium), GLM 5.3 on melious | running | delta 7cb141a..f74764a; earned by F42 (ai-evidence) and F43 (gsc-evidence), with the cut: the inference deleted, the data written as exact bytes; `make test` 290 OK, `make check` exit 0 |
 
 ## Findings
 
