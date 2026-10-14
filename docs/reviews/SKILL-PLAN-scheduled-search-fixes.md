@@ -9,7 +9,7 @@ scenarios are made up.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ▶ draft, not reviewed | branch `docs/scheduled-search-fixes-requirements`, not pushed |
+| 1 | Requirements and scenarios (this file) | ▶ draft, not reviewed | draft PR #286 (branch `docs/scheduled-search-fixes-requirements`) |
 | 2 | Owner answers the open decisions below | ▶ D0 decided 2026-10-14 (Option 0 first); D1 to D10 open | owner's answer in chat, 2026-10-14 |
 | 3 | Review gate on this file (Normal: a plan, so never Light) | ⏸ waits for 2 | — |
 | 4 | Spike: one unattended run on one real site, measuring time and cost | ⏸ waits for 2 | — |
