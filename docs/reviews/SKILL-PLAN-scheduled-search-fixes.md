@@ -11,7 +11,7 @@ scenarios are made up.
 |---|------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ▶ rewritten for Option 0 after the decisions; not reviewed | draft PR #286 (branch `docs/scheduled-search-fixes-requirements`) |
 | 2 | Owner answers the open decisions | ✅ D0 to D11 decided 2026-10-14 | owner's answers in chat, 2026-10-14 |
-| 3 | Review gate on this file (Normal: a plan, so never Light) | ⏸ next | — |
+| 3 | Review gate on this file (Normal: a plan, so never Light) | ▶ round 1: 15 findings (3 BUG, 8 RISK, 4 NIT), all fixed; round 2 next | trail `REVIEW-plan-2026-10-14-scheduled-search-fixes-ac8b71b.md` |
 | 4 | Design plan (the mechanism), then build, then its own review gate | ⏸ waits for 3 | — |
 | 5 | Release note line in 0.32 (D10) | ⏸ waits for 4 | — |
 
@@ -35,23 +35,27 @@ not.
 - The weekly job **only records data** (SKILL.md, "Weekly auto-tracking": "The job only
   *records* data"). The report lists striking-distance queries and pages seen but not
   clicked, but turning one into a change is left to the owner.
-- Every change to a Croftweaver site goes through the site's own gate: 13 Playwright spec
-  files in the starter (`skills/new-website/templates/astro/tests/`), run by the pre-push
-  hook (`scripts/verify.mjs`) and again by CI on every pull request. The site's
+- Every change to a Croftweaver site goes through the site's own gate: its full test
+  suite (13 Playwright spec files in today's starter,
+  `skills/new-website/templates/astro/tests/`), run by the pre-push hook
+  (`scripts/verify.mjs`) and again by CI on every pull request that changes the site (CI
+  skips a change made only to documentation, `ci.yml`). The site's
   `AGENTS.md` forbids a direct push to `main` and lets the assistant merge only when the
   owner asks.
 
 **What the competitor does.** marketingskills' recipe
-`skills/marketing-loops/references/seo-operator.md` (read 2026-10-14; last commit to the
-file 2588c27100, 2026-10-07) runs SEO from the site's repository on a schedule: a run
+`skills/marketing-loops/references/seo-operator.md` (read 2026-10-14 at
+https://github.com/coreyhaines31/marketingskills/blob/2588c27100b81717c2e6e468934838d10e47a219/skills/marketing-loops/references/seo-operator.md) runs SEO from the site's repository on a schedule: a run
 every day or deploy, more work weekly and monthly. It keeps its memory in `.agents/seo/`,
 reads Search Console, analytics, rank and AI-visibility tools, and ships changes as pull
-requests by default, or "merge when checks pass" if the owner says so. Before shipping it
-runs "the repo's lint, type check, and build" and loads each changed page.
+requests by default, or "merge when checks pass" if the owner says so. Before shipping,
+its rule is to "run the repo's lint, type check, and build, then load each changed page
+and look at it": whatever checks the repository already has. It brings no tests of its
+own.
 
-**Croftweaver's difference** is the gate, not the watching: the edit passes the same 13
-test files the owner's own edits must pass, before the owner is asked to merge it. The
-competitor checks whatever the repository happens to have.
+**Croftweaver's difference** is the gate, not the watching: the edit passes the site's
+full test suite, the same one the owner's own edits must pass, before the owner is asked
+to merge it.
 
 ## v1 is Option 0 (D0, decided 2026-10-14)
 
@@ -79,23 +83,32 @@ described under "Later" and follows only if owners act on the proposals.
 
 ## R1. Which proposal the report shows
 
-Code picks the proposal from the numbers; the report calls no assistant. All figures are
-non-brand rows of the tracker's 28-day window, read the way SKILL.md's "Reading the
-numbers" demands (named denominator and window; query-to-page link proved with `--query`,
-never inferred).
+Code picks the proposal from the numbers; the report calls no assistant.
+
+- **The window** is the report page's own: four full weeks, Monday to Sunday, ending on
+  the last Sunday whose data Google marks complete (`search_report.py` reads Google's
+  first incomplete date). The weekly text tracker's 28 days end on another day; the
+  proposal, its figures and the measuring all use the report page's window, so the owner
+  never sees two sets of numbers for one proposal.
+- **Brand queries** are those containing the business name; the owner confirms its
+  spellings once. Every figure below counts non-brand queries only.
+- Figures are read the way SKILL.md's "Reading the numbers" demands: named denominator and
+  window; a query-to-page link proved with the `--query` drill-down, a page's queries with
+  `--page`, never inferred.
 
 | | Kind | Condition | Proposal |
 |---|---|---|---|
 | T1 | **Striking distance** | A query at average position 8 to 20 with at least **50** impressions, whose landing page is proved by the `--query` drill-down, and whose words are not yet in that page's title, H1 or first paragraph | Thread the query's wording into those places (SKILL.md, low-volume playbook, item 2) |
-| T2 | **Seen, rarely clicked** | A page at position 10 or better, CTR under 2%, at least **100** impressions | Rewrite the title or the meta description, **only after** the live-result check shows Google displays the page's own title or description |
+| T2 | **Seen, rarely clicked** | A page at position 10 or better whose non-brand queries (the `--page` drill-down, not the page total, which includes brand searches) add up to at least **100** impressions at a CTR under 2% | Look at the page's title and description in the live result. A new title only if Google shows the page's own title; a new description only if it shows the page's own description. The assistant, when asked, rewrites an element only if it can say what in the shown text keeps people from clicking; otherwise no edit, and the proposal counts as turned down |
 
 - **One proposal per report**, the strongest by impressions; ties go to T1.
 - **Never proposed:** brand queries; a row under 10 impressions (the tracker's `~`); a
   move the tracker marks `≠` or `‡`; a ranking drop (too many possible causes; it stays a
-  line in the report); Bing alone (a six-month total); the AI check's results (`ai-seo` is
-  how to act on them, on the owner's request); a page with an open pull request; a page
-  and query the owner turned down in the last **12 weeks**; a page changed by an earlier
-  proposal whose measuring window (R3) has not closed.
+  line in the report); Bing alone (its figures cover about six months, not the window);
+  the AI check's results (`ai-seo` is how to act on them, on the owner's request); a page
+  with an open pull request, or one merged but not yet live; a page changed by an earlier
+  proposal whose measuring (R3) has not finished; a proposal the owner turned down in the
+  last **12 weeks**, counted by page and query for T1 and by page for T2.
 - An unanswered proposal stays while its condition holds, and the report says since when
   it has been shown. A stronger one may take its place.
 - 50 and 100 are judgment (the toolkit's own floors are 10 for noise and about 20 for "too
@@ -154,18 +167,23 @@ the full suite. Red: fix the wording within the same four places and push again.
   by closing the pull request. That page and query are not proposed again for 12 weeks,
   and the next report says until when.
 - **Measuring (D11: in v1).** When the owner acts on a proposal, the toolkit keeps which
-  page, query and pull request it was, so the report can follow it. The clock starts when the change is **live**, not when it is
-  merged: on a two-stage site nothing is live before `npm run ship`. 28 full days later
-  (plus Search Console's lag), the report compares 28 days after with the 28 days before,
-  against the site's untouched pages as a control, and says "consistent with", never
-  "caused by" (SKILL.md rule 7).
+  page, query and pull request it was, so the report can follow it. The clock starts
+  when the change is **live**, not when it is merged: on a two-stage site nothing is live
+  before `npm run ship`. The report compares the four full weeks starting the Monday after
+  the change went live with the four full weeks before the week it went live, and says
+  "consistent with", never "caused by" (SKILL.md rule 7).
+- **The control** is the site's other pages whose files did not change in the
+  repository from the start of the first window to the end of the second. If they have
+  fewer than 100 non-brand impressions in either window (judgment), the report shows the
+  changed page's figures, says there is too little to compare against, and makes no
+  "consistent with" claim.
 
 ## R4. Cost and keys
 
 | Item | Cost | Source |
 |---|---|---|
 | Search Console, Bing Webmaster Tools | free; Search Console read-only | SKILL.md |
-| Live-result check (T2 only) | Serper: 2,500 searches free, then about $0.30 per 1,000 | SKILL.md, Phase 2 |
+| Live-result check (T2 only) | Serper: 2,500 searches free, paid plans after that | https://serper.dev, read 2026-10-14 |
 | The assistant's edit | the owner's normal assistant use, as for any edit they ask for | — |
 | The site's tests | the CI the site already runs on each pull request | starter `ci.yml` |
 
@@ -189,19 +207,22 @@ Most small sites. The report must make that a calm, honest week:
 ## R6. Where it runs
 
 Nothing new is scheduled: the proposal comes with the weekly report the owner already has
-(launchd on macOS, the owner's own timer on Linux). On any platform, including Windows,
-an owner who asks for their report gets the proposal with it. The edit runs in the owner's
+(launchd on macOS, the owner's own timer on Linux), and an owner who asks for their report
+gets the proposal with it. **Native Windows is not covered:** the report's history
+module imports `fcntl` (`_history.py`), which Python on Windows does not have. The README
+points Windows owners to WSL2, where the toolkit runs as on Linux; the report under WSL2
+was not tried here. The edit runs in the owner's
 normal session, with whichever assistant they use (`AGENTS.md` serves Claude Code and
 Codex alike).
 
 ## Scenarios
 
-Report day is a Monday; the 28-day window ends three days earlier because of Search
-Console's lag.
+Report day is a Monday. The window is the report page's (R1): four full weeks ending on
+the last Sunday Google marks complete.
 
 **1. The report proposes a fix, and the owner asks for it.**
 Given radwerk-plagwitz.example, a bike repair shop in Leipzig, whose report of
-2026-11-02 (window 2026-10-03 to 2026-10-30) finds the non-brand query "fahrrad reparatur
+2026-11-02 (window 2026-09-28 to 2026-10-25) finds the non-brand query "fahrrad reparatur
 leipzig" at average position 11.6 with 286 impressions; the `--query` drill-down puts 271
 of them on https://radwerk-plagwitz.example/reparatur, whose title "Reparatur und
 Service", H1 and first paragraph do not contain the phrase; `POSITIONING.md` names
@@ -221,7 +242,8 @@ under 10 impressions.
 When the owner opens the report.
 Then there is no proposal, and the report says "Too little data to propose a change this
 week: shown 64 times in 28 days, 41 of them for your name. The first thing that would lead
-to a proposal: a search shown 50 times at position 8 to 20."
+to a proposal: a search shown 50 times at position 8 to 20 whose words are not yet on the
+page it leads to."
 
 **3. Seen but not clicked.**
 Given https://radwerk-plagwitz.example/preise at position 4.2 with 520 impressions and
@@ -230,8 +252,9 @@ When the report is built.
 Then there is no T2 proposal, and the report says once that checking whether the snippet
 is the cause needs the free live-result key (2,500 searches).
 And given the key is added and the live result shows Google displays text from the page
-body instead of the meta description: still no proposal, because a new description would
-not be shown; the report says so.
+body instead of the meta description: still no description proposal, because Google is
+not using the current description, so nothing shows that a new one would be used; the
+report says so.
 
 **4. The positioning says no.**
 Given the report proposes "fahrrad günstig reparieren leipzig" (position 9.8, 140
@@ -266,13 +289,17 @@ for this site do not ask again.
 
 **8. Measuring after the change is live.**
 Given a two-stage site where the pull request of scenario 1 was merged on 2026-11-03 and
-shipped live on 2026-11-05 (the live page shows the new title).
-When the report of 2026-12-07 compares 2026-11-05 to 2026-12-02 with 2026-10-08 to
-2026-11-04.
-Then it shows "fahrrad reparatur leipzig": position 11.6 → 7.9, impressions 286 → 402,
-clicks 2 → 9; the untouched pages' impressions 2,840 → 3,190 (+12%) in the same windows;
-and "consistent with the change; the rest of the site grew 12% in the same weeks". It does
-not say the change caused it.
+shipped live on 2026-11-05 (the live page shows the new title), and no other page's files
+changed between 2026-10-05 and 2026-12-06.
+When the report of 2026-12-14 compares 2026-11-09 to 2026-12-06 with 2026-10-05 to
+2026-11-01.
+Then it shows "fahrrad reparatur leipzig": position 11.4 → 7.9, impressions 279 → 402,
+clicks 2 → 9; the untouched pages' non-brand impressions 2,810 → 3,150 (+12%) in the same
+windows; and "consistent with the change; the rest of the site grew 12% in the same
+weeks". It does not say the change caused it.
+And given instead that the untouched pages had 70 non-brand impressions in the first
+window: the report shows the page's figures and says there is too little to compare
+against, with no "consistent with".
 
 **9. Google's data is missing.**
 Given the weekly run of 2026-11-09 where Google's data fails with "the sign-in needs
