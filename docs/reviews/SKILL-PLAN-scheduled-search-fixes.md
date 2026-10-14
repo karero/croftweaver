@@ -10,7 +10,7 @@ scenarios are made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ▶ draft, not reviewed | branch `docs/scheduled-search-fixes-requirements`, not pushed |
-| 2 | Owner answers the open decisions below, starting with D0 | ⏸ not started | — |
+| 2 | Owner answers the open decisions below | ▶ D0 decided 2026-10-14 (Option 0 first); D1 to D10 open | owner's answer in chat, 2026-10-14 |
 | 3 | Review gate on this file (Normal: a plan, so never Light) | ⏸ waits for 2 | — |
 | 4 | Spike: one unattended run on one real site, measuring time and cost | ⏸ waits for 2 | — |
 | 5 | Design plan (the mechanism), then build | ⏸ waits for 3 and 4 | — |
@@ -193,7 +193,10 @@ Requirements:
   is set at install (D7); a run that would pass it stops and says so.
 - Keys stay where they are today (`~/.config/gsc-insights/`). They are never printed,
   committed, or written into a pull request or the report.
-- **Google sign-in, unattended.** Google's OAuth page says a project with an external
+- **Google sign-in, unattended.** The toolkit reads Search Console through its own script,
+  not an MCP server: `gsc_query.py` signs in once in the browser (OAuth, read-only scope)
+  and keeps a refresh token in `~/.config/gsc-insights/token.json`, which every later
+  run, the weekly job included, uses without a browser. Google's OAuth page says a project with an external
   consent screen in "Testing" status gets a refresh token that expires in 7 days.
   `references/onboarding.md` sets the owner up as a test user and says nothing about
   publishing the app. The maintainer's own weekly jobs logged no Google sign-in failure
@@ -336,7 +339,7 @@ the owner signs in works as usual.
 
 | # | Decision | Proposal (judgment) |
 |---|---|---|
-| D0 | Build the unattended loop, or start with Option 0 (one proposal per report, the owner asks) | Option 0 first; build the loop if owners use it |
+| D0 | Build the unattended loop, or start with Option 0 (one proposal per report, the owner asks) | **Decided 2026-10-14: Option 0 first.** The loop follows only if owners use it |
 | D1 | A new skill, or a step inside `search-console-insights` | A new skill: that SKILL.md is 497 lines and its description already over the 900-character warning (BUGLOG, 2026-10-09 row) |
 | D2 | Where it runs: A, B or C, and which platforms in v1 | A on macOS only, Linux by hand as today, Windows said plainly not covered |
 | D3 | Thresholds: N₁ (T1) and N₂ (T2) impressions, M pages per pull request, cool-off after a "no" | N₁ 50, N₂ 100, M 3, 12 weeks |
@@ -345,5 +348,5 @@ the owner signs in works as usual.
 | D6 | Which assistants: Claude Code, Codex, or both | Both, since `AGENTS.md` serves both; the spike tries one |
 | D7 | How the assistant's run is paid, and the default weekly cap | Decide after step 4 measures a run |
 | D8 | What the site calls it, and when it may be named on croftweaver.com | Not before it ships; "sell the fix" copy describes the hand-asked fix until then |
-| D9 | The 7-day Google sign-in for "Testing" apps: check it with a fresh owner setup; if it bites, should onboarding have the owner publish the app | A BUGLOG row for today's weekly job, separate from this feature |
+| D9 | The 7-day Google sign-in for "Testing" apps: check it with a fresh owner setup; if it bites, should onboarding have the owner publish the app, or connect by a service account added to the property instead (not tried here) | A BUGLOG row for today's weekly job, separate from this feature |
 | D10 | Release | After 0.32 |
