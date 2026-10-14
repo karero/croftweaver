@@ -1,7 +1,7 @@
 # DIFF review — branch feat/search-ai-reports — Google's and Bing's own AI reports (search-console-insights 1.8.0)
 
 Base `e038603` · depth: Normal (shipped runtime code; nothing in the High row) · verdict: CLEAN (seen pair: merge-base
-01504df, head d0ae6a4; later commits touch this trail only) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
+01504df, head d0ae6a4; bridged to merge-base 3519d2d by an empty merge link; later commits touch this trail only) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
 works in this worktree and created the branch by renaming the harness's branch for it); POST
 AUTHORITY not yet held (no PR; one is opened only on the owner's word).
 
@@ -39,6 +39,7 @@ left out of the artifact).
 | merge link (not a round) | ac928c7 | Codex medium only (216 s, 79k tokens) | 1 / 0 / 0 (F46, record only) | `origin/main` merged at 0b903d3 (49 commits; new merge-base 01504df); `merge_link.sh e038603 1136a76 01504df -- docs/WHAT-THE-SKILLS-RUN.md` lists no change in the change's own files, so the merge left them as reviewed. Its one file is that extra path, which is new on main, so the script prints the whole file as added (401 lines); this change's own edit to it is one sentence (`git diff 01504df..HEAD -- docs/WHAT-THE-SKILLS-RUN.md`), and that sentence plus the plan's status row were the artifact. Codex re-derived the path list with read-only git (the script's temp folder was denied in its sandbox), confirmed the skill's files are unchanged since 1136a76, and checked the sentence against `ai_reports.py` under a network audit: local files in, local JSON out. `make test` 249 OK, `make check` exit 0 on ac928c7. It read the scope note as "prompt injection"; it is the scope the skill prepends to a narrow pass |
 | confirmation of F46 (not a round) | a71e7fd | Codex medium only | 2 / 0 / 0 (record) | F46's own contradiction gone, but the fix added two wrong record sentences ("check_clean.sh does not scan docs/reviews/"; "RISKs F16 …", F16 being a NIT); both corrected in d0ae6a4 |
 | confirmation of that fix (the last allowed) | d0ae6a4 | Codex medium only | 0 / 0 / 0 | both corrections verified, no new contradiction; the private name list's count (0) is the author's measurement, which the seat could not reproduce without seeing the list |
+| second merge link (not a round) | e842451 | none needed | — | the PR was behind `main` (PR 294 merged); `origin/main` merged at e842451, new merge-base 3519d2d. `merge_link.sh 01504df d0ae6a4 3519d2d -- docs/WHAT-THE-SKILLS-RUN.md` printed nothing (0 bytes): nothing of the change moved, so no seat had anything to read. `git diff d0ae6a4 HEAD` on the change's files is empty; `make test` 249 OK, `make check` exit 0 on e842451 |
 
 ## Findings
 
