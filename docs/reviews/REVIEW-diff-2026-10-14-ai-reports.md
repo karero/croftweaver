@@ -28,7 +28,7 @@ left out of the artifact).
 | 1 | fef0408 | Codex (318 s, 85k tokens), GLM 5.3 on melious (352 s, 36k), fresh-eyes Sonnet (232 s, 133k) | 5 / 4 / 8 | 12 UNVERIFIABLE questions asked, none confirmed as a finding (each points at evidence outside the repo, now recorded below) |
 | 2 (verification) | 1c20966 | Codex medium (245 s, 59k tokens); GLM 5.3 on ollama (487 s) standing in for melious, whose reply was cut off at the 300 s limit while still arriving | 4 / 3 / 6 (F18–F28) | delta fef0408..1c20966 with the plan; `make test` 238 OK, `make check` exit 0 before the round. 2 BUGs were round-1 fixes left partial (F1, F2); round 3 owed. 6 UNVERIFIABLE questions, 1 checked and refuted (below) |
 | 3 (verification) | 0118cf2 | Codex medium (321 s, 76k tokens), GLM 5.3 on melious (443 s, 34k) | 2 / 3 / 2 (F29–F35) | delta 1c20966..0118cf2; `make test` 244 OK, `make check` exit 0 before the round. F30 is a substantive BUG: round 4 earned (named here, as the budget asks past round 3) |
-| 4 (verification) | 3090c40 | Codex (medium), GLM 5.3 on melious (900 s limit) | running | delta 0118cf2..3090c40; `make test` 246 OK, `make check` exit 0 before the round |
+| 4 (verification) | 3090c40 | Codex medium (340 s, 67k tokens), GLM 5.3 on melious (328 s, 22k) | 1 / 1 / 2 (F36–F39) | delta 0118cf2..3090c40; `make test` 246 OK, `make check` exit 0 before the round. F36 is a substantive BUG: round 5 earned |
 
 ## Findings
 
@@ -77,7 +77,14 @@ Round 2 UNVERIFIABLE checked: G asked whether a one-column header over two-colum
 
 Round 3 questions checked and refuted by reading: the zip branch of `read_bundle` already compares `.csv` in lower case (G); `span_ok`'s `fromisoformat` raising is caught by `load_ai`'s `except (ValueError, TypeError, OSError)` (G, follow-up); a non-UTF-8 CSV is refused, not a traceback: `read_bundle` and the Bing branch of `do_import` both catch `UnicodeDecodeError` (G, follow-up).
 
-Fix chains: F1 → F18 → F30 and F2 → F19 → F29 (three links each; the owner was told and chose, see F29). Round 2's new tests (7, with 16 subtests) all fail on 1c20966 and pass now.
+| F36 | BUG | C (round 4) | `load_ai` | caused-by: F30 (partial). A saved record nested 10,000 levels deep raised `RecursionError`, which no check caught: the page was not written | fixed, locally_verified | Fourth link of the F1 chain, so closed as a class, not a shape: `ai_part()` puts the AI section behind one boundary — nothing in the saved AI files can stop the page being written; a failure past the checks is said on the page and in the log (fail loud). `load_ai` also catches `RecursionError`. Tests: the deep record and a forced failure; both fail on 3090c40 |
+| F37 | RISK | G | round-3 test, "citations without a cited day" | the subtest could not fail if the guard regressed | refuted, and strengthened | the "nothing added" text appears only when no record was accepted, and the subtest failed on 0118cf2 (round-3 record); it now also asserts no "of those" line |
+| F38 | NIT | G | `_ai_record_ok` | "on 5 of 3 days" from a hand-edited record | fixed | `days_cited` ≤ `days`; test |
+| F39 | NIT | G | test file | three blank lines before a class | fixed | — |
+
+Round 4 questions checked and refuted by reading: `others` is a list built by `append`, so the refusal's order is the files' order and stable (G).
+
+Fix chains: F1 → F18 → F30 → F36 (four links; closed by the boundary in F36) and F2 → F19 → F29 (three links; the owner was told and chose, see F29). Round 2's new tests (7, with 16 subtests) all fail on 1c20966 and pass now.
 
 ## Evidence (for F6, F7 and the plan's own claims)
 

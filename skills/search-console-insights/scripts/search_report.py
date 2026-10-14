@@ -651,7 +651,8 @@ def _ai_record_ok(source, j):
     if source == "bing" and state == "empty":
         return bool(span_ok(j))
     if source == "bing" and state == "data":
-        return bool(span_ok(j)) and count(j.get("citations"), 1) and count(j.get("days"), 1) and count(j.get("days_cited"), 1)
+        return (bool(span_ok(j)) and count(j.get("citations"), 1) and count(j.get("days"), 1)
+                and count(j.get("days_cited"), 1) and j["days_cited"] <= j["days"])
     return False
 
 
@@ -663,7 +664,7 @@ def load_ai(site):
         try:
             j = json.loads(p.read_text(encoding="utf-8"))
             out[source] = j if isinstance(j, dict) and _ai_record_ok(source, j) else None
-        except (ValueError, TypeError, OSError):
+        except (ValueError, TypeError, OSError, RecursionError):     # RecursionError: JSON nested too deep
             out[source] = None
     return out
 
@@ -748,7 +749,20 @@ def ai_section(ai, site, today):
     return "".join(parts)
 
 
-def render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw=frozenset(), ai=None):
+def ai_part(site, today):
+    """The AI section, behind one boundary: nothing in the saved AI files can stop the page being written.
+    A record that fails a check reads as not added (load_ai); anything else that goes wrong while
+    reading or showing them is said on the page and in the log, and the rest of the page is written."""
+    try:
+        return ai_section(load_ai(site), site, today)
+    except Exception as e:  # noqa: BLE001 - the boundary is the point
+        print(f"search_report: the saved AI reports could not be shown ({type(e).__name__}: {e})"[:300],
+              file=sys.stderr)
+        return ("<h2>Google's and Bing's AI answers</h2><p>The AI reports you added could not be read. Hand me "
+                "the downloads again and I'll add them.</p>")
+
+
+def render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw=frozenset(), ai_html=None):
     parts = []
     finished = dt.date.fromisoformat(data["finished"]) if data else None
     weeks = complete_weeks(data["daily"], finished) if data else []
@@ -921,7 +935,7 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
     else:
         parts.append("<p>Bing is not connected yet. Ask me <i>“connect Bing”</i> and I'll walk you through it.</p>")
 
-    parts.append(ai_section(ai or {}, site, today))
+    parts.append(ai_html if ai_html is not None else ai_section({}, site, today))
 
     if ai_link:
         parts.append(f'<p class="sub" style="margin-top:32px">Also see: <a href="{H(ai_link)}">Does AI name you?</a> — your AI report.</p>')
@@ -1007,7 +1021,7 @@ def build(domain, args, service_factory=make_service, today=None):
         bing_state = "unknown"
     ai = newest_ai_page(site)
     ai_link = f"../../geo/reports/{site}/{ai.name}" if ai else None
-    page = render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw, load_ai(site))
+    page = render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw, ai_part(site, today))
     out = out_dir / "google.html"
     write_atomic(out, page)
     if ai:

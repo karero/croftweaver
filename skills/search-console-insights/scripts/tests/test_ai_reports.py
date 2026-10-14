@@ -560,7 +560,6 @@ class RoundTwoFindings(AiTest):
         self.assertNotIn("yet", out)
 
 
-
 class RoundThreeFindings(AiTest):
     """Review round 3. Invariant (F1, again): no saved record, however edited, stops the page being written."""
 
@@ -580,6 +579,7 @@ class RoundThreeFindings(AiTest):
                 (d / ("ai-bing.json" if "citations" in why else "ai-google.json")).write_text(raw)
                 section, html = self.page()
                 self.assertIn("don't let programs read", section, "the page was written, the record ignored")
+                self.assertNotIn("of those", section)
                 for f in d.glob("ai-*.json"):
                     f.unlink()
 
@@ -591,6 +591,40 @@ class RoundThreeFindings(AiTest):
         self.assertEqual(code, 1)
         self.assertIn("The chart's total (9) matches none of the other views in this download (8, 7)", err)
         self.assertIn("in Google's own, one of them always does", err)
+
+
+
+class RoundFourFindings(AiTest):
+    """Review round 4. F1's chain (F1, F18, F30, F36) closed by a boundary, not one more shape: nothing in
+    the saved AI files can stop the page being written."""
+
+    def test_any_damage_to_the_saved_ai_files_still_writes_the_page(self):
+        d = self.home / ".config/gsc-insights/reports" / SITE
+        d.mkdir(parents=True)
+        deep = "[" * 10000 + "]" * 10000
+        cases = {
+            "JSON nested too deep": ("ai-google.json", '{"state": "data", "pages": ' + deep + "}"),
+            "a Bing record with more cited days than days": ("ai-bing.json", json.dumps(
+                {"state": "data", "citations": 5, "days": 3, "days_cited": 5, "first": "2026-07-14", "last": "2026-07-16"})),
+        }
+        for why, (name, raw) in cases.items():
+            with self.subTest(why):
+                (d / name).write_text(raw)
+                try:
+                    section, _ = self.page()
+                    self.assertIn("don't let programs read", section)
+                finally:
+                    (d / name).unlink()
+
+    def test_a_failure_past_the_checks_is_said_on_the_page_and_the_rest_is_written(self):
+        self.run_cli("import", SITE, str(self.bing_file(bing_csv([2, 1]))))
+        err = io.StringIO()
+        with mock.patch.object(sr, "ai_section", side_effect=RuntimeError("something unforeseen")), \
+                contextlib.redirect_stderr(err):
+            section, html = self.page()
+        self.assertIn("The AI reports you added could not be read.", section)
+        self.assertIn("something unforeseen", err.getvalue(), "fail loud in the log too")
+        self.assertIn("How people find you on Google", html, "the rest of the page is written")
 
 
 if __name__ == "__main__":
