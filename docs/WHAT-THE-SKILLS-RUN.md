@@ -6,8 +6,9 @@ where your keys are kept, and how a release is made. It was written by reading t
 and the skill files, not from memory.
 
 **Checked on 2026-10-14, against `main` at commit `e038603`; the changes up to `034472d`
-were read again.** A later change can make a line here wrong. Where something could not be
-checked, the line says so.
+were read again, and those up to `edf97ba` (the brand kit, the weekly fix proposal and the
+analytics folder) on the same day.** A later change can make a line here wrong. Where
+something could not be checked, the line says so.
 
 A skill is a set of written instructions for your AI assistant (Claude Code, Codex or
 Antigravity). Some skills also bring small scripts. The assistant reads the instructions
@@ -33,8 +34,9 @@ and runs the commands; the skills cannot run anything by themselves.
   documentation on permission rules, not tried in a live session). That list also lets `node`,
   `npm run` and `git push` run without asking. It saves clicks; it is not a safety fence.
 - **Releases carry no signature of our own.** From the next release on, a `SHA256SUMS`
-  file goes up beside the zip; v0.31 and earlier have none, but GitHub shows a SHA-256 for
-  each download. See [Releases](#releases).
+  file goes up beside the zip, the release cannot change once published, and GitHub signs a
+  record of it; v0.31 and earlier have none of this, but GitHub shows a SHA-256 for each
+  download. See [Releases](#releases).
 
 ## What runs without asking
 
@@ -116,12 +118,12 @@ Two more name a few commands:
 `website-content-guide`, `website-positioning`, `website-story`, `website-tagline`,
 `website-testimonials`, `astro-i18n-setup`, `website-positioning-check`, `website-qa`,
 `website-review`, `internal-link-audit`, `og-images`, `website-seo-geo`, `double-knuth`,
-`website-contact-form` and `website-scorecard` run commands such as `npm run build`,
-`npm test`, `npm run verify`, `npm run og`, `git status`, `git log` and `git diff` in the
-site's folder. Some copy template files into the site. All of this stays in the site's
-folder, apart from what npm and Playwright download (see [Network calls](#network-calls))
-and a short-lived folder `website-scorecard` makes in your temp folder for the test report
-and deletes again.
+`website-contact-form`, `website-scorecard` and `website-brand-kit` run commands such as
+`npm run build`, `npm test`, `npm run verify`, `npm run og`, `git status`, `git log` and
+`git diff` in the site's folder. Some copy template files into the site. All of this stays
+in the site's folder, apart from what npm and Playwright download (see [Network calls](#network-calls))
+and the short-lived folders `website-scorecard` and `website-brand-kit` make in your temp
+folder and delete again.
 
 What the site's own scripts do (from `package.json` in the
 [template](../skills/new-website/templates/astro/package.json)):
@@ -148,7 +150,7 @@ an "Email Tap" event there, as a click on an email address does.
 ### Skills that run scripts
 
 - **`new-website`** creates the site folder (in the folder you confirm), runs `git init`,
-  `npm create astro@latest`, copies the templates and 26 skills into the site, and runs the
+  `npm create astro@latest`, copies the templates and 27 skills into the site, and runs the
   build and tests. For Cloudflare it uses `npx wrangler pages project create` and
   `npx wrangler pages deploy` with a token you make, or `npx wrangler login`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
@@ -168,7 +170,8 @@ an "Email Tap" event there, as a click on an email address does.
 - **`keystatic-setup`** (only if you chose a content editor) installs `@keystatic/core` and
   `@keystatic/astro` with npm and runs `npx astro add react markdoc`.
 - **`facts-check`** runs `facts_check.py`, which reads your site's public pages and its
-  sitemap and compares facts across them. It edits nothing.
+  sitemap and compares facts across them. It changes none of your pages; where the site has
+  an `analytics/` folder, its report is saved there.
 - **`wordpress-inspector`** runs `wp_inventory.py` and `check_move.py`, which read a
   WordPress site's public pages, its public `wp-json` data and its sitemaps. They need no
   sign-in. Its `make_redirects.py` reads only local files and writes the new site's
@@ -180,9 +183,30 @@ an "Email Tap" event there, as a click on an email address does.
   `google-auth-oauthlib` and `requests` into it, after you say yes to connecting. Its
   scripts read your Search Console and Bing data, look up search results, and run the
   weekly AI check. `ai_reports.py` reads the Google and Bing AI reports you download and hand
-  over, on your computer only. `schedule_tracking.sh install` sets up a weekly run on macOS, and only
-  on an explicit yes. Once per site per session it runs `schedule_tracking.sh status`, which
-  only reads.
+  over, on your computer only, and with `--keep-in` keeps a copy in the site's `analytics/`
+  folder. `schedule_tracking.sh install` sets up a weekly run on macOS, and only on an
+  explicit yes. Once per site per session it runs `schedule_tracking.sh status`, which only
+  reads.
+  - The weekly fix proposal: `fix_proposal.py` keeps the list of proposed page fixes in
+    `~/.config/gsc-insights/sites/` and asks GitHub (`gh pr view`) whether a pull request it
+    recorded was merged. The weekly report reads your own live pages (only on your own
+    domain) to check what a fix changed. When you say yes to a proposal, the assistant edits
+    that page's title, heading and first paragraph on a new branch, runs the site's checks
+    and opens a pull request; it does not merge it unasked.
+  - The analytics folder: `analytics_snapshot.py` copies the reports from
+    `~/.config/gsc-insights/` into an `analytics/` folder in the site, which the starter's
+    `.gitignore` keeps out of git. It reads nothing from the network, and it refuses to write
+    a file git would track, unless you choose to keep the folder in a private repository
+    (`--commit-ok`).
+- **`website-brand-kit`** (only when you ask for help with colours or a logo) runs
+  `brand_intake.py`, which reads a palette or a logo package you hand over and installs it:
+  it edits the site's colours, `src/config.ts`, the web manifest and the share-card script,
+  writes the icons and a `brand-handoff/` folder (kept out of git), and makes the share
+  cards again. To do that it runs the site's own `node` and Python scripts and then the
+  site's build and tests (`npm run build && npm test`, or a test command the assistant
+  names). It draws the icons with the site's own `sharp` package, without a browser. It
+  makes no network call and needs no key. In Claude Code, `python3` is not on the
+  allowlist, so starting it asks; the commands it runs from there are not asked one by one.
 - **`website-permissions`** copies `.claude/settings.json` and the sync hook script it
   registers (`git-stand.mjs`, which runs `git fetch`) into the site (see
   [What runs without asking](#what-runs-without-asking)).
@@ -199,7 +223,9 @@ an "Email Tap" event there, as a click on an email address does.
 `SETUP.md` in each site lists the build tools: Node, git, the GitHub CLI, image tools
 (through Homebrew or winget), `npm install -g wrangler` and `svgo`, `pip3 install Pillow`,
 and `npx playwright install chromium`. The assistant walks you through them and installs a
-tool only when it is needed. `website-seo-geo` may need `pip install pypdf`.
+tool only when it is needed. `website-seo-geo` may need `pip install pypdf`, and
+`website-brand-kit` may ask for `npm install --include=optional` (for `sharp`) or
+`pip3 install Pillow`.
 
 `independent-review`'s setup guide lists install commands for its reviewers, three of them
 in the form `curl … | sh` from chatgpt.com, antigravity.google and ollama.com, next to
@@ -209,7 +235,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 
 | Who | Used by | Key or sign-in | Reads or sends |
 |---|---|---|---|
-| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook | your git and `gh` sign-in | reads, and sends your site's code when pushing |
+| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix) | your git and `gh` sign-in | reads, and sends your site's code when pushing; a fix proposal's pull request carries search figures only if you say yes |
 | GitHub release downloads | `npm create croftweaver` | none | reads `croftweaver.zip` and its `SHA256SUMS` from the newest release |
 | npm registry | `npm install`, `npm ci`, `npx`, `npm create astro` | none | reads packages |
 | Playwright's download servers | `npx playwright install chromium` | none | reads the test browser |
@@ -225,7 +251,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | Serper or SerpApi | `serp_check.py` | your `SERPER_API_KEY` or `SERPAPI_KEY` | sends a keyword, country and language; reads search results |
 | OpenRouter, or Gemini, OpenAI, Anthropic, Perplexity directly | the weekly AI check (`geo_check.py`) | your own key for each (`GEO_…_API_KEY`) | sends the questions you confirmed, one of which names your business; reads the answers |
 | SerpApi (Google's AI answers) | `geo_check.py`, only if you switch it on | your `SERPAPI_KEY` | sends the same questions |
-| Your own home page | `geo_check.py` | none | reads it, to notice when it changed |
+| Your own site's pages | `geo_check.py` (the home page), the weekly search report (pages a fix changed) | none | reads them; the report follows redirects only on your own domain |
 | OpenAI (through the Codex app) | `independent-review` | your Codex sign-in | sends the plan or code change |
 | ollama.com | `independent-review` | your `OLLAMA_API_KEY` or `ollama signin` | sends the plan or code change |
 | melious.ai | `independent-review`, only when a model is named for it | your `MELIOUS_API_KEY` | sends the plan or code change |
@@ -246,8 +272,9 @@ Some details:
   Whether its sandbox blocks writes is not tested. The script's own header says so.
 - **Crawler manners.** `facts-check` and `wp_inventory.py` follow `robots.txt` and say who
   they are in their user agent. `check_move.py` does not read `robots.txt`, because it
-  checks your own new site. `check_external_links.sh` and `geo_check.py` send a browser's
-  user agent.
+  checks your own new site. The weekly search report says who it is
+  (`search-console-insights fix check`). `check_external_links.sh` and `geo_check.py` send a
+  browser's user agent.
 - **The built site**, apart from the optional analytics script, loads no fonts, scripts
   or styles from other servers. Its security header (`public/_headers`) allows scripts only
   from the site itself, and from the analytics address you set once you switch analytics
@@ -256,7 +283,8 @@ Some details:
 
 ## Telemetry
 
-Croftweaver sends nothing to its maintainer. This was checked in two passes:
+Croftweaver sends nothing to its maintainer. This was checked in two passes, and again on
+the code up to `edf97ba`:
 
 - Every script, template and installer (`*.py`, `*.sh`, `*.mjs`, `*.js`, `*.ts`, `*.astro`,
   `*.json`, `*.yml`, `Makefile`, the pre-push hook) was searched for analytics and tracking
@@ -264,14 +292,14 @@ Croftweaver sends nothing to its maintainer. This was checked in two passes:
   `gtag`, `mixpanel`, `segment`, `amplitude` and others) and for every network call
   (`curl`, `wget`, `fetch(`, `urllib`, `requests`, `http.client`, `https://`, `gh api`,
   `git push`).
-- Every skill text and the plugin files (`*.md`, `.claude-plugin/`) were searched for
-  `croftweaver.com`, the repository's GitHub account name, `telemetry`, `beacon` and
-  wording that asks the assistant to report back.
+- Every skill text and the plugin files (`*.md`, `.claude-plugin/`, `.agents/plugins/`) were
+  searched for `croftweaver.com`, the repository's GitHub account name, `telemetry`,
+  `beacon` and wording that asks the assistant to report back.
 
 What touches the maintainer's own places:
 
-- `npm create croftweaver` reads the release zip and its `SHA256SUMS` from GitHub, Claude Code
-  reads the plugin from GitHub, and a `git clone` of the toolkit (one of the README's install
+- `npm create croftweaver` reads the release zip and its `SHA256SUMS` from GitHub, Claude Code and Codex
+  read the plugin from GitHub, and a `git clone` of the toolkit (one of the README's install
   routes) reads it from GitHub.
 - After launch, `new-website` asks you once whether you want a "Built with Croftweaver"
   credit in your footer. Only if you say yes does the assistant read the badge code and
@@ -304,12 +332,12 @@ with its own terms.
 | `~/.claude/skills/.croftweaver.json` (or the same in the other skills folders) | `npm create croftweaver` | when you install | delete it |
 | `<skill>.pre-website-builder.bak` next to the skills | `scripts/install.sh` | when a folder with a skill's name was already there | rename it back |
 | `skills-before-croftweaver-…` next to the skills folder | `npm create croftweaver` | when the skills folder held folders it did not recognise | move them back |
-| `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/`, `reports/`, `geo/`, `logs/`) | `search-console-insights` | when you connect Search Console or run the AI check | delete the folder |
+| `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
 | `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
 | `~/.local/state/independent-review/runs.tsv` | `independent-review` | each review (turn off with `REVIEW_LOG=off`) | delete it |
 | a folder in your temp folder | `independent-review` | each review; holds the reviewers' answers, readable only by you | the skill tells the assistant to delete it at the end |
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |
-| a short-lived folder in your temp folder | `website-scorecard` | each scorecard run | deleted at the end of the run |
+| a short-lived folder in your temp folder | `website-scorecard`, `website-brand-kit`, `analytics_snapshot.py` | each run | deleted at the end of the run |
 
 In the site repository's git folder, the sync hook (`.claude/hooks/git-stand.mjs`, at
 session start and again once the last sync is 2 hours old) keeps a small marker file,
@@ -338,7 +366,8 @@ the new release no longer has.
 
 All of these live outside the site's folder. The site's `.gitignore` also excludes `.env`,
 `.env.*` (but not `.env.example`), `.dev.vars`, `.wrangler/` and, at the site's top level,
-`client_secret*.json` and `token.json`, in case a copy lands there. The review tool passes
+`client_secret*.json` and `token.json`, in case a copy lands there, and `analytics/`, where
+the reports are kept. The review tool passes
 its keys to `curl` through standard input, not on the command line. The Bing script
 removes the key from error messages before they reach a log; a test guards this.
 
@@ -374,7 +403,10 @@ What protects a download today:
   It also checks each skill file it unpacks (its CRC) and refuses links and odd entries.
   Version 0.1.0 does not compare the download with a checksum.
 - v0.31 is not marked immutable on GitHub, so its files could be replaced after
-  publishing.
+  publishing. Since 2026-10-14 the repository has release immutability on: from the next
+  release on, a published release's files and tag cannot change, and GitHub creates a
+  signed record of the tag, commit and files that anyone can check with
+  `gh release verify`.
 - Releases v0.29 to v0.31 are plain tags; the README's command makes annotated ones. The
   commit v0.31 points at is a merge commit signed by GitHub.
 - `create-croftweaver` 0.1.0 on npm has no provenance record.
