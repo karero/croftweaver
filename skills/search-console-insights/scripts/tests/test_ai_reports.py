@@ -560,5 +560,38 @@ class RoundTwoFindings(AiTest):
         self.assertNotIn("yet", out)
 
 
+
+class RoundThreeFindings(AiTest):
+    """Review round 3. Invariant (F1, again): no saved record, however edited, stops the page being written."""
+
+    def test_a_saved_record_the_page_cannot_write_reads_as_nothing_added(self):
+        d = self.home / ".config/gsc-insights/reports" / SITE
+        d.mkdir(parents=True)
+        good = {"state": "data", "total": 3, "first": "2026-07-12", "last": "2026-07-12",
+                "pages": [[f"https://{SITE}/", 3]], "search_type": "Web (text-based)"}
+        lone = "\\ud800"                                   # JSON for a lone surrogate
+        for why, raw in {
+            "a page address with a lone surrogate": json.dumps(good).replace(f"https://{SITE}/", f"https://{SITE}/{lone}"),
+            "a search type with a lone surrogate": json.dumps(good).replace("Web (text-based)", f"Web {lone}"),
+            "citations without a cited day": json.dumps({"state": "data", "citations": 2, "days": 3, "days_cited": 0,
+                                                          "first": "2026-07-14", "last": "2026-07-16"}),
+        }.items():
+            with self.subTest(why):
+                (d / ("ai-bing.json" if "citations" in why else "ai-google.json")).write_text(raw)
+                section, html = self.page()
+                self.assertIn("don't let programs read", section, "the page was written, the record ignored")
+                for f in d.glob("ai-*.json"):
+                    f.unlink()
+
+    def test_the_total_refusal_says_what_googles_own_files_do(self):
+        files = google_files(daily_chart([3] * 3), [])
+        files["Länder.csv"] = "Land,Impressionen\nDeutschland,8"
+        files["Geräte.csv"] = "Gerät,Impressionen\nComputer,7"
+        code, _, err = self.run_cli("import", SITE, str(self.google_zip(files)))
+        self.assertEqual(code, 1)
+        self.assertIn("The chart's total (9) matches none of the other views in this download (8, 7)", err)
+        self.assertIn("in Google's own, one of them always does", err)
+
+
 if __name__ == "__main__":
     unittest.main()

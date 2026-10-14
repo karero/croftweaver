@@ -208,8 +208,9 @@ def parse_google(files, site):
             raise Refused(f"This download's pages belong to {host}, not {site}. Nothing was saved.")
     total = sum(n for _, _, n in chart)
     if total > 0 and total not in others:
-        raise Refused(f"The chart's total ({total:,}) matches none of the other views in this download, as it "
-                      f"does in Google's own.{found} Nothing was saved.")
+        views = ", ".join(f"{n:,}" for n in others) or "none"
+        raise Refused(f"The chart's total ({total:,}) matches none of the other views in this download ({views}); "
+                      f"in Google's own, one of them always does.{found} Nothing was saved.")
     shown = sorted(((u, n) for u, n in page_rows or [] if n > 0), key=lambda x: -x[1])
     return {"state": "data" if total > 0 else "empty", "first": min(a for a, _, _ in chart).isoformat(),
             "last": max(b for _, b, _ in chart).isoformat(), "total": total,

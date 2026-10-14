@@ -617,16 +617,30 @@ def _ai_record_ok(source, j):
         return isinstance(v, str) and dt.date.fromisoformat(v)
     def count(v, least=0):
         return isinstance(v, int) and not isinstance(v, bool) and v >= least
+    def text(v):          # a string the page can write as UTF-8 (no lone surrogate like "\ud800")
+        if not isinstance(v, str):
+            return False
+        try:
+            v.encode("utf-8")
+            return True
+        except UnicodeEncodeError:
+            return False
     def address(v):
         from urllib.parse import urlsplit
-        return isinstance(v, str) and urlsplit(v) is not None      # raises ValueError on 'https://[broken/'
+        if not text(v):
+            return False
+        try:
+            urlsplit(v)               # raises ValueError on 'https://[broken/'
+            return True
+        except ValueError:
+            return False
 
     def span_ok(j):
         return date(j.get("first")) and date(j.get("last")) and j["first"] <= j["last"]
     state = j.get("state")
     if source == "google" and state == "not_shown":
         return bool(date(j.get("checked")))
-    if not isinstance(j.get("search_type", ""), (str, type(None))):
+    if j.get("search_type") is not None and not text(j["search_type"]):
         return False
     if source == "google" and state == "empty":
         return (j.get("first") is None and j.get("last") is None) or bool(span_ok(j))
@@ -637,7 +651,7 @@ def _ai_record_ok(source, j):
     if source == "bing" and state == "empty":
         return bool(span_ok(j))
     if source == "bing" and state == "data":
-        return bool(span_ok(j)) and count(j.get("citations"), 1) and count(j.get("days"), 1) and count(j.get("days_cited"))
+        return bool(span_ok(j)) and count(j.get("citations"), 1) and count(j.get("days"), 1) and count(j.get("days_cited"), 1)
     return False
 
 
