@@ -217,9 +217,9 @@ test('mail form — every text of the form keeps to the site\'s tone rules, in e
 
 // The site's one conversion: the button reports one "Email Tap" event, the same one the
 // starter's email link sends, and nothing the visitor typed goes with it. Plausible runs
-// on the live build only (Base.astro writes window.plausible there), so each test stands
-// its own in under the same name, before the page's scripts run, and presses the real
-// button.
+// on the live build only (Base.astro writes window.plausible there), so each test puts
+// its own recorder in its place, under the same name, before the page's scripts run, and
+// presses the real button.
 type Counted = Window & { __taps?: unknown[][]; plausible?: unknown };
 const countTaps = () => {
   const w = window as Counted;
@@ -240,14 +240,20 @@ test('mail form — the button reports one "Email Tap" event, with nothing the v
   expect(JSON.stringify(taps), 'an event carries the address').not.toContain('@');
 });
 
-test('mail form — a press the browser refuses (empty message) reports no event', async ({ page }) => {
+test('mail form — a press with an empty message, or one of spaces, reports no event', async ({ page }) => {
   await page.addInitScript(countTaps);
   await page.goto(PAGE);
   const lang = await formLanguage(page);
-  await form(page).getByRole('button', { name: TEXT[lang].send, exact: true }).click();
-  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('   ');
-  await form(page).getByRole('button', { name: TEXT[lang].send, exact: true }).click();
-  await page.waitForTimeout(500);
+  const message = form(page).getByLabel(TEXT[lang].message, { exact: true });
+  const send = form(page).getByRole('button', { name: TEXT[lang].send, exact: true });
+  // The refusal shows as the message field taking the focus, as in the tests above; the
+  // count would run inside the same submit handler, so by then it has had its chance.
+  await send.click();
+  await expect(message).toBeFocused();
+  await message.fill('   ');
+  await send.focus();
+  await send.click();
+  await expect(message).toBeFocused();
   expect(await page.evaluate(() => (window as Counted).__taps)).toEqual([]);
 });
 

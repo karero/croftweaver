@@ -148,21 +148,23 @@ non-expert can answer, and record the answers in the project `README.md`.
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
      script, no consent banner) is enough for search & referral traffic.
    - "Which sources bring enquiries?" or other real decisions from traffic data
-     (campaigns, content strategy) → **Plausible** (cookieless; running it without a consent banner is a
-     position to have reviewed, see the header of `privacy.astro` and, for a
+     (campaigns, content strategy) → **Plausible** (cookieless; running it without
+     a consent banner is a position to have reviewed, see the header of `privacy.astro` and, for a
      German-only site, `_datenschutz.astro`). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
      unless you keep the privacy page's slot sentence for each one you leave ticked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
-     **The enquiry count comes with it.** Each click on an email address, and each press
-     of the contact form's button, sends one "Email Tap" event (with the page and the
-     referrer, as every event; no address, nothing typed). In Plausible, under the site's Settings > Goals, add a goal of
-     type "Custom event" named exactly `Email Tap` **before launch**: Plausible shows an
-     event only once its goal exists and does not count earlier ones. Filtered by that
-     goal, the dashboard shows which sources and pages bring enquiries. It counts
-     visitors who opened their mail program, not sent mails.
+     **The enquiry count comes with it.** Each click on an email address, and each
+     press of the contact form's button that passes its checks, sends one "Email Tap"
+     event (with the page and the referrer, as every event; no address, nothing typed).
+     In Plausible, under the site's Settings > Goals, add a goal of type "Custom event"
+     named exactly `Email Tap` **before launch**: Plausible's documentation (read for
+     its cloud version) says an event shows only once its goal exists and earlier ones
+     are not counted. Filtered by that goal, the dashboard shows which sources and pages
+     bring enquiries. It counts visitors who asked to write an email; whether their
+     mail program opened, and whether they sent the mail, the site never learns.
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
      banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the

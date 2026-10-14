@@ -199,8 +199,10 @@ named in it. Like the kit's other legal drafts, a baseline, not legal advice.
 
 **With Plausible on**, a press of the button sends one "Email Tap" event, the same one
 the starter's email link sends (nothing typed goes with it). Section 3 of the starter's
-privacy page already says so ("a button that opens your email program"); a privacy page
-from before 0.32 lacks that sentence, so add it from the starter. In Plausible's installer
+privacy page already says so ("a button that opens your email program"). A site from
+before 0.32 lacks that sentence, and its `src/components/EmailLink.astro`, which shows the
+address under the form, lacks the click listener the sentence also describes: take both
+from the starter, or leave the sentence out. In Plausible's installer
 leave "Form submissions" unticked: whether Plausible would count this form a second time
 was not checked.
 
@@ -208,7 +210,8 @@ was not checked.
 
 - **No sending, no storage, no count of sent messages.** The site never learns whether
   a message was sent. The owner's mailbox is the record. With Plausible on, the press of
-  the button is counted (§4): a visitor who opened their mail program, not a message.
+  the button is counted (§4): a visitor who asked to write, not an opened mail program
+  and not a message.
 - **No help for a visitor without a mail program**, beyond the address under the form
   and the sentence that points to it.
 - **Very long messages.** The form stops at 2,000 typed characters (`LIMITS` in
