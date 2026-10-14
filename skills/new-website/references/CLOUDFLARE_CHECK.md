@@ -70,7 +70,7 @@ nowhere to go, is said so and the page is not judged.
 | Send pages.dev to your domain (1) | `<name>.pages.dev` answers 301 to your domain (needs `--project`) | It answers 200 or goes elsewhere: `CANONICAL_URL` is not in effect |
 | Always Use HTTPS (2) | `http://domain/` answers 301 or 308 to `https://domain/`, as an address | No redirect, or one to another address |
 | HSTS (2) | The `strict-transport-security` header, read as directives: max-age in months, subdomains, preload | Missing, with `--hsts-on` |
-| NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look` |
+| NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look`. So is Cloudflare's script monitor (Client-side security), which the line names: a `report-to` group, a `reporting-endpoints` entry or a `report-uri` of a report-only policy that lists an address on csp-reporting.cloudflare.com, judged by the host of that address and not by a name. It names what Cloudflare sends and does not decide what a browser would do with a header. NEL on still fails, and the line names the monitor beside it |
 | Bot Fight Mode off (3) | No Cloudflare cookie, and no `/cdn-cgi/challenge-platform/` address in the page's tags or scripts | Either is there. A cookie of your own is a `look` |
 | Web Analytics off (3) | No `<script src>` at `static.cloudflareinsights.com` and no `data-cf-beacon` attribute | It is there |
 | Email Address Obfuscation off (3) | No `email-decode.min.js` at Cloudflare's path, no `/cdn-cgi/l/email-protection` link and no `data-cfemail` attribute | Any is there |
@@ -103,6 +103,20 @@ items are a `look`, never `ok`.
   once.
 - **TLS 1.0 and 1.1.** The machine running the script often cannot speak them. Use
   ssllabs.com/ssltest, as the checklist says.
+- **A header Cloudflare sends on a sample of pages.** The script monitor's headers came on 2 of
+  40 requests on the one site we saw it on, and on none of 200 after it was switched off. A run
+  that sees none does not show it is off, and neither does any number of requests: how often
+  Cloudflare sends them is not documented. The dashboard toggle is the proof: Your domain →
+  Security → Settings → filter by Client-side abuse → Continuous script monitoring. To count
+  requests yourself, this prints how many of 100 answered with a `report-to` header, how many
+  without one, and how many failed:
+
+  ```bash
+  for i in $(seq 1 100); do
+    h=$(curl -sS --http1.1 -D - -o /dev/null "https://example.com/?cb=$RANDOM") || { echo failed; continue; }
+    if printf '%s\n' "$h" | grep -qi '^report-to:'; then echo header; else echo none; fi
+  done | sort | uniq -c
+  ```
 - **Crawler Hints, Fail open and the build settings.** They have no outside check. The report
   lists them as `by hand` with their path.
 - **What a visitor from another country, or a visitor who is logged in, gets.** The script asks
@@ -165,4 +179,4 @@ play a site behind Cloudflare, with real requests and real exit statuses: one si
 right, and a server for each way of being wrong the tests name. One test serves real TLS with
 a certificate made for the run. The positives (a cookie, a beacon, the address hiding) are
 tested on pages the test author wrote, in the shapes Cloudflare's documentation describes;
-none was checked against a zone that has the feature on.
+none was checked against a zone that has the feature on. The script monitor's headers are copied from one capture of a live site, not from Cloudflare's documentation, which names the `content-security-policy-report-only` header but not the other two.
