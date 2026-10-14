@@ -448,6 +448,9 @@ full path (the output of `pwd` inside it):
          "$SKILLS_ROOT"/website-tagline \
          "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
+   # The brand kit's scripts/tests is the toolkit's own test suite (about 1.7 MB). No site
+   # runs it, so it stays behind; whats-new.sh --refresh leaves out the same folder.
+   rm -rf "$PROJECT_SKILLS_DIR"/website-brand-kit/scripts/tests
    ```
    The global copies stay the updateable source of truth; the project copies are
    the frozen handoff set.
