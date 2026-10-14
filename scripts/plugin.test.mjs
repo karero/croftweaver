@@ -129,11 +129,15 @@ const lookup = () => block(['skills', 'new-website', 'SKILL.md'], 'codex_home="$
 // in braces (Claude Code), or null to leave the text as written (any other assistant).
 // `strict` runs the lines with unset variables as errors. That is set in the script, not
 // by `bash -u`: Debian's bash reads /etc/bash.bashrc when its input is a socket, as it is
-// here on a CI runner, and that file itself trips over an unset PS1 under -u.
-function bash(script, { filled, home, env = {}, cwd, strict = false }) {
-  const text = `${strict ? 'set -u\n' : ''}${filled === null ? script : script.replaceAll(VAR, filled)}`;
-  return spawnSync('bash', ['-c', text], { env: { PATH: process.env.PATH, HOME: home, ...env }, cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+// here on a CI runner, and that file itself trips over an unset PS1 under -u. `errexit`
+// adds `set -eo pipefail`; `shell` runs the lines in another shell (zsh) instead of bash.
+function bash(script, { filled, home, env = {}, cwd, strict = false, errexit = false, shell = 'bash' }) {
+  const text = `${errexit ? 'set -eo pipefail\n' : ''}${strict ? 'set -u\n' : ''}${filled === null ? script : script.replaceAll(VAR, filled)}`;
+  return spawnSync(shell, ['-c', text], { env: { PATH: process.env.PATH, HOME: home, ...env }, cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
+
+// The shells the lookup is run in: bash always, zsh where it is installed (a Mac's default).
+const SHELLS = ['bash', ...(spawnSync('zsh', ['-c', 'true']).status === 0 ? ['zsh'] : [])];
 
 function runLookup(options) {
   const run = bash(`${lookup()}\nprintf '%s\\n%s\\n' "$SKILLS_ROOT" "$PROJECT_SKILLS_DIR"\n`, options);
@@ -208,9 +212,11 @@ test('an assistant that fills nothing in finds the suite installed as a Codex pl
   suiteAt(moved);
   const decoy = tmp();
   suiteAt(codexPlugin(path.join(decoy, 'codex home')));
-  for (const codexHome of [path.join(elsewhere, 'codex home'), `${path.join(elsewhere, 'codex home')}/`, `${elsewhere}//codex home//`, 'codex home']) {
-    const found = runLookup({ filled: null, home: tmp(), cwd: elsewhere, env: { CODEX_HOME: codexHome, CDPATH: decoy } });
-    assert.deepEqual(found, { root: moved, project: '.agents/skills' }, codexHome);
+  for (const shell of SHELLS) {
+    for (const codexHome of [path.join(elsewhere, 'codex home'), `${path.join(elsewhere, 'codex home')}/`, `${elsewhere}//codex home//`, 'codex home']) {
+      const found = runLookup({ filled: null, home: tmp(), cwd: elsewhere, env: { CODEX_HOME: codexHome, CDPATH: decoy }, shell });
+      assert.deepEqual(found, { root: moved, project: '.agents/skills' }, `${shell}: ${codexHome}`);
+    }
   }
 
   // Two versions left behind: the last by name, whatever order the folder lists them in.
@@ -247,10 +253,8 @@ test('in zsh the lookup runs without an error, with and without a Codex plugin',
 // plugin the lookup passed there; a search that finds no Codex folder must not stop it,
 // whether a candidate matches or none does.
 test('under set -euo pipefail the lookup still runs to the end, in bash and in zsh', () => {
-  const shells = ['bash', ...(spawnSync('zsh', ['-c', 'true']).status === 0 ? ['zsh'] : [])];
-  const strict = (shell, home, filled) => spawnSync(shell, ['-c', `set -euo pipefail\n${filled === null ? lookup() : lookup().replaceAll(VAR, filled)}\nprintf '%s\\n' "$SKILLS_ROOT"\n`],
-    { env: { PATH: process.env.PATH, HOME: home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  for (const shell of shells) {
+  const strict = (shell, home, filled) => bash(`${lookup()}\nprintf '%s\\n' "$SKILLS_ROOT"\n`, { filled, home, strict: true, errexit: true, shell });
+  for (const shell of SHELLS) {
     const running = path.join(tmp(), 'skills');
     suiteAt(running);
     const found = strict(shell, tmp(), path.join(running, 'new-website'));
