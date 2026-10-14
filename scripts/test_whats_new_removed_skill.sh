@@ -220,17 +220,17 @@ check "scaffold: no brand kit instruction runs its tests"       test -z "$runs"
 # Nor may its code reach for the folder. Read, not run: running would also fail on anything else
 # this machine lacks. The check fails closed: a line that starts with `import` or `from`, or calls
 # `require(`, and names the tests package or one of its modules (names from the toolkit's own
-# folder) fails, whatever the form; so does a `tests` path segment right after a quote, a slash or
-# a dot. Let through: a quoted "tests" used as a key ("tests": or ["tests"]), and `tests/…` after a
-# space, as the scripts' comments name test files. A false alarm costs a rewording; a miss would
-# break the brand kit in every site.
+# folder) fails, whatever the form; so do `scripts/tests` anywhere, and a `tests` path segment
+# right after a quote, a slash or a dot. Let through: a quoted "tests" used as a key ("tests": or
+# ["tests"]), and `tests/…` after a space, as the scripts' comments name test files. A false alarm
+# costs a rewording; a miss would break the brand kit in every site.
 # grep exits 1 for no match; 2, a folder it could not read, fails too.
 mods="$(cd "$HERE/../skills/website-brand-kit/scripts/tests" && ls *.py | sed 's/\.py$//' | paste -sd'|' -)"
 check "scaffold: the toolkit's brand kit tests are found"        test -n "$mods"
 case "$mods" in *[!A-Za-z0-9_\|]*) mods=" a module name that is not a plain name: $mods" ;; esac
 check "scaffold: their module names are plain names"            lacks "$mods" " a module name that is not"
 W='[^A-Za-z0-9_]'
-PAT="^[[:space:]]*(from|import)$W([^#]*$W)?(tests|$mods)($W|\$)|require[[:space:]]*\\(.*$W(tests|$mods)($W|\$)|[\"'/.]tests([/.]|[\"']([^]:]|\$))"
+PAT="^[[:space:]]*(from|import)$W([^#]*$W)?(tests|$mods)($W|\$)|require[[:space:]]*\\(.*$W(tests|$mods)($W|\$)|scripts/tests|[\"'/.]tests([/.]|[\"']([^]:]|\$))"
 grep -rnE "$PAT" "$PSD/website-brand-kit" > "$T/reach" 2>&1; rc=$?
 check "scaffold: no brand kit file reaches for its tests"        test "$rc" -eq 1
 [ "$rc" -eq 1 ] || sed 's/^/     /' "$T/reach"
