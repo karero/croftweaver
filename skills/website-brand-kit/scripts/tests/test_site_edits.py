@@ -1988,6 +1988,17 @@ class ShareCards(LineRule):
         self.assertRegex(new, r"(?m)^BG_TOP = \(\d+, \d+, \d+\)")
 
 
+class Bindings(unittest.TestCase):
+    @unittest.skipIf(sys.version_info < (3, 12), "`type X = ...` is Python 3.12 and later")
+    def test_a_type_alias_counts_as_a_binding_of_its_name(self):
+        # FFR-3 asked whether `type BG_TOP = ...` is missed: it is not, since the alias's name is a Name in Store context,
+        # which the walk counts. This holds it: set_lines says every binding is collected, and a second binding of the
+        # name is what makes the share-card line rule refuse.
+        import ast
+        tree = ast.parse("type BG_TOP = tuple[int, int, int]\nBG_TOP = (1, 2, 3)\n")
+        self.assertEqual([n.lineno for n in _site._bindings(tree, "BG_TOP")], [1, 2])
+
+
 class Gitignore(unittest.TestCase):
     def test_the_line_is_added_once(self):
         self.assertEqual(_site.add_ignore("node_modules\n"), "node_modules\nbrand-handoff/\n")

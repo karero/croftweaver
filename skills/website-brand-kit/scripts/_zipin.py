@@ -203,7 +203,9 @@ def open_zip(data):
             # stands later (the start alone showed a plain beginning, and not which of several long names it was), 60 round it
             at = min(i for i, c in enumerate(name) if unicodedata.category(c) == "Cn")
             where = ("spelled out, the name starts %s" % ascii(name[:60]) if at < 60 else
-                     "it is character %d of the name; spelled out, the name reads %s round it" % (at + 1, ascii(name[at - 30:at + 30])))
+                     "it is character %d of the name; spelled out, the name reads %s round it"
+                     # counted as a person counts them: a letter and its accent written apart (as macOS writes a name) are one
+                     % (len(unicodedata.normalize("NFC", name[:at])) + 1, ascii(name[at - 30:at + 30])))
             raise Refusal(
                 "zip-path",
                 "The package has a file whose name holds a character this check does not know: the Python it runs on has "

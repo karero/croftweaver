@@ -257,11 +257,41 @@ def _quoted(text, most=60, around=None):
     return '"%s"' % _visible(text)
 
 
+_UNSEEN_NOTE = " (What is written as <U+...> in the quote is a character that does not show on the screen: take it out.)"
+
+
 def _unseen(text):
     """A sentence to put after a quote that holds a character written as <U+...>, or nothing."""
     if text.isprintable():
         return ""
-    return " (What is written as <U+...> in the quote is a character that does not show on the screen: take it out.)"
+    return _UNSEEN_NOTE
+
+
+def _css_shown(text):
+    """A piece of a stylesheet as a message quotes it: a tab, a line end or a form feed is a blank to CSS and is shown
+    as one; any other character that does not show is written as <U+...> (see _noted)."""
+    return _visible(re.sub("[\t\r\n\f]", " ", text))
+
+
+_HIDDEN_IN_QUOTE = re.compile(r"<U\+(?!000[9ACD]>)[0-9A-F]{4,6}>")   # a <U+...> that is not one of CSS's own blanks
+
+
+_BLANK_NAMES = (("\n", "a line end"), ("\r", "a carriage return"), ("\t", "a tab"), ("\f", "a form feed"))
+
+
+def _blanks_named(raw):
+    """A sentence that names what each of CSS's own blanks in the piece `raw` is, as its quote shows it (<U+0009> and
+    so on), or nothing. Read from the characters themselves, not from the quote, where the same six letters could be
+    written in the file. Said where a quote shows them exactly (after a backslash, where the character is the one the
+    backslash stands before): none of them is a character to take out, so _noted's sentence would be the wrong advice."""
+    named = ["<U+%04X> is %s" % (ord(c), what) for c, what in _BLANK_NAMES if c in raw]
+    return " (In the quote, %s: the character after the backslash, as the file has it.)" % ", ".join(named) if named else ""
+
+
+def _noted(message):
+    """A stylesheet message with the sentence that says what <U+...> is, where a quote in it holds a character that does
+    not show. A tab, line end or form feed written so (after a backslash, where it matters) is no such character."""
+    return message + _UNSEEN_NOTE if _HIDDEN_IN_QUOTE.search(message) and _UNSEEN_NOTE not in message else message
 
 
 def _is_heading(line):
@@ -369,6 +399,9 @@ def _cells(line):
     return [c.strip() for c in line.split("|")]
 
 
+_COMMENT_END = re.compile("-->|--!>")
+
+
 def _without_comments(text):
     """(the text without a byte-order mark at its start and with every HTML comment blanked, the number of the
     line on which a comment opens that is never closed, or None). A blanked comment keeps its line breaks, so
@@ -383,10 +416,15 @@ def _without_comments(text):
         if start < 0:
             out.append(text[at:])
             break
-        end = text.find("-->", start + 2)  # `<!-->` and `<!--->` are whole comments
-        if end < 0:
+        # A comment ends at the first `-->` (`<!-->` and `<!--->` are whole comments) or `--!>`, as a browser ends one
+        # (HTML's comment states; `<!--!>` and `<!---!>` do not end there, so a `--!>` counts from after `<!--`). One
+        # search finds whichever comes first and stops there, so the reading stays linear in the text.
+        m = _COMMENT_END.search(text, start + 2)
+        while m and m.group() == "--!>" and m.start() < start + 4:
+            m = _COMMENT_END.search(text, m.start() + 1)
+        if not m:
             unclosed = len((text[:start] + "x").splitlines())
-        end = len(text) if end < 0 else end + 3
+        end = m.end() if m else len(text)
         out.append(text[at:start])
         out.append(_NOT_A_BREAK.sub(" ", text[start:end]))
         at = end
@@ -1500,7 +1538,7 @@ def _shown_rule(plain, rule, inside, deeper):
     """A rule as a message quotes it, inside the (at most two) rules it stands in: `@supports (a: b) { :root { ... } }`."""
     outer = (["..."] if deeper else []) + [_selector(plain, r) for r in inside]
     text = " { ".join(outer + [_selector(plain, rule)])
-    return _visible(text if len(text) <= 100 else text[:100] + "...") + " { ... }" + " }" * len(outer)
+    return _css_shown(text if len(text) <= 100 else text[:100] + "...") + " { ... }" + " }" * len(outer)
 
 
 def _some(names, most=3):
@@ -1641,8 +1679,8 @@ def scan_css(text):
                                 "(`--b\\67` is `--bg` to a browser, and `u\\72l(` is `url(`), and this check does not read a name written "
                                 "with one, so it cannot tell what the stylesheet says from there on. Write the name out without the "
                                 "backslash. Where a name cannot be written without one (a class name with a colon in it), move that rule "
-                                "into another stylesheet."
-                      % (_line_number(text, escape), _visible(plain[start:end]))))
+                                "into another stylesheet.%s"
+                      % (_line_number(text, escape), _visible(plain[start:end]), _blanks_named(plain[start:end]))))   # (a line end after the backslash is the point: shown)
     if string is not None:
         end = string
         while end < len(text) and text[end] not in "\n\r\f":
@@ -1651,7 +1689,7 @@ def scan_css(text):
                                 "backslash and a number, stands last on the line). A browser reads the next line as a part of that "
                                 "string, and this check does not follow a string over a line end, so it cannot tell what the stylesheet "
                                 "says from there on. Write the string on one line."
-                      % (_line_number(text, string), _visible(("..." if end - string > 40 else "") + text[max(string, end - 40):end]))))
+                      % (_line_number(text, string), _css_shown(("..." if end - string > 40 else "") + text[max(string, end - 40):end]))))
     mark = _HTML_MARK.search(code)
     if mark:
         early.append(("html-comment", "Line %d of the stylesheet holds an HTML comment mark (`%s`). A browser passes over such a mark in some places of a stylesheet and reads on "
@@ -1661,7 +1699,7 @@ def scan_css(text):
         top, loose, namespaces, imports = _rules(text, code)
     except Refusal:
         if early:  # the brackets may well pair up to a browser: the reason this cannot tell is the one already found
-            raise Refusal("css-unreadable", " ".join(message for _kind, message in early)) from None
+            raise Refusal("css-unreadable", _noted(" ".join(message for _kind, message in early))) from None
         raise
     for rule in top:
         selector = plain[rule.start:rule.open].strip(_CSS_SPACE)
@@ -1695,7 +1733,7 @@ def scan_css(text):
             alone.append(found)
 
     def trouble(block, variable, kind, message):
-        sheet.problems.append(Trouble(block, variable, message, kind))
+        sheet.problems.append(Trouble(block, variable, _noted(message), kind))
 
     for block in BLOCKS:
         found = taken[block]
@@ -1717,7 +1755,7 @@ def scan_css(text):
                     "does not write to a stylesheet that has one of them twice. Fold them into one block."
                     % (len(found), _HOLDS[block], BLOCK[block]))
         elif found[0].children:
-            inner = _visible(_selector(plain, found[0].children[0]))
+            inner = _css_shown(_selector(plain, found[0].children[0]))
             trouble(block, None, "nested",
                     "%s holds another block inside it (`%s { ... }`), which the starter's does not. This check reads a colour block "
                     "only as a plain list of lines, so it was not read." % (BLOCK[block][0].upper() + BLOCK[block][1:], inner[:60]))
@@ -1819,9 +1857,9 @@ def scan_css(text):
         start, end = imports[0]
         start += len(plain[start:end]) - len(plain[start:end].lstrip(_CSS_SPACE))
         shown = _squeeze(plain[start:end])
-        sheet.notes.append("line %d of the stylesheet brings in another stylesheet (`%s`), which this check does not read. If that one "
-                           "sets the site's colours, the page can show other colours than these."
-                           % (_line_number(text, start), _visible(shown if len(shown) <= 60 else shown[:60] + "...")))
+        sheet.notes.append(_noted("line %d of the stylesheet brings in another stylesheet (`%s`), which this check does not read. If that one "
+                                  "sets the site's colours, the page can show other colours than these."
+                                  % (_line_number(text, start), _visible(shown if len(shown) <= 60 else shown[:60] + "..."))))
         if len(imports) > 1:
             n = len(imports) - 1
             sheet.notes.append("%d more statement%s like it bring%s in %s; the next is on line %d."

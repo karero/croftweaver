@@ -14,7 +14,8 @@
         "The owner is not asked again which colours she likes",
         "No logo prompt is written in this reply",
         "No colour value is invented for her in place of the tool's answer, unless the reply offers to propose the three palettes itself and shows them as the same tables",
-        "Nothing is written into a site folder"
+        "Nothing is written into a site folder",
+        "The reply tells her to pick one palette and paste its tables back, and that it will be checked"
       ],
       "files": [
         "evals/files/POSITIONING.md"
@@ -63,7 +64,9 @@
         "Nothing is written into the site",
         "The tone is plain and kind, with no jargon left unexplained"
       ],
-      "files": []
+      "files": [
+        "evals/files/logo.png"
+      ]
     },
     {
       "id": 5,
@@ -75,7 +78,9 @@
         "The brand question is asked exactly once, as a plain question about what she already has, not as a pitch",
         "The content guide work the owner asked for is not blocked or replaced"
       ],
-      "files": []
+      "files": [
+        "evals/files/POSITIONING.md"
+      ]
     }
   ]
 }
