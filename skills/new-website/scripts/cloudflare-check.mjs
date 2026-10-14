@@ -527,15 +527,16 @@ const monitorHost = (u) => {
 };
 // With Client-Side Security Advanced, Cloudflare can send the same reports to the site's own host
 // instead, at this path (Cloudflare's settings page, read 14 October 2026: hyphens here, an
-// underscore in the path on its own host). Only this exact path on the checked page's host counts,
-// and an address written relative to the page is read against it. /cdn-cgi/ is Cloudflare's, so a
-// site's own reporting endpoint does not live there.
+// underscore in the path on its own host). Only this exact path on the checked page's own origin
+// (scheme, host and port) counts, and an address written relative to the page is read against it.
 const OWN_HOST_REPORT_PATH = '/cdn-cgi/script-monitor/report';
 const ownHostReport = (page) => (u) => {
   if (typeof u !== 'string' || !page) return false;
   try {
     const a = new URL(u, page);
-    return a.hostname.replace(/\.$/, '') === new URL(page).hostname.replace(/\.$/, '') && a.pathname === OWN_HOST_REPORT_PATH;
+    const p = new URL(page);
+    const host = (x) => x.hostname.replace(/\.$/, '');
+    return a.protocol === p.protocol && a.port === p.port && host(a) === host(p) && a.pathname === OWN_HOST_REPORT_PATH;
   } catch { return false; }
 };
 // A reporting-endpoints header is written as a dictionary: name="address", name="address";p="x".
@@ -724,7 +725,10 @@ export function evaluate(obs, target, opts) {
     const cfReport = reports.some((v) => cloudflareGroup(v) === true);
     const monitorAt = (isMonitor) => ['report-to', 'reporting-endpoints', 'content-security-policy-report-only']
       .some((name) => values(name).some((v) => cloudflareMonitor(name, v, isMonitor)));
-    const monitorOwn = monitorAt(ownHostReport(home.url));
+    // An own-host address is judged on the final answer only, against that answer's address: a hop's
+    // relative address would otherwise be read against another URL (and a redirect is not a page).
+    const monitorOwn = ['report-to', 'reporting-endpoints', 'content-security-policy-report-only']
+      .some((name) => [].concat(home.headers?.[name] ?? []).some((v) => cloudflareMonitor(name, v, ownHostReport(home.url))));
     const monitor = monitorOwn || monitorAt(monitorHost);
     const nel = policies.length > 0;
     const age = Number.isFinite(live?.max_age) ? ` (max_age ${live.max_age} seconds)` : '';
@@ -734,7 +738,7 @@ export function evaluate(obs, target, opts) {
     const via = offPage ? ` (judged from the ${home.status} answer, not the page)` : '';
     // The script monitor is named wherever it is seen, beside a NEL failure too: it is not NEL,
     // and the header rule for NEL removes only NEL and Report-To, so it does not switch it off.
-    const monitorWhat = `Cloudflare says it adds a content-security-policy-report-only header to a sample of pages, and that visitors' browsers then send reports to Cloudflare. On the one site where this was seen it came with a report-to group, cf-csp-endpoint, at csp-reporting.cloudflare.com. That is not NEL.${monitorOwn ? " Here the reports go to the site's own address, /cdn-cgi/script-monitor/report, which Cloudflare offers with Client-Side Security Advanced." : ''}`;
+    const monitorWhat = `Cloudflare says it adds a content-security-policy-report-only header to a sample of pages, and that visitors' browsers then send reports to Cloudflare. On the one site where this was seen it came with a report-to group, cf-csp-endpoint, at csp-reporting.cloudflare.com. That is not NEL.${monitorOwn ? " Here a header lists the site's own address, /cdn-cgi/script-monitor/report, as where to report: Cloudflare offers that with Client-Side Security Advanced." : ''}`;
     const monitorAlso = monitor ? ` Cloudflare's script monitor is switched on as well: ${monitorWhat}` : '';
     const monitorFix = "Your domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring: Off. The checklist's header rule for NEL removes only the NEL and Report-To headers; it does not switch the monitor off.";
     const sampleNote = " Cloudflare's script monitor adds its headers to a sample of pages only, so this one answer cannot show that it is off.";

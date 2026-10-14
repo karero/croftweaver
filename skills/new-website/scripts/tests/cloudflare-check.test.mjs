@@ -989,6 +989,7 @@ test('the script monitor reporting to the site\'s own host is named too, in each
     'report-only policy, full address': (o) => ({ 'content-security-policy-report-only': `script-src 'unsafe-inline'; report-uri ${o}${OWN_PATH}?m=1` }),
     'report-only policy, relative address': () => ({ 'content-security-policy-report-only': `script-src 'unsafe-inline'; report-uri ${OWN_PATH}?m=1` }),
     'report-to, relative address': () => ({ 'report-to': `{"group":"g","endpoints":[{"url":"${OWN_PATH}"}]}` }),
+    'reporting-endpoints, relative address': () => ({ 'reporting-endpoints': `cf-csp-endpoint="${OWN_PATH}"` }),
   };
   for (const [what, make] of Object.entries(forms)) {
     await withSite(ownHostHome(make), async (s) => {
@@ -1014,6 +1015,8 @@ test('the script monitor reporting to the site\'s own host is named too, in each
     'a longer path on the own host': (o) => `${o}${OWN_PATH}/more`,
     'a shorter path on the own host': (o) => `${o}/cdn-cgi/script-monitor`,
     'the path only in a query': (o) => `${o}/csp?next=${OWN_PATH}`,
+    'the own host on another port': (o) => `${o.replace(/:\d+$/, ':1')}${OWN_PATH}`,
+    'the own host on another scheme': (o) => `${o.replace(/^http:/, 'https:')}${OWN_PATH}`,
   };
   for (const [what, address] of Object.entries(notIt)) {
     await withSite(ownHostHome((o) => ({ 'report-to': `{"group":"g","endpoints":[{"url":"${address(o)}"}]}` })), async (s) => {
@@ -1024,7 +1027,26 @@ test('the script monitor reporting to the site\'s own host is named too, in each
     await withSite(ownHostHome((o) => ({ 'content-security-policy-report-only': `default-src 'self'; report-uri ${address(o)}` })), async (s) => {
       assert.equal((await check(s.origin)).by.nel.state, 'ok', `report-only policy: ${what}`);
     });
+    await withSite(ownHostHome((o) => ({ 'reporting-endpoints': `g="${address(o)}"` })), async (s) => {
+      assert.equal((await check(s.origin)).by.nel.state, 'ok', `reporting-endpoints: ${what}`);
+    });
   }
+  // A redirect on the way to the page: only the page's own answer is read for an own-host address.
+  const via = (onHop, onPage) => (req, res, url) => {
+    const o = `http://${req.headers.host}`;
+    if (isHome(url)) { send(res, 301, 'text/html', '', { location: `/de/?cb=${url.searchParams.get('cb')}`, ...onHop(o) }); return true; }
+    if (url.pathname === '/de/') { send(res, 200, 'text/html', '<p>Hallo</p>', onPage(o)); return true; }
+    return false;
+  };
+  const policy = (o) => ({ 'content-security-policy-report-only': `default-src 'self'; report-uri ${o}${OWN_PATH}` });
+  await withSite(via(policy, () => ({})), async (s) => {
+    const r = await check(s.origin);
+    assert.doesNotMatch(r.by.nel.detail, /script monitor is switched on/, 'on the redirect only, not on the page');
+  });
+  await withSite(via(() => ({}), policy), async (s) => {
+    const r = await check(s.origin);
+    assert.match(r.by.nel.detail, /site's own address/, 'on the page after a redirect');
+  });
 });
 
 test('NEL on still fails beside the script monitor, and the monitor is named there too', async () => {
