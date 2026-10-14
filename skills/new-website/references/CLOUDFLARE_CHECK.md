@@ -106,15 +106,17 @@ items are a `look`, never `ok`.
 - **A header Cloudflare sends on a sample of pages.** The script monitor's headers came on 2 of
   40 requests on the one site we saw it on, and on none of 200 after it was switched off. A run
   that sees none does not show it is off, and neither does any number of requests: how often
-  Cloudflare sends them is not documented. The dashboard toggle is the proof: Your domain →
-  Security → Settings → filter by Client-side abuse → Continuous script monitoring. To count
-  requests yourself, this prints how many of 100 answered with a `report-to` header, how many
+  Cloudflare sends them is not documented. The switch is at Your domain → Security → Settings →
+  filter by Client-side abuse → Continuous script monitoring; after switching it off, count
+  requests to see that the headers stopped. This prints how many of 100 answered with one of
+  the monitor's three headers (`report-to`, `reporting-endpoints` or
+  `content-security-policy-report-only`; a site that sets one itself counts too), how many
   without one, and how many failed:
 
   ```bash
   for i in $(seq 1 100); do
     h=$(curl -sS --http1.1 -D - -o /dev/null "https://example.com/?cb=$RANDOM") || { echo failed; continue; }
-    if printf '%s\n' "$h" | grep -qi '^report-to:'; then echo header; else echo none; fi
+    if printf '%s\n' "$h" | grep -qiE '^(report-to|reporting-endpoints|content-security-policy-report-only):'; then echo header; else echo none; fi
   done | sort | uniq -c
   ```
 - **Crawler Hints, Fail open and the build settings.** They have no outside check. The report

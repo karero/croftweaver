@@ -839,6 +839,11 @@ const LOOKALIKES = [
   'https://reports.example.invalid/csp-reporting.cloudflare.com/collect',
 ];
 
+// The monitor is no item of its own: the NEL line names it and points to its switch, and step 5 of the
+// checklist's NEL item says where the switch is. One path, said the same way in both places (the test
+// at the end of this file keeps the checklist's copy in step with this one).
+const MONITOR_PATH = 'Security → Settings → filter by Client-side abuse → Continuous script monitoring';
+
 test('the script monitor is named, with the path to its switch, not shown as a bare report-to header', () =>
   withSite(homeWith(MONITOR), async (s) => {
     const r = await check(s.origin);
@@ -848,6 +853,7 @@ test('the script monitor is named, with the path to its switch, not shown as a b
     assert.match(r.by.nel.detail, /csp-reporting\.cloudflare\.com/);
     assert.match(r.by.nel.detail, /sample/);
     assert.doesNotMatch(r.by.nel.detail, /its own reporting groups/, 'not the text for a header that is not known');
+    assert.ok(r.by.nel.fix.includes(MONITOR_PATH), `the fix does not carry the path "${MONITOR_PATH}"`);
     assert.match(r.by.nel.fix, /Client-side abuse/);
     assert.match(r.by.nel.fix, /Continuous script monitoring/);
     assert.match(r.by.nel.fix, /NEL does not remove it/, 'the checklist\'s NEL rule is not the way to remove it');
@@ -1493,5 +1499,6 @@ test('the items are the checklist\'s items, and the paths are its paths', (t) =>
     const want = item.path.replace(/`/g, '').replace(/\s+/g, ' ');
     assert.ok(flat.includes(want), `the checklist does not say "${want}"`);
   }
+  assert.ok(flat.includes(MONITOR_PATH), `the checklist does not say where the script monitor's switch is: "${MONITOR_PATH}"`);
   assert.ok(text.includes('**No scripts you didn\'t add:**'), 'section 5 still has the source-search bullet the "scripts" item stands for');
 });
