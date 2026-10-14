@@ -205,18 +205,23 @@ cookies, scripts or tracking you didn't choose.
   still see the older **Block AI bots** setting, make sure it is Off. Cloudflare is
   retiring it. (`search-console-setup` still shows the older names, Security → Bots →
   Control AI crawlers. This list is the newer one.)
-  Three more switches can keep AI crawlers out. Set each to off:
-  - **Bot Preference Sync: Off.** Same place: Configure AI bot policies → **Enable Bot
-    Preference Sync**. This is Cloudflare's managed `robots.txt`: it puts Cloudflare's own
-    lines for AI crawlers in front of your file, or writes a file if you have none. The
-    file the kit made already says who may read your site. If you chose to disallow
-    Training, this switch is what writes that into `robots.txt`: then leave it on.
-    Cloudflare's settings page also lists it as **Instruct AI bot traffic with
-    robots.txt**. Section 5 shows the file.
+  Three more switches can keep AI crawlers out. Set each to off, with the one exception
+  under Bot Preference Sync:
+  - **Bot Preference Sync: Off, unless you block Training.** Same place: Configure AI bot
+    policies → **Enable Bot Preference Sync**. This is Cloudflare's managed `robots.txt`:
+    when a policy is set to block or disallow, it puts Cloudflare's own lines for AI
+    crawlers, and a `Content-signal` line, in front of your file, or writes a file if you
+    have none. The file the kit made already says who may read your site. If you chose to
+    block or disallow Training, this switch is what writes that into `robots.txt`: then
+    leave it on. Cloudflare's settings page lists a setting called **Instruct AI bot
+    traffic with robots.txt** and links it to the same page of its documentation. Section
+    5 shows the file.
   - **AI Labyrinth: Off.** Your domain → Security → Settings → filter by **Bot traffic** →
-    **AI Labyrinth**. It adds invisible links to your pages that lead AI crawlers it
-    judges to be crawling without permission into an endless maze. Your site gives every
-    crawler permission, and it shouldn't carry links you didn't write.
+    **AI Labyrinth**. It adds invisible links to your pages that lead AI crawlers which
+    ignore crawl rules and crawl without permission into an endless maze. Cloudflare says
+    only bots see the links and they don't affect your search ranking. Off is the kit's
+    choice: the file the kit made lets every crawler in, and we would rather your pages
+    carry only links you wrote.
   - **Content bots: Off.** We found no page in Cloudflare's documentation that names this
     switch or says where it is in the dashboard (searched 14 October 2026). Cloudflare's
     API describes it as a rule that blocks automated traffic with low bot scores, apart
