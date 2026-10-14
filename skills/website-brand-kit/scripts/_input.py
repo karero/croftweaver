@@ -2,8 +2,8 @@
 
 Three forms are read: an SVG file, SVG code pasted as text, and a zip of SVG files. A web page
 is refused in this version (a drawing is not taken out of one), and so is a PNG, JPG or PDF,
-each with the way out. Nothing is written here, and only the one file the owner picked is ever
-handed on to be checked. Standard library only.
+each with the way out. Nothing is written here, and only the files the owner picked (the mark
+and, in a package, its one-colour version) are ever handed on to be checked. Standard library only.
 """
 
 from __future__ import annotations

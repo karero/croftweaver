@@ -115,8 +115,9 @@ site that exists, save such files beside the site's folder, not in it.
 
 ## 2. Ask what colours she likes
 
-Before any palette prompt: which kinds of colours she likes, which she wants to avoid,
-and a brand or a place whose colours she admires. Write no prompt until she has
+Before any palette prompt: the feel she wants the business to have (a few words: calm,
+bold, warm, precise), which kinds of colours she likes, which she wants to avoid, and a
+brand or a place whose colours she admires. Write no prompt until she has
 answered. "Surprise me" is an answer.
 
 ## 3. The palette
@@ -136,7 +137,8 @@ answered. "Surprise me" is an answer.
      `### Light theme:` or a mark in another language
      (`### Dark theme (vorgeschlagen)`) is not read. A heading takes one remark: under
      `### Brand`, put the mark on the Primary row, not on the heading;
-   - a header row `| Token | Hex |` and its `|---|---|` line;
+   - a header row `| Token | Hex |` and its `|---|---|` line (a third column, such as
+     the template's `Use`, may follow);
    - one row per name, the names as the template has them, one colour in the second
      cell (backticks around it are fine), any note in a third cell. A later cell that
      is nothing but a second, different colour (a hex, or a function such as `rgb()`,
