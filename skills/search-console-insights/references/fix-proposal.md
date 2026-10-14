@@ -51,17 +51,17 @@ newest one still in progress. `--page <address>` picks an earlier one.
    `fix_proposal.py decline <site> --reason positioning`.
 4. **Find the page's source.** The address's path gives it: `/reparatur` is
    `src/pages/reparatur.astro`, or an entry in `src/content/<collection>/` when the site's
-   routes build that page from a collection. The `title` and `description` passed to the
-   `Base` layout (or set in the entry's frontmatter) are two of the places; the page's
-   `<h1>` and its first paragraph are the other two. On a collection entry, the title often
-   is the H1 too.
-5. **Make the edit** in those four places only (below). Work the search's words in as a
-   person would say them; the exact phrase is not required, every word is, and a compound
-   counts ("Fahrradreparatur" carries "fahrrad" and "reparatur").
+   routes build that page from a collection. The `title` passed to the `Base` layout (or set
+   in the entry's frontmatter), the page's `<h1>` and its first paragraph are the three
+   places the sentence names. On a collection entry, the title often is the H1 too.
+5. **Make the edit** in those three places (below). Work the search's words in as a person
+   would say them; the exact phrase is not required, every word is, and a compound counts
+   ("Fahrradreparatur" carries "fahrrad" and "reparatur"). Touch the meta `description`
+   only if the new title would leave it wrong, and then say so in the pull request.
 6. **Run the gate** the way `AGENTS.md` §2 says: the pre-push hook runs the full suite, or
    `npm run verify` where the hook is not on. If a test refuses the change (a title over the
    limit, a word `tone.spec.ts` bans, a term `positioning.spec.ts` requires), fix the wording
-   in the same four places and run it again. Never change a test, never push with
+   in the same places and run it again. Never change a test, never push with
    `--no-verify`.
 7. **Read the new title as the site will serve it**: after the gate's build, the page's
    `<title>` in `dist/` (`dist/reparatur.html` for `/reparatur`, `dist/index.html` for the
@@ -85,8 +85,8 @@ newest one still in progress. `--page <address>` picks an earlier one.
 
 ## What you may change, and what you may not
 
-**Change only:** the page's `title`, its meta `description`, its `<h1>` and its first
-paragraph, on an existing page or collection entry.
+**Change only:** the page's `title`, its `<h1>` and its first paragraph, on an existing page or
+collection entry; its meta `description` only if the new title would leave it wrong.
 
 **Never, in this task:** create, delete or rename a page; touch redirects, `noindex`,
 `robots.txt`, the sitemap, `public/_headers`, `src/config.ts`, `astro.config.mjs`,

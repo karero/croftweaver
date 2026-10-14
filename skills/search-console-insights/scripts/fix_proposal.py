@@ -19,7 +19,9 @@ weekly job rewrites on every run (so nothing of the owner's is kept there). Ever
 atomic. This file calls no model and makes no network request except `gh` in gh_pr_state().
 """
 import argparse
+import contextlib
 import datetime as dt
+import fcntl
 import html.parser
 import json
 import os
@@ -30,7 +32,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _history import normalize_site  # noqa: E402
+from _history import NOISE_IMPRESSIONS, normalize_site  # noqa: E402
 from _lang_normalize import fold, words_of  # noqa: E402
 
 T1_MIN_IMPRESSIONS = 50             # D3
@@ -50,8 +52,32 @@ def base_dir() -> Path:
     return Path(os.path.expanduser("~")) / ".config" / "gsc-insights"
 
 
+# A bare domain: labels of letters, digits and inner hyphens, at least one dot. Anything else
+# (a path, "..", a slash) is refused, so the state file can only land in sites/.
+_DOMAIN = re.compile(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+")
+
+
 def state_path(site: str) -> Path:
-    return base_dir() / "sites" / f"{normalize_site(site)}-proposals.json"
+    name = normalize_site(site)
+    if not _DOMAIN.fullmatch(name):
+        raise ValueError(f"not a bare domain: {site!r}")
+    return base_dir() / "sites" / f"{name}-proposals.json"
+
+
+@contextlib.contextmanager
+def locked(site: str):
+    """Hold the site's lock while its state is read, changed and written, so the weekly report
+    and the assistant's commands never write over each other's changes (a "no" lost that way
+    would bring the proposal back)."""
+    p = state_path(site)
+    base_dir().mkdir(parents=True, exist_ok=True)
+    # Beside the settings, not in sites/: a site that never had a proposal gets no file there.
+    with open(base_dir() / f".{p.name[:-len('.json')]}.lock", "a") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def empty_state(site: str) -> dict:
@@ -193,16 +219,15 @@ def query_on_page(query: str, page: dict) -> bool:
     if not want:
         return False
     have = set(words_of(" ".join(page.get(k) or "" for k in ("title", "h1", "first_paragraph"))))
-    i = 0
-    while i < len(want):
-        if want[i] in have:
-            i += 1
-            continue
-        joined = next((j for j in range(i + 1, len(want)) if "".join(want[i:j + 1]) in have), None)
-        if joined is None:
-            return False
-        i = joined + 1
-    return True
+    # covered[i]: the first i words are carried, each alone or run together with its neighbours.
+    # Every split is tried, so a page that has both "fahrrad" and "fahrradreparatur" still counts.
+    covered = [True] + [False] * len(want)
+    for i in range(len(want)):
+        if covered[i]:
+            for j in range(i + 1, len(want) + 1):
+                if "".join(want[i:j]) in have:
+                    covered[j] = True
+    return covered[-1]
 
 
 def norm_title(t) -> str:
@@ -248,6 +273,8 @@ def t1_candidates(query_rows, query_page_rows, spellings) -> list:
         if is_brand(q, spellings) or q not in pages:
             continue
         page, on_page = pages[q]
+        if on_page < NOISE_IMPRESSIONS:      # R1: a page under the noise floor is never proposed
+            continue
         out.append({"kind": "T1", "query": q, "page": page, "position": pos, "impressions": imp,
                     "clicks": r.get("clicks", 0), "page_impressions": on_page})
     out.sort(key=lambda c: (-c["impressions"], c["query"]))
@@ -268,9 +295,11 @@ def page_block(rec: dict) -> str:
     pr = rec.get("pr")
     if not pr or rec.get("declined_on"):
         return ""          # a "no" (in words or by closing the pull request) frees the page
+    state = (pr.get("state") or "").upper()
+    if state == "OPEN":
+        return "pull request open"      # R1 holds even after a result, while it is still open
     if rec.get("result"):
         return ""
-    state = (pr.get("state") or "").upper()
     if has_check(rec, "new"):
         return "measuring"
     if state == "MERGED":
@@ -326,9 +355,9 @@ def record_shown(state: dict, proposal: dict, window, today: dt.date) -> dict:
     the live page: the title was the old one on that day."""
     key = proposal_key(proposal["page"], proposal["query"])
     rec = state["proposals"].get(key) or {}
-    if rec.get("pr") and (rec.get("result") or rec.get("declined_on")):
-        # The same search, proposed again after an earlier round finished: that round keeps its
-        # own record (and its result stays on the page); this one starts fresh.
+    if rec.get("result") or rec.get("declined_on"):
+        # The same search, proposed again after an earlier round finished (measured, or turned
+        # down and its 12 weeks over): that round keeps its own record, this one starts fresh.
         state.setdefault("done", []).append(rec)
         rec = {}
     rec.update({k: proposal[k] for k in ("kind", "query", "page", "position", "impressions",
@@ -382,22 +411,25 @@ def gh_pr_state(repo: str, number: int, run=subprocess.run):
     return j if isinstance(j, dict) and j.get("state") in ("OPEN", "CLOSED", "MERGED") else None
 
 
-def apply_pr_state(rec: dict, gh) -> dict:
+def apply_pr_state(rec: dict, gh, today=None) -> dict:
     """Fold GitHub's answer into the record (design §3.4). Closed without merging is the owner's
-    "not this one" from the day it closed; reopened takes that back; merged waits to go live."""
-    if not gh:
-        return rec
+    "not this one" from the day it closed (today when GitHub gives no day); reopened or merged
+    after all takes that back; merged waits to go live. No answer (None) keeps the last known
+    state and marks this week's check as failed, so the page can say so."""
     pr = rec.setdefault("pr", {})
+    if not gh:
+        pr["last_check_ok"] = False
+        return rec
+    pr["last_check_ok"] = True
     pr["state"] = gh["state"]
-    if gh["state"] == "MERGED":
-        pr["merged_at"] = gh.get("mergedAt")
-    elif gh["state"] == "CLOSED":
-        closed = (gh.get("closedAt") or "")[:10]
-        if closed:
-            rec["declined_on"], rec["decline_reason"] = closed, "closed"
-    elif gh["state"] == "OPEN" and rec.get("decline_reason") == "closed":
+    if gh["state"] in ("OPEN", "MERGED") and rec.get("decline_reason") == "closed":
         rec.pop("declined_on", None)
         rec.pop("decline_reason", None)
+    if gh["state"] == "MERGED":
+        pr["merged_at"] = gh.get("mergedAt")
+    elif gh["state"] == "CLOSED" and rec.get("decline_reason") != "closed":
+        closed = (gh.get("closedAt") or "")[:10] or (today or dt.date.today()).isoformat()
+        rec["declined_on"], rec["decline_reason"] = closed, "closed"
     return rec
 
 
@@ -422,20 +454,21 @@ def windows(checks) -> dict:
     the first Monday on or after it. A later "old" or "other" interrupts: the after-window then
     ends on the last Sunday before that check, and `weeks` says how many full weeks are left (0 =
     none, nothing to show). "unreadable" checks change nothing."""
+    # Sorted by day; checks of the same day keep the order they were made in (sorted is stable),
+    # so an "old" look in the morning and a "new" one after the change went live both count.
     cs = sorted((c for c in checks if c.get("outcome") in ("old", "new", "other")),
                 key=lambda c: c["date"])
-    first_new = next((c for c in cs if c["outcome"] == "new"), None)
-    if not first_new:
+    i_new = next((i for i, c in enumerate(cs) if c["outcome"] == "new"), None)
+    if i_new is None:
         return None
-    fn = _date(first_new["date"])
-    olds = [_date(c["date"]) for c in cs if c["outcome"] == "old" and _date(c["date"]) < fn]
+    fn = _date(cs[i_new]["date"])
+    olds = [_date(c["date"]) for c in cs[:i_new] if c["outcome"] == "old"]
     if not olds:
         return None
     b_end = last_sunday_before(max(olds))
     a_start = first_monday_on_or_after(fn)
     a_end = a_start + dt.timedelta(days=WINDOW_DAYS - 1)
-    interrupted = next((_date(c["date"]) for c in cs
-                        if _date(c["date"]) > fn and c["outcome"] in ("old", "other")), None)
+    interrupted = next((_date(c["date"]) for c in cs[i_new + 1:] if c["outcome"] in ("old", "other")), None)
     if interrupted:
         a_end = min(a_end, last_sunday_before(interrupted))
     weeks = max(0, ((a_end - a_start).days + 1) // 7)
@@ -474,8 +507,10 @@ def _target(state: dict, page=None):
 def cmd_show(site, args):
     state = load_state(site)
     spellings, confirmed = brand_spellings(state, site)
-    key = state.get("current")
-    rec = state["proposals"].get(key) if key else None
+    try:
+        key, rec = _target(state)
+    except SystemExit:
+        rec = None
     print(f"Site: {normalize_site(site)}")
     print(f"Counted as your business name: {', '.join(spellings)}" + ("" if confirmed else " (a guess, not confirmed)"))
     print(f"Search figures in pull requests: {state.get('pr_figures', 'unasked')}")
@@ -490,7 +525,7 @@ def cmd_show(site, args):
     if rec.get("pr"):
         print(f"Pull request: {rec['pr']['url']} ({rec['pr'].get('state') or 'state not checked yet'})")
     until = declined_until(rec)
-    if until:
+    if until and dt.date.today() < until:
         print(f"Turned down until: {until.isoformat()}")
     return 0
 
@@ -559,8 +594,12 @@ def main(argv=None):
     s.add_argument("name", choices=("brand", "pr_figures"))
     s.add_argument("value")
     args = ap.parse_args(argv)
+    cmd = {"show": cmd_show, "decline": cmd_decline, "acted": cmd_acted, "set": cmd_set}[args.cmd]
     try:
-        return {"show": cmd_show, "decline": cmd_decline, "acted": cmd_acted, "set": cmd_set}[args.cmd](args.site, args)
+        if args.cmd == "show":
+            return cmd(args.site, args)
+        with locked(args.site):          # read, change and write as one step (see locked())
+            return cmd(args.site, args)
     except (ValueError, OSError) as e:
         print(f"✗ {e}", file=sys.stderr)
         return 1

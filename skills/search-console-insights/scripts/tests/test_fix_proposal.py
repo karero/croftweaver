@@ -10,7 +10,9 @@ it, through a real subprocess, with HOME pointed at a temporary folder and a stu
 
 Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tests
 """
+import copy
 import datetime as dt
+import fcntl
 import json
 import os
 import stat
@@ -93,6 +95,12 @@ class CandidateTests(unittest.TestCase):
         got = [c["query"] for c in fp.t1_candidates(rows, pages, SPELLINGS)]
         self.assertEqual(sorted(got), ["a b", "c d"])
 
+    def test_a_page_under_the_noise_floor_is_never_proposed(self):
+        # R1: 50 impressions for the search, but only 7 of them on its best page.
+        rows = [q("a b", 60, 12.0)]
+        self.assertEqual(fp.t1_candidates(rows, [qp("a b", PAGE, 7)], SPELLINGS), [])
+        self.assertEqual(len(fp.t1_candidates(rows, [qp("a b", PAGE, 10)], SPELLINGS)), 1)
+
     def test_a_search_with_no_proved_page_is_never_guessed(self):
         self.assertEqual(fp.t1_candidates([q("a b", 300, 12.0)], [], SPELLINGS), [])
 
@@ -127,6 +135,10 @@ class PageTests(unittest.TestCase):
         self.assertTrue(fp.query_on_page(QUERY, done))
         # A compound with something else in it does not count: "fahrradladen" is not "fahrrad reparatur".
         self.assertFalse(fp.query_on_page(QUERY, page(title="Fahrradladen in Leipzig", h1="", p="")))
+
+    def test_a_compound_still_counts_when_one_of_its_words_also_stands_alone(self):
+        # Round 1: greedy matching used up "fahrrad" and missed "Fahrradreparatur".
+        self.assertTrue(fp.query_on_page(QUERY, page(title="Fahrrad und Fahrradreparatur in Leipzig", h1="", p="")))
 
     def test_a_search_of_stop_words_only_is_never_already_on_the_page(self):
         self.assertFalse(fp.query_on_page("in der", page(title="in der")))
@@ -183,6 +195,16 @@ class ChooseTests(unittest.TestCase):
         self.assertEqual((again["shown"], "pr" in again), ("2027-03-08", False))
         self.assertEqual([r["result"] for r in self.state["done"]], [{"weeks": 4}])
 
+    def test_a_search_turned_down_in_words_starts_fresh_when_it_comes_back(self):
+        rec = fp.record_shown(self.state, dict(self.cands[0], old_title=OLD_TITLE),
+                              (D("2026-09-28"), D("2026-10-25")), D("2026-11-02"))
+        rec["declined_on"], rec["decline_reason"] = "2026-11-02", "owner"
+        again = fp.record_shown(self.state, dict(self.cands[0], old_title=OLD_TITLE),
+                                (D("2027-01-04"), D("2027-01-31")), D("2027-02-08"))
+        self.assertEqual(again["shown"], "2027-02-08")
+        self.assertNotIn("declined_on", again)
+        self.assertEqual(self.state["done"][0]["declined_on"], "2026-11-02")
+
     def test_an_open_or_unchecked_pull_request_keeps_the_whole_page_out(self):
         rec = fp.record_shown(self.state, dict(self.cands[0], old_title=OLD_TITLE),
                               (D("2026-09-28"), D("2026-10-25")), D("2026-11-02"))
@@ -211,11 +233,30 @@ class PullRequestTests(unittest.TestCase):
     def test_merged_waits_to_be_seen_live_and_no_answer_changes_nothing(self):
         r = fp.apply_pr_state(self.rec(), {"state": "MERGED", "mergedAt": "2026-11-03T10:00:00Z"})
         self.assertEqual(fp.page_block(r), "merged, not seen live yet")
-        self.assertEqual(fp.apply_pr_state(r, None), r)
+        before = copy.deepcopy(r)
+        after = fp.apply_pr_state(r, None)
+        # Only the failed check is noted; the last known state stays (a deep copy, so a change
+        # made in place would show).
+        self.assertIs(after["pr"].pop("last_check_ok"), False)
+        before["pr"].pop("last_check_ok", None)
+        self.assertEqual(after, before)
         r["checks"] = [{"date": "2026-11-02", "outcome": "old"}, {"date": "2026-11-09", "outcome": "new"}]
         self.assertEqual(fp.page_block(r), "measuring")
         r["result"] = {"done": True}
         self.assertEqual(fp.page_block(r), "")
+
+    def test_merged_after_a_close_takes_the_no_back_and_a_close_without_a_day_counts_today(self):
+        r = fp.apply_pr_state(self.rec(), {"state": "CLOSED", "closedAt": "2026-11-05T14:02:00Z"})
+        r = fp.apply_pr_state(r, {"state": "MERGED", "mergedAt": "2026-11-06T09:00:00Z"})
+        self.assertNotIn("declined_on", r)
+        self.assertEqual(fp.page_block(r), "merged, not seen live yet")
+        r = fp.apply_pr_state(self.rec(), {"state": "CLOSED", "closedAt": None}, D("2026-11-09"))
+        self.assertEqual(r["declined_on"], "2026-11-09")
+
+    def test_an_open_pull_request_keeps_the_page_out_even_after_a_result(self):
+        r = self.rec()
+        r["pr"]["state"], r["result"] = "OPEN", {"weeks": 4}
+        self.assertEqual(fp.page_block(r), "pull request open")
 
     def test_only_github_pull_request_addresses_are_taken(self):
         self.assertEqual(fp.parse_pr_url("https://github.com/example-owner/site/pull/31"), ("example-owner/site", 31))
@@ -265,6 +306,14 @@ class WindowTests(unittest.TestCase):
         w = fp.windows(checks(("2026-11-02", "old"), ("2026-11-09", "new"), ("2026-11-12", "other")))
         self.assertEqual((w["after"], w["weeks"]), (None, 0))
         self.assertFalse(fp.ready_to_measure(w, D("2027-01-01")))
+
+    def test_an_old_and_a_new_look_on_the_same_day_both_count(self):
+        # Round 1: a second report on the day the change went live overwrote the "old" look.
+        w = fp.windows(checks(("2026-11-09", "old"), ("2026-11-09", "new")))
+        self.assertEqual(w["before"], (D("2026-10-12"), D("2026-11-08")))   # ends the Sunday before the old look
+        self.assertEqual(w["after"][0], D("2026-11-09"))
+        self.assertEqual(fp.windows(checks(("2026-11-09", "old"), ("2026-11-09", "new"),
+                                           ("2026-11-09", "other")))["weeks"], 0)
 
     def test_unreadable_and_early_other_checks_change_nothing(self):
         plain = fp.windows(checks(("2026-11-02", "old"), ("2026-11-09", "new")))
@@ -417,6 +466,33 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(self.state()["proposals"][fp.proposal_key(PAGE, QUERY)]["new_title"], NEW_TITLE)
         out = self.run_cli("decline", SITE, "--page", "https://radwerk-plagwitz.example/kontakt")
         self.assertNotEqual(out.returncode, 0)
+
+    def test_show_names_the_proposal_in_progress_after_the_next_report(self):
+        self.seed()
+        self.run_cli("acted", SITE, "--pr", "https://github.com/example-owner/radwerk/pull/31", "--new-title", NEW_TITLE)
+        self.after_next_report()
+        out = self.run_cli("show", SITE)
+        self.assertIn("pull/31", out.stdout)
+        self.assertNotIn("Proposal: none", out.stdout)
+
+    def test_a_site_name_cannot_lead_the_file_out_of_its_folder(self):
+        for bad in ("../../outside", "a/b.example", "..", "nodot"):
+            with self.assertRaises(ValueError, msg=bad):
+                fp.state_path(bad)
+        out = self.run_cli("set", "../../outside", "pr_figures", "yes")
+        self.assertNotEqual(out.returncode, 0)
+        self.assertFalse((Path(self.home.name) / ".config" / "outside-proposals.json").exists())
+
+    def test_the_lock_keeps_a_second_writer_waiting(self):
+        old = os.environ.get("HOME")
+        os.environ["HOME"] = self.home.name
+        try:
+            with fp.locked(SITE):
+                lock = Path(self.home.name) / ".config/gsc-insights" / f".{SITE}-proposals.lock"
+                with open(lock, "a") as f, self.assertRaises(BlockingIOError):
+                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.environ["HOME"] = old
 
     def test_commands_on_a_site_with_no_proposal_say_so(self):
         out = self.run_cli("decline", SITE)
