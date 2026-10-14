@@ -8,8 +8,9 @@ of this public repo on purpose; the business in the scenarios is made up.
 This is the second version. The first went through a PLAN gate that stopped after three
 rounds without converging (`docs/reviews/REVIEW-plan-2026-10-12-pr265.md`); then a trial
 run on a throwaway project answered the questions that gate had left open. This text is
-written once from that trial, with two yeses (D1), and goes through a new PLAN gate. Do not
-build from it until that gate is clean.
+written once from that trial, with two yeses (D1), and passed a new PLAN gate on 2026-10-14
+(trail under "Review trail"). What no one has tried yet is listed under "Not verified";
+plan step 9 tries it before the real site of plan step 10.
 
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are what the script does, numbered under "Shape".
@@ -18,7 +19,7 @@ table. **Script steps** are what the script does, numbered under "Shape".
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ▶ rewritten from the trial on 2026-10-14; new PLAN gate (High) under way | this file; trail: `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`. First version and its gate: karero/croftweaver#265 (`b5bf49e`), `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
+| 1 | Requirements and scenarios (this file) | ✅ rewritten from the trial on 2026-10-14; PLAN gate (High) clean the same day, after six rounds, a final full read and a wording pass | this file; trail: `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`. First version and its gate: karero/croftweaver#265 (`b5bf49e`), `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist and its check script reach `main` | ✅ merged 2026-10-12 | karero/croftweaver#266 (`7642954`); karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions | ✅ D1 to D7 on 2026-10-12, D1 final on 2026-10-13, decision 8 on 2026-10-14 | sections "Decisions taken" and "Decisions D1 to D7" |
 | 4 | Trial run on a throwaway repository and project | ✅ 2026-10-13, apart from two points (see "Not verified", 1 and 2) | 159 captures, kept outside every repository; the private throwaway repository |
