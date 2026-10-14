@@ -33,6 +33,12 @@ runbook headed for production, or a plan an agent will execute weighs more than 
 CI will catch. Pick the depth by that (Review depth, below), name it and why in the trail; never
 skip silently. With a config diff, send the code that reads the config too.
 
+**Split a big change.** A change with more than about 2,000 lines of code (tests not counted), or
+with more than one reader of files from outside (a parser, an upload check, an importer), is
+gated per component, each in its own PR as it is built. One PR for all of it has every round
+re-read every part, and a kind of defect found in the first reader is found again in each of
+the others (`references/rationale.md`, "Rounds that did not converge").
+
 **PLAN gate preconditions — the host checks these itself before any reviewer runs**
 (`references/plan-preconditions.md` for scope and contested cases):
 1. The plan can report its own progress: each step's state is recorded, and every state claiming
@@ -112,7 +118,7 @@ names the depth and why, and the host tells the owner the depth before round 1 r
 |---|---|---|---|
 | **Light** | copy, docs and content nobody executes; test-only changes; small fixes to tooling that touches no user data and no production path; a website-content plan | ONE seat, no script: the host's own diff review (Claude Code: `/code-review` at `medium`; no diff or no such command: `double-knuth`). `--first-success` instead when a cross-model seat is wanted | 1, plus one if it found a BUG |
 | **Normal** (default) | everything else | the standard pair + fresh-eyes on a mid-tier host-family model (Claude Code: the Agent tool's `sonnet` option) in round 1; verification rounds: the pair only, Codex at medium effort (the `--verify` default) | step 6 |
-| **High** | auth or permissions, payments or billing, personal data, deletion or migrations, secrets, security boundaries, public API or contract changes, deploy or infra, privacy or legal texts | the pair + fresh-eyes on the host's own model EVERY round; Codex at config.toml's effort every round (`CODEX_EFFORT=config`) | step 6 |
+| **High** | auth or permissions, payments or billing, personal data, deletion or migrations, secrets, security boundaries, public API or contract changes, deploy or infra, privacy or legal texts | the pair + fresh-eyes on the host's own model; Codex at config.toml's effort (`CODEX_EFFORT=config`) in round 1. Verification rounds: the pair, Codex at medium, and fresh-eyes on each part whose code changed since the last round | step 6 |
 
 **Light is same-family by design** on a Claude Code host and needs no cross-model seat — the
 owner's standing choice (2026-09-26) for low-consequence changes; the trail says "Light gate".
@@ -160,8 +166,9 @@ Codex's effort for any run.
    <plan>` lists every such sentence in the file outside fenced code. Check each as
    `references/claims-sweep.md` says.
 3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
-   round 1 only at Normal, every round at High, never at Light — started in the background
-   BEFORE the script so every seat runs at once.
+   round 1 only at Normal; at High round 1, then only on the parts whose code changed since the
+   last round; never at Light — started in the background BEFORE the script so every seat runs
+   at once.
 
    **Cost log.** The script logs its own seats. Log each seat the host runs — fresh-eyes, a Light
    gate's `/code-review` or `double-knuth`, an owner round — with `scripts/review_log.sh add --seat
@@ -170,6 +177,10 @@ Codex's effort for any run.
    gate; every line logged after it from the same worktree carries that gate's id. A Light gate
    that runs no script starts one with `scripts/review_log.sh new-gate`. The log is local, never committed;
    `scripts/review_log.sh summary` compares depths and seats across PRs.
+
+   **Cost notice.** The trail's round table gives each seat's tokens; keep a running total under
+   it. At round 4 or at 3 million tokens, whichever comes first, tell the owner in one line:
+   rounds so far, findings per round, tokens so far. A notice only: it blocks nothing.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
    - *refuted* — shown not to be an issue, to step 5's evidence standard; no sign-off.
@@ -177,6 +188,14 @@ Codex's effort for any run.
    - *deferred* — BUG only, under step 5's exception.
    - *follow-up* — a RISK/NIT a verification round raised outside its scope (step 6). Doesn't
      block, needs no sign-off; listed for the owner (step 8), who may reopen it. Never a BUG.
+
+   **Severity follows what the user meets, not what a reviewer can build.** A BUG is a wrong
+   result reported as success, a user's file left changed or lost, a crash or a hang, a security
+   bypass (outside input that gets past a check meant to stop it), or a defect that ordinary
+   input meets. A finding that needs input made by hand to break the tool, and that ends in a
+   safe stop (refused or reported, nothing written, nothing wrong reported as success), is a
+   NIT, however wrong its sentence. Mark each finding ORDINARY or MADE BY HAND in the register;
+   the brief asks the seats for the mark, and where it is unclear, ORDINARY.
 
    An existing annotation in the artifact (a code comment, a plan note) closes a re-raised
    finding only if its reasoning covers what this reviewer raised — then it can back a refutation,
@@ -223,6 +242,8 @@ Codex's effort for any run.
    pass. A refuted BUG gets no reviewer's second look this way, so name it to the owner with its
    evidence before the gate closes (step 8).
    - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`.
+     A change reviewed in parts sends only the parts whose files changed; an untouched part is
+     not read again (the final full read covers it).
      After a merge of the base or a rebase, the **merge link** instead, not a full round: what
      changed in the change's own files since the last review, merge effects included, plus any
      file the merge changed that the change's code calls directly, when known:
@@ -249,6 +270,9 @@ Codex's effort for any run.
      OUTSIDE SCOPE, and don't report clean to oblige.
    - **Triage OUTSIDE SCOPE:** a BUG is a finding; a RISK/NIT is a follow-up. Scope is the host's
      call, not the reviewer's label — re-sort misfiled items.
+   - **Tests per round.** Each fixer runs the test files of its own part; the host runs the whole
+     suite once, on the round's finished fixes, before the next round. A whole-suite run per
+     fixer costs the round its longest wait and shows the other fixers' half-made edits.
    - **Two statuses per fix:** `locally_verified` (the author demonstrated it to step 5's standard)
      and `externally_reverified` (a later round confirmed it). A checkable claim with neither
      stays OPEN.
@@ -259,6 +283,13 @@ Codex's effort for any run.
    would build from. Not substantive: how a sentence reads when its meaning for a builder is
    unchanged, comments, the review record, test wording or tightening an assertion on a test that
    already fails on wrong behaviour.
+
+   **Cut, don't patch.** When the same kind of finding (one invariant, in the same code) brings a
+   substantive BUG in two rounds running, its next fix is a cut, not a third patch: take the
+   feature out, refuse that input by name, or state the limit where its reader sees it. From
+   round 4 on, a round's fixes together remove more lines of code than they add (tests aside);
+   name to the owner any fix that cannot. A patch late in a gate mostly finds the next corner of
+   the same kind, and each mechanism it adds is ground for the next round.
 
    **Stop conditions.** (a) Clean — done. **(a2) A round with no BUG and no in-scope RISK that
    calls for a fix is clean** (refuted findings, waived RISKs, deferred BUGs and follow-ups call

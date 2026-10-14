@@ -510,3 +510,41 @@ ran after the first, and 75 of them found no BUG.
 Where the numbers come from: the trails, read partly by a model whose extraction was checked by
 hand on two trails and against a parser on 17. Timings were recorded for part of the passes only.
 The cost log held nothing: on the owner's machine its directory was not writable.
+
+## Rounds that did not converge — the severity bar, cut-don't-patch, cheaper rounds, the split, the cost notice
+
+One DIFF gate at High depth, in October 2026, on one pull request for a whole skill: five readers
+of files from outside (an SVG check, a zip reader, a Markdown palette reader, a stylesheet scanner,
+a line editor for a TypeScript config) and edits of four of the user's own files, about 7,500 lines
+of code and tests at round 1. Nine rounds ran over about 31 hours; findings per round, after
+merging duplicates, were 102, 102, about 105, 93, 72, 58, 49, 39 and 45. The reviewers and the
+fixers used about 37 million tokens. What the trail shows:
+
+- **Most late BUGs needed input made by hand and ended in a safe stop.** From round 6 on, the
+  seats were asked to mark each finding ordinary or made by hand. In round 9 no seat found a
+  wrong result for an ordinary site, a site left changed after a failed run, or a hang, and the
+  round still counted 11 BUGs: a hand-made stylesheet, a developer-reshaped config, a Ctrl-C in
+  one millisecond. Hence the severity bar (step 4).
+- **Fixes made the next round's findings.** At least five fixes from rounds 3 to 7 added a
+  mechanism that the next round found broken, and were taken out again: a dropped guard, an HTML
+  unescape, a terminal setting, a change to how blanks fold, a sentence for one refusal. The
+  convergence check counts a finding on code the last round's fixes added as new ground, so this
+  chain looked like the gate working. One kind, the sentences telling a reader how to rewrite a
+  reshaped config, brought BUGs in rounds 6, 7, 8 and 9, each time for another shape of file.
+  The two cuts of round 3 (a feature dropped, a scanner replaced by a strict rule) never came
+  back. Hence cut, don't patch (step 6).
+- **Every round re-read every part.** Four parts, three seats each, every round, also for parts
+  no fix had touched: the fresh-eyes seat alone cost 1.2 to 1.4 million tokens a round. Each
+  fixer ran the whole suite (two Pythons, 15 to 40 minutes under the machine's load), and the
+  host ran it again. In round 9 part 1 came back clean from all three seats; it had been clean of
+  BUGs from two of them in round 8. Hence cheaper rounds (step 6, the depth table).
+- **One pull request for five readers.** A kind of finding fixed in one reader (an invisible
+  character, a quote inside a value) was found again in the next. Hence the split (Gate on
+  consequence).
+- **Nobody saw the total until the end.** The per-seat tokens were in the trail's table, but no
+  line added them up before the owner asked. Hence the cost notice (step 3).
+
+What this does not show: that the gate would have found the same real defects at less cost. It
+did catch some that a lighter bar would have shipped: a crash on a crafted zip, a 20 MB favicon
+from a 228 KB file, a hang in the test cleanup, a stylesheet edit written to the wrong place. All
+four were BUGs under the new bar too (a crash, a hang, a wrong result reported as success).
