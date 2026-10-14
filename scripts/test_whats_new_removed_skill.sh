@@ -217,16 +217,16 @@ check "scaffold: the folder whats-new.sh names stays behind"    test ! -e "$PSD/
 # The folder can stay behind only while nothing a site's assistant reads asks to run it.
 runs="$(grep -rlE 'scripts/tests|unittest|pytest' --include='*.md' "$PSD/website-brand-kit" 2>/dev/null)"
 check "scaffold: no brand kit instruction runs its tests"       test -z "$runs"
-# Nor may its code need the folder: every module of the copied scripts must import without it.
-if command -v python3 >/dev/null 2>&1; then
-  imp="$(cd "$PSD/website-brand-kit/scripts" && for f in *.py; do
-    python3 -I -c "import sys; sys.path.insert(0, '.'); import ${f%.py}" >/dev/null 2>&1 || echo "${f%.py}"
-  done)"
-  check "scaffold: every brand kit module imports without tests"  test -z "$imp"
-  [ -z "$imp" ] || printf '     failed to import: %s\n' $imp
-else
-  echo "SKIP scaffold: the brand kit import check needs python3"
-fi
+# Nor may its code reach for the folder. Read, not run (running would also fail on anything else
+# this machine lacks): no file of the copy imports the tests package or one of its modules, at
+# any indent, and none builds a path that names it. The module names come from the toolkit's own
+# folder. grep exits 1 for no match; 2, a folder it could not read, fails too.
+mods="$(cd "$HERE/../skills/website-brand-kit/scripts/tests" && ls *.py | sed 's/\.py$//' | paste -sd'|' -)"
+check "scaffold: the toolkit's brand kit tests are found"        test -n "$mods"
+grep -rnE "^[[:space:]]*(from|import)[[:space:]]+(tests|$mods)([.[:space:],]|\$)|scripts/tests|[\"']tests(/|[\"'][[:space:]]*[),])|/[[:space:]]*[\"']tests[\"']" \
+  "$PSD/website-brand-kit" > "$T/reach" 2>&1; rc=$?
+check "scaffold: no brand kit file reaches for its tests"        test "$rc" -eq 1
+[ "$rc" -eq 1 ] || sed 's/^/     /' "$T/reach"
 
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"
