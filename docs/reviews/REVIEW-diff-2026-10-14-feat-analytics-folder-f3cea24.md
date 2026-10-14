@@ -1,7 +1,7 @@
 # DIFF review — branch feat/analytics-folder — the site's analytics/ folder (search-console-insights 1.9.0)
 
 Base `de64ec8` · depth: Normal (shipped runtime code and agent instructions; nothing in the High row) ·
-verdict: CLEAN (5 rounds; closing re-gate clean on 94c6c4a) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created
+verdict: CLEAN (head 263e3d0 as seen; 5 rounds, a clean closing re-gate, a merge link and its confirmations; earlier: closing re-gate clean on 94c6c4a) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created
 this worktree and branch); POST AUTHORITY not yet held (no PR; one is opened only on the owner's word).
 
 Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the diff).
@@ -27,6 +27,8 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 | 5 (verification) | f74764a | Codex medium (280 s, 64k tokens), GLM 5.3 on melious (158 s, 21k) | 0 / 1 / 3 (F49–F52; Codex's two BUG labels triaged below) | delta 7cb141a..f74764a, with the cut. No substantive BUG: **the rounds end** (stop condition a2). Its fixes are locally_verified, not externally re-verified until the closing re-gate |
 | re-gate (not a round) | 94c6c4a | Codex medium only (148 s, 50k tokens) | 0 / 0 / 0 | delta f74764a..94c6c4a: F50 and F51's code at full scope, the trail and plan row for facts only. Clean |
 | merge link (not a round) | 2f4b541 | Codex medium only (239 s, 169k tokens) | 2 / 0 / 0 (F53, F54) | `main` moved 48 commits, among them the weekly fix proposal, which also edits `SKILL.md` and `search_report.py`; merged without conflicts; `merge_link.sh` output reviewed with the callee list. `make test` 372 OK, `make check` exit 0 on the merge |
+| confirmation of F53/F54 | e5b5684 | Codex medium | 1 / 0 / 0 | F54 fixed; F53's fix partial (the record kept only with accepted data); fixed in 263e3d0 |
+| confirmation of that fix (the last allowed) | 263e3d0 | Codex medium (33 s, 32k tokens) | 0 / 0 / 0 | clean. Seen pair for the stamp: merge-base of the last merge, head 263e3d0; later commits touch this trail only |
 
 ## Findings
 
