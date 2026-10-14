@@ -529,6 +529,34 @@ M19 the alias note names both headers whenever it sends either
     KILLED; new tests that failed: ['T6']
 ```
 
-## Confirmation, second run
+## Confirmation, second run: clean
 
-(filled in as it runs)
+First attempt: Codex failed at once ("selected model is at capacity", 61 s, 6,835 tokens); no reviewer
+counted and nothing was reviewed. Re-run with the standard pair: Codex (177 s, 47,186 tokens) and GLM 5.3
+on melious (147 s, 12,391 tokens), both OK. **Both: No BUG/RISK/NIT findings.** Both verified C1-1 and C1-2
+as landed in full (Codex: 53 direct assertions against the reader and five direct `evaluate()` checks;
+GLM: traced the new branch and every retained case).
+
+Outside the scope of a confirmation, recorded as follow-ups; none blocks:
+
+- Codex RISK, outside scope: Cloudflare's endpoint identity, its sampling and the switch path lack
+  independently checked vendor support. ANSWER: the reference says the three headers come from one
+  capture of one live site; the dashboard path comes from Cloudflare's get-started page (it names the
+  toggle but not the way to turn it off) and the owner's own screenshot, after which the headers stopped
+  (none of 200). No vendor page documents the headers. Follow-up: more captures from other zones; cite a
+  vendor page if one appears.
+- GLM NIT, outside scope: a value ending in a lone backslash leaves its string unterminated; the member
+  then fails the address pattern. Harmless. Follow-up only.
+- GLM UNVERIFIABLE: which header names reach `cloudflareMonitor`. SETTLED: the call site passes exactly
+  `report-to`, `reporting-endpoints` and `content-security-policy-report-only`.
+
+## Gate summary
+
+Normal depth. 3 rounds and 3 confirmation runs (one with 2 RISKs, one that did not run, one clean).
+26 findings in all: 4 BUG, 12 RISK, 10 NIT, each fixed, moot or answered with its reason; 1 more found by
+`make check` and fixed. No waivers, no deferrals of a BUG. Two rebases onto main during the work (no
+overlap with the three files; own files byte-identical before and after, merge link empty).
+
+Cost (as the seats reported it): Codex 6 runs, 283,724 tokens, 1,239 s (one failed on capacity);
+GLM 5.3 on melious 4 runs, 94,010 tokens, 1,367 s (one counted by hand); fresh-eyes 1 run, 292,506
+tokens, 1,044 s; the ollama stand-in failed on its quota in round 3.
