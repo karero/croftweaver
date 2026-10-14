@@ -11,7 +11,7 @@ scenarios are made up.
 |---|------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ▶ rewritten for Option 0 after the decisions; not reviewed | draft PR #286 (branch `docs/scheduled-search-fixes-requirements`) |
 | 2 | Owner answers the open decisions | ✅ D0 to D11 decided 2026-10-14 | owner's answers in chat, 2026-10-14 |
-| 3 | Review gate on this file (Normal: a plan, so never Light) | ▶ round 1: 15 findings (3 BUG, 8 RISK, 4 NIT), fixed; round 2: 11 (1 BUG, 7 RISK, 3 NIT), 10 fixed, 1 refuted; round 3 next | trail `REVIEW-plan-2026-10-14-scheduled-search-fixes-ac8b71b.md` |
+| 3 | Review gate on this file (Normal: a plan, so never Light) | ▶ 3 rounds, 32 findings once duplicates between the two seats are merged (round 1: 15; round 2: 11; round 3: 6, no BUG); all fixed, except one copy of the competitor recipe declined; a wording pass next | trail `REVIEW-plan-2026-10-14-scheduled-search-fixes-ac8b71b.md` |
 | 4 | Design plan (the mechanism), then build, then its own review gate | ⏸ waits for 3 | — |
 | 5 | Release note line in 0.32 (D10) | ⏸ waits for 4 | — |
 
@@ -50,8 +50,8 @@ every day or deploy, more work weekly and monthly. It keeps its memory in `.agen
 reads Search Console, analytics, rank and AI-visibility tools, and ships changes as pull
 requests by default, or "merge when checks pass" if the owner says so. Before shipping,
 its rule is to "run the repo's lint, type check, and build, then load each changed page
-and look at it": whatever checks the repository already has. The recipe names no test
-suite of its own.
+and look at it": whatever checks the repository already has. Read in full at that commit
+on 2026-10-14, the recipe names no test suite of its own.
 
 **Croftweaver's difference** is the gate, not the watching: the edit passes the site's
 full test suite, the same one the owner's own edits must pass, before the owner is asked
@@ -87,19 +87,25 @@ Code picks the proposal from the numbers; the report calls no assistant.
 
 - **The window** is the report page's own: four full weeks, Monday to Sunday, ending on
   the last Sunday whose data Google marks complete (`search_report.py` reads Google's
-  first incomplete date). The proposal, its figures, every drill-down behind it and the
-  measuring all use that window. The weekly text tracker's 28 days end on another day, so
-  the proposal names its window and the tracker's own tables keep theirs.
+  first incomplete date). The proposal, its figures and every drill-down behind it use
+  that window; the measuring uses the same rule, anchored on the date the change went live
+  (R3). The weekly text tracker's 28 days end on another day, so the proposal names its
+  window and the tracker's own tables keep theirs.
+- **Drill-downs on the report's dates.** Today's `gsc_query.py --page`/`--query` take a
+  number of days ending two days back, not dates, so they cannot be used as they are.
+  `search_report.py` already runs its own query-to-page drill-down on the report window
+  (the "just below page 1" rows); the build fetches the proposal's drill-downs the same
+  way.
 - **Brand queries** are those containing the business name; the owner confirms its
   spellings once. Every figure below counts non-brand queries only.
 - Figures are read the way SKILL.md's "Reading the numbers" demands: named denominator and
-  window; a query-to-page link proved with the `--query` drill-down, a page's queries with
-  `--page`, never inferred.
+  window; a query-to-page link and a page's queries proved by a drill-down, never
+  inferred.
 
 | | Kind | Condition | Proposal |
 |---|---|---|---|
-| T1 | **Striking distance** | A query at average position 8 to 20 with at least **50** impressions, whose landing page is proved by the `--query` drill-down, and whose words are not yet in that page's title, H1 or first paragraph | Thread the query's wording into those places (SKILL.md, low-volume playbook, item 2) |
-| T2 | **Seen, rarely clicked** | A page whose non-brand queries (the `--page` drill-down, not the page total, which includes brand searches) add up to at least **100** impressions at a CTR under 2%, with their impression-weighted average position at 10 or better | Search the page's strongest non-brand query (most impressions) in the live result and look at the page's title and description there. A new title only if Google shows the page's own title; a new description only if it shows the page's own description. The assistant, when asked, rewrites an element only if it can say what in the shown text keeps people from clicking; otherwise no edit, and the proposal is set aside for 12 weeks like a turned-down one |
+| T1 | **Striking distance** | A query at average position 8 to 20 with at least **50** impressions, whose landing page is proved by a drill-down, and whose words are not yet in that page's title, H1 or first paragraph | Thread the query's wording into those places (SKILL.md, low-volume playbook, item 2) |
+| T2 | **Seen, rarely clicked** | A page whose non-brand queries (a page drill-down, not the page total, which includes brand searches) add up to at least **100** impressions at a CTR under 2%, with their impression-weighted average position at 10 or better | Search the page's strongest non-brand query (most impressions) in the live result and look at the page's title and description there. A new title only if Google shows the page's own title; a new description only if it shows the page's own description. The assistant, when asked, rewrites an element only if it can say what in the shown text keeps people from clicking; otherwise no edit, and the proposal is set aside for 12 weeks from that report, like a turned-down one, and the report says until when |
 
 - **One proposal per report**, the strongest by impressions; ties go to T1.
 - **Never proposed:** brand queries; a query or page under 10 non-brand impressions in
@@ -188,7 +194,7 @@ the full suite. Red: fix the wording within the same four places and push again.
 | Item | Cost | Source |
 |---|---|---|
 | Search Console, Bing Webmaster Tools | free; Search Console read-only | SKILL.md |
-| Live-result check (T2 only) | Serper: 2,500 searches free, paid plans after that | https://serper.dev, read 2026-10-14 |
+| Live-result check (T2 only) | Serper: 2,500 searches free when read on 2026-10-14, paid plans after that; check the current allowance at https://serper.dev | https://serper.dev |
 | The assistant's edit | the owner's normal assistant use, as for any edit they ask for | — |
 | The site's tests | the CI the site already runs on each pull request that changes the site | starter `ci.yml` |
 
@@ -228,7 +234,7 @@ the last Sunday Google marks complete.
 **1. The report proposes a fix, and the owner asks for it.**
 Given radwerk-plagwitz.example, a bike repair shop in Leipzig, whose report of
 2026-11-02 (window 2026-09-28 to 2026-10-25) finds the non-brand query "fahrrad reparatur
-leipzig" at average position 11.6 with 286 impressions; the `--query` drill-down puts 271
+leipzig" at average position 11.6 with 286 impressions; a drill-down on the same window puts 271
 of them on https://radwerk-plagwitz.example/reparatur, whose title "Reparatur und
 Service", H1 and first paragraph do not contain the phrase; `POSITIONING.md` names
 repairs as the core offer.
@@ -255,7 +261,7 @@ Given https://radwerk-plagwitz.example/preise, whose non-brand queries add up to
 impressions and 3 clicks (0.6%) at an average position of 4.2, and no Serper key.
 When the report is built.
 Then there is no T2 proposal, and the report says once that checking whether the snippet
-is the cause needs the free live-result key (2,500 searches).
+is the cause needs the free live-result key.
 And given the key is added and the live result for the page's strongest query shows the
 page's own title but text from the page body instead of its meta description: no
 description proposal, because Google is not using the current description, so nothing

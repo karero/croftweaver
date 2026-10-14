@@ -47,3 +47,19 @@ findings: 1 BUG, 7 RISK, 3 NIT. GLM reported 12 of round 1's 15 verified fixed; 
 | 9 | Codex, GLM | NIT | Cool-off wording still said "page and query" everywhere; an assistant's abstention was called a turn-down | Fixed: proposals identified by page and query (T1) or page (T2); an abstention is "set aside for 12 weeks like a turned-down one" |
 | 10 | GLM | NIT | Scenario 3 did not say what happens to the title | Fixed: the title branch is stated |
 | 11 | GLM | NIT | "Never sees two sets of numbers" was not true beside the tracker's tables | Fixed: the proposal names its window, the tracker's tables keep theirs |
+
+## Round 3 — verification at aee1afe, 2026-10-14
+
+Codex and GLM 5.3 on melious (`MELIOUS_API_TIMEOUT=600`). Both confirmed round 2's fixes
+landed. Codex 3 findings, GLM 5; merged, 6 findings: 3 RISK, 3 NIT, no BUG.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|---|---|---|---|
+| 1 | Codex, GLM | RISK | Today's `gsc_query.py --page`/`--query` take a day count ending two days back, not dates, so "drill-downs on the report window" cannot run on them | Fixed: R1 says so and points the build at `search_report.py`, which already drills down on the report window; scenario 1 and the T1/T2 rows no longer name the CLI flags |
+| 2 | Codex, GLM | RISK | The competitor claim still rests on a document outside the repo | Fixed in part: the sentence now says the recipe was read in full at that commit on 2026-10-14. A copy in this public repo was declined again: it is another project's file, and the permalink cannot change. Left for the owner to overrule |
+| 3 | Codex | RISK | The Serper allowance is still asserted (refuted in round 2) | Fixed rather than argued: dated as read, with "check the current allowance"; scenario 3 drops the number |
+| 4 | GLM | NIT | The status row's round-2 tally did not match the trail's raw entries | The row counts findings after merging duplicates between seats (13 raw, 11 merged); it now says so |
+| 5 | GLM | NIT | An abstention's 12 weeks had no start and the report did not say until when | Fixed: "12 weeks from that report", and the report says until when |
+| 6 | GLM | NIT | R1 said the measuring uses the proposal window, against R3's live-date windows | Fixed: same rule, anchored on the live date |
+
+Round 3 had no BUG, so the cross-model rounds end here; one wording pass follows.
