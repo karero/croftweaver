@@ -22,8 +22,9 @@ Owners say *"here's my AI report from Google"*, *"add my Bing AI numbers"*, or j
    them to rename the files: both already start with the domain, which is how the wrong site's
    file is caught. Only a file that has lost its domain needs one, and with more than one site the
    script asks for it.
-2. **Read it:** `~/.config/gsc-insights/venv/bin/python scripts/ai_reports.py import <domain> <file or folder>`.
-   It prints one line on success. On a refusal (exit 1) it says why and saves nothing: pass the
+2. **Read it:** `~/.config/gsc-insights/venv/bin/python scripts/ai_reports.py import <domain> <file or folder> --keep-in <site folder>`.
+   `--keep-in` also keeps the download in the site's `analytics/` folder (`analytics-folder.md`);
+   leave it out when the owner has no site folder at hand. It prints one line on success. On a refusal (exit 1) it says why and saves nothing: pass the
    reason on in plain words.
 3. **If Search Console shows no generative AI report** for the site, that is a result: Google
    usually shows it once a site has appeared in its AI answers often enough. Record it with

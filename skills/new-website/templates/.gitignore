@@ -29,6 +29,10 @@ pnpm-debug.log*
 # Claude personal/secret overrides (project settings.json IS committed)
 .claude/settings.local.json
 
+# your analytics: reports, downloads and AI-check answers are your own data, so they stay off
+# GitHub (search-console-insights writes them; remove this line only to keep them in a private repo)
+/analytics/
+
 # editor / OS
 .DS_Store
 .idea/

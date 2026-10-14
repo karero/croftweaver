@@ -19,6 +19,7 @@ point per run date, never a claimed move.
 import argparse
 import csv
 import datetime as dt
+import hashlib
 import html
 import json
 import math
@@ -1248,7 +1249,10 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
     else:
         parts.append('<p class="sub" style="margin-top:32px">The AI check ("Does AI name you?") is not set up for this site.</p>')
 
-    return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
+    # The fingerprint of the exact data this page shows, as google-data.json is written (build()), so
+    # a kept copy can be matched to its page (analytics_snapshot.py).
+    fingerprint = (f'<meta name="gsc-data-sha256" content="{data_fingerprint(data)}">' if data else "")
+    return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">{fingerprint}<meta name="viewport" '
             f'content="width=device-width, initial-scale=1"><title>{H(title)}</title><style>{CSS}</style></head>'
             f'<body><main>{"".join(parts)}</main></body></html>')
 
@@ -1271,10 +1275,19 @@ def newest_ai_page(site):
     return pages[-1] if pages else None
 
 
+def data_text(data):
+    """google-data.json's text: one serialisation for the file and for the page's fingerprint."""
+    return json.dumps(data, indent=1)
+
+
+def data_fingerprint(data):
+    return hashlib.sha256(data_text(data).encode("utf-8")).hexdigest()
+
+
 def write_atomic(path: Path, text: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
+    tmp.write_bytes(text.encode("utf-8"))      # bytes as given: no CRLF on Windows, so data_fingerprint matches
     os.replace(tmp, path)
 
 
@@ -1308,7 +1321,7 @@ def build(domain, args, service_factory=make_service, today=None, page_reader=No
         # Fresh numbers stay on the page even when the copy for next time cannot be saved; only
         # the fallback is lost, and the page says so.
         try:
-            write_atomic(cache, json.dumps(data, indent=1))
+            write_atomic(cache, data_text(data))
         except OSError as e:
             print(f"search_report: could not save {cache}: {e}", file=sys.stderr)
             alert = ("These numbers are up to date, but a copy for when Google can't be reached "
@@ -1329,7 +1342,10 @@ def build(domain, args, service_factory=make_service, today=None, page_reader=No
     proposal, proposal_alert = proposals_for_page(site, data, fresh, service, today, page_reader, gh)
     line = proposal_line(proposal, proposal_alert)
     if line:
-        print(f"Fix proposal: {line}", file=sys.stderr)
+        try:      # the log is best-effort: a broken stderr must not cost the owner's page
+            print(f"Fix proposal: {line}", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            pass
     if proposal_alert:
         alert = f"{alert} {proposal_alert}" if alert else proposal_alert
     ai = newest_ai_page(site)
