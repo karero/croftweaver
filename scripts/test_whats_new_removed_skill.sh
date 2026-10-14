@@ -10,6 +10,12 @@
 # a removed skill, that the two ways out still work, and that a site with only ordinary
 # updates reads exactly as before.
 #
+# Cases 9 and 10 pin the one folder a site never gets: the brand kit's scripts/tests, the
+# toolkit's own 1.7 MB test suite. A refresh must not bring it back, a change inside it alone
+# must not tell a site to refresh, and new-website's copy step (run here as SKILL.md writes
+# it) must leave out the same folder whats-new.sh names. Another skill's tests still travel:
+# wordpress-inspector's SKILL.md runs its own.
+#
 # It enters the way a reader does: it runs whats-new.sh on a site folder, and judges what
 # the report prints and what exit status and stamp come back.
 #
@@ -145,6 +151,63 @@ check "leftover: refresh says it was removed upstream"          has "$err" "was 
 check "leftover: refresh leaves the stamp"                      test "$(stamp "$S8")" = "$OLD"
 check "leftover: the site's copy is not overwritten"            test "$(cat "$S8/.claude/skills/beta/SKILL.md")" = "# beta"
 rm -rf "$SUITE/skills/beta"
+
+# --- 9. the brand kit's scripts/tests stays behind on --refresh, and a change inside it alone
+# is not an update. alpha's tests stand for a skill whose tests travel.
+SB="$T/suite-bk" BK=skills/website-brand-kit
+mkdir -p "$SB/scripts" "$SB/$BK/scripts/tests" "$SB/skills/alpha/scripts/tests"
+cp "$HERE/whats-new.sh" "$SB/scripts/whats-new.sh"
+printf '# brand kit\n' > "$SB/$BK/SKILL.md"
+printf 'print(1)\n' > "$SB/$BK/scripts/brand_intake.py"
+printf '# test 1\n' > "$SB/$BK/scripts/tests/test_x.py"
+printf '# alpha\n' > "$SB/skills/alpha/SKILL.md"
+printf '# test 1\n' > "$SB/skills/alpha/scripts/tests/test_a.py"
+$git -C "$SB" init -q && $git -C "$SB" add -A && $git -C "$SB" commit -q -m "two skills"
+B0="$($git -C "$SB" rev-parse HEAD)"
+# The site as the scaffold leaves it at B0: the brand kit without its tests, alpha with them.
+S9="$T/bk-site"; mkdir -p "$S9/.claude/skills"
+cp -R "$SB/$BK" "$SB/skills/alpha" "$S9/.claude/skills/"
+rm -rf "$S9/.claude/$BK/scripts/tests"
+printf 'suite_commit: %s\ncopied: 2026-10-01\n' "$B0" > "$S9/.claude/skills/SUITE-VERSION"
+$git -C "$S9" init -q && $git -C "$S9" add -A && $git -C "$S9" commit -q -m site
+printf '# brand kit, edited\n' > "$SB/$BK/SKILL.md"
+printf '# test 2\n' > "$SB/$BK/scripts/tests/test_x.py"
+printf '# test 2\n' > "$SB/skills/alpha/scripts/tests/test_a.py"
+$git -C "$SB" add -A && $git -C "$SB" commit -q -m "edit both"
+B1="$($git -C "$SB" rev-parse HEAD)"
+bash "$SB/scripts/whats-new.sh" --refresh "$S9" >/dev/null 2>&1; rc=$?
+check "brand kit refresh: exit status 0"                        test "$rc" -eq 0
+check "brand kit refresh: the stamp moves to the suite's head"  test "$(stamp "$S9")" = "$B1"
+check "brand kit refresh: its SKILL.md is the new one"          test "$(cat "$S9/.claude/$BK/SKILL.md")" = "# brand kit, edited"
+check "brand kit refresh: its scripts arrive"                   test -f "$S9/.claude/$BK/scripts/brand_intake.py"
+check "brand kit refresh: its scripts/tests stays behind"       test ! -e "$S9/.claude/$BK/scripts/tests"
+check "brand kit refresh: alpha's tests still travel"           test "$(cat "$S9/.claude/skills/alpha/scripts/tests/test_a.py")" = "# test 2"
+$git -C "$S9" add -A && $git -C "$S9" commit -q -m refreshed
+printf '# test 3\n' > "$SB/$BK/scripts/tests/test_x.py"
+$git -C "$SB" add -A && $git -C "$SB" commit -q -m "brand kit tests only"
+out="$(bash "$SB/scripts/whats-new.sh" "$S9" 2>&1)"
+check "brand kit tests only: the report says up to date"        has "$out" "Up to date"
+printf '# brand kit, edited again\n' > "$SB/$BK/SKILL.md"
+$git -C "$SB" add -A && $git -C "$SB" commit -q -m "brand kit skill again"
+out="$(bash "$SB/scripts/whats-new.sh" "$S9" 2>&1)"
+check "brand kit edit: listed as an update"                     has "$out" "  website-brand-kit"
+check "brand kit edit: lists the commit that changed it"        has "$out" "brand kit skill again"
+check "brand kit edit: leaves out the tests-only commit"        lacks "$out" "brand kit tests only"
+
+# --- 10. new-website's copy step, run as SKILL.md writes it, against this checkout's skills
+LEFT="$(sed -n "s/^LEFT_BEHIND='\(.*\)'\$/\1/p" "$HERE/whats-new.sh")"
+check "scaffold: whats-new.sh names the folder left behind"     test -n "$LEFT"
+step="$(awk '/^   mkdir -p "\$PROJECT_SKILLS_DIR"$/ { f = 1 } f && /^   ```$/ { exit } f' "$HERE/../skills/new-website/SKILL.md")"
+check "scaffold: the copy step is found in SKILL.md"            has "$step" "cp -RL"
+PSD="$T/scaffold/.claude/skills"
+SKILLS_ROOT="$HERE/../skills" PROJECT_SKILLS_DIR="$PSD" bash -c "set -e; $step" >"$T/scaffold.log" 2>&1; rc=$?
+check "scaffold: the copy step exits 0"                         test "$rc" -eq 0
+check "scaffold: the brand kit arrives"                         test -f "$PSD/website-brand-kit/SKILL.md"
+check "scaffold: its scripts arrive"                            test -f "$PSD/website-brand-kit/scripts/brand_intake.py"
+check "scaffold: the folder whats-new.sh names stays behind"    test ! -e "$PSD/$LEFT"
+# The folder can stay behind only while nothing a site's assistant reads asks to run it.
+runs="$(grep -rlE 'scripts/tests|unittest|pytest' --include='*.md' "$PSD/website-brand-kit" 2>/dev/null)"
+check "scaffold: no brand kit instruction runs its tests"       test -z "$runs"
 
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"
