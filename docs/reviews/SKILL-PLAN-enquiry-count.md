@@ -15,7 +15,7 @@ the scenarios is made up.
 | 4 | Privacy pages EN and DE; interview Q5; README setup step; launch checklist | ✅ written; also `config.ts` names the two call sites (D3) | karero/croftweaver#287, merged as `55efb9c` |
 | 5 | Release-note row in `docs/BUGLOG.md` | ✅ written (row of 2026-10-14), read by the wording pass | karero/croftweaver#287, merged as `55efb9c` |
 | 6 | Review gate (High: privacy text and data a live site sends) | ✅ passed at 7d7e595: 3 rounds, final full read, wording pass; 27 findings | trail `REVIEW-diff-2026-10-14-feat-enquiry-count-e1ab9d7.md`; review comment on #287 |
-| 7 | Follow-ups from the gate: H4 (the `%` test's loose match) and W2 (other browsers, self-hosted goals) | ✅ H4 fixed; W2 narrowed: Firefox and WebKit measured, the rest open as a `docs/BUGLOG.md` row (2026-10-14) | karero/croftweaver#294, merged as `3519d2d`; trail `REVIEW-diff-2026-10-14-fix-enquiry-count-follow-ups-f328f8d.md` |
+| 7 | Follow-ups from the gate: H4 (the `%` test's loose match) and W2 (other browsers, self-hosted goals) | ✅ H4 fixed; W2 narrowed: Playwright's Firefox and WebKit measured, with requests answered locally; real Safari, content blockers, a live Plausible server and self-hosted goal timing stay open as a `docs/BUGLOG.md` row (2026-10-14) | karero/croftweaver#294, merged as `3519d2d`; trail `REVIEW-diff-2026-10-14-fix-enquiry-count-follow-ups-f328f8d.md` |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
