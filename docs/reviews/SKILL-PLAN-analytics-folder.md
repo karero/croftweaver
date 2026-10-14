@@ -9,9 +9,9 @@ layout and B9–B12 from the owner's answers the same day (marked *(draft 2)*).
 |---|---|---|
 | Requirements as scenarios (this document) | B1–B8 **approved** 2026-10-14; layout and B9–B12 from the owner's answers (draft 2) | this document |
 | Decisions D1–D4, and the layout choices L1–L4 | **decided** 2026-10-14: D1–D4 as recommended; L1–L4 as recorded below | "Decisions" below |
-| Build, test-first | **done** 2026-10-14: starter `.gitignore`; `_analytics.py`; `ai_reports.py --keep-in`; `analytics_snapshot.py`; `references/analytics-folder.md` and pointers (SKILL.md 1.9.0, ai-reports, geo-check, facts-check, positioning-check); 16 new tests; 11 deliberate breakages each caught (one only after a test was added); `make test` 264 OK, `make check` exit 0 | this commit; `scripts/tests/test_analytics.py` |
+| Build, test-first | **done** 2026-10-14: starter `.gitignore`; `_analytics.py`; `ai_reports.py --keep-in`; `analytics_snapshot.py`; `references/analytics-folder.md` and pointers (SKILL.md 1.9.0, ai-reports, geo-check, facts-check, positioning-check); 15 new tests at round 1 (16 was a miscount), 25 after its fixes; 11 deliberate breakages each caught (one only after a test was added); `make test` 264 OK, `make check` exit 0 at round 1 | this commit; `scripts/tests/test_analytics.py` |
 | B12: the owner's `docs/geo/` moved into `analytics/` | not started (a change in that site's repo, after this one) | — |
-| Review gate | not started | — |
+| Review gate | round 1 done (see trail), fixes in; round 2 next | `REVIEW-diff-2026-10-14-feat-analytics-folder-f3cea24.md` |
 | PR | not started | — |
 
 ## Why
@@ -101,9 +101,12 @@ asks for the results as files, then they are copied to `analytics/<run date>_geo
 **B9 — The owner asks to update the folder** *(draft 2)*. Given reports exist for example.com,
 when the owner says *"update my analytics folder"* (or asks to see the reports), then the assistant
 runs one command that writes `seo.html`, `geo.html` (when the AI check is set up), `README.md`,
-and the dated raw folders it does not have yet: `<date>_gsc/` (the saved Google data), `<date>_bing/`
-(the site's Bing rows), `<run date>_geo-run/` (the newest AI-check run's page and answers). A folder
-that already exists for that date is left as it is. In the copies, `seo.html` and `geo.html` link
+and the dated raw folders: `<date>_gsc/` (the saved Google data), `<date>_bing/` (the site's Bing
+rows, from the history file the Google & Bing page reads), `<run date>_geo-run/` (the newest
+AI-check page and the answers of every run it shows). *(Draft 3, after review round 1: a kept file
+is never rewritten; newer content under the same name is kept beside it, `google-data-2.json`, so
+the evidence always matches the page. Draft 2 left a whole dated folder alone, which dropped a
+second fetch or run on the same day.)* In the copies, `seo.html` and `geo.html` link
 to each other, never into the hidden settings folder.
 
 **B10 — Suggested actions** *(draft 2)*. Given a snapshot, when the assistant reviews it, then

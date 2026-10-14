@@ -108,9 +108,10 @@ page-by-page inventory, or generic marketing advice.
 
 ## Handoff
 
-If the site has an `analytics/` folder, save the verdict to
-`analytics/<date>_positioning-check/verdict.md`: first line "The assistant's judgment, not a
-measurement", the list of pages judged at the end, so the next check can tell which pages are new.
+If the site has an `analytics/` folder kept off GitHub (`git check-ignore -q analytics/x` succeeds in the site folder),
+save the verdict to `analytics/<date>_positioning-check/verdict.md`: first line "The assistant's
+judgment, not a measurement", and at the end the pages judged and the full list of the site's
+pages, so the next check can tell which pages are new.
 
 If the user asks to fix the findings, update the positioning source of truth with
 `website-positioning`, then use `copywriting` for page copy. Run the site's normal

@@ -100,6 +100,29 @@ class AnalyticsTest(unittest.TestCase):
             code = module.main(list(argv))
         return code, out.getvalue(), err.getvalue()
 
+    def reports(self, geo=True, google=True, bing_rows=True):
+        r = self.cfg / "reports" / SITE
+        r.mkdir(parents=True)
+        if google:
+            (r / "google.html").write_text(
+                f'<p>Also see: <a href="../../geo/reports/{SITE}/{RUN}.html">Does AI name you?</a></p>', encoding="utf-8")
+            (r / "google-data.json").write_text(json.dumps({"fetched": "2026-10-13", "daily": []}))
+        if geo:
+            g = self.cfg / "geo" / "reports" / SITE
+            g.mkdir(parents=True)
+            (g / f"{RUN}.html").write_text(
+                f'<p>Also see: <a href="../../../reports/{SITE}/google.html">How people find you</a></p>', encoding="utf-8")
+            a = self.cfg / "geo" / "answers" / SITE / RUN
+            a.mkdir(parents=True)
+            (a / "openai-finds-broad-1.txt").write_text("an answer")
+        if bing_rows:
+            (self.cfg / "history.csv").write_text(
+                "date,site,source,keyword,query,position,impressions,clicks,window,country\n"
+                f"2026-10-05,{SITE},bing,bakery,bakery munich,7.2,40,1,,\n"
+                f"2026-10-12,{SITE},bing,bakery,bakery munich,6.8,44,2,,\n"
+                f"2026-10-12,{SITE},gsc,bakery,bakery munich,9.1,120,3,28,\n"
+                "2026-10-12,other.de,bing,x,x,3,9,0,,\n")
+
     def saved(self, source):
         p = self.cfg / "reports" / SITE / f"ai-{source}.json"
         return json.loads(p.read_text()) if p.exists() else None
@@ -167,37 +190,18 @@ class KeepIn(AnalyticsTest):
         z = self.google_zip()
         self.cli(ar, "import", SITE, str(z), "--keep-in", str(self.site_dir))
         kept = self.site_dir / "analytics" / "2026-10-11_google-ai-report" / GOOGLE_ZIP
-        kept.write_bytes(b"marker")
         code, out, _ = self.cli(ar, "import", SITE, str(z), "--keep-in", str(self.site_dir))
         self.assertEqual(code, 0)
-        self.assertEqual(kept.read_bytes(), b"marker", "an existing copy is never overwritten")
-        self.assertIn("already", out)
+        self.assertIn("already kept", out, "the same file twice is kept once")
+        kept.write_bytes(b"an earlier, different download")
+        code, out, _ = self.cli(ar, "import", SITE, str(z), "--keep-in", str(self.site_dir))
+        self.assertEqual(code, 0)
+        self.assertEqual(kept.read_bytes(), b"an earlier, different download", "an existing copy is never overwritten")
+        beside = kept.with_name(kept.stem + "-2.zip")
+        self.assertEqual(beside.read_bytes(), z.read_bytes(), "what was imported is what is kept")
 
 
 class Snapshot(AnalyticsTest):
-    def reports(self, geo=True, google=True, bing_rows=True):
-        r = self.cfg / "reports" / SITE
-        r.mkdir(parents=True)
-        if google:
-            (r / "google.html").write_text(
-                f'<p>Also see: <a href="../../geo/reports/{SITE}/{RUN}.html">Does AI name you?</a></p>', encoding="utf-8")
-            (r / "google-data.json").write_text(json.dumps({"fetched": "2026-10-13", "daily": []}))
-        if geo:
-            g = self.cfg / "geo" / "reports" / SITE
-            g.mkdir(parents=True)
-            (g / f"{RUN}.html").write_text(
-                f'<p>Also see: <a href="../../../reports/{SITE}/google.html">How people find you</a></p>', encoding="utf-8")
-            a = self.cfg / "geo" / "answers" / SITE / RUN
-            a.mkdir(parents=True)
-            (a / "openai-finds-broad-1.txt").write_text("an answer")
-        if bing_rows:
-            (self.cfg / "history.csv").write_text(
-                "date,site,source,keyword,query,position,impressions,clicks,window,country\n"
-                f"2026-10-05,{SITE},bing,bakery,bakery munich,7.2,40,1,,\n"
-                f"2026-10-12,{SITE},bing,bakery,bakery munich,6.8,44,2,,\n"
-                f"2026-10-12,{SITE},gsc,bakery,bakery munich,9.1,120,3,28,\n"
-                "2026-10-12,other.de,bing,x,x,3,9,0,,\n")
-
     def test_b9_writes_the_top_level_and_each_dated_folder(self):
         self.repo()
         self.reports()
@@ -206,7 +210,7 @@ class Snapshot(AnalyticsTest):
         a = self.site_dir / "analytics"
         for f in ("README.md", "seo.html", "geo.html", "2026-10-13_gsc/google-data.json",
                   "2026-10-12_bing/bing-history.csv", f"2026-10-12_geo-run/{RUN}.html",
-                  "2026-10-12_geo-run/answers/openai-finds-broad-1.txt"):
+                  f"2026-10-12_geo-run/answers/{RUN}/openai-finds-broad-1.txt"):
             self.assertTrue((a / f).is_file(), f)
         bing = (a / "2026-10-12_bing/bing-history.csv").read_text()
         self.assertIn("6.8", bing)
@@ -227,7 +231,7 @@ class Snapshot(AnalyticsTest):
         for page in (seo, geo, run_page):
             self.assertNotIn("../../", page)
 
-    def test_b9_a_dated_folder_that_exists_is_left_as_it_is(self):
+    def test_b9_a_kept_file_is_never_rewritten_and_newer_evidence_is_kept_beside_it(self):
         self.repo()
         self.reports()
         kept = {"2026-10-13_gsc": "google-data.json", "2026-10-12_bing": "bing-history.csv",
@@ -239,8 +243,12 @@ class Snapshot(AnalyticsTest):
         self.assertEqual(code, 0, err)
         for folder, name in kept.items():
             with self.subTest(folder):
-                self.assertEqual((self.site_dir / "analytics" / folder / name).read_text(), "the earlier copy")
-                self.assertIn(f"{folder}: already there", out)
+                d = self.site_dir / "analytics" / folder
+                self.assertEqual((d / name).read_text(), "the earlier copy")
+                stem, dot, ext = name.rpartition(".")
+                self.assertTrue((d / f"{stem}-2.{ext}").is_file(), "the evidence the page was built from is kept too")
+        code, out, _ = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertIn("2026-10-13_gsc/google-data-2.json: already kept", out, "a second run adds nothing new")
 
     def test_b9_parts_that_do_not_exist_are_named_not_faked(self):
         self.repo()
@@ -267,6 +275,147 @@ class Snapshot(AnalyticsTest):
         self.assertEqual(code, 1)
         self.assertIn("no reports", err)
         self.assertFalse((self.site_dir / "analytics").exists())
+
+
+class RoundOne(AnalyticsTest):
+    """Review round 1 (docs/reviews/REVIEW-diff-2026-10-14-feat-analytics-folder-f3cea24.md). Invariant A:
+    nothing a run writes under analytics/ may show to git unless the owner chose so — every path checked,
+    none tracked, a git error refuses. B: what is kept is what was imported. C: the evidence is what the
+    page was built from. D: a browser's second-download suffix keeps the file's own date."""
+
+    def test_a_every_path_is_checked_not_a_sample(self):
+        self.reports()
+        for i, rules in enumerate(("analytics/*.md\n", "/analytics/*\n!/analytics/seo.html\n",
+                                   "analytics/README.md\nanalytics/geo.html\n")):
+            with self.subTest(rules):
+                d = self.site_dir.parent / f"site{i}"
+                d.mkdir()
+                git("init", "-q", cwd=d)
+                (d / ".gitignore").write_text(rules)
+                code, _, err = self.cli(snap, SITE, "--site-dir", str(d))
+                self.assertEqual(code, 1, f"{rules!r} let a file through")
+                self.assertFalse((d / "analytics").exists(), "a refusal writes nothing")
+        d = self.site_dir.parent / "site-download"
+        d.mkdir()
+        git("init", "-q", cwd=d)
+        (d / ".gitignore").write_text("analytics/*.csv\n")
+        code, _, _ = self.cli(ar, "import", SITE, str(self.google_zip()), "--keep-in", str(d))
+        self.assertEqual(code, 1, "the download's own path is checked too")
+
+    def test_a_a_whole_folder_rule_lets_every_part_through(self):
+        for rules in ("analytics/*\n", "/analytics/\n", "analytics\n"):
+            with self.subTest(rules):
+                d = self.site_dir.parent / ("ok-" + str(abs(hash(rules))))
+                d.mkdir()
+                git("init", "-q", cwd=d)
+                (d / ".gitignore").write_text(rules)
+                if not (self.cfg / "reports" / SITE).exists():
+                    self.reports()
+                code, _, err = self.cli(snap, SITE, "--site-dir", str(d))
+                self.assertEqual(code, 0, err)
+
+    def test_a_a_tracked_destination_is_refused_but_a_tracked_neighbour_is_not(self):
+        self.repo(ignore=False)
+        (self.site_dir / "analytics").mkdir()
+        (self.site_dir / "analytics" / "README.md").write_text("committed once")
+        git("add", "analytics/README.md", cwd=self.site_dir)
+        git("commit", "-qm", "x", cwd=self.site_dir)
+        (self.site_dir / ".gitignore").write_text("/analytics/\n")
+        self.reports()
+        code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 1)
+        self.assertIn("already tracks analytics/README.md", err)
+        git("rm", "-q", "--cached", "analytics/README.md", cwd=self.site_dir)
+        old = self.site_dir / "analytics" / "2026-10-08_geo-run"
+        old.mkdir()
+        (old / "report.html").write_text("kept in the repo by the owner's choice")
+        git("add", "-f", "analytics/2026-10-08_geo-run/report.html", cwd=self.site_dir)
+        git("commit", "-qm", "y", cwd=self.site_dir)
+        code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertEqual([l for l in self.tracked() if not l.startswith("D ")], [], "only ignored files were added")
+
+    def test_a_a_git_error_refuses_instead_of_guessing(self):
+        self.repo()
+        self.reports()
+        with mock.patch.dict(os.environ, {"GIT_DIR": str(self.site_dir / "no-such-git-dir")}):
+            code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 1)
+        self.assertIn("Git could not say", err)
+        self.assertFalse((self.site_dir / "analytics").exists())
+
+    def test_b_a_failed_save_leaves_no_kept_copy(self):
+        self.repo()
+        with mock.patch.object(ar, "save", side_effect=OSError("disk full")):
+            code, _, err = self.cli(ar, "import", SITE, str(self.google_zip()), "--keep-in", str(self.site_dir))
+        self.assertEqual(code, 1)
+        self.assertEqual(list((self.site_dir / "analytics").rglob("*")) if (self.site_dir / "analytics").exists() else [], [],
+                         "no copy of an import that was not saved")
+
+    def test_c_every_run_the_ai_page_shows_is_kept(self):
+        self.repo()
+        self.reports()
+        older = "20261005T070000Z-1-1-aaaa"
+        a = self.cfg / "geo" / "answers" / SITE / older
+        a.mkdir(parents=True)
+        (a / "gemini-knows-broad-1.txt").write_text("an older run's answer")
+        (self.cfg / "geo" / "geo_history.csv").write_text(
+            "run_id,site,engine,mode,slot\n"
+            f"{older},{SITE},gemini,knows,broad\n"
+            f"{RUN},{SITE},openai,finds,broad\n")
+        code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        run = self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers"
+        self.assertTrue((run / older / "gemini-knows-broad-1.txt").is_file(), "gemini's latest answer is from the older run")
+        self.assertTrue((run / RUN / "openai-finds-broad-1.txt").is_file())
+
+    def test_c_the_bing_rows_come_from_the_history_the_page_uses(self):
+        self.repo()
+        self.reports(bing_rows=False)
+        (self.cfg / "history.csv").write_text("date,site,source,keyword,query,position,impressions,clicks,window,country\n"
+                                             f"2026-10-12,{SITE},bing,bakery,bakery munich,6.8,44,2,,\n")
+        other = self.cfg / "elsewhere.csv"
+        other.write_text("date,site,source,keyword,query,position,impressions,clicks,window,country\n"
+                         f"2026-09-01,{SITE},bing,bakery,from the wrong file,1,1,1,,\n")
+        (self.cfg / "sites").mkdir()
+        (self.cfg / "sites" / f"{SITE}.json").write_text(json.dumps({"keywords": ["bakery"], "csv": ""}))
+        with mock.patch.dict(os.environ, {"GSC_HISTORY_CSV": str(other)}):
+            code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertTrue((self.site_dir / "analytics" / "2026-10-12_bing" / "bing-history.csv").is_file(),
+                        "an empty csv in the weekly record means the shared file, as search_report.py reads it")
+
+    def test_c_with_no_google_page_the_ai_page_links_nowhere_rather_than_to_a_missing_file(self):
+        self.repo()
+        self.reports(google=False)
+        code, _, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        a = self.site_dir / "analytics"
+        self.assertNotIn("seo.html", (a / "geo.html").read_text())
+        self.assertFalse((a / "seo.html").exists())
+
+    def test_c_a_link_the_rewrite_does_not_know_is_reported_not_hidden(self):
+        self.repo()
+        self.reports()
+        g = self.cfg / "reports" / SITE / "google.html"
+        g.write_text(g.read_text() + '<a href="../../geo/answers/x.txt">a new kind of link</a>', encoding="utf-8")
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertIn("warning: seo.html still links into the hidden settings folder", out)
+
+    def test_d_a_second_download_keeps_its_own_date(self):
+        for i, (name, folder) in enumerate(((f"{SITE}-Performance-on-Search-Generative-AI-Features-2026-10-11 (1).zip",
+                                             "2026-10-11_google-ai-report"),
+                                            (f"{SITE}_AIPerformanceOverviewStats_10_13_2026 (2).csv", "2026-10-13_bing-ai-report"))):
+            with self.subTest(name):
+                src = self.google_zip() if name.endswith(".zip") else self.downloads / name
+                if name.endswith(".zip"):
+                    src = src.rename(self.downloads / name)
+                else:
+                    src.write_text(bing_csv(), encoding="utf-8")
+                code, _, err = self.cli(ar, "import", SITE, str(src), "--keep-in", str(self.site_dir))
+                self.assertEqual(code, 0, err)
+                self.assertTrue((self.site_dir / "analytics" / folder / name).is_file())
 
 
 class Starter(unittest.TestCase):

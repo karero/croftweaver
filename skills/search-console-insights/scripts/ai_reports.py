@@ -294,13 +294,17 @@ def do_import(site, path: Path, keep_in=None, commit_ok=False):
     else:
         raise Refused(f"{path.name} is not a CSV or zip file. Export the report as CSV. Nothing was saved.")
     folder = f"{_analytics.folder_date(path.name, today()).isoformat()}_{source}-ai-report"
-    if site_dir:     # B4: checked before anything is saved, so a refusal leaves nothing half done
-        _analytics.check_kept_off(site_dir, f"{folder}/{path.name}", commit_ok)
-    save(site, source, dict(rec, file=path.name))
-    kept = ""
-    if site_dir:
+    kept, dest, new = "", None, False
+    if site_dir:     # B4: every path checked, and the copy made, before the import is saved
+        _analytics.check_kept_off(site_dir, _analytics.plan(site_dir, folder, path)[1], commit_ok)
         dest, new = _analytics.keep(site_dir, folder, path)
-        kept = f" Kept a copy in {dest.parent}." if new else f" A copy was already there: {dest}."
+        kept = f" Kept a copy as {dest}." if new else f" The same file was already kept: {dest}."
+    try:
+        save(site, source, dict(rec, file=path.name))
+    except OSError:
+        if new:      # nothing half done: no kept copy of an import that was not saved
+            _analytics.unkeep(dest)
+        raise
     if source == "google":
         if rec["state"] == "empty":
             return "Google: your download shows no impressions in AI answers. Saved; that is a result, not a fault." + kept

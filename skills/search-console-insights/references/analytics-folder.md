@@ -13,8 +13,10 @@ analytics/
   2026-10-12_geo-run/   2026-10-14_facts-check/   2026-10-14_positioning-check/
 ```
 
-Dated folders put the date first, so they sort by time. The scripts never rewrite a dated folder
-that exists; a check run twice on one day writes into that day's folder again.
+Dated folders put the date first, so they sort by time. The scripts never rewrite a kept file:
+newer content under the same name is kept beside it (`google-data-2.json`). `README.md`,
+`seo.html` and `geo.html` are the latest views and are rewritten. A check you run twice on one day
+writes into that day's folder again.
 
 ## Before the first file
 
@@ -23,7 +25,10 @@ that exists; a check run twice on one day writes into that day's folder again.
    never guess one. If the owner has none at hand, import without keeping a copy.
 2. **Keep it off GitHub.** If the site's `.gitignore` has no `/analytics/` line (a site built
    before this), add it with its comment from the starter and commit only that, as
-   "keep analytics/ off GitHub". The scripts refuse to write where git would pick the folder up.
+   "keep analytics/ off GitHub". The scripts check every path they write and refuse, writing
+   nothing, when git would pick one up or already tracks it. For the files you write yourself
+   (`actions.md`, `eeat.md`, the facts and positioning checks), check first that
+   `git check-ignore -q analytics/x` succeeds in the site folder.
 3. **Only on the owner's ask, and only in a private repo,** keep the folder in the repo: name
    that it holds their data, ask once, then remove the line and pass `--commit-ok`. In a public
    repo say no, as the AI check's rule already does (`geo-check.md`, "Keep them out of a public repo").
@@ -37,18 +42,22 @@ Run these from this skill's folder with `~/.config/gsc-insights/venv/bin/python`
   the file's name) and imports it.
 - **"Update my analytics folder"**, or after showing the reports: build them first
   (`scripts/search_report.py <domain>`, and `scripts/geo_check.py <domain> --report` when the AI
-  check is set up), then `scripts/analytics_snapshot.py <domain> --site-dir <site folder>`. It
-  writes `README.md`, `seo.html`, `geo.html` and the dated folders it does not have yet, and
-  says what it skipped.
+  check is set up), then `scripts/analytics_snapshot.py <domain> --site-dir <site folder>` (add
+  `--csv <file>` when the Google & Bing page was built with one). It writes `README.md`,
+  `seo.html`, `geo.html`, the Search Console data and Bing rows the page was built from, and the
+  AI-check page with the answers of every run it shows, and says what it skipped.
 - **The facts check**, when the site has a facts list (`facts.json`, wherever the owner keeps it):
   run the facts-check skill's script from the site folder with
   `--out analytics/<today>_facts-check/facts-report.md --json analytics/<today>_facts-check/facts-report.json --history analytics/facts-history.csv`
-  (create the dated folder first). Exit code 1 means findings, not a failure.
-- **The positioning check**, when `POSITIONING.md` exists and the site has pages it did not have at
-  the last verdict (compare with the page list in the newest `_positioning-check/verdict.md`):
-  run the website-positioning-check skill on the new and changed pages and save its verdict to
+  (create the dated folder first: `mkdir -p analytics/<today>_facts-check`). Exit code 1 means
+  findings, not a failure.
+- **The positioning check**, when `POSITIONING.md` exists and pages were added or changed since
+  the last verdict: in the site folder, `git log --since=<the last verdict's date> --name-only --
+  src/` lists them (with no git, compare the site's pages with the list at the end of the last
+  verdict). Run the website-positioning-check skill on those pages and save its verdict to
   `analytics/<today>_positioning-check/verdict.md`, starting with "The assistant's judgment, not a
-  measurement", and ending with the list of pages judged. No new pages: skip it and say so.
+  measurement" and ending with the pages judged and the full list of the site's pages. Nothing
+  added or changed: skip it and say so.
 
 ## The two files you write
 
@@ -68,7 +77,8 @@ there is time. Never delete an entry: change its status to `done 2026-10-20` or 
 evidence as a link into a dated folder.
 
 **`eeat.md`**, a new dated section at each review, newest first. Start the file with: "The
-assistant's judgment, not a measurement: Google publishes no E-E-A-T score, and these tools
+assistant's judgment, not a measurement. Google says E-E-A-T itself isn't a specific ranking
+factor (Search Central, 'Creating helpful, reliable, people-first content'), and these reports
 collect no signal for it." Judge each item as met, partly, not yet, or can't tell, with one line
 why: who wrote the content (named people, their background), an about page, sources cited for
 claims, a way to reach a real person, reviews or testimonials, dates on articles and news. An

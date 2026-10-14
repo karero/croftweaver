@@ -45,9 +45,10 @@ and never decides which of two figures is right.
 The script is this skill's `scripts/facts_check.py`. In the commands below, the name in
 braces stands for the folder this SKILL.md is in: Claude Code fills it in; with another
 assistant, put that folder's path in its place. Run the commands in the folder where the
-facts list and the reports should live. On a site with an `analytics/` folder, put the reports
-there so drift shows over time: `--out analytics/<date>_facts-check/facts-report.md --json
-analytics/<date>_facts-check/facts-report.json --history analytics/facts-history.csv`.
+facts list and the reports should live. On a site with an `analytics/` folder kept off GitHub
+(`git check-ignore -q analytics/x` succeeds in the site folder), put the reports there so drift shows over time:
+`mkdir -p analytics/<date>_facts-check`, then `--out analytics/<date>_facts-check/facts-report.md
+--json analytics/<date>_facts-check/facts-report.json --history analytics/facts-history.csv`.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/facts_check.py" --init facts.json
