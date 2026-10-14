@@ -20,6 +20,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -398,7 +399,7 @@ class RoundOne(AnalyticsTest):
         self.repo()
         self.reports()
         g = self.cfg / "reports" / SITE / "google.html"
-        g.write_text(g.read_text() + '<a href="../../geo/answers/x.txt">a new kind of link</a>', encoding="utf-8")
+        g.write_text(g.read_text(encoding="utf-8") + '<a href="../../geo/answers/x.txt">a new kind of link</a>', encoding="utf-8")
         code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
         self.assertEqual(code, 0, err)
         self.assertIn("warning: seo.html still links into the hidden settings folder", out)
@@ -505,14 +506,90 @@ class RoundTwo(AnalyticsTest):
         self.repo()
         self.reports()
         g = self.cfg / "reports" / SITE / "google.html"
-        g.write_text(g.read_text() + "<a HREF='../../geo/answers/x.txt'>x</a>", encoding="utf-8")
+        g.write_text(g.read_text(encoding="utf-8") + "<a HREF='../../geo/answers/x.txt'>x</a>", encoding="utf-8")
         page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
-        page.write_text(page.read_text() + '<a href="../../geo/answers/y.txt">y</a>', encoding="utf-8")
+        page.write_text(page.read_text(encoding="utf-8") + '<a href="../../geo/answers/y.txt">y</a>', encoding="utf-8")
         code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
         self.assertEqual(code, 0, err)
         self.assertIn("warning: seo.html still links", out)
         self.assertIn(f"warning: 2026-10-12_geo-run/{RUN}.html still links", out)
         self.assertIn("warning: geo.html still links", out)
+
+
+class RoundThree(AnalyticsTest):
+    """Review round 3. Invariant C, third time (F10 → F23 → F32): the pages record what they were built
+    from — the Google page the fingerprint of its data, the AI page its runs — and the snapshot keeps
+    what they record, not a guess. Links are read as a browser reads them."""
+
+    def google_page_through_search_report(self):
+        import search_report as sr
+        import test_search_report as tsr
+        with mock.patch.object(sr, "base_dir", lambda: self.cfg):
+            out = sr.build(SITE, SimpleNamespace(keywords=None, country=None, csv=None),
+                           service_factory=lambda: tsr.FakeGoogle(daily=tsr.daily_series(40)), today=tsr.TODAY)
+        return out
+
+    def test_c_the_kept_google_data_is_the_data_the_page_shows(self):
+        self.repo()
+        self.google_page_through_search_report()
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(list((self.site_dir / "analytics").glob("*_gsc/google-data.json"))), 1)
+        self.assertNotIn("not what seo.html shows", out)
+
+    def test_c_a_copy_the_page_did_not_show_is_not_kept(self):
+        self.repo()
+        self.google_page_through_search_report()
+        data = self.cfg / "reports" / SITE / "google-data.json"
+        old = json.loads(data.read_text())
+        old["daily"] = old["daily"][:3]                 # what an earlier fetch left when this one's save failed
+        data.write_text(json.dumps(old, indent=1))
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertIn("the saved copy is not what seo.html shows", out)
+        self.assertEqual(list((self.site_dir / "analytics").glob("*_gsc")), [])
+
+    def test_c_a_page_that_names_its_runs_is_taken_at_its_word(self):
+        self.repo()
+        self.reports()
+        named = "20261001T070000Z-5-5-eeee"
+        d = self.cfg / "geo" / "answers" / SITE / named
+        d.mkdir(parents=True)
+        (d / "gemini-knows-broad-1.txt").write_text("named by the page")
+        page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
+        page.write_text(f'<head><meta name="geo-runs" content="{named} {RUN}"></head>' + page.read_text(), encoding="utf-8")
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertTrue((self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers" / named).is_dir())
+        self.assertNotIn("inferred", out)
+
+    def test_c_links_are_read_as_a_browser_reads_them(self):
+        self.repo()
+        self.reports()
+        g = self.cfg / "reports" / SITE / "google.html"
+        g.write_text(g.read_text(encoding="utf-8") + "<a HREF=../../geo/answers/x.txt>x</a>", encoding="utf-8")
+        page = self.cfg / "geo" / "reports" / SITE / f"{RUN}.html"
+        page.write_text(page.read_text(encoding="utf-8") + '<a href="../seo.html#top">top</a>', encoding="utf-8")
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertIn("warning: seo.html still links", out, "an unquoted link is a link")
+        self.assertNotIn(f"{RUN}.html still links", out, "../seo.html#top is the allowed link, with a fragment")
+
+    def test_c_run_ids_compare_by_their_time_not_their_spelling(self):
+        self.repo()
+        self.reports()
+        page_run = "20261012T070010Z-12-12-yyyy"
+        same_second = "20261012T070010Z-2-2-xxxx"           # sorts after page_run as a string
+        (self.cfg / "geo" / "reports" / SITE / f"{RUN}.html").rename(self.cfg / "geo" / "reports" / SITE / f"{page_run}.html")
+        for run in (page_run, same_second):
+            d = self.cfg / "geo" / "answers" / SITE / run
+            d.mkdir(parents=True)
+            (d / "a.txt").write_text(run)
+        (self.cfg / "geo" / "geo_history.csv").write_text(
+            f"run_id,site,engine,mode,slot\n{same_second},{SITE},gemini,knows,broad\n{page_run},{SITE},openai,finds,broad\n")
+        code, out, err = self.cli(snap, SITE, "--site-dir", str(self.site_dir))
+        self.assertEqual(code, 0, err)
+        self.assertTrue((self.site_dir / "analytics" / "2026-10-12_geo-run" / "answers" / same_second).is_dir())
 
 
 class Starter(unittest.TestCase):

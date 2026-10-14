@@ -23,6 +23,8 @@ Exit 0 when something was written, 1 when nothing could be.
 import argparse
 import csv
 import datetime as dt
+import hashlib
+import html.parser
 import io
 import json
 import os
@@ -37,8 +39,28 @@ from _history import normalize_site  # noqa: E402
 import _analytics  # noqa: E402
 import search_report  # noqa: E402
 
-LEFTOVER = re.compile(r"""href\s*=\s*["']\.\./""", re.IGNORECASE)                  # any link up and out
-RUN_LEFTOVER = re.compile(r"""href\s*=\s*["']\.\./(?!seo\.html["'])""", re.IGNORECASE)  # in a run folder: only ../seo.html
+
+
+class _Page(html.parser.HTMLParser):
+    """The page's links and its <meta name=… content=…> records, read as a browser would (any quoting)."""
+
+    def __init__(self, text):
+        super().__init__()
+        self.hrefs, self.meta = [], {}
+        self.feed(text)
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if a.get("href") is not None:
+            self.hrefs.append(a["href"].strip())
+        if tag == "meta" and a.get("name"):
+            self.meta[a["name"]] = a.get("content") or ""
+
+
+def leftover_links(text, allowed=()):
+    """Links that still climb out of the analytics folder ("../…"), apart from the allowed ones."""
+    return [h for h in _Page(text).hrefs
+            if h.startswith("../") and h.split("#")[0].split("?")[0] not in allowed]
 GEO_LINK = re.compile(r'href="\.\./\.\./geo/reports/[^"/]+/[^"/]+\.html"')      # on the Google page
 GOOGLE_LINK = re.compile(r'href="\.\./\.\./\.\./reports/[^"/]+/google\.html"')    # on an AI-check page
 RUN_ID = re.compile(r"^(\d{4})(\d{2})(\d{2})T")
@@ -75,12 +97,14 @@ def base_dir() -> Path:
 def referenced_runs(site, page_run):
     """The runs the kept AI-check page draws on. geo_check.build_report shows each assistant's latest
     answer to each question (engine, mode, slot), whichever run it came from; for the page built at
-    page_run, "latest" means up to page_run — later runs, if any, are not on that page."""
+    page_run, "latest" means up to page_run — later runs, if any, are not on that page. Only for a
+    page written before pages recorded their runs (<meta name="geo-runs">): an inference.
+    Run ids start with their UTC time (YYYYMMDDTHHMMSSZ), compared as such."""
     p = base_dir() / "geo" / "geo_history.csv"
     try:
         with open(p, newline="", encoding="utf-8-sig") as f:
             rows = [r for r in csv.DictReader(f)
-                    if r.get("site") == site and r.get("run_id") and r["run_id"] <= page_run]
+                    if r.get("site") == site and r.get("run_id") and r["run_id"][:16] <= page_run[:16]]
     except OSError:
         return set()
     latest = {}
@@ -119,9 +143,14 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
                 (stage / newest.name).write_text(GOOGLE_LINK.sub('href="../seo.html"' if has_google else 'href="#"', page),
                                                  encoding="utf-8")
                 kept.append((folder, stage / newest.name))
-                if RUN_LEFTOVER.search((stage / newest.name).read_text(encoding="utf-8")):
-                    out.append(f"warning: {folder}/{newest.name} still links into the hidden settings folder; tell the owner")
-                for run in sorted(referenced_runs(site, newest.stem) | {newest.stem}):
+                recorded = _Page(page).meta.get("geo-runs")
+                if recorded is not None:            # the runs the page itself says it shows
+                    runs = set(recorded.split())
+                else:
+                    runs = referenced_runs(site, newest.stem) | {newest.stem}
+                    out.append(f"AI-check page {newest.name} predates its list of runs: the runs it shows were "
+                               "inferred from the history")
+                for run in sorted(runs):
                     answers = base_dir() / "geo" / "answers" / site / run
                     if answers.is_dir():
                         kept.append((f"{folder}/answers", answers))
@@ -132,11 +161,23 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
         else:
             out.append("AI check: not set up for this site")
         if data.exists():
+            # The data is the page's evidence only when it is what the page shows: the page carries the
+            # fingerprint of its data (search_report.data_fingerprint), and a failed save leaves an older file.
+            shown = _Page(google.read_text(encoding="utf-8")).meta.get("gsc-data-sha256") if has_google else None
+            raw = data.read_bytes()
             try:
-                fetched = dt.date.fromisoformat(str(json.loads(data.read_text(encoding="utf-8")).get("fetched")))
-                kept.append((f"{fetched.isoformat()}_gsc", data))
-            except (ValueError, OSError, AttributeError):
+                fetched = dt.date.fromisoformat(str(json.loads(raw.decode("utf-8")).get("fetched")))
+            except (ValueError, OSError, AttributeError, UnicodeDecodeError):
+                fetched = None
+            if fetched is None:
                 out.append("Search Console data: its fetch date cannot be read, so it was not kept")
+            elif shown is not None and shown != hashlib.sha256(raw).hexdigest():
+                out.append("Search Console data: the saved copy is not what seo.html shows (it could not be "
+                           "saved when the page was built), so it was not kept")
+            else:
+                kept.append((f"{fetched.isoformat()}_gsc", data))
+                if has_google and shown is None:
+                    out.append("Search Console data: seo.html predates its fingerprint, so the match was not checked")
         else:
             out.append("Search Console data: none saved yet (run search_report.py)")
         if brows:
@@ -160,12 +201,14 @@ def snapshot(site, site_dir, commit_ok=False, csv_path=None):
         for name, text in top.items():
             (a / name).write_text(text, encoding="utf-8")
             out.insert(0, f"{name}: written")
-            if LEFTOVER.search(text):
+            if leftover_links(text):
                 out.append(f"warning: {name} still links into the hidden settings folder; tell the owner")
         for folder, src in kept:
             dest, new = _analytics.keep(site_dir, folder, src)
             rel = dest.relative_to(a).as_posix()
             out.append(f"{rel}: kept" if new else f"{rel}: already kept, left as it is")
+            if folder.endswith("_geo-run") and leftover_links(dest.read_text(encoding="utf-8"), ("../seo.html",)):
+                out.append(f"warning: {rel} still links into the hidden settings folder; tell the owner")
     return out
 
 

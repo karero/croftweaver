@@ -1368,6 +1368,33 @@ class LinkToGoogleReport(GeoTestCase):
         self.assertEqual(len(stub.STATE["hits"]), hits_before)    # the rebuild made no AI request
 
 
+class PageRecordsItsRuns(GeoTestCase):
+    """The AI page records the runs whose answers it shows, so the site's analytics/ folder keeps exactly
+    that evidence (docs/reviews/REVIEW-diff-2026-10-14-feat-analytics-folder-f3cea24.md, F32): through a
+    real check run, build_report and analytics_snapshot.main."""
+
+    def test_the_kept_answers_are_the_runs_the_page_names(self):
+        import analytics_snapshot
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "Bäckerei Example.")
+        self.cli()
+        page = geo_check.build_report(DOMAIN)
+        with open(geo_check.history_path(), newline="") as f:
+            runs = sorted({r["run_id"] for r in csv.DictReader(f)})
+        named = re.search(r'<meta name="geo-runs" content="([^"]*)">', page.read_text()).group(1).split()
+        self.assertEqual(named, runs)
+        site = self.home / "site"
+        site.mkdir()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = analytics_snapshot.main([DOMAIN, "--site-dir", str(site)])
+        self.assertEqual(code, 0, out.getvalue())
+        kept = list((site / "analytics").glob(f"*_geo-run/answers/{runs[0]}/*.txt"))
+        self.assertTrue(kept, "the named run's answers are kept")
+        self.assertNotIn("inferred", out.getvalue(), "a page that names its runs needs no inference")
+
+
 class ResultsAreNotCitations(GeoTestCase):
     """Perplexity's API returns the search results it retrieved, not which of them the answer
     quotes. Saying the owner's site was "cited" because it was among them overstated the

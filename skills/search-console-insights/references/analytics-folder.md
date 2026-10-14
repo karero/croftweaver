@@ -28,7 +28,7 @@ writes into that day's folder again.
    "keep analytics/ off GitHub". The scripts check every path they write and refuse, writing
    nothing, when git would pick one up or already tracks it. For the files you write yourself
    (`actions.md`, `eeat.md`, the facts and positioning checks), check first that,
-   in the site folder, for each file you will write, `git check-ignore -q --no-index analytics/<file>` succeeds and `git ls-files -- analytics/<file>` prints nothing.
+   in the site folder, for each file you will write, `git check-ignore -q --no-index analytics/<file>` succeeds and `git ls-files -- analytics/<file>` succeeds and prints nothing.
 3. **Only on the owner's ask, and only in a private repo,** keep the folder in the repo: name
    that it holds their data, ask once, then remove the line and pass `--commit-ok`. In a public
    repo say no, as the AI check's rule already does (`geo-check.md`, "Keep them out of a public repo").

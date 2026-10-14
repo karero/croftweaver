@@ -1371,7 +1371,9 @@ def build_report(domain: str, run_id=None):
     if (base_dir() / "reports" / site / "google.html").exists():
         google_link = (f'<p>Also see: <a href="../../../reports/{h(site)}/google.html">How people find you '
                        f'on Google</a> — visits, positions and searches, week by week.</p>')
-    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+    # The runs whose answers this page shows, for a kept copy of its evidence (analytics_snapshot.py).
+    shown_runs = " ".join(sorted({r["run_id"] for r in latest.values()}))
+    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="geo-runs" content="{h(shown_runs)}">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Do AI assistants name {h(name)}?</title>
 <style>{_CSS}</style></head><body><main>
 <h1>Do AI assistants name {h(name)}?</h1>

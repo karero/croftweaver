@@ -22,7 +22,7 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 |---|---|---|---|---|
 | 1 | f3cea24 | Codex (401 s, 91k tokens), GLM 5.3 on melious (346 s, 37k), fresh-eyes Sonnet (184 s, 135k) | 11 / 6 / 3 | four invariants; 18 of the 20 fixed, 2 refuted with evidence |
 | 2 (verification) | e496a75 | Codex medium (291 s, 63k tokens), GLM 5.3 on melious (417 s, 41k) | 3 / 5 / 5 (F21–F31) | delta f3cea24..e496a75; three round-1 fixes partial (F1 → F21, F6 → F22, F10 → F23): round 3 owed |
-| 3 (verification) | 6ebb7cf | Codex (medium), GLM 5.3 on melious | running | delta e496a75..6ebb7cf; `make test` 281 OK, `make check` exit 0 before the round |
+| 3 (verification) | 6ebb7cf | Codex medium (328 s, 68k tokens), GLM 5.3 on melious (424 s, 33k) | 2 / 4 / 4 (F32–F41) | delta e496a75..6ebb7cf; F32 and F33 substantive: round 4 earned (kinds ai-evidence, gsc-evidence); F32 is the third link of F10 → F23, so the fix is a cut, not a patch |
 
 ## Findings
 
@@ -65,7 +65,19 @@ Sources: C = Codex, G = GLM 5.3, S = fresh-eyes Sonnet. Invariants: **A** nothin
 | F30 | — | C | F7, E-E-A-T (UNVERIFIABLE) | the same questions as round 1 | stands as recorded | evidence in F7's row and below |
 | F31 | — | G | `check_kept_off` callers (UNVERIFIABLE) | a string caller would be iterated by character | refuted by reading | the only callers, `do_import` and `snapshot`, pass lists |
 
-Fix chains: F1 → F21, F6 → F22, F10 → F23 (two links each).
+| F32 | BUG | C (round 3) | `referenced_runs` | caused-by: F23 (partial). (C) the cut-off still guessed: a page built for an older run can show a later run's answer | fixed by a cut | the inference is no longer the source: `geo_check.build_report` writes `<meta name="geo-runs">` with the runs whose answers it shows, and the snapshot keeps those; a page from before falls back to the inference and says so. Test through a real (stubbed) check run, `build_report` and `analytics_snapshot.main` |
+| F33 | BUG | C | snapshot `_gsc` | (C) `search_report` renders fresh data when `google-data.json` cannot be saved, so an older file sat beside a newer page | fixed | the page carries `<meta name="gsc-data-sha256">`, the SHA-256 of exactly the text written to `google-data.json` (one serialiser, `data_text`); the snapshot keeps the file only when it matches, else says so. Tests through `search_report.build`: match kept, a different file not kept |
+| F34 | RISK | C | three pointers | (A) an `ls-files` failure also prints nothing | fixed | "succeeds and prints nothing" |
+| F35 | RISK | C (G NIT, fragments) | link warning | (C) an unquoted `HREF=../..` passed both patterns; `../seo.html#x` warned wrongly | fixed | links read with `html.parser` as a browser does, fragments and queries ignored for the allowed link; test |
+| F36 | RISK | G | `keep`'s cleanup | `unkeep` not visible in the delta | refuted by reading | `unkeep` is defined in `_analytics.py` (after `keep`), handles files and folders, and the half-copy test exercises it |
+| F37 | RISK | G | `plan`/`keep` | the staging name is shared only by comment | fixed | one constant, `PARTIAL`, used by both |
+| F38 | NIT | G | `referenced_runs` | run ids compared as strings | fixed | compared by their UTC time prefix; test with a same-second pair that sorts the wrong way as strings |
+| F39 | NIT | G | run-page warning | named the file before `keep()` could number it | fixed | warns with the path `keep()` returned |
+| F40 | NIT | G | test | a read without `encoding` | fixed | `encoding="utf-8"` |
+| F41 | — | C | F7, E-E-A-T (UNVERIFIABLE) | as before | stands as recorded | — |
+
+Fix chains: F1 → F21, F6 → F22 (two links each); F10 → F23 → F32 (three links, ended by a cut: the page
+records its own evidence instead of the snapshot inferring it).
 
 Codex's E-E-A-T question settled by Google's own page: "E-E-A-T itself isn't a specific ranking
 factor" (Search Central, "Creating helpful, reliable, people-first content", updated 2026-10-05);

@@ -108,7 +108,7 @@ page-by-page inventory, or generic marketing advice.
 
 ## Handoff
 
-If the site has an `analytics/` folder kept off GitHub (in the site folder, for each file you will write, `git check-ignore -q --no-index analytics/<file>` succeeds and `git ls-files -- analytics/<file>` prints nothing),
+If the site has an `analytics/` folder kept off GitHub (in the site folder, for each file you will write, `git check-ignore -q --no-index analytics/<file>` succeeds and `git ls-files -- analytics/<file>` succeeds and prints nothing),
 save the verdict to `analytics/<date>_positioning-check/verdict.md`: first line "The assistant's
 judgment, not a measurement", and at the end the pages judged and the full list of the site's
 pages, so the next check can tell which pages are new.

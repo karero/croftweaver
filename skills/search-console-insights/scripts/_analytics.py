@@ -22,6 +22,9 @@ GOOGLE_DATE = re.compile(r"-(\d{4}-\d{2}-\d{2})(?: \(\d+\))?(?:\.zip)?$", re.IGN
 BING_DATE = re.compile(r"_(\d{1,2})_(\d{1,2})_(\d{4})(?: \(\d+\))?\.csv$", re.IGNORECASE)
 
 
+PARTIAL = ".partial"     # keep() stages a copy under name + PARTIAL; plan() checks that name too
+
+
 class NotKeptOff(Exception):
     """The site folder is missing, or git would (or might) put something under analytics/ on GitHub."""
 
@@ -120,7 +123,7 @@ def plan(site_dir, folder, src):
         n += 1
         dest = dest_dir / _numbered(src.name, n)
     base = f"{folder}/{dest.name}"
-    staging = f"{folder}/{dest.name}.partial"          # keep() copies here first: checked like the rest
+    staging = f"{folder}/{dest.name}{PARTIAL}"          # keep() copies here first: checked like the rest
     if src.is_dir():
         files = [p.relative_to(src).as_posix() for p in sorted(src.rglob("*")) if p.is_file()]
         return dest, ([f"{base}/{f}" for f in files] + [f"{staging}/{f}" for f in files]) or [base, staging]
@@ -135,7 +138,7 @@ def keep(site_dir, folder, src):
     if not writes:
         return dest, False
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".partial")
+    tmp = dest.with_name(dest.name + PARTIAL)
     if tmp.is_dir():
         shutil.rmtree(tmp)
     elif tmp.exists():
