@@ -63,3 +63,18 @@ landed. Codex 3 findings, GLM 5; merged, 6 findings: 3 RISK, 3 NIT, no BUG.
 | 6 | GLM | NIT | R1 said the measuring uses the proposal window, against R3's live-date windows | Fixed: same rule, anchored on the live date |
 
 Round 3 had no BUG, so the cross-model rounds end here; one wording pass follows.
+
+## Wording pass — full read at d3e6782, 2026-10-14
+
+Codex alone (one reviewer, as the wording pass allows). 8 findings: 3 BUG, 5 RISK.
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| 1 | BUG | "Pushed, so the hook runs" is not always true: `AGENTS.md` §2 asks for `npm run verify` where the hook is off | Fixed |
+| 2 | BUG | The branch's `docs/BUGLOG.md` had no row for the 7-day sign-in | Fixed: `origin/main` merged into the branch (the row came with #290); the citations say "the row added by #290" |
+| 3 | BUG | "Every figure counts non-brand only" contradicted R5 and scenario 2, which show totals and brand figures | Fixed: limited to figures that select or measure a proposal; context figures are allowed and labelled |
+| 4 | RISK | Another edit to the same page during the windows would be credited to the proposal | Fixed: the report says the comparison mixes two changes and makes no claim |
+| 5 | RISK | Google's completeness metadata, filters and the omission of rare queries rest on no checked documentation | Fixed as a requirement: to confirm in the design plan, with the missing-date case named |
+| 6 | RISK | The live result could be the wrong one (locale, the page not present) | Fixed: searched with the site's country and language; no T2 proposal unless the page's URL is in the results |
+| 7 | RISK | The competitor claim (third time) | Refuted: the sentence states what was read, where and when; the reviewer cannot read outside the repo. The owner may overrule |
+| 8 | RISK | The example sentence asked for a title fix while the proposal also changes the H1 and first paragraph | Fixed: the sentence names every place |

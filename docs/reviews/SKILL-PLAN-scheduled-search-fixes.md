@@ -11,7 +11,7 @@ scenarios are made up.
 |---|------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ▶ rewritten for Option 0 after the decisions; not reviewed | draft PR #286 (branch `docs/scheduled-search-fixes-requirements`) |
 | 2 | Owner answers the open decisions | ✅ D0 to D11 decided 2026-10-14 | owner's answers in chat, 2026-10-14 |
-| 3 | Review gate on this file (Normal: a plan, so never Light) | ▶ 3 rounds, 32 findings once duplicates between the two seats are merged (round 1: 15; round 2: 11; round 3: 6, no BUG); all fixed, except one copy of the competitor recipe declined; a wording pass next | trail `REVIEW-plan-2026-10-14-scheduled-search-fixes-ac8b71b.md` |
+| 3 | Review gate on this file (Normal: a plan, so never Light) | ▶ 3 rounds, 32 findings once duplicates between the two seats are merged (round 1: 15; round 2: 11; round 3: 6, no BUG); all fixed, except one copy of the competitor recipe declined; wording pass: 8 findings (3 BUG, 5 RISK), 7 fixed, 1 refuted; its fixes checked next | trail `REVIEW-plan-2026-10-14-scheduled-search-fixes-ac8b71b.md` |
 | 4 | Design plan (the mechanism), then build, then its own review gate | ⏸ waits for 3 | — |
 | 5 | Release note line in 0.32 (D10) | ⏸ waits for 4 | — |
 
@@ -60,8 +60,8 @@ to merge it.
 ## v1 is Option 0 (D0, decided 2026-10-14)
 
 No assistant runs unattended. The weekly report ends with **at most one proposal**: the
-page, what to change there, why, and the sentence to say to the assistant ("fix the title
-of /reparatur for 'fahrrad reparatur leipzig'"). The owner asks in a normal session; the
+page, what to change there, why, and the sentence to say to the assistant, which names every place the change touches ("work
+'fahrrad reparatur leipzig' into the title, heading and first paragraph of /reparatur"). The owner asks in a normal session; the
 assistant checks the proposal against the positioning, edits on a branch, the gate runs,
 and a pull request opens.
 
@@ -97,7 +97,9 @@ Code picks the proposal from the numbers; the report calls no assistant.
   (the "just below page 1" rows); the build fetches the proposal's drill-downs the same
   way.
 - **Brand queries** are those containing the business name; the owner confirms its
-  spellings once. Every figure below counts non-brand queries only.
+  spellings once. Every figure that selects a proposal or measures one counts non-brand
+  queries only; the report may show all-query totals and brand figures beside them as
+  context, labelled as such (R5, scenario 2).
 - Figures are read the way SKILL.md's "Reading the numbers" demands: named denominator and
   window; a query-to-page link and a page's queries proved by a drill-down, never
   inferred.
@@ -105,7 +107,7 @@ Code picks the proposal from the numbers; the report calls no assistant.
 | | Kind | Condition | Proposal |
 |---|---|---|---|
 | T1 | **Striking distance** | A query at average position 8 to 20 with at least **50** impressions, whose landing page is proved by a drill-down, and whose words are not yet in that page's title, H1 or first paragraph | Thread the query's wording into those places (SKILL.md, low-volume playbook, item 2) |
-| T2 | **Seen, rarely clicked** | A page whose non-brand queries (a page drill-down, not the page total, which includes brand searches) add up to at least **100** impressions at a CTR under 2%, with their impression-weighted average position at 10 or better | Search the page's strongest non-brand query (most impressions) in the live result and look at the page's title and description there. A new title only if Google shows the page's own title; a new description only if it shows the page's own description. The assistant, when asked, rewrites an element only if it can say what in the shown text keeps people from clicking; otherwise no edit, and the proposal is set aside for 12 weeks from that report, like a turned-down one, and the report says until when |
+| T2 | **Seen, rarely clicked** | A page whose non-brand queries (a page drill-down, not the page total, which includes brand searches) add up to at least **100** impressions at a CTR under 2%, with their impression-weighted average position at 10 or better | Search the page's strongest non-brand query (most impressions) in the live result, with the site's country and language, and look at the page's title and description there. If the page's own URL is not among the results, no T2 proposal. A new title only if Google shows the page's own title; a new description only if it shows the page's own description. The assistant, when asked, rewrites an element only if it can say what in the shown text keeps people from clicking; otherwise no edit, and the proposal is set aside for 12 weeks from that report, like a turned-down one, and the report says until when |
 
 - **One proposal per report**, the strongest by impressions; ties go to T1.
 - **Never proposed:** brand queries; a query or page under 10 non-brand impressions in
@@ -152,8 +154,9 @@ meta `description`, the H1, the first paragraph (D4). No internal links in v1.
    says it cannot.
 3. **The terms `positioning.spec.ts` requires stay.** An edit may not drop one.
 
-**The gate.** The branch is pushed the way `AGENTS.md` §2 says, so the pre-push hook runs
-the full suite. Red: fix the wording within the same four places and push again. Never
+**The gate.** The full suite runs before the pull request opens, the way `AGENTS.md` §2
+says: through the pre-push hook, or `npm run verify` where the hook is not on (a cloud
+session, or `core.hooksPath` not set). Red: fix the wording within the same four places and push again. Never
 `--no-verify`, never a change outside the four places to make a test pass.
 
 ## R3. How the owner approves, and what they learn afterwards
@@ -173,8 +176,8 @@ the full suite. Red: fix the wording within the same four places and push again.
   by closing the pull request. That proposal (page and query for T1, page for T2) is not
   shown again for 12 weeks, and the next report says until when.
 - **Measuring (D11: in v1).** When the owner acts on a proposal, the toolkit keeps which
-  page, query (T1 only) and pull request it was, so the report can follow it. The clock starts
-  when the change is **live**, not when it is merged: on a two-stage site nothing is live
+  page, query (T1 only) and pull request it was, so the report can follow it. The clock
+  starts when the change is **live**, not when it is merged: on a two-stage site nothing is live
   before `npm run ship`. The report compares the four full weeks starting the Monday after
   the change went live with the four full weeks before the week it went live: for T1 the
   query's figures, for T2 the page's non-brand totals. The comparison first appears in
@@ -184,10 +187,17 @@ the full suite. Red: fix the wording within the same four places and push again.
   repository from the start of the first window to the end of the second. A change to
   anything pages share (layouts, components, styles, `src/config.ts`,
   `astro.config.mjs`, the content config) in that span leaves no control at all. If the
-  control pages have
-  fewer than 100 non-brand impressions in either window (judgment), the report shows the
+  control pages have fewer than 100 non-brand impressions in either window (judgment), the report shows the
   changed page's figures, says there is too little to compare against, and makes no
   "consistent with" claim.
+- **Another edit to the same page.** If the changed page's own files change again (any
+  edit, not only a proposal) between the start of the first window and the end of the
+  second, the report says the comparison mixes two changes and makes no "consistent
+  with" claim.
+- **To confirm in the design plan** against Google's Search Analytics documentation: how
+  the first-incomplete-date metadata, query filters and the omission of rare queries
+  behave, and what the report does when the completeness date is missing (today
+  `search_report.py` falls back to the last day with data).
 
 ## R4. Cost and keys
 
@@ -204,7 +214,7 @@ the full suite. Red: fix the wording within the same four places and push again.
   request or the report.
 - If Google's data fails (`track.sh` exit 2, "the sign-in needs renewing"), the report
   shows no proposal and says how to reconnect. The 7-day sign-in question for apps left in
-  "Testing" is tracked in `docs/BUGLOG.md` (#290), not here.
+  "Testing" is tracked in `docs/BUGLOG.md` (the row added by #290), not here.
 
 ## R5. A site with almost no data
 
@@ -364,6 +374,6 @@ The questions that come with it (which assistants, how runs are paid) are reopen
 | D6 | Which assistants | No longer a question: whichever the owner uses; back with the loop |
 | D7 | Paying for the assistant's runs | No longer a question: no unattended runs; back with the loop |
 | D8 | When croftweaver.com may name it | Only once it ships |
-| D9 | The 7-day Google sign-in | Tracked separately: `docs/BUGLOG.md`, merged in #290 |
+| D9 | The 7-day Google sign-in | Tracked separately: the `docs/BUGLOG.md` row added by #290 (merged 2026-10-14) |
 | D10 | Release | In 0.32 |
 | D11 | Measuring the result (R3, scenario 8) in v1, or later | In v1: the proposal, the tested edit and the 28-day comparison all ship in 0.32 |
