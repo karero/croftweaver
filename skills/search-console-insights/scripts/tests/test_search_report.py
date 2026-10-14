@@ -36,7 +36,7 @@ class FakeGoogle:
     """Answers Search Analytics requests from scenario data and records every request body."""
 
     def __init__(self, daily=None, keys=None, queries=None, pages=None, drill=None,
-                 fid=FID, fail=None, refuse_domain=False, sites=None):
+                 fid=FID, fail=None, refuse_domain=False, sites=None, query_pages=None, measure=None):
         self.daily = daily or {}          # date -> (clicks, impressions, position)
         self.keys = keys or {}            # lowercase query -> {date: (clicks, impressions, position)}
         self.queries = queries or []      # rows for ["query"]
@@ -44,6 +44,8 @@ class FakeGoogle:
         self.drill = drill or {}          # query -> page rows
         self.fid, self.fail, self.refuse = fid, fail, refuse_domain
         self.sites_list = sites or []
+        self.query_pages = query_pages or []   # rows for ["query", "page"] (the fix proposal)
+        self.measure = measure or {}           # (query, start, end) -> one ["query"] row (its measuring)
         self.calls = []
 
     # the googleapiclient shape: service.searchanalytics().query(siteUrl=, body=).execute()
@@ -81,7 +83,12 @@ class FakeGoogle:
             return {"rows": [{"keys": [k, qf[0]], "clicks": c, "impressions": i, "position": p}
                              for k, (c, i, p) in sorted(data.items()) if start <= k <= end]}
         if dims == ["query"]:
+            if qf:
+                row = self.measure.get((qf[0], start, end))
+                return {"rows": [dict(row, keys=[qf[0]])] if row else []}
             return {"rows": self.queries}
+        if dims == ["query", "page"]:
+            return {"rows": self.query_pages}
         if dims == ["page"]:
             return {"rows": self.drill.get(qf[0], []) if qf else self.pages}
         raise AssertionError(dims)
@@ -126,7 +133,10 @@ class ReportTest(unittest.TestCase):
 
     def build(self, google, domain=DOMAIN, **kw):
         factory = google if callable(google) and not isinstance(google, FakeGoogle) else (lambda: google)
-        out = sr.build(domain, args(**kw), service_factory=factory, today=TODAY)
+        # Never the network: the owner's live page and GitHub are stood in for here, and tested
+        # with a local server and a stub gh in test_fix_proposal_report.py.
+        out = sr.build(domain, args(**kw), service_factory=factory, today=TODAY,
+                       page_reader=lambda url: None, gh=lambda repo, number: None)
         return out.read_text(encoding="utf-8"), out
 
     def cache(self, domain=DOMAIN):
