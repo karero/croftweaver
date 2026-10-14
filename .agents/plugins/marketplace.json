@@ -1,0 +1,21 @@
+{
+  "name": "croftweaver",
+  "interface": {
+    "displayName": "Croftweaver"
+  },
+  "plugins": [
+    {
+      "name": "croftweaver",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/karero/croftweaver.git",
+        "ref": "stable"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

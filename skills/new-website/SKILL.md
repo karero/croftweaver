@@ -277,14 +277,17 @@ full path (the output of `pwd` inside it):
    # the loop reaches every assistant as written: where the name was left alone, it gives
    # the shell an empty value for it instead of an unset variable, the candidate reads
    # "/..", and the loop passes over it. Then Claude Code → Antigravity → Codex
-   # (Claude is the default/primary). On a machine with more than one installed, set it
-   # yourself — e.g. `export SKILLS_ROOT=~/.agents/skills` (Codex) or
+   # (Claude is the default/primary), and last the suite installed as a Codex plugin: its
+   # one installed copy, found with `find` because a pattern that matches nothing stops zsh
+   # with an error; with no such copy the candidate reads "/.." as well. On a machine with
+   # more than one installed, set it yourself — e.g. `export SKILLS_ROOT=~/.agents/skills` (Codex) or
    # `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
    # `export SKILLS_ROOT="$PWD/.agents/skills"`.
    if [ -z "${SKILLS_ROOT:-}" ]; then
      SKILLS_ROOT="$HOME/.claude/skills"
      : "${CLAUDE_SKILL_DIR:=}"
-     for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
+     codex_plugin="$(find "${CODEX_HOME:-$HOME/.codex}/plugins/cache/croftweaver/croftweaver" -mindepth 2 -maxdepth 2 -type d -name skills 2>/dev/null | tail -n 1)"
+     for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills" "${codex_plugin:-/..}"; do
        [ "$d" != /.. ] && [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
      done
    fi
@@ -294,7 +297,7 @@ full path (the output of `pwd` inside it):
    # export PROJECT_SKILLS_DIR=.agents/skills
    if [ -z "${PROJECT_SKILLS_DIR:-}" ]; then
      case "$SKILLS_ROOT" in
-       "$HOME/.agents/skills"*|"$HOME/.gemini/config/skills"*|*/.agents/skills*) PROJECT_SKILLS_DIR=".agents/skills" ;;
+       "$HOME/.agents/skills"*|"$HOME/.gemini/config/skills"*|*/.agents/skills*|"${CODEX_HOME:-$HOME/.codex}"/plugins/*) PROJECT_SKILLS_DIR=".agents/skills" ;;
        *) PROJECT_SKILLS_DIR=".claude/skills" ;;
      esac
    fi

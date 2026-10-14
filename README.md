@@ -182,6 +182,35 @@ with the plugin and a copy in `~/.claude/skills/` (from `npm create croftweaver`
 `install.sh`), every skill is listed twice. The same holds in a site built with the suite,
 for the skills the site carries.
 
+**As a Codex plugin**, also from release 0.32 on. The same repository is a Codex plugin
+marketplace:
+
+```bash
+codex plugin marketplace add https://github.com/karero/croftweaver.git
+codex plugin add croftweaver@croftweaver
+```
+
+(Or, after the first line, type `/plugins` inside Codex and pick Croftweaver there.) Start
+a new Codex session in your websites folder and say `new website`. The skills carry the
+plugin's name in front (`$croftweaver:new-website`). Like the Claude Code plugin, it installs
+releases only; `codex plugin marketplace upgrade` brings you the newest one. Use one route
+here too: the plugin and a copy in `~/.agents/skills/` list every skill twice.
+
+**With the `skills` command** ([skills.sh](https://skills.sh)), for Claude Code, Codex,
+Antigravity and other assistants:
+
+```bash
+npx skills add karero/croftweaver --skill '*' -g
+```
+
+It asks which assistants to install for. Take all the skills (`--skill '*'`): `new-website`
+copies its sibling skills into each new site, so a site built from a partial install is
+missing some. This route installs the newest state of `main`, not a release, and records no
+version, so a site built from it is stamped `suite_commit: unknown`. To update, run
+`npx skills update`. skills.sh lists Croftweaver by the name typed in this command, from the
+installs it counts; installs made before the rename are listed under
+`karero/website-builder`.
+
 **By hand**, in three steps:
 
 ```bash
@@ -310,6 +339,11 @@ source of truth. Install, restart Codex, and say `new website` (or `$new-website
 ```bash
 ./scripts/install-codex.sh        # symlinks skills/* into ~/.agents/skills/  (or: make install-codex)
 ```
+
+Or install it as a Codex plugin (from release 0.32 on; see *Quick start* above).
+`.agents/plugins/marketplace.json` is Codex's marketplace entry; Codex reads the plugin's
+name and number from the same `.claude-plugin/plugin.json` as Claude Code, so a release
+raises the number once for both.
 
 See [docs/CODEX.md](docs/CODEX.md) for the clone/zip install, usage, and the differences
 from Claude Code, and [docs/CODEX-TEST.md](docs/CODEX-TEST.md) for a step-by-step

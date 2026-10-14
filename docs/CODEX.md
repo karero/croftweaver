@@ -9,6 +9,17 @@ duplicated for Codex.
 
 ## Install
 
+**As a Codex plugin** (from release 0.32 on):
+```bash
+codex plugin marketplace add https://github.com/karero/croftweaver.git
+codex plugin add croftweaver@croftweaver
+```
+
+Codex keeps the plugin in its own folder (`~/.codex/plugins/cache/croftweaver/`), installs
+releases only, and `codex plugin marketplace upgrade` brings you the newest one. The skills
+carry the plugin's name in front: `$croftweaver:new-website`. Use this route or the one
+below, not both: with both, every skill is listed twice.
+
 **From a clone:**
 ```bash
 git clone https://github.com/karero/croftweaver.git
@@ -80,6 +91,8 @@ the `website-*` skills.
 
 ## Scope
 
-This is intentionally a thin, direct skill install — not a Codex plugin. That's enough
-for local use. A plugin (marketplace metadata, icons, MCP/app integration) would only be
-worth it for app-directory distribution or team sharing later.
+The plugin is a marketplace entry and nothing more: `.agents/plugins/marketplace.json`
+points Codex at the branch `stable`, and Codex reads the plugin's name and number from
+`.claude-plugin/plugin.json`, the Claude Code plugin's manifest. There are no icons, no MCP
+server and no listing in OpenAI's public plugin directory; those would need a submission
+to OpenAI.

@@ -50,6 +50,27 @@ test('the plugin and the marketplace entry name the same plugin, and the entry i
   assert.equal(entry.version, undefined);
 });
 
+// Codex reads its own marketplace file first, and the plugin's number from the same
+// .claude-plugin/plugin.json as Claude Code (seen with Codex CLI 0.162.1). Its entry must
+// install what Claude Code's installs: the same plugin, from the same address and branch.
+test('the Codex marketplace offers the same plugin from the same place, with the fields Codex asks for', () => {
+  const plugin = JSON.parse(read('.claude-plugin', 'plugin.json'));
+  const claude = JSON.parse(read('.claude-plugin', 'marketplace.json'));
+  const codex = JSON.parse(read('.agents', 'plugins', 'marketplace.json'));
+  // Users install it as croftweaver@croftweaver in both.
+  assert.equal(codex.name, claude.name);
+  assert.equal(codex.plugins.length, 1);
+  const [entry] = codex.plugins;
+  assert.equal(entry.name, plugin.name);
+  assert.deepEqual(entry.source, claude.plugins[0].source);
+  // OpenAI's documentation says every entry carries these three; the CLI installs without
+  // them, the desktop app is what asks.
+  assert.deepEqual(Object.keys(entry.policy).sort(), ['authentication', 'installation']);
+  assert.equal(typeof entry.category, 'string');
+  // The number lives in plugin.json only, as for Claude Code.
+  assert.equal(entry.version, undefined);
+});
+
 // Nothing on a pull request can tell that a release forgot to raise the number: the last
 // one is as well-formed as the next. The release-tag workflow runs this with the tag a
 // release pushed, and with the tag `stable` was moved to.
@@ -165,6 +186,49 @@ test('an assistant that fills nothing in still finds its own install, and the un
   assert.deepEqual(runLookup({ filled: null, home }), { root: path.join(home, '.claude', 'skills'), project: '.claude/skills' });
 });
 
+// Codex fills nothing in, so a Codex plugin is found where Codex keeps it:
+// <CODEX_HOME or ~/.codex>/plugins/cache/<marketplace>/<plugin>/<version>/skills. An update
+// replaces the version folder (seen with Codex CLI 0.162.1), so there is one.
+const codexPlugin = (codexHome, version = '0.32.0') => path.join(codexHome, 'plugins', 'cache', 'croftweaver', 'croftweaver', version, 'skills');
+
+test('an assistant that fills nothing in finds the suite installed as a Codex plugin, and bundles for Codex', () => {
+  const home = tmp();
+  const plugin = codexPlugin(path.join(home, '.codex'));
+  suiteAt(plugin);
+  for (const strict of [false, true]) {
+    assert.deepEqual(runLookup({ filled: null, home, strict }), { root: plugin, project: '.agents/skills' });
+  }
+
+  // CODEX_HOME moves Codex's folder: the lookup follows it.
+  const elsewhere = tmp();
+  const moved = codexPlugin(path.join(elsewhere, 'codex home'));
+  suiteAt(moved);
+  assert.deepEqual(runLookup({ filled: null, home: tmp(), env: { CODEX_HOME: path.join(elsewhere, 'codex home') } }), { root: moved, project: '.agents/skills' });
+
+  // It comes last: a suite in one of the home folders still wins, as before.
+  suiteAt(path.join(home, '.claude', 'skills'));
+  assert.equal(runLookup({ filled: null, home }).root, path.join(home, '.claude', 'skills'));
+  // And the copy that is running wins over it.
+  const running = path.join(tmp(), 'skills');
+  suiteAt(running);
+  assert.equal(runLookup({ filled: path.join(running, 'new-website'), home }).root, running);
+});
+
+// On a Mac the shell may be zsh, for Claude Code and Codex alike. There a file pattern that
+// matches nothing is an error that stops the command, so the lookup must not use one.
+test('in zsh the lookup runs without an error, with and without a Codex plugin',
+  { skip: spawnSync('zsh', ['-c', 'true']).status === 0 ? false : 'zsh is not installed here' }, () => {
+    const zsh = (home) => spawnSync('zsh', ['-c', `${lookup()}\nprintf '%s\\n%s\\n' "$SKILLS_ROOT" "$PROJECT_SKILLS_DIR"\n`],
+      { env: { PATH: process.env.PATH, HOME: home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const empty = tmp();
+    const none = zsh(empty);
+    assert.deepEqual([none.status, none.stderr, none.stdout], [0, '', `${path.join(empty, '.claude', 'skills')}\n.claude/skills\n`]);
+    const home = tmp();
+    suiteAt(codexPlugin(path.join(home, '.codex')));
+    const found = zsh(home);
+    assert.deepEqual([found.status, found.stderr, found.stdout], [0, '', `${codexPlugin(path.join(home, '.codex'))}\n.agents/skills\n`]);
+  });
+
 test('left as written, the name is an empty value, not an unset variable, and its candidate is passed over', () => {
   // Claude Code leaves the form with := alone (seen in a live session), so this line reaches
   // every assistant; without it a strict shell stops at the unset name.
@@ -189,8 +253,8 @@ test('an explicit SKILLS_ROOT is honoured, and with nothing installed the defaul
 });
 
 test('the two guides that repeat the lookup for testers repeat it as it is', () => {
-  const loop = lookup().split('\n').filter((line) => /^\s*(: "\$\{CLAUDE_SKILL_DIR:=\}"|for d in|\[ "\$d" != \/\.\. \])/.test(line)).map((line) => line.trim());
-  assert.equal(loop.length, 3);
+  const loop = lookup().split('\n').filter((line) => /^\s*(: "\$\{CLAUDE_SKILL_DIR:=\}"|codex_plugin=|for d in|\[ "\$d" != \/\.\. \])/.test(line)).map((line) => line.trim());
+  assert.equal(loop.length, 4);
   for (const guide of ['CODEX-TEST.md', 'ANTIGRAVITY-TEST.md']) {
     const lines = read('docs', guide).split('\n').map((line) => line.trim());
     for (const line of loop) assert.ok(lines.includes(line), `docs/${guide} lacks: ${line}`);

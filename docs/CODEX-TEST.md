@@ -40,7 +40,8 @@ export SKILLS_ROOT=~/.agents/skills           # needed if Claude Code or Antigra
 if [ -z "${SKILLS_ROOT:-}" ]; then
   SKILLS_ROOT="$HOME/.claude/skills"
   : "${CLAUDE_SKILL_DIR:=}"
-  for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
+  codex_plugin="$(find "${CODEX_HOME:-$HOME/.codex}/plugins/cache/croftweaver/croftweaver" -mindepth 2 -maxdepth 2 -type d -name skills 2>/dev/null | tail -n 1)"
+  for d in "${CLAUDE_SKILL_DIR}/.." "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills" "${codex_plugin:-/..}"; do
     [ "$d" != /.. ] && [ -d "$d/new-website" ] && SKILLS_ROOT="$(cd "$d" && pwd)" && break
   done
 fi
