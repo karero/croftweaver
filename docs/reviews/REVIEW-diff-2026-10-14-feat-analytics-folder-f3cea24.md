@@ -1,7 +1,7 @@
 # DIFF review — branch feat/analytics-folder — the site's analytics/ folder (search-console-insights 1.9.0)
 
 Base `de64ec8` · depth: Normal (shipped runtime code and agent instructions; nothing in the High row) ·
-verdict: OPEN · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created
+verdict: CLEAN (5 rounds; closing re-gate clean on 94c6c4a) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created
 this worktree and branch); POST AUTHORITY not yet held (no PR; one is opened only on the owner's word).
 
 Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the diff).
@@ -25,6 +25,7 @@ Plan and scenarios: `docs/reviews/SKILL-PLAN-analytics-folder.md` (sent with the
 | 3 (verification) | 6ebb7cf | Codex medium (328 s, 68k tokens), GLM 5.3 on melious (424 s, 33k) | 2 / 4 / 4 (F32–F41) | delta e496a75..6ebb7cf; F32 and F33 substantive: round 4 earned (kinds ai-evidence, gsc-evidence); F32 is the third link of F10 → F23, so the fix is a cut, not a patch |
 | 4 (verification) | 7cb141a | Codex medium (391 s, 84k tokens), GLM 5.3 on melious (515 s, 44k) | 2 / 3 / 2 (F42–F48) | delta 6ebb7cf..7cb141a; earned by ai-evidence, gsc-evidence. F42 and F43 substantive: round 5 earned by the same two kinds, so it needs a cut (below) |
 | 5 (verification) | f74764a | Codex medium (280 s, 64k tokens), GLM 5.3 on melious (158 s, 21k) | 0 / 1 / 3 (F49–F52; Codex's two BUG labels triaged below) | delta 7cb141a..f74764a, with the cut. No substantive BUG: **the rounds end** (stop condition a2). Its fixes are locally_verified, not externally re-verified until the closing re-gate |
+| re-gate (not a round) | 94c6c4a | Codex medium only (148 s, 50k tokens) | 0 / 0 / 0 | delta f74764a..94c6c4a: F50 and F51's code at full scope, the trail and plan row for facts only. Clean |
 
 ## Findings
 
