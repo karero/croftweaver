@@ -508,15 +508,19 @@ function cloudflareGroup(value) {
 // Cloudflare's script monitor (Client-side security, formerly Page Shield) has browsers report
 // the scripts a page loads to csp-reporting.cloudflare.com, on a sample of pages. It shows in a
 // report-to group, in a reporting-endpoints entry and in the report-uri of a report-only policy;
-// any one of the three names it. Each header is read by its own syntax, and only the addresses it
-// REPORTS TO are judged, by their host: not a group's name, and not text that quotes the host in a
-// path, a query or a user name, or that lists it as a source.
+// any one of the three names it. This names what Cloudflare sends; it does not decide what a
+// browser would make of a header (a malformed one is read the same way, and an address that a
+// browser would ignore, a duplicate directive for one, still names it). Each header is read by the
+// syntax it is written in, and only the addresses it lists to REPORT TO are judged, by their host:
+// not a group's name, and not text that quotes the host in a path, a query or a user name, or that
+// lists it as a source.
 const monitorHost = (u) => {
   if (typeof u !== 'string') return false;
   try { return /(^|\.)csp-reporting\.cloudflare\.com$/i.test(new URL(u).hostname.replace(/\.$/, '')); } catch { return false; }
 };
-// A reporting-endpoints header is a dictionary: name="address", name="address";parameter="x".
-// Only a member's own string is an address; a parameter is not, and a string may hold \" or a comma.
+// A reporting-endpoints header is written as a dictionary: name="address", name="address";p="x".
+// The string after a member's `=` is its address; a parameter's string is not, and a string may hold
+// \" or a comma. This is not a Structured Fields validator.
 function endpointAddresses(value) {
   const members = [];
   let current = '';
@@ -541,12 +545,13 @@ function cloudflareMonitor(name, value) {
     return groups.some((g) => g && Array.isArray(g.endpoints) && g.endpoints.some((e) => e && monitorHost(e.url)));
   }
   if (name === 'reporting-endpoints') return endpointAddresses(value).some(monitorHost);
-  // content-security-policy-report-only: policies split at commas, directives at semicolons, and
-  // in each policy the FIRST report-uri is the one in force (a duplicate directive is ignored)
-  return value.split(',').some((policy) => {
-    const first = policy.split(';').map((d) => d.trim().split(/\s+/)).find(([directive]) => /^report-uri$/i.test(directive));
-    return first ? first.slice(1).some(monitorHost) : false;
-  });
+  // content-security-policy-report-only: policies are written split at commas, directives at
+  // semicolons; any report-uri directive that lists the address names it (never hidden behind
+  // another one: whether a browser uses a duplicate is not decided here)
+  return value.split(',').some((policy) => policy.split(';').some((d) => {
+    const [directive, ...addresses] = d.trim().split(/\s+/);
+    return /^report-uri$/i.test(directive) && addresses.some(monitorHost);
+  }));
 }
 
 // robots.txt, read the way a crawler reads it: groups of User-agent lines with their rules.
