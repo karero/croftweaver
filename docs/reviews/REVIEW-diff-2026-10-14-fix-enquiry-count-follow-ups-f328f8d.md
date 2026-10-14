@@ -2,7 +2,7 @@
 
 DIFF gate. **Depth: Normal**: the starter's test is copied into owners' sites, and `new-website/SKILL.md` is an instruction file, so Light does not apply. Round 1: Codex, GLM 5.3 on melious, fresh-eyes (sonnet); round 2 the pair.
 
-**Verdict: gate passed.** 2 rounds, 7 findings (0 BUG, 2 RISK, 5 NIT), all fixed; no substantive BUG, so no wording pass is owed. W2 and H4 from #287's trail are closed by this change: Firefox and WebKit measured, self-hosted CE source read (its query path left open, owner docs repeat only Plausible's documentation), the `%` test on `pagesWithEmail`.
+**Verdict: gate passed.** 2 rounds, 7 findings (0 BUG, 2 RISK, 5 NIT), all fixed; no substantive BUG, so no wording pass is owed. H4 from #287's trail is closed: the `%` test uses `pagesWithEmail`. W2 is narrowed, not closed: the request is now seen leaving in Firefox and WebKit as in Chromium (answered locally; Safari itself, a real server and content blockers not measured), and whether a self-hosted instance shows taps sent before its goal stays open (one function read in CE v3.2.1, the query path not traced). The owner docs no longer imply either way and keep the advice that holds in both cases: add the goal before launch.
 
 ## Rounds
 
