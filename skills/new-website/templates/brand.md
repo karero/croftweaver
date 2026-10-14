@@ -23,12 +23,15 @@ whitespace, shape language. No clichéd stock photography.]
 
 Mirror these into the theme-token block. Every text/background pair MUST pass
 **WCAG AA (4.5:1 body, 3:1 large)** in BOTH themes — the a11y test checks this.
+The rows are the stylesheet's own colour tokens, one row each. Accent and Link have a
+value per theme, so that each can be chosen for its own background. Keep the headings,
+the header row `| Token | Hex |` and the row names: the optional `website-brand-kit` reads these tables to check every
+text colour on every background and to write the values into the stylesheet.
 
 ### Brand (fixed, theme-independent)
 | Token | Hex | Use |
 |---|---|---|
 | Primary | `#[…]` | buttons, brand surfaces |
-| Accent | `#[…]` | links, highlights (must pass AA on bg) |
 
 ### Light theme
 | Token | Hex |
@@ -36,19 +39,25 @@ Mirror these into the theme-token block. Every text/background pair MUST pass
 | Heading | `#[…]` |
 | Body (ink) | `#[…]` |
 | Muted | `#[…]` |
+| Accent | `#[…]` |
+| Link | `#[…]` |
 | Hairline | `#[…]` |
 | Background | `#[…]` |
+| Soft background | `#[…]` |
 | Surface (cards) | `#[…]` |
 
 ### Dark theme
 | Token | Hex |
 |---|---|
 | Heading | `#[…]` |
-| Body | `#[…]` |
+| Body (ink) | `#[…]` |
 | Muted | `#[…]` |
+| Accent | `#[…]` |
+| Link | `#[…]` |
 | Hairline | `#[…]` |
 | Background | `#[…]` |
-| Surface | `#[…]` |
+| Soft background | `#[…]` |
+| Surface (cards) | `#[…]` |
 
 ## Typography
 
