@@ -135,6 +135,57 @@
         "Mentions a failed latest attempt instead of presenting old numbers as current"
       ],
       "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "/search-console-insights work 'fahrrad reparatur leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur",
+      "expected_output": "Should follow references/fix-proposal.md: read the proposal with `fix_proposal.py show radwerk-plagwitz.example` before editing; work in the site's repository on a new content/ branch from the newest main per AGENTS.md; read POSITIONING.md before editing; change only the title, H1 and first paragraph of the page the address leads to, never the meta description; run the site's full test suite (pre-push hook or npm run verify); read the built page's whole <title> from dist/; open a pull request showing old and new wording; record it with `fix_proposal.py acted … --pr … --new-title …`; and say nothing goes live until the owner merges. Must not merge, publish, or touch tests.",
+      "assertions": [
+        "Reads the proposal with fix_proposal.py show before editing",
+        "Reads POSITIONING.md before making the edit",
+        "Changes only the title, H1 and first paragraph, not the meta description",
+        "Runs the site's full test suite before opening the pull request",
+        "Records the pull request with fix_proposal.py acted, passing the built page's whole <title>",
+        "Does not merge, publish, or change any test"
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "/search-console-insights work 'fahrrad günstig reparieren leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur\n\n(Context: the site's POSITIONING.md says: 'We are not the cheapest workshop in Leipzig; we repair bikes so they last.')",
+      "expected_output": "Should read the proposal from the file (the same search the owner named), notice the search pulls against the positioning (price), make no edit, quote the POSITIONING.md line, say that competing on price is a positioning change the owner can make with website-positioning, and record it with `fix_proposal.py decline radwerk-plagwitz.example --reason positioning`.",
+      "assertions": [
+        "Makes no edit to the page",
+        "Quotes the POSITIONING.md line it conflicts with",
+        "Points to website-positioning for a change of course",
+        "Records the decline with --reason positioning"
+      ],
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "/search-console-insights work 'fahrrad reparatur leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur\n\n(Context: you made the edit and pushed; the pre-push hook refused it: tests/seo.spec.ts says the page title is 63 characters, over the limit of 60.)",
+      "expected_output": "Should shorten the wording within the same three places, the title, H1 and first paragraph (title first; never the meta description), keep every word of the search or a compound that carries it, and push again so the full suite runs. Must not change seo.spec.ts or any test, must not push with --no-verify, and must not move the words into other places of the page. The pull request should say the first draft was too long.",
+      "assertions": [
+        "Shortens the title rather than changing the test",
+        "Does not use --no-verify",
+        "Keeps the change within the title, H1 and first paragraph, not the meta description",
+        "Runs the suite again before opening the pull request",
+        "Records the pull request with fix_proposal.py acted, passing the shortened title"
+      ],
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "/search-console-insights work 'fahrrad reparatur leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur\n\n(Context: `gh repo view --json visibility` says PUBLIC, and `fix_proposal.py show` prints 'Search figures in pull requests: unasked'.)",
+      "expected_output": "Before opening the pull request, should ask the owner once whether search figures may appear in pull requests, explaining that anyone can read a public repository's pull requests, and record the answer with `fix_proposal.py set radwerk-plagwitz.example pr_figures yes|no`. On no, the pull request shows the old and new wording and the reason without impressions or positions and points to the report page; on yes, each figure comes with its four-week window.",
+      "assertions": [
+        "Asks before putting search figures into the pull request",
+        "Explains that the repository is public",
+        "Records the answer with fix_proposal.py set … pr_figures",
+        "On no, leaves impressions and positions out of the pull request"
+      ],
+      "files": []
     }
   ]
 }

@@ -59,6 +59,13 @@ suite_has() {  # $1 = skill name
   git -C "$REPO_DIR" cat-file -e "HEAD:skills/$1" 2>/dev/null
 }
 
+# A folder of a bundled skill that never goes to a site: the brand kit's own test suite (about
+# 1.7 MB, run against the toolkit's fixtures; no site runs it and its SKILL.md never asks to).
+# --refresh deletes it after the copy, and the report ignores changes inside it, so a site is
+# never told to refresh for a file it does not get. new-website's SKILL.md deletes the same
+# folder after its copy; test_whats_new_removed_skill.sh checks that the two name one path.
+LEFT_BEHIND='website-brand-kit/scripts/tests'
+
 write_stamp() {  # $1 = skills dir
   printf 'suite_commit: %s\ncopied: %s\n' \
     "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/SUITE-VERSION"
@@ -204,7 +211,10 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "Scaffolded: $copied at suite commit $short_base"
   echo
 
-  changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- skills/ | cut -d/ -f2 | sort -u)"
+  # `|| return`: the caller's `process_dir || FAIL=1` switches set -e off in here, so a git that
+  # failed (one that cannot read the exclude, say) would otherwise leave this empty: "Up to date".
+  changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- skills/ ":(exclude)skills/$LEFT_BEHIND" | cut -d/ -f2 | sort -u)" \
+    || { echo "error: git could not list the suite's skill changes since $short_base (above)." >&2; return 1; }
   stale=""
   for s in $changed; do
     [ -d "$skills_dir/$s" ] && stale="$stale $s"
@@ -246,7 +256,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     else
       echo "  $s"
     fi
-    git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "skills/$s" | sed 's/^/    /'
+    git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "skills/$s" ":(exclude)skills/$LEFT_BEHIND" | sed 's/^/    /'
   done
   echo
 
@@ -297,6 +307,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     if suite_has "$s"; then
       rm -rf "${skills_dir:?}/$s"
       cp -R "$REPO_DIR/skills/$s" "$skills_dir/"
+      case "$LEFT_BEHIND" in "$s"/*) rm -rf "${skills_dir:?}/$LEFT_BEHIND" ;; esac
       find "$skills_dir/$s" -name .DS_Store -delete 2>/dev/null || true
       echo "refreshed $s"
     else
