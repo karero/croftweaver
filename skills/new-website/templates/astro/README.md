@@ -73,8 +73,10 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Before launch, add the enquiry goal: in Plausible, the site's Settings > Goals >
    Add goal, type "Custom event", name `Email Tap` (exactly). A click on an email address
    or the contact form's button sends that event; Plausible's documentation says it shows
-   only once the goal exists, and earlier ones are not counted. To see a test tap, look
-   under Today or Realtime: the 7-, 28- and 30-day views end yesterday.
+   only once the goal exists, and earlier ones are not counted. To see a test tap, choose
+   Today or Realtime: since Plausible 3.0 the "Last 7, 28, 30 and 91 days" views end
+   yesterday. On a site just added to Plausible, tap again a few minutes later if the
+   first tap does not show.
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +

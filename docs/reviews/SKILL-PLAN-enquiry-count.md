@@ -42,22 +42,31 @@ Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
   instance (Docker, removed afterwards): three "Email Tap" events sent while the site had
   no goal showed at once when the goal was created, and five after two more, through the
   Stats API v2, grouped by goal and filtered by it. The source agrees: ingestion
-  (`lib/plausible/ingestion/event.ex`) drops events only for bot, spam, IP and blocklist
-  reasons, never for a missing goal; goals load by site only (`for_site_query` in
+  (`lib/plausible/ingestion/event.ex`) never drops an event for a missing goal; goals load by site only (`for_site_query` in
   `lib/plausible/goals/goals.ex`); filtering (`goal_condition` in
   `lib/plausible/stats/goals.ex`) and grouping (`event_goal_join` in
   `lib/plausible/stats/sql/expression.ex`) match stored events by name, with no limit
   from the goal's creation. Whether Plausible's cloud service behaves the same was not
   tested; its documentation says earlier events are not counted. The advice holds either
   way: add the goal before launch.
+- A new site drops events at first (same throwaway instance): four events sent seconds
+  after the site was created were answered 202 and not stored; resent a minute later,
+  they were. The source fits: `lib/plausible/site/gate_keeper.ex` answers a site that is
+  not yet in its cache with the policy `:not_found`, and ingestion drops the event. How
+  long the cache takes on a given instance, and whether the cloud service behaves the
+  same, was not measured. Q5 and the starter README say to tap again a few minutes later.
 - A real server receiving a tap from Firefox, 2026-10-14: one tap from Playwright's
   Firefox 155 to croftweaver.com's live instance at 13:25 UTC (page view and "Email Tap",
   both answered 202), with the referrer `https://example.org/croftweaver-firefox-test`;
   the owner saw the visit under Today, source example.org.
-- Dashboard periods (v3.2.1, `build_datetime_range({:last_n_days, n}, …)` in
-  `lib/plausible/stats/query_builder.ex`): the 7-, 28-, 30- and 91-day views run from n
-  days ago to yesterday, so a test tap shows only under Today or Realtime. The owner first
-  looked under 28 days and saw nothing.
+- Dashboard periods (v3.2.1): the "Last 7, 28, 30 and 91 days" views run from n days ago
+  to yesterday, in both date paths: `build_datetime_range({:last_n_days, n}, …)` in
+  `lib/plausible/stats/query_builder.ex`, and `put_input_date_range` in
+  `lib/plausible/stats/legacy/legacy_query_builder.ex` (`Date.shift(day: -1)`). The
+  change is in the v3.0.0 changelog (2025-04-11): "Last `7d` and `30d` periods do not
+  include today anymore". The dashboard's own labels are "Today" and "Realtime"
+  (`assets/js/dashboard/query-time-periods.ts`). So a test tap shows only under one of
+  those two. The owner first looked under 28 days and saw nothing.
 - Request sent and payload, measured 2026-10-14 on croftweaver.com's live per-site script
   (v33), event requests intercepted locally, in Playwright's Chromium 153, Firefox 155 and
   WebKit 26.6: a real link click and the form's exact sequence each sent one event with
