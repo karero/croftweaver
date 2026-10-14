@@ -289,3 +289,33 @@ drift**:
 
 If either tool's pricing page is reachable when this guide is next revisited,
 re-verify and update this file rather than propagating stale numbers forward.
+
+## The two script seats in detail
+
+Moved here from SKILL.md's Reviewer stack, word for word.
+
+1. **Codex CLI** — `codex exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0
+   -c skills.include_instructions=false`, in the caller's cwd so it can check claims against the
+   tree. Model and effort from `~/.codex/config.toml`; `CODEX_MODEL=<tag>` overrides the model for
+   one run. Sandbox enforcement and project-context leaks are open (R-SANDBOX, R-PROJCTX in
+   `docs/reviews/OPEN-FINDINGS-independent-review.md`).
+2. **ollama cloud** — the first `:cloud` tag in `ollama list`, auto-detected; `OLLAMA_MODEL`
+   overrides. Text only, no tools. **No ollama CLI** (e.g. a cloud session): set
+   `OLLAMA_MODEL=<name>:cloud` and the script calls ollama's HTTP API instead, authenticated by
+   `OLLAMA_API_KEY` or the environment's API credential for `ollama.com` (the network policy must
+   allow that host); `OLLAMA_TRANSPORT=api|cli` forces one. The API path also logs tokens.
+   **Melious fallback:** with `MELIOUS_MODEL=<model>` set (one of the ids listed in
+   `scripts/melious_models.txt`, by the owner's rule of 2026-10-12: the script refuses any other
+   name with exit 2 before any reviewer starts, in every mode, and an id the list marks `light`
+   unless the run says `--depth light`; Kimi and every other model run on ollama, and a model
+   ollama cannot serve has no seat that round; the script sets no default), a round whose
+   ollama seat did not count — no model or CLI, a failure such
+   as a quota refusal, or a local sanity pass — sends the same text-only prompt to Melious's
+   OpenAI-compatible API (`api.melious.ai`) instead, so the pair keeps its second reviewer. Auth:
+   `MELIOUS_API_KEY`, `~/.config/reviewers/melious.env`, or the environment's API credential for
+   that host. A reasoning model can spend the whole reply budget (`MELIOUS_MAX_TOKENS`, 96000)
+   thinking, and the provider can leak its reasoning into the reply: the seat keeps what follows
+   the final-review marker it asks for (`references/setup-guide.md`). `--seat melious` runs it
+   alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
+   tokens too. **`SECOND_SEAT=melious`** (with `MELIOUS_MODEL`) swaps the roles: Melious runs
+   with Codex, and ollama stands in only when Melious did not count.

@@ -427,10 +427,8 @@ change. Depth now follows consequence, which "gate on consequence, not size" alr
 Light accepts one same-family seat (the host's diff review) for changes whose mistakes are cheap to
 find and undo; that is a standing owner decision, recorded here and in SKILL.md, not something a
 session may extend to other changes. Normal runs fresh-eyes once, on a mid-tier model, because the
-cross-model pair carries the gate; High runs every seat at full strength in round 1, and in
-verification rounds sends fresh-eyes to the parts a fix changed and Codex at medium, except for a fix
-that touches anything the High row's For column names ("Rounds that did not converge", below). Codex runs at medium there
-because those rounds check fixes and a small delta; a fix on anything that column names keeps config effort. Whether these
+cross-model pair carries the gate; High keeps every seat at full strength every round. Verification
+rounds drop Codex to medium effort because they check fixes and a small delta. Whether these
 trades pay off is to be judged from the trails' `timings:` lines and fresh-eyes token counts.
 
 ## Verification chains and the stamp; the cost log
@@ -513,42 +511,44 @@ Where the numbers come from: the trails, read partly by a model whose extraction
 hand on two trails and against a parser on 17. Timings were recorded for part of the passes only.
 The cost log held nothing: on the owner's machine its directory was not writable.
 
-## Rounds that did not converge — the severity bar, cut-don't-patch, cheaper rounds, the split, the cost notice
+## The earned-by kind and the cut — why the script checks it, and what was left out
 
-One DIFF gate at High depth, in October 2026, on one pull request for a whole skill: five readers
-of files from outside (an SVG check, a zip reader, a Markdown palette reader, a stylesheet scanner,
-a line editor for a TypeScript config) and edits of four of the user's own files, about 7,500 lines
-of code and tests at round 1. Nine rounds ran over about 31 hours; findings per round, after
-merging duplicates, were 102, 102, about 105, 93, 72, 58, 49, 39 and 45. The reviewers and the
-fixers used about 37 million tokens. What the trail shows:
+The trigger. One DIFF gate at High depth in October 2026 (the brand-kit skill, PR 283) ran nine
+rounds over about 31 hours and used about 37 million tokens: about 21.5 million for the reviewer
+seats, the rest for the fixers and the host. Findings per round: 102, 102, about 105, 93, 72, 58,
+49, 39, 45. One kind of finding, the advice a tool gave for a reshaped config file, brought BUGs in
+rounds 3 to 9, each time for another shape of file; a cut in round 10 (the advice taken out)
+ended it. The cuts of round 3 (a feature dropped, a scanner replaced by a strict rule) never came
+back.
 
-- **Most late BUGs needed input made by hand and ended in a safe stop.** From round 6 on, the
-  seats were asked to mark each finding ordinary or made by hand. In round 9 no seat found a
-  wrong result for an ordinary site, a site left changed after a failed run, or a hang, and the
-  round still counted 11 BUGs: a hand-made stylesheet, a developer-reshaped config, a Ctrl-C in
-  one millisecond. Hence the severity bar (step 4).
-- **Fixes made the next round's findings.** At least five fixes from rounds 3 to 7 added a
-  mechanism that the next round found broken, and were taken out again: a dropped guard, an HTML
-  unescape, a terminal setting, a change to how blanks fold, a sentence for one refusal. The
-  convergence check counts a finding on code the last round's fixes added as new ground, so this
-  chain looked like the gate working. One kind, the sentences telling a reader how to rewrite a
-  reshaped config, brought BUGs in rounds 6, 7, 8 and 9, each time for another shape of file.
-  The two cuts of round 3 (a feature dropped, a scanner replaced by a strict rule) never came
-  back. Hence cut, don't patch (step 6).
-- **Every round re-read every part.** Four parts, three seats each, every round, also for parts
-  no fix had touched: the fresh-eyes seat alone cost 1.2 to 1.4 million tokens a round. Each
-  fixer ran the whole suite (two Pythons, 15 to 40 minutes under the machine's load), and the
-  host ran it again. In round 9 part 1 came back clean from all three seats; it had been clean of
-  BUGs from two of them in round 8. Hence cheaper rounds (the depth table, steps 2, 3 and 6).
-- **One pull request for five readers.** A kind of finding fixed in one reader (an invisible
-  character, a quote inside a value) was found again in the next. Hence the split (Gate on
-  consequence).
-- **Nobody saw the total until the end.** The per-seat tokens were in the trail's table, but no
-  line added them up before the owner asked. Hence the cost notice (step 3).
+What the record showed. Every gate with four rounds or more (45 gates, 303 rounds) was replayed
+against the rules then proposed:
+- The old stop rule ("STOP patching when a verified fix re-breaks something an earlier round
+  fixed", on main since July 2026) had its trigger met in 34 of the 45 gates, and the rounds went
+  on in about 30 of them. In the brand-kit gate it was met in rounds 2 to 8. Its outlets
+  ("redesign" counted for one part inside the same PR; "a chain of fixes is the gate working")
+  let every round through. A rule in prose that the host weighs itself is not followed under the
+  pull of one more fix. Hence the check in the script: a round past 3 names the kind that earned
+  it, and a kind that comes back needs a cut the host has to name.
+- Fresh-eyes was the largest single cost: 11 of the 21.5 million reviewer tokens in that gate,
+  because a sub-agent with the whole tree reads widely. BUGs only fresh-eyes found: 9 in round 1,
+  6, 5 and 4 in rounds 2 to 4, then about one a round, at about 1.2 million tokens a round. Hence
+  fresh-eyes at High in rounds 1 to 3, on the round's change from round 2; the final full read
+  still reads the whole.
+- Nobody saw the running total until the owner asked. Hence the script prints it each run.
 
-What this does not show: that the gate would have found the same real defects at less cost. It
-did catch some that a lighter bar would have shipped: a crash on a crafted zip, a 20 MB favicon
-from a 228 KB file, a hang in the test cleanup, a stylesheet edit written to the wrong place. All
-four are BUGs under the new bar too: the zip, a crash; the favicon, a wrong result reported as success
-(an install that said "Done" with a 20 MB file); the cleanup, a hang; the stylesheet edit, a user's
-file changed in the wrong place.
+Left out, and why:
+- A severity bar that would make a BUG found only with input made by hand a NIT where the tool
+  stops safely. Replayed on the 45 gates it would have saved 1 round of 303 read strictly: late
+  rounds on code were earned by tracebacks, hangs, a wrong "Done", files changed, not by safe
+  stops. It is also the realism filter this file already rejects above: the author who wants the
+  rounds to stop is the wrong judge.
+- A notice instead of a refusal for a kind that comes back. The owner prefers warnings; here he
+  chose the refusal (2026-10-14), since a warning is what the old stop rule was. One flag satisfies
+  it; the cost is that the host must name the cut, in the log.
+- Moving the owner's decision from round 8 to round 5: not chosen.
+
+What this does not show: that the gate finds the same real defects with fresh-eyes only in rounds
+1 to 3 (25 BUGs only fresh-eyes found came in rounds 2 to 9 of the brand-kit gate, 15 of them in
+rounds 2 to 4); and how many rounds the cut check saves (an estimate of 15 to 25 rounds over the 45
+gates, not a measurement). Judge both by the cost log's rounds and tokens per gate.

@@ -1489,9 +1489,10 @@ check "noperl: no perl at all: named as missing, not as too old" \
 #     the exit code, the reviewers line and the cost log's outcome column are as at round 8. A
 #     13-round gate had no owner decision recorded past round 8; a refusal would stop the process,
 #     so this is a line the caller reads in the round's own output.
-run round8 REVIEW_LOG="$T/round8.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 8
-run round9 REVIEW_LOG="$T/round9.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 9
-run round12 bash "$SCRIPT" "$T/change.diff" --depth normal --round 12
+#     Each names --earned-by: a round past 3 is refused without it (test_round_checks.sh).
+run round8 REVIEW_LOG="$T/round8.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 8 --earned-by stub-kind
+run round9 REVIEW_LOG="$T/round9.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 9 --earned-by stub-kind
+run round12 bash "$SCRIPT" "$T/change.diff" --depth normal --round 12 --earned-by stub-kind
 run noround bash "$SCRIPT" "$T/change.diff"
 check "round 8: no past-round-8 notice" lacks round8.out "is past round 8"
 check "round 9: the notice names the round, the step and the owner" \
