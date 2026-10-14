@@ -5,7 +5,8 @@ its skills run, which services they talk to, what they write outside your site's
 where your keys are kept, and how a release is made. It was written by reading the scripts
 and the skill files, not from memory.
 
-**Checked on 2026-10-14, against `main` at commit `e038603`.** A later change can make a
+**Checked on 2026-10-14, against `main` at commit `e038603`, and the changes up to `034472d`
+read again.** A later change can make a
 line here wrong. Where something could not be checked, the line says so.
 
 A skill is a set of written instructions for your AI assistant (Claude Code, Codex or
@@ -133,7 +134,8 @@ What the site's own scripts do (from `package.json` in the
   changes, or when `production` has moved on its own, and it never force-pushes.
 
 `website-contact-form` builds a `mailto:` link: the visitor's own mail program sends the
-message. There is no form server.
+message. There is no form server. If the site's analytics are on, the press also counts as
+an "Email Tap" event there, as a click on an email address does.
 
 ### Skills that run scripts
 
@@ -211,7 +213,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | Google Antigravity | `independent-review`, only when you ask for it | your Antigravity sign-in | sends the plan or code change |
 | Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs` | none | reads only |
 | docs.astro.build, developers.cloudflare.com, keystatic.com | the assistant, when it looks up documentation (allowed without asking in Claude Code) | none | reads only |
-| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views go to the analytics address you set |
+| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass (with the page and referrer, without the address or anything typed), go to the analytics address you set |
 
 Some details:
 

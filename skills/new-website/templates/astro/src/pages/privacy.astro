@@ -12,7 +12,10 @@
 //      file downloads and form submissions (keep a sentence only if that
 //      measurement is ticked in Plausible's installer, which ticks all three by
 //      default; the page then describes what the instance does); and the
-//      storage period. The clause "only a visit that is still going ... continues as the
+//      storage period. The sentence on clicks on an email address describes the
+//      "Email Tap" event (src/components/EmailLink.astro, and the button of the
+//      website-contact-form skill's form); it goes with the paragraph, and stays
+//      as long as that counting does. The clause "only a visit that is still going ... continues as the
 //      same visit" describes Plausible's own session lookup (self-hosted Community
 //      Edition, checked for v3.2.1: on_event and find_session in
 //      lib/plausible/session/cache_store.ex, register_session in
@@ -30,7 +33,11 @@
 //      without a banner is a position, not a settled fact. The script sets no
 //      cookies and writes nothing to the device. It sends the page address and the
 //      referrer, scroll depth and engaged time (and, if ticked in Plausible, the
-//      address of clicked outbound links and downloaded files). It also reads one
+//      address of clicked outbound links and downloaded files), and one "Email Tap"
+//      event for each click on an email address or the contact form's button, with
+//      the page address and the referrer as every Plausible event has them, and
+//      neither the address nor anything typed (a custom event, so wider than bare
+//      counting). It also reads one
 //      local-storage flag (plausible_ignore, which lets you exclude your own
 //      visits) and navigator.webdriver (a bot check); neither is sent. The EDPB
 //      (Guidelines 2/2023 v2.0, para 33) says JavaScript that instructs the browser
@@ -121,6 +128,10 @@ import { SITE } from '../config';
       links to files, such as PDFs, and sends and stores the address of the file.]
       [DELETE UNLESS FORM SUBMISSIONS IS TICKED IN PLAUSIBLE: It counts
       submissions of forms on the site, but not what you enter.]
+      It also counts each click on an email address on this site, and on a
+      button that opens your email program, together with the page it was on
+      and the page or site you came from. Neither the email address nor
+      anything you typed is sent.
       The tool derives your
       approximate location from the IP address and does not keep the IP
       address in its own records. From your IP address, your browser data
