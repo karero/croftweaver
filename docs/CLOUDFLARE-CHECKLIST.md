@@ -359,7 +359,7 @@ look but not change anything):
 | Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
 
 Cloudflare documents these calls. We have run the Transform Rules call on live sites and
-the Bot Management call on one spare domain, and none of them often, so for every call the
+the Bot Management call on one spare domain, and we have not run any of them often, so for every call the
 assistant should read each setting back, and you run section 5.
 Bot Preference Sync is the field `bot_preference_sync_enabled`. A trial on that spare
 domain (14 October 2026) set it with the Bot Management update call. With it on and
