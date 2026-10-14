@@ -217,14 +217,15 @@ check "scaffold: the folder whats-new.sh names stays behind"    test ! -e "$PSD/
 # The folder can stay behind only while nothing a site's assistant reads asks to run it.
 runs="$(grep -rlE 'scripts/tests|unittest|pytest' --include='*.md' "$PSD/website-brand-kit" 2>/dev/null)"
 check "scaffold: no brand kit instruction runs its tests"       test -z "$runs"
-# Nor may its code reach for the folder. Read, not run: running would also fail on anything else
-# this machine lacks. The check fails closed: a line that starts with `import` or `from`, or calls
-# `require(`, and names the tests package or one of its modules (names from the toolkit's own
-# folder) fails, whatever the form; so do `scripts/tests` anywhere, and a `tests` path segment
-# right after a quote, a slash or a dot. Let through: a quoted "tests" used as a key ("tests": or
-# ["tests"]), and `tests/…` after a space, as the scripts' comments name test files. A false alarm
-# costs a rewording; a miss would break the brand kit in every site.
-# grep exits 1 for no match; 2, a folder it could not read, fails too.
+# Nor should its code reach for the folder. This is a tripwire for the usual ways, read and not
+# run: it catches a line that starts with `import` or `from`, or calls `require(`, and names the
+# tests package or one of its modules (names from the toolkit's own folder); `scripts/tests`
+# anywhere; and a `tests` path segment right after a quote, a slash or a dot. It lets through a
+# quoted "tests" in brackets or before a colon (a key, as `_install.py` uses one), and `tests/…`
+# after a space (how the scripts' comments name test files). It does NOT catch every way: an import
+# continued on the next line, or a ["tests"] list joined into a path later, passes. When in doubt
+# it fails, so a false alarm costs a rewording. grep exits 1 for no match; 2 (a folder it could not
+# read) fails too.
 mods="$(cd "$HERE/../skills/website-brand-kit/scripts/tests" && ls *.py | sed 's/\.py$//' | paste -sd'|' -)"
 check "scaffold: the toolkit's brand kit tests are found"        test -n "$mods"
 case "$mods" in *[!A-Za-z0-9_\|]*) mods=" a module name that is not a plain name: $mods" ;; esac
