@@ -416,7 +416,7 @@ class Hostile(unittest.TestCase):
                 # what the sentence says to do works, wherever the lines break: the declaration deleted, and nothing else
                 self.assertNotIn(b"<!DOCTYPE", without_doctype(data))
                 self.assertEqual(_svg.clean_svg(_input.mark(_input.load(without_doctype(data))).colour).colours, ["#b4531a"])
-        for word in ("DOCTYPE declaration", "text editor", "delete the declaration: everything from <!DOCTYPE up to the > that ends the declaration", "wherever the lines break",
+        for word in ("DOCTYPE declaration", "text editor", "delete the declaration: everything from <!DOCTYPE up to and including the > that ends the declaration", "wherever the lines break",
                      "and nothing else (an <svg that comes after it stays)", "If the file cannot be read after that", "ask the tool for an export without a DOCTYPE"):
             self.assertIn(word, _svg.DOCTYPE)
         # (no promise that the drawing is the same, or that the file reads, with the declaration gone: see the next test)
@@ -3055,7 +3055,7 @@ class HowFarADrawingReaches(unittest.TestCase):
                                  ("a shape placed far outside", placed_outside, "r holds '80000', and the box is 10 by 10")):
             with self.subTest(what=what):
                 said = str(refused(self, doc, "too-far"))
-                for word in (found, "Ask the tool for the drawing with nothing outside its frame.", "Or the drawing is made far larger than its box and scaled down to fit",
+                for word in (found, "Ask the tool for the drawing with nothing outside its frame.", "Or the drawing is made far larger or far smaller than its box and scaled to fit",
                              "ask for it in the box's own units, with the scaling applied to the shapes."):
                     self.assertIn(word, said)
                 answer = through_the_command(self, doc)   # the door production has

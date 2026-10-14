@@ -223,27 +223,31 @@ class Stylesheet(unittest.TestCase):
         # the near-miss: a theme colour written as another one stays (the starter's own `--link: var(--accent)`)
         self.assertIn("  --link: var(--accent);", _site.edit_css(aliased, own))
 
-    def test_a_primary_written_as_another_variable_is_refused_where_the_palette_gives_no_primary_to_write_there(self):
+    def test_a_primary_the_check_cannot_read_is_refused_where_the_palette_gives_no_primary_to_write_there(self):
         # round 8 (R8-202): "the Primary is always written out" did not hold for a palette with NO Primary. The line was left standing, the
-        # install said "done", and `palette --css` straight after ended with 2 naming it. INVARIANT: after an edit that ends well, the
-        # Primary never stands as a `var()`. With no colour to write there, the edit refuses and says the two ways out.
+        # install said "done", and `palette --css` straight after ended with 2 naming it. Round 9 (R9-202): refusing a value that BEGINS with
+        # `var(` left `color-mix(... var(--accent) ...)`, `calc(var(--accent))` and `--brand` set twice in `:root` standing. INVARIANT: an edit
+        # that ends well leaves a Primary the check reads; with no colour to write there, the edit refuses in the reading's own words.
         css = _palette.read_css(self.CSS)
         without, dark_only, three = bakery(), bakery(), _palette.Palette()
         without.brand = dark_only.brand = None
         dark_only.light = {}
         three.light, three.dark = {"bg": "#fff8ee"}, {"muted": "#c4ae98"}
-        for points_at in ("var(--accent)", "var(--link)", "var( --accent )", "var(--brand)", "var(--mine)", "VAR(--accent)", "var(--accent, #000000)", "var(--mine,var(--accent))"):
+        for points_at in ("var(--accent)", "var(--link)", "var( --accent )", "var(--brand)", "var(--mine)", "VAR(--accent)", "var(--accent, #000000)", "var(--mine,var(--accent))",
+                          "color-mix(in srgb, var(--accent) 80%, black)", "calc(var(--accent))", "rgb(from var(--accent) r g b)", "light-dark(var(--accent), var(--link))",
+                          "var/**/(--accent)", "#12345", "transparent"):
             text = self.CSS.replace("  --brand: #000000;", "  --brand: %s;" % points_at, 1)
             self.assertNotEqual(text, self.CSS)
-            self.assertIn(("light", "--brand"), [(b, v) for b, v, _m in _palette.read_css(text).problems], "the reading names the line, whatever the palette")
+            said = [m for b, v, m in _palette.read_css(text).problems if (b, v) == ("light", "--brand")]
+            self.assertEqual(len(said), 1, "the reading names the line, whatever the palette")
             for name, palette in (("no Primary", without), ("the dark theme only", dark_only), ("two colours", three), ("no colour at all", _palette.Palette())):
                 with self.subTest(points_at=points_at, palette=name):
                     with self.assertRaises(Refusal) as cm:
                         _site.edit_css(text, palette)
                     self.assertEqual((cm.exception.code, str(cm.exception)), (
-                        "css-primary-is-a-variable", "src/styles/global.css writes --brand (the Primary) as `%s`: the brand colour points at another variable, and this palette "
-                        "names no Primary to put in its place. Write the colour out in the stylesheet (`--brand: #1a2b3c;`, with your colour), or give the palette a Primary "
-                        "(the `Primary` row in the table under `### Brand`), then run this again." % points_at))
+                        "css-primary-unreadable", "src/styles/global.css: the brand colour (--brand, the Primary) is not written as a colour this tool can read, and this "
+                        "palette names no Primary to put in its place. --brand in the :root block: %s Write it out as a colour (`--brand: #1a2b3c;`, with your colour), or "
+                        "give the palette a Primary (the `Primary` row in the table under `### Brand`), then run this again." % said[0]))
             # with a Primary to write, the same stylesheet is written (the Primary alone, too)
             only = _palette.Palette()
             only.brand = "#b4531a"
@@ -261,16 +265,18 @@ class Stylesheet(unittest.TestCase):
         own.light, own.dark = dict(css.light), dict(css.dark)
         self.assertIn("  --link: var(--accent);", self.CSS)
         self.assertEqual(_site.edit_css(self.CSS, own), self.CSS, "the starter's stylesheet under its own colours and no Primary: byte for byte as it was")
-        # a line the scan cannot give one value (set twice) is the scan's to name, for a palette that writes the light block
+        # a line the scan cannot give one value (set twice) is the scan's to name, for a palette that writes the light block; for one that does
+        # not (R9-202, which ended "done"), the Primary's refusal names it, in the same words
         twice = self.CSS.replace("  --brand: #000000;", "  --brand: var(--accent);\n  --brand: #000000;", 1)
-        with self.assertRaises(Refusal) as cm:
-            _site.edit_css(twice, without)
-        self.assertEqual(cm.exception.code, "css-layout")
-        self.assertIn("--brand in the :root block: It is set 2 times in this block", str(cm.exception))
+        for palette, code in ((without, "css-layout"), (dark_only, "css-primary-unreadable"), (_palette.Palette(), "css-primary-unreadable")):
+            with self.assertRaises(Refusal) as cm:
+                _site.edit_css(twice, palette)
+            self.assertEqual(cm.exception.code, code)
+            self.assertIn("--brand in the :root block: It is set 2 times in this block", str(cm.exception))
 
-    def test_an_install_refuses_a_primary_that_stands_as_another_variable_when_the_palette_gives_none(self):
-        # R8-202 through the install, as a dry run and as a real one, with a BRAND.md whose three tables are complete and whose Brand table
-        # has no Primary row (and one whose Primary row is not filled in): exit 2, the sentence, and no file of the site changed
+    def test_an_install_refuses_a_primary_the_check_cannot_read_when_the_palette_gives_none(self):
+        # R8-202 and R9-202 through the install, as a dry run and as a real one, with a BRAND.md whose three tables are complete and whose
+        # Brand table has no Primary row (and one whose Primary row is not filled in): exit 2, the sentence, and no file of the site changed
         def run(*args):
             r = subprocess.run([sys.executable, os.path.join(T.SCRIPTS, "brand_intake.py")] + list(args), capture_output=True, text=True, encoding="utf-8",
                                env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8"))
@@ -286,24 +292,26 @@ class Stylesheet(unittest.TestCase):
 
         rows = lambda theme: "".join("| %s | `%s` |\n" % (_palette.LABEL[k], theme[k]) for k in _palette.KEYS)  # noqa: E731
         themes = "### Light theme\n| Token | Hex |\n|---|---|\n" + rows(T.BAKERY_LIGHT) + "\n### Dark theme\n| Token | Hex |\n|---|---|\n" + rows(T.BAKERY_DARK)
-        aliased = self.CSS.replace("  --brand: #000000;", "  --brand: var(--accent);", 1)
-        sentence = ("src/styles/global.css writes --brand (the Primary) as `var(--accent)`: the brand colour points at another variable, and this palette names no Primary to put "
-                    "in its place. Write the colour out in the stylesheet (`--brand: #1a2b3c;`, with your colour), or give the palette a Primary (the `Primary` row in the table "
-                    "under `### Brand`), then run this again.")
-        for name, brand_table in (("no Brand table", ""), ("a Primary row that is not filled in", "### Brand\n| Token | Hex |\n|---|---|\n| Primary | `#[\u2026]` |\n\n")):
-            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+        unfilled = "### Brand\n| Token | Hex |\n|---|---|\n| Primary | `#[\u2026]` |\n\n"
+        for name, brand_table, value in [("no Brand table", "", v) for v in ("var(--accent)", "color-mix(in srgb, var(--accent) 80%, black)", "calc(var(--accent))",
+                                                                          "light-dark(var(--accent), var(--link))", "var/**/(--accent)", "#12345")] + [
+                                         ("a Primary row that is not filled in", unfilled, "var(--accent)")]:
+            with self.subTest(name=name, value=value), tempfile.TemporaryDirectory() as tmp:
                 site = T.make_starter_site(os.path.join(tmp, "site"), with_modules=False)
                 sheet, doc = os.path.join(site, "src", "styles", "global.css"), os.path.join(site, "BRAND.md")
                 with open(sheet, "w", encoding="utf-8", newline="") as f:
-                    f.write(aliased)
+                    f.write(self.CSS.replace("  --brand: #000000;", "  --brand: %s;" % value, 1))
                 with open(doc, "w", encoding="utf-8") as f:
                     f.write("## Colour palette\n\n" + brand_table + themes)
                 before = files(site)
                 code, check = run("palette", doc, "--css", sheet, "--json")
                 self.assertEqual((code, [(p["block"], p["variable"]) for p in check["stylesheet_problems"]]), (2, [("light", "--brand")]), "the check names the line before")
+                sentence = ("src/styles/global.css: the brand colour (--brand, the Primary) is not written as a colour this tool can read, and this palette names no Primary to "
+                            "put in its place. --brand in the :root block: %s Write it out as a colour (`--brand: #1a2b3c;`, with your colour), or give the palette a Primary "
+                            "(the `Primary` row in the table under `### Brand`), then run this again." % check["stylesheet_problems"][0]["message"])
                 for extra in (["--dry-run"], []):
                     code, data = run("install", "--site", site, "--with-colours", "--test-command", "true", "--json", *extra)
-                    self.assertEqual((code, data.get("code"), data.get("message")), (2, "css-primary-is-a-variable", sentence), data)
+                    self.assertEqual((code, data.get("code"), data.get("message")), (2, "css-primary-unreadable", sentence), data)
                     self.assertEqual(data.get("written", []), [])
                     self.assertEqual(files(site), before, "a refusal writes nothing: no file of the site is other than it was")
                 # the first way out the sentence gives (the colour written out in the stylesheet) then ends well, and the check is content;
@@ -614,7 +622,7 @@ class Stylesheet(unittest.TestCase):
         for _ in range(120):
             (name_a, a), (name_b, b) = rng.sample(shapes[1:], 2)
             sheets.append(("%s + %s" % (name_a, name_b), b(a(self.CSS))))
-        ALIASED = "refused: the Primary written as a variable, and none to write there"
+        ALIASED = "refused: a Primary the check cannot read, and none to write there"
         counts = {"written": 0, "refused with the scan's problem": 0, "refused: a line is not there": 0, "refused: a Primary in a dark block": 0, "refused: the scan refuses it": 0, ALIASED: 0}
         left = 0  # values that already were the colour wanted, and were left as they stood
         for name, text in sheets:
@@ -634,8 +642,8 @@ class Stylesheet(unittest.TestCase):
                     self.assertEqual(read.problems[:len(sheet.problems)], [(t.block, t.variable, t.message) for t in sheet.problems], "the reading says what the scan says, first")
                     stops = [t for t in sheet.problems if t.block is None or t.block in {block for block, _var, _value in wanted}]
                     primary = [block for block in ("dark", "dark_media") if "--brand" in sheet.spans.get(block, ()) or "--brand" in sheet.unsure.get(block, ())]
-                    aliased = not palette.brand and sheet.spans.get("light", {}).get("--brand") and sheet.value("light", "--brand").startswith("var(")
                     gone = [(block, var) for block, var, _value in wanted if not stops and var not in sheet.spans[block]]
+                    aliased = not palette.brand and ("light", "--brand") in [(b, v) for b, v, _m in read.problems]
                     if stops or primary or aliased or gone:
                         with self.assertRaises(Refusal) as cm:
                             _site.edit_css(text, palette)
@@ -651,11 +659,7 @@ class Stylesheet(unittest.TestCase):
                         elif primary:
                             self.assertEqual(cm.exception.code, "css-primary-in-dark")
                             counts["refused: a Primary in a dark block"] += 1
-                        elif aliased:
-                            # round 8: the Primary stands as a `var()` and this palette gives none to write over it
-                            self.assertEqual(cm.exception.code, "css-primary-is-a-variable")
-                            counts[ALIASED] += 1
-                        else:
+                        elif gone:
                             # no problem, and a line the palette needs is not there: the edit names it, and the reading has no value for it either
                             self.assertEqual(cm.exception.code, "css-layout")
                             block, var = gone[0]
@@ -663,6 +667,10 @@ class Stylesheet(unittest.TestCase):
                             self.assertNotIn(_palette.KEY_OF_VARIABLE[var], {"light": dict(read.light, brand=read.brand) if read.brand else read.light,
                                                                               "dark": read.dark, "dark_media": read.dark_media}[block])
                             counts["refused: a line is not there"] += 1
+                        else:
+                            # rounds 8 and 9: the reading names the Primary's line, and this palette gives none to write over it
+                            self.assertEqual(cm.exception.code, "css-primary-unreadable")
+                            counts[ALIASED] += 1
                         continue
                     # no problem for what it must write: it writes, into exactly the places of the old values
                     new = _site.edit_css(text, palette)
@@ -679,6 +687,7 @@ class Stylesheet(unittest.TestCase):
                     for block, var, value in wanted:
                         self.assertEqual(after.brand if var == "--brand" else got[block][_palette.KEY_OF_VARIABLE[var]], value)
                     self.assertEqual([(t.block, t.variable) for t in after_scan.problems], [(t.block, t.variable) for t in sheet.problems], "and the edit made no new problem")
+                    self.assertNotIn(("light", "--brand"), [(b, v) for b, v, _m in after.problems], "and the check reads the Primary it leaves (R9-202)")
                     self.assertEqual(_site.edit_css(new, palette), new, "written a second time, nothing changes")
                     counts["written"] += 1
         self.assertEqual(sum(counts.values()), len(sheets) * len(self.palettes()))
@@ -789,53 +798,6 @@ def advice(message):
     return re.search(r"(?s)What it found instead: .*\. ([^.]+), then run this again: a line that already says this is left exactly as it is\.$", message).group(1)
 
 
-def follow_config(text, message):
-    """src/config.ts after somebody did what the refusal says, and nothing else. The line it shows is written
-    exactly as shown: no blanks before it that the message does not have."""
-    line, do = shown_line(message), advice(message)
-    name, const = line.split(":")[0], re.search(r"between the line `export const (\w+) = \{`", message).group(1)
-    lines = text.split("\n")
-
-    def number(pattern, where=None):
-        return int(re.search(pattern, do if where is None else where).group(1)) - 1
-
-    def block():
-        top = next(i for i, l in enumerate(lines) if re.match(r"export const %s\b" % const, l))
-        return top, next(i for i in range(top + 1, len(lines)) if lines[i].startswith("}"))
-
-    def own(quotes=""):
-        top, close = block()
-        return [i for i in range(top + 1, close) if re.match(r"[ \t]*(%s)%s\1[ \t]*:" % (quotes, name), lines[i])]
-    if do == "Save the file with ordinary line ends":
-        return re.sub("\r(?!\n)|[\u2028\u2029]", "\n", text)
-    if do.startswith("Set the value by hand: write that one line in place of the block's own `%s` line, or as the first line under the opening line (line " % name):
-        top, close = block()   # the block's own: the one that stands inside nothing (these files have no brace in a text), its key in quotes or not
-        keys = own("['\"]?")
-        depth = [sum(l.count("{") - l.count("}") for l in lines[top + 1:i]) for i in keys]
-        if 0 in depth:
-            lines[keys[depth.index(0)]] = line
-        else:
-            lines.insert(top + 1, line)
-    elif do.startswith("Write that one line in place of the entry, and keep what stands after the entry on line "):
-        at = number(r"after the entry on line (\d+) \(")   # (round 8) the line holds more than the entry: what stands after the entry's comma goes on a line of its own
-        rest = re.match(r"[ \t]*['\"]?%s['\"]?[ \t]*:[ \t]*(?:'[^']*'|\"[^\"]*\"|[\w$.]+)[ \t]*,[ \t]*(.*)$" % name, lines[at]).group(1)
-        lines[at:at + 1] = [line, rest]
-    elif do.startswith("Write that one line as the first line under the opening line (line "):
-        lines.insert(number(r"\(line (\d+)\)") + 1, line)
-    elif do in ("Leave one of them, written as shown, and take the other out", "Leave one of them, written as shown, and take the others out"):
-        first, rest = own()[0], own()[1:]
-        lines[first] = line
-        for i in reversed(rest):
-            del lines[i]
-    elif do == "Write that one line in its place":
-        lines[number(r"line (\d+) is written another way", message)] = line
-    elif do.startswith("Set the value by hand: write that one line in place of line "):
-        lines[number(r"in place of line (\d+)")] = line
-    else:
-        raise AssertionError("a refusal these tests do not know how to follow: %s" % do)
-    return "\n".join(lines)
-
-
 def follow_manifest(text, message):
     """The manifest after somebody did what the refusal says, the shown line written exactly as shown."""
     line, do = shown_line(message), advice(message)
@@ -921,6 +883,7 @@ class LineRule(unittest.TestCase):
     sentence can be followed to the letter."""
     rel = code = None
     follow = None
+    END = ", then run this again: a line that already says this is left exactly as it is."   # (src/config.ts: see Config.ONE)
 
     def set(self, text, **want):
         return _site.set_lines(self.rel, text, want)
@@ -936,7 +899,7 @@ class LineRule(unittest.TestCase):
         self.assertIn(saying, message)
         self.assertRegex(message, r"^%s: this tool sets .* only where the file has this one line" % re.escape(self.rel))
         self.assertIn("\nWhat it found instead: ", message)
-        self.assertTrue(message.endswith(", then run this again: a line that already says this is left exactly as it is."), message)
+        self.assertTrue(message.endswith(self.END), message)
         self.assertEqual(len(message.split("\n")), 3, "the line it shows stands alone on the second line, with nothing of the message before it")
         return message
 
@@ -966,14 +929,14 @@ class LineRule(unittest.TestCase):
 
 class Config(LineRule):
     rel, code = "src/config.ts", "config-layout"
-    follow = staticmethod(follow_config)
     CONFIG = T.starter_file("src/config.ts")
     OWN = "  themeColor: '#000000',               // matches the brand primary + manifest\n"
     LOGO = "  logo: '/images/logo.png',            // resolved against SITE.url for schema\n"
     HERS = "  logo: '/images/hers.png',\n"                      # COMPANY.logo pointing at a file of her own: a logo run sets it
-    # what a block is told whose every line of the key stands below a line that is not plain
-    EITHER = ("With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this block. Set the value by hand: write that one line in place of the "
-              "block's own `themeColor` line, or as the first line under the opening line (line 5) where the block has none of its own")
+    # (round 10) what every refusal of src/config.ts says to do: the same sentence, whatever was found (no line is named to write over, to move or to take out)
+    ONE = "Set the value in the file yourself so that the site reads it (keep every other entry as it is), then run this again: this tool then asks the site's Node what the site reads."
+    END = ". " + ONE
+    CANNOT = "With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this block. " + ONE
     BASE = CONFIG.replace(LOGO, HERS)
     WANT = {"themeColor": "#b4531a", "logo": "/images/logo.png"}
 
@@ -1102,134 +1065,126 @@ class Config(LineRule):
     # --- what the rule refuses, the sentence it says, and where doing what the sentence says leads -------
 
     def refusals(self):
-        """[(what it is, a src/config.ts, what the first refusal says, whether Node reads the value wanted from the
-        file once the refusals were followed)] for the theme colour. Where it does not, the line she wrote by hand
-        says the value and something else in the file decides it: that is for the read-back to say (test_install.py)."""
+        """[(what it is, a src/config.ts, what the refusal says)] for the theme colour. What the site then reads, and
+        whether the run goes through once she has set it, test_install.py asks through the install."""
         B, own = self.BASE, self.OWN
-        first = "the first line under the opening line (line 5)"
-        cannot = "With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this block. Set the value by hand: write that one line in place of line "
-        either = self.EITHER
+        cannot = self.CANNOT
 
         def below(more):
             return B.replace("  tagline:", more + "  tagline:")
 
-        def under(key, line, shows, opening=5, begins="themeColor:"):
-            # the key's line below a line that is not plain: it may be the block's own or a part of something inside the block,
-            # so no line is named as the one to write over, and none is to be moved (round 7)
+        def under(key, line, shows, begins="themeColor:"):
+            # the key's line below a line that is not plain: it may be the block's own or a part of something inside the block (round 7)
             return ("the one line of the block that begins with `%s` (line %d) stands below a line that is not one whole entry on one line (line %d: `%s`), so it may belong to something inside the block. %s"
-                    % (begins, key, line, shows, either.replace("(line 5)", "(line %d)" % opening)))
-
-        def keep(line, rest):
-            # (round 8) the block's own line holds more than the entry: the shown line takes the place of the entry, and the rest stays
-            return "Write that one line in place of the entry, and keep what stands after the entry on line %d (`%s`) on a line of its own below it" % (line, rest)
+                    % (begins, key, line, shows, cannot))
         return [
             # (b) above the key
-            ("an object inside the block whose lines are indented like the block's own", B.replace(own, "  social: {\n  themeColor: '#111111',\n  },\n"), under(11, 10, "social: {"), True),
-            ("an object inside the block, indented as a formatter does", B.replace(own, "  print: {\n    themeColor: '#000000',\n  },\n"), under(11, 10, "print: {"), True),
-            ("an object inside the block that holds the key as its last entry, with no comma", B.replace(own, "  pwa: {\n    themeColor: '#00ff00'\n  },\n"), under(11, 10, "pwa: {"), True),
+            ("an object inside the block whose lines are indented like the block's own", B.replace(own, "  social: {\n  themeColor: '#111111',\n  },\n"), under(11, 10, "social: {")),
+            ("an object inside the block, indented as a formatter does", B.replace(own, "  print: {\n    themeColor: '#000000',\n  },\n"), under(11, 10, "print: {")),
+            ("an object inside the block that holds the key as its last entry, with no comma", B.replace(own, "  pwa: {\n    themeColor: '#00ff00'\n  },\n"), under(11, 10, "pwa: {")),
             # (round 8) the same test comes before a key in quotes and a value without its comma are named as the line to write over:
             # below a line that is not plain they get this sentence too, and her object stays as she wrote it
             ("an object inside the block that holds the key in quotes, and the block has none of its own", B.replace(own, "  pwa: {\n    'themeColor': '#00ff00',\n    'theme-colour-dark': '#003300',\n  },\n"),
-             under(11, 10, "pwa: {", begins="'themeColor':"), True),
-            ("the same in double quotes, with a blank before the colon", B.replace(own, '  pwa: {\n    "themeColor" : "#00ff00",\n  },\n'), under(11, 10, "pwa: {", begins='"themeColor":'), True),
+             under(11, 10, "pwa: {", begins="'themeColor':")),
+            ("the same in double quotes, with a blank before the colon", B.replace(own, '  pwa: {\n    "themeColor" : "#00ff00",\n  },\n'), under(11, 10, "pwa: {", begins='"themeColor":')),
             ("an object inside the block that holds the key in quotes as its last entry, with no comma", B.replace(own, "  pwa: {\n    display: 'standalone',\n    'themeColor': '#00ff00'\n  },\n"),
-             under(12, 10, "pwa: {", begins="'themeColor':"), True),
-            ("an object inside the block whose last entry says the colour wanted, with no comma", B.replace(own, "  pwa: {\n    display: 'standalone',\n    themeColor: '#b4531a'\n  },\n"), under(12, 10, "pwa: {"), True),
-            ("the key in quotes below a list, where it is the block's own", B.replace(own, "  tags: ['a', 'b'],\n  'themeColor': '#000000',\n"), under(11, 10, "tags: ['a', 'b'],", begins="'themeColor':"), True),
-            ("a value above it that runs on to the next line", B.replace("  locale: 'en',\n", "  locale:\n    'en',\n"), under(11, 9, "locale:"), True),
-            ("a call above it", B.replace("  locale: 'en',\n", "  locale: String('en'),\n"), under(10, 9, "locale: String('en'),"), True),
-            ("a text with a backslash above it", B.replace("name: 'Example',", "name: 'The Baker\\'s',"), under(10, 7, "name: 'The Baker\\'s',"), True),
-            ("a quoted key above it", B.replace("  locale: 'en',\n", "  'og:type': 'website',\n"), under(10, 9, "'og:type': 'website',"), True),
-            ("two entries on one line above it", B.replace("  locale: 'en',\n", "  locale: 'en', region: 'GB',\n"), under(10, 9, "locale: 'en', region: 'GB',"), True),
-            ("a comment above it in the block that does not end on its line", B.replace("  locale: 'en',\n", "  locale: 'en',\n  /* brand\n  colours */\n"), under(12, 10, "/* brand"), True),
-            ("a comment above it that ends on its line, and another that opens after it", B.replace("  locale: 'en',\n", "  locale: 'en',\n  /* a */ /* b\n  */\n"), under(12, 10, "/* a */ /* b"), True),
+             under(12, 10, "pwa: {", begins="'themeColor':")),
+            ("an object inside the block whose last entry says the colour wanted, with no comma", B.replace(own, "  pwa: {\n    display: 'standalone',\n    themeColor: '#b4531a'\n  },\n"), under(12, 10, "pwa: {")),
+            ("the key in quotes below a list, where it is the block's own", B.replace(own, "  tags: ['a', 'b'],\n  'themeColor': '#000000',\n"), under(11, 10, "tags: ['a', 'b'],", begins="'themeColor':")),
+            ("a value above it that runs on to the next line", B.replace("  locale: 'en',\n", "  locale:\n    'en',\n"), under(11, 9, "locale:")),
+            ("a call above it", B.replace("  locale: 'en',\n", "  locale: String('en'),\n"), under(10, 9, "locale: String('en'),")),
+            ("a text with a backslash above it", B.replace("name: 'Example',", "name: 'The Baker\\'s',"), under(10, 7, "name: 'The Baker\\'s',")),
+            ("a quoted key above it", B.replace("  locale: 'en',\n", "  'og:type': 'website',\n"), under(10, 9, "'og:type': 'website',")),
+            ("two entries on one line above it", B.replace("  locale: 'en',\n", "  locale: 'en', region: 'GB',\n"), under(10, 9, "locale: 'en', region: 'GB',")),
+            ("a comment above it in the block that does not end on its line", B.replace("  locale: 'en',\n", "  locale: 'en',\n  /* brand\n  colours */\n"), under(12, 10, "/* brand")),
+            ("a comment above it that ends on its line, and another that opens after it", B.replace("  locale: 'en',\n", "  locale: 'en',\n  /* a */ /* b\n  */\n"), under(12, 10, "/* a */ /* b")),
             ("the line inside a block comment in the block, under a spread that sets it",
-             "const BRAND = { themeColor: '#111111' };\n" + B.replace("export const SITE = {\n", "export const SITE = {\n  ...BRAND,\n  /*\n").replace(own, own + "  */\n"), under(13, 7, "...BRAND,", opening=6), False),
-            ("a spread above it", "const BRAND = { other: 1 };\n" + B.replace("export const SITE = {\n", "export const SITE = {\n  ...BRAND,\n"), under(12, 7, "...BRAND,", opening=6), True),
-            ("a list above it", B.replace("  locale: 'en',\n", "  tags: ['a', 'b'],\n"), under(10, 9, "tags: ['a', 'b'],"), True),
-            ("a template string above it", B.replace("  locale: 'en',\n", "  locale: `en`,\n"), under(10, 9, "locale: `en`,"), True),
+             "const BRAND = { themeColor: '#111111' };\n" + B.replace("export const SITE = {\n", "export const SITE = {\n  ...BRAND,\n  /*\n").replace(own, own + "  */\n"), under(13, 7, "...BRAND,")),
+            ("a spread above it", "const BRAND = { other: 1 };\n" + B.replace("export const SITE = {\n", "export const SITE = {\n  ...BRAND,\n"), under(12, 7, "...BRAND,")),
+            ("a list above it", B.replace("  locale: 'en',\n", "  tags: ['a', 'b'],\n"), under(10, 9, "tags: ['a', 'b'],")),
+            ("a template string above it", B.replace("  locale: 'en',\n", "  locale: `en`,\n"), under(10, 9, "locale: `en`,")),
             # the key as the block's last entry, below the text that runs over several lines, and written without a comma (round 7):
             # the line shown has its comma, and written in place of the block's own it leaves a file that is TypeScript
-            ("the key as the block's last entry, with no comma after it", B.replace(own, "").replace("} as const;", "  themeColor: '#000000'\n} as const;", 1), under(17, 14, "description:"), True),
-            ("the key as the block's last entry, with its comma", B.replace(own, "").replace("} as const;", "  themeColor: '#000000',\n} as const;", 1), under(17, 14, "description:"), True),
+            ("the key as the block's last entry, with no comma after it", B.replace(own, "").replace("} as const;", "  themeColor: '#000000'\n} as const;", 1), under(17, 14, "description:")),
+            ("the key as the block's last entry, with its comma", B.replace(own, "").replace("} as const;", "  themeColor: '#000000',\n} as const;", 1), under(17, 14, "description:")),
             # (c) below the key
-            ("a spread below it", "const MORE = { other: 1 };\n" + below("  ...MORE,\n"), "line 14, in the same block, holds `...` (`...MORE,`). " + cannot + "11", True),
-            ("a spread after another entry on a line below it", "const MORE = { other: 1 };\n" + below("  extra: 1, ...MORE,\n"), "line 14, in the same block, holds `...`", True),
-            ("a computed key below it", "const KEY = 'other';\n" + below("  [KEY]: '#111111',\n"), "line 14, in the same block, holds `[`", True),
-            ("a getter with a computed name below it", "const KEY = 'other';\n" + below("  get [KEY]() { return '#111111'; },\n"), "line 14, in the same block, holds `[`", True),
-            ("a list below it, which this tool cannot tell from a computed key", below("  tags: ['a', 'b'],\n"), "line 13, in the same block, holds `[` (`tags: ['a', 'b'],`)", True),
-            ("another name spelt with an escape below it", below("  'caf\\u00e9': 1,\n"), "line 13, in the same block, holds `\\u`", True),
-            ("another name spelt with the other escape below it", below("  'caf\\xe9': 1,\n"), "line 13, in the same block, holds `\\x`", True),
-            ("a comment below it that does not end on its line", below("  /* the\n  title */\n"), "line 13, in the same block, holds `/*` (`/* the`)", True),
-            ("a text with a backslash below it, so that this tool cannot tell where the line's texts end", below("  motto: 'it\\'s here... [x]' +\n    'more',\n"), "line 13, in the same block, holds `...`", True),
-            ("a spread behind a text on a line below it", "const MORE = { other: 1 };\n" + below("  extra: 'x', ...MORE,\n"), "line 14, in the same block, holds `...`", True),
-            ("a template string below it", below("  greeting: `hello`,\n"), "line 13, in the same block, holds a backtick", True),
-            ("a text below it that runs on behind a backslash", below("  motto: 'one \\\n  two',\n"), "line 13, in the same block, holds a `\\` at its end", True),
-            ("a spread above it and one below it", "const A = { a: 1 };\nconst Z = { z: 1 };\n" + (below("  ...Z,\n")).replace("export const SITE = {\n", "export const SITE = {\n  ...A,\n"), under(13, 8, "...A,", opening=7), True),
+            ("a spread below it", "const MORE = { other: 1 };\n" + below("  ...MORE,\n"), "line 14, in the same block, holds `...` (`...MORE,`). " + cannot),
+            ("a spread after another entry on a line below it", "const MORE = { other: 1 };\n" + below("  extra: 1, ...MORE,\n"), "line 14, in the same block, holds `...`"),
+            ("a computed key below it", "const KEY = 'other';\n" + below("  [KEY]: '#111111',\n"), "line 14, in the same block, holds `[`"),
+            ("a getter with a computed name below it", "const KEY = 'other';\n" + below("  get [KEY]() { return '#111111'; },\n"), "line 14, in the same block, holds `[`"),
+            ("a list below it, which this tool cannot tell from a computed key", below("  tags: ['a', 'b'],\n"), "line 13, in the same block, holds `[` (`tags: ['a', 'b'],`)"),
+            ("another name spelt with an escape below it", below("  'caf\\u00e9': 1,\n"), "line 13, in the same block, holds `\\u`"),
+            ("another name spelt with the other escape below it", below("  'caf\\xe9': 1,\n"), "line 13, in the same block, holds `\\x`"),
+            ("a comment below it that does not end on its line", below("  /* the\n  title */\n"), "line 13, in the same block, holds `/*` (`/* the`)"),
+            ("a text with a backslash below it, so that this tool cannot tell where the line's texts end", below("  motto: 'it\\'s here... [x]' +\n    'more',\n"), "line 13, in the same block, holds `...`"),
+            ("a spread behind a text on a line below it", "const MORE = { other: 1 };\n" + below("  extra: 'x', ...MORE,\n"), "line 14, in the same block, holds `...`"),
+            ("a template string below it", below("  greeting: `hello`,\n"), "line 13, in the same block, holds a backtick"),
+            ("a text below it that runs on behind a backslash", below("  motto: 'one \\\n  two',\n"), "line 13, in the same block, holds a `\\` at its end"),
+            ("a spread above it and one below it", "const A = { a: 1 };\nconst Z = { z: 1 };\n" + (below("  ...Z,\n")).replace("export const SITE = {\n", "export const SITE = {\n  ...A,\n"), under(13, 8, "...A,")),
             # the name a second time
             ("the key a second time", B.replace(own, own + "  themeColor: '#111111',\n"), "2 lines of the block begin with `themeColor:` (lines 10 and 11), so it cannot be known from the text which of them the site reads. "
-             "Leave one of them, written as shown, and take the other out", True),
-            ("the key three times", B.replace(own, own + "  themeColor: '#111111',\n  themeColor: '#222222',\n"), "3 lines of the block begin with `themeColor:` (lines 10, 11 and 12)", True),
-            ("the key a second time, quoted", below("  'themeColor': '#111111',\n"), "line 13, in the same block, holds the name `themeColor` again (`'themeColor': '#111111',`). " + cannot + "10", False),
-            ("the key a second time, computed", below("  ['themeColor']: '#111111',\n"), "line 13, in the same block, holds `[`", False),
-            ("the key a second time after another entry on the line", below("  extra: 1, themeColor: '#111111',\n"), "line 13, in the same block, holds the name `themeColor` again", False),
-            ("the name alone below it (a shorthand entry, which wins)", "const themeColor = '#111111';\n" + below("  themeColor,\n"), "line 14, in the same block, holds the name `themeColor` again (`themeColor,`)", False),
-            ("a getter of that name below it", below("  get themeColor() { return '#111111'; },\n"), "line 13, in the same block, holds the name `themeColor` again", False),
-            ("the key again on a line that looks like a comment and stands in a block comment", below("  note: 1, /* was:\n  // */ themeColor: '#111111', /*\n  */\n"), "line 13, in the same block, holds `/*` (`note: 1, /* was:`)", False),
-            ("the key again on a line that looks like a comment and stands in a template string", below("  note: `\n  // ${0}`, themeColor: '#111111', other: `\n  `,\n"), "line 13, in the same block, holds a backtick", False),
+             "" + self.ONE),
+            ("the key three times", B.replace(own, own + "  themeColor: '#111111',\n  themeColor: '#222222',\n"), "3 lines of the block begin with `themeColor:` (lines 10, 11 and 12)"),
+            ("the key a second time, quoted", below("  'themeColor': '#111111',\n"), "line 13, in the same block, holds the name `themeColor` again (`'themeColor': '#111111',`). " + cannot),
+            ("the key a second time, computed", below("  ['themeColor']: '#111111',\n"), "line 13, in the same block, holds `[`"),
+            ("the key a second time after another entry on the line", below("  extra: 1, themeColor: '#111111',\n"), "line 13, in the same block, holds the name `themeColor` again"),
+            ("the name alone below it (a shorthand entry, which wins)", "const themeColor = '#111111';\n" + below("  themeColor,\n"), "line 14, in the same block, holds the name `themeColor` again (`themeColor,`)"),
+            ("a getter of that name below it", below("  get themeColor() { return '#111111'; },\n"), "line 13, in the same block, holds the name `themeColor` again"),
+            ("the key again on a line that looks like a comment and stands in a block comment", below("  note: 1, /* was:\n  // */ themeColor: '#111111', /*\n  */\n"), "line 13, in the same block, holds `/*` (`note: 1, /* was:`)"),
+            ("the key again on a line that looks like a comment and stands in a template string", below("  note: `\n  // ${0}`, themeColor: '#111111', other: `\n  `,\n"), "line 13, in the same block, holds a backtick"),
             # a key of the same name in an object inside the block (round 6): hers, and never to be taken out
-            ("the key in an object inside the block below it, on one line", below("  print: { themeColor: '#111111' },\n"), "line 13, in the same block, holds the name `themeColor` again (`print: { themeColor: '#111111' },`). " + cannot + "10", True),
+            ("the key in an object inside the block below it, on one line", below("  print: { themeColor: '#111111' },\n"), "line 13, in the same block, holds the name `themeColor` again (`print: { themeColor: '#111111' },`). " + cannot),
             ("the key in an object inside the block below it, on lines of its own", B.replace(own, own + "  pwa: {\n    themeColor: '#00ff00',\n  },\n"),
-             "line 12, in the same block, holds the name `themeColor` again (`themeColor: '#00ff00',`). " + cannot + "10", True),
+             "line 12, in the same block, holds the name `themeColor` again (`themeColor: '#00ff00',`). " + cannot),
             ("the key in an object inside the block above it, on lines of its own", B.replace(own, "  pwa: {\n    themeColor: '#00ff00',\n  },\n" + own),
-             "2 lines of the block begin with `themeColor:` (lines 11 and 13), each below a line that is not one whole entry on one line (line 10: `pwa: {`), so any of them may belong to something inside the block. " + either, True),
+             "2 lines of the block begin with `themeColor:` (lines 11 and 13), each below a line that is not one whole entry on one line (line 10: `pwa: {`), so any of them may belong to something inside the block. " + cannot),
             ("the key in two objects inside the block and not in the block itself", B.replace(own, "  pwa: {\n    themeColor: '#00ff00',\n  },\n  print: {\n    themeColor: '#00ff00',\n  },\n"),
-             "2 lines of the block begin with `themeColor:` (lines 11 and 14), each below a line that is not one whole entry on one line (line 10: `pwa: {`)", False),
+             "2 lines of the block begin with `themeColor:` (lines 11 and 14), each below a line that is not one whole entry on one line (line 10: `pwa: {`)"),
             # the key's own line
-            ("no such line", B.replace(own, ""), "no line of the block (lines 5 to 17) begins with `themeColor:`. Write that one line as " + first, True),
-            ("under another name", B.replace("themeColor:", "colour:"), "no line of the block (lines 5 to 18) begins with `themeColor:`", True),
-            ("the line below the block", B.replace(own, "").replace("} as const;\n", "} as const;\n// themeColor: '#000000',\n", 1), "no line of the block (lines 5 to 17) begins with `themeColor:`", True),
+            ("no such line", B.replace(own, ""), "no line of the block (lines 5 to 17) begins with `themeColor:`. " + self.ONE),
+            ("under another name", B.replace("themeColor:", "colour:"), "no line of the block (lines 5 to 18) begins with `themeColor:`"),
+            ("the line below the block", B.replace(own, "").replace("} as const;\n", "} as const;\n// themeColor: '#000000',\n", 1), "no line of the block (lines 5 to 17) begins with `themeColor:`"),
             ("a quoted key", B.replace(own, "  'themeColor': '#000000',\n"), "line 10 is written another way: its key is in quotes (`'themeColor': '#000000',`), and this tool takes the key as the starter writes it, "
-             "without them. Write that one line in its place", True),
-            ("a key in double quotes", B.replace(own, '  "themeColor": "#000000",\n'), "line 10 is written another way: its key is in quotes", True),
+             "without them. " + self.ONE),
+            ("a key in double quotes", B.replace(own, '  "themeColor": "#000000",\n'), "line 10 is written another way: its key is in quotes"),
             ("every key of the block in quotes, as some formatters leave them", re.sub(r"(?m)^  (\w+):", r"  '\1':", B.split("} as const;")[0]) + "} as const;" + B.split("} as const;", 1)[1],
-             under(10, 6, "'url': 'https://example.com', // production origin, no trailing slash", begins="'themeColor':"), True),   # (round 8: every line above it has its key in quotes, and is not plain)
-            ("the key in quotes twice", B.replace(own, "  'themeColor': '#000000',\n  \"themeColor\": '#111111',\n"), "no line of the block (lines 5 to 19) begins with `themeColor:`", False),
-            ("another entry before it on the line", B.replace(own, "  locale2: 'en', themeColor: '#000000',\n"), "no line of the block (lines 5 to 18) begins with `themeColor:`", False),
-            ("a choice between two values", "const dark = false;\n" + B.replace(own, "  themeColor: dark ? '#111111' : '#000000',\n"), "line 11 is written another way: `themeColor: dark ? '#111111' : '#000000',`. Write that one line in its place", True),
-            ("a value joined from two", B.replace(own, "  themeColor: '#000000' + '',\n"), "line 10 is written another way: `themeColor: '#000000' + '',`", True),
-            ("a value with a type after it", B.replace(own, "  themeColor: '#000000' as string,\n"), "line 10 is written another way", True),
-            ("a name in place of the value", "const BRAND = '#000000';\n" + B.replace(own, "  themeColor: BRAND,\n"), "line 11 is written another way: `themeColor: BRAND,`", True),
-            ("a colour by name", B.replace(own, "  themeColor: 'black',\n"), "line 10 is written another way", True),
-            ("five digits", B.replace(own, "  themeColor: '#00000',\n"), "line 10 is written another way", True),
-            # (round 8) a line that holds more than the entry: "Write that one line in its place", followed, took the rest with it
-            ("another entry after it on the line", B.replace(own, "  themeColor: '#000000', locale2: 'en',\n"), "line 10 is written another way: `themeColor: '#000000', locale2: 'en',`. " + keep(10, "locale2: 'en',"), True),
-            ("a block comment after it on the line", B.replace(own, "  themeColor: '#000000', /* brand */\n"), "line 10 is written another way: `themeColor: '#000000', /* brand */`. " + keep(10, "/* brand */"), True),
-            ("two more entries and a comment after it on the line", B.replace(own, "  themeColor: '#000000', locale2: 'en', draft: true, // three\n"), keep(10, "locale2: 'en', draft: true, // three"), True),
-            ("the colour wanted, and another entry after it on the line", B.replace(own, "  themeColor: '#b4531a', locale2: 'en',\n"), keep(10, "locale2: 'en',"), True),
-            ("a quoted key, and another entry after it on the line", B.replace(own, "  'themeColor': '#000000', locale2: 'en',\n"), "and this tool takes the key as the starter writes it, without them. " + keep(10, "locale2: 'en',"), True),
-            ("a name in place of the value, and another entry after it on the line", "const BRAND = '#000000';\n" + B.replace(own, "  themeColor: BRAND, locale2: 'en',\n"), keep(11, "locale2: 'en',"), True),
-            ("a colour by name, and an object that opens after it on the line", B.replace(own, "  themeColor: 'black', pwa: {\n    display: 'standalone',\n  },\n"), keep(10, "pwa: {"), True),
-            ("a colour by name with only a comment after it: nothing but the entry is on the line", B.replace(own, "  themeColor: 'black', // named\n"), "line 10 is written another way: `themeColor: 'black', // named`. Write that one line in its place", True),
-            ("a template string for the value", B.replace(own, "  themeColor: `#000000`,\n"), "line 10 is written another way", True),
+             under(10, 6, "'url': 'https://example.com', // production origin, no trailing slash", begins="'themeColor':")),   # (round 8: every line above it has its key in quotes, and is not plain)
+            ("the key in quotes twice", B.replace(own, "  'themeColor': '#000000',\n  \"themeColor\": '#111111',\n"), "no line of the block (lines 5 to 19) begins with `themeColor:`"),
+            ("another entry before it on the line", B.replace(own, "  locale2: 'en', themeColor: '#000000',\n"), "no line of the block (lines 5 to 18) begins with `themeColor:`"),
+            ("a choice between two values", "const dark = false;\n" + B.replace(own, "  themeColor: dark ? '#111111' : '#000000',\n"), "line 11 is written another way: `themeColor: dark ? '#111111' : '#000000',`. " + self.ONE),
+            ("a value joined from two", B.replace(own, "  themeColor: '#000000' + '',\n"), "line 10 is written another way: `themeColor: '#000000' + '',`"),
+            ("a value with a type after it", B.replace(own, "  themeColor: '#000000' as string,\n"), "line 10 is written another way"),
+            ("a name in place of the value", "const BRAND = '#000000';\n" + B.replace(own, "  themeColor: BRAND,\n"), "line 11 is written another way: `themeColor: BRAND,`"),
+            ("a colour by name", B.replace(own, "  themeColor: 'black',\n"), "line 10 is written another way"),
+            ("five digits", B.replace(own, "  themeColor: '#00000',\n"), "line 10 is written another way"),
+            # (round 8) a line that holds more than the entry
+            ("another entry after it on the line", B.replace(own, "  themeColor: '#000000', locale2: 'en',\n"), "line 10 is written another way: `themeColor: '#000000', locale2: 'en',`. " + self.ONE),
+            ("a block comment after it on the line", B.replace(own, "  themeColor: '#000000', /* brand */\n"), "line 10 is written another way: `themeColor: '#000000', /* brand */`. " + self.ONE),
+            ("two more entries and a comment after it on the line", B.replace(own, "  themeColor: '#000000', locale2: 'en', draft: true, // three\n"), "line 10 is written another way: `themeColor: '#000000', locale2: 'en', draft: true, // three`"),
+            ("the colour wanted, and another entry after it on the line", B.replace(own, "  themeColor: '#b4531a', locale2: 'en',\n"), "line 10 is written another way: `themeColor: '#b4531a', locale2: 'en',`"),
+            ("a quoted key, and another entry after it on the line", B.replace(own, "  'themeColor': '#000000', locale2: 'en',\n"), "and this tool takes the key as the starter writes it, without them. " + self.ONE),
+            ("a name in place of the value, and another entry after it on the line", "const BRAND = '#000000';\n" + B.replace(own, "  themeColor: BRAND, locale2: 'en',\n"), "line 11 is written another way: `themeColor: BRAND, locale2: 'en',`"),
+            ("a colour by name, and an object that opens after it on the line", B.replace(own, "  themeColor: 'black', pwa: {\n    display: 'standalone',\n  },\n"), "line 10 is written another way: `themeColor: 'black', pwa: {`"),
+            ("a colour by name with only a comment after it: nothing but the entry is on the line", B.replace(own, "  themeColor: 'black', // named\n"), "line 10 is written another way: `themeColor: 'black', // named`. " + self.ONE),
+            ("a template string for the value", B.replace(own, "  themeColor: `#000000`,\n"), "line 10 is written another way"),
             ("no comma after the value, which runs on to the next line", B.replace(own, "  themeColor: '#000000'\n    + 'ff',\n"),
-             "line 10 is written another way: it has no comma after the value, so the value can run on to the line below it (`themeColor: '#000000'`). Write that one line in its place", False),
+             "line 10 is written another way: it has no comma after the value, so the value can run on to the line below it (`themeColor: '#000000'`). " + self.ONE),
             ("no comma after the value and a comment between it and what it runs on to", B.replace(own, "  themeColor: '#000000' // the primary\n  // and its alpha\n    + 'ff',\n"),
-             "line 10 is written another way: it has no comma after the value", False),
+             "line 10 is written another way: it has no comma after the value"),
             # the closing line (round 5): what stands after the brace can decide the value
             ("another object joined on to the closing line", B.replace("} as const;", "} && { themeColor: '#111111' };", 1), "line 18 closes the block with more than its `}` (`} && { themeColor: '#111111' };`): after the brace "
              "this tool takes `as const`, a `satisfies` clause, a `;` and a `//` comment, and nothing else. With that on the closing line this tool cannot be sure from the text which value the site reads, so it "
-             "does not edit this block. Set the value by hand: write that one line in place of line 10", False),
-            ("something the block falls back on, after the closing brace", "const base = { themeColor: '#111111' };\n" + B.replace("} as const;", "}.missing ?? base;", 1), "line 19 closes the block with more than its `}` (`}.missing ?? base;`)", False),
-            ("a choice after the closing brace", B.replace("} as const;", "} ? { themeColor: '#111111' } : {};", 1), "line 18 closes the block with more than its `}`", False),
-            ("a type other than `const` after the closing brace", B.replace("} as const;", "} as Record<string, string>;", 1), "line 18 closes the block with more than its `}`", True),
+             "does not edit this block. " + self.ONE),
+            ("something the block falls back on, after the closing brace", "const base = { themeColor: '#111111' };\n" + B.replace("} as const;", "}.missing ?? base;", 1), "line 19 closes the block with more than its `}` (`}.missing ?? base;`)"),
+            ("a choice after the closing brace", B.replace("} as const;", "} ? { themeColor: '#111111' } : {};", 1), "line 18 closes the block with more than its `}`"),
+            ("a type other than `const` after the closing brace", B.replace("} as const;", "} as Record<string, string>;", 1), "line 18 closes the block with more than its `}`"),
             # line ends
-            ("a second key behind a carriage return that TypeScript reads as a line end", B.replace(own, own[:-1] + "\r  themeColor: '#111111',\n"), "line 10 holds a line end that TypeScript reads and this tool does not", True),
-            ("a second key behind one of Unicode's line separators", B.replace(own, own[:-1] + "\u2028  themeColor: '#111111',\n"), "line 10 holds a line end that TypeScript reads and this tool does not", True),
+            ("a second key behind a carriage return that TypeScript reads as a line end", B.replace(own, own[:-1] + "\r  themeColor: '#111111',\n"), "line 10 holds a line end that TypeScript reads and this tool does not"),
+            ("a second key behind one of Unicode's line separators", B.replace(own, own[:-1] + "\u2028  themeColor: '#111111',\n"), "line 10 holds a line end that TypeScript reads and this tool does not"),
         ]
 
     def test_what_the_rule_does_not_take_is_refused_in_the_one_sentence_naming_the_line(self):
-        for label, text, saying, _reads in self.refusals():
+        for label, text, saying in self.refusals():
             with self.subTest(label=label):
                 message = self.refused(text, saying, themeColor="#b4531a")
                 self.assertEqual(self.line_asked_for(message), "themeColor: '#b4531a',")
@@ -1247,42 +1202,10 @@ class Config(LineRule):
             with self.subTest(label=label):
                 self.refused(text, saying, logo="/images/logo.png")
 
-    def test_doing_what_a_refusal_says_leads_to_a_run_that_goes_through_and_never_to_the_same_refusal_again(self):
-        # the line is written exactly as the refusal shows it, with no blanks before it; what the site reads
-        # at the end is asked of Node in the test below
-        for label, text, _saying, _reads in self.refusals():
-            with self.subTest(label=label):
-                mended, said = self.followed(text, themeColor="#b4531a")
-                self.assertTrue(said, "it was refused at first")
-                self.assertLessEqual(len(said), 3)
-                new, changes = self.set(mended, themeColor="#b4531a")
-                self.assertEqual(len(re.findall(r"(?m)^[ \t]*themeColor[ \t]*:[ \t]*'#b4531a',", new)), 1, "one line says it, and it says the value wanted")
-                if not changes:
-                    self.assertIn("\nthemeColor: '#b4531a',\n", mended, "her line is as the refusal showed it, and was left as it is")
-                for inside in re.findall(r"(?m)^  \w+: \{\n(?:  .*\n)*?  \},\n", text):   # (round 7) an object inside the block is hers: no advice writes over a line of it, moves one or takes one out
-                    self.assertIn(inside, new, "the object inside the block is as she wrote it")
-                    self.assertIn("themeColor", inside)
-        for label, text in (("logo escaped", self.CONFIG.replace(self.LOGO, "  logo: '/it\\'s.png',\n")), ("logo twice", self.BASE.replace(self.HERS, self.HERS + "  logo: '/other.png',\n")),
-                            ("logo not there", self.BASE.replace(self.HERS, "")), ("logo named again below", self.BASE.replace(self.HERS, self.HERS + "  parent: { logo: '/images/parent.png' },\n")),
-                            ("a list below the logo", self.BASE.replace(self.HERS, self.HERS + "  sameAs: ['https://example.org/us'],\n"))):
-            with self.subTest(label=label):
-                mended, said = self.followed(text, logo="/images/logo.png")
-                self.assertTrue(said)
-                self.assertEqual(len(re.findall(r"(?m)^[ \t]*logo:[ \t]*'/images/logo.png',", self.set(mended, logo="/images/logo.png")[0])), 1)
-
-    def test_after_the_refusals_were_followed_node_reads_the_value_the_tool_says_the_file_holds(self):
-        self.need_node(typescript=True)
-        cases = [(label, text) for label, text, _saying, reads in self.refusals() if reads]
-        ends = [self.set(self.followed(text, themeColor="#b4531a")[0], themeColor="#b4531a")[0] for _label, text in cases]
-        for (label, _text), got in zip(cases, config_as_node_reads_it(ends)):
-            with self.subTest(label=label):
-                self.assertEqual(got.get("themeColor"), "#b4531a", got)
-
-    def test_a_line_of_the_key_inside_something_is_never_named_as_the_line_to_write_over_its_key_in_quotes_or_its_comma_missing(self):
-        # (round 8) INVARIANT: no advice names a line as the one to write over unless the line is surely the block's own.
-        # Two refusals were made before that was asked: a key in quotes, and a value with no comma after it. Inside
-        # `pwa: {` each said "Write that one line in its place": followed, her value was written over, and the block
-        # still had no key of its own.
+    def test_a_line_of_the_key_inside_something_is_said_to_be_that_its_key_in_quotes_or_its_comma_missing_too(self):
+        # (round 8) A key in quotes and a value with no comma after it were refused before it was asked whether the line
+        # stands inside something (`pwa: {`). That is asked first. (Round 10: whatever is found, what to do is the one
+        # sentence, which names no line; the install asks the site's Node what it reads before it refuses.)
         cases = [(label, text, "themeColor", "#b4531a") for label, text in (
             ("the key in quotes", self.BASE.replace(self.OWN, "  pwa: {\n    'themeColor': '#00ff00',\n  },\n")),
             ("the key in double quotes", self.BASE.replace(self.OWN, '  pwa: {\n    "themeColor": "#00ff00",\n  },\n')),
@@ -1297,64 +1220,16 @@ class Config(LineRule):
                   ("the logo's address wanted, no comma", self.BASE.replace(self.HERS, "  parent: {\n    logo: '/images/logo.png'\n  },\n"), "logo", "/images/logo.png")]
         for label, text, name, value in cases:
             with self.subTest(label=label):
-                message = self.refused(text, " may belong to something inside the block. With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this "
-                                             "block. Set the value by hand: write that one line in place of the block's own `%s` line, or as the first line under the opening line (line" % name, **{name: value})
-                for names_a_line in ("in its place", "is written another way", "in place of line", "in place of the entry"):
-                    self.assertNotIn(names_a_line, message)
-                # followed (there is no line of the block's own, so the shown line goes under the opening line): her object is as she wrote it
-                nl = "\r\n" if "\r\n" in text else "\n"
-                mended = nl.join(follow_config(text.replace("\r\n", "\n"), message.replace("\r\n", "\n")).split("\n"))
-                self.unchanged(mended, **{name: value})
-                self.assertEqual([l for l in text.split(nl) if l not in mended.split(nl)], [], "not a line of hers was written over or taken out")
-                self.assertEqual(len(mended.split(nl)), len(text.split(nl)) + 1)
-        # the same two shapes where the line IS surely the block's own (every line above it plain) are still told the line: nothing changed there
+                message = self.refused(text, " may belong to something inside the block. " + self.CANNOT.replace("themeColor", name), **{name: value})
+                self.assertNotIn("is written another way", message)
+        # the same two shapes where the line IS surely the block's own (every line above it plain) are said as that
         self.refused(self.BASE.replace(self.OWN, "  'themeColor': '#000000',\n"), "line 10 is written another way: its key is in quotes (`'themeColor': '#000000',`), and this tool takes the key as the starter "
-                     "writes it, without them. Write that one line in its place", themeColor="#b4531a")
+                     "writes it, without them. " + self.ONE, themeColor="#b4531a")
         self.refused(self.BASE.replace(self.OWN, "  themeColor: '#b4531a'\n    + 'ff',\n"), "line 10 is written another way: it has no comma after the value, so the value can run on to the line below it "
-                     "(`themeColor: '#b4531a'`). Write that one line in its place", themeColor="#b4531a")
+                     "(`themeColor: '#b4531a'`). " + self.ONE, themeColor="#b4531a")
         # and a line inside something that says the value wanted WITH its comma is left as it stands, as before: what the site reads, the read-back says
         self.unchanged(self.BASE.replace(self.OWN, "  pwa: {\n    themeColor: '#b4531a',\n  },\n"), themeColor="#b4531a")
         self.unchanged(self.BASE.replace(self.OWN, "").replace("} as const;", "  themeColor: '#B4531A'\n} as const;", 1), themeColor="#b4531a")   # the block's last entry needs no comma
-
-    def test_what_stands_after_the_entry_on_the_keys_own_line_is_kept_when_the_refusal_is_followed(self):
-        # (round 8) INVARIANT: doing what a refusal says never takes something of hers out of the file without a word.
-        # `themeColor: '#000000', region: 'eu',` was told "Write that one line in its place": followed to the
-        # character, `region` was gone and the run passed. The advice now is to write the line in place of the entry
-        # and to keep the rest on a line of its own.
-        cases = [(label, self.BASE.replace(self.OWN, "  " + before + "\n"), "  " + before, rest, "themeColor", "#b4531a") for label, before, rest in (
-            ("another entry", "themeColor: '#000000', region: 'eu',", "region: 'eu',"),
-            ("two entries and a comment", "themeColor: '#000000', region: 'eu', draft: true, // three", "region: 'eu', draft: true, // three"),
-            ("a comment that opens and closes", "themeColor: '#000000',   /* brand */", "/* brand */"),
-            ("the key in quotes", "'themeColor': '#000000', region: 'eu',", "region: 'eu',"),
-            ("the key in double quotes, the value too", '"themeColor": "#000000", "region": "eu",', '"region": "eu",'),
-            ("a colour by name", "themeColor: 'black', region: 'eu',", "region: 'eu',"),
-            ("a number where the colour should be", "themeColor: 0, region: 'eu',", "region: 'eu',"),
-            ("the colour wanted already", "themeColor: '#B4531A', region: 'eu',", "region: 'eu',"),
-            ("an object that opens after the entry", "themeColor: '#000000', pwa: {\n    display: 'standalone',\n  },", "pwa: {\n    display: 'standalone',\n  },"),
-            ("the key itself a second time", "themeColor: '#000000', themeColor: '#111111',", None))]
-        cases.append(("the logo's line", self.BASE.replace(self.HERS, "  logo: '/images/hers.png', alt: 'Example',\n"), "  logo: '/images/hers.png', alt: 'Example',", "alt: 'Example',", "logo", "/images/logo.png"))
-        ends = []
-        for label, text, before, rest, name, value in cases:
-            with self.subTest(label=label):
-                shown = "%s: '%s'," % (name, value)
-                message = self.refused(text, "Write that one line in place of the entry, and keep what stands after the entry on line %d (" % (text.split("\n").index(before.split("\n")[0]) + 1), **{name: value})
-                self.assertNotIn("in its place", message)
-                mended, said = self.followed(text, **{name: value})
-                if rest is None:   # the rest is the key once more: the next refusal says so (two lines of the key), and following that one leaves one
-                    self.assertEqual((len(said), mended), (2, text.replace(before, shown)))
-                    self.assertIn("2 lines of the block begin with `themeColor:` (lines 10 and 11)", said[1])
-                else:
-                    self.assertEqual((len(said), mended), (1, text.replace(before, shown + "\n" + rest)), "the entry replaced, what stood after it on a line of its own below, and not a byte else")
-                self.unchanged(mended, **{name: value})
-                ends.append((label, mended, name, value))
-        # nothing but the entry on the line: the plain advice, as before (a `//` comment after it is all that is lost)
-        for line in ("themeColor: 'black',", "themeColor: 'black', // named", "themeColor: BRAND,", "themeColor: '#000000' as string,", "themeColor: dark ? '#111111' : '#000000',"):
-            with self.subTest(line=line):
-                self.refused(self.BASE.replace(self.OWN, "  " + line + "\n"), "line 10 is written another way: `%s`. Write that one line in its place" % line, themeColor="#b4531a")
-        if not node_problem(typescript=True):
-            for (label, _mended, name, value), got in zip(ends, config_as_node_reads_it([mended for _label, mended, _name, _value in ends])):
-                with self.subTest(label=label, read_by="Node"):
-                    self.assertEqual(got.get(name), value, got)
 
     # what a developer may have put into the block: entries, comments and texts of every kind, each on lines of its own
     AWKWARD = ("  ...A,\n", "  [K]: '#111111',\n", "  'themeColor': '#111111',\n", '  "themeColor": "#111111",\n', "  themeColor: '#111111',\n", "  themeColor,\n", "  get themeColor() { return '#111111'; },\n",
@@ -1394,13 +1269,12 @@ class Config(LineRule):
         self.assertLess(len(taken), (len(self.AWKWARD) + 1) ** 2 // 4, "most of them are refused")
 
     def test_a_block_this_tool_cannot_edit_is_said_to_be_that_and_a_value_set_by_hand_in_it_is_taken_as_it_stands(self):
-        # a spread above the key and one below it: the line can move neither up nor down. The refusal says so
-        # in plain words, once, and the value she then writes by hand is accepted: (b) and (c) are not asked
-        # of a line that needs no edit, the name a second time among them. Nothing outside the block is looked at.
+        # a spread above the key and one below it. The refusal says so in plain words, once, and the value she then
+        # writes on that line is accepted: (b) and (c) are not asked of a line that needs no edit, the name a second
+        # time among them. Nothing outside the block is looked at.
         text = "const A = { a: 1 };\nconst Z = { z: 1 };\n" + self.BASE.replace("export const SITE = {\n", "export const SITE = {\n  ...A,\n").replace("  tagline:", "  ...Z,\n  tagline:")
-        message = self.refused(text, self.EITHER.replace("(line 5)", "(line 7)"), themeColor="#b4531a")
-        self.assertNotIn("Move the", message, "moving the line would only lead to the other refusal")
-        by_hand = follow_config(text, message)
+        self.refused(text, self.CANNOT, themeColor="#b4531a")
+        by_hand = text.replace(self.OWN, "themeColor: '#b4531a',\n")
         self.assertIn("\nthemeColor: '#b4531a',\n", by_hand)
         self.unchanged(by_hand, themeColor="#b4531a")
         # Taken as it stands: whether the site reads it from there is for the read-back to say (test_install.py). The
@@ -1429,7 +1303,8 @@ class Config(LineRule):
                 self.assertEqual(_site.set_lines(self.rel, inside, {"themeColor": "#b4531a"}, where), (inside, []))
                 self.assertEqual(where, {})
         closing = self.BASE.replace("} as const;", "} && { themeColor: '#111111' };", 1)
-        self.unchanged(follow_config(closing, self.refused(closing, "closes the block with more than its `}`", themeColor="#b4531a")), themeColor="#b4531a")
+        self.refused(closing, "closes the block with more than its `}`", themeColor="#b4531a")
+        self.unchanged(closing.replace(self.OWN, "themeColor: '#b4531a',\n"), themeColor="#b4531a")
         self.unchanged(by_hand.replace("themeColor: '#b4531a',", "  themeColor: \"#B4531A\",  // by hand"), themeColor="#b4531a")
         self.refused(by_hand, "stands below a line that is not one whole entry on one line (line 8: `...A,`)", themeColor="#000000")   # another value wanted is an edit again, and is refused again
         self.unchanged(by_hand.replace("  ...Z,\n", "  ...Z,\n  'themeColor': '#111111',\n"), themeColor="#b4531a")   # which of the two the site reads, the read-back says
@@ -1457,20 +1332,20 @@ class Config(LineRule):
                     self.assertEqual(got.get("themeColor"), {"NaN": None, "nothing": None}.get(reads, reads), "(Node's answer as JSON has neither NaN nor a value that is not there)")
                     self.assertNotEqual(got.get("themeColor"), "#b4531a", "the site does not read what the block's line says, and only asking it shows that")
 
-    def test_a_block_that_cannot_be_found_once_or_is_opened_or_closed_another_way_is_refused_and_can_be_mended_as_the_refusal_says(self):
+    def test_a_block_that_cannot_be_found_once_or_is_opened_or_closed_another_way_is_refused_and_goes_through_once_written_as_the_starter_writes_it(self):
         B = self.BASE
         cases = (
-            ("declared with let", B.replace("export const SITE = {", "export let SITE = {"), "no line that starts `export const SITE`. Write `export const SITE = {` at the start of a line",
+            ("declared with let", B.replace("export const SITE = {", "export let SITE = {"), "no line that starts `export const SITE`. " + self.ONE,
              lambda t: t.replace("export let SITE", "export const SITE")),
             ("exported further down", B.replace("export const SITE = {", "const SITE = {") + "export { SITE };\n", "no line that starts `export const SITE`",
              lambda t: t.replace("const SITE = {", "export const SITE = {").replace("export { SITE };\n", "")),
             ("two blanks in the declaration", B.replace("export const SITE = {", "export const  SITE = {"), "no line that starts `export const SITE`", lambda t: t.replace("const  SITE", "const SITE")),
-            ("the block twice, one of them in a comment", "/*\nexport const SITE = {\n  url: 'old',\n};\n*/\n" + B, "2 lines (lines 2 and 10), not one, that start `export const SITE`. Leave one `export const SITE` in the file",
+            ("the block twice, one of them in a comment", "/*\nexport const SITE = {\n  url: 'old',\n};\n*/\n" + B, "2 lines (lines 2 and 10), not one, that start `export const SITE`. " + self.ONE,
              lambda t: t.split("*/\n", 1)[1]),
-            ("no closing brace at the start of a line", B.split("} as const;")[0].rstrip("\n") + " };\n", "no line after line 5 that starts with `}`. Close the block with a `}` at the start of a line",
+            ("no closing brace at the start of a line", B.split("} as const;")[0].rstrip("\n") + " };\n", "no line after line 5 that starts with `}`. " + self.ONE,
              lambda t: t.replace(" };\n", "\n};\n")),
             ("a wrapper on the opening line", B.replace("export const SITE = {", "export const SITE = Object.freeze({").replace("} as const;", "} as const);", 1),
-             "line 5 opens the block another way: `export const SITE = Object.freeze({`. Write the opening line as `export const SITE = {`",
+             "line 5 opens the block another way: `export const SITE = Object.freeze({`. " + self.ONE,
              lambda t: t.replace("export const SITE = Object.freeze({", "export const SITE = {").replace("} as const);", "} as const;")),
             ("another wrapper", "const define = <T>(x: T) => x;\n" + B.replace("export const SITE = {", "export const SITE = define({").replace("} as const;", "});", 1), "line 6 opens the block another way",
              lambda t: t.replace("export const SITE = define({", "export const SITE = {").replace("});", "};", 1)),

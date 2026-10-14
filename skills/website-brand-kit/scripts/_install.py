@@ -75,8 +75,8 @@ KEPT_FOR = ("the Primary the palette has now (%s)", "the light theme's Accent th
 # A run that leaves BRAND.md's palette out (--keep-colours, or a palette that is not complete) goes by the site's own
 # colours. Where BRAND.md names no Primary, a mark given in `currentColor` is then drawn in the light theme's Accent
 # as the site has it, not in the stylesheet's `--brand`: said on the run that draws it (BRAND.md's name, the colour).
-DRAWN_IN_ACCENT = ("the mark was given without a colour of its own (in `currentColor`) and is drawn in the light theme's Accent the site has now (%s), because %s names no "
-                   "Primary. The site's own colours were not changed")
+DRAWN_IN_ACCENT = ("the mark (or the part of it given without a colour of its own, in `currentColor`) is drawn in the light theme's Accent the site has now (%s), "
+                   "because %s names no Primary. The site's own colours were not changed")
 KEPT_COLOURS = ("the logo keeps %s it was installed with (%s), which the palette no longer holds: this run changes the site's colours and leaves the logo's files as they "
                 "are, and this tool recolours nothing. For the logo in the new colours, ask the design tool for the mark in them, then run this again with that package: --input")
 NO_EMBLEM = ("the share cards get no emblem from this tool (the logo, shown faintly on each card): it leaves the LOGO line in scripts/generate_og_cards.py exactly as it is. "
@@ -309,7 +309,8 @@ def last_lines(output):
 # names are bound to. Each program answers in one line of JSON that starts with a mark made for this run (the
 # file may print lines of its own, before and after), and ends the process as soon as it has printed it. An
 # answer that has arrived counts, also where the process then did not end in time and was stopped (Node still
-# runs the file's `exit` listeners).
+# runs the file's `exit` listeners). Node is also asked before anything is written, where set_lines refuses
+# src/config.ts as it stands: see _set_config.
 
 _ASK_NODE = """
 import { pathToFileURL } from 'node:url';
@@ -386,10 +387,11 @@ def _unanswered(who, code, errors, site):
 def _reads_config(site):
     """What the site's own Node reads from src/config.ts: ({"themeColor": ..., "logo": ...}, None), or
     (None, why it could not be asked). Node 22.18 and newer read a TypeScript file as it stands. One before
-    that says it does not know the extension, and is asked once more with --experimental-strip-types (the
-    starter allows Node from 22.12, which reads TypeScript only with that). Where that second asking fails
-    too, its reason is the one given; a Node that does not know the flag (before 22.6: it ends with status 9,
-    and one line of its error output is its own sentence for that, which ends `: bad option: ` and the
+    that says it does not know the file's own extension (`.ts`; another is a file it could not load), and is
+    asked once more with --experimental-strip-types (the starter allows Node from 22.12, which reads
+    TypeScript only with that). Where that second asking fails too, its reason is the one given; a Node that
+    does not know the flag (before 22.6: it ends with status 9, and one line of its error output is its own
+    sentence for that: the program's name, from the line's start and not a blank, `: bad option: `, the
     flag) is said to read no TypeScript. Status 9 without that line is said like any other ending without
     an answer: the file may have ended the program with it."""
     node = shutil.which("node")
@@ -405,13 +407,14 @@ def _reads_config(site):
         if said is None and code is None:
             return None, "Node took more than %d seconds over the file and was stopped" % READ_BACK_SECONDS
         # Node's own sentence on an option it does not know, a line of its own: `<the program as it was started>: bad option: <the option>`
-        if said is None and more and code == 9 and any(line.rstrip("\r").endswith(": bad option: " + more[0]) for line in errors.split("\n")):
+        tail = ": bad option: " + " ".join(more)
+        if said is None and more and code == 9 and any(line.endswith(tail) and line[:-len(tail)][:1].strip() for line in errors.replace("\r", "").split("\n")):
             break
         if said is None:
             return None, _unanswered("Node", code, errors, site)
         if isinstance(said.get("read"), dict):
             return said["read"], None
-        if said.get("code") != "ERR_UNKNOWN_FILE_EXTENSION":
+        if said.get("code") != "ERR_UNKNOWN_FILE_EXTENSION" or not str(said.get("why")).startswith('Unknown file extension ".ts" '):
             return None, "Node could not load the file (%s)" % _first_line(str(said.get("why") or ""), site)
         version = str(said.get("node") or version)
     return None, "the Node on this computer (%s) does not read a TypeScript file" % _first_line(version, site)
@@ -490,6 +493,24 @@ def read_back(site, wanted):
     return out
 
 
+def _set_config(site, text, want, where, notes):
+    """_site.set_lines for src/config.ts. Where that refuses, the site's own Node is asked first what it reads from the file
+    as it stands (before anything is written, in a dry run too: asking only reads). Where that is every value wanted, the
+    file is left as it is, with a note; else the refusal stands, and says what Node reads or why it could not be asked."""
+    try:
+        return _site.set_lines(_site.CONFIG, text, want, where)
+    except Refusal as r:
+        got = read_back(site, {_site.CONFIG: want})[_site.CONFIG]
+        if got["status"] != "ok":
+            raise Refusal(r.code, " ".join([str(r)] + (["This tool could not ask the site's Node what it reads: %s." % got["why"]] if "why" in got else
+                                                    ["The site reads %s now." % ("no value" if v["reads"] == "nothing" else v["reads"]) for v in got["values"]])))
+    for name, value in want.items():
+        where.pop(name, None)   # (no line of the file is the place of the value)
+        notes.append("src/config.ts does not set %s.%s as the starter writes it, and the site reads %s there already (this tool asked the site's Node), so this run "
+                     "leaves that value as it is" % (_site._CONFIG[name][0], name, value))
+    return text, []
+
+
 def _not_read_back(rel, names, where, why):
     """The one note about a file whose values could not be read back. `names` are the values asked about, `where`
     the lines they stand on: a line is named only where each of them has one (see _site.set_lines)."""
@@ -500,23 +521,14 @@ def _not_read_back(rel, names, where, why):
     return "this tool could not check that the site reads %s from %s%s, where %s set: %s" % (" and ".join("`%s`" % n for n in names), at, rel, "it is" if len(names) == 1 else "they are", why)
 
 
-def _read_differently(rel, off, where, set_here):
-    """The sentence for one value that the site reads otherwise than this run set it, or left it."""
-    name, at = off["name"], where.get(off["name"])
+def _read_differently(rel, off):
+    """The one sentence for a value that the site reads otherwise than this run wanted it (the report's next line says
+    what was put back)."""
     if rel == _site.GENERATOR:
-        head = "%s: Python has %s bound to %s once the file's own top has run (this tool asked Python)." % (rel, name, off["reads"])
-    else:
-        head = "%s: the site reads %s as %s (this tool asked the site's own Node)." % (rel, off["reads"], {"themeColor": "SITE.themeColor", "logo": "COMPANY.logo"}[name])
-    said = ("This run set %s on line %d" % (off["wanted"], at) if name in set_here else "Line %d already says %s, and this run left it" % (at, off["wanted"]) if at else
-            "The file already says %s, and this run left it" % off["wanted"])   # (no line: none is surely the block's own, see _site.set_lines)
-    if rel == _site.CONFIG and not at and off["reads"] == "nothing":
-        # The site reads no value at all, and the line that says the value is not surely the block's own: it belongs to
-        # something inside the block (`pwa: {`, then `themeColor: ...`), and nothing else in the file decides the value.
-        const = _site._CONFIG[name][0]
-        return ("%s %s, but the `%s` block has no `%s` of its own: the line that says it belongs to something inside the block. Write `%s: '%s',` as the first line under the "
-                "block's opening line (it starts `export const %s`), and where that other line was changed to say %s, put back what it said before. Then run this again."
-                % (head, said, const, name, name, off["wanted"], const, off["wanted"]))
-    return "%s %s, so something else in the file decides the value. Set it by hand where the file decides it, or have the developer mend the file, then run this again." % (head, said)
+        return ("%s: Python has %s bound to %s once the file's own top has run (this tool asked Python), not to %s as this run wanted. Set the value in the file "
+                "yourself so that Python reads it, then run this again." % (rel, off["name"], off["reads"], off["wanted"]))
+    return ("%s: the site reads %s as %s.%s (this tool asked the site's own Node), not %s as this run wanted. Set the value in the file yourself so that the site "
+            "reads it, then run this again." % (rel, off["reads"], _site._CONFIG[off["name"]][0], off["name"], off["wanted"]))
 
 
 class Plan(object):
@@ -525,7 +537,6 @@ class Plan(object):
     def __init__(self):
         self.wanted = {}      # file -> {name: value} of what this run sets, or finds already set, in src/config.ts and the generator
         self.where = {}       # file -> {name: the number of the line it stands on, where that is known}
-        self.set_here = {}    # file -> the names whose line this run edits (the others already say the value)
         self.texts = {}       # relative path -> (old text, new text)
         self.files = {}       # relative path -> bytes (icons)
         self.asks = []
@@ -573,8 +584,8 @@ def install(a, out):
     A dry run does everything a real run does up to the first write, and stops there. So the two can differ
     in one way: after writing, a real run asks Node and Python what the site reads (read_back). Where that
     is not what it set, it ends with exit status 1 and everything put back; where it could not ask, it goes
-    on and says so in a note that no dry run shows. A dry run writes nothing and cannot ask; its report
-    says so.
+    on and says so in a note that no dry run shows. A dry run writes nothing, so it cannot ask what the
+    site reads from what it would write; its report says so.
 
     Once the run has its outcome (done, a question, a dry run, a refusal, red tests, a stop), the signals
     do nothing any more, and that stays so when this returns: the report is still to be printed, and a
@@ -820,9 +831,9 @@ def _install(a, site, out, data):
     # What the palette changes, as she reads it: said in every report from here on, and asked about
     # (below) when she came for the logo and did not say the colours should change too.
     card_colours = want_colours
-    # the values this run sets (or finds set) in src/config.ts and the generator, the lines they stand on, and which of
-    # them it edits: what the read-back asks Node and Python about once the files are written
-    wanted, where, set_here = {}, {}, {}
+    # the values this run sets (or finds set) in src/config.ts and the generator, and the lines they stand on: what the
+    # read-back asks Node and Python about once the files are written
+    wanted, where = {}, {}
     if want_colours:
         low = _site.og_low_contrast(pal)
         changes.extend("%s: %s becomes %s" % (where, old or "a value this tool cannot read", new) for where, old, new in _differences(css, parsed))
@@ -855,14 +866,14 @@ def _install(a, site, out, data):
         refused = None
         for rel, want in others:   # all three are looked at, also after one of them was refused: the report lists every change it could work out
             try:
-                texts[rel], changed = _site.set_lines(rel, text(rel), want, where.setdefault(rel, {}))
+                texts[rel], changed = (_set_config(site, text(rel), want, where.setdefault(rel, {}), notes) if rel == _site.CONFIG else
+                                       _site.set_lines(rel, text(rel), want, where.setdefault(rel, {})))
             except Refusal as r:
                 refused = refused or r
                 continue
             changes.extend("%s, %s: %s becomes %s" % (rel, name, old, new) for name, old, new in changed)
             if rel != _site.MANIFEST:   # (the manifest is JSON: set_lines reads it back itself)
                 wanted[rel] = dict(want)
-                set_here[rel] = {name for name, _old, _new in changed}
         if refused is not None:
             raise refused
 
@@ -939,7 +950,7 @@ def _install(a, site, out, data):
     want_logo = bool(a.input) or redraw
 
     plan = Plan()
-    plan.wanted, plan.where, plan.set_here = wanted, where, set_here
+    plan.wanted, plan.where = wanted, where
     workdir = None
     try:
         with _held():   # a stop between the making of the folder and its name being known here would leave it behind
@@ -948,9 +959,8 @@ def _install(a, site, out, data):
             if not a.input:
                 clean = kept or _svg.clean_svg(master_bytes, current=primary)
             # COMPANY.logo, by the same rule as the colours' lines: refused here, before anything is drawn
-            texts[_site.CONFIG], repointed = _site.set_lines(_site.CONFIG, text(_site.CONFIG), {"logo": _site.LOGO_ADDRESS}, where.setdefault(_site.CONFIG, {}))
+            texts[_site.CONFIG], repointed = _set_config(site, text(_site.CONFIG), {"logo": _site.LOGO_ADDRESS}, where.setdefault(_site.CONFIG, {}), notes)
             wanted.setdefault(_site.CONFIG, {})["logo"] = _site.LOGO_ADDRESS
-            set_here.setdefault(_site.CONFIG, set()).update(name for name, _old, _new in repointed)
             for _name, logo_was, _new in repointed:
                 plan.pending.append((
                     "COMPANY.logo in src/config.ts points at %s; this run would point it at /images/logo.png, the picture made from this logo, and leave the file it "
@@ -1149,7 +1159,7 @@ def _apply(a, site, out, data, plan, j, writes, want_colours, want_logo, card_co
 
         # what the site reads from the files as they now are (see read_back): asked before the site's tests are run
         data["read_back"] = checked = read_back(site, plan.wanted)
-        differ = [_read_differently(rel, off, plan.where[rel], plan.set_here[rel]) for rel, got in checked.items() for off in got.get("values", ())]
+        differ = [_read_differently(rel, off) for rel, got in checked.items() for off in got.get("values", ())]
         if differ:
             left = undo()
             raise Stop(1, ["A check failed after the files were written: what the site reads is not what this run set."] + differ + _aftermath(data),

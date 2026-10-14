@@ -32,7 +32,7 @@ import _render
 import _site
 import _svg
 from test_palette import LABELS, STARTER_DARK, STARTER_LIGHT, table
-from test_site_edits import (bakery, tree, advice, shown_line, refusal_in, follow_config, follow_manifest, follow_generator, node_problem,
+from test_site_edits import (bakery, tree, advice, shown_line, refusal_in, follow_manifest, follow_generator, node_problem,
                              config_as_node_reads_it, manifest_as_node_reads_it, generator_as_python_runs_it, changed_outside_the_block)
 
 GREEN = "true"
@@ -105,17 +105,16 @@ def rects(*shapes):
 STOP_SIGNALS = [getattr(signal, n) for n in _install.SIGNALS if hasattr(signal, n)]
 
 
-def follow_read_back(text, sentence, put_back=None):
-    """src/config.ts after somebody did what the read-back says of a block that has no line of the key of its own, and
-    nothing else: the line it shows, in its characters, as the first line under the block's opening line. `put_back`
-    is (a line as it stands now, what it said before) where "that other line" was changed."""
-    shown, opening = re.search(r"has no `\w+` of its own: the line that says it belongs to something inside the block\. Write `([^`]+)` as the first line under the block's opening line "
-                               r"\(it starts `([^`]+)`\), and where that other line was changed to say \S+, put back what it said before\. Then run this again\.$", sentence).groups()
-    lines = text.split("\n")
-    if put_back:
-        lines[lines.index(put_back[0])] = put_back[1]
-    lines.insert(next(i for i, line in enumerate(lines) if line.startswith(opening)) + 1, shown)
-    return "\n".join(lines)
+# (round 10) what every refusal of src/config.ts says to do, and what the install asks the site's Node before it refuses
+CONFIG_ONE = "Set the value in the file yourself so that the site reads it (keep every other entry as it is), then run this again: this tool then asks the site's Node what the site reads."
+ALREADY = "src/config.ts does not set SITE.%s as the starter writes it, and the site reads %s there already (this tool asked the site's Node), so this run leaves that value as it is"
+YOURSELF = "Set the value in the file yourself so that the site reads it, then run this again."   # the end of the read-back's sentence
+
+
+def set_by_hand(config, name="themeColor", value="#b4531a"):
+    """src/config.ts after she did what a refusal of it says: the value set so that the site reads it. Here in one way of
+    many, which the line rule does not take: a line at the end of the file that sets it on the object."""
+    return config + "// set by hand\n// @ts-ignore\n%s.%s = '%s';\n" % ("SITE" if name == "themeColor" else "COMPANY", name, value)
 
 
 def run(*argv):
@@ -292,7 +291,7 @@ class SiteCase(unittest.TestCase):
             with_the_flag, "printf '\\n%%s%%s\\n' \"$mark\" '%s'; exit 0" % with_the_flag)
         with open(os.path.join(folder, "node"), "w", encoding="utf-8") as f:
             f.write("#!/bin/sh\nfor mark; do :; done\ncase \" $* \" in\n  \" --experimental-strip-types \"*) echo flag >> '%s'; %s ;;\n"
-                    "  \" --input-type=module \"*) echo plain >> '%s'; printf '\\n%%s{\"code\":\"ERR_UNKNOWN_FILE_EXTENSION\",\"why\":\"Unknown file extension .ts\",\"node\":\"v20.11.0\"}\\n' \"$mark\"; exit 0 ;;\nesac\nexec '%s' \"$@\"\n"
+                    "  \" --input-type=module \"*) echo plain >> '%s'; printf '\\n%%s{\"code\":\"ERR_UNKNOWN_FILE_EXTENSION\",\"why\":\"Unknown file extension \\\\\".ts\\\\\" for ./src/config.ts\",\"node\":\"v20.11.0\"}\\n' \"$mark\"; exit 0 ;;\nesac\nexec '%s' \"$@\"\n"
                     % (asked, flagged, asked, real))
         os.chmod(os.path.join(folder, "node"), 0o755)
         os.environ["PATH"] = folder + os.pathsep + self.path
@@ -1694,13 +1693,13 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         written character for character as it stands in the report (test_site_edits has the three followers)."""
         if "Mend the file so that it is valid JSON" in out:
             return text.replace(",,", ",").replace(' "ratio": NaN,', "")
-        if "Leave one `export const SITE` in the file" in out:
-            return re.sub(r"/\*.*?\*/\n", "", text, flags=re.S)   # the copy in the comment goes
         if "Mend that so that the file runs under this Python" in out:
             return text.replace("( 010,", "(10,")
         if "Name what is imported there in place of the `*`" in out:
             return text.replace("import *", "import sep")
-        return {"src/config.ts": follow_config, "public/manifest.webmanifest": follow_manifest, "scripts/generate_og_cards.py": follow_generator}[rel](text, refusal_in(out))
+        if rel == "src/config.ts":
+            return set_by_hand(text)
+        return {"public/manifest.webmanifest": follow_manifest, "scripts/generate_og_cards.py": follow_generator}[rel](text, refusal_in(out))
 
     def as_the_site_reads(self, rel):
         """The values of one of the three files as the program that reads it on the site gets them (None where
@@ -1738,11 +1737,10 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         home = "# Home + fallback card"
         cases = (
             # src/config.ts: a file a developer has reshaped, where the tool edited a line and the site read another value
-            # (round 7) the key only in an object inside the block: the advice names no line to write over or to move, and her value stays
+            # (round 7) the key only in an object inside the block: her value stays where it is (round 10: the site's Node reads no value there)
             ("src/config.ts", "an object inside the block whose lines are indented like the block's own", config.replace(own, "  social: {\n  themeColor: '#00ff00',\n  },\n"),
              "the one line of the block that begins with `themeColor:` (line 11) stands below a line that is not one whole entry on one line (line 10: `social: {`), so it may belong to something inside the block. "
-             "With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this block. Set the value by hand: write that one line in place of the block's own "
-             "`themeColor` line, or as the first line under the opening line (line 5) where the block has none of its own"),
+             "With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this block. " + CONFIG_ONE + " The site reads no value now."),
             ("src/config.ts", "an object inside the block that holds the key as its last entry, with no comma", config.replace(own, "  pwa: {\n    themeColor: '#00ff00'\n  },\n"),
              "the one line of the block that begins with `themeColor:` (line 11) stands below a line that is not one whole entry on one line (line 10: `pwa: {`)"),
             # (round 7) the block's own line as its last entry, without a comma: "move the line up" left a file that was no TypeScript
@@ -1754,7 +1752,7 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
              "2 lines of the block begin with `themeColor:` (lines 11 and 12)"),
             ("src/config.ts", "the key again in an object inside the block, below it", config.replace(own, own + "  pwa: {\n    themeColor: '#00ff00',\n  },\n"),
              "line 12, in the same block, holds the name `themeColor` again (`themeColor: '#00ff00',`). With that in the block this tool cannot be sure from the text which value the site reads, so it does "
-             "not edit this block. Set the value by hand: write that one line in place of line 10"),
+             "not edit this block. " + CONFIG_ONE + " The site reads #000000 now."),
             ("src/config.ts", "the key again in an object inside the block, above it", config.replace(own, "  pwa: {\n    themeColor: '#00ff00',\n  },\n" + own),
              "2 lines of the block begin with `themeColor:` (lines 11 and 13), each below a line that is not one whole entry on one line (line 10: `pwa: {`), so any of them may belong to something inside the block"),
             ("src/config.ts", "the key twice on one line", config.replace(own, "  themeColor: '#000000', themeColor: '#111111',\n"), "line 10 is written another way"),
@@ -1767,7 +1765,7 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
             ("src/config.ts", "a key in quotes inside an object of the block, and none in the block itself", config.replace(own, "  pwa: {\n    'themeColor': '#00ff00',\n  },\n"),
              "the one line of the block that begins with `'themeColor':` (line 11) stands below a line that is not one whole entry on one line (line 10: `pwa: {`)"),
             ("src/config.ts", "another entry after the key's on its line", config.replace(own, "  themeColor: '#000000', region: 'eu',\n"),
-             "Write that one line in place of the entry, and keep what stands after the entry on line 10 (`region: 'eu',`) on a line of its own below it"),
+             "line 10 is written another way: `themeColor: '#000000', region: 'eu',`. " + CONFIG_ONE + " The site reads #000000 now."),
             ("src/config.ts", "a comment that does not end on its line, in the block", config.replace(own, own + "  /* the titles:\n     how each page is called */\n"), "line 11, in the same block, holds `/*`"),
             ("src/config.ts", "a list further down, which this tool cannot tell from a computed key", config.replace("} as const;\n", "  tags: ['bread', 'cake'],\n} as const;\n", 1),
              "line 18, in the same block, holds `[` (`tags: ['bread', 'cake'],`). With that in the block this tool cannot be sure from the text which value the site reads, so it does not edit this block"),
@@ -1807,6 +1805,8 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         )
         for rel, name, text, said in cases:
             with self.subTest(rel=rel, name=name):
+                if rel == "src/config.ts":
+                    self.need_read_back()   # (round 10) the install asks the site's Node before it refuses src/config.ts
                 self.assertNotEqual(text, T.starter_file(rel))
                 self.fresh()
                 self.put(rel, text)
@@ -1825,7 +1825,7 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
                     refusals.append(head)
                     if head.startswith("%s: this tool sets " % rel):
                         self.assertEqual(len(head.split("\n")), 3, "the line it shows stands alone on a line of the report, with nothing before it")
-                        if advice(head).startswith(("Write that one line", "Set the value by hand", "Set the value yourself on the manifest's own line", "Leave one of them")):
+                        if rel != "src/config.ts" and advice(head).startswith(("Write that one line", "Set the value yourself on the manifest's own line")):
                             hers.append(shown_line(head))
                     self.put(rel, self.follow(rel, self.read(rel), out))
                 self.assertEqual((dry_code, code), (0, 0), out)
@@ -1836,8 +1836,8 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
                 # and what the site now reads from that file is the palette: asked of Node and of Python, not of this tool
                 reads = self.as_the_site_reads(rel)
                 if rel == "src/config.ts":
-                    self.assertEqual(len(re.findall(r"(?m)^[ \t]*themeColor: '#b4531a',", self.read(rel))), 1)
-                    self.assertEqual(self.read(rel).count("themeColor: '#00ff00'"), text.count("themeColor: '#00ff00'"), "a value of hers inside the block is where it was: nothing said to take it out, to move it or to write over it")
+                    self.assertEqual(self.read(rel), set_by_hand(text), "the file as she left it: the run that went through asked Node and did not edit it")
+                    self.assertIn("Note: " + ALREADY % ("themeColor", "#b4531a"), out.splitlines())
                     if reads is not None:
                         self.assertEqual(reads.get("themeColor"), "#b4531a", reads)
                 elif rel == "public/manifest.webmanifest":
@@ -2049,10 +2049,12 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
     READ_OK = {"src/config.ts": {"status": "ok"}, "scripts/generate_og_cards.py": {"status": "ok"}}
     ASKS = ("A real run then asks the site's Node and Python what the site reads from src/config.ts and scripts/generate_og_cards.py: it puts everything back if that is not "
             "what it set, and adds a note where it could not ask. A dry run writes nothing, so it cannot ask.")
-    ELSE = ", so something else in the file decides the value. Set it by hand where the file decides it, or have the developer mend the file, then run this again."
-    # (round 8) where the site reads no value at all and the line that says it is not surely the block's own: nothing else decides the value, the block has none
-    NO_OWN = (", but the `SITE` block has no `themeColor` of its own: the line that says it belongs to something inside the block. Write `themeColor: '#b4531a',` as the first line under the "
-              "block's opening line (it starts `export const SITE`), and where that other line was changed to say #b4531a, put back what it said before. Then run this again.")
+
+    def differs(self, rel, name, reads, wanted):
+        """The read-back's one sentence (round 10): what the site reads, what this run wanted, and what to do."""
+        if rel == "src/config.ts":
+            return "src/config.ts: the site reads %s as SITE.%s (this tool asked the site's own Node), not %s as this run wanted. %s" % (reads, name, wanted, YOURSELF)
+        return "%s: Python has %s bound to %s once the file's own top has run (this tool asked Python), not to %s as this run wanted. %s" % (rel, name, reads, wanted, YOURSELF.replace("the site", "Python"))
 
     def test_the_starter_as_it_stands_is_read_back_by_node_and_python_and_no_note_is_needed(self):
         self.need_read_back()
@@ -2116,15 +2118,14 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         self.assertIn("in the theme colour and the manifest, and in the share cards.", [l for l in data["report"] if l.startswith("Colours: ")][0])
 
     def test_a_value_the_site_does_not_read_from_where_it_stands_ends_the_run_with_everything_put_back_and_set_by_hand_it_passes(self):
-        # The counterexamples of round 5, and their kind: the text says one thing and the site reads another. Each
-        # ends at the read-back (or at the closing line's refusal, and then at the read-back): exit status 1,
-        # the site as before, a sentence that names what the site reads, what this run set and on which line.
-        # Doing what the sentence says (the value set by hand where the file decides it) makes the next run pass.
+        # The counterexamples of round 5, and their kind: the text says one thing and the site reads another. Each ends at
+        # the read-back: exit status 1, the site as before, and one sentence (round 10): what the site reads, what this
+        # run wanted, and to set the value in the file so that the site reads it. Doing that makes the next run pass.
+        # (Shapes that the line rule refuses before anything is written: see the test of the site's Node asked first.)
         self.need_read_back()
         config, generator = T.starter_file("src/config.ts"), T.starter_file("scripts/generate_og_cards.py")
         own = "  themeColor: '#000000',               // matches the brand primary + manifest\n"
         home = "# Home + fallback card"
-        node, python = "(this tool asked the site's own Node). ", "once the file's own top has run (this tool asked Python). "
         # a template string that runs over lines and holds another: two backticks on its first line, and what looks
         # like the block is text inside it. The object the site reads is exported under the name further down.
         in_a_text = ("const n = 1;\nconst doc = `how to set it ${n ? `like this:\nexport const SITE = {\n  themeColor: '#000000',\n};\n` : ''} and so on`;\n"
@@ -2132,59 +2133,37 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         # the block's own closing brace is indented, so the tool takes a later `}` at a line's start for the close,
         # and what stands between the two is seen neither as the block's nor as outside it
         indented = "const changes = { themeColor: '#111111' };\n" + config.replace("} as const;", "  } as const;\nObject.assign(SITE, changes);\nexport function half(n: number) {\n  return n / 2;\n}", 1)
-        cases = (
-            ("another object joined on to the closing line", "src/config.ts", config.replace("} as const;", "} && { themeColor: '#111111' };", 1), "line 18 closes the block with more than its `}`",
-             {"name": "themeColor", "reads": "#111111", "wanted": "#b4531a"}, "the site reads #111111 as SITE.themeColor " + node + "Line 10 already says #b4531a, and this run left it",
-             lambda t: t.replace("} && { themeColor: '#111111' };", "} && { themeColor: '#b4531a' };")),
-            ("the key a second time below it, in quotes, which is the one the site reads", "src/config.ts", config.replace(own, own + "  'themeColor': '#111111',\n"), "line 11, in the same block, holds the name `themeColor` again",
-             {"name": "themeColor", "reads": "#111111", "wanted": "#b4531a"}, "the site reads #111111 as SITE.themeColor " + node + "Line 10 already says #b4531a, and this run left it",
-             lambda t: t.replace("'themeColor': '#111111'", "'themeColor': '#b4531a'")),
-            ("the block as a text inside a template string that holds another", "src/config.ts", in_a_text, None,
-             {"name": "themeColor", "reads": "#111111", "wanted": "#b4531a"}, "the site reads #111111 as SITE.themeColor " + node + "This run set #b4531a on line 4", lambda t: t.replace("'#111111'", "'#b4531a'")),
-            ("the block's closing brace indented, and the object changed before the next brace at a line's start", "src/config.ts", indented, None,
-             {"name": "themeColor", "reads": "#111111", "wanted": "#b4531a"}, "the site reads #111111 as SITE.themeColor " + node + "This run set #b4531a on line 11", lambda t: t.replace("'#111111'", "'#b4531a'")),
+        cases = (   # (what it is, the file, its text, what the site reads, the value set where the file decides it)
+            ("the block as a text inside a template string that holds another", "src/config.ts", in_a_text, ("themeColor", "#111111", "#b4531a"), lambda t: t.replace("'#111111'", "'#b4531a'")),
+            ("the block's closing brace indented, and the object changed before the next brace at a line's start", "src/config.ts", indented, ("themeColor", "#111111", "#b4531a"),
+             lambda t: t.replace("'#111111'", "'#b4531a'")),
             # (round 7) A line that already says the value below a line that is not one whole entry is left as it stands with no
-            # other guard: it may be a part of something inside the block. The read-back is the guard, and names no line.
-            ("the key only in an object inside the block, with the colour wanted", "src/config.ts", config.replace(own, "  social: {\n  themeColor: '#b4531a',\n  },\n"), None,
-             {"name": "themeColor", "reads": "nothing", "wanted": "#b4531a"}, "the site reads nothing as SITE.themeColor " + node + "The file already says #b4531a, and this run left it" + self.NO_OWN,
-             lambda t: follow_read_back(t, "src/config.ts: the site reads nothing as SITE.themeColor " + node + "The file already says #b4531a, and this run left it" + self.NO_OWN)),   # (round 8: the sentence, to the character)
-            ("the colour wanted in an object inside the block, on one line of its own, and the block's own line below it says another", "src/config.ts", config.replace(own, "  pwa: {\n    themeColor: '#b4531a',\n  },\n" + own), None,
-             {"name": "themeColor", "reads": "#000000", "wanted": "#b4531a"}, "the site reads #000000 as SITE.themeColor " + node + "The file already says #b4531a, and this run left it",
-             lambda t: t.replace("themeColor: '#000000'", "themeColor: '#b4531a'")),
-            ("the colour wanted in an object inside the block, written on one line, and the block's own line says another", "src/config.ts", config.replace(own, own + "  pwa: { themeColor: '#b4531a' },\n"),
-             "line 11, in the same block, holds the name `themeColor` again (`pwa: { themeColor: '#b4531a' },`)", None, None, None),
+            # other guard: it may be a part of something inside the block. The read-back is the guard.
+            ("the key only in an object inside the block, with the colour wanted", "src/config.ts", config.replace(own, "  social: {\n  themeColor: '#b4531a',\n  },\n"), ("themeColor", "nothing", "#b4531a"),
+             lambda t: t.replace("export const SITE = {\n", "export const SITE = {\n  themeColor: '#b4531a',\n")),
+            ("the colour wanted in an object inside the block, on one line of its own, and the block's own line below it says another", "src/config.ts", config.replace(own, "  pwa: {\n    themeColor: '#b4531a',\n  },\n" + own),
+             ("themeColor", "#000000", "#b4531a"), lambda t: t.replace("themeColor: '#000000'", "themeColor: '#b4531a'")),
             # the generator: a write that Python's parser does not show as a binding of the name
-            ("a colour set through globals() further down", "scripts/generate_og_cards.py", generator.replace(home, "globals().update(BG_TOP=(1, 2, 3))\n\n" + home, 1), None,
-             {"name": "BG_TOP", "reads": "#010203", "wanted": "#2a1f17"}, "Python has BG_TOP bound to #010203 " + python + "This run set #2a1f17 on line 52", lambda t: t.replace("BG_TOP=(1, 2, 3)", "BG_TOP=[42, 31, 23]")),   # (a list of the three numbers is the colour too)
-            ("a colour set on the module itself further down", "scripts/generate_og_cards.py", generator.replace(home, "sys.modules[__name__].FOOTER_COL = 'grey'\n\n" + home, 1), None,
-             {"name": "FOOTER_COL", "reads": "'grey'", "wanted": "#c4ae98"}, "Python has FOOTER_COL bound to 'grey' " + python + "This run set #c4ae98 on line 57", lambda t: t.replace("sys.modules[__name__].FOOTER_COL = 'grey'\n", "")),
+            ("a colour set through globals() further down", "scripts/generate_og_cards.py", generator.replace(home, "globals().update(BG_TOP=(1, 2, 3))\n\n" + home, 1), ("BG_TOP", "#010203", "#2a1f17"),
+             lambda t: t.replace("BG_TOP=(1, 2, 3)", "BG_TOP=[42, 31, 23]")),   # (a list of the three numbers is the colour too)
+            ("a colour set on the module itself further down", "scripts/generate_og_cards.py", generator.replace(home, "sys.modules[__name__].FOOTER_COL = 'grey'\n\n" + home, 1), ("FOOTER_COL", "'grey'", "#c4ae98"),
+             lambda t: t.replace("sys.modules[__name__].FOOTER_COL = 'grey'\n", "")),
         )
-        for label, rel, text, refused_first, value, saying, by_hand in cases:
+        for label, rel, text, (name, reads, wanted), by_hand in cases:
             with self.subTest(label=label):
                 self.fresh()
                 self.put(rel, text)
-                if refused_first:   # the rule's own refusal comes first, and what it says to do (the line written by hand) leads to the read-back
-                    (dry_code, dry), (code, out) = self.both_runs()
-                    self.assertEqual((dry_code, code), (2, 2), out)
-                    self.assertIn(refused_first, out)
-                    self.put(rel, self.follow(rel, self.read(rel), out))
-                if value is None:   # ... or to a run that passes: the block's own line is the one the site reads
-                    code, out = self.intake("--json")
-                    self.assertEqual((code, json.loads(out)["status"], json.loads(out)["read_back"]), (0, "done", self.READ_OK), out)
-                    self.assertIn("pwa: { themeColor: '#b4531a' },", self.read(rel))
-                    continue
                 before = self.snapshot()
                 (dry_code, dry), (code, out) = self.both_runs("--json")
                 dry, data = json.loads(dry), json.loads(out)
                 self.assertEqual((dry_code, dry["status"], self.ASKS in dry["report"]), (0, "dry-run", True), "the dry run cannot know, and says that a real run asks")
                 self.assertEqual((code, data["status"], data["exit"], data.get("not_restored")), (1, "read-back-failed", 1, None), out)
-                self.assertEqual(data["read_back"][rel], {"status": "differs", "values": [value]})
-                self.assertEqual(data["report"][0], "A check failed after the files were written: what the site reads is not what this run set.")
-                self.assertEqual(data["report"][1], "%s: %s%s" % (rel, saying, "" if saying.endswith(self.NO_OWN) else self.ELSE))
-                self.assertEqual(data["report"][2], "Everything it had written was put back.")
+                self.assertEqual(data["read_back"][rel], {"status": "differs", "values": [{"name": name, "reads": reads, "wanted": wanted}]})
+                self.assertEqual(data["report"][:3], ["A check failed after the files were written: what the site reads is not what this run set.", self.differs(rel, name, reads, wanted),
+                                                      "Everything it had written was put back."])
                 self.assertEqual((data["written"], data["tests"], data["cards"]), ([], None, None), "the site's tests were not run on it, nor the cards made")
                 self.assertEqual(self.snapshot(), before, "the site is as it was before the run")
-                self.put(rel, by_hand(self.read(rel)))   # what the sentence says to do: the value set by hand where the file decides it
+                self.put(rel, by_hand(self.read(rel)))   # what the sentence says to do: the value set in the file so that the site reads it
                 self.assertNotEqual(self.read(rel), text)
                 code, out = self.intake("--json")
                 self.assertEqual((code, json.loads(out)["status"], json.loads(out)["read_back"]), (0, "done", self.READ_OK), out)
@@ -2199,8 +2178,7 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
                 data = json.loads(out)
                 self.assertEqual((code, data["status"], data["written"], data.get("not_restored")), (1, "read-back-failed", [], None), out)
                 self.assertEqual(data["read_back"]["src/config.ts"], {"status": "differs", "values": [{"name": "themeColor", "reads": reads, "wanted": "#b4531a"}]})
-                at = text.split("\n").index(own.rstrip("\n") if own in text else "  themeColor: '#000000',") + 1
-                self.assertEqual(data["report"][1:3], ["src/config.ts: the site reads %s as SITE.themeColor %sThis run set #b4531a on line %d%s" % (reads, node, at, self.ELSE), "Everything it had written was put back."])
+                self.assertEqual(data["report"][1:3], [self.differs("src/config.ts", "themeColor", reads, "#b4531a"), "Everything it had written was put back."])
                 self.assertEqual(self.snapshot(), before, "the site is as it was before the run")
         # where Node is not there to ask, the same file goes in, and the note says what nobody checked
         self.fresh()
@@ -2236,7 +2214,7 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         before = self.snapshot()
         code, out = self.intake()   # every file already holds the palette: the run has nothing to write, and the check is made all the same
         self.assertEqual((code, out.splitlines()[:3]), (1, ["A check failed after the files were written: what the site reads is not what this run set.",
-                                                             "src/config.ts: the site reads #111111 as SITE.themeColor " + node + "Line 10 already says #b4531a, and this run left it" + self.ELSE,
+                                                             self.differs("src/config.ts", "themeColor", "#111111", "#b4531a"),
                                                              "Nothing was written."]), out)
         self.assertEqual(self.snapshot(), before)
 
@@ -2246,70 +2224,101 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         r = subprocess.run([shutil.which("node"), "--input-type=module", "-e", program, self.p("src/config.ts")], capture_output=True, text=True, encoding="utf-8", cwd=self.site, timeout=120)
         return json.loads(r.stdout)
 
-    def test_a_key_that_stands_only_inside_something_is_not_lost_whichever_way_the_advice_is_read_and_each_sentence_on_the_way_leads_on(self):
-        # (round 8) INVARIANT: no sequence of doing what the tool says ends with her value inside the block written over
-        # AND a sentence that does not say what to do next. Three things were short of that. A key in quotes inside
-        # `pwa: {` (and a value with no comma there) was named as the line to write over. The two-way sentence, read
-        # the first way where the only key stands inside something, writes her value over, and the read-back then said
-        # "something else in the file decides the value", though nothing does. Now: no refusal names such a line, and
-        # the read-back says the block has no key of its own, shows the line, and says to put her line back.
+    def test_a_config_this_tool_does_not_edit_is_asked_of_the_sites_node_before_it_is_refused_and_goes_through_where_the_site_reads_the_value(self):
+        # (round 10) INVARIANT: once she has set the value so that the site reads it, in whatever way, the next run goes
+        # through. Four rounds of advice on which line of a reshaped src/config.ts to write, and where, each drew a shape it
+        # was wrong for (round 9: `themeColor: getColour(), region: 'eu',` lost `region`; so did `pwa: {},` above two
+        # entries on a line). The advice is gone. Where the line rule refuses the file, the install asks the site's Node
+        # first, before anything is written and in a dry run too: a value it reads already is left as it is, with a note.
         self.need_read_back()
         config = T.starter_file("src/config.ts")
         own = "  themeColor: '#000000',               // matches the brand primary + manifest\n"
-        sentence = "src/config.ts: the site reads nothing as SITE.themeColor (this tool asked the site's own Node). The file already says #b4531a, and this run left it" + self.NO_OWN
-        shapes = (   # (what it is, the object inside the block, her line of the key in it, what the refusal says that line begins with)
-            ("the key in quotes", "  pwa: {\n    'themeColor': '#00ff00',\n    'theme-colour-dark': '#003300',\n  },\n", "    'themeColor': '#00ff00',", "'themeColor':"),
-            ("the key in double quotes", '  pwa: {\n    "themeColor": "#00ff00",\n  },\n', '    "themeColor": "#00ff00",', '"themeColor":'),
-            ("the key as the starter writes it", "  pwa: {\n    themeColor: '#00ff00',\n    display: 'standalone',\n  },\n", "    themeColor: '#00ff00',", "themeColor:"),
-            ("the colour wanted as the object's last entry, with no comma", "  pwa: {\n    display: 'standalone',\n    themeColor: '#b4531a'\n  },\n", "    themeColor: '#b4531a'", "themeColor:"),
-            ("the key in quotes, two levels down", "  app: {\n    pwa: {\n      'themeColor': '#00ff00',\n    },\n  },\n", "      'themeColor': '#00ff00',", "'themeColor':"),
+        loc = "  locale: 'en',\n"
+
+        def shape(value, line="  themeColor: %s,\n"):
+            return config.replace(own, line % value)
+        # (a) reshaped files that the site reads #b4531a from already, each in another way
+        already = (
+            ("a call", "const brand = () => '#b4531a';\n" + shape("brand()", "  themeColor: %s, region: 'eu',\n")),
+            ("a constant", "const BRAND = '#B4531A';\n" + shape("BRAND")),
+            ("a spread", "const BASE = { themeColor: '#b4531a' };\n" + config.replace(own, "").replace(loc, loc + "  ...BASE,\n")),
+            ("a later assignment, below a block whose own line stands under a line that is not plain", config.replace(own, "  pwa: {},\n" + own) + "// @ts-ignore\nSITE.themeColor = '#b4531a';\n"),
+            ("a nested `pwa: {}` above two entries on a line", config.replace(own, "  pwa: {},\n  themeColor: '#b4531a', region: 'eu',\n")),
         )
-        for label, inside, hers, begins in shapes:
-            text = config.replace(own, inside)
-            for way in ("in place of the line inside the object, taken for the block's own", "as the first line under the opening line"):
-                with self.subTest(label=label, way=way):
-                    self.fresh()
-                    self.put("src/config.ts", text)
-                    before = self.snapshot()
-                    (dry_code, dry), (code, out) = self.both_runs()
-                    self.assertEqual((dry_code, code, self.snapshot()), (2, 2, before), out)
-                    said = refusal_in(out)
-                    self.assertIn("the one line of the block that begins with `%s` (line %d) stands below a line that is not one whole entry on one line (line 10: `%s`), so it may belong to something inside the block."
-                                  % (begins, text.split("\n").index(hers) + 1, inside.split("\n")[0].strip()), said)
-                    self.assertEqual(advice(said), "Set the value by hand: write that one line in place of the block's own `themeColor` line, or as the first line under the opening line (line 5) where the block has none of its own")
-                    self.assertNotIn("in its place", said, "no advice names her line as the one to write over")
-                    if way.startswith("as the first line"):
-                        self.put("src/config.ts", text.replace("export const SITE = {\n", "export const SITE = {\n" + shown_line(said) + "\n"))
-                    else:   # her line is written over; the next run ends at the read-back, whose sentence is then done to the character
-                        self.put("src/config.ts", text.replace(hers, shown_line(said)))
-                        before = self.snapshot()
-                        code, out = self.intake("--json")
-                        data = json.loads(out)
-                        self.assertEqual((code, data["status"], data["report"][1:3]), (1, "read-back-failed", [sentence, "Everything it had written was put back."]), out)
-                        self.assertEqual(self.snapshot(), before)
-                        self.put("src/config.ts", follow_read_back(self.read("src/config.ts"), data["report"][1], put_back=(shown_line(said), hers)))
-                    self.assertEqual(self.read("src/config.ts"), text.replace("export const SITE = {\n", "export const SITE = {\nthemeColor: '#b4531a',\n"), "the line under the opening line, and her object as she wrote it")
-                    code, out = self.intake("--json")
-                    self.assertEqual((code, json.loads(out)["status"], json.loads(out)["read_back"]), (0, "done", self.READ_OK), out)
-                    self.assertEqual((self.site_object()["themeColor"], json.dumps(self.site_object()).count('"themeColor"')), ("#b4531a", 2), "the site reads the block's own, and hers is still inside its object")
-        # A line that holds more than the entry: "Write that one line in its place", done to the character, took `region` out
-        # of the site without a word, and the run passed. The advice keeps what stands after the entry.
-        for label, line in (("another entry after it on the line", "  themeColor: '#000000', region: 'eu',"), ("the key in quotes", "  'themeColor': '#000000', region: 'eu',"),
-                            ("a name in place of the value", "  themeColor: BRAND, region: 'eu',")):
+        for label, text in already:
             with self.subTest(label=label):
                 self.fresh()
-                text = "const BRAND = '#000000';\n" + config.replace(own, line + "\n")
                 self.put("src/config.ts", text)
-                self.assertEqual(self.site_object()["region"], "eu")
+                (dry_code, dry), (code, out) = self.both_runs("--json")
+                dry, data = json.loads(dry), json.loads(out)
+                self.assertEqual((dry_code, code, data["status"], data["read_back"]), (0, 0, "done", self.READ_OK), out)
+                for got in (dry, data):
+                    self.assertIn(ALREADY % ("themeColor", "#b4531a"), got["notes"], "the dry run asks too: it only reads")
+                    self.assertEqual([c for c in got["changes"] if c.startswith("src/config.ts")], [], "no change is listed for the file")
+                self.assertNotIn("src/config.ts", data["written"])
+                self.assertEqual(self.read("src/config.ts"), text, "not a byte of the file was changed")
+                self.assertEqual(self.site_object().get("region"), "eu" if "region: 'eu'" in text else None)
+        # (b) and (c): the site reads another value, or none; the refusal says what it reads, and once she has set it (here: the
+        # file written so that Node reads the value, her other entries kept) the next run goes through. The reviewers' shapes of
+        # round 9 among them.
+        # The note says where the line rule still does not take the file once she has set it; where she set it as the starter
+        # writes it, the run goes through without it.
+        refused = (   # (what it is, the file, what the site reads now, the file once she has set it, whether the line rule still does not take it)
+            ("a call, and another entry after it on the line", "const getColour = () => '#000000';\n" + shape("getColour()", "  themeColor: %s, region: 'eu',\n"), "#000000",
+             lambda t: t.replace("=> '#000000'", "=> '#b4531a'"), True),
+            ("a nested `pwa: {}` above two entries on a line", config.replace(own, "  pwa: {},\n  themeColor: '#000000', region: 'eu',\n"), "#000000",
+             lambda t: t.replace("'#000000', region", "'#b4531a', region"), True),
+            ("the same, and a later assignment that takes the value out", config.replace(own, "  pwa: {},\n  themeColor: '#b4531a', region: 'eu',\n") + "// @ts-ignore\nSITE.themeColor = undefined;\n", "no value",
+             lambda t: t.replace("SITE.themeColor = undefined;", "SITE.themeColor = '#b4531a';"), True),
+            ("the key only in an object inside the block", config.replace(own, "  pwa: {\n    themeColor: '#00ff00',\n  },\n"), "no value", lambda t: t.replace(loc, loc + "  themeColor: '#b4531a',\n"), False),
+            ("another object joined on to the closing line", config.replace("} as const;", "} && { themeColor: '#111111' };", 1), "#111111", lambda t: t.replace("'#111111'", "'#b4531a'"), True),
+            ("the key a second time below it, in quotes, which is the one the site reads", config.replace(own, own + "  'themeColor': '#111111',\n"), "#111111", lambda t: t.replace("'#111111'", "'#b4531a'"), True),
+            ("the colour wanted in an object written on one line, and the block's own line says another", config.replace(own, own + "  pwa: { themeColor: '#b4531a' },\n"), "#000000",
+             lambda t: t.replace("'#000000'", "'#b4531a'"), False),
+            ("a spread of another value", "const BASE = { themeColor: '#123456' };\n" + config.replace(own, "").replace(loc, loc + "  ...BASE,\n"), "#123456", lambda t: t.replace("'#123456'", "'#b4531a'"), True),
+            ("a number", shape("0", "  themeColor: %s, region: 'eu',\n"), "0", lambda t: t.replace("themeColor: 0,", "themeColor: '#b4531a',"), True),
+        )
+        for label, text, reads, set_it, asked in refused:
+            with self.subTest(label=label):
+                self.fresh()
+                self.put("src/config.ts", text)
                 before = self.snapshot()
                 (dry_code, dry), (code, out) = self.both_runs()
                 self.assertEqual((dry_code, code, self.snapshot()), (2, 2, before), out)
-                self.assertEqual(advice(refusal_in(out)), "Write that one line in place of the entry, and keep what stands after the entry on line 11 (`region: 'eu',`) on a line of its own below it")
-                self.put("src/config.ts", self.follow("src/config.ts", text, out))
-                self.assertEqual(self.read("src/config.ts"), text.replace(line, "themeColor: '#b4531a',\nregion: 'eu',"))
+                head = out.split("\nNothing was written.")[0]
+                self.assertEqual(dry.split("\nNothing was written.")[0], head, "the dry run refuses in the same words")
+                self.assertTrue(head.startswith("src/config.ts: this tool sets the theme colour only where the file has this one line"), head)
+                self.assertTrue(head.endswith(". " + CONFIG_ONE + " The site reads %s now." % reads), head)
+                self.put("src/config.ts", set_it(text))
                 code, out = self.intake("--json")
-                self.assertEqual((code, json.loads(out)["status"], json.loads(out)["read_back"]), (0, "done", self.READ_OK), out)
-                self.assertEqual((self.site_object()["themeColor"], self.site_object()["region"]), ("#b4531a", "eu"), "what stood after the entry is still read by the site")
+                data = json.loads(out)
+                self.assertEqual((code, data["status"], data["read_back"]), (0, "done", self.READ_OK), out)
+                self.assertEqual(ALREADY % ("themeColor", "#b4531a") in data["notes"], asked, data["notes"])
+                self.assertEqual(self.read("src/config.ts"), set_it(text), "the file as she left it")
+                self.assertEqual(self.site_object()["themeColor"], "#b4531a")
+                if "region: 'eu'" in text:
+                    self.assertEqual(self.site_object()["region"], "eu", "her other entry is still read by the site")
+        # (c) a later assignment to the value, below a block the line rule takes: the line is edited, the read-back says what the
+        # site reads, everything is put back, and once she has set it the next run goes through
+        later = config + "// @ts-ignore\nSITE.themeColor = '#111111';\n"
+        self.fresh()
+        self.put("src/config.ts", later)
+        code, out = self.intake("--json")
+        self.assertEqual((code, json.loads(out)["report"][1], self.read("src/config.ts")), (1, self.differs("src/config.ts", "themeColor", "#111111", "#b4531a"), later), out)
+        self.put("src/config.ts", later.replace("'#111111'", "'#b4531a'"))
+        code, out = self.intake("--json")
+        self.assertEqual((code, json.loads(out)["read_back"]), (0, self.READ_OK), out)
+        # (d) no Node on the path: the refusal stands, and says why
+        self.fresh()
+        self.put("src/config.ts", refused[0][1])
+        real = shutil.which
+        shutil.which = lambda name, *a, **k: None if name == "node" else real(name, *a, **k)
+        try:
+            code, out = self.intake()
+        finally:
+            shutil.which = real
+        self.assertEqual(code, 2, out)
+        self.assertTrue(out.split("\nNothing was written.")[0].endswith(". " + CONFIG_ONE + " This tool could not ask the site's Node what it reads: Node is not installed here, or is not on the path."), out)
 
     @POSIX
     def test_where_node_or_python_cannot_say_what_the_site_reads_the_run_goes_on_and_says_so_in_one_note_for_the_file(self):
@@ -2385,6 +2394,10 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         self.assertEqual(len(notes), 1)
         self.assertRegex(notes[0], re.escape(of_config % 11) + r"Node could not load the file \(Cannot find module '\./src/navigation-for-the-whole-site' imported from \./src/config\.ts\)$")
         self.assertNotIn(os.path.basename(self.tmp.name), notes[0], "nothing of the path to the site is in the reason")
+        # (round 10) a config that imports a picture, which Node has no loader for: Node read the TypeScript, and the reason is
+        # its own. "Reads no TypeScript" is said only where the extension Node does not know is the config's own (`.ts`).
+        data, notes, colours = run({"src/logo.svg": "<svg xmlns='http://www.w3.org/2000/svg'/>\n", "src/config.ts": "import logo from './logo.svg';\n" + config})
+        self.assertEqual(notes, [of_config % 11 + 'Node could not load the file (Unknown file extension ".svg" for ./src/logo.svg)'])
         data, notes, colours = run({"src/config.ts": config + "while (Date.now() > 0) { }\n"}, limit=2)
         self.assertEqual(notes, [of_config % 10 + "Node took more than 2 seconds over the file and was stopped"])
         # (round 7) Node names a file as a `file://` address, with a blank or a letter outside ASCII written as %XX: that spelling
@@ -2432,7 +2445,8 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
                         ["D:\\Program Files\\nodejs\\node.exe: bad option: %s\r" % flag], ["a line of the wrapper that starts Node", "node: bad option: " + flag, ""])
         said_by_the_file = (["this site is not built with " + flag], [flag], ["the settings name a bad option: %s, which this branch does not take" % flag],
                             ["node: bad option: %s is what a Node before 22.6 says" % flag], ["node: bad option: %s-and-more" % flag], ["node: bad option: --no" + flag[1:]],
-                            ["node: bad option:", flag], ["bad option: " + flag], ["node: bad option: %s " % flag], [], [""])
+                            ["node: bad option:", flag], ["bad option: " + flag], ["node: bad option: %s " % flag], [], [""],
+                            [": bad option: " + flag], ["  : bad option: " + flag], [" node: bad option: " + flag])   # (round 10) no program's name before it, or not at the line's start
         for lines in said_by_node + said_by_the_file:
             with self.subTest(lines=lines):
                 asked = self.old_node(lines)
@@ -3199,6 +3213,21 @@ class StoppedFromOutside(SiteCase):
                 self.assertEqual(os.listdir(scratch), [], "the folder it had just made is gone again")
                 self.assertEqual(self.snapshot(), before)
 
+    def test_a_stop_in_the_instant_a_temporary_file_for_a_commands_output_is_made_does_not_leave_it_behind(self):
+        # (round 10) a temporary file has a name in the temporary folder from its making to the moment it is unlinked, inside
+        # tempfile.TemporaryFile: a stop in between left an empty file there (1 stop in 368). The three are made with the stop held.
+        before = self.snapshot()
+        made = ("import tempfile\ndef stopped_here(*args, **kwargs):\n    fd, name = tempfile.mkstemp()\n    os.kill(os.getpid(), signal.%s)\n    os.unlink(name)\n    return os.fdopen(fd, 'w+b')\n"
+                "_proc.tempfile.TemporaryFile = stopped_here\n")
+        for name in ("SIGTERM", "SIGINT"):
+            with self.subTest(signal=name):
+                scratch = tempfile.mkdtemp(dir=self.tmp.name)
+                r = self.drive(made % name, tmpdir=scratch)
+                self.assertEqual((r.returncode, r.stderr), (2, ""), r.stdout + r.stderr)
+                self.assertIn("The run was stopped from outside (%s) before it had finished" % name, r.stdout)
+                self.assertEqual(os.listdir(scratch), [], "no file of the run is left in the temporary folder")
+                self.assertEqual(self.snapshot(), before)
+
     def test_a_signal_the_run_was_started_to_ignore_stays_ignored(self):
         # `nohup` starts a command with SIGHUP ignored, a shell starts a background job with SIGINT ignored:
         # the run must not begin to listen to what it was told to ignore
@@ -3726,6 +3755,9 @@ class StoppedFromOutside(SiteCase):
         # the stop's line (two JSON objects where JSON was asked for), and status 2 for a check that had passed. main now
         # keeps the status before it says the report, and from then on a Ctrl-C ends the command with that status and
         # says nothing more. The press is put at each moment from the report's first write to the end of its flush.
+        # (round 10) And from the moment the status is kept to the process's end, the press is held: the report is said whole
+        # (it was cut short, or not said at all, when the press came as the report reached `print`), and a press as the
+        # command leaves, after main has returned, gave a traceback and the signal's status after the whole report.
         script = os.path.abspath(os.path.join(T.SCRIPTS, "brand_intake.py"))
         passes, fails = os.path.join(self.tmp.name, "passes.md"), os.path.join(self.tmp.name, "fails.md")
         for path, text in ((passes, BAKERY_BRAND_MD), (fails, BAKERY_BRAND_MD.replace("| Muted | `%s` |" % T.BAKERY_LIGHT["muted"], "| Muted | `#f0e6d8` |"))):
@@ -3738,17 +3770,19 @@ class StoppedFromOutside(SiteCase):
                    "    def flush(self):\n        press('before the report is handed over')\n        self.real.flush()\n        press('when the report is handed over')\n"
                    "    def __getattr__(self, name):\n        return getattr(self.real, name)\n"
                    "say = builtins.print\ndef said(*args, **kwargs):\n    press('as the report reaches print')\n    return say(*args, **kwargs)\nbuiltins.print = said\n"
+                   "def leaving(frame, event, arg):\n    if event == 'call' and frame.f_code.co_name == '_leave':\n        press('as the command leaves')\nsys.setprofile(leaving)\n"
                    "sys.stdout = Pressed(sys.stdout)\nsys.argv = [%r] + sys.argv[1:]\nrunpy.run_path(%r, run_name='__main__')\n")
         statuses = set()
         for argv in (["palette", passes], ["palette", passes, "--json"], ["palette", fails], ["palette", fails, "--json"], ["palette", passes, "--css", self.p("src/styles/global.css"), "--json"]):
             plain = subprocess.run([sys.executable, script] + argv, capture_output=True, text=True, encoding="utf-8", timeout=120)
             self.assertEqual((plain.returncode in (0, 1), plain.stderr), (True, ""), plain.stdout)
             statuses.add(plain.returncode)
-            for when in ("when the report is written and its line end is not", "before the report is handed over", "when the report is handed over"):
+            for when in ("as the report reaches print", "when the report is written and its line end is not", "before the report is handed over", "when the report is handed over",
+                         "as the command leaves"):
                 with self.subTest(argv=[os.path.basename(a) for a in argv], press=when):
                     r = subprocess.run([sys.executable, "-c", program % (when, script, script)] + argv, capture_output=True, text=True, encoding="utf-8", timeout=120)
                     self.assertEqual((r.returncode, r.stderr), (plain.returncode, ""), r.stdout)
-                    self.assertEqual(r.stdout, plain.stdout[:-1] if when.endswith("is not") else plain.stdout, "the report, once, and nothing after it")
+                    self.assertEqual(r.stdout, plain.stdout, "the report, whole, once, and nothing after it")
                     self.assertNotIn("Stopped", r.stdout)
                     if "--json" in argv:
                         self.assertEqual((json.loads(r.stdout)["exit"], len(r.stdout.strip().splitlines())), (plain.returncode, 1), "one JSON object, and its status is the command's")
@@ -3756,16 +3790,21 @@ class StoppedFromOutside(SiteCase):
             early = program.replace("builtins.print = said\n", "builtins.print = said\nreal_open = builtins.open\ndef opened(*args, **kwargs):\n    press('while the palette is read')\n    return real_open(*args, **kwargs)\nbuiltins.open = opened\n")
             r = subprocess.run([sys.executable, "-c", early % ("while the palette is read", script, script)] + argv, capture_output=True, text=True, encoding="utf-8", timeout=120)
             self.assertEqual((r.returncode, r.stdout, r.stderr), (2, self.STOPPED_JSON if "--json" in argv else "Stopped (Ctrl-C). Nothing was written.\n", ""))
-            # The limit command_line states: a press in the instant between the status being kept and the report reaching
-            # `print` ends the command with the report's status and no report. (Never two reports, and never the stop's line with another status.)
-            r = subprocess.run([sys.executable, "-c", program % ("as the report reaches print", script, script)] + argv, capture_output=True, text=True, encoding="utf-8", timeout=120)
-            self.assertEqual((r.returncode, r.stdout, r.stderr), (plain.returncode, "", ""))
         self.assertEqual(statuses, {0, 1}, "a check that passes and one that fails were both stopped")
         # No caller's handling of Ctrl-C is changed by main: it is as it was once main has returned, and a second call starts with no status kept.
+        # A press while the report is said is raised once it is said: a caller that goes on living gets it, after the whole report.
         before = signal.getsignal(signal.SIGINT)
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(brand_intake.main(["palette", fails]), 1)
         self.assertEqual((signal.getsignal(signal.SIGINT), brand_intake._OUTCOME), (before, [1]))
+        said, real = io.StringIO(), brand_intake._say
+        brand_intake._say = lambda text: (os.kill(os.getpid(), signal.SIGINT), said.write(text))
+        try:
+            with self.assertRaises(KeyboardInterrupt):
+                brand_intake.main(["palette", fails])
+        finally:
+            brand_intake._say = real
+        self.assertEqual((said.getvalue().splitlines()[-1], signal.getsignal(signal.SIGINT), brand_intake._OUTCOME), ("This check only reads files: nothing was written.", before, [1]))
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             brand_intake.main(["palette"])
         self.assertEqual(brand_intake._OUTCOME, [], "a run that ended before it had a report keeps no status from the run before")
@@ -3782,6 +3821,26 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
 
     def logo(self, *more):
         return ("--input", self.package()) + LOGO_ARGS + more
+
+    def test_a_logo_address_that_a_reshaped_config_already_gives_the_site_is_left_as_it_is_and_another_is_refused_with_what_the_site_reads(self):
+        # (round 10) COMPANY.logo, by the same way as the theme colour: where the line rule does not take src/config.ts, the
+        # site's Node is asked before anything is written. It reads /images/logo.png already: the file stays, with a note.
+        self.need_read_back()
+        line = "  logo: '/images/logo.png',            // resolved against SITE.url for schema\n"
+        for value in ("/images/logo.png", "/images/hers.png"):
+            with self.subTest(value=value):
+                self.fresh()
+                text = "const LOGO = '%s';\n" % value + T.starter_file("src/config.ts").replace(line, "  logo: LOGO,\n")
+                self.put("src/config.ts", text)
+                (dry_code, dry), (code, out) = self.both_runs(*self.logo("--keep-colours", "--json"))
+                if value == "/images/logo.png":
+                    self.assertEqual((dry_code, code, json.loads(out)["read_back"]["src/config.ts"]), (0, 0, {"status": "ok"}), out)
+                    for got in (json.loads(dry), json.loads(out)):
+                        self.assertIn(ALREADY.replace("SITE.", "COMPANY.") % ("logo", value), got["notes"])
+                    self.assertEqual(self.read("src/config.ts"), text)
+                else:
+                    self.assertEqual((dry_code, code), (2, 2), out)
+                    self.assertTrue(json.loads(out)["message"].endswith(". " + CONFIG_ONE + " The site reads /images/hers.png now."), out)
 
     # --- what the logo is checked against --------------------------------------------------------
 
@@ -3858,8 +3917,7 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
         data = json.loads(out)
         self.assertEqual((dry_code, code, data["status"], data["written"]), (0, 1, "read-back-failed", []), out)
         self.assertEqual(data["read_back"], {"src/config.ts": {"status": "differs", "values": [{"name": "logo", "reads": "/images/other.png", "wanted": "/images/logo.png"}]}})
-        self.assertEqual(data["report"][1], "src/config.ts: the site reads /images/other.png as COMPANY.logo (this tool asked the site's own Node). Line 34 already says /images/logo.png, and this run "
-                         "left it, so something else in the file decides the value. Set it by hand where the file decides it, or have the developer mend the file, then run this again.")
+        self.assertEqual(data["report"][1], "src/config.ts: the site reads /images/other.png as COMPANY.logo (this tool asked the site's own Node), not /images/logo.png as this run wanted. " + YOURSELF)
         self.assertEqual(data["report"][2], "Everything it had written was put back.")
         self.assertEqual(self.snapshot(), before)
         self.put("src/config.ts", self.read("src/config.ts").replace("'/images/other.png'", "'/images/logo.png'"))   # set by hand where the file decides it
@@ -3871,10 +3929,10 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
         code, out = self.intake(*self.logo("--json"), brand=False)
         data = json.loads(out)
         self.assertEqual((code, data["status"], data["read_back"]), (1, "read-back-failed", {"src/config.ts": {"status": "differs", "values": [{"name": "logo", "reads": "/images/other.png", "wanted": "/images/logo.png"}]}}), out)
-        self.assertTrue(data["report"][1].startswith("src/config.ts: the site reads /images/other.png as COMPANY.logo (this tool asked the site's own Node). This run set /images/logo.png on line 34, so something else"), data["report"][1])
+        self.assertEqual(data["report"][1], "src/config.ts: the site reads /images/other.png as COMPANY.logo (this tool asked the site's own Node), not /images/logo.png as this run wanted. " + YOURSELF)
         self.assertEqual(self.snapshot(), before)
-        # (round 8) the address only in an object inside the block: the site reads nothing as COMPANY.logo, and nothing else in the file
-        # decides it. The sentence says the block has no `logo` of its own and shows the line; done to the character, the next run passes.
+        # (round 8) the address only in an object inside the block: the site reads nothing as COMPANY.logo. The sentence says so (round 10:
+        # the one sentence); once she has set it (here: as the block's first line), the next run passes.
         self.fresh()
         inside = config.replace("  logo: '/images/logo.png',            // resolved against SITE.url for schema\n", "  parent: {\n    logo: '/images/logo.png',\n  },\n")
         self.put("src/config.ts", inside)
@@ -3882,12 +3940,9 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
         code, out = self.intake(*self.logo("--json"), brand=False)
         data = json.loads(out)
         self.assertEqual((code, data["status"], data["written"]), (1, "read-back-failed", []), out)
-        self.assertEqual(data["report"][1], "src/config.ts: the site reads nothing as COMPANY.logo (this tool asked the site's own Node). The file already says /images/logo.png, and this run left it, but the "
-                         "`COMPANY` block has no `logo` of its own: the line that says it belongs to something inside the block. Write `logo: '/images/logo.png',` as the first line under the block's opening "
-                         "line (it starts `export const COMPANY`), and where that other line was changed to say /images/logo.png, put back what it said before. Then run this again.")
+        self.assertEqual(data["report"][1], "src/config.ts: the site reads nothing as COMPANY.logo (this tool asked the site's own Node), not /images/logo.png as this run wanted. " + YOURSELF)
         self.assertEqual(self.snapshot(), before)
-        self.put("src/config.ts", follow_read_back(self.read("src/config.ts"), data["report"][1]))
-        self.assertEqual(self.read("src/config.ts"), inside.replace("export const COMPANY = {\n", "export const COMPANY = {\nlogo: '/images/logo.png',\n"))
+        self.put("src/config.ts", inside.replace("export const COMPANY = {\n", "export const COMPANY = {\n  logo: '/images/logo.png',\n"))
         code, out = self.intake(*self.logo("--json"), brand=False)
         self.assertEqual((code, json.loads(out)["status"], json.loads(out)["read_back"]), (0, "done", {"src/config.ts": {"status": "ok"}}), out)
         # a Node that draws the icons and reads no TypeScript: the logo goes in, and the report claims no more than it knows
@@ -4191,7 +4246,7 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
             self.assertEqual(code, 2, out)
             self.assertIn("src/config.ts: this tool sets the address of the logo only where the file has this one line", out)
             self.assertIn(":\nlogo: '/images/logo.png',\nWhat it found instead: line 34 is written another way: `logo: '/it\\'s.png', // resolved against SITE.url for schema`. "
-                          "Write that one line in its place, then run this again", out)
+                          + CONFIG_ONE + " The site reads /it's.png now.", out)
             self.assertIn("Nothing was written", out)
             self.assertNotIn("Note: the share cards get no emblem", out, "a run that was refused before the logo was drawn has nothing to say of the cards")
             self.assertEqual(self.snapshot(), before)
@@ -4200,7 +4255,7 @@ class ALogoOnASiteAsSheLeftIt(SiteCase):
         self.assertEqual(code, 0, out)
         self.assertIn("logo: '/it\\'s.png',", self.read("src/config.ts"))
         self.assertIn("themeColor: '#b4531a'", self.read("src/config.ts"))
-        # what the refusal says to do, done: that one line, written as the starter writes it
+        # what the refusal says to do, done (here: the line written as the starter writes it)
         mended = self.read("src/config.ts").replace("logo: '/it\\'s.png',", "logo: '/images/logo.png',")
         self.put("src/config.ts", mended)
         (dry_code, _dry), (code, out) = self.both_runs(*self.logo())
@@ -5351,12 +5406,12 @@ class WhatIsAskedAndWhen(SiteCase):
         return [n for n in notes if n.startswith("the logo was given in")], [n for n in notes if n.startswith("the logo keeps")]
 
     # (round 8) what a run that leaves BRAND.md's palette out says when it draws a mark given in `currentColor`, and BRAND.md names no Primary
-    IN_SITE_ACCENT = ("the mark was given without a colour of its own (in `currentColor`) and is drawn in the light theme's Accent the site has now (%s), because BRAND.md names no Primary. "
-                      "The site's own colours were not changed")
+    IN_SITE_ACCENT = ("the mark (or the part of it given without a colour of its own, in `currentColor`) is drawn in the light theme's Accent the site has now (%s), because BRAND.md "
+                      "names no Primary. The site's own colours were not changed")
     IN_STYLESHEET = IN_CURRENT.replace("the Primary the palette has now (%s)", "the stylesheet's `--brand` (%s)")
 
     def in_accent(self, report):
-        return [n for n in json.loads(report)["notes"] if n.startswith("the mark was given without a colour of its own")]
+        return [n for n in json.loads(report)["notes"] if n.startswith("the mark (or the part of it given without a colour of its own")]
 
     def test_a_mark_given_in_currentcolor_keeps_the_primary_it_was_drawn_in_until_its_package_is_given_again_and_every_run_says_so(self):
         self.brand_md(self.DAY_ONE)
@@ -5695,6 +5750,13 @@ class WhatIsAskedAndWhen(SiteCase):
                 self.assertEqual((dry_code, code, self.in_accent(dry), self.in_accent(out), self.kept(out)), (0, 0, [note], [note], ([], [])), out)
                 self.assertTrue(self.bytes("public/favicon.svg").startswith((_install.MARK_CURRENT % "#b4531a").encode("utf-8")) and b'fill="#b4531a"' in self.bytes("public/favicon.svg"), "drawn in the colour the note names")
                 self.assertEqual(self.read("src/styles/global.css"), stylesheet, "the site's own colours were not changed, as the note says")
+        # (round 10) a mark with a part in `currentColor` and a part with a colour of its own: the note, whose words are true of
+        # the part it is about, and the part with its own colour keeps it
+        mixed = self.package("mixed.svg", rects((2, 2, 28, 28, "currentColor"), (10, 10, 12, 12, "#2a1f17")))
+        self.brand_md(no_primary)
+        (dry_code, dry), (code, out) = self.both_runs("--input", mixed, "--json", "--replace-icons", "--keep-colours", *self.ACCEPT)
+        self.assertEqual((dry_code, code, self.in_accent(dry), self.in_accent(out)), (0, 0, [note], [note]), out)
+        self.assertTrue(b'fill="#b4531a"' in self.bytes("public/favicon.svg") and b'fill="#2a1f17"' in self.bytes("public/favicon.svg"), self.bytes("public/favicon.svg")[-300:])
         # where the note is not true it is not given: BRAND.md names a Primary; the mark has a colour of its own; the icons
         # are drawn again from the installed favicon (its own note says what it keeps); no BRAND.md at all
         own = self.package("own.svg", rects((2, 2, 28, 28, "#b4531a")))

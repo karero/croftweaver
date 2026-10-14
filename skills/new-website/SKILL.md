@@ -379,7 +379,7 @@ full path (the output of `pwd` inside it):
    rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
    skills: agents read it, and its Language rule has them reply in the person's
    language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
-3. **Skills travel with the repo** — copy the twenty-six always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-seven always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but

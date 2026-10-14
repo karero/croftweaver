@@ -402,13 +402,13 @@ def _other_line_end(text):
         return None
     number, line = next((n, l) for n, l in enumerate(_PLAIN_BREAK.split(text), 1) if _OTHER_BREAK.search(l))
     at, more = _OTHER_BREAK.search(line).start(), len(found) - 1
-    code = "U+%04X" % ord(line[at])
-    return ("Line %d, %s, holds a character that this check takes for the end of a line and a Markdown reader does not (%s, written "
-            "as <%s> in the quote). This check would begin a new line there where the text has none, which can cut a word or a "
-            "value in two, so it read nothing of this text.%s Delete each such character, or put a plain new line in its place, "
-            "then check again."
-            % (number, _quoted(line, 80, (at, at + 1)), code, code,
-               " The text holds %d more character%s of that kind." % (more, "" if more == 1 else "s") if more else ""))
+    code, kinds = "U+%04X" % ord(found[0]), ", ".join("U+%04X" % ord(c) for c in dict.fromkeys(found[1:]))
+    return ("Line %d, %s, holds a character that this check takes for the end of a line and a Markdown reader does not (%s, written as <%s> in the "
+            "quote). This check would begin a new line there where the text has none, which can cut a word or a value in two, so it read nothing of "
+            "this text: its tables were not looked at, and may be fine as they are.%s Delete each such character, or put a plain new line in its "
+            "place, then check again."
+            % (number, _quoted(line, 80, (at, at + 1)), code, code, " The text holds %d more character%s of that kind%s." % (
+                more, "" if more == 1 else "s", "" if kinds == code else " (%s)" % kinds) if more else ""))
 
 
 class _Reader(object):
@@ -440,11 +440,11 @@ class _Reader(object):
     # -- lines --
 
     def read(self, text):
-        text, unclosed = _without_comments(text)
-        refused = _other_line_end(text)  # (a blanked comment keeps every character of _BREAKS: one inside a comment is found too)
+        refused = _other_line_end(text[1:] if text[:1] == "\ufeff" else text)  # the text as written, comments too: the quote shows what the file holds
         if refused:
             self.problem("?", None, "palette-line-end", refused)
             return self.p
+        text, unclosed = _without_comments(text)
         # (not `raw.split()`: that takes U+001F for a blank too, and a character nobody sees must still be in the line
         # when _seen cleans it for a search)
         lines = [_BLANKS.sub(" ", raw).strip(" ") for raw in text.splitlines()]
@@ -902,8 +902,8 @@ def parse_tables(text):
        outside it is not the palette's business: nothing there is read, and nothing there is named,
        neither a colour (rule 12) nor the word proposed (rule 9) nor a table, because a BRAND.md is a
        whole brand guide (a logo, type, a shadow's `rgba(0, 0, 0, 0.06)`, the share cards' colours).
-       One thing outside it is named, so that a palette written in the wrong place of such a file is
-       never silently "not there": a heading that says `Brand`, `Light theme` or `Dark theme`, alone or
+       Two things outside it are named: rule 9's line-end characters, and, so that a palette written in
+       the wrong place of such a file is never silently "not there", a heading that says `Brand`, `Light theme` or `Dark theme`, alone or
        with a bracketed remark, with a table under it (a line that starts with `|`, before the next
        heading). A problem quotes that heading and says where the three tables belong; where the
        section ended at such a heading (it has as many `#` as `Colour palette`, or fewer), the problem
@@ -927,8 +927,9 @@ def parse_tables(text):
        so no input makes a pattern slow. A line's blanks are what a person sees as a space: the
        space, the tab, and every character of Unicode's category Zs (the no-break space, the wide
        and thin spaces U+2000 to U+200A, U+1680, U+202F, U+205F, U+3000). So a `#` with a
-       no-break space after it starts a heading, a line with one before its first `|` is a row of
-       a table, and one inside a value is the blank there (`rgb(255,<U+00A0>248,<U+00A0>238)`).
+       no-break space after it, or before it (as with a tab or four spaces), starts a heading, a line
+       with one before its first `|` is a row of a table, and one inside a value is the blank there
+       (`rgb(255,<U+00A0>248,<U+00A0>238)`).
        No other character is a blank: not the information separators (U+001C to U+001F), not
        U+0085. U+001F stays in its line as a character nobody sees (rule 9). A table row longer
        than 2,000 characters is not read, and a problem names it.
@@ -1073,12 +1074,14 @@ def parse_tables(text):
        U+2028, U+2029), which would cut a line in two and a word on it, is not read: ONE problem
        (`palette-line-end`) quotes the first line that holds one, with its number as an editor
        counts it (by line feeds and carriage returns alone), names the character by its code
-       point, says how many more the text holds and what to do (delete each, or put a plain new
-       line in its place), and no row and no value is returned.
+       point, says how many more the text holds (by code point, where another is among them) and
+       what to do (delete each, or put a plain new line in its place), and no row and no value is
+       returned.
        THE LIMITS. Each of these inside the word makes it another word, which is passed over without
        a word: a character reference (`&#112;roposed`, `prop&shy;osed`); a full-width, mathematical
        or look-alike letter (a Cyrillic `р` for the `p`); emphasis or a tag (`**pro**posed`,
-       `pro<b>posed</b>`); and a character nobody sees that Unicode files under another category
+       `pro<b>posed</b>`); a blank of rule 1, also a thin one (U+2009, U+200A, U+202F), which makes
+       two words of it; and a character nobody sees that Unicode files under another category
        than those four: a filler it files as a letter (U+115F, U+1160, U+3164, U+FFA0), a private-use
        character (U+E000) or one it has not assigned (U+2065). The pass follows the Unicode
        tables of the Python that runs it, so a character a newer Unicode added is taken out by a
@@ -1579,11 +1582,9 @@ def scan_css(text):
     11. A top-level `@namespace` statement without a prefix ("namespace", block None): with a default
         namespace, `:root` matches only a root element of that namespace, which a web page's may not be.
     12. An `@charset` with a quoted name that is none of the names a browser takes for UTF-8: `utf-8`,
-        `utf8`, `unicode-1-1-utf-8`, `unicode11utf8`, `unicode20utf8`, `x-unicode20utf8`, case and the
-        blanks around the name ignored ("charset", block None; the first one is named, wherever it
-        stands). This scanner reads the text as UTF-8; a browser that loads the file as a file, with no
-        encoding said by a server, reads it in the encoding such a line names where it is the file's first
-        bytes, and then has other colours, or none of the variables. `@charset "utf-8";` and `@charset
+        `utf8`, `unicode-1-1-utf-8`, `unicode11utf8`, `unicode20utf8`, `x-unicode20utf8`, as written
+        between the quotes, case ignored ("charset", block None; the first one is named, wherever it
+        stands). This tool reads stylesheets written in UTF-8 only. `@charset "utf-8";` and `@charset
         "utf8";` are ordinary and stop nothing.
     13. Brackets that do not pair up, each `{`, `(` and `[` closed by its own kind in the right order: refused
         as a whole (Refusal "css-unreadable"), because a browser reads on from a bracket that is not closed
@@ -1790,11 +1791,9 @@ def scan_css(text):
                 % (_line_number(text, end - 1), _quoted(_squeeze(plain[start:end]))))
     for m in _AT_CHARSET.finditer(code):  # wherever it stands: a browser takes it only as the file's first bytes, and this does not weigh that
         name = _CHARSET_NAME.match(plain, m.end())
-        if name and name.group(2).strip(_CSS_SPACE).lower() not in _UTF8_NAMES:
-            trouble(None, None, "charset",
-                    "Line %d of the stylesheet says the file is written in another encoding than UTF-8 (`%s`). This check reads the "
-                    "stylesheet as UTF-8, and a browser that loads the file as it is would read it in the encoding that line names, so "
-                    "the page may show other colours than these, or none of the palette. Save the file as UTF-8 and take that line out."
+        if name and name.group(2).lower() not in _UTF8_NAMES:
+            trouble(None, None, "charset", "Line %d of the stylesheet says the file is written in another encoding than UTF-8 (`%s`). This tool reads "
+                                           "stylesheets written in UTF-8 only. Save the file as UTF-8 and take that line out."
                     % (_line_number(text, m.start()), _visible(_squeeze(plain[m.start():name.end()])[:60])))
             break
     for kind, message in early:

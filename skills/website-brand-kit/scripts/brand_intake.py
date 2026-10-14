@@ -303,8 +303,14 @@ def main(argv=None):
         out.append(str(r))
         code = 2
     report = "\n".join(out)
-    _OUTCOME[:] = [code]   # kept before the report is said: a Ctrl-C from here on changes neither the report nor the status (see command_line)
+    import signal
+    came = []
+    was = signal.signal(signal.SIGINT, lambda *_a: came.append(1))   # a Ctrl-C until the report's end is held, then raised if it would have been (see command_line)
+    _OUTCOME[:] = [code]
     _say(report)
+    signal.signal(signal.SIGINT, was)
+    if came and was is signal.default_int_handler:
+        raise KeyboardInterrupt
     return code
 
 
@@ -313,35 +319,35 @@ def command_line(argv=None):
     main's status (see _leave): also where main ends through argparse (`--help`, an argument it does not
     take), which leaves by sys.exit. A Ctrl-C before `install` began to watch for it, or during `palette`
     before its report is said, is said in one line (one JSON object where `--json` was asked for): neither
-    had written anything. From the moment main hands the report over to be said, a Ctrl-C changes nothing:
-    main has kept the run's status by then (_OUTCOME), and the command ends with that status and says
-    nothing after the report, so a check that passed does not end with the stop's line and status 2.
+    had written anything. From the moment main keeps the run's status (_OUTCOME), a Ctrl-C changes nothing:
+    main holds it until the report is said whole, and the command ends with that status and says nothing
+    after the report, so a check that passed does not end with the stop's line and status 2.
     What argparse has to say it prints itself, not through _say: the limit stated there for a terminal
     holds for those lines too.
 
     What no line of this file can answer: a Ctrl-C while Python itself is still starting ends the process
     before this file is reached, or at this file's first instruction, and then with Python's own traceback,
-    which names this file (13 of 1,440 runs that were stopped in their first moments at a terminal). A
-    Ctrl-C in the instant between the status being kept and the report reaching `print` (a few
-    instructions) ends the command with that status and no report. And until `install` watches the
-    signals (the tool's first moments, while its modules are loaded and the arguments read), a SIGTERM, or
-    a SIGHUP from a terminal that was closed, ends the process with the signal's own status and no line.
+    which names this file (13 of 1,440 runs that were stopped in their first moments at a terminal). And
+    until `install` watches the signals (the tool's first moments, while its modules are loaded and the
+    arguments read), a SIGTERM, or a SIGHUP from a terminal that was closed, ends the process with the
+    signal's own status and no line.
     Nothing is written by then."""
     try:
-        code = main(argv)
+        try:
+            code = main(argv)
+        except SystemExit as e:   # argparse has printed what it had to say
+            code = e.code if type(e.code) is int else 0 if e.code is None else 1
+        _leave(code)   # (inside: a Ctrl-C before the process has ended is taken below, with the status kept)
     except KeyboardInterrupt:
         while True:   # (see _stop_early: it ends the process)
             try:
-                if _OUTCOME:   # the report is said, or is being said: it stands, with its status
+                if _OUTCOME:   # the report is said (main held the Ctrl-C until it was): it stands, with its status
                     import signal
                     signal.signal(signal.SIGINT, signal.SIG_IGN)
                     _leave(_OUTCOME[0])
                 _stop_early(sys.argv[1:] if argv is None else argv)
             except KeyboardInterrupt:
                 pass
-    except SystemExit as e:   # argparse has printed what it had to say
-        code = e.code if type(e.code) is int else 0 if e.code is None else 1
-    _leave(code)
 
 
 if __name__ == "__main__":

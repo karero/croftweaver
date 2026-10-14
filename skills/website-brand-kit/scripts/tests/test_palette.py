@@ -523,7 +523,7 @@ class Rule1Lines(unittest.TestCase):
         dark = "### Dark theme\n" + plain(STARTER_DARK)
         for c in spaces + ["\t"]:
             for name, text, proposed in (
-                    ("after the # of a heading", "###%sLight theme\n" % c + plain(STARTER_LIGHT) + "\n###%sDark theme%s\n" % (c, c) + plain(STARTER_DARK), set()),
+                    ("after the # of a heading, and before it", "###%sLight theme\n" % c + plain(STARTER_LIGHT) + "\n%s###%sDark theme%s\n" % (c, c, c) + plain(STARTER_DARK), set()),
                     ("two of them, and one beside a space", "###%s%sLight theme\n" % (c, c) + plain(STARTER_LIGHT) + "\n### %sDark theme\n" % c + plain(STARTER_DARK), set()),
                     ("before the first | of a row, and after its last", "### Light theme\n" + HEAD + "\n".join(c + line + c for line in lines(STARTER_LIGHT)) + "\n\n" + dark, set()),
                     ("inside a value", "### Light theme\n" + plain(STARTER_LIGHT, bg="rgb(255,%s255,%s%s255)" % (c, c, c), bg_soft="rgb(245%s247%s251)" % (c, c)) + "\n" + dark, set()),
@@ -578,7 +578,7 @@ class Rule1Lines(unittest.TestCase):
         # and the rule's own sentences say so
         rules = " ".join(_palette.parse_tables.__doc__.split())
         for part in ("A line's blanks are what a person sees as a space: the space, the tab, and every character of Unicode's category Zs",
-                     "So a `#` with a no-break space after it starts a heading, a line with one before its first `|` is a row of a table, and one inside a value is the blank there",
+                     "So a `#` with a no-break space after it, or before it (as with a tab or four spaces), starts a heading, a line with one before its first `|` is a row of a table",
                      "No other character is a blank: not the information separators (U+001C to U+001F), not U+0085."):
             self.assertIn(part, rules)
 
@@ -1814,8 +1814,8 @@ class Rule9Proposals(unittest.TestCase):
         for word in ("**pro**posed", "pro_posed", "\u0440roposed", "prop\u03bfsed", "pro<b>posed</b>", "<i>p</i>roposed", "&#112;roposed", "propose&#x64;", "&#80;ROPOSED", "prop&shy;osed",
                      "prop&#173;osed", "prop&#x200B;osed", "prop&zwnj;osed", "\uff50\uff52\uff4f\uff50\uff4f\uff53\uff45\uff44", "\U0001d429roposed", "&#" + "9" * 5000 + ";roposed",
                      # R7-206: a character nobody sees that Unicode files under another category than the four: a filler filed as a letter,
-                     # a private-use character, one that is not assigned
-                     "pro\u115fposed", "pro\u1160posed", "pro\u3164posed", "pro\uffa0posed", "pro\ue000posed", "pro\u2065posed"):
+                     # a private-use character, one that is not assigned; and (R9, rule 1) a thin blank, which makes two words of it
+                     "pro\u115fposed", "pro\u1160posed", "pro\u3164posed", "pro\uffa0posed", "pro\ue000posed", "pro\u2065posed", "pro\u200aposed", "pro\u2009posed", "pro\u202fposed"):
             with self.subTest(word=word[:30]):
                 p = _palette.parse_tables(brand_md() + "\nA %s line.\n" % word)
                 self.assertEqual((p.proposed, p.problems), (set(), []))
@@ -1853,8 +1853,9 @@ class Rule9ALineEndThatIsNoPlainNewLine(unittest.TestCase):
     that holds one, anywhere, is not read: ONE problem gives the number of the first line that holds one, as an editor
     counts it, and the character's code point. A text that holds none is read as before."""
 
-    def refused(self, text, number, c, more=0):
-        """Nothing of the text is read, and the one problem names this line (counted as an editor counts) and this character."""
+    def refused(self, text, number, c, more=0, kinds=""):
+        """Nothing of the text is read, and the one problem names this line (counted as an editor counts) and this character, and
+        says that the tables may be fine as they are."""
         p = _palette.parse_tables(text)
         self.assertEqual((p.light, p.dark, p.brand, p.proposed, p.ignored, p.fixed_accent, p.rows_found), ({}, {}, None, set(), [], set(), 0))
         self.assertEqual(codes(p), [("?", None, LINE_END)])
@@ -1864,7 +1865,8 @@ class Rule9ALineEndThatIsNoPlainNewLine(unittest.TestCase):
         self.assertIn("does not (U+%04X, written as <U+%04X> in the quote). " % (ord(c), ord(c)), message)
         self.assertEqual(message.count(" more character"), 1 if more else 0)
         if more:
-            self.assertIn(" The text holds %d more character%s of that kind. " % (more, "" if more == 1 else "s"), message)
+            self.assertIn(" The text holds %d more character%s of that kind%s. " % (more, "" if more == 1 else "s", kinds and " (%s)" % kinds), message)
+        self.assertIn(" so it read nothing of this text: its tables were not looked at, and may be fine as they are.", message)
         self.assertTrue(message.endswith(" Delete each such character, or put a plain new line in its place, then check again."), message)
         return message
 
@@ -1963,19 +1965,26 @@ class Rule9ALineEndThatIsNoPlainNewLine(unittest.TestCase):
                     self.refused(text % c, want, c)
         # what this reader's own count of lines would have said, which is not the editor's: the fifth of those characters is on line 1
         self.assertEqual(len(("\x0b\x0c\x1c\x1d" + "\x1e").splitlines()), 5)
-        self.refused("\x0b\x0c\x1c\x1d\x1e", 1, "\x0b", more=4)
+        self.refused("\x0b\x0c\x1c\x1d\x1e", 1, "\x0b", more=4, kinds="U+000C, U+001C, U+001D, U+001E")
 
     def test_the_first_one_is_named_and_the_others_are_counted(self):
         good = brand_md()
-        self.refused(good.replace("### Light theme", "### Light theme\u2028").replace("### Dark theme", "### Dark\x0b theme"), 10, "\u2028", more=1)
-        self.refused(good.replace("### Light theme", "### Light theme\x0b").replace("### Dark theme", "### Dark\u2028 theme\x85") + "\x0c", 10, "\x0b", more=3)
-        self.refused("| Muted | #5a5a72 |\x1e\x1e\n", 1, "\x1e", more=1)
+        # R9-205: where another kind is among the others, they are named by their code points (each once, in the order they stand)
+        self.refused(good.replace("### Light theme", "### Light theme\u2028").replace("### Dark theme", "### Dark\x0b theme"), 10, "\u2028", more=1, kinds="U+000B")
+        self.refused(good.replace("### Light theme", "### Light theme\x0b").replace("### Dark theme", "### Dark\u2028 theme\x85") + "\x0c\u2028", 10, "\x0b", more=4,
+                     kinds="U+2028, U+0085, U+000C")
+        self.refused("| Muted | #5a5a72 |\x1e\x1e\x1e\n", 1, "\x1e", more=2)
+        self.refused("| Muted | #5a5a72 |\x1e\x0b\x1e\n", 1, "\x1e", more=2, kinds="U+000B, U+001E")
+        # R9-205: in a comment the quote is the line as written, not the blanks the reading puts there (a byte order mark is not quoted)
+        for text, number, quote in (("A\n<!-- a pro\u2028posed note -->\n", 2, "<!-- a pro<U+2028>posed note -->"), ("\ufeff<!-- x\x0c -->", 1, "<!-- x<U+000C> -->"),
+                                    ("a <!-- b\nc\u2029 --> d", 2, "c<U+2029> --> d")):
+            self.assertIn('Line %d, "%s", holds' % (number, quote), self.refused(text, number, next(ch for ch in text if ch in LINE_ENDS)))
         # the whole sentence, once: the line, cut around the character where the line is long, with the character written out
-        self.assertEqual(self.refused("### Light theme\n" + HEAD + "| Muted | #5a5a72 | still pro\u2028posed |\n\nA line\x0bmore.\n", 4, "\u2028", more=1),
+        self.assertEqual(self.refused("### Light theme\n" + HEAD + "| Muted | #5a5a72 | still pro\u2028posed |\n\nA line\x0bmore.\n", 4, "\u2028", more=1, kinds="U+000B"),
                          'Line 4, "| Muted | #5a5a72 | still pro<U+2028>posed |", holds a character that this check takes for the end of a line and a Markdown reader does not '
                          "(U+2028, written as <U+2028> in the quote). This check would begin a new line there where the text has none, which can cut a word or a value in "
-                         "two, so it read nothing of this text. The text holds 1 more character of that kind. Delete each such character, or put a plain new line in its "
-                         "place, then check again.")
+                         "two, so it read nothing of this text: its tables were not looked at, and may be fine as they are. The text holds 1 more character of that kind "
+                         "(U+000B). Delete each such character, or put a plain new line in its place, then check again.")
         message = self.refused("### Light theme\n" + "x" * 3000 + "\x85" + "y" * 3000 + "\n", 2, "\x85")
         self.assertIn('Line 2, "...%s<U+0085>%s...", holds' % ("x" * 39, "y" * 40), message)
         # with it, nothing else is said of the text, and nothing is raised: not the comment that is never closed, not two palettes pasted together
@@ -2019,9 +2028,11 @@ class Rule9ALineEndThatIsNoPlainNewLine(unittest.TestCase):
         for part in ("A WHOLE text that holds, anywhere (outside the part rule 0 names and inside a comment too), a character that this reader takes for the end of a line and a "
                      "Markdown reader does not (a vertical tab U+000B, a form feed U+000C, U+001C, U+001D, U+001E, U+0085, U+2028, U+2029), which would cut a line in two and a "
                      "word on it, is not read: ONE problem (`palette-line-end`) quotes the first line that holds one, with its number as an editor counts it (by line feeds and "
-                     "carriage returns alone), names the character by its code point, says how many more the text holds and what to do (delete each, or put a plain new line in "
-                     "its place), and no row and no value is returned.",
+                     "carriage returns alone), names the character by its code point, says how many more the text holds (by code point, where another is among them) and "
+                     "what to do (delete each, or put a plain new line in its place), and no row and no value is returned.",
                      "And a text that holds a line-end character other than a plain new line is not read at all, wherever in it that character stands: rule 9.",
+                     "Two things outside it are named: rule 9's line-end characters, and, so that a palette written in the wrong place",
+                     "a blank of rule 1, also a thin one (U+2009, U+200A, U+202F), which makes two words of it;",
                      "nothing inside one is named (but for rule 9's line-end characters, which are line breaks inside a comment too)"):
             self.assertIn(part, rules)
         for limits in (rules[rules.index("THE LIMITS of the label test."):rules.index("Two things go the other way")],
@@ -3222,29 +3233,30 @@ class Stylesheet(unittest.TestCase):
                                  ('@charset "utf-16le";', '@charset "utf-16le"'), ('@charset "";', '@charset ""'), ('@charset "utf-8 x";', '@charset "utf-8 x"'),
                                  # round 8: what only looks like one of the names a browser takes for UTF-8
                                  ('@charset "utf_8";', '@charset "utf_8"'), ('@charset "utf 8";', '@charset "utf 8"'), ('@charset "x-utf8";', '@charset "x-utf8"'),
-                                 ('@charset "unicode-1-1-utf8";', '@charset "unicode-1-1-utf8"'), ('@charset "utf-8-sig";', '@charset "utf-8-sig"'), ('@charset "utf88";', '@charset "utf88"')):
+                                 ('@charset "unicode-1-1-utf8";', '@charset "unicode-1-1-utf8"'), ('@charset "utf-8-sig";', '@charset "utf-8-sig"'), ('@charset "utf88";', '@charset "utf88"'),
+                                 # R9-205: blanks inside the quotes, which Chromium does not pass over (it took the page's encoding instead)
+                                 ('@charset " utf8 ";', '@charset " utf8 "'), ('@charset "utf-8\t";', '@charset "utf-8 "'), ("@charset ' UTF-8';", "@charset ' UTF-8'")):
             for name, text, line in (("first", statement + "\n" + whole, 1), ("after a comment", "/* styles */\n" + statement + "\n" + whole, 2), ("last", whole + statement + "\n", 89),
                                      ("after one that says UTF-8", '@charset "UTF-8";\n' + statement + "\n" + whole, 2), ("twice", statement + "\n" + statement + "\n" + whole, 1)):
                 with self.subTest(statement=statement, name=name):
                     message = self.only(text, "charset")
-                    self.assertEqual(message, "Line %d of the stylesheet says the file is written in another encoding than UTF-8 (`%s`). This check reads the stylesheet as UTF-8, and a "
-                                              "browser that loads the file as it is would read it in the encoding that line names, so the page may show other colours than these, or "
-                                              "none of the palette. Save the file as UTF-8 and take that line out." % (line, shown))
+                    self.assertEqual(message, "Line %d of the stylesheet says the file is written in another encoding than UTF-8 (`%s`). This tool reads stylesheets written "
+                                              "in UTF-8 only. Save the file as UTF-8 and take that line out." % (line, shown))
                     for which in (self.bakery(), self.only_dark()):
                         with self.assertRaises(Refusal) as cm:
                             _site.edit_css(text, which)
                         self.assertEqual(cm.exception.code, "css-layout")
                         self.assertIn(message, str(cm.exception))
-        # the near-misses: UTF-8 in any case, either quote and with blanks around the name; a statement with no quoted name, which names no
-        # encoding to a browser; the words in a string or in a comment; a longer name.
+        # the near-misses: UTF-8 in any case and either quote; a statement with no quoted name, which names no encoding to a browser; the
+        # words in a string or in a comment; a longer name.
         # Round 8 (R8-205): `@charset "utf8";` was refused with "written in another encoding than UTF-8", which is untrue: a browser takes
         # six names for UTF-8 (the reviewer's Chromium painted the starter's colours under `utf8` and `unicode-1-1-utf-8`). Each counts, in any
-        # case and with blanks around it.
+        # case, as written between the quotes (R9-205: with blanks there it is refused, above).
         self.assertEqual(sorted(_palette._UTF8_NAMES), ["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "utf-8", "utf8", "x-unicode20utf8"])
-        self.assertIn("none of the names a browser takes for UTF-8: `utf-8`, `utf8`, `unicode-1-1-utf-8`, `unicode11utf8`, `unicode20utf8`, `x-unicode20utf8`, case and the blanks "
-                      "around the name ignored", " ".join(_palette.scan_css.__doc__.split()))
-        also_utf8 = ['@charset "%s";' % spelt for name in sorted(_palette._UTF8_NAMES) for spelt in (name, name.upper(), name.title(), " %s\t" % name)] + ["@charset 'UTF8' ;", '@CHARSET\n"Utf8";']
-        for statement in also_utf8 + ['@charset "utf-8";', '@charset "UTF-8";', "@charset 'Utf-8';", '@charset " utf-8\t";', '@CHARSET\n"utf-8";', "@charset utf-8;", "@charset iso-2022-kr;",
+        self.assertIn("none of the names a browser takes for UTF-8: `utf-8`, `utf8`, `unicode-1-1-utf-8`, `unicode11utf8`, `unicode20utf8`, `x-unicode20utf8`, as written between "
+                      "the quotes, case ignored", " ".join(_palette.scan_css.__doc__.split()))
+        also_utf8 = ['@charset "%s";' % spelt for name in sorted(_palette._UTF8_NAMES) for spelt in (name, name.upper(), name.title())] + ["@charset 'UTF8' ;", '@CHARSET\n"Utf8";']
+        for statement in also_utf8 + ['@charset "utf-8";', '@charset "UTF-8";', "@charset 'Utf-8';", '@CHARSET\n"utf-8";', "@charset utf-8;", "@charset iso-2022-kr;",
                           '/* @charset "iso-2022-kr"; */', "a { content: '@charset \"iso-2022-kr\";' }", '@charset-x "iso-2022-kr";', '.charset::after { content: "iso-2022-kr" }']:
             with self.subTest(statement=statement):
                 self.assert_all_three_blocks(statement + "\n" + whole)

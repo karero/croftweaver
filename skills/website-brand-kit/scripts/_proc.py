@@ -234,7 +234,9 @@ def _run(command, cwd, timeout, shell=False, env=None, encoding="utf-8", input=N
     is stopped with it (see _stop_all), so that none of it is still running when the site's files are put
     back or the tests are run a second time; only then is the output read."""
     group = {"start_new_session": True} if os.name == "posix" else {}
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as given:
+    with _held():   # a stop between the making of a file and its name being taken away would leave the file behind
+        out, err, given = tempfile.TemporaryFile(), tempfile.TemporaryFile(), tempfile.TemporaryFile()
+    with out, err, given:
         if input is not None:
             given.write(input.encode(encoding or "utf-8"))
             given.seek(0)

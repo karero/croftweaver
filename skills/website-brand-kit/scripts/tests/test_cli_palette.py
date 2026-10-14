@@ -869,6 +869,9 @@ class PaletteCommand(unittest.TestCase):
             ("the compound in one word, with digits", under_light("DarkTheme2"), 2, ('Not read: Line 21, "DarkTheme2", ' + between + "reads as a label for the other theme",)),
             # the limit rules 2 and 9 state: a character nobody sees that the pass does not take out
             ("the limit: a filler that Unicode files as a letter", good + "\nAll dark values are pro\u1160posed.\n", 0, ("30 of 30 pairs pass.",)),
+            # R9-205, rules 9 and 1 as they now say: a thin blank inside the word makes two words, and a no-break space before a `#` is a blank
+            ("the limit: a thin blank inside the word", good + "\nAll dark values are pro\u200aposed.\n", 0, ("30 of 30 pairs pass.",)),
+            ("a no-break space before the # of a heading", good.replace("### Dark theme", "\u00a0### Dark theme"), 0, ("30 of 30 pairs pass.",)),
             # (round 9: a character that ends a line to this reader was the other limit, and ended with 0. The text that holds one is not read:
             # the test of that is test_a_line_end_character_that_is_no_plain_new_line_is_refused_by_name_through_the_command, below)
             ("U+001E inside the word, which round 7 stated as a limit", good + "\nAll dark values are pro\x1eposed.\n", 2,
@@ -937,17 +940,18 @@ class PaletteCommand(unittest.TestCase):
         # another encoding than UTF-8"
         whole = T.read(os.path.join(self.dir, "global.css"))
         path = self.write(brand_md())
-        for statement in ('@charset "utf8";', '@charset "UTF8";', "@charset 'unicode-1-1-utf-8';", '@charset " x-unicode20utf8 ";'):
+        for statement in ('@charset "utf8";', '@charset "UTF8";', "@charset 'unicode-1-1-utf-8';", '@charset "X-Unicode20UTF8";'):
             with self.subTest(statement=statement):
                 code, out, err = run("palette", path, "--css", self.css(statement + "\n" + whole))
                 self.assertEqual((code, err), (0, ""), out)
                 self.assertNotIn("encoding", out)
                 data = json.loads(run("palette", path, "--css", self.css(statement + "\n" + whole), "--json")[1])
                 self.assertEqual((data["status"], data["stylesheet_problems"], data["drift"]), ("pass", [], []))
-        # the near-miss stays refused, with the sentence that is true of it
-        code, out, _ = run("palette", path, "--css", self.css('@charset "utf-16";\n' + whole))
-        self.assertEqual(code, 2, out)
-        self.assertIn('says the file is written in another encoding than UTF-8 (`@charset "utf-16"`)', out)
+        # the near-misses stay refused, with the sentence that is true of them (R9-205: one with blanks inside the quotes too, which Chromium does not take)
+        for near in ('@charset "utf-16"', '@charset " x-unicode20utf8 "'):
+            code, out, _ = run("palette", path, "--css", self.css(near + ";\n" + whole))
+            self.assertEqual(code, 2, out)
+            self.assertIn("says the file is written in another encoding than UTF-8 (`%s`). This tool reads stylesheets written in UTF-8 only." % near, out)
         # and the install writes the palette into such a stylesheet, the line left as it stands
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
         with tempfile.TemporaryDirectory() as tmp:
@@ -1235,14 +1239,18 @@ class PaletteCommand(unittest.TestCase):
                         lines = out.splitlines()
                         self.assertEqual(len([l for l in lines if l.startswith("Not read: ")]), 1, out)
                         self.assertTrue([l for l in lines if l.startswith("Not read: " + said) and l.endswith(
-                            " so it read nothing of this text. Delete each such character, or put a plain new line in its place, then check again.")], out)
+                            " so it read nothing of this text: its tables were not looked at, and may be fine as they are. Delete each such character, or put a plain new "
+                            "line in its place, then check again.")], out)
                         self.assertIn("No pair could be checked.", lines)
                         self.assertEqual(snapshot(self.dir), before)
-        # two of them: the first is named and the other is counted
+        # two of them: the first is named and the other is counted, by its code point where it is another (R9-205)
         code, out, _err = self.run_bytes("palette", "-", stdin=(good.replace("### Light theme", "### Light theme\x0b") + "\u2028").encode("utf-8"))
         self.assertEqual(code, 2, out)
         self.assertIn('Not read: Line 6, "### Light theme<U+000B>", ' + self.HOLDS % (11, 11), out)
-        self.assertIn(" The text holds 1 more character of that kind. Delete each such character, or put a plain new line in its place, then check again.", out)
+        self.assertIn(" The text holds 1 more character of that kind (U+2028). Delete each such character, or put a plain new line in its place, then check again.", out)
+        # in a comment the quote is the line as the file has it (R9-205: it was a row of blanks)
+        code, out, _err = self.run_bytes("palette", "-", stdin=("<!-- a pro\u2028posed note -->\n" + good).encode("utf-8"))
+        self.assertIn('Not read: Line 1, "<!-- a pro<U+2028>posed note -->", ' + self.HOLDS % (0x2028, 0x2028), out)
 
     def test_a_file_with_windows_or_old_mac_line_ends_is_checked_as_the_same_file_with_plain_new_lines(self):
         # the refusal above is for the eight characters and for nothing else: \r\n and a lone \r end a line as they did

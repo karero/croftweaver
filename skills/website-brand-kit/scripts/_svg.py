@@ -79,9 +79,9 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                  though it may end above it (scale(1e-6) scale(1e-6) scale(1000) scale(1000)).
                  The list is held where it goes UNDER a line on its way, not where it goes far
                  above on its way and comes back: scale(1e8) five times, then scale(1e-9) four
-                 times and scale(.01), is kept, and from a running scale of 1e40 each way on the
-                 renderer draws the shape and a browser does not (made by hand, in a box of a
-                 million; see _flattens).
+                 times and scale(.01), is kept, and past a running scale of about 3.4e38 each way (the
+                 largest number single precision holds) the renderer draws the shape and a browser
+                 does not (made by hand, in a box of a million; see _flattens).
                  The rule looks at ONE transform attribute at a time. Transforms on elements that
                  stand inside one another (a group's and its shape's, a clip path's and that of a
                  shape in it) are not multiplied: where only together they squash a shape, scale
@@ -565,8 +565,8 @@ def _flattens(matrix):
     It is held where it goes UNDER a line on its way, not where it goes far above on its way and comes back: there
     is no line above. Made by hand and measured 2026-10-13, in a box of a million: scale(1e8) five times or more,
     then scales down again till the list ends at a scale of 100 (scale(1e-9) four times and scale(.01)), is kept, and
-    from a running scale of 1e40 each way on the renderer draws the shape and a browser draws nothing of it (up to
-    1e32 each way: both draw it).
+    past a running scale of about 3.4e38 each way (the largest number single precision holds) the renderer draws the
+    shape and a browser draws nothing of it (measured: at 1e39 the two part, at 1e38 both draw it).
 
     What this does NOT see: it looks at ONE `transform` attribute at a time. The transforms of elements that stand
     inside one another (a group's and its shape's, a clip path's and that of a shape in it) are not multiplied.
@@ -797,8 +797,8 @@ class Clean(object):
 NEEDS_AN_EXPORT = "drawing needs what the declaration brought in: ask the tool for an export without a DOCTYPE."
 DOCTYPE = (
     "The file has a DOCTYPE declaration. That is how a file asks for other files to be pulled in, so it is refused. "
-    "Open the file in a text editor and delete the declaration: everything from <!DOCTYPE up to the > that ends the "
-    "declaration, wherever the lines break, and nothing else (an <svg that comes after it stays). If the file cannot "
+    "Open the file in a text editor and delete the declaration: everything from <!DOCTYPE up to and including the > that "
+    "ends the declaration, wherever the lines break, and nothing else (an <svg that comes after it stays). If the file cannot "
     "be read after that, the " + NEEDS_AN_EXPORT
 )
 DOCTYPE_DEFINES = (
@@ -1400,8 +1400,8 @@ def _reach(root, box):
                     "too-far",
                     "The file places or sizes something far outside the drawing's own box (%s holds %s, and the box is "
                     "%s by %s). Programs draw such a shape in different ways, and slowly. Ask the tool for the drawing "
-                    "with nothing outside its frame. Or the drawing is made far larger than its box and scaled down to "
-                    "fit: then ask for it in the box's own units, with the scaling applied to the shapes."
+                    "with nothing outside its frame. Or the drawing is made far larger or far smaller than its box and "
+                    "scaled to fit: then ask for it in the box's own units, with the scaling applied to the shapes."
                     % (name, ("the number %g" % n) if len(numbers) > 1 else repr(value[:40]), "%g" % box[2], "%g" % box[3]),
                 )
 
