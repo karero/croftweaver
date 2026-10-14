@@ -532,7 +532,7 @@ const monitorHost = (u) => {
 // port) of the answer that carries the header counts, and an address written relative to that
 // answer is read against its address.
 const OWN_HOST_REPORT_PATH = '/cdn-cgi/script-monitor/report';
-const ownHostReport = (page) => (u) => {
+export const ownHostReport = (page) => (u) => {
   if (typeof u !== 'string' || !page) return false;
   try {
     const a = new URL(u, page);

@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, rmSync, existsSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ITEMS, evaluate, parseProject, parseTarget, readHtml, UsageError } from '../cloudflare-check.mjs';
+import { ITEMS, evaluate, ownHostReport, parseProject, parseTarget, readHtml, UsageError } from '../cloudflare-check.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'cloudflare-check.mjs');
@@ -1054,6 +1054,17 @@ test('the script monitor reporting to the site\'s own host is named too, in each
     const r = await check(s.origin);
     assert.match(r.by.nel.detail, /site's own address/, 'on the page after a redirect');
   });
+});
+
+test('an own-host report address must have the page\'s exact origin: a trailing dot is another origin', () => {
+  // The suite's local server is an IPv4 address, which a URL reads the same with or without a dot,
+  // so the origin rule is pinned here on names.
+  const page = 'https://example.test/?cb=1';
+  assert.equal(ownHostReport(page)(`https://example.test${OWN_PATH}`), true);
+  assert.equal(ownHostReport(page)(`https://example.test.${OWN_PATH}`), false, 'a trailing dot on the address');
+  assert.equal(ownHostReport('https://example.test./')(`https://example.test${OWN_PATH}`), false, 'a trailing dot on the page');
+  assert.equal(ownHostReport(page)(`https://EXAMPLE.test:443${OWN_PATH}`), true, 'case and the default port are the same origin');
+  assert.equal(ownHostReport(undefined)(OWN_PATH), false, 'no page, no own host');
 });
 
 test('NEL on still fails beside the script monitor, and the monitor is named there too', async () => {
