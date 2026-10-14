@@ -1,7 +1,7 @@
 # DIFF review — branch feat/search-ai-reports — Google's and Bing's own AI reports (search-console-insights 1.8.0)
 
 Base `e038603` · depth: Normal (shipped runtime code; nothing in the High row) · verdict: CLEAN (seen pair: merge-base
-3b2e5db, head 64faf89: the code as seen on d0ae6a4, carried by empty merge links; the plan's PR row as seen on 64faf89; later commits touch this trail only) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
+8ed34ca (by an empty merge link from 3b2e5db), head 64faf89: the code as seen on d0ae6a4, carried by empty merge links; the plan's PR row as seen on 64faf89; later commits touch this trail only) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session
 works in this worktree and created the branch by renaming the harness's branch for it); POST
 AUTHORITY not yet held (no PR; one is opened only on the owner's word).
 
@@ -44,6 +44,7 @@ left out of the artifact).
 | the plan's PR row, asked for by the owner (not a round) | 2bfff3a | Codex medium (83 s, 23k tokens), GLM 5.3 on melious (129 s, 8k) | 1 / 1 / 1 (F47–F49, record) | the row said "merged" on the owner's order: both seats, a merge ordered is not a merge (F47, BUG); "reaches `main` only through that merge" an unguarded claim (F48, G); the date could read as the merge date (F49, G). Reworded in 8a15039 |
 | confirmation of that fix | 8a15039 | Codex medium | 0 / 1 / 0 (F50, record) | the three fixed; the rewording added a prediction ("merges once its required checks pass") — removed in 64faf89 |
 | confirmation of that fix (the last allowed) | 64faf89 | Codex medium | 0 / 0 / 0 | clean: the row records the owner's dated order and points to the PR for the merge |
+| fifth merge of main (not a round) | fa8dd64 | none needed | — | `main` moved 11 commits while CI ran; merged at fa8dd64, merge-base 8ed34ca; `merge_link.sh 3b2e5db 64faf89 8ed34ca` printed nothing; the change's files identical to 64faf89; `make test` 249 OK |
 
 ## Findings
 
