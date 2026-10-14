@@ -96,8 +96,8 @@ round-3 fixes verified landed.
 ## Final full read and wording pass — Codex at 1ad32d4, 2026-10-14 (round 5, `--earned-by wording`)
 
 The change was 127 KB, over the script's 117 KB limit for one artifact, so it was read in two
-parts: the code, and the rest. 9 findings: 7 BUG, 2 RISK (one RISK raised in both parts,
-merged): 8 distinct. All fixed.
+parts: the code, and the rest. 9 findings, 7 distinct once the two raised in both parts are
+merged: 6 BUG, 1 RISK. All fixed.
 
 | # | Part | Kind | Finding | Disposition |
 |---|---|---|---|---|
@@ -122,6 +122,6 @@ The final read's fixes verified landed, except as below. 4 findings: 3 BUG, 1 RI
 | 4 | RISK | No retained transcripts of the cold runs (third time) | Refuted: the results are in design §3.3 with the versions used; the runs can be repeated; transcripts of a session do not belong in this public repository |
 
 **Gate closed 2026-10-14.** 4 cross-model rounds, a final read in two parts, and a fix check:
-52 findings (merged per round), 40 fixed, 12 refuted or settled by a cut. The last fix (one
+48 findings (merged per round), 38 fixed, 10 refuted or settled by a cut. The last fix (one
 condition, #2 above) was not sent through another round; its test fails without it. Each
 round after the third named its kinds and its cut, as the script requires.
