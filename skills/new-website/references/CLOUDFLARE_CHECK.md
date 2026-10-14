@@ -108,19 +108,20 @@ items are a `look`, never `ok`.
   was switched off. A run that sees none does not show it is off, and neither does any number
   of requests: how often Cloudflare sends them is not documented. The switch is at Your
   domain → Security → Settings → filter by Client-side abuse → Continuous script monitoring.
-  After switching it off, count requests: 100 answers without the headers make it unlikely
-  that they are still being sent, and do not exclude it. Replace `yourdomain.com` with your
-  domain. This prints how many of 100 answered with one of the monitor's three headers
-  (`report-to`, `reporting-endpoints` or `content-security-policy-report-only`; a site that
-  sets one itself counts too), how many without one, and how many failed, each with the
-  status line of the answer. Only answers that are `200` count: we did not check whether a
-  redirect or an error page carries the headers:
+  After switching it off, count requests. 100 answers without the headers would be unlikely
+  if they still came as often as we saw (2 in 40), and do not exclude a lower rate. Replace
+  `yourdomain.invalid` with the address your site answers on, with `www.` if the bare name
+  redirects; the placeholder cannot answer, so an unedited run prints `status=000`. This
+  prints how many of 100 answered with one of the monitor's three headers (`report-to`,
+  `reporting-endpoints` or `content-security-policy-report-only`; a site that sets one
+  itself counts too) and how many without, each with the final status of the answer. Only
+  answers with `status=200` count: we did not check whether a redirect or an error page
+  carries the headers:
 
   ```bash
   for i in $(seq 1 100); do
-    h=$(curl -sS --http1.1 -D - -o /dev/null "https://yourdomain.com/?cb=$RANDOM") || { echo failed; continue; }
-    s=$(printf '%s\n' "$h" | head -n 1 | tr -d '\r')
-    if printf '%s\n' "$h" | grep -qiE '^(report-to|reporting-endpoints|content-security-policy-report-only):'; then echo "header $s"; else echo "none $s"; fi
+    curl -sS --http1.1 -o /dev/null -D - -w 'status=%{http_code}\n' "https://yourdomain.invalid/?cb=$RANDOM" |
+      awk 'BEGIN { h = "none" } tolower($0) ~ /^(report-to|reporting-endpoints|content-security-policy-report-only):/ { h = "header" } /^status=/ { print h, $0 }'
   done | sort | uniq -c
   ```
 - **Crawler Hints, Fail open and the build settings.** They have no outside check. The report
@@ -178,7 +179,9 @@ The script's list of items and their dashboard paths is the checklist's. A test
 (`make test-cloudflare-check`) reads `docs/CLOUDFLARE-CHECKLIST.md` and fails when an item
 title or a dashboard path differs, so a renamed item cannot leave the script behind unnoticed.
 It does not compare what each check wants (six months, a 301 or 308, preload off): when the
-checklist changes a requirement, change the script and its tests by hand.
+checklist changes a requirement, change the script and its tests by hand. One more path is
+pinned, the script monitor's switch, which is no item of its own: the same string must stand in
+the script's fix text, the checklist and this file.
 
 The same test file runs the script as a program against small servers on `127.0.0.1` that
 play a site behind Cloudflare, with real requests and real exit statuses: one site that is

@@ -160,22 +160,23 @@ cookies, scripts or tracking you didn't choose.
      *What it is:* Cloudflare says it adds a `content-security-policy-report-only` header to
      a sample of pages, and that the visitor's browser then sends reports to Cloudflare
      ([how it works](https://developers.cloudflare.com/client-side-security/how-it-works/)).
-     On the one site where we saw it, the answers that carried it also had a `report-to:`
-     line that names `cf-csp-endpoint` and sends to `csp-reporting.cloudflare.com`: 2 of 40
-     answers on 14 October 2026. Step 4's rule had been set there on 12 October. We did not
-     read it when we counted, so we can't say why the line was there.
+     It is not NEL. On the one site where we saw it, the answers that carried it also had a
+     `report-to:` line that names `cf-csp-endpoint` and sends to
+     `csp-reporting.cloudflare.com`: 2 of 40 answers on 14 October 2026. Step 4's rule had
+     been set there on 12 October. We did not read it when we counted, so we can't say
+     whether it was working then.
      *Why off:* the visitor's browser sends reports to Cloudflare, and the privacy page this
      kit writes doesn't mention it. If you keep it on, say so on your privacy page.
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
      then count with the loop in
      [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
-     your own domain. Only answers that are 200 count, and the count should read
-     `100 none HTTP/1.1 200 OK` (we saw no `report-to:` line in 200 answers). If you can't
-     find the switch, or a `header` count shows after you switched it off, tell your
-     assistant.
+     your own domain. Only answers with `status=200` count, and the count should read
+     `100 none status=200` (after we switched it off we made 200 requests and saw no
+     `report-to:` line). If you can't find the switch, or a `header` count shows after you
+     switched it off, tell your assistant.
      *The trade-off:* you give up Cloudflare's view of the scripts your visitors load. The
-     switch may be marked Global; we did not check whether it then covers every domain in
-     your account.
+     switch may be marked Global. If it says so, it may apply to every domain in your
+     account: look at your other sites before you switch it off.
 
   Visitors who came in before can keep the old NEL note until that many seconds have
   passed (the `max_age` from step 1; 604800 seconds is seven days). The

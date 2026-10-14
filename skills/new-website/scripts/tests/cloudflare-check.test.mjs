@@ -840,8 +840,9 @@ const LOOKALIKES = [
 ];
 
 // The monitor is no item of its own: the NEL line names it and points to its switch, and step 5 of the
-// checklist's NEL item says where the switch is. One path, said the same way in both places (the test
-// at the end of this file keeps the checklist's copy in step with this one).
+// checklist's NEL item says where the switch is. One path, said the same way in three places: this fix
+// text, the checklist and references/CLOUDFLARE_CHECK.md (the test at the end of this file keeps their
+// copies in step with this one).
 const MONITOR_PATH = 'Security → Settings → filter by Client-side abuse → Continuous script monitoring';
 
 test('the script monitor is named, with the path to its switch, not shown as a bare report-to header', () =>
@@ -856,7 +857,7 @@ test('the script monitor is named, with the path to its switch, not shown as a b
     assert.ok(r.by.nel.fix.includes(MONITOR_PATH), `the fix does not carry the path "${MONITOR_PATH}"`);
     assert.match(r.by.nel.fix, /Client-side abuse/);
     assert.match(r.by.nel.fix, /Continuous script monitoring/);
-    assert.match(r.by.nel.fix, /rule for NEL did not remove it on the one site/, 'the checklist\'s NEL rule is not the way to remove it');
+    assert.match(r.by.nel.fix, /removes only the NEL and Report-To headers/, 'the checklist\'s NEL rule does not switch the monitor off');
   }));
 
 test('any one of the script monitor\'s three headers names it, however the address is written', async () => {
@@ -1504,5 +1505,10 @@ test('the items are the checklist\'s items, and the paths are its paths', (t) =>
   const reference = readFileSync(path.join(HERE, '..', '..', 'references', 'CLOUDFLARE_CHECK.md'), 'utf8')
     .replace(/\*\*|`/g, '').replace(/\s+/g, ' ');
   assert.ok(reference.includes(MONITOR_PATH), `references/CLOUDFLARE_CHECK.md does not say "${MONITOR_PATH}"`);
+  // Step 5 quotes what the reference's counting loop prints: a renamed label or another count would
+  // leave the checklist stale.
+  assert.ok(reference.includes('seq 1 100') && reference.includes('status=%{http_code}') && /print h, \$0/.test(reference),
+    "the reference's counting loop changed: check the count step 5 quotes");
+  assert.ok(flat.includes('100 none status=200'), 'step 5 no longer quotes the count the loop prints');
   assert.ok(text.includes('**No scripts you didn\'t add:**'), 'section 5 still has the source-search bullet the "scripts" item stands for');
 });
