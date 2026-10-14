@@ -427,8 +427,10 @@ change. Depth now follows consequence, which "gate on consequence, not size" alr
 Light accepts one same-family seat (the host's diff review) for changes whose mistakes are cheap to
 find and undo; that is a standing owner decision, recorded here and in SKILL.md, not something a
 session may extend to other changes. Normal runs fresh-eyes once, on a mid-tier model, because the
-cross-model pair carries the gate; High keeps every seat at full strength every round. Verification
-rounds drop Codex to medium effort because they check fixes and a small delta. Whether these
+cross-model pair carries the gate; High runs every seat at full strength in round 1, and in
+verification rounds sends fresh-eyes to the parts a fix changed and Codex at medium, except for a fix
+that touches a High trigger ("Rounds that did not converge", below). Verification rounds drop Codex to
+medium effort because they check fixes and a small delta. Whether these
 trades pay off is to be judged from the trails' `timings:` lines and fresh-eyes token counts.
 
 ## Verification chains and the stamp; the cost log
@@ -537,7 +539,7 @@ fixers used about 37 million tokens. What the trail shows:
   no fix had touched: the fresh-eyes seat alone cost 1.2 to 1.4 million tokens a round. Each
   fixer ran the whole suite (two Pythons, 15 to 40 minutes under the machine's load), and the
   host ran it again. In round 9 part 1 came back clean from all three seats; it had been clean of
-  BUGs from two of them in round 8. Hence cheaper rounds (step 6, the depth table).
+  BUGs from two of them in round 8. Hence cheaper rounds (the depth table, steps 2, 3 and 6).
 - **One pull request for five readers.** A kind of finding fixed in one reader (an invisible
   character, a quote inside a value) was found again in the next. Hence the split (Gate on
   consequence).
@@ -547,4 +549,6 @@ fixers used about 37 million tokens. What the trail shows:
 What this does not show: that the gate would have found the same real defects at less cost. It
 did catch some that a lighter bar would have shipped: a crash on a crafted zip, a 20 MB favicon
 from a 228 KB file, a hang in the test cleanup, a stylesheet edit written to the wrong place. All
-four were BUGs under the new bar too (a crash, a hang, a wrong result reported as success).
+four are BUGs under the new bar too: the zip, a crash; the favicon, a wrong result reported as success
+(an install that said "Done" with a 20 MB file); the cleanup, a hang; the stylesheet edit, a user's
+file changed in the wrong place.
