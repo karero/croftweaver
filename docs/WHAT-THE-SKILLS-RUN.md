@@ -163,7 +163,8 @@ an "Email Tap" event there, as a click on an email address does.
   `~/.config/gsc-insights/venv` and installs `google-api-python-client`,
   `google-auth-oauthlib` and `requests` into it, after you say yes to connecting. Its
   scripts read your Search Console and Bing data, look up search results, and run the
-  weekly AI check. `schedule_tracking.sh install` sets up a weekly run on macOS, and only
+  weekly AI check. `ai_reports.py` reads the Google and Bing AI reports you download and hand
+  over, on your computer only. `schedule_tracking.sh install` sets up a weekly run on macOS, and only
   on an explicit yes. Once per site per session it runs `schedule_tracking.sh status`, which
   only reads.
 - **`website-permissions`** copies `.claude/settings.json` and the sync hook script it
