@@ -62,8 +62,9 @@ skill installs the same file into an existing site. It has three parts:
 What this list does and does not protect:
 
 - `node …`, `npm run …` and `npm exec …` can run any program. So the list is a way to stop
-  routine prompts, not a sandbox. The assistant still follows the site's `AGENTS.md`, which
-  says it never runs `npm run ship` unasked and merges a pull request only when you say so.
+  routine prompts, not a sandbox. Apart from the list, the site's `AGENTS.md` tells the
+  assistant never to run `npm run ship` unasked and to merge a pull request only when you
+  say so. Those are written rules for the assistant, not something Claude Code enforces.
 - `git push` and `gh repo create` are allowed on purpose. `SETUP.md` in each site says to
   take them out of the list if you would rather confirm each push.
 - The block rules match the command as written, from its start. `git push origin main
