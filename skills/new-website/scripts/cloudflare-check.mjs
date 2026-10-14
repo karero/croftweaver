@@ -737,7 +737,7 @@ export function evaluate(obs, target, opts) {
   const silent = crawlers.filter((c) => c.error).map((c) => c.name);
   const named = [...(rb?.named ?? []), ...(rb?.signals ? ['(content-signal lines)'] : [])];
   const aiPath = ITEMS.find((i) => i.id === 'ai').path;
-  const aiHand = `The policies are in the dashboard (${aiPath}) and cannot be read from outside. Nor can the switches the checklist names after them: AI Labyrinth, Bot Preference Sync (Off unless you block Training; what it adds shows in robots.txt) and the content-bot block.`;
+  const aiHand = `The policies are in the dashboard (${aiPath}) and cannot be read from outside. Nor can the switches the checklist lists after the policies: AI Labyrinth, Bot Preference Sync (Off unless you block Training; what it adds shows in robots.txt) and the content-bot block.`;
   if (!seen) skip('ai', notChecked);
   else if (refused.length) put('ai', 'look', `these crawler names were refused: ${refused.join(', ')}. If you chose to block Training that is expected; otherwise set Search, Agent and Training to Allow.`, section(4));
   else if (rb?.blocksAll) put('ai', 'look', 'robots.txt tells every crawler to stay out, AI crawlers included.', section(4));

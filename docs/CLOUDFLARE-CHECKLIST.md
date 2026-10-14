@@ -214,8 +214,8 @@ cookies, scripts or tracking you didn't choose.
     have none. The file the kit made already says who may read your site. If you chose to
     block or disallow Training, this switch is what writes that into `robots.txt`: then
     leave it on. Cloudflare's settings page lists a setting called **Instruct AI bot
-    traffic with robots.txt** and links it to the same page of its documentation. Section
-    5 shows the file.
+    traffic with robots.txt** and links it to the documentation page for this switch.
+    Section 5 shows the file.
   - **AI Labyrinth: Off.** Your domain → Security → Settings → filter by **Bot traffic** →
     **AI Labyrinth**. It adds invisible links to your pages that lead AI crawlers which
     ignore crawl rules and crawl without permission into an endless maze. Cloudflare says
