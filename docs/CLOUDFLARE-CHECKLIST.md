@@ -388,8 +388,10 @@ go in one call, which sends nine fields (`fight_mode`, `enable_js`, the four AI 
 `crawler_protection`, `content_bots_protection` and `cf_robots_variant`), each as it read them
 unless it changes them, plus `bot_preference_sync_enabled` unless the AI lines are left as they
 are. It leaves every other field out, `is_robots_txt_managed` among them (Cloudflare refused it
-as `true` beside `cf_robots_variant` `policy_only`, code 10400); fields left out kept their
-values in the trial.
+as `true` beside `cf_robots_variant` `policy_only`, code 10400). In the trial,
+`bot_preference_sync_enabled`, left out, kept its value. Leaving out `is_robots_txt_managed` has
+not been tried yet: the first real site shows it, and if it moves, the read-back stops the run
+with that line marked "by hand".
 
 | Setting | API field | Value |
 |---|---|---|

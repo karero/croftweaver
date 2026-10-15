@@ -2,7 +2,7 @@
   "capture": "T2-037",
   "request": {
     "method": "GET",
-    "path": "/zones/c0ffee00000000000000000000000044/settings/min_tls_version",
+    "path": "/zones/c0ffee00000000000000000000000045/settings/min_tls_version",
     "body": null
   },
   "status": 200,

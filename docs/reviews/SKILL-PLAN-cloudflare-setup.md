@@ -232,8 +232,7 @@ time to report. Every API call, every `git ls-remote` (it took 24 seconds to fai
 repository that does not exist, in the trial) and every run of the check script gets only
 the time left. The check script's `--timeout` bounds each answer, not the run, and a home
 page can take up to four answers, so the script passes a quarter of the time left; when
-that is under a second it skips the check and ends with 4. A program still running at the deadline is
-stopped, and killed if it has not ended a second later.
+that is under a second it skips the check and ends with 4. A program still running at the deadline is killed at once, with the programs it started (plan step 6's review cut the second's grace: its timer could be cancelled while a child lived on).
 A run that reaches the deadline ends with 4; the next run reads what is there. Where
 Cloudflare is not done (a build, a domain becoming active), the run also ends with 4 and
 says what it waits for; the assistant runs the same command again.

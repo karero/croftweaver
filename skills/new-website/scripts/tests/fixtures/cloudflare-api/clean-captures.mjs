@@ -32,7 +32,9 @@ function main([t1, t2, mapFile, out]) {
   const dirs = { T1: t1, T2: t2 };
   // The trial's own helper, which made every request: kept beside the captures, committed with its
   // two local paths replaced. The deployment call's empty form is read from it, not written here.
+  // Its first line is made a comment, so the repository's checks do not take the record for a script.
   const helper = readFileSync(path.join(t1, '..', 'cf.sh'), 'utf8')
+    .replace(/^#!/, '# This is a record, never run. It began: #!')
     .replace(/dir="[^"]*"/, 'dir="<the trial\'s captures folder>"')
     .replace(/"\$HOME\/Devel\/[^"]*\/\.dev\.vars"/, '"<the throwaway repository>/.dev.vars"');
   const formLine = /-H 'Content-Type: (multipart\/form-data; boundary=[^']+)' --data-binary \$'([^']*)'/.exec(helper);
@@ -65,11 +67,11 @@ function main([t1, t2, mapFile, out]) {
   }
 
   // The account's list of projects (T1-019): each item as Cloudflare listed it, with its source,
-  // domains and settings, but without its latest and canonical deployments, which hold another
-  // site's history.
+  // domains and settings; its latest and canonical deployments, which hold another site's history,
+  // are set to null.
   const list = raw.find((r) => r.capture === 'T1-019');
   for (const item of list.response.result) { item.latest_deployment = null; item.canonical_deployment = null; }
-  list.excerpt = 'every project as listed, with latest_deployment and canonical_deployment left out';
+  list.excerpt = 'every project as listed, with latest_deployment and canonical_deployment set to null';
 
   // The live project's deployment list (T1-021 to T1-026, six pages) is long and holds its real
   // history: keep every ad_hoc deployment (uploads and builds) and the newest push build of each
@@ -113,6 +115,7 @@ function main([t1, t2, mapFile, out]) {
     let v = s;
     for (const [real, madeUp] of names(trial)) v = v.split(real).join(madeUp).replace(new RegExp(real.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), madeUp);
     v = v.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, (u) => ids.get(u));
+    v = v.replace(/\b[0-9a-f]{64}\b/g, (h) => fake(h, (k) => `f00d${pad(k, 60)}`));
     v = v.replace(/\b[0-9a-f]{40}\b/g, (h) => fake(h, (k) => `ba5e${pad(k, 36)}`));
     v = v.replace(/\b[0-9a-f]{32}\b/g, (h) => fake(h, (k) => `c0ffee${pad(k, 26)}`));
     v = v.replace(/\b[0-9a-f]{8}\b/g, (h) => shortIds.get(h) ?? h);

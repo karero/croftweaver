@@ -1,4 +1,4 @@
-#!/bin/bash
+# This is a record, never run. It began: #!/bin/bash
 # Trial helper: one call to Cloudflare's API, kept as a capture. usage: cf.sh LABEL METHOD PATH [JSON_BODY]
 # The token is read from the trial folder's .dev.vars and handed to curl on stdin; it is never printed,
 # never an argument, and never written into a capture.

@@ -2,7 +2,7 @@
   "capture": "T2-041",
   "request": {
     "method": "GET",
-    "path": "/zones/c0ffee00000000000000000000000044/rulesets/phases/http_response_headers_transform/entrypoint",
+    "path": "/zones/c0ffee00000000000000000000000045/rulesets/phases/http_response_headers_transform/entrypoint",
     "body": null
   },
   "status": 404,

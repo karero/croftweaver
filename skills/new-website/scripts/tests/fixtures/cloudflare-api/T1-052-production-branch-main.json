@@ -99,7 +99,7 @@
           "type": "github:push",
           "metadata": {
             "branch": "trial/first-pr",
-            "commit_hash": "ba5e000000000000000000000000000000000030",
+            "commit_hash": "ba5e000000000000000000000000000000000031",
             "commit_message": "Made-up commit message 7",
             "commit_dirty": false
           }
@@ -185,7 +185,7 @@
           "type": "ad_hoc",
           "metadata": {
             "branch": "production",
-            "commit_hash": "ba5e000000000000000000000000000000000029",
+            "commit_hash": "ba5e000000000000000000000000000000000030",
             "commit_message": "Made-up commit message 6",
             "commit_dirty": false
           }

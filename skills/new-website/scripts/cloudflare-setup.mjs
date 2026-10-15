@@ -198,11 +198,11 @@ function childEnv(token) {
   return env;
 }
 
-// A program with its input closed, given only the time left. At the deadline it is stopped, killed a
-// second later, and the run goes on without waiting for its output to close. On POSIX the program
-// runs in a group of its own, so the programs it started (git starts ssh or a helper, which would
-// keep the output open) are stopped with it; on Windows only the program itself is, and the run
-// still goes on.
+// A program with its input closed, given only the time left. At the deadline it is killed at once
+// (SIGKILL), and the run goes on without waiting for its output to close: git has nothing to tidy
+// up for a read. On POSIX it runs in a group of its own and the whole group is killed, so the
+// programs it started (ssh, a credential helper) end with it; on Windows only the program itself
+// is, and the run still goes on.
 function runProgram(cmd, args, { cwd, env, clock }) {
   return new Promise((resolve, reject) => {
     const ms = clock.left();
@@ -210,9 +210,7 @@ function runProgram(cmd, args, { cwd, env, clock }) {
     const posix = process.platform !== 'win32';
     let out = '';
     let err = '';
-    let timedOut = false;
     let settled = false;
-    let lastTimer = null;
     let child;
     try {
       child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: posix });
@@ -220,33 +218,25 @@ function runProgram(cmd, args, { cwd, env, clock }) {
       reject(new Stop(1, `could not run ${cmd}: ${e.message}`));
       return;
     }
-    const kill = (signal) => {
-      try {
-        if (posix) process.kill(-child.pid, signal);
-        else child.kill(signal);
-      } catch { /* it has ended */ }
-    };
     const settle = (fn) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      clearTimeout(lastTimer);
       fn();
     };
     const timer = setTimeout(() => {
-      timedOut = true;
-      kill('SIGTERM');
-      lastTimer = setTimeout(() => {
-        kill('SIGKILL');
-        child.stdout.destroy();
-        child.stderr.destroy();
-        settle(() => reject(new Deadline()));
-      }, 1000);
+      try {
+        if (posix) process.kill(-child.pid, 'SIGKILL');
+        else child.kill('SIGKILL');
+      } catch { /* it has ended */ }
+      child.stdout.destroy();
+      child.stderr.destroy();
+      settle(() => reject(new Deadline()));
     }, ms);
     child.stdout.on('data', (c) => { out += c; });
     child.stderr.on('data', (c) => { err += c; });
     child.on('error', (e) => settle(() => reject(new Stop(1, e.code === 'ENOENT' ? `${cmd} is not installed, or not on the PATH` : `could not run ${cmd}: ${e.message}`))));
-    child.on('close', (code) => settle(() => (timedOut ? reject(new Deadline()) : resolve({ code, stdout: out, stderr: err }))));
+    child.on('close', (code) => settle(() => resolve({ code, stdout: out, stderr: err })));
   });
 }
 
@@ -368,7 +358,7 @@ export const cloudflareBuilt = (d) => stageOf(d, 'clone_repo') === 'success' && 
 export const succeeded = (d) => d?.latest_stage?.name === 'deploy' && d.latest_stage.status === 'success';
 // Running: queued or under way, or between two stages (a stage before deploy that has succeeded), or
 // with no stage given yet.
-export const running = (d) => !d?.is_skipped && (!d?.latest_stage || ['idle', 'active'].includes(d.latest_stage.status)
+export const running = (d) => Boolean(d) && !d.is_skipped && (!d.latest_stage || ['idle', 'active'].includes(d.latest_stage.status)
   || (d.latest_stage.status === 'success' && d.latest_stage.name !== 'deploy'));
 // Failed, or ended in a way the trials never saw: whatever is neither skipped, running nor succeeded
 // (no trial had a failed build; Cloudflare's reference names its status "failure"). Read so, a word
@@ -688,7 +678,7 @@ async function setupStage(opts, io) {
   const lineKey = (l) => (l.kind === 'record' ? `record:${l.rec.type} ${l.rec.fullName} ${l.rec.content}` : `setting:${l.id}`);
   const left = [...projectKeys, ...(build.kind === 'needed' ? [`build:${prodSha}`] : []),
     ...lines.filter((l) => l.state === 'change').map(lineKey)];
-  const possible = ['project:create', `project:production_branch=${prodBranch}`, 'project:build_command', 'project:destination_dir', 'project:fail_open', `build:${prodSha}`,
+  const possible = ['project:create', `project:production_branch=${prodBranch}`, ...Object.keys(BUILD).map((k) => `project:${k}`), 'project:fail_open', `build:${prodSha}`,
     ...lines.filter((l) => l.kind === 'record' || !opts.skip.includes(l.id)).map(lineKey)];
   const code = setupCode(codeInput, left);
   const changes = left.length;

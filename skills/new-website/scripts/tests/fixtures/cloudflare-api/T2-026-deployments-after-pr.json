@@ -27,7 +27,7 @@
           "type": "github:push",
           "metadata": {
             "branch": "trial/pr-no-preview",
-            "commit_hash": "ba5e000000000000000000000000000000000048",
+            "commit_hash": "ba5e000000000000000000000000000000000049",
             "commit_message": "Made-up commit message 9",
             "commit_dirty": false
           }

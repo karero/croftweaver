@@ -5,7 +5,7 @@
 // trials (docs/reviews/SKILL-PLAN-cloudflare-setup.md, "What is known, and how"), cited by their
 // capture number. The stub copies a captured answer and puts its own state in it: the project it
 // holds, the settings it holds. Where the trials have no capture (a failed build, a refused token,
-// a list of projects, a slow answer, an unknown path), the answer is made from Cloudflare's API
+// a slow answer, an unknown path), the answer is made from Cloudflare's API
 // reference, and the code says so with MADE. The test file replays the captured requests against
 // this stub and compares its answers with the captured ones, so the stub cannot drift from them.
 import http from 'node:http';
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const FIXTURES = path.join(HERE, 'fixtures', 'cloudflare-api');
-const files = readdirSync(FIXTURES).filter((f) => f.endsWith('.json'));
+const files = readdirSync(FIXTURES).filter((f) => /^T[12]-\d{3}-.*\.json$/.test(f)); // the captures, not allowed-values.json
 // fixture('T1-048') is the cleaned capture T1-048, as written by fixtures/cloudflare-api/clean-captures.mjs.
 export function fixture(capture) {
   const f = files.find((x) => x.startsWith(`${capture}-`));

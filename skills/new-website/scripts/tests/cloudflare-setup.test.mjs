@@ -218,98 +218,71 @@ test('the deployments the stub serves are the captured ones, and the script read
 // ================================================================ the fixtures hold made-up values only
 
 // Follow-up W5 of the plan's second gate: the fixtures come from real accounts, and check_clean.sh
-// looks for listed names, emails and secrets, not ids. Every id, address, host name, commit hash,
-// account name, repository, project and commit message in them must be one of the made-up ones. A
-// made-up id is mostly zeros (fixtures/cloudflare-api/clean-captures.mjs), which no real one is.
-const MADE_UP = {
-  domains: ['lenas-backstube.example', 'lenas-cafe.example', 'lenas-backstube.pages.dev', 'lenas-backstube-2.pages.dev', 'lenas-old-site.pages.dev',
-    'other-site-1.pages.dev', 'other-site-2.pages.dev', 'other-site-3.pages.dev',
-    'ada.ns.example', 'bert.ns.example', 'cleo.ns.example', 'dora.ns.example', ...[1, 2, 3, 4, 5, 6].map((n) => `other-${n}.example`)],
-  publicHosts: ['api.cloudflare.com', 'developers.cloudflare.com', 'github.com', 'verify.bing.com', 'example.com'],
-  accounts: ["Lena's Account", "Lena's Second Account"],
-  owners: [OWNER],
-  repos: [REPO, 'lenas-old-site', 'other-site-1', 'other-site-2-repo'],
-  projects: [REPO, 'lenas-backstube-2', 'lenas-old', 'other-site-1', 'other-site-2', 'other-site-3'],
-  // A field that names something (a rule, a record, a branch, a stage) holds one of these, a
-  // made-up project or host, or an id: a single lower-case word a person typed is caught here.
-  named: new Set(['description', 'name', 'comment', 'message', 'branch', 'content', 'title', 'label', 'ref', 'action']),
-  words: new Set(['main', 'production', 'trial/first-pr', 'trial/pr-no-preview', 'rewrite', 'queued', 'initialize', 'clone_repo', 'build',
-    'deploy', 'default', 'spike', '_spike-test', '"spike-one"', '"spike-two"', 'example.com', '', 'remove_nel_headers']),
-  hex32: /^c0ffee0{16}\d{10}$/,
-  hex40: /^ba5e0{26}\d{10}$/,
-  uuid: /^d\d{7}-0000-4000-8000-000000000000$/,
-  short: /^d\d{7}$/,
-  number: /^100000\d$/,
-  commitMessage: /^Made-up commit message \d+$/,
-  // Every other string with a space or a capital letter in it, keys included: Cloudflare's words,
-  // the trials' own labels, and the cleaner's notes. A sentence the private map missed fails.
-  freeText: new Set([
-    "Lena's Account", "Lena's Second Account", 'Free Website', 'USD', 'GET', 'PATCH', 'POST', 'PUT', 'CNAME', 'TXT', 'npm run build',
-    'This API Token is valid and active', 'Authentication error', 'Bad Request', 'An identical record already exists.',
-    'An A, AAAA, or CNAME record with that host already exists. For more details, refer to <https://developers.cloudflare.com/dns/manage-dns-records/troubleshooting/records-with-same-name/>.',
-    'You must set the `fail_open` property value equally for production and preview environments.',
-    'cf_robots_variant cannot be set to policy_only with is_robots_txt_managed set to true',
-    'could not find entrypoint ruleset in the http_response_headers_transform phase',
-    'Remove NEL headers', 'Trial: a second rule', 'Trial of a setup script; remove when the trial ends',
-    'multipart/form-data; boundary=----spike', '------spike--\r\n', '@SECRET@',
-    'CANONICAL_URL', 'NEL', 'Report-To', 'SPIKE_PLAIN', 'SPIKE_SECRET', 'contentType', 'emptyForm',
-    'every project as listed, with latest_deployment and canonical_deployment left out',
-  ]),
-  freeTextPattern: /^every ad_hoc deployment \(\d+ uploads, with clone_repo and build idle, and \d+ built by Cloudflare\) and the newest push build of each environment, of \d+ deployments on the six pages T1-021 to T1-026$/,
-};
-test('every id, address, host, account, repository, project and commit message in the fixtures is a made-up one', () => {
+// looks for listed names, emails and secrets, not ids. So every string and every key in them must be
+// a made-up id, hash, date or commit message (matched by pattern: a made-up id is mostly zeros,
+// clean-captures.mjs), or be on fixtures/cloudflare-api/allowed-values.json. A host, an address or a
+// request path passes when each of its parts does (a number only in a request path). Nothing passes
+// for looking harmless: a value not on the list fails, and is added only after a person has looked.
+const ALLOWED = JSON.parse(readFileSync(path.join(FIXTURES, 'allowed-values.json'), 'utf8'));
+const MADE_UP = [/^c0ffee0{16}\d{10}$/, /^ba5e0{26}\d{10}$/, /^f00d0{50}\d{10}$/, /^d\d{7}-0000-4000-8000-000000000000$/, /^d\d{7}$/,
+  /^100000\d$/, /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/, /^Made-up commit message \d+$/, /^T[12]-\d{3}$/];
+function notMadeUp(fixtures) {
+  const strings = new Set(ALLOWED.strings);
+  const tokens = new Set(ALLOWED.tokens);
+  const keys = new Set(ALLOWED.keys);
+  const madeUp = (v) => MADE_UP.some((re) => re.test(v));
   const bad = [];
+  const string = (where, v) => {
+    if (madeUp(v) || strings.has(v)) return;
+    if (!/\s/.test(v) && /[/.]/.test(v) && /[a-z]/i.test(v)) {
+      const parts = v.split(/[/.:?&=]+/).filter(Boolean);
+      if (parts.every((t) => madeUp(t) || tokens.has(t) || (v.startsWith('/') && /^\d{1,3}$/.test(t)))) return;
+    }
+    bad.push(`${where}: "${v.slice(0, 80)}"`);
+  };
+  const walk = (where, o) => {
+    if (typeof o === 'string') string(where, o);
+    else if (Array.isArray(o)) o.forEach((x) => walk(where, x));
+    else if (o && typeof o === 'object') {
+      for (const [k, v] of Object.entries(o)) {
+        if (!madeUp(k) && !keys.has(k)) bad.push(`${where}: key "${k}"`);
+        walk(where, v);
+      }
+    }
+  };
+  for (const { file, ...f } of fixtures) walk(file, f);
+  return bad;
+}
+
+test('every string and key in the fixtures is a made-up value or on the list of allowed values', () => {
   const fixtures = allFixtures();
   assert.ok(fixtures.length > 50, 'the fixtures are there');
-  const check = (where, key, v) => {
-    if (typeof v !== 'string') return;
-    const no = (what) => bad.push(`${where} ${key}: ${what} "${v.slice(0, 60)}"`);
-    for (const m of v.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)) if (!MADE_UP.uuid.test(m[0])) no('an id');
-    const noUuid = v.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '');
-    for (const m of noUuid.matchAll(/\b[0-9a-f]{40}\b/gi)) if (!MADE_UP.hex40.test(m[0])) no('a commit hash');
-    for (const m of noUuid.matchAll(/\b[0-9a-f]{32}\b/gi)) if (!MADE_UP.hex32.test(m[0])) no('an id');
-    for (const m of v.matchAll(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g)) if (!/^192\.0\.2\./.test(m[0])) no('an IP address');
-    for (const m of v.matchAll(/(?:^|[^0-9a-f:])((?:[0-9a-f]{1,4}:){3,7}[0-9a-f]{1,4})(?![0-9a-f:])/gi)) if (!/^2001:db8:/i.test(m[1]) && !/^\d{2}:\d{2}:\d{2}$/.test(m[1])) no('an IPv6 address');
-    if (/[^\s@"]+@[^\s@"]+\.[a-z]{2,}/i.test(v)) no('an email address');
-    for (const m of v.matchAll(/(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*[a-z]/gi)) {
-      const h = m[0].toLowerCase();
-      if (MADE_UP.publicHosts.includes(h)) continue;
-      if (!MADE_UP.domains.some((d) => h === d || h.endsWith(`.${d}`))) no('a host');
-      const first = h.split('.')[0];
-      if (/^[0-9a-f]{8}$/.test(first) && !MADE_UP.short.test(first)) no('a deployment id in a host');
-    }
-    if (key === 'short_id' && !MADE_UP.short.test(v)) no('a deployment id');
-    if ((key === 'owner_id' || key === 'repo_id') && !MADE_UP.number.test(v)) no('a GitHub id');
-    if (key === 'commit_message' && !MADE_UP.commitMessage.test(v)) no('a commit message');
-    if (key === 'owner' && !MADE_UP.owners.includes(v)) no('a GitHub owner');
-    if (key === 'repo_name' && !MADE_UP.repos.includes(v)) no('a repository');
-    if (key === 'project_name' && !MADE_UP.projects.includes(v)) no('a project');
-    const listed = MADE_UP.freeText.has(v) || MADE_UP.freeTextPattern.test(v);
-    const freeText = /\s|[A-Z]|[^\x00-\x7f]/.test(v) && !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v) && !MADE_UP.commitMessage.test(v) && !/^T[12]-\d{3}$/.test(v);
-    if (freeText && !listed) no('free text not on the list');
-    const host = (h) => MADE_UP.domains.some((d) => h === d || h.endsWith(`.${d}`));
-    if (MADE_UP.named.has(key) && !listed && !MADE_UP.words.has(v) && !MADE_UP.projects.includes(v) && !host(v.replace(/^_/, '')) && !MADE_UP.hex32.test(v)
-      && !MADE_UP.commitMessage.test(v)) no(`a ${key} not on the list`);
-  };
-  const walk = (where, o, key = '') => {
-    if (Array.isArray(o)) { o.forEach((x) => walk(where, x, key)); return; }
-    if (o && typeof o === 'object') {
-      for (const [k, v] of Object.entries(o)) {
-        check(where, 'a key', k);
-        if (k === 'name' && key === 'account' && !MADE_UP.accounts.includes(v)) bad.push(`${where}: an account name "${v}"`);
-        walk(where, v, k);
-      }
-      return;
-    }
-    check(where, key, o);
-  };
-  for (const { file, ...f } of fixtures) {
-    walk(file, f);
-    for (const p of [f.response?.result].flat()) {
-      if (p && typeof p === 'object' && 'subdomain' in p && !MADE_UP.projects.includes(p.name)) bad.push(`${file}: a project "${p.name}"`);
-    }
+  assert.deepEqual(notMadeUp(fixtures), []);
+});
+
+test('the fixture check catches what earlier versions let through, wherever it is put', () => {
+  // Each plant is one value a review round showed a looser check would miss.
+  const plants = [
+    ['a name in a rule description', (f) => { f.response.result.rules[0].description = 'Élodie'; }, 'T1-082'],
+    ['a lower-case name in a description', (f) => { f.response.result.rules[0].description = 'elodie'; }, 'T1-082'],
+    ['a branch a person named', (f) => { f.response.result[0].deployment_trigger.metadata.branch = 'anna-fixes-imprint'; }, 'T1-040'],
+    ['a production branch', (f) => { f.response.result[0].production_branch = 'relaunch'; }, 'T1-019'],
+    ['a preview branch rule', (f) => { f.response.result[0].source.config.preview_branch_includes = ['relaunch']; }, 'T1-019'],
+    ['a root folder', (f) => { f.response.result[0].build_config.root_dir = 'elodie'; }, 'T1-019'],
+    ['a 64-hex hash', (f) => { f.response.result[1].deployment_configs.production.wrangler_config_hash = 'c0ba9c31764c1405b2d3396e77b5cd0c3402e8a19529b926be73cd0b5aab5f3d'; }, 'T1-019'],
+    ['a host label under a made-up domain', (f) => { f.response.result.name = 'elodie.lenas-backstube.example'; }, 'T1-143'],
+    ['a random-looking id', (f) => { f.response.result.id = '5f3a9c1e2b4d6f8091a2b3c4d5e6f708'; }, 'T1-018'],
+    ['an IP address', (f) => { f.response.result.content = '203.0.113.7'; }, 'T1-143'],
+    ['an email address', (f) => { f.response.result.comment = 'lena@example.com'; }, 'T1-143'],
+    ['an account name', (f) => { f.response.result[0].account.name = "Bakery Mueller's Account"; }, 'T1-002'],
+    ['a variable a person named', (f) => { f.response.result.deployment_configs.production.env_vars = { ANNA_TOKEN: { type: 'secret_text', value: '' } }; }, 'T1-027'],
+  ];
+  for (const [what, plant, capture] of plants) {
+    const fixtures = allFixtures();
+    const f = fixtures.find((x) => x.capture === capture);
+    plant(f);
+    assert.notDeepEqual(notMadeUp(fixtures), [], `${what} (${capture}) passed the check`);
   }
-  assert.deepEqual(bad, []);
 });
 
 // ================================================================ the checklist stays the one list
@@ -799,8 +772,11 @@ describe('the deadline', { concurrency: true }, () => {
     const bin = path.join(scratch, 'bin-hang');
     mkdirSync(bin, { recursive: true });
     const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-    // ls-remote starts a child that keeps stdout open, as ssh would, and waits.
-    writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nfor a in "$@"; do [ "$a" = ls-remote ] && { sleep 300 & wait; }; done\nexec "${realGit}" "$@"\n`);
+    // ls-remote starts a child that keeps stdout open, as ssh would, and one that ignores SIGTERM with
+    // its output closed (review round 3: a grace period ended by the parent's exit spared it). Both
+    // must be gone when the run ends.
+    const pidFile = path.join(scratch, 'hang-pid');
+    writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nfor a in "$@"; do [ "$a" = ls-remote ] && { (trap '' TERM; exec sleep 300) >/dev/null 2>&1 & echo $! > "${pidFile}"; sleep 300 & wait; }; done\nexec "${realGit}" "$@"\n`);
     chmodSync(path.join(bin, 'git'), 0o755);
     await scenario((h) => finishedState(h), async ({ api, go }) => {
       const r = await go([], { env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` } });
@@ -808,6 +784,9 @@ describe('the deadline', { concurrency: true }, () => {
       assert.match(r.out, /git did not finish reading the branches/);
       assert.ok(r.ms < 60_000, `took ${r.ms} ms`);
       onlyReads(api);
+      const pid = Number(readFileSync(pidFile, 'utf8'));
+      await new Promise((res) => setTimeout(res, 500));
+      assert.throws(() => process.kill(pid, 0), /ESRCH/, 'the child that ignores SIGTERM was killed with the rest');
     });
   });
 });
@@ -855,6 +834,17 @@ test('what decides is read from the project itself: a list item without its doma
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /does not repair a live site/);
     assert.ok(api.log.some((e) => e.method === 'GET' && e.path === `/accounts/${ACCOUNT.id}/pages/projects/${REPO}`), 'the project was read');
+    onlyReads(api);
+  }));
+
+test('the project read by its name must itself be connected to the repository, whatever the list said', () =>
+  scenario(freshState({
+    projects: [project({ source: { owner: OWNER, repo: 'lenas-cafe' } })],
+    listItem: (p) => { p.source.config.repo_name = REPO; return p; }, // the list says connected; the project read says otherwise
+  }), async ({ api, go }) => {
+    const r = await go();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /The project lenas-backstube, read by its name, is not connected to lena-example\/lenas-backstube/);
     onlyReads(api);
   }));
 

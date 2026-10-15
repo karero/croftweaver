@@ -12,18 +12,19 @@ The captures themselves hold real names and ids and are kept outside every repos
 `clean-captures.mjs` makes these files from them: every name is replaced by the scenarios'
 made-up ones (Lena's bakery, `lenas-backstube`), from a private map kept beside the
 captures; every id, commit hash and GitHub id by a made-up one, mostly zeros; every commit
-message by "Made-up commit message N". Email fields and the registrar's nameservers are left
-out. A test checks every id, address, host, account, repository, project and commit message
-in these files against the made-up values; every string with a space, a capital or a letter
-outside ASCII, and every value of a field that names something (a name, description, comment,
-message, branch, record content), must be on its list or be a made-up value. A value the cleaner
-missed of those kinds fails it; a lower-case word in some other field would not. `T1-021` is an excerpt: every `ad_hoc` deployment (two
+message by "Made-up commit message N"; a 64-character hash too. Email fields and the
+registrar's nameservers are left out. A test checks every string and every key in these files:
+each must be a made-up id, hash, date or commit message, matched by pattern, or be on
+`allowed-values.json`; a host, an address or a request path passes when each of its parts does.
+Anything else fails, whatever field it is in. Add a value to that list only after looking at it:
+the list is what keeps real names out. A second test plants the values earlier versions of the
+check let through (a name with an accent, a branch, a hash, a host label) and must see each fail. `T1-021` is an excerpt: every `ad_hoc` deployment (two
 uploads and one that Cloudflare built) and one push build of each environment, from the six
 pages of a live project's deployments (T1-021 to T1-026); it says so in its `excerpt` field.
 The deployment call's request (T1-030 and the others) is the empty form the trial's helper
 sent, recorded as `emptyForm` and read from the helper itself: `trial-helper.txt` is that
-helper, with its two local paths replaced. `T1-019`, the account's list of projects, leaves out
-each item's latest and canonical deployment, which hold another site's history.
+helper, with its two local paths replaced. `T1-019`, the account's list of projects, has each
+item's latest and canonical deployment set to null: they hold another site's history.
 
 ## Which file backs which claim
 

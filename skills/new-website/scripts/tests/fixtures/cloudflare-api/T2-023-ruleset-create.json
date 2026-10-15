@@ -2,7 +2,7 @@
   "capture": "T2-023",
   "request": {
     "method": "PUT",
-    "path": "/zones/c0ffee00000000000000000000000040/rulesets/phases/http_response_headers_transform/entrypoint",
+    "path": "/zones/c0ffee00000000000000000000000041/rulesets/phases/http_response_headers_transform/entrypoint",
     "body": {
       "rules": [
         {
@@ -28,7 +28,7 @@
   "response": {
     "result": {
       "description": "",
-      "id": "c0ffee00000000000000000000000045",
+      "id": "c0ffee00000000000000000000000046",
       "kind": "zone",
       "last_updated": "2026-10-14T19:08:17.328988Z",
       "name": "default",
@@ -49,9 +49,9 @@
           "description": "Remove NEL headers",
           "enabled": true,
           "expression": "true",
-          "id": "c0ffee00000000000000000000000046",
+          "id": "c0ffee00000000000000000000000047",
           "last_updated": "2026-10-14T19:08:17.328988Z",
-          "ref": "c0ffee00000000000000000000000046",
+          "ref": "c0ffee00000000000000000000000047",
           "version": "1"
         }
       ],

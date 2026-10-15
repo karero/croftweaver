@@ -1,6 +1,6 @@
 {
   "capture": "T1-019",
-  "excerpt": "every project as listed, with latest_deployment and canonical_deployment left out",
+  "excerpt": "every project as listed, with latest_deployment and canonical_deployment set to null",
   "request": {
     "method": "GET",
     "path": "/accounts/c0ffee00000000000000000000000023/pages/projects",
@@ -194,7 +194,7 @@
             "compatibility_flags": [],
             "build_image_major_version": 3,
             "usage_model": "standard",
-            "wrangler_config_hash": "c0ba9c31764c1405b2d3396e77b5cd0c3402e8a19529b926be73cd0b5aab5f3d"
+            "wrangler_config_hash": "f00d000000000000000000000000000000000000000000000000000000000025"
           },
           "production": {
             "env_vars": null,
@@ -204,7 +204,7 @@
             "compatibility_flags": [],
             "build_image_major_version": 3,
             "usage_model": "standard",
-            "wrangler_config_hash": "c0ba9c31764c1405b2d3396e77b5cd0c3402e8a19529b926be73cd0b5aab5f3d"
+            "wrangler_config_hash": "f00d000000000000000000000000000000000000000000000000000000000025"
           }
         },
         "latest_deployment": null,

@@ -6,7 +6,7 @@
     "body": {
       "rules": [
         {
-          "id": "c0ffee00000000000000000000000033",
+          "id": "c0ffee00000000000000000000000034",
           "action": "rewrite",
           "action_parameters": {
             "headers": {
@@ -29,7 +29,7 @@
   "response": {
     "result": {
       "description": "",
-      "id": "c0ffee00000000000000000000000032",
+      "id": "c0ffee00000000000000000000000033",
       "kind": "zone",
       "last_updated": "2026-10-12T09:03:14.6017Z",
       "name": "default",
@@ -50,7 +50,7 @@
           "description": "Remove NEL headers",
           "enabled": true,
           "expression": "true",
-          "id": "c0ffee00000000000000000000000033",
+          "id": "c0ffee00000000000000000000000034",
           "last_updated": "2026-10-12T09:03:14.6017Z",
           "ref": "remove_nel_headers",
           "version": "1"

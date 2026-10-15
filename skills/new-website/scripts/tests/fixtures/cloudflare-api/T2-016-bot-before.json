@@ -2,7 +2,7 @@
   "capture": "T2-016",
   "request": {
     "method": "GET",
-    "path": "/zones/c0ffee00000000000000000000000040/bot_management",
+    "path": "/zones/c0ffee00000000000000000000000041/bot_management",
     "body": null
   },
   "status": 200,
