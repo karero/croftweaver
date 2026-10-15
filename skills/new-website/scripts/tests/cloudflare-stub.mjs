@@ -297,6 +297,7 @@ export function handle(state, method, p, query, body, contentType) {
     case 'GET domain': {
       // MADE: a domain not attached answers 404 (no trial asked for one; Cloudflare's reference).
       const d = (state.domains[args[1]] ?? []).find((x) => x.name === args[2]);
+      if (state.hideDomainReads > 0) { state.hideDomainReads--; return notFound('domain'); } // MADE: a read that misses it
       if (!d) return notFound('domain');
       const b = answer(d.status === 'active' ? 'T1-127' : 'T1-086');
       b.result = { ...b.result, ...copy(d) };

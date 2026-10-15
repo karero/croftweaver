@@ -1125,7 +1125,7 @@ test('36 and 37: the report of a finished launch: two-stage names main\'s previe
     assert.match(report, /^Live: https:\/\/lenas-backstube\.example\/ serves [0-9a-f]{7}\./m);
     assert.match(report, /The preview of main, as Cloudflare lists it: https:\/\/main\.lenas-backstube\.pages\.dev/);
     assert.match(report, /https:\/\/lenas-backstube\.pages\.dev\/ forwards to https:\/\/lenas-backstube\.example\//);
-    assert.match(report, /No outside check exists for Fail open, the build settings, Minimum TLS Version or the AI fields: the setup stage read them back through the API, and this stage does not read them again.*ssllabs/s);
+    assert.match(report, /As the project reads now through the API: Fail open on for production and on for previews; build command npm run build, output folder dist\. This stage does not read Minimum TLS Version or the AI fields: the setup stage, run again, shows them.*ssllabs/s);
     assert.match(report, /Crawler Hints, the Web Analytics switch, the script monitor's switch/);
     assert.match(report, /HSTS once the site has worked for a few days, not before \d{4}-\d{2}-\d{2}/);
     assert.match(report, /behind a sign-in/);
@@ -1139,6 +1139,22 @@ test('36 and 37: the report of a finished launch: two-stage names main\'s previe
     assert.doesNotMatch(r.out, /preview of main/);
   }, { prodBranch: 'main', production: false });
 });
+
+test('launch report: a preview of main further back than the pages read is not called missing', () =>
+  launchScenario((h) => {
+    const s = attachHost(launchState(h));
+    const v = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
+    s.projects[0].deployment_configs.production.env_vars = v;
+    s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(v));
+    s.deployments[REPO].push(deployment('push', { commit: h.main, branch: 'main' })); // third, past two pages of one
+    s.perPage = { ...s.perPage, deployments: 1 };
+    return s;
+  }, async ({ launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /No preview of main among the newest deployments/);
+    assert.doesNotMatch(r.out, /has no preview build yet/);
+  }));
 
 test('35 at launch: the record points at the address Cloudflare gave, and no address is made from the name', () =>
   launchScenario((h) => { const s = launchState(h); s.projects = [project({ subdomain: `${REPO}-9x2.pages.dev` })]; return s; }, async ({ api, launch }) => {
@@ -1228,6 +1244,54 @@ test('launch: a yes to the forwarding alone is no yes to a NEL rule: the rule as
     assert.equal(r.code, 3, r.out);
     assert.match(r.out, /does not fit this question/);
     assert.ok(!api.writes().some((e) => /rulesets/.test(e.path)), 'no rule written on a yes that did not list it');
+  }));
+
+test('launch: a failed build that appears after the variable is saved stops the run too, before any build call', () =>
+  launchScenario((h) => attachHost(launchState(h)), async ({ api, state, launch }) => {
+    const q = await launch();
+    state.after = (e) => { if (e.method === 'PATCH' && /pages\/projects/.test(e.path)) state.deployments[REPO].unshift(deployment('failed', { commit: state.heads.production, env: 'production' })); };
+    const r = await launch(['--confirm', codeOf(q)]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /CANONICAL_URL is saved, and the newest production build failed/);
+    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')));
+  }));
+
+test('launch: a push to the production branch just before the build call: no build, and said why', () =>
+  launchScenario((h) => attachHost(launchState(h)), async ({ api, where, state, launch }) => {
+    const q = await launch();
+    state.after = (e) => {
+      if (e.method === 'PATCH' && /pages\/projects/.test(e.path)) {
+        writeFileSync(path.join(where.site, 'late.md'), 'late\n');
+        git(where.site, 'add', 'late.md');
+        git(where.site, 'commit', '-q', '-m', 'late');
+        git(where.site, 'push', '-q', 'origin', 'HEAD:production');
+      }
+    };
+    const r = await launch(['--confirm', codeOf(q)]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /no build was started: production on GitHub is now at [0-9a-f]{7}, not at the live commit/);
+    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')), 'no build call');
+  }));
+
+test('launch: a live build made under another production branch gets no forwarding build', () =>
+  launchScenario((h) => { const s = attachHost(launchState(h)); s.deployments[REPO][1].production_branch = 'main'; return s; }, async ({ api, launch }) => {
+    const r = await launch(['--confirm', codeOf(await launch())]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /the live build was made while main was the production branch/);
+    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')));
+  }));
+
+test('launch: an attach refused because the domain is there already reads it and carries on', () =>
+  launchScenario((h) => { const s = launchState(h, { pendingUnlisted: true }); s.domains[REPO] = [attachedDomain(HOST, 'pending')]; s.pendingUnlisted = true; return s; }, async ({ api, state, launch }) => {
+    // Both runs' reads before the attach miss it (so the question lists the attach), the attach is
+    // refused as already there, and the read after it finds the domain.
+    state.hideDomainReads = 2;
+    const q = await launch();
+    assert.match(q.out, /Attach lenas-backstube\.example/);
+    const r = await launch(['--confirm', codeOf(q)]);
+    assert.equal(r.code, 4, r.out);
+    assert.match(r.out, /is attached already: Cloudflare says pending/);
+    assert.equal(api.writes().filter((e) => /dns_records/.test(e.path)).length, 1, 'the record was still written');
   }));
 
 test('launch: after a failed production build the run stops; it starts no other', () =>

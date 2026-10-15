@@ -1151,14 +1151,18 @@ async function findDomain(api, projectAt, host) {
 export async function nameserverIps(zone, { resolverAt, clock, resolve4 = (n) => dnsPromises.resolve4(n) }) {
   if (resolverAt) return [resolverAt];
   const ips = [];
+  let tried = 0;
   for (const ns of zone.name_servers ?? []) {
     if (clock.left() < 4000) break;
+    tried++;
     try {
       ips.push(...await withTimeout(resolve4(ns), 3000));
     } catch { /* ask the others */ }
   }
   if (!ips.length) {
-    throw new Stop(4, `The addresses of the zone's nameservers (${(zone.name_servers ?? []).join(', ') || 'none listed'}) could not be looked up, and the domain is asked only through them. Run the same command again in a minute.`);
+    throw new Stop(4, tried
+      ? `The addresses of the zone's nameservers (${(zone.name_servers ?? []).join(', ') || 'none listed'}) could not be looked up, and the domain is asked only through them. Run the same command again in a minute.`
+      : 'Too little of the run\'s time was left to look up the zone\'s nameservers, and the domain is asked only through them. Run the same command again.');
   }
   return [...new Set(ips)];
 }
@@ -1470,14 +1474,22 @@ async function launchStage(opts, io) {
     }
     deps.reset();
     const busy = await newestProduction();
+    if (busy && failed(busy)) {
+      throw new Stop(1, `CANONICAL_URL is saved, and the newest production build failed: ${describeDeployment(busy)}. The script starts no build after a failed one. Look at its log (Workers & Pages → ${name} → Deployments).`);
+    }
     if (busy && running(busy)) {
       say(`  waiting  A production build is under way: ${describeDeployment(busy)}.`);
     } else {
+      // The call builds the head of the production branch as it is then (T1-030): read it once more
+      // just before, so only a push in the moment between can slip in, and that is said below.
+      const head = await git('ls-remote', '--heads', 'origin', `refs/heads/${prodBranch}`);
+      const headNow = head.code === 0 ? head.stdout.split('\t')[0].trim() : '';
+      if (headNow !== commit) throw new Stop(1, `The variable is saved, but no build was started: ${prodBranch} on GitHub is ${headNow ? `now at ${short(headNow)}` : 'not readable'}, not at the live commit ${short(commit)}, and a build now would publish it. Publish the next change the usual way; that build takes the variable with it.`);
       const r = await api('POST', `${projectAt}/deployments`, { form: true });
       if (!ok(r) || !r.body?.result) throw new Stop(1, `Cloudflare did not start the build: ${refusal(r, ROW.pages)}. CANONICAL_URL is saved; the next build takes it.`);
       const started = commitOf(r.body.result);
-      // The call builds the head of the production branch as it is now: a commit pushed since the
-      // check is published with it. Said, never hidden; the build cannot be called back.
+      // A commit pushed in the moment since that read is published with it: said, never hidden; the
+      // build cannot be called back.
       if (started && started !== commit) throw new Stop(1, `Cloudflare started a production build of ${short(started)}, not of the live commit ${short(commit)}: ${prodBranch} moved on since this run read it. That build publishes ${short(started)}. Look at Workers & Pages → ${name} → Deployments.`);
       say(`  waiting  Started one production build of ${short(commit)}, which takes CANONICAL_URL: ${describeDeployment(r.body.result)}.`);
     }
@@ -1490,7 +1502,7 @@ async function launchStage(opts, io) {
 
   // ---- nothing left to do: the whole check decides the status.
   const whole = await runCheck(ctx, { commit });
-  return launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule });
+  return launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project });
 }
 
 // A domain status that waiting will not change: 1, with Cloudflare's words; nothing is detached.
@@ -1531,7 +1543,7 @@ async function addNelRule(api, zoneAt, ruleset) {
 
 // The end of a launch run with nothing left to do: the whole check, read by LAUNCH_FAIL, and the report
 // the plan asks for (scenarios 36 and 37).
-async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule }) {
+async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project }) {
   const { say, host, model, prodBranch } = ctx;
   const v = launchVerdict(whole, opts.skip);
   say('', `The check of ${host}, from outside:`);
@@ -1547,13 +1559,15 @@ async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, 
   say('', `Live: https://${host}/ serves ${short(commit)}.`);
   if (model === 'two-stage') {
     const preview = await deps.find((d) => d.environment === 'preview' && d.deployment_trigger?.metadata?.branch === 'main' && !d.is_skipped, { pages: 2 });
-    say(preview?.aliases?.[0] ? `The preview of main, as Cloudflare lists it: ${preview.aliases[0]}` : 'main has no preview build yet: the next merge to main makes one.');
+    say(preview?.aliases?.[0] ? `The preview of main, as Cloudflare lists it: ${preview.aliases[0]}` : 'No preview of main among the newest deployments: Workers & Pages → the project → Deployments lists them all.');
   } else {
     say(`main is the live site (${prodBranch}); each pull request gets a preview of its own.`);
   }
   say(forwarding ? `https://${live}/ forwards to https://${host}/ (CANONICAL_URL).` : `https://${live}/ does not forward to the domain: --skip canonical.`);
   if (!nelRule) say('The NEL rule was left out (--skip nel-rule).');
-  say('No outside check exists for Fail open, the build settings, Minimum TLS Version or the AI fields: the setup stage read them back through the API, and this stage does not read them again. For TLS, run the domain through ssllabs.com/ssltest: TLS 1.0 and 1.1 should say No.');
+  const dc = project.deployment_configs ?? {};
+  const fo = (e) => (dc[e]?.fail_open === true ? 'on' : 'off');
+  say(`No outside check exists for these. As the project reads now through the API: Fail open ${fo('production')} for production and ${fo('preview')} for previews; build command ${project.build_config?.build_command || '(none)'}, output folder ${project.build_config?.destination_dir || '(none)'}. This stage does not read Minimum TLS Version or the AI fields: the setup stage, run again, shows them and changes nothing that is as the checklist wants. For TLS, run the domain through ssllabs.com/ssltest: TLS 1.0 and 1.1 should say No.`);
   const hsts = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
   say('Left to do by hand (CLOUDFLARE_CHECK.md, "By hand, always"): Crawler Hints, the Web Analytics switch, the script monitor\'s switch (the checklist\'s section 3, step 5),',
     `and HSTS once the site has worked for a few days, not before ${hsts} (the checklist's section 2).`);

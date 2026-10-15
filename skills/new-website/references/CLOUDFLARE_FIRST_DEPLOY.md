@@ -106,23 +106,25 @@ of the head of the production branch, while at that commit `UNFILLED_UNTIL_LAUNC
 which `ci.yml` must search for too) is in `src/` or `public/`, while the host has more than
 one address record or, below the domain itself, a record of another type, and while the
 host's record is too long to note in a 100-character comment. While that newest build is
-still queued or building, it waits (status 4). These are the script's own stops; the launch check stays new-website §4 and the site's tests. Its
-question names the domain, the commit, the host's record now and what it becomes (a proxied
-CNAME to the project's own `pages.dev` address), and that the site becomes public, with a few
-minutes of errors. The yes attaches the domain and changes that record with one write; the
-old record goes in the record's comment, so it can be put back by hand. Cloudflare then
-takes two to three minutes to make the domain active: run the same command, with the same
-code, until it is. The next run asks the domain through `cloudflare-check.mjs`, looked up at
-the zone's own nameservers, and must see the commit. Then it adds the checklist's rule that
-removes the NEL headers (section 3, step 4) if the domain still sends them, and saves
-`CANONICAL_URL` and starts one production build of the same commit, so the `pages.dev`
-address forwards to the domain ("After go-live"). It starts that build only of the commit
-that is live, on the site's own production branch, and none after a production build that
-failed. `--skip canonical` and `--skip nel-rule` leave those two out; setup's `--skip` ids are
-taken too. A yes covers the list it answered: a run that finds something more to do, the NEL
-rule after a yes to the forwarding alone say, asks again. For a domain already attached and
-active, by hand say, no launch condition is checked and nothing is attached: only the
-forwarding and the rule, and the check at the end.
+still queued or building, it waits (status 4). These are the script's own stops; the launch
+check stays new-website §4 and the site's tests. Its question names the domain, the commit,
+the host's record now and what it becomes (a proxied CNAME to the project's own `pages.dev`
+address), and that the site becomes public, with a few minutes of errors. The yes attaches
+the domain and changes that record with one write; the old record goes in the record's
+comment, so it can be put back by hand. Cloudflare then takes two to three minutes to make
+the domain active: run the same command, with the same code, until it is. The next run asks
+the domain through `cloudflare-check.mjs`, looked up at the zone's own nameservers, and must
+see the commit. Then it adds the checklist's rule that removes the NEL headers (section 3,
+step 4) if the domain still sends them, and saves `CANONICAL_URL` and starts one production
+build of the same commit, so the `pages.dev` address forwards to the domain ("After
+go-live"). It starts that build only when the site's production branch, read again just
+before, is at the commit that is live, and none after a production build that failed. A
+commit pushed in the moment between that read and the build call would be built too: the run
+then ends with 1 and names it. `--skip canonical` and `--skip nel-rule` leave those two out;
+setup's `--skip` ids are taken too. A yes covers the list it answered: a run that finds
+something more to do, the NEL rule after a yes to the forwarding alone say, asks again. For a
+domain already attached and active, by hand say, no launch condition is checked and nothing
+is attached: only the forwarding and the rule, and the check at the end.
 
 A launch run with nothing left to do ends with the whole check. Its status is 1 when a
 request got no answer or an item could not be judged, whatever `--skip` says. It is 1 too
@@ -135,9 +137,10 @@ Hints, the Web Analytics switch, the script monitor's switch, HSTS a few days af
 deleting the token).
 
 **It never** merges, runs `npm run ship`, deletes or detaches anything, changes a record
-other than one it writes or, on launch day, the host's own address record, or repairs a site that is live: `setup` starts no build and changes no branch on a project already serving a
-domain. On launch day the one build it starts is the forwarding's, of the commit already live. No run waits for typed input, and none takes
-longer than 55 seconds.
+other than one it writes or, on launch day, the host's own address record, or repairs a site
+that is live: `setup` starts no build and changes no branch on a project already serving a
+domain. On launch day the one build it starts is the forwarding's, of the commit already
+live. No run waits for typed input, and none takes longer than 55 seconds.
 
 ---
 

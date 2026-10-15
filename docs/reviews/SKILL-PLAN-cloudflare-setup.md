@@ -471,27 +471,29 @@ check comes with the launch stage, since no request may reach the domain before 
     effect within seconds on the site the checklist records, and within 20 seconds in the
     second trial (T2-067), so this run ends with 4, and
     the next runs `nel` again; a failure then ends with 1.
-13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and
-    the domain and the check's `canonical` item is `ok`, there is nothing to do. If the
-    live build already records `CANONICAL_URL` with that value and `canonical` still fails,
-    it starts no build: it says the live build has the variable and the forwarding does
-    not answer, names the causes the checklist's section 5 lists for a 200 there, and ends
-    with 1 (scenario 42). Otherwise it saves `CANONICAL_URL` alone, from Cloudflare's own name for the domain, in a PATCH
-    as in script step 3. A variable reaches only builds made after it (seen in the trial
-    through a test function), so it then starts a production build, but only if the head of the production
-    branch is the live commit, the live build was built by Cloudflare, and the live build's
-    recorded variables and build settings (a deployment records both, captures 030, 062,
-    063) differ from the saved ones in `CANONICAL_URL` alone, and the project's production branch
-and the live build's are `PROD_BRANCH` (on a domain attached by hand none of script step 8
-was checked). After a production build that failed it starts none and ends with 1. The
-deployment call builds the head of the production branch as it is at that moment, so the
-script compares the commit Cloudflare names in its answer with the live one and ends with 1,
-naming it, if the branch moved. A secret is compared by name
-    only: its value reads empty on the project and on the deployment alike (capture 062). Otherwise it says "the
-    variable is saved, but no build has picked it up", names each other difference, and
-    ends with 1. When the build is done it checks its commit and runs the check's
-    `canonical` item; if that still fails, it says the build is done and the forwarding
-    does not answer, and ends with 1.
+13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and the
+    domain and the check's `canonical` item is `ok`, there is nothing to do. If the live
+    build already records `CANONICAL_URL` with that value and `canonical` still fails, it
+    starts no build: it says the live build has the variable and the forwarding does not
+    answer, names the causes the checklist's section 5 lists for a 200 there, and ends with 1
+    (scenario 42). Otherwise it saves `CANONICAL_URL` alone, from Cloudflare's own name for
+    the domain, in a PATCH as in script step 3. A variable reaches only builds made after it
+    (seen in the trial through a test function), so it then starts a production build, but
+    only if the head of the production branch is the live commit, the live build was built by
+    Cloudflare, and the live build's recorded variables and build settings (a deployment
+    records both, captures 030, 062, 063) differ from the saved ones in `CANONICAL_URL`
+    alone, and the project's production branch and the live build's are `PROD_BRANCH` (on a
+    domain attached by hand none of script step 8 was checked). After a production build that
+    failed it starts none and ends with 1. The deployment call builds the head of the
+    production branch as it is at that moment, so the script reads that head again just
+    before the call and starts nothing unless it is the live commit; a push in the moment
+    between is caught afterwards, from the commit Cloudflare names in its answer (T1-030),
+    and the run ends with 1, naming it. A secret is compared by name only: its value reads
+    empty on the project and on the deployment alike (capture 062). Otherwise it says "the
+    variable is saved, but no build has picked it up", names each other difference, and ends
+    with 1. When the build is done it checks its commit and runs the check's `canonical`
+    item; if that still fails, it says the build is done and the forwarding does not answer,
+    and ends with 1.
 
 A `launch` run ends with the whole check script. Its exit status follows from the check's JSON,
 in this order, and nothing else:
@@ -684,6 +686,13 @@ field descriptions); the Bot Management update call's own description.
 13. How long Cloudflare keeps accepting a PATCH that changes a record's type, which it calls
     deprecated (T1-132, T2-046). If it stops, script step 10 ends with 1, the record unchanged
     and the domain pending.
+14. Two things the launch stage leans on that no capture shows, only an observation the trial
+    did not record: that the kit's middleware forwards a static file on the `pages.dev`
+    address (the check asks `/robots.txt?cb=…`; `CLOUDFLARE_FIRST_DEPLOY.md` says Pages runs
+    it "in front of every request, files included"), and that a PATCH of `CANONICAL_URL` alone
+    keeps each secret's value (the trial's test function, "Seen without a capture"). If the
+    first is wrong, `canonical` fails on a site that forwards, and the run ends with 1; if the
+    second is, the forwarding build ships with a blank secret. Plan step 10 observes both.
 
 ## Judgment calls
 
