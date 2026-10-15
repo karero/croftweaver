@@ -171,8 +171,11 @@ on Cloudflare. Unless a row says otherwise, the project's `pages.dev` address is
 ### What the owner does
 
 **Before, once:** accounts at GitHub and Cloudflare, and the domain on Cloudflare (bought
-there, or moved there as "Going live" in `CLOUDFLARE_FIRST_DEPLOY.md` says). The script
-moves no domain.
+there, or moved there: "Going live" in `CLOUDFLARE_FIRST_DEPLOY.md` today, later the guide
+`docs/reviews/SKILL-PLAN-cloudflare-domain-move.md` plans). The script moves no domain.
+That plan puts the move in launch prep, after a preview on `pages.dev` and just before going
+live, and asks this plan for `setup` to run on the preview without a zone and finish the
+zone part after the move (its status row 5a and "Hooks").
 
 **For the script,** none of it in a terminal:
 
