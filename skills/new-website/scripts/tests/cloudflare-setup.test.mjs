@@ -14,7 +14,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BOT_LINES, SETTINGS, SKIP_IDS, defaultName, githubRepo, goodProductionBuild, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
+import { BOT_LINES, SETTINGS, SKIP_IDS, codeFits, defaultName, githubRepo, goodProductionBuild, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, allFixtures, deployment, fixture, freshState, handle, project, servedBy, startApi, startDns, zone } from './cloudflare-stub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -345,6 +345,15 @@ test('the code names the end state: the same inputs give the same code, a --skip
   assert.notEqual(setupCode(base), setupCode({ ...base, skip: ['tls'] }));
   assert.notEqual(setupCode(base), setupCode({ ...base, hosts: [HOST, `shop.${HOST}`] }));
   assert.equal(setupCode({ ...base, skip: SKIP_IDS, hosts: [] }), setupCode({ ...base, skip: SKIP_IDS, hosts: [HOST] }), 'with every setting left out, no host is named');
+  // The list: the code of a question fits what is left of it, never a list with something more.
+  const listed = ['setting:email', 'setting:tls', 'build:aaaa'];
+  const code = setupCode(base, listed);
+  assert.notEqual(code, setupCode(base, ['setting:email']));
+  const possible = ['setting:email', 'setting:tls', 'setting:https', 'build:aaaa'];
+  assert.equal(codeFits(code, base, ['setting:email'], possible), true, 'tls and the build done since: still fits');
+  assert.equal(codeFits(code, base, listed, possible), true);
+  assert.equal(codeFits(code, base, ['setting:email', 'setting:https'], possible), false, 'a line the question did not list');
+  assert.equal(codeFits(code, base, ['setting:email'], ['setting:email', 'setting:tls', 'build:bbbb']), false, 'a build of another commit');
 });
 
 // ================================================================ setup
@@ -841,6 +850,37 @@ test('a list longer than 200 pages is not read in part: the run stops', () =>
     onlyReads(api);
   }));
 
+test('R1: a yes covers only the list it answered: a setting someone changed since needs a new yes', () =>
+  scenario((h) => {
+    const s = finishedState(h);
+    s.settings.email_obfuscation = 'on'; // the one line the question lists
+    return s;
+  }, async ({ api, go, state }) => {
+    const q = await go();
+    assert.equal(q.code, 3, q.out);
+    assert.doesNotMatch(q.out.split('If you say yes')[1].split('Already as')[0], /Minimum TLS Version/, 'TLS is not in the list');
+    state.settings.min_tls_version = '1.0'; // changed by hand after the question
+    const r = await go(['--confirm', codeOf(q)]);
+    assert.equal(r.code, 3, r.out);
+    assert.match(r.out, /does not fit this question: it lists something the question you said yes to did not/);
+    assert.match(r.out.split('If you say yes')[1].split('Already as')[0], /Minimum TLS Version: TLS 1\.2 \(1\.0 → 1\.2\)/, 'the new question lists it');
+    onlyReads(api);
+  }));
+
+test('R1: the build the question named is of one commit: once the production branch moves, the code asks again', () =>
+  scenario(freshState(), async ({ api, where, go, state }) => {
+    const q = await go();
+    assert.match(q.out, new RegExp(`Start one build of production \\(commit ${state.heads.production.slice(0, 7)}\\)`));
+    writeFileSync(path.join(where.site, 'news.md'), 'new\n');
+    git(where.site, 'add', 'news.md');
+    git(where.site, 'commit', '-q', '-m', 'news');
+    git(where.site, 'push', '-q', 'origin', 'HEAD:production');
+    const r = await go(['--confirm', codeOf(q)]);
+    assert.equal(r.code, 3, r.out);
+    assert.match(r.out, /does not fit this question/);
+    onlyReads(api);
+  }));
+
 test('a code that does not fit the question changes nothing and asks again', () =>
   scenario(freshState(), async ({ api, go }) => {
     const r = await go(['--confirm', '0123456789abcdef']);
@@ -856,6 +896,7 @@ test('a wrong command is status 2; launch is not in this version; the overrides 
     [['--skip', 'canonical'], {}, /belongs to the launch stage/],
     [['--skip', 'cdn'], {}, /--skip takes one of/],
     [['--confirm', 'yes'], {}, /16-character code/],
+    [Array.from({ length: 6 }, (_, i) => ['--record', `TXT r${i} v`]).flat(), {}, /at most five --record/],
     [['--project', 'Lenas_Site'], {}, /not a Pages project name/],
     [[], { CLOUDFLARE_SETUP_API: 'http://stub.example.com:8080' }, /literal loopback address/],
     [[], { CLOUDFLARE_SETUP_RESOLVER: '8.8.8.8:53' }, /literal loopback address/],

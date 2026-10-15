@@ -69,13 +69,13 @@ verification record from `search-console-setup` (TXT or CNAME; `@` is the domain
 whole domain and which hosts that touches), then a code, changes nothing, and ends with 3.
 Show the owner the list as printed. On their yes, run the same command again with
 `--confirm <code>`. The printed question, confirmed with its code, is the owner's yes to the
-end state it names and to nothing else (guardrail 4 below). The code is made from that end
-state: the project and its repository, its production branch and build settings, each
-setting's new value, the hosts the list names, the records, and the `--skip` ids. If any of
-those changes, the code no longer fits: the run asks again and changes nothing. A change that
-leaves the end state the same needs no new yes (a setting someone has already set, say), and
-the build is of the production branch's head when the yes comes, not of the commit the list
-showed.
+changes it lists and to nothing else (guardrail 4 below). The code is made from that list,
+the build with the commit it names, and from the end state: the project and its repository,
+its production branch and build settings, each setting's new value, the hosts the list
+names, the records, and the `--skip` ids. A later run takes the code while what is left to do
+is part of that list, so a run cut off half-way carries on. Anything the list did not have,
+a build of another commit, or a change to the end state, and the code no longer fits: the run
+asks again and changes nothing.
 
 | Status | Means | Then |
 |---|---|---|
@@ -164,7 +164,7 @@ live fast with zero dashboard time.
 4. **Confirm before each account-modifying command** — state what it will do (create project
    `X`, deploy, add a DNS record for `Y`) and run it only on the owner's go-ahead. For the
    setup script (S), its printed question, confirmed with its code, is the confirmation for
-   the end state it names, and for nothing else.
+   the changes it lists, and for nothing else.
 5. **Revoke when done** — once the site is live, tell the owner to delete the token
    (My Profile → API Tokens → ⋯ → Delete), or let the expiry retire it. Don't leave a live
    token lying around. And never drive these changes through blind screen control.

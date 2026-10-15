@@ -98,6 +98,7 @@ nothing, and ends with 3. On the owner's yes, run the same command again with --
   --record "<type> <name> <content>"
                          a verification record to write, DNS only: TXT or CNAME, a name relative
                          to the domain (@ for the domain itself) or a full name, then the content
+                         (at most five)
   --confirm <code>       the code of the question the owner said yes to
   -h, --help             this text
 
@@ -140,6 +141,7 @@ export function parseArgs(argv) {
   if (opts.confirm !== null && !/^[0-9a-f]{16}$/.test(opts.confirm)) {
     throw new UsageError('--confirm takes the 16-character code the question printed');
   }
+  if (opts.records.length > 5) throw new UsageError('give at most five --record options in one run');
   opts.records = opts.records.map(parseRecord);
   return opts;
 }
@@ -381,9 +383,11 @@ function describeDeployment(d) {
 
 // ---------------------------------------------------------------- the code of a question
 
-// Made from the end state the question names, never from what is there now: the script's own
-// writes, and a change by someone else that leaves the end state the same, keep it.
-export function setupCode(input) {
+// Made from the end state the question names and from the changes it listed (`listed`, one key per
+// line, the build with its commit). A later run accepts the code for any part of that list: what was
+// done since drops out, so the script's own writes keep it (R8), and anything new, or a build of
+// another commit, needs a new yes (R1). What is there now (an old value) is shown but not in it.
+export function setupCode(input, listed = []) {
   const settings = {};
   for (const s of SETTINGS) if (!input.skip.includes(s.id)) settings[s.id] = s.value;
   for (const b of BOT_LINES) if (!input.skip.includes(b.id)) settings[b.id] = b.fields;
@@ -401,7 +405,17 @@ export function setupCode(input) {
     hosts: Object.keys(settings).length ? [...input.hosts].sort() : [],
     records: input.records.map((r) => `${r.type} ${r.fullName} ${r.content}`).sort(),
   };
-  return createHash('sha256').update(JSON.stringify(end)).digest('hex').slice(0, 16);
+  return createHash('sha256').update(JSON.stringify({ end, listed: [...listed].sort() })).digest('hex').slice(0, 16);
+}
+
+// Does `code` fit what is left to do? It fits when some list the question could have shown, all that
+// is left (`left`) plus any of the lines that could since have been done (`possible`), gives it.
+export function codeFits(code, input, left, possible) {
+  const done = possible.filter((k) => !left.includes(k));
+  for (let mask = 0; mask < 2 ** done.length; mask++) {
+    if (setupCode(input, [...left, ...done.filter((_, i) => mask & (2 ** i))]) === code) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------- the stage
@@ -544,6 +558,7 @@ async function setupStage(opts, io) {
   let create = null;
   const patch = {};
   const projectSay = [];
+  const projectKeys = [];
   if (!project) {
     create = {
       name,
@@ -558,6 +573,7 @@ async function setupStage(opts, io) {
       },
       deployment_configs: { production: { fail_open: true }, preview: { fail_open: true } },
     };
+    projectKeys.push('project:create');
     projectSay.push(`Create the Pages project ${name}, connected to ${repository}: production branch ${prodBranch}, build command ${BUILD.build_command}, output folder ${BUILD.destination_dir}, Fail open on for production and previews. Cloudflare gives it its pages.dev address.`);
   } else {
     if (project.production_branch !== prodBranch) {
@@ -567,6 +583,7 @@ async function setupStage(opts, io) {
           'The checklist\'s section 1 says how to change the production branch by hand. Nothing was changed.');
       }
       patch.production_branch = prodBranch;
+      projectKeys.push(`project:production_branch=${prodBranch}`);
       projectSay.push(model === 'two-stage' && project.production_branch === 'main'
         ? `Production branch: main → ${prodBranch}. Today your live address would publish main, the preview; I will set the production branch to ${prodBranch}.`
         : `Production branch: ${project.production_branch} → ${prodBranch}.`);
@@ -575,11 +592,13 @@ async function setupStage(opts, io) {
     for (const [k, v] of Object.entries(BUILD)) if (project.build_config?.[k] !== v) bc[k] = v;
     if (Object.keys(bc).length) {
       patch.build_config = bc;
+      projectKeys.push('project:build_config');
       projectSay.push(`Build settings: ${Object.entries(bc).map(([k, v]) => `${k === 'build_command' ? 'build command' : 'output folder'} ${project.build_config?.[k] || '(none)'} → ${v}`).join(', ')}.`);
     }
     const fo = project.deployment_configs ?? {};
     if (fo.production?.fail_open !== true || fo.preview?.fail_open !== true) {
       patch.deployment_configs = { production: { fail_open: true }, preview: { fail_open: true } };
+      projectKeys.push('project:fail_open');
       projectSay.push(`Fail open: ${fo.production?.fail_open === true ? 'on' : 'off'} for production, ${fo.preview?.fail_open === true ? 'on' : 'off'} for previews → on for both. Its variables and secrets are not sent and stay as they are.`);
     }
   }
@@ -654,20 +673,26 @@ async function setupStage(opts, io) {
     return line;
   });
 
-  // The question, and its code.
-  const code = setupCode({
+  // The question, and its code: one key per change it lists.
+  const codeInput = {
     account: account.id, project: name, repository, productionBranch: prodBranch, zone: zone.id,
     skip: opts.skip, hosts, records: recs.map((l) => l.rec),
-  });
-  const changes = projectSay.length + (build.kind === 'needed' ? 1 : 0) + lines.filter((l) => l.state === 'change').length;
+  };
+  const lineKey = (l) => (l.kind === 'record' ? `record:${l.rec.type} ${l.rec.fullName} ${l.rec.content}` : `setting:${l.id}`);
+  const left = [...projectKeys, ...(build.kind === 'needed' ? [`build:${prodSha}`] : []),
+    ...lines.filter((l) => l.state === 'change').map(lineKey)];
+  const possible = ['project:create', `project:production_branch=${prodBranch}`, 'project:build_config', 'project:fail_open', `build:${prodSha}`,
+    ...lines.filter((l) => l.kind === 'record' || !opts.skip.includes(l.id)).map(lineKey)];
+  const code = setupCode(codeInput, left);
+  const changes = left.length;
   const buildsNoPreviews = (p) => p.source?.config?.preview_deployment_setting !== 'all';
   const previewsOff = Boolean(project) && buildsNoPreviews(project);
 
   say(`Cloudflare setup for ${host} (zone ${zone.name}, account ${account.name})`);
   say(`Repository ${repository}, ${model}: ${model === 'two-stage' ? 'production is the live branch, main the preview' : 'main is the live branch'}. Project ${name}${project ? ` (exists${custom.length ? `, serves ${custom.join(', ')}` : ''})` : ' (to be created)'}.`);
 
-  if (changes && opts.confirm !== code) {
-    if (opts.confirm) say('', `The code ${opts.confirm} does not fit this question: something it covers has changed since. Nothing was changed. Here is the question as it stands now.`);
+  if (changes && !(opts.confirm && codeFits(opts.confirm, codeInput, left, possible))) {
+    if (opts.confirm) say('', `The code ${opts.confirm} does not fit this question: it lists something the question you said yes to did not (a change, or a build of another commit), or something that question covered has changed. Nothing was changed. Here is the question as it stands now.`);
     say('', 'Nothing has been changed yet. If you say yes, I will:');
     let n = 0;
     const item = (text, ...more) => { n++; say(`  ${String(n).padStart(2)}. ${text}`); for (const m of more) say(`      ${m}`); };

@@ -202,9 +202,10 @@ something to change prints its question and a short code (the first 16 character
 The assistant shows Lena the question; on her yes it runs the same command with
 `--confirm <code>`. A stage with nothing to change asks nothing.
 
-The code is made from the end state the question names, never from what is there now.
-So it keeps fitting while the stage is carried out over several runs, and the script's
-own writes do not change it.
+The code is made from the end state the question names, never from what is there now,
+and, for `setup`, from the changes the question lists (decided in plan step 6's review,
+2026-10-15, below). It keeps fitting while the stage is carried out over several runs: a
+later run accepts it for any part of that list, so the script's own writes do not change it.
 
 - `setup`: the account; the project's name and the repository its `source` names (not
   whether it is created or adopted, which the script's own create would change); the
@@ -217,11 +218,14 @@ own writes do not change it.
 
 What is there now (the record the host has, a setting's old value) is shown in the
 question but not in the code. A change made by someone else between the question and the
-yes therefore needs no new yes when it leaves the end state the same. That is a judgment
-(see "Judgment calls"). A change to any input listed above gives a new question and a new
-code, and the old code then changes nothing: for `launch` a new commit, for either stage a
-new proxied host where the code names the hosts, or a changed flag among those listed. `setup`'s code names no commit: its first build (script step 4) is of whatever
-head the production branch has when it runs.
+yes needs no new yes when it leaves the end state the same and adds no line to the list.
+That is a judgment (see "Judgment calls"). A change to any input listed above gives a new
+question and a new code, and the old code then changes nothing: for `launch` a new commit,
+for either stage a new proxied host where the code names the hosts, or a changed flag among
+those listed. For `setup`, so does a line the list did not have (a setting someone changed
+back by hand, say), and a first build (script step 4) of another commit than the one the
+question named: its build line carries the head of the production branch it was asked
+with.
 
 **No run waits long.** A run has one deadline, 55 seconds after it starts, which leaves
 time to report. Every API call, every `git ls-remote` (it took 24 seconds to fail on a
@@ -665,9 +669,13 @@ field descriptions); the Bot Management update call's own description.
 
 Facts above were seen; these were weighed. Each with the strongest case against.
 
-- **A yes binds the end state, not the old values.** Seen: the script's own writes would
-  break any code made from current values (round 3, H5). Judgment: a change by someone else
-  that leaves the end state the same needs no new yes. *Against:* the yes to replacing
+- **A yes binds the end state and, for `setup`, the list; not the old values.** Seen: the
+  script's own writes would break any code made from current values (round 3, H5). Plan
+  step 6's review (R1-01) showed that a code of the end state alone let a setup run write a
+  setting the question had not listed, against R1; the maintainer chose (2026-10-15) to bind
+  the list too, accepting any part of it, so the script's own writes still keep the code.
+  Judgment: a change by someone else that leaves the end state the same, and adds no line,
+  needs no new yes. *Against:* the yes to replacing
   Lena's apex record was given knowing what it pointed to; if a colleague repoints it in
   between, the script still replaces it. The record is printed before it changes, and the
   commit in the code means a code rarely outlives a day of work on the site.
