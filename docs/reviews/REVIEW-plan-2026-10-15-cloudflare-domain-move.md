@@ -82,4 +82,4 @@ Notes:
 - Final full read (Kimi K3 on ollama, which had not seen the plan): no BUG, so no verification round earned; its findings fixed locally.
 - Wording pass: Codex again called the scope note sent with `--verify` a prompt injection and reviewed past it (as on karero/croftweaver#303); the scope still needs another way in.
 - The review stamp names `f4ce8bc`, the last head a reviewer saw (the confirmation); the commit after it adds only these closing rows to this record.
-- Cost: Codex 1,479 s over six runs, Melious 1,862 s over three, Kimi 235 s; fresh-eyes 854 s over three rounds; tokens: 1,036,895 for Codex and Melious as logged, 460,109 for fresh-eyes (Kimi gave no figure).
+- Cost: Codex 1,279 s over five runs, Melious 1,862 s over three, Kimi 235 s; fresh-eyes 854 s over three rounds; tokens: 576,786 for Codex and Melious, 460,109 for fresh-eyes, 1,036,895 in all as logged (Kimi gave no figure).
