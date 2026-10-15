@@ -86,7 +86,7 @@ Notes:
 
 ## Gate 2 — the three stages (decisions 1 and 7), the trial domain, hooks re-pinned after #328
 
-Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: OPEN (rounds 1 to 3 and the final full read done, no BUG standing in either; wording pass next) · authority used: as gate 1
+Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: CLEAN (2026-10-15). Three rounds, a final full read, a wording pass and its confirmation; 56 findings (7 BUG: 4 in round 1, 3 in round 2, none standing in round 3 or the final read); no BUG open; nothing waived · authority used: as gate 1
 
 The maintainer reversed the order after gate 1 closed (preview first, the move just before launch) and said yes to three stages. A change to a decision, so a gate of its own, on the whole plan with the change named.
 
@@ -96,6 +96,7 @@ The maintainer reversed the order after gate 1 closed (preview first, the move j
 | 2 | `08d1cc8` | full, as a verification round (G1 to G10) | the same three seats | Codex 300 s, 95,867 · Melious 759 s, 42,373 · fresh-eyes 253 s, 156,838 | 2 / 4 / 7 after merging duplicates (Codex 1/1/0, Melious 0/1/4, fresh-eyes 1/4/4), and outside scope 1 BUG, 2 NIT. G1 to G5, G7, G10 confirmed; G6, G8, G9 in part (H4, H7, H2) |
 | 3 | `140900d` | full, as a verification round (H1 to H15) | Codex; Melious (its first run broke off after 1,376 s, curl exit 28, with ollama's stand-in failing on a DNS error; run again alone, and a second try was cut off by a session restart); fresh-eyes | Codex 209 s, 98,485 · Melious 424 s, 41,077 (the run that counted) · fresh-eyes 282 s, 163,890 | 0 / 3 / 6 after merging duplicates (Codex 0/0/0, Melious 0/1/2, fresh-eyes 0/2/4), and outside scope 1 NIT. H1 to H15 confirmed; H3 in part (K3) |
 | final full read (not a round) | `be2b0cc` | full | ollama cloud, kimi-k2.7-code:cloud, text only (has not reviewed this plan before) | 292 s, tokens not reported | 1 / 5 / 5 (L1 to L11); the BUG refuted |
+| wording pass (not a round) | `c2439c9` | delta since `140900d`, both files, prose | Codex CLI 0.162.1, gpt-6.1-sol, high (config), read-only | 197 s, 99,169 | 2 contradictions (J8's NS exclusion against scenario 9; K4's citation), fixed; RISKs on 26a's TTL bound and row 3's check, fixed as well |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -126,7 +127,7 @@ The maintainer reversed the order after gate 1 closed (preview first, the move j
 | K1 | RISK | fresh-eyes | 3 | Scenario 26a: without the old zone, resolvers holding the old delegation get no answer for the parent's TTL, which breaks M2, not only the way back | fixed, locally_verified (not externally re-verified) | scenario 26a; "Not verified" 14 |
 | K2 | RISK | fresh-eyes | 3 | `CLOUDFLARE_FIRST_DEPLOY.md` lines 12 and 85 and the script's line 863 send a finished preview run to launch day, skipping launch prep | fixed, locally_verified (not externally re-verified) | "Hooks"; row 5a |
 | K3 | RISK | Melious (fresh-eyes as NIT) | 3 | H3 in part: the preview's lines of `CLOUDFLARE_FIRST_DEPLOY.md` are given to row 5a, whose scope does not name them | fixed, locally_verified (not externally re-verified) | row 5a and the opening name them |
-| K4 | NIT | fresh-eyes | 3 | "Not verified" 5 is about a pending zone, not one not yet added | fixed, locally_verified (not externally re-verified) | "Hooks" cites the reference table's last row |
+| K4 | NIT | fresh-eyes | 3 | "Not verified" 5 is about a pending zone, not one not yet added | fixed, locally_verified (not externally re-verified) | "Hooks" cites the reference table's row on token scope (corrected in the wording pass: the last row is the TTL) |
 | K5 | NIT | fresh-eyes | 3 | Lines 28 to 33 are section S's opening, not its list; one quote spans two lines | fixed, locally_verified (not externally re-verified) | "Hooks": line 28's and line 43's own words, read at `4c890f6` |
 | K6 | NIT | fresh-eyes | 3 | Scenario 26a: a missing export is scenario 4, not 11; item 14 cited twice | fixed, locally_verified (not externally re-verified) | scenario 26a |
 | K7 | NIT | fresh-eyes | 3 | Long prose lines | fixed, locally_verified (not externally re-verified) | rewrapped; a word diff shows no text lost |
