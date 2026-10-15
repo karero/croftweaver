@@ -548,6 +548,10 @@ async function setupStage(opts, io) {
     if (!Array.isArray(project.domains) || !project.deployment_configs) {
       throw new Stop(1, `Cloudflare returned the project ${name} without its domains or settings, so the script cannot tell whether it is live. Nothing was changed.`);
     }
+    // Its preview setting is read before anything changes: a PATCH answer is compared with it.
+    if (typeof project.source.config.preview_deployment_setting !== 'string') {
+      throw new Stop(1, `Cloudflare returned the project ${name} without its preview setting, so a change to it could not be checked afterwards. Nothing was changed. Look at it in the dashboard (Workers & Pages → ${name} → Settings → Builds).`);
+    }
   }
   const custom = project ? project.domains.filter((d) => d !== project.subdomain) : [];
 
@@ -876,8 +880,9 @@ export function notAsWanted(p, { gh, prodBranch, preview }) {
   else {
     if (typeof c.owner !== 'string' || typeof c.repo_name !== 'string'
       || c.owner.toLowerCase() !== gh.owner.toLowerCase() || c.repo_name.toLowerCase() !== gh.repo.toLowerCase()) off.push(`connected to ${show(c.owner)}/${show(c.repo_name)}`);
-    if (typeof c.preview_deployment_setting !== 'string') off.push('no preview setting');
-    else if (typeof preview === 'string' && c.preview_deployment_setting !== preview) off.push(`preview setting ${c.preview_deployment_setting}, not ${preview}`);
+    if (typeof preview !== 'string') off.push('the preview setting wanted is not known');
+    else if (typeof c.preview_deployment_setting !== 'string') off.push('no preview setting');
+    else if (c.preview_deployment_setting !== preview) off.push(`preview setting ${c.preview_deployment_setting}, not ${preview}`);
   }
   if (p.production_branch !== prodBranch) off.push(`production branch ${p.production_branch}, not ${prodBranch}`);
   for (const [k, v] of Object.entries(BUILD)) if (p.build_config?.[k] !== v) off.push(`${k} ${p.build_config?.[k] ?? '(none)'}, not ${v}`);

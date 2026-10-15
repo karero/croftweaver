@@ -265,7 +265,7 @@ export function handle(state, method, p, query, body, contentType) {
       const p = state.projects.find((x) => x.name === args[1]);
       if (!p) return notFound('project');
       const b = answer('T1-054');
-      b.result = copy(p);
+      b.result = state.projectRead ? state.projectRead(copy(p)) : copy(p); // MADE when cut down by a test
       return { status: 200, body: b };
     }
     case 'PATCH project': {

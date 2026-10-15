@@ -536,6 +536,17 @@ test('a PATCH answer without the whole project stops the run before anything els
     assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'nothing after the PATCH');
   }));
 
+test('an adopted project read without its preview setting stops the run before anything is asked or written', async () => {
+  for (const value of [undefined, null, ['all']]) {
+    await scenario(freshState({ projects: [project({ failOpen: false })], projectRead: (p) => { if (value === undefined) delete p.source.config.preview_deployment_setting; else p.source.config.preview_deployment_setting = value; return p; } }), async ({ api, go }) => {
+      const r = await go();
+      assert.equal(r.code, 1, `${JSON.stringify(value)}: ${r.out}`);
+      assert.match(r.out, /without its preview setting, so a change to it could not be checked afterwards/);
+      onlyReads(api);
+    });
+  }
+});
+
 test('a PATCH answer whose preview setting differs from the one read before stops the run', () =>
   scenario(freshState({ projects: [project({ failOpen: false })], previewInPatchAnswer: 'none' }), async ({ api, go, state }) => {
     state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
@@ -581,6 +592,8 @@ test('the check of a returned project names each field that does not hold the en
     assert.match(notAsWanted(p, want).join('; '), want2);
   }
   assert.deepEqual(notAsWanted(null, want), ['no project in the answer']);
+  // Re-gate 4: with no wanted value to compare with, nothing passes.
+  for (const preview of [undefined, null, ['all']]) assert.match(notAsWanted(asLena(good), { ...want, preview }).join('; '), /the preview setting wanted is not known/);
   // A repository literally named "undefined" still needs its name in the answer.
   const named = asLena(good);
   delete named.source.config.repo_name;
