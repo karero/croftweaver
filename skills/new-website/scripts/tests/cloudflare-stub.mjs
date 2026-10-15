@@ -328,6 +328,7 @@ function patchProject(state, p, body) {
   const b = answer('T1-048');
   b.result = copy(p);
   for (const k of state.loseOnPatch ?? []) delete b.result.deployment_configs.production.env_vars?.[k];
+  if (state.thinPatchAnswer) delete b.result.source; // MADE: an answer thinner than any captured one
   return { status: 200, body: b };
 }
 

@@ -261,7 +261,10 @@ test('every string, key and number in the fixtures is a made-up value or on the 
   const fixtures = allFixtures();
   assert.ok(fixtures.length > 50, 'the fixtures are there');
   // A file's name is the capture's number and the trial's own label for the call, nothing else.
-  for (const { file } of fixtures) assert.match(file, /^T[12]-\d{3}-[a-z0-9_-]+\.json$/, file);
+  for (const { file } of fixtures) {
+    assert.match(file, /^T[12]-\d{3}-[a-z0-9_-]+\.json$/, file);
+    assert.doesNotMatch(file, /[0-9a-f]{16}/i, `${file}: a run of hexadecimal digits in a file name`);
+  }
   assert.deepEqual(notMadeUp(fixtures), []);
 });
 
@@ -522,6 +525,15 @@ test('9b: a PATCH after which a variable is missing ends the run with 1 and name
     assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'the run ended there');
   });
 });
+
+test('a PATCH answer without the whole project stops the run before anything else is written', () =>
+  scenario(freshState({ projects: [project({ failOpen: false })], thinPatchAnswer: true }), async ({ api, go, state }) => {
+    state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
+    const r = await go(['--confirm', codeOf(await go())]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /did not return it whole/);
+    assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'nothing after the PATCH');
+  }));
 
 test('10: no build Cloudflare started from a push: each run waits and names the causes; a failed push build is proof, said as a failure', () =>
   scenario((h) => finishedState(h), async ({ go, state }) => {

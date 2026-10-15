@@ -717,14 +717,14 @@ async function setupStage(opts, io) {
   if (create) {
     const r = await api('POST', projectsAt, { json: create });
     if (!ok(r)) throw new Stop(1, `Cloudflare did not create the project: ${refusal(r, ROW.pages)}.`, 'If it says the name is taken (pages.dev names are global), run again with --project <another-name>. If it cannot reach the repository, give Cloudflare\'s GitHub app access to it (GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure).');
-    if (!r.body?.result?.subdomain) throw new Stop(1, `Cloudflare says it created the project ${name}, but returned no project with an address. Look at it in the dashboard (Workers & Pages), then run this again.`);
+    if (!wholeProject(r.body?.result)) throw new Stop(1, `Cloudflare says it created the project ${name}, but did not return it whole (its address, source and settings). Look at it in the dashboard (Workers & Pages), then run this again.`);
     project = r.body.result;
     say('', `  done     Created the project ${name}, connected to ${repository}. Its address: https://${project.subdomain}/`);
   } else if (Object.keys(patch).length) {
     const before = varNames(project);
     const r = await api('PATCH', projectAt, { json: patch });
     if (!ok(r)) throw new Stop(1, `Cloudflare refused the change to the project: ${refusal(r, ROW.pages)}. Nothing else was changed.`);
-    if (!r.body?.result?.deployment_configs) throw new Stop(1, 'Cloudflare accepted the change to the project but returned no project, so its variables cannot be listed after it. Look at the project in the dashboard (Workers & Pages → the project → Settings → Variables and Secrets).');
+    if (!wholeProject(r.body?.result)) throw new Stop(1, 'Cloudflare accepted the change to the project but did not return it whole, so its variables cannot be listed after it. Look at the project in the dashboard (Workers & Pages → the project → Settings → Variables and Secrets).');
     const after = varNames(r.body.result);
     const lost = before.filter((v) => !after.includes(v));
     say('', `  done     ${projectSay.join(' ')}`);
@@ -862,6 +862,10 @@ async function setupStage(opts, io) {
   say(`Setup is done, as far as Cloudflare's API shows: the settings were read back through the API only. Requests to the domain come on launch day, which checks them from outside and adds the NEL header rule if the headers are still sent. The launch stage is not in this version: attach the domain by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md). The live build is at https://${project.subdomain}/`);
   return 0;
 }
+
+// What the script reads from a project answer: its address, its source and its settings (T1-027,
+// T1-054 and the PATCH answers T1-048, T1-049, T1-051 to T1-053 and T1-061 all carry them).
+const wholeProject = (p) => Boolean(p?.subdomain && p.source?.config && p.deployment_configs && p.build_config);
 
 function varNames(p) {
   const dc = p?.deployment_configs ?? {};

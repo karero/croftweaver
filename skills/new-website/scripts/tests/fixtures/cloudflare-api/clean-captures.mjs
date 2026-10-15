@@ -144,7 +144,8 @@ function main([t1, t2, mapFile, out]) {
   };
 
   // The helper and the file names get the same check as the fixtures: no name from the map, no id.
-  const real = (text, trial) => names(trial).some(([n]) => text.toLowerCase().includes(n.toLowerCase())) || /\b[0-9a-f]{32}\b/.test(text);
+  // Ids are found by their run of hexadecimal digits, so one beside an underscore or a letter counts.
+  const real = (text, trial) => names(trial).some(([n]) => text.toLowerCase().includes(n.toLowerCase())) || /(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])/i.test(text);
   if (real(helper, 'T1') || real(helper, 'T2')) throw new Error('trial-helper.txt: a real name or id is still there');
   mkdirSync(out, { recursive: true });
   writeFileSync(path.join(out, 'trial-helper.txt'), helper);
