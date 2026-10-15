@@ -398,7 +398,8 @@ go in one call, with the fields it does not change sent as they are.
 | Content bots | Bot Management `content_bots_protection` | `"disabled"` |
 | Bot Preference Sync | Bot Management `bot_preference_sync_enabled` | `false` |
 
-If you block or disallow Training on purpose, the assistant leaves the AI lines as they are.
+If you block or disallow Training on purpose, tell your assistant: it then leaves the AI lines
+as they are.
 
 Cloudflare documents these calls. We have run the Transform Rules call on live sites and
 the Bot Management call on one spare domain, and we have not run any of them often, so for every call the

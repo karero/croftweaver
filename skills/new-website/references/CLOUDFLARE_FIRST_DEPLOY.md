@@ -39,7 +39,8 @@ address.
 2. A token with the rows of the checklist's section 6, Zone → DNS → Edit among them; Zone
    Resources the one domain, Account Resources their own account; an end date of tomorrow,
    a week at most, and no start date. The script refuses a token with no end date, one that
-   ends more than a week ahead, and one that reaches more than this zone.
+   ends more than eight days ahead (a week, with a day's room: the dashboard sets an end
+   date, not a time), and one that reaches more than this zone.
 3. Cloudflare's GitHub app gets access to the one repository: GitHub → Settings →
    Applications → Cloudflare Workers and Pages → Configure. Nothing more: a project made
    through the API builds from GitHub without "Connect to Git" in the dashboard.
