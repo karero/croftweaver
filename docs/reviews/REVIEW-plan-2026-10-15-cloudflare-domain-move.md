@@ -86,7 +86,7 @@ Notes:
 
 ## Gate 2 — the three stages (decisions 1 and 7), the trial domain, hooks re-pinned after #328
 
-Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: CLEAN (2026-10-15). Three rounds, a final full read, a wording pass and its confirmation; 56 findings (7 BUG: 4 in round 1, 3 in round 2, none standing in round 3 or the final read); no BUG open; nothing waived · authority used: as gate 1
+Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: CLEAN (2026-10-15). Three rounds, a final full read, a wording pass and its confirmation; 45 findings in the rounds and the final read (7 BUG: 4 in round 1, 3 in round 2; none in round 3; the final read's one BUG refuted); no BUG open; nothing waived · authority used: as gate 1
 
 The maintainer reversed the order after gate 1 closed (preview first, the move just before launch) and said yes to three stages. A change to a decision, so a gate of its own, on the whole plan with the change named.
 
