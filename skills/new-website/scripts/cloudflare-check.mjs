@@ -4,6 +4,7 @@
 //
 //   node cloudflare-check.mjs example.com [--project my-pages-project] [--hsts-on]
 //                                          [--build <sha>] [--json] [--timeout <seconds>]
+//                                          [--only <id>,<id>] [--nameserver <address>,<address>]
 //
 // Read-only. It sends GET requests and nothing else: no token, no account, no change. It
 // needs Node 18 or newer and nothing from npm. What it prints, and what it cannot see, is
@@ -11,6 +12,8 @@
 import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
+import { isIP } from 'node:net';
+import { Resolver } from 'node:dns';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -92,6 +95,10 @@ const USAGE = `Usage: node cloudflare-check.mjs <domain> [options]
   --build <sha>       the commit you expect the live domain to serve (from /build.txt)
   --json              print the results as JSON
   --timeout <s>       seconds to wait for each answer, 1 to 120 (default 15)
+  --only <id>,<id>    judge only these items (the ids under "For an assistant" in
+                      CLOUDFLARE_CHECK.md), and send only the requests they need
+  --nameserver <ip>   look the domain up at this nameserver (an IP address, with :port if
+                      not 53; several separated by commas), not at this computer's own
   -h, --help          this text
 
 Exit status: 0 nothing failed and everything was asked and judged; 1 something failed, did
@@ -99,7 +106,7 @@ not answer or could not be judged (the report says which); 2 the command was wro
 `;
 
 export function parseArgs(argv) {
-  const opts = { json: false, hstsOn: false, timeoutMs: 15000, project: null, build: null, help: false };
+  const opts = { json: false, hstsOn: false, timeoutMs: 15000, project: null, build: null, only: null, nameservers: null, help: false };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -112,6 +119,8 @@ export function parseArgs(argv) {
     else if (a === '--hsts-on') opts.hstsOn = true;
     else if (a === '--project') opts.project = value();
     else if (a === '--build') opts.build = value();
+    else if (a === '--only') opts.only = parseOnly(value());
+    else if (a === '--nameserver') opts.nameservers = parseNameservers(value());
     else if (a === '--timeout') {
       const n = Number(value());
       if (!(n >= 1 && n <= 120)) throw new UsageError('--timeout takes a number of seconds from 1 to 120');
@@ -127,6 +136,49 @@ export function parseArgs(argv) {
   if (rest.length === 0) throw new UsageError('give your domain, for example: example.com');
   if (rest.length > 1) throw new UsageError(`give one domain only (got ${rest.length})`);
   return { opts, domain: rest[0] };
+}
+
+// --only: ids of ITEMS, separated by commas, each once.
+export function parseOnly(arg) {
+  const ids = String(arg).split(',').map((x) => x.trim()).filter(Boolean);
+  const known = ITEMS.map((i) => i.id);
+  const bad = ids.filter((id) => !known.includes(id));
+  if (!ids.length || bad.length) throw new UsageError(`--only takes item ids separated by commas, from: ${known.join(', ')}${bad.length ? ` (not an id: ${bad.join(', ')})` : ''}`);
+  return [...new Set(ids)];
+}
+
+// --nameserver: IP addresses, each with an optional port ("192.0.2.53", "192.0.2.53:5353",
+// "[2001:db8::53]:53"), separated by commas. Never a name: a name would itself need looking up.
+export function parseNameservers(arg) {
+  const list = String(arg).split(',').map((x) => x.trim()).filter(Boolean);
+  for (const ns of list) {
+    const m = /^\[([^\]]+)\](?::(\d{1,5}))?$/.exec(ns) ?? /^([^:]+)(?::(\d{1,5}))?$/.exec(ns);
+    if (!m || !isIP(m[1]) || (m[2] && Number(m[2]) > 65535)) throw new UsageError(`--nameserver takes IP addresses, with :port if not 53 (got "${ns}")`);
+  }
+  if (!list.length) throw new UsageError('--nameserver needs an address');
+  return list;
+}
+
+// A lookup that asks only the given nameservers, for the domain's own requests: a computer that
+// asked for the host before its record existed can go on answering "no such host" for minutes
+// after the domain is live, while the zone's nameservers give the address at once.
+function lookupAt(servers) {
+  const resolver = new Resolver({ timeout: 3000, tries: 2 });
+  resolver.setServers(servers);
+  return (hostname, options, callback) => {
+    const cb = typeof options === 'function' ? options : callback;
+    const all = typeof options === 'object' && options?.all;
+    const done = (list, family) => (all ? cb(null, list.map((address) => ({ address, family }))) : cb(null, list[0], family));
+    resolver.resolve4(hostname, (e4, a4) => {
+      if (!e4 && a4.length) { done(a4, 4); return; }
+      resolver.resolve6(hostname, (e6, a6) => {
+        if (!e6 && a6.length) { done(a6, 6); return; }
+        const err = new Error(`${hostname} has no address at ${servers.join(', ')}`);
+        err.code = 'ENOTFOUND';
+        cb(err);
+      });
+    });
+  };
 }
 
 // A bare domain means https://<domain>. A page on this machine ("http://127.0.0.1:4321") is
@@ -176,7 +228,7 @@ export function parseProject(arg) {
 // One GET, never followed, never rejected: an error is part of the answer. A body is read up
 // to MAX_BODY bytes (a page of the kit is a few hundred kilobytes); an answer that ends
 // early, or does not end in time, is an error, never a page.
-function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xml,*/*;q=0.8' }) {
+function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xml,*/*;q=0.8', lookup }) {
   return new Promise((resolve) => {
     const signal = AbortSignal.timeout(timeoutMs);
     let done = false;
@@ -196,6 +248,7 @@ function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xm
       method: 'GET',
       signal,
       agent: false, // one connection per request, closed after it: nothing lingers
+      ...(lookup ? { lookup } : {}),
       headers: { 'user-agent': ua, accept, 'accept-encoding': 'identity' },
     }, (res) => {
       const chunks = [];
@@ -261,29 +314,42 @@ async function getHome(url, t, stamp) {
   return { ...r, hops, chain, chainUrls };
 }
 
-export async function observe(target, { timeoutMs, alias }) {
+// The requests each item needs, beside the home page, which every run asks for. With --only, the
+// others are not sent; they stand in the observation as "not asked", and count as no answer for
+// nothing.
+const NEEDS = { robots: ['robots'], ai: ['robots', 'crawlers'], https: ['httpProbe'], build: ['build'],
+  pages: ['alias'], canonical: ['alias', 'aliasProbe'], nel: ['alias'] };
+// The second request to the pages.dev address: a page with a query, which the forwarding must keep.
+export const PROBE_PATH = '/robots.txt';
+
+export async function observe(target, { timeoutMs, alias, only = null, nameservers = null }) {
   const stamp = Math.floor(Date.now() / 1000);
-  const t = { timeoutMs };
-  const text = { timeoutMs, accept: 'text/plain,*/*;q=0.8' };
+  const lookup = nameservers ? lookupAt(nameservers) : undefined; // the domain's requests only
+  const t = { timeoutMs, lookup };
+  const text = { timeoutMs, accept: 'text/plain,*/*;q=0.8', lookup };
   const homeUrl = `${target.origin}/?cb=${stamp}`;
-  const [home, robots, httpProbe, build, aliasHome, ...crawlers] = await Promise.all([
+  const asked = only ? new Set(only.flatMap((id) => NEEDS[id] ?? [])) : null;
+  const ask = (name, url, fn) => (!asked || asked.has(name) ? fn() : Promise.resolve({ url, notAsked: true, error: { code: 'ENOTASKED', message: 'not asked' } }));
+  const aliasProbeUrl = alias ? `${alias.origin}${PROBE_PATH}?cb=${stamp}` : null;
+  const [home, robots, httpProbe, build, aliasHome, aliasProbe, ...crawlers] = await Promise.all([
     getHome(homeUrl, t, stamp),
-    get(`${target.origin}/robots.txt`, text),
-    get(target.httpProbe, t),
-    get(`${target.origin}/build.txt?cb=${stamp}`, text),
-    alias ? get(`${alias.origin}/?cb=${stamp}`, t) : Promise.resolve(null),
-    ...CRAWLERS.map(([, ua]) => get(homeUrl, { timeoutMs, ua })),
+    ask('robots', `${target.origin}/robots.txt`, () => get(`${target.origin}/robots.txt`, text)),
+    ask('httpProbe', target.httpProbe, () => get(target.httpProbe, t)),
+    ask('build', `${target.origin}/build.txt?cb=${stamp}`, () => get(`${target.origin}/build.txt?cb=${stamp}`, text)),
+    alias ? ask('alias', `${alias.origin}/?cb=${stamp}`, () => get(`${alias.origin}/?cb=${stamp}`, { timeoutMs })) : Promise.resolve(null),
+    alias ? ask('aliasProbe', aliasProbeUrl, () => get(aliasProbeUrl, { timeoutMs })) : Promise.resolve(null),
+    ...CRAWLERS.map(([, ua]) => ask('crawlers', homeUrl, () => get(homeUrl, { timeoutMs, ua, lookup }))),
   ]);
   return {
-    stamp, home, robots, httpProbe, build, alias: aliasHome,
+    stamp, home, robots, httpProbe, build, alias: aliasHome, aliasProbe,
     crawlers: crawlers.map((r, i) => ({ name: CRAWLERS[i][0], ...r })),
   };
 }
 
-// Every request that got no answer at all.
+// Every request that was sent and got no answer at all.
 export function unanswered(obs) {
-  return [obs.home, obs.robots, obs.httpProbe, obs.build, obs.alias, ...obs.crawlers]
-    .filter((r) => r && r.error)
+  return [obs.home, obs.robots, obs.httpProbe, obs.build, obs.alias, obs.aliasProbe, ...obs.crawlers]
+    .filter((r) => r && r.error && !r.notAsked)
     .map((r) => (r.name ? `${r.name} ${bare(r.url)}` : bare(r.url)));
 }
 
@@ -315,6 +381,17 @@ function leadsTo(location, base, wanted) {
     const a = new URL(location, base);
     const b = new URL(wanted);
     return a.origin === b.origin && a.pathname === b.pathname;
+  } catch {
+    return false;
+  }
+}
+
+// The same address, query included: what forwarding a page with a query must keep.
+function sameExactly(location, base, wanted) {
+  try {
+    const a = new URL(location, base);
+    const b = new URL(wanted);
+    return a.origin === b.origin && a.pathname === b.pathname && a.search === b.search;
   } catch {
     return false;
   }
@@ -862,8 +939,16 @@ export function evaluate(obs, target, opts) {
     else put('pages', 'ok', `${bare(alias.url)} answers ${alias.status}: this is a Pages project.`);
     const loc = header(alias, 'location');
     const to = leadsTo(loc, alias.url, `${target.httpsOrigin}/`);
-    if (alias.status === 301 && to) put('canonical', 'ok', `answers 301 and sends visitors to ${loc}.`);
-    else if (alias.status >= 300 && alias.status < 400 && to) put('canonical', 'look', `answers ${alias.status}, not 301, to ${loc}.`, section(1));
+    // The forwarding must keep a page's path and query (follow-up U1): a page with a query is
+    // asked too, and must be sent to the same page on the domain.
+    const probe = obs.aliasProbe;
+    if (alias.status === 301 && to) {
+      const probeLoc = probe && !probe.error ? header(probe, 'location') : '';
+      const wanted = probe ? (() => { const u = new URL(probe.url); return `${target.httpsOrigin}${u.pathname}${u.search}`; })() : '';
+      if (!probe || probe.error) skip('canonical', `not checked whole: / answers 301 to ${loc}, but ${probe ? `${bare(probe.url)} got no answer` : 'no page with a query was asked'}, so whether a page keeps its path and query is not known.`);
+      else if (probe.status === 301 && sameExactly(probeLoc, probe.url, wanted)) put('canonical', 'ok', `answers 301 and sends visitors to ${loc}; a page keeps its path and query (${probe.url} goes to ${probeLoc}).`);
+      else put('canonical', 'fail', `/ answers 301 to ${loc}, but ${probe.url} answers ${probe.status}${probeLoc ? ` to ${probeLoc}` : ''}, not 301 to ${wanted}: a page loses its path or its query on the way.`, section(1));
+    } else if (alias.status >= 300 && alias.status < 400 && to) put('canonical', 'look', `answers ${alias.status}, not 301, to ${loc}.`, section(1));
     else if (alias.status >= 300 && alias.status < 400) put('canonical', 'fail', `sends visitors to ${loc || 'another address'}, not to ${target.httpsOrigin}/`, section(1));
     else if (alias.status === 200) put('canonical', 'fail', 'answers 200: CANONICAL_URL is not under Production, is misnamed or malformed, the deployment is older than the variable, or the day\'s Functions allowance ran out with Fail open on.', section(1));
     else put('canonical', 'fail', `answers ${alias.status}.`, section(1));
@@ -875,7 +960,7 @@ export function evaluate(obs, target, opts) {
     put(item.id, 'hand', `${place}: ${item.lookFor}.`);
   }
 
-  const results = ITEMS.map((item) => {
+  const results = ITEMS.filter((item) => !opts.only || opts.only.includes(item.id)).map((item) => {
     const r = out.get(item.id);
     if (!r) throw new Error(`cloudflare-check: no result for "${item.id}"`);
     return { id: item.id, section: item.section, title: item.title, ...r, ...(blocked.has(item.id) ? { blocked: true } : {}) };
@@ -935,7 +1020,7 @@ export async function main(argv, now = () => new Date()) {
     if (!(e instanceof UsageError)) throw e;
     return fail(e);
   }
-  const obs = await observe(target, { timeoutMs: parsed.opts.timeoutMs, alias });
+  const obs = await observe(target, { timeoutMs: parsed.opts.timeoutMs, alias, only: parsed.opts.only, nameservers: parsed.opts.nameservers });
   obs.aliasIsPagesDev = alias?.pagesDev ?? false;
   const results = evaluate(obs, target, parsed.opts);
   const n = summarize(results);
@@ -944,7 +1029,7 @@ export async function main(argv, now = () => new Date()) {
   const code = n.fail || silent.length || stuck.length ? 1 : 0;
   const when = now().toISOString().replace(/\.\d+Z$/, 'Z');
   if (parsed.opts.json) {
-    const body = { domain: target.host, checkedAt: when, summary: n, unanswered: silent, couldNotJudge: stuck, results };
+    const body = { domain: target.host, checkedAt: when, ...(parsed.opts.only ? { only: parsed.opts.only } : {}), summary: n, unanswered: silent, couldNotJudge: stuck, results };
     return { code, stderr: '', stdout: `${JSON.stringify(body, null, 2)}\n` };
   }
   return { code, stderr: '', stdout: render(results, target, when, silent) };

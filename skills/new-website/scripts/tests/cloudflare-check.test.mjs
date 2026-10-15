@@ -15,7 +15,8 @@ import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, rmSync, existsSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ITEMS, evaluate, ownHostReport, parseProject, parseTarget, readHtml, UsageError } from '../cloudflare-check.mjs';
+import { ITEMS, PROBE_PATH, evaluate, ownHostReport, parseNameservers, parseOnly, parseProject, parseTarget, readHtml, UsageError } from '../cloudflare-check.mjs';
+import { startDns } from './cloudflare-stub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'cloudflare-check.mjs');
@@ -656,13 +657,14 @@ test('build.txt that got no answer, with the domain fine, is a look and a non-ze
 
 test('--project: the alias that forwards to the domain passes the forward, and its NEL note stays beside the domain\'s result', async () => {
   await withSite(undefined, async (live) => {
-    await withSite((req, res) => {
-      res.writeHead(301, { location: `https://${live.host}/?cb=1`, nel: '{"max_age":604800}', 'report-to': '{"group":"cf-nel"}' });
+    await withSite((req, res, url) => {
+      res.writeHead(301, { location: `https://${live.host}${url.pathname}${url.search}`, nel: '{"max_age":604800}', 'report-to': '{"group":"cf-nel"}' });
       res.end();
       return true;
     }, async (alias) => {
       const r = await check(live.origin, '--project', alias.origin);
       assert.equal(r.by.canonical.state, 'ok');
+      assert.match(r.by.canonical.detail, new RegExp(`a page keeps its path and query \\(.*${PROBE_PATH}\\?cb=\\d+ goes to https://${live.host}${PROBE_PATH}\\?cb=\\d+\\)`));
       assert.equal(r.by.pages.state, 'look', 'a local address is not known to be a pages.dev project');
       assert.equal(r.by.nel.state, 'ok');
       assert.match(r.by.nel.detail, /pages\.dev address still sends a nel header and a report-to header; .* remove them there/);
@@ -677,8 +679,8 @@ test('--project: the alias note names the header the alias sends, not both', asy
     [{ 'report-to': '{"group":"cf-nel"}' }, /still sends a report-to header; .* remove it there/, /nel header/],
   ]) {
     await withSite(undefined, async (live) => {
-      await withSite((req, res) => {
-        res.writeHead(301, { location: `https://${live.host}/?cb=1`, ...headers });
+      await withSite((req, res, url) => {
+        res.writeHead(301, { location: `https://${live.host}${url.pathname}${url.search}`, ...headers });
         res.end();
         return true;
       }, async (alias) => {
@@ -728,6 +730,7 @@ test('an alias that answers 404, 500 or a challenge is not "a Pages project, ok"
     httpProbe: { url: 'http://example.com/', status: 301, headers: { location: 'https://example.com/' }, body: '' },
     build: { url: 'https://example.com/build.txt?cb=1', status: 404, headers: {}, body: '' },
     crawlers: [], alias, aliasIsPagesDev: true,
+    aliasProbe: { url: `https://shop.pages.dev${PROBE_PATH}?cb=1`, status: 301, headers: { location: `https://example.com${PROBE_PATH}?cb=1` }, body: '' },
   });
   const by = (alias) => Object.fromEntries(evaluate(base(alias), target, { timeoutMs: 5000 }).map((r) => [r.id, r]));
   const at = (status, headers = {}) => ({ url: 'https://shop.pages.dev/?cb=1', status, headers, body: '' });
@@ -736,6 +739,85 @@ test('an alias that answers 404, 500 or a challenge is not "a Pages project, ok"
   assert.equal(by(at(500)).pages.state, 'fail');
   assert.equal(by(at(403, { 'cf-mitigated': 'challenge' })).pages.state, 'fail');
   assert.equal(by(at(301, { location: 'https://example.com/?cb=1' })).canonical.state, 'ok');
+});
+
+test('--project: a forwarding that sends every page to the home page, or drops the query, fails; a page with no answer is not judged', async () => {
+  // Follow-up U1: the home page alone cannot show it. The middleware forwards a page to the same page
+  // on the domain, query and all; a forwarding written another way can lose either.
+  for (const [where, said] of [
+    [() => '/?cb=1', /a page loses its path or its query on the way/],
+    [(url) => url.pathname, /a page loses its path or its query on the way/],
+  ]) {
+    await withSite(undefined, async (live) => {
+      await withSite((req, res, url) => { res.writeHead(301, { location: `https://${live.host}${where(url)}` }); res.end(); return true; }, async (alias) => {
+        const r = await check(live.origin, '--project', alias.origin);
+        assert.equal(r.by.canonical.state, 'fail', r.by.canonical.detail);
+        assert.match(r.by.canonical.detail, said);
+        assert.equal(r.code, 1);
+      });
+    });
+  }
+  // The page with a query got no answer: canonical cannot be judged, and the run is not a pass.
+  await withSite(undefined, async (live) => {
+    await withSite((req, res, url) => {
+      if (url.pathname === PROBE_PATH) { req.socket.destroy(); return true; }
+      res.writeHead(301, { location: `https://${live.host}${url.pathname}${url.search}` }); res.end(); return true;
+    }, async (alias) => {
+      const r = await check(live.origin, '--project', alias.origin);
+      assert.equal(r.by.canonical.state, 'skip');
+      assert.equal(r.by.canonical.blocked, true);
+      assert.ok(r.parsed.unanswered.some((u) => u.endsWith(PROBE_PATH)), r.parsed.unanswered.join(', '));
+      assert.equal(r.code, 1);
+    });
+  });
+});
+
+test('--only judges the items named and sends only the requests they need', async () => {
+  const seen = [];
+  await withSite((req, res, url) => { seen.push(`${url.pathname} ${req.headers['user-agent']}`); return false; }, async (live) => {
+    const r = await check(live.origin, '--only', 'build,domain', '--build', SHA);
+    assert.deepEqual(r.parsed.results.map((x) => x.id), ['domain', 'build'], 'in the checklist\'s order, and only these');
+    assert.deepEqual(r.parsed.only, ['build', 'domain']);
+    assert.equal(r.by.build.state, 'ok');
+    assert.deepEqual(r.parsed.summary, { ok: 2, fail: 0, look: 0, hand: 0, skip: 0 });
+    assert.equal(r.code, 0, 'a request not sent is no request without an answer');
+    assert.deepEqual(seen.map((x) => x.split(' ')[0]).sort(), ['/', '/build.txt'], 'no robots.txt, no http:// probe');
+    assert.ok(!seen.some((x) => /GPTBot|ClaudeBot|CCBot/.test(x)), 'no crawler request');
+  });
+  // An item that fails still fails the run; the others are not judged.
+  await withSite(homeWith({ nel: '{"max_age":604800}' }), async (live) => {
+    const r = await check(live.origin, '--only', 'nel');
+    assert.deepEqual(r.parsed.results.map((x) => x.id), ['nel']);
+    assert.equal(r.code, 1);
+  });
+  assert.throws(() => parseOnly('build,cdn'), /not an id: cdn/);
+  assert.throws(() => parseOnly(','), UsageError);
+  const bad = await run(['example.com', '--only', 'nope']);
+  assert.equal(bad.code, 2);
+});
+
+test('--nameserver: the domain is looked up at the nameserver given, and the pages.dev address is not', async () => {
+  // A .test name that only the stub nameserver knows: without --nameserver it cannot be looked up.
+  const dns = await startDns((name, type) => (name === 'lenas.test' && type === 'A' ? ['127.0.0.1'] : null));
+  try {
+    await withSite(undefined, async (live) => {
+      const target = `http://lenas.test:${live.port}`;
+      const without = await check(target, '--only', 'domain');
+      assert.equal(without.by.domain.state, 'fail', 'the name is unknown to this computer');
+      const r = await check(target, '--only', 'domain,build,https', '--nameserver', dns.address);
+      assert.equal(r.by.domain.state, 'ok', r.by.domain.detail);
+      assert.equal(r.by.build.state, 'look', 'build.txt was read through the same lookup');
+      assert.ok(dns.asked.some((q) => q.name === 'lenas.test'), 'the stub nameserver was asked');
+      // The pages.dev address keeps this computer's own lookup.
+      const asked = dns.asked.length;
+      await check(target, '--only', 'domain,pages', '--nameserver', dns.address, '--project', `http://alias.test:${live.port}`);
+      assert.ok(!dns.asked.slice(asked).some((q) => q.name === 'alias.test'), 'the alias was not looked up there');
+    });
+  } finally {
+    await dns.close();
+  }
+  assert.deepEqual(parseNameservers('192.0.2.53, 192.0.2.54:5353,[2001:db8::53]:53'), ['192.0.2.53', '192.0.2.54:5353', '[2001:db8::53]:53']);
+  for (const bad of ['ns1.example.com', '192.0.2.53:99999', '', '[nope]']) assert.throws(() => parseNameservers(bad), UsageError, bad);
 });
 
 test('--project takes a Pages project, not any address', () => {
