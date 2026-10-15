@@ -109,8 +109,7 @@ export function navigationSkip(request: Request): string | null {
   const purpose = [h.get('Sec-Purpose'), h.get('Purpose'), h.get('X-Purpose'), h.get('X-Moz')].join(' ');
   if (/prefetch|preview|prerender/i.test(purpose)) return 'prefetch';
   const dest = h.get('Sec-Fetch-Dest');
-  if (!dest) return 'no-sec-fetch';
-  if (dest !== 'document') return 'not-document';
+  if (dest !== 'document') return dest ? 'not-document' : 'no-sec-fetch';
   const mode = h.get('Sec-Fetch-Mode');
   if (mode && mode !== 'navigate') return 'not-navigate';
   if (!h.get('User-Agent')) return 'no-user-agent';
