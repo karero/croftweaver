@@ -30,7 +30,7 @@
 # script-src, script-src-elem, connect-src or default-src, and all four builds, the live one
 # included, must be off. A config.ts that never
 # names USE_ANALYTICS (a site made before the switch) counts as true; one that names it
-# anywhere but not in that one line fails.
+# but has no line in that form fails.
 # What it cannot check:
 #   - With analytics off, a link to the host that is not a script tag (a preconnect or
 #     dns-prefetch added by hand) is not looked for, and no CSP stops one. Base.astro writes
@@ -504,7 +504,7 @@ selftest() {
   policy p_nohostel "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-elem 'self'; connect-src 'self'"
   policy p_elemonly "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-elem 'self' $host; connect-src 'self'"
   policy p_path      "default-src 'self'; script-src 'self' 'unsafe-inline' $host/js/; connect-src 'self'"
-  policy p_lookalike "default-src 'self'; script-src 'self' 'unsafe-inline' $host.evil.invalid; connect-src 'self' https://x${host#https://}"
+  policy p_lookalike "default-src 'self'; script-src 'self' 'unsafe-inline' $host.evil.invalid; connect-src 'self' https://x${host#*://}"
   policy p_default   "default-src 'self' $host; script-src 'self' 'unsafe-inline'; connect-src 'self'"
   printf '/*\n  X-Frame-Options: DENY\n' >"$dir/p_nocsp.headers"
   for expect in p_unsafe:bad p_noconn:bad p_suffix:bad p_bare443:bad p_elem:bad p_nohost:ok p_nohostel:ok p_elemonly:bad p_nocsp:bad \
