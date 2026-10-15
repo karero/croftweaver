@@ -12,8 +12,11 @@ import { ANALYTICS } from '../src/config';
 // mark and all, and passes too. A proxied script's full address
 // (https://example.com/js/script.js) counts by its host.
 
-// The kit's own slot shape, as placeholders.spec.ts reads it: "[" and a capital letter.
-const SLOT = /^\[\s*\p{Lu}/u;
+// Skipped: the kit's own slot and nothing else. The whole text is one bracket that starts
+// with a capital and names ANALYTICS.scriptHost, as both shipped slots do, so whatever is
+// skipped here is also an "unfilled [SLOT]" to placeholders.spec.ts. Any other text in
+// the mark, brackets or not, is compared as a host.
+const SLOT = /^\[\s*\p{Lu}[^\]]*ANALYTICS\.scriptHost[^\]]*\]$/u;
 
 function hostOf(named: string): string | null {
   const text = named.trim();
@@ -26,11 +29,15 @@ function hostOf(named: string): string | null {
 }
 
 test('privacy host — a slot is skipped, a filled host or address is read by its host', () => {
-  expect(hostOf('[ANALYTICS HOST, for example plausible.io]')).toBeNull();
+  // The two shipped slots, as innerText reads them (line breaks become spaces).
+  expect(hostOf('[ANALYTICS HOST, the host name in ANALYTICS.scriptHost in src/config.ts, for example plausible.io]')).toBeNull();
+  expect(hostOf('[ANALYSE-HOST, der Hostname aus ANALYTICS.scriptHost in src/config.ts, zum Beispiel plausible.io]')).toBeNull();
   expect(hostOf(' plausible.io ')).toBe('plausible.io');
   expect(hostOf('https://example.com/js/script.js')).toBe('example.com');
-  // Brackets around a real host are not a slot: the host is still compared.
-  expect(hostOf('[plausible.io]')).not.toBeNull();
+  // A host left in brackets, or a broken slot, is not the kit's slot: it is compared.
+  for (const text of ['[plausible.io]', '[Plausible.io]', '[Wrong.example', '[P]', '[plausible.io, see ANALYTICS.scriptHost]']) {
+    expect(hostOf(text), text).not.toBeNull();
+  }
 });
 
 test('privacy host — the host marked data-analytics-host is ANALYTICS.scriptHost', async ({ page }) => {
@@ -40,7 +47,7 @@ test('privacy host — the host marked data-analytics-host is ANALYTICS.scriptHo
     await page.goto(path);
     for (const named of await page.locator('[data-analytics-host]').allInnerTexts()) {
       const host = hostOf(named);
-      if (host !== null && host !== expected) wrong.push(`${path} names ${named.trim()}`);
+      if (host !== null && host !== expected) wrong.push(`${path} names "${named.trim()}"`);
     }
   }
   expect(
