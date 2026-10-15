@@ -115,9 +115,10 @@ function main([t1, t2, mapFile, out]) {
     let v = s;
     for (const [real, madeUp] of names(trial)) v = v.split(real).join(madeUp).replace(new RegExp(real.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), madeUp);
     v = v.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, (u) => ids.get(u));
-    v = v.replace(/\b[0-9a-f]{64}\b/g, (h) => fake(h, (k) => `f00d${pad(k, 60)}`));
-    v = v.replace(/\b[0-9a-f]{40}\b/g, (h) => fake(h, (k) => `ba5e${pad(k, 36)}`));
-    v = v.replace(/\b[0-9a-f]{32}\b/g, (h) => fake(h, (k) => `c0ffee${pad(k, 26)}`));
+    // A run of hexadecimal digits is an id wherever it stands, beside an underscore or a letter too.
+    v = v.replace(/(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])/g, (h) => fake(h, (k) => `f00d${pad(k, 60)}`));
+    v = v.replace(/(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])/g, (h) => fake(h, (k) => `ba5e${pad(k, 36)}`));
+    v = v.replace(/(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])/g, (h) => fake(h, (k) => `c0ffee${pad(k, 26)}`));
     v = v.replace(/\b[0-9a-f]{8}\b/g, (h) => shortIds.get(h) ?? h);
     v = v.replace(/pages-worker--\d+/g, 'pages-worker--1000001');
     return v;
@@ -161,6 +162,10 @@ function main([t1, t2, mapFile, out]) {
     // Nothing real may be left: no name from the map, no id that was not replaced.
     for (const [real] of names(r.trial)) if (text.toLowerCase().includes(real.toLowerCase())) throw new Error(`${r.capture}: "${real}" is still there`);
     for (const real of ids.keys()) if (text.includes(real)) throw new Error(`${r.capture}: an id is still there`);
+    // And no id the replacement did not know: a hex run of 32 or more that is not a made-up one.
+    for (const m of text.matchAll(/(?<![0-9a-f])[0-9a-f]{32,}(?![0-9a-f])/gi)) {
+      if (!/^(?:c0ffee|ba5e|f00d)0+\d+$/.test(m[0])) throw new Error(`${r.capture}: an id the cleaner did not replace`);
+    }
     const file = `${r.capture}-${r.label.replace(/^wc-/, '').replace(/croftweaver/g, 'live-project')}.json`;
     if (real(file, r.trial)) throw new Error(`${file}: a real name in the file name`);
     writeFileSync(path.join(out, file), text);

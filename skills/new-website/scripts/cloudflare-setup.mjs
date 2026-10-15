@@ -865,7 +865,14 @@ async function setupStage(opts, io) {
 
 // What the script reads from a project answer: its address, its source and its settings (T1-027,
 // T1-054 and the PATCH answers T1-048, T1-049, T1-051 to T1-053 and T1-061 all carry them).
-const wholeProject = (p) => Boolean(p?.subdomain && p.source?.config && p.deployment_configs && p.build_config);
+// Checked field by field, since an empty object would pass a check for the object alone.
+const wholeProject = (p) => typeof p?.subdomain === 'string' && p.subdomain.length > 0
+  && typeof p.source?.config?.owner === 'string' && typeof p.source.config.repo_name === 'string'
+  && typeof p.source.config.preview_deployment_setting === 'string'
+  && typeof p.production_branch === 'string'
+  && typeof p.deployment_configs?.production === 'object' && p.deployment_configs.production !== null
+  && typeof p.deployment_configs.preview === 'object' && p.deployment_configs.preview !== null
+  && typeof p.build_config === 'object' && p.build_config !== null;
 
 function varNames(p) {
   const dc = p?.deployment_configs ?? {};

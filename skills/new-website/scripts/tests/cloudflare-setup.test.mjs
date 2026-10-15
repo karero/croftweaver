@@ -280,6 +280,7 @@ test('the fixture check catches what earlier versions let through, wherever it i
     ['a 64-hex hash', (f) => { f.response.result[1].deployment_configs.production.wrangler_config_hash = 'c0ba9c31764c1405b2d3396e77b5cd0c3402e8a19529b926be73cd0b5aab5f3d'; }, 'T1-019'],
     ['a host label under a made-up domain', (f) => { f.response.result.name = 'elodie.lenas-backstube.example'; }, 'T1-143'],
     ['a random-looking id', (f) => { f.response.result.id = '5f3a9c1e2b4d6f8091a2b3c4d5e6f708'; }, 'T1-018'],
+    ['an id beside an underscore', (f) => { f.response.result.name = 'prefix_5f3a9c1e2b4d6f8091a2b3c4d5e6f708'; }, 'T1-018'],
     ['an IP address', (f) => { f.response.result.content = '203.0.113.7'; }, 'T1-143'],
     ['an email address', (f) => { f.response.result.comment = 'lena@example.com'; }, 'T1-143'],
     ['an account name', (f) => { f.response.result[0].account.name = "Bakery Mueller's Account"; }, 'T1-002'],
@@ -527,7 +528,7 @@ test('9b: a PATCH after which a variable is missing ends the run with 1 and name
 });
 
 test('a PATCH answer without the whole project stops the run before anything else is written', () =>
-  scenario(freshState({ projects: [project({ failOpen: false })], thinPatchAnswer: true }), async ({ api, go, state }) => {
+  scenario(freshState({ projects: [project({ failOpen: false })], thinPatchAnswer: 'config' }), async ({ api, go, state }) => {
     state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
     const r = await go(['--confirm', codeOf(await go())]);
     assert.equal(r.code, 1, r.out);
