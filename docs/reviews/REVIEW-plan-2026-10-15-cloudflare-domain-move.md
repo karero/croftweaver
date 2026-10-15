@@ -1,11 +1,12 @@
 # PLAN review — karero/croftweaver#329 — moving an existing domain to Cloudflare, led by the assistant
-Base `8f7c98b` · depth: High (mail and the whole domain are at stake; the maintainer chose High in the brief) · verdict: OPEN (round 1 done, round 2 owed) · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and created the worktree and the branch)
+Base `8f7c98b` · depth: High (mail and the whole domain are at stake; the maintainer chose High in the brief) · verdict: OPEN (rounds 1 and 2 done, round 3 owed) · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and created the worktree and the branch)
 
 Artifact: `docs/reviews/SKILL-PLAN-cloudflare-domain-move.md`, whole. Raw reviewer output is in the pull request's review comment. Destinations: Codex and melious.ai, on the maintainer's brief for this gate (2026-10-15): "`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3 OLLAMA_MODEL=glm-5.3:cloud CODEX_EFFORT=config`, plus a fresh-eyes sub-agent on the host's own model in rounds 1 to 3". The clean check passed before round 1; the repository is public.
 
 | Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `82bb45b` | full | Codex CLI 0.162.1, gpt-6.1-sol, high (config), read-only · Melious HTTP API, glm-5.3, text only · fresh-eyes sub-agent, claude-opus-5-5, read-only | Codex 371 s, 90,887 · Melious 508 s, 23,885 · fresh-eyes 314 s, 148,165 | 3 / 10 / 10 after merging duplicates (Codex 2/3/0, Melious 0/3/3, fresh-eyes 2/5/8). Unverifiable entries: 13 asked (Codex 7 groups, Melious 3, fresh-eyes 3); none led to a change beyond the findings |
+| 2 | `a45204f` | full, as a verification round (prior findings A1 to A23, the maintainer's correction named) | the same three seats, same versions and effort | Codex 383 s, 169,823 · Melious 826 s, 42,313 · fresh-eyes 267 s, 157,499 | 1 / 3 / 11 after merging duplicates (Codex 0/2/0, Melious 0/0/6, fresh-eyes 1/3/7). A1 to A3, A5 to A12, A14 to A20, A22, A23 confirmed; A4, A13, A21 in part (B2, B3, B13) |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -32,6 +33,21 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-domain-move.md`, whole. Raw review
 | A21 | NIT | fresh-eyes | 1 | An apex ALIAS or ANAME at the old provider would be copied as fixed addresses | fixed, locally_verified | scenario 30 |
 | A22 | NIT | Melious | 1 | Scenario 9 does not say the wildcard stays DNS only | fixed, locally_verified | scenario 9 |
 | A23 | NIT | Melious | 1 | The setup script's stop lives in an open pull request, while the header names only `main` | fixed, locally_verified | header names karero/croftweaver#328's branch at `fce71bd` |
+| B1 | BUG | fresh-eyes | 2 | Hooks count #328's `CLOUDFLARE_FIRST_DEPLOY.md` line 37 as an attach pointer; it sends a domain not on Cloudflare to the move | fixed, locally_verified | line 37 at `fce71bd` read: "The domain is on Cloudflare already ('Going live' below if it is not)"; "Hooks" points it to the new guide |
+| B2 | RISK | fresh-eyes, Codex | 2 | A4 in part: scenario 20 still promises a way back in minutes from the old TTLs; the rollback box moves with that wording | fixed, locally_verified | scenario 20 gives M8's reason and promises no quick switch back; "Hooks": the box's wording rewritten to M8 |
+| B3 | RISK | fresh-eyes | 2 | A13 in part: M10 allows a file, while "Under (b)" reads the environment only | fixed, locally_verified | M10 names `.dev.vars`; "Under (b)" reads it when the variable is unset and refuses it if git tracks it or does not ignore it, as `cloudflare-setup.mjs` at `fce71bd` does |
+| B4 | RISK | fresh-eyes, Codex | 2 | Turning DNSSEC on right after the mail test ends M8's way back early, and old delegations may still be cached | fixed, locally_verified | M9: only once the old setup is retired; scenario 25; "Not verified" 10 adds a validating resolver after the switch |
+| B5 | NIT | fresh-eyes | 2 | Hooks keep "the way back" in "Going live" while moving its parts; the kept heading still says "moving" | fixed, locally_verified | "Hooks": which box moves, the heading renamed for the attach step |
+| B6 | NIT | fresh-eyes | 2 | Scenario 16a: the move uses Zone Read too | fixed, locally_verified | scenario 16a |
+| B7 | NIT | fresh-eyes | 2 | Scenario 24: under (b) the assistant also changes records | fixed, locally_verified | scenario 24 |
+| B8 | NIT | fresh-eyes, Melious | 2 | Shape step 1 no longer says where the old nameservers' names come from | fixed, locally_verified | Shape step 1: an NS lookup through the computer's own resolver |
+| B9 | NIT | fresh-eyes | 2 | Status row 2 names one correction of three | fixed, locally_verified | status row 2 |
+| B10 | NIT | fresh-eyes, Melious | 2 | Scenarios run 28, 30, 31, 29 | fixed, locally_verified | 29 moved before 30 |
+| B11 | NIT | fresh-eyes | 2 | "Nothing in this plan has been tried", while a local Node run backs Shape step 1 | fixed, locally_verified | opening: "Nothing of Cloudflare's side" |
+| B12 | NIT | Melious | 2 | Shape step 5 drops the API read that M6 and scenario 18 keep; decision 4's note reads as dropping it | fixed, locally_verified | Shape step 5; decision 4's note: the read stays beside the owner's check |
+| B13 | NIT | Melious | 2 | A21 in part: an ALIAS looks like a plain A record from outside, so nothing prompts the question | fixed, locally_verified | scenario 30: without an export, the assistant asks |
+| B14 | NIT | Melious | 2 | Scenario 5's "settled by: trial" cannot show that a proxied `autodiscover` breaks Outlook | fixed, locally_verified | scenario 5: guide review |
+| B15 | NIT | Melious | 2 | "Not verified" 7 needs a second pending zone the trial does not have | fixed, locally_verified | "Not verified" 7: the trial zone removed and added again |
 
 Waivers and deferrals: none.
 
