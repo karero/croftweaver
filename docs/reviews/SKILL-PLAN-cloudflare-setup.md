@@ -1,7 +1,8 @@
 # Plan: Cloudflare setup by one token, for a site connected to GitHub
 
-Requirements record for a script that does not exist yet,
-`skills/new-website/scripts/cloudflare-setup.mjs`. Where this plan and the shipped files
+Requirements record for `skills/new-website/scripts/cloudflare-setup.mjs`, whose `setup`
+stage shipped with karero/croftweaver#328 (2026-10-15) and whose `launch` stage is not built
+yet. Where this plan and the shipped files
 disagree, the files win until plan step 6 changes them. Names of sites and people stay out
 of this public repo on purpose; the business in the scenarios is made up.
 
@@ -17,18 +18,18 @@ verified".
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are what the script does, numbered under "Shape".
 
-## Status, 2026-10-15 · the kit's files read at origin/main `062dd8f`
+## Status, 2026-10-15 · the kit's files read at origin/main `c4ce79e`
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ✅ rewritten from the trial on 2026-10-14; PLAN gate (High) clean the same day, after six rounds, a final full read and a wording pass. The second trial's results: PLAN gate (High) under way | this file; trails: `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`, `docs/reviews/REVIEW-plan-2026-10-14-pr320.md`. First version and its gate: karero/croftweaver#265 (`b5bf49e`), `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
+| 1 | Requirements and scenarios (this file) | ✅ rewritten from the trial on 2026-10-14; PLAN gate (High) clean the same day, after six rounds, a final full read and a wording pass. The second trial's results: PLAN gate (High) clean on 2026-10-14 | this file; trails: `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`, `docs/reviews/REVIEW-plan-2026-10-14-pr320.md`. First version and its gate: karero/croftweaver#265 (`b5bf49e`), `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist and its check script reach `main` | ✅ merged 2026-10-12 | karero/croftweaver#266 (`7642954`); karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions | ✅ D1 to D7 on 2026-10-12, D1 final on 2026-10-13, decision 8 on 2026-10-14 | sections "Decisions taken" and "Decisions D1 to D7" |
 | 4 | Trial run on a throwaway repository and project | ✅ 2026-10-13, apart from two points: "Not verified" 1 is still open, 2 was settled in part by plan step 9 | 159 captures, kept outside every repository; the private throwaway repository |
 | 5 | The checklist names the three more AI switches of decision 8 | ✅ merged 2026-10-14 (another session's work) | karero/croftweaver#285 (`321d26f`) |
-| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ▶ first pull request (the `setup` stage, its tests, the cleaned captures as fixtures) open: High DIFF gate, four rounds and a final full read, then a wording pass; the second (`launch`) not started | first: karero/croftweaver#328 (open; SHA once merged), trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-setup-stage-pr328.md` |
-| 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ▶ the setup stage's part travels in plan step 6's first pull request; the launch stage's part (section 6's sentence on whole lists, "After go-live", the check script's new options, U2, and the sweep of every `<name>.pages.dev` built from a project's name) comes with the second | as row 6 |
-| 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ▶ the `setup` stage's: the High DIFF gate of row 6's first pull request (four rounds, a final full read, a wording pass); the `launch` stage's comes with the second | as row 6 |
+| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ▶ first pull request (the `setup` stage, its tests, the cleaned captures as fixtures) merged 2026-10-15; the second (`launch`) not started | first: karero/croftweaver#328 (`c4ce79e`), trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-setup-stage-pr328.md` |
+| 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ▶ the setup stage's part merged with plan step 6's first pull request; the launch stage's part (section 6's sentence on whole lists, "After go-live", the check script's new options, U2, and the sweep of every `<name>.pages.dev` built from a project's name) comes with the second | as row 6 |
+| 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ▶ the `setup` stage's: clean, the High DIFF gate of row 6's first pull request (four rounds, a final full read, a wording pass and five re-gates, 88 findings; two RISKs waived until plan step 10); the `launch` stage's comes with the second | as row 6 |
 | 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ✅ done 2026-10-14; the first domain named turned out to be in use, so most steps ran on a second, empty one. Results under "Seen in the second trial": Bot Preference Sync is `bot_preference_sync_enabled`; which switch `is_robots_txt_managed` is stays unknown, and setting it to `true` is refused. Cleaned up on the maintainer's word on the spare zone; the two header rules written on the first zone are the maintainer's to remove by hand | 78 captures (T2-001 to T2-078), kept outside every repository; the checklist's field fix: karero/croftweaver#319 (merged 2026-10-14, `8cbb637`) |
 | 10 | One real site set up with it, start to finish, with the owner watching | ⏸ not started | — |
 | 11 | Release note line | ⏸ not started | — |
@@ -805,4 +806,4 @@ The first version's gate: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md`. This v
 Cloudflare account with a token and can make a site public. That trail says, for each of
 the first gate's open findings H1 to H26, how this version deals with it. The second
 trial's results have their own gate: `docs/reviews/REVIEW-plan-2026-10-14-pr320.md`, also
-at High depth, under way on 2026-10-14.
+at High depth, clean on 2026-10-14.
