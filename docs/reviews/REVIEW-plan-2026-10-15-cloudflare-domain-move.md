@@ -86,7 +86,7 @@ Notes:
 
 ## Gate 2 — the three stages (decisions 1 and 7), the trial domain, hooks re-pinned after #328
 
-Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: OPEN (rounds 1 and 2 done, round 3 owed) · authority used: as gate 1
+Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: OPEN (rounds 1 to 3 done, round 3 without a BUG; final full read and wording pass next) · authority used: as gate 1
 
 The maintainer reversed the order after gate 1 closed (preview first, the move just before launch) and said yes to three stages. A change to a decision, so a gate of its own, on the whole plan with the change named.
 
@@ -94,6 +94,7 @@ The maintainer reversed the order after gate 1 closed (preview first, the move j
 |---|---|---|---|---|---|
 | 1 | `39ff019` | full, changed sections named (`--verify`, with gate 1's refuted C5 and C13) | the same three seats as gate 1 | Codex 321 s, 130,990 · Melious 485 s, 33,195 · fresh-eyes 223 s, 154,832 | 4 / 2 / 4 after merging duplicates (Codex 4/1/0, Melious 0/1/3, fresh-eyes 2/1/3), and outside scope 2 RISK, 2 NIT. C5 and C13 refutations held |
 | 2 | `08d1cc8` | full, as a verification round (G1 to G10) | the same three seats | Codex 300 s, 95,867 · Melious 759 s, 42,373 · fresh-eyes 253 s, 156,838 | 2 / 4 / 7 after merging duplicates (Codex 1/1/0, Melious 0/1/4, fresh-eyes 1/4/4), and outside scope 1 BUG, 2 NIT. G1 to G5, G7, G10 confirmed; G6, G8, G9 in part (H4, H7, H2) |
+| 3 | `140900d` | full, as a verification round (H1 to H15) | Codex; Melious (its first run broke off after 1,376 s, curl exit 28, with ollama's stand-in failing on a DNS error; run again alone, and a second try was cut off by a session restart); fresh-eyes | Codex 209 s, 98,485 · Melious 424 s, 41,077 (the run that counted) · fresh-eyes 282 s, 163,890 | 0 / 3 / 6 after merging duplicates (Codex 0/0/0, Melious 0/1/2, fresh-eyes 0/2/4), and outside scope 1 NIT. H1 to H15 confirmed; H3 in part (K3) |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -121,5 +122,15 @@ The maintainer reversed the order after gate 1 closed (preview first, the move j
 | H12 | NIT | Melious | 2 | Section 6's change is tracked nowhere | fixed, locally_verified | row 5a |
 | H13 | NIT | Melious | 2 | Two names for the script change's owner | fixed, locally_verified | "the setup plan" throughout |
 | H14 | BUG | fresh-eyes (outside scope) | 2 | Status row 4 says #331 is open; it merged | fixed, locally_verified | row 4; header re-pinned to `4c890f6` |
+| K1 | RISK | fresh-eyes | 3 | Scenario 26a: without the old zone, resolvers holding the old delegation get no answer for the parent's TTL, which breaks M2, not only the way back | fixed, locally_verified (not externally re-verified) | scenario 26a; "Not verified" 14 |
+| K2 | RISK | fresh-eyes | 3 | `CLOUDFLARE_FIRST_DEPLOY.md` lines 12 and 85 and the script's line 863 send a finished preview run to launch day, skipping launch prep | fixed, locally_verified (not externally re-verified) | "Hooks"; row 5a |
+| K3 | RISK | Melious (fresh-eyes as NIT) | 3 | H3 in part: the preview's lines of `CLOUDFLARE_FIRST_DEPLOY.md` are given to row 5a, whose scope does not name them | fixed, locally_verified (not externally re-verified) | row 5a and the opening name them |
+| K4 | NIT | fresh-eyes | 3 | "Not verified" 5 is about a pending zone, not one not yet added | fixed, locally_verified (not externally re-verified) | "Hooks" cites the reference table's last row |
+| K5 | NIT | fresh-eyes | 3 | Lines 28 to 33 are section S's opening, not its list; one quote spans two lines | fixed, locally_verified (not externally re-verified) | "Hooks": line 28's and line 43's own words, read at `4c890f6` |
+| K6 | NIT | fresh-eyes | 3 | Scenario 26a: a missing export is scenario 4, not 11; item 14 cited twice | fixed, locally_verified (not externally re-verified) | scenario 26a |
+| K7 | NIT | fresh-eyes | 3 | Long prose lines | fixed, locally_verified (not externally re-verified) | rewrapped; a word diff shows no text lost |
+| K8 | NIT | Melious | 3 | Scenario 14 states the week flat where the timings are hedged | fixed, locally_verified (not externally re-verified) | scenario 14: "commonly", the second token for the rest |
+| K9 | NIT | Melious | 3 | "Not verified" 15's trial reads an old website the trial domain does not have | fixed, locally_verified (not externally re-verified) | row 3 and item 15: an old-website record at the apex |
+| K10 | NIT | Melious (outside scope) | 3 | The opening's rule on names sits beside a real domain | fixed, locally_verified (not externally re-verified) | opening: the one real domain is the project's own former name |
 
 Follow-ups (outside scope): G11 (RISK, Codex) scenario 26a: an old site that relies on Cloudflare's proxy in the other account would lose it if copied as DNS only; the trial's item 14 can look at one. G12 (RISK, Codex) re-raise of W1. G13 (NIT, Melious) a three-day token could expire in the DNSSEC wait: fixed anyway, scenario 14 now a week. G14 (NIT, fresh-eyes) "#328's lines" after a header naming `main`'s: fixed anyway. H15 (NIT, Melious, round 2) Shape step 1's Node claims lacked a citation: fixed anyway, measured on 2026-10-15 (A1, A7).
