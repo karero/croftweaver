@@ -122,11 +122,14 @@ jobs:
       # afterwards, so the suite below runs on the default.
       - name: Analytics switched off (src/config.ts and public/_headers changed for this step only)
         run: |
-          host="$(sed -nE "s/^[[:space:]]*scriptHost:[[:space:]]*'([^']*)'.*/\1/p" src/config.ts)"
-          [ -n "$host" ] || { echo "no scriptHost line in src/config.ts"; exit 1; }
+          # The host as the gate reads it: either quote, no trailing slash.
+          host="$(sed -nE "s/^[[:space:]]*scriptHost:[[:space:]]*['\"]([^'\"]*)['\"].*/\1/p" src/config.ts)"
+          host="${host%/}"
+          [ -n "$host" ] || { echo "no scriptHost: '<host>' line in src/config.ts that the gate can read"; exit 1; }
           sed -i "s/^export const USE_ANALYTICS = true;/export const USE_ANALYTICS = false;/" src/config.ts
           grep -q "^export const USE_ANALYTICS = false;" src/config.ts
-          sed -i "s| $host||g" public/_headers
+          # Only the whole token, matched literally: a lookalike host stays.
+          host="$host" perl -pi -e 's/ \Q$ENV{host}\E\/?(?=[;\s])//g' public/_headers
           if grep -qF "$host" public/_headers; then echo "$host is still in public/_headers"; exit 1; fi
           npm run check
           bash tests/check_analytics_gate.sh
