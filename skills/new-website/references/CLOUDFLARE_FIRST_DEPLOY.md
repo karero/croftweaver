@@ -120,9 +120,9 @@ leave those two out; setup's `--skip` ids are taken too. A domain already attach
 active, by hand say, gets no launch check and no attach: only the forwarding and the rule.
 
 A launch run with nothing left to do ends with the whole check. Its status is 1 when a
-request got no answer, an item could not be judged, or an item fails that the run was not
-told to leave out with its `--skip` (Web Analytics is the owner's alone and never counts);
-the report says which, and what is left by hand.
+request got no answer, an item could not be judged, or an item fails, unless the run was
+given that item's `--skip` (`canonical`, `https`, `nel-rule`, `bot`, `email`; a Web Analytics
+failure never counts). The report says which, and what is left by hand.
 
 **By hand, always:** what `CLOUDFLARE_CHECK.md` lists under "By hand, always" (Crawler
 Hints, the Web Analytics switch, the script monitor's switch, HSTS a few days after launch,
