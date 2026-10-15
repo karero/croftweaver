@@ -13,10 +13,10 @@
 # HTML. The toolkit's own CI runs it (template-tests.yml); a site's CI does not.
 #
 # What it checks, in order:
-#   1. Its own counter and its own CSP reader, on hand-made pages and policies (a tag
-#      mentioned in a paragraph is not a tag; a hash that is not the stub's is not the stub's
-#      hash), and the check that runs an init stub (a stub in a comment or a string does not
-#      start it).
+#   1. Its own counter, its email-link reader and its CSP reader, on hand-made pages and
+#      policies (a tag mentioned in a paragraph is not a tag; a hash that is not the stub's
+#      is not the stub's hash), and the check that runs an init stub (a stub in a comment or
+#      a string does not start it).
 #   2. That public/_headers lists the script's host as a whole token in script-src and
 #      connect-src (and in script-src-elem when that is written out). `astro preview` does
 #      not apply _headers, so no other test sees a script the browser would block.
@@ -24,7 +24,11 @@
 #      every page, every stub running (a spy on plausible.init is called), and a CSP that
 #      lets THE INIT STUB run: 'unsafe-inline' alone in the directive, or the stub's own
 #      sha256 hash. Off for the other three, with no tag, no half of one and no mention of
-#      the script's path or id.
+#      the script's path or id. No build links to /go/email: the browser counts the tap.
+#   4. In server mode (ANALYTICS.mode = 'server' in src/config.ts), steps 2 and 3 are
+#      replaced: the same four builds, all with no analytics tag (no page loads the script,
+#      so _headers needs no analytics host); on the live build every email link goes to
+#      /go/email, the Function that counts the tap, and on the other three none does.
 # What it cannot check:
 #   - It compares the build with src/config.ts, so a wrong scriptId typed INTO config.ts
 #     passes. Only the installer's "Verify" step catches that.
@@ -67,6 +71,14 @@ if [ -z "$host" ] || [ -z "$id" ]; then
 fi
 host="${host%/}"
 ANALYTICS_SRC="${host}/js/${id}.js"
+# The mode: 'script' (the default, and what a config.ts from before the key existed means)
+# or 'server', where the Pages Function counts and no page carries a tag.
+mode="$(sed -nE "s/^[[:space:]]*mode:[[:space:]]*['\"]([a-z]+)['\"].*/\1/p" src/config.ts)"
+mode="${mode:-script}"
+if [ "$mode" != script ] && [ "$mode" != server ]; then
+  echo "✗ analytics gate: mode in src/config.ts is '$mode'; expected 'script' or 'server'."
+  exit 1
+fi
 export ANALYTICS_SRC
 # A branch Cloudflare builds as a preview: main on a two-stage site.
 preview=main
@@ -518,6 +530,83 @@ expect_off() {
   fi
 }
 
+# Email links (<a> tags whose class has email-link, as EmailLink.astro writes them) and links
+# to /go/email, per page: prints "<email links> <go links> <path>". HTML comments are dropped
+# first, so a commented-out link does not count.
+go_program() {
+  cat <<'PERL'
+local $/;
+for my $file (@ARGV) {
+  open(my $fh, '<', $file) or die "cannot read $file\n";
+  my $html = <$fh>;
+  close $fh;
+  $html =~ s/<!--.*?-->//gs;
+  my ($email, $go) = (0, 0);
+  while ($html =~ /<a\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi) {
+    my $attrs = $1;
+    $email++ if $attrs =~ /\bclass\s*=\s*("[^"]*"|'[^']*')/i && $1 =~ /(?:^|[\s"'])email-link(?:[\s"']|$)/;
+    $go++ if $attrs =~ /\bhref\s*=\s*["']\/go\/email\?/i;
+  }
+  print "$email $go $file\n";
+}
+PERL
+}
+go_links() {
+  local dir="$1" out pages lines
+  out="$(find "$dir" -name '*.html' -exec perl -e "$(go_program)" {} +)" || return 1
+  pages="$(find "$dir" -name '*.html' | wc -l | tr -d ' ')"
+  lines="$(printf '%s\n' "$out" | grep -c . || true)"
+  [ "$pages" -gt 0 ] && [ "$pages" = "$lines" ] || return 1
+  printf '%s\n' "$out"
+}
+
+# The go-link reader on hand-made pages, each with the counts beside it.
+go_selftest() {
+  local dir="$work/go-fixtures" expect name want got k=0
+  mkdir -p "$dir"
+  gofix() { printf '<!doctype html><html><body>%s</body></html>' "$2" >"$dir/$1.html"; }
+  gofix plain    '<a class="email-link" href="#" data-email="x">a</a>'
+  gofix go       '<a class="email-link" href="/go/email?e=x" rel="nofollow" data-via="server">a</a>'
+  gofix extra    '<a class="footer email-link big" href="/go/email?e=x">a</a><a href="/about">b</a>'
+  gofix lookalike '<a class="email-links" href="#">a</a><a class="not-email-link" href="#">b</a>'
+  gofix handmade '<a href="/go/email?e=x">a</a>'
+  gofix comment  '<!-- <a class="email-link" href="/go/email?e=x">a</a> -->'
+  gofix quoted   '<a title="a > b" class="email-link" href="/go/email?e=x">a</a>'
+  for expect in plain:'1 0' go:'1 1' extra:'1 1' lookalike:'0 0' handmade:'0 1' comment:'0 0' quoted:'1 1'; do
+    name="${expect%%:*}"; want="${expect#*:}"; k=$((k + 1))
+    got="$(perl -e "$(go_program)" "$dir/$name.html" | awk '{print $1, $2}')"
+    if [ "$got" != "$want" ]; then
+      echo "✗ analytics gate: the email-link reader reads fixture '$name' as '$got', expected '$want'."
+      fail=1
+    fi
+  done
+  if [ "$fail" -ne 0 ]; then exit 1; fi
+  echo "✓ analytics gate: the email-link reader reads its $k fixture pages as expected"
+}
+
+# expect_go <case> <what> <all|none>: all = every email link on every page goes to
+# /go/email (the live build in server mode, else taps go uncounted); none = no link goes
+# there (every other build: no Function answers /go/email under astro preview or dev, and
+# in script mode the browser counts the tap instead).
+expect_go() {
+  local name="$1" what="$2" want="$3" counts bad
+  counts="$(go_links "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
+  if [ "$want" = all ]; then
+    bad="$(printf '%s\n' "$counts" | awk '$1 != $2 { path = $0; sub(/^[^ ]* [^ ]* /, "", path); print path }')"
+  else
+    bad="$(printf '%s\n' "$counts" | awk '$2 > 0 { path = $0; sub(/^[^ ]* [^ ]* /, "", path); print path }')"
+  fi
+  if [ -z "$bad" ]; then
+    if [ "$want" = all ]; then echo "✓ $what: every email link goes to /go/email"
+    else echo "✓ $what: no link goes to /go/email"; fi
+  else
+    if [ "$want" = all ]; then echo "✗ $what: email links that do not go to /go/email, so their taps would not be counted, on these pages:"
+    else echo "✗ $what: links to /go/email, where this build needs plain mailto: links (the Function is not asked here), on these pages:"; fi
+    while IFS= read -r page; do printf '    %s\n' "${page#"$work/$name/"}"; done <<< "$bad"
+    fail=1
+  fi
+}
+
 # Report what a problem list holds, as one ✗ line each.
 report_problems() {
   local problems="$1" ok_msg="$2" line
@@ -530,10 +619,32 @@ report_problems() {
 }
 
 selftest
+go_selftest
+
+if [ "$mode" = server ]; then
+  echo "· analytics gate: server mode, so no page loads the script and public/_headers needs no analytics host"
+  build live set "$prod"
+  expect_off live "CF_PAGES_BRANCH=$prod (the live build, server mode)"
+  expect_go live "CF_PAGES_BRANCH=$prod (the live build, server mode)" all
+  for c in "unset:unset::CF_PAGES_BRANCH unset (a plain npm run build)" \
+           "empty:set::CF_PAGES_BRANCH= (a preview by command)" \
+           "preview:set:$preview:CF_PAGES_BRANCH=$preview (a preview branch)"; do
+    IFS=: read -r name how value what <<<"$c"
+    build "$name" "$how" "$value"
+    expect_off "$name" "$what"
+    expect_go "$name" "$what" none
+  done
+  if [ "$fail" -eq 0 ]; then
+    echo "✓ analytics gate: $checked builds in server mode, no script in any; email links counted on the live build only"
+  fi
+  exit "$fail"
+fi
+
 report_problems "$(csp_host_problems public/_headers)" "public/_headers lists $host as a token in script-src and connect-src"
 
 build live set "$prod"
 expect_on live "CF_PAGES_BRANCH=$prod (the live build)"
+expect_go live "CF_PAGES_BRANCH=$prod (the live build)" none
 # The CSP is judged against every distinct stub the live build wrote (the pages normally share one).
 kept=()
 for stubfile in "$work"/stubs/*.js; do
@@ -549,12 +660,15 @@ done
 
 build unset unset
 expect_off unset "CF_PAGES_BRANCH unset (a plain npm run build)"
+expect_go unset "CF_PAGES_BRANCH unset (a plain npm run build)" none
 
 build empty set ""
 expect_off empty "CF_PAGES_BRANCH= (a preview by command)"
+expect_go empty "CF_PAGES_BRANCH= (a preview by command)" none
 
 build preview set "$preview"
 expect_off preview "CF_PAGES_BRANCH=$preview (a preview branch)"
+expect_go preview "CF_PAGES_BRANCH=$preview (a preview branch)" none
 
 if [ "$fail" -eq 0 ]; then
   echo "✓ analytics gate: $checked builds, on only when CF_PAGES_BRANCH is '$prod'"
