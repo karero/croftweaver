@@ -22,6 +22,13 @@
 //      lib/plausible/ingestion/event.ex, salts.ex, and the RotateSalts cron in
 //      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
 //      the same; with another analytics tool delete it together with the paragraph.
+//      The sentence on how to refuse the measurement names the host from
+//      ANALYTICS.scriptHost in src/config.ts; Switzerland's Telecommunications
+//      Act (Art. 45c FMG) asks that visitors are told about the processing and
+//      that they may refuse it. The "Do Not Track" paragraph near the top of
+//      section 3 stays even without analytics: California's CalOPPA asks the
+//      policy to say how the site answers that signal and whether third parties
+//      collect personal information across websites through it.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
@@ -57,8 +64,9 @@
 //      ANY third-party embed (YouTube iframe, remote Google Fonts), another
 //      analytics tool, or wider measurement (optional measurements such as outbound
 //      links, file downloads or form submissions; custom properties) needs this
-//      position AND the text re-checked BEFORE you ship such an addition.
-//      Base.astro also reads a 'theme' key from local storage, and nothing in the
+//      position AND the text re-checked BEFORE you ship such an addition; a
+//      third-party embed or tracker also makes the "Do Not Track" paragraph
+//      untrue. Base.astro also reads a 'theme' key from local storage, and nothing in the
 //      template writes it. If you add a toggle that stores the choice, say so in
 //      section 3.
 //   5. A solid baseline, not legal advice. When in doubt, have it reviewed.
@@ -67,7 +75,8 @@
 // contractions, and every email address behind <EmailLink>.
 import Base from '../layouts/Base.astro';
 import EmailLink from '../components/EmailLink.astro';
-import { SITE } from '../config';
+import { SITE, ANALYTICS } from '../config';
+const analyticsHost = new URL(ANALYTICS.scriptHost).hostname;
 ---
 <Base
   title="Privacy Policy"
@@ -106,6 +115,14 @@ import { SITE } from '../config';
     <p>
       This website is ad-free and <strong>sets no cookies</strong>. Your visit
       leaves no advertising or cross-site tracking identifiers with us.
+    </p>
+    <p>
+      Your browser may send a "Do Not Track" or "Global Privacy Control"
+      signal. This site handles every visit the same way, with or without it:
+      it does not follow you across other websites, and no third party
+      collects personal information about you over time and across websites
+      through this site. The service providers named on this page process
+      data for us, as described here.
     </p>
     <p>
       To understand how the site is used, we run <strong>Plausible
@@ -153,8 +170,9 @@ import { SITE } from '../config';
       The legal basis is our legitimate interest in understanding how the
       website is used and in improving it (Art. 6(1)(f) GDPR).
       [STATE THE STORAGE PERIOD, for example: We keep these records for 24
-      months and then delete them.] You can prevent the measurement by blocking
-      the analytics script in your browser.
+      months and then delete them.] You can refuse the measurement: block
+      scripts from {analyticsHost} in your browser settings or with a content
+      blocker. The site works the same without it.
     </p>
 
     <h2>4. Contact by email</h2>

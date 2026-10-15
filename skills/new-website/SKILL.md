@@ -152,9 +152,8 @@ non-expert can answer, and record the answers in the project `README.md`.
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
      script, no consent banner) is enough for search & referral traffic.
    - "Which sources bring enquiries?" or other real decisions from traffic data
-     (campaigns, content strategy) → **Plausible** (cookieless; running it without
-     a consent banner is a position to have reviewed, see the header of `privacy.astro`
-     and, for a German-only site, `_datenschutz.astro`). In its installer, untick the
+     (campaigns, content strategy) → **Plausible** (cookieless; whether it needs a
+     consent banner: the last point of this question). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
      unless you keep the privacy page's slot sentence for each one you leave ticked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
@@ -180,6 +179,26 @@ non-expert can answer, and record the answers in the project `README.md`.
      answer via the GDPR instead (unconsented IP disclosure — LG München I,
      3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only. The
      privacy page must match whatever is chosen here.
+   - **When the site needs no consent banner.** Tell the owner plainly: a site built
+     with this kit needs no consent banner in the EU, Germany, Switzerland or California
+     as long as it runs no analytics script: nothing reaches the visitor's browser that
+     the page itself does not need. Plausible runs as a small script in the visitor's
+     browser. With it, running without a banner is a defensible position in the EU and
+     Germany, not a settled one (the headers of `privacy.astro` and `_datenschutz.astro`
+     give the reasons); to be sure, ask a lawyer. In Switzerland and California it holds
+     as long as the privacy page informs visitors. Switzerland (Art. 45c FMG) asks that
+     visitors are told about the processing and that they may refuse it; California's
+     CalOPPA asks the page to say how the site answers "Do Not Track" and whether third
+     parties collect personal information across websites through it. Section 3 of
+     `privacy.astro` says both; `_datenschutz.astro` says the Swiss part. California's
+     CCPA applies only above its thresholds (USD 26,625,000 annual gross revenue since
+     2025, or personal information of 100,000 or more California consumers or
+     households, or half the revenue from selling or sharing it). No banner is not the whole of lawful: the site still needs its privacy page, an
+     imprint in Germany and Austria, and a processing contract with Cloudflare, and with
+     Plausible if it runs on Plausible Cloud. What breaks the no-banner case: Cloudflare's
+     script monitor and the other features section 3 of `docs/CLOUDFLARE-CHECKLIST.md` (in
+     the Croftweaver folder) switches off, a YouTube embed, remote Google Fonts, another
+     analytics tool. Not legal advice.
 
 6. **Domain + how do changes go live? (publish model)**
    *Decides: the publish workflow — a safety-vs-simplicity trade-off. **Offer both, explain
@@ -616,6 +635,7 @@ hold Search Console Request Indexing until then.
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
       With Plausible: the `Email Tap` goal exists in Plausible (§1 Q5).
+      Running without a consent banner holds only as §1 Q5's last point says.
       German-market sites: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
       exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;
