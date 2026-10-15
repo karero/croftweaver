@@ -1,0 +1,37 @@
+{
+  "capture": "T1-129",
+  "request": {
+    "method": "POST",
+    "path": "/zones/c0ffee00000000000000000000000022/dns_records",
+    "body": {
+      "type": "A",
+      "name": "spike2",
+      "content": "192.0.2.1",
+      "proxied": false,
+      "ttl": 1,
+      "comment": "Trial of a setup script; remove when the trial ends"
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "c0ffee00000000000000000000000057",
+      "name": "shop.lenas-backstube.example",
+      "type": "A",
+      "content": "192.0.2.1",
+      "proxiable": true,
+      "proxied": false,
+      "ttl": 1,
+      "settings": {},
+      "meta": {},
+      "comment": "Trial of a setup script; remove when the trial ends",
+      "tags": [],
+      "created_on": "2026-10-13T21:39:32.952632Z",
+      "modified_on": "2026-10-13T21:39:32.952632Z",
+      "comment_modified_on": "2026-10-13T21:39:32.952632Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

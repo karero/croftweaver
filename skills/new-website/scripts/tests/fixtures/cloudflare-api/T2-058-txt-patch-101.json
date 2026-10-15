@@ -1,0 +1,22 @@
+{
+  "capture": "T2-058",
+  "request": {
+    "method": "PATCH",
+    "path": "/zones/c0ffee00000000000000000000000045/dns_records/c0ffee00000000000000000000000059",
+    "body": {
+      "comment": "Trial comment of exactly one hundred characters, to find the limit on a free zone. xxxxxxxxxxxxxxxxxy"
+    }
+  },
+  "status": 400,
+  "response": {
+    "result": null,
+    "success": false,
+    "errors": [
+      {
+        "code": 9313,
+        "message": "DNS record comment exceeds the maximum length of 100 characters."
+      }
+    ],
+    "messages": []
+  }
+}

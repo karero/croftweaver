@@ -1,0 +1,39 @@
+{
+  "capture": "T2-045",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000045/dns_records?per_page=100",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": [
+      {
+        "id": "c0ffee00000000000000000000000058",
+        "name": "lenas-backstube.example",
+        "type": "A",
+        "content": "192.0.2.1",
+        "proxiable": true,
+        "proxied": false,
+        "ttl": 1,
+        "settings": {},
+        "meta": {},
+        "comment": "Trial: the apex record before the setup",
+        "tags": [],
+        "created_on": "2026-10-14T19:22:52.014806Z",
+        "modified_on": "2026-10-14T19:22:52.014806Z",
+        "comment_modified_on": "2026-10-14T19:22:52.014806Z"
+      }
+    ],
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {
+      "page": 1,
+      "per_page": 100,
+      "count": 1,
+      "total_count": 1,
+      "total_pages": 1
+    }
+  }
+}
