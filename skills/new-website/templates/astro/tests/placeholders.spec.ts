@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { PAGES, UNFILLED_SLOT } from './_helpers';
+import { PAGES, UNFILLED_SLOT, PLACEHOLDER_ALLOWLIST, PLACEHOLDER_EXEMPT, placeholderAllowed } from './_helpers';
 
 // Leftover guardrail on the RENDERED site: a placeholder, or a note the author wrote
 // to themselves, must not reach a visitor, a search engine or a share card. Reads every
@@ -19,7 +19,7 @@ import { PAGES, UNFILLED_SLOT } from './_helpers';
 // Precision over recall: a rule is here only if what it matches is rarely genuine
 // copy; the collisions known so far are named next to each rule. Text that only LOOKS
 // like a leftover stays legal in <code>/<pre>/<kbd>/<samp>, under
-// [data-placeholder-exempt], or via ALLOWLIST.
+// [data-placeholder-exempt], or via PLACEHOLDER_ALLOWLIST (both in tests/_helpers.ts).
 type Rule = { label: string; re: RegExp; exceptLang?: string[]; onlyLang?: string[] };
 // "todo" means "all" in these languages, and headings are often set in capitals.
 const TODO_IS_A_WORD = ['es', 'pt', 'gl'];
@@ -30,7 +30,7 @@ const RULES: Rule[] = [
   // "[W-IdNr., …]", "[Handelsregister / Vereinsregister]") and of the ones AI
   // assistants leave behind ("[Your Name]"). "[1]", "[A]", "[sic]" and EmailLink's
   // "[at]" do not match. Genuine bracketed text that starts with a capital ("[PDF]",
-  // an editor's note in a quote) does: ALLOWLIST it or mark it [data-placeholder-exempt].
+  // an editor's note in a quote) does: add it to PLACEHOLDER_ALLOWLIST or mark it [data-placeholder-exempt].
   // No length limit: a long "[MISSING: …]" is still one. The price is that a bracket
   // opened with a capital and never closed runs on to the next "]"; that is worth a look too.
   // The rule itself is in _helpers.ts: privacy-host.spec.ts skips what it matches.
@@ -63,9 +63,8 @@ const RULES: Rule[] = [
     re: /(?<!\p{L})(?:platzhaltertext|blindtext|hier\s+steht\s+(?:ihr|dein|euer)\s+text|(?:max|erika)\s+mustermann|musterstra(?:ß|ss)e|musterstadt|musterfirma)(?!\p{L})/giu,
   },
 ];
-// Exact matches to tolerate, e.g. '[PDF]' for a download label. Case, line breaks and
-// a space just inside the brackets do not matter.
-const ALLOWLIST = new Set<string>([]);
+// Exact matches to tolerate: PLACEHOLDER_ALLOWLIST in tests/_helpers.ts, shared with
+// privacy-host.spec.ts.
 
 // A slot the rules above cannot see: bracketed, several words, lower-case first
 // ("[self-hosted on our own server / operated for us by …]"). In finished copy that
@@ -110,11 +109,11 @@ const UNFILLED_UNTIL_LAUNCH = new Set<string>(['/privacy', '/impressum', '/manif
 // A leftover is the same leftover however it is spaced. The page copy is read three
 // times (see readPage), and markup inside a slot puts spaces into some of the readings:
 // "[BO<b>LD</b> SLOT]" is "[BOLD SLOT]" in the two fused ones and "[BO LD SLOT]" in the
-// spaced one. So findings, ALLOWLIST and DRAFT_TOKEN are compared with all whitespace
+// spaced one. So findings, PLACEHOLDER_ALLOWLIST and DRAFT_TOKEN are compared with all whitespace
 // removed (squash); fold is only how a match is printed.
 const fold = (s: string) => s.replace(/\s+/g, ' ');
 const squash = (s: string) => s.replace(/\s+/g, '');
-const allowed = (match: string) => [...ALLOWLIST].some((a) => squash(a).toLowerCase() === squash(match).toLowerCase());
+const allowed = placeholderAllowed;
 
 // One finding per distinct leftover, in the spelling met first. `match` is the leftover
 // itself, folded; `line` is what a person reads, with the text around it. `lang` is
@@ -170,7 +169,7 @@ function verdict(target: string, text: string, { listed, ci, lang }: Where): { f
         fail:
           `${target} carries bracketed text the slot rule cannot see, because it starts with a ` +
           `lower-case letter. A slot: start it with a capital word ("[CHOOSE ONE: …]"). Genuine ` +
-          `text: ALLOWLIST it or mark it [data-placeholder-exempt].\n${bullets(unseen)}`,
+          `text: add it to PLACEHOLDER_ALLOWLIST (tests/_helpers.ts) or mark it [data-placeholder-exempt].\n${bullets(unseen)}`,
         warn: null,
       };
     }
@@ -195,7 +194,7 @@ function verdict(target: string, text: string, { listed, ci, lang }: Where): { f
   return {
     fail: blocking.length
       ? `${target} still serves a placeholder or an author note. Fill it or remove it. Genuine ` +
-        `text that only looks like one → <code>, [data-placeholder-exempt] or ALLOWLIST.\n${bullets(blocking.map((f) => f.line))}`
+        `text that only looks like one → <code>, [data-placeholder-exempt] or PLACEHOLDER_ALLOWLIST (tests/_helpers.ts).\n${bullets(blocking.map((f) => f.line))}`
       : null,
     warn: drafts.length
       ? `${target} carries ${drafts.length} content placeholder(s). Fine on a branch headed for a ` +
@@ -274,18 +273,18 @@ test('placeholders — the rules catch leftovers and pass genuine copy', () => {
   expect(scan('TODO: precios', 'es').length, 'a Spanish "TODO:" is still a note').toBe(1);
   expect(scan('VER TODO', 'en').length, 'an English "TODO" is a note').toBe(1);
 
-  // One finding per leftover, however it is spaced; and ALLOWLIST ignores case and spacing.
+  // One finding per leftover, however it is spaced; and PLACEHOLDER_ALLOWLIST ignores case and spacing.
   expect(scan('Call [BOLD SLOT] or [ BOLD SLOT ] or [BOLD\nSLOT] or [BO LD SLOT]').map((f) => f.match),
     'one finding per leftover, whatever its spacing').toEqual(['[BOLD SLOT]']);
   expect(scan('Download [ PDF ] or [P DF]').length, 'a "[PDF]" is a finding until it is allow-listed').toBe(1);
   expect(unseenSlots('as [the team] and [the  team] said')).toEqual(['[the team]']);
-  ALLOWLIST.add('[pdf]').add('[The Team]');
+  PLACEHOLDER_ALLOWLIST.add('[pdf]').add('[The Team]');
   try {
-    expect(scan('Download [ PDF ] or [P DF]'), 'ALLOWLIST must cover a rule match').toEqual([]);
-    expect(unseenSlots('as [the team] said'), 'ALLOWLIST must cover the lower-case check').toEqual([]);
+    expect(scan('Download [ PDF ] or [P DF]'), 'PLACEHOLDER_ALLOWLIST must cover a rule match').toEqual([]);
+    expect(unseenSlots('as [the team] said'), 'PLACEHOLDER_ALLOWLIST must cover the lower-case check').toEqual([]);
   } finally {
-    ALLOWLIST.delete('[pdf]');
-    ALLOWLIST.delete('[The Team]');
+    PLACEHOLDER_ALLOWLIST.delete('[pdf]');
+    PLACEHOLDER_ALLOWLIST.delete('[The Team]');
   }
 
   // The verdicts. On an unlisted target a leftover fails, on a developer's machine and in CI.
@@ -327,8 +326,7 @@ test('placeholders — UNFILLED_UNTIL_LAUNCH names only checked targets', () => 
 
 // Everything a page serves that a visitor, a search engine or a share card can read.
 async function readPage(page: Page): Promise<{ text: string; lang: string }> {
-  const { text, jsonLd, lang } = await page.evaluate((shownAsText) => {
-    const exempt = 'code, pre, kbd, samp, [data-placeholder-exempt]';
+  const { text, jsonLd, lang } = await page.evaluate(({ shownAsText, exempt }) => {
     const body = document.body.cloneNode(true) as HTMLElement;
     // A space around every element the browser lays out as a block (and every <br>), for
     // the first of the readings below. Layout is read from the live page, because a copy
@@ -415,7 +413,7 @@ async function readPage(page: Page): Promise<{ text: string; lang: string }> {
     const jsonLd = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
       .map((el) => el.textContent ?? '');
     return { text: [...meta, ...copy, ...attrs].join('\n'), jsonLd, lang: document.documentElement.lang || '' };
-  }, SHOWN_AS_TEXT);
+  }, { shownAsText: SHOWN_AS_TEXT, exempt: PLACEHOLDER_EXEMPT });
   // JSON-LD that does not parse is seo.spec.ts's failure; here it is still read, raw.
   return { text: [text, ...jsonLd.map((raw) => jsonStrings(raw) ?? raw)].join('\n'), lang };
 }
