@@ -150,8 +150,9 @@ non-expert can answer, and record the answers in the project `README.md`.
 
 5. **Analytics — will anyone act on the numbers? (optional)**
    - Just "is anyone visiting?" → **Google Search Console** (free, no script, no consent
-     banner) is enough for search & referral traffic. Cloudflare also counts the
-     domain's traffic at its own servers, with nothing added to the pages:
+     banner) is enough for traffic from Google search; neither it nor Cloudflare's Free
+     plan shows which other sites send visitors. Cloudflare also counts the domain's
+     traffic at its own servers, with nothing added to the pages:
      https://dash.cloudflare.com → your domain → **Analytics** → **Traffic**. On the
      Free plan that is requests, bandwidth, unique visitors and the top five countries
      for at least the last 30 days, bots included; page views, and filtering by

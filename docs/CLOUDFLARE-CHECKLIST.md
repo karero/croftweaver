@@ -232,8 +232,8 @@ cookies, scripts or tracking you didn't choose.
   at least the last 30 days, bots included
   ([Cloudflare's page](https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/),
   checked October 2026). Cloudflare counts them at its own servers from the requests it
-  serves, with nothing added to your pages. The privacy page this kit writes names these
-  statistics.
+  serves, with nothing added to your pages. The privacy page this kit writes says that
+  Cloudflare gives you traffic statistics.
 - [ ] **Email Address Obfuscation: Off.**
   Your domain → Security → Settings → filter by **Client-side abuse** → Email Address
   Obfuscation.
