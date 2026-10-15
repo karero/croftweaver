@@ -23,15 +23,17 @@
 //      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
 //      the same; with another analytics tool delete it together with the paragraph.
 //      The sentence on how to refuse the measurement names the host from
-//      ANALYTICS.scriptHost in src/config.ts. If that host is the site's own
-//      domain (Plausible behind a proxy), blocking it also blocks the site's own
-//      scripts: name the script's full address there instead. Switzerland's Telecommunications
-//      Act (Art. 45c FMG) asks that visitors are told about the processing and
-//      its purpose, and that they may refuse it. The "Do Not Track" paragraph
-//      near the top of section 3 stays even without analytics: California's
-//      CalOPPA asks the policy to say whether third parties may collect personal
-//      information across websites through the site, and how the site answers
-//      "Do Not Track" if it collects such information itself.
+//      ANALYTICS.scriptHost in src/config.ts; the build fails if that is not an
+//      absolute address, so the page never names no host. If that host is the
+//      site's own domain (Plausible behind a proxy), blocking it also blocks the
+//      site's own scripts: name the script's full address there instead.
+//      Switzerland's Telecommunications Act (Art. 45c FMG) asks that visitors are
+//      told about the processing and its purpose, and that they may refuse it.
+//      The "Do Not Track" paragraph near the top of section 3 stays even without
+//      analytics: California's CalOPPA asks the policy to say whether third
+//      parties may collect personal information across websites through the site,
+//      and how the site answers "Do Not Track" if it collects such information
+//      itself.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
@@ -79,8 +81,6 @@
 import Base from '../layouts/Base.astro';
 import EmailLink from '../components/EmailLink.astro';
 import { SITE, ANALYTICS } from '../config';
-let analyticsHost = '';
-try { analyticsHost = new URL(ANALYTICS.scriptHost).hostname; } catch { /* no analytics host set */ }
 ---
 <Base
   title="Privacy Policy"
@@ -175,8 +175,8 @@ try { analyticsHost = new URL(ANALYTICS.scriptHost).hostname; } catch { /* no an
       website is used and in improving it (Art. 6(1)(f) GDPR).
       [STATE THE STORAGE PERIOD, for example: We keep these records for 24
       months and then delete them.] You can refuse the measurement: block
-      scripts from {analyticsHost} with a content blocker in your browser. The
-      site works the same without the measurement.
+      scripts from {new URL(ANALYTICS.scriptHost).hostname} with a content
+      blocker in your browser. The site works the same without the measurement.
     </p>
 
     <h2>4. Contact by email</h2>
