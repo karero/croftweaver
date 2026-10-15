@@ -1,5 +1,5 @@
 {
- "_about": "Every string and key the fixtures may hold, other than the made-up ids, hashes, dates and commit messages the test matches by pattern. A host, address or path passes when each of its parts is a made-up id or a token here. Add a value only after looking at it: the list is what keeps real names out.",
+ "_about": "Every string, key and number the fixtures may hold, other than the made-up ids, hashes, dates and commit messages the test matches by pattern. A host, address or path passes when each of its parts is a made-up id or a token here. Add a value only after looking at it: the list is what keeps real names out.",
  "strings": [
   "",
   "\"spike-one\"",
@@ -323,5 +323,32 @@
   "web_analytics_token",
   "wrangler_config_hash",
   "x-trial-second-rule"
+ ],
+ "numbers": [
+  -122261564,
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  8,
+  10,
+  25,
+  30,
+  50,
+  100,
+  128,
+  200,
+  400,
+  403,
+  404,
+  10000,
+  10003,
+  10400,
+  81053,
+  81058,
+  8000066
  ]
 }

@@ -13,9 +13,10 @@ The captures themselves hold real names and ids and are kept outside every repos
 made-up ones (Lena's bakery, `lenas-backstube`), from a private map kept beside the
 captures; every id, commit hash and GitHub id by a made-up one, mostly zeros; every commit
 message by "Made-up commit message N"; a 64-character hash too. Email fields and the
-registrar's nameservers are left out. A test checks every string and every key in these files:
-each must be a made-up id, hash, date or commit message, matched by pattern, or be on
-`allowed-values.json`; a host, an address or a request path passes when each of its parts does.
+registrar's nameservers are left out. A test checks every string, key and number in every
+JSON file here but `allowed-values.json`: each must be a made-up id, hash, date or commit
+message, matched by pattern, or be on that list; a host, an address or a request path passes
+when each of its parts does.
 Anything else fails, whatever field it is in. Add a value to that list only after looking at it:
 the list is what keeps real names out. A second test plants the values earlier versions of the
 check let through (a name with an accent, a branch, a hash, a host label) and must see each fail. `T1-021` is an excerpt: every `ad_hoc` deployment (two

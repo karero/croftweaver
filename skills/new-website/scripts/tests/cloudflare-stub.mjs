@@ -16,14 +16,15 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const FIXTURES = path.join(HERE, 'fixtures', 'cloudflare-api');
-const files = readdirSync(FIXTURES).filter((f) => /^T[12]-\d{3}-.*\.json$/.test(f)); // the captures, not allowed-values.json
+const files = readdirSync(FIXTURES).filter((f) => f.endsWith('.json') && f !== 'allowed-values.json'); // every capture, of any trial
 // fixture('T1-048') is the cleaned capture T1-048, as written by fixtures/cloudflare-api/clean-captures.mjs.
 export function fixture(capture) {
   const f = files.find((x) => x.startsWith(`${capture}-`));
   if (!f) throw new Error(`no fixture ${capture}`);
   return JSON.parse(readFileSync(path.join(FIXTURES, f), 'utf8'));
 }
-export const allFixtures = () => files.map((f) => ({ file: f, ...JSON.parse(readFileSync(path.join(FIXTURES, f), 'utf8')) }));
+// Each fixture file with its name beside it, never merged into it: a check walks `data` whole.
+export const allFixtures = () => files.map((f) => ({ file: f, data: JSON.parse(readFileSync(path.join(FIXTURES, f), 'utf8')) }));
 const copy = (o) => JSON.parse(JSON.stringify(o));
 const answer = (capture) => copy(fixture(capture).response);
 

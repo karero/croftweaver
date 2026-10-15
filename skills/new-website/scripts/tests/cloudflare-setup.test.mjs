@@ -220,8 +220,9 @@ test('the deployments the stub serves are the captured ones, and the script read
 // Follow-up W5 of the plan's second gate: the fixtures come from real accounts, and check_clean.sh
 // looks for listed names, emails and secrets, not ids. So every string and every key in them must be
 // a made-up id, hash, date or commit message (matched by pattern: a made-up id is mostly zeros,
-// clean-captures.mjs), or be on fixtures/cloudflare-api/allowed-values.json. A host, an address or a
-// request path passes when each of its parts does (a number only in a request path). Nothing passes
+// clean-captures.mjs), or be on fixtures/cloudflare-api/allowed-values.json, and so must every number.
+// A host, an address or a request path passes when each of its parts does (a number only in a request
+// path). Nothing passes
 // for looking harmless: a value not on the list fails, and is added only after a person has looked.
 const ALLOWED = JSON.parse(readFileSync(path.join(FIXTURES, 'allowed-values.json'), 'utf8'));
 const MADE_UP = [/^c0ffee0{16}\d{10}$/, /^ba5e0{26}\d{10}$/, /^f00d0{50}\d{10}$/, /^d\d{7}-0000-4000-8000-000000000000$/, /^d\d{7}$/,
@@ -230,6 +231,7 @@ function notMadeUp(fixtures) {
   const strings = new Set(ALLOWED.strings);
   const tokens = new Set(ALLOWED.tokens);
   const keys = new Set(ALLOWED.keys);
+  const numbers = new Set(ALLOWED.numbers);
   const madeUp = (v) => MADE_UP.some((re) => re.test(v));
   const bad = [];
   const string = (where, v) => {
@@ -242,6 +244,7 @@ function notMadeUp(fixtures) {
   };
   const walk = (where, o) => {
     if (typeof o === 'string') string(where, o);
+    else if (typeof o === 'number' && !numbers.has(o)) bad.push(`${where}: number ${o}`);
     else if (Array.isArray(o)) o.forEach((x) => walk(where, x));
     else if (o && typeof o === 'object') {
       for (const [k, v] of Object.entries(o)) {
@@ -250,11 +253,11 @@ function notMadeUp(fixtures) {
       }
     }
   };
-  for (const { file, ...f } of fixtures) walk(file, f);
+  for (const { file, data } of fixtures) walk(file, data);
   return bad;
 }
 
-test('every string and key in the fixtures is a made-up value or on the list of allowed values', () => {
+test('every string, key and number in the fixtures is a made-up value or on the list of allowed values', () => {
   const fixtures = allFixtures();
   assert.ok(fixtures.length > 50, 'the fixtures are there');
   assert.deepEqual(notMadeUp(fixtures), []);
@@ -276,10 +279,12 @@ test('the fixture check catches what earlier versions let through, wherever it i
     ['an email address', (f) => { f.response.result.comment = 'lena@example.com'; }, 'T1-143'],
     ['an account name', (f) => { f.response.result[0].account.name = "Bakery Mueller's Account"; }, 'T1-002'],
     ['a variable a person named', (f) => { f.response.result.deployment_configs.production.env_vars = { ANNA_TOKEN: { type: 'secret_text', value: '' } }; }, 'T1-027'],
+    ['a top-level field named like the loader\'s own', (f) => { f.file = 'review-plant-private-person'; }, 'T1-001'],
+    ['a number no capture had', (f) => { f.response.result.ttl = 4242424; }, 'T1-143'],
   ];
   for (const [what, plant, capture] of plants) {
     const fixtures = allFixtures();
-    const f = fixtures.find((x) => x.capture === capture);
+    const f = fixtures.find((x) => x.data.capture === capture).data;
     plant(f);
     assert.notDeepEqual(notMadeUp(fixtures), [], `${what} (${capture}) passed the check`);
   }
@@ -785,8 +790,9 @@ describe('the deadline', { concurrency: true }, () => {
       assert.ok(r.ms < 60_000, `took ${r.ms} ms`);
       onlyReads(api);
       const pid = Number(readFileSync(pidFile, 'utf8'));
-      await new Promise((res) => setTimeout(res, 500));
-      assert.throws(() => process.kill(pid, 0), /ESRCH/, 'the child that ignores SIGTERM was killed with the rest');
+      const gone = () => { try { process.kill(pid, 0); return false; } catch (e) { return e.code === 'ESRCH'; } };
+      for (let i = 0; i < 50 && !gone(); i++) await new Promise((res) => setTimeout(res, 100)); // reaped within 5 s
+      assert.ok(gone(), 'the child that ignores SIGTERM was killed with the rest');
     });
   });
 });
