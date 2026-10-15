@@ -187,18 +187,20 @@ non-expert can answer, and record the answers in the project `README.md`.
      Germany, not a settled one (the headers of `privacy.astro` and `_datenschutz.astro`
      give the reasons); to be sure, ask a lawyer. In Switzerland and California it holds
      as long as the privacy page informs visitors. Switzerland (Art. 45c FMG) asks that
-     visitors are told about the processing and that they may refuse it; California's
-     CalOPPA asks the page to say how the site answers "Do Not Track" and whether third
-     parties collect personal information across websites through it. Section 3 of
-     `privacy.astro` says both; `_datenschutz.astro` says the Swiss part. California's
-     CCPA applies only above its thresholds (USD 26,625,000 annual gross revenue since
-     2025, or personal information of 100,000 or more California consumers or
-     households, or half the revenue from selling or sharing it). No banner is not the whole of lawful: the site still needs its privacy page, an
+     visitors are told about the processing and its purpose, and that they may refuse
+     it; California's CalOPPA asks the page to say whether third parties may collect
+     personal information across websites through the site, and how the site answers "Do
+     Not Track" if it collects such information itself. Section 3 of `privacy.astro`
+     says both; `_datenschutz.astro` says the Swiss part. California's CCPA applies only
+     above its thresholds (USD 26,625,000 annual gross revenue from 1 January 2025,
+     adjusted every two years; or buying, selling or sharing the personal information of
+     100,000 or more California consumers or households; or half the revenue from
+     selling or sharing it). A site without a banner still needs its privacy page, an
      imprint in Germany and Austria, and a processing contract with Cloudflare, and with
-     Plausible if it runs on Plausible Cloud. What breaks the no-banner case: Cloudflare's
-     script monitor and the other features section 3 of `docs/CLOUDFLARE-CHECKLIST.md` (in
-     the Croftweaver folder) switches off, a YouTube embed, remote Google Fonts, another
-     analytics tool. Not legal advice.
+     Plausible if it runs on Plausible Cloud. What breaks the no-banner case: any
+     Cloudflare feature that section 3 of `docs/CLOUDFLARE-CHECKLIST.md` (in the
+     Croftweaver folder) asks you to switch off, the script monitor among them; a
+     YouTube embed; remote Google Fonts; another analytics tool. Not legal advice.
 
 6. **Domain + how do changes go live? (publish model)**
    *Decides: the publish workflow — a safety-vs-simplicity trade-off. **Offer both, explain

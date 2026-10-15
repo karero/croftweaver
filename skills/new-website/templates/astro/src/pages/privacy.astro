@@ -23,12 +23,15 @@
 //      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
 //      the same; with another analytics tool delete it together with the paragraph.
 //      The sentence on how to refuse the measurement names the host from
-//      ANALYTICS.scriptHost in src/config.ts; Switzerland's Telecommunications
+//      ANALYTICS.scriptHost in src/config.ts. If that host is the site's own
+//      domain (Plausible behind a proxy), blocking it blocks the whole site:
+//      name the script's full address there instead. Switzerland's Telecommunications
 //      Act (Art. 45c FMG) asks that visitors are told about the processing and
-//      that they may refuse it. The "Do Not Track" paragraph near the top of
-//      section 3 stays even without analytics: California's CalOPPA asks the
-//      policy to say how the site answers that signal and whether third parties
-//      collect personal information across websites through it.
+//      its purpose, and that they may refuse it. The "Do Not Track" paragraph
+//      near the top of section 3 stays even without analytics: California's
+//      CalOPPA asks the policy to say whether third parties may collect personal
+//      information across websites through the site, and how the site answers
+//      "Do Not Track" if it collects such information itself.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
@@ -65,8 +68,8 @@
 //      analytics tool, or wider measurement (optional measurements such as outbound
 //      links, file downloads or form submissions; custom properties) needs this
 //      position AND the text re-checked BEFORE you ship such an addition; a
-//      third-party embed or tracker also makes the "Do Not Track" paragraph
-//      untrue. Base.astro also reads a 'theme' key from local storage, and nothing in the
+//      third-party embed or a cross-site tracker also makes the "Do Not Track"
+//      paragraph untrue. Base.astro also reads a 'theme' key from local storage, and nothing in the
 //      template writes it. If you add a toggle that stores the choice, say so in
 //      section 3.
 //   5. A solid baseline, not legal advice. When in doubt, have it reviewed.
@@ -76,7 +79,7 @@
 import Base from '../layouts/Base.astro';
 import EmailLink from '../components/EmailLink.astro';
 import { SITE, ANALYTICS } from '../config';
-const analyticsHost = new URL(ANALYTICS.scriptHost).hostname;
+const analyticsHost = ANALYTICS.scriptHost.replace(/^https?:\/\//, '').split('/')[0];
 ---
 <Base
   title="Privacy Policy"
@@ -119,10 +122,10 @@ const analyticsHost = new URL(ANALYTICS.scriptHost).hostname;
     <p>
       Your browser may send a "Do Not Track" or "Global Privacy Control"
       signal. This site handles every visit the same way, with or without it:
-      it does not follow you across other websites, and no third party
-      collects personal information about you over time and across websites
-      through this site. The service providers named on this page process
-      data for us, as described here.
+      it does not follow you across other websites. Apart from the service
+      providers named on this page, which process data for us as described
+      here, no third party collects personal information about you over time
+      and across websites through this site.
     </p>
     <p>
       To understand how the site is used, we run <strong>Plausible
@@ -171,8 +174,8 @@ const analyticsHost = new URL(ANALYTICS.scriptHost).hostname;
       website is used and in improving it (Art. 6(1)(f) GDPR).
       [STATE THE STORAGE PERIOD, for example: We keep these records for 24
       months and then delete them.] You can refuse the measurement: block
-      scripts from {analyticsHost} in your browser settings or with a content
-      blocker. The site works the same without it.
+      scripts from {analyticsHost} with a content blocker in your browser. The
+      site works the same without the measurement.
     </p>
 
     <h2>4. Contact by email</h2>
