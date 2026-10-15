@@ -24,8 +24,8 @@
 //      host, or say so there); one sentence each for outbound links, file
 //      downloads and form submissions (keep a sentence only if that measurement
 //      is ticked in Plausible's installer, which ticks all three by default;
-//      the page then describes what the instance does); and the
-//      storage period. The sentence on clicks on an email address ("Außerdem
+//      the page then describes what the instance does); the
+//      storage period; and the analytics host in the sentence on refusing it. The sentence on clicks on an email address ("Außerdem
 //      zählt es jeden Klick") describes the "Email Tap" event
 //      (src/components/EmailLink.astro, and the button of the
 //      website-contact-form skill's form); it goes with the paragraph, and stays
@@ -38,9 +38,9 @@
 //      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
 //      the same; with another analytics tool delete it together with the paragraph.
 //      The sentence on how to refuse the measurement ("Sie können die Messung
-//      ablehnen") names the host from ANALYTICS.scriptHost in src/config.ts; the
-//      build fails if that is not an absolute address, so the page never names no
-//      host. If that host is the site's own domain (Plausible behind a proxy),
+//      ablehnen") has a slot for the host name in ANALYTICS.scriptHost in
+//      src/config.ts (plausible.io for Plausible Cloud), and keep the two
+//      equal. If that host is the site's own domain (Plausible behind a proxy),
 //      blocking it also blocks the site's own scripts: name the script's full
 //      address there instead. Switzerland's Telecommunications Act (Art. 45c FMG)
 //      asks that visitors are told about the processing and its purpose, and that
@@ -88,7 +88,7 @@
 // A solid baseline, not legal advice. When in doubt, have it reviewed.
 import Base from '../layouts/Base.astro';
 import EmailLink from '../components/EmailLink.astro';
-import { SITE, ANALYTICS } from '../config';
+import { SITE } from '../config';
 ---
 <Base
   lang="de"
@@ -187,8 +187,9 @@ import { SITE, ANALYTICS } from '../config';
       DSGVO).
       [SPEICHERDAUER ANGEBEN, zum Beispiel: Wir bewahren diese Daten 24 Monate
       auf und löschen sie danach.] Sie können die Messung ablehnen: Blockieren
-      Sie Skripte von {new URL(ANALYTICS.scriptHost).hostname} mit einem
-      Inhaltsblocker in Ihrem Browser.
+      Sie Skripte von [ANALYSE-HOST, der Hostname aus ANALYTICS.scriptHost in
+      src/config.ts, zum Beispiel plausible.io] mit einem Inhaltsblocker in
+      Ihrem Browser.
       Die Website funktioniert ohne die Messung genauso.
     </p>
 
