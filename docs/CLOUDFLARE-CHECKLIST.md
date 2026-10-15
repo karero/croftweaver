@@ -181,10 +181,11 @@ cookies, scripts or tracking you didn't choose.
      ID, is logged in clear text for anyone with access to the monitor's dashboard
      ([settings page](https://developers.cloudflare.com/client-side-security/reference/settings/));
      if you choose it, say that on your privacy page too. We found nothing that says what
-     the Global tag covers: if you change the setting, tell your assistant. Whether the
-     consent rule in the NEL item's *Why off* (§ 25 TDDDG) reaches the monitor, we have not
-     checked. With either data setting, that is a risk, not a verdict, and this is not legal
-     advice. Off avoids the question.
+     the Global tag covers: if you change the setting, tell your assistant. We have not
+     checked whether the consent rule in the *Why off* at the top of this item (§ 25 TDDDG)
+     reaches the monitor. With either data setting, and with that line on your privacy
+     page, keeping it on is a risk, not a verdict, and this is not legal advice. Off avoids
+     the question.
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
      then count with the loop in
      [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
