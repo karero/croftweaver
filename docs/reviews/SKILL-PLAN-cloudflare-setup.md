@@ -1,7 +1,8 @@
 # Plan: Cloudflare setup by one token, for a site connected to GitHub
 
-Requirements record for a script that does not exist yet,
-`skills/new-website/scripts/cloudflare-setup.mjs`. Where this plan and the shipped files
+Requirements record for `skills/new-website/scripts/cloudflare-setup.mjs`, whose `setup`
+stage shipped with karero/croftweaver#328 (2026-10-15) and whose `launch` stage is not built
+yet. Where this plan and the shipped files
 disagree, the files win until plan step 6 changes them. Names of sites and people stay out
 of this public repo on purpose; the business in the scenarios is made up.
 
@@ -17,11 +18,11 @@ verified".
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are what the script does, numbered under "Shape".
 
-## Status, 2026-10-15 · the kit's files read at origin/main `062dd8f`
+## Status, 2026-10-15 · the kit's files read at origin/main `c4ce79e`
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ✅ rewritten from the trial on 2026-10-14; PLAN gate (High) clean the same day, after six rounds, a final full read and a wording pass. The second trial's results: PLAN gate (High) under way | this file; trails: `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`, `docs/reviews/REVIEW-plan-2026-10-14-pr320.md`. First version and its gate: karero/croftweaver#265 (`b5bf49e`), `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
+| 1 | Requirements and scenarios (this file) | ✅ rewritten from the trial on 2026-10-14; PLAN gate (High) clean the same day, after six rounds, a final full read and a wording pass. The second trial's results: PLAN gate (High) clean on 2026-10-14 | this file; trails: `docs/reviews/REVIEW-plan-2026-10-14-pr303.md`, `docs/reviews/REVIEW-plan-2026-10-14-pr320.md`. First version and its gate: karero/croftweaver#265 (`b5bf49e`), `docs/reviews/REVIEW-plan-2026-10-12-pr265.md` |
 | 2 | The Cloudflare checklist and its check script reach `main` | ✅ merged 2026-10-12 | karero/croftweaver#266 (`7642954`); karero/croftweaver#267 (`d382cbe`) |
 | 3 | The maintainer closes the decisions | ✅ D1 to D7 on 2026-10-12, D1 final on 2026-10-13, decision 8 on 2026-10-14 | sections "Decisions taken" and "Decisions D1 to D7" |
 | 4 | Trial run on a throwaway repository and project | ✅ 2026-10-13, apart from two points: "Not verified" 1 is still open, 2 was settled in part by plan step 9 | 159 captures, kept outside every repository; the private throwaway repository |
@@ -805,4 +806,4 @@ The first version's gate: `docs/reviews/REVIEW-plan-2026-10-12-pr265.md`. This v
 Cloudflare account with a token and can make a site public. That trail says, for each of
 the first gate's open findings H1 to H26, how this version deals with it. The second
 trial's results have their own gate: `docs/reviews/REVIEW-plan-2026-10-14-pr320.md`, also
-at High depth, under way on 2026-10-14.
+at High depth, clean on 2026-10-14.
