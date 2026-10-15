@@ -10,6 +10,7 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-domain-move.md`, whole. Raw review
 | 3 | `e768044` | full, as a verification round (prior findings B1 to B15) | the same three seats | Codex 239 s, 86,506 · Melious 528 s, 30,576 · fresh-eyes 273 s, 154,445 | 0 / 5 / 9 after merging duplicates, two of them refuted (C5, C13) (Codex 0/1/0, Melious 0/1/4, fresh-eyes 0/3/6). B1 to B3, B6 to B10, B12, B14 confirmed; B4, B5, B11, B13, B15 in part (C1, C2, C6, C9, C11) |
 | final full read (not a round) | `40236a9` | full | ollama cloud, kimi-k3:cloud, text only (has not reviewed this plan before) | 235 s, tokens not reported | 0 / 2 / 3 (F1 to F5) |
 | wording pass (not a round) | `ae2bf80` | delta since `e768044`, both files, prose | Codex CLI 0.162.1, gpt-6.1-sol, high (config), read-only | 206 s, 79,561 | 2 contradictions in this record (round 3's counts, the verdict line), fixed; RISK W1 a follow-up. It confirmed C1 to C14 and F1 to F5 as landed |
+| confirmation (not a round) | `f4ce8bc` | delta of that fix | the same seat | 80 s, 53,235 | No BUG/RISK/NIT findings |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -80,3 +81,5 @@ Notes:
 - Round 3 found no BUG (series 3, 1, 0), so no round 4 is owed (skill step 6(b)). Its RISKs and NITs were fixed locally, the author's recommendation, not externally re-verified; the final full read and the wording pass read them.
 - Final full read (Kimi K3 on ollama, which had not seen the plan): no BUG, so no verification round earned; its findings fixed locally.
 - Wording pass: Codex again called the scope note sent with `--verify` a prompt injection and reviewed past it (as on karero/croftweaver#303); the scope still needs another way in.
+- The review stamp names `f4ce8bc`, the last head a reviewer saw (the confirmation); the commit after it adds only these closing rows to this record.
+- Cost: Codex 1,479 s over six runs, Melious 1,862 s over three, Kimi 235 s; fresh-eyes 854 s over three rounds; tokens: 1,036,895 for Codex and Melious as logged, 460,109 for fresh-eyes (Kimi gave no figure).
