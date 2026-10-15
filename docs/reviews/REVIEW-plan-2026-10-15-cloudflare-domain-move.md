@@ -98,6 +98,7 @@ The maintainer reversed the order after gate 1 closed (preview first, the move j
 | final full read (not a round) | `be2b0cc` | full | ollama cloud, kimi-k2.7-code:cloud, text only (has not reviewed this plan before) | 292 s, tokens not reported | 1 / 5 / 5 (L1 to L11); the BUG refuted |
 | wording pass (not a round) | `c2439c9` | delta since `140900d`, both files, prose | Codex CLI 0.162.1, gpt-6.1-sol, high (config), read-only | 197 s, 99,169 | 2 contradictions (J8's NS exclusion against scenario 9; K4's citation), fixed; RISKs on 26a's TTL bound and row 3's check, fixed as well |
 | confirmation (not a round) | `8e9030e` | delta of that fix | the same seat | 174 s, 68,136 | 1 contradiction left (the plan's status row 1 still said gate 2 was under way), fixed; a RISK on 26a's bound, a follow-up (G15) |
+| confirmation (not a round) | `ef9b72d` | delta of that fix | the same seat | 63 s, 39,513 | No BUG/RISK/NIT findings |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -148,3 +149,8 @@ The maintainer reversed the order after gate 1 closed (preview first, the move j
 | L11 | NIT | Kimi K2.7 (final full read) | — | The real trial domain against the rule on names | refuted | the opening says so since K10: the one real domain is the project's own former name |
 
 Follow-ups (outside scope): G11 (RISK, Codex) scenario 26a: an old site that relies on Cloudflare's proxy in the other account would lose it if copied as DNS only; the trial's item 14 can look at one. G12 (RISK, Codex) re-raise of W1. G13 (NIT, Melious) a three-day token could expire in the DNSSEC wait: fixed anyway, scenario 14 now a week. G14 (NIT, fresh-eyes) "#328's lines" after a header naming `main`'s: fixed anyway. H15 (NIT, Melious, round 2) Shape step 1's Node claims lacked a citation: fixed anyway, measured on 2026-10-15 (A1, A7). G15 (RISK, Codex, confirmation) scenario 26a's outage bound (M9's two TTLs) is reasoned, not observed: the same ground as W1 and G12; the trial's item 14 reads the old zone after the switch.
+
+Gate 2 notes:
+- The review stamp names `ef9b72d`, the last head a reviewer saw; the commit after it adds only these closing lines.
+- Round 3's Melious seat broke off once (curl exit 28 after 1,376 s, ollama's stand-in failing on a DNS error) and was run again alone; a second try was cut off by a session restart and left no output; the third counted.
+- Cost: Codex 1,264 s over six runs, Melious 1,668 s over three counted runs, Kimi K2.7 292 s, fresh-eyes 758 s over three rounds; tokens: 485,559 for Codex and Melious, 475,560 for fresh-eyes.
