@@ -226,6 +226,11 @@ cookies, scripts or tracking you didn't choose.
   Cloudflare describes an "automatic setup" for sites that run through it, which adds a
   measurement script to your pages. After you disable it, deploy again and check the page
   source (section 5).
+
+  Your traffic counts stay without it: your domain → **Analytics** → **Traffic** shows
+  requests, visitors and their countries. Cloudflare counts them at its own servers from
+  the requests it serves, with nothing added to your pages (on the Free plan for at least
+  the last 30 days, bots included). The privacy page this kit writes names these counts.
 - [ ] **Email Address Obfuscation: Off.**
   Your domain → Security → Settings → filter by **Client-side abuse** → Email Address
   Obfuscation.
