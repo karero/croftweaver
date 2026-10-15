@@ -187,8 +187,9 @@ non-expert can answer, and record the answers in the project `README.md`.
      with this kit needs no consent banner in the EU, Germany, Switzerland or California
      as long as it runs no analytics script: nothing reaches the visitor's browser that
      the page itself does not need. That means `USE_ANALYTICS = false` in
-     `src/config.ts` (the first point of this question); `tests/check_analytics_gate.sh`
-     then checks that no build writes the script. Plausible runs as a small script in the visitor's
+     `src/config.ts` (the first point of this question); run
+     `bash tests/check_analytics_gate.sh` once to check that no build writes the script
+     (a site's CI does not run it). Plausible runs as a small script in the visitor's
      browser. With it, running without a banner is a defensible position in the EU,
      Germany, Switzerland and California, not a settled one; to be sure, ask a lawyer.
      For the EU and Germany, the headers of `privacy.astro` and `_datenschutz.astro` set

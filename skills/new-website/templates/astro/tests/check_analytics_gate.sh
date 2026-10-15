@@ -65,7 +65,7 @@ fi
 use="$(sed -nE "s/^export const USE_ANALYTICS = (true|false);?[[:space:]]*(\/\/.*)?$/\1/p" src/config.ts)"
 if [ -z "$use" ]; then
   if grep -q 'USE_ANALYTICS' src/config.ts; then
-    echo "✗ analytics gate: src/config.ts names USE_ANALYTICS, but not as one line \"export const USE_ANALYTICS = true;\" or \"= false;\"."
+    echo "✗ analytics gate: src/config.ts names USE_ANALYTICS, but not as one line \"export const USE_ANALYTICS = true;\" or \"= false;\" (a // comment after it is fine)."
     exit 1
   fi
   use=true
@@ -342,11 +342,13 @@ csp_host_problems() {
 }
 
 # csp_host_left <file>: one line per directive that still lists the script's origin, for a
-# site with analytics switched off; nothing when none does.
+# site with analytics switched off; nothing when none does. A file with no policy is reported
+# as csp_host_problems reports it.
 csp_host_left() {
-  local file="$1" policy dir tokens
-  [ -f "$file" ] || return 0
+  local file="$1" policy dir tokens n=0
+  if [ ! -f "$file" ]; then echo "there is no $file to check the Content-Security-Policy in"; return; fi
   while IFS= read -r policy; do
+    n=$((n + 1))
     for dir in script-src connect-src script-src-elem; do
       tokens="$(csp_tokens "$policy" "$dir")"
       if [ -n "$tokens" ] && host_listed "$tokens"; then
@@ -354,6 +356,7 @@ csp_host_left() {
       fi
     done
   done < <(csp_policies "$file")
+  if [ "$n" -eq 0 ]; then echo "$file has no Content-Security-Policy line"; fi
 }
 
 # csp_inline_problems <file> <stub-file>: one line per problem, nothing when the directive
@@ -488,7 +491,8 @@ selftest() {
   policy p_nohost   "default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
   policy p_nohostel "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-elem 'self'; connect-src 'self'"
   policy p_elemonly "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-elem 'self' $host; connect-src 'self'"
-  for expect in p_unsafe:bad p_noconn:bad p_suffix:bad p_bare443:bad p_elem:bad p_nohost:ok p_nohostel:ok p_elemonly:bad; do
+  printf '/*\n  X-Frame-Options: DENY\n' >"$dir/p_nocsp.headers"
+  for expect in p_unsafe:bad p_noconn:bad p_suffix:bad p_bare443:bad p_elem:bad p_nohost:ok p_nohostel:ok p_elemonly:bad p_nocsp:bad; do
     name="${expect%%:*}"; want_line="${expect#*:}"; m=$((m + 1))
     got="$([ -z "$(csp_host_left "$dir/$name.headers")" ] && echo ok || echo bad)"
     if [ "$got" != "$want_line" ]; then

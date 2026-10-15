@@ -32,7 +32,7 @@ scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, whic
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,email,links,llms-coverage,middleware}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
-tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH (the suite's own CI)
+tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH, or off in all four with USE_ANALYTICS = false (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -62,7 +62,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
    (`SITE.url`, name, theme color, analytics: `scriptHost` and the per-site `scriptId`
    from Plausible's Site installation page — and check `PROD_BRANCH` matches the
-   branch Cloudflare Pages will call "Production", or analytics never loads).
+   branch Cloudflare Pages will call "Production", or analytics never loads). No
+   analytics: set `USE_ANALYTICS` to false instead (the comment above it says what else).
    Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
    block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
    1200×630 share cards (`public/images/og/`; the starter ships a default).

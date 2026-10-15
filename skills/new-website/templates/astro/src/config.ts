@@ -52,9 +52,10 @@ export const KNOWS_ABOUT: string[] = [];
 // included, writes the script or the stub, and nothing on the page sends anything to
 // an analytics host. Also take the host out of script-src and connect-src in
 // public/_headers, and delete the analytics paragraphs of section 3 of the privacy
-// page; tests/check_analytics_gate.sh checks the build and the headers. Leave
-// scriptHost and scriptId as they are: Base.astro still names them. Email links and
-// the contact form keep working; they count a tap only when Plausible is on the page.
+// page. Then run `bash tests/check_analytics_gate.sh` (a site's CI does not): it
+// checks the builds and the headers. Leave scriptHost and scriptId as they are:
+// Base.astro still names them. Email links and the contact form keep working; they
+// count a tap only when Plausible is on the page.
 //
 // scriptId is the per-site script Plausible's installer shows (Settings > General >
 // Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is

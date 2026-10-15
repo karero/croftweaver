@@ -4,7 +4,7 @@
 # script-src and connect-src, and script-src lets the stub run: 'unsafe-inline' alone, or
 # the stub's own sha256 hash (the analytics gate test checks all of it against config.ts and
 # the built stub). With analytics switched off (USE_ANALYTICS = false in src/config.ts), take
-# the host out of both; the gate test then checks that it is gone. Widen
+# the host out of both; run the gate test by hand to check that it is gone. Widen
 # script-src/connect-src only as needed.
 /*
   X-Content-Type-Options: nosniff
