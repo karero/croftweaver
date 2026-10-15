@@ -63,7 +63,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    (`SITE.url`, name, theme color, analytics: `scriptHost` and the per-site `scriptId`
    from Plausible's Site installation page — and check `PROD_BRANCH` matches the
    branch Cloudflare Pages will call "Production", or analytics never loads). No
-   analytics: set `USE_ANALYTICS` to false instead (the comment above it says what else).
+   analytics: set `USE_ANALYTICS` to false instead (its "No analytics at all" comment says what else).
    Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
    block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
    1200×630 share cards (`public/images/og/`; the starter ships a default).

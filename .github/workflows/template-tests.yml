@@ -126,6 +126,10 @@ jobs:
           host="$(sed -nE "s/^[[:space:]]*scriptHost:[[:space:]]*['\"]([^'\"]*)['\"].*/\1/p" src/config.ts)"
           host="${host%/}"
           [ -n "$host" ] || { echo "no scriptHost: '<host>' line in src/config.ts that the gate can read"; exit 1; }
+          # The starter ships with analytics on; the step above tested that state.
+          grep -q "^export const USE_ANALYTICS = true;" src/config.ts || { echo "the starter must ship USE_ANALYTICS = true"; exit 1; }
+          prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src/config.ts)"
+          [ -n "$prod" ] || { echo "no PROD_BRANCH line in src/config.ts"; exit 1; }
           sed -i "s/^export const USE_ANALYTICS = true;/export const USE_ANALYTICS = false;/" src/config.ts
           grep -q "^export const USE_ANALYTICS = false;" src/config.ts
           # Only the whole token, matched literally: a lookalike host stays. The gate below
@@ -133,7 +137,7 @@ jobs:
           host="$host" perl -pi -e 's/[ \t]+\Q$ENV{host}\E\/?(?=[;\s]|$)//g' public/_headers
           npm run check
           bash tests/check_analytics_gate.sh
-          CF_PAGES_BRANCH=production npx playwright test tests/email.spec.ts
+          CF_PAGES_BRANCH="$prod" npx playwright test tests/email.spec.ts
           git checkout -- src/config.ts public/_headers
       - name: Run template test suite
         run: npm test

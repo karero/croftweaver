@@ -26,8 +26,10 @@
 #      sha256 hash. Off for the other three, with no tag, no half of one and no mention of
 #      the script's path or id.
 # With USE_ANALYTICS = false in src/config.ts (the owner declined analytics), steps 2 and 3
-# turn around: public/_headers must NOT list the host in script-src, script-src-elem or
-# connect-src, and all four builds, the live one included, must be off. A config.ts with no
+# turn around: public/_headers must NOT list the host (with or without a path) in
+# script-src, script-src-elem, connect-src or default-src, and all four builds, the live one
+# included, must be off, with no page linking to the host (href or src; skipped when the host
+# is the site's own). A config.ts with no
 # USE_ANALYTICS line (a site made before the switch) counts as true.
 # What it cannot check:
 #   - It compares the build with src/config.ts, so a wrong scriptId typed INTO config.ts
@@ -83,6 +85,12 @@ if [ -z "$host" ] || [ -z "$id" ]; then
   exit 1
 fi
 host="${host%/}"
+# The host without its scheme, as a regex for the off check's link search, and the site's
+# own host (astro.config.mjs's site:), which that search skips.
+bare="${host#*://}"
+bare_re="$(printf '%s' "$bare" | sed 's/[.]/[.]/g')"
+site_bare="$(sed -nE "s/^[[:space:]]*site:[[:space:]]*['\"]([^'\"]*)['\"].*/\1/p" astro.config.mjs | head -n 1)"
+site_bare="${site_bare#*://}"; site_bare="${site_bare%%/*}"
 ANALYTICS_SRC="${host}/js/${id}.js"
 export ANALYTICS_SRC
 # A branch Cloudflare builds as a preview: main on a two-stage site.
@@ -342,15 +350,22 @@ csp_host_problems() {
 }
 
 # csp_host_left <file>: one line per directive that still lists the script's origin, for a
-# site with analytics switched off; nothing when none does. A file with no policy is reported
-# as csp_host_problems reports it.
+# site with analytics switched off; nothing when none does. A source with a path
+# (https://host/js/) counts as the host here: it still lets the browser load from it.
+# default-src counts too, as it stands in for a directive that is not written out. A file
+# with no policy is reported as csp_host_problems reports it.
 csp_host_left() {
   local file="$1" policy dir tokens n=0
   if [ ! -f "$file" ]; then echo "there is no $file to check the Content-Security-Policy in"; return; fi
   while IFS= read -r policy; do
     n=$((n + 1))
-    for dir in script-src connect-src script-src-elem; do
-      tokens="$(csp_tokens "$policy" "$dir")"
+    for dir in script-src connect-src script-src-elem default-src; do
+      # Each source without its path: scheme://host[:port]/anything becomes scheme://host[:port].
+      tokens="$(csp_tokens "$policy" "$dir" | awk '{
+        p = index($0, "://")
+        if (p) { rest = substr($0, p + 3); q = index(rest, "/"); if (q) $0 = substr($0, 1, p + 2) substr(rest, 1, q - 1) }
+        else { q = index($0, "/"); if (q > 1) $0 = substr($0, 1, q - 1) }
+        print }')"
       if [ -n "$tokens" ] && host_listed "$tokens"; then
         echo "analytics is off (USE_ANALYTICS = false), but $dir still lists $host: take it out of public/_headers"
       fi
@@ -491,8 +506,12 @@ selftest() {
   policy p_nohost   "default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
   policy p_nohostel "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-elem 'self'; connect-src 'self'"
   policy p_elemonly "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-elem 'self' $host; connect-src 'self'"
+  policy p_path      "default-src 'self'; script-src 'self' 'unsafe-inline' $host/js/; connect-src 'self'"
+  policy p_lookalike "default-src 'self'; script-src 'self' 'unsafe-inline' $host.evil.invalid; connect-src 'self' https://x$bare"
+  policy p_default   "default-src 'self' $host; script-src 'self' 'unsafe-inline'; connect-src 'self'"
   printf '/*\n  X-Frame-Options: DENY\n' >"$dir/p_nocsp.headers"
-  for expect in p_unsafe:bad p_noconn:bad p_suffix:bad p_bare443:bad p_elem:bad p_nohost:ok p_nohostel:ok p_elemonly:bad p_nocsp:bad; do
+  for expect in p_unsafe:bad p_noconn:bad p_suffix:bad p_bare443:bad p_elem:bad p_nohost:ok p_nohostel:ok p_elemonly:bad p_nocsp:bad \
+                p_path:bad p_lookalike:ok p_default:bad; do
     name="${expect%%:*}"; want_line="${expect#*:}"; m=$((m + 1))
     got="$([ -z "$(csp_host_left "$dir/$name.headers")" ] && echo ok || echo bad)"
     if [ "$got" != "$want_line" ]; then
@@ -555,11 +574,17 @@ expect_off() {
   counts="$(count_tags "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
   hits="$(printf '%s\n' "$counts" | awk '$1 > 0 || $2 > 0 || $3 > 0 { path = $0; sub(/^[^ ]* [^ ]* [^ ]* /, "", path); print path }')"
   extra="$(grep -rlF --exclude=_headers -e "/js/${id}.js" -e "$id" "$work/$name" 2>/dev/null || true)"
+  # Analytics off: no page links to the host either (a preconnect or dns-prefetch link
+  # contacts it, and no CSP stops that). Text that names the host is fine. Skipped when the
+  # host is the site's own (Plausible behind a proxy): every link to the site would match.
+  if [ "$use" = false ] && [ "$bare" != "$site_bare" ]; then
+    extra="$extra"$'\n'"$(grep -rlE --include='*.html' "(href|src)=[\"']?(https?:)?//${bare_re}([/:\"'> ]|$)" "$work/$name" 2>/dev/null || true)"
+  fi
   hits="$(awk 'NF && !seen[$0]++' <<<"$hits"$'\n'"$extra")"
   if [ -z "$hits" ]; then
     echo "✓ $what: no analytics script on any page"
   else
-    echo "✗ $what: an analytics tag, half of one, or the script's path or id, in these files."
+    echo "✗ $what: an analytics tag, half of one, the script's path or id, or (analytics off) a link to $host, in these files."
     echo "  (A full tag counts every visit to this build as real.)"
     while IFS= read -r page; do printf '    %s\n' "${page#"$work/$name/"}"; done <<< "$hits"
     fail=1
@@ -580,7 +605,7 @@ report_problems() {
 selftest
 
 if [ "$use" = false ]; then
-  report_problems "$(csp_host_left public/_headers)" "analytics is off, and public/_headers lists $host in none of script-src, script-src-elem and connect-src"
+  report_problems "$(csp_host_left public/_headers)" "analytics is off, and public/_headers lists $host in none of script-src, script-src-elem, connect-src and default-src"
   build live set "$prod"
   expect_off live "CF_PAGES_BRANCH=$prod (the live build, analytics off)"
 else
