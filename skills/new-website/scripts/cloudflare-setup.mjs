@@ -717,25 +717,22 @@ async function setupStage(opts, io) {
   if (create) {
     const r = await api('POST', projectsAt, { json: create });
     if (!ok(r)) throw new Stop(1, `Cloudflare did not create the project: ${refusal(r, ROW.pages)}.`, 'If it says the name is taken (pages.dev names are global), run again with --project <another-name>. If it cannot reach the repository, give Cloudflare\'s GitHub app access to it (GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure).');
-    if (!wholeProject(r.body?.result)) throw new Stop(1, `Cloudflare says it created the project ${name}, but did not return it whole (its address, source and settings). Look at it in the dashboard (Workers & Pages), then run this again.`);
+    const off = notAsWanted(r.body?.result, { gh, prodBranch });
+    if (off.length) throw new Stop(1, `Cloudflare says it created the project ${name}, but it does not read as asked: ${off.join('; ')}. Look at it in the dashboard (Workers & Pages → ${name} → Settings) before running this again.`);
     project = r.body.result;
     say('', `  done     Created the project ${name}, connected to ${repository}. Its address: https://${project.subdomain}/`);
   } else if (Object.keys(patch).length) {
     const before = varNames(project);
     const r = await api('PATCH', projectAt, { json: patch });
     if (!ok(r)) throw new Stop(1, `Cloudflare refused the change to the project: ${refusal(r, ROW.pages)}. Nothing else was changed.`);
-    if (!wholeProject(r.body?.result)) throw new Stop(1, 'Cloudflare accepted the change to the project but did not return it whole, so its variables cannot be listed after it. Look at the project in the dashboard (Workers & Pages → the project → Settings → Variables and Secrets).');
+    const off = notAsWanted(r.body?.result, { gh, prodBranch });
+    if (off.length) throw new Stop(1, `Cloudflare accepted the change to the project, but it does not read as asked: ${off.join('; ')}. Its variables could not be compared. Look at it in the dashboard (Workers & Pages → ${name} → Settings).`);
     const after = varNames(r.body.result);
     const lost = before.filter((v) => !after.includes(v));
     say('', `  done     ${projectSay.join(' ')}`);
     say(`           Variables and secrets before: ${before.join(', ') || 'none'}; after: ${after.join(', ') || 'none'}.`);
     if (lost.length) throw new Stop(1, `After the change, Cloudflare no longer lists ${lost.join(', ')}. The script cannot put a secret back (its value reads empty): set ${lost.length === 1 ? 'it' : 'them'} again by hand, under the project's Settings → Variables and Secrets.`);
     project = r.body.result;
-    const fo = project.deployment_configs ?? {};
-    if (project.production_branch !== prodBranch || fo.production?.fail_open !== true || fo.preview?.fail_open !== true
-      || Object.entries(BUILD).some(([k, v]) => project.build_config?.[k] !== v)) {
-      throw new Stop(1, 'Cloudflare accepted the change to the project, but the project it returned does not read as wanted. Look at it in the dashboard: Workers & Pages → the project → Settings.');
-    }
     if (patch.deployment_configs) say('           Fail open now reads on. Whether that reaches the build that is live, or only later ones, is not known: a deployment does not record it.');
   } else if (project) {
     say('', `  as is    The project ${name}: production branch ${prodBranch}, ${BUILD.build_command}, ${BUILD.destination_dir}, Fail open on.`);
@@ -863,16 +860,33 @@ async function setupStage(opts, io) {
   return 0;
 }
 
-// What the script reads from a project answer: its address, its source and its settings (T1-027,
-// T1-054 and the PATCH answers T1-048, T1-049, T1-051 to T1-053 and T1-061 all carry them).
-// Checked field by field, since an empty object would pass a check for the object alone.
-const wholeProject = (p) => typeof p?.subdomain === 'string' && p.subdomain.length > 0
-  && typeof p.source?.config?.owner === 'string' && typeof p.source.config.repo_name === 'string'
-  && typeof p.source.config.preview_deployment_setting === 'string'
-  && typeof p.production_branch === 'string'
-  && typeof p.deployment_configs?.production === 'object' && p.deployment_configs.production !== null
-  && typeof p.deployment_configs.preview === 'object' && p.deployment_configs.preview !== null
-  && typeof p.build_config === 'object' && p.build_config !== null;
+// The one check of a project Cloudflare returns after a create or a PATCH: every field the script
+// relies on afterwards must hold the end state the question named, or the run stops. Each problem
+// is named. (The shape is the captured one: T1-027, T1-054, and the PATCH answers T1-048, T1-049,
+// T1-051 to T1-053 and T1-061.)
+export function notAsWanted(p, { gh, prodBranch }) {
+  const off = [];
+  const obj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+  if (!obj(p)) return ['no project in the answer'];
+  if (typeof p.subdomain !== 'string' || !p.subdomain.endsWith('.pages.dev')) off.push('no pages.dev address');
+  const c = p.source?.config;
+  if (p.source?.type !== 'github' || !obj(c)) off.push('not connected to GitHub');
+  else {
+    if (String(c.owner).toLowerCase() !== gh.owner.toLowerCase() || String(c.repo_name).toLowerCase() !== gh.repo.toLowerCase()) off.push(`connected to ${c.owner}/${c.repo_name}`);
+    if (typeof c.preview_deployment_setting !== 'string') off.push('no preview setting');
+  }
+  if (p.production_branch !== prodBranch) off.push(`production branch ${p.production_branch}, not ${prodBranch}`);
+  for (const [k, v] of Object.entries(BUILD)) if (p.build_config?.[k] !== v) off.push(`${k} ${p.build_config?.[k] ?? '(none)'}, not ${v}`);
+  for (const env of ['production', 'preview']) {
+    const dc = p.deployment_configs?.[env];
+    if (!obj(dc)) off.push(`no ${env} settings`);
+    else {
+      if (dc.fail_open !== true) off.push(`Fail open off for ${env}`);
+      if (dc.env_vars !== null && dc.env_vars !== undefined && !obj(dc.env_vars)) off.push(`the ${env} variables cannot be read`);
+    }
+  }
+  return off;
+}
 
 function varNames(p) {
   const dc = p?.deployment_configs ?? {};

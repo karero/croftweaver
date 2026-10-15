@@ -258,6 +258,7 @@ export function handle(state, method, p, query, body, contentType) {
       state.deployments[p.name] = [];
       const b = answer('T1-027');
       b.result = copy(p);
+      if (state.thinCreateAnswer) b.result.build_config = {}; // MADE: an answer thinner than any captured one
       return { status: 200, body: b };
     }
     case 'GET project': {

@@ -14,7 +14,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BOT_LINES, SETTINGS, SKIP_IDS, codeFits, defaultName, failed, githubRepo, goodProductionBuild, running, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
+import { BOT_LINES, SETTINGS, SKIP_IDS, codeFits, defaultName, failed, githubRepo, goodProductionBuild, notAsWanted, running, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
 import { ACCOUNT, FIXTURES, OWNER, REPO, TOKEN, ZONE, allFixtures, deployment, fixture, freshState, handle, project, servedBy, startApi, startDns, zone } from './cloudflare-stub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -532,9 +532,42 @@ test('a PATCH answer without the whole project stops the run before anything els
     state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
     const r = await go(['--confirm', codeOf(await go())]);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /did not return it whole/);
+    assert.match(r.out, /does not read as asked: connected to undefined\/undefined; no preview setting/);
     assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'nothing after the PATCH');
   }));
+
+test('a create answer that does not read as asked stops the run: no build, no setting', () =>
+  scenario(freshState({ thinCreateAnswer: true }), async ({ api, go }) => {
+    const r = await go(['--confirm', codeOf(await go())]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /it does not read as asked: build_command \(none\), not npm run build; destination_dir \(none\), not dist/);
+    assert.deepEqual(api.writes().map((e) => e.method), ['POST'], 'the create, and nothing after it');
+  }));
+
+test('the check of a returned project names each field that does not hold the end state', () => {
+  const want = { gh: { owner: OWNER, repo: REPO }, prodBranch: 'production' };
+  const good = fixture('T1-027').response.result; // the captured create answer, the trial's project
+  const asLena = (p) => { const c = JSON.parse(JSON.stringify(p)); c.source.config.owner = OWNER; c.source.config.repo_name = REPO; c.subdomain = `${REPO}.pages.dev`; return c; };
+  assert.deepEqual(notAsWanted(asLena(good), want), []);
+  const cases = [
+    [(p) => { delete p.subdomain; }, /no pages.dev address/],
+    [(p) => { p.source.config.repo_name = 'lenas-cafe'; }, /connected to lena-example\/lenas-cafe/],
+    [(p) => { p.source = null; }, /not connected to GitHub/],
+    [(p) => { p.source.config = []; }, /not connected to GitHub/],
+    [(p) => { delete p.source.config.preview_deployment_setting; }, /no preview setting/],
+    [(p) => { p.production_branch = 'main'; }, /production branch main, not production/],
+    [(p) => { p.build_config = {}; }, /build_command \(none\), not npm run build/],
+    [(p) => { p.deployment_configs.preview = {}; }, /Fail open off for preview/],
+    [(p) => { p.deployment_configs.production = []; }, /no production settings/],
+    [(p) => { p.deployment_configs.production.env_vars = []; }, /the production variables cannot be read/],
+  ];
+  for (const [spoil, want2] of cases) {
+    const p = asLena(good);
+    spoil(p);
+    assert.match(notAsWanted(p, want).join('; '), want2);
+  }
+  assert.deepEqual(notAsWanted(null, want), ['no project in the answer']);
+});
 
 test('10: no build Cloudflare started from a push: each run waits and names the causes; a failed push build is proof, said as a failure', () =>
   scenario((h) => finishedState(h), async ({ go, state }) => {

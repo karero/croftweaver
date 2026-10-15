@@ -17,6 +17,7 @@ Explicit item of this gate (the maintainer's waiver of Z3, with V15 and V16, in 
 | final full read (not a round) | `55457c9` | the whole change from base `8f7c98b`, in three parts (script with the plan's R1 to setup stage; tests, stub, cleaner; prose, README, allow-list, helper); the fixture JSON read by tooled seats in rounds 1 to 4 | ollama, kimi-k3:cloud (a model that had not reviewed this change) | A 413 s · B1 606 s · B2 335 s, no token figures | 0 / 3 / 14. No BUG, so no round was earned; the maintainer had closed the rounds after round 4 (below) |
 | wording pass (not a round) | `99ba459` | the change since `64aab97`, review record included, scoped to sentences that contradict the code or would be acted on wrongly | Codex (gpt-6.1-sol, config effort) | 373 s, 110,227 | 3 / 0 / 0, all fixed |
 | re-gate 1 (not a round) | `fce71bd` | full scope: the change since `64aab97` (code since round 4 and the wording fixes), for the stamp | Codex (config effort) | 453 s, 121,178 | 1 / 2 / 0: W-02 and W-03 confirmed, W-01 only for file names |
+| re-gate 2 (not a round) | `724fa7e` | full scope: the change since `fce71bd` | Codex (config effort) | 354 s, 86,841 | 1 / 0 / 0: G-01 and G-02's own cases confirmed; the create answer still unchecked (R-01). It also called the author's note "confirm G-01 and G-02" an attempt to prescribe its conclusions; the note's wording is the author's, read as data |
 
 ## Findings
 
@@ -106,6 +107,7 @@ Explicit item of this gate (the maintainer's waiver of Z3, with V15 and V16, in 
 | G-01 | BUG | Codex (re-gate 1) | re-gate | W-01 fixed the cleaner's residue check, not its replacement: an id beside an underscore inside a value was written unchanged | fixed, locally_verified | the replacement finds ids by their hex run; the cleaner refuses any 32-or-longer hex run that is not made up; the fixture test plants one beside an underscore and it fails. The committed fixtures, regenerated, are byte-identical |
 | G-02 | RISK | Codex (re-gate 1) | re-gate | The whole-project guard took an empty `source.config` | fixed, locally_verified | each field the script reads is checked by type; the PATCH test now answers with an empty `source.config` and the run stops |
 | G-03 | RISK | Codex (re-gate 1) | re-gate | R1-13 and R1-14 again | waived (as R1-13, R1-14): a re-raise without new evidence | the maintainer's waiver of 2026-10-15 stands |
+| R-01 | BUG | Codex (re-gate 2) | re-gate | The create answer was checked for the presence of its parts, not their values: an empty `build_config` let the run build and write settings | fixed by a cut, locally_verified | one check, `notAsWanted`, runs on the create and on the PATCH answer: address, GitHub source and repository, preview setting, production branch, build settings and Fail open must hold the end state, or the run stops naming each; the ad-hoc guards are gone. Tests: a thin create answer stops after the create; a unit test breaks each field in turn, arrays and empty objects included |
 
 Round 4's two follow-ups (Melious, outside scope): the mktemp guard's self-test claim and the 150-of-150 record. CI on `64aab97` settles the first: its macOS job, which runs `make check`, passed, so the self-test's failure is this computer's alone.
 
@@ -114,3 +116,4 @@ The waiver's review item, round 1: all three seats with file access read the fix
 Decisions by the maintainer, 2026-10-15, asked after round 1 with the recommendation and the case against each. R1-01: "Bind the list (Recommended)". R1-13 and R1-14: "Waive both (Recommended)", to be observed on the first real site (plan step 10).
 
 The maintainer, 2026-10-15, after round 4, on the convergence check (the fixture check had come back after its cut, R4-01), asked with the recommendation and the case against: "Final full read (Recommended)". The rounds closed at 4; R4-01 to R4-05 are locally_verified and were read again, whole, by the final full read. The final read's own fixes are locally_verified, not externally re-verified.
+The answer-check thread ran F-01, W-02, G-02, R-01; at R-01 it was cut to one strict check of the end state rather than patched again.
