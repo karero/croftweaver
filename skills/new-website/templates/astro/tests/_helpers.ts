@@ -17,8 +17,8 @@ export const THEMES = ['light', 'dark'] as const;
 // and at least one more character ("[DATE]", "[Your Name]", "[MISSING: year built]").
 // placeholders.spec.ts reports every match as an "unfilled [SLOT]" (its rule list says
 // why the shape is this one). privacy-host.spec.ts skips a mark only when its whole text
-// is one match, and only because placeholders.spec.ts reports it, so the two specs share
-// this one copy. Global flag: use it with matchAll or String.match, not .test().
+// is one match that names ANALYTICS.scriptHost and placeholders.spec.ts reports it (its
+// own comment has every condition), so the two specs share this one copy. Global flag: use it with matchAll or String.match, not .test().
 export const UNFILLED_SLOT = /\[\s*\p{Lu}\s*[^\]\s][^\]]*\]/gu;
 
 // What placeholders.spec.ts lets pass although it looks like a leftover: an exact match

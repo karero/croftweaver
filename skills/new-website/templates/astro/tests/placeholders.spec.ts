@@ -64,7 +64,8 @@ const RULES: Rule[] = [
   },
 ];
 // Exact matches to tolerate: PLACEHOLDER_ALLOWLIST in tests/_helpers.ts, shared with
-// privacy-host.spec.ts.
+// privacy-host.spec.ts. Until 2026-10 it was ALLOWLIST in this file: a site updating
+// this spec moves its own entries there.
 
 // A slot the rules above cannot see: bracketed, several words, lower-case first
 // ("[self-hosted on our own server / operated for us by …]"). In finished copy that
