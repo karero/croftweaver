@@ -83,3 +83,29 @@ Notes:
 - Wording pass: Codex again called the scope note sent with `--verify` a prompt injection and reviewed past it (as on karero/croftweaver#303); the scope still needs another way in.
 - The review stamp names `f4ce8bc`, the last head a reviewer saw (the confirmation); the commit after it adds only these closing rows to this record.
 - Cost: Codex 1,279 s over five runs, Melious 1,862 s over three, Kimi 235 s; fresh-eyes 854 s over three rounds; tokens: 576,786 for Codex and Melious, 460,109 for fresh-eyes, 1,036,895 in all as logged (Kimi gave no figure).
+
+## Gate 2 — the three stages (decisions 1 and 7), the trial domain, hooks re-pinned after #328
+
+Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: OPEN (round 1 done, round 2 owed) · authority used: as gate 1
+
+The maintainer reversed the order after gate 1 closed (preview first, the move just before launch) and said yes to three stages. A change to a decision, so a gate of its own, on the whole plan with the change named.
+
+| Round | Head | Artifact | Reviewers | seconds, tokens per seat | BUG/RISK/NIT |
+|---|---|---|---|---|---|
+| 1 | `39ff019` | full, changed sections named (`--verify`, with gate 1's refuted C5 and C13) | the same three seats as gate 1 | Codex 321 s, 130,990 · Melious 485 s, 33,195 · fresh-eyes 223 s, 154,832 | 4 / 2 / 4 after merging duplicates (Codex 4/1/0, Melious 0/1/3, fresh-eyes 2/1/3), and outside scope 2 RISK, 2 NIT. C5 and C13 refutations held |
+
+| id | Sev | Source | Round | Finding — one line | Status | Evidence |
+|---|---|---|---|---|---|---|
+| G1 | BUG | fresh-eyes, Codex (Melious as NIT) | 1 | The opening still puts the move "before the setup script runs" | fixed, locally_verified | opening: "in launch prep: after the site's preview, before it goes live" |
+| G2 | BUG | fresh-eyes, Codex | 1 | `main.<project>.pages.dev` as everyone's preview is wrong for a single-stage site, where `main` is live | fixed, locally_verified | M1 and decision 7: two-stage only; single-stage has pull-request previews |
+| G3 | BUG | Codex | 1 | `CLOUDFLARE_FIRST_DEPLOY.md:37` keeps "The domain is on Cloudflare already" as a condition of `setup`, which the preview no longer meets | fixed, locally_verified | "Hooks": the condition holds only for launch prep's run; line 37 at `5d35db1` read |
+| G4 | BUG | Codex (fresh-eyes as NIT) | 1 | Shape still turns all of "Going live" into a pointer and keeps the script's stop, against "Hooks" | fixed, locally_verified | "Where it lives" |
+| G5 | RISK | fresh-eyes, Codex | 1 | The setup-script hook leaves out that the account comes only from the zone, that a preview token cannot be limited to an unborn zone, and section 6's two days | fixed, locally_verified | "Hooks": all three named; `cloudflare-setup.mjs:495-510` at `5d35db1` read; the checklist's section 6 added |
+| G6 | RISK | Melious | 1 | The script change stage 1 depends on is tracked nowhere | fixed, locally_verified | status row 5a: not this plan's work; plan steps 5, 7 and 8 wait for it |
+| G7 | NIT | fresh-eyes | 1 | Scenario 20a's lead time stops at the zone turning active, leaving launch prep's `setup` run on launch day | fixed, locally_verified | scenario 20a |
+| G8 | NIT | fresh-eyes | 1 | M1 has `launch` attach the domain, while the launch stage is not in the script yet | fixed, locally_verified | M1: by hand, as "Going live" says, until it ships |
+| G9 | NIT | Melious | 1 | Scenario 26a: the TTLs and keeping the old zone also need the other account's holder | fixed, locally_verified | scenario 26a |
+| G10 | NIT | Melious | 1 | Lines 502 and 504 are anchored by number only | fixed, locally_verified | "Hooks" quotes both messages |
+
+Follow-ups (outside scope): G11 (RISK, Codex) scenario 26a: an old site that relies on Cloudflare's proxy in the other account would lose it if copied as DNS only; the trial's item 14 can look at one. G12 (RISK, Codex) re-raise of W1. G13 (NIT, Melious) a three-day token could expire in the DNSSEC wait: fixed anyway, scenario 14 now a week. G14 (NIT, fresh-eyes) "#328's lines" after a header naming `main`'s: fixed anyway.
+
