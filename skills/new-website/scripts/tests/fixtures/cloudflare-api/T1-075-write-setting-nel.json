@@ -1,0 +1,26 @@
+{
+  "capture": "T1-075",
+  "request": {
+    "method": "PATCH",
+    "path": "/zones/c0ffee00000000000000000000000022/settings/nel",
+    "body": {
+      "value": {
+        "enabled": false
+      }
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "nel",
+      "editable": true,
+      "value": {
+        "enabled": false
+      },
+      "modified_on": "2026-10-13T21:21:02.960428Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

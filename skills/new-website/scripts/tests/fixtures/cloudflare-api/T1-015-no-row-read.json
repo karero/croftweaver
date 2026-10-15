@@ -1,0 +1,21 @@
+{
+  "capture": "T1-015",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000022/firewall/access_rules/rules",
+    "body": null
+  },
+  "status": 403,
+  "response": {
+    "success": false,
+    "errors": [
+      {
+        "code": 10000,
+        "message": "Authentication error",
+        "documentation_url": "https://developers.cloudflare.com/api/resources/firewall/subresources/access_rules/methods/list"
+      }
+    ],
+    "messages": [],
+    "result": null
+  }
+}

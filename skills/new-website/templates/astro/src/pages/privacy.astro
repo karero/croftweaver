@@ -11,9 +11,10 @@
 //      the measurement host, or say so here); one sentence each for outbound links,
 //      file downloads and form submissions (keep a sentence only if that
 //      measurement is ticked in Plausible's installer, which ticks all three by
-//      default; the page then describes what the instance does); and the
-//      storage period. The sentence on clicks on an email address describes the
-//      "Email Tap" event (src/components/EmailLink.astro, and the button of the
+//      default; the page then describes what the instance does); the storage
+//      period; and the analytics host in the sentence on refusing it. The
+//      sentence on clicks on an email address describes the "Email Tap" event
+//      (src/components/EmailLink.astro, and the button of the
 //      website-contact-form skill's form); it goes with the paragraph, and stays
 //      as long as that counting does. The clause "only a visit that is still going ... continues as the
 //      same visit" describes Plausible's own session lookup (self-hosted Community
@@ -27,6 +28,22 @@
 //      ONLY …] ones; in server mode the other way round, and delete the three
 //      optional-measurement slot sentences too (no script runs, so none of them
 //      happens). Section 2 has one server-mode sentence.
+//      The sentence on how to refuse the measurement has a slot for the host
+//      name: name the same host as ANALYTICS.scriptHost in src/config.ts
+//      (plausible.io for Plausible Cloud). If that host is the site's own domain
+//      (Plausible behind a proxy), blocking it also blocks the site's own
+//      scripts: name the script's full address there instead. Keep the host inside
+//      the span marked data-analytics-host: tests/privacy-host.spec.ts compares it
+//      with ANALYTICS.scriptHost once the slot is filled. Switzerland's
+//      Telecommunications Act (Art. 45c FMG) asks that visitors are told about
+//      the processing and its purpose, and that they may refuse it. The "Do Not
+//      Track" paragraph near the top of section 3 stays even without analytics:
+//      California's CalOPPA asks the policy to say whether third parties may
+//      collect personal information across websites through the site, and how the
+//      site answers "Do Not Track" if it collects such information itself.
+//      In server mode that refusal sentence is deleted with the other [SCRIPT MODE
+//      ONLY …] slots, mark and all (no script loads, so there is nothing to block), and
+//      its server-mode slot says so.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
@@ -73,10 +90,11 @@
 //      ANY third-party embed (YouTube iframe, remote Google Fonts), another
 //      analytics tool, or wider measurement (optional measurements such as outbound
 //      links, file downloads or form submissions; custom properties) needs this
-//      position AND the text re-checked BEFORE you ship such an addition.
-//      Base.astro also reads a 'theme' key from local storage, and nothing in the
-//      template writes it. If you add a toggle that stores the choice, say so in
-//      section 3.
+//      position AND the text re-checked BEFORE you ship such an addition; a
+//      third-party embed or a cross-site tracker also makes the "Do Not Track"
+//      paragraph untrue. Base.astro also reads a 'theme' key from local storage,
+//      and nothing in the template writes it. If you add a toggle that stores the
+//      choice, say so in section 3.
 //   5. A solid baseline, not legal advice. When in doubt, have it reviewed.
 // The copy below already passes the a11y / seo / tone / email suites: keep one
 // <h1>, the description in the 120-160 char window, no em dashes or banned
@@ -110,9 +128,11 @@ import { SITE } from '../config';
       This site is served by <strong>Cloudflare Pages</strong> (Cloudflare, Inc.,
       101 Townsend St, San Francisco, CA 94107, USA). When you visit a page,
       Cloudflare processes technical connection data (IP address, date and time,
-      requested URL, browser user agent) to deliver the site and to protect it
-      against attacks. The legal basis is our legitimate interest in operating a
-      secure and fast website (Art. 6(1)(f) GDPR). Cloudflare acts as our
+      requested URL, referring page, browser user agent) to deliver the site, to
+      protect it against attacks, and to give us traffic statistics (for example
+      requests, visitors and their countries). The legal basis is our legitimate
+      interest in operating a secure and fast website and in knowing how much it
+      is used (Art. 6(1)(f) GDPR). Cloudflare acts as our
       processor under Art. 28 GDPR; transfers to the USA are covered by the
       EU-U.S. Data Privacy Framework and standard contractual clauses. We do not
       combine these logs with any other data.
@@ -125,6 +145,14 @@ import { SITE } from '../config';
     <p>
       This website is ad-free and <strong>sets no cookies</strong>. Your visit
       leaves no advertising or cross-site tracking identifiers with us.
+    </p>
+    <p>
+      Your browser may send a "Do Not Track" or "Global Privacy Control"
+      signal. This site handles every visit the same way, with or without it:
+      it does not follow you across other websites. The service providers named
+      on this page process data for us as described here. No other third party
+      collects personal information about you over time and across websites
+      through this site.
     </p>
     <p>
       To understand how the site is used, we run <strong>Plausible
@@ -184,8 +212,11 @@ import { SITE } from '../config';
       The legal basis is our legitimate interest in understanding how the
       website is used and in improving it (Art. 6(1)(f) GDPR).
       [STATE THE STORAGE PERIOD, for example: We keep these records for 24
-      months and then delete them.] [SCRIPT MODE ONLY, DELETE IN SERVER MODE: You can prevent the measurement by blocking
-      the analytics script in your browser.] [SERVER MODE ONLY, DELETE IN SCRIPT
+      months and then delete them.] [SCRIPT MODE ONLY, DELETE IN SERVER MODE: You can refuse the measurement: block
+      scripts from <span data-analytics-host>[ANALYTICS HOST, the host name in
+      ANALYTICS.scriptHost in src/config.ts, for example plausible.io]</span>
+      with a content blocker in your browser. The site works the same without
+      the measurement.] [SERVER MODE ONLY, DELETE IN SCRIPT
       MODE: The measurement happens on the server, so blocking scripts in your
       browser does not prevent it. You can object to it (see section 5).]
     </p>

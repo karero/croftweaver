@@ -30,6 +30,13 @@ Bing's index fresh automatically.
 > record are actions only the owner can do (like the GitHub/Cloudflare accounts in
 > SETUP.md). The agent drafts the exact TXT value and the sitemap URL; the owner
 > pastes/clicks.
+>
+> **The verification record can go in earlier.** A Domain property is verified by DNS
+> alone, so its TXT record (and Bing's CNAME, for the manual route) can be written on
+> setup day, before the site is live: the `new-website` setup script writes it, DNS only,
+> with the owner's yes (`--record "TXT @ google-site-verification=…"`,
+> `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "S"). The owner still copies the
+> value from Google and clicks **Verify**; the sitemap waits until the site is live.
 
 > **Console UI labels are localized** — the click paths below are quoted from the
 > English UI; if the owner's account language differs, translate the labels for them

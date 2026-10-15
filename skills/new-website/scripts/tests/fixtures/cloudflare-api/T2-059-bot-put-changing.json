@@ -1,0 +1,36 @@
+{
+  "capture": "T2-059",
+  "request": {
+    "method": "PUT",
+    "path": "/zones/c0ffee00000000000000000000000045/bot_management",
+    "body": {
+      "fight_mode": false,
+      "enable_js": false,
+      "ai_bots_protection": "disabled",
+      "ai_training": "block",
+      "ai_search": "disabled",
+      "ai_user": "disabled",
+      "content_bots_protection": "disabled",
+      "crawler_protection": "disabled",
+      "is_robots_txt_managed": true,
+      "cf_robots_variant": "policy_only"
+    }
+  },
+  "status": 400,
+  "response": {
+    "result": null,
+    "success": false,
+    "errors": [
+      {
+        "code": 10400,
+        "message": "Bad Request"
+      }
+    ],
+    "messages": [
+      {
+        "code": 10400,
+        "message": "cf_robots_variant cannot be set to policy_only with is_robots_txt_managed set to true"
+      }
+    ]
+  }
+}

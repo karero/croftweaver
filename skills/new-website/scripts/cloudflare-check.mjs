@@ -56,7 +56,7 @@ export const ITEMS = [
   { id: 'pages', section: 1, title: 'Create a Pages project, not a Worker' },
   { id: 'build-settings', section: 1, title: 'Build settings',
     path: 'your project → Settings → Builds & deployments',
-    lookFor: 'framework preset Astro, build command npm run build, output directory dist; on a two-stage site the Production branch is production' },
+    lookFor: 'build command npm run build, output directory dist, framework preset Astro or none; on a two-stage site the Production branch is production' },
   { id: 'domain', section: 1, title: 'Attach your domain to the project' },
   { id: 'fail-open', section: 1, title: 'Set Fail open',
     path: 'Workers & Pages → your project → Settings → Runtime → Fail open / closed',

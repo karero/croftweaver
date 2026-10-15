@@ -1,0 +1,21 @@
+# This is a record, never run. It began: #!/bin/bash
+# Trial helper: one call to Cloudflare's API, kept as a capture. usage: cf.sh LABEL METHOD PATH [JSON_BODY]
+# The token is read from the trial folder's .dev.vars and handed to curl on stdin; it is never printed,
+# never an argument, and never written into a capture.
+set -u
+label="$1"; method="$2"; path="$3"; body="${4:-}"
+dir="<the trial's captures folder>"
+token="$(sed -n 's/^CLOUDFLARE_API_TOKEN=//p' "<the throwaway repository>/.dev.vars" | tr -d '[:space:]')"
+[ -n "$token" ] || { echo "no token in .dev.vars" >&2; exit 2; }
+n=$(printf '%03d' $(( $(ls "$dir" | grep -c '\.response\.json$') + 1 )))
+base="$dir/$n-$label"
+printf '%s %s\n%s\n' "$method" "$path" "$body" > "$base.request.txt"
+args=(-sS -X "$method" -o "$base.response.json" -w '%{http_code}' --max-time 40 "https://api.cloudflare.com/client/v4$path")
+if [ "${body#@form}" != "$body" ]; then   # "@form" alone: an empty multipart form; "@form a=b c=d": fields
+  fields="${body#@form}"; n_f=0
+  for f in $fields; do args+=(-F "$f"); n_f=$((n_f+1)); done
+  [ "$n_f" -eq 0 ] && args+=(-H 'Content-Type: multipart/form-data; boundary=----spike' --data-binary $'------spike--\r\n')
+elif [ -n "$body" ]; then args+=(-H 'Content-Type: application/json' --data "$body"); fi
+code="$(printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -K - "${args[@]}")"
+echo "$code" > "$base.status.txt"
+echo "$n-$label: HTTP $code -> $base.response.json"

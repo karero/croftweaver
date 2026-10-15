@@ -75,6 +75,9 @@ cosmetics; red → green → commit.
   be pushed, and fails in CI. Not read: the 404 page, `llms.txt`, and the starter's
   example values (the name `Example`, `hello@example.com`); those stay a
   launch-checklist item.
+- `privacy-host.spec.ts` — the host the privacy page tells visitors to block (the text
+  marked `data-analytics-host`) is the host in `ANALYTICS.scriptHost`. A `[BRACKET]` slot
+  there passes (`placeholders.spec.ts` reports it), and so does a page without the mark.
 - `email.spec.ts` — no plaintext (harvestable) email address in the served HTML
   (addresses go through `<EmailLink>`, which obfuscates; the `website-design-system` rule).
 - `links.spec.ts` — offline outgoing-link guard: no `STALE_DOMAINS` (domains you've

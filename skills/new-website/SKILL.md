@@ -149,12 +149,21 @@ non-expert can answer, and record the answers in the project `README.md`.
     just "English, obviously, unless multilingual."
 
 5. **Analytics — will anyone act on the numbers? (optional)**
-   - Just "is anyone visiting?" → **Google Search Console** alone (free, no
-     script, no consent banner) is enough for search & referral traffic.
+   - Just "is anyone visiting?" → **Google Search Console** (free, no script, no consent
+     banner) is enough for traffic from Google search; it does not show which other
+     sites send visitors, and Cloudflare's docs list no referrer view for the Free plan.
+     Cloudflare also counts the domain's traffic at its own servers, with nothing added
+     to the pages: https://dash.cloudflare.com → your domain → **Analytics** →
+     **Traffic**. On the Free plan that is requests, bandwidth, unique visitors and up
+     to five top countries for at least the last 30 days, bots included; page views, and
+     filtering by referrer, need a paid plan
+     (https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/,
+     checked October 2026). Cloudflare's separate "Web Analytics" is a script in the
+     visitor's browser: keep it off (`docs/CLOUDFLARE-CHECKLIST.md`, section 3,
+     "Cloudflare Web Analytics: Off").
    - "Which sources bring enquiries?" or other real decisions from traffic data
-     (campaigns, content strategy) → **Plausible** (cookieless; running it without
-     a consent banner is a position to have reviewed, see the header of `privacy.astro`
-     and, for a German-only site, `_datenschutz.astro`). In its installer, untick the
+     (campaigns, content strategy) → **Plausible** (cookieless; whether it needs a
+     consent banner: the last point of this question). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
      unless you keep the privacy page's slot sentence for each one you leave ticked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
@@ -199,6 +208,35 @@ non-expert can answer, and record the answers in the project `README.md`.
      3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only
      (server mode: the Production variables, on the live domain only). The
      privacy page must match whatever is chosen here, script or server mode included.
+   - **When the site needs no consent banner.** Tell the owner plainly: a site built
+     with this kit needs no consent banner in the EU, Germany, Switzerland or California
+     as long as it runs no analytics script: nothing reaches the visitor's browser that
+     the page itself does not need. Plausible runs as a small script in the visitor's
+     browser. With it, running without a banner is a defensible position in the EU,
+     Germany, Switzerland and California, not a settled one; to be sure, ask a lawyer.
+     Server mode runs no script, but it is not banner-free by definition either: the
+     visitor's IP still reaches Plausible through the site's Function, and EDPB
+     Guidelines 2/2023 (paras 54–56) say IP-based tracking can fall under the same rule;
+     the same headers say what changes in server mode.
+     For the EU and Germany, the headers of `privacy.astro` and `_datenschutz.astro` set
+     out the sources on both sides and ask you to record who accepted the position. In
+     Switzerland and California the position rests on the privacy page informing
+     visitors. Switzerland (Art. 45c FMG) asks that visitors are told about the
+     processing and its purpose, and that they may refuse it; California's CalOPPA asks
+     the page to say whether third parties may collect personal information across
+     websites through the site, and how the site answers "Do Not Track" if it collects
+     such information itself. Section 3 of `privacy.astro` says both;
+     `_datenschutz.astro` says the Swiss part. California's CCPA applies only above its
+     thresholds (USD 26,625,000 annual gross revenue from 1 January 2025, adjusted every
+     two years; or buying, selling or sharing the personal information of 100,000 or
+     more California consumers or households; or half the revenue from selling or
+     sharing it). A site without a banner still needs its privacy page, an imprint in
+     Germany and Austria, and a processing contract with Cloudflare, and with Plausible
+     if it runs on Plausible Cloud. What breaks the no-banner case: any Cloudflare
+     feature that section 3 of `docs/CLOUDFLARE-CHECKLIST.md` (in the Croftweaver
+     folder) asks you to switch off, the script monitor among them; a YouTube embed;
+     remote Google Fonts; another analytics tool. A theme toggle that stores the
+     visitor's choice needs a look too (the same headers say why). Not legal advice.
 
 6. **Domain + how do changes go live? (publish model)**
    *Decides: the publish workflow — a safety-vs-simplicity trade-off. **Offer both, explain
@@ -638,6 +676,7 @@ hold Search Console Request Indexing until then.
       mode also: `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` set as Production variables
       (and nowhere in script mode), the privacy page's server-mode slots kept, and one
       page view and one email tap on the live domain seen under Today.
+      Whether the site may run without a consent banner: §1 Q5's last point.
       German-market sites: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
       exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;
@@ -657,9 +696,12 @@ hold Search Console Request Indexing until then.
       **Single-stage:** `main` = live (default Cloudflare production branch).
       **Creating the Pages project + first deploy** (the step a Cloudflare newcomer
       struggles with) — offer the bootstrap options in
-      `references/CLOUDFLARE_FIRST_DEPLOY.md`: recommend the **token-assisted** path for
-      owners new to Cloudflare (least-privilege, expiring token; you run Wrangler), with
-      git-integration (push-to-deploy, no token) and browser/manual as the other offered paths.
+      `references/CLOUDFLARE_FIRST_DEPLOY.md`: for a site on GitHub, recommend the **setup
+      script** (`scripts/cloudflare-setup.mjs setup`: one short-lived token, the owner's yes
+      to a printed list, a project connected to GitHub with the checklist's settings; the
+      domain is attached by hand on launch day for now), with the token-assisted direct
+      upload (no GitHub connection; you run Wrangler), git-integration by hand and
+      browser/manual as the other offered paths.
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
       Non-English-speaking owner? Translate `PUBLISHING.md` in-session first (e.g. save
       as `PUBLISHING.de.md`, or replace the copy) — it is the owner's PERMANENT reference,

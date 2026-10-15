@@ -41,7 +41,8 @@ setting's name.
   other ways to deploy are in
   [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).)
 - [ ] **Build settings:** framework preset **Astro**, build command `npm run build`, output
-  directory `dist`. A two-stage site: set **Production branch** to `production` on this
+  directory `dist`. A project the kit's setup script makes has no preset, which is fine: the
+  build command does the work, and a project made that way built without one. A two-stage site: set **Production branch** to `production` on this
   same form, or it publishes the preview first. To change it later: your project →
   Settings → Builds & deployments → Configure Production deployments, then **Save**. That
   path is for projects connected to Git. A Direct Upload project has no such option: ask
@@ -225,6 +226,16 @@ cookies, scripts or tracking you didn't choose.
   Cloudflare describes an "automatic setup" for sites that run through it, which adds a
   measurement script to your pages. After you disable it, deploy again and check the page
   source (section 5).
+
+  Your traffic counts stay without it: your domain → **Analytics** → **Traffic**. On the
+  Free plan it shows requests, bandwidth, unique visitors and up to five top countries, for
+  at least the last 30 days, bots included
+  ([Cloudflare's page](https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/),
+  checked October 2026). Cloudflare counts them at its own servers from the requests it
+  serves, with nothing added to your pages
+  ([Cloudflare's analytics FAQ](https://developers.cloudflare.com/analytics/faq/about-analytics/):
+  "All metrics reflect traffic proxied through the Cloudflare network"). The privacy page
+  this kit writes says that Cloudflare gives you traffic statistics.
 - [ ] **Email Address Obfuscation: Off.**
   Your domain → Security → Settings → filter by **Client-side abuse** → Email Address
   Obfuscation.
@@ -361,10 +372,11 @@ and protecting your Cloudflare account (your site's `SETUP.md`).
 
 Most of sections 1 to 4 are settings an assistant can change for you through Cloudflare's
 API. A token only gives permission: the changes happen when your assistant makes the API
-calls, one at a time. If you would rather not click through the dashboard, make one token,
-hand it to your assistant for an afternoon, and delete it afterwards. HSTS is not part of
-that afternoon: switch it on a few days after go-live (section 2), with a second token or
-by hand. Setting `CANONICAL_URL` waits too, until your own domain serves the site (section
+calls, one at a time. If you would rather not click through the dashboard, make one token
+and hand it to your assistant for the day you set the site up. If the day the site goes live
+falls inside the token's life, the same token serves that day too; otherwise make a second
+one with the same rows. Delete each token once its work is done. HSTS is not part of either day: switch it on
+a few days after go-live (section 2), with another token or by hand. Setting `CANONICAL_URL` waits too, until your own domain serves the site (section
 1).
 
 **Make the token.** My Profile → API Tokens → Create Token → Create Custom Token. Add these
@@ -376,8 +388,35 @@ look but not change anything):
 | Zone → Zone Settings → Edit | Always Use HTTPS, Minimum TLS Version, Email Address Obfuscation, the NEL switch |
 | Zone → Transform Rules → Edit | the rule that removes the NEL headers |
 | Zone → Bot Management → Edit | Bot Fight Mode, the AI crawler policies and the three switches after them (`bot_preference_sync_enabled`, `crawler_protection`, `content_bots_protection`), all on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
+| Zone → DNS → Edit | the verification records of Google and Bing, and, when your domain is attached, the record that points it at the project |
 | Zone → Zone → Read | finding your domain by name |
 | Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
+
+**What it writes.** For the settings above, these are the fields and values the assistant
+sends, and reads back afterwards. Each zone setting is its own call. The Bot Management fields
+go in one call, which sends nine fields (`fight_mode`, `enable_js`, the four AI policies,
+`crawler_protection`, `content_bots_protection` and `cf_robots_variant`), each as it read them
+unless it changes them, plus `bot_preference_sync_enabled` unless the AI lines are left as they
+are. It leaves every other field out, `is_robots_txt_managed` among them (Cloudflare refused it
+as `true` beside `cf_robots_variant` `policy_only`, code 10400). In the trial,
+`bot_preference_sync_enabled`, left out, kept its value. Leaving out `is_robots_txt_managed` has
+not been tried yet: the first real site shows it, and if it moves, the read-back stops the run
+with that line marked "by hand".
+
+| Setting | API field | Value |
+|---|---|---|
+| Always Use HTTPS | zone setting `always_use_https` | `"on"` |
+| Minimum TLS Version | zone setting `min_tls_version` | `"1.2"` |
+| Email Address Obfuscation | zone setting `email_obfuscation` | `"off"` |
+| Network Error Logging, the switch | zone setting `nel` | `{"enabled": false}` |
+| Bot Fight Mode | Bot Management `fight_mode` | `false` |
+| AI crawlers: the AI bot policies, and the older Block AI bots | Bot Management `ai_search`, `ai_user`, `ai_training`, `ai_bots_protection` | `"disabled"` (no block) |
+| AI Labyrinth | Bot Management `crawler_protection` | `"disabled"` |
+| Content bots | Bot Management `content_bots_protection` | `"disabled"` |
+| Bot Preference Sync | Bot Management `bot_preference_sync_enabled` | `false` |
+
+If you block or disallow Training on purpose, tell your assistant: it then leaves the AI lines
+as they are.
 
 Cloudflare documents these calls. We have run the Transform Rules call on live sites and
 the Bot Management call on one spare domain, and we have not run any of them often, so for every call the

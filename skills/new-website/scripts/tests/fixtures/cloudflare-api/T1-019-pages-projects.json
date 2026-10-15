@@ -1,0 +1,274 @@
+{
+  "capture": "T1-019",
+  "excerpt": "every project as listed, with latest_deployment and canonical_deployment set to null",
+  "request": {
+    "method": "GET",
+    "path": "/accounts/c0ffee00000000000000000000000023/pages/projects",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": [
+      {
+        "id": "d0000011-0000-4000-8000-000000000000",
+        "name": "lenas-old",
+        "subdomain": "lenas-old-site.pages.dev",
+        "domains": [
+          "lenas-old-site.pages.dev",
+          "lenas-backstube.example"
+        ],
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "owner_id": "1000001",
+            "repo_name": "lenas-old-site",
+            "repo_id": "1000002",
+            "production_branch": "production",
+            "pr_comments_enabled": true,
+            "deployments_enabled": true,
+            "production_deployments_enabled": true,
+            "preview_deployment_setting": "all",
+            "preview_branch_includes": [
+              "*"
+            ],
+            "preview_branch_excludes": [],
+            "path_includes": [
+              "*"
+            ],
+            "path_excludes": []
+          }
+        },
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "deployment_configs": {
+          "preview": {
+            "env_vars": null,
+            "fail_open": true,
+            "always_use_latest_compatibility_date": false,
+            "compatibility_date": "2026-10-12",
+            "compatibility_flags": [],
+            "build_image_major_version": 3,
+            "usage_model": "standard"
+          },
+          "production": {
+            "env_vars": {
+              "CANONICAL_URL": {
+                "type": "plain_text",
+                "value": "https://lenas-backstube.example"
+              }
+            },
+            "fail_open": true,
+            "always_use_latest_compatibility_date": false,
+            "compatibility_date": "2026-10-12",
+            "compatibility_flags": [],
+            "build_image_major_version": 3,
+            "usage_model": "standard"
+          }
+        },
+        "latest_deployment": null,
+        "canonical_deployment": null,
+        "created_on": "2026-10-12T05:41:45.896289Z",
+        "production_branch": "production",
+        "production_script_name": "pages-worker--1000001-production",
+        "preview_script_name": "pages-worker--1000001-preview",
+        "uses_functions": true,
+        "framework": "astro",
+        "framework_version": "7.3.5"
+      },
+      {
+        "id": "d0000003-0000-4000-8000-000000000000",
+        "name": "other-site-1",
+        "subdomain": "other-site-1.pages.dev",
+        "domains": [
+          "other-site-1.pages.dev",
+          "other-1.example"
+        ],
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "owner_id": "1000001",
+            "repo_name": "other-site-1",
+            "repo_id": "1000003",
+            "production_branch": "production",
+            "pr_comments_enabled": true,
+            "deployments_enabled": true,
+            "production_deployments_enabled": true,
+            "preview_deployment_setting": "all",
+            "preview_branch_includes": [
+              "*"
+            ],
+            "preview_branch_excludes": [],
+            "path_includes": [
+              "*"
+            ],
+            "path_excludes": []
+          }
+        },
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "deployment_configs": {
+          "preview": {
+            "env_vars": null,
+            "fail_open": true,
+            "always_use_latest_compatibility_date": false,
+            "compatibility_date": "2026-04-27",
+            "compatibility_flags": [],
+            "build_image_major_version": 3,
+            "usage_model": "standard"
+          },
+          "production": {
+            "env_vars": null,
+            "fail_open": true,
+            "always_use_latest_compatibility_date": false,
+            "compatibility_date": "2026-04-27",
+            "compatibility_flags": [],
+            "build_image_major_version": 3,
+            "usage_model": "standard"
+          }
+        },
+        "latest_deployment": null,
+        "canonical_deployment": null,
+        "created_on": "2026-04-27T17:43:26.666227Z",
+        "production_branch": "production",
+        "production_script_name": "pages-worker--1000001-production",
+        "preview_script_name": "pages-worker--1000001-preview",
+        "uses_functions": true,
+        "framework": "astro",
+        "framework_version": "7.3.5"
+      },
+      {
+        "id": "d0000004-0000-4000-8000-000000000000",
+        "name": "other-site-2",
+        "subdomain": "other-site-2.pages.dev",
+        "domains": [
+          "other-site-2.pages.dev",
+          "other-5.example"
+        ],
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "owner_id": "1000001",
+            "repo_name": "other-site-2-repo",
+            "repo_id": "1000004",
+            "production_branch": "production",
+            "pr_comments_enabled": true,
+            "deployments_enabled": true,
+            "production_deployments_enabled": true,
+            "preview_deployment_setting": "all",
+            "preview_branch_includes": [
+              "*"
+            ],
+            "preview_branch_excludes": [],
+            "path_includes": [
+              "*"
+            ],
+            "path_excludes": []
+          }
+        },
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "deployment_configs": {
+          "preview": {
+            "env_vars": null,
+            "fail_open": true,
+            "always_use_latest_compatibility_date": false,
+            "compatibility_date": "2026-05-20",
+            "compatibility_flags": [],
+            "build_image_major_version": 3,
+            "usage_model": "standard",
+            "wrangler_config_hash": "f00d000000000000000000000000000000000000000000000000000000000025"
+          },
+          "production": {
+            "env_vars": null,
+            "fail_open": true,
+            "always_use_latest_compatibility_date": false,
+            "compatibility_date": "2026-05-20",
+            "compatibility_flags": [],
+            "build_image_major_version": 3,
+            "usage_model": "standard",
+            "wrangler_config_hash": "f00d000000000000000000000000000000000000000000000000000000000025"
+          }
+        },
+        "latest_deployment": null,
+        "canonical_deployment": null,
+        "created_on": "2026-05-22T12:41:04.288147Z",
+        "production_branch": "production",
+        "production_script_name": "pages-worker--1000001-production",
+        "preview_script_name": "pages-worker--1000001-preview",
+        "uses_functions": true,
+        "framework": "astro",
+        "framework_version": "7.3.5"
+      },
+      {
+        "id": "d0000020-0000-4000-8000-000000000000",
+        "name": "other-site-3",
+        "subdomain": "other-site-3.pages.dev",
+        "domains": [
+          "other-site-3.pages.dev",
+          "shop.lenas-cafe.example"
+        ],
+        "build_config": {
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "deployment_configs": {
+          "preview": {
+            "env_vars": null,
+            "fail_open": true,
+            "always_use_latest_compatibility_date": false,
+            "compatibility_date": "2026-03-29",
+            "compatibility_flags": [],
+            "build_image_major_version": 3,
+            "usage_model": "standard"
+          },
+          "production": {
+            "env_vars": null,
+            "fail_open": true,
+            "always_use_latest_compatibility_date": false,
+            "compatibility_date": "2026-03-29",
+            "compatibility_flags": [],
+            "build_image_major_version": 3,
+            "usage_model": "standard"
+          }
+        },
+        "latest_deployment": null,
+        "canonical_deployment": null,
+        "created_on": "2026-03-29T19:20:24.148837Z",
+        "production_branch": "main",
+        "production_script_name": "pages-worker--1000001-production",
+        "preview_script_name": "pages-worker--1000001-preview",
+        "uses_functions": false,
+        "framework": "",
+        "framework_version": ""
+      }
+    ],
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {
+      "page": 1,
+      "per_page": 10,
+      "count": 4,
+      "total_count": 4,
+      "total_pages": 1
+    }
+  }
+}
