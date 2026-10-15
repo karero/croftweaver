@@ -42,7 +42,9 @@
 //      ANALYTICS.scriptHost in src/config.ts (plausible.io for Plausible Cloud).
 //      If that host is the site's own domain (Plausible behind a proxy), blocking
 //      it also blocks the site's own scripts: name the script's full address
-//      there instead. Switzerland's Telecommunications Act (Art. 45c FMG) asks
+//      there instead. Keep the host inside the span marked data-analytics-host:
+//      tests/privacy-host.spec.ts compares it with ANALYTICS.scriptHost once the
+//      slot is filled. Switzerland's Telecommunications Act (Art. 45c FMG) asks
 //      that visitors are told about the processing and its purpose, and that they
 //      may refuse it.
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
@@ -190,9 +192,9 @@ import { SITE } from '../config';
       DSGVO).
       [SPEICHERDAUER ANGEBEN, zum Beispiel: Wir bewahren diese Daten 24 Monate
       auf und löschen sie danach.] Sie können die Messung ablehnen: Blockieren
-      Sie Skripte von [ANALYSE-HOST, der Hostname aus ANALYTICS.scriptHost in
-      src/config.ts, zum Beispiel plausible.io] mit einem Inhaltsblocker in
-      Ihrem Browser.
+      Sie Skripte von <span data-analytics-host>[ANALYSE-HOST, der Hostname aus
+      ANALYTICS.scriptHost in src/config.ts, zum Beispiel plausible.io]</span>
+      mit einem Inhaltsblocker in Ihrem Browser.
       Die Website funktioniert ohne die Messung genauso.
     </p>
 
