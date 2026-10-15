@@ -149,14 +149,17 @@ non-expert can answer, and record the answers in the project `README.md`.
     just "English, obviously, unless multilingual."
 
 5. **Analytics — will anyone act on the numbers? (optional)**
-   - Just "is anyone visiting?" → **Google Search Console** alone (free, no
-     script, no consent banner) is enough for search & referral traffic.
-     Cloudflare also counts the domain's traffic at its own servers, with nothing
-     added to the pages: https://dash.cloudflare.com → your domain → **Analytics** →
-     **Traffic**. On the Free plan that is requests, bandwidth, unique visitors and the
-     top five countries for at least the last 30 days, bots included; page views and
-     referrers need a paid plan. Cloudflare's separate "Web Analytics" is a script in
-     the visitor's browser: keep it off (`docs/CLOUDFLARE-CHECKLIST.md`, section 3).
+   - Just "is anyone visiting?" → **Google Search Console** (free, no script, no consent
+     banner) is enough for search & referral traffic. Cloudflare also counts the
+     domain's traffic at its own servers, with nothing added to the pages:
+     https://dash.cloudflare.com → your domain → **Analytics** → **Traffic**. On the
+     Free plan that is requests, bandwidth, unique visitors and the top five countries
+     for at least the last 30 days, bots included; page views, and filtering by
+     referrer, need a paid plan
+     (https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/,
+     checked October 2026). Cloudflare's separate "Web Analytics" is a script in the
+     visitor's browser: keep it off (`docs/CLOUDFLARE-CHECKLIST.md`, section 3,
+     "Cloudflare Web Analytics: Off").
    - "Which sources bring enquiries?" or other real decisions from traffic data
      (campaigns, content strategy) → **Plausible** (cookieless; whether it needs a
      consent banner: the last point of this question). In its installer, untick the
