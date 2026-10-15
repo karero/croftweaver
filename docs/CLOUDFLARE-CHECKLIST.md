@@ -166,7 +166,14 @@ cookies, scripts or tracking you didn't choose.
      been set there on 12 October. We did not read it when we counted, so we can't say
      whether it was working then.
      *Why off:* the visitor's browser sends reports to Cloudflare, and the privacy page this
-     kit writes doesn't mention it. If you keep it on, say so on your privacy page.
+     kit writes doesn't mention it. If you keep it on, say so on your privacy page, and say
+     which of its two data settings you chose. With **Log host only**, the default,
+     Cloudflare analyses only the host name of each address the browser reports. With
+     **Log full URI** it uses the whole address, which can carry a session ID, and
+     Cloudflare says that is then logged in clear text for anyone with access to the
+     monitor's dashboard. The setting is under **Continuous script monitoring** →
+     **Configurations** → **Data processing**
+     ([Cloudflare's settings page](https://developers.cloudflare.com/client-side-security/reference/settings/)).
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
      then count with the loop in
      [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
@@ -176,8 +183,10 @@ cookies, scripts or tracking you didn't choose.
      find the switch, or a `header` count shows after you switched it off, tell your
      assistant.
      *The trade-off:* you give up Cloudflare's view of the scripts your visitors load. The
-     switch may be marked Global. If it says so, it may apply to every domain in your
-     account: look at your other sites before you switch it off.
+     switch is set for each domain on its own: on 14 October 2026 it was on for one of our
+     domains and off for the others in the same account. The tag marked Global beside it
+     opens the two data settings above; we found no Cloudflare page that says what Global
+     covers.
 
   Visitors who came in before can keep the old NEL note until that many seconds have
   passed (the `max_age` from step 1; 604800 seconds is seven days). The
