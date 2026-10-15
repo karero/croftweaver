@@ -53,10 +53,12 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    `package-lock.json`** — CI uses `npm ci`, which fails without it.
    On **npm ≥11.16**, `install` prints "packages have install scripts not yet covered"
    for scripts it hasn't been told to trust — per npm's own docs this is currently
-   advisory only (the scripts still run; a future npm release will start blocking them),
-   but approve the one Astro needs now to silence the warning and be ready ahead of that:
-   `npm approve-scripts esbuild`. (sharp no longer has an install script — since 0.35 it
-   ships prebuilt binaries, so it needs no approval.)
+   advisory only (the scripts still run; a future npm release will start blocking them).
+   This `package.json` already approves the one package that still has an install script,
+   `fsevents` (macOS only), so there is nothing to approve. (Astro needed `esbuild` approved
+   until 7.3.8, which no longer installs it; sharp needs nothing since 0.35.) If a later
+   update brings a package with an install script, the warning names it: approve it with
+   `npm approve-scripts <name>`.
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
    (`SITE.url`, name, theme color, analytics: `scriptHost` and the per-site `scriptId`
    from Plausible's Site installation page — and check `PROD_BRANCH` matches the
