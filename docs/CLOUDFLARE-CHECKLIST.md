@@ -181,7 +181,9 @@ cookies, scripts or tracking you didn't choose.
      ID, is logged in clear text for anyone with access to the monitor's dashboard
      ([settings page](https://developers.cloudflare.com/client-side-security/reference/settings/));
      if you choose it, say that on your privacy page too. We found nothing that says what
-     the Global tag covers: if you change the setting, tell your assistant.
+     the Global tag covers: if you change the setting, tell your assistant. With either
+     setting, keeping the monitor on is a risk, not a verdict, and this is not legal advice.
+     Off avoids the question.
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
      then count with the loop in
      [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
