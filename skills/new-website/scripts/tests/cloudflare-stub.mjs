@@ -330,6 +330,7 @@ function patchProject(state, p, body) {
   b.result = copy(p);
   for (const k of state.loseOnPatch ?? []) delete b.result.deployment_configs.production.env_vars?.[k];
   if (state.thinPatchAnswer) b.result.source.config = {}; // MADE: an answer thinner than any captured one
+  if (state.previewInPatchAnswer) b.result.source.config.preview_deployment_setting = state.previewInPatchAnswer; // MADE: another value
   return { status: 200, body: b };
 }
 

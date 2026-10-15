@@ -536,6 +536,15 @@ test('a PATCH answer without the whole project stops the run before anything els
     assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'nothing after the PATCH');
   }));
 
+test('a PATCH answer whose preview setting differs from the one read before stops the run', () =>
+  scenario(freshState({ projects: [project({ failOpen: false })], previewInPatchAnswer: 'none' }), async ({ api, go, state }) => {
+    state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
+    const r = await go(['--confirm', codeOf(await go())]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /does not read as asked: preview setting none, not all/);
+    assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'nothing after the PATCH');
+  }));
+
 test('a create answer that does not read as asked stops the run: no build, no setting', () =>
   scenario(freshState({ thinCreateAnswer: true }), async ({ api, go }) => {
     const r = await go(['--confirm', codeOf(await go())]);
@@ -545,7 +554,7 @@ test('a create answer that does not read as asked stops the run: no build, no se
   }));
 
 test('the check of a returned project names each field that does not hold the end state', () => {
-  const want = { gh: { owner: OWNER, repo: REPO }, prodBranch: 'production' };
+  const want = { gh: { owner: OWNER, repo: REPO }, prodBranch: 'production', preview: 'all' };
   const good = fixture('T1-027').response.result; // the captured create answer, the trial's project
   const asLena = (p) => { const c = JSON.parse(JSON.stringify(p)); c.source.config.owner = OWNER; c.source.config.repo_name = REPO; c.subdomain = `${REPO}.pages.dev`; return c; };
   assert.deepEqual(notAsWanted(asLena(good), want), []);
@@ -560,6 +569,11 @@ test('the check of a returned project names each field that does not hold the en
     [(p) => { p.deployment_configs.preview = {}; }, /Fail open off for preview/],
     [(p) => { p.deployment_configs.production = []; }, /no production settings/],
     [(p) => { p.deployment_configs.production.env_vars = []; }, /the production variables cannot be read/],
+    // Review re-gate 3: a value, not only a type. The preview setting asked for, and the names as strings.
+    [(p) => { p.source.config.preview_deployment_setting = 'none'; }, /preview setting none, not all/],
+    [(p) => { p.source.config.preview_deployment_setting = ''; }, /preview setting , not all/],
+    [(p) => { p.source.config.owner = [OWNER]; }, /connected to \["lena-example"\]\/lenas-backstube/],
+    [(p) => { delete p.source.config.repo_name; }, /connected to lena-example\/undefined/],
   ];
   for (const [spoil, want2] of cases) {
     const p = asLena(good);
@@ -567,6 +581,10 @@ test('the check of a returned project names each field that does not hold the en
     assert.match(notAsWanted(p, want).join('; '), want2);
   }
   assert.deepEqual(notAsWanted(null, want), ['no project in the answer']);
+  // A repository literally named "undefined" still needs its name in the answer.
+  const named = asLena(good);
+  delete named.source.config.repo_name;
+  assert.match(notAsWanted(named, { ...want, gh: { owner: OWNER, repo: 'undefined' } }).join('; '), /connected to lena-example\/undefined/);
 });
 
 test('10: no build Cloudflare started from a push: each run waits and names the causes; a failed push build is proof, said as a failure', () =>

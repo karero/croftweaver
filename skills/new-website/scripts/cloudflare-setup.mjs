@@ -717,7 +717,7 @@ async function setupStage(opts, io) {
   if (create) {
     const r = await api('POST', projectsAt, { json: create });
     if (!ok(r)) throw new Stop(1, `Cloudflare did not create the project: ${refusal(r, ROW.pages)}.`, 'If it says the name is taken (pages.dev names are global), run again with --project <another-name>. If it cannot reach the repository, give Cloudflare\'s GitHub app access to it (GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure).');
-    const off = notAsWanted(r.body?.result, { gh, prodBranch });
+    const off = notAsWanted(r.body?.result, { gh, prodBranch, preview: create.source.config.preview_deployment_setting });
     if (off.length) throw new Stop(1, `Cloudflare says it created the project ${name}, but it does not read as asked: ${off.join('; ')}. Look at it in the dashboard (Workers & Pages → ${name} → Settings) before running this again.`);
     project = r.body.result;
     say('', `  done     Created the project ${name}, connected to ${repository}. Its address: https://${project.subdomain}/`);
@@ -725,7 +725,7 @@ async function setupStage(opts, io) {
     const before = varNames(project);
     const r = await api('PATCH', projectAt, { json: patch });
     if (!ok(r)) throw new Stop(1, `Cloudflare refused the change to the project: ${refusal(r, ROW.pages)}. Nothing else was changed.`);
-    const off = notAsWanted(r.body?.result, { gh, prodBranch });
+    const off = notAsWanted(r.body?.result, { gh, prodBranch, preview: project.source?.config?.preview_deployment_setting });
     if (off.length) throw new Stop(1, `Cloudflare accepted the change to the project, but it does not read as asked: ${off.join('; ')}. Its variables could not be compared. Look at it in the dashboard (Workers & Pages → ${name} → Settings).`);
     const after = varNames(r.body.result);
     const lost = before.filter((v) => !after.includes(v));
@@ -864,7 +864,9 @@ async function setupStage(opts, io) {
 // relies on afterwards must hold the end state the question named, or the run stops. Each problem
 // is named. (The shape is the captured one: T1-027, T1-054, and the PATCH answers T1-048, T1-049,
 // T1-051 to T1-053 and T1-061.)
-export function notAsWanted(p, { gh, prodBranch }) {
+// `preview` is the preview setting wanted: `all` for a project the script creates, the value read
+// before for one it changes (the script never changes it).
+export function notAsWanted(p, { gh, prodBranch, preview }) {
   const off = [];
   const obj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
   if (!obj(p)) return ['no project in the answer'];
@@ -872,8 +874,10 @@ export function notAsWanted(p, { gh, prodBranch }) {
   const c = p.source?.config;
   if (p.source?.type !== 'github' || !obj(c)) off.push('not connected to GitHub');
   else {
-    if (String(c.owner).toLowerCase() !== gh.owner.toLowerCase() || String(c.repo_name).toLowerCase() !== gh.repo.toLowerCase()) off.push(`connected to ${c.owner}/${c.repo_name}`);
+    if (typeof c.owner !== 'string' || typeof c.repo_name !== 'string'
+      || c.owner.toLowerCase() !== gh.owner.toLowerCase() || c.repo_name.toLowerCase() !== gh.repo.toLowerCase()) off.push(`connected to ${show(c.owner)}/${show(c.repo_name)}`);
     if (typeof c.preview_deployment_setting !== 'string') off.push('no preview setting');
+    else if (typeof preview === 'string' && c.preview_deployment_setting !== preview) off.push(`preview setting ${c.preview_deployment_setting}, not ${preview}`);
   }
   if (p.production_branch !== prodBranch) off.push(`production branch ${p.production_branch}, not ${prodBranch}`);
   for (const [k, v] of Object.entries(BUILD)) if (p.build_config?.[k] !== v) off.push(`${k} ${p.build_config?.[k] ?? '(none)'}, not ${v}`);
