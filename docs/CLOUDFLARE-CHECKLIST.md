@@ -228,12 +228,14 @@ cookies, scripts or tracking you didn't choose.
   source (section 5).
 
   Your traffic counts stay without it: your domain → **Analytics** → **Traffic**. On the
-  Free plan it shows requests, bandwidth, unique visitors and the top five countries, for
+  Free plan it shows requests, bandwidth, unique visitors and up to five top countries, for
   at least the last 30 days, bots included
   ([Cloudflare's page](https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/),
   checked October 2026). Cloudflare counts them at its own servers from the requests it
-  serves, with nothing added to your pages. The privacy page this kit writes says that
-  Cloudflare gives you traffic statistics.
+  serves, with nothing added to your pages
+  ([Cloudflare's analytics FAQ](https://developers.cloudflare.com/analytics/faq/about-analytics/):
+  "All metrics reflect traffic proxied through the Cloudflare network"). The privacy page
+  this kit writes says that Cloudflare gives you traffic statistics.
 - [ ] **Email Address Obfuscation: Off.**
   Your domain → Security → Settings → filter by **Client-side abuse** → Email Address
   Obfuscation.
