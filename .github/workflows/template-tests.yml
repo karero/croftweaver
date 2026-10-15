@@ -128,9 +128,9 @@ jobs:
           [ -n "$host" ] || { echo "no scriptHost: '<host>' line in src/config.ts that the gate can read"; exit 1; }
           sed -i "s/^export const USE_ANALYTICS = true;/export const USE_ANALYTICS = false;/" src/config.ts
           grep -q "^export const USE_ANALYTICS = false;" src/config.ts
-          # Only the whole token, matched literally: a lookalike host stays.
-          host="$host" perl -pi -e 's/ \Q$ENV{host}\E\/?(?=[;\s])//g' public/_headers
-          if grep -qF "$host" public/_headers; then echo "$host is still in public/_headers"; exit 1; fi
+          # Only the whole token, matched literally: a lookalike host stays. The gate below
+          # reports any token of the host that is left.
+          host="$host" perl -pi -e 's/[ \t]+\Q$ENV{host}\E\/?(?=[;\s]|$)//g' public/_headers
           npm run check
           bash tests/check_analytics_gate.sh
           CF_PAGES_BRANCH=production npx playwright test tests/email.spec.ts
