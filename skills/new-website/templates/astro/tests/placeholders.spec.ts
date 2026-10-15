@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { PAGES } from './_helpers';
+import { PAGES, UNFILLED_SLOT } from './_helpers';
 
 // Leftover guardrail on the RENDERED site: a placeholder, or a note the author wrote
 // to themselves, must not reach a visitor, a search engine or a share card. Reads every
@@ -33,7 +33,8 @@ const RULES: Rule[] = [
   // an editor's note in a quote) does: ALLOWLIST it or mark it [data-placeholder-exempt].
   // No length limit: a long "[MISSING: …]" is still one. The price is that a bracket
   // opened with a capital and never closed runs on to the next "]"; that is worth a look too.
-  { label: 'unfilled [SLOT]', re: /\[\s*\p{Lu}\s*[^\]\s][^\]]*\]/gu },
+  // The rule itself is in _helpers.ts: privacy-host.spec.ts skips what it matches.
+  { label: 'unfilled [SLOT]', re: UNFILLED_SLOT },
   // The same slots written small: a bracket that opens with a word only a slot opens
   // with ("[your name]", "[insert link]", "[company name]"). Other lower-case brackets
   // ("[the team]" in a quote, "[sic]") pass; on a page still listed below they are

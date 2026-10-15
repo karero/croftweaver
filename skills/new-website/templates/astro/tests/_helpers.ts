@@ -13,6 +13,14 @@ export const PAGES = [
 // localStorage['theme'], read by the no-FOUC script in Base.astro's <head>.
 export const THEMES = ['light', 'dark'] as const;
 
+// The shape of a [SLOT] the owner still has to fill: an opening bracket, a capital letter
+// and at least one more character ("[DATE]", "[Your Name]", "[MISSING: year built]").
+// placeholders.spec.ts reports every match as an "unfilled [SLOT]" (its rule list says
+// why the shape is this one). privacy-host.spec.ts skips a mark only when its whole text
+// is one match, and only because placeholders.spec.ts reports it, so the two specs share
+// this one copy. Global flag: use it with matchAll or String.match, not .test().
+export const UNFILLED_SLOT = /\[\s*\p{Lu}\s*[^\]\s][^\]]*\]/gu;
+
 // German function-word density — the wrong-language detector shared by
 // tone.spec.ts (single-locale German sites) and astro-i18n-setup's
 // i18n.spec.ts (multi-locale). ONE implementation so the two enforcement

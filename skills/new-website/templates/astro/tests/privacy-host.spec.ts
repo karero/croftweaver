@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { PAGES } from './_helpers';
+import { PAGES, UNFILLED_SLOT } from './_helpers';
 import { ANALYTICS } from '../src/config';
 
 // The privacy page tells a visitor how to refuse the measurement: block scripts from
@@ -12,15 +12,19 @@ import { ANALYTICS } from '../src/config';
 // mark and all, and passes too. A proxied script's full address
 // (https://example.com/js/script.js) counts by its host.
 
-// Skipped: the kit's own slot and nothing else. The whole text is one bracket that starts
-// with a capital and names ANALYTICS.scriptHost, as both shipped slots do, so whatever is
-// skipped here is also an "unfilled [SLOT]" to placeholders.spec.ts. Any other text in
-// the mark, brackets or not, is compared as a host.
-const SLOT = /^\[\s*\p{Lu}[^\]]*ANALYTICS\.scriptHost[^\]]*\]$/u;
+// Skipped: the kit's own slot and nothing else. The whole text is one "unfilled [SLOT]"
+// to placeholders.spec.ts (UNFILLED_SLOT in _helpers.ts, the rule that spec reports) and
+// names ANALYTICS.scriptHost, as both shipped slots do. Any other text in the mark,
+// brackets or not, is compared as a host. Skipping is safe only because placeholders.spec.ts
+// reports the slot, so the tests below fail on any skip that is not one whole slot.
+const isOneSlot = (text: string) => {
+  const found = [...text.matchAll(UNFILLED_SLOT)].map((m) => m[0]);
+  return found.length === 1 && found[0] === text;
+};
 
 function hostOf(named: string): string | null {
   const text = named.trim();
-  if (SLOT.test(text)) return null;
+  if (isOneSlot(text) && text.includes('ANALYTICS.scriptHost')) return null;
   try {
     return new URL(text.includes('://') ? text : `https://${text}`).hostname;
   } catch {
@@ -40,16 +44,36 @@ test('privacy host — a slot is skipped, a filled host or address is read by it
   }
 });
 
+test('privacy host — whatever is skipped is one slot placeholders.spec.ts reports', () => {
+  const skipped = [
+    '[ANALYTICS HOST, the host name in ANALYTICS.scriptHost in src/config.ts, for example plausible.io]',
+    '[ANALYSE-HOST, der Hostname aus ANALYTICS.scriptHost in src/config.ts, zum Beispiel plausible.io]',
+    '[ ANALYTICS.scriptHost]',
+    '[AANALYTICS.scriptHost]',
+  ];
+  for (const text of skipped) {
+    expect(hostOf(text), text).toBeNull();
+    expect(isOneSlot(text), text).toBe(true);
+  }
+  // Slot-like, but not one whole slot: compared as a host.
+  for (const text of ['[A] ANALYTICS.scriptHost', '[A ANALYTICS.scriptHost] x', '[A ANALYTICS.scriptHost', 'ANALYTICS.scriptHost']) {
+    expect(hostOf(text), text).not.toBeNull();
+  }
+});
+
 test('privacy host — the host marked data-analytics-host is ANALYTICS.scriptHost', async ({ page }) => {
   const expected = new URL(ANALYTICS.scriptHost).hostname;
   const wrong: string[] = [];
+  const unreported: string[] = [];
   for (const path of PAGES) {
     await page.goto(path);
     for (const named of await page.locator('[data-analytics-host]').allInnerTexts()) {
       const host = hostOf(named);
+      if (host === null && !isOneSlot(named.trim())) unreported.push(`${path} skips "${named.trim()}"`);
       if (host !== null && host !== expected) wrong.push(`${path} names "${named.trim()}"`);
     }
   }
+  expect(unreported, 'Skipped text must be one slot that placeholders.spec.ts reports.').toEqual([]);
   expect(
     wrong,
     `The sentence on refusing the measurement must name the host analytics loads from, ` +
