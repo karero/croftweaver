@@ -172,6 +172,9 @@ No script, with or without a token, can do these for the owner:
 
 - **Crawler Hints, and the off switch for Cloudflare Web Analytics.** The kit's notes say
   Cloudflare has no API for them.
+- **The switch for Cloudflare's script monitor** (the checklist's section 3, step 5).
+  Cloudflare documents an API call for it that we have not tried; switch it by hand and
+  count with the loop above.
 - **HSTS, a few days after go-live.** The checklist's section 2 says why it goes on last.
 - **The verification codes from Google and Bing.** They live in the owner's accounts there
   (`search-console-setup`).

@@ -1,0 +1,106 @@
+{
+  "capture": "T1-055",
+  "request": {
+    "method": "POST",
+    "path": "/accounts/c0ffee00000000000000000000000020/pages/projects/lenas-backstube/deployments",
+    "body": "@form"
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "d0000016-0000-4000-8000-000000000000",
+      "short_id": "d0000016",
+      "project_id": "d0000010-0000-4000-8000-000000000000",
+      "project_name": "lenas-backstube",
+      "environment": "production",
+      "url": "https://d0000016.lenas-backstube.pages.dev",
+      "created_on": "2026-10-13T21:16:32.207071Z",
+      "modified_on": "2026-10-13T21:16:32.207071Z",
+      "latest_stage": {
+        "name": "queued",
+        "started_on": null,
+        "ended_on": null,
+        "status": "idle"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "ba5e000000000000000000000000000000000026",
+          "commit_message": "Made-up commit message 6",
+          "commit_dirty": false
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        }
+      ],
+      "build_config": {
+        "build_command": "npm run build",
+        "destination_dir": "dist",
+        "build_caching": true,
+        "root_dir": "",
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "source": {
+        "type": "github",
+        "config": {
+          "owner": "lena-example",
+          "repo_name": "lenas-backstube",
+          "production_branch": "main",
+          "pr_comments_enabled": false
+        }
+      },
+      "env_vars": {
+        "SPIKE_PLAIN": {
+          "type": "plain_text",
+          "value": "two"
+        },
+        "SPIKE_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        }
+      },
+      "compatibility_date": "2026-10-13",
+      "compatibility_flags": [],
+      "build_image_major_version": 3,
+      "usage_model": null,
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": null
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

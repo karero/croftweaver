@@ -6,9 +6,13 @@
 touched Cloudflare, this is the hardest, most nerve-wracking part — so **offer to do it for
 them** rather than handing over a dashboard tour.
 
-> **Assistant: present the three options below and recommend (A) for anyone new to
-> Cloudflare.** (B) and (C) are perfectly fine and stay on offer — they just cost the owner
-> more time and patience. State the deploy-model tradeoff in (A) before they mint anything.
+> **Assistant: for a site on GitHub, recommend the setup script (S, next section).** It
+> gives (B)'s result, a project that builds on every push, with most of (A)'s ease: one
+> short-lived token, two yeses and no dashboard tour. It does setup day today; on the day the
+> site goes live, the domain is attached by hand ("Going live" and "After go-live" below),
+> until the script's launch stage exists. (A) stays for an owner who wants no GitHub
+> connection; (B) and (C) stay on offer. State the deploy-model tradeoff in (A) before an
+> owner picks it.
 
 > **Cloudflare now suggests Workers for new projects.** Its Pages docs open with "Start new
 > projects with Workers" (read 2026-10-07). Create a **Pages** project anyway: the kit's
@@ -18,7 +22,75 @@ them** rather than handing over a dashboard tour.
 
 ---
 
-## A. Token-assisted bootstrap — RECOMMENDED for Cloudflare newcomers
+## S. Setup by script, connected to GitHub — RECOMMENDED for a site on GitHub
+
+`scripts/cloudflare-setup.mjs` (beside `cloudflare-check.mjs`; Node 18 or newer, nothing
+from npm, no Wrangler) does setup day through Cloudflare's API: it creates the Pages project
+connected to the site's GitHub repository (or adopts the one already connected), starts its
+first build, writes the settings of `docs/CLOUDFLARE-CHECKLIST.md` that an API can set, and
+writes the verification records the owner dictates. It attaches no domain and sends the
+domain no request: until launch day the site answers only at the project's `pages.dev`
+address.
+
+**What the owner does first, in the browser:**
+
+1. The domain is on Cloudflare already ("Going live" below if it is not). The script moves
+   no domain.
+2. A token with the rows of the checklist's section 6, Zone → DNS → Edit among them; Zone
+   Resources the one domain, Account Resources their own account; an end date of tomorrow,
+   a week at most, and no start date. The script refuses a token with no end date, one that
+   ends more than a week ahead, and one that reaches more than this zone.
+3. Cloudflare's GitHub app gets access to the one repository: GitHub → Settings →
+   Applications → Cloudflare Workers and Pages → Configure. Nothing more: a project made
+   through the API builds from GitHub without "Connect to Git" in the dashboard.
+
+**The token** goes in `CLOUDFLARE_API_TOKEN`, or, when an assistant's shell keeps no
+variable from one command to the next, on a line `CLOUDFLARE_API_TOKEN=…` in the site's
+`.dev.vars` (the starter's `.gitignore` excludes it; this is for the script, not for
+Wrangler, see below). The script refuses `.dev.vars` if git tracks it or does not ignore
+it, sends the token only to Cloudflare's API, never prints it, and keeps it out of the
+environment of `git`.
+
+**Run it** in the site's folder:
+
+```bash
+node "$SKILLS_ROOT/new-website/scripts/cloudflare-setup.mjs" setup
+```
+
+Options: `--project <name>` (the project to use or create; by default the one connected to
+the repository, or one named like it), `--skip <id>` for a line the owner wants left as it is
+(`https`, `tls`, `email`, `nel`, `bot`, `ai`), and `--record "<type> <name> <content>"` for a
+verification record from `search-console-setup` (TXT or CNAME; `@` is the domain itself).
+
+**A yes is a second run with a code.** A run with something to change prints the whole list
+(what is there now, what it becomes, and, for each Cloudflare setting, that it changes the
+whole domain and which hosts that touches), then a code, changes nothing, and ends with 3.
+Show the owner the list as printed. On their yes, run the same command again with
+`--confirm <code>`. The printed question, confirmed with its code, is the owner's yes to the
+changes it names and to nothing else (guardrail 4 below). If anything the question covers
+changes in between, the code no longer fits: the run asks again and changes nothing.
+
+| Status | Means | Then |
+|---|---|---|
+| 0 | Setup is done, as far as Cloudflare's API shows | Launch day: attach the domain by hand ("Going live") |
+| 1 | Something failed or was refused; the report says what, and what to do by hand | Fix that, or do the line by hand |
+| 2 | The command was wrong | Read the message |
+| 3 | Waiting for the owner's yes | Show the list; on a yes, run again with `--confirm <code>` |
+| 4 | Waiting for Cloudflare (a build) or for a push | Run the same command again in a few minutes |
+
+**The proof of the connection** is a build Cloudflare starts itself from a push. Until there
+is one the script ends with 4: push one commit to a pull request (an empty commit does), and
+run it again. Where the project builds no previews, the push that shows it is the production
+branch's: on a two-stage site that is `npm run ship`, on the owner's word.
+
+**It never** merges, runs `npm run ship`, deletes or detaches anything, changes a record
+other than one it writes, or repairs a site that is live: a project already serving a domain
+gets no build and no branch change from it. No run waits for typed input, and none takes
+longer than 55 seconds.
+
+---
+
+## A. Token-assisted bootstrap — for an owner who wants no GitHub connection
 
 The owner mints **one scoped, expiring API token**; you (the agent) run Wrangler to
 create the project and deploy — **no dashboard for the deploy itself**. Two doc facts to
@@ -37,7 +109,7 @@ afterwards (or the browser-assisted path in C).
 Ongoing deploys are then `wrangler pages deploy`, **not** Cloudflare's git-push auto-build
 that `PUBLISHING.md` assumes. A direct-upload project and a Git-connected project are
 *different Pages project types* — pick (A) **or** (B), not both. If the owner wants
-push-to-deploy afterwards, prefer (B). (A) is the right call when the priority is getting
+push-to-deploy afterwards, prefer (S) or (B). (A) is the right call when the priority is getting
 live fast with zero dashboard time.
 
 ### The token — least-privilege, never the Global API Key
@@ -79,7 +151,9 @@ live fast with zero dashboard time.
 3. **Never commit the credential** — a session env var only; the starter
    `.gitignore` is the backstop.
 4. **Confirm before each account-modifying command** — state what it will do (create project
-   `X`, deploy, add a DNS record for `Y`) and run it only on the owner's go-ahead.
+   `X`, deploy, add a DNS record for `Y`) and run it only on the owner's go-ahead. For the
+   setup script (S), its printed question, confirmed with its code, is the confirmation for
+   the changes it names, and for nothing else.
 5. **Revoke when done** — once the site is live, tell the owner to delete the token
    (My Profile → API Tokens → ⋯ → Delete), or let the expiry retire it. Don't leave a live
    token lying around. And never drive these changes through blind screen control.
@@ -141,7 +215,9 @@ Hints.
 ## B. GitHub git-integration — RECOMMENDED if the owner wants push-to-deploy and no token
 
 One-time guided dashboard connect, then `git push` builds automatically — the model
-`PUBLISHING.md` assumes. No token, but the owner does the one-time OAuth connect:
+`PUBLISHING.md` assumes. No token, but the owner does the one-time OAuth connect. The setup
+script (S) makes the same kind of project through the API instead, and writes the
+checklist's settings as well; this is the way by hand:
 
 Cloudflare → **Workers & Pages → Create → Pages → Connect to Git** → pick the repo →
 framework preset **Astro**, build command `npm run build`, output directory `dist`. For a
@@ -154,7 +230,7 @@ leaving it at `main` would publish the preview first.
 If the owner won't mint a token and won't do the dashboard alone: drive the dashboard via
 your runtime's browser automation (**Claude in Chrome** under Claude Code; the agent's own
 browser tool otherwise — see `search-console-setup`), or read them the clicks one by one.
-Both work; both eat time and patience — which is why **(A) is recommended for true newcomers**.
+Both work; both eat time and patience — which is why **(S) is recommended**.
 
 ---
 

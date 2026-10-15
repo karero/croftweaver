@@ -1,0 +1,20 @@
+{
+  "capture": "T2-018",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000037/rulesets/phases/http_response_headers_transform/entrypoint",
+    "body": null
+  },
+  "status": 404,
+  "response": {
+    "result": null,
+    "success": false,
+    "errors": [
+      {
+        "code": 10003,
+        "message": "could not find entrypoint ruleset in the http_response_headers_transform phase"
+      }
+    ],
+    "messages": []
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "capture": "T1-064",
+  "request": {
+    "method": "GET",
+    "path": "/user/tokens/verify",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "c0ffee00000000000000000000000018",
+      "status": "active",
+      "not_before": "2026-10-12T22:00:00Z",
+      "expires_on": "2026-10-16T21:59:59Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": [
+      {
+        "code": 10000,
+        "message": "This API Token is valid and active",
+        "type": null
+      }
+    ]
+  }
+}

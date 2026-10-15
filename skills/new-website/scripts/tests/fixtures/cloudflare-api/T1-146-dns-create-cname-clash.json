@@ -1,0 +1,26 @@
+{
+  "capture": "T1-146",
+  "request": {
+    "method": "POST",
+    "path": "/zones/c0ffee00000000000000000000000019/dns_records",
+    "body": {
+      "type": "CNAME",
+      "name": "spike",
+      "content": "example.com",
+      "proxied": false,
+      "ttl": 1
+    }
+  },
+  "status": 400,
+  "response": {
+    "result": null,
+    "success": false,
+    "errors": [
+      {
+        "code": 81053,
+        "message": "An A, AAAA, or CNAME record with that host already exists. For more details, refer to <https://developers.cloudflare.com/dns/manage-dns-records/troubleshooting/records-with-same-name/>."
+      }
+    ],
+    "messages": []
+  }
+}

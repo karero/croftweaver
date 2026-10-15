@@ -1,0 +1,29 @@
+{
+  "capture": "T2-060",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000041/bot_management",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "enable_js": false,
+      "fight_mode": false,
+      "ai_bots_protection": "disabled",
+      "content_bots_protection": "disabled",
+      "crawler_protection": "disabled",
+      "ai_training": "disabled",
+      "ai_search": "disabled",
+      "ai_user": "disabled",
+      "is_robots_txt_managed": false,
+      "bot_preference_sync_enabled": true,
+      "cf_robots_variant": "policy_only",
+      "ai_bots_migration_opt_out": false,
+      "using_latest_model": true
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

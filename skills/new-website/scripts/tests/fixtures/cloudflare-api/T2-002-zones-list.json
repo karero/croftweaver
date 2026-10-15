@@ -1,0 +1,423 @@
+{
+  "capture": "T2-002",
+  "request": {
+    "method": "GET",
+    "path": "/zones?per_page=50",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": [
+      {
+        "id": "c0ffee00000000000000000000000034",
+        "name": "other-1.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": -122261564,
+        "name_servers": [
+          "ada.ns.example",
+          "bert.ns.example"
+        ],
+        "modified_on": "2024-02-01T01:48:35.473657Z",
+        "created_on": "2016-07-02T20:26:31.007846Z",
+        "activated_on": "2016-07-04T20:43:18.365511Z",
+        "meta": {
+          "step": 4,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 30,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000020",
+          "name": "Lena's Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      },
+      {
+        "id": "c0ffee00000000000000000000000019",
+        "name": "other-2.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": 0,
+        "name_servers": [
+          "ada.ns.example",
+          "bert.ns.example"
+        ],
+        "modified_on": "2026-10-12T07:38:04.200697Z",
+        "created_on": "2026-10-07T10:09:14.002574Z",
+        "activated_on": "2026-10-07T10:09:14.415805Z",
+        "meta": {
+          "step": 4,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 3,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000020",
+          "name": "Lena's Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      },
+      {
+        "id": "c0ffee00000000000000000000000035",
+        "name": "other-3.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": 0,
+        "name_servers": [
+          "ada.ns.example",
+          "bert.ns.example"
+        ],
+        "modified_on": "2023-12-21T15:47:26.754500Z",
+        "created_on": "2023-12-21T15:20:39.459930Z",
+        "activated_on": "2023-12-21T15:47:26.754500Z",
+        "meta": {
+          "step": 2,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 3,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000020",
+          "name": "Lena's Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      },
+      {
+        "id": "c0ffee00000000000000000000000036",
+        "name": "other-4.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": 0,
+        "name_servers": [
+          "ada.ns.example",
+          "bert.ns.example"
+        ],
+        "modified_on": "2026-03-25T13:47:30.843845Z",
+        "created_on": "2026-03-25T13:20:20.406253Z",
+        "activated_on": "2026-03-25T13:41:55.846103Z",
+        "meta": {
+          "step": 2,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 3,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000020",
+          "name": "Lena's Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      },
+      {
+        "id": "c0ffee00000000000000000000000037",
+        "name": "lenas-cafe.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": 0,
+        "name_servers": [
+          "ada.ns.example",
+          "bert.ns.example"
+        ],
+        "modified_on": "2026-03-15T21:21:16.947068Z",
+        "created_on": "2026-03-15T21:15:22.698670Z",
+        "activated_on": "2026-03-15T21:21:16.947068Z",
+        "meta": {
+          "step": 2,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 3,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000020",
+          "name": "Lena's Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      },
+      {
+        "id": "c0ffee00000000000000000000000038",
+        "name": "other-5.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": 0,
+        "name_servers": [
+          "ada.ns.example",
+          "bert.ns.example"
+        ],
+        "modified_on": "2026-05-22T14:18:03.595019Z",
+        "created_on": "2026-05-22T09:49:16.436003Z",
+        "activated_on": "2026-05-22T10:41:34.663871Z",
+        "meta": {
+          "step": 2,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 3,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000020",
+          "name": "Lena's Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      },
+      {
+        "id": "c0ffee00000000000000000000000039",
+        "name": "other-6.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": 0,
+        "name_servers": [
+          "cleo.ns.example",
+          "dora.ns.example"
+        ],
+        "modified_on": "2026-10-09T18:50:35.425323Z",
+        "created_on": "2026-10-09T14:12:54.144862Z",
+        "activated_on": "2026-10-09T14:31:59.387528Z",
+        "meta": {
+          "step": 2,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 3,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000040",
+          "name": "Lena's Second Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      },
+      {
+        "id": "c0ffee00000000000000000000000041",
+        "name": "lenas-backstube.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": 0,
+        "name_servers": [
+          "ada.ns.example",
+          "bert.ns.example"
+        ],
+        "modified_on": "2026-10-04T14:00:12.100099Z",
+        "created_on": "2026-10-04T13:48:09.903824Z",
+        "activated_on": "2026-10-04T14:00:12.100099Z",
+        "meta": {
+          "step": 2,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 3,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000020",
+          "name": "Lena's Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      }
+    ],
+    "result_info": {
+      "page": 1,
+      "per_page": 50,
+      "total_pages": 1,
+      "count": 8,
+      "total_count": 8
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

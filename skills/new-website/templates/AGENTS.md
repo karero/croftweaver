@@ -138,13 +138,13 @@ applies there; instead of steps 2 to 4, only this:
   - No signed-in GitHub CLI, or `gh` cannot reach GitHub: say so and ask the person to
     press the button.
 - **Preview before merging:** once the repo is connected to Cloudflare by git
-  integration (`website-team-setup` §6 does that), every pull request gets its own
-  preview address from Cloudflare, listed under the pull request's checks. Look at the
-  change there before merging. Until then (a site deployed by token and `wrangler
-  pages deploy`, see `PUBLISHING.md`, "Deploy by command") there is no pull-request
-  preview: check locally with `npm run dev`.
+  integration (the `new-website` skill's setup script does that, or `website-team-setup`
+  §6 by hand), every pull request gets its own preview address from Cloudflare, listed
+  under the pull request's checks. Look at the change there before merging. Until then
+  (a site uploaded by `wrangler pages deploy`, see `PUBLISHING.md`, "Deploy by command")
+  there is no pull-request preview: check locally with `npm run dev`.
 - **What a merge means** depends on the publish model of this site. Both blocks
-  assume the git integration above; on a token-deployed site a merge publishes
+  assume the git integration above; on a site deployed by command a merge publishes
   nothing until someone runs the deploy command in `PUBLISHING.md`, "Deploy by
   command".
 

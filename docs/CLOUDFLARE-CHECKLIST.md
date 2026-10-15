@@ -41,7 +41,8 @@ setting's name.
   other ways to deploy are in
   [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).)
 - [ ] **Build settings:** framework preset **Astro**, build command `npm run build`, output
-  directory `dist`. A two-stage site: set **Production branch** to `production` on this
+  directory `dist`. A project the kit's setup script makes has no preset, which is fine: the
+  build command does the work, and a project made that way built without one. A two-stage site: set **Production branch** to `production` on this
   same form, or it publishes the preview first. To change it later: your project →
   Settings → Builds & deployments → Configure Production deployments, then **Save**. That
   path is for projects connected to Git. A Direct Upload project has no such option: ask
@@ -358,9 +359,10 @@ and protecting your Cloudflare account (your site's `SETUP.md`).
 Most of sections 1 to 4 are settings an assistant can change for you through Cloudflare's
 API. A token only gives permission: the changes happen when your assistant makes the API
 calls, one at a time. If you would rather not click through the dashboard, make one token,
-hand it to your assistant for an afternoon, and delete it afterwards. HSTS is not part of
-that afternoon: switch it on a few days after go-live (section 2), with a second token or
-by hand. Setting `CANONICAL_URL` waits too, until your own domain serves the site (section
+hand it to your assistant for the day you set the site up, and delete it afterwards. If the
+day the site goes live falls inside the token's life, the same token serves that day too;
+otherwise make a second one with the same rows. HSTS is not part of either day: switch it on
+a few days after go-live (section 2), with another token or by hand. Setting `CANONICAL_URL` waits too, until your own domain serves the site (section
 1).
 
 **Make the token.** My Profile → API Tokens → Create Token → Create Custom Token. Add these
@@ -372,8 +374,27 @@ look but not change anything):
 | Zone → Zone Settings → Edit | Always Use HTTPS, Minimum TLS Version, Email Address Obfuscation, the NEL switch |
 | Zone → Transform Rules → Edit | the rule that removes the NEL headers |
 | Zone → Bot Management → Edit | Bot Fight Mode, the AI crawler policies and the three switches after them (`bot_preference_sync_enabled`, `crawler_protection`, `content_bots_protection`), all on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
+| Zone → DNS → Edit | the verification records of Google and Bing, and, when your domain is attached, the record that points it at the project |
 | Zone → Zone → Read | finding your domain by name |
 | Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
+
+**What it writes.** For the settings above, these are the fields and values the assistant
+sends, and reads back afterwards. Each zone setting is its own call; the Bot Management fields
+go in one call, with the fields it does not change sent as they are.
+
+| Setting | API field | Value |
+|---|---|---|
+| Always Use HTTPS | zone setting `always_use_https` | `"on"` |
+| Minimum TLS Version | zone setting `min_tls_version` | `"1.2"` |
+| Email Address Obfuscation | zone setting `email_obfuscation` | `"off"` |
+| Network Error Logging, the switch | zone setting `nel` | `{"enabled": false}` |
+| Bot Fight Mode | Bot Management `fight_mode` | `false` |
+| AI crawlers: the AI bot policies, and the older Block AI bots | Bot Management `ai_search`, `ai_user`, `ai_training`, `ai_bots_protection` | `"disabled"` (no block) |
+| AI Labyrinth | Bot Management `crawler_protection` | `"disabled"` |
+| Content bots | Bot Management `content_bots_protection` | `"disabled"` |
+| Bot Preference Sync | Bot Management `bot_preference_sync_enabled` | `false` |
+
+If you block or disallow Training on purpose, the assistant leaves the AI lines as they are.
 
 Cloudflare documents these calls. We have run the Transform Rules call on live sites and
 the Bot Management call on one spare domain, and we have not run any of them often, so for every call the

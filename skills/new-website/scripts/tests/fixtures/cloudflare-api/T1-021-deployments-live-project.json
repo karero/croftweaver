@@ -1,0 +1,451 @@
+{
+  "capture": "T1-021",
+  "excerpt": "the 3 uploads and the newest push build of each environment, of 128 deployments on the six pages T1-021 to T1-026",
+  "request": {
+    "method": "GET",
+    "path": "/accounts/c0ffee00000000000000000000000020/pages/projects/lenas-old/deployments?per_page=25",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": [
+      {
+        "id": "d0000001-0000-4000-8000-000000000000",
+        "short_id": "d0000001",
+        "project_id": "d0000009-0000-4000-8000-000000000000",
+        "project_name": "lenas-old",
+        "environment": "production",
+        "url": "https://d0000001.lenas-old-site.pages.dev",
+        "created_on": "2026-10-12T07:38:47.088989Z",
+        "modified_on": "2026-10-12T07:38:48.722544Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-10-12T07:38:48.722544Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "production",
+            "commit_hash": "ba5e000000000000000000000000000000000022",
+            "commit_message": "Made-up commit message 1",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-10-12T07:38:47.088989Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-10-12T07:38:48.722544Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "build_caching": null,
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "repo_name": "lenas-old-site",
+            "production_branch": "production",
+            "pr_comments_enabled": false
+          }
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-10-12",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "production",
+        "uses_functions": true
+      },
+      {
+        "id": "d0000014-0000-4000-8000-000000000000",
+        "short_id": "d0000014",
+        "project_id": "d0000009-0000-4000-8000-000000000000",
+        "project_name": "lenas-old",
+        "environment": "preview",
+        "url": "https://d0000014.lenas-old-site.pages.dev",
+        "created_on": "2026-10-12T07:37:25.578821Z",
+        "modified_on": "2026-10-12T07:37:27.136081Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-10-12T07:37:27.136081Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "ba5e000000000000000000000000000000000022",
+            "commit_message": "Made-up commit message 2",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-10-12T07:37:25.578821Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-10-12T07:37:27.136081Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "build_caching": null,
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "repo_name": "lenas-old-site",
+            "production_branch": "production",
+            "pr_comments_enabled": false
+          }
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-10-12",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "production",
+        "uses_functions": true
+      },
+      {
+        "id": "d0000008-0000-4000-8000-000000000000",
+        "short_id": "d0000008",
+        "project_id": "d0000009-0000-4000-8000-000000000000",
+        "project_name": "lenas-old",
+        "environment": "production",
+        "url": "https://d0000008.lenas-old-site.pages.dev",
+        "created_on": "2026-10-12T05:41:48.327221Z",
+        "modified_on": "2026-10-12T05:42:17.335925Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": "2026-10-12T05:42:09.354696Z",
+          "ended_on": "2026-10-12T05:42:17.335925Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "ba5e000000000000000000000000000000000023",
+            "commit_message": "Made-up commit message 3",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-10-12T05:41:48.489588Z",
+            "ended_on": "2026-10-12T05:41:48.491686Z",
+            "status": "success"
+          },
+          {
+            "name": "initialize",
+            "started_on": "2026-10-12T05:41:48.491686Z",
+            "ended_on": "2026-10-12T05:41:50.709466Z",
+            "status": "success"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": "2026-10-12T05:41:50.709466Z",
+            "ended_on": "2026-10-12T05:41:51.914451Z",
+            "status": "success"
+          },
+          {
+            "name": "build",
+            "started_on": "2026-10-12T05:41:51.914451Z",
+            "ended_on": "2026-10-12T05:42:09.354696Z",
+            "status": "success"
+          },
+          {
+            "name": "deploy",
+            "started_on": "2026-10-12T05:42:09.354696Z",
+            "ended_on": "2026-10-12T05:42:17.335925Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "build_caching": null,
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "repo_name": "lenas-old-site",
+            "production_branch": "main",
+            "pr_comments_enabled": false
+          }
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-10-12",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": true,
+        "framework": "astro"
+      },
+      {
+        "id": "d0000007-0000-4000-8000-000000000000",
+        "short_id": "d0000007",
+        "project_id": "d0000009-0000-4000-8000-000000000000",
+        "project_name": "lenas-old",
+        "environment": "production",
+        "url": "https://d0000007.lenas-old-site.pages.dev",
+        "created_on": "2026-10-13T20:07:10.696873Z",
+        "modified_on": "2026-10-13T20:07:49.337635Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": "2026-10-13T20:07:35.477859Z",
+          "ended_on": "2026-10-13T20:07:49.337635Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "github:push",
+          "metadata": {
+            "branch": "production",
+            "commit_hash": "ba5e000000000000000000000000000000000024",
+            "commit_message": "Made-up commit message 4",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-10-13T20:07:11.160817Z",
+            "ended_on": "2026-10-13T20:07:11.165021Z",
+            "status": "success"
+          },
+          {
+            "name": "initialize",
+            "started_on": "2026-10-13T20:07:11.165021Z",
+            "ended_on": "2026-10-13T20:07:15.519265Z",
+            "status": "success"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": "2026-10-13T20:07:15.519265Z",
+            "ended_on": "2026-10-13T20:07:17.548685Z",
+            "status": "success"
+          },
+          {
+            "name": "build",
+            "started_on": "2026-10-13T20:07:17.548685Z",
+            "ended_on": "2026-10-13T20:07:35.477859Z",
+            "status": "success"
+          },
+          {
+            "name": "deploy",
+            "started_on": "2026-10-13T20:07:35.477859Z",
+            "ended_on": "2026-10-13T20:07:49.337635Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "build_caching": null,
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "repo_name": "lenas-old-site",
+            "production_branch": "production",
+            "pr_comments_enabled": false
+          }
+        },
+        "env_vars": {
+          "CANONICAL_URL": {
+            "type": "plain_text",
+            "value": "https://lenas-backstube.example"
+          }
+        },
+        "compatibility_date": "2026-10-12",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": [
+          "https://lenas-backstube.example"
+        ],
+        "is_skipped": false,
+        "production_branch": "production",
+        "uses_functions": true,
+        "framework": "astro"
+      },
+      {
+        "id": "d0000004-0000-4000-8000-000000000000",
+        "short_id": "d0000004",
+        "project_id": "d0000009-0000-4000-8000-000000000000",
+        "project_name": "lenas-old",
+        "environment": "preview",
+        "url": "https://d0000004.lenas-old-site.pages.dev",
+        "created_on": "2026-10-13T21:06:01.134737Z",
+        "modified_on": "2026-10-13T21:06:43.793999Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": "2026-10-13T21:06:31.235633Z",
+          "ended_on": "2026-10-13T21:06:43.793999Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "github:push",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "ba5e000000000000000000000000000000000025",
+            "commit_message": "Made-up commit message 5",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-10-13T21:06:01.375361Z",
+            "ended_on": "2026-10-13T21:06:08.030974Z",
+            "status": "success"
+          },
+          {
+            "name": "initialize",
+            "started_on": "2026-10-13T21:06:08.030974Z",
+            "ended_on": "2026-10-13T21:06:10.869251Z",
+            "status": "success"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": "2026-10-13T21:06:10.869251Z",
+            "ended_on": "2026-10-13T21:06:13.38344Z",
+            "status": "success"
+          },
+          {
+            "name": "build",
+            "started_on": "2026-10-13T21:06:13.38344Z",
+            "ended_on": "2026-10-13T21:06:31.235633Z",
+            "status": "success"
+          },
+          {
+            "name": "deploy",
+            "started_on": "2026-10-13T21:06:31.235633Z",
+            "ended_on": "2026-10-13T21:06:43.793999Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "build_caching": null,
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "repo_name": "lenas-old-site",
+            "production_branch": "production",
+            "pr_comments_enabled": false
+          }
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-10-12",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": [
+          "https://main.lenas-old-site.pages.dev"
+        ],
+        "is_skipped": false,
+        "production_branch": "production",
+        "uses_functions": true,
+        "framework": "astro"
+      }
+    ],
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {
+      "page": 1,
+      "per_page": 25,
+      "count": 5,
+      "total_count": 128,
+      "total_pages": 6
+    }
+  }
+}

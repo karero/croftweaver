@@ -1,0 +1,73 @@
+{
+  "capture": "T2-011",
+  "request": {
+    "method": "GET",
+    "path": "/zones?per_page=50",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": [
+      {
+        "id": "c0ffee00000000000000000000000037",
+        "name": "lenas-cafe.example",
+        "status": "active",
+        "paused": false,
+        "type": "full",
+        "development_mode": 0,
+        "name_servers": [
+          "ada.ns.example",
+          "bert.ns.example"
+        ],
+        "modified_on": "2026-03-15T21:21:16.947068Z",
+        "created_on": "2026-03-15T21:15:22.698670Z",
+        "activated_on": "2026-03-15T21:21:16.947068Z",
+        "meta": {
+          "step": 2,
+          "custom_certificate_quota": 0,
+          "page_rule_quota": 3,
+          "phishing_detected": false
+        },
+        "account": {
+          "id": "c0ffee00000000000000000000000020",
+          "name": "Lena's Account"
+        },
+        "permissions": [
+          "#waf:read",
+          "#waf:edit",
+          "#zone_settings:edit",
+          "#zone_settings:read",
+          "#dns_records:read",
+          "#dns_records:edit",
+          "#page_shield:read",
+          "#ssl:read",
+          "#page_shield:edit",
+          "#zone:edit",
+          "#zone:read"
+        ],
+        "plan": {
+          "id": "c0ffee00000000000000000000000021",
+          "name": "Free Website",
+          "price": 0,
+          "currency": "USD",
+          "frequency": "",
+          "is_subscribed": false,
+          "can_subscribe": false,
+          "legacy_id": "free",
+          "legacy_discount": false,
+          "externally_managed": false
+        }
+      }
+    ],
+    "result_info": {
+      "page": 1,
+      "per_page": 50,
+      "total_pages": 1,
+      "count": 1,
+      "total_count": 1
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

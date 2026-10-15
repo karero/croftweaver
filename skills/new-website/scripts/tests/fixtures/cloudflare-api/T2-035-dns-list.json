@@ -1,0 +1,22 @@
+{
+  "capture": "T2-035",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000041/dns_records?per_page=100",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": [],
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {
+      "page": 1,
+      "per_page": 100,
+      "count": 0,
+      "total_count": 0,
+      "total_pages": 1
+    }
+  }
+}

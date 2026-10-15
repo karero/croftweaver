@@ -1,0 +1,22 @@
+{
+  "capture": "T2-003",
+  "request": {
+    "method": "GET",
+    "path": "/accounts?per_page=50",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": [],
+    "result_info": {
+      "page": 1,
+      "per_page": 50,
+      "total_pages": 0,
+      "count": 0,
+      "total_count": 0
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

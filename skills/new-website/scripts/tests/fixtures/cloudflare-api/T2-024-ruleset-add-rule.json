@@ -1,0 +1,76 @@
+{
+  "capture": "T2-024",
+  "request": {
+    "method": "POST",
+    "path": "/zones/c0ffee00000000000000000000000037/rulesets/c0ffee00000000000000000000000042/rules",
+    "body": {
+      "action": "rewrite",
+      "expression": "true",
+      "description": "Trial: a second rule",
+      "action_parameters": {
+        "headers": {
+          "x-trial-second-rule": {
+            "operation": "set",
+            "value": "1"
+          }
+        }
+      },
+      "enabled": true
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "description": "",
+      "id": "c0ffee00000000000000000000000042",
+      "kind": "zone",
+      "last_updated": "2026-10-14T19:08:26.882202Z",
+      "name": "default",
+      "phase": "http_response_headers_transform",
+      "rules": [
+        {
+          "action": "rewrite",
+          "action_parameters": {
+            "headers": {
+              "NEL": {
+                "operation": "remove"
+              },
+              "Report-To": {
+                "operation": "remove"
+              }
+            }
+          },
+          "description": "Remove NEL headers",
+          "enabled": true,
+          "expression": "true",
+          "id": "c0ffee00000000000000000000000043",
+          "last_updated": "2026-10-14T19:08:17.328988Z",
+          "ref": "c0ffee00000000000000000000000043",
+          "version": "1"
+        },
+        {
+          "action": "rewrite",
+          "action_parameters": {
+            "headers": {
+              "x-trial-second-rule": {
+                "operation": "set",
+                "value": "1"
+              }
+            }
+          },
+          "description": "Trial: a second rule",
+          "enabled": true,
+          "expression": "true",
+          "id": "c0ffee00000000000000000000000044",
+          "last_updated": "2026-10-14T19:08:26.882202Z",
+          "ref": "c0ffee00000000000000000000000044",
+          "version": "1"
+        }
+      ],
+      "version": "2"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

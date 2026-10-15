@@ -330,9 +330,14 @@ git switch - && git branch -D setup/push-check
 
 ## 6. Cloudflare: connect the repo to GitHub — with the traps
 
-`new-website/references/CLOUDFLARE_FIRST_DEPLOY.md` has the three bootstrap paths;
-a team wants **B, git integration** (push-to-deploy, no token, one preview address per
-pull request). Walk the owner through it with these warnings ahead of each click:
+`new-website/references/CLOUDFLARE_FIRST_DEPLOY.md` has the bootstrap paths; a team
+wants a project connected to GitHub (push-to-deploy, one preview address per pull
+request). The setup script there ("S") makes one through Cloudflare's API, with the
+build command and output folder of item 4 (no framework preset, which the build does not
+need) and the production branch of item 5, and needs only the GitHub app's access to the
+repository from the owner's browser; it does not create the `production`
+branch (item 5) or touch the checks of items 2 and 8. By hand it is **B, git
+integration**: walk the owner through it with these warnings ahead of each click:
 
 1. **Pages, not Workers.** In the Cloudflare dashboard, **Workers & Pages → Create**
    opens on the **Workers** tab, and its "Import a repository" creates a **Worker**
@@ -354,7 +359,9 @@ pull request). Walk the owner through it with these warnings ahead of each click
 3. **The project name is global.** `<name>.pages.dev` is one namespace across all
    Cloudflare accounts, so the obvious name may be taken with no explanation beyond a
    validation error. Pick a short alternative; it only changes the preview address.
-   Whatever it ends up being, write it into `AGENTS.md` (header + §2), `PUBLISHING.md`
+   That address is the one Cloudflare gives the project, which is not always the name
+   followed by `.pages.dev`: read it on the project's page (or in the setup script's
+   report). Whatever it ends up being, write it into `AGENTS.md` (header + §2), `PUBLISHING.md`
    and the README's deploy section, and search the repo for the old one
    (`git grep -n '<old-name>.pages.dev'`, a site may have it in `src/config.ts`), so
    nobody quotes a preview address that does not exist.

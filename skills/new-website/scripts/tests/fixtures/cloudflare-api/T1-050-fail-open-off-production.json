@@ -1,0 +1,26 @@
+{
+  "capture": "T1-050",
+  "request": {
+    "method": "PATCH",
+    "path": "/accounts/c0ffee00000000000000000000000020/pages/projects/lenas-backstube",
+    "body": {
+      "deployment_configs": {
+        "production": {
+          "fail_open": false
+        }
+      }
+    }
+  },
+  "status": 400,
+  "response": {
+    "result": null,
+    "success": false,
+    "errors": [
+      {
+        "code": 8000066,
+        "message": "You must set the `fail_open` property value equally for production and preview environments."
+      }
+    ],
+    "messages": []
+  }
+}

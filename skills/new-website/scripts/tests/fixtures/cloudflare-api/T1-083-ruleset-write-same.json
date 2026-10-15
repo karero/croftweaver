@@ -1,0 +1,65 @@
+{
+  "capture": "T1-083",
+  "request": {
+    "method": "PUT",
+    "path": "/zones/c0ffee00000000000000000000000019/rulesets/phases/http_response_headers_transform/entrypoint",
+    "body": {
+      "rules": [
+        {
+          "id": "c0ffee00000000000000000000000030",
+          "action": "rewrite",
+          "action_parameters": {
+            "headers": {
+              "NEL": {
+                "operation": "remove"
+              },
+              "Report-To": {
+                "operation": "remove"
+              }
+            }
+          },
+          "expression": "true",
+          "description": "Remove NEL headers",
+          "enabled": true
+        }
+      ]
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "description": "",
+      "id": "c0ffee00000000000000000000000029",
+      "kind": "zone",
+      "last_updated": "2026-10-12T09:03:14.6017Z",
+      "name": "default",
+      "phase": "http_response_headers_transform",
+      "rules": [
+        {
+          "action": "rewrite",
+          "action_parameters": {
+            "headers": {
+              "NEL": {
+                "operation": "remove"
+              },
+              "Report-To": {
+                "operation": "remove"
+              }
+            }
+          },
+          "description": "Remove NEL headers",
+          "enabled": true,
+          "expression": "true",
+          "id": "c0ffee00000000000000000000000030",
+          "last_updated": "2026-10-12T09:03:14.6017Z",
+          "ref": "remove_nel_headers",
+          "version": "1"
+        }
+      ],
+      "version": "1"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}
