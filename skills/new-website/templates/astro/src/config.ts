@@ -71,10 +71,23 @@ export const KNOWS_ABOUT: string[] = [];
 // IMPORTANT: PROD_BRANCH must equal the branch Cloudflare Pages calls "Production"
 // for THIS project (house convention: 'production'; Cloudflare's default is 'main').
 // A mismatch means analytics silently never loads — no error, no data.
+//
+// mode: 'script' (the default) loads Plausible's script in the browser, as described
+// above. 'server' loads nothing in the browser: functions/_middleware.ts sends one page
+// view per page request to Plausible's Events API, and on the live build EmailLink.astro
+// links to /go/email, where functions/go/email.ts counts the "Email Tap" and opens the
+// mail program. Server mode needs two Production variables in Cloudflare (Settings >
+// Variables and Secrets): PLAUSIBLE_HOST (scriptHost's value) and PLAUSIBLE_DOMAIN (the
+// site's domain as added in Plausible); scriptId is not used. It loses scroll depth,
+// engaged time and the optional measurements, and the contact form's button is not
+// counted. Set those two variables ONLY in server mode: the Function cannot read this
+// file, so with them set in script mode every page view would be counted twice.
+// Keep the value on one line: tests/check_analytics_gate.sh reads it.
 export const PROD_BRANCH = 'production';
 
 export const ANALYTICS = {
   enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,
+  mode: 'script' as 'script' | 'server',
   scriptHost: 'https://analytics.example.com',
   scriptId: 'pa-XXXXXXXXXXXXXXXXXXXX',
 } as const;
