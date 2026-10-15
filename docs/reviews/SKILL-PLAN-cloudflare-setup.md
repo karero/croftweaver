@@ -17,7 +17,7 @@ verified".
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are what the script does, numbered under "Shape".
 
-## Status, 2026-10-14 · the kit's files read at origin/main `6c4c38d`
+## Status, 2026-10-15 · the kit's files read at origin/main `062dd8f`
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
@@ -26,10 +26,10 @@ table. **Script steps** are what the script does, numbered under "Shape".
 | 3 | The maintainer closes the decisions | ✅ D1 to D7 on 2026-10-12, D1 final on 2026-10-13, decision 8 on 2026-10-14 | sections "Decisions taken" and "Decisions D1 to D7" |
 | 4 | Trial run on a throwaway repository and project | ✅ 2026-10-13, apart from two points: "Not verified" 1 is still open, 2 was settled in part by plan step 9 | 159 captures, kept outside every repository; the private throwaway repository |
 | 5 | The checklist names the three more AI switches of decision 8 | ✅ merged 2026-10-14 (another session's work) | karero/croftweaver#285 (`321d26f`) |
-| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ⏸ not started; waits for karero/croftweaver#319 to merge | — |
-| 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ⏸ not started | — |
-| 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ⏸ not started | — |
-| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ✅ done 2026-10-14; the first domain named turned out to be in use, so most steps ran on a second, empty one. Results under "Seen in the second trial": Bot Preference Sync is `bot_preference_sync_enabled`; which switch `is_robots_txt_managed` is stays unknown, and setting it to `true` is refused. Cleaned up on the maintainer's word on the spare zone; the two header rules written on the first zone are the maintainer's to remove by hand | 78 captures (T2-001 to T2-078), kept outside every repository; the checklist's field fix: karero/croftweaver#319 (open) |
+| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ▶ first pull request (the `setup` stage, its tests, the cleaned captures as fixtures) open: High DIFF gate, four rounds and a final full read, then a wording pass; the second (`launch`) not started | first: karero/croftweaver#328 (open; SHA once merged), trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-setup-stage-pr328.md` |
+| 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ▶ the setup stage's part travels in plan step 6's first pull request; the launch stage's part (section 6's sentence on whole lists, "After go-live", the check script's new options, U2, and the sweep of every `<name>.pages.dev` built from a project's name) comes with the second | as row 6 |
+| 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ▶ the `setup` stage's: the High DIFF gate of row 6's first pull request (four rounds, a final full read, a wording pass); the `launch` stage's comes with the second | as row 6 |
+| 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ✅ done 2026-10-14; the first domain named turned out to be in use, so most steps ran on a second, empty one. Results under "Seen in the second trial": Bot Preference Sync is `bot_preference_sync_enabled`; which switch `is_robots_txt_managed` is stays unknown, and setting it to `true` is refused. Cleaned up on the maintainer's word on the spare zone; the two header rules written on the first zone are the maintainer's to remove by hand | 78 captures (T2-001 to T2-078), kept outside every repository; the checklist's field fix: karero/croftweaver#319 (merged 2026-10-14, `8cbb637`) |
 | 10 | One real site set up with it, start to finish, with the owner watching | ⏸ not started | — |
 | 11 | Release note line | ⏸ not started | — |
 
@@ -202,9 +202,10 @@ something to change prints its question and a short code (the first 16 character
 The assistant shows Lena the question; on her yes it runs the same command with
 `--confirm <code>`. A stage with nothing to change asks nothing.
 
-The code is made from the end state the question names, never from what is there now.
-So it keeps fitting while the stage is carried out over several runs, and the script's
-own writes do not change it.
+The code is made from the end state the question names, never from what is there now,
+and, for `setup`, from the changes the question lists (decided in plan step 6's review,
+2026-10-15, below). It keeps fitting while the stage is carried out over several runs: a
+later run accepts it for any part of that list, so the script's own writes do not change it.
 
 - `setup`: the account; the project's name and the repository its `source` names (not
   whether it is created or adopted, which the script's own create would change); the
@@ -217,19 +218,21 @@ own writes do not change it.
 
 What is there now (the record the host has, a setting's old value) is shown in the
 question but not in the code. A change made by someone else between the question and the
-yes therefore needs no new yes when it leaves the end state the same. That is a judgment
-(see "Judgment calls"). A change to any input listed above gives a new question and a new
-code, and the old code then changes nothing: for `launch` a new commit, for either stage a
-new proxied host where the code names the hosts, or a changed flag among those listed. `setup`'s code names no commit: its first build (script step 4) is of whatever
-head the production branch has when it runs.
+yes needs no new yes when it leaves the end state the same and adds no line to the list.
+That is a judgment (see "Judgment calls"). A change to any input listed above gives a new
+question and a new code, and the old code then changes nothing: for `launch` a new commit,
+for either stage a new proxied host where the code names the hosts, or a changed flag among
+those listed. For `setup`, so does a line the list did not have (a setting someone changed
+back by hand, say), and a first build (script step 4) of another commit than the one the
+question named: its build line carries the head of the production branch it was asked
+with.
 
 **No run waits long.** A run has one deadline, 55 seconds after it starts, which leaves
 time to report. Every API call, every `git ls-remote` (it took 24 seconds to fail on a
 repository that does not exist, in the trial) and every run of the check script gets only
 the time left. The check script's `--timeout` bounds each answer, not the run, and a home
 page can take up to four answers, so the script passes a quarter of the time left; when
-that is under a second it skips the check and ends with 4. A program still running at the deadline is
-stopped, and killed if it has not ended a second later.
+that is under a second it skips the check and ends with 4. A program still running at the deadline is killed at once, with the programs it started (plan step 6's review cut the second's grace: its timer could be cancelled while a child lived on).
 A run that reaches the deadline ends with 4; the next run reads what is there. Where
 Cloudflare is not done (a build, a domain becoming active), the run also ends with 4 and
 says what it waits for; the assistant runs the same command again.
@@ -249,7 +252,7 @@ argument; `.dev.vars` is refused if git tracks it or does not ignore it. It goes
 `api.cloudflare.com`, and the environment of every program the script starts (`git`, the
 check script) has it removed. A token with no end date is refused: token verify then
 omits `expires_on` (capture 001; with an end date it carries one, capture 003). So is one
-whose end date is more than seven days ahead (the checklist: "a week at most"), one whose
+whose end date is more than eight days ahead (the checklist's "a week at most", with a day's room: the dashboard sets a date, not a time; plan step 6 settled it so), one whose
 verify call or zone list is refused, and one whose zone list, read page by page to its
 end, shows more than this site's zone (capture 002 showed one zone for a token limited to
 one). The account in the code is the zone's own: the
@@ -606,7 +609,7 @@ written: the project was removed, the two rules are the maintainer's to remove b
 | A missing response-header ruleset answers code 10003; one PUT to the phase creates it with one rule; the call that adds one rule appends and leaves the first rule's id and version as they were | T2-018, T2-023 to T2-025 |
 | An apex holding only an A record behaves like a host below the zone: attaching keeps its A record, "CNAME record not set"; one PATCH to a proxied CNAME, with a comment, keeps the id; verification active after about a minute, the domain after 2 minutes 18 seconds; the apex then served the production build | T2-042 to T2-056 |
 | A record comment holds 100 characters; 101 is refused, code 9313 | T2-057, T2-058 |
-| A Bot Management PUT that changes a value works and keeps the three fields it leaves out, `bot_preference_sync_enabled: true` among them; `ai_training` takes `disallow`, and a PUT that changed it back to `disabled` was accepted and read back (T2-073, T2-077); a PUT with `ai_training: block` and `is_robots_txt_managed: true` was refused (10400), and so was one with `is_robots_txt_managed: true` alone | T2-059 to T2-062, T2-065, T2-066 |
+| A Bot Management PUT that changes a value works and keeps the three fields it leaves out, `bot_preference_sync_enabled: true` among them; `ai_training` takes `disallow`, and a PUT that changed it back to `disabled` was accepted and read back (T2-073, T2-077); a PUT with `ai_training: block` and `is_robots_txt_managed: true` was refused (10400), and so was one that changed only `is_robots_txt_managed` to `true`; both sent `cf_robots_variant: policy_only`, and Cloudflare's message names that pair | T2-059 to T2-062, T2-065, T2-066 |
 | `bot_preference_sync_enabled` is Bot Preference Sync: on, with training disallowed, Cloudflare put 132 lines of its own in front of the site's `robots.txt`; off, the site's own file came back within 15 seconds | T2-061 to T2-064 |
 | The checklist's NEL rule removed `NEL` and `Report-To` from the apex within 20 seconds | T2-067 |
 | Removed on the maintainer's word: the domain, the apex record, the test record, the ruleset, the project; Bot Management put back as found, read back the same | T2-069 to T2-078 |
@@ -665,9 +668,13 @@ field descriptions); the Bot Management update call's own description.
 
 Facts above were seen; these were weighed. Each with the strongest case against.
 
-- **A yes binds the end state, not the old values.** Seen: the script's own writes would
-  break any code made from current values (round 3, H5). Judgment: a change by someone else
-  that leaves the end state the same needs no new yes. *Against:* the yes to replacing
+- **A yes binds the end state and, for `setup`, the list; not the old values.** Seen: the
+  script's own writes would break any code made from current values (round 3, H5). Plan
+  step 6's review (R1-01) showed that a code of the end state alone let a setup run write a
+  setting the question had not listed, against R1; the maintainer chose (2026-10-15) to bind
+  the list too, accepting any part of it, so the script's own writes still keep the code.
+  Judgment: a change by someone else that leaves the end state the same, and adds no line,
+  needs no new yes. *Against:* the yes to replacing
   Lena's apex record was given knowing what it pointed to; if a colleague repoints it in
   between, the script still replaces it. The record is printed before it changes, and the
   commit in the code means a code rarely outlives a day of work on the site.

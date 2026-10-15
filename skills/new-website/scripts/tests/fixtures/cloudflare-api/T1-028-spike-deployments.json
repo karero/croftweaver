@@ -1,0 +1,22 @@
+{
+  "capture": "T1-028",
+  "request": {
+    "method": "GET",
+    "path": "/accounts/c0ffee00000000000000000000000023/pages/projects/lenas-backstube/deployments",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": [],
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {
+      "page": 1,
+      "per_page": 25,
+      "count": 0,
+      "total_count": 0,
+      "total_pages": 0
+    }
+  }
+}

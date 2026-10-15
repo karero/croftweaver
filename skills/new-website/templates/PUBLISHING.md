@@ -108,8 +108,9 @@ git push
 
 ## Deploy by command — if your site isn't connected to GitHub in Cloudflare
 
-Some sites are put online with a Cloudflare token instead of a GitHub connection (your
-README's "Deploy" section says if yours is one; if you're not sure, ask your assistant).
+Some sites are uploaded to Cloudflare by command and have no GitHub connection there
+(your README's "Deploy" section says if yours is one; if you're not sure, ask your
+assistant).
 Such a site has no preview step, and `git push` only updates GitHub. **Nothing goes online
 until someone runs the commands below.** They publish `main`, so first check your change
 locally (`npm run dev`), then save and upload it on `main` with `git add -A`, `git commit`

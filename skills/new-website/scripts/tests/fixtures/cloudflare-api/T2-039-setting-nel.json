@@ -1,0 +1,22 @@
+{
+  "capture": "T2-039",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000045/settings/nel",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "nel",
+      "editable": true,
+      "value": {
+        "enabled": true
+      },
+      "modified_on": "0001-01-01T00:00:00Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

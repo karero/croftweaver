@@ -1,0 +1,21 @@
+{
+  "capture": "T1-067",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000022/settings/always_use_https",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "always_use_https",
+      "value": "on",
+      "modified_on": "2026-10-12T07:38:21.99478Z",
+      "editable": true
+    },
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {}
+  }
+}

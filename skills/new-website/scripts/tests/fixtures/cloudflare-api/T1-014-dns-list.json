@@ -1,0 +1,21 @@
+{
+  "capture": "T1-014",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000022/dns_records?per_page=200",
+    "body": null
+  },
+  "status": 403,
+  "response": {
+    "success": false,
+    "errors": [
+      {
+        "code": 10000,
+        "message": "Authentication error",
+        "documentation_url": "https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/list"
+      }
+    ],
+    "messages": [],
+    "result": null
+  }
+}

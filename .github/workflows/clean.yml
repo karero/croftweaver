@@ -45,7 +45,8 @@ name: clean
 # website-brand-kit tests (`make test-brand-kit`), which borrow `sharp` from an install of the
 # starter and need Pillow, the wordpress-inspector tests (`make test-wordpress-inventory`), which
 # need nothing beyond python3, and the
-# Cloudflare check's tests (`make test-cloudflare-check`), which need nothing beyond Node. And it
+# tests of the Cloudflare check and setup scripts (`make test-cloudflare-check`), which need
+# nothing beyond Node and git. And it
 # runs the tests of the `npm create croftweaver` installer (`make test-create`), on Linux,
 # macOS and Windows. The installer needs nothing beyond node; its tests also need git, and
 # zip and tar where the runner has them. And the tests of the Claude Code plugin
@@ -389,10 +390,11 @@ jobs:
       - name: Run the wordpress-inspector tests (stub sites on 127.0.0.1, no real requests)
         run: make test-wordpress-inventory PYTHON=python
   cloudflare-check-tests:
-    # Node's standard library only, so nothing is installed. 18 is the oldest Node the script
-    # promises, 24 is the one the template pins and a site is built with; Windows runs the same
-    # file, since the script is started by a path there too. The tests make their own
-    # certificate with openssl, which bash on the Windows runner has.
+    # Node's standard library only, so nothing is installed. 18 is the oldest Node the scripts
+    # promise, 24 is the one the template pins and a site is built with; Windows runs the same
+    # files, since the scripts are started by a path there too. The check's tests make their
+    # own certificate with openssl, which bash on the Windows runner has; the setup script's
+    # tests make git repositories, and one of them waits out the script's 55-second deadline.
     strategy:
       fail-fast: false
       matrix:
@@ -408,9 +410,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
-      - name: Run the Cloudflare check's tests (stub sites on 127.0.0.1, no real requests)
+      - name: Run the Cloudflare check's and setup script's tests (stubs on 127.0.0.1, no real requests)
         shell: bash
-        run: node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs
+        run: node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs
   create-croftweaver-tests:
     # The installer calls no other program, so that it runs in a Windows terminal, where the
     # shell installers need Git Bash or WSL. Only a run on Windows shows that, so it runs on

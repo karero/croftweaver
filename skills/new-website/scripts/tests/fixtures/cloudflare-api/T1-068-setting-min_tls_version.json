@@ -1,0 +1,20 @@
+{
+  "capture": "T1-068",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000022/settings/min_tls_version",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "min_tls_version",
+      "value": "1.2",
+      "modified_on": null,
+      "editable": true
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

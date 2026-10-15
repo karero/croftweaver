@@ -1,0 +1,24 @@
+{
+  "capture": "T1-001",
+  "request": {
+    "method": "GET",
+    "path": "/user/tokens/verify",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "c0ffee00000000000000000000000021",
+      "status": "active"
+    },
+    "success": true,
+    "errors": [],
+    "messages": [
+      {
+        "code": 10000,
+        "message": "This API Token is valid and active",
+        "type": null
+      }
+    ]
+  }
+}

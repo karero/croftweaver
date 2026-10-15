@@ -1,0 +1,25 @@
+{
+  "capture": "T1-145",
+  "request": {
+    "method": "POST",
+    "path": "/zones/c0ffee00000000000000000000000022/dns_records",
+    "body": {
+      "type": "TXT",
+      "name": "_spike-test",
+      "content": "\"spike-two\"",
+      "ttl": 1
+    }
+  },
+  "status": 400,
+  "response": {
+    "result": null,
+    "success": false,
+    "errors": [
+      {
+        "code": 81058,
+        "message": "An identical record already exists."
+      }
+    ],
+    "messages": []
+  }
+}

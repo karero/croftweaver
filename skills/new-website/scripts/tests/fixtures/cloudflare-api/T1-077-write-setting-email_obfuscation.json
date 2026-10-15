@@ -1,0 +1,23 @@
+{
+  "capture": "T1-077",
+  "request": {
+    "method": "PATCH",
+    "path": "/zones/c0ffee00000000000000000000000022/settings/email_obfuscation",
+    "body": {
+      "value": "off"
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "email_obfuscation",
+      "value": "off",
+      "modified_on": "2026-10-13T21:21:05.297417Z",
+      "editable": true
+    },
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {}
+  }
+}

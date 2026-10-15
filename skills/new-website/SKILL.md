@@ -635,9 +635,12 @@ hold Search Console Request Indexing until then.
       **Single-stage:** `main` = live (default Cloudflare production branch).
       **Creating the Pages project + first deploy** (the step a Cloudflare newcomer
       struggles with) — offer the bootstrap options in
-      `references/CLOUDFLARE_FIRST_DEPLOY.md`: recommend the **token-assisted** path for
-      owners new to Cloudflare (least-privilege, expiring token; you run Wrangler), with
-      git-integration (push-to-deploy, no token) and browser/manual as the other offered paths.
+      `references/CLOUDFLARE_FIRST_DEPLOY.md`: for a site on GitHub, recommend the **setup
+      script** (`scripts/cloudflare-setup.mjs setup`: one short-lived token, the owner's yes
+      to a printed list, a project connected to GitHub with the checklist's settings; the
+      domain is attached by hand on launch day for now), with the token-assisted direct
+      upload (no GitHub connection; you run Wrangler), git-integration by hand and
+      browser/manual as the other offered paths.
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
       Non-English-speaking owner? Translate `PUBLISHING.md` in-session first (e.g. save
       as `PUBLISHING.de.md`, or replace the copy) — it is the owner's PERMANENT reference,

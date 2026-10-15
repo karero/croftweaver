@@ -1,0 +1,290 @@
+{
+  "capture": "T1-061",
+  "request": {
+    "method": "PATCH",
+    "path": "/accounts/c0ffee00000000000000000000000023/pages/projects/lenas-backstube",
+    "body": {
+      "production_branch": "production",
+      "build_config": {
+        "build_caching": false
+      },
+      "deployment_configs": {
+        "production": {
+          "fail_open": true
+        },
+        "preview": {
+          "fail_open": true
+        }
+      }
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "d0000012-0000-4000-8000-000000000000",
+      "name": "lenas-backstube",
+      "subdomain": "lenas-backstube.pages.dev",
+      "domains": [
+        "lenas-backstube.pages.dev"
+      ],
+      "source": {
+        "type": "github",
+        "config": {
+          "owner": "lena-example",
+          "owner_id": "1000001",
+          "repo_name": "lenas-backstube",
+          "repo_id": "1000005",
+          "production_branch": "production",
+          "pr_comments_enabled": true,
+          "deployments_enabled": true,
+          "production_deployments_enabled": true,
+          "preview_deployment_setting": "all",
+          "preview_branch_includes": [
+            "*"
+          ],
+          "preview_branch_excludes": [],
+          "path_includes": [
+            "*"
+          ],
+          "path_excludes": []
+        }
+      },
+      "build_config": {
+        "build_command": "npm run build",
+        "destination_dir": "dist",
+        "build_caching": false,
+        "root_dir": "",
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": {
+            "SPIKE_SECRET": {
+              "type": "secret_text",
+              "value": ""
+            }
+          },
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-10-13",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": {
+            "SPIKE_PLAIN": {
+              "type": "plain_text",
+              "value": "two"
+            },
+            "SPIKE_SECRET": {
+              "type": "secret_text",
+              "value": ""
+            }
+          },
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-10-13",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "d0000014-0000-4000-8000-000000000000",
+        "short_id": "d0000014",
+        "project_id": "d0000012-0000-4000-8000-000000000000",
+        "project_name": "lenas-backstube",
+        "environment": "preview",
+        "url": "https://d0000014.lenas-backstube.pages.dev",
+        "created_on": "2026-10-13T21:16:35.602036Z",
+        "modified_on": "2026-10-13T21:17:44.989563Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": "2026-10-13T21:17:34.611375Z",
+          "ended_on": "2026-10-13T21:17:44.989563Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "github:push",
+          "metadata": {
+            "branch": "trial/first-pr",
+            "commit_hash": "ba5e000000000000000000000000000000000032",
+            "commit_message": "Made-up commit message 8",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-10-13T21:16:36.402606Z",
+            "ended_on": "2026-10-13T21:17:08.152873Z",
+            "status": "success"
+          },
+          {
+            "name": "initialize",
+            "started_on": "2026-10-13T21:17:08.152873Z",
+            "ended_on": "2026-10-13T21:17:11.224374Z",
+            "status": "success"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": "2026-10-13T21:17:11.224374Z",
+            "ended_on": "2026-10-13T21:17:13.146004Z",
+            "status": "success"
+          },
+          {
+            "name": "build",
+            "started_on": "2026-10-13T21:17:13.146004Z",
+            "ended_on": "2026-10-13T21:17:34.611375Z",
+            "status": "success"
+          },
+          {
+            "name": "deploy",
+            "started_on": "2026-10-13T21:17:34.611375Z",
+            "ended_on": "2026-10-13T21:17:44.989563Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "build_caching": true,
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "repo_name": "lenas-backstube",
+            "production_branch": "main",
+            "pr_comments_enabled": false
+          }
+        },
+        "env_vars": {
+          "SPIKE_SECRET": {
+            "type": "secret_text",
+            "value": ""
+          }
+        },
+        "compatibility_date": "2026-10-13",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": [
+          "https://trial-first-pr.lenas-backstube.pages.dev"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": true,
+        "framework": "astro"
+      },
+      "canonical_deployment": {
+        "id": "d0000018-0000-4000-8000-000000000000",
+        "short_id": "d0000018",
+        "project_id": "d0000012-0000-4000-8000-000000000000",
+        "project_name": "lenas-backstube",
+        "environment": "production",
+        "url": "https://d0000018.lenas-backstube.pages.dev",
+        "created_on": "2026-10-13T21:16:32.207071Z",
+        "modified_on": "2026-10-13T21:17:11.318457Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": "2026-10-13T21:16:56.568972Z",
+          "ended_on": "2026-10-13T21:17:11.318457Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "ba5e000000000000000000000000000000000030",
+            "commit_message": "Made-up commit message 6",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-10-13T21:16:32.485495Z",
+            "ended_on": "2026-10-13T21:16:32.490634Z",
+            "status": "success"
+          },
+          {
+            "name": "initialize",
+            "started_on": "2026-10-13T21:16:32.490634Z",
+            "ended_on": "2026-10-13T21:16:35.34954Z",
+            "status": "success"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": "2026-10-13T21:16:35.34954Z",
+            "ended_on": "2026-10-13T21:16:37.127824Z",
+            "status": "success"
+          },
+          {
+            "name": "build",
+            "started_on": "2026-10-13T21:16:37.127824Z",
+            "ended_on": "2026-10-13T21:16:56.568972Z",
+            "status": "success"
+          },
+          {
+            "name": "deploy",
+            "started_on": "2026-10-13T21:16:56.568972Z",
+            "ended_on": "2026-10-13T21:17:11.318457Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": "npm run build",
+          "destination_dir": "dist",
+          "build_caching": true,
+          "root_dir": "",
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "source": {
+          "type": "github",
+          "config": {
+            "owner": "lena-example",
+            "repo_name": "lenas-backstube",
+            "production_branch": "main",
+            "pr_comments_enabled": false
+          }
+        },
+        "env_vars": {
+          "SPIKE_PLAIN": {
+            "type": "plain_text",
+            "value": "two"
+          },
+          "SPIKE_SECRET": {
+            "type": "secret_text",
+            "value": ""
+          }
+        },
+        "compatibility_date": "2026-10-13",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": true,
+        "framework": "astro"
+      },
+      "created_on": "2026-10-13T21:09:50.04507Z",
+      "production_branch": "production",
+      "production_script_name": "pages-worker--1000001-production",
+      "preview_script_name": "pages-worker--1000001-preview",
+      "uses_functions": true,
+      "framework": "astro",
+      "framework_version": "7.3.5"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

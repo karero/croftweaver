@@ -1,0 +1,36 @@
+{
+  "capture": "T1-143",
+  "request": {
+    "method": "POST",
+    "path": "/zones/c0ffee00000000000000000000000022/dns_records",
+    "body": {
+      "type": "TXT",
+      "name": "_spike-test",
+      "content": "\"spike-one\"",
+      "ttl": 1,
+      "comment": "Trial of a setup script; remove when the trial ends"
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "c0ffee00000000000000000000000035",
+      "name": "_spike-test.lenas-backstube.example",
+      "type": "TXT",
+      "content": "\"spike-one\"",
+      "proxiable": false,
+      "proxied": false,
+      "ttl": 1,
+      "settings": {},
+      "meta": {},
+      "comment": "Trial of a setup script; remove when the trial ends",
+      "tags": [],
+      "created_on": "2026-10-13T21:42:21.240135Z",
+      "modified_on": "2026-10-13T21:42:21.240135Z",
+      "comment_modified_on": "2026-10-13T21:42:21.240135Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

@@ -154,6 +154,13 @@ an "Email Tap" event there, as a click on an email address does.
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
   settings; it needs no token. It also sends requests that carry the names of AI crawlers
   (GPTBot, ClaudeBot and others) to your own domain, to see whether Cloudflare lets them in.
+  Its `scripts/cloudflare-setup.mjs` changes your Cloudflare account through Cloudflare's API,
+  with a short-lived token you make: it creates the Pages project or uses the one connected
+  to your repository, starts its first build, changes your domain's settings from the
+  Cloudflare checklist, and writes the verification records you give it. It changes nothing
+  until you have said yes to the list it prints, and it deletes nothing. It runs `git` to read
+  your repository's branches and `src/config.ts`, and asks your domain's nameservers whether
+  a record it wrote is there. It sends your domain no request.
 - **`website-team-setup`** uses `gh` to change GitHub settings once you ask for team
   setup: invite collaborators, edit repository settings, create and update branch rules,
   start a check run, and push and close a throwaway test branch. It runs these without a
@@ -210,6 +217,8 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | croftweaver.com | `new-website`'s footer credit step, only if you say yes | none | reads the badge code from `/partner-assets` and the badge files |
 | An image service you choose | `image`, if you use one | your own key | sends your image prompts |
 | Cloudflare | `wrangler` (deploy, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
+| Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Pages projects; after your yes, creates or changes the project, starts a build, and writes zone settings, Bot Management and DNS records |
+| Your domain's nameservers | `cloudflare-setup.mjs` | none | asks whether a record it wrote is served |
 | Google Search Console | `search-console-insights` (`gsc_query.py`, `search_report.py`, `insights.py`) | your own Google sign-in, scope `webmasters.readonly` | reads only; asks for clicks, impressions and positions |
 | Bing Webmaster | `bing_query.py` | your `BING_API_KEY` | reads only |
 | Serper or SerpApi | `serp_check.py` | your `SERPER_API_KEY` or `SERPAPI_KEY` | sends a keyword, country and language; reads search results |

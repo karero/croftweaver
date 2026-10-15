@@ -1,0 +1,20 @@
+{
+  "capture": "T2-038",
+  "request": {
+    "method": "GET",
+    "path": "/zones/c0ffee00000000000000000000000045/settings/email_obfuscation",
+    "body": null
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "email_obfuscation",
+      "value": "on",
+      "editable": true
+    },
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {}
+  }
+}
