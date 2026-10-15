@@ -40,7 +40,8 @@
 //      The sentence on how to refuse the measurement ("Sie können die Messung
 //      ablehnen") names the host from ANALYTICS.scriptHost in src/config.ts. If
 //      that host is the site's own domain (Plausible behind a proxy), blocking it
-//      blocks the whole site: name the script's full address there instead.
+//      also blocks the site's own scripts: name the script's full address there
+//      instead.
 //      Switzerland's Telecommunications Act (Art. 45c FMG) asks that visitors are
 //      told about the processing and its purpose, and that they may refuse it.
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
@@ -87,7 +88,8 @@
 import Base from '../layouts/Base.astro';
 import EmailLink from '../components/EmailLink.astro';
 import { SITE, ANALYTICS } from '../config';
-const analyticsHost = ANALYTICS.scriptHost.replace(/^https?:\/\//, '').split('/')[0];
+let analyticsHost = '';
+try { analyticsHost = new URL(ANALYTICS.scriptHost).hostname; } catch { /* no analytics host set */ }
 ---
 <Base
   lang="de"
