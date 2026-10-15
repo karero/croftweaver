@@ -436,7 +436,9 @@ check comes with the launch stage, since no request may reach the domain before 
     one that has grown too long since the question changes nothing here, and the run
     ends with 1, printing it in full and saying to change it by hand. The trials wrote
     comments on new records (captures 104, 129) and with the PATCH that turned an apex A
-    record into the CNAME (T2-046, T2-047). If
+    record into the CNAME (T2-046, T2-047). Cloudflare's answer to each PATCH that changed a
+    record's type said "DNS record type update is deprecated" (T1-132, T2-046); the script
+    prints that message and does not delete the record instead (R7). If
     that PATCH is refused, the run ends with 1, the host's record unchanged and the domain
     pending, and says to change the record by hand. Runs end with 4 until the
     domain is `active`; `error`, `blocked` or `deactivated` ends with 1 and Cloudflare's
@@ -664,6 +666,14 @@ field descriptions); the Bot Management update call's own description.
     tried. The script treats every value but `all` as "a pull request may not build".
 11. Whether a CNAME is refused beside a record of another type below the apex. The script
     refuses that case before it asks (script step 8), so nothing is tried on it.
+12. Whether a project's `domains` lists a domain that is attached and still pending. The
+    launch stage reads attachment from that list, so a site that is not attached gets no
+    call to the domains API (scenario 19). If a pending domain is not listed, a run cut off
+    after the attach asks Cloudflare to attach it again, and ends with 1 and Cloudflare's
+    words. Plan step 10 is the first try.
+13. How long Cloudflare keeps accepting a PATCH that changes a record's type, which it calls
+    deprecated (T1-132, T2-046). If it stops, script step 10 ends with 1, the record unchanged
+    and the domain pending.
 
 ## Judgment calls
 
