@@ -90,7 +90,8 @@ export const ITEMS = [
 const USAGE = `Usage: node cloudflare-check.mjs <domain> [options]
 
   <domain>            your live domain, for example example.com (no https://, no path)
-  --project <name>    your Pages project, to check that <name>.pages.dev forwards to the domain
+  --project <addr>    your Pages project's own address (my-project.pages.dev, as Cloudflare
+                      shows it: not always the name), to check that it forwards to the domain
   --hsts-on           you have switched HSTS on: a missing header is then a failure
   --build <sha>       the commit you expect the live domain to serve (from /build.txt)
   --json              print the results as JSON

@@ -26,12 +26,14 @@ node "$SKILLS_ROOT/new-website/scripts/cloudflare-check.mjs" example.com --proje
 
 | Option | What it does |
 |---|---|
-| `<domain>` | Your live domain, with no `https://` and no path. If your site lives on `www`, give `www.example.com`. A page on this machine can be given as `http://localhost:4321`; any other `http://` address is refused. |
-| `--project <name>` | Your Pages project (`my-project` or `my-project.pages.dev`). Adds the checks of its `pages.dev` address: that it answers, and that it forwards to the domain. |
+| `<domain>` | Your live domain, with no `https://` and no path. If your site lives on `www`, give `www.example.com`. A page on this machine can be given with `http://`: `localhost`, `127.0.0.1` or `[::1]`, a name ending in `.localhost`, or one ending in `.test`, each with a port if needed (`http://localhost:4321`); any other `http://` address is refused. |
+| `--project <name>` | Your Pages project's own address (`my-project.pages.dev`), as Cloudflare shows it on the project's page: it is not always the project's name. `my-project` alone stands for `my-project.pages.dev`. Adds the checks of that address: that it answers, and that it forwards to the domain. |
 | `--hsts-on` | You have switched HSTS on. A missing header is then a failure, not a "look". |
 | `--build <sha>` | The commit you expect to be live: 7 to 40 hexadecimal characters. Without it the live build is only shown, not compared. |
 | `--json` | Print the results as JSON, for an assistant or another script. |
 | `--timeout <s>` | Seconds to wait for each answer, from 1 to 120. The default is 15. |
+| `--only <id>,<id>` | Judge only these items (the ids under "For an assistant") and send only the requests they need. The home page is always asked. |
+| `--nameserver <ip>` | Look the domain up at this nameserver, not at this computer's own: an IP address, with `:port` if not 53, several separated by commas. The `pages.dev` address keeps the computer's own lookup. A computer that asked for a host before its record existed can go on saying "no such host" for minutes after the domain is live; the zone's own nameservers answer at once. The setup script's launch stage passes the zone's. |
 
 Run it when the domain serves the site (the production deployment is Active, the custom
 domain is Active), after you change a setting, and again after HSTS goes on. Before the
@@ -65,9 +67,9 @@ nowhere to go, is said so and the page is not judged.
 
 | Checklist item | What the script asks | `FAIL` means |
 |---|---|---|
-| Create a Pages project (1) | `<name>.pages.dev` answers below 400 (needs `--project`) | The name does not answer, or it answers an error |
+| Create a Pages project (1) | The `pages.dev` address answers below 400 (needs `--project`) | The name does not answer, or it answers an error |
 | Attach your domain (1) | The home page over https answers 200, through Cloudflare (a `cf-ray` header) | No answer, an error (522: the domain is probably not attached), a challenge page. No `cf-ray` is a `look` |
-| Send pages.dev to your domain (1) | `<name>.pages.dev` answers 301 to your domain (needs `--project`) | It answers 200 or goes elsewhere: `CANONICAL_URL` is not in effect |
+| Send pages.dev to your domain (1) | The `pages.dev` address answers 301 to your domain, and a page with a query (`/robots.txt?cb=…`) answers 301 to the same page and query there (needs `--project`) | It answers 200 or goes elsewhere: `CANONICAL_URL` is not in effect. Or a page loses its path or query on the way. A page with a query that got no answer is "not run" |
 | Always Use HTTPS (2) | `http://domain/` answers 301 or 308 to `https://domain/`, as an address | No redirect, or one to another address |
 | HSTS (2) | The `strict-transport-security` header, read as directives: max-age in months, subdomains, preload | Missing, with `--hsts-on` |
 | NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look`. So is Cloudflare's script monitor (Client-side security), which the line names: a `report-to` group, a `reporting-endpoints` entry or a `report-uri` of a report-only policy that lists an address on csp-reporting.cloudflare.com, or on the origin of the answer that carries the header (its scheme, host and port) at the exact path /cdn-cgi/script-monitor/report (Cloudflare offers that with Client-Side Security Advanced; the line then says so), judged by the address and not by a name. It names what Cloudflare sends and does not decide what a browser would do with a header. NEL on still fails, and the line names the monitor beside it. The script reports the monitor as a `look`; the checklist asks for its switch Off (section 3, step 5) |
@@ -147,7 +149,8 @@ items are a `look`, never `ok`.
 
 ## For an assistant
 
-Run it with `--json` and read the object: `domain`, `checkedAt`, `summary` (counts of `ok`,
+Run it with `--json` and read the object: `domain`, `checkedAt`, `only` (with `--only`: the ids
+asked), `summary` (counts of `ok`,
 `fail`, `look`, `hand`, `skip`), `unanswered` (requests that got no answer),
 `couldNotJudge` (ids that were "not run" because the page could not be judged) and `results`.
 `results` is a list in the checklist's order of `{ id, section, title, state, detail, fix? }`,

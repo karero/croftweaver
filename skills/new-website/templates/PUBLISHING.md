@@ -50,7 +50,8 @@ git commit -m "describe what you changed, e.g. update opening hours"
 git push
 
 # 3. Look at the preview. Open the preview link from Cloudflare
-#    (stable address: main.<your-project>.pages.dev) and check it's right.
+#    (stable address: main.<your-project>.pages.dev, where <your-project> is the
+#    first part of the project's own address as Cloudflare shows it) and check it's right.
 
 # 4. Happy? Publish it to the live site — ONE command:
 npm run ship
@@ -220,7 +221,9 @@ rule wins over both models: a push builds nothing, not even a preview. Say the c
 saved on GitHub only, and goes live when the deploy command runs. Deliver these
 announcements in the owner's language, like everything else you say to them.
 
-**Which URL to quote.** Prefer the **memorable `pages.dev` alias** — the branch alias
+**Which URL to quote.** `<project>` below is the first part of the project's own address,
+as Cloudflare shows it on the project's page: not always the project's name. Prefer the
+**memorable `pages.dev` alias** — the branch alias
 `main.<project>.pages.dev` (or, before go-live, the project alias `<project>.pages.dev` —
 after go-live it redirects to the live domain) — over the random
 per-deploy hash URL `<hash>.<project>.pages.dev`. The hash URL is ugly but **immutable**, so

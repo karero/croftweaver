@@ -8,9 +8,9 @@ them** rather than handing over a dashboard tour.
 
 > **Assistant: for a site on GitHub, recommend the setup script (S, next section).** It
 > gives (B)'s result, a project that builds on every push, with most of (A)'s ease: one
-> short-lived token, the owner's yes to a printed list, and no dashboard tour. It does setup day today; on the day the
-> site goes live, the domain is attached by hand ("Going live" and "After go-live" below),
-> until the script's launch stage exists. (A) stays for an owner who wants no GitHub
+> short-lived token, the owner's yes to a printed list, and no dashboard tour. Its `setup`
+> stage does setup day; its `launch` stage attaches the domain on the day the site goes live,
+> and sends the `pages.dev` address there. (A) stays for an owner who wants no GitHub
 > connection; (B) and (C) stay on offer. State the deploy-model tradeoff in (A) before an
 > owner picks it.
 
@@ -82,7 +82,7 @@ the value the list named.
 
 | Status | Means | Then |
 |---|---|---|
-| 0 | Setup is done, as far as Cloudflare's API shows | Launch day: attach the domain by hand ("Going live") |
+| 0 | `setup`: done, as far as Cloudflare's API shows. `launch`: the domain serves the site, and the check passes | After `setup`: on launch day, `launch` (below) |
 | 1 | Something failed or was refused; the report says what, and what to do by hand | Fix that, or do the line by hand |
 | 2 | The command was wrong | Read the message |
 | 3 | Waiting for the owner's yes | Show the list; on a yes, run again with `--confirm <code>` |
@@ -93,14 +93,43 @@ is one the script ends with 4: push one commit to a pull request (an empty commi
 run it again. Where the project builds no previews, the push that shows it is the production
 branch's: on a two-stage site that is `npm run ship`, on the owner's word.
 
-**By hand, or on launch day:** what `CLOUDFLARE_CHECK.md` lists under "By hand, always"
-(Crawler Hints, the Web Analytics switch, the script monitor's switch, HSTS later, deleting the
-token), and the rule that removes the NEL headers (the checklist's section 3,
-step 4), which the Transform Rules row of the token is for. It is added only if the domain
-still sends the headers, and by hand until the launch stage exists.
+**Launch day.** Once the site is finished (new-website §4), run:
+
+```bash
+node "$SKILLS_ROOT/new-website/scripts/cloudflare-setup.mjs" launch
+```
+
+It refuses, and asks nothing, while the project is not as `setup` leaves it, while Cloudflare
+has never built it from a push, while the newest production build is not Cloudflare's build
+of the head of the production branch, while at that commit `UNFILLED_UNTIL_LAUNCH` in
+`tests/placeholders.spec.ts` lists a page or the draft token (`[MISSING:`, or the site's own,
+which `ci.yml` must search for too) is in `src/` or `public/`, and while the host has more
+than one address record or, below the domain itself, a record of another type. These are
+the script's own stops; the launch check stays new-website §4 and the site's tests. Its
+question names the domain, the commit, the host's record now and what it becomes (a proxied
+CNAME to the project's own `pages.dev` address), and that the site becomes public, with a few
+minutes of errors. The yes attaches the domain and changes that record with one write; the
+old record goes in the record's comment, so it can be put back by hand. Cloudflare then
+takes two to three minutes to make the domain active: run the same command, with the same
+code, until it is. The next run asks the domain through `cloudflare-check.mjs`, looked up at
+the zone's own nameservers, and must see the commit. Then it adds the checklist's rule that
+removes the NEL headers (section 3, step 4) if the domain still sends them, and saves
+`CANONICAL_URL` and starts one production build of the same commit, so the `pages.dev`
+address forwards to the domain ("After go-live"). `--skip canonical` and `--skip nel-rule`
+leave those two out; setup's `--skip` ids are taken too. A domain already attached and
+active, by hand say, gets no launch check and no attach: only the forwarding and the rule.
+
+A launch run with nothing left to do ends with the whole check. Its status is 1 when a
+request got no answer, an item could not be judged, or an item fails that the run was not
+told to leave out with its `--skip` (Web Analytics is the owner's alone and never counts);
+the report says which, and what is left by hand.
+
+**By hand, always:** what `CLOUDFLARE_CHECK.md` lists under "By hand, always" (Crawler
+Hints, the Web Analytics switch, the script monitor's switch, HSTS a few days after launch,
+deleting the token).
 
 **It never** merges, runs `npm run ship`, deletes or detaches anything, changes a record
-other than one it writes, or repairs a site that is live: a project already serving a domain
+other than one it writes or, on launch day, the host's own address record, or repairs a site that is live: a project already serving a domain
 gets no build and no branch change from it. No run waits for typed input, and none takes
 longer than 55 seconds.
 
@@ -381,7 +410,14 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
 
 ## After go-live: send `<project>.pages.dev` to the live domain
 
-Every Pages project also serves production at its own alias, `<project>.pages.dev`. The
+**With the setup script,** its launch stage does steps 1 to 3 below: it saves the variable
+from Cloudflare's own name for the domain, starts one production build of the commit that is
+live, and checks that a page and its query arrive on the domain. The steps are for a site
+set up another way.
+
+Every Pages project also serves production at its own alias, `<project>.pages.dev`: the
+address Cloudflare gave the project, shown on the project's page. It is not always the
+project's name followed by `.pages.dev`, so read it there. The
 kit's `functions/_middleware.ts` noindexes it, but that does not keep it out of AI
 answers: AI search engines have been seen citing the alias instead of the real domain. So
 once the site is live, the alias should 301-redirect to the live domain: anyone who
