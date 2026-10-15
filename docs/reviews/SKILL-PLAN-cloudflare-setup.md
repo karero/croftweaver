@@ -215,7 +215,11 @@ later run accepts it for any part of that list, so the script's own writes do no
   given with `--record`.
 - `launch`: the project and its `pages.dev` address; the host; the commit that goes live;
   whether the forwarding and the NEL rule are in; the zone's proxied hosts other than the
-  site's own host (which the stage itself makes proxied), when the NEL rule is in.
+  site's own host (which the stage itself makes proxied), when the NEL rule is in; and, as
+  for `setup`, the actions the question listed (attach, record, forwarding, NEL rule; the
+  first question lists the last two as "if needed"). Plan step 6's second review (R1-02)
+  showed that a yes to the forwarding alone otherwise also covered a NEL rule the question
+  had not named.
 
 What is there now (the record the host has, a setting's old value) is shown in the
 question but not in the code. A change made by someone else between the question and the
@@ -477,7 +481,12 @@ check comes with the launch stage, since no request may reach the domain before 
     through a test function), so it then starts a production build, but only if the head of the production
     branch is the live commit, the live build was built by Cloudflare, and the live build's
     recorded variables and build settings (a deployment records both, captures 030, 062,
-    063) differ from the saved ones in `CANONICAL_URL` alone. A secret is compared by name
+    063) differ from the saved ones in `CANONICAL_URL` alone, and the project's production branch
+and the live build's are `PROD_BRANCH` (on a domain attached by hand none of script step 8
+was checked). After a production build that failed it starts none and ends with 1. The
+deployment call builds the head of the production branch as it is at that moment, so the
+script compares the commit Cloudflare names in its answer with the live one and ends with 1,
+naming it, if the branch moved. A secret is compared by name
     only: its value reads empty on the project and on the deployment alike (capture 062). Otherwise it says "the
     variable is saved, but no build has picked it up", names each other difference, and
     ends with 1. When the build is done it checks its commit and runs the check's
@@ -667,10 +676,11 @@ field descriptions); the Bot Management update call's own description.
 11. Whether a CNAME is refused beside a record of another type below the apex. The script
     refuses that case before it asks (script step 8), so nothing is tried on it.
 12. Whether a project's `domains` lists a domain that is attached and still pending. The
-    launch stage reads attachment from that list, so a site that is not attached gets no
-    call to the domains API (scenario 19). If a pending domain is not listed, a run cut off
-    after the attach asks Cloudflare to attach it again, and ends with 1 and Cloudflare's
-    words. Plan step 10 is the first try.
+    launch stage reads attachment from that list first, so a site that refuses gets no call
+    to the domains API (scenario 19); once the launch conditions hold, it asks the domains API
+    for the host as well, and an attach call that is refused is followed by that read too, so
+    a pending domain missing from the list is not attached twice. Plan step 10 is the first
+    try.
 13. How long Cloudflare keeps accepting a PATCH that changes a record's type, which it calls
     deprecated (T1-132, T2-046). If it stops, script step 10 ends with 1, the record unchanged
     and the domain pending.

@@ -14,7 +14,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BOT_LINES, LAUNCH_FAIL, LAUNCH_SKIP_IDS, SETTINGS, SKIP_IDS, checkArgs, codeFits, defaultName, failed, fixedText, githubRepo, goodProductionBuild, launchVerdict, notAsWanted, otherDifferences, running, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
+import { BOT_LINES, LAUNCH_FAIL, LAUNCH_SKIP_IDS, SETTINGS, SKIP_IDS, checkArgs, codeFits, defaultName, failed, fixedText, githubRepo, goodProductionBuild, launchVerdict, nameserverIps, notAsWanted, otherDifferences, running, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
 import { ITEMS as CHECK_ITEMS } from '../cloudflare-check.mjs';
 import { ACCOUNT, FIXTURES, OWNER, REPO, TOKEN, ZONE, allFixtures, attachedDomain, deployment, fixture, freshState, handle, project, servedBy, startApi, startDns, startSites, zone } from './cloudflare-stub.mjs';
 
@@ -27,7 +27,12 @@ const TEMPLATE = path.join(HERE, '..', '..', 'templates', 'astro');
 // The starter's own placeholder test and CI file: the launch stage reads them in the starter's form.
 const STARTER_SPEC = readFileSync(path.join(TEMPLATE, 'tests', 'placeholders.spec.ts'), 'utf8');
 const STARTER_CI = readFileSync(path.join(TEMPLATE, '.github', 'workflows', 'ci.yml'), 'utf8');
-const EMPTY_LIST = (spec) => spec.replace(/^const UNFILLED_UNTIL_LAUNCH = new Set<string>\(\[.*\]\);$/m, 'const UNFILLED_UNTIL_LAUNCH = new Set<string>([]);');
+const EMPTY_LIST = (spec) => {
+  const out = spec.replace(/^const UNFILLED_UNTIL_LAUNCH = new Set<string>\(\[.*\]\);$/m, 'const UNFILLED_UNTIL_LAUNCH = new Set<string>([]);');
+  // A starter that writes the list another way would leave it as it was: say so here, not in 40 tests.
+  assert.ok(out.includes('const UNFILLED_UNTIL_LAUNCH = new Set<string>([]);'), 'the starter\'s UNFILLED_UNTIL_LAUNCH line is no longer on one line');
+  return out;
+};
 
 // ---------------------------------------------------------------- the site and its origin
 
@@ -1120,15 +1125,16 @@ test('36 and 37: the report of a finished launch: two-stage names main\'s previe
     assert.match(report, /^Live: https:\/\/lenas-backstube\.example\/ serves [0-9a-f]{7}\./m);
     assert.match(report, /The preview of main, as Cloudflare lists it: https:\/\/main\.lenas-backstube\.pages\.dev/);
     assert.match(report, /https:\/\/lenas-backstube\.pages\.dev\/ forwards to https:\/\/lenas-backstube\.example\//);
-    assert.match(report, /Read back through the API only.*Fail open, the build settings, Minimum TLS Version.*ssllabs.*the AI fields/s);
+    assert.match(report, /No outside check exists for Fail open, the build settings, Minimum TLS Version or the AI fields: the setup stage read them back through the API, and this stage does not read them again.*ssllabs/s);
     assert.match(report, /Crawler Hints, the Web Analytics switch, the script monitor's switch/);
     assert.match(report, /HSTS once the site has worked for a few days, not before \d{4}-\d{2}-\d{2}/);
     assert.match(report, /behind a sign-in/);
     assert.match(report, /Delete the token now/);
   });
-  await launchScenario((h) => finished(h), async ({ launch }) => {
+  await launchScenario((h) => finished(h), async ({ api, launch }) => {
     const r = await launch();
     assert.equal(r.code, 0, r.out);
+    assert.ok(!api.log.some((e) => /\/settings\/|bot_management/.test(e.path)), 'launch reads no zone setting, so its report claims no read');
     assert.match(r.out, /main is the live site \(main\); each pull request gets a preview of its own/);
     assert.doesNotMatch(r.out, /preview of main/);
   }, { prodBranch: 'main', production: false });
@@ -1179,17 +1185,112 @@ test('39 at launch: a run cut off after the attach call: the next run with the c
   });
 });
 
-test('launch: a code from another commit does not fit: the question again, nothing changed', () =>
-  launchScenario((h) => launchState(h), async ({ api, where, launch }) => {
+test('launch: a code from another commit does not fit: the question again, with a new code, nothing changed', () =>
+  launchScenario((h) => launchState(h), async ({ api, where, state, launch }) => {
     const q = await launch();
     writeFileSync(path.join(where.site, 'news.md'), 'new\n');
     git(where.site, 'add', 'news.md');
     git(where.site, 'commit', '-q', '-m', 'news');
     git(where.site, 'push', '-q', 'origin', 'HEAD:main', 'HEAD:production');
-    git(where.site, 'fetch', '-q', 'origin');
+    // Cloudflare built the new head, so every launch condition holds and only the code can stop it.
+    const built = deployment('built', { commit: git(where.site, 'rev-parse', 'HEAD') });
+    built.env_vars = {};
+    state.deployments[REPO].unshift(built);
     const r = await launch(['--confirm', codeOf(q)]);
-    assert.notEqual(r.code, 0);
+    assert.equal(r.code, 3, r.out);
+    assert.match(r.out, /does not fit this question/);
+    assert.notEqual(codeOf(r), codeOf(q));
     assert.deepEqual(api.writes(), []);
+  }));
+
+test('launch: a pending domain the project\'s list does not name is found through the domains API: no second attach', () =>
+  launchScenario((h) => Object.assign(launchState(h), { pendingUnlisted: true }), async ({ api, state, launch }) => {
+    const code = codeOf(await launch());
+    assert.equal((await launch(['--confirm', code])).code, 4);
+    const again = await launch(['--confirm', code]);
+    assert.equal(again.code, 4, again.out);
+    assert.equal(api.writes().filter((e) => e.method === 'POST' && e.path.endsWith('/domains')).length, 1, 'one attach');
+    assert.equal(api.writes().filter((e) => /dns_records/.test(e.path)).length, 1, 'one record write');
+    activate(state);
+    state.projects[0].deployment_configs.production.env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
+    state.deployments[REPO][1].env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
+    const done = await launch(['--confirm', code]);
+    assert.equal(done.code, 0, done.out);
+  }));
+
+test('launch: a yes to the forwarding alone is no yes to a NEL rule: the rule asks again', () =>
+  launchScenario((h) => attachHost(launchState(h)), async ({ api, state, launch }) => {
+    const q = await launch();
+    assert.equal(q.code, 3, q.out);
+    assert.doesNotMatch(q.out, /NEL/, 'the question lists the forwarding only');
+    state.siteSendsNel = true; // the headers appear before the yes
+    const r = await launch(['--confirm', codeOf(q)]);
+    assert.equal(r.code, 3, r.out);
+    assert.match(r.out, /does not fit this question/);
+    assert.ok(!api.writes().some((e) => /rulesets/.test(e.path)), 'no rule written on a yes that did not list it');
+  }));
+
+test('launch: after a failed production build the run stops; it starts no other', () =>
+  launchScenario((h) => { const s = attachHost(launchState(h)); s.deployments[REPO].unshift(deployment('failed', { commit: h.production, env: 'production' })); return s; }, async ({ api, launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /The newest production build failed/);
+    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')));
+  }));
+
+test('launch: the forwarding build waits for the site\'s own production branch, and says so if the branch moved under it', async () => {
+  await launchScenario((h) => { const s = attachHost(launchState(h)); s.projects[0].production_branch = 'main'; s.projects[0].source.config.production_branch = 'main'; return s; }, async ({ api, launch }) => {
+    const r = await launch(['--confirm', codeOf(await launch())]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /the project's production branch is main, not production/);
+    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')), 'no build of the wrong branch');
+  });
+  await launchScenario((h) => attachHost(launchState(h)), async ({ state, launch }) => {
+    const q = await launch();
+    state.after = (e) => { if (e.method === 'PATCH' && /pages\/projects/.test(e.path)) state.heads = { ...state.heads, production: 'ba5e000000000000000000000000000000000066' }; };
+    const r = await launch(['--confirm', codeOf(q)]);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /Cloudflare started a production build of ba5e000, not of the live commit/);
+  });
+});
+
+test('launch: an answer not seen yet waits; a redirect that is not the kit\'s stops', async () => {
+  for (const [flag, code, want] of [
+    ['siteDown', 4, /did not answer the check yet/],
+    ['pagesProbeSilent', 4, /The forwarding could not be judged yet/],
+    ['pagesRedirect302', 1, /forwards, but not as the kit's forwarding does/],
+  ]) {
+    await launchScenario((h) => {
+      const s = Object.assign(attachHost(launchState(h)), { [flag]: true });
+      // The probe is asked only when / forwards: the live build has the variable.
+      if (flag === 'pagesProbeSilent') s.deployments[REPO][1].env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
+      return s;
+    }, async ({ api, launch }) => {
+      const r = await launch();
+      assert.equal(r.code, code, `${flag}: ${r.out}`);
+      assert.match(r.out, want);
+      assert.deepEqual(api.writes(), []);
+    });
+  }
+});
+
+test('launch: the nameservers\' addresses: looked up one by one; none found is a wait, never a quiet fall back', async () => {
+  const clock = { left: () => 30_000 };
+  const zoneNs = { name_servers: ['ns1.lenas.test', 'ns2.lenas.test'] };
+  assert.deepEqual(await nameserverIps(zoneNs, { clock, resolve4: async (n) => (n === 'ns1.lenas.test' ? ['192.0.2.53'] : ['192.0.2.53', '192.0.2.54']) }), ['192.0.2.53', '192.0.2.54']);
+  assert.deepEqual(await nameserverIps(zoneNs, { clock, resolve4: async (n) => { if (n === 'ns1.lenas.test') throw new Error('no'); return ['192.0.2.54']; } }), ['192.0.2.54']);
+  await assert.rejects(nameserverIps(zoneNs, { clock, resolve4: async () => { throw new Error('no'); } }), (e) => e.code === 4 && /could not be looked up/.test(e.message));
+  await assert.rejects(nameserverIps(zoneNs, { clock: { left: () => 2000 }, resolve4: async () => ['192.0.2.53'] }), (e) => e.code === 4, 'too little time left is a wait too');
+  assert.deepEqual(await nameserverIps(zoneNs, { clock, resolverAt: '127.0.0.1:5353' }), ['127.0.0.1:5353']);
+});
+
+test('launch: an owner\'s comment that only begins like the script\'s note is not read as the record before', () =>
+  launchScenario((h) => launchState(h, { record: { id: 'apex1', type: 'A', name: HOST, content: '192.0.2.10', proxied: false, comment: 'Was: our old shop' } }), async ({ state, launch }) => {
+    const code = codeOf(await launch());
+    const r = await launch(['--confirm', code]);
+    assert.equal(r.code, 4, r.out);
+    assert.match(r.out, /The record before: A 192\.0\.2\.10, DNS only\./);
+    assert.equal(state.dns[0].comment, 'Was: A 192.0.2.10, DNS only. Was: our old shop');
   }));
 
 test('launch: a record too long to note in the comment is refused before the question', () =>

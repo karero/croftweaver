@@ -153,8 +153,10 @@ export function parseOnly(arg) {
 export function parseNameservers(arg) {
   const list = String(arg).split(',').map((x) => x.trim()).filter(Boolean);
   for (const ns of list) {
-    const m = /^\[([^\]]+)\](?::(\d{1,5}))?$/.exec(ns) ?? /^([^:]+)(?::(\d{1,5}))?$/.exec(ns);
-    if (!m || !isIP(m[1]) || (m[2] && Number(m[2]) > 65535)) throw new UsageError(`--nameserver takes IP addresses, with :port if not 53 (got "${ns}")`);
+    const bracketed = /^\[([^\]]+)\](?::(\d{1,5}))?$/.exec(ns);
+    const m = bracketed ?? /^([^:]+)(?::(\d{1,5}))?$/.exec(ns);
+    const port = m?.[2] === undefined ? 53 : Number(m[2]);
+    if (!m || !isIP(m[1]) || (bracketed && isIP(m[1]) !== 6) || port < 1 || port > 65535) throw new UsageError(`--nameserver takes IP addresses, with :port if not 53 (got "${ns}")`);
   }
   if (!list.length) throw new UsageError('--nameserver needs an address');
   return list;
@@ -979,8 +981,9 @@ export function summarize(results) {
   return n;
 }
 
-export function render(results, target, when, silent = []) {
+export function render(results, target, when, silent = [], only = null) {
   const lines = [`Cloudflare check for ${target.host}`, `Looked from outside with plain GET requests, ${when}. Nothing was changed.`];
+  if (only) lines.push(`Only these items were judged (--only): ${only.join(', ')}.`);
   let section = 0;
   for (const r of results) {
     if (r.section !== section) {
@@ -1033,7 +1036,7 @@ export async function main(argv, now = () => new Date()) {
     const body = { domain: target.host, checkedAt: when, ...(parsed.opts.only ? { only: parsed.opts.only } : {}), summary: n, unanswered: silent, couldNotJudge: stuck, results };
     return { code, stderr: '', stdout: `${JSON.stringify(body, null, 2)}\n` };
   }
-  return { code, stderr: '', stdout: render(results, target, when, silent) };
+  return { code, stderr: '', stdout: render(results, target, when, silent, parsed.opts.only) };
 }
 
 // Run as a program. Skills are symlinked into place, so compare real paths; and if the

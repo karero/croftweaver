@@ -784,6 +784,10 @@ test('--only judges the items named and sends only the requests they need', asyn
     assert.deepEqual(seen.map((x) => x.split(' ')[0]).sort(), ['/', '/build.txt'], 'no robots.txt, no http:// probe');
     assert.ok(!seen.some((x) => /GPTBot|ClaudeBot|CCBot/.test(x)), 'no crawler request');
   });
+  await withSite(undefined, async (live) => {
+    const text = await run([live.origin, '--only', 'build', '--timeout', '5']);
+    assert.match(text.stdout, /^Only these items were judged \(--only\): build\.$/m, 'the text report says it is not the whole check');
+  });
   // An item that fails still fails the run; the others are not judged.
   await withSite(homeWith({ nel: '{"max_age":604800}' }), async (live) => {
     const r = await check(live.origin, '--only', 'nel');
@@ -817,7 +821,7 @@ test('--nameserver: the domain is looked up at the nameserver given, and the pag
     await dns.close();
   }
   assert.deepEqual(parseNameservers('192.0.2.53, 192.0.2.54:5353,[2001:db8::53]:53'), ['192.0.2.53', '192.0.2.54:5353', '[2001:db8::53]:53']);
-  for (const bad of ['ns1.example.com', '192.0.2.53:99999', '', '[nope]']) assert.throws(() => parseNameservers(bad), UsageError, bad);
+  for (const bad of ['ns1.example.com', '192.0.2.53:99999', '192.0.2.53:0', '[192.0.2.53]', '', '[nope]']) assert.throws(() => parseNameservers(bad), UsageError, bad);
 });
 
 test('--project takes a Pages project, not any address', () => {
@@ -845,7 +849,7 @@ test('https: a site behind a certificate is read over TLS, and an untrusted one 
   const dir = mkdtempSync(path.join(tmpdir(), 'cfcheck-tls-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const cnf = path.join(dir, 'openssl.cnf');
-  writeFileSync(cnf, '[req]\ndistinguished_name = dn\nx509_extensions = v3\nprompt = no\n[dn]\nCN = 127.0.0.1\n[v3]\nsubjectAltName = IP:127.0.0.1,DNS:localhost\n');
+  writeFileSync(cnf, '[req]\ndistinguished_name = dn\nx509_extensions = v3\nprompt = no\n[dn]\nCN = 127.0.0.1\n[v3]\nsubjectAltName = IP:127.0.0.1,DNS:localhost,DNS:lenas.test\n');
   const key = path.join(dir, 'key.pem');
   const cert = path.join(dir, 'cert.pem');
   try {
@@ -865,6 +869,17 @@ test('https: a site behind a certificate is read over TLS, and an untrusted one 
     const u = Object.fromEntries(JSON.parse(untrusted.stdout).results.map((x) => [x.id, x]));
     assert.equal(u.domain.state, 'fail');
     assert.match(u.domain.detail, /certificate cannot be trusted/);
+    // --nameserver over https: the name only the stub nameserver knows is reached, and its
+    // certificate is checked against that name.
+    const dns = await startDns((name, type) => (name === 'lenas.test' && type === 'A' ? ['127.0.0.1'] : null));
+    try {
+      const named = await run([`lenas.test:${s.port}`, '--json', '--timeout', '5', '--only', 'domain', '--nameserver', dns.address], { env: { NODE_EXTRA_CA_CERTS: cert } });
+      const n = Object.fromEntries(JSON.parse(named.stdout).results.map((x) => [x.id, x]));
+      assert.equal(n.domain.state, 'ok', n.domain.detail);
+      assert.ok(dns.asked.some((q) => q.name === 'lenas.test'), 'the stub nameserver was asked');
+    } finally {
+      await dns.close();
+    }
   } finally {
     await s.close();
   }

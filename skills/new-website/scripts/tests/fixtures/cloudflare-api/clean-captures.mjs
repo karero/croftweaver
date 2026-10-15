@@ -179,6 +179,9 @@ function main([t1, t2, mapFile, out]) {
     // Nothing real may be left: no name from the map, no id that was not replaced.
     for (const [real] of names(r.trial)) if (text.toLowerCase().includes(real.toLowerCase())) throw new Error(`${r.capture}: "${real}" is still there`);
     for (const real of ids.keys()) if (text.includes(real)) throw new Error(`${r.capture}: an id is still there`);
+    // The short form of an id (its first 8 characters, as in a deployment's short_id) is replaced only
+    // once its batch has given the id out: one still there, from an id of a later batch, stops the run.
+    for (const u of new Set(uuidsOf(raw))) if (text.includes(u.slice(0, 8))) throw new Error(`${r.capture}: the short form of an id is still there`);
     // And no id the replacement did not know: a hex run of 32 or more that is not a made-up one.
     for (const m of text.matchAll(/(?<![0-9a-f])[0-9a-f]{32,}(?![0-9a-f])/gi)) {
       if (!/^(?:c0ffee|ba5e|f00d)0+\d+$/.test(m[0])) throw new Error(`${r.capture}: an id the cleaner did not replace`);

@@ -287,8 +287,11 @@ export function handle(state, method, p, query, body, contentType) {
       const b = answer('T1-085');
       b.result = { ...b.result, id: newUuid(), domain_id: undefined, name: body.name, zone_tag: ZONE.id };
       b.result.domain_id = b.result.id;
+      if ((state.domains[p.name] ?? []).some((d) => d.name === body.name)) return { status: 409, body: { success: false, errors: [{ code: 8000018, message: 'MADE: the domain is already attached' }], messages: [] } };
       (state.domains[p.name] ??= []).push({ ...copy(b.result), status: 'pending', verification_data: copy(answer('T1-086').result.verification_data), validation_data: copy(answer('T1-086').result.validation_data) });
-      p.domains.push(body.name);
+      // Whether the project's list names a pending domain was not captured (plan, Not verified 12):
+      // `state.pendingUnlisted` plays the case where it does not.
+      if (!state.pendingUnlisted) p.domains.push(body.name);
       return { status: 200, body: b };
     }
     case 'GET domain': {
@@ -456,6 +459,9 @@ export async function startSites(state, project = REPO) {
     const headers = { server: 'cloudflare', 'cf-ray': '8a1b2c3d4e5f6071-AMS' };
     if (state.siteSendsNel && !ruleRemovesNel()) Object.assign(headers, { nel: '{"report_to":"cf-nel","max_age":604800}', 'report-to': '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4"}]}' });
     if (state.bot.fight_mode) headers['set-cookie'] = '__cf_bm=made-up; path=/';
+    if (state.siteDown) { req.socket.destroy(); return; } // MADE: the edge does not answer yet
+    // The check's http:// probe is "/" with no cache-buster (cloudflare-check.mjs, observe): only
+    // that request gets Always Use HTTPS's redirect here.
     if (url.pathname === '/' && !url.searchParams.has('cb')) {
       if (state.settings.always_use_https === 'on') { res.writeHead(301, { ...headers, location: `https://${siteHost}/` }); res.end(); return; }
     }
@@ -482,6 +488,8 @@ Sitemap: https://${siteHost}/sitemap-index.xml
     const url = new URL(req.url, 'http://x');
     asked.pages.push(`${url.pathname}${url.search}`);
     const saved = liveBuild()?.env_vars?.CANONICAL_URL?.value;
+    if (state.pagesProbeSilent && url.pathname !== '/') { req.socket.destroy(); return; }
+    if (state.pagesRedirect302) { res.writeHead(302, { location: `https://${siteHost}${url.pathname}${url.search}` }); res.end(); return; }
     if (saved && !state.pagesStays200) { res.writeHead(301, { location: `https://${siteHost}${url.pathname}${url.search}` }); res.end(); return; }
     res.writeHead(200, { 'content-type': 'text/html', 'x-robots-tag': 'noindex, nofollow' });
     res.end('<p>Brot</p>');
