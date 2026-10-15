@@ -34,7 +34,9 @@ one throwaway site first. The reasons, and the best argument against them, are u
 3. **Middleware.** `functions/_middleware.ts` sits at the root of `functions/`, so Pages
    runs it in front of every request. It does two jobs, both on `*.pages.dev` hosts only:
    preview hosts get `X-Robots-Tag: noindex`, and the project's own address
-   `<project>.pages.dev` redirects to the live domain once `CANONICAL_URL` is set.
+   `<project>.pages.dev` redirects to the live domain once `CANONICAL_URL` is set. In
+   analytics server mode it has a third, on the live domain: it sends each page view to
+   Plausible, and `functions/go/email.ts` counts email taps.
 4. **The cost of 3.** Because the middleware runs on every request, every request is a
    Functions request and counts against the free plan's 100,000 a day
    (`CLOUDFLARE_FIRST_DEPLOY.md`, "set Fail open").

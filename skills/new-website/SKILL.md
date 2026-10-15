@@ -172,14 +172,33 @@ non-expert can answer, and record the answers in the project `README.md`.
      by that goal, the dashboard shows which sources and pages bring enquiries. It
      counts visitors who asked to write an email; whether their mail program opened,
      and whether they sent the mail, the site never learns.
+     **Script or server mode.** By default Plausible runs as a script in the browser
+     (`ANALYTICS.mode: 'script'`). Offer **server mode** (`'server'`) to an owner who
+     wants no analytics code on the visitor's device: the site's Cloudflare Function
+     sends each page view and email tap to Plausible itself, so no script loads and
+     nothing is read from or written to the device. It loses scroll depth, engaged
+     time and the optional measurements, the contact form's button is not counted
+     (only email links are), and a visitor can no longer opt out by blocking a script.
+     It counts visitors who block scripts, so its numbers run higher than the script's.
+     It forwards the visitor's IP to Plausible, as the script's request carries it;
+     EDPB Guidelines 2/2023 (paras 54–56) say IP-based tracking can itself fall under
+     the ePrivacy rule, so it is a stronger position, not a way out of a review. It
+     needs two Production variables in Cloudflare (`PLAUSIBLE_HOST`,
+     `PLAUSIBLE_DOMAIN`; the starter README, step 4) and works with self-hosted
+     Plausible (tried on Community Edition 3.2.1) and, per Plausible's documentation,
+     with the cloud version (not tried there with a real site). Counting uses the
+     Functions quota the site already uses (free plan: 100,000 requests a day); past
+     it, Cloudflare serves the site without the Function until midnight UTC, so
+     counting stops and email links do not open the mail program until then.
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
      banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the
      banner-free position at risk by different routes: a YouTube iframe triggers § 25
      itself (device storage/readout), while remote Google Fonts change the
      answer via the GDPR instead (unconsented IP disclosure — LG München I,
-     3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only. The
-     privacy page must match whatever is chosen here.
+     3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only
+     (server mode: the Production variables, on the live domain only). The
+     privacy page must match whatever is chosen here, script or server mode included.
 
 6. **Domain + how do changes go live? (publish model)**
    *Decides: the publish workflow — a safety-vs-simplicity trade-off. **Offer both, explain
@@ -615,7 +634,10 @@ hold Search Console Request Indexing until then.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
-      With Plausible: the `Email Tap` goal exists in Plausible (§1 Q5).
+      With Plausible: the `Email Tap` goal exists in Plausible (§1 Q5). In server
+      mode also: `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` set as Production variables
+      (and nowhere in script mode), the privacy page's server-mode slots kept, and one
+      page view and one email tap on the live domain seen under Today.
       German-market sites: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
       exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;

@@ -166,7 +166,8 @@ into the starters / `website-design-system`:
 - Render-blocking CSS: Astro inlines it (`inlineStylesheets: 'always'`).
 - Fonts: self-hosted woff2, `font-display: swap`, preload only above-the-fold.
 - Layout shift (CLS): explicit `width`/`height` on media.
-- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only).
+- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only; none
+  in analytics server mode).
 
 For deeper technical SEO (crawl, indexability, Core Web Vitals strategy), run the
 existing **`seo-audit`** skill — do not duplicate it here.
