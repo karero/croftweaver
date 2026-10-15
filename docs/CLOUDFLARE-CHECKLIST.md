@@ -142,7 +142,9 @@ cookies, scripts or tracking you didn't choose.
   3. **Check.** Run the same command again. The `nel:` and `report-to:` lines should be
      gone. A `nel:` line, or a `report-to:` line that names `cf-nel`, is still NEL: step 4,
      whatever else the command shows. A `report-to:` line that sends to an address on
-     `csp-reporting.cloudflare.com` is Cloudflare's script monitor: step 5.
+     `csp-reporting.cloudflare.com`, or to `/cdn-cgi/script-monitor/report` on your own
+     domain (an option of Cloudflare's Client-Side Security Advanced), is Cloudflare's
+     script monitor: step 5.
   4. **If they are still there, add a rule that removes them.** When we tried this on a
      Pages site, the switch alone did not stop the header: the setting read "off" through
      Cloudflare's API, and the header was still served half an hour later. Your domain →
