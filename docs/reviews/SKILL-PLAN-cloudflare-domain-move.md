@@ -22,7 +22,7 @@ settles most of them, and each item names what settles it.
 |---|-----------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ▶ written 2026-10-15; PLAN gate (High) clean the same day: three rounds, a final full read and a wording pass, 57 findings (4 BUG), none open. The three stages (decisions 1 and 7): a second gate, under way | this file; trail: `docs/reviews/REVIEW-plan-2026-10-15-cloudflare-domain-move.md` |
 | 2 | The maintainer's decisions | ✅ 2026-10-15; the same day decisions 3 and 4 corrected and decision 6 added (the assistant suggests (b), the final screenshot comes either way, one token may serve two stages), then decision 1 corrected and decision 7 added (preview first, the move in launch prep just before go live) | section "Decisions taken" |
-| 3 | A trial on a domain registered elsewhere, with mail-shaped records, an old-website record at the apex serving a page of its own, DNSSEC and a CAA record ("Not verified" 1 to 7, 10, 11, 13 to 15; 8 is not planned, 9 is only told to the owner, 12 may fall to plan step 6) | ⏸ not started; the trial domain is `webcroft.dev`, the project's former name, registered outside Cloudflare and free for it (the maintainer, 2026-10-15) | — |
+| 3 | A trial on a domain registered elsewhere, with mail-shaped records, an old-website record at the apex serving a page of its own, DNSSEC and a CAA record ("Not verified" 1 to 7, 10, 11, 13 to 15; 8 is not planned, 9 is only told to the owner, 12 may fall to plan step 6) | ⏸ not started; the trial domain is `webcroft.dev`, the project's former name, registered outside Cloudflare and free for it, with no mail or traffic to keep (the maintainer, 2026-10-15); the trial first looks it up from outside to confirm that | — |
 | 4 | One link from `docs/reviews/SKILL-PLAN-cloudflare-setup.md` to this file, with one line handing over the request of row 5a | ⏸ unblocked: karero/croftweaver#328 and #331 merged 2026-10-15; a small change after this plan merges | — |
 | 5 | The kit's guide for the move, and the files that point to it (list under "Hooks") | ⏸ not started; after plan step 3 and row 5a (karero/croftweaver#328, which changed `CLOUDFLARE_FIRST_DEPLOY.md` and added `cloudflare-setup.mjs`, merged 2026-10-15) | — |
 | 5a | The setup script runs on the preview without a zone and finishes the zone part in launch prep, and the checklist's section 6 and the preview's lines of `CLOUDFLARE_FIRST_DEPLOY.md` (section S's opening, its list, and the messages that send a finished setup to launch day) fit the three stages (decision 7; "Hooks") | ⏸ not this plan's work: the setup plan's, which owns the script; plan step 4 hands the request over in the setup plan itself; plan steps 5, 7 and 8 wait for it | — |
@@ -105,8 +105,9 @@ owner comes back.
 
 M8. **A way back stays open.** The old zone, website and mail stay as they are until the
 new setup is shown to work, and the owner is asked not to end the old provider's DNS service
-before then. TTLs are lowered at the old provider a day before the switch, so answers cached
-from it run out within minutes once resolvers ask Cloudflare. The quick way back after the
+before then. TTLs are lowered at the old provider at least as long before the switch as the
+old TTLs were (a day for the usual day-long TTL), so answers cached from it run out within
+minutes once resolvers ask Cloudflare. The quick way back after the
 switch is fixing the record in Cloudflare (a TTL of Auto is 300 seconds). Switching the
 nameservers back is the last resort: it works only while the old zone exists and DNSSEC is
 off, and resolvers may keep asking Cloudflare for as long as the top-level domain's TTL on
@@ -139,7 +140,8 @@ that is the one check that shows its rows and its zones ("Under (b)"). It is nev
 never written to a file git tracks, and goes only to `api.cloudflare.com`.
 
 M11. **What the owner sends stays private.** Screenshots, zone exports and lookups hold the
-owner's records; they are not committed to any repository, the site's included.
+owner's records; they are not committed to any repository, the site's included, and the
+assistant repeats from them only the records it compares.
 
 M12. **Each check says how it was made.** The assistant reports for every record what it
 compared, against which source, and what it could not see (a value cut off on a screenshot, a
@@ -164,7 +166,7 @@ step 3), the guide's review (plan step 6), or the real move (plan step 7).
 | 6 | her MX record points to `mail.lenas-backstube.example`, whose A record the scan proxied | the same | it says mail breaks if `mail` is proxied, and lists that record as "DNS only" | trial |
 | 7 | the scan proxied the apex and `www`, which serve her old website | the same | it lists both as "DNS only until launch", and says why: nothing changes for her visitors before the new site is ready (J1) | trial |
 | 8 | a long TXT value (a DKIM key, an SPF record) is cut off on the screenshot | the assistant compares | it compares the part it can see, says what it could not see, and asks for that record's edit view, or Cloudflare's own export of the zone (J2) | trial |
-| 9 | a wildcard record `*` and a subdomain handed to other nameservers (`shop`, NS records) are in the export | the same | both are listed by name, the wildcard DNS only: "Going live" says both are commonly skipped | trial |
+| 9 | a wildcard record `*` and a subdomain handed to other nameservers (`shop`, NS records) are in the export | the same | both are listed by name, the wildcard DNS only, the delegation kept as NS records (whether Cloudflare serves such a delegation on its free plan is not verified; the trial can add one): "Going live" says both are commonly skipped | trial |
 | 10 | her apex has a CAA record that allows one certificate authority, not one Cloudflare uses | the assistant looks up CAA | it says Cloudflare could not issue a certificate for her domain, which `launch` needs, and lists the CAA records to add for `letsencrypt.org`, `pki.goog` and `ssl.com`, the three Cloudflare's Pages reference names; her old site keeps its own certificate | trial |
 | 11 | the old provider's nameservers do not answer a lookup at all, or answer for a name with an error | the assistant compares | it says which names it could not look up, does not count them as matching, and asks for the export or the old provider's record list | trial |
 | | **Fixing: the owner chooses** | | | |
@@ -383,7 +385,8 @@ Facts above are seen or read; these were weighed. Each with the strongest case a
 - **J8. The last check also asks Cloudflare's nameservers.** Decision 4 names the final
   screenshot, looked at together. Judgment: add a lookup of every name at Cloudflare's two
   nameservers, compared with the old ones', since the reference says they answer for a pending
-  zone; it sees what a screenshot cuts off, and what a person misreads. *Against:* it rests on
+  zone; it sees what a screenshot cuts off, and what a person misreads. The NS and SOA
+  records and the TTLs are expected to differ, and are not listed. *Against:* it rests on
   the reference ("Not verified" 4), and it compares only the names the assistant knows: a
   clean result proves nothing about a name no one asked for, so it adds to the screenshot
   and never replaces it.

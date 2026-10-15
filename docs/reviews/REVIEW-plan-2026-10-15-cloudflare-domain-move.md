@@ -86,7 +86,7 @@ Notes:
 
 ## Gate 2 — the three stages (decisions 1 and 7), the trial domain, hooks re-pinned after #328
 
-Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: OPEN (rounds 1 to 3 done, round 3 without a BUG; final full read and wording pass next) · authority used: as gate 1
+Base `8f7c98b` (the branch is not rebased; `main` read at `5d35db1`) · depth: High, as gate 1 · verdict: OPEN (rounds 1 to 3 and the final full read done, no BUG standing in either; wording pass next) · authority used: as gate 1
 
 The maintainer reversed the order after gate 1 closed (preview first, the move just before launch) and said yes to three stages. A change to a decision, so a gate of its own, on the whole plan with the change named.
 
@@ -95,6 +95,7 @@ The maintainer reversed the order after gate 1 closed (preview first, the move j
 | 1 | `39ff019` | full, changed sections named (`--verify`, with gate 1's refuted C5 and C13) | the same three seats as gate 1 | Codex 321 s, 130,990 · Melious 485 s, 33,195 · fresh-eyes 223 s, 154,832 | 4 / 2 / 4 after merging duplicates (Codex 4/1/0, Melious 0/1/3, fresh-eyes 2/1/3), and outside scope 2 RISK, 2 NIT. C5 and C13 refutations held |
 | 2 | `08d1cc8` | full, as a verification round (G1 to G10) | the same three seats | Codex 300 s, 95,867 · Melious 759 s, 42,373 · fresh-eyes 253 s, 156,838 | 2 / 4 / 7 after merging duplicates (Codex 1/1/0, Melious 0/1/4, fresh-eyes 1/4/4), and outside scope 1 BUG, 2 NIT. G1 to G5, G7, G10 confirmed; G6, G8, G9 in part (H4, H7, H2) |
 | 3 | `140900d` | full, as a verification round (H1 to H15) | Codex; Melious (its first run broke off after 1,376 s, curl exit 28, with ollama's stand-in failing on a DNS error; run again alone, and a second try was cut off by a session restart); fresh-eyes | Codex 209 s, 98,485 · Melious 424 s, 41,077 (the run that counted) · fresh-eyes 282 s, 163,890 | 0 / 3 / 6 after merging duplicates (Codex 0/0/0, Melious 0/1/2, fresh-eyes 0/2/4), and outside scope 1 NIT. H1 to H15 confirmed; H3 in part (K3) |
+| final full read (not a round) | `be2b0cc` | full | ollama cloud, kimi-k2.7-code:cloud, text only (has not reviewed this plan before) | 292 s, tokens not reported | 1 / 5 / 5 (L1 to L11); the BUG refuted |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -132,5 +133,16 @@ The maintainer reversed the order after gate 1 closed (preview first, the move j
 | K8 | NIT | Melious | 3 | Scenario 14 states the week flat where the timings are hedged | fixed, locally_verified (not externally re-verified) | scenario 14: "commonly", the second token for the rest |
 | K9 | NIT | Melious | 3 | "Not verified" 15's trial reads an old website the trial domain does not have | fixed, locally_verified (not externally re-verified) | row 3 and item 15: an old-website record at the apex |
 | K10 | NIT | Melious (outside scope) | 3 | The opening's rule on names sits beside a real domain | fixed, locally_verified (not externally re-verified) | opening: the one real domain is the project's own former name |
+| L1 | BUG | Kimi K2.7 (final full read) | — | The DNSSEC wait omits the old DS record's TTL | refuted | scenario 19 waits until the DS is gone from outside plus its TTL before the switch, so no old DS is cached when M9 publishes the new one |
+| L2 | RISK | Kimi K2.7 (final full read) | — | "A day before" is too short where the old TTLs are longer | fixed, locally_verified (not externally re-verified) | M8: at least as long before as the old TTLs were |
+| L3 | RISK | Kimi K2.7 (final full read) | — | The guide depends on the setup-script change of row 5a | refuted | already tracked: row 5 waits on row 5a, and so do plan steps 7 and 8 |
+| L4 | RISK | Kimi K2.7 (final full read) | — | No script and no CI for the move's commands | refuted | re-raise of J3's own case against, with its revisit after the trial and the first move |
+| L5 | RISK | Kimi K2.7 (final full read) | — | The trial could disturb a domain still in use | fixed, locally_verified (not externally re-verified) | row 3: no mail or traffic to keep, on the maintainer's word; the trial confirms from outside first |
+| L6 | RISK | Kimi K2.7 (final full read) | — | One token for the move and the `setup` run can expire | refuted | scenario 16a needs the run inside its life; scenario 14 gives a second token where it runs out; J5 |
+| L7 | NIT | Kimi K2.7 (final full read) | — | "A week at most" and "eight days" read as two rules | refuted | M10 says how the checklist's week is read: eight days, as `MAX_TOKEN_MS` |
+| L8 | NIT | Kimi K2.7 (final full read) | — | M11 does not cover what the assistant repeats | fixed, locally_verified (not externally re-verified) | M11 |
+| L9 | NIT | Kimi K2.7 (final full read) | — | Scenario 9 does not say how a delegation is kept | fixed, locally_verified (not externally re-verified) | scenario 9: as NS records, the free plan's support not verified |
+| L10 | NIT | Kimi K2.7 (final full read) | — | NS, SOA and TTLs differ between the nameservers by design | fixed, locally_verified (not externally re-verified) | J8 |
+| L11 | NIT | Kimi K2.7 (final full read) | — | The real trial domain against the rule on names | refuted | the opening says so since K10: the one real domain is the project's own former name |
 
 Follow-ups (outside scope): G11 (RISK, Codex) scenario 26a: an old site that relies on Cloudflare's proxy in the other account would lose it if copied as DNS only; the trial's item 14 can look at one. G12 (RISK, Codex) re-raise of W1. G13 (NIT, Melious) a three-day token could expire in the DNSSEC wait: fixed anyway, scenario 14 now a week. G14 (NIT, fresh-eyes) "#328's lines" after a header naming `main`'s: fixed anyway. H15 (NIT, Melious, round 2) Shape step 1's Node claims lacked a citation: fixed anyway, measured on 2026-10-15 (A1, A7).
