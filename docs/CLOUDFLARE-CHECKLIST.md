@@ -183,9 +183,9 @@ cookies, scripts or tracking you didn't choose.
      if you choose it, say that on your privacy page too. We found nothing that says what
      the Global tag covers: if you change the setting, tell your assistant. We have not
      checked whether the consent rule in the *Why off* at the top of this item (§ 25 TDDDG)
-     reaches the monitor. With either data setting, and with that line on your privacy
-     page, keeping it on is a risk, not a verdict, and this is not legal advice. Off avoids
-     the question.
+     reaches the monitor. Log host only and a sentence on your privacy page do not answer
+     that: this is a risk, not a verdict, and this is not legal advice. Off avoids the
+     question.
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
      then count with the loop in
      [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
