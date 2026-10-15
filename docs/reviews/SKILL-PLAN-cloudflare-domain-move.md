@@ -2,9 +2,10 @@
 
 Requirements record for a part of the kit that does not exist yet: the assistant's guide to
 moving a domain that lives with another registrar or DNS host onto Cloudflare, in launch
-prep: after the site's preview, before it goes live. Where this plan and the shipped files disagree, the files win until plan
-step 5 changes them. Names of sites and people stay out of this public repo on purpose; the
-business in the scenarios is made up, the same one as in
+prep: after the site's preview, before it goes live. Where this plan and the shipped files
+disagree, the files win until plan step 5 changes them, or, for the setup script and the
+checklist's section 6, the change of status row 5a. Names of sites and people stay out of
+this public repo on purpose; the business in the scenarios is made up, the same one as in
 `docs/reviews/SKILL-PLAN-cloudflare-setup.md`.
 
 Nothing of Cloudflare's side of this plan has been tried for the move. What Cloudflare does
@@ -13,16 +14,16 @@ reference, not tried" (the table under "What is read, and what is not verified",
 page, read 2026-10-15), or "not verified"; plan step 3, a trial on a domain registered elsewhere,
 settles most of them, and each item names what settles it.
 
-## Status, 2026-10-15 · the kit's files read at origin/main `5d35db1`, after karero/croftweaver#328 merged
+## Status, 2026-10-15 · the kit's files read at origin/main `4c890f6`, after karero/croftweaver#328 and #331 merged
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
 | 1 | Requirements and scenarios (this file) | ▶ written 2026-10-15; PLAN gate (High) clean the same day: three rounds, a final full read and a wording pass, 57 findings (4 BUG), none open. The three stages (decisions 1 and 7): a second gate, under way | this file; trail: `docs/reviews/REVIEW-plan-2026-10-15-cloudflare-domain-move.md` |
 | 2 | The maintainer's decisions | ✅ 2026-10-15; the same day decisions 3 and 4 corrected and decision 6 added (the assistant suggests (b), the final screenshot comes either way, one token may serve two stages), then decision 1 corrected and decision 7 added (preview first, the move in launch prep just before go live) | section "Decisions taken" |
-| 3 | A trial on a domain registered elsewhere, with mail-shaped records, DNSSEC and a CAA record ("Not verified" 1 to 7, 10, 11, 13, 14; 8 is not planned, 9 is only told to the owner, 12 may fall to plan step 6) | ⏸ not started; the trial domain is `webcroft.dev`, the project's former name, registered outside Cloudflare and free for it (the maintainer, 2026-10-15) | — |
-| 4 | One link from `docs/reviews/SKILL-PLAN-cloudflare-setup.md` to this file | ⏸ karero/croftweaver#328 merged; waits for karero/croftweaver#331 (another session's, open), which edits the setup plan | — |
-| 5 | The kit's guide for the move, and the files that point to it (list under "Hooks") | ⏸ not started; after plan step 3 (karero/croftweaver#328, which changed `CLOUDFLARE_FIRST_DEPLOY.md` and added `cloudflare-setup.mjs`, merged 2026-10-15) | — |
-| 5a | The setup script runs on the preview without a zone, and finishes the zone part in launch prep (decision 7; "Hooks") | ⏸ not this plan's work: the setup script's owner; plan steps 5, 7 and 8 wait for it | — |
+| 3 | A trial on a domain registered elsewhere, with mail-shaped records, DNSSEC and a CAA record ("Not verified" 1 to 7, 10, 11, 13 to 15; 8 is not planned, 9 is only told to the owner, 12 may fall to plan step 6) | ⏸ not started; the trial domain is `webcroft.dev`, the project's former name, registered outside Cloudflare and free for it (the maintainer, 2026-10-15) | — |
+| 4 | One link from `docs/reviews/SKILL-PLAN-cloudflare-setup.md` to this file, with one line handing over the request of row 5a | ⏸ unblocked: karero/croftweaver#328 and #331 merged 2026-10-15; a small change after this plan merges | — |
+| 5 | The kit's guide for the move, and the files that point to it (list under "Hooks") | ⏸ not started; after plan step 3 and row 5a (karero/croftweaver#328, which changed `CLOUDFLARE_FIRST_DEPLOY.md` and added `cloudflare-setup.mjs`, merged 2026-10-15) | — |
+| 5a | The setup script runs on the preview without a zone and finishes the zone part in launch prep, and the checklist's section 6 fits its token to the three stages (decision 7; "Hooks") | ⏸ not this plan's work: the setup plan's, which owns the script; plan step 4 hands the request over in the setup plan itself; plan steps 5, 7 and 8 wait for it | — |
 | 6 | Review gate on the guide (High: mail and the whole domain are at stake) | ⏸ not started | — |
 | 7 | One real move with the owner watching | ⏸ not started | — |
 | 8 | Release note line, in a release after 0.32 | ⏸ not started | — |
@@ -56,13 +57,15 @@ M1. **Three stages, and the move is in the middle one** (decisions 1 and 7). (1)
 `setup` builds the site on `pages.dev`, the domain still where it is. (2) **Launch prep,** a
 few days before launch: the assistant leads the move; once the zone is active, `setup` runs
 again for what needs the zone (the zone settings, the search engines' verification
-records). Nothing visible changes then: the old website's records stay DNS only (M4). (3)
+records). Nothing visible should change then: the old website's records stay DNS only
+(M4), and the settings act on traffic Cloudflare proxies ("Not verified" 15). (3)
 **Go live:** `launch` attaches the domain and forwards `<project>.pages.dev` to it with a
-301 (by hand, as "Going live" says, until the setup plan's launch stage ships). On a
+301 (by hand, as "Going live" and "After go-live" say, until the setup plan's launch stage
+ships). On a
 two-stage site the preview stays `main.<project>.pages.dev`; a single-stage site has
 pull-request previews only, since `main` is its live site. The move is not a stage of
 the setup script. That `setup` runs before the zone exists and again after it is active is
-a change to the setup script, the setup plan's to make ("Hooks").
+a change to the setup script, the setup plan's to make (status row 5a, "Hooks").
 
 M2. **The switch changes nothing anyone can see.** After the nameservers change, every name
 the domain had answers as it did before, mail included, unless the owner chose a change and
@@ -165,7 +168,7 @@ step 3), the guide's review (plan step 6), or the real move (plan step 7).
 | | **Fixing: the owner chooses** | | | |
 | 12 | the list holds missing, wrong and wrongly proxied records | the assistant has finished the list | it offers Lena both ways, says what each needs, and suggests (b); she decides | guide review |
 | 13 | Lena chooses (a) | she has changed the records in the dashboard and sends a new screenshot | the assistant compares again, from the start; the list is empty, or it gives the next list | trial |
-| 14 | Lena chooses (b) and makes a token: her one zone, Zone → Zone → Read and Zone → DNS → Edit, ending in a week, so it lasts through the DNSSEC wait to the last check (scenarios 18, 19); before creating it she sends a screenshot of Cloudflare's summary of the token | the assistant has checked the summary, then the token | it shows each record it will create and each it will change, with type, name, value and proxy state before and after, and writes nothing until Lena says yes to that list | trial |
+| 14 | Lena chooses (b) and makes a token: her one zone, Zone → Zone → Read and Zone → DNS → Edit, ending in a week, so it lasts through the last check, the DNSSEC wait, the switch and the mail test (scenarios 18, 19, 22 to 24), with a second token for a fix after it ends; before creating it she sends a screenshot of Cloudflare's summary of the token | the assistant has checked the summary, then the token | it shows each record it will create and each it will change, with type, name, value and proxy state before and after, and writes nothing until Lena says yes to that list | trial |
 | 15 | the same, after her yes | the assistant writes | each missing record is created and each wrong one changed, one call each, and read back through the API; a refused write is listed "by hand" with Cloudflare's words; a record already as wanted is not sent again; nothing is deleted (J6) | trial |
 | 16 | Lena's token has no end date, or reaches all her zones, or ends in thirty days | the assistant checks it | it uses none of it and names the token to make instead, as the setup plan's scenarios 33 and 40 do | guide review |
 | 16a | Lena wants one token for the move and launch prep's `setup` run, which falls inside its life | she asks | the assistant names the setup plan's rows (which include DNS Edit) for it, says the move uses only its Zone Read and DNS Edit rows, and that the `setup` run still asks its own yes | guide review |
@@ -183,7 +186,7 @@ step 3), the guide's review (plan step 6), or the real move (plan step 7).
 | 25 | the zone is active and mail works both ways | the move is done | the assistant says what comes next (`setup` again, for the zone settings and verification records, then `launch` on the launch date), that the old zone stays until mail and the site are shown to work for a few days, and, under (b), to delete the token, unless it is to serve that `setup` run inside its life; where DNSSEC was on before, it says it will offer to turn it on again once the old setup is retired (M9) | guide review |
 | | **Edges** | | | |
 | 26 | Lena's domain has an active zone in her own Cloudflare account | launch prep starts | there is nothing to move: the assistant goes on with the `setup` run of launch prep | guide review |
-| 26a | her domain's nameservers are Cloudflare's, but the zone lives in another account (her former agency's), so her token reaches no zone for it | launch prep starts | the move applies as written, the old provider being that account: its zone answers at its own Cloudflare nameservers, and its export, the lowered TTLs (M8) and keeping it until the move is shown to work come from whoever holds that account, scenario 20's fallback where they will not; the switch is to the two nameservers her own account is given ("Not verified" 14) | trial |
+| 26a | her domain's nameservers are Cloudflare's, but the zone lives in another account (her former agency's), so her token reaches no zone for it | launch prep starts | the move applies as written, the old provider being that account: its zone answers at its own Cloudflare nameservers, and its export, the lowered TTLs (M8) and keeping it until the move is shown to work come from whoever holds that account. Where they will not: without the export, scenarios 4 and 11; without lower TTLs, scenario 20's fallback; without the old zone kept, there is no switch back, and the assistant says so before the switch. Whether that zone keeps answering once the domain is active in her account is not known ("Not verified" 14); the switch is to the two nameservers her own account is given ("Not verified" 14) | trial |
 | 27 | Lena's domain has no mail and no website yet | the move starts | the comparison is short, but DNSSEC and CAA are still checked | trial |
 | 28 | Lena also wants to change her mail provider | she asks during the move | the assistant keeps the two apart: the move first, mail as it is; the mail change afterwards, as its own step | guide review |
 | 29 | Lena added the domain and never switched the nameservers | days pass | the assistant says Cloudflare removes a Free-plan zone not activated within 28 days (the reference), and that adding it again repeats the comparison | guide review |
@@ -220,8 +223,9 @@ emails.
    other services the guide names. It asks for the types A, AAAA, CNAME, MX, TXT, SRV, CAA
    and NS where they apply. Two answers come from the top-level domain, not from the old
    provider, and Node's resolver cannot read them: it has no DS type (asking throws
-   `ERR_INVALID_ARG_VALUE`), and a referral, which is how a top-level domain names a
-   domain's nameservers, reads as "no data". So the DS record and the nameservers the
+   `ERR_INVALID_ARG_VALUE`, measured 2026-10-15 on Node 26), and a referral, which is how a top-level domain names a
+   domain's nameservers, reads as "no data" (measured against a stub nameserver the same
+   day; the trail's A1 and A7). So the DS record and the nameservers the
    top-level domain names are asked with another tool ("Not verified" 13); a lookup that
    fails counts as DNSSEC on, and the assistant does not say "switch now".
 2. **Reads what Cloudflare suggests,** from the screenshots, or Cloudflare's export where the
@@ -328,7 +332,16 @@ outside Cloudflare.
     candidate, before and after DNSSEC goes off and the nameservers change.
 14. A domain active in another Cloudflare account (scenario 26a): whether Cloudflare lets it
     be added, pending, to a second account, and gives that account other nameservers. Read
-    nowhere yet. Trial: add the trial domain, once active, to a second account.
+    nowhere yet. And what becomes of the zone in the first account once the domain is active
+    in the second: whether it keeps answering, which scenario 26a's way back needs. Trial:
+    add the trial domain, once active, to a second account; switch; read the first zone's
+    status and its nameservers' answers.
+15. That the zone settings launch prep's `setup` run writes (Always Use HTTPS, Minimum TLS,
+    Email Address Obfuscation, the NEL switch, Bot Fight Mode and the AI switches) change
+    nothing for a host that is DNS only: Cloudflare's settings act on the traffic it proxies,
+    and the setup script itself reports "no host runs through Cloudflare yet" where none is
+    proxied. Not tried. Trial: on the trial domain, with its records DNS only, read its old
+    website and mail before and after that run.
 
 ## Judgment calls
 
@@ -406,7 +419,7 @@ The maintainer's, 2026-10-15. Recorded, not open.
    (2026-10-15, with the correction to decision 3). Under decision 7 that is launch prep's
    `setup` run, right after the move; the preview's run comes too early for one token.
 7. **Three stages: preview, launch prep, go live** (2026-10-15, the maintainer's yes to the
-   author's recommendation). Launch prep holds the move and, once the zone is active,
+   author's recommendation; amended the same day by the author for single-stage sites). Launch prep holds the move and, once the zone is active,
    `setup`'s zone part: settings and verification records, written days before launch, so a
    wrong token row or a refused setting shows then and not on launch day. Go live is
    `launch`: the domain attached, `<project>.pages.dev` forwarded to it with a 301, since
@@ -418,47 +431,55 @@ The maintainer's, 2026-10-15. Recorded, not open.
 
 ## Hooks
 
-Plan step 5 brings these in line. Line numbers are `main`'s at `5d35db1`, after
-karero/croftweaver#328 merged; plan step 5 finds each again by its quoted text:
+Plan step 5 brings these in line. Line numbers are `main`'s at `4c890f6`; plan step 5
+finds each again by its quoted text:
 
 - `skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`: the move's points in "Going
   live" (import, compare twice, screenshot, DNS only, DNSSEC, CAA) and its box "Make rollback
   cheap" (TTLs, keep the old setup) move to the new guide, the box's rollback wording
   rewritten to M8. What stays is the attach step, which karero/croftweaver#328 makes the
-  place for attaching the domain by hand on launch day (lines 12 and 85): the Pages box
+  place for attaching the domain by hand on launch day (line 12, "the domain is attached by
+  hand ('Going live' and 'After go-live' below)", and line 85, "Launch day: attach the domain
+  by hand ('Going live')"): the Pages box
   on attaching the custom domain (the 522), under a heading renamed for that step, with a
-  pointer to the guide; the pointers to "Going live" for that step (lines 12 and 85) take
-  the new heading. It gains how to handle a host with an A and an AAAA record, or a
+  pointer to the guide; those two pointers take the new heading. It gains how to handle a host with an A and an AAAA record, or a
   `www` with a TXT record, which the setup plan's `launch` refuses (its scenario 24; here
   scenario 31). Line 37 makes "The domain is on Cloudflare already" a condition of
   `setup`; under decision 7 that holds only for launch prep's run, and the preview's run
-  needs no zone, so the line says so and points to the guide for the move.
+  needs no zone, so the line says so and points to the guide for the move. The same list
+  ties the preview to the zone twice more, and both change with the script (row 5a): lines
+  28 to 33 have setup day write the checklist's settings and the verification records, and
+  lines 38 to 43 ask for a token with "Zone Resources the one domain" that the script
+  refuses if it "reaches more than this zone".
 - `skills/new-website/SKILL.md` §1, question 6 ("DNS moves to Cloudflare"), where the
   assistant first learns the domain lives elsewhere, and §4, which sends the owner to
   `CLOUDFLARE_FIRST_DEPLOY.md` for the first deploy: each gains one line on the three
   stages, the move in launch prep.
-- `skills/new-website/scripts/cloudflare-setup.mjs`, a change for whoever owns the setup
-  script, named here, not made (status row 5a): on the preview it stops today where the
+- `skills/new-website/scripts/cloudflare-setup.mjs`, a change for the setup plan, which owns
+  the script, named here, not made (status row 5a): on the preview it stops today where the
   token reaches no zone for the host (line 502: "Cloudflare has no zone for … that this
-  token reaches"), where it reaches more than one zone (lines 497 to 499), and where the
+  token reaches"), where it reaches more than one zone (line 498: "This token reaches …
+  zones"), and where the
   zone is not active (line 504: "The zone … is … on Cloudflare, not active"). Under decision 7
   it does the project part there and lists the zone lines as waiting for the move, naming
   the guide; run again in launch prep, it finds the zone active and writes them. Three things
   make that more than lifting the stops: the script takes the account only from the zone
-  (lines 505 to 510), and the accounts list answered empty with the plan's rows (setup plan,
-  T2-003); a preview token cannot be limited to a zone that does not exist yet, so the
-  one-zone check has nothing to check; and the checklist's section 6 has one token for two
-  days, setup and go live. Its two
-  pointers to "Going live" for attaching the domain (line 130, and the message "Setup is
+  (line 505, `zone.account?.id`), and the accounts list answered empty with the plan's rows
+  (setup plan, T2-003); whether a token can be limited to a zone not yet added is not said
+  ("Not verified" 5), and either way the preview's run still refuses a token that reaches
+  any zone but this host's, so the guard stays; and the checklist's section 6 has one token
+  for two days, setup and go live. Its two pointers to "Going live" for attaching the domain
+  (line 130, "Attach the domain by hand, as 'Going live' … says", and the message "Setup is
   done, as far as Cloudflare's API shows", line 863) name the renamed heading.
 - `docs/CLOUDFLARE-CHECKLIST.md` (two places) and
   `skills/new-website/references/CLOUDFLARE_CHECK.md` (one), which send the reader to "Going
   live" for moving a domain and for DNS and mail records. The checklist's section 6, which
   has one token serve "the day you set the site up" and "the day the site goes live", is the
-  setup plan's owner's to fit to the three stages. `CLOUDFLARE_CHECK.md`'s "By hand,
+  setup plan's to fit to the three stages (status row 5a). `CLOUDFLARE_CHECK.md`'s "By hand,
   always" also gains one line: DNSSEC back on, where the site's README records that a move
   turned it off, on or after the day it names (M9, scenario 32).
-- `docs/reviews/SKILL-PLAN-cloudflare-setup.md`: in plan step 4, the one link: "What the owner
+- `docs/reviews/SKILL-PLAN-cloudflare-setup.md`: in plan step 4, the one link, and one line
+  handing over row 5a's request: "What the owner
   does" has "moved there as 'Going live' in `CLOUDFLARE_FIRST_DEPLOY.md` says", which points
   here instead. With plan step 5: the three stages of decision 7, `setup` on the preview and
   again in launch prep, and D1's count of yeses, as the setup plan's owner decides; scenario
