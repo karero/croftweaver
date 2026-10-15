@@ -29,7 +29,7 @@ function hostOf(named: string): string | null {
 }
 
 test('privacy host — a slot is skipped, a filled host or address is read by its host', () => {
-  // The two shipped slots, as innerText reads them (line breaks become spaces).
+  // The two shipped slots.
   expect(hostOf('[ANALYTICS HOST, the host name in ANALYTICS.scriptHost in src/config.ts, for example plausible.io]')).toBeNull();
   expect(hostOf('[ANALYSE-HOST, der Hostname aus ANALYTICS.scriptHost in src/config.ts, zum Beispiel plausible.io]')).toBeNull();
   expect(hostOf(' plausible.io ')).toBe('plausible.io');
