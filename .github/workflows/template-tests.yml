@@ -114,6 +114,15 @@ jobs:
       # branch. A wrong switch fails silently on a live site, and the suite below builds once.
       - name: Analytics only on the production build (src/config.ts)
         run: bash tests/check_analytics_gate.sh
+      # The same four builds in server mode (ANALYTICS.mode = 'server'): no script in any,
+      # email links to /go/email on the live build only. config.ts is put back afterwards,
+      # so the suite below runs on the default.
+      - name: Analytics in server mode (src/config.ts switched for this step only)
+        run: |
+          sed -i "s/^  mode: 'script' as/  mode: 'server' as/" src/config.ts
+          grep -q "^  mode: 'server' as" src/config.ts
+          bash tests/check_analytics_gate.sh
+          git checkout -- src/config.ts
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Run template test suite
