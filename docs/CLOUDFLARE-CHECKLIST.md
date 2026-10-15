@@ -21,7 +21,7 @@ section 4 and the script monitor in section 3 on 2026-10-14), and from
 [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
 for three project steps in section 1 (attach the domain, Fail open, and the
 `CANONICAL_URL` variable under Production). None was re-checked in a dashboard for this
-list. Cloudflare moves things around. If a name differs, search the dashboard for the
+list, except the script monitor's Global tag and its panel, seen on 14 October 2026. Cloudflare moves things around. If a name differs, search the dashboard for the
 setting's name.
 
 ---
@@ -166,14 +166,20 @@ cookies, scripts or tracking you didn't choose.
      been set there on 12 October. We did not read it when we counted, so we can't say
      whether it was working then.
      *Why off:* the visitor's browser sends reports to Cloudflare, and the privacy page this
-     kit writes doesn't mention it. If you keep it on, say so on your privacy page, and say
-     which of its two data settings you chose. With **Log host only**, the default,
-     Cloudflare analyses only the host name of each address the browser reports. With
-     **Log full URI** it uses the whole address, which can carry a session ID, and
-     Cloudflare says that is then logged in clear text for anyone with access to the
-     monitor's dashboard. The setting is under **Continuous script monitoring** →
-     **Configurations** → **Data processing**
+     kit writes doesn't mention it. If you keep it on, ask your assistant to say so on your
+     privacy page. Cloudflare names two data settings for it. With **Log host only**, the
+     default, Cloudflare analyses only the host name of each address in the reports. With
+     **Log full URI** it uses the whole address, and Cloudflare says anything sensitive in
+     it, such as a session ID, is then logged in clear text where anyone on your account
+     who can open the monitor's dashboard can read it
      ([Cloudflare's settings page](https://developers.cloudflare.com/client-side-security/reference/settings/)).
+     This is what Cloudflare analyses and keeps, not what the browser sends; we have not
+     checked that, so don't write it on the privacy page. In the dashboard, the tag marked
+     **Global** on Continuous script monitoring opened a panel headed **Connection target
+     details** with the two settings; Cloudflare's page calls the place Configurations →
+     Data processing. We found nothing in Cloudflare's client-side security pages that says
+     what Global covers, so if you change the setting, check your other sites' privacy
+     pages too.
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
      then count with the loop in
      [`CLOUDFLARE_CHECK.md`](../skills/new-website/references/CLOUDFLARE_CHECK.md), with
@@ -182,11 +188,9 @@ cookies, scripts or tracking you didn't choose.
      assistant what the line says. The reference says which address to use. If you can't
      find the switch, or a `header` count shows after you switched it off, tell your
      assistant.
-     *The trade-off:* you give up Cloudflare's view of the scripts your visitors load. The
-     switch is set for each domain on its own: on 14 October 2026 it was on for one of our
-     domains and off for the others in the same account. The tag marked Global beside it
-     opens the two data settings above; we found no Cloudflare page that says what Global
-     covers.
+     *The trade-off:* you give up Cloudflare's view of the scripts your visitors load. On
+     14 October 2026 the switch was on for one of our domains and off for the others in the
+     same account, so look at it on each of your other domains too.
 
   Visitors who came in before can keep the old NEL note until that many seconds have
   passed (the `max_age` from step 1; 604800 seconds is seven days). The
@@ -402,7 +406,8 @@ as it did for NEL on the site we tried.
 
 **What stays by hand:** Crawler Hints (the kit's notes say Cloudflare has no API for it),
 the off switch for Cloudflare Web Analytics, the script monitor's switch (section 3, step
-5; we did not look for an API call for it), and the Pages choice on the create screen if
+5; Cloudflare documents an API call for it, `zones/{zone_id}/page_shield`, which we have
+not tried), and the Pages choice on the create screen if
 you connect through Git.
 
 **When it is done,** delete the token: My Profile → API Tokens → ⋯ → Delete. Then ask the
@@ -445,4 +450,6 @@ the managed robots.txt page and the Bot Management API reference again.
 Read 2026-10-14, for the script monitor in section 3: Cloudflare's client-side security
 [how it works](https://developers.cloudflare.com/client-side-security/how-it-works/) and
 [get started](https://developers.cloudflare.com/client-side-security/get-started/) pages,
-and the Security settings page again.
+and the Security settings page again. Read 2026-10-14 and again 2026-10-15, for step 5's
+data settings: its
+[settings reference](https://developers.cloudflare.com/client-side-security/reference/settings/).
