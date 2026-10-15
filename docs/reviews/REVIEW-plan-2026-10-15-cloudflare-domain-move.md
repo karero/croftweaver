@@ -1,5 +1,5 @@
 # PLAN review — karero/croftweaver#329 — moving an existing domain to Cloudflare, led by the assistant
-Base `8f7c98b` · depth: High (mail and the whole domain are at stake; the maintainer chose High in the brief) · verdict: OPEN (rounds 1 to 3 and the final full read done, no BUG in either; wording pass next) · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and created the worktree and the branch)
+Base `8f7c98b` · depth: High (mail and the whole domain are at stake; the maintainer chose High in the brief) · verdict: CLEAN (2026-10-15). Three rounds, a final full read and a wording pass; 57 findings in the rounds and the final read (4 BUG: 3 in round 1, 1 in round 2), none in round 3 or the final read; no BUG open; nothing waived; one follow-up (W1) · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and created the worktree and the branch)
 
 Artifact: `docs/reviews/SKILL-PLAN-cloudflare-domain-move.md`, whole. Raw reviewer output is in the pull request's review comment. Destinations: Codex and melious.ai, on the maintainer's brief for this gate (2026-10-15): "`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3 OLLAMA_MODEL=glm-5.3:cloud CODEX_EFFORT=config`, plus a fresh-eyes sub-agent on the host's own model in rounds 1 to 3". The clean check passed before round 1; the repository is public.
 
@@ -7,8 +7,9 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-domain-move.md`, whole. Raw review
 |---|---|---|---|---|---|
 | 1 | `82bb45b` | full | Codex CLI 0.162.1, gpt-6.1-sol, high (config), read-only · Melious HTTP API, glm-5.3, text only · fresh-eyes sub-agent, claude-opus-5-5, read-only | Codex 371 s, 90,887 · Melious 508 s, 23,885 · fresh-eyes 314 s, 148,165 | 3 / 10 / 10 after merging duplicates (Codex 2/3/0, Melious 0/3/3, fresh-eyes 2/5/8). Unverifiable entries: 13 asked (Codex 7 groups, Melious 3, fresh-eyes 3); none led to a change beyond the findings |
 | 2 | `a45204f` | full, as a verification round (prior findings A1 to A23, the maintainer's correction named) | the same three seats, same versions and effort | Codex 383 s, 169,823 · Melious 826 s, 42,313 · fresh-eyes 267 s, 157,499 | 1 / 3 / 11 after merging duplicates (Codex 0/2/0, Melious 0/0/6, fresh-eyes 1/3/7). A1 to A3, A5 to A12, A14 to A20, A22, A23 confirmed; A4, A13, A21 in part (B2, B3, B13) |
-| 3 | `e768044` | full, as a verification round (prior findings B1 to B15) | the same three seats | Codex 239 s, 86,506 · Melious 528 s, 30,576 · fresh-eyes 273 s, 154,445 | 0 / 4 / 7 after merging duplicates (Codex 0/1/0, Melious 0/1/4, fresh-eyes 0/3/5), and two refuted (C5, C13). B1 to B3, B6 to B10, B12, B14 confirmed; B4, B5, B11, B13, B15 in part (C1, C2, C6, C9, C11) |
+| 3 | `e768044` | full, as a verification round (prior findings B1 to B15) | the same three seats | Codex 239 s, 86,506 · Melious 528 s, 30,576 · fresh-eyes 273 s, 154,445 | 0 / 5 / 9 after merging duplicates, two of them refuted (C5, C13) (Codex 0/1/0, Melious 0/1/4, fresh-eyes 0/3/6). B1 to B3, B6 to B10, B12, B14 confirmed; B4, B5, B11, B13, B15 in part (C1, C2, C6, C9, C11) |
 | final full read (not a round) | `40236a9` | full | ollama cloud, kimi-k3:cloud, text only (has not reviewed this plan before) | 235 s, tokens not reported | 0 / 2 / 3 (F1 to F5) |
+| wording pass (not a round) | `ae2bf80` | delta since `e768044`, both files, prose | Codex CLI 0.162.1, gpt-6.1-sol, high (config), read-only | 206 s, 79,561 | 2 contradictions in this record (round 3's counts, the verdict line), fixed; RISK W1 a follow-up. It confirmed C1 to C14 and F1 to F5 as landed |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -72,9 +73,10 @@ Artifact: `docs/reviews/SKILL-PLAN-cloudflare-domain-move.md`, whole. Raw review
 
 Waivers and deferrals: none.
 
-Follow-ups: none yet.
+Follow-ups: W1 (RISK, Codex, wording pass) the wait before DNSSEC goes back on (the longer of the top-level domain's and the old zone's NS TTLs, M9) is reasoned, not shown: "Not verified" 13 reads the TTLs, but no trial yet watches a resolver that holds the old delegation across the switch and the new DS. Plan step 3 can add it; until then the guide states the wait as the plan's rule, not as seen.
 
 Notes:
 - The maintainer's correction arrived between rounds 1 and 2 (2026-10-15): "suggest b but also offer a, the User still has to do the final verification, so b is fine"; either way the owner checks all entries on a final screenshot looked at with the assistant; the (b) token may serve setup day inside its life. Decisions 3 and 4 rewritten, decision 6 added, M5, M6, M10, J5, J6, scenarios 12, 14 to 18 and 25 changed with round 1's fixes. Round 2 sees both.
 - Round 3 found no BUG (series 3, 1, 0), so no round 4 is owed (skill step 6(b)). Its RISKs and NITs were fixed locally, the author's recommendation, not externally re-verified; the final full read and the wording pass read them.
 - Final full read (Kimi K3 on ollama, which had not seen the plan): no BUG, so no verification round earned; its findings fixed locally.
+- Wording pass: Codex again called the scope note sent with `--verify` a prompt injection and reviewed past it (as on karero/croftweaver#303); the scope still needs another way in.

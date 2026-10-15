@@ -17,7 +17,7 @@ settles most of them, and each item names what settles it.
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
-| 1 | Requirements and scenarios (this file) | ▶ written 2026-10-15; PLAN gate (High) under way | this file; trail: `docs/reviews/REVIEW-plan-2026-10-15-cloudflare-domain-move.md` |
+| 1 | Requirements and scenarios (this file) | ✅ written 2026-10-15; PLAN gate (High) clean the same day: three rounds, a final full read and a wording pass, 57 findings (4 BUG), none open | this file; trail: `docs/reviews/REVIEW-plan-2026-10-15-cloudflare-domain-move.md` |
 | 2 | The maintainer's decisions | ✅ 2026-10-15; decisions 3 and 4 corrected and decision 6 added the same day: the assistant suggests (b), the final screenshot comes either way, one token may serve both days | section "Decisions taken" |
 | 3 | A trial on a domain registered elsewhere, with mail-shaped records, DNSSEC and a CAA record ("Not verified" 1 to 7, 10, 11, 13, 14; 8 is not planned, 9 is only told to the owner, 12 may fall to plan step 6) | ⏸ not started; needs a domain registered outside Cloudflare, and the maintainer has not yet said whether one is available | — |
 | 4 | One link from `docs/reviews/SKILL-PLAN-cloudflare-setup.md` to this file | ⏸ waits for karero/croftweaver#328 to merge: that pull request edits the setup plan | — |
