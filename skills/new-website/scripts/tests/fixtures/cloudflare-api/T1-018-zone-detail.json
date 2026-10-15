@@ -2,13 +2,13 @@
   "capture": "T1-018",
   "request": {
     "method": "GET",
-    "path": "/zones/c0ffee00000000000000000000000019",
+    "path": "/zones/c0ffee00000000000000000000000022",
     "body": null
   },
   "status": 200,
   "response": {
     "result": {
-      "id": "c0ffee00000000000000000000000019",
+      "id": "c0ffee00000000000000000000000022",
       "name": "lenas-backstube.example",
       "status": "active",
       "paused": false,
@@ -28,7 +28,7 @@
         "phishing_detected": false
       },
       "account": {
-        "id": "c0ffee00000000000000000000000020",
+        "id": "c0ffee00000000000000000000000023",
         "name": "Lena's Account"
       },
       "permissions": [
@@ -45,7 +45,7 @@
         "#zone:read"
       ],
       "plan": {
-        "id": "c0ffee00000000000000000000000021",
+        "id": "c0ffee00000000000000000000000024",
         "name": "Free Website",
         "price": 0,
         "currency": "USD",

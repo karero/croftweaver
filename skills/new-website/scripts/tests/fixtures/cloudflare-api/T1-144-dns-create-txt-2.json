@@ -2,7 +2,7 @@
   "capture": "T1-144",
   "request": {
     "method": "POST",
-    "path": "/zones/c0ffee00000000000000000000000019/dns_records",
+    "path": "/zones/c0ffee00000000000000000000000022/dns_records",
     "body": {
       "type": "TXT",
       "name": "_spike-test",
@@ -14,7 +14,7 @@
   "status": 200,
   "response": {
     "result": {
-      "id": "c0ffee00000000000000000000000032",
+      "id": "c0ffee00000000000000000000000035",
       "name": "_spike-test.lenas-backstube.example",
       "type": "TXT",
       "content": "\"spike-two\"",

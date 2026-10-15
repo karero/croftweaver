@@ -2,7 +2,7 @@
   "capture": "T1-071",
   "request": {
     "method": "PATCH",
-    "path": "/zones/c0ffee00000000000000000000000019/settings/always_use_https",
+    "path": "/zones/c0ffee00000000000000000000000022/settings/always_use_https",
     "body": {
       "value": "on"
     }

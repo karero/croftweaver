@@ -2,7 +2,7 @@
   "capture": "T1-053",
   "request": {
     "method": "PATCH",
-    "path": "/accounts/c0ffee00000000000000000000000020/pages/projects/lenas-backstube",
+    "path": "/accounts/c0ffee00000000000000000000000023/pages/projects/lenas-backstube",
     "body": {
       "deployment_configs": {
         "production": {
@@ -17,7 +17,7 @@
   "status": 200,
   "response": {
     "result": {
-      "id": "d0000010-0000-4000-8000-000000000000",
+      "id": "d0000012-0000-4000-8000-000000000000",
       "name": "lenas-backstube",
       "subdomain": "lenas-backstube.pages.dev",
       "domains": [
@@ -29,7 +29,7 @@
           "owner": "lena-example",
           "owner_id": "1000001",
           "repo_name": "lenas-backstube",
-          "repo_id": "1000002",
+          "repo_id": "1000005",
           "production_branch": "main",
           "pr_comments_enabled": true,
           "deployments_enabled": true,
@@ -88,12 +88,12 @@
         }
       },
       "latest_deployment": {
-        "id": "d0000011-0000-4000-8000-000000000000",
-        "short_id": "d0000011",
-        "project_id": "d0000010-0000-4000-8000-000000000000",
+        "id": "d0000013-0000-4000-8000-000000000000",
+        "short_id": "d0000013",
+        "project_id": "d0000012-0000-4000-8000-000000000000",
         "project_name": "lenas-backstube",
         "environment": "preview",
-        "url": "https://d0000011.lenas-backstube.pages.dev",
+        "url": "https://d0000013.lenas-backstube.pages.dev",
         "created_on": "2026-10-13T21:11:07.858051Z",
         "modified_on": "2026-10-13T21:12:45.124526Z",
         "latest_stage": {
@@ -106,7 +106,7 @@
           "type": "github:push",
           "metadata": {
             "branch": "trial/first-pr",
-            "commit_hash": "ba5e000000000000000000000000000000000027",
+            "commit_hash": "ba5e000000000000000000000000000000000030",
             "commit_message": "Made-up commit message 7",
             "commit_dirty": false
           }
@@ -176,7 +176,7 @@
       "canonical_deployment": {
         "id": "d0000002-0000-4000-8000-000000000000",
         "short_id": "d0000002",
-        "project_id": "d0000010-0000-4000-8000-000000000000",
+        "project_id": "d0000012-0000-4000-8000-000000000000",
         "project_name": "lenas-backstube",
         "environment": "production",
         "url": "https://d0000002.lenas-backstube.pages.dev",
@@ -192,7 +192,7 @@
           "type": "ad_hoc",
           "metadata": {
             "branch": "production",
-            "commit_hash": "ba5e000000000000000000000000000000000026",
+            "commit_hash": "ba5e000000000000000000000000000000000029",
             "commit_message": "Made-up commit message 6",
             "commit_dirty": false
           }

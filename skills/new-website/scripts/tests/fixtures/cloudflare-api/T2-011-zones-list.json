@@ -9,7 +9,7 @@
   "response": {
     "result": [
       {
-        "id": "c0ffee00000000000000000000000037",
+        "id": "c0ffee00000000000000000000000040",
         "name": "lenas-cafe.example",
         "status": "active",
         "paused": false,
@@ -29,7 +29,7 @@
           "phishing_detected": false
         },
         "account": {
-          "id": "c0ffee00000000000000000000000020",
+          "id": "c0ffee00000000000000000000000023",
           "name": "Lena's Account"
         },
         "permissions": [
@@ -46,7 +46,7 @@
           "#zone:read"
         ],
         "plan": {
-          "id": "c0ffee00000000000000000000000021",
+          "id": "c0ffee00000000000000000000000024",
           "name": "Free Website",
           "price": 0,
           "currency": "USD",

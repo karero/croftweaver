@@ -62,7 +62,8 @@ Options: `--project <name>` (the project to use or create; by default the one co
 the repository, or one named like it), `--skip <id>` for a line the owner wants left as it is
 (`https`, `tls`, `email`, `nel`, `bot`, `ai`; `ai` covers the AI bot policies, AI Labyrinth,
 Content bots and Bot Preference Sync together), and `--record "<type> <name> <content>"` for a
-verification record from `search-console-setup` (TXT or CNAME; `@` is the domain itself).
+verification record from `search-console-setup` (TXT or CNAME; `@` is the domain itself; at
+most five in one run, so the code stays quick to check).
 
 **A yes is a second run with a code.** A run with something to change prints the whole list
 (what is there now, what it becomes, and, for each Cloudflare setting, that it changes the
@@ -71,11 +72,13 @@ Show the owner the list as printed. On their yes, run the same command again wit
 `--confirm <code>`. The printed question, confirmed with its code, is the owner's yes to the
 changes it lists and to nothing else (guardrail 4 below). The code is made from that list,
 the build with the commit it names, and from the end state: the project and its repository,
-its production branch and build settings, each setting's new value, the hosts the list
-names, the records, and the `--skip` ids. A later run takes the code while what is left to do
-is part of that list, so a run cut off half-way carries on. Anything the list did not have,
-a build of another commit, or a change to the end state, and the code no longer fits: the run
-asks again and changes nothing.
+its production branch and build settings, each setting's new value, the zone's proxied hosts,
+the records, and the `--skip` ids. A later run takes the code while what is left to do is
+part of that list, so a run cut off half-way carries on. Anything the list did not have, a
+build of another commit, or a change to the end state, and the code no longer fits: the run
+asks again and changes nothing. What is there now (a setting's old value) is shown but not
+bound: if someone changes a listed setting by hand before the yes, the yes still sets it to
+the value the list named.
 
 | Status | Means | Then |
 |---|---|---|

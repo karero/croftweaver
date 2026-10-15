@@ -2,7 +2,7 @@
   "capture": "T1-080",
   "request": {
     "method": "PUT",
-    "path": "/zones/c0ffee00000000000000000000000019/bot_management",
+    "path": "/zones/c0ffee00000000000000000000000022/bot_management",
     "body": {
       "fight_mode": false,
       "enable_js": false,

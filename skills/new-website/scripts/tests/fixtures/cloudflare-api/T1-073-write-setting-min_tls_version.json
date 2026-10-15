@@ -2,7 +2,7 @@
   "capture": "T1-073",
   "request": {
     "method": "PATCH",
-    "path": "/zones/c0ffee00000000000000000000000019/settings/min_tls_version",
+    "path": "/zones/c0ffee00000000000000000000000022/settings/min_tls_version",
     "body": {
       "value": "1.2"
     }

@@ -14,18 +14,23 @@ made-up ones (Lena's bakery, `lenas-backstube`), from a private map kept beside 
 captures; every id, commit hash and GitHub id by a made-up one, mostly zeros; every commit
 message by "Made-up commit message N". Email fields and the registrar's nameservers are left
 out. A test checks every id, address, host, account, repository, project and commit message
-in these files against the made-up values, and every free-text string against a list, so a
-value the cleaner missed fails it. `T1-021` is an excerpt: every `ad_hoc` deployment (two
+in these files against the made-up values; every string with a space, a capital or a letter
+outside ASCII, and every value of a field that names something (a name, description, comment,
+message, branch, record content), must be on its list or be a made-up value. A value the cleaner
+missed of those kinds fails it; a lower-case word in some other field would not. `T1-021` is an excerpt: every `ad_hoc` deployment (two
 uploads and one that Cloudflare built) and one push build of each environment, from the six
 pages of a live project's deployments (T1-021 to T1-026); it says so in its `excerpt` field.
 The deployment call's request (T1-030 and the others) is the empty form the trial's helper
-sent, recorded as `emptyForm`.
+sent, recorded as `emptyForm` and read from the helper itself: `trial-helper.txt` is that
+helper, with its two local paths replaced. `T1-019`, the account's list of projects, leaves out
+each item's latest and canonical deployment, which hold another site's history.
 
 ## Which file backs which claim
 
 | The plan's claim | Files |
 |---|---|
 | A project created with a `source` builds from GitHub; creating it starts no build | T1-027, T1-028 |
+| The list of projects holds each project whole: source, domains, settings; a Direct Upload project has no source; a name is not always the first part of the address | T1-019 |
 | The deployment call with an empty form builds the head of the production branch, as production, `ad_hoc` | T1-030 |
 | A second call while the first is queued starts a second build | T1-031, T1-033, T1-040 |
 | A Cloudflare build has `clone_repo` and `build` `success`; an upload has them `idle` | T1-021, T1-040 |

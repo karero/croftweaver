@@ -14,8 +14,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BOT_LINES, SETTINGS, SKIP_IDS, codeFits, defaultName, githubRepo, goodProductionBuild, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
-import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, allFixtures, deployment, fixture, freshState, handle, project, servedBy, startApi, startDns, zone } from './cloudflare-stub.mjs';
+import { BOT_LINES, SETTINGS, SKIP_IDS, codeFits, defaultName, failed, githubRepo, goodProductionBuild, running, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
+import { ACCOUNT, FIXTURES, OWNER, REPO, TOKEN, ZONE, allFixtures, deployment, fixture, freshState, handle, project, servedBy, startApi, startDns, zone } from './cloudflare-stub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'cloudflare-setup.mjs');
@@ -178,6 +178,21 @@ test('the stub answers zone settings and records as Cloudflare did (T1-067 to T1
   }
 });
 
+test('the list of projects carries what the script reads from it, and the deployment call\'s form is the trial helper\'s (T1-019, T1-030)', () => {
+  // T1-019: every item has its source (owner and repository), domains and settings; a Direct Upload
+  // project has no source at all. The script picks the project from the list and decides from a read of it.
+  const items = fixture('T1-019').response.result;
+  for (const p of items) for (const k of ['name', 'subdomain', 'domains', 'deployment_configs', 'production_branch']) assert.ok(k in p, `${p.name}: ${k}`);
+  assert.deepEqual(items.filter((p) => !p.source).map((p) => p.name), ['other-site-3'], 'the Direct Upload project has no source');
+  for (const p of items.filter((x) => x.source)) assert.ok(p.source.config.owner && p.source.config.repo_name, p.name);
+  assert.ok(items.some((p) => p.name !== p.subdomain.replace(/\.pages\.dev$/, '')), 'a name is not always the first part of the address');
+  // T1-030's form is what the helper's "@form" branch sent, read from the helper itself.
+  const helper = readFileSync(path.join(FIXTURES, 'trial-helper.txt'), 'utf8');
+  const line = /-H 'Content-Type: (multipart\/form-data; boundary=[^']+)' --data-binary \$'([^']*)'/.exec(helper);
+  assert.ok(line && /\[ "\$n_f" -eq 0 \]/.test(helper), 'the helper sends an empty form when "@form" has no fields');
+  assert.deepEqual(fixture('T1-030').request.body.emptyForm, { contentType: line[1], bytes: line[2].replace(/\\r\\n/g, '\r\n') });
+});
+
 test('the deployments the stub serves are the captured ones, and the script reads them as the plan says', () => {
   // A Cloudflare build: clone_repo and build succeeded. An upload: both idle (T1-021). A skipped push: not proof (T2-026).
   const built = fixture('T1-040').response.result[1];
@@ -192,6 +207,10 @@ test('the deployments the stub serves are the captured ones, and the script read
   assert.equal(pushProof(push), true);
   assert.equal(pushProof(skipped), false, 'a skipped push was never built');
   assert.equal(pushProof(built), false, 'a build the deployment call started is no proof');
+  // Between two stages (build succeeded, deploy not begun) a deployment is still under way, not failed.
+  const between = { ...built, latest_stage: { name: 'build', status: 'success' } };
+  assert.equal(running(between), true);
+  assert.equal(failed(between), false);
   // A deployment records its variables, a secret with its value empty, and its build settings (T1-062).
   assert.deepEqual(fixture('T1-062').response.result.env_vars.SPIKE_SECRET, { type: 'secret_text', value: '' });
 });
@@ -204,12 +223,18 @@ test('the deployments the stub serves are the captured ones, and the script read
 // made-up id is mostly zeros (fixtures/cloudflare-api/clean-captures.mjs), which no real one is.
 const MADE_UP = {
   domains: ['lenas-backstube.example', 'lenas-cafe.example', 'lenas-backstube.pages.dev', 'lenas-backstube-2.pages.dev', 'lenas-old-site.pages.dev',
+    'other-site-1.pages.dev', 'other-site-2.pages.dev', 'other-site-3.pages.dev',
     'ada.ns.example', 'bert.ns.example', 'cleo.ns.example', 'dora.ns.example', ...[1, 2, 3, 4, 5, 6].map((n) => `other-${n}.example`)],
   publicHosts: ['api.cloudflare.com', 'developers.cloudflare.com', 'github.com', 'verify.bing.com', 'example.com'],
   accounts: ["Lena's Account", "Lena's Second Account"],
   owners: [OWNER],
-  repos: [REPO, 'lenas-old-site'],
-  projects: [REPO, 'lenas-backstube-2', 'lenas-old'],
+  repos: [REPO, 'lenas-old-site', 'other-site-1', 'other-site-2-repo'],
+  projects: [REPO, 'lenas-backstube-2', 'lenas-old', 'other-site-1', 'other-site-2', 'other-site-3'],
+  // A field that names something (a rule, a record, a branch, a stage) holds one of these, a
+  // made-up project or host, or an id: a single lower-case word a person typed is caught here.
+  named: new Set(['description', 'name', 'comment', 'message', 'branch', 'content', 'title', 'label', 'ref', 'action']),
+  words: new Set(['main', 'production', 'trial/first-pr', 'trial/pr-no-preview', 'rewrite', 'queued', 'initialize', 'clone_repo', 'build',
+    'deploy', 'default', 'spike', '_spike-test', '"spike-one"', '"spike-two"', 'example.com', '', 'remove_nel_headers']),
   hex32: /^c0ffee0{16}\d{10}$/,
   hex40: /^ba5e0{26}\d{10}$/,
   uuid: /^d\d{7}-0000-4000-8000-000000000000$/,
@@ -228,6 +253,7 @@ const MADE_UP = {
     'Remove NEL headers', 'Trial: a second rule', 'Trial of a setup script; remove when the trial ends',
     'multipart/form-data; boundary=----spike', '------spike--\r\n', '@SECRET@',
     'CANONICAL_URL', 'NEL', 'Report-To', 'SPIKE_PLAIN', 'SPIKE_SECRET', 'contentType', 'emptyForm',
+    'every project as listed, with latest_deployment and canonical_deployment left out',
   ]),
   freeTextPattern: /^every ad_hoc deployment \(\d+ uploads, with clone_repo and build idle, and \d+ built by Cloudflare\) and the newest push build of each environment, of \d+ deployments on the six pages T1-021 to T1-026$/,
 };
@@ -258,8 +284,12 @@ test('every id, address, host, account, repository, project and commit message i
     if (key === 'owner' && !MADE_UP.owners.includes(v)) no('a GitHub owner');
     if (key === 'repo_name' && !MADE_UP.repos.includes(v)) no('a repository');
     if (key === 'project_name' && !MADE_UP.projects.includes(v)) no('a project');
-    const freeText = /\s|[A-Z]/.test(v) && !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v) && !MADE_UP.commitMessage.test(v) && !/^T[12]-\d{3}$/.test(v);
-    if (freeText && !MADE_UP.freeText.has(v) && !MADE_UP.freeTextPattern.test(v)) no('free text not on the list');
+    const listed = MADE_UP.freeText.has(v) || MADE_UP.freeTextPattern.test(v);
+    const freeText = /\s|[A-Z]|[^\x00-\x7f]/.test(v) && !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v) && !MADE_UP.commitMessage.test(v) && !/^T[12]-\d{3}$/.test(v);
+    if (freeText && !listed) no('free text not on the list');
+    const host = (h) => MADE_UP.domains.some((d) => h === d || h.endsWith(`.${d}`));
+    if (MADE_UP.named.has(key) && !listed && !MADE_UP.words.has(v) && !MADE_UP.projects.includes(v) && !host(v.replace(/^_/, '')) && !MADE_UP.hex32.test(v)
+      && !MADE_UP.commitMessage.test(v)) no(`a ${key} not on the list`);
   };
   const walk = (where, o, key = '') => {
     if (Array.isArray(o)) { o.forEach((x) => walk(where, x, key)); return; }
@@ -795,7 +825,7 @@ test('the zone\'s records cannot be read: no zone-wide setting is changed, since
     const r = await go();
     assert.equal(r.code, 3, r.out);
     assert.doesNotMatch(r.out, /Always Use HTTPS: On \(/, 'no setting line is asked');
-    assert.match(r.out, /By hand: Always Use HTTPS: On\. the zone's records could not be read, so the hosts this setting changes cannot be named; the token needs the row Zone → DNS → Edit/);
+    assert.match(r.out, /By hand: Always Use HTTPS: On\. The zone's records could not be read, so the hosts this setting changes cannot be named; the token needs the row Zone → DNS → Edit/);
     const done = await go(['--confirm', codeOf(r)]);
     assert.equal(done.code, 1, done.out);
     assert.ok(!api.writes().some((e) => e.path.includes('/settings/') || e.path.endsWith('/bot_management')), 'no zone-wide write');
@@ -864,6 +894,17 @@ test('R1: a yes covers only the list it answered: a setting someone changed sinc
     assert.equal(r.code, 3, r.out);
     assert.match(r.out, /does not fit this question: it lists something the question you said yes to did not/);
     assert.match(r.out.split('If you say yes')[1].split('Already as')[0], /Minimum TLS Version: TLS 1\.2 \(1\.0 → 1\.2\)/, 'the new question lists it');
+    onlyReads(api);
+  }));
+
+test('R1: a yes to one build setting is not a yes to another', () =>
+  scenario((h) => Object.assign(finishedState(h), { projects: [project({ build: { build_command: 'npm run old' } })] }), async ({ api, go, state }) => {
+    const q = await go();
+    assert.match(q.out, /Build settings: build command npm run old → npm run build\./);
+    state.projects[0].build_config.destination_dir = 'public'; // changed by hand after the question
+    const r = await go(['--confirm', codeOf(q)]);
+    assert.equal(r.code, 3, r.out);
+    assert.match(r.out, /does not fit this question/);
     onlyReads(api);
   }));
 

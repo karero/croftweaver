@@ -2,7 +2,7 @@
   "capture": "T2-024",
   "request": {
     "method": "POST",
-    "path": "/zones/c0ffee00000000000000000000000037/rulesets/c0ffee00000000000000000000000042/rules",
+    "path": "/zones/c0ffee00000000000000000000000040/rulesets/c0ffee00000000000000000000000045/rules",
     "body": {
       "action": "rewrite",
       "expression": "true",
@@ -22,7 +22,7 @@
   "response": {
     "result": {
       "description": "",
-      "id": "c0ffee00000000000000000000000042",
+      "id": "c0ffee00000000000000000000000045",
       "kind": "zone",
       "last_updated": "2026-10-14T19:08:26.882202Z",
       "name": "default",
@@ -43,9 +43,9 @@
           "description": "Remove NEL headers",
           "enabled": true,
           "expression": "true",
-          "id": "c0ffee00000000000000000000000043",
+          "id": "c0ffee00000000000000000000000046",
           "last_updated": "2026-10-14T19:08:17.328988Z",
-          "ref": "c0ffee00000000000000000000000043",
+          "ref": "c0ffee00000000000000000000000046",
           "version": "1"
         },
         {
@@ -61,9 +61,9 @@
           "description": "Trial: a second rule",
           "enabled": true,
           "expression": "true",
-          "id": "c0ffee00000000000000000000000044",
+          "id": "c0ffee00000000000000000000000047",
           "last_updated": "2026-10-14T19:08:26.882202Z",
-          "ref": "c0ffee00000000000000000000000044",
+          "ref": "c0ffee00000000000000000000000047",
           "version": "1"
         }
       ],

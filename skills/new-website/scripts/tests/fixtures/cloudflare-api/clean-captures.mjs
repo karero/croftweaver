@@ -15,7 +15,7 @@ import path from 'node:path';
 
 // The captures committed, by trial and number. `excerpt` keeps part of a long list.
 const SELECTION = {
-  T1: ['001', '002', '003', '013', '014', '015', '018', '021', '027', '028', '030', '031', '033', '040',
+  T1: ['001', '002', '003', '013', '014', '015', '018', '019', '021', '027', '028', '030', '031', '033', '040',
     '048', '049', '050', '051', '052', '053', '054', '055', '061', '062', '063', '064',
     '067', '068', '069', '070', '071', '072', '073', '074', '075', '076', '077', '078', '079', '080', '081',
     '082', '083', '084', '143', '144', '145', '146', '148'],
@@ -30,6 +30,14 @@ function main([t1, t2, mapFile, out]) {
   if (!out) throw new Error('usage: node clean-captures.mjs <trial-1 captures> <trial-2 captures> <private map.json> <out folder>');
   const map = JSON.parse(readFileSync(mapFile, 'utf8'));
   const dirs = { T1: t1, T2: t2 };
+  // The trial's own helper, which made every request: kept beside the captures, committed with its
+  // two local paths replaced. The deployment call's empty form is read from it, not written here.
+  const helper = readFileSync(path.join(t1, '..', 'cf.sh'), 'utf8')
+    .replace(/dir="[^"]*"/, 'dir="<the trial\'s captures folder>"')
+    .replace(/"\$HOME\/Devel\/[^"]*\/\.dev\.vars"/, '"<the throwaway repository>/.dev.vars"');
+  const formLine = /-H 'Content-Type: (multipart\/form-data; boundary=[^']+)' --data-binary \$'([^']*)'/.exec(helper);
+  if (!formLine) throw new Error('the helper has no empty-form line');
+  const emptyForm = { contentType: formLine[1], bytes: formLine[2].replace(/\\r\\n/g, '\r\n') };
   const raw = [];
   for (const trial of ['T1', 'T2']) {
     const files = readdirSync(dirs[trial]);
@@ -41,9 +49,9 @@ function main([t1, t2, mapFile, out]) {
       const bodyText = bodyLines.join('\n').trim();
       let body = null;
       if (bodyText === '@form') {
-        // The trial's helper (cf.sh, kept beside the captures) wrote "@form" for the deployment call
-        // and sent this: an empty multipart form, its closing boundary alone.
-        body = { emptyForm: { contentType: 'multipart/form-data; boundary=----spike', bytes: '------spike--\r\n' } };
+        // The helper wrote "@form" for the deployment call and sent an empty multipart form: its
+        // closing boundary alone (trial-helper.txt, the "@form" branch).
+        body = { emptyForm };
       } else if (bodyText) { try { body = JSON.parse(bodyText); } catch { body = bodyText; } }
       const text = readFileSync(at('response.json'), 'utf8');
       raw.push({
@@ -56,9 +64,16 @@ function main([t1, t2, mapFile, out]) {
     }
   }
 
+  // The account's list of projects (T1-019): each item as Cloudflare listed it, with its source,
+  // domains and settings, but without its latest and canonical deployments, which hold another
+  // site's history.
+  const list = raw.find((r) => r.capture === 'T1-019');
+  for (const item of list.response.result) { item.latest_deployment = null; item.canonical_deployment = null; }
+  list.excerpt = 'every project as listed, with latest_deployment and canonical_deployment left out';
+
   // The live project's deployment list (T1-021 to T1-026, six pages) is long and holds its real
-  // history: keep the three uploads and the newest push build of each environment, the shapes the
-  // classification reads, as one page.
+  // history: keep every ad_hoc deployment (uploads and builds) and the newest push build of each
+  // environment, the shapes the classification reads, as one page.
   const live = raw.find((r) => r.capture === 'T1-021');
   const pages = ['022', '023', '024', '025', '026'].map((n) => {
     const f = readdirSync(t1).find((x) => x.startsWith(`${n}-`) && x.endsWith('.response.json'));
@@ -69,7 +84,8 @@ function main([t1, t2, mapFile, out]) {
   for (const env of ['production', 'preview']) keep.push(every.find((d) => d.deployment_trigger.type === 'github:push' && d.environment === env));
   live.response.result = keep;
   live.response.result_info = { ...live.response.result_info, count: keep.length };
-  const uploads = keep.filter((d) => d.deployment_trigger.type === 'ad_hoc' && d.stages.find((s) => s.name === 'build').status === 'idle').length;
+  const idle = (d, name) => d.stages.find((s) => s.name === name).status === 'idle';
+  const uploads = keep.filter((d) => d.deployment_trigger.type === 'ad_hoc' && idle(d, 'clone_repo') && idle(d, 'build')).length;
   live.excerpt = `every ad_hoc deployment (${uploads} uploads, with clone_repo and build idle, and ${keep.length - 2 - uploads} built by Cloudflare) and the newest push build of each environment, of ${every.length} deployments on the six pages T1-021 to T1-026`;
   keep.filter((d) => d.environment === 'preview').forEach((d, i) => {
     const slug = (b) => b.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
@@ -125,6 +141,7 @@ function main([t1, t2, mapFile, out]) {
   };
 
   mkdirSync(out, { recursive: true });
+  writeFileSync(path.join(out, 'trial-helper.txt'), helper);
   for (const r of raw) {
     const fixture = {
       capture: r.capture,

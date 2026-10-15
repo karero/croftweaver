@@ -2,7 +2,7 @@
   "capture": "T1-075",
   "request": {
     "method": "PATCH",
-    "path": "/zones/c0ffee00000000000000000000000019/settings/nel",
+    "path": "/zones/c0ffee00000000000000000000000022/settings/nel",
     "body": {
       "value": {
         "enabled": false

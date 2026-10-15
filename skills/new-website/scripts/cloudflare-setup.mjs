@@ -198,10 +198,11 @@ function childEnv(token) {
   return env;
 }
 
-// A program with its input closed, given only the time left. At the deadline it is stopped, with
-// every program it started (on POSIX it runs in a group of its own: git starts ssh or a helper,
-// which would keep the output open), killed a second later, and the run goes on without waiting
-// for its output to close.
+// A program with its input closed, given only the time left. At the deadline it is stopped, killed a
+// second later, and the run goes on without waiting for its output to close. On POSIX the program
+// runs in a group of its own, so the programs it started (git starts ssh or a helper, which would
+// keep the output open) are stopped with it; on Windows only the program itself is, and the run
+// still goes on.
 function runProgram(cmd, args, { cwd, env, clock }) {
   return new Promise((resolve, reject) => {
     const ms = clock.left();
@@ -211,6 +212,7 @@ function runProgram(cmd, args, { cwd, env, clock }) {
     let err = '';
     let timedOut = false;
     let settled = false;
+    let lastTimer = null;
     let child;
     try {
       child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: posix });
@@ -228,12 +230,13 @@ function runProgram(cmd, args, { cwd, env, clock }) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(lastTimer);
       fn();
     };
     const timer = setTimeout(() => {
       timedOut = true;
       kill('SIGTERM');
-      setTimeout(() => {
+      lastTimer = setTimeout(() => {
         kill('SIGKILL');
         child.stdout.destroy();
         child.stderr.destroy();
@@ -363,7 +366,10 @@ const short = (sha) => String(sha).slice(0, 7);
 // Cloudflare built it: an upload has the stages clone_repo and build idle (captures 021 to 026).
 export const cloudflareBuilt = (d) => stageOf(d, 'clone_repo') === 'success' && stageOf(d, 'build') === 'success';
 export const succeeded = (d) => d?.latest_stage?.name === 'deploy' && d.latest_stage.status === 'success';
-export const running = (d) => !d?.is_skipped && ['idle', 'active'].includes(d?.latest_stage?.status);
+// Running: queued or under way, or between two stages (a stage before deploy that has succeeded), or
+// with no stage given yet.
+export const running = (d) => !d?.is_skipped && (!d?.latest_stage || ['idle', 'active'].includes(d.latest_stage.status)
+  || (d.latest_stage.status === 'success' && d.latest_stage.name !== 'deploy'));
 // Failed, or ended in a way the trials never saw: whatever is neither skipped, running nor succeeded
 // (no trial had a failed build; Cloudflare's reference names its status "failure"). Read so, a word
 // the script does not know stops it instead of starting the same build again.
@@ -452,7 +458,7 @@ async function setupStage(opts, io) {
     heads = await git('ls-remote', '--heads', 'origin');
   } catch (e) {
     if (!(e instanceof Deadline)) throw e;
-    throw new Stop(1, `git did not finish reading the branches of ${repository} within the run's time. If the remote is an SSH address, ssh may be waiting for a passphrase or a host key: run git ls-remote origin once yourself, then run this again.`);
+    throw new Stop(1, `git did not finish reading the branches of ${repository} within the run's time. A program git started (ssh, or a credential helper) did not end: run git ls-remote origin once yourself to see why, then run this again.`);
   }
   if (heads.code !== 0) throw new Stop(1, `git could not read the branches of ${repository} on GitHub. Check that this computer can reach it (git fetch origin), then run again.`);
   const branch = new Map(heads.stdout.split('\n').map((l) => l.split('\t')).filter((p) => p.length === 2)
@@ -548,6 +554,7 @@ async function setupStage(opts, io) {
     const one = await api('GET', projectAt);
     if (!ok(one) || !one.body?.result) throw new Stop(1, `Cloudflare did not return the project ${name}: ${refusal(one, ROW.pages)}.`);
     project = one.body.result;
+    if (!connected(project)) throw new Stop(1, `The project ${name}, read by its name, is not connected to ${repository}. Nothing was changed.`);
     if (!Array.isArray(project.domains) || !project.deployment_configs) {
       throw new Stop(1, `Cloudflare returned the project ${name} without its domains or settings, so the script cannot tell whether it is live. Nothing was changed.`);
     }
@@ -592,7 +599,7 @@ async function setupStage(opts, io) {
     for (const [k, v] of Object.entries(BUILD)) if (project.build_config?.[k] !== v) bc[k] = v;
     if (Object.keys(bc).length) {
       patch.build_config = bc;
-      projectKeys.push('project:build_config');
+      projectKeys.push(...Object.keys(bc).map((k) => `project:${k}`));
       projectSay.push(`Build settings: ${Object.entries(bc).map(([k, v]) => `${k === 'build_command' ? 'build command' : 'output folder'} ${project.build_config?.[k] || '(none)'} → ${v}`).join(', ')}.`);
     }
     const fo = project.deployment_configs ?? {};
@@ -628,7 +635,7 @@ async function setupStage(opts, io) {
     : `It changes the whole domain ${zone.name}, not only this site; which hosts run through it could not be read (the token needs the row ${ROW.dns}).`;
 
   // R5: a zone-wide change is asked only with the hosts it touches named.
-  const hostsUnknown = `the zone's records could not be read, so the hosts this setting changes cannot be named; the token needs the row ${ROW.dns}`;
+  const hostsUnknown = `The zone's records could not be read, so the hosts this setting changes cannot be named; the token needs the row ${ROW.dns}`;
   const lines = []; // one per setting and record: { id, title, state, now, want, say }
   for (const s of SETTINGS) {
     const line = { id: s.id, title: s.title, path: s.path, kind: 'setting', def: s };
@@ -681,7 +688,7 @@ async function setupStage(opts, io) {
   const lineKey = (l) => (l.kind === 'record' ? `record:${l.rec.type} ${l.rec.fullName} ${l.rec.content}` : `setting:${l.id}`);
   const left = [...projectKeys, ...(build.kind === 'needed' ? [`build:${prodSha}`] : []),
     ...lines.filter((l) => l.state === 'change').map(lineKey)];
-  const possible = ['project:create', `project:production_branch=${prodBranch}`, 'project:build_config', 'project:fail_open', `build:${prodSha}`,
+  const possible = ['project:create', `project:production_branch=${prodBranch}`, 'project:build_command', 'project:destination_dir', 'project:fail_open', `build:${prodSha}`,
     ...lines.filter((l) => l.kind === 'record' || !opts.skip.includes(l.id)).map(lineKey)];
   const code = setupCode(codeInput, left);
   const changes = left.length;

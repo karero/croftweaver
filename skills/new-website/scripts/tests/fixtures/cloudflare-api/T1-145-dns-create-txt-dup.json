@@ -2,7 +2,7 @@
   "capture": "T1-145",
   "request": {
     "method": "POST",
-    "path": "/zones/c0ffee00000000000000000000000019/dns_records",
+    "path": "/zones/c0ffee00000000000000000000000022/dns_records",
     "body": {
       "type": "TXT",
       "name": "_spike-test",

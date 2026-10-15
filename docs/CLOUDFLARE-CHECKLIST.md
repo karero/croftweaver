@@ -384,10 +384,12 @@ look but not change anything):
 
 **What it writes.** For the settings above, these are the fields and values the assistant
 sends, and reads back afterwards. Each zone setting is its own call. The Bot Management fields
-go in one call, which sends the fields it does not change as it read them, with two
-exceptions: it leaves out `is_robots_txt_managed` (Cloudflare refused it as `true` beside
-`cf_robots_variant` `policy_only`, code 10400), and, when the AI lines are left as they are,
-`bot_preference_sync_enabled`.
+go in one call, which sends nine fields (`fight_mode`, `enable_js`, the four AI policies,
+`crawler_protection`, `content_bots_protection` and `cf_robots_variant`), each as it read them
+unless it changes them, plus `bot_preference_sync_enabled` unless the AI lines are left as they
+are. It leaves every other field out, `is_robots_txt_managed` among them (Cloudflare refused it
+as `true` beside `cf_robots_variant` `policy_only`, code 10400); fields left out kept their
+values in the trial.
 
 | Setting | API field | Value |
 |---|---|---|

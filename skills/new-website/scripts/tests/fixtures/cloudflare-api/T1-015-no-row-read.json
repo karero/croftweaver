@@ -2,7 +2,7 @@
   "capture": "T1-015",
   "request": {
     "method": "GET",
-    "path": "/zones/c0ffee00000000000000000000000019/firewall/access_rules/rules",
+    "path": "/zones/c0ffee00000000000000000000000022/firewall/access_rules/rules",
     "body": null
   },
   "status": 403,

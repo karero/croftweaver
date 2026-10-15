@@ -243,10 +243,9 @@ export function handle(state, method, p, query, body, contentType) {
       return { status: 200, body: b };
     }
     case 'GET projects':
-      // MADE: no trial kept a list of projects that may be committed; the envelope is the
-      // deployments list's (T1-028), ten to a page as the live account's list was. With
-      // `state.listItem`, each item is cut down, to show the script decides from the project read.
-      return listOf(state.projects.map((x) => (state.listItem ? state.listItem(copy(x)) : copy(x))), page, state.perPage.projects, answer('T1-028'));
+      // The account's list (T1-019): whole projects, ten to a page. With `state.listItem`, each item
+      // is cut down, to show the script decides from the project it reads by name.
+      return listOf(state.projects.map((x) => (state.listItem ? state.listItem(copy(x)) : copy(x))), page, state.perPage.projects, answer('T1-019'));
     case 'POST projects': {
       // The project as created (T1-027): Cloudflare fills in the ids and the defaults.
       const p = project({ name: body.name, productionBranch: body.production_branch, failOpen: body.deployment_configs?.production?.fail_open ?? false,

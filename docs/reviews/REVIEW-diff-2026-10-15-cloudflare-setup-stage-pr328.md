@@ -11,6 +11,7 @@ Explicit item of this gate (the maintainer's waiver of Z3, with V15 and V16, in 
 | Round | Head | Scope | Seats | Time, tokens | Findings (BUG / RISK / NIT) |
 |---|---|---|---|---|---|
 | 1 | `7f16d98` | full, in parts A and B; fixtures read in the tree | Codex (gpt-6.1-sol, config effort) and Melious (glm-5.3) on each part; fresh-eyes (Claude Opus 5.5) on the whole | Codex A 467 s, 125,459 · Melious A 722 s, 63,937 · Codex B 435 s, 126,290 · Melious B 742 s, 71,186 · fresh-eyes 455 s, 229,816 | 8 / 9 / 10 after merging duplicates. UNVERIFIABLE asked: 7, confirmed as findings: 2 (R1-13, R1-14) |
+| 2 | `9944d9c` | verification: the change since `7f16d98` (60 KB, one part), prior findings R1-01 to R1-27 | Codex (config effort); Melious FAILED (no reply within 900 s), ollama (glm-5.3:cloud) in its place; fresh-eyes (Claude Opus 5.5) | Codex 488 s, 109,202 · Melious 900 s, failed · ollama 541 s, no token figure · fresh-eyes 401 s, 184,003 | 3 / 4 / 10 after merging duplicates. R1-01 (one key for two build settings), R1-02, R1-03, R1-04 and R1-17 confirmed only in part; the rest confirmed |
 
 ## Findings
 
@@ -43,6 +44,23 @@ Explicit item of this gate (the maintainer's waiver of Z3, with V15 and V16, in 
 | R1-25 | NIT | fresh-eyes | 1 | The plan said seven days, the script and reference eight | fixed, locally_verified | plan line 252 |
 | R1-26 | NIT | fresh-eyes | 1 | The plan said `is_robots_txt_managed: true` "alone" was refused | fixed, locally_verified | plan row says both requests sent `policy_only` |
 | R1-27 | NIT | fresh-eyes | 1 | ssh waiting on a terminal looks like a slow Cloudflare | fixed, locally_verified | ls-remote past the deadline is said as git; with R1-06 |
+| R2-01 | BUG | Codex | 2 | One key, `project:build_config`, covered two edits: a yes to the build command also wrote an output folder changed later | fixed, locally_verified | one key per build setting; test: a yes to one build setting is not a yes to another |
+| R2-02 | BUG | fresh-eyes | 2 | The checklist named two fields left out of the Bot Management PUT; four are | fixed, locally_verified | the checklist names the nine fields sent and says every other is left out |
+| R2-03 | RISK | fresh-eyes | 2 | Which project is connected, or Direct Upload, still came from a list no capture showed | fixed, locally_verified | T1-019 (the account's list, cleaned) committed: items carry source, domains, settings; Direct Upload has no source; the script re-checks the connection on the project it reads; test |
+| R2-04 | RISK | Codex; fresh-eyes (NIT) | 2 | The free-text check missed a single lower-case or accented word | fixed, locally_verified | letters outside ASCII count; fields that name something are checked against a list; a planted "Élodie" and a named branch fail |
+| R2-05 | RISK | Codex; fresh-eyes (UNVERIFIABLE) | 2 | The empty form's bytes rested on the cleaner's word | fixed, locally_verified | the trial's helper is committed (`trial-helper.txt`, local paths replaced); the cleaner reads the form from it; a test compares |
+| R2-06 | BUG | Codex | 2 | The fixture README claimed every free-text string was checked | fixed, locally_verified | it says what is checked, and what would pass |
+| R2-07 | RISK | ollama | 2 | A project with no `preview_deployment_setting` now reads as building no previews | refuted | every captured project carries the field (T1-019, T1-027, T1-054, T2-021); the plan treats every value but `all` so ("Not verified" 10); the advice to push production is on the owner's word |
+| R2-08 | NIT | fresh-eyes | 2 | The deadline message blamed an ssh prompt, which the new process group rules out | fixed, locally_verified | "a program git started did not end" |
+| R2-09 | NIT | fresh-eyes | 2 | The reference did not say that old values are not bound | fixed, locally_verified | §S says so, with the case |
+| R2-10 | NIT | fresh-eyes | 2 | "the hosts the list names": the code takes the zone's proxied hosts whenever a setting is in | fixed, locally_verified | §S says "the zone's proxied hosts" |
+| R2-11 | NIT | fresh-eyes, Codex | 2 | The cleaner's comment still said three uploads; its count read only `build` | fixed, locally_verified | comment; both stages idle |
+| R2-12 | NIT | fresh-eyes | 2 | A by-hand line began lower-case | fixed, locally_verified | capitalised; test |
+| R2-13 | NIT | fresh-eyes, ollama | 2 | The five-record cap was only in `--help` | fixed, locally_verified | §S says it, and why |
+| R2-14 | NIT | fresh-eyes | 2 | A deployment between two stages, or with no stage, read as failed | fixed, locally_verified | running covers both; unit asserts |
+| R2-15 | NIT | ollama | 2 | On Windows only the direct child is stopped | fixed, locally_verified (comment) | the comment says POSIX stops the group, Windows the program, and the run goes on either way |
+| R2-16 | NIT | ollama | 2 | The second timer was not cleared when the program ended | fixed, locally_verified | cleared in `settle` |
+| R2-17 | NIT | ollama, outside scope | 2 | Test 40's title says "a week at most" | refuted | the title quotes the checklist §6, which says that; the script's eight days is the counted form |
 
 The waiver's review item, round 1: all three seats with file access read the fixtures. PATCH preservation VERIFIED for names, plain values, build settings, branch and Fail open (values of secrets: R1-13); deployment classification VERIFIED (the excerpt's label: R1-10); Bot Management VERIFIED for the fields, the 10400 pair and fields left out (leaving out `is_robots_txt_managed`: R1-14); ruleset calls VERIFIED (the setup stage makes none). Fixtures free of real values: VERIFIED by Codex A, Codex B and fresh-eyes.
 
