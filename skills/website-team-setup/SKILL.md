@@ -334,8 +334,8 @@ git switch - && git branch -D setup/push-check
 wants a project connected to GitHub (push-to-deploy, one preview address per pull
 request). The setup script there ("S") makes one through Cloudflare's API, with the
 build command and output folder of item 4 (no framework preset, which the build does not
-need) and the production branch of item 5, and needs only the GitHub app's access to the
-repository from the owner's browser; it does not create the `production`
+need) and the production branch of item 5; from the owner's browser it needs a short-lived
+token and the GitHub app's access to the repository; it does not create the `production`
 branch (item 5) or touch the checks of items 2 and 8. By hand it is **B, git
 integration**: walk the owner through it with these warnings ahead of each click:
 

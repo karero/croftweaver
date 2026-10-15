@@ -36,7 +36,7 @@ item's latest and canonical deployment set to null: they hold another site's his
 | The deployment call with an empty form builds the head of the production branch, as production, `ad_hoc` | T1-030 |
 | A second call while the first is queued starts a second build | T1-031, T1-033, T1-040 |
 | A Cloudflare build has `clone_repo` and `build` `success`; an upload has them `idle` | T1-021, T1-040 |
-| A PATCH holding only the change keeps every other variable and secret, the build settings, the production branch and Fail open; a secret reads back empty | T1-048 to T1-053, T1-061 |
+| A PATCH holding only the change keeps every other variable, the build settings, the production branch and Fail open, and every secret by name; a secret's value reads back empty, so whether the value is kept is not shown here (the first real site is to show it) | T1-048 to T1-053, T1-061 |
 | Fail open for one environment alone is refused, code 8000066 | T1-050 |
 | A changed production branch is also the source's; a deployment records the production branch of its time | T1-052, T1-054, T1-055 |
 | A deployment records its variables, a secret by name with its value empty, and its build settings | T1-030, T1-062, T1-063 |

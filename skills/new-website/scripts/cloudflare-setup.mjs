@@ -705,6 +705,7 @@ async function setupStage(opts, io) {
       }
     }
     reportQuiet(say, lines, opts);
+    if (build.kind === 'failed') say('', `Not on the list: the newest production build of ${short(prodSha)} failed (${describeDeployment(build.d)}). The yes starts no new build of it; look at its log first (Workers & Pages → ${name} → Deployments).`);
     say('', `Afterwards ${previewsOff ? `the production branch gets one push (${model === 'two-stage' ? 'npm run ship, on your word' : 'a merge to main'})` : 'the assistant pushes one commit to a pull request'}, so that a build Cloudflare starts from GitHub shows the connection works.`);
     say('Before you say yes: the token\'s Account Resources should name your one account.');
     say('', `To go ahead, run the same command again with: --confirm ${code}`);
@@ -716,12 +717,14 @@ async function setupStage(opts, io) {
   if (create) {
     const r = await api('POST', projectsAt, { json: create });
     if (!ok(r)) throw new Stop(1, `Cloudflare did not create the project: ${refusal(r, ROW.pages)}.`, 'If it says the name is taken (pages.dev names are global), run again with --project <another-name>. If it cannot reach the repository, give Cloudflare\'s GitHub app access to it (GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure).');
+    if (!r.body?.result?.subdomain) throw new Stop(1, `Cloudflare says it created the project ${name}, but returned no project with an address. Look at it in the dashboard (Workers & Pages), then run this again.`);
     project = r.body.result;
     say('', `  done     Created the project ${name}, connected to ${repository}. Its address: https://${project.subdomain}/`);
   } else if (Object.keys(patch).length) {
     const before = varNames(project);
     const r = await api('PATCH', projectAt, { json: patch });
     if (!ok(r)) throw new Stop(1, `Cloudflare refused the change to the project: ${refusal(r, ROW.pages)}. Nothing else was changed.`);
+    if (!r.body?.result?.deployment_configs) throw new Stop(1, 'Cloudflare accepted the change to the project but returned no project, so its variables cannot be listed after it. Look at the project in the dashboard (Workers & Pages → the project → Settings → Variables and Secrets).');
     const after = varNames(r.body.result);
     const lost = before.filter((v) => !after.includes(v));
     say('', `  done     ${projectSay.join(' ')}`);
@@ -784,9 +787,9 @@ async function setupStage(opts, io) {
     } else {
       const back = await api('GET', `${zoneAt}/bot_management`);
       const want = { ...bot, ...body };
-      const off = ok(back) ? Object.keys(want).filter((k) => !isDeepStrictEqual(back.body.result?.[k], want[k])) : ['(nothing read back)'];
+      const off = ok(back) ? Object.keys(want).filter((k) => !isDeepStrictEqual(back.body.result?.[k], want[k])) : [];
       for (const l of botLines) {
-        if (off.length) { l.state = 'hand'; l.why = `Cloudflare accepted the change, but ${off.map((k) => `${k} reads ${ok(back) ? show(back.body.result?.[k]) : '?'}, not ${show(want[k])}`).join('; ')}`; } else l.state = 'done';
+        if (!ok(back)) { l.state = 'hand'; l.why = `Cloudflare accepted the change, but it could not be read back: ${refusal(back, ROW.bot)}`; } else if (off.length) { l.state = 'hand'; l.why = `Cloudflare accepted the change, but ${off.map((k) => `${k} reads ${show(back.body.result?.[k])}, not ${show(want[k])}`).join('; ')}`; } else l.state = 'done';
       }
     }
   }

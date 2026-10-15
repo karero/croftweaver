@@ -362,10 +362,10 @@ and protecting your Cloudflare account (your site's `SETUP.md`).
 
 Most of sections 1 to 4 are settings an assistant can change for you through Cloudflare's
 API. A token only gives permission: the changes happen when your assistant makes the API
-calls, one at a time. If you would rather not click through the dashboard, make one token,
-hand it to your assistant for the day you set the site up, and delete it afterwards. If the
-day the site goes live falls inside the token's life, the same token serves that day too;
-otherwise make a second one with the same rows. HSTS is not part of either day: switch it on
+calls, one at a time. If you would rather not click through the dashboard, make one token
+and hand it to your assistant for the day you set the site up. If the day the site goes live
+falls inside the token's life, the same token serves that day too; otherwise make a second
+one with the same rows. Delete each token once its work is done. HSTS is not part of either day: switch it on
 a few days after go-live (section 2), with another token or by hand. Setting `CANONICAL_URL` waits too, until your own domain serves the site (section
 1).
 

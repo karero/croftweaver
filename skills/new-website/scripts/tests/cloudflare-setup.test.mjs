@@ -74,7 +74,7 @@ function run(where, args, { api, dns, env = {}, token = TOKEN } = {}) {
     execFile(process.execPath, [SCRIPT, 'setup', ...args], { cwd: where.site, env: e, timeout: 75_000 }, (err, stdout, stderr) => {
       // R10: the token is never printed.
       assert.ok(!stdout.includes(TOKEN) && !stderr.includes(TOKEN), 'the token was printed');
-      resolve({ code: err ? err.code : 0, out: stdout, err: stderr, ms: Date.now() - started });
+      resolve({ code: err ? (err.code ?? `killed: ${err.signal ?? 'timeout'}`) : 0, out: stdout, err: stderr, ms: Date.now() - started });
     });
   });
 }
@@ -260,6 +260,8 @@ function notMadeUp(fixtures) {
 test('every string, key and number in the fixtures is a made-up value or on the list of allowed values', () => {
   const fixtures = allFixtures();
   assert.ok(fixtures.length > 50, 'the fixtures are there');
+  // A file's name is the capture's number and the trial's own label for the call, nothing else.
+  for (const { file } of fixtures) assert.match(file, /^T[12]-\d{3}-[a-z0-9_-]+\.json$/, file);
   assert.deepEqual(notMadeUp(fixtures), []);
 });
 
@@ -676,7 +678,6 @@ test('33: a token with no end date, one reaching a second zone (on page 2), a re
   ];
   for (const [over, want] of cases) {
     const s = freshState(over);
-    if (over.perPage) s.perPage = over.perPage;
     await scenario(s, async ({ api, go }) => {
       const r = await go();
       assert.equal(r.code, 1, r.out);
@@ -745,7 +746,6 @@ test('39: a run cut off between two writes: the next run with the same code read
     // Hold the answer to the first settings write, and kill the run while it waits.
     let release;
     const held = new Promise((r) => { release = r; });
-    state.delayMs = 0;
     const child = spawn(process.execPath, [SCRIPT, 'setup', '--confirm', code], {
       cwd: where.site, env: { ...cleanEnv(), CLOUDFLARE_API_TOKEN: TOKEN, CLOUDFLARE_SETUP_API: api.origin, CLOUDFLARE_SETUP_RESOLVER: dns.address }, stdio: 'ignore',
     });

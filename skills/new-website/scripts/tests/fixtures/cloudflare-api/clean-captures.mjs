@@ -143,6 +143,9 @@ function main([t1, t2, mapFile, out]) {
     return o;
   };
 
+  // The helper and the file names get the same check as the fixtures: no name from the map, no id.
+  const real = (text, trial) => names(trial).some(([n]) => text.toLowerCase().includes(n.toLowerCase())) || /\b[0-9a-f]{32}\b/.test(text);
+  if (real(helper, 'T1') || real(helper, 'T2')) throw new Error('trial-helper.txt: a real name or id is still there');
   mkdirSync(out, { recursive: true });
   writeFileSync(path.join(out, 'trial-helper.txt'), helper);
   for (const r of raw) {
@@ -157,7 +160,9 @@ function main([t1, t2, mapFile, out]) {
     // Nothing real may be left: no name from the map, no id that was not replaced.
     for (const [real] of names(r.trial)) if (text.toLowerCase().includes(real.toLowerCase())) throw new Error(`${r.capture}: "${real}" is still there`);
     for (const real of ids.keys()) if (text.includes(real)) throw new Error(`${r.capture}: an id is still there`);
-    writeFileSync(path.join(out, `${r.capture}-${r.label.replace(/^wc-/, '').replace(/croftweaver/g, 'live-project')}.json`), text);
+    const file = `${r.capture}-${r.label.replace(/^wc-/, '').replace(/croftweaver/g, 'live-project')}.json`;
+    if (real(file, r.trial)) throw new Error(`${file}: a real name in the file name`);
+    writeFileSync(path.join(out, file), text);
   }
 }
 

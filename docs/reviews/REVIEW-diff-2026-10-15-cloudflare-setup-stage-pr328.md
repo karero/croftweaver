@@ -14,6 +14,7 @@ Explicit item of this gate (the maintainer's waiver of Z3, with V15 and V16, in 
 | 2 | `9944d9c` | verification: the change since `7f16d98` (60 KB, one part), prior findings R1-01 to R1-27 | Codex (config effort); Melious FAILED (no reply within 900 s), ollama (glm-5.3:cloud) in its place; fresh-eyes (Claude Opus 5.5) | Codex 488 s, 109,202 · Melious 900 s, failed · ollama 541 s, no token figure · fresh-eyes 401 s, 184,003 | 3 / 4 / 10 after merging duplicates. R1-01 (one key for two build settings), R1-02, R1-03, R1-04 and R1-17 confirmed only in part; the rest confirmed |
 | 3 | `906fdfb` | verification: the change since `9944d9c` (41 KB; the fixture files renumbered by T1-019 left out but T1-019), prior findings R1 and R2 | Codex (config effort); Melious FAILED again (900 s), ollama (glm-5.3:cloud) in its place; fresh-eyes (Claude Opus 5.5) | Codex 405 s, 118,477 · Melious 900 s, failed · ollama 766 s, no token figure · fresh-eyes 553 s, 183,893 | 4 / 2 / 6 after merging duplicates. R2 fixes confirmed, apart from R2-04 (R3-03) and R2-16's side effect (R3-01). Two kinds came back: the deadline's hold on git's children (R1-06, R3-01) and the fixture check (R1-17, R2-04, R3-03); both were cut, not patched |
 | 4 | `64aab97` | verification: the change since `906fdfb`, prior findings R1 to R3; earned by R3-01 and R3-03 (`--earned-by deadline-kill,fixture-check`, `--cut`: the SIGTERM grace and its timers removed; the fixture heuristics replaced by a strict list) | Codex (config effort) and Melious (glm-5.3) | Codex 373 s, 101,421 · Melious 811 s, 46,895 | 1 / 2 / 2. The cuts confirmed; the fixture check came back once more, in its loader (R4-01) |
+| final full read (not a round) | `55457c9` | the whole change from base `8f7c98b`, in three parts (script with the plan's R1 to setup stage; tests, stub, cleaner; prose, README, allow-list, helper); the fixture JSON read by tooled seats in rounds 1 to 4 | ollama, kimi-k3:cloud (a model that had not reviewed this change) | A 413 s · B1 606 s · B2 335 s, no token figures | 0 / 3 / 14. No BUG, so no round was earned; the maintainer had closed the rounds after round 4 (below) |
 
 ## Findings
 
@@ -80,9 +81,28 @@ Explicit item of this gate (the maintainer's waiver of Z3, with V15 and V16, in 
 | R4-03 | RISK | Melious | 4 | The SIGTERM-ignoring child's check would fail on Windows | refuted | the test skips itself on Windows before it starts the stand-in git |
 | R4-04 | NIT | Melious | 4 | One probe after 500 ms could see a child not yet reaped | fixed, locally_verified | polls up to 5 s |
 | R4-05 | NIT | Melious | 4 | Numbers in the fixtures were not checked | fixed, locally_verified | every number must be on the list (25 values); a planted one fails |
+| F-01 | RISK | Kimi (final read) | final | The script trusts the create and PATCH answers to hold the whole project | refuted; a guard added, locally_verified | T1-027 (create) and T1-048 to T1-053 (PATCH) answer with the whole project, `subdomain`, `source` and `deployment_configs` included; an answer without them now stops the run |
+| F-02 | NIT | Kimi | final | A failed build of the head was not named in the question | fixed, locally_verified | the question names it and says the yes starts no new build of it |
+| F-03 | NIT | Kimi | final | A Bot Management read-back that failed read "(nothing read back) reads ?" | fixed, locally_verified | says it could not be read back, with Cloudflare's words |
+| F-04 | NIT | Kimi | final | `0127.0.0.1` could pass the loopback check | refuted | the pattern starts with a literal `127`; every 127.x address is loopback |
+| F-05 | RISK | Kimi | final | The committed helper had no residue check | fixed, locally_verified | the cleaner checks it for every mapped name and any 32-character id before writing |
+| F-06 | RISK | Kimi | final | File names, built from the trial's labels, had no residue check | fixed, locally_verified | the cleaner checks each name; the fixture test pins the names' shape |
+| F-07 | NIT | Kimi | final | A run killed by the test's own timeout reported `code: undefined` | fixed, locally_verified | says killed, with the signal |
+| F-08 | NIT | Kimi | final | A dead line in test 33 | fixed, locally_verified | removed |
+| F-09 | NIT | Kimi | final | A no-op `delayMs = 0` in test 39 | fixed, locally_verified | removed |
+| F-10 | NIT | Kimi | final | Two tests carry scenario number 39 | refuted | plan scenario 39 names both cases: a run cut off, and a stub that answers slowly |
+| F-11 | RISK | Kimi | final | The fixture README said a PATCH keeps every secret, against waived R1-13 | fixed, locally_verified | the row says secrets are kept by name and their values are not shown |
+| F-12 | NIT | Kimi | final | "two yeses" in the reference, where the setup stage asks one | fixed, locally_verified | "the owner's yes to a printed list" |
+| F-13 | NIT | Kimi | final | The options list left out `--confirm` | fixed, locally_verified | listed first |
+| F-14 | NIT | Kimi | final | "the settings an API can set" overstated what the script writes | fixed, locally_verified | "most of the settings", with what it leaves named |
+| F-15 | NIT | Kimi | final | The checklist said to delete the token after setup day, then to keep it for launch day | fixed, locally_verified | delete each token once its work is done |
+| F-16 | NIT | Kimi | final | website-team-setup said the script needs "only" the GitHub app's access | fixed, locally_verified | a short-lived token and the app's access |
+| F-17 | NIT | Kimi | final | An unexplained negative number on the allow-list | fixed, locally_verified | `_about` says where it comes from |
 
 Round 4's two follow-ups (Melious, outside scope): the mktemp guard's self-test claim and the 150-of-150 record. CI on `64aab97` settles the first: its macOS job, which runs `make check`, passed, so the self-test's failure is this computer's alone.
 
 The waiver's review item, round 1: all three seats with file access read the fixtures. PATCH preservation VERIFIED for names, plain values, build settings, branch and Fail open (values of secrets: R1-13); deployment classification VERIFIED (the excerpt's label: R1-10); Bot Management VERIFIED for the fields, the 10400 pair and fields left out (leaving out `is_robots_txt_managed`: R1-14); ruleset calls VERIFIED (the setup stage makes none). Fixtures free of real values: VERIFIED by Codex A, Codex B and fresh-eyes.
 
 Decisions by the maintainer, 2026-10-15, asked after round 1 with the recommendation and the case against each. R1-01: "Bind the list (Recommended)". R1-13 and R1-14: "Waive both (Recommended)", to be observed on the first real site (plan step 10).
+
+The maintainer, 2026-10-15, after round 4, on the convergence check (the fixture check had come back after its cut, R4-01), asked with the recommendation and the case against: "Final full read (Recommended)". The rounds closed at 4; R4-01 to R4-05 are locally_verified and were read again, whole, by the final full read. The final read's own fixes are locally_verified, not externally re-verified.

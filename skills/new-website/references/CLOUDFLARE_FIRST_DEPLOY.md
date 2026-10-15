@@ -8,7 +8,7 @@ them** rather than handing over a dashboard tour.
 
 > **Assistant: for a site on GitHub, recommend the setup script (S, next section).** It
 > gives (B)'s result, a project that builds on every push, with most of (A)'s ease: one
-> short-lived token, two yeses and no dashboard tour. It does setup day today; on the day the
+> short-lived token, the owner's yes to a printed list, and no dashboard tour. It does setup day today; on the day the
 > site goes live, the domain is attached by hand ("Going live" and "After go-live" below),
 > until the script's launch stage exists. (A) stays for an owner who wants no GitHub
 > connection; (B) and (C) stay on offer. State the deploy-model tradeoff in (A) before an
@@ -27,8 +27,8 @@ them** rather than handing over a dashboard tour.
 `scripts/cloudflare-setup.mjs` (beside `cloudflare-check.mjs`; Node 18 or newer, nothing
 from npm, no Wrangler) does setup day through Cloudflare's API: it creates the Pages project
 connected to the site's GitHub repository (or adopts the one already connected), starts its
-first build, writes the settings of `docs/CLOUDFLARE-CHECKLIST.md` that an API can set, and
-writes the verification records the owner dictates. It attaches no domain and sends the
+first build, writes most of the settings of `docs/CLOUDFLARE-CHECKLIST.md` (what it leaves
+is named below), and writes the verification records the owner dictates. It attaches no domain and sends the
 domain no request: until launch day the site answers only at the project's `pages.dev`
 address.
 
@@ -58,7 +58,7 @@ environment of `git`.
 node "$SKILLS_ROOT/new-website/scripts/cloudflare-setup.mjs" setup
 ```
 
-Options: `--project <name>` (the project to use or create; by default the one connected to
+Options: `--confirm <code>` (the owner's yes, below), `--project <name>` (the project to use or create; by default the one connected to
 the repository, or one named like it), `--skip <id>` for a line the owner wants left as it is
 (`https`, `tls`, `email`, `nel`, `bot`, `ai`; `ai` covers the AI bot policies, AI Labyrinth,
 Content bots and Bot Preference Sync together), and `--record "<type> <name> <content>"` for a
@@ -93,7 +93,9 @@ is one the script ends with 4: push one commit to a pull request (an empty commi
 run it again. Where the project builds no previews, the push that shows it is the production
 branch's: on a two-stage site that is `npm run ship`, on the owner's word.
 
-**On launch day, not now:** the rule that removes the NEL headers (the checklist's section 3,
+**By hand, or on launch day:** what `CLOUDFLARE_CHECK.md` lists under "By hand, always"
+(Crawler Hints, the Web Analytics switch, the script monitor's switch, HSTS later, deleting the
+token), and the rule that removes the NEL headers (the checklist's section 3,
 step 4), which the Transform Rules row of the token is for. It is added only if the domain
 still sends the headers, and by hand until the launch stage exists.
 
