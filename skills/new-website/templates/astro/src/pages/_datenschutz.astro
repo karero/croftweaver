@@ -24,10 +24,10 @@
 //      host, or say so there); one sentence each for outbound links, file
 //      downloads and form submissions (keep a sentence only if that measurement
 //      is ticked in Plausible's installer, which ticks all three by default;
-//      the page then describes what the instance does); the
-//      storage period; and the analytics host in the sentence on refusing it. The sentence on clicks on an email address ("Außerdem
-//      zählt es jeden Klick") describes the "Email Tap" event
-//      (src/components/EmailLink.astro, and the button of the
+//      the page then describes what the instance does); the storage period; and
+//      the analytics host in the sentence on refusing it. The sentence on clicks
+//      on an email address ("Außerdem zählt es jeden Klick") describes the "Email
+//      Tap" event (src/components/EmailLink.astro, and the button of the
 //      website-contact-form skill's form); it goes with the paragraph, and stays
 //      as long as that counting does. Then delete '/datenschutz' from
 //      UNFILLED_UNTIL_LAUNCH (the test turns red until you do). The clause "nur ein
@@ -38,13 +38,13 @@
 //      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
 //      the same; with another analytics tool delete it together with the paragraph.
 //      The sentence on how to refuse the measurement ("Sie können die Messung
-//      ablehnen") has a slot for the host name in ANALYTICS.scriptHost in
-//      src/config.ts (plausible.io for Plausible Cloud), and keep the two
-//      equal. If that host is the site's own domain (Plausible behind a proxy),
-//      blocking it also blocks the site's own scripts: name the script's full
-//      address there instead. Switzerland's Telecommunications Act (Art. 45c FMG)
-//      asks that visitors are told about the processing and its purpose, and that
-//      they may refuse it.
+//      ablehnen") has a slot for the host name: name the same host as
+//      ANALYTICS.scriptHost in src/config.ts (plausible.io for Plausible Cloud).
+//      If that host is the site's own domain (Plausible behind a proxy), blocking
+//      it also blocks the site's own scripts: name the script's full address
+//      there instead. Switzerland's Telecommunications Act (Art. 45c FMG) asks
+//      that visitors are told about the processing and its purpose, and that they
+//      may refuse it.
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
 //   your German privacy page lives at the locale-prefixed route
 //   (/de/privacy); use this text as its content.

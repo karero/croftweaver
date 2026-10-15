@@ -57,7 +57,9 @@ export const KNOWS_ABOUT: string[] = [];
 // as the placeholder loads nothing (the browser reports a failed request; the build
 // does not).
 // Changing scriptHost also means changing script-src and connect-src in
-// public/_headers; tests/check_analytics_gate.sh checks both against this file.
+// public/_headers; tests/check_analytics_gate.sh checks both against this file. It
+// also means changing the host named in section 3 of the privacy page, in the
+// sentence on refusing the measurement; no test checks that one.
 // Base.astro writes two tags: the script, and the short stub that calls
 // plausible.init(); without the stub the script never starts.
 //

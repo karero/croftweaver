@@ -185,13 +185,14 @@ non-expert can answer, and record the answers in the project `README.md`.
      the page itself does not need. Plausible runs as a small script in the visitor's
      browser. With it, running without a banner is a defensible position in the EU,
      Germany, Switzerland and California, not a settled one; to be sure, ask a lawyer.
-     For the EU and Germany, the headers of `privacy.astro` and `_datenschutz.astro`
-     give the reasons. In Switzerland and California the position rests on the privacy
-     page informing visitors. Switzerland (Art. 45c FMG) asks that visitors are told
-     about the processing and its purpose, and that they may refuse it; California's
-     CalOPPA asks the page to say whether third parties may collect personal information
-     across websites through the site, and how the site answers "Do Not Track" if it
-     collects such information itself. Section 3 of `privacy.astro` says both;
+     For the EU and Germany, the headers of `privacy.astro` and `_datenschutz.astro` set
+     out the sources on both sides and ask you to record who accepted the position. In
+     Switzerland and California the position rests on the privacy page informing
+     visitors. Switzerland (Art. 45c FMG) asks that visitors are told about the
+     processing and its purpose, and that they may refuse it; California's CalOPPA asks
+     the page to say whether third parties may collect personal information across
+     websites through the site, and how the site answers "Do Not Track" if it collects
+     such information itself. Section 3 of `privacy.astro` says both;
      `_datenschutz.astro` says the Swiss part. California's CCPA applies only above its
      thresholds (USD 26,625,000 annual gross revenue from 1 January 2025, adjusted every
      two years; or buying, selling or sharing the personal information of 100,000 or
@@ -201,7 +202,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      if it runs on Plausible Cloud. What breaks the no-banner case: any Cloudflare
      feature that section 3 of `docs/CLOUDFLARE-CHECKLIST.md` (in the Croftweaver
      folder) asks you to switch off, the script monitor among them; a YouTube embed;
-     remote Google Fonts; another analytics tool. Not legal advice.
+     remote Google Fonts; another analytics tool. A theme toggle that stores the
+     visitor's choice needs a look too (the same headers say why). Not legal advice.
 
 6. **Domain + how do changes go live? (publish model)**
    *Decides: the publish workflow — a safety-vs-simplicity trade-off. **Offer both, explain
