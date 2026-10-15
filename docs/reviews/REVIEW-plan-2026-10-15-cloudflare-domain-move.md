@@ -153,4 +153,4 @@ Follow-ups (outside scope): G11 (RISK, Codex) scenario 26a: an old site that rel
 Gate 2 notes:
 - The review stamp names `ef9b72d`, the last head a reviewer saw; the commit after it adds only these closing lines.
 - Round 3's Melious seat broke off once (curl exit 28 after 1,376 s, ollama's stand-in failing on a DNS error) and was run again alone; a second try was cut off by a session restart and left no output; the third counted.
-- Cost: Codex 1,264 s over six runs, Melious 1,668 s over three counted runs, Kimi K2.7 292 s, fresh-eyes 758 s over three rounds; tokens: 485,559 for Codex and Melious, 475,560 for fresh-eyes.
+- Cost: Codex 1,264 s over six runs, Melious 1,668 s over three counted runs, Kimi K2.7 292 s, fresh-eyes 758 s over three rounds; tokens: 648,805 for Codex and Melious (Codex 532,160, Melious 116,645), 475,560 for fresh-eyes.
