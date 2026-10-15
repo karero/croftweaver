@@ -85,13 +85,13 @@ npx playwright install chromium        # per machine, once
 > `.nvmrc` pins 24 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` warns
 > "packages have install scripts not yet covered" for scripts it hasn't been told to trust
 > — per npm's own docs this is currently advisory only (the scripts still run; a future
-> npm release will start blocking them), but approve the one Astro needs now to silence the
-> warning and be ready ahead of that: `npm approve-scripts esbuild`. (sharp used to need
-> this too; since sharp 0.35 it ships prebuilt binaries with no install script, so there is
-> nothing to approve.)
-> Approvals are pinned to the exact version reviewed (npm's own default, by design) — a future
-> `astro` bump that pulls a different esbuild version will re-surface this same warning;
-> just re-run the same command.
+> npm release will start blocking them). The starter's `package.json` already approves the
+> one package that still has an install script, `fsevents` (macOS only), so there is
+> nothing to approve. (Until 7.3.8, Astro installed `esbuild`, which needed approving; since
+> 0.35, sharp ships prebuilt binaries and needs nothing.)
+> Approvals are pinned to the exact version reviewed (npm's own default, by design) — if a
+> later update brings a package with an install script, the warning names it: approve it
+> with `npm approve-scripts <name>`.
 
 ### What each tool does
 | Tool | Function |

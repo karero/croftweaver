@@ -22,18 +22,17 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",
-    "astro": "^7.3.5",
+    "astro": "^7.3.8",
     "node-html-parser": "^9.0.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@axe-core/playwright": "^4.13.0",
-    "@playwright/test": "^1.63.0",
-    "@types/node": "^24.19.1",
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^24.19.2",
     "typescript": "^6.0.3"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true,
     "fsevents@2.3.3": true
   }
 }
