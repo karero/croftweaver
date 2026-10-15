@@ -15,17 +15,18 @@ import { ANALYTICS } from '../src/config';
 // Skipped: the kit's own slot and nothing else. The whole text is one "unfilled [SLOT]"
 // to placeholders.spec.ts (UNFILLED_SLOT in _helpers.ts) and names ANALYTICS.scriptHost,
 // as both shipped slots do. A skip is safe only while placeholders.spec.ts reports the
-// slot, so a slot that spec lets pass (in PLACEHOLDER_ALLOWLIST, or inside an element
-// matching PLACEHOLDER_EXEMPT, script, style or noscript) is compared as a host instead,
-// like any other text in the mark.
+// slot, so only a plain mark is skipped: text alone, with no element inside it and no
+// element around it that placeholders.spec.ts leaves unread (PLACEHOLDER_EXEMPT, script,
+// style, noscript), and not in PLACEHOLDER_ALLOWLIST. Any other mark is compared as a
+// host, like any other text in it.
 const isOneSlot = (text: string) => {
   const found = [...text.matchAll(UNFILLED_SLOT)].map((m) => m[0]);
   return found.length === 1 && found[0] === text;
 };
 
-function hostOf(named: string, exempt = false): string | null {
+function hostOf(named: string, plain = true): string | null {
   const text = named.trim();
-  if (!exempt && isOneSlot(text) && text.includes('ANALYTICS.scriptHost') && !placeholderAllowed(text)) return null;
+  if (plain && isOneSlot(text) && text.includes('ANALYTICS.scriptHost') && !placeholderAllowed(text)) return null;
   try {
     return new URL(text.includes('://') ? text : `https://${text}`).hostname;
   } catch {
@@ -33,19 +34,22 @@ function hostOf(named: string, exempt = false): string | null {
   }
 }
 
-// Every mark on the page, with whether placeholders.spec.ts skips the element it is in.
-async function marks(page: Page): Promise<{ text: string; exempt: boolean }[]> {
+// Every mark on the page, and whether it is plain (see above).
+async function marks(page: Page): Promise<{ text: string; plain: boolean }[]> {
   const unread = `script, style, noscript, ${PLACEHOLDER_EXEMPT}`;
   return page.locator('[data-analytics-host]').evaluateAll(
-    (els, sel) => els.map((el) => ({ text: (el as HTMLElement).innerText, exempt: !!el.closest(sel) })),
+    (els, sel) => els.map((el) => ({
+      text: (el as HTMLElement).innerText,
+      plain: el.childElementCount === 0 && !el.closest(sel),
+    })),
     unread,
   );
 }
 
-function wrongHosts(path: string, found: { text: string; exempt: boolean }[], expected: string): string[] {
+function wrongHosts(path: string, found: { text: string; plain: boolean }[], expected: string): string[] {
   return found
-    .filter(({ text, exempt }) => {
-      const host = hostOf(text, exempt);
+    .filter(({ text, plain }) => {
+      const host = hostOf(text, plain);
       return host !== null && host !== expected;
     })
     .map(({ text }) => `${path} names "${text.trim()}"`);
@@ -72,7 +76,7 @@ test('privacy host — only a slot placeholders.spec.ts reports is skipped', () 
     expect(hostOf(text), text).not.toBeNull();
   }
   // A slot placeholders.spec.ts lets pass is compared too.
-  expect(hostOf('[A ANALYTICS.scriptHost]', true), 'inside an exempt element').not.toBeNull();
+  expect(hostOf('[A ANALYTICS.scriptHost]', false), 'a mark that is not plain').not.toBeNull();
   PLACEHOLDER_ALLOWLIST.add('[a  analytics.scripthost]');
   try {
     expect(hostOf('[A ANALYTICS.scriptHost]'), 'allow-listed').not.toBeNull();
@@ -81,13 +85,20 @@ test('privacy host — only a slot placeholders.spec.ts reports is skipped', () 
   }
 });
 
-test('privacy host — a slot in an exempt element is read as a host on a page', async ({ page }) => {
-  for (const wrap of ['<p data-placeholder-exempt>%</p>', '<p><code>%</code></p>', '<pre>%</pre>']) {
-    const html = wrap.replace('%', '<span data-analytics-host>[A ANALYTICS.scriptHost]</span>');
-    await page.setContent(`<!doctype html><body><p><span data-analytics-host>[A ANALYTICS.scriptHost]</span></p>${html}</body>`);
+test('privacy host — a slot in a mark that is not plain is read as a host on a page', async ({ page }) => {
+  const slot = '[A ANALYTICS.scriptHost]';
+  const cases = [
+    `<p data-placeholder-exempt><span data-analytics-host>${slot}</span></p>`,
+    `<p><code><span data-analytics-host>${slot}</span></code></p>`,
+    `<pre><span data-analytics-host>${slot}</span></pre>`,
+    `<p><span data-analytics-host><code>${slot}</code></span></p>`,
+    `<p><span data-analytics-host><b>${slot}</b></span></p>`,
+  ];
+  for (const html of cases) {
+    await page.setContent(`<!doctype html><body><p><span data-analytics-host>${slot}</span></p>${html}</body>`);
     const found = await marks(page);
-    expect(found.map((m) => m.exempt), wrap).toEqual([false, true]);
-    expect(wrongHosts('/test', found, 'plausible.io'), wrap).toHaveLength(1);
+    expect(found.map((m) => m.plain), html).toEqual([true, false]);
+    expect(wrongHosts('/test', found, 'plausible.io'), html).toHaveLength(1);
   }
 });
 
