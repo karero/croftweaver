@@ -149,12 +149,22 @@ non-expert can answer, and record the answers in the project `README.md`.
     just "English, obviously, unless multilingual."
 
 5. **Analytics — will anyone act on the numbers? (optional)**
-   - Just "is anyone visiting?" → **Google Search Console** alone (free, no
-     script, no consent banner) is enough for search & referral traffic. Then switch
-     the starter's analytics off: `USE_ANALYTICS = false` in `src/config.ts`, the
-     analytics host out of `public/_headers`, and the analytics paragraphs out of
-     section 3 of the privacy page. The starter ships with analytics on, so without
-     the switch the live build still writes the Plausible script.
+   - Just "is anyone visiting?" → **Google Search Console** (free, no script, no consent
+     banner) is enough for traffic from Google search; it does not show which other
+     sites send visitors, and Cloudflare's docs list no referrer view for the Free plan.
+     Cloudflare also counts the domain's traffic at its own servers, with nothing added
+     to the pages: https://dash.cloudflare.com → your domain → **Analytics** →
+     **Traffic**. On the Free plan that is requests, bandwidth, unique visitors and up
+     to five top countries for at least the last 30 days, bots included; page views, and
+     filtering by referrer, need a paid plan
+     (https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/,
+     checked October 2026). Cloudflare's separate "Web Analytics" is a script in the
+     visitor's browser: keep it off (`docs/CLOUDFLARE-CHECKLIST.md`, section 3,
+     "Cloudflare Web Analytics: Off"). Then switch the starter's analytics off:
+     `USE_ANALYTICS = false` in `src/config.ts`, the analytics host out of
+     `public/_headers`, and the analytics paragraphs out of section 3 of the privacy
+     page. The starter ships with analytics on, so without the switch the live build
+     still writes the Plausible script.
    - "Which sources bring enquiries?" or other real decisions from traffic data
      (campaigns, content strategy) → **Plausible** (cookieless; whether it needs a
      consent banner: the last point of this question). In its installer, untick the

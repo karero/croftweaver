@@ -30,7 +30,9 @@
 //      name: name the same host as ANALYTICS.scriptHost in src/config.ts
 //      (plausible.io for Plausible Cloud). If that host is the site's own domain
 //      (Plausible behind a proxy), blocking it also blocks the site's own
-//      scripts: name the script's full address there instead. Switzerland's
+//      scripts: name the script's full address there instead. Keep the host inside
+//      the span marked data-analytics-host: tests/privacy-host.spec.ts compares it
+//      with ANALYTICS.scriptHost once the slot is filled. Switzerland's
 //      Telecommunications Act (Art. 45c FMG) asks that visitors are told about
 //      the processing and its purpose, and that they may refuse it. The "Do Not
 //      Track" paragraph near the top of section 3 stays even without analytics:
@@ -110,9 +112,11 @@ import { SITE } from '../config';
       This site is served by <strong>Cloudflare Pages</strong> (Cloudflare, Inc.,
       101 Townsend St, San Francisco, CA 94107, USA). When you visit a page,
       Cloudflare processes technical connection data (IP address, date and time,
-      requested URL, browser user agent) to deliver the site and to protect it
-      against attacks. The legal basis is our legitimate interest in operating a
-      secure and fast website (Art. 6(1)(f) GDPR). Cloudflare acts as our
+      requested URL, referring page, browser user agent) to deliver the site, to
+      protect it against attacks, and to give us traffic statistics (for example
+      requests, visitors and their countries). The legal basis is our legitimate
+      interest in operating a secure and fast website and in knowing how much it
+      is used (Art. 6(1)(f) GDPR). Cloudflare acts as our
       processor under Art. 28 GDPR; transfers to the USA are covered by the
       EU-U.S. Data Privacy Framework and standard contractual clauses. We do not
       combine these logs with any other data.
@@ -178,9 +182,10 @@ import { SITE } from '../config';
       website is used and in improving it (Art. 6(1)(f) GDPR).
       [STATE THE STORAGE PERIOD, for example: We keep these records for 24
       months and then delete them.] You can refuse the measurement: block
-      scripts from [ANALYTICS HOST, the host name in ANALYTICS.scriptHost in
-      src/config.ts, for example plausible.io] with a content blocker in your
-      browser. The site works the same without the measurement.
+      scripts from <span data-analytics-host>[ANALYTICS HOST, the host name in
+      ANALYTICS.scriptHost in src/config.ts, for example plausible.io]</span>
+      with a content blocker in your browser. The site works the same without
+      the measurement.
     </p>
 
     <h2>4. Contact by email</h2>
