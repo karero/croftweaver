@@ -1140,6 +1140,23 @@ test('36 and 37: the report of a finished launch: two-stage names main\'s previe
   }, { prodBranch: 'main', production: false });
 });
 
+test('launch report: a preview of main with no alias is not called missing either', () =>
+  launchScenario((h) => {
+    const s = attachHost(launchState(h));
+    const v = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
+    s.projects[0].deployment_configs.production.env_vars = v;
+    s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(v));
+    const p = deployment('push', { commit: h.main, branch: 'main' });
+    p.aliases = null; // as T1-021's deployments have it
+    s.deployments[REPO].unshift(p);
+    return s;
+  }, async ({ launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /The preview of main: its address is on the newest build of main/);
+    assert.doesNotMatch(r.out, /no preview/i);
+  }));
+
 test('launch report: a preview of main further back than the pages read is not called missing', () =>
   launchScenario((h) => {
     const s = attachHost(launchState(h));
@@ -1152,8 +1169,8 @@ test('launch report: a preview of main further back than the pages read is not c
   }, async ({ launch }) => {
     const r = await launch();
     assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /No preview of main among the newest deployments/);
-    assert.doesNotMatch(r.out, /has no preview build yet/);
+    assert.match(r.out, /The preview of main: its address is on the newest build of main under Workers & Pages/);
+    assert.doesNotMatch(r.out, /no preview/i, 'no claim that there is none');
   }));
 
 test('35 at launch: the record points at the address Cloudflare gave, and no address is made from the name', () =>
@@ -1343,8 +1360,12 @@ test('launch: the nameservers\' addresses: looked up one by one; none found is a
   const zoneNs = { name_servers: ['ns1.lenas.test', 'ns2.lenas.test'] };
   assert.deepEqual(await nameserverIps(zoneNs, { clock, resolve4: async (n) => (n === 'ns1.lenas.test' ? ['192.0.2.53'] : ['192.0.2.53', '192.0.2.54']) }), ['192.0.2.53', '192.0.2.54']);
   assert.deepEqual(await nameserverIps(zoneNs, { clock, resolve4: async (n) => { if (n === 'ns1.lenas.test') throw new Error('no'); return ['192.0.2.54']; } }), ['192.0.2.54']);
-  await assert.rejects(nameserverIps(zoneNs, { clock, resolve4: async () => { throw new Error('no'); } }), (e) => e.code === 4 && /could not be looked up/.test(e.message));
-  await assert.rejects(nameserverIps(zoneNs, { clock: { left: () => 2000 }, resolve4: async () => ['192.0.2.53'] }), (e) => e.code === 4, 'too little time left is a wait too');
+  // Every way of finding no address gives the one message, which guesses no cause.
+  const none = (e) => e.code === 4 && /This run found no address for the zone's nameservers \(Cloudflare lists: (ns1\.lenas\.test, ns2\.lenas\.test|none)\)/.test(e.message) && !/time|could not be looked up/.test(e.message);
+  await assert.rejects(nameserverIps(zoneNs, { clock, resolve4: async () => { throw new Error('no'); } }), none);
+  await assert.rejects(nameserverIps(zoneNs, { clock: { left: () => 2000 }, resolve4: async () => ['192.0.2.53'] }), none, 'too little time left is a wait too');
+  await assert.rejects(nameserverIps({ name_servers: [] }, { clock, resolve4: async () => ['192.0.2.53'] }), none, 'no nameserver listed');
+  await assert.rejects(nameserverIps({}, { clock, resolve4: async () => ['192.0.2.53'] }), none);
   assert.deepEqual(await nameserverIps(zoneNs, { clock, resolverAt: '127.0.0.1:5353' }), ['127.0.0.1:5353']);
 });
 

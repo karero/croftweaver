@@ -531,13 +531,18 @@ when its list and this table differ. `launch` accepts every `--skip` id `setup` 
 is the switch, which `launch` does not write). Only the ids a run is given count: `setup`'s
 report prints the `launch` command with the ids it was run with, and a `fail` that gives 1
 says that if the setting was left out on purpose, its `--skip` belongs on the command.
-The report gives, for each thing set, what it was, what it is now, and how that was
-checked. Fail open, the build settings, Minimum TLS Version and the AI fields have no
-outside check: "read back through the API only", with the checklist's ssllabs test named
-for Lena to run. The report names the live address and, on a two-stage site, the address
-Cloudflare lists in `aliases` for `main`'s newest preview build (captures 021 to 026;
-read, not opened), or, where `main` has no preview build, says so. It lists what is left by hand, the script monitor's switch among it and HSTS with its earliest day, says that
-previews can be put behind a sign-in (D5), and reminds Lena to delete the token.
+The report gives, for each thing set, what it was, what it is now, and how that was checked.
+`setup`'s says Fail open, the build settings, Minimum TLS Version and the AI fields have no
+outside check: "read back through the API only". `launch`'s gives Fail open and the build
+settings as the project reads at that run, says it does not read Minimum TLS Version or the AI
+fields and that `setup`, run again, shows them, and names the checklist's ssllabs test for Lena
+to run (plan step 6's second review, R1-04 and R2-03: launch cannot know what setup read). The
+report names the live address and, on a two-stage site, the address Cloudflare lists in
+`aliases` for `main`'s newest preview build among the newest deployments read (captures 021 to
+026; read, not opened), or else where to find it, never that there is none (R2-04, R3-01). It
+lists what is left by hand, the script monitor's switch among it and HSTS with its earliest
+day, says that previews can be put behind a sign-in (D5), and reminds Lena to delete the
+token.
 
 **A finished setup** is one where every line of both lists reads as its end state, the
 project has a push build, and the domain is active with the check's `build`, `nel` and
