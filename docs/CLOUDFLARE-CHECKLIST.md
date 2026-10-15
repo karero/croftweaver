@@ -142,11 +142,11 @@ cookies, scripts or tracking you didn't choose.
   3. **Check.** Run the same command again. The `nel:` and `report-to:` lines should be
      gone. A `nel:` line, or a `report-to:` line that names `cf-nel`, is still NEL: step 4,
      whatever else the command shows. A `report-to:` line that sends to an address on
-     `csp-reporting.cloudflare.com`, or to `https://yourdomain.com/cdn-cgi/script-monitor/report`
-     (your domain, as in the command, with anything after a `?`), is Cloudflare's script
-     monitor: step 5. Cloudflare's settings page offers that second address only to
-     customers with Client-Side Security Advanced. We have not seen it on a live site, so
-     we don't know which lines carry it.
+     `csp-reporting.cloudflare.com`, or to an address on your own domain whose path is
+     `/cdn-cgi/script-monitor/report`, is Cloudflare's script monitor: step 5.
+     [Cloudflare's settings page](https://developers.cloudflare.com/client-side-security/reference/settings/)
+     offers that second address only to customers with Client-Side Security Advanced; we
+     have not seen it on a live site.
   4. **If they are still there, add a rule that removes them.** When we tried this on a
      Pages site, the switch alone did not stop the header: the setting read "off" through
      Cloudflare's API, and the header was still served half an hour later. Your domain →
@@ -286,10 +286,10 @@ You want a 200 status line (`HTTP/2 200`, or `HTTP/1.1 200 OK` on an older curl)
 nothing else until you switch HSTS on (section 2). A 3xx status line is not the 200 you want:
 find out what answers with it, and why, before you trust the rest. A `nel:` line
 means NEL is still on, and so does a `report-to:` line that names `cf-nel`. A `report-to:`
-line that sends to an address on `csp-reporting.cloudflare.com`, or to
-`https://yourdomain.com/cdn-cgi/script-monitor/report` (section 3, step 3, says where
-that one comes from), is Cloudflare's script monitor (section 3, step 5), and a clean
-answer does not show it is off. A `report-to:`
+line that sends to an address on `csp-reporting.cloudflare.com`, or to an address on
+your own domain whose path is `/cdn-cgi/script-monitor/report` (section 3, step 3), is
+Cloudflare's script monitor (section 3, step 5), and a clean answer does not show it is
+off. A `report-to:`
 line of your own is yours to judge. A `set-cookie:` line means
 something is setting a cookie: tell your assistant. Once HSTS is on you also want a
 `strict-transport-security:` line with `max-age=` followed by the seconds for the months
