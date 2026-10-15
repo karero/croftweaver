@@ -7,7 +7,7 @@
 // (url.<folder>.insteadOf), against a stub of Cloudflare's API and a stub nameserver on 127.0.0.1
 // (cloudflare-stub.mjs). The stub's answers are the trials' captures, cleaned and committed in
 // fixtures/cloudflare-api/; the first tests replay the captured calls against the stub and compare.
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, execFileSync, spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -216,6 +216,20 @@ const MADE_UP = {
   short: /^d\d{7}$/,
   number: /^100000\d$/,
   commitMessage: /^Made-up commit message \d+$/,
+  // Every other string with a space or a capital letter in it, keys included: Cloudflare's words,
+  // the trials' own labels, and the cleaner's notes. A sentence the private map missed fails.
+  freeText: new Set([
+    "Lena's Account", "Lena's Second Account", 'Free Website', 'USD', 'GET', 'PATCH', 'POST', 'PUT', 'CNAME', 'TXT', 'npm run build',
+    'This API Token is valid and active', 'Authentication error', 'Bad Request', 'An identical record already exists.',
+    'An A, AAAA, or CNAME record with that host already exists. For more details, refer to <https://developers.cloudflare.com/dns/manage-dns-records/troubleshooting/records-with-same-name/>.',
+    'You must set the `fail_open` property value equally for production and preview environments.',
+    'cf_robots_variant cannot be set to policy_only with is_robots_txt_managed set to true',
+    'could not find entrypoint ruleset in the http_response_headers_transform phase',
+    'Remove NEL headers', 'Trial: a second rule', 'Trial of a setup script; remove when the trial ends',
+    'multipart/form-data; boundary=----spike', '------spike--\r\n', '@SECRET@',
+    'CANONICAL_URL', 'NEL', 'Report-To', 'SPIKE_PLAIN', 'SPIKE_SECRET', 'contentType', 'emptyForm',
+  ]),
+  freeTextPattern: /^every ad_hoc deployment \(\d+ uploads, with clone_repo and build idle, and \d+ built by Cloudflare\) and the newest push build of each environment, of \d+ deployments on the six pages T1-021 to T1-026$/,
 };
 test('every id, address, host, account, repository, project and commit message in the fixtures is a made-up one', () => {
   const bad = [];
@@ -244,6 +258,8 @@ test('every id, address, host, account, repository, project and commit message i
     if (key === 'owner' && !MADE_UP.owners.includes(v)) no('a GitHub owner');
     if (key === 'repo_name' && !MADE_UP.repos.includes(v)) no('a repository');
     if (key === 'project_name' && !MADE_UP.projects.includes(v)) no('a project');
+    const freeText = /\s|[A-Z]/.test(v) && !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v) && !MADE_UP.commitMessage.test(v) && !/^T[12]-\d{3}$/.test(v);
+    if (freeText && !MADE_UP.freeText.has(v) && !MADE_UP.freeTextPattern.test(v)) no('free text not on the list');
   };
   const walk = (where, o, key = '') => {
     if (Array.isArray(o)) { o.forEach((x) => walk(where, x, key)); return; }
@@ -353,7 +369,12 @@ test('1: a new project: the first run writes nothing and asks; the run with the 
       deployment_configs: { production: { fail_open: true }, preview: { fail_open: true } },
     });
     assert.equal(writes.filter((e) => e.path.endsWith('/deployments')).length, 1, 'one build');
-    assert.match(writes.find((e) => e.path.endsWith('/deployments')).contentType, /^multipart\/form-data/);
+    // The same empty form the trial sent (T1-030), with the script's own boundary.
+    const sent = writes.find((e) => e.path.endsWith('/deployments'));
+    const trial = fixture('T1-030').request.body.emptyForm;
+    const boundary = /boundary=(\S+)/.exec(sent.contentType)[1];
+    assert.equal(sent.contentType, trial.contentType.replace('----spike', boundary));
+    assert.equal(sent.body, trial.bytes.replace('----spike', boundary));
     assert.deepEqual(state.settings, { always_use_https: 'on', min_tls_version: '1.2', email_obfuscation: 'off', nel: { enabled: false } });
     assert.equal(state.bot.bot_preference_sync_enabled, false);
     assert.ok(!api.log.some((e) => /\/domains/.test(e.path)), 'nothing goes near the domain');
@@ -394,7 +415,8 @@ test('4: a connected project publishing main, with no domain: the list says so, 
     assert.equal(r.code, 3);
     assert.match(r.out, /your live address would publish main, the preview; I will set the production branch to production/);
     await go(['--confirm', codeOf(r)]);
-    assert.deepEqual(api.writes()[0], { ...api.writes()[0], method: 'PATCH', body: { production_branch: 'production' } });
+    const first = api.writes()[0];
+    assert.deepEqual([first.method, first.path, first.body], ['PATCH', `/accounts/${ACCOUNT.id}/pages/projects/${REPO}`, { production_branch: 'production' }]);
   }));
 
 test('5: the same project serving her domain, or another one: it stops and writes nothing', async () => {
@@ -537,21 +559,22 @@ test('12: two proxied hosts: every setting line names both; --skip tls leaves TL
 });
 
 test('13: Bot Fight Mode on and training blocked: one PUT sets the checklist\'s values; with --skip ai the AI fields go as read', async () => {
-  const blocked = () => Object.assign(freshState().bot, { fight_mode: true, ai_training: 'block', bot_preference_sync_enabled: true, crawler_protection: 'enabled' });
+  // enable_js and cf_robots_variant are no line of the checklist: they go as read, whatever they are.
+  const blocked = () => Object.assign(freshState().bot, { fight_mode: true, enable_js: true, cf_robots_variant: 'off', ai_training: 'block', bot_preference_sync_enabled: true, crawler_protection: 'enabled' });
   await scenario(freshState({ bot: blocked() }), async ({ api, go }) => {
     await go(['--confirm', codeOf(await go())]);
     const put = api.writes().find((e) => e.method === 'PUT');
     assert.deepEqual(put.body, {
-      fight_mode: false, enable_js: false, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
-      crawler_protection: 'disabled', content_bots_protection: 'disabled', cf_robots_variant: 'policy_only', bot_preference_sync_enabled: false,
+      fight_mode: false, enable_js: true, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
+      crawler_protection: 'disabled', content_bots_protection: 'disabled', cf_robots_variant: 'off', bot_preference_sync_enabled: false,
     });
   });
   await scenario(freshState({ bot: blocked() }), async ({ api, go }) => {
     await go(['--skip', 'ai', '--confirm', codeOf(await go(['--skip', 'ai']))]);
     const put = api.writes().find((e) => e.method === 'PUT');
     assert.deepEqual(put.body, {
-      fight_mode: false, enable_js: false, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'block',
-      crawler_protection: 'enabled', content_bots_protection: 'disabled', cf_robots_variant: 'policy_only',
+      fight_mode: false, enable_js: true, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'block',
+      crawler_protection: 'enabled', content_bots_protection: 'disabled', cf_robots_variant: 'off',
     });
   });
 });
@@ -642,6 +665,7 @@ test('33: a token with no end date, one reaching a second zone (on page 2), a re
       assert.equal(r.code, 1, r.out);
       assert.match(r.out, want);
       onlyReads(api);
+      if (over.perPage) assert.ok(api.log.some((e) => e.path === '/zones' && /[?&]page=2\b/.test(e.query)), 'the second zone was on page 2, and page 2 was read');
     });
   }
 });
@@ -721,19 +745,99 @@ test('39: a run cut off between two writes: the next run with the same code read
   });
 });
 
-test('39: a stub that answers slowly: the run ends with 4 at its deadline, before 60 seconds', () =>
-  scenario(freshState({ delayMs: 30_000 }), async ({ go }) => {
-    const r = await go();
-    assert.equal(r.code, 4, r.out);
-    assert.match(r.out, /reached its time limit/);
-    assert.ok(r.ms < 60_000, `took ${r.ms} ms`);
-  }));
+// The two tests that wait out the 55-second deadline run side by side.
+describe('the deadline', { concurrency: true }, () => {
+  test('39: a stub that answers slowly: the run ends with 4 at its deadline, before 60 seconds', () =>
+    scenario(freshState({ delayMs: 30_000 }), async ({ go }) => {
+      const r = await go();
+      assert.equal(r.code, 4, r.out);
+      assert.match(r.out, /reached its time limit/);
+      assert.ok(r.ms < 60_000, `took ${r.ms} ms`);
+    }));
+
+  test('a git that never ends, with a program of its own holding the output open: stopped at the deadline, said as git, before 60 seconds', async (t) => {
+    if (process.platform === 'win32') { t.skip('the stand-in git is a shell script'); return; }
+    const bin = path.join(scratch, 'bin-hang');
+    mkdirSync(bin, { recursive: true });
+    const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+    // ls-remote starts a child that keeps stdout open, as ssh would, and waits.
+    writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nfor a in "$@"; do [ "$a" = ls-remote ] && { sleep 300 & wait; }; done\nexec "${realGit}" "$@"\n`);
+    chmodSync(path.join(bin, 'git'), 0o755);
+    await scenario((h) => finishedState(h), async ({ api, go }) => {
+      const r = await go([], { env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` } });
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /git did not finish reading the branches/);
+      assert.ok(r.ms < 60_000, `took ${r.ms} ms`);
+      onlyReads(api);
+    });
+  });
+});
 
 test('40: a token that ends in 30 days is refused: the checklist says a week at most', () =>
   scenario(freshState({ token: { status: 'active', expires_on: new Date(Date.now() + 30 * 86_400_000).toISOString() } }), async ({ api, go }) => {
     const r = await go();
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /The checklist says a week at most/);
+    onlyReads(api);
+  }));
+
+test('the zone\'s records cannot be read: no zone-wide setting is changed, since its hosts cannot be named (R5)', () =>
+  scenario(freshState({ refuse: { 'GET dns': 403 } }), async ({ api, go }) => {
+    const r = await go();
+    assert.equal(r.code, 3, r.out);
+    assert.doesNotMatch(r.out, /Always Use HTTPS: On \(/, 'no setting line is asked');
+    assert.match(r.out, /By hand: Always Use HTTPS: On\. the zone's records could not be read, so the hosts this setting changes cannot be named; the token needs the row Zone → DNS → Edit/);
+    const done = await go(['--confirm', codeOf(r)]);
+    assert.equal(done.code, 1, done.out);
+    assert.ok(!api.writes().some((e) => e.path.includes('/settings/') || e.path.endsWith('/bot_management')), 'no zone-wide write');
+  }));
+
+test('a CNAME that already points where it should, but proxied, is not "there already": it is by hand, and nothing is written', () =>
+  scenario((h) => Object.assign(finishedState(h), { dns: [{ id: 'c2', type: 'CNAME', name: `abcdef0123456789abcdef0123456789.${HOST}`, content: 'verify.bing.com', proxied: true }] }), async ({ api, go }) => {
+    const r = await go(['--record', 'CNAME abcdef0123456789abcdef0123456789 verify.bing.com']);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /but through Cloudflare \(proxied\); a verification record must be DNS only/);
+    onlyReads(api);
+  }));
+
+test('run from a folder inside the site, a tracked .dev.vars at the site\'s root is still refused before it is read', async () => {
+  await scenario(freshState(), async ({ api, where, dns }) => {
+    mkdirSync(path.join(where.site, 'src', 'pages'), { recursive: true });
+    const r = await run({ site: path.join(where.site, 'src', 'pages') }, [], { api, dns, token: null });
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /git tracks \.dev\.vars/);
+    assert.equal(api.log.length, 0);
+  }, { devVars: `CLOUDFLARE_API_TOKEN=${TOKEN}\n`, trackDevVars: true });
+});
+
+test('what decides is read from the project itself: a list item without its domains still leaves a live project alone', () =>
+  scenario(freshState({ projects: [project({ productionBranch: 'main', domains: [HOST] })], listItem: (p) => { delete p.domains; delete p.deployment_configs; return p; } }), async ({ api, go }) => {
+    const r = await go();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /does not repair a live site/);
+    assert.ok(api.log.some((e) => e.method === 'GET' && e.path === `/accounts/${ACCOUNT.id}/pages/projects/${REPO}`), 'the project was read');
+    onlyReads(api);
+  }));
+
+test('a build of the head that ended in a way no trial saw counts as failed: no new build, and the run says so', () =>
+  scenario((h) => {
+    const s = finishedState(h);
+    const d = deployment('built', { commit: h.production });
+    d.latest_stage = { name: 'build', status: 'canceled', started_on: null, ended_on: null };
+    s.deployments[REPO] = [deployment('push', { commit: h.main, branch: 'lenas-pr' }), d];
+    return s;
+  }, async ({ api, go }) => {
+    const r = await go();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /The newest production build of [0-9a-f]{7} failed: production, commit [0-9a-f]{7} \(build: canceled\)/);
+    onlyReads(api);
+  }));
+
+test('a list longer than 200 pages is not read in part: the run stops', () =>
+  scenario(freshState({ projects: Array.from({ length: 201 }, (_, i) => project({ name: `other-${i}`, source: { owner: 'someone', repo: `r${i}` } })), perPage: { zones: 50, projects: 1, deployments: 25 } }), async ({ api, go }) => {
+    const r = await go();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /runs past 200 pages/);
     onlyReads(api);
   }));
 
@@ -747,6 +851,7 @@ test('a code that does not fit the question changes nothing and asks again', () 
 
 test('a wrong command is status 2; launch is not in this version; the overrides take loopback addresses only', async () => {
   const where = makeSite();
+  const closed = 'http://127.0.0.1:9'; // so a run that got past its checks could reach no real API
   for (const [args, env, want] of [
     [['--skip', 'canonical'], {}, /belongs to the launch stage/],
     [['--skip', 'cdn'], {}, /--skip takes one of/],
@@ -754,8 +859,9 @@ test('a wrong command is status 2; launch is not in this version; the overrides 
     [['--project', 'Lenas_Site'], {}, /not a Pages project name/],
     [[], { CLOUDFLARE_SETUP_API: 'http://stub.example.com:8080' }, /literal loopback address/],
     [[], { CLOUDFLARE_SETUP_RESOLVER: '8.8.8.8:53' }, /literal loopback address/],
+    [[], { CLOUDFLARE_SETUP_RESOLVER: '127.0.0.1:99999' }, /literal loopback address/],
   ]) {
-    const r = await run(where, args, { env });
+    const r = await run(where, args, { env: { CLOUDFLARE_SETUP_API: closed, ...env } });
     assert.equal(r.code, 2, `${args.join(' ')} ${JSON.stringify(env)}: ${r.err}`);
     assert.match(r.err, want);
   }

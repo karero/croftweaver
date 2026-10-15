@@ -171,7 +171,7 @@ export function looksSwapped(rec) {
 function loopback(name, value, { origin }) {
   if (!value) return null;
   const host = origin ? /^http:\/\/(127(?:\.\d{1,3}){3}|\[::1\]):(\d{1,5})\/?$/.exec(value) : /^(127(?:\.\d{1,3}){3}|\[::1\]):(\d{1,5})$/.exec(value);
-  if (!host || (host[1].startsWith('127') && host[1].split('.').some((n) => Number(n) > 255))) {
+  if (!host || Number(host[2]) > 65535 || (host[1].startsWith('127') && host[1].split('.').some((n) => Number(n) > 255))) {
     throw new UsageError(`${name} must be a literal loopback address (${origin ? 'http://127.0.0.1:<port>' : '127.0.0.1:<port>'}), for tests only`);
   }
   return origin ? value.replace(/\/$/, '') : value;
@@ -196,38 +196,52 @@ function childEnv(token) {
   return env;
 }
 
-// A program with its input closed, given only the time left; stopped at the deadline, and killed a
-// second later if it has not ended.
+// A program with its input closed, given only the time left. At the deadline it is stopped, with
+// every program it started (on POSIX it runs in a group of its own: git starts ssh or a helper,
+// which would keep the output open), killed a second later, and the run goes on without waiting
+// for its output to close.
 function runProgram(cmd, args, { cwd, env, clock }) {
   return new Promise((resolve, reject) => {
     const ms = clock.left();
     if (ms <= 0) { reject(new Deadline()); return; }
+    const posix = process.platform !== 'win32';
     let out = '';
     let err = '';
     let timedOut = false;
+    let settled = false;
     let child;
     try {
-      child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: posix });
     } catch (e) {
       reject(new Stop(1, `could not run ${cmd}: ${e.message}`));
       return;
     }
+    const kill = (signal) => {
+      try {
+        if (posix) process.kill(-child.pid, signal);
+        else child.kill(signal);
+      } catch { /* it has ended */ }
+    };
+    const settle = (fn) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGTERM');
-      setTimeout(() => child.kill('SIGKILL'), 1000).unref();
+      kill('SIGTERM');
+      setTimeout(() => {
+        kill('SIGKILL');
+        child.stdout.destroy();
+        child.stderr.destroy();
+        settle(() => reject(new Deadline()));
+      }, 1000);
     }, ms);
     child.stdout.on('data', (c) => { out += c; });
     child.stderr.on('data', (c) => { err += c; });
-    child.on('error', (e) => {
-      clearTimeout(timer);
-      reject(new Stop(1, e.code === 'ENOENT' ? `${cmd} is not installed, or not on the PATH` : `could not run ${cmd}: ${e.message}`));
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (timedOut) reject(new Deadline());
-      else resolve({ code, stdout: out, stderr: err });
-    });
+    child.on('error', (e) => settle(() => reject(new Stop(1, e.code === 'ENOENT' ? `${cmd} is not installed, or not on the PATH` : `could not run ${cmd}: ${e.message}`))));
+    child.on('close', (code) => settle(() => (timedOut ? reject(new Deadline()) : resolve({ code, stdout: out, stderr: err }))));
   });
 }
 
@@ -309,7 +323,7 @@ async function allPages(api, p, perPage) {
     const pages = r.body?.result_info?.total_pages;
     if (!got.length || !pages || page >= pages) return { r, items };
   }
-  return { r: null, items };
+  throw new Stop(1, `Cloudflare's list at ${p.split('?')[0]} runs past 200 pages; the script does not decide from part of a list.`);
 }
 
 // The project's deployments, newest first, read a page at a time and only as far as a question needs.
@@ -319,6 +333,7 @@ function deploymentReader(api, base) {
   let done = false;
   const more = async () => {
     page++;
+    if (page > 200) throw new Stop(1, 'The project has more than 200 pages of deployments; the script does not decide from part of the list.');
     const r = await api('GET', `${base}/deployments?page=${page}`);
     if (!ok(r)) throw new Stop(1, `Cloudflare did not list the project's deployments: ${refusal(r, ROW.pages)}.`);
     const got = Array.isArray(r.body?.result) ? r.body.result : [];
@@ -346,8 +361,11 @@ const short = (sha) => String(sha).slice(0, 7);
 // Cloudflare built it: an upload has the stages clone_repo and build idle (captures 021 to 026).
 export const cloudflareBuilt = (d) => stageOf(d, 'clone_repo') === 'success' && stageOf(d, 'build') === 'success';
 export const succeeded = (d) => d?.latest_stage?.name === 'deploy' && d.latest_stage.status === 'success';
-export const failed = (d) => d?.latest_stage?.status === 'failure';
 export const running = (d) => !d?.is_skipped && ['idle', 'active'].includes(d?.latest_stage?.status);
+// Failed, or ended in a way the trials never saw: whatever is neither skipped, running nor succeeded
+// (no trial had a failed build; Cloudflare's reference names its status "failure"). Read so, a word
+// the script does not know stops it instead of starting the same build again.
+export const failed = (d) => Boolean(d) && !d.is_skipped && !running(d) && !succeeded(d);
 // A good production build of a commit: production, that commit, succeeded, built by Cloudflare, and
 // made while the production branch was the one it is now (a deployment records it, capture 055).
 export const goodProductionBuild = (d, sha, prod) => d?.environment === 'production' && commitOf(d) === sha
@@ -415,7 +433,13 @@ async function setupStage(opts, io) {
   env = childEnv(token);
   const api = makeApi(apiOrigin ?? API_HOST, token, clock);
 
-  const heads = await git('ls-remote', '--heads', 'origin');
+  let heads;
+  try {
+    heads = await git('ls-remote', '--heads', 'origin');
+  } catch (e) {
+    if (!(e instanceof Deadline)) throw e;
+    throw new Stop(1, `git did not finish reading the branches of ${repository} within the run's time. If the remote is an SSH address, ssh may be waiting for a passphrase or a host key: run git ls-remote origin once yourself, then run this again.`);
+  }
   if (heads.code !== 0) throw new Stop(1, `git could not read the branches of ${repository} on GitHub. Check that this computer can reach it (git fetch origin), then run again.`);
   const branch = new Map(heads.stdout.split('\n').map((l) => l.split('\t')).filter((p) => p.length === 2)
     .map(([sha, ref]) => [ref.replace(/^refs\/heads\//, ''), sha]));
@@ -504,7 +528,17 @@ async function setupStage(opts, io) {
     }
   }
   const projectAt = `${projectsAt}/${name}`;
-  const custom = project ? (project.domains ?? []).filter((d) => d !== project.subdomain) : [];
+  // The list gave the name; what is decided (its domains, variables, Fail open) is read from the
+  // project itself, in the shape the trial captured (T1-054).
+  if (project) {
+    const one = await api('GET', projectAt);
+    if (!ok(one) || !one.body?.result) throw new Stop(1, `Cloudflare did not return the project ${name}: ${refusal(one, ROW.pages)}.`);
+    project = one.body.result;
+    if (!Array.isArray(project.domains) || !project.deployment_configs) {
+      throw new Stop(1, `Cloudflare returned the project ${name} without its domains or settings, so the script cannot tell whether it is live. Nothing was changed.`);
+    }
+  }
+  const custom = project ? project.domains.filter((d) => d !== project.subdomain) : [];
 
   // What changes on the project: created whole, or a PATCH that holds only what changes.
   let create = null;
@@ -574,6 +608,8 @@ async function setupStage(opts, io) {
     ? `It changes the whole domain ${zone.name}, not only this site: ${hosts.length ? `the hosts that run through Cloudflare are ${hosts.join(', ')}` : 'no host runs through Cloudflare yet'}.`
     : `It changes the whole domain ${zone.name}, not only this site; which hosts run through it could not be read (the token needs the row ${ROW.dns}).`;
 
+  // R5: a zone-wide change is asked only with the hosts it touches named.
+  const hostsUnknown = `the zone's records could not be read, so the hosts this setting changes cannot be named; the token needs the row ${ROW.dns}`;
   const lines = []; // one per setting and record: { id, title, state, now, want, say }
   for (const s of SETTINGS) {
     const line = { id: s.id, title: s.title, path: s.path, kind: 'setting', def: s };
@@ -583,6 +619,7 @@ async function setupStage(opts, io) {
     if (!ok(r)) { line.state = 'unread'; line.why = refusal(r, ROW.settings); continue; }
     line.now = r.body.result?.value;
     line.state = isDeepStrictEqual(line.now, s.value) ? 'as-is' : 'change';
+    if (line.state === 'change' && !records) { line.state = 'unread'; line.why = hostsUnknown; }
   }
   const botRead = await api('GET', `${zoneAt}/bot_management`);
   const bot = ok(botRead) ? botRead.body.result ?? {} : null;
@@ -593,6 +630,7 @@ async function setupStage(opts, io) {
     if (opts.skip.includes(b.id)) { line.state = 'skipped'; continue; }
     if (!bot) { line.state = 'unread'; line.why = refusal(botRead, ROW.bot); continue; }
     line.state = isDeepStrictEqual(line.now, b.fields) ? 'as-is' : 'change';
+    if (line.state === 'change' && !records) { line.state = 'unread'; line.why = hostsUnknown; }
   }
 
   // 6. The records given with --record.
@@ -607,7 +645,9 @@ async function setupStage(opts, io) {
       line.state = here.some((x) => x.type === 'TXT' && unquote(x.content) === unquote(r.content)) ? 'as-is' : 'change';
     } else {
       const address = here.find((x) => ['A', 'AAAA', 'CNAME'].includes(x.type));
-      if (address && address.type === 'CNAME' && address.content.toLowerCase().replace(/\.$/, '') === r.content) line.state = 'as-is';
+      const sameTarget = address && address.type === 'CNAME' && address.content.toLowerCase().replace(/\.$/, '') === r.content;
+      if (sameTarget && !address.proxied) line.state = 'as-is';
+      else if (sameTarget) { line.state = 'clash'; line.why = `${fullName} already points to ${r.content}, but through Cloudflare (proxied); a verification record must be DNS only. Switch its proxy off by hand (DNS → Records → the record → Proxy status)`; }
       else if (address) { line.state = 'clash'; line.why = `${fullName} already has ${address.type} ${address.content}; this one would point it to ${r.content}. Cloudflare allows one of them, and the script changes no record it did not make: decide which is right and change it by hand`; }
       else line.state = 'change';
     }
@@ -620,8 +660,8 @@ async function setupStage(opts, io) {
     skip: opts.skip, hosts, records: recs.map((l) => l.rec),
   });
   const changes = projectSay.length + (build.kind === 'needed' ? 1 : 0) + lines.filter((l) => l.state === 'change').length;
-  const previewsOff = project && project.source?.config?.preview_deployment_setting !== undefined
-    && project.source.config.preview_deployment_setting !== 'all';
+  const buildsNoPreviews = (p) => p.source?.config?.preview_deployment_setting !== 'all';
+  const previewsOff = Boolean(project) && buildsNoPreviews(project);
 
   say(`Cloudflare setup for ${host} (zone ${zone.name}, account ${account.name})`);
   say(`Repository ${repository}, ${model}: ${model === 'two-stage' ? 'production is the live branch, main the preview' : 'main is the live branch'}. Project ${name}${project ? ` (exists${custom.length ? `, serves ${custom.join(', ')}` : ''})` : ' (to be created)'}.`);
@@ -758,7 +798,7 @@ async function setupStage(opts, io) {
   deps.reset();
   const proof = await deps.find(pushProof);
   const skipped = proof ? null : await deps.find((d) => d.deployment_trigger?.type === 'github:push' && d.is_skipped);
-  const previewsOffNow = project.source?.config?.preview_deployment_setting !== 'all';
+  const previewsOffNow = buildsNoPreviews(project);
 
   // The report.
   for (const l of lines) reportLine(say, l, hostsSay);
@@ -794,7 +834,7 @@ async function setupStage(opts, io) {
     say(`Waiting for ${results.waiting.join(' and ')}. Run the same command again in a few minutes. Status 4.`);
     return 4;
   }
-  say(`Setup is done, as far as Cloudflare's API shows: the settings were read back through the API only. Requests to the domain come on launch day, which checks them from outside. The launch stage is not in this version: attach the domain by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md). The live build is at https://${project.subdomain}/`);
+  say(`Setup is done, as far as Cloudflare's API shows: the settings were read back through the API only. Requests to the domain come on launch day, which checks them from outside and adds the NEL header rule if the headers are still sent. The launch stage is not in this version: attach the domain by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md). The live build is at https://${project.subdomain}/`);
   return 0;
 }
 
@@ -889,11 +929,11 @@ async function readToken(root, git) {
   if (!existsSync(file)) {
     throw new Stop(1, 'No token: set CLOUDFLARE_API_TOKEN for this session, or put CLOUDFLARE_API_TOKEN=… in .dev.vars (a file git ignores). The checklist\'s section 6 says how to make it.');
   }
-  const tracked = await git('ls-files', '--error-unmatch', '--', '.dev.vars');
+  const tracked = await git('-C', root, 'ls-files', '--error-unmatch', '--', '.dev.vars');
   if (tracked.code === 0) {
     throw new Stop(1, 'git tracks .dev.vars, so a token in it would be committed. The file was not read. Stop tracking it (git rm --cached .dev.vars), add .dev.vars to .gitignore, and make a new token: the old one may already be in the history.');
   }
-  const ignored = await git('check-ignore', '-q', '--', '.dev.vars');
+  const ignored = await git('-C', root, 'check-ignore', '-q', '--', '.dev.vars');
   if (ignored.code !== 0) {
     throw new Stop(1, '.dev.vars is not ignored by git, so the next commit could take the token with it. The file was not read. Add .dev.vars to .gitignore, then run this again.');
   }
@@ -905,9 +945,8 @@ async function readToken(root, git) {
 // ---------------------------------------------------------------- running it
 
 export async function main(argv, io = {}) {
-  const out = [];
   const say = io.say ?? ((...l) => { for (const x of l) process.stdout.write(`${x}\n`); });
-  const sink = (...l) => { out.push(...l); say(...l); };
+  const sink = say;
   let opts;
   try {
     opts = parseArgs(argv);

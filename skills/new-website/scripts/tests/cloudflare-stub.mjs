@@ -176,7 +176,7 @@ const listOf = (items, page, perPage, template) => {
 };
 const secretBlank = (vars) => (vars ? Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.type === 'secret_text' ? { type: v.type, value: '' } : { ...v }])) : vars);
 
-export function handle(state, method, p, query, body) {
+export function handle(state, method, p, query, body, contentType) {
   const route = ROUTES.find(([m, re]) => m === method && re.test(p));
   if (!route) return notFound(`${method} ${p}`);
   const [, re, name] = route;
@@ -193,8 +193,8 @@ export function handle(state, method, p, query, body) {
       if (state.token.expires_on) b.result.expires_on = state.token.expires_on;
       return { status: 200, body: b };
     }
-    case 'GET zones':
-      return listOf(state.zones, page, Number(query.get('per_page') ?? state.perPage.zones), answer('T1-002'));
+    case 'GET zones': // a page holds what was asked for, at most state.perPage.zones
+      return listOf(state.zones, page, Math.min(Number(query.get('per_page') ?? 50), state.perPage.zones), answer('T1-002'));
     case 'GET setting': {
       const b = answer('T1-067');
       if (!(args[1] in state.settings)) return notFound(args[1]);
@@ -213,11 +213,15 @@ export function handle(state, method, p, query, body) {
       return { status: 200, body: b };
     }
     case 'PUT bot': {
-      // is_robots_txt_managed true with cf_robots_variant policy_only is refused (T2-059, T2-065); a
-      // field left out keeps its value (T2-061, T2-062); the answer carries no result (T2-061).
-      if (body.is_robots_txt_managed === true) return { status: 400, body: answer('T2-065') };
+      // is_robots_txt_managed true with cf_robots_variant policy_only is refused (T2-059, T2-065), as
+      // Cloudflare's message says; a field left out keeps its value (T2-061, T2-062); the answer is
+      // the whole object (T2-061).
+      const variant = body.cf_robots_variant ?? state.bot.cf_robots_variant;
+      if (body.is_robots_txt_managed === true && variant === 'policy_only') return { status: 400, body: answer('T2-065') };
       Object.assign(state.bot, copy(body));
-      return { status: 200, body: answer('T2-061') };
+      const b = answer('T2-061');
+      b.result = copy(state.bot);
+      return { status: 200, body: b };
     }
     case 'GET dns':
       return listOf(state.dns, page, Number(query.get('per_page') ?? 100), answer('T2-035'));
@@ -240,8 +244,9 @@ export function handle(state, method, p, query, body) {
     }
     case 'GET projects':
       // MADE: no trial kept a list of projects that may be committed; the envelope is the
-      // deployments list's (T1-028), ten to a page as the live account's list was.
-      return listOf(state.projects.map(copy), page, state.perPage.projects, answer('T1-028'));
+      // deployments list's (T1-028), ten to a page as the live account's list was. With
+      // `state.listItem`, each item is cut down, to show the script decides from the project read.
+      return listOf(state.projects.map((x) => (state.listItem ? state.listItem(copy(x)) : copy(x))), page, state.perPage.projects, answer('T1-028'));
     case 'POST projects': {
       // The project as created (T1-027): Cloudflare fills in the ids and the defaults.
       const p = project({ name: body.name, productionBranch: body.production_branch, failOpen: body.deployment_configs?.production?.fail_open ?? false,
@@ -272,10 +277,13 @@ export function handle(state, method, p, query, body) {
       return listOf(list.map(copy), page, state.perPage.deployments, answer('T1-040'));
     }
     case 'POST deployments': {
-      // An empty form builds the head of the production branch, as production, ad_hoc (T1-030);
-      // a second call while one is queued starts a second build (T1-031).
+      // An empty form builds the head of the production branch, as production, ad_hoc (T1-030, whose
+      // request is that empty form); a second call while one is queued starts a second build (T1-031).
+      // MADE: anything but an empty form is refused here, since no trial sent another.
       const p = state.projects.find((x) => x.name === args[1]);
       if (!p) return notFound('project');
+      const boundary = /boundary=(\S+)/.exec(contentType ?? '')?.[1];
+      if (!boundary || body !== `--${boundary}--\r\n`) return { status: 400, body: { success: false, errors: [{ code: 8000000, message: 'MADE: the stub takes only an empty form' }], messages: [] } };
       const d = deployment('queued', { commit: state.heads[p.production_branch], productionBranch: p.production_branch, name: p.name });
       d.env_vars = secretBlank(p.deployment_configs.production.env_vars);
       d.build_config = { ...d.build_config, ...p.build_config };
@@ -342,7 +350,7 @@ export async function startApi(state) {
       if (state.delayMs) await new Promise((r) => setTimeout(r, state.delayMs).unref());
       let out;
       if (req.headers.authorization !== `Bearer ${TOKEN}`) out = { status: 401, body: answer('T1-014') };
-      else out = handle(state, req.method, p, url.searchParams, body);
+      else out = handle(state, req.method, p, url.searchParams, body, req.headers['content-type']);
       entry.status = out.status;
       if (state.after) state.after(entry);
       res.writeHead(out.status, { 'content-type': 'application/json' });

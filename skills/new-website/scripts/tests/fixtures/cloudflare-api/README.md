@@ -14,9 +14,12 @@ made-up ones (Lena's bakery, `lenas-backstube`), from a private map kept beside 
 captures; every id, commit hash and GitHub id by a made-up one, mostly zeros; every commit
 message by "Made-up commit message N". Email fields and the registrar's nameservers are left
 out. A test checks every id, address, host, account, repository, project and commit message
-in these files against the made-up values, so a value the cleaner missed fails it. `T1-021`
-is an excerpt: the uploads and one push build of each environment from the six pages of a
-live project's deployments (T1-021 to T1-026); it says so in its `excerpt` field.
+in these files against the made-up values, and every free-text string against a list, so a
+value the cleaner missed fails it. `T1-021` is an excerpt: every `ad_hoc` deployment (two
+uploads and one that Cloudflare built) and one push build of each environment, from the six
+pages of a live project's deployments (T1-021 to T1-026); it says so in its `excerpt` field.
+The deployment call's request (T1-030 and the others) is the empty form the trial's helper
+sent, recorded as `emptyForm`.
 
 ## Which file backs which claim
 

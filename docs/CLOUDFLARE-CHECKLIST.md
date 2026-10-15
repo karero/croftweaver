@@ -383,8 +383,11 @@ look but not change anything):
 | Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
 
 **What it writes.** For the settings above, these are the fields and values the assistant
-sends, and reads back afterwards. Each zone setting is its own call; the Bot Management fields
-go in one call, with the fields it does not change sent as they are.
+sends, and reads back afterwards. Each zone setting is its own call. The Bot Management fields
+go in one call, which sends the fields it does not change as it read them, with two
+exceptions: it leaves out `is_robots_txt_managed` (Cloudflare refused it as `true` beside
+`cf_robots_variant` `policy_only`, code 10400), and, when the AI lines are left as they are,
+`bot_preference_sync_enabled`.
 
 | Setting | API field | Value |
 |---|---|---|

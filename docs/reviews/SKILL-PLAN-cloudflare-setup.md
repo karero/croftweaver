@@ -249,7 +249,7 @@ argument; `.dev.vars` is refused if git tracks it or does not ignore it. It goes
 `api.cloudflare.com`, and the environment of every program the script starts (`git`, the
 check script) has it removed. A token with no end date is refused: token verify then
 omits `expires_on` (capture 001; with an end date it carries one, capture 003). So is one
-whose end date is more than seven days ahead (the checklist: "a week at most"), one whose
+whose end date is more than eight days ahead (the checklist's "a week at most", with a day's room: the dashboard sets a date, not a time; plan step 6 settled it so), one whose
 verify call or zone list is refused, and one whose zone list, read page by page to its
 end, shows more than this site's zone (capture 002 showed one zone for a token limited to
 one). The account in the code is the zone's own: the
@@ -606,7 +606,7 @@ written: the project was removed, the two rules are the maintainer's to remove b
 | A missing response-header ruleset answers code 10003; one PUT to the phase creates it with one rule; the call that adds one rule appends and leaves the first rule's id and version as they were | T2-018, T2-023 to T2-025 |
 | An apex holding only an A record behaves like a host below the zone: attaching keeps its A record, "CNAME record not set"; one PATCH to a proxied CNAME, with a comment, keeps the id; verification active after about a minute, the domain after 2 minutes 18 seconds; the apex then served the production build | T2-042 to T2-056 |
 | A record comment holds 100 characters; 101 is refused, code 9313 | T2-057, T2-058 |
-| A Bot Management PUT that changes a value works and keeps the three fields it leaves out, `bot_preference_sync_enabled: true` among them; `ai_training` takes `disallow`, and a PUT that changed it back to `disabled` was accepted and read back (T2-073, T2-077); a PUT with `ai_training: block` and `is_robots_txt_managed: true` was refused (10400), and so was one with `is_robots_txt_managed: true` alone | T2-059 to T2-062, T2-065, T2-066 |
+| A Bot Management PUT that changes a value works and keeps the three fields it leaves out, `bot_preference_sync_enabled: true` among them; `ai_training` takes `disallow`, and a PUT that changed it back to `disabled` was accepted and read back (T2-073, T2-077); a PUT with `ai_training: block` and `is_robots_txt_managed: true` was refused (10400), and so was one that changed only `is_robots_txt_managed` to `true`; both sent `cf_robots_variant: policy_only`, and Cloudflare's message names that pair | T2-059 to T2-062, T2-065, T2-066 |
 | `bot_preference_sync_enabled` is Bot Preference Sync: on, with training disallowed, Cloudflare put 132 lines of its own in front of the site's `robots.txt`; off, the site's own file came back within 15 seconds | T2-061 to T2-064 |
 | The checklist's NEL rule removed `NEL` and `Report-To` from the apex within 20 seconds | T2-067 |
 | Removed on the maintainer's word: the domain, the apex record, the test record, the ruleset, the project; Bot Management put back as found, read back the same | T2-069 to T2-078 |

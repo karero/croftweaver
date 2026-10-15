@@ -1,6 +1,6 @@
 {
   "capture": "T1-021",
-  "excerpt": "the 3 uploads and the newest push build of each environment, of 128 deployments on the six pages T1-021 to T1-026",
+  "excerpt": "every ad_hoc deployment (2 uploads, with clone_repo and build idle, and 1 built by Cloudflare) and the newest push build of each environment, of 128 deployments on the six pages T1-021 to T1-026",
   "request": {
     "method": "GET",
     "path": "/accounts/c0ffee00000000000000000000000020/pages/projects/lenas-old/deployments?per_page=25",

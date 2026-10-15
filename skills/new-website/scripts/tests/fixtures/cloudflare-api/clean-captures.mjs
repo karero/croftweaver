@@ -40,7 +40,11 @@ function main([t1, t2, mapFile, out]) {
       const [method, p] = line.split(' ');
       const bodyText = bodyLines.join('\n').trim();
       let body = null;
-      if (bodyText) { try { body = JSON.parse(bodyText); } catch { body = bodyText; } }
+      if (bodyText === '@form') {
+        // The trial's helper (cf.sh, kept beside the captures) wrote "@form" for the deployment call
+        // and sent this: an empty multipart form, its closing boundary alone.
+        body = { emptyForm: { contentType: 'multipart/form-data; boundary=----spike', bytes: '------spike--\r\n' } };
+      } else if (bodyText) { try { body = JSON.parse(bodyText); } catch { body = bodyText; } }
       const text = readFileSync(at('response.json'), 'utf8');
       raw.push({
         trial, n, label: base.slice(4),
@@ -65,7 +69,8 @@ function main([t1, t2, mapFile, out]) {
   for (const env of ['production', 'preview']) keep.push(every.find((d) => d.deployment_trigger.type === 'github:push' && d.environment === env));
   live.response.result = keep;
   live.response.result_info = { ...live.response.result_info, count: keep.length };
-  live.excerpt = `the ${keep.length - 2} uploads and the newest push build of each environment, of ${every.length} deployments on the six pages T1-021 to T1-026`;
+  const uploads = keep.filter((d) => d.deployment_trigger.type === 'ad_hoc' && d.stages.find((s) => s.name === 'build').status === 'idle').length;
+  live.excerpt = `every ad_hoc deployment (${uploads} uploads, with clone_repo and build idle, and ${keep.length - 2 - uploads} built by Cloudflare) and the newest push build of each environment, of ${every.length} deployments on the six pages T1-021 to T1-026`;
   keep.filter((d) => d.environment === 'preview').forEach((d, i) => {
     const slug = (b) => b.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     const from = d.deployment_trigger.metadata.branch;

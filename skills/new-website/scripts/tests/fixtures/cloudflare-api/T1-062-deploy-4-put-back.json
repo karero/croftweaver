@@ -3,7 +3,12 @@
   "request": {
     "method": "POST",
     "path": "/accounts/c0ffee00000000000000000000000020/pages/projects/lenas-backstube/deployments",
-    "body": "@form"
+    "body": {
+      "emptyForm": {
+        "contentType": "multipart/form-data; boundary=----spike",
+        "bytes": "------spike--\r\n"
+      }
+    }
   },
   "status": 200,
   "response": {
