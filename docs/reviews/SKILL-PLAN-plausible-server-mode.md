@@ -18,7 +18,7 @@ the files win. The business in the scenarios is made up.
 | 7 | Review gate (High) | ✅ clean 2026-10-16: 5 rounds, a final full read, a merge link and a wording pass; F6 waived by the owner, F11 open until step 6 | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
 | 8 | PR | ✅ merged 2026-10-16 | #339, merge commit `17ade087` |
 | 9 | Test for the build-time subject check (a subject over 200 characters fails a server-mode build) | ✅ CI builds 200 and 201 characters in server mode, 201 in script mode | `template-tests.yml`, step "Server mode refuses an email subject over 200 characters at build time"; review finding H4 in `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
-| 10 | Release-note line | ✅ in the v0.32 notes (2026-10-16) | `docs/BUGLOG.md`, row "Next release notes, for analytics server mode" |
+| 10 | Release-note line | ✅ in the v0.32 notes (2026-10-16) | [v0.32](https://github.com/karero/croftweaver/releases/tag/v0.32), "Count visitors without a script"; the `docs/BUGLOG.md` row "Next release notes, for analytics server mode" is still open until it is closed with the release's other rows |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
