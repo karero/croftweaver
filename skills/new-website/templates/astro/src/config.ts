@@ -48,14 +48,19 @@ export const KNOWS_ABOUT: string[] = [];
 // https://plausible.io for the paid cloud version). Fire only on the production
 // deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built.
 //
-// No analytics at all: set USE_ANALYTICS to false. Then no build, the live one
-// included, writes the script or the stub, and nothing on the page sends anything to
-// an analytics host. Also take the host out of script-src and connect-src in
-// public/_headers, and delete the analytics paragraphs of section 3 of the privacy
-// page. Then run `bash tests/check_analytics_gate.sh` (a site's CI does not): it
-// checks the builds and the headers. Leave scriptHost and scriptId as they are:
-// Base.astro still names them. Email links and the contact form keep working; they
-// count a tap only when Plausible is on the page.
+// The starter ships with analytics OFF (USE_ANALYTICS = false): no build, the live one
+// included, writes the script or the stub, and nothing on the page sends anything to an
+// analytics host. A site without analytics keeps it that way and deletes the analytics
+// paragraphs of section 3 of the privacy page.
+//
+// To switch Plausible on: set USE_ANALYTICS to true, fill in scriptHost and scriptId
+// below, and add the same host to script-src and connect-src in public/_headers. Keep the
+// privacy page's analytics paragraphs and fill their slots. Then run
+// `bash tests/check_analytics_gate.sh` (a site's CI does not): it checks the builds and
+// the headers, either way. Off or on, leave scriptHost and scriptId in place: Base.astro
+// and tests/privacy-host.spec.ts read them. Email links and the contact form work either
+// way; they count a tap only when Plausible is on the page. Left off by mistake,
+// Plausible gets no data and nothing says so.
 //
 // scriptId is the per-site script Plausible's installer shows (Settings > General >
 // Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is
@@ -86,7 +91,7 @@ export const KNOWS_ABOUT: string[] = [];
 export const PROD_BRANCH = 'production';
 
 // Keep the value on one line: tests/check_analytics_gate.sh reads it.
-export const USE_ANALYTICS = true;
+export const USE_ANALYTICS = false;
 
 export const ANALYTICS = {
   enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,

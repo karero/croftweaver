@@ -25,7 +25,7 @@
 #      lets THE INIT STUB run: 'unsafe-inline' alone in the directive, or the stub's own
 #      sha256 hash. Off for the other three, with no tag, no half of one and no mention of
 #      the script's path or id.
-# With USE_ANALYTICS = false in src/config.ts (the owner declined analytics), steps 2 and 3
+# With USE_ANALYTICS = false in src/config.ts (as the starter ships), steps 2 and 3
 # turn around: public/_headers must NOT list the host (with or without a path) in
 # script-src, script-src-elem, connect-src or default-src, and all four builds, the live one
 # included, must be off. A config.ts that never

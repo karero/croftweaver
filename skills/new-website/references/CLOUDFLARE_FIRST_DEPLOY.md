@@ -185,9 +185,10 @@ live fast with zero dashboard time.
 npx wrangler pages project create <project> --production-branch <production-branch>
 
 # 2. Build, then deploy the static output. Both lines take the production branch from step 1.
-#    CF_PAGES_BRANCH: analytics is switched on at build time, only when this equals
-#    PROD_BRANCH in src/config.ts. Cloudflare sets it only when IT builds; this build runs
-#    here, so without it the live site ships with no analytics script (no error, no data).
+#    CF_PAGES_BRANCH: with analytics switched on (USE_ANALYTICS = true in src/config.ts; the
+#    starter ships it off), the build writes the script only when this equals PROD_BRANCH
+#    in src/config.ts. Cloudflare sets it only when IT builds; this build runs here, so
+#    without it the live site ships with no analytics script (no error, no data).
 #    The kit ships PROD_BRANCH = 'production': if step 1 chose main, first set PROD_BRANCH
 #    in src/config.ts to 'main'. For a preview deploy, build with `CF_PAGES_BRANCH= npm run build`
 #    (set to empty, so an exported value can't switch analytics on), then deploy with any
