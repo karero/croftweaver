@@ -81,8 +81,8 @@ export const KNOWS_ABOUT: string[] = [];
 // stub that calls plausible.init(); without the stub the script never starts.
 //
 // The site's one conversion, the "Email Tap" event, is sent (script mode; in server mode by
-// functions/go/email.ts) from src/components/EmailLink.astro (and public/js/mail-form.js when the contact form is
-// installed). It needs a goal named exactly "Email Tap" in Plausible before launch. Plausible
+// functions/go/email.ts) from src/components/EmailLink.astro (and, in script mode only, public/js/mail-form.js when
+// the contact form is installed). It needs a goal named exactly "Email Tap" in Plausible before launch. Plausible
 // counts a custom event as interaction, so a visit with a tap is not a bounce (its default,
 // kept on purpose). Another analytics tool means changing those two calls and section 3 of
 // the privacy page.

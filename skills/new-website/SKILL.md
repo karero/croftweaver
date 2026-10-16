@@ -196,7 +196,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      wants no analytics code on the visitor's device: the site's Cloudflare Function
      sends each page view and email tap to Plausible itself, so no script loads and
      nothing is read from or written to the device. It loses scroll depth, engaged
-     time, the optional measurements and excluding the owner's own visits (`plausible_ignore`), the contact form's button is not counted
+     time, the optional measurements and the exclusion of the owner's own visits (`plausible_ignore`), the contact form's button is not counted
      (only email links are), and a visitor can no longer opt out by blocking a script.
      Its numbers differ from the script's: it counts visitors who block scripts, but not
      a page a browser prefetched or prerendered before the visitor opened it, and not
@@ -207,7 +207,9 @@ non-expert can answer, and record the answers in the project `README.md`.
      EDPB Guidelines 2/2023 (paras 54–56) say IP-based tracking can itself fall under
      the ePrivacy rule, so it is a stronger position, not a way out of a review. It
      needs two Production variables in Cloudflare (`PLAUSIBLE_HOST`,
-     `PLAUSIBLE_DOMAIN`; the starter README, step 4) and works with self-hosted
+     `PLAUSIBLE_DOMAIN`; the starter README, step 4; an existing site also takes the
+     site-owned files that step names, which `whats-new` does not report, or it keeps
+     counting with the script too) and works with self-hosted
      Plausible (tried on Community Edition 3.2.1) and, per Plausible's documentation,
      with the cloud version (not tried there with a real site). Counting uses the
      Functions quota the site already uses (free plan: 100,000 requests a day); past
