@@ -158,11 +158,13 @@ non-expert can answer, and record the answers in the project `README.md`.
      to five top countries for at least the last 30 days, bots included; page views, and
      filtering by referrer, need a paid plan
      (https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/,
-     checked October 2026). It counts no events, so it cannot show enquiries. Nor can
-     Cloudflare's separate "Web Analytics" (custom events "not yet",
-     https://developers.cloudflare.com/web-analytics/faq/, checked October 2026), which
-     is a script in the visitor's browser: keep it off (`docs/CLOUDFLARE-CHECKLIST.md`,
-     section 3, "Cloudflare Web Analytics: Off"). The starter ships with its own analytics off
+     checked October 2026). It counts requests and visitors, not events such as an
+     enquiry, so it cannot give the enquiry count. Cloudflare's separate "Web Analytics"
+     cannot either: its FAQ answers custom events with "Not yet"
+     (https://developers.cloudflare.com/web-analytics/faq/, checked October 2026). It is
+     also a script in the visitor's browser, so keep it off
+     (`docs/CLOUDFLARE-CHECKLIST.md`, section 3, "Cloudflare Web Analytics: Off").
+     The starter ships with its own analytics off
      (`USE_ANALYTICS = false` in `src/config.ts`, no analytics host in
      `public/_headers`), so leave both as they are and delete the analytics paragraphs
      of section 3 of the privacy page.
@@ -171,10 +173,11 @@ non-expert can answer, and record the answers in the project `README.md`.
      consent banner: the last point of this question). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
      unless you keep the privacy page's slot sentence for each one you leave ticked.
-     Most owners have no server to run Plausible on, so recommend the **paid cloud
-     version** (from **€9/mo** — https://plausible.io/#pricing); point at a
-     **self-hosted** instance only if the owner already runs one. The enquiry count
-     below needs Plausible: Cloudflare's counts have no events.
+     Ask whether the owner already runs a Plausible server. If not, the usual case,
+     recommend the **paid cloud version** (from **€9/mo** —
+     https://plausible.io/#pricing), so the owner runs no server; point at a
+     **self-hosted** instance only if one already exists. The enquiry count (the
+     "Email Tap" paragraph below) needs Plausible: Cloudflare's counts have no events.
      **Switch it on**, since the starter ships with analytics off: in `src/config.ts`
      set `USE_ANALYTICS = true` and fill in `scriptHost` and `scriptId`, then add the
      same host to `script-src` and `connect-src` in `public/_headers` (the comments in
@@ -189,7 +192,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      named exactly `Email Tap` **before launch**: Plausible's documentation says an
      event shows only once its goal exists and earlier ones are not counted. To see a
      test tap, choose Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views
-     end yesterday (checked in version 3.2.1). On a site just added to Plausible, a tap in its first
+     end yesterday (checked on self-hosted version 3.2.1; the cloud version may differ).
+     On a site just added to Plausible, a tap in its first
      minute or so may not be kept; tap again a few minutes later. Filtered
      by that goal, the dashboard shows which sources and pages bring enquiries. It
      counts visitors who asked to write an email; whether their mail program opened,
@@ -214,7 +218,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      site-owned files that step names, which `whats-new` does not report, or it keeps
      counting with the script too) and works with self-hosted
      Plausible (tried on Community Edition 3.2.1) and, per Plausible's documentation,
-     with the cloud version most owners will use (not tried there with a real site). Counting uses the
+     with the cloud version (not tried there with a real site). Counting uses the
      Functions quota the site already uses (free plan: 100,000 requests a day); past
      it, with "Fail open" (what the deploy guide sets; Cloudflare names no default, so check it), Cloudflare serves the site
      without the Function until midnight UTC, so counting stops and email links do not
