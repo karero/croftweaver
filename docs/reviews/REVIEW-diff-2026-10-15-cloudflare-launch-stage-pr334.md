@@ -1,6 +1,6 @@
 # Review trail: Cloudflare setup script, the launch stage (karero/croftweaver#334)
 
-Base `4c890f6` · depth: High (as for #328: the script changes a Cloudflare account with a token, and this stage makes a site public) · verdict: OPEN: rounds closed after round 4 on the maintainer's choice; final full read, wording pass and stamp to come.
+Base `4c890f6` · depth: High (as for #328: the script changes a Cloudflare account with a token, and this stage makes a site public) · verdict: CLEAN (2026-10-16). Four rounds, a final full read, a re-gate with the wording pass and one confirmation, 69 findings (16 BUG, 16 RISK, 37 NIT); no BUG open. The rounds closed after round 4 on the maintainer's choice (below), R4-01 and R4-02 fixed then without another round · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and made the branch in its worktree) · seen pair: base `4c890f6`, head `564a348`; Codex's chain is unbroken from round 1 to the confirmation. The commit after `564a348` adds only this trail, which no review artifact holds
 
 Seats: Codex (config effort) and GLM 5.3 on melious (`SECOND_SEAT=melious`, ollama `glm-5.3:cloud` standing in if melious fails), fresh-eyes (Claude Opus 5.5) in rounds 1 to 3. The maintainer's OK for sending this change to them, in this session: "yes please" (2026-10-15), given in answer to the note that this session would ask before the gate. The repository is public.
 
@@ -16,6 +16,7 @@ The diff goes in two parts, as #328's did: A (the two scripts, the plan's diff, 
 | 4 | `d3e8d46` | verification: the change since `86ef38e`, and the plan's whole change since `5b0d8ce` (R3-03); earned by R3-01 and R3-02 (`--earned-by preview-report,nameserver-message`; `--cut`: the preview line's claim of absence removed, the nameserver stop's cause branches removed) | Codex (config effort) and Melious (glm-5.3) | Codex 333 s, 142,884 · Melious 228 s, 27,542 | 2 / 1 / 3. Both cuts confirmed, and every round-3 fix. Two kinds came back after their cuts: the preview line (R4-01, a third time) and the forwarding build's commit (R4-02, after R1-01 and R2-01). Patching stopped there (step 7); the open items went to the maintainer as one decision |
 | final full read (not a round) | `1025264` | the whole change from base `4c890f6`, in three parts (A: the scripts and the plan's change; B: tests and stub; C: fixture tooling and the docs, with a plan excerpt) | Kimi K3 (`kimi-k3:cloud` on ollama, a model that had not reviewed this change) on A and B; on C ollama refused (weekly limit reached, twice), so a new Claude Opus 5.5 sub-agent that had no part in this gate read it, as the skill allows for a final read | Kimi A 437 s · Kimi B 464 s, no token figures · Claude C 288 s, 199,639 | A and B: 0 / 4 / 6; C: 2 / 0 / 6. C's two BUGs were the sweep's own: it had made `<project>` the address label in two files that also use it as the project's name in a Wrangler command. Fixed; the Codex re-gate that follows covers the fixes |
 | re-gate and wording pass (not a round) | `99ad0b8` | full scope: everything since `d3e8d46` (the maintainer's closing fixes, the final read's fixes, the plan's status rows and other text, the review record) | Codex (gpt-6.1-sol, config effort) | 401 s, 161,626 | 2 / 0 / 0: two of the final read's fixes were wrong (FR-06's lookup rule, FR-13's wording); every other fix confirmed, and the record's counts (69 rows: 16 / 16 / 37) |
+| confirmation (not a round) | `564a348` | the change since `99ad0b8`: the two refixes, scoped to whether they remove the contradictions without adding one | Codex (config effort) | 159 s, 71,108 | 0 / 1 / 0: FR-06 and FR-13 confirmed (36 error-code pairs checked); the RISK is a follow-up, as a confirmation's other findings are |
 
 ## Findings
 
@@ -93,9 +94,13 @@ The diff goes in two parts, as #328's did: A (the two scripts, the plan's diff, 
 
 The maintainer's decision after round 4 (2026-10-16), asked as one decision because two kinds had come back after their cuts: "Fix small, then close (Recommended)", the option that read: fix R4-01 by printing the preview line only when an address was found, R4-02 by ending with 1 when Cloudflare's answer names no commit, and the three NITs, all locally verified with tests; then the final full read, the wording pass and the stamp, no more rounds.
 
-Follow-ups (not blocking): the searches for a push build, for a build of the head and for the newest build that succeeded still read the whole history when nothing matches, as before this change (fresh-eyes and Melious, round 2); `CANONICAL_URL` is saved even when no build can follow, as the plan's step 13 has it (fresh-eyes, round 2); "Launch day" does not name the stop for a live build that names no commit (Melious, round 2).
+Follow-ups (not blocking): "Launch day" says the forwarding build takes the secrets "as they are saved now", which no capture shows; it is the open point of the plan's Not verified 14 (Codex, confirmation). The final full read's part C could not go to Kimi: ollama's weekly limit was reached. the searches for a push build, for a build of the head and for the newest build that succeeded still read the whole history when nothing matches, as before this change (fresh-eyes and Melious, round 2); `CANONICAL_URL` is saved even when no build can follow, as the plan's step 13 has it (fresh-eyes, round 2); "Launch day" does not name the stop for a live build that names no commit (Melious, round 2).
 
 UNVERIFIABLE entries settled after round 1: that Node's `https` request takes the custom `lookup` (fresh-eyes) is now shown by the TLS test, which reaches `lenas.test` through `--nameserver` with a certificate made for that name. Still open, and named in the plan: whether a project's `domains` lists a pending domain (Not verified 12, no longer load-bearing after R1-07) and how long the type-changing PATCH is accepted (13).
+
+## Evidence at the stamp head `564a348`
+
+- `make test-cloudflare-check`: 199 tests, 199 pass, exit status 0. `bash scripts/check_clean.sh`: exit status 0.
 
 ## Evidence before round 1, at `0127ac7`
 
