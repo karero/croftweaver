@@ -13,6 +13,11 @@
 // - anything else: moved to a backup folder BESIDE the skills folder, never inside it,
 //   where the assistant would load it as a second skill of the same name.
 // A skill an earlier run installed and the release no longer has is removed.
+//
+// Before anything is unpacked, the zip must match the SHA-256 that the release's SHA256SUMS
+// file lists for it. A release with no such file (0.31 and older) is refused, like one that
+// does not match: a check that runs only when the file is there protects nothing.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,6 +26,10 @@ import zlib from 'node:zlib';
 const ZIP_URL = process.env.CROFTWEAVER_ZIP_URL
   || 'https://github.com/karero/croftweaver/releases/latest/download/croftweaver.zip';
 const MANIFEST = '.croftweaver.json';
+const SUMS = 'SHA256SUMS';
+// A line of SHA256SUMS as sha256sum and shasum write it: the hash, a space, then a space (text
+// mode) or a star (binary mode), then the file name.
+const SUM_LINE = /^([0-9a-f]{64}) [ *](.+)$/;
 // A run killed once it has begun to unpack can leave its staging folder behind in the skills
 // folder. No later run removes it: nothing in the folder says whether its run is still going,
 // and taking a live run's staging away leaves that run with skills removed and nothing to
@@ -57,18 +66,47 @@ function parseArgs(argv) {
 }
 
 // GitHub answers the "latest" address with a redirect that names the release. Read the name
-// from it, then follow.
+// from it, then follow. `from` is the zip's address in the release's own folder, where
+// SHA256SUMS sits beside it: the redirect's when it names the release, so both files come
+// from the same release; otherwise the address asked for. (A tag's own download address
+// redirects to GitHub's file storage, which names no release and holds no SHA256SUMS.)
 async function download(url) {
   let res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT) });
   let release = null;
+  let from = new URL(url);
   const next = res.headers.get('location');
   if (res.status >= 300 && res.status < 400 && next) {
     const name = /\/download\/([^/]+)\//.exec(next)?.[1] ?? '';
-    if (RELEASE_NAME.test(name)) release = name;
+    if (RELEASE_NAME.test(name)) {
+      release = name;
+      from = new URL(next, url);
+    }
     res = await fetch(new URL(next, url), { signal: AbortSignal.timeout(TIMEOUT) });
   }
   if (!res.ok) throw new Error(`the server answered ${res.status}`);
-  return { release, zip: Buffer.from(await res.arrayBuffer()) };
+  return { release, from, zip: Buffer.from(await res.arrayBuffer()) };
+}
+
+// Throws unless SHA256SUMS, next to the zip, lists the zip's name exactly once, with the
+// SHA-256 of the bytes downloaded.
+async function checkSum(zip, from) {
+  const at = new URL(SUMS, from);
+  let res;
+  try {
+    res = await fetch(at, { signal: AbortSignal.timeout(TIMEOUT) });
+  } catch (e) {
+    throw new Error(`the download of ${at} failed (${e.cause?.code ?? e.message}). Check your internet connection, then run the command again.`);
+  }
+  if (res.status === 404) {
+    throw new Error(`the release has no ${SUMS} file to check the download against (releases before 0.32 have none), so it was not used`);
+  }
+  if (!res.ok) throw new Error(`${at} could not be downloaded (the server answered ${res.status})`);
+  const name = decodeURIComponent(from.pathname.split('/').pop());
+  const listed = (await res.text()).split(/\r?\n/).map((line) => SUM_LINE.exec(line)).filter((m) => m?.[2] === name);
+  if (listed.length !== 1) throw new Error(`${SUMS} does not list ${name} exactly once, so the download was not used`);
+  if (crypto.createHash('sha256').update(zip).digest('hex') !== listed[0][1]) {
+    throw new Error(`the download does not match the checksum in the release's ${SUMS}, so it was not used. Run the command again; if it still fails, the release may be broken`);
+  }
 }
 
 // The entries of a zip, read from its central directory. It reads what `zip -r` writes
@@ -224,9 +262,10 @@ let staging = null;
 let made = [];   // the folders this run had to create for `dest`
 let changing = false;
 try {
-  const { release, zip } = await download(ZIP_URL).catch((e) => {
+  const { release, from, zip } = await download(ZIP_URL).catch((e) => {
     throw new Error(`the download from ${ZIP_URL} failed (${e.cause?.code ?? e.message}). Check your internet connection, then run the command again.`);
   });
+  await checkSum(zip, from);
   made = missingFolders(dest);
   fs.mkdirSync(dest, { recursive: true });
   staging = fs.mkdtempSync(path.join(dest, STAGING));

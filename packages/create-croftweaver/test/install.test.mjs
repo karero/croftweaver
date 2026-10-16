@@ -21,10 +21,20 @@ const REPO = path.join(HERE, '..', '..', '..');
 const POSIX = process.platform !== 'win32';
 
 // What the stub serves next. Tests in one file run one after another, so one slot is enough.
+// `sums` is the release's SHA256SUMS: left out, the right line for the zip, as a release
+// carries it; null, no such file (404); a number, that status; a string, served as it is.
 let served = { status: 200, release: 'v9.1', zip: Buffer.alloc(0) };
+const sha256 = (data) => crypto.createHash('sha256').update(data).digest('hex');
+const asked = [];   // every path the stub was asked for, in order
 const server = http.createServer((req, res) => {
+  asked.push(req.url);
   if (req.url === '/latest/download/croftweaver.zip') {
     res.writeHead(302, { location: `/download/${served.release}/croftweaver.zip` }).end();
+  } else if (req.url.endsWith('/SHA256SUMS')) {
+    const { sums = `${sha256(served.zip)}  croftweaver.zip\n` } = served;
+    if (sums === null) res.writeHead(404).end('not here');
+    else if (typeof sums === 'number') res.writeHead(sums).end('no');
+    else res.writeHead(200).end(sums);
   } else {
     res.writeHead(served.status).end(served.status === 200 ? served.zip : 'not here');
   }
@@ -422,6 +432,84 @@ test('a download that cannot be used changes nothing in an install that works', 
     assert.match(result.stderr, /^Croftweaver was not installed: the download from .* failed/);
     assert.match(result.stderr, /Check your internet connection/);
     assert.deepEqual(tree(dest), working);
+  });
+});
+
+// The zip's own CRCs only show it is the file someone zipped, not the file the release built
+// and tested. SHA256SUMS is that proof, so without it, or against it, nothing is unpacked.
+test('a download that its release\'s SHA256SUMS does not vouch for changes nothing', async (t) => {
+  const home = tmp();
+  const dest = path.join(home, '.claude', 'skills');
+  served = { status: 200, release: 'v9.1', zip: makeZip(V1) };
+  assert.equal((await run(home)).code, 0);
+  const working = tree(dest);
+  const zip = makeZip(V2);
+  const bad = {
+    'the release has no SHA256SUMS (as 0.31 and older)': [null, /has no SHA256SUMS file .*releases before 0\.32/],
+    'SHA256SUMS cannot be fetched': [500, /could not be downloaded \(the server answered 500\)/],
+    'the zip does not match its sum': [`${sha256(makeZip(V1))}  croftweaver.zip\n`, /does not match the checksum/],
+    'the sum is for another file': [`${sha256(zip)}  something-else.zip\n`, /does not list croftweaver\.zip exactly once/],
+    'the zip is listed twice': [`${sha256(zip)}  croftweaver.zip\n${sha256(zip)}  croftweaver.zip\n`, /exactly once/],
+    'the sum is cut short': [`${sha256(zip).slice(0, 63)}  croftweaver.zip\n`, /exactly once/],
+    'the file is empty': ['', /exactly once/],
+  };
+  for (const [name, [sums, why]] of Object.entries(bad)) {
+    await t.test(name, async () => {
+      served = { status: 200, release: 'v9.2', zip, sums };
+
+      const result = await run(home);
+
+      assert.equal(result.code, 1, result.stdout);
+      assert.match(result.stderr, /^Croftweaver was not installed: /);
+      assert.match(result.stderr, why);
+      assert.deepEqual(tree(dest), working);
+      assert.deepEqual(fs.readdirSync(dest).sort(), ['.croftweaver.json', 'alpha', 'gone', 'new-website']);
+    });
+  }
+
+  await t.test('on a computer without the skills, a refused download leaves no folder behind', async () => {
+    const fresh = tmp();
+    served = { status: 200, release: 'v9.2', zip, sums: null };
+
+    assert.equal((await run(fresh)).code, 1);
+    assert.deepEqual(fs.readdirSync(fresh), []);
+  });
+});
+
+test('SHA256SUMS comes from the release the redirect names, and is read the way release tools write it', async (t) => {
+  const zip = makeZip(V1);
+  await t.test('the sum is fetched from the same release folder as the zip', async () => {
+    const home = tmp();
+    served = { status: 200, release: 'v9.3', zip };
+    asked.length = 0;
+
+    assert.equal((await run(home)).code, 0);
+    assert.deepEqual(asked, ['/latest/download/croftweaver.zip', '/download/v9.3/croftweaver.zip', '/download/v9.3/SHA256SUMS']);
+  });
+  const forms = {
+    'binary mode, a star before the name': `${sha256(zip)} *croftweaver.zip\n`,
+    'Windows line ends, with other files listed too': `${sha256('x')}  other.txt\r\n${sha256(zip)}  croftweaver.zip\r\n`,
+    'no line end at the end': `${sha256(zip)}  croftweaver.zip`,
+  };
+  for (const [name, sums] of Object.entries(forms)) {
+    await t.test(name, async () => {
+      served = { status: 200, release: 'v9.3', zip, sums };
+      const result = await run(tmp());
+      assert.equal(result.code, 0, result.stderr);
+    });
+  }
+  // scripts/package.sh writes the file with sha256sum on Linux and `shasum -a 256` on macOS.
+  await t.test('the line sha256sum or shasum writes for the zip', { skip: POSIX ? false : 'Windows runners have neither tool' }, async () => {
+    const folder = tmp();
+    fs.writeFileSync(path.join(folder, 'croftweaver.zip'), zip);
+    let tool = ['sha256sum'];
+    try { execFileSync('sha256sum', ['--version'], { stdio: 'ignore' }); } catch { tool = ['shasum', '-a', '256']; }
+    const sums = execFileSync(tool[0], [...tool.slice(1), 'croftweaver.zip'], { cwd: folder, encoding: 'utf8' });
+    served = { status: 200, release: 'v9.3', zip, sums };
+
+    const result = await run(tmp());
+
+    assert.equal(result.code, 0, result.stderr);
   });
 });
 
