@@ -3,7 +3,9 @@
 # the inline theme script and analytics stub. The analytics host is a whole token in
 # script-src and connect-src, and script-src lets the stub run: 'unsafe-inline' alone, or
 # the stub's own sha256 hash (the analytics gate test checks all of it against config.ts and
-# the built stub). Widen script-src/connect-src only as needed.
+# the built stub). With analytics switched off (USE_ANALYTICS = false in src/config.ts), take
+# the host out of both; run the gate test by hand to check that it is gone. Widen
+# script-src/connect-src only as needed.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

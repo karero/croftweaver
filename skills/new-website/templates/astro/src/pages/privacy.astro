@@ -5,7 +5,10 @@
 //      tests/placeholders.spec.ts (the test turns red until you do).
 //   2. Make section 3 match reality: pick the self-hosted OR cloud Plausible
 //      wording, or delete the analytics paragraphs entirely if the site ships
-//      without analytics (then also trim the meta description below). It has
+//      without analytics (then also trim the meta description below). Deleting
+//      the text does not stop the script: also set USE_ANALYTICS to false in
+//      src/config.ts and take the analytics host out of public/_headers (the
+//      "No analytics at all" comment in src/config.ts says how). It has
 //      slots to settle: the hosting choice (self-hosted: first confirm that your
 //      web server, reverse proxy or CDN keeps no IP addresses in access logs for
 //      the measurement host, or say so here); one sentence each for outbound links,

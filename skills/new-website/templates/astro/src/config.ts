@@ -48,6 +48,15 @@ export const KNOWS_ABOUT: string[] = [];
 // https://plausible.io for the paid cloud version). Fire only on the production
 // deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built.
 //
+// No analytics at all: set USE_ANALYTICS to false. Then no build, the live one
+// included, writes the script or the stub, and nothing on the page sends anything to
+// an analytics host. Also take the host out of script-src and connect-src in
+// public/_headers, and delete the analytics paragraphs of section 3 of the privacy
+// page. Then run `bash tests/check_analytics_gate.sh` (a site's CI does not): it
+// checks the builds and the headers. Leave scriptHost and scriptId as they are:
+// Base.astro still names them. Email links and the contact form keep working; they
+// count a tap only when Plausible is on the page.
+//
 // scriptId is the per-site script Plausible's installer shows (Settings > General >
 // Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is
 // the part between "/js/" and ".js", here 'pa-AbC123'. The domain and the optional
@@ -76,8 +85,11 @@ export const KNOWS_ABOUT: string[] = [];
 // A mismatch means analytics silently never loads — no error, no data.
 export const PROD_BRANCH = 'production';
 
+// Keep the value on one line: tests/check_analytics_gate.sh reads it.
+export const USE_ANALYTICS = true;
+
 export const ANALYTICS = {
-  enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,
+  enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,
   scriptHost: 'https://analytics.example.com',
   scriptId: 'pa-XXXXXXXXXXXXXXXXXXXX',
 } as const;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression guard for the analytics switch in src/config.ts:
-#   ANALYTICS.enabled = process.env.CF_PAGES_BRANCH === PROD_BRANCH
+#   ANALYTICS.enabled = USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH
 #
 # Base.astro emits the Plausible <script> only when that is true, and the build decides it:
 # Cloudflare sets CF_PAGES_BRANCH when it builds, and a deploy-by-command owner sets it by
@@ -25,7 +25,16 @@
 #      lets THE INIT STUB run: 'unsafe-inline' alone in the directive, or the stub's own
 #      sha256 hash. Off for the other three, with no tag, no half of one and no mention of
 #      the script's path or id.
+# With USE_ANALYTICS = false in src/config.ts (the owner declined analytics), steps 2 and 3
+# turn around: public/_headers must NOT list the host (with or without a path) in
+# script-src, script-src-elem, connect-src or default-src, and all four builds, the live one
+# included, must be off. A config.ts that never
+# names USE_ANALYTICS (a site made before the switch) counts as true; one that names it
+# but has no line in that form fails.
 # What it cannot check:
+#   - With analytics off, a link to the host that is not a script tag (a preconnect or
+#     dns-prefetch added by hand) is not looked for, and no CSP stops one. Base.astro writes
+#     none; a site that adds one must take it out with the switch.
 #   - It compares the build with src/config.ts, so a wrong scriptId typed INTO config.ts
 #     passes. Only the installer's "Verify" step catches that.
 #   - It does not evaluate a CSP the way a browser does. A policy that leans on default-src, a
@@ -57,6 +66,19 @@ if [ -z "$prod" ]; then
   echo "✗ analytics gate: no \"export const PROD_BRANCH = '…';\" line in src/config.ts to test against."
   exit 1
 fi
+# Whether the owner uses analytics at all. No line means a site made before the switch: on.
+use="$(sed -nE "s/^export const USE_ANALYTICS = (true|false);?[[:space:]]*(\/\/.*)?$/\1/p" src/config.ts)"
+if [ -z "$use" ]; then
+  if grep -q 'USE_ANALYTICS' src/config.ts; then
+    echo "✗ analytics gate: src/config.ts names USE_ANALYTICS, but not as one line \"export const USE_ANALYTICS = true;\" or \"= false;\" (a // comment after it is fine)."
+    exit 1
+  fi
+  use=true
+fi
+case "$use" in
+  true|false) ;;
+  *) echo "✗ analytics gate: src/config.ts has more than one USE_ANALYTICS line."; exit 1 ;;
+esac
 # The script address Base.astro must write: <scriptHost>/js/<scriptId>.js, read from the
 # same file, so Base.astro cannot drift from config.ts.
 host="$(sed -nE "s/^[[:space:]]*scriptHost:[[:space:]]*['\"]([^'\"]*)['\"].*/\1/p" src/config.ts)"
@@ -324,6 +346,31 @@ csp_host_problems() {
   if [ "$n" -eq 0 ]; then echo "$file has no Content-Security-Policy line"; fi
 }
 
+# csp_host_left <file>: one line per directive that still lists the script's origin, for a
+# site with analytics switched off; nothing when none does. A source with a path
+# (https://host/js/) counts as the host here: it still lets the browser load from it.
+# default-src counts too, as it stands in for a directive that is not written out. A file
+# with no policy is reported as csp_host_problems reports it.
+csp_host_left() {
+  local file="$1" policy dir tokens n=0
+  if [ ! -f "$file" ]; then echo "there is no $file to check the Content-Security-Policy in"; return; fi
+  while IFS= read -r policy; do
+    n=$((n + 1))
+    for dir in script-src connect-src script-src-elem default-src; do
+      # Each source without its path: scheme://host[:port]/anything becomes scheme://host[:port].
+      tokens="$(csp_tokens "$policy" "$dir" | awk '{
+        p = index($0, "://")
+        if (p) { rest = substr($0, p + 3); q = index(rest, "/"); if (q) $0 = substr($0, 1, p + 2) substr(rest, 1, q - 1) }
+        else { q = index($0, "/"); if (q > 1) $0 = substr($0, 1, q - 1) }
+        print }')"
+      if [ -n "$tokens" ] && host_listed "$tokens"; then
+        echo "analytics is off (USE_ANALYTICS = false), but $dir still lists $host: take it out of public/_headers"
+      fi
+    done
+  done < <(csp_policies "$file")
+  if [ "$n" -eq 0 ]; then echo "$file has no Content-Security-Policy line"; fi
+}
+
 # csp_inline_problems <file> <stub-file>: one line per problem, nothing when the directive
 # that governs <script> elements (script-src-elem if written out, else script-src) lets the
 # stub run: 'unsafe-inline' with no hash and no nonce in the same directive (a browser
@@ -452,6 +499,23 @@ selftest() {
       fail=1
     fi
   done
+  # With analytics off, a policy that names the host in any of the three directives is wrong.
+  policy p_nohost   "default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
+  policy p_nohostel "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-elem 'self'; connect-src 'self'"
+  policy p_elemonly "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-elem 'self' $host; connect-src 'self'"
+  policy p_path      "default-src 'self'; script-src 'self' 'unsafe-inline' $host/js/; connect-src 'self'"
+  policy p_lookalike "default-src 'self'; script-src 'self' 'unsafe-inline' $host.evil.invalid; connect-src 'self' https://x${host#*://}"
+  policy p_default   "default-src 'self' $host; script-src 'self' 'unsafe-inline'; connect-src 'self'"
+  printf '/*\n  X-Frame-Options: DENY\n' >"$dir/p_nocsp.headers"
+  for expect in p_unsafe:bad p_noconn:bad p_suffix:bad p_bare443:bad p_elem:bad p_nohost:ok p_nohostel:ok p_elemonly:bad p_nocsp:bad \
+                p_path:bad p_lookalike:ok p_default:bad; do
+    name="${expect%%:*}"; want_line="${expect#*:}"; m=$((m + 1))
+    got="$([ -z "$(csp_host_left "$dir/$name.headers")" ] && echo ok || echo bad)"
+    if [ "$got" != "$want_line" ]; then
+      echo "✗ analytics gate: its off-switch CSP check gave '$got' for the '$name' policy, not '$want_line'."
+      fail=1
+    fi
+  done
   if [ "$fail" -ne 0 ]; then exit 1; fi
   echo "✓ analytics gate: the counter reads its $n fixture pages, the stub check its stubs and the CSP reader its $m policies as expected"
 }
@@ -530,6 +594,12 @@ report_problems() {
 }
 
 selftest
+
+if [ "$use" = false ]; then
+  report_problems "$(csp_host_left public/_headers)" "analytics is off, and public/_headers lists $host in none of script-src, script-src-elem, connect-src and default-src"
+  build live set "$prod"
+  expect_off live "CF_PAGES_BRANCH=$prod (the live build, analytics off)"
+else
 report_problems "$(csp_host_problems public/_headers)" "public/_headers lists $host as a token in script-src and connect-src"
 
 build live set "$prod"
@@ -546,6 +616,7 @@ for stubfile in "$work"/stubs/*.js; do
   kept+=("$stubfile")
   report_problems "$(csp_inline_problems public/_headers "$stubfile")" "the CSP lets the built init stub run ($(basename "$stubfile"))"
 done
+fi
 
 build unset unset
 expect_off unset "CF_PAGES_BRANCH unset (a plain npm run build)"
@@ -557,6 +628,10 @@ build preview set "$preview"
 expect_off preview "CF_PAGES_BRANCH=$preview (a preview branch)"
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ analytics gate: $checked builds, on only when CF_PAGES_BRANCH is '$prod'"
+  if [ "$use" = false ]; then
+    echo "✓ analytics gate: $checked builds, off in every one (USE_ANALYTICS = false)"
+  else
+    echo "✓ analytics gate: $checked builds, on only when CF_PAGES_BRANCH is '$prod'"
+  fi
 fi
 exit "$fail"

@@ -160,7 +160,11 @@ non-expert can answer, and record the answers in the project `README.md`.
      (https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/,
      checked October 2026). Cloudflare's separate "Web Analytics" is a script in the
      visitor's browser: keep it off (`docs/CLOUDFLARE-CHECKLIST.md`, section 3,
-     "Cloudflare Web Analytics: Off").
+     "Cloudflare Web Analytics: Off"). Then switch the starter's analytics off:
+     `USE_ANALYTICS = false` in `src/config.ts`, the analytics host out of
+     `public/_headers`, and the analytics paragraphs out of section 3 of the privacy
+     page. The starter ships with analytics on, so without the switch the live build
+     still writes the Plausible script.
    - "Which sources bring enquiries?" or other real decisions from traffic data
      (campaigns, content strategy) → **Plausible** (cookieless; whether it needs a
      consent banner: the last point of this question). In its installer, untick the
@@ -192,7 +196,11 @@ non-expert can answer, and record the answers in the project `README.md`.
    - **When the site needs no consent banner.** Tell the owner plainly: a site built
      with this kit needs no consent banner in the EU, Germany, Switzerland or California
      as long as it runs no analytics script: nothing reaches the visitor's browser that
-     the page itself does not need. Plausible runs as a small script in the visitor's
+     the page itself does not need. For the starter's own
+     analytics that means `USE_ANALYTICS = false` in `src/config.ts` (the first point of
+     this question; the other things that break the no-banner case are listed below); run
+     `bash tests/check_analytics_gate.sh` once to check that no build writes the script
+     (a site's CI does not run it). Plausible runs as a small script in the visitor's
      browser. With it, running without a banner is a defensible position in the EU,
      Germany, Switzerland and California, not a settled one; to be sure, ask a lawyer.
      For the EU and Germany, the headers of `privacy.astro` and `_datenschutz.astro` set
