@@ -369,8 +369,9 @@ What protects a download today:
   download with the SHA-256 the release's `SHA256SUMS` lists for it before unpacking, and
   refuses a release without that file (v0.31 and older). Both files come from the same
   release, so this catches a download that was damaged or cut short on the way, or that
-  belongs to another release, not a change by anyone who can alter what GitHub serves. It also checks each skill file it unpacks (its CRC) and refuses links and odd
-  entries. Version 0.1.0 does not compare the download with a checksum.
+  belongs to another release, not a change by anyone who can alter what GitHub serves.
+  It also checks each skill file it unpacks (its CRC) and refuses links and odd entries.
+  Version 0.1.0 does not compare the download with a checksum.
 - v0.31 is not marked immutable on GitHub, so its files could be replaced after
   publishing.
 - Releases v0.29 to v0.31 are plain tags; the README's command makes annotated ones. The

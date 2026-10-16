@@ -479,6 +479,8 @@ test('a download that its release\'s SHA256SUMS does not vouch for changes nothi
     assert.equal(result.code, 1, result.stdout);
     assert.match(result.stderr, /has no SHA256SUMS file/);
     assert.doesNotMatch(result.stderr, /could not be unpacked/);
+    assert.deepEqual(tree(dest), working);
+    assert.ok(!fs.existsSync(path.join(home, '.claude', 'escaped.txt')), 'the climbing entry was written');
   });
 
   await t.test('on a computer without the skills, a refused download leaves no folder behind', async () => {

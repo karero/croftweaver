@@ -10,7 +10,8 @@
     "index.mjs"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "prepublishOnly": "node check-release.mjs"
   },
   "engines": {
     "node": ">=22.12.0"
