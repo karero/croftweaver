@@ -249,8 +249,8 @@ Some details:
   user agent.
 - **The built site**, apart from the optional analytics script, loads no fonts, scripts
   or styles from other servers. Its security header (`public/_headers`) allows scripts only
-  from the site itself and from the analytics address you set. Analytics run only on the
-  live site, not on previews.
+  from the site itself, and from the analytics address you set once you switch analytics
+  on: the starter ships with it off. Analytics run only on the live site, not on previews.
 
 ## Telemetry
 

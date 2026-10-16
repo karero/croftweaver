@@ -371,9 +371,9 @@ integration**: walk the owner through it with these warnings ahead of each click
    branch first if it does not exist yet, see `new-website` §4), so `main` stays the
    noindexed preview. Single-stage: `main` — and then set `PROD_BRANCH = 'main'` in
    `src/config.ts` in the setup pull request (the kit ships `'production'`), because
-   analytics fires only when the two agree, silently never otherwise. `AGENTS.md` §2
-   must keep the block that matches (the other one is deleted at scaffold time —
-   check it was).
+   analytics, once switched on, fires only when the two agree, silently never
+   otherwise. `AGENTS.md` §2 must keep the block that matches (the other one is
+   deleted at scaffold time — check it was).
 6. **Pull request previews.** Once connected, every pull request gets its own preview
    address in its checks ("Cloudflare Pages" → *View deployment*), plus the stable
    alias `<branch>.<project>.pages.dev`. `AGENTS.md` §2 tells collaborators to look

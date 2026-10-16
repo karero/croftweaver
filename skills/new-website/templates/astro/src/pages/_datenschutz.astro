@@ -18,9 +18,13 @@
 //      "- [Datenschutz](https://<domain>/datenschutz): Datenschutzerklärung (DSGVO)."
 //      Also update the README's privacy.astro mentions (docs, not gates).
 //   3. Fill every [BRACKET] slot; make section 3 match the real analytics
-//      setup (or delete it; deleting the text does not stop the script: also set
-//      USE_ANALYTICS to false in src/config.ts and take the analytics host out
-//      of public/_headers); adjust the date. Section 3 has slots to settle: the
+//      setup; adjust the date. The starter ships with analytics off
+//      (USE_ANALYTICS = false in src/config.ts), but this page still ships the
+//      Plausible paragraphs. A site without analytics deletes them and leaves
+//      the switch off. A site with Plausible keeps them and switches analytics
+//      on: USE_ANALYTICS = true in src/config.ts and the analytics host added to
+//      public/_headers (the analytics comment in src/config.ts says how).
+//      Keeping the text does not start the script. Section 3 has slots to settle: the
 //      hosting choice (self-hosted: first confirm that your web server, reverse
 //      proxy or CDN keeps no IP addresses in access logs for the measurement
 //      host, or say so there); one sentence each for outbound links, file

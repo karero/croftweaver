@@ -160,11 +160,10 @@ non-expert can answer, and record the answers in the project `README.md`.
      (https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/,
      checked October 2026). Cloudflare's separate "Web Analytics" is a script in the
      visitor's browser: keep it off (`docs/CLOUDFLARE-CHECKLIST.md`, section 3,
-     "Cloudflare Web Analytics: Off"). Then switch the starter's analytics off:
-     `USE_ANALYTICS = false` in `src/config.ts`, the analytics host out of
-     `public/_headers`, and the analytics paragraphs out of section 3 of the privacy
-     page. The starter ships with analytics on, so without the switch the live build
-     still writes the Plausible script.
+     "Cloudflare Web Analytics: Off"). The starter ships with its own analytics off
+     (`USE_ANALYTICS = false` in `src/config.ts`, no analytics host in
+     `public/_headers`), so leave both as they are and delete the analytics paragraphs
+     of section 3 of the privacy page.
    - "Which sources bring enquiries?" or other real decisions from traffic data
      (campaigns, content strategy) → **Plausible** (cookieless; whether it needs a
      consent banner: the last point of this question). In its installer, untick the
@@ -173,6 +172,13 @@ non-expert can answer, and record the answers in the project `README.md`.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
+     **Switch it on**, since the starter ships with analytics off: in `src/config.ts`
+     set `USE_ANALYTICS = true` and fill in `scriptHost` and `scriptId`, then add the
+     same host to `script-src` and `connect-src` in `public/_headers` (the comments in
+     both files say how). Keep the privacy page's analytics paragraphs and fill their
+     slots. Run `bash tests/check_analytics_gate.sh` once to check the builds and the
+     headers (a site's CI does not run it). Without the switch the live site counts
+     nothing, and nothing says so.
      **The enquiry count comes with it.** Each click on an email address, and each
      press of the contact form's button that passes its checks, sends one "Email Tap"
      event (with the page and the referrer, as every event; no address, nothing typed).
@@ -197,10 +203,10 @@ non-expert can answer, and record the answers in the project `README.md`.
      with this kit needs no consent banner in the EU, Germany, Switzerland or California
      as long as it runs no analytics script: nothing reaches the visitor's browser that
      the page itself does not need. For the starter's own
-     analytics that means `USE_ANALYTICS = false` in `src/config.ts` (the first point of
-     this question; the other things that break the no-banner case are listed below); run
-     `bash tests/check_analytics_gate.sh` once to check that no build writes the script
-     (a site's CI does not run it). Plausible runs as a small script in the visitor's
+     analytics that means leaving `USE_ANALYTICS = false` in `src/config.ts`, as it ships
+     (the first point of this question; the other things that break the no-banner case
+     are listed below); run `bash tests/check_analytics_gate.sh` once to check that no
+     build writes the script (a site's CI does not run it). Plausible runs as a small script in the visitor's
      browser. With it, running without a banner is a defensible position in the EU,
      Germany, Switzerland and California, not a settled one; to be sure, ask a lawyer.
      For the EU and Germany, the headers of `privacy.astro` and `_datenschutz.astro` set
@@ -657,7 +663,10 @@ hold Search Console Request Indexing until then.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
-      With Plausible: the `Email Tap` goal exists in Plausible (§1 Q5).
+      No analytics: the analytics paragraphs deleted, `USE_ANALYTICS = false` as shipped.
+      With Plausible: `USE_ANALYTICS = true`, the host in `script-src` and `connect-src`
+      of `public/_headers`, `bash tests/check_analytics_gate.sh` green, and the
+      `Email Tap` goal exists in Plausible (§1 Q5).
       Whether the site may run without a consent banner: §1 Q5's last point.
       German-market sites: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
@@ -674,7 +683,7 @@ hold Search Console Request Indexing until then.
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
       *Production branch* = `production` — so
-      `main` = noindexed preview, `production` = live; analytics fires on production only.
+      `main` = noindexed preview, `production` = live; analytics, once switched on, fires on production only.
       **Single-stage:** `main` = live (default Cloudflare production branch).
       **Creating the Pages project + first deploy** (the step a Cloudflare newcomer
       struggles with) — offer the bootstrap options in
