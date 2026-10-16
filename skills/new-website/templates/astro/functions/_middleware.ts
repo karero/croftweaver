@@ -22,7 +22,8 @@
 //    set; this file cannot read src/config.ts (that file reads process.env, which a
 //    Pages Function does not have), so those two variables are the switch. Previews,
 //    the pages.dev alias and local hosts never count. What counts as a page view is
-//    pageviewSkip() below; functions/go/email.ts uses the same rules for "Email Tap".
+//    pageviewSkip() below; functions/go/email.ts uses navigationSkip() and requires a
+//    same-origin click for "Email Tap".
 //
 // Project names cannot contain dots, so the production alias is the only three-label
 // *.pages.dev host; every preview has four. (If that ever changed, a dotted alias would

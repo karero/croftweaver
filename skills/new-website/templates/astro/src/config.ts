@@ -75,11 +75,11 @@ export const KNOWS_ABOUT: string[] = [];
 // also means changing the host named in section 3 of the privacy page, in the
 // sentence on refusing the measurement; tests/privacy-host.spec.ts checks that one
 // once its slot is filled.
-// Base.astro writes two tags: the script, and the short stub that calls
-// plausible.init(); without the stub the script never starts.
+// Base.astro writes two tags (script mode; none in server mode): the script, and the short
+// stub that calls plausible.init(); without the stub the script never starts.
 //
-// The site's one conversion, the "Email Tap" event, is sent from
-// src/components/EmailLink.astro (and public/js/mail-form.js when the contact form is
+// The site's one conversion, the "Email Tap" event, is sent (script mode; in server mode by
+// functions/go/email.ts) from src/components/EmailLink.astro (and public/js/mail-form.js when the contact form is
 // installed). It needs a goal named exactly "Email Tap" in Plausible before launch. Plausible
 // counts a custom event as interaction, so a visit with a tap is not a bounce (its default,
 // kept on purpose). Another analytics tool means changing those two calls and section 3 of
@@ -94,7 +94,8 @@ export const KNOWS_ABOUT: string[] = [];
 // view per page request to Plausible's Events API, and on the live build EmailLink.astro
 // links to /go/email, where functions/go/email.ts counts the "Email Tap" and opens the
 // mail program. Server mode needs two Production variables in Cloudflare (Settings >
-// Variables and Secrets): PLAUSIBLE_HOST (scriptHost's value) and PLAUSIBLE_DOMAIN (the
+// Variables and Secrets): PLAUSIBLE_HOST (the Plausible instance's https origin, usually
+// scriptHost's value, never a proxy on this site's own domain) and PLAUSIBLE_DOMAIN (the
 // site's domain as added in Plausible); scriptId is not used. It loses scroll depth,
 // engaged time and the optional measurements, and the contact form's button is not
 // counted. Set those two variables ONLY with USE_ANALYTICS true and mode 'server': the

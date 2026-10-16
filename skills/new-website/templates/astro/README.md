@@ -92,9 +92,14 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Plausible), then redeploy; set them only in server mode, or every page view counts
    twice. Add the site and the `Email Tap` goal in Plausible by hand as above; the
    installer's optional measurements do not apply (no script runs). In
-   `src/pages/privacy.astro`, keep the server-mode slots. Lost compared with the script:
-   scroll depth, engaged time, the optional measurements, and the contact form's button
-   (not counted); also pages a browser prefetched or prerendered, and visitors whose
+   `src/pages/privacy.astro`, keep the server-mode slots. An existing site also takes from
+   this starter what `whats-new` does not report, because the site owns it: the `mode`
+   line in `src/config.ts`, `src/layouts/Base.astro`, `src/components/EmailLink.astro`, the
+   privacy slots and `Disallow: /go/` in `public/robots.txt`; then runs
+   `bash tests/check_analytics_gate.sh`. Without the first three, its old layout keeps
+   loading the script and every page view counts twice. Lost compared with the script:
+   scroll depth, engaged time, the optional measurements, excluding your own visits (the
+   `plausible_ignore` flag), and the contact form's button (not counted); also pages a browser prefetched or prerendered, and visitors whose
    browser sends no Fetch Metadata headers (Safari before 16.4, some in-app browsers),
    who get the "name [at] domain" hint instead of their mail program when they tap the
    email link. Test on the live domain, not a `pages.dev` address: previews never count.

@@ -196,7 +196,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      wants no analytics code on the visitor's device: the site's Cloudflare Function
      sends each page view and email tap to Plausible itself, so no script loads and
      nothing is read from or written to the device. It loses scroll depth, engaged
-     time and the optional measurements, the contact form's button is not counted
+     time, the optional measurements and excluding the owner's own visits (`plausible_ignore`), the contact form's button is not counted
      (only email links are), and a visitor can no longer opt out by blocking a script.
      Its numbers differ from the script's: it counts visitors who block scripts, but not
      a page a browser prefetched or prerendered before the visitor opened it, and not
