@@ -59,7 +59,9 @@ export const KNOWS_ABOUT: string[] = [];
 // `bash tests/check_analytics_gate.sh` (a site's CI does not): it checks the builds and
 // the headers, either way. Off or on, leave scriptHost and scriptId in place: Base.astro
 // and tests/privacy-host.spec.ts read them. Email links and the contact form work either
-// way; they count a tap only when Plausible is on the page. Left off by mistake,
+// way. They count a tap only with analytics on: in script mode through the script on the
+// page; in server mode email links through functions/go/email.ts, and the contact form's
+// button not at all (the mode is described below). Left off by mistake,
 // Plausible gets no data and nothing says so.
 //
 // scriptId is the per-site script Plausible's installer shows (Settings > General >
@@ -100,8 +102,7 @@ export const KNOWS_ABOUT: string[] = [];
 // engaged time and the optional measurements, and the contact form's button is not
 // counted. Set those two variables ONLY with USE_ANALYTICS true and mode 'server': the
 // Function cannot read this file, so with them set in script mode every page view is
-// counted twice, and with analytics off the Function counts anyway. Keep the mode on one
-// line: tests/check_analytics_gate.sh reads it.
+// counted twice, and with analytics off the Function counts anyway.
 export const PROD_BRANCH = 'production';
 
 // Keep the value on one line: tests/check_analytics_gate.sh reads it.
@@ -109,7 +110,7 @@ export const USE_ANALYTICS = false;
 
 export const ANALYTICS = {
   enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,
-  mode: 'script' as 'script' | 'server',
+  mode: 'script' as 'script' | 'server', // keep on one line: tests/check_analytics_gate.sh reads it
   scriptHost: 'https://analytics.example.com',
   scriptId: 'pa-XXXXXXXXXXXXXXXXXXXX',
 } as const;

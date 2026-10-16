@@ -694,9 +694,9 @@ hold Search Console Request Indexing until then.
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
       No analytics: the analytics paragraphs deleted, `USE_ANALYTICS = false` as shipped.
-      With Plausible: `USE_ANALYTICS = true`, the host in `script-src` and `connect-src`
-      of `public/_headers`, `bash tests/check_analytics_gate.sh` green, and the
-      `Email Tap` goal exists in Plausible (§1 Q5).
+      With Plausible: `USE_ANALYTICS = true`, `bash tests/check_analytics_gate.sh` green,
+      and the `Email Tap` goal exists in Plausible (§1 Q5). In script mode (the default)
+      also the host in `script-src` and `connect-src` of `public/_headers`.
       In server mode also: `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` set as Production
       variables (and nowhere in script mode or with analytics off), the host left out of
       `public/_headers` (no script loads), the privacy page's server-mode slots kept, and
