@@ -17,8 +17,8 @@ the files win. The business in the scenarios is made up.
 | 6 | End-to-end test on a fresh site from this branch | ⏸ after merge, by the owner's choice (2026-10-16): throwaway project `cw-plausible-e2e` deployed, Plausible site `plausible-trial.croftweaver.com` and goal added; waits for the custom domain (it did not resolve on 2026-10-16). Settles F11 (Plausible Cloud, a real mail program) | — |
 | 7 | Review gate (High) | ✅ clean 2026-10-16: 5 rounds, a final full read, a merge link and a wording pass; F6 waived by the owner, F11 open until step 6 | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
 | 8 | PR | ✅ merged 2026-10-16 | #339, merge commit `17ade087` |
-| 9 | Test for the build-time subject check (a subject over 200 characters fails a server-mode build) | ⏸ follow-up; needs a server-mode build | review finding H4 in `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
-| 10 | Release-note line | ⏸ waits for the next release | `docs/BUGLOG.md`, row "Next release notes, for analytics server mode" |
+| 9 | Test for the build-time subject check (a subject over 200 characters fails a server-mode build) | ✅ CI builds 200 and 201 characters in server mode, 201 in script mode | `template-tests.yml`, step "Server mode refuses an email subject over 200 characters at build time"; review finding H4 in `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
+| 10 | Release-note line | ✅ in the v0.32 notes (2026-10-16) | `docs/BUGLOG.md`, row "Next release notes, for analytics server mode" |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
