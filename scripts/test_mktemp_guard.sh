@@ -126,10 +126,14 @@ catch() {
   esac
 }
 mkdir "$T/fx" || { echo "FAIL — could not make the fixture folder."; exit 1; }
+# The old three lines, with a failed mktemp: bash 3.2's `cd ""` stayed in the current folder, so
+# T became that folder and the trap deleted it. Bash 5.3 refuses `cd ""` ("null directory"), so
+# the fixture says `${T:-.}` to keep the same failure on every bash: this case exists to make the
+# "deleted the folder" arm fire.
 cat >"$T/fx/old.sh" <<'FX'
 T="$(mktemp -d "${TMPDIR:-/tmp}/old.XXXXXX")"
 trap 'rm -rf "$T"' EXIT
-T="$(CDPATH= cd -- "$T" && pwd -P)"
+T="$(CDPATH= cd -- "${T:-.}" && pwd -P)"
 echo "all checks passed"
 FX
 printf 'echo "all checks passed"\n' >"$T/fx/runs-on.sh"
