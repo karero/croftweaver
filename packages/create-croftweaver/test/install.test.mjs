@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import zlib from 'node:zlib';
+import { makeZip } from './zip.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const INSTALLER = path.join(HERE, '..', 'index.mjs');
@@ -21,10 +21,20 @@ const REPO = path.join(HERE, '..', '..', '..');
 const POSIX = process.platform !== 'win32';
 
 // What the stub serves next. Tests in one file run one after another, so one slot is enough.
+// `sums` is the release's SHA256SUMS: left out, the right line for the zip, as a release
+// carries it; null, no such file (404); a number, that status; a string, served as it is.
 let served = { status: 200, release: 'v9.1', zip: Buffer.alloc(0) };
+const sha256 = (data) => crypto.createHash('sha256').update(data).digest('hex');
+const asked = [];   // every path the stub was asked for, in order
 const server = http.createServer((req, res) => {
+  asked.push(req.url);
   if (req.url === '/latest/download/croftweaver.zip') {
     res.writeHead(302, { location: `/download/${served.release}/croftweaver.zip` }).end();
+  } else if (req.url.endsWith('/SHA256SUMS')) {
+    const { sums = `${sha256(served.zip)}  croftweaver.zip\n` } = served;
+    if (sums === null) res.writeHead(404).end('not here');
+    else if (typeof sums === 'number') res.writeHead(sums).end('no');
+    else res.writeHead(200).end(sums);
   } else {
     res.writeHead(served.status).end(served.status === 200 ? served.zip : 'not here');
   }
@@ -60,50 +70,6 @@ function run(home, args = [], env = {}) {
   });
 }
 
-// A zip from { name: text } or { name: { data, mode, store, crc } }. It writes what the reader
-// has to cope with, including what no zip tool writes on request: a path that climbs out, a
-// link, a wrong checksum.
-function makeZip(files) {
-  const locals = [];
-  const centrals = [];
-  let offset = 0;
-  for (const [entryName, spec] of Object.entries(files)) {
-    const { data = '', mode = 0o100644, store = false, crc } = typeof spec === 'string' ? { data: spec } : spec;
-    const name = Buffer.from(entryName);
-    const plain = Buffer.from(data);
-    const body = store ? plain : zlib.deflateRawSync(plain);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(store ? 0 : 8, 8);
-    local.writeUInt32LE(crc ?? zlib.crc32(plain), 14);
-    local.writeUInt32LE(body.length, 18);
-    local.writeUInt32LE(plain.length, 22);
-    local.writeUInt16LE(name.length, 26);
-    const central = Buffer.alloc(46);
-    central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE((3 << 8) | 30, 4);   // made on unix, so the mode below counts
-    central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(store ? 0 : 8, 10);
-    central.writeUInt32LE(crc ?? zlib.crc32(plain), 16);
-    central.writeUInt32LE(body.length, 20);
-    central.writeUInt32LE(plain.length, 24);
-    central.writeUInt16LE(name.length, 28);
-    central.writeUInt32LE((mode << 16) >>> 0, 38);
-    central.writeUInt32LE(offset, 42);
-    locals.push(local, name, body);
-    centrals.push(central, name);
-    offset += 30 + name.length + body.length;
-  }
-  const directory = Buffer.concat(centrals);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(centrals.length / 2, 8);
-  end.writeUInt16LE(centrals.length / 2, 10);
-  end.writeUInt32LE(directory.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...locals, directory, end]);
-}
 
 // Every file under `dir` as { 'a/b.md': text }. Links are not followed.
 function tree(dir) {
@@ -422,6 +388,107 @@ test('a download that cannot be used changes nothing in an install that works', 
     assert.match(result.stderr, /^Croftweaver was not installed: the download from .* failed/);
     assert.match(result.stderr, /Check your internet connection/);
     assert.deepEqual(tree(dest), working);
+  });
+});
+
+// The zip's own CRCs only show the file is whole as zipped. SHA256SUMS, written when the
+// release was built and uploaded with it, also catches a download that was damaged, cut
+// short or swapped for another release's on the way. It is only as trustworthy as the
+// release it comes from. Without it, or against it, nothing is unpacked.
+test('a download that its release\'s SHA256SUMS does not vouch for changes nothing', async (t) => {
+  const home = tmp();
+  const dest = path.join(home, '.claude', 'skills');
+  served = { status: 200, release: 'v9.1', zip: makeZip(V1) };
+  assert.equal((await run(home)).code, 0);
+  const working = tree(dest);
+  const zip = makeZip(V2);
+  const bad = {
+    'the release has no SHA256SUMS (as 0.31 and older)': [null, /has no SHA256SUMS file to check the download against/],
+    'SHA256SUMS cannot be fetched': [500, /could not be downloaded \(the server answered 500\)/],
+    'the zip does not match its sum': [`${sha256(makeZip(V1))}  croftweaver.zip\n`, /does not match the checksum/],
+    'the sum is for another file': [`${sha256(zip)}  something-else.zip\n`, /does not list croftweaver\.zip exactly once/],
+    'the zip is listed twice': [`${sha256(zip)}  croftweaver.zip\n${sha256(zip)}  croftweaver.zip\n`, /exactly once/],
+    'the sum is cut short': [`${sha256(zip).slice(0, 63)}  croftweaver.zip\n`, /exactly once/],
+    'the file is empty': ['', /exactly once/],
+  };
+  for (const [name, [sums, why]] of Object.entries(bad)) {
+    await t.test(name, async () => {
+      served = { status: 200, release: 'v9.2', zip, sums };
+
+      const result = await run(home);
+
+      assert.equal(result.code, 1, result.stdout);
+      assert.match(result.stderr, /^Croftweaver was not installed: /);
+      assert.match(result.stderr, why);
+      assert.deepEqual(tree(dest), working);
+      assert.deepEqual(fs.readdirSync(dest).sort(), ['.croftweaver.json', 'alpha', 'gone', 'new-website']);
+    });
+  }
+
+  // The check comes before the unpacking, not after it: a zip that is wrong in two ways is
+  // refused for its sum, so not one of its bytes was written into the skills folder first.
+  await t.test('the sum is checked before anything is unpacked', async () => {
+    served = { status: 200, release: 'v9.2', zip: makeZip({ ...V2, 'skills/alpha/../../../escaped.txt': 'out' }), sums: null };
+
+    const result = await run(home);
+
+    assert.equal(result.code, 1, result.stdout);
+    assert.match(result.stderr, /has no SHA256SUMS file/);
+    assert.doesNotMatch(result.stderr, /could not be unpacked/);
+    assert.deepEqual(tree(dest), working);
+    assert.ok(!fs.existsSync(path.join(home, '.claude', 'escaped.txt')), 'the climbing entry was written');
+  });
+
+  await t.test('on a computer without the skills, a refused download leaves no folder behind', async () => {
+    const fresh = tmp();
+    served = { status: 200, release: 'v9.2', zip, sums: null };
+
+    assert.equal((await run(fresh)).code, 1);
+    assert.deepEqual(fs.readdirSync(fresh), []);
+  });
+});
+
+test('SHA256SUMS comes from the release the redirect names, and is read the way release tools write it', async (t) => {
+  const zip = makeZip(V1);
+  await t.test('the sum is fetched from the same release folder as the zip', async () => {
+    const home = tmp();
+    served = { status: 200, release: 'v9.3', zip };
+    asked.length = 0;
+
+    assert.equal((await run(home)).code, 0);
+    assert.deepEqual(asked, ['/latest/download/croftweaver.zip', '/download/v9.3/croftweaver.zip', '/download/v9.3/SHA256SUMS']);
+  });
+  const forms = {
+    'binary mode, a star before the name': `${sha256(zip)} *croftweaver.zip\n`,
+    'Windows line ends, with other files listed too': `${sha256('x')}  other.txt\r\n${sha256(zip)}  croftweaver.zip\r\n`,
+    'no line end at the end': `${sha256(zip)}  croftweaver.zip`,
+  };
+  for (const [name, sums] of Object.entries(forms)) {
+    await t.test(name, async () => {
+      served = { status: 200, release: 'v9.3', zip, sums };
+      const result = await run(tmp());
+      assert.equal(result.code, 0, result.stderr);
+    });
+  }
+  // An address may spell the file name with %-escapes; SHA256SUMS spells it plainly.
+  await t.test('a file name written with %-escapes in the address is the same name', async () => {
+    served = { status: 200, release: 'v9.3', zip };
+    const port = new URL(latest).port;
+    const result = await run(tmp(), [], { CROFTWEAVER_ZIP_URL: `http://127.0.0.1:${port}/download/v9.3/croft%77eaver.zip` });
+    assert.equal(result.code, 0, result.stderr);
+  });
+  // scripts/package.sh writes the file with sha256sum on Linux and `shasum -a 256` on macOS.
+  await t.test('the line sha256sum or shasum writes for the zip', { skip: POSIX ? false : 'Windows runners have neither tool' }, async () => {
+    const folder = tmp();
+    fs.writeFileSync(path.join(folder, 'croftweaver.zip'), zip);
+    let tool = ['sha256sum'];
+    try { execFileSync('sha256sum', ['--version'], { stdio: 'ignore' }); } catch { tool = ['shasum', '-a', '256']; }
+    const sums = execFileSync(tool[0], [...tool.slice(1), 'croftweaver.zip'], { cwd: folder, encoding: 'utf8' });
+    served = { status: 200, release: 'v9.3', zip, sums };
+
+    const result = await run(tmp());
+
+    assert.equal(result.code, 0, result.stderr);
   });
 });
 

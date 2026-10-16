@@ -209,7 +209,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | Who | Used by | Key or sign-in | Reads or sends |
 |---|---|---|---|
 | GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook | your git and `gh` sign-in | reads, and sends your site's code when pushing |
-| GitHub release downloads | `npm create croftweaver` | none | reads `croftweaver.zip` from the newest release |
+| GitHub release downloads | `npm create croftweaver` | none | reads `croftweaver.zip` and its `SHA256SUMS` from the newest release |
 | npm registry | `npm install`, `npm ci`, `npx`, `npm create astro` | none | reads packages |
 | Playwright's download servers | `npx playwright install chromium` | none | reads the test browser |
 | Homebrew, winget, PyPI | installing the build tools, Pillow, pypdf and the Search Console libraries | none | reads programs |
@@ -269,9 +269,9 @@ Croftweaver sends nothing to its maintainer. This was checked in two passes:
 
 What touches the maintainer's own places:
 
-- `npm create croftweaver` reads the release zip from GitHub, Claude Code reads the plugin
-  from GitHub, and a `git clone` of the toolkit (one of the README's install routes) reads
-  it from GitHub.
+- `npm create croftweaver` reads the release zip and its `SHA256SUMS` from GitHub, Claude Code
+  reads the plugin from GitHub, and a `git clone` of the toolkit (one of the README's install
+  routes) reads it from GitHub.
 - After launch, `new-website` asks you once whether you want a "Built with Croftweaver"
   credit in your footer. Only if you say yes does the assistant read the badge code and
   files from croftweaver.com; like any web request, that one shows up in croftweaver.com's
@@ -365,9 +365,13 @@ What protects a download today:
   `sha256:ac18578f2746af5a5e7f02fa6b30c45e869c4f86d973d994574c68407a952a76`.
 - Up to v0.31 there is no checksum file. From the next release on, `SHA256SUMS` sits beside
   the zip; the README ("Releases & versioning") says how to check a download against it.
-- There is no signature of our own. `npm create croftweaver` checks each skill file it
-  unpacks (its CRC) and refuses links and odd entries, but it does not compare the download
-  with a known checksum.
+- There is no signature of our own. From version 0.2.0, `npm create croftweaver` compares the
+  download with the SHA-256 the release's `SHA256SUMS` lists for it before unpacking, and
+  refuses a release without that file (v0.31 and older). Both files come from the same
+  release, so this catches a download that was damaged or cut short on the way, or that
+  belongs to another release, not a change by anyone who can alter what GitHub serves.
+  It also checks each skill file it unpacks (its CRC) and refuses links and odd entries.
+  Version 0.1.0 does not compare the download with a checksum.
 - v0.31 is not marked immutable on GitHub, so its files could be replaced after
   publishing.
 - Releases v0.29 to v0.31 are plain tags; the README's command makes annotated ones. The

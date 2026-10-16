@@ -319,6 +319,18 @@ gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --l
 # move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
 # If the check of the number failed, the tag was not made as above: leave `stable` where
 # it is, and plugin users get the next release.
+
+# After every release: `npm create croftweaver` refuses a release whose zip does not match
+# its SHA256SUMS, and a published release takes no files later. This runs that installer
+# on the release now live, into a throwaway folder; it must print "The installer takes the
+# latest release". If it does not, read why. A download or network error: run it again. A
+# refusal of the release itself (no SHA256SUMS, a mismatch, a zip it cannot unpack): every
+# install fails the same way until a fixed release is out.
+node packages/create-croftweaver/check-release.mjs
+# Only when packages/create-croftweaver changed, once the line above passes: publish the
+# installer. npm runs the same check before publishing, except with --ignore-scripts or
+# ignore-scripts=true in an .npmrc: hence running it by hand first.
+(cd packages/create-croftweaver && npm run prepublishOnly && npm publish)
 ```
 
 Zip users download the newest release from the Releases page; clone users keep using

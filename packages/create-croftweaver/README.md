@@ -40,6 +40,10 @@ macOS, Linux and Windows, in any terminal.
 - **A skill Croftweaver no longer has** is removed, if this command installed it. The same
   holds here: a folder of your own under that name goes with it.
 
+Before it unpacks anything, it checks the download against the `SHA256SUMS` file that each
+release carries beside the zip. If the two don't match, or the release has no such file
+(Croftweaver 0.31 and older), it installs nothing and says why.
+
 If the download fails or cannot be read, the command says why and changes nothing.
 
 If the command is killed before it finishes, a folder named
