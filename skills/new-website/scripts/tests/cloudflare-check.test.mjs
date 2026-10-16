@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, rmSync, existsSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ITEMS, PROBE_PATH, evaluate, ownHostReport, parseNameservers, parseOnly, parseProject, parseTarget, readHtml, UsageError } from '../cloudflare-check.mjs';
+import { ITEMS, PROBE_PATH, evaluate, lookupErrorCode, ownHostReport, parseNameservers, parseOnly, parseProject, parseTarget, readHtml, UsageError } from '../cloudflare-check.mjs';
 import { startDns } from './cloudflare-stub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -820,6 +820,13 @@ test('--nameserver: the domain is looked up at the nameserver given, and the pag
   } finally {
     await dns.close();
   }
+  // A failed question wins over "no such name", in either order; "no such name" only when nothing failed.
+  const e = (code) => ({ code });
+  assert.equal(lookupErrorCode(e('ETIMEOUT'), e('ENOTFOUND')), 'ETIMEOUT');
+  assert.equal(lookupErrorCode(e('ENOTFOUND'), e('ETIMEOUT')), 'ETIMEOUT');
+  assert.equal(lookupErrorCode(e('ENODATA'), e('ECONNREFUSED')), 'ECONNREFUSED');
+  assert.equal(lookupErrorCode(e('ENOTFOUND'), e('ENODATA')), 'ENOTFOUND');
+  assert.equal(lookupErrorCode(null, undefined), 'ENOTFOUND');
   assert.deepEqual(parseNameservers('192.0.2.53, 192.0.2.54:5353,[2001:db8::53]:53'), ['192.0.2.53', '192.0.2.54:5353', '[2001:db8::53]:53']);
   for (const bad of ['ns1.example.com', '192.0.2.53:99999', '192.0.2.53:0', '[192.0.2.53]', '', '[nope]']) assert.throws(() => parseNameservers(bad), UsageError, bad);
 });

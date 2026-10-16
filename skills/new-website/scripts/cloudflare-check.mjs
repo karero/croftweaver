@@ -162,6 +162,14 @@ export function parseNameservers(arg) {
   return list;
 }
 
+// The code for a lookup that found no address: a failure of either question (a timeout, a
+// refusal) wins over an answer of "no such name", so a failing nameserver is not reported as a
+// missing name; "no such name" only when no question failed otherwise.
+const ABSENT = new Set(['ENOTFOUND', 'ENODATA']);
+export function lookupErrorCode(...errors) {
+  return errors.map((e) => e?.code).find((c) => c && !ABSENT.has(c)) ?? 'ENOTFOUND';
+}
+
 // A lookup that asks only the given nameservers, for the domain's own requests: a computer that
 // asked for the host before its record existed can go on answering "no such host" for minutes
 // after the domain is live, while the zone's nameservers give the address at once.
@@ -176,11 +184,8 @@ function lookupAt(servers) {
       if (!e4 && a4.length) { done(a4, 4); return; }
       resolver.resolve6(hostname, (e6, a6) => {
         if (!e6 && a6.length) { done(a6, 6); return; }
-        // No address from either question: "no such name" when both said so, else the resolver's own
-        // code (a timeout, a refusal), so a failing nameserver is not reported as a missing name.
-        const codes = [e4?.code, e6?.code].filter(Boolean);
         const err = new Error(`${hostname} has no address at ${servers.join(', ')}`);
-        err.code = codes.length && codes.every((c) => c === 'ENOTFOUND' || c === 'ENODATA') ? 'ENOTFOUND' : (e6?.code ?? e4?.code ?? 'ENOTFOUND');
+        err.code = lookupErrorCode(e4, e6);
         cb(err);
       });
     });

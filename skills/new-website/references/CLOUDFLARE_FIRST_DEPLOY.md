@@ -119,20 +119,21 @@ checklist's rule that removes the NEL headers (section 3, step 4) if the domain 
 them, and saves `CANONICAL_URL` and starts one production build of the same commit, so the
 `pages.dev` address forwards to the domain ("After go-live"). It starts that build only when
 the site's production branch, read again just before, is at the commit that is live; when the
-live build is Cloudflare's build of that commit, with the same variables and build settings
-apart from `CANONICAL_URL`; when the project's production branch and the live build's are the
-site's own; and never after a production build that failed. A commit pushed in the moment
-between that read and the build call would be built too: the run then ends with 1 and names
-it, from the commit Cloudflare's answer names. Where the answer names none, the run ends with
-1 too, saying the build's commit could not be checked. `--skip canonical` and `--skip
-nel-rule` leave those two out. Of setup's `--skip` ids, `https`, `bot` and `email` let that
-item's failure through at the end; `--skip nel` is setup's switch, not `--skip nel-rule`. A
-yes covers the list it answered: a run that finds something more to do, the NEL rule after a
-yes to the forwarding alone say, asks again. If Cloudflare says the domain is in error,
-blocked or deactivated, the run ends with 1 and Cloudflare's words, and detaches nothing. For
-a domain already attached and active, by hand say, no launch condition is checked and nothing
-is attached: only the forwarding and the rule, and the check at the end; a production build
-that failed still stops it first.
+live build is Cloudflare's build of that commit, with the same build settings and plain
+variables apart from `CANONICAL_URL`, and secrets of the same names (their values read back
+empty, so the build takes them as they are saved now); when the project's production branch
+and the live build's are the site's own; and never after a production build that failed. A
+commit pushed in the moment between that read and the build call would be built too: the run
+then ends with 1 and names it, from the commit Cloudflare's answer names. Where the answer
+names none, the run ends with 1 too, saying the build's commit could not be checked. `--skip
+canonical` and `--skip nel-rule` leave those two out. Of setup's `--skip` ids, `https`, `bot`
+and `email` let that item's failure through at the end; `--skip nel` is setup's switch, not
+`--skip nel-rule`. A yes covers the list it answered: a run that finds something more to do,
+the NEL rule after a yes to the forwarding alone say, asks again. If Cloudflare says the
+domain is in error, blocked or deactivated, the run ends with 1 and Cloudflare's words, and
+detaches nothing. For a domain already attached and active, by hand say, no launch condition
+is checked and nothing is attached: only the forwarding and the rule, and the check at the
+end; a production build that failed still stops it first.
 
 A launch run with nothing left to do ends with the whole check. Its status is 1 when a
 request got no answer or an item could not be judged, whatever `--skip` says. It is 1 too
