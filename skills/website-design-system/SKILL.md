@@ -6,7 +6,7 @@ description: >
   shift), dark mode (CSS-variable theme tokens + a no-FOUC script + WCAG AA
   contrast in BOTH themes), and the brand/theme token block that BRAND.md
   mirrors. Use when building or reviewing layout, images, theming, or BRAND.md
-  (step 5 of the new-website pipeline). Contrast is enforced by a11y.spec.ts
+  (step 6 of the new-website pipeline). Contrast is enforced by a11y.spec.ts
   (light+dark). Trigger phrases: "dark mode", "theme toggle", "responsive
   images", "mobile optimization", "image optimization", "WebP", "layout shift",
   "CLS", "design system", "theme tokens", "brand colors", "BRAND.md".
