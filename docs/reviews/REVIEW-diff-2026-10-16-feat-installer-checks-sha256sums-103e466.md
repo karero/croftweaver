@@ -10,6 +10,7 @@ Base `38b6878` · depth: High (code that downloads files and writes them into th
 | final full read | `b60ba5e` | full since `38b6878` | fresh Claude Opus sub-agent (Kimi on ollama FAILED: quota) | 295 s, 124,314 | 0/2/6 |
 | re-gate | `5c09fe0` | delta since `279e4ab` | Codex (config); GLM 5.3 | Codex 256 s, 57,358; melious 264 s, 21,823 | 1/1/4 |
 | confirmation | `f3dc1c9` | delta since `5c09fe0` | Codex (config); GLM 5.3 | Codex 189 s, 43,658; melious 243 s, 13,468 | 0/1/1 |
+| merge link | `3a9cc30` | merge link: old base `38b6878`, last seen head `f3dc1c9`, new base `45ceeb0` (#345 merged; a BUGLOG row conflict, both rows kept) | Codex (config) | 95 s, 52,259 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -38,4 +39,4 @@ Base `38b6878` · depth: High (code that downloads files and writes them into th
 
 Waivers and deferrals: none.
 Follow-ups: RG2 leg b (point the guard's TMPDIR into the test home so a stray write would show); C-1 (`stdio: ['ignore','pipe','pipe']`); after 0.32 is live, one real `npm create croftweaver` and `node packages/create-croftweaver/check-release.mjs`.
-Notes: data check 2026-10-16: no keys or customer data in the diff. Consent for Codex and melious as for #345 in the same session. The final full read ran on a fresh host-family Opus sub-agent because ollama was out of quota (no Kimi). Rounds stopped after 3 (no BUG in round 3); the re-gate and its confirmation are the two re-gate attempts closeout allows. Stamp seats: Codex and GLM, unbroken chain `103e466` → `ef54587` → `279e4ab` → `5c09fe0` → `f3dc1c9`.
+Notes: data check 2026-10-16: no keys or customer data in the diff. Consent for Codex and melious as for #345 in the same session. The final full read ran on a fresh host-family Opus sub-agent because ollama was out of quota (no Kimi). Rounds stopped after 3 (no BUG in round 3); the re-gate and its confirmation are the two re-gate attempts closeout allows. Stamp seats: Codex and GLM, unbroken chain `103e466` → `ef54587` → `279e4ab` → `5c09fe0` → `f3dc1c9`; Codex also through the merge link `3a9cc30`.
