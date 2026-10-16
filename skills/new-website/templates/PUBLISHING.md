@@ -131,9 +131,11 @@ branch the project was created with: `main` on a single-stage site, `production`
 two-stage one. You upload from `main` either way: with no preview step, `main` holds the
 change you just checked and saved. Put the same branch name in both places, and leave both in:
 
-- `CF_PAGES_BRANCH=` turns on your visitor statistics. Without it the live site counts no
-  visitors, with no error to tell you. (It only works when the name matches `PROD_BRANCH`
-  in `src/config.ts`. If you're not sure it does, ask your assistant to check.)
+- `CF_PAGES_BRANCH=` lets your visitor statistics run on the live site, once they are
+  switched on (`USE_ANALYTICS = true` in `src/config.ts`; a new site has them off). With
+  them on and this left out, the live site counts no visitors, with no error to tell you.
+  (It only works when the name matches `PROD_BRANCH` in `src/config.ts`. If you're not sure
+  it does, ask your assistant to check.)
 - Without `--branch`, the upload can land as a preview instead of on the live site.
 
 The `&&` means each line runs only if the one before it worked. If `git` or the build stops

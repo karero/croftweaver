@@ -112,7 +112,8 @@ jobs:
           [ -z "$v" ] || { echo "npm ci set core.hooksPath=$v in the enclosing repo"; exit 1; }
       # Builds the site four ways and reads the HTML. The starter ships with analytics off
       # (USE_ANALYTICS = false): no tag in any build, the live one included, and no analytics
-      # host in public/_headers. The suite below builds once and never as the live site.
+      # host in public/_headers. The full suite (the last step) builds once and never as the
+      # live site.
       - name: Analytics off in every build, as shipped (src/config.ts)
         run: bash tests/check_analytics_gate.sh
       # The same four builds with analytics switched on (USE_ANALYTICS = true, the host added
@@ -131,8 +132,8 @@ jobs:
           grep -q "^export const USE_ANALYTICS = true;" src/config.ts
           # The host as one more token at the end of script-src and connect-src, on the CSP
           # line only. script-src-elem does not match: the name must be followed by a space.
+          # The gate below checks that the host is a whole token in both.
           host="$host" perl -pi -e 'if (/^\s*Content-Security-Policy:/) { s/(\bscript-src [^;]*)/$1 $ENV{host}/; s/(\bconnect-src [^;]*)/$1 $ENV{host}/ }' public/_headers
-          grep -q -F "script-src 'self' 'unsafe-inline' $host;" public/_headers && grep -q -F "connect-src 'self' $host;" public/_headers || { echo "the host was not added to script-src and connect-src"; cat public/_headers; exit 1; }
           npm run check
           bash tests/check_analytics_gate.sh
           git checkout -- src/config.ts public/_headers
