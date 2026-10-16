@@ -1,8 +1,8 @@
 # Plan: Cloudflare setup by one token, for a site connected to GitHub
 
 Requirements record for `skills/new-website/scripts/cloudflare-setup.mjs`, whose `setup`
-stage shipped with karero/croftweaver#328 (2026-10-15) and whose `launch` stage is built in
-karero/croftweaver#334, open for review on 2026-10-16. Where this plan and the shipped files
+stage shipped with karero/croftweaver#328 (2026-10-15) and whose `launch` stage shipped with
+karero/croftweaver#334 (2026-10-16). Where this plan and the shipped files
 disagree, the files win until plan step 6 changes them. Names of sites and people stay out
 of this public repo on purpose; the business in the scenarios is made up.
 
@@ -18,7 +18,7 @@ verified".
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are what the script does, numbered under "Shape".
 
-## Status, 2026-10-16 · the kit's files read at origin/main `c4ce79e`, and the launch stage at karero/croftweaver#334
+## Status, 2026-10-16 · the kit's files read at origin/main `16b4a4f`
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
@@ -27,9 +27,9 @@ table. **Script steps** are what the script does, numbered under "Shape".
 | 3 | The maintainer closes the decisions | ✅ D1 to D7 on 2026-10-12, D1 final on 2026-10-13, decision 8 on 2026-10-14 | sections "Decisions taken" and "Decisions D1 to D7" |
 | 4 | Trial run on a throwaway repository and project | ✅ 2026-10-13, apart from two points: "Not verified" 1 is still open, 2 was settled in part by plan step 9 | 159 captures, kept outside every repository; the private throwaway repository |
 | 5 | The checklist names the three more AI switches of decision 8 | ✅ merged 2026-10-14 (another session's work) | karero/croftweaver#285 (`321d26f`) |
-| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ▶ first pull request (the `setup` stage, its tests, the cleaned captures as fixtures) merged 2026-10-15; the second (the `launch` stage, the check script's `--only`, `--nameserver` and path-and-query forwarding check, and 20 launch-day captures as fixtures) open, not merged | first: karero/croftweaver#328 (`c4ce79e`), trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-setup-stage-pr328.md`; second: karero/croftweaver#334, trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-launch-stage-pr334.md` |
-| 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ▶ the setup stage's part merged with plan step 6's first pull request; the launch stage's part (section 6's sentence on whole lists, section 5's project address, "Launch day" and "After go-live", the check script's new options, U2, and the sweep of every place that builds an address from a project's name) is in the second, open | as row 6 |
-| 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ▶ the `setup` stage's: clean, the High DIFF gate of row 6's first pull request (four rounds, a final full read, a wording pass and five re-gates, 88 findings; two RISKs waived until plan step 10); the `launch` stage's: four rounds and a final full read, 69 findings (16 BUG, 16 RISK, 37 NIT), the rounds closed after round 4 on the maintainer's choice; its re-gate and stamp are in the trail | as row 6 |
+| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ✅ both merged: the `setup` stage, its tests and the cleaned captures on 2026-10-15; the `launch` stage, the check script's `--only`, `--nameserver` and path-and-query forwarding check, and 20 launch-day captures as fixtures on 2026-10-16 | first: karero/croftweaver#328 (`c4ce79e`), trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-setup-stage-pr328.md`; second: karero/croftweaver#334 (`16b4a4f`), trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-launch-stage-pr334.md` |
+| 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ✅ merged with plan step 6's two pull requests: the setup stage's part with the first; the launch stage's part (section 6's sentence on whole lists, section 5's project address, "Launch day" and "After go-live", the check script's new options, U2, and the sweep of every place that builds an address from a project's name) with the second | as row 6 |
+| 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ✅ both clean. The `setup` stage's: four rounds, a final full read, a wording pass and five re-gates, 88 findings; two RISKs waived until plan step 10. The `launch` stage's: four rounds, a final full read, a re-gate with the wording pass and a confirmation, 69 findings (16 BUG, 16 RISK, 37 NIT); the rounds closed after round 4 on the maintainer's choice; stamped at `550be17` | as row 6 |
 | 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ✅ done 2026-10-14; the first domain named turned out to be in use, so most steps ran on a second, empty one. Results under "Seen in the second trial": Bot Preference Sync is `bot_preference_sync_enabled`; which switch `is_robots_txt_managed` is stays unknown, and setting it to `true` is refused. Cleaned up on the maintainer's word on the spare zone; the two header rules written on the first zone are the maintainer's to remove by hand | 78 captures (T2-001 to T2-078), kept outside every repository; the checklist's field fix: karero/croftweaver#319 (merged 2026-10-14, `8cbb637`) |
 | 10 | One real site set up with it, start to finish, with the owner watching | ⏸ not started | — |
 | 11 | Release note line | ⏸ not started | — |
