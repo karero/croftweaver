@@ -545,8 +545,15 @@ for my $file (@ARGV) {
   my ($email, $emailgo, $go) = (0, 0, 0);
   while ($html =~ /<a\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi) {
     my $attrs = $1;
-    my $is_email = $attrs =~ /(?<![\w-])class\s*=\s*("[^"]*"|'[^']*')/i && $1 =~ /(?:^|[\s"'])email-link(?:[\s"']|$)/;
-    my $is_go = $attrs =~ /(?<![\w-])href\s*=\s*["']\/go\/email\?/i;
+    # One attribute at a time, each value consumed whole, so text inside a quoted value
+    # (title="href='/go/email?…'") is never read as an attribute of its own.
+    my %attr;
+    while ($attrs =~ /([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g) {
+      my $name = lc $1;
+      $attr{$name} = defined $2 ? $2 : defined $3 ? $3 : defined $4 ? $4 : '' unless exists $attr{$name};
+    }
+    my $is_email = defined $attr{class} && $attr{class} =~ /(?:^|\s)email-link(?:\s|$)/;
+    my $is_go = defined $attr{href} && $attr{href} =~ /^\/go\/email\?/;
     $email++ if $is_email;
     $emailgo++ if $is_email && $is_go;
     $go++ if $is_go;
@@ -579,8 +586,10 @@ go_selftest() {
   gofix apart    '<a class="email-link" href="#">a</a><a href="/go/email?e=x">b</a>'
   gofix datahref '<a class="email-link" data-href="/go/email?e=x" href="#">a</a>'
   gofix dataclass '<a data-class="email-link" href="/go/email?e=x">a</a>'
+  gofix inquote  "<a title=\"href='/go/email?e=x' class='email-link'\" class=\"email-link\" href=\"#\">a</a>"
+  gofix unquoted '<a class=email-link href=/go/email?e=x>a</a>'
   for expect in plain:'1 0 0' go:'1 1 1' extra:'1 1 1' lookalike:'0 0 0' handmade:'0 0 1' comment:'0 0 0' \
-                quoted:'1 1 1' apart:'1 0 1' datahref:'1 0 0' dataclass:'0 0 1'; do
+                quoted:'1 1 1' apart:'1 0 1' datahref:'1 0 0' dataclass:'0 0 1' inquote:'1 0 0' unquoted:'1 1 1'; do
     name="${expect%%:*}"; want="${expect#*:}"; k=$((k + 1))
     got="$(perl -e "$(go_program)" "$dir/$name.html" | awk '{print $1, $2, $3}')"
     if [ "$got" != "$want" ]; then

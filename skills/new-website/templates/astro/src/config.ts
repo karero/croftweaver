@@ -84,7 +84,8 @@ export const KNOWS_ABOUT: string[] = [];
 // site's domain as added in Plausible); scriptId is not used. It loses scroll depth,
 // engaged time and the optional measurements, and the contact form's button is not
 // counted. Set those two variables ONLY in server mode: the Function cannot read this
-// file, so with them set in script mode every page view would be counted twice.
+// file. With them set in script mode it skips pages that load the script and logs an
+// error, but reloads (answered 304, no page to read) are counted twice.
 // Keep the value on one line: tests/check_analytics_gate.sh reads it.
 export const PROD_BRANCH = 'production';
 

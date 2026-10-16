@@ -120,6 +120,7 @@ export function navigationSkip(request: Request): string | null {
 // page, answered with the page (200), the 404 page (the script counts there too), or a
 // 304 for a reload. A 304 carries no Content-Type, so it counts only for a page address:
 // no file extension, or .html (the build writes pages as /about, served from about.html).
+// A page address with a dot in its last part (/posts/v1.2) is then skipped on a reload.
 // /go/ routes count their own events.
 export function pageviewSkip(request: Request, path: string, res: Response): string | null {
   const skip = navigationSkip(request);
@@ -162,9 +163,14 @@ export async function sendEvent(endpoint: string, env: AnalyticsEnv, request: Re
 }
 
 // The mode lives in src/config.ts and the switch here is the two variables; nothing makes
-// them agree. A page built in script mode carries Plausible's init stub, and its script
-// counts the view already, so such a page is not counted here a second time.
-const SCRIPT_STUB = /plausible\.init\(/;
+// them agree. A page built in script mode carries Base.astro's init stub, an inline
+// <script> that starts with exactly this text, and its script counts the view already, so
+// such a page is not counted here a second time. Only that script element matches: text
+// that merely mentions plausible.init() does not. A reload answered 304 has no body to
+// read, so with the variables set in script mode reloads are still counted twice; the
+// error logged on full page loads says what to fix. CHANGES IN LOCKSTEP with the stub in
+// Base.astro (tests/analytics-server.spec.ts reads it from there).
+const SCRIPT_STUB = /<script\b[^>]*>window\.plausible=window\.plausible\|\|/;
 
 function countPageview(context: MiddlewareContext, url: URL, host: string, res: Response): void {
   const endpoint = eventsUrl(context.env, host);

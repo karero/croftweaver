@@ -201,7 +201,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      Plausible (tried on Community Edition 3.2.1) and, per Plausible's documentation,
      with the cloud version (not tried there with a real site). Counting uses the
      Functions quota the site already uses (free plan: 100,000 requests a day); past
-     it, with "Fail open" (Cloudflare's default, and what the deploy guide sets), Cloudflare serves the site
+     it, with "Fail open" (what the deploy guide sets; Cloudflare names no default, so check it), Cloudflare serves the site
      without the Function until midnight UTC, so counting stops and email links do not
      open the mail program until then ("Fail closed" shows an error page for the whole
      site instead; `references/CLOUDFLARE_FIRST_DEPLOY.md`).

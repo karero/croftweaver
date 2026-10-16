@@ -46,7 +46,7 @@ cosmetics; red → green → commit.
   Offline. The judgment-side report (inbound count, thin pages, where to add links) is
   the `internal-link-audit` skill.
 - `middleware.spec.ts` — `functions/_middleware.ts`, which `astro preview` never runs,
-  called directly: previews noindexed, the live domain untouched, and the project alias
+  called directly: previews noindexed, live-domain responses unchanged, and the project alias
   `<project>.pages.dev` 301ing to the live domain only once `CANONICAL_URL` is set. Offline.
 - `analytics-server.spec.ts` — analytics server mode, the middleware and
   `functions/go/email.ts` called directly with a stand-in for Plausible: one page view per
