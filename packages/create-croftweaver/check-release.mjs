@@ -6,7 +6,7 @@
 // the installer itself, into a throwaway skills folder, and passes only if the install does.
 // npm skips it with --ignore-scripts, ignore-scripts=true in an .npmrc, or a publish from a
 // .tgz: then run `npm run prepublishOnly` by hand first. Not part of the package.
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,11 +23,16 @@ if (override) console.error(`Checking ${override}, from CROFTWEAVER_ZIP_URL, not
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'croftweaver-check-release-'));
 try {
   const env = { ...process.env, CLAUDE_SKILLS_DIR: path.join(home, 'skills'), HOME: home, USERPROFILE: home };
-  const out = execFileSync(process.execPath, [INSTALLER], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  console.log(`The installer takes the latest release: ${out.split('\n')[0]}`);
-} catch (e) {
-  console.error(`Not published: the installer refuses the latest release.\n${(e.stderr || e.message).trim()}\nPublish once a release it takes is out.`);
-  process.exitCode = 1;
+  // The installer's only destination is CLAUDE_SKILLS_DIR (no --codex or --antigravity is
+  // passed), and its backup folder goes beside it: both inside `home`.
+  const run = spawnSync(process.execPath, [INSTALLER], { env, encoding: 'utf8' });
+  const said = `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() || String(run.error?.message ?? '');
+  if (run.status === 0) {
+    console.log(`The installer takes the latest release. What it printed:\n${said}`);
+  } else {
+    console.error(`Not published: the installer refuses the latest release.\n${said}\nPublish once a release it takes is out.`);
+    process.exitCode = 1;
+  }
 } finally {
   fs.rmSync(home, { recursive: true, force: true });
 }

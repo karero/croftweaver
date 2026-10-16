@@ -44,7 +44,7 @@ test('the publish goes ahead when the installer takes the latest release, and th
   try {
     const result = await guard({ HOME: home, USERPROFILE: home, CLAUDE_SKILLS_DIR: '' });
     assert.equal(result.code, 0, result.stderr);
-    assert.match(result.stdout, /The installer takes the latest release: Croftweaver v9\.3 is installed/);
+    assert.match(result.stdout, /The installer takes the latest release. What it printed:\nCroftweaver v9\.3 is installed/);
     assert.deepEqual(fs.readdirSync(home), []);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
@@ -57,7 +57,7 @@ test('the publish stops whenever the installer would refuse the latest release',
     'SHA256SUMS answers 500': [{ sumsStatus: 500 }, /answered 500/],
     'the zip is listed twice': [{ sums: `${SUM}  croftweaver.zip\n${SUM}  croftweaver.zip\n` }, /exactly once/],
     'the zip does not match its sum': [{ sums: `${'c'.repeat(64)}  croftweaver.zip\n` }, /does not match the checksum/],
-    'the zip matches but holds no Croftweaver skills': [{ zip: makeZip({ 'skills/alpha/SKILL.md': 'x' }), sums: null }, /could not be unpacked|exactly once/],
+    'the zip matches but holds no Croftweaver skills': [{ zip: makeZip({ 'skills/alpha/SKILL.md': 'x' }), sums: null }, /could not be unpacked: it holds no Croftweaver skills/],
   };
   for (const [name, [change, why]] of Object.entries(refused)) {
     await t.test(name, async () => {
@@ -71,6 +71,16 @@ test('the publish stops whenever the installer would refuse the latest release',
       assert.match(result.stderr, why);
     });
   }
+  await t.test('nothing answers at the address', async () => {
+    const closed = http.createServer();
+    await new Promise((done) => closed.listen(0, '127.0.0.1', done));
+    const { port } = closed.address();
+    await new Promise((done) => closed.close(done));
+    const result = await guard({ CROFTWEAVER_ZIP_URL: `http://127.0.0.1:${port}/latest/download/croftweaver.zip` });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /Not published: the installer refuses the latest release/);
+    assert.match(result.stderr, /the download from .* failed/);
+  });
 });
 
 // A test address left in the shell would point the guard away from GitHub.
