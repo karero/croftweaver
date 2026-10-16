@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
 import { onRequest } from '../functions/_middleware';
 import { onRequestGet as goEmail } from '../functions/go/email';
 import { encodeEmail } from '../src/lib/obfuscate';
@@ -27,10 +26,6 @@ const NAVIGATION = {
 const CLICK = { ...NAVIGATION, 'Sec-Fetch-Site': 'same-origin', Referer: `${LIVE}/contact` };
 const CHROME_CLICK = { ...CLICK, 'Sec-Fetch-User': '?1' };
 const HTML = { 'content-type': 'text/html; charset=utf-8' };
-// The init stub exactly as Base.astro writes it in script mode, read from the layout, so
-// the middleware's check cannot drift from it unnoticed.
-const BASE = readFileSync(new URL('../src/layouts/Base.astro', import.meta.url), 'utf8');
-const STUB = BASE.match(/set:html=\{'(window\.plausible=[^']*)'\}/)?.[1];
 
 type Sent = { url: string; headers: Headers; body: Record<string, string> };
 
@@ -165,28 +160,6 @@ test.describe('page views (S1–S8)', () => {
       await page(`${LIVE}/about`, NAVIGATION, {}, { PLAUSIBLE_DOMAIN: ENV.PLAUSIBLE_DOMAIN });
       await page(`${LIVE}/about`, NAVIGATION, {}, {});
       // Script mode leaves both variables unset: the middleware then sends nothing.
-      expect(p.sent).toEqual([]);
-    } finally {
-      p.restore();
-    }
-  });
-
-  test('a page that loads the Plausible script (built in script mode, variables set by mistake) is not counted a second time', async () => {
-    expect(STUB, 'the init stub in src/layouts/Base.astro').toBeTruthy();
-    const p = plausible();
-    try {
-      // Astro writes the inline stub as a plain <script> element (is:inline set:html).
-      const scriptPage = `<!doctype html><script async src="https://analytics.example.com/js/pa-x.js"></script><script>${STUB}</script>`;
-      for (const status of [200, 404]) {
-        const pending: Promise<unknown>[] = [];
-        await onRequest({
-          request: new Request(`${LIVE}/about`, { headers: NAVIGATION }),
-          env: ENV,
-          next: async () => new Response(scriptPage, { status, headers: HTML }),
-          waitUntil: (pr) => { pending.push(pr); },
-        });
-        await Promise.all(pending);
-      }
       expect(p.sent).toEqual([]);
     } finally {
       p.restore();

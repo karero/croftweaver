@@ -162,28 +162,15 @@ export async function sendEvent(endpoint: string, env: AnalyticsEnv, request: Re
   }
 }
 
-// The mode lives in src/config.ts and the switch here is the two variables; nothing makes
-// them agree. A page built in script mode carries Base.astro's init stub, an inline
-// <script> that starts with exactly this text, and its script counts the view already, so
-// such a page is not counted here a second time. Only that script element matches: text
-// that merely mentions plausible.init() does not. A reload answered 304 has no body to
-// read, so with the variables set in script mode reloads are still counted twice; the
-// error logged on full page loads says what to fix. CHANGES IN LOCKSTEP with the stub in
-// Base.astro (tests/analytics-server.spec.ts reads it from there).
-const SCRIPT_STUB = /<script\b[^>]*>window\.plausible=window\.plausible\|\|/;
-
+// The mode lives in src/config.ts and the switch here is the two variables, which nothing
+// makes agree: with them set in script mode every page view is counted twice. Telling a
+// script-mode page from its HTML was tried and cut in review (a text scan cannot tell a
+// script element from the same text in a comment or attribute); the docs carry the rule.
 function countPageview(context: MiddlewareContext, url: URL, host: string, res: Response): void {
   const endpoint = eventsUrl(context.env, host);
   if (!endpoint || !context.waitUntil) return;
   if (pageviewSkip(context.request, url.pathname, res)) return;
-  const copy = res.status === 304 ? null : res.clone(); // a 304 has no body to read
-  context.waitUntil((async () => {
-    if (copy && SCRIPT_STUB.test(await copy.text())) {
-      console.error('This page loads the Plausible script (ANALYTICS.mode is \'script\'), so the Function does not count it too; unset PLAUSIBLE_HOST and PLAUSIBLE_DOMAIN, or switch to server mode.');
-      return;
-    }
-    await sendEvent(endpoint, context.env, context.request, 'pageview', context.request.url);
-  })());
+  context.waitUntil(sendEvent(endpoint, context.env, context.request, 'pageview', context.request.url));
 }
 
 export const onRequest = async (context: MiddlewareContext): Promise<Response> => {

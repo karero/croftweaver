@@ -136,8 +136,9 @@ development, where no Function runs (`astro preview`, `astro dev`), the link is 
 button opens the mail program as before and sends nothing. The docs say so.
 
 **S15. Script mode is unchanged.** A site with the default `ANALYTICS.mode = 'script'` builds the
-same pages as before this change, and the Function does not count a page that loads the script,
-even if the variables were set by mistake (it logs why instead).
+same pages as before this change. The Function counts only when the two variables are set; the
+docs say to set them in server mode only (with them set in script mode every page view counts
+twice; a guard that read the page for the script was cut in review round 3).
 
 **S16. The privacy page stays true, EN and DE.** Given server mode, section 3 of `privacy.astro`
 and `_datenschutz.astro` says that no analytics code runs in the browser, what the server passes
@@ -164,8 +165,8 @@ account.
   which a Pages Function does not have without the Node compatibility flag). So it counts only
   when both Production variables are set (`PLAUSIBLE_EVENTS_URL`, `PLAUSIBLE_DOMAIN`) and the host
   is not `*.pages.dev` or `localhost`. Production variables reach only production deployments,
-  and only production serves the custom domain. S15's guard: a page carrying Plausible's init
-  stub is not counted by the Function (P1, settled in review round 1).
+  and only production serves the custom domain. S15 rests on the docs (P1): a guard that read
+  the page for Base.astro's stub was added in review round 1 and cut in round 3.
 - **Counting** sits in `functions/_middleware.ts`, which today returns early for the live domain;
   that path changes so counting runs there.
 - **Email route** `functions/go/email.ts`: decodes the address the link carries, validates it
