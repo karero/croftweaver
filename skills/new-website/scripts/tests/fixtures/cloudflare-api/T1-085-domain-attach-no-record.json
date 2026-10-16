@@ -1,0 +1,32 @@
+{
+  "capture": "T1-085",
+  "request": {
+    "method": "POST",
+    "path": "/accounts/c0ffee00000000000000000000000023/pages/projects/lenas-backstube/domains",
+    "body": {
+      "name": "www.lenas-backstube.example"
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "d0000055-0000-4000-8000-000000000000",
+      "domain_id": "d0000055-0000-4000-8000-000000000000",
+      "name": "www.lenas-backstube.example",
+      "status": "initializing",
+      "verification_data": {
+        "status": "pending"
+      },
+      "validation_data": {
+        "status": "initializing",
+        "method": "http"
+      },
+      "certificate_authority": "google",
+      "zone_tag": "c0ffee00000000000000000000000022",
+      "created_on": "2026-10-13T21:21:51.11079Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

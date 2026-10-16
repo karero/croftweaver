@@ -1,0 +1,36 @@
+{
+  "capture": "T2-057",
+  "request": {
+    "method": "POST",
+    "path": "/zones/c0ffee00000000000000000000000045/dns_records",
+    "body": {
+      "type": "TXT",
+      "name": "_trial-comment",
+      "content": "\"trial\"",
+      "ttl": 1,
+      "comment": "Trial comment of exactly one hundred characters, to find the limit on a free zone. xxxxxxxxxxxxxxxxx"
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "c0ffee00000000000000000000000059",
+      "name": "_trial-comment.lenas-backstube.example",
+      "type": "TXT",
+      "content": "\"trial\"",
+      "proxiable": false,
+      "proxied": false,
+      "ttl": 1,
+      "settings": {},
+      "meta": {},
+      "comment": "Trial comment of exactly one hundred characters, to find the limit on a free zone. xxxxxxxxxxxxxxxxx",
+      "tags": [],
+      "created_on": "2026-10-14T19:26:31.992093Z",
+      "modified_on": "2026-10-14T19:26:31.992093Z",
+      "comment_modified_on": "2026-10-14T19:26:31.992093Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

@@ -1,8 +1,8 @@
 # Plan: Cloudflare setup by one token, for a site connected to GitHub
 
 Requirements record for `skills/new-website/scripts/cloudflare-setup.mjs`, whose `setup`
-stage shipped with karero/croftweaver#328 (2026-10-15) and whose `launch` stage is not built
-yet. Where this plan and the shipped files
+stage shipped with karero/croftweaver#328 (2026-10-15) and whose `launch` stage is built in
+karero/croftweaver#334, open for review on 2026-10-16. Where this plan and the shipped files
 disagree, the files win until plan step 6 changes them. Names of sites and people stay out
 of this public repo on purpose; the business in the scenarios is made up.
 
@@ -18,7 +18,7 @@ verified".
 Two series of steps run through this file. **Plan steps** are the rows of the status
 table. **Script steps** are what the script does, numbered under "Shape".
 
-## Status, 2026-10-15 · the kit's files read at origin/main `c4ce79e`
+## Status, 2026-10-16 · the kit's files read at origin/main `c4ce79e`, and the launch stage at karero/croftweaver#334
 
 | # | Plan step | State | Evidence |
 |---|-----------|-------|----------|
@@ -27,9 +27,9 @@ table. **Script steps** are what the script does, numbered under "Shape".
 | 3 | The maintainer closes the decisions | ✅ D1 to D7 on 2026-10-12, D1 final on 2026-10-13, decision 8 on 2026-10-14 | sections "Decisions taken" and "Decisions D1 to D7" |
 | 4 | Trial run on a throwaway repository and project | ✅ 2026-10-13, apart from two points: "Not verified" 1 is still open, 2 was settled in part by plan step 9 | 159 captures, kept outside every repository; the private throwaway repository |
 | 5 | The checklist names the three more AI switches of decision 8 | ✅ merged 2026-10-14 (another session's work) | karero/croftweaver#285 (`321d26f`) |
-| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ▶ first pull request (the `setup` stage, its tests, the cleaned captures as fixtures) merged 2026-10-15; the second (`launch`) not started | first: karero/croftweaver#328 (`c4ce79e`), trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-setup-stage-pr328.md` |
-| 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ▶ the setup stage's part merged with plan step 6's first pull request; the launch stage's part (section 6's sentence on whole lists, "After go-live", the check script's new options, U2, and the sweep of every `<name>.pages.dev` built from a project's name) comes with the second | as row 6 |
-| 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ▶ the `setup` stage's: clean, the High DIFF gate of row 6's first pull request (four rounds, a final full read, a wording pass and five re-gates, 88 findings; two RISKs waived until plan step 10); the `launch` stage's comes with the second | as row 6 |
+| 6 | The script and its tests against a stub of Cloudflare's API, in two pull requests: the `setup` stage, then the `launch` stage with what the check script needs for it | ▶ first pull request (the `setup` stage, its tests, the cleaned captures as fixtures) merged 2026-10-15; the second (the `launch` stage, the check script's `--only`, `--nameserver` and path-and-query forwarding check, and 20 launch-day captures as fixtures) open, not merged | first: karero/croftweaver#328 (`c4ce79e`), trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-setup-stage-pr328.md`; second: karero/croftweaver#334, trail `docs/reviews/REVIEW-diff-2026-10-15-cloudflare-launch-stage-pr334.md` |
+| 7 | The kit's files that say otherwise today change with the script (list under "Hooks") | ▶ the setup stage's part merged with plan step 6's first pull request; the launch stage's part (section 6's sentence on whole lists, section 5's project address, "Launch day" and "After go-live", the check script's new options, U2, and the sweep of every place that builds an address from a project's name) is in the second, open | as row 6 |
+| 8 | Review gate on the script (High: it changes an account with a token, and it can make a site public) | ▶ the `setup` stage's: clean, the High DIFF gate of row 6's first pull request (four rounds, a final full read, a wording pass and five re-gates, 88 findings; two RISKs waived until plan step 10); the `launch` stage's: four rounds and a final full read, 69 findings (16 BUG, 16 RISK, 37 NIT), the rounds closed after round 4 on the maintainer's choice; its re-gate and stamp are in the trail | as row 6 |
 | 9 | A second trial on a spare domain: the apex, a Bot Management PUT that changes values, a record PATCH with a comment, adding one rule to a ruleset and creating one, a project with previews off, a long record comment, the accounts list, and which dashboard switch `is_robots_txt_managed` is ("Not verified" 2, 3, 5, 9, 10) | ✅ done 2026-10-14; the first domain named turned out to be in use, so most steps ran on a second, empty one. Results under "Seen in the second trial": Bot Preference Sync is `bot_preference_sync_enabled`; which switch `is_robots_txt_managed` is stays unknown, and setting it to `true` is refused. Cleaned up on the maintainer's word on the spare zone; the two header rules written on the first zone are the maintainer's to remove by hand | 78 captures (T2-001 to T2-078), kept outside every repository; the checklist's field fix: karero/croftweaver#319 (merged 2026-10-14, `8cbb637`) |
 | 10 | One real site set up with it, start to finish, with the owner watching | ⏸ not started | — |
 | 11 | Release note line | ⏸ not started | — |
@@ -219,7 +219,11 @@ later run accepts it for any part of that list, so the script's own writes do no
   given with `--record`.
 - `launch`: the project and its `pages.dev` address; the host; the commit that goes live;
   whether the forwarding and the NEL rule are in; the zone's proxied hosts other than the
-  site's own host (which the stage itself makes proxied), when the NEL rule is in.
+  site's own host (which the stage itself makes proxied), when the NEL rule is in; and, as
+  for `setup`, the actions the question listed (attach, record, forwarding, NEL rule; the
+  first question lists the last two as "if needed"). Plan step 6's second review (R1-02)
+  showed that a yes to the forwarding alone otherwise also covered a NEL rule the question
+  had not named.
 
 What is there now (the record the host has, a setting's old value) is shown in the
 question but not in the code. A change made by someone else between the question and the
@@ -440,7 +444,9 @@ check comes with the launch stage, since no request may reach the domain before 
     one that has grown too long since the question changes nothing here, and the run
     ends with 1, printing it in full and saying to change it by hand. The trials wrote
     comments on new records (captures 104, 129) and with the PATCH that turned an apex A
-    record into the CNAME (T2-046, T2-047). If
+    record into the CNAME (T2-046, T2-047). Cloudflare's answer to each PATCH that changed a
+    record's type said "DNS record type update is deprecated" (T1-132, T2-046); the script
+    prints that message and does not delete the record instead (R7). If
     that PATCH is refused, the run ends with 1, the host's record unchanged and the domain
     pending, and says to change the record by hand. Runs end with 4 until the
     domain is `active`; `error`, `blocked` or `deactivated` ends with 1 and Cloudflare's
@@ -469,22 +475,30 @@ check comes with the launch stage, since no request may reach the domain before 
     effect within seconds on the site the checklist records, and within 20 seconds in the
     second trial (T2-067), so this run ends with 4, and
     the next runs `nel` again; a failure then ends with 1.
-13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and
-    the domain and the check's `canonical` item is `ok`, there is nothing to do. If the
-    live build already records `CANONICAL_URL` with that value and `canonical` still fails,
-    it starts no build: it says the live build has the variable and the forwarding does
-    not answer, names the causes the checklist's section 5 lists for a 200 there, and ends
-    with 1 (scenario 42). Otherwise it saves `CANONICAL_URL` alone, from Cloudflare's own name for the domain, in a PATCH
-    as in script step 3. A variable reaches only builds made after it (seen in the trial
-    through a test function), so it then starts a production build, but only if the head of the production
-    branch is the live commit, the live build was built by Cloudflare, and the live build's
-    recorded variables and build settings (a deployment records both, captures 030, 062,
-    063) differ from the saved ones in `CANONICAL_URL` alone. A secret is compared by name
-    only: its value reads empty on the project and on the deployment alike (capture 062). Otherwise it says "the
-    variable is saved, but no build has picked it up", names each other difference, and
-    ends with 1. When the build is done it checks its commit and runs the check's
-    `canonical` item; if that still fails, it says the build is done and the forwarding
-    does not answer, and ends with 1.
+13. **Forwards `pages.dev` to the domain.** If `CANONICAL_URL` is saved as `https://` and the
+    domain and the check's `canonical` item is `ok`, there is nothing to do. If the live
+    build already records `CANONICAL_URL` with that value and `canonical` still fails, it
+    starts no build: it says the live build has the variable and the forwarding does not
+    answer, names the causes the checklist's section 5 lists for a 200 there, and ends with 1
+    (scenario 42). Otherwise it saves `CANONICAL_URL` alone, from Cloudflare's own name for
+    the domain, in a PATCH as in script step 3. A variable reaches only builds made after it
+    (seen in the trial through a test function), so it then starts a production build, but
+    only if the head of the production branch is the live commit, the live build was built by
+    Cloudflare, the live build's recorded variables and build settings (a deployment records
+    both, captures 030, 062, 063) differ from the saved ones in `CANONICAL_URL` alone, and
+    the project's production branch and the live build's are `PROD_BRANCH` (on a domain
+    attached by hand none of script step 8 was checked). If any of these does not hold, it
+    says "the variable is saved, but no build has picked it up", names each that does not,
+    and ends with 1. After a production build that failed it starts none and ends with 1. The
+    deployment call builds the head of the production branch as it is at that moment, so the
+    script reads that head again just before the call and starts nothing unless it is the
+    live commit; a push in the moment between is caught afterwards, from the commit
+    Cloudflare names in its answer (T1-030), and the run ends with 1, naming it; an answer
+    that names no commit ends it with 1 as well, the commit not checked. A secret is compared
+    by name only: its value reads empty on the project and on the deployment alike (capture
+    062). When the build is done it checks its commit and runs the check's `canonical` item;
+    if that still fails, it says the build is done and the forwarding does not answer, and
+    ends with 1.
 
 A `launch` run ends with the whole check script. Its exit status follows from the check's JSON,
 in this order, and nothing else:
@@ -522,13 +536,19 @@ when its list and this table differ. `launch` accepts every `--skip` id `setup` 
 is the switch, which `launch` does not write). Only the ids a run is given count: `setup`'s
 report prints the `launch` command with the ids it was run with, and a `fail` that gives 1
 says that if the setting was left out on purpose, its `--skip` belongs on the command.
-The report gives, for each thing set, what it was, what it is now, and how that was
-checked. Fail open, the build settings, Minimum TLS Version and the AI fields have no
-outside check: "read back through the API only", with the checklist's ssllabs test named
-for Lena to run. The report names the live address and, on a two-stage site, the address
-Cloudflare lists in `aliases` for `main`'s newest preview build (captures 021 to 026;
-read, not opened), or, where `main` has no preview build, says so. It lists what is left by hand, the script monitor's switch among it and HSTS with its earliest day, says that
-previews can be put behind a sign-in (D5), and reminds Lena to delete the token.
+The report gives, for each thing set, what it was, what it is now, and how that was checked.
+`setup`'s says Fail open, the build settings, Minimum TLS Version and the AI fields have no
+outside check: "read back through the API only". `launch`'s gives Fail open and the build
+settings as the project reads at that run, says it does not read Minimum TLS Version or the AI
+fields and that `setup`, run again, shows them, and names the checklist's ssllabs test for Lena
+to run (plan step 6's second review, R1-04 and R2-03: launch cannot know what setup read). The
+report names the live address and, on a two-stage site, the address Cloudflare lists in
+`aliases` for `main`'s newest preview build among the newest deployments read (captures 021 to
+026; read, not opened); where none of those has an address it says nothing about the preview,
+neither that there is one nor that there is none (R2-04, R3-01, R4-01). It
+lists what is left by hand, the script monitor's switch among it and HSTS with its earliest
+day, says that previews can be put behind a sign-in (D5), and reminds Lena to delete the
+token.
 
 **A finished setup** is one where every line of both lists reads as its end state, the
 project has a push build, and the domain is active with the check's `build`, `nel` and
@@ -668,6 +688,22 @@ field descriptions); the Bot Management update call's own description.
     tried. The script treats every value but `all` as "a pull request may not build".
 11. Whether a CNAME is refused beside a record of another type below the apex. The script
     refuses that case before it asks (script step 8), so nothing is tried on it.
+12. Whether a project's `domains` lists a domain that is attached and still pending. The
+    launch stage reads attachment from that list first, so a site that refuses gets no call
+    to the domains API (scenario 19); once the launch conditions hold, it asks the domains API
+    for the host as well, and an attach call that is refused is followed by that read too, so
+    a pending domain missing from the list is not attached twice. Plan step 10 is the first
+    try.
+13. How long Cloudflare keeps accepting a PATCH that changes a record's type, which it calls
+    deprecated (T1-132, T2-046). If it stops, script step 10 ends with 1, the record unchanged
+    and the domain pending.
+14. Two things the launch stage leans on that no capture shows, only an observation the trial
+    did not record: that the kit's middleware forwards a static file on the `pages.dev`
+    address (the check asks `/robots.txt?cb=…`; `CLOUDFLARE_FIRST_DEPLOY.md` says Pages runs
+    it "in front of every request, files included"), and that a PATCH of `CANONICAL_URL` alone
+    keeps each secret's value (the trial's test function, "Seen without a capture"). If the
+    first is wrong, `canonical` fails on a site that forwards, and the run ends with 1; if the
+    second is, the forwarding build ships with a blank secret. Plan step 10 observes both.
 
 ## Judgment calls
 

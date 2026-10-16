@@ -438,8 +438,9 @@ full path (the output of `pwd` inside it):
    it safely when a prompt keeps recurring, use **`website-permissions`**.
    **Fill `AGENTS.md` now**, per the scaffold note at its top: site name, live URL, the
    preview URL (two-stage: `main.<project>.pages.dev`; single-stage: "pull-request
-   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; update the
-   project name if Cloudflare later forces another one), `[TITLE_SUFFIX]` = the
+   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; where Cloudflare
+   gives the project an address other than its name, use that address, which the project's
+   page and the setup script's report name, so update it once the project exists), `[TITLE_SUFFIX]` = the
    ` | {SITE.name}` string `Base.astro` appends, `[SUFFIX_LENGTH]` = its length, and
    `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
    interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge
@@ -690,7 +691,7 @@ hold Search Console Request Indexing until then.
       `references/CLOUDFLARE_FIRST_DEPLOY.md`: for a site on GitHub, recommend the **setup
       script** (`scripts/cloudflare-setup.mjs setup`: one short-lived token, the owner's yes
       to a printed list, a project connected to GitHub with the checklist's settings; the
-      domain is attached by hand on launch day for now), with the token-assisted direct
+      script's `launch` stage attaches the domain on launch day), with the token-assisted direct
       upload (no GitHub connection; you run Wrangler), git-integration by hand and
       browser/manual as the other offered paths.
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.

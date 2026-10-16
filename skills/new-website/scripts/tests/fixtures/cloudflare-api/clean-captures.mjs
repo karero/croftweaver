@@ -13,16 +13,26 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-// The captures committed, by trial and number. `excerpt` keeps part of a long list.
-const SELECTION = {
-  T1: ['001', '002', '003', '013', '014', '015', '018', '019', '021', '027', '028', '030', '031', '033', '040',
-    '048', '049', '050', '051', '052', '053', '054', '055', '061', '062', '063', '064',
-    '067', '068', '069', '070', '071', '072', '073', '074', '075', '076', '077', '078', '079', '080', '081',
-    '082', '083', '084', '143', '144', '145', '146', '148'],
-  T2: ['001', '002', '003', '011', '016', '018', '021', '022', '023', '024', '025', '026', '028', '029',
-    '035', '036', '037', '038', '039', '040', '041', '059', '060', '061', '062', '063', '064', '065', '066',
-    '067', '073', '077'],
-};
+// The captures committed, by trial and number, in two batches: those the setup stage's tests use,
+// then those the launch stage's add (attaching a domain, its statuses, the host's record and its
+// comment). Made-up ids are given batch by batch, so a later batch leaves the earlier files as they
+// were. `excerpt` keeps part of a long list.
+const SELECTION = [
+  {
+    T1: ['001', '002', '003', '013', '014', '015', '018', '019', '021', '027', '028', '030', '031', '033', '040',
+      '048', '049', '050', '051', '052', '053', '054', '055', '061', '062', '063', '064',
+      '067', '068', '069', '070', '071', '072', '073', '074', '075', '076', '077', '078', '079', '080', '081',
+      '082', '083', '084', '143', '144', '145', '146', '148'],
+    T2: ['001', '002', '003', '011', '016', '018', '021', '022', '023', '024', '025', '026', '028', '029',
+      '035', '036', '037', '038', '039', '040', '041', '059', '060', '061', '062', '063', '064', '065', '066',
+      '067', '073', '077'],
+  },
+  {
+    // T1-102, the zone's list of records, is left out: it is the live zone's mail and other records.
+    T1: ['085', '086', '104', '127', '129', '130', '131', '132', '141', '142'],
+    T2: ['042', '043', '044', '045', '046', '047', '055', '056', '057', '058'],
+  },
+];
 const DROP = new Set(['owner', 'email', 'original_dnshost', 'original_name_servers', 'original_registrar',
   'vanity_name_servers', 'vanity_name_servers_ips', 'tenant', 'tenant_unit']);
 
@@ -41,9 +51,9 @@ function main([t1, t2, mapFile, out]) {
   if (!formLine) throw new Error('the helper has no empty-form line');
   const emptyForm = { contentType: formLine[1], bytes: formLine[2].replace(/\\r\\n/g, '\r\n') };
   const raw = [];
-  for (const trial of ['T1', 'T2']) {
+  for (const [batch, selection] of SELECTION.entries()) for (const trial of ['T1', 'T2']) {
     const files = readdirSync(dirs[trial]);
-    for (const n of SELECTION[trial]) {
+    for (const n of selection[trial]) {
       const base = files.find((f) => f.startsWith(`${n}-`) && f.endsWith('.request.txt')).replace(/\.request\.txt$/, '');
       const at = (ext) => path.join(dirs[trial], `${base}.${ext}`);
       const [line, ...bodyLines] = readFileSync(at('request.txt'), 'utf8').split('\n');
@@ -57,7 +67,7 @@ function main([t1, t2, mapFile, out]) {
       } else if (bodyText) { try { body = JSON.parse(bodyText); } catch { body = bodyText; } }
       const text = readFileSync(at('response.json'), 'utf8');
       raw.push({
-        trial, n, label: base.slice(4),
+        trial, n, batch, label: base.slice(4),
         capture: `${trial}-${n}`,
         request: { method, path: p, body },
         status: Number(readFileSync(at('status.txt'), 'utf8').trim()),
@@ -104,9 +114,15 @@ function main([t1, t2, mapFile, out]) {
   const ids = new Map();
   const fake = (real, make) => { if (!ids.has(real)) ids.set(real, make(ids.size + 1)); return ids.get(real); };
   const pad = (n, width) => String(n).padStart(width, '0');
-  const uuids = new Set(JSON.stringify(raw).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) ?? []);
-  for (const u of [...uuids].sort()) fake(u, (k) => `d${pad(k, 7)}-0000-4000-8000-000000000000`);
-  const shortIds = new Map([...uuids].map((u) => [u.slice(0, 8), ids.get(u).slice(0, 8)]));
+  const uuidsOf = (o) => JSON.stringify(o).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) ?? [];
+  // A batch's uuids are given out, sorted, just before the batch is cleaned (below).
+  const shortIds = new Map();
+  const giveUuids = (batch) => {
+    for (const u of [...new Set(uuidsOf(raw.filter((r) => r.batch === batch)))].sort()) {
+      fake(u, (k) => `d${pad(k, 7)}-0000-4000-8000-000000000000`);
+      shortIds.set(u.slice(0, 8), ids.get(u).slice(0, 8));
+    }
+  };
   const messages = new Map();
   const numbers = new Map();
 
@@ -151,6 +167,7 @@ function main([t1, t2, mapFile, out]) {
   mkdirSync(out, { recursive: true });
   writeFileSync(path.join(out, 'trial-helper.txt'), helper);
   for (const r of raw) {
+    if (r === raw.find((x) => x.batch === r.batch)) giveUuids(r.batch);
     const fixture = {
       capture: r.capture,
       ...(r.excerpt ? { excerpt: r.excerpt } : {}),
@@ -162,6 +179,9 @@ function main([t1, t2, mapFile, out]) {
     // Nothing real may be left: no name from the map, no id that was not replaced.
     for (const [real] of names(r.trial)) if (text.toLowerCase().includes(real.toLowerCase())) throw new Error(`${r.capture}: "${real}" is still there`);
     for (const real of ids.keys()) if (text.includes(real)) throw new Error(`${r.capture}: an id is still there`);
+    // The short form of an id (its first 8 characters, as in a deployment's short_id) is replaced only
+    // once its batch has given the id out: one still there, from an id of a later batch, stops the run.
+    for (const u of new Set(uuidsOf(raw))) if (text.includes(u.slice(0, 8))) throw new Error(`${r.capture}: the short form of an id is still there`);
     // And no id the replacement did not know: a hex run of 32 or more that is not a made-up one.
     for (const m of text.matchAll(/(?<![0-9a-f])[0-9a-f]{32,}(?![0-9a-f])/gi)) {
       if (!/^(?:c0ffee|ba5e|f00d)0+\d+$/.test(m[0])) throw new Error(`${r.capture}: an id the cleaner did not replace`);

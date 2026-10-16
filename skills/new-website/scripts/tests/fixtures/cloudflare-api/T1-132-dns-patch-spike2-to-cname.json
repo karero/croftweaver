@@ -1,0 +1,41 @@
+{
+  "capture": "T1-132",
+  "request": {
+    "method": "PATCH",
+    "path": "/zones/c0ffee00000000000000000000000022/dns_records/c0ffee00000000000000000000000057",
+    "body": {
+      "type": "CNAME",
+      "content": "lenas-backstube-2.pages.dev",
+      "proxied": true
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "id": "c0ffee00000000000000000000000057",
+      "name": "shop.lenas-backstube.example",
+      "type": "CNAME",
+      "content": "lenas-backstube-2.pages.dev",
+      "proxiable": true,
+      "proxied": true,
+      "ttl": 1,
+      "settings": {
+        "flatten_cname": false
+      },
+      "meta": {},
+      "comment": "Trial of a setup script; remove when the trial ends",
+      "tags": [],
+      "created_on": "2026-10-13T21:39:32.952632Z",
+      "modified_on": "2026-10-13T21:40:03.553368Z",
+      "comment_modified_on": "2026-10-13T21:39:32.952632Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": [
+      {
+        "message": "DNS record type update is deprecated",
+        "documentation_url": "https://developers.cloudflare.com/fundamentals/api/reference/deprecations/#2026-01-23"
+      }
+    ]
+  }
+}

@@ -1,0 +1,313 @@
+# Review trail: Cloudflare setup script, the launch stage (karero/croftweaver#334)
+
+Base `4c890f6` · depth: High (as for #328: the script changes a Cloudflare account with a token, and this stage makes a site public) · verdict: CLEAN (2026-10-16). Four rounds, a final full read, a re-gate with the wording pass and one confirmation, 69 findings (16 BUG, 16 RISK, 37 NIT); no BUG open. The rounds closed after round 4 on the maintainer's choice (below), R4-01 and R4-02 fixed then without another round · authority used: POST AUTHORITY, WORKTREE-WRITE AUTHORITY and BRANCH-COMMIT AUTHORITY, each by atom A (this session opened the pull request and made the branch in its worktree) · seen pair: base `4c890f6`, head `564a348`; Codex's chain is unbroken from round 1 to the confirmation. The commit after `564a348` adds only this trail, which no review artifact holds
+
+Seats: Codex (config effort) and GLM 5.3 on melious (`SECOND_SEAT=melious`, ollama `glm-5.3:cloud` standing in if melious fails), fresh-eyes (Claude Opus 5.5) in rounds 1 to 3. The maintainer's OK for sending this change to them, in this session: "yes please" (2026-10-15), given in answer to the note that this session would ask before the gate. The repository is public.
+
+The diff goes in two parts, as #328's did: A (the two scripts, the plan's diff, and an excerpt of the plan's requirements, scenarios and launch stage as context for the text-only seat) and B (tests, stub, cleaner, fixture index, allow-list, docs). The 20 new fixture files are read in the tree.
+
+## Rounds
+
+| Round | Head | Scope | Seats | Time, tokens | Findings (BUG / RISK / NIT) |
+|---|---|---|---|---|---|
+| 1 | `5b0d8ce` | full, in parts A (103 KB with the plan excerpt) and B (96 KB); the 20 new fixtures read in the tree | Codex (gpt-6.1-sol, config effort) and Melious (glm-5.3) on each part; fresh-eyes (Claude Opus 5.5) on the whole | Codex A 362 s, 151,613 · Melious A 644 s, 71,639 · Codex B 362 s, 154,343 · Melious B 305 s, 50,069 · fresh-eyes 612 s, 199,864 | 6 / 9 / 10 after merging duplicates. UNVERIFIABLE asked: 9, confirmed as findings: 2 (R1-07, R1-08); R1-07 was raised by all five seat runs |
+| 2 | `7384144` | verification: the change since `5b0d8ce` (49 KB, one part), prior findings R1-01 to R1-25 | Codex (config effort) and Melious (glm-5.3); fresh-eyes (Claude Opus 5.5) | Codex 354 s, 138,569 · Melious 602 s, 50,529 · fresh-eyes 583 s, 152,365 | 4 / 2 / 7 after merging duplicates. All 22 fixes confirmed as landed; R1-01, R1-03, R1-04 and R1-09 only in part (R2-01 to R2-04). R1-08 and R1-10 called UNVERIFIABLE by Codex and fresh-eyes, not wrong: both now in the plan's Not verified 14 |
+| 3 | `86ef38e` | verification: the change since `7384144` (19 KB), prior findings R1 and R2 | Codex (config effort) and Melious (glm-5.3); fresh-eyes (Claude Opus 5.5), its last round at High | Codex 339 s, 138,160 · Melious 222 s, 26,183 · fresh-eyes 702 s, 151,199 | 2 / 0 / 5 after merging duplicates. All round-2 fixes confirmed; fresh-eyes broke each guard and saw its test fail. Two kinds came back a second time, the preview line (R2-04, R3-01) and the nameserver stop's words (R2-11, R3-02): both cut, not patched |
+| 4 | `d3e8d46` | verification: the change since `86ef38e`, and the plan's whole change since `5b0d8ce` (R3-03); earned by R3-01 and R3-02 (`--earned-by preview-report,nameserver-message`; `--cut`: the preview line's claim of absence removed, the nameserver stop's cause branches removed) | Codex (config effort) and Melious (glm-5.3) | Codex 333 s, 142,884 · Melious 228 s, 27,542 | 2 / 1 / 3. Both cuts confirmed, and every round-3 fix. Two kinds came back after their cuts: the preview line (R4-01, a third time) and the forwarding build's commit (R4-02, after R1-01 and R2-01). Patching stopped there (step 7); the open items went to the maintainer as one decision |
+| final full read (not a round) | `1025264` | the whole change from base `4c890f6`, in three parts (A: the scripts and the plan's change; B: tests and stub; C: fixture tooling and the docs, with a plan excerpt) | Kimi K3 (`kimi-k3:cloud` on ollama, a model that had not reviewed this change) on A and B; on C ollama refused (weekly limit reached, twice), so a new Claude Opus 5.5 sub-agent that had no part in this gate read it, as the skill allows for a final read | Kimi A 437 s · Kimi B 464 s, no token figures · Claude C 288 s, 199,639 | A and B: 0 / 4 / 6; C: 2 / 0 / 6. C's two BUGs were the sweep's own: it had made `<project>` the address label in two files that also use it as the project's name in a Wrangler command. Fixed; the Codex re-gate that follows covers the fixes |
+| re-gate and wording pass (not a round) | `99ad0b8` | full scope: everything since `d3e8d46` (the maintainer's closing fixes, the final read's fixes, the plan's status rows and other text, the review record) | Codex (gpt-6.1-sol, config effort) | 401 s, 161,626 | 2 / 0 / 0: two of the final read's fixes were wrong (FR-06's lookup rule, FR-13's wording); every other fix confirmed, and the record's counts (69 rows: 16 / 16 / 37) |
+| confirmation (not a round) | `564a348` | the change since `99ad0b8`: the two refixes, scoped to whether they remove the contradictions without adding one | Codex (config effort) | 159 s, 71,108 | 0 / 1 / 0: FR-06 and FR-13 confirmed (36 error-code pairs checked); the RISK is a follow-up, as a confirmation's other findings are |
+
+## Findings
+
+| Id | Sev | Source | Round | Finding | Status | Evidence |
+|---|---|---|---|---|---|---|
+| R1-01 | BUG | Codex A | 1 | On a domain attached by hand, the forwarding build could build another branch than the site's (the deployment call builds the project's production branch), or a commit pushed after the check | fixed, locally_verified | the build waits for the project's and the live build's production branch to be `PROD_BRANCH`; the commit Cloudflare names in its answer must be the live one, else 1 naming it; tests "the forwarding build waits for the site's own production branch" (both cases); each fails with its guard removed |
+| R1-02 | BUG | Codex A | 1 | The launch code bound the end state only, so a yes to a question listing the forwarding alone also covered a NEL rule it never named | fixed, locally_verified | the code binds the listed actions too, as setup's does (`launchCode`, `launchFits`); the first question lists the forwarding and the rule as "if needed"; test "a yes to the forwarding alone is no yes to a NEL rule"; fails with the list taken out of `launchCode`; plan's code paragraph follows |
+| R1-03 | BUG | Codex A | 1 | A failed forwarding build was passed over, and every run started another | fixed, locally_verified | on an active domain the newest production deployment decides: running waits, failed stops with 1; test "after a failed production build the run stops"; fails with the guard removed |
+| R1-04 | BUG | Codex A, Codex B | 1 | The report said launch read back TLS and the AI fields; launch reads no zone setting | fixed, locally_verified | the report now says setup read them and launch does not; test 36 and 37 assert the words and that launch sends no `/settings/` or `bot_management` request |
+| R1-05 | BUG | fresh-eyes, Codex A, Codex B | 1 | `CLOUDFLARE_FIRST_DEPLOY.md`: "a project already serving a domain gets no build", against launch's forwarding build | fixed, locally_verified | the sentence names `setup`, and the launch's one forwarding build of the live commit |
+| R1-06 | BUG | Codex B | 1 | `CLOUDFLARE_FIRST_DEPLOY.md` read as if a `--skip` excused an unanswered request or an item not judged | fixed, locally_verified | the two failures are stated whatever `--skip` says; the skips only for a `fail`; matches `launchVerdict` and its test |
+| R1-07 | RISK | fresh-eyes, Codex A, Codex B, Melious A, Melious B | 1 | Attachment was read only from the project's `domains`; if a pending domain is missing there (not captured), the second run of every launch attaches again and stops | fixed, locally_verified | once the conditions hold the domains API is asked too; a refused attach is followed by that read; the stub's `pendingUnlisted` plays the missing case; test "a pending domain the project's list does not name"; fails without the read; plan Not verified 12 follows |
+| R1-08 | RISK | Codex A | 1 | A PATCH of `CANONICAL_URL` alone is assumed to keep the secrets' values; no capture shows a value kept | refuted | the plan's "Seen without a capture": a test function in the trial's project gave the same hash of the secret after every PATCH, on production and on a preview; setup's PATCH rests on the same (#328's gate) |
+| R1-09 | RISK | fresh-eyes | 1 | Searches for a running build or `main`'s preview read the whole deployment history when nothing matched, and could reach the deadline on an old site | fixed, locally_verified | the newest production deployment alone decides "under way"; the preview of `main` is looked for on two pages at most (`find(…, { pages })`) |
+| R1-10 | RISK | fresh-eyes | 1 | The forwarding probe asks `/robots.txt`, a static file; whether the middleware runs for one is not shown | refuted | `CLOUDFLARE_FIRST_DEPLOY.md`, "set Fail open": Pages runs the root middleware "in front of every request, files included", and the kit tells owners not to add a `_routes.json` that would exclude files from it |
+| R1-11 | RISK | fresh-eyes | 1 | A `canonical` that was not judged (`skip`) or redirected another way (`look`) was taken for "not forwarding" | fixed, locally_verified | `skip` waits (4); `look` stops with the check's words and changes nothing; test "an answer not seen yet waits; a redirect that is not the kit's stops" |
+| R1-12 | RISK | fresh-eyes, Melious A | 1 | No nameserver address found, or too little time, fell back quietly to this computer's lookup; that path had no test | fixed, locally_verified | `nameserverIps` waits (4) when none is found or under 4 s are left; unit test with a stub lookup (none found, too little time, some found); fails with the guard removed |
+| R1-13 | RISK | Melious A | 1 | `--only bot` sends no crawler request, though the bot item may read one | refuted | the bot item reads the home page's cookies and source only (`cloudflare-check.mjs`, `evaluate`, "5. What Cloudflare adds to the page"); the home page is always asked |
+| R1-14 | RISK | Codex B | 1 | The changed-commit test stopped at the build condition, so it passed with the code check removed | fixed, locally_verified | the stub now holds a good build of the new head; the test wants 3, a new code and no write |
+| R1-15 | RISK | Melious B | 1 | The cleaner gives a batch's short ids only with its batch, so an earlier fixture could keep a real short id of a later batch's id | fixed, locally_verified | the cleaner stops when a real id's first 8 characters are left in any file; regenerating all 103 files gave them byte for byte |
+| R1-16 | NIT | fresh-eyes | 1 | A live build with no commit gave the check `--build ''` and an unclear stop | fixed, locally_verified | a plain stop names it |
+| R1-17 | NIT | fresh-eyes | 1 | No answer right after the domain turned active ended with 1 | fixed, locally_verified | a `build` not judged waits (4); test case `siteDown` |
+| R1-18 | NIT | fresh-eyes | 1 | `r.body.result` read without a guard after the variable PATCH | fixed, locally_verified | `r.body?.result?.…` |
+| R1-19 | NIT | fresh-eyes | 1 | "Launch day" listed neither the wait on a queued build nor the too-long record | fixed, locally_verified | both added |
+| R1-20 | NIT | fresh-eyes | 1 | An owner's comment that begins "Was: " was read as the script's note | fixed, locally_verified | the note must have the script's form; test "an owner's comment that only begins like the script's note" |
+| R1-21 | NIT | Melious A | 1 | `--nameserver` took port 0 and an IPv4 address in brackets | fixed, locally_verified | ports 1 to 65535, brackets for IPv6 only; test |
+| R1-22 | NIT | Melious A | 1 | The text report did not say it was an `--only` run | fixed, locally_verified | a header line names the items; test |
+| R1-23 | NIT | Melious B | 1 | `EMPTY_LIST` would fail quietly if the starter's list moved to several lines | fixed, locally_verified | it asserts the replacement happened |
+| R1-24 | NIT | Melious B | 1 | The stub's http redirect is tied to the check's probe shape without a word | fixed, locally_verified | a comment says so |
+| R1-25 | NIT | Melious B | 1 | "gets no launch check" read as if a hand-attached domain could not fail | fixed, locally_verified | "no launch condition is checked …, and the check at the end" |
+| R2-01 | BUG | Codex | 2 | R1-01 in part: the moved-head check ran after the build call, so a commit pushed since the run read the branch was already queued | fixed, locally_verified | the branch's head is read again just before the call, and nothing starts unless it is the live commit; what remains is a push in the moment between, caught afterwards from Cloudflare's answer (T1-030) and named, as the docs and plan now say; test "a push to the production branch just before the build call"; fails without the read. No API call pins the commit of a Git-connected build; none was tried |
+| R2-02 | BUG | Codex | 2 | R1-03 in part: the deployments read again just before the build call were checked for one under way, not for a failure | fixed, locally_verified | a failed newest production build stops there too; test "a failed build that appears after the variable is saved"; fails without the guard |
+| R2-03 | BUG | Codex; fresh-eyes (RISK) | 2 | R1-04 in part: the report said setup had read TLS and the AI fields, which launch cannot know, and that launch did not read Fail open and the build settings, which it does | fixed, locally_verified | the report gives Fail open and the build settings as the project reads now, and says launch does not read TLS or the AI fields and that `setup`, run again, shows them; test 36 and 37 |
+| R2-04 | BUG | Codex; fresh-eyes (NIT) | 2 | R1-09's bound made a preview of `main` older than two pages read as "no preview build yet" | fixed, locally_verified | "No preview of main among the newest deployments", with where to look; test "a preview of main further back than the pages read" |
+| R2-05 | RISK | Melious | 2 | That the build call's answer names the commit is unsupported | refuted | T1-030, the captured answer to the deployment call, carries `deployment_trigger.metadata.commit_hash` (fresh-eyes checked it in round 2) |
+| R2-06 | RISK | Melious | 2 | That a deployment carries `production_branch` is unsupported | refuted | T1-055 records `production_branch: main` on a deployment; setup's `goodProductionBuild` and its test rest on it |
+| R2-07 | NIT | Melious | 2 | R1-15's guard checks only the uuids of one capture | refuted | in `clean-captures.mjs` the guard reads `uuidsOf(raw)`, and `raw` is the list of every capture of both batches; fresh-eyes checked the same in round 2 |
+| R2-08 | NIT | Melious, fresh-eyes | 2 | `CLOUDFLARE_FIRST_DEPLOY.md` said the build is "only of the commit that is live", which the code cannot ensure | fixed, locally_verified | the sentence says the branch is read again just before, and that a push in the moment between ends the run with 1, named |
+| R2-09 | NIT | fresh-eyes | 2 | R1-01's live-build branch guard had no test of its own | fixed, locally_verified | test "a live build made under another production branch"; fails without the guard |
+| R2-10 | NIT | fresh-eyes | 2 | R1-07's read after a refused attach had no test | fixed, locally_verified | the stub can miss a read (`hideDomainReads`); test "an attach refused because the domain is there already"; fails without the read |
+| R2-11 | NIT | fresh-eyes | 2 | With too little time left, the stop said the nameservers "could not be looked up", though none was tried | fixed, locally_verified | its own words for that case |
+| R2-12 | NIT | fresh-eyes | 2 | Lines changed in `CLOUDFLARE_FIRST_DEPLOY.md` were not wrapped like the rest | fixed, locally_verified | rewrapped |
+| R2-13 | NIT | fresh-eyes (outside scope) | 2 | The plan's item 13 lines added in round 1 were not indented | fixed, locally_verified, externally_reverified (Codex and fresh-eyes, round 3) | the item rewrapped as one |
+| R3-01 | BUG | Codex | 3 | R2-04 in part: a preview of `main` found with no alias (T1-021's shape) was still reported as no preview | fixed by a cut, locally_verified | the report never says there is no preview: the alias when the newest preview of `main` read has one, else where to find it; tests with no alias and with the preview past the pages read; both fail on the old words |
+| R3-02 | BUG | Codex; Melious, fresh-eyes (NIT) | 3 | R2-11's new words blamed "too little time" when Cloudflare lists no nameservers | fixed by a cut, locally_verified | one message for every way of finding no address, naming what Cloudflare lists and guessing no cause; the unit test asserts its words for a failed lookup, too little time, an empty list and none listed |
+| R3-03 | NIT | Melious | 3 | R2-13's rewrap of the plan is not in the diff | refuted as a finding on the change; an artifact defect, recorded below | the rewrap is in `86ef38e` (`git diff 7384144..86ef38e -- docs/reviews/SKILL-PLAN-cloudflare-setup.md`: 30 lines in, 21 out), and Codex and fresh-eyes checked it in the tree. The artifacts of rounds 2 and 3 left the plan out: git's exclude pathspec for `docs/reviews/` overrode the plan's own path. Round 4's artifact adds the plan's whole change since round 1 |
+| R3-04 | NIT | fresh-eyes | 3 | An unreadable branch head was said to be "not at the live commit", which the run cannot know | fixed, locally_verified | its own words: the branch could not be read again, so no build was started |
+| R3-05 | NIT | fresh-eyes | 3 | R2-08's rewrite dropped "on the site's own production branch" from the docs | fixed, locally_verified | "Launch day" names the project's and the live build's production branch again |
+| R3-06 | NIT | fresh-eyes | 3 | The plan's report paragraph still had R2-03's and R2-04's old wording | fixed, locally_verified | the paragraph tells setup's report from launch's and says the preview line never claims none |
+| R3-07 | NIT | fresh-eyes (outside scope) | 3 | With no commit in Cloudflare's answer, the run said it started a build "of" the live commit | fixed, locally_verified, externally_reverified (round 4) | it then says it started a build of the branch's head and that the answer names no commit |
+| R4-01 | BUG | Codex | 4 | The cut's fallback, "its address is on the newest build of main", still implies a preview exists where none was built | fixed on the maintainer's choice (below), locally_verified, not externally re-verified | the preview line is printed only when an address was found, and nothing else is said; tests with no alias and with the preview past the pages read assert no line about it |
+| R4-02 | BUG | Codex | 4 | The docs promise that a push in the moment before the build call is caught and named; an answer naming no commit (never seen; T1-030 names it) skips that comparison and the run ends with 4 | fixed on the maintainer's choice, locally_verified, not externally re-verified | an answer that names no commit ends the run with 1, saying the build's commit could not be checked; the docs and plan state the limit; test "an answer to the build call that names no commit"; fails without the stop |
+| R4-03 | RISK | Codex | 4 | R1-08 and R1-10 rest on observations no capture keeps | refuted as a new finding: a re-raise with no new evidence | both are the plan's Not verified 14, with their consequences named; plan step 10 observes them |
+| R4-04 | NIT | Melious | 4 | Plan item 13: the production-branch condition has no failure outcome of its own, and the "Otherwise" sentence reads as covering it | fixed, locally_verified | the item says what happens when any build condition fails, right after the list of them |
+| R4-05 | NIT | Melious | 4 | The nameserver stop reads `zone.name` unguarded; the tests' zones have none, so their message says "dig NS undefined" unseen | fixed, locally_verified | guarded; the test asserts the whole message and that "undefined" is not in it |
+| R4-06 | NIT | Melious | 4 | A branch absent on GitHub and a failed read give the same "could not be read again … run again" words | fixed, locally_verified | a branch gone from GitHub has its own words; test "the production branch gone from GitHub just before the build call"; fails without them |
+| FR-01 | RISK | Kimi (A) | final read | The forwarding probe asks a static file; the middleware running for one is not observed | refuted: a re-raise of R1-10 with no new evidence | the plan's Not verified 14 |
+| FR-02 | RISK | Kimi (A) | final read | A PATCH of `CANONICAL_URL` alone keeping each secret's value is not observed | refuted: a re-raise of R1-08 with no new evidence | the plan's Not verified 14 |
+| FR-03 | RISK | Kimi (A) | final read | The record step rests on the PATCH Cloudflare calls deprecated | no change: it fails safe, as Kimi says (status 1, record unchanged, domain pending) | the plan's Not verified 13 |
+| FR-04 | NIT | Kimi (A) | final read | `parseOnly`'s comment says "each once" while repeats are folded | fixed, locally_verified | the comment says a repeat counts once |
+| FR-05 | NIT | Kimi (A) | final read | `!probe` in the canonical branch cannot be reached from `observe` | refuted | `evaluate` is exported and the tests call it with observations made by hand, which may lack the probe |
+| FR-06 | NIT | Kimi (A) | final read | `lookupAt` turned every resolver failure into ENOTFOUND | fixed, locally_verified (the first fix was wrong: the re-gate found a timeout beside "no such name" still read as no such name; refixed) | `lookupErrorCode`: a failure of either question wins over "no such name"; unit test in both orders |
+| FR-07 | NIT | Kimi (A) | final read | `CHECK_SCRIPT` used the module's path without resolving symlinks, unlike the file's own run check | fixed, locally_verified | `realpathSync` before `dirname` |
+| FR-08 | RISK | Kimi (B) | final read | That a project PATCH merges variables rather than replacing them is not cited | refuted | T1-048 to T1-061: each PATCH holding one change kept every other variable and secret by name; the stub's replay test compares with them |
+| FR-09 | NIT | Kimi (B) | final read | The German test helper would no-op silently if the starter's `DRAFT_TOKEN` line changed | fixed, locally_verified | it asserts the replacement |
+| FR-10 | NIT | Kimi (B) | final read | A dead `domain_id: undefined` in the stub | fixed, locally_verified | set once |
+| FR-11 | BUG | Claude (C) | final read | `PUBLISHING.md` defined `<your-project>` as the address's first part, while the same file uses it as the name in `wrangler pages deploy --project-name` | fixed, locally_verified | `<your-project>` stays the name; the sweep's notes say to use the address on the project's page where it differs; same in `AGENTS.md` and `new-website/SKILL.md` |
+| FR-12 | BUG | Claude (C) | final read | `CLOUDFLARE_FIRST_DEPLOY.md`'s "After go-live" did the same, against its own step 2's `--project-name <project>` | fixed, locally_verified | the note says the address may differ from the name and that in a Wrangler command `<project>` stays the name |
+| FR-13 | NIT | Claude (C) | final read | "Launch day" left out three of the forwarding build's conditions | fixed, locally_verified (the first wording overstated the guard, the re-gate found: secrets are compared by name; reworded) | the live build Cloudflare's, of that commit, with the same build settings and plain variables apart from `CANONICAL_URL`, and secrets of the same names, which the build takes as saved now |
+| FR-14 | NIT | Claude (C) | final read | "setup's `--skip` ids are taken too" did not say which change anything, nor that `nel` is not `nel-rule` | fixed, locally_verified | names `https`, `bot`, `email`, and the `nel` / `nel-rule` difference |
+| FR-15 | NIT | Claude (C) | final read | "Launch day" left out the stop when the placeholder test or `ci.yml` cannot be read, the stop on a domain in error, and the failed-build stop on a domain active by hand | fixed, locally_verified | one clause each |
+| FR-16 | NIT | Claude (C) | final read | "After go-live" said launch does steps 1 to 3, but it checks no preview host | fixed, locally_verified | "steps 1 and 2, and the domain half of step 3" |
+| FR-17 | NIT | Claude (C) | final read | `CLOUDFLARE_CHECK.md` described the local names more widely and the loopback addresses more narrowly than the code takes | fixed, locally_verified | one label before `.localhost`; any `127.x.x.x` |
+| FR-18 | NIT | Claude (C) | final read | The check's "not checked" messages and the reference's FAIL column still said "name" for the `pages.dev` address | fixed, locally_verified | "--project <address>"; "The address does not answer" |
+
+The maintainer's decision after round 4 (2026-10-16), asked as one decision because two kinds had come back after their cuts: "Fix small, then close (Recommended)", the option that read: fix R4-01 by printing the preview line only when an address was found, R4-02 by ending with 1 when Cloudflare's answer names no commit, and the three NITs, all locally verified with tests; then the final full read, the wording pass and the stamp, no more rounds.
+
+Follow-ups (not blocking): "Launch day" says the forwarding build takes the secrets "as they are saved now", which no capture shows; it is the open point of the plan's Not verified 14 (Codex, confirmation). The final full read's part C could not go to Kimi: ollama's weekly limit was reached. the searches for a push build, for a build of the head and for the newest build that succeeded still read the whole history when nothing matches, as before this change (fresh-eyes and Melious, round 2); `CANONICAL_URL` is saved even when no build can follow, as the plan's step 13 has it (fresh-eyes, round 2); "Launch day" does not name the stop for a live build that names no commit (Melious, round 2).
+
+UNVERIFIABLE entries settled after round 1: that Node's `https` request takes the custom `lookup` (fresh-eyes) is now shown by the TLS test, which reaches `lenas.test` through `--nameserver` with a certificate made for that name. Still open, and named in the plan: whether a project's `domains` lists a pending domain (Not verified 12, no longer load-bearing after R1-07) and how long the type-changing PATCH is accepted (13).
+
+## Evidence at the stamp head `564a348`
+
+- `make test-cloudflare-check`: 199 tests, 199 pass, exit status 0. `bash scripts/check_clean.sh`: exit status 0.
+
+## Evidence before round 1, at `0127ac7`
+
+- `make test-cloudflare-check`: 184 tests, 184 pass, exit status 0 (the record below, whole).
+- `bash scripts/check_clean.sh`: exit status 0.
+- `make check` with `/bin/bash` first on `PATH`: exit status 0. With Homebrew's bash 5.3 first, one self-test of `scripts/test_mktemp_guard.sh` ("the old three lines") fails, at `origin/main` as well (run from a `git archive origin/main` copy): that bash's `cd ""` does not move to the home folder, so the fixture never deletes its folder. Not this change; a follow-up.
+- Guards broken once by hand, each test then seen to fail: the unfilled-pages stop (19), the record comment (23 and 28, 25), the other differences that stop the forwarding build (29), the ruleset read again before the PUT (27), the queued build (21); in the check script, the exact path-and-query comparison, the nameserver lookup and `--only`'s requests.
+
+<details><summary>make test-cloudflare-check at 0127ac7, whole</summary>
+
+```
+$ make test-cloudflare-check   # head 0127ac77, 2026-10-15T20:44:06Z, v26.12.0
+✔ a clean site: everything an outside request can judge is ok, the rest says what is left (61.777458ms)
+✔ without --build the live build is only a look: nothing was compared (59.19025ms)
+✔ the plain-text report names every item and ends with a result line (63.842792ms)
+✔ NEL still on: the item fails and shows how long browsers keep the note (62.085458ms)
+✔ Cloudflare's reporting group alone still fails; a group of your own is a "look" (121.563791ms)
+✔ a nel header with max_age 0 is the way a policy is withdrawn: a "look", not "on" (59.846833ms)
+✔ no answer at all: the domain fails, nothing that needs the page reads "ok", exit 1 (58.668792ms)
+✔ an answer that is cut off is no answer, whatever its first bytes said (111.609208ms)
+✔ an answer that starts and then stalls times out as no answer (1055.753208ms)
+✔ a page larger than what is read is never "ok" on what was read (89.270167ms)
+✔ an error page is not judged as the site: a 522 fails the domain and the privacy items are not run (58.870125ms)
+✔ a challenge page is named as such, and the site is not judged from it (62.544792ms)
+✔ an answer that is not a 200 page cannot be judged: 204 is a look and the items are not run, exit 1 (57.562125ms)
+✔ an answer that did not come through Cloudflare is a "look": any 200 is not the site (59.347583ms)
+✔ a redirect to the same address is followed and the page is judged where it ends (58.625708ms)
+✔ a redirect to another address is not followed: the items are not run, exit 1 (57.367625ms)
+✔ the https redirect must lead to the whole address: a longer host is not it (61.927959ms)
+✔ the https redirect is judged as an address: another host that quotes ours in a query does not pass (59.612208ms)
+✔ the same address written another way is still the https redirect (65.371958ms)
+✔ http:// answering 200 is a failure: Always Use HTTPS is not reaching it (56.831667ms)
+✔ a 302 to the right place is a "look": visitors arrive, but it is not Always Use HTTPS (58.091458ms)
+✔ what Cloudflare injects is found: the bot script (inline), the beacon, the address hiding (57.675583ms)
+✔ the bot script alone is found when no cookie was set (58.741167ms)
+✔ words about these scripts are not the scripts: a comment, a paragraph and a code sample pass (58.726792ms)
+✔ another /cdn-cgi/ feature is a "look" that names it, not a pass (57.097042ms)
+✔ a cookie that is not Cloudflare's is a "look" that does not blame Bot Fight Mode (57.37575ms)
+✔ HSTS: missing is a "look" until --hsts-on says it should be there (119.472ms)
+✔ HSTS: read as directives: months, subdomains, preload; a lookalike or a short age is not "on" (366.694166ms)
+✔ HSTS: 30 days is not "shorter" than the one month the checklist starts with; less than 28 days is (181.974083ms)
+✔ robots.txt that still names the starter's example.com is a failure (61.730166ms)
+✔ a sitemap on another host is not the placeholder because its name contains "example.com" (125.643292ms)
+✔ robots.txt that tells every crawler to stay out fails; a private folder does not (121.552833ms)
+✔ rules for named crawlers in robots.txt make the AI item a "look" (62.223583ms)
+✔ robots.txt that is a web page fails; a comment that mentions html does not (121.348834ms)
+✔ robots.txt that cannot be had: 404 is a look, 500 a failure, no answer a failure and exit 1 (185.235459ms)
+✔ an AI crawler name that is refused is a "look" that names it and its status (61.202709ms)
+✔ crawler requests that got no answer are not "none refused": a look, and exit 1 (59.716625ms)
+✔ --build: the same commit passes, another one fails (132.863709ms)
+✔ a build marker that is not a full commit id proves nothing: "dev", a page, a short id (197.707208ms)
+✔ build.txt that got no answer, with the domain fine, is a look and a non-zero exit (63.444583ms)
+✔ --project: the alias that forwards to the domain passes the forward, and its NEL note stays beside the domain's result (63.283167ms)
+✔ --project: the alias note names the header the alias sends, not both (129.655333ms)
+✔ --project: an alias that answers 200 means the forward is not set, and the causes are listed (65.652208ms)
+✔ --project: a forward to another address fails, and a name that does not answer is named (126.080125ms)
+✔ an alias that answers 404, 500 or a challenge is not "a Pages project, ok" (1.246625ms)
+✔ --project: a forwarding that sends every page to the home page, or drops the query, fails; a page with no answer is not judged (191.617667ms)
+✔ --only judges the items named and sends only the requests they need (174.110917ms)
+✔ --nameserver: the domain is looked up at the nameserver given, and the pages.dev address is not (212.180208ms)
+✔ --project takes a Pages project, not any address (0.273ms)
+✔ https: a closed port is "connection refused" through the https path (75.293167ms)
+✔ https: a site behind a certificate is read over TLS, and an untrusted one is named (192.387833ms)
+✔ a header on the way counts: NEL and a Cloudflare cookie on the first answer of a followed redirect (64.045625ms)
+✔ what a tag says about itself is not what it loads: titles, alt text and data attributes pass (65.362375ms)
+✔ only Cloudflare's own paths are excluded from "other scripts": a longer path that quotes one is not (66.588167ms)
+✔ a reporting group is judged by what it is: one of your own named like Cloudflare's is yours (200.728458ms)
+✔ the script monitor is named, with the path to its switch, not shown as a bare report-to header (64.170208ms)
+✔ any one of the script monitor's three headers names it, however the address is written (1273.783875ms)
+✔ a group or an address of your own is not the script monitor, whatever it is called or quotes (1823.486708ms)
+✔ the script monitor reporting to the site's own host is named too, in each header and however the address is written (2021.504042ms)
+✔ an own-host report address must have the page's exact origin: a trailing dot is another origin (0.134333ms)
+✔ NEL on still fails beside the script monitor, and the monitor is named there too (180.404208ms)
+✔ a clean NEL line says that one answer cannot show the script monitor is off (126.103ms)
+✔ a robots.txt or build.txt larger than what is read is not judged whole (69.160584ms)
+✔ a 200 page with nothing in it is not the site: the domain fails and the page items are not run (62.604083ms)
+✔ every spelling of "all of it" in a robots group is a stay-out; allowing it too leaves it open (245.986541ms)
+✔ each of the address-hiding markers is found alone, and the words are not one (243.772541ms)
+✔ each of Cloudflare's cookie names fails; a cookie of your own is a look (310.967042ms)
+✔ up to three redirects on the same address are followed; a fourth, or none to go to, is said so (183.200375ms)
+✔ Content-Signal lines in robots.txt are Cloudflare's managed file at work: a look for the AI item (59.599792ms)
+✔ a silent crawler is named in the list of requests that got no answer (60.815875ms)
+✔ a ">" inside an attribute value does not end the tag: what follows it is still read (60.360083ms)
+✔ an attribute's value is not an attribute: a title that names data-cfemail or data-cf-beacon is not one (61.422875ms)
+✔ headers are read one answer at a time: two withdrawn policies, and two HSTS values, are not corrupted by joining (120.500459ms)
+✔ a path that only starts like one of Cloudflare's three is another path (64.852792ms)
+✔ the longer pattern wins in a robots group: "Disallow: /*" beats "Allow: /", and "Allow: /*" beats "Disallow: /" (178.784834ms)
+✔ a first-party file or a note in a script that happens to contain the word is not Cloudflare's (60.1715ms)
+✔ Cloudflare's beacon is found by its address, written with or without a scheme (123.867667ms)
+✔ a redirect to the page itself is asked once and said so; a Location that is not an address is said so (122.596ms)
+✔ HSTS on a redirect before the page does not stand for the page: with --hsts-on it fails, and says so (123.447125ms)
+✔ an address written in a script between backticks, with a semicolon after it, is read whole (61.110125ms)
+✔ a robots.txt with two hundred thousand blanket rules is read, not a crash (108.167417ms)
+✔ what the HTML says it is: the text of a textarea or a title is text, a reference is decoded, "</scripture>" does not end a script (187.716ms)
+✔ what is not a tag is skipped, and a comment that ends abruptly does not swallow the page (241.591ms)
+✔ an address is read against the page it is on, and a link to the beacon is not the beacon (60.149042ms)
+✔ an empty Location header is said to be empty (66.326167ms)
+✔ text that changes length when lower-cased does not move what is found after it (67.222458ms)
+✔ a page of a hundred thousand comments is read in linear time and what follows them is found (70.966667ms)
+✔ an SVG's title holds markup, as in a browser; an HTML title holds text (121.27375ms)
+✔ a named character reference needs its semicolon, as in a browser: "&semi=" in an address is left alone (62.185041ms)
+✔ foreign content is read as a browser reads it: a self-closed svg changes nothing, a foreignObject is HTML again, an svg's textarea holds markup (248.756417ms)
+✔ foreign content, edges: an svg's inline script is read, a slash inside a value is not a self-closing one, a nested foreignObject end does not end the outer (180.789584ms)
+✔ thousands of unclosed script starts inside an svg: the text taken is bounded by the page, and it is script text (62.689416ms)
+✔ an svg script is script text to its end tag: a CDATA section, a nested svg and a foreignObject inside it are part of it (303.25475ms)
+✔ a self-closing slash on script or title does not stop raw text in HTML, as in a browser (125.1375ms)
+✔ a wrong command is exit 2 with the usage text, and --help is exit 0 (555.694833ms)
+✔ a fractional timeout is accepted, and a server that never answers fails within it (1060.286666ms)
+✔ it runs when started through a symlink, as an installed skill is, also with symlinks kept (102.126334ms)
+✔ parseTarget takes a domain or a local page and refuses a path or a live http:// address (0.190125ms)
+✔ the items are the checklist's items, and the paths are its paths (1.364125ms)
+✔ the counting loop in the reference reads clean, header or other, and counts only a 200 that curl finished (351.811084ms)
+✔ the stub answers a project PATCH as Cloudflare did: what a PATCH leaves out stays (T1-048 to T1-061) (5.548792ms)
+✔ the stub answers Bot Management as Cloudflare did: refusals, fields left out kept (T2-059 to T2-077) (2.235375ms)
+✔ the stub answers zone settings and records as Cloudflare did (T1-067 to T1-078, T1-143 to T1-146) (2.688208ms)
+✔ the list of projects carries what the script reads from it, and the deployment call's form is the trial helper's (T1-019, T1-030) (0.70325ms)
+✔ the deployments the stub serves are the captured ones, and the script reads them as the plan says (0.820916ms)
+✔ every string, key and number in the fixtures is a made-up value or on the list of allowed values (10.052667ms)
+✔ the fixture check catches what earlier versions let through, wherever it is put (53.306ms)
+✔ decision 2: each line the script writes is the checklist's item, with its path, and its value is the checklist's (1.188792ms)
+✔ 15: a record given with name and target swapped is refused before anything is asked (513.288958ms)
+✔ the owner and repository come from the remote in any of its forms; the project name follows the repository (0.367ms)
+✔ the code names the end state: the same inputs give the same code, a --skip or a host gives another (0.417792ms)
+✔ 1: a new project: the first run writes nothing and asks; the run with the code creates, builds once, writes the settings, and waits (810.908ms)
+✔ 2: the build has finished and a pull request was built: the same code changes nothing and ends with 0 (1047.159875ms)
+✔ 3: the build is still queued: no deployment call, and it waits (1056.054791ms)
+✔ 4: a connected project publishing main, with no domain: the list says so, and the first write is that PATCH (882.330959ms)
+✔ 5: the same project serving her domain, or another one: it stops and writes nothing (1333.754875ms)
+✔ 6: PROD_BRANCH is production and GitHub has no production branch: it stops, and says what each model needs (578.116959ms)
+✔ 7: a project of that name with no source is a Direct Upload project: it stops and points the way round (679.559708ms)
+✔ 8: adopted by its repository under another name; two projects; --project connected elsewhere; --project new (2961.065125ms)
+✔ 9: an adopted project with a variable and a secret and Fail open off: one PATCH with Fail open alone; both names stay (914.80425ms)
+✔ 9b: a PATCH after which a variable is missing ends the run with 1 and names it (855.205125ms)
+✔ a PATCH answer without the whole project stops the run before anything else is written (873.419125ms)
+✔ an adopted project read without its preview setting stops the run before anything is asked or written (1949.849334ms)
+✔ a PATCH answer whose preview setting differs from the one read before stops the run (870.796083ms)
+✔ a create answer that does not read as asked stops the run: no build, no setting (879.379167ms)
+✔ the check of a returned project names each field that does not hold the end state (0.534ms)
+✔ 10: no build Cloudflare started from a push: each run waits and names the causes; a failed push build is proof, said as a failure (1020.194583ms)
+✔ 11: a project that builds no previews: the production branch's push shows the connection; a skipped push is no proof (675.095959ms)
+✔ 12: two proxied hosts: every setting line names both; --skip tls leaves TLS out, gives another code, and is not written (1187.7415ms)
+✔ 13: Bot Fight Mode on and training blocked: one PUT sets the checklist's values; with --skip ai the AI fields go as read (1631.388833ms)
+✔ 13b: a field the PUT did not mean to change that reads back otherwise makes that line "by hand", with 1 (809.234083ms)
+✔ 14: the token reads zone settings but may not change them: each refused one is "by hand" with its row; the rest ran; 1 (815.041541ms)
+✔ 16: Google's TXT at the apex goes beside the SPF record, which stays; a second run writes nothing (1076.498042ms)
+✔ 17: a CNAME of the wanted name already points elsewhere: nothing is written, the line is "by hand" with both targets (738.337334ms)
+✔ 18: a record written that the nameservers do not show within the run: "written; the nameservers do not show it yet", status 0 (5259.447292ms)
+✔ the stub answers attaching, a record PATCH and a comment as Cloudflare did (T1-085 to T1-132, T2-042 to T2-058) (1.625ms)
+✔ 23 and 28: everything holds: the question names it all; the code attaches and points the record; once active, the first request, the forwarding, then 0 (2059.75675ms)
+✔ 19: the commit that goes live still lists unfilled pages: refused, the entries named, nothing asked or attached (721.005125ms)
+✔ 20: a draft token in src/, a German site's own token, two tokens that differ, no placeholder test: refused, and said which (2776.9475ms)
+✔ 21: the head has no good production build: queued waits; failed, never built, uploaded, built under main are refused, each named (3475.306458ms)
+✔ 22: no push build of any age is refused; an old one, with launch's own forwarding build after it, still stands (1411.623958ms)
+✔ 24: two address records, a CNAME host that also holds a TXT record, a token that cannot read DNS: refused, nothing attached (2028.153834ms)
+✔ 25: Cloudflare says error on a later run: 1 with its words; the domain stays; the old record comes from the comment (1151.490041ms)
+✔ 26: the domain serves another commit, or no build.txt: a failure, and nothing after it (1362.379625ms)
+✔ 27: the domain still sends the NEL headers: one rule added beside the others; or a ruleset created; or nothing when the kit's rule is there (5424.914917ms)
+✔ 28: an adopted project with another variable and a secret: CANONICAL_URL is saved alone, both stay, one build (990.381792ms)
+✔ 29: the head is newer than the live build, another variable changed, or the live build was uploaded: saved, no build, and said why (3058.498125ms)
+✔ 30: --skip canonical: the question does not name the forwarding, and CANONICAL_URL is not written (1255.230625ms)
+✔ 31: attached by hand and active: no launch condition checked, nothing attached; the question names the forwarding and the commit; a newer queued build waits (1296.739167ms)
+✔ 42: the live build has CANONICAL_URL and pages.dev still answers 200: no PATCH, no build, the checklist's causes, 1 (699.369042ms)
+✔ 41: --skip bot with Bot Fight Mode on: listed as left to Lena, 0; Always Use HTTPS turned off since, with no --skip: 1 (1483.988667ms)
+✔ 36 and 37: the report of a finished launch: two-stage names main's preview; single-stage names none (1410.308375ms)
+✔ 35 at launch: the record points at the address Cloudflare gave, and no address is made from the name (971.409416ms)
+✔ 38 at launch: the check script runs without the token in its environment (672.002166ms)
+✔ 39 at launch: a run cut off after the attach call: the next run with the code writes the record and carries on (1241.408333ms)
+✔ launch: a code from another commit does not fit: the question again, nothing changed (1220.2175ms)
+✔ launch: a record too long to note in the comment is refused before the question (683.02725ms)
+✔ the launch status table is the plan's, and covers every item of the check (1.062209ms)
+✔ the launch's verdict follows the plan's order: no answer, then a counted failure, then 0 (0.115791ms)
+✔ the launch's small parts: a fixed text from a pattern, the differences that stop a build, the check's arguments (0.201708ms)
+✔ 32: a finished setup: no write, no question, status 0 (624.750959ms)
+✔ 33: a token with no end date, one reaching a second zone (on page 2), a refused verify, a refused zone list: refused before any write (2784.950583ms)
+✔ 34: the token in .dev.vars, tracked by git or not ignored: it stops before reading the file (2202.385458ms)
+✔ 35: the project's address is the one Cloudflare gives, never one made from its name (836.510958ms)
+✔ 37: a single-stage site: production branch main, and no preview of main is named (708.219417ms)
+✔ 38: git runs without the token in its environment (841.888292ms)
+✔ 39: a run cut off between two writes: the next run with the same code reads what is there and carries on (1002.167542ms)
+▶ the deadline
+  ✔ 39: a stub that answers slowly: the run ends with 4 at its deadline, before 60 seconds (56377.40275ms)
+  ✔ 39 at launch: a stub that answers slowly: the run ends with 4 at its deadline, before 60 seconds (55957.688917ms)
+  ✔ a git that never ends, with a program of its own holding the output open: stopped at the deadline, said as git, before 60 seconds (55537.082959ms)
+✔ the deadline (56378.533ms)
+✔ 40: a token that ends in 30 days is refused: the checklist says a week at most (667.622167ms)
+✔ the zone's records cannot be read: no zone-wide setting is changed, since its hosts cannot be named (R5) (822.905ms)
+✔ a CNAME that already points where it should, but proxied, is not "there already": it is by hand, and nothing is written (613.822167ms)
+✔ run from a folder inside the site, a tracked .dev.vars at the site's root is still refused before it is read (557.683292ms)
+✔ what decides is read from the project itself: a list item without its domains still leaves a live project alone (612.128458ms)
+✔ the project read by its name must itself be connected to the repository, whatever the list said (611.175208ms)
+✔ a build of the head that ended in a way no trial saw counts as failed: no new build, and the run says so (608.646666ms)
+✔ a list longer than 200 pages is not read in part: the run stops (776.354459ms)
+✔ R1: a yes covers only the list it answered: a setting someone changed since needs a new yes (810.873625ms)
+✔ R1: a yes to one build setting is not a yes to another (812.730333ms)
+✔ R1: the build the question named is of one commit: once the production branch moves, the code asks again (965.259792ms)
+✔ a code that does not fit the question changes nothing and asks again (655.728459ms)
+✔ a wrong command is status 2; the launch ids belong to launch; the overrides take loopback addresses only (1029.529958ms)
+✔ the overrides are said out loud while they are in effect (615.072333ms)
+ℹ tests 184
+ℹ suites 1
+ℹ pass 184
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 141638.12475
+exit status: 0
+```
+
+</details>
