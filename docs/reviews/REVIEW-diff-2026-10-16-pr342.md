@@ -1,6 +1,6 @@
 # Review trail: website-seo-geo and website-design-system description fixes (karero/croftweaver#342)
 
-Base `0f2e20c` · depth: Light, because Daniel asked for it in chat (SKILL.md changes would otherwise be Normal) · verdict: CLEAN (2026-10-16) · seen pair: base `0f2e20c`, head `8c14a32e`. The commit after `8c14a32e` adds only this trail.
+Base `0f2e20c` · depth: Light, because the owner asked for it in chat (SKILL.md changes would otherwise be Normal) · verdict: CLEAN (2026-10-16) · seen pair: base `0f2e20c`, head `8c14a32e`. The commit after `8c14a32e` adds only this trail.
 
 | Round | Head | Scope | Seats | Time, tokens | Findings (BUG / RISK / NIT) |
 |---|---|---|---|---|---|
