@@ -319,6 +319,13 @@ gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --l
 # move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
 # If the check of the number failed, the tag was not made as above: leave `stable` where
 # it is, and plugin users get the next release.
+
+# Only when packages/create-croftweaver changed, and only once the release above is live:
+# publish the `npm create croftweaver` installer. It refuses a release whose zip does not
+# match its SHA256SUMS, so the check first makes that same test on the latest release and
+# must print "matches its SHA256SUMS". npm runs it again before publishing, except with
+# --ignore-scripts or ignore-scripts=true in an .npmrc: hence running it by hand.
+(cd packages/create-croftweaver && npm run prepublishOnly && npm publish)
 ```
 
 Zip users download the newest release from the Releases page; clone users keep using
