@@ -145,9 +145,9 @@ If the upload itself shows an error, part of it may have gone live anyway: ask f
 before running it again. The first
 time, `npx` may ask "Ok to proceed?": type `y`. If the command says you aren't logged in, run
 `npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
-run it again. If it says "Failed to automatically retrieve account IDs", it is using a
-Cloudflare token that cannot look up your account: ask your assistant to give it your
-account id (`CLOUDFLARE_ACCOUNT_ID`), then run it again.
+run it again. If it says "Failed to automatically retrieve account IDs" (this happened
+with a Cloudflare token that could not look up the account), ask your assistant to give
+it your account id (`CLOUDFLARE_ACCOUNT_ID`), then run it again.
 On Windows, run it in Git Bash or WSL.
 
 ---

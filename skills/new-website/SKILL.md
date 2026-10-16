@@ -173,9 +173,12 @@ non-expert can answer, and record the answers in the project `README.md`.
      with `scriptHost` and the site's domain (as added in Plausible) filled in: the
      installer and the script id at `<scriptHost>/<domain>/installation`, the goals at
      `<scriptHost>/<domain>/settings/goals`, a new site at `<scriptHost>/sites/new`.
-     All three answered on a self-hosted Community Edition instance on 2026-10-16,
-     where an unknown path gives 404. On Plausible Cloud (`scriptHost`
-     `https://plausible.io`) the same paths are expected, not checked.
+     Seen on a self-hosted Community Edition instance on 2026-10-16: the owner added
+     the goal on that goals page; the other two sent a signed-out visitor to the
+     login page, where an unknown path gives 404. On Plausible Cloud (`scriptHost`
+     `https://plausible.io`) the same paths are expected, not checked. If a link
+     gives 404, use the site's Settings menu instead: Goals for the goal, and the
+     site installation section for the script id.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.

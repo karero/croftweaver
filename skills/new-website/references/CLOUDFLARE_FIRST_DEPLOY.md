@@ -234,9 +234,8 @@ live fast with zero dashboard time.
 #    once the id was set. The id is no secret: Workers & Pages → Account Details → the copy
 #    button next to "Account ID", or search (Cmd/Ctrl+K) for "Copy account ID"
 #    (https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/).
-#    Set it for every command below; where Wrangler could find it alone, it changes nothing.
-#    A shell that keeps no variable from one command to the next loses the export: there,
-#    put it in front of each wrangler command instead
+#    Set it for every command below. A tool that runs each command in a fresh shell, as
+#    some assistants do, loses the export: there, put it in front of each wrangler command
 #    (`CLOUDFLARE_ACCOUNT_ID=<account-id> npx wrangler pages …`), as the 2026-10-16 run did.
 export CLOUDFLARE_ACCOUNT_ID=<account-id>
 
@@ -272,7 +271,7 @@ npx wrangler pages deploy dist --project-name <project> --branch <production-bra
 > the accidental Worker (not a pre-existing one with a similar name), then delete it and
 > re-run `wrangler pages deploy`.
 
-Ongoing deploys under (A): with `CLOUDFLARE_ACCOUNT_ID` set as in step 0, re-run both lines of step 2, the variable included —
+Ongoing deploys under (A): with `CLOUDFLARE_ACCOUNT_ID` set as in step 0, re-run both lines of step 2, `CF_PAGES_BRANCH=` still included —
 `CF_PAGES_BRANCH=<production-branch> npm run build`, then
 `wrangler pages deploy dist --project-name <project> --branch <production-branch>`
 (wrap them in `npm run ship` if you want one command — note the stock `ship.sh` targets the
