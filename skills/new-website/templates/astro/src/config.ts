@@ -64,8 +64,8 @@ export const KNOWS_ABOUT: string[] = [];
 // button not at all (the mode is described below). Left off by mistake,
 // Plausible gets no data and nothing says so.
 //
-// scriptId is the per-site script Plausible's installer shows (Settings > General >
-// Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is
+// scriptId is the per-site script Plausible's installer shows (the site's installation
+// page, <scriptHost>/<your domain>/installation): in <script src=".../js/pa-AbC123.js"> it is
 // the part between "/js/" and ".js", here 'pa-AbC123'. The domain and the optional
 // measurements (outbound links, file downloads, form submissions) are switched in
 // Plausible, not here. Section 3 of the privacy page has one slot sentence for each:

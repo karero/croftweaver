@@ -228,6 +228,14 @@ live fast with zero dashboard time.
 ### Commands you run (token in env)
 
 ```bash
+# 0. The account id, set the same way as the token. With a token, Wrangler may stop with
+#    "Failed to automatically retrieve account IDs": the token may not list accounts. Seen
+#    on 2026-10-16 (wrangler 4.151.0, a token with the Pages Edit row and zone rows); it ran
+#    once the id was set. The id is no secret: Workers & Pages shows it as "Account ID", and
+#    it is the long hex string after https://dash.cloudflare.com/ in the address bar.
+#    Set it for every command below; where Wrangler could find it alone, it changes nothing.
+export CLOUDFLARE_ACCOUNT_ID=<account-id>
+
 # 1. Create the Pages project (direct-upload). <production-branch> is main or production.
 npx wrangler pages project create <project> --production-branch <production-branch>
 
@@ -260,7 +268,7 @@ npx wrangler pages deploy dist --project-name <project> --branch <production-bra
 > the accidental Worker (not a pre-existing one with a similar name), then delete it and
 > re-run `wrangler pages deploy`.
 
-Ongoing deploys under (A): re-run both lines of step 2, the variable included —
+Ongoing deploys under (A): with `CLOUDFLARE_ACCOUNT_ID` set as in step 0, re-run both lines of step 2, the variable included —
 `CF_PAGES_BRANCH=<production-branch> npm run build`, then
 `wrangler pages deploy dist --project-name <project> --branch <production-branch>`
 (wrap them in `npm run ship` if you want one command — note the stock `ship.sh` targets the
