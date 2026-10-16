@@ -44,8 +44,8 @@ export const SAME_AS: string[] = [
 // Topics the site is authoritative on (schema knowsAbout).
 export const KNOWS_ABOUT: string[] = [];
 
-// Plausible (cookieless; scriptHost is your own self-hosted instance, or
-// https://plausible.io for the paid cloud version). Fire only on the production
+// Plausible (cookieless; scriptHost is https://plausible.io for the paid cloud
+// version, or your own self-hosted instance). Fire only on the production
 // deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built.
 //
 // The starter ships with analytics OFF (USE_ANALYTICS = false): no build, the live one
