@@ -11,12 +11,12 @@ the files win. The business in the scenarios is made up.
 |---|------|-------|----------|
 | 1 | Trial on throwaway things (Pages project, Plausible site) | ✅ done 2026-10-15, cleaned up | trial report (owner's private artifact); facts below |
 | 2 | Decisions D1–D4 | ✅ decided by the owner 2026-10-15 | in chat; "Decisions" below |
-| 3 | Requirements and scenarios (this file) | ▶ written, not yet approved by the owner | this file |
-| 4 | Build, test-first: config, layout, middleware, email route, email link | ✅ built; 16 new tests, each failed on a deliberate break; starter suite 85 passed, 1 skipped (positioning, by design) | `721e5442`, `98259173` |
-| 5 | Gate script, CSP, privacy pages EN and DE, setup docs, release-note row | ✅ gate green in both modes and fails on both deliberate breaks; CI runs it in server mode too; privacy slots pass tone and a11y (German page routed for the run) | `af102f7e`, `be87502a` and the commits between |
-| 6 | End-to-end test on a fresh site from this branch | ⏸ deployed to throwaway project `cw-plausible-e2e` (live build, server mode, plus a trial-only Cloud debug route); Plausible site `plausible-trial.croftweaver.com` and its goal added by the owner; waiting for the custom domain `plausible-trial.croftweaver.com` on the project (owner, 2026-10-15 evening) | — |
-| 7 | Review gate (High: privacy text and data a live site sends) | ⏸ `make check` not yet run to the end: `check_clean.sh` scans `node_modules` for over 15 minutes; move `node_modules`, `dist` and `test-results` aside first | — |
-| 8 | PR | ⏸ | — |
+| 3 | Requirements and scenarios (this file) | ✅ built from as written; the owner asked for the build, review and merge (2026-10-16) | this file |
+| 4 | Build, test-first: config, layout, middleware, email route, email link | ✅ built; review fixes since; starter suite 91 passed, 1 skipped (positioning, by design) | `721e5442` … `1ecd109c` |
+| 5 | Gate script, CSP, privacy pages EN and DE, setup docs, release-note row | ✅ gate green off, on (script) and on (server); CI runs all three; privacy slots pass tone and a11y | same range; merge of #336/#338 at `7c75855e` |
+| 6 | End-to-end test on a fresh site from this branch | ⏸ after merge, by the owner's choice (2026-10-16): throwaway project `cw-plausible-e2e` deployed, Plausible site `plausible-trial.croftweaver.com` and goal added; waits for the custom domain. Settles F11 (Plausible Cloud, a real mail program) | — |
+| 7 | Review gate (High) | ✅ clean 2026-10-16: 5 rounds, a final full read, a merge link and a wording pass; F6 waived by the owner, F11 open until step 6 | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
+| 8 | PR | ▶ karero/croftweaver#339 | #339 |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
