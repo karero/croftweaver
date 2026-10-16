@@ -352,6 +352,7 @@ export function handle(state, method, p, query, body, contentType) {
       state.deployments[p.name].unshift(d);
       const b = answer('T1-030');
       b.result = copy(d);
+      if (state.deployAnswerNoCommit) delete b.result.deployment_trigger.metadata.commit_hash; // MADE: no trial saw it
       return { status: 200, body: b };
     }
     case 'GET deployment': {

@@ -480,20 +480,21 @@ check comes with the launch stage, since no request may reach the domain before 
     the domain, in a PATCH as in script step 3. A variable reaches only builds made after it
     (seen in the trial through a test function), so it then starts a production build, but
     only if the head of the production branch is the live commit, the live build was built by
-    Cloudflare, and the live build's recorded variables and build settings (a deployment
-    records both, captures 030, 062, 063) differ from the saved ones in `CANONICAL_URL`
-    alone, and the project's production branch and the live build's are `PROD_BRANCH` (on a
-    domain attached by hand none of script step 8 was checked). After a production build that
-    failed it starts none and ends with 1. The deployment call builds the head of the
-    production branch as it is at that moment, so the script reads that head again just
-    before the call and starts nothing unless it is the live commit; a push in the moment
-    between is caught afterwards, from the commit Cloudflare names in its answer (T1-030),
-    and the run ends with 1, naming it. A secret is compared by name only: its value reads
-    empty on the project and on the deployment alike (capture 062). Otherwise it says "the
-    variable is saved, but no build has picked it up", names each other difference, and ends
-    with 1. When the build is done it checks its commit and runs the check's `canonical`
-    item; if that still fails, it says the build is done and the forwarding does not answer,
-    and ends with 1.
+    Cloudflare, the live build's recorded variables and build settings (a deployment records
+    both, captures 030, 062, 063) differ from the saved ones in `CANONICAL_URL` alone, and
+    the project's production branch and the live build's are `PROD_BRANCH` (on a domain
+    attached by hand none of script step 8 was checked). If any of these does not hold, it
+    says "the variable is saved, but no build has picked it up", names each that does not,
+    and ends with 1. After a production build that failed it starts none and ends with 1. The
+    deployment call builds the head of the production branch as it is at that moment, so the
+    script reads that head again just before the call and starts nothing unless it is the
+    live commit; a push in the moment between is caught afterwards, from the commit
+    Cloudflare names in its answer (T1-030), and the run ends with 1, naming it; an answer
+    that names no commit ends it with 1 as well, the commit not checked. A secret is compared
+    by name only: its value reads empty on the project and on the deployment alike (capture
+    062). When the build is done it checks its commit and runs the check's `canonical` item;
+    if that still fails, it says the build is done and the forwarding does not answer, and
+    ends with 1.
 
 A `launch` run ends with the whole check script. Its exit status follows from the check's JSON,
 in this order, and nothing else:
@@ -539,7 +540,8 @@ fields and that `setup`, run again, shows them, and names the checklist's ssllab
 to run (plan step 6's second review, R1-04 and R2-03: launch cannot know what setup read). The
 report names the live address and, on a two-stage site, the address Cloudflare lists in
 `aliases` for `main`'s newest preview build among the newest deployments read (captures 021 to
-026; read, not opened), or else where to find it, never that there is none (R2-04, R3-01). It
+026; read, not opened); where none of those has an address it says nothing about the preview,
+neither that there is one nor that there is none (R2-04, R3-01, R4-01). It
 lists what is left by hand, the script monitor's switch among it and HSTS with its earliest
 day, says that previews can be put behind a sign-in (D5), and reminds Lena to delete the
 token.

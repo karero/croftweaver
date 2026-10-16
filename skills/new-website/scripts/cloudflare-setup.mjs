@@ -1159,7 +1159,7 @@ export async function nameserverIps(zone, { resolverAt, clock, resolve4 = (n) =>
   }
   // One message for every way of finding none, with no guess at the cause.
   if (!ips.length) {
-    throw new Stop(4, `This run found no address for the zone's nameservers (Cloudflare lists: ${(zone.name_servers ?? []).join(', ') || 'none'}), and the domain is asked only through them. Run the same command again in a minute; if this repeats, look them up by hand (dig NS ${zone.name}).`);
+    throw new Stop(4, `This run found no address for the zone's nameservers (Cloudflare lists: ${(zone.name_servers ?? []).join(', ') || 'none'}), and the domain is asked only through them. Run the same command again in a minute; if this repeats, look them up by hand (dig NS ${zone.name ?? 'your domain'}).`);
   }
   return [...new Set(ips)];
 }
@@ -1481,15 +1481,18 @@ async function launchStage(opts, io) {
       // just before, so only a push in the moment between can slip in, and that is said below.
       const head = await git('ls-remote', '--heads', 'origin', `refs/heads/${prodBranch}`);
       const headNow = head.code === 0 ? head.stdout.split('\t')[0].trim() : '';
+      if (head.code === 0 && !headNow) throw new Stop(1, `The variable is saved, but no build was started: GitHub has no branch ${prodBranch} any more, so a build would publish nothing the site is set up for. Look at the repository's branches.`);
       if (!headNow) throw new Stop(1, `The variable is saved, but no build was started: ${prodBranch} on GitHub could not be read again just before the build call, so the script cannot tell what the build would publish. Run the same command again.`);
       if (headNow !== commit) throw new Stop(1, `The variable is saved, but no build was started: ${prodBranch} on GitHub is now at ${short(headNow)}, not at the live commit ${short(commit)}, and a build now would publish it. Publish the next change the usual way; that build takes the variable with it.`);
       const r = await api('POST', `${projectAt}/deployments`, { form: true });
       if (!ok(r) || !r.body?.result) throw new Stop(1, `Cloudflare did not start the build: ${refusal(r, ROW.pages)}. CANONICAL_URL is saved; the next build takes it.`);
       const started = commitOf(r.body.result);
+      // T1-030's answer names the commit. One that names none cannot be checked: said, and 1.
+      if (!started) throw new Stop(1, `Cloudflare started a production build, but its answer names no commit, so whether it is of the live commit ${short(commit)} could not be checked. CANONICAL_URL is saved. Look at the build under Workers & Pages → ${name} → Deployments.`);
       // A commit pushed in the moment since that read is published with it: said, never hidden; the
       // build cannot be called back.
       if (started && started !== commit) throw new Stop(1, `Cloudflare started a production build of ${short(started)}, not of the live commit ${short(commit)}: ${prodBranch} moved on since this run read it. That build publishes ${short(started)}. Look at Workers & Pages → ${name} → Deployments.`);
-      say(`  waiting  Started one production build${started ? ` of ${short(commit)}` : ` of the head of ${prodBranch} (Cloudflare's answer names no commit)`}, which takes CANONICAL_URL: ${describeDeployment(r.body.result)}.`);
+      say(`  waiting  Started one production build of ${short(commit)}, which takes CANONICAL_URL: ${describeDeployment(r.body.result)}.`);
     }
     waiting = waiting ? `${waiting} and the build that takes CANONICAL_URL` : 'the build that takes CANONICAL_URL';
   }
@@ -1557,9 +1560,9 @@ async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, 
   say('', `Live: https://${host}/ serves ${short(commit)}.`);
   if (model === 'two-stage') {
     const preview = await deps.find((d) => d.environment === 'preview' && d.deployment_trigger?.metadata?.branch === 'main' && !d.is_skipped, { pages: 2 });
-    // The alias when the newest preview of main read has one; otherwise only where to look, never a
-    // claim that there is none.
-    say(preview?.aliases?.[0] ? `The preview of main, as Cloudflare lists it: ${preview.aliases[0]}` : 'The preview of main: its address is on the newest build of main under Workers & Pages → the project → Deployments.');
+    // Named only when the newest preview of main read has an address; otherwise nothing is said
+    // about it, so the line can never claim a preview that is not there, or deny one that is.
+    if (preview?.aliases?.[0]) say(`The preview of main, as Cloudflare lists it: ${preview.aliases[0]}`);
   } else {
     say(`main is the live site (${prodBranch}); each pull request gets a preview of its own.`);
   }

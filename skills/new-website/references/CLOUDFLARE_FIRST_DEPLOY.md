@@ -121,11 +121,13 @@ go-live"). It starts that build only when the site's production branch, read aga
 before, is at the commit that is live, when the project's production branch and the live
 build's are the site's own, and never after a production build that failed. A commit pushed
 in the moment between that read and the build call would be built too: the run then ends with
-1 and names it. `--skip canonical` and `--skip nel-rule` leave those two out; setup's
-`--skip` ids are taken too. A yes covers the list it answered: a run that finds something
-more to do, the NEL rule after a yes to the forwarding alone say, asks again. For a domain
-already attached and active, by hand say, no launch condition is checked and nothing is
-attached: only the forwarding and the rule, and the check at the end.
+1 and names it, from the commit Cloudflare's answer names. Where the answer names none, the
+run ends with 1 too, saying the build's commit could not be checked. `--skip canonical` and
+`--skip nel-rule` leave those two out; setup's `--skip` ids are taken too. A yes covers the
+list it answered: a run that finds something more to do, the NEL rule after a yes to the
+forwarding alone say, asks again. For a domain already attached and active, by hand say, no
+launch condition is checked and nothing is attached: only the forwarding and the rule, and
+the check at the end.
 
 A launch run with nothing left to do ends with the whole check. Its status is 1 when a
 request got no answer or an item could not be judged, whatever `--skip` says. It is 1 too
