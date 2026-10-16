@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test test-facts test-brand-kit test-wordpress-inventory test-cloudflare-check test-create test-plugin smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts test-brand-kit test-wordpress-inventory test-cloudflare-check test-create test-plugin test-codex-plugin smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -61,6 +61,9 @@ test-create: ## run the create-croftweaver tests (the `npm create croftweaver` i
 
 test-plugin: ## run the tests of the Claude Code and Codex plugin (.claude-plugin/, .agents/plugins/) and of the rule that lets the skills run from a plugin's folder: no skill names ~/.claude/skills/<name>/ for its files (needs node 20 or newer, git and bash). Not part of check/package: the handoff zip does not hold .claude-plugin/
 	@$(NODE) --test scripts/plugin.test.mjs
+
+test-codex-plugin: ## opt-in: install the Codex plugin from GitHub (the release on `stable`) in a throwaway Codex home, check Codex offers every skill, then update it (needs node 20 or newer, git, the Codex CLI and a connection to GitHub; no sign-in; skips without Codex). Not in CI: it tests the release, not this checkout
+	@$(NODE) --test scripts/codex-plugin.test.mjs
 
 # A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.
 # It runs in the C locale, as check_clean.sh does, so both read "the names" byte for byte alike
