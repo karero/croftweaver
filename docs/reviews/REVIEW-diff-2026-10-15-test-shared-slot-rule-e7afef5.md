@@ -1,5 +1,5 @@
 # DIFF review — test/shared-slot-rule — one slot rule and one allowlist for placeholders.spec.ts and privacy-host.spec.ts
-Base `bfe7c55` (PR #332's head; this branch is stacked on it) · depth: Light, moved to Normal (a BUG in Light's extra round) · verdict: CLEAN (Light 2 rounds, Normal 2 rounds; 15 findings, 2 BUG fixed) · authority used: BRANCH-COMMIT and WORKTREE-WRITE — atom B (the owner, in chat: "yes to: Should I make that fix on this branch and run the review again?"); the branch and worktree were made by the session "Share one slot pattern between two starter specs", which no longer exists
+Base `bfe7c55` (PR #332's head), rebased onto main `e4972c5` once #332 merged, patch unchanged · depth: Light, moved to Normal (a BUG in Light's extra round) · verdict: CLEAN (Light 2 rounds, Normal 2 rounds; 15 findings, 2 BUG fixed) · authority used: BRANCH-COMMIT and WORKTREE-WRITE — atom B (the owner, in chat: "yes to: Should I make that fix on this branch and run the review again?"); the branch and worktree were made by the session "Share one slot pattern between two starter specs", which no longer exists
 
 Seats: Light: Codex alone (medium). Normal: Codex (config effort in round 1, medium in round 2), GLM 5.3 on melious, a fresh-eyes sub-agent (Sonnet) in round 1.
 
@@ -27,4 +27,4 @@ Seats: Light: Codex alone (medium). Normal: Codex (config effort in round 1, med
 | N12 | NIT | melious | Normal 2 | "Until 2026-10" may be the wrong date | refuted | this branch makes the rename, 2026-10-15 |
 | N13 | NIT | melious | Normal 2 | A 138-column comment line | fixed (`3506239`), locally_verified; closing edit not externally re-verified | |
 
-Notes: Normal round 2 had no BUG and no RISK (stop condition a2). No substantive BUG in the Normal gate, so no wording pass. Tests on every head: the starter's `npm test` 73 passed, 1 skipped (the unfilled positioning spine, as on main); `npm run check` 0 errors. The branch is stacked on #332 and should be rebased or retargeted once #332 merges.
+Notes: Normal round 2 had no BUG and no RISK (stop condition a2). No substantive BUG in the Normal gate, so no wording pass. Tests on every head: the starter's `npm test` 73 passed, 1 skipped (the unfilled positioning spine, as on main); `npm run check` 0 errors. After the rebase onto main `e4972c5` (which brought #336): the same 73 passed, 1 skipped; `npm run check` 0 errors.
