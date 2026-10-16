@@ -103,31 +103,36 @@ It refuses, and asks nothing, while the project is not as `setup` leaves it, whi
 has never built it from a push, while the newest production build is not Cloudflare's build
 of the head of the production branch, while at that commit `UNFILLED_UNTIL_LAUNCH` in
 `tests/placeholders.spec.ts` lists a page or the draft token (`[MISSING:`, or the site's own,
-which `ci.yml` must search for too) is in `src/` or `public/`, while the host has more than
-one address record or, below the domain itself, a record of another type, and while the
-host's record is too long to note in a 100-character comment. While that newest build is
-still queued or building, it waits (status 4). These are the script's own stops; the launch
-check stays new-website §4 and the site's tests. Its question names the domain, the commit,
-the host's record now and what it becomes (a proxied CNAME to the project's own `pages.dev`
-address), and that the site becomes public, with a few minutes of errors. The yes attaches
-the domain and changes that record with one write; the old record goes in the record's
-comment, so it can be put back by hand. Cloudflare then takes two to three minutes to make
-the domain active: run the same command, with the same code, until it is. The next run asks
-the domain through `cloudflare-check.mjs`, looked up at the zone's own nameservers, and must
-see the commit. Then it adds the checklist's rule that removes the NEL headers (section 3,
-step 4) if the domain still sends them, and saves `CANONICAL_URL` and starts one production
-build of the same commit, so the `pages.dev` address forwards to the domain ("After
-go-live"). It starts that build only when the site's production branch, read again just
-before, is at the commit that is live, when the project's production branch and the live
-build's are the site's own, and never after a production build that failed. A commit pushed
-in the moment between that read and the build call would be built too: the run then ends with
-1 and names it, from the commit Cloudflare's answer names. Where the answer names none, the
-run ends with 1 too, saying the build's commit could not be checked. `--skip canonical` and
-`--skip nel-rule` leave those two out; setup's `--skip` ids are taken too. A yes covers the
-list it answered: a run that finds something more to do, the NEL rule after a yes to the
-forwarding alone say, asks again. For a domain already attached and active, by hand say, no
-launch condition is checked and nothing is attached: only the forwarding and the rule, and
-the check at the end.
+which `ci.yml` must search for too) is in `src/` or `public/` (or it cannot read that test or
+`ci.yml` in the starter's form), while the host has more than one address record or, below
+the domain itself, a record of another type, and while the host's record is too long to note
+in a 100-character comment. While that newest build is still queued or building, it waits
+(status 4). These are the script's own stops; the launch check stays new-website §4 and the
+site's tests. Its question names the domain, the commit, the host's record now and what it
+becomes (a proxied CNAME to the project's own `pages.dev` address), and that the site becomes
+public, with a few minutes of errors. The yes attaches the domain and changes that record
+with one write; the old record goes in the record's comment, so it can be put back by hand.
+Cloudflare then takes two to three minutes to make the domain active: run the same command,
+with the same code, until it is. The next run asks the domain through `cloudflare-check.mjs`,
+looked up at the zone's own nameservers, and must see the commit. Then it adds the
+checklist's rule that removes the NEL headers (section 3, step 4) if the domain still sends
+them, and saves `CANONICAL_URL` and starts one production build of the same commit, so the
+`pages.dev` address forwards to the domain ("After go-live"). It starts that build only when
+the site's production branch, read again just before, is at the commit that is live; when the
+live build is Cloudflare's build of that commit, with the same variables and build settings
+apart from `CANONICAL_URL`; when the project's production branch and the live build's are the
+site's own; and never after a production build that failed. A commit pushed in the moment
+between that read and the build call would be built too: the run then ends with 1 and names
+it, from the commit Cloudflare's answer names. Where the answer names none, the run ends with
+1 too, saying the build's commit could not be checked. `--skip canonical` and `--skip
+nel-rule` leave those two out. Of setup's `--skip` ids, `https`, `bot` and `email` let that
+item's failure through at the end; `--skip nel` is setup's switch, not `--skip nel-rule`. A
+yes covers the list it answered: a run that finds something more to do, the NEL rule after a
+yes to the forwarding alone say, asks again. If Cloudflare says the domain is in error,
+blocked or deactivated, the run ends with 1 and Cloudflare's words, and detaches nothing. For
+a domain already attached and active, by hand say, no launch condition is checked and nothing
+is attached: only the forwarding and the rule, and the check at the end; a production build
+that failed still stops it first.
 
 A launch run with nothing left to do ends with the whole check. Its status is 1 when a
 request got no answer or an item could not be judged, whatever `--skip` says. It is 1 too
@@ -422,14 +427,17 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
 
 ## After go-live: send `<project>.pages.dev` to the live domain
 
-**With the setup script,** its launch stage does steps 1 to 3 below: it saves the variable
+**With the setup script,** its launch stage does steps 1 and 2 below, and the domain half of
+step 3 (it checks no preview host): it saves the variable
 from Cloudflare's own name for the domain, starts one production build of the commit that is
 live, and checks that a page and its query arrive on the domain. The steps are for a site
 set up another way.
 
-Every Pages project also serves production at its own alias, `<project>.pages.dev`: the
-address Cloudflare gave the project, shown on the project's page. It is not always the
-project's name followed by `.pages.dev`, so read it there. The
+Every Pages project also serves production at its own alias, `<project>.pages.dev`.
+Cloudflare usually makes it from the project's name, but not always (when the name is taken
+it adds to it): read the address on the project's page and use it wherever
+`<project>.pages.dev` stands below. In a Wrangler command, `<project>` stays the project's
+name. The
 kit's `functions/_middleware.ts` noindexes it, but that does not keep it out of AI
 answers: AI search engines have been seen citing the alias instead of the real domain. So
 once the site is live, the alias should 301-redirect to the live domain: anyone who

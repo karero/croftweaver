@@ -414,9 +414,9 @@ full path (the output of `pwd` inside it):
    it safely when a prompt keeps recurring, use **`website-permissions`**.
    **Fill `AGENTS.md` now**, per the scaffold note at its top: site name, live URL, the
    preview URL (two-stage: `main.<project>.pages.dev`; single-stage: "pull-request
-   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; `<project>` is the
-   first part of the project's own address, which Cloudflare gives and the setup script's
-   report names: not always the project's name, so update it once the project exists), `[TITLE_SUFFIX]` = the
+   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; where Cloudflare
+   gives the project an address other than its name, use that address, which the project's
+   page and the setup script's report name, so update it once the project exists), `[TITLE_SUFFIX]` = the
    ` | {SITE.name}` string `Base.astro` appends, `[SUFFIX_LENGTH]` = its length, and
    `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
    interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge

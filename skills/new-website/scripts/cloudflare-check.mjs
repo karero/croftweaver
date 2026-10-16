@@ -139,7 +139,7 @@ export function parseArgs(argv) {
   return { opts, domain: rest[0] };
 }
 
-// --only: ids of ITEMS, separated by commas, each once.
+// --only: ids of ITEMS, separated by commas; one given twice counts once.
 export function parseOnly(arg) {
   const ids = String(arg).split(',').map((x) => x.trim()).filter(Boolean);
   const known = ITEMS.map((i) => i.id);
@@ -176,8 +176,11 @@ function lookupAt(servers) {
       if (!e4 && a4.length) { done(a4, 4); return; }
       resolver.resolve6(hostname, (e6, a6) => {
         if (!e6 && a6.length) { done(a6, 6); return; }
+        // No address from either question: "no such name" when both said so, else the resolver's own
+        // code (a timeout, a refusal), so a failing nameserver is not reported as a missing name.
+        const codes = [e4?.code, e6?.code].filter(Boolean);
         const err = new Error(`${hostname} has no address at ${servers.join(', ')}`);
-        err.code = 'ENOTFOUND';
+        err.code = codes.length && codes.every((c) => c === 'ENOTFOUND' || c === 'ENODATA') ? 'ENOTFOUND' : (e6?.code ?? e4?.code ?? 'ENOTFOUND');
         cb(err);
       });
     });
@@ -928,8 +931,8 @@ export function evaluate(obs, target, opts) {
 
   // 8. The pages.dev address (only when --project is given).
   if (!alias) {
-    skip('pages', 'not checked: give --project <name> to check that <name>.pages.dev answers (a Worker answers on workers.dev).', { couldNot: false });
-    skip('canonical', 'not checked: give --project <name> to check that <name>.pages.dev forwards to your domain.', { couldNot: false });
+    skip('pages', 'not checked: give --project <address> (the project\'s pages.dev address) to check that it answers (a Worker answers on workers.dev).', { couldNot: false });
+    skip('canonical', 'not checked: give --project <address> (the project\'s pages.dev address) to check that it forwards to your domain.', { couldNot: false });
   } else if (alias.error) {
     const gone = alias.error.code === 'ENOTFOUND';
     put('pages', 'fail', `${noAnswer(alias)}${gone ? '. Check the project name: a Worker would answer on a workers.dev address, not pages.dev.' : ''}`, section(1));

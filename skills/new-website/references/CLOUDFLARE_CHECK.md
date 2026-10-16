@@ -26,7 +26,7 @@ node "$SKILLS_ROOT/new-website/scripts/cloudflare-check.mjs" example.com --proje
 
 | Option | What it does |
 |---|---|
-| `<domain>` | Your live domain, with no `https://` and no path. If your site lives on `www`, give `www.example.com`. A page on this machine can be given with `http://`: `localhost`, `127.0.0.1` or `[::1]`, a name ending in `.localhost`, or one ending in `.test`, each with a port if needed (`http://localhost:4321`); any other `http://` address is refused. |
+| `<domain>` | Your live domain, with no `https://` and no path. If your site lives on `www`, give `www.example.com`. A page on this machine can be given with `http://`: `localhost`, a `127.x.x.x` address or `[::1]`, a name of one label before `.localhost` (`site.localhost`), or a name ending in `.test`, each with a port if needed (`http://localhost:4321`); any other `http://` address is refused. |
 | `--project <name>` | Your Pages project's own address (`my-project.pages.dev`), as Cloudflare shows it on the project's page: it is not always the project's name. `my-project` alone stands for `my-project.pages.dev`. Adds the checks of that address: that it answers, and that it forwards to the domain. |
 | `--hsts-on` | You have switched HSTS on. A missing header is then a failure, not a "look". |
 | `--build <sha>` | The commit you expect to be live: 7 to 40 hexadecimal characters. Without it the live build is only shown, not compared. |
@@ -67,7 +67,7 @@ nowhere to go, is said so and the page is not judged.
 
 | Checklist item | What the script asks | `FAIL` means |
 |---|---|---|
-| Create a Pages project (1) | The `pages.dev` address answers below 400 (needs `--project`) | The name does not answer, or it answers an error |
+| Create a Pages project (1) | The `pages.dev` address answers below 400 (needs `--project`) | The address does not answer, or it answers an error |
 | Attach your domain (1) | The home page over https answers 200, through Cloudflare (a `cf-ray` header) | No answer, an error (522: the domain is probably not attached), a challenge page. No `cf-ray` is a `look` |
 | Send pages.dev to your domain (1) | The `pages.dev` address answers 301 to your domain, and a page with a query (`/robots.txt?cb=…`) answers 301 to the same page and query there (needs `--project`) | It answers 200 or goes elsewhere: `CANONICAL_URL` is not in effect. Or a page loses its path or query on the way. A page with a query that got no answer is "not run" |
 | Always Use HTTPS (2) | `http://domain/` answers 301 or 308 to `https://domain/`, as an address | No redirect, or one to another address |

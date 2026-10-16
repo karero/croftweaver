@@ -1051,7 +1051,8 @@ const NEL_RULE = {
 const PHASE = 'http_response_headers_transform';
 const COMMENT_MAX = 100; // a record comment: 100 characters stored, 101 refused (T2-057, T2-058)
 const ENDED = ['error', 'blocked', 'deactivated']; // a domain status that will not turn active by waiting
-const CHECK_SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cloudflare-check.mjs');
+// Beside this file's real path: the skills are symlinked into place, as the run-as-program check below knows.
+const CHECK_SCRIPT = path.join(path.dirname(realpathSync(fileURLToPath(import.meta.url))), 'cloudflare-check.mjs');
 
 // What a `fail` of each check item gives at the end of a launch run: 1; 0; a --skip id, which makes
 // it 0 when the run was given it; or null for an item that never fails (it gives 1 if it does).

@@ -285,8 +285,8 @@ export function handle(state, method, p, query, body, contentType) {
       const p = state.projects.find((x) => x.name === args[1]);
       if (!p) return notFound('project');
       const b = answer('T1-085');
-      b.result = { ...b.result, id: newUuid(), domain_id: undefined, name: body.name, zone_tag: ZONE.id };
-      b.result.domain_id = b.result.id;
+      const id = newUuid();
+      b.result = { ...b.result, id, domain_id: id, name: body.name, zone_tag: ZONE.id };
       if ((state.domains[p.name] ?? []).some((d) => d.name === body.name)) return { status: 409, body: { success: false, errors: [{ code: 8000018, message: 'MADE: the domain is already attached' }], messages: [] } };
       (state.domains[p.name] ??= []).push({ ...copy(b.result), status: 'pending', verification_data: copy(answer('T1-086').result.verification_data), validation_data: copy(answer('T1-086').result.validation_data) });
       // Whether the project's list names a pending domain was not captured (plan, Not verified 12):

@@ -863,7 +863,11 @@ test('19: the commit that goes live still lists unfilled pages: refused, the ent
   }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC } }));
 
 test('20: a draft token in src/, a German site\'s own token, two tokens that differ, no placeholder test: refused, and said which', async () => {
-  const german = (spec) => EMPTY_LIST(spec).replace('const DRAFT_TOKEN = /^\\[MISSING:/;', 'const DRAFT_TOKEN = /^\\[FEHLT:/;');
+  const german = (spec) => {
+    const out = EMPTY_LIST(spec).replace('const DRAFT_TOKEN = /^\\[MISSING:/;', 'const DRAFT_TOKEN = /^\\[FEHLT:/;');
+    assert.ok(out.includes('const DRAFT_TOKEN = /^\\[FEHLT:/;'), 'the starter\'s DRAFT_TOKEN line changed');
+    return out;
+  };
   const cases = [
     [{ 'src/pages/hours.astro': '<p>Open [MISSING: opening hours]</p>\n' }, /the search for "\[MISSING:" in src\/ and public\/ finds src\/pages\/hours\.astro:1/],
     [{ 'tests/placeholders.spec.ts': german(STARTER_SPEC), '.github/workflows/ci.yml': STARTER_CI.replace("grep -rnI '\\[MISSING:' src public", "grep -rnI '\\[FEHLT:' src public"), 'src/pages/zeiten.astro': '<p>\n[FEHLT: Öffnungszeiten]</p>\n' },
