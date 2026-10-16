@@ -14,9 +14,11 @@ the files win. The business in the scenarios is made up.
 | 3 | Requirements and scenarios (this file) | ✅ built from as written; the owner asked for the build, review and merge (2026-10-16) | this file |
 | 4 | Build, test-first: config, layout, middleware, email route, email link | ✅ built; review fixes since; starter suite 91 passed, 1 skipped (positioning, by design) | `721e5442` … `1ecd109c` |
 | 5 | Gate script, CSP, privacy pages EN and DE, setup docs, release-note row | ✅ gate green off, on (script) and on (server); CI runs all three; privacy slots pass tone and a11y | same range; merge of #336/#338 at `7c75855e` |
-| 6 | End-to-end test on a fresh site from this branch | ⏸ after merge, by the owner's choice (2026-10-16): throwaway project `cw-plausible-e2e` deployed, Plausible site `plausible-trial.croftweaver.com` and goal added; waits for the custom domain. Settles F11 (Plausible Cloud, a real mail program) | — |
+| 6 | End-to-end test on a fresh site from this branch | ⏸ after merge, by the owner's choice (2026-10-16): throwaway project `cw-plausible-e2e` deployed, Plausible site `plausible-trial.croftweaver.com` and goal added; waits for the custom domain (it did not resolve on 2026-10-16). Settles F11 (Plausible Cloud, a real mail program) | — |
 | 7 | Review gate (High) | ✅ clean 2026-10-16: 5 rounds, a final full read, a merge link and a wording pass; F6 waived by the owner, F11 open until step 6 | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
-| 8 | PR | ▶ karero/croftweaver#339 | #339 |
+| 8 | PR | ✅ merged 2026-10-16 | #339, merge commit `17ade087` |
+| 9 | Test for the build-time subject check (a subject over 200 characters fails a server-mode build) | ⏸ follow-up; needs a server-mode build | review finding H4 in `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
+| 10 | Release-note line | ⏸ waits for the next release | `docs/BUGLOG.md`, row "Next release notes, for analytics server mode" |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
@@ -163,7 +165,7 @@ account.
   a live build in server mode (S13).
 - **How the Function knows.** It cannot import `src/config.ts` (that file reads `process.env`,
   which a Pages Function does not have without the Node compatibility flag). So it counts only
-  when both Production variables are set (`PLAUSIBLE_EVENTS_URL`, `PLAUSIBLE_DOMAIN`) and the host
+  when both Production variables are set (`PLAUSIBLE_HOST`, `PLAUSIBLE_DOMAIN`) and the host
   is not `*.pages.dev` or `localhost`. Production variables reach only production deployments,
   and only production serves the custom domain. S15 rests on the docs (P1): a guard that read
   the page for Base.astro's stub was added in review round 1 and cut in round 3.
