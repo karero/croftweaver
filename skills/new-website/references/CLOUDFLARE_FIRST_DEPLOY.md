@@ -231,8 +231,9 @@ live fast with zero dashboard time.
 # 0. The account id, set the same way as the token. With a token, Wrangler may stop with
 #    "Failed to automatically retrieve account IDs": the token may not list accounts. Seen
 #    on 2026-10-16 (wrangler 4.151.0, a token with the Pages Edit row and zone rows); it ran
-#    once the id was set. The id is no secret: Workers & Pages shows it as "Account ID", and
-#    it is the long hex string after https://dash.cloudflare.com/ in the address bar.
+#    once the id was set. The id is no secret: Workers & Pages → Account Details → the copy
+#    button next to "Account ID", or search (Cmd/Ctrl+K) for "Copy account ID"
+#    (https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/).
 #    Set it for every command below; where Wrangler could find it alone, it changes nothing.
 export CLOUDFLARE_ACCOUNT_ID=<account-id>
 
