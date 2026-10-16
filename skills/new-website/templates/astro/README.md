@@ -33,7 +33,7 @@ scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, whic
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
-tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH; in server mode no script and email links to /go/email on the live build only (the suite's own CI)
+tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: off in all four with USE_ANALYTICS = false (as shipped), or on only when CF_PAGES_BRANCH is PROD_BRANCH; in server mode no script and email links to /go/email on the live build only (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -61,9 +61,12 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    update brings a package with an install script, the warning names it: approve it with
    `npm approve-scripts <name>`.
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
-   (`SITE.url`, name, theme color, analytics: `scriptHost` and the per-site `scriptId`
-   from Plausible's Site installation page — and check `PROD_BRANCH` matches the
-   branch Cloudflare Pages will call "Production", or analytics never loads).
+   (`SITE.url`, name, theme color). Analytics ships off (`USE_ANALYTICS = false`). For
+   Plausible, switch it on as the analytics comment in that file says: `USE_ANALYTICS = true`,
+   `scriptHost` and the per-site `scriptId` from Plausible's Site installation page, the
+   same host in `script-src` and `connect-src` of `public/_headers`, and a `PROD_BRANCH`
+   that matches the branch Cloudflare Pages will call "Production", or analytics never
+   loads. No analytics: leave it off and delete the privacy page's analytics paragraphs.
    Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
    block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
    1200×630 share cards (`public/images/og/`; the starter ships a default).
@@ -80,9 +83,10 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views end yesterday
    (checked in version 3.2.1). On a site just added to Plausible, tap again a few minutes later if the
    first tap does not show.
-   **Server mode instead** (`ANALYTICS.mode: 'server'` in `src/config.ts`): no Plausible
-   script in the browser; the Pages Function sends each page view and email tap. Leave
-   `scriptId` as it is. In Cloudflare, the project's Settings > Variables and Secrets >
+   **Server mode instead** (`USE_ANALYTICS = true` and `ANALYTICS.mode: 'server'` in
+   `src/config.ts`): no Plausible script in the browser; the Pages Function sends each page
+   view and email tap. Leave `scriptId` as it is, and leave the host out of
+   `public/_headers` (no script loads). In Cloudflare, the project's Settings > Variables and Secrets >
    Production, add `PLAUSIBLE_HOST` (the instance, e.g. `https://analytics.example.com`, or
    `https://plausible.io`) and `PLAUSIBLE_DOMAIN` (the site's domain exactly as added in
    Plausible), then redeploy; set them only in server mode, or every page view counts

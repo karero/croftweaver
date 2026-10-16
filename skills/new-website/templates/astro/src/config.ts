@@ -48,6 +48,20 @@ export const KNOWS_ABOUT: string[] = [];
 // https://plausible.io for the paid cloud version). Fire only on the production
 // deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built.
 //
+// The starter ships with analytics OFF (USE_ANALYTICS = false): no build, the live one
+// included, writes the script or the stub, and nothing on the page sends anything to an
+// analytics host. A site without analytics keeps it that way and deletes the analytics
+// paragraphs of section 3 of the privacy page.
+//
+// To switch Plausible on: set USE_ANALYTICS to true, fill in scriptHost and scriptId
+// below, and add the same host to script-src and connect-src in public/_headers. Keep the
+// privacy page's analytics paragraphs and fill their slots. Then run
+// `bash tests/check_analytics_gate.sh` (a site's CI does not): it checks the builds and
+// the headers, either way. Off or on, leave scriptHost and scriptId in place: Base.astro
+// and tests/privacy-host.spec.ts read them. Email links and the contact form work either
+// way; they count a tap only when Plausible is on the page. Left off by mistake,
+// Plausible gets no data and nothing says so.
+//
 // scriptId is the per-site script Plausible's installer shows (Settings > General >
 // Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is
 // the part between "/js/" and ".js", here 'pa-AbC123'. The domain and the optional
@@ -56,8 +70,8 @@ export const KNOWS_ABOUT: string[] = [];
 // keep a sentence only if its own measurement is ticked. A scriptHost or scriptId left
 // as the placeholder loads nothing (the browser reports a failed request; the build
 // does not).
-// Changing scriptHost also means changing script-src and connect-src in
-// public/_headers; tests/check_analytics_gate.sh checks both against this file. It
+// With analytics on, changing scriptHost also means changing script-src and connect-src
+// in public/_headers; tests/check_analytics_gate.sh checks both against this file. It
 // also means changing the host named in section 3 of the privacy page, in the
 // sentence on refusing the measurement; tests/privacy-host.spec.ts checks that one
 // once its slot is filled.
@@ -75,7 +89,7 @@ export const KNOWS_ABOUT: string[] = [];
 // for THIS project (house convention: 'production'; Cloudflare's default is 'main').
 // A mismatch means analytics silently never loads — no error, no data.
 //
-// mode: 'script' (the default) loads Plausible's script in the browser, as described
+// mode, once USE_ANALYTICS is true: 'script' (the default) loads Plausible's script in the browser, as described
 // above. 'server' loads nothing in the browser: functions/_middleware.ts sends one page
 // view per page request to Plausible's Events API, and on the live build EmailLink.astro
 // links to /go/email, where functions/go/email.ts counts the "Email Tap" and opens the
@@ -83,13 +97,17 @@ export const KNOWS_ABOUT: string[] = [];
 // Variables and Secrets): PLAUSIBLE_HOST (scriptHost's value) and PLAUSIBLE_DOMAIN (the
 // site's domain as added in Plausible); scriptId is not used. It loses scroll depth,
 // engaged time and the optional measurements, and the contact form's button is not
-// counted. Set those two variables ONLY in server mode: the Function cannot read this
-// file, so with them set in script mode every page view would be counted twice.
-// Keep the value on one line: tests/check_analytics_gate.sh reads it.
+// counted. Set those two variables ONLY with USE_ANALYTICS true and mode 'server': the
+// Function cannot read this file, so with them set in script mode every page view is
+// counted twice, and with analytics off the Function counts anyway. Keep the mode on one
+// line: tests/check_analytics_gate.sh reads it.
 export const PROD_BRANCH = 'production';
 
+// Keep the value on one line: tests/check_analytics_gate.sh reads it.
+export const USE_ANALYTICS = false;
+
 export const ANALYTICS = {
-  enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,
+  enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,
   mode: 'script' as 'script' | 'server',
   scriptHost: 'https://analytics.example.com',
   scriptId: 'pa-XXXXXXXXXXXXXXXXXXXX',

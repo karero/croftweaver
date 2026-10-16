@@ -66,12 +66,12 @@ test('email — a % in an address reaches the mail program unchanged', async ({ 
 });
 
 // The site's one conversion: a click on an email address reports one "Email Tap" event to
-// Plausible, and the address is never part of it. Plausible runs on the live build only
-// (Base.astro writes window.plausible there; tests/check_analytics_gate.sh checks it), so
-// this build has none, and each test puts its own recorder in its place, under the same
-// name, before the page's scripts run. Every test clicks the real links on the built
-// pages, and checks that the browser is still asked to open the mail program: counting
-// must never stop that.
+// Plausible, and the address is never part of it. Plausible runs only on a live build with
+// analytics switched on (Base.astro writes window.plausible there;
+// tests/check_analytics_gate.sh checks it), so the builds this runs on have none, and each
+// test puts its own recorder in its place, under the same name, before the page's scripts
+// run. Every test clicks the real links on the built pages, and checks that the browser is
+// still asked to open the mail program: counting must never stop that.
 type Counted = Window & { __taps?: unknown[][]; plausible?: unknown };
 
 // Every page whose HTML carries an EmailLink, read from the built site.

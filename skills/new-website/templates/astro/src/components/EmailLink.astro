@@ -15,7 +15,7 @@
 // Elsewhere (previews, `astro dev`, `astro preview`, where no Function runs) it stays
 // the plain mailto: link set below.
 import { encodeEmail, emailHint } from '../lib/obfuscate';
-import { SITE, ANALYTICS } from '../config';
+import { SITE, ANALYTICS, USE_ANALYTICS } from '../config';
 
 interface Props {
   address: string;
@@ -32,7 +32,7 @@ const viaServer = ANALYTICS.enabled && ANALYTICS.mode === 'server';
 // functions/go/email.ts refuses a longer subject (MAX_SUBJECT, in lockstep): fail every
 // build in server mode, previews, local builds and a site whose variables are not set yet
 // included, rather than the visitor's click on the live site.
-if (ANALYTICS.mode === 'server' && subject && subject.length > 200) {
+if (USE_ANALYTICS && ANALYTICS.mode === 'server' && subject && subject.length > 200) {
   throw new Error(`EmailLink: the subject "${subject.slice(0, 40)}…" is ${subject.length} characters; server mode allows 200.`);
 }
 // URLSearchParams escapes the base64 (+, /, =) and the subject for the query string.

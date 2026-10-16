@@ -160,7 +160,10 @@ non-expert can answer, and record the answers in the project `README.md`.
      (https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/,
      checked October 2026). Cloudflare's separate "Web Analytics" is a script in the
      visitor's browser: keep it off (`docs/CLOUDFLARE-CHECKLIST.md`, section 3,
-     "Cloudflare Web Analytics: Off").
+     "Cloudflare Web Analytics: Off"). The starter ships with its own analytics off
+     (`USE_ANALYTICS = false` in `src/config.ts`, no analytics host in
+     `public/_headers`), so leave both as they are and delete the analytics paragraphs
+     of section 3 of the privacy page.
    - "Which sources bring enquiries?" or other real decisions from traffic data
      (campaigns, content strategy) → **Plausible** (cookieless; whether it needs a
      consent banner: the last point of this question). In its installer, untick the
@@ -169,6 +172,13 @@ non-expert can answer, and record the answers in the project `README.md`.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
+     **Switch it on**, since the starter ships with analytics off: in `src/config.ts`
+     set `USE_ANALYTICS = true` and fill in `scriptHost` and `scriptId`, then add the
+     same host to `script-src` and `connect-src` in `public/_headers` (the comments in
+     both files say how). Keep the privacy page's analytics paragraphs and fill their
+     slots. Run `bash tests/check_analytics_gate.sh` once to check the builds and the
+     headers (a site's CI does not run it). Without the switch the live site counts
+     nothing, and nothing says so.
      **The enquiry count comes with it.** Each click on an email address, and each
      press of the contact form's button that passes its checks, sends one "Email Tap"
      event (with the page and the referrer, as every event; no address, nothing typed).
@@ -181,8 +191,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      by that goal, the dashboard shows which sources and pages bring enquiries. It
      counts visitors who asked to write an email; whether their mail program opened,
      and whether they sent the mail, the site never learns.
-     **Script or server mode.** By default Plausible runs as a script in the browser
-     (`ANALYTICS.mode: 'script'`). Offer **server mode** (`'server'`) to an owner who
+     **Script or server mode.** With analytics switched on, Plausible by default runs as a
+     script in the browser (`ANALYTICS.mode: 'script'`). Offer **server mode** (`'server'`) to an owner who
      wants no analytics code on the visitor's device: the site's Cloudflare Function
      sends each page view and email tap to Plausible itself, so no script loads and
      nothing is read from or written to the device. It loses scroll depth, engaged
@@ -217,7 +227,11 @@ non-expert can answer, and record the answers in the project `README.md`.
    - **When the site needs no consent banner.** Tell the owner plainly: a site built
      with this kit needs no consent banner in the EU, Germany, Switzerland or California
      as long as it runs no analytics script: nothing reaches the visitor's browser that
-     the page itself does not need. Plausible runs as a small script in the visitor's
+     the page itself does not need. For the starter's own
+     analytics that means leaving `USE_ANALYTICS = false` in `src/config.ts`, as it ships
+     (the first point of this question; the other things that break the no-banner case
+     are listed below); run `bash tests/check_analytics_gate.sh` once to check that no
+     build writes the script (a site's CI does not run it). Plausible runs as a small script in the visitor's
      browser. With it, running without a banner is a defensible position in the EU,
      Germany, Switzerland and California, not a settled one; to be sure, ask a lawyer.
      Server mode runs no script, but it is not banner-free by definition either: the
@@ -453,8 +467,9 @@ full path (the output of `pwd` inside it):
    it safely when a prompt keeps recurring, use **`website-permissions`**.
    **Fill `AGENTS.md` now**, per the scaffold note at its top: site name, live URL, the
    preview URL (two-stage: `main.<project>.pages.dev`; single-stage: "pull-request
-   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; update the
-   project name if Cloudflare later forces another one), `[TITLE_SUFFIX]` = the
+   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; where Cloudflare
+   gives the project an address other than its name, use that address, which the project's
+   page and the setup script's report name, so update it once the project exists), `[TITLE_SUFFIX]` = the
    ` | {SITE.name}` string `Base.astro` appends, `[SUFFIX_LENGTH]` = its length, and
    `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
    interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge
@@ -678,10 +693,14 @@ hold Search Console Request Indexing until then.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
-      With Plausible: the `Email Tap` goal exists in Plausible (§1 Q5). In server
-      mode also: `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` set as Production variables
-      (and nowhere in script mode), the privacy page's server-mode slots kept, and one
-      page view and one email tap on the live domain seen under Today.
+      No analytics: the analytics paragraphs deleted, `USE_ANALYTICS = false` as shipped.
+      With Plausible: `USE_ANALYTICS = true`, the host in `script-src` and `connect-src`
+      of `public/_headers`, `bash tests/check_analytics_gate.sh` green, and the
+      `Email Tap` goal exists in Plausible (§1 Q5).
+      In server mode also: `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` set as Production
+      variables (and nowhere in script mode or with analytics off), the host left out of
+      `public/_headers` (no script loads), the privacy page's server-mode slots kept, and
+      one page view and one email tap on the live domain seen under Today.
       Whether the site may run without a consent banner: §1 Q5's last point.
       German-market sites: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
@@ -698,14 +717,14 @@ hold Search Console Request Indexing until then.
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
       *Production branch* = `production` — so
-      `main` = noindexed preview, `production` = live; analytics fires on production only.
+      `main` = noindexed preview, `production` = live; analytics, once switched on, fires on production only.
       **Single-stage:** `main` = live (default Cloudflare production branch).
       **Creating the Pages project + first deploy** (the step a Cloudflare newcomer
       struggles with) — offer the bootstrap options in
       `references/CLOUDFLARE_FIRST_DEPLOY.md`: for a site on GitHub, recommend the **setup
       script** (`scripts/cloudflare-setup.mjs setup`: one short-lived token, the owner's yes
       to a printed list, a project connected to GitHub with the checklist's settings; the
-      domain is attached by hand on launch day for now), with the token-assisted direct
+      script's `launch` stage attaches the domain on launch day), with the token-assisted direct
       upload (no GitHub connection; you run Wrangler), git-integration by hand and
       browser/manual as the other offered paths.
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.

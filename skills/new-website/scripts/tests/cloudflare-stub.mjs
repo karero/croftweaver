@@ -136,6 +136,8 @@ export function freshState(over = {}) {
     projects: [],
     deployments: {},
     heads: {}, // branch → commit: what the deployment call builds
+    domains: {}, // project → the custom domains attached to it, with their status
+    ruleset: null, // the zone's ruleset for the response header phase, or none
     refuse: {}, // "<METHOD> <route>" → status
     delayMs: 0,
     perPage: { zones: 50, projects: 10, deployments: 25 },
@@ -155,6 +157,12 @@ const ROUTES = [
   ['GET', /^\/zones\/([^/]+)\/dns_records$/, 'dns'],
   ['POST', /^\/zones\/([^/]+)\/dns_records$/, 'dns'],
   ['GET', /^\/zones\/([^/]+)\/dns_records\/([^/]+)$/, 'record'],
+  ['PATCH', /^\/zones\/([^/]+)\/dns_records\/([^/]+)$/, 'record'],
+  ['GET', /^\/zones\/([^/]+)\/rulesets\/phases\/http_response_headers_transform\/entrypoint$/, 'phase'],
+  ['PUT', /^\/zones\/([^/]+)\/rulesets\/phases\/http_response_headers_transform\/entrypoint$/, 'phase'],
+  ['POST', /^\/zones\/([^/]+)\/rulesets\/([^/]+)\/rules$/, 'rules'],
+  ['GET', /^\/accounts\/([^/]+)\/pages\/projects\/([^/]+)\/domains\/([^/]+)$/, 'domain'],
+  ['POST', /^\/accounts\/([^/]+)\/pages\/projects\/([^/]+)\/domains$/, 'domains'],
   ['GET', /^\/accounts\/([^/]+)\/pages\/projects$/, 'projects'],
   ['POST', /^\/accounts\/([^/]+)\/pages\/projects$/, 'projects'],
   ['GET', /^\/accounts\/([^/]+)\/pages\/projects\/([^/]+)$/, 'project'],
@@ -227,6 +235,7 @@ export function handle(state, method, p, query, body, contentType) {
     case 'GET dns':
       return listOf(state.dns, page, Number(query.get('per_page') ?? 100), answer('T2-035'));
     case 'POST dns': {
+      if ((body.comment ?? '').length > 100) return { status: 400, body: answer('T2-058') };
       const name = body.name === '@' ? ZONE.name : body.name.endsWith(ZONE.name) ? body.name : `${body.name}.${ZONE.name}`;
       if (state.dns.some((r) => r.name === name && r.type === body.type && r.content === body.content)) return { status: 400, body: answer('T1-145') };
       const address = ['A', 'AAAA', 'CNAME'];
@@ -241,6 +250,58 @@ export function handle(state, method, p, query, body, contentType) {
       if (!r) return notFound('record');
       const b = answer('T1-143');
       b.result = copy(r);
+      return { status: 200, body: b };
+    }
+    case 'PATCH record': {
+      // One PATCH changes a record and keeps its id (T1-132, T2-046); a comment over 100 characters is
+      // refused, 9313 (T2-058). Changing the type is accepted with a message that it is deprecated.
+      const r = state.dns.find((x) => x.id === args[1]);
+      if (!r) return notFound('record');
+      if ((body.comment ?? '').length > 100) return { status: 400, body: answer('T2-058') };
+      const b = answer('T2-046');
+      if (!('type' in body) || body.type === r.type) b.messages = [];
+      Object.assign(r, copy(body));
+      b.result = { ...b.result, ...copy(r) };
+      return { status: 200, body: b };
+    }
+    case 'GET phase': // none: 404, code 10003 (T2-018); else the ruleset (T2-025)
+      if (!state.ruleset) return { status: 404, body: answer('T2-018') };
+      return { status: 200, body: Object.assign(answer('T2-025'), { result: copy(state.ruleset) }) };
+    case 'PUT phase': { // the whole ruleset, as sent, each rule given an id (T2-023)
+      const b = answer('T2-023');
+      state.ruleset = { ...b.result, id: newId(), version: '1', rules: body.rules.map((x) => ({ ...copy(x), id: newId(), version: '1' })) };
+      b.result = copy(state.ruleset);
+      return { status: 200, body: b };
+    }
+    case 'POST rules': { // one rule appended; the rules there keep their ids and versions (T2-024)
+      if (!state.ruleset || state.ruleset.id !== args[1]) return notFound('ruleset');
+      state.ruleset.rules.push({ ...copy(body), id: newId(), version: '1' });
+      state.ruleset.version = String(Number(state.ruleset.version) + 1);
+      return { status: 200, body: Object.assign(answer('T2-024'), { result: copy(state.ruleset) }) };
+    }
+    case 'POST domains': {
+      // Attaching creates no record: the answer says initializing (T1-085), the next read pending
+      // with "CNAME record not set" (T1-086). The test turns it active, as a record would.
+      const p = state.projects.find((x) => x.name === args[1]);
+      if (!p) return notFound('project');
+      const b = answer('T1-085');
+      const id = newUuid();
+      b.result = { ...b.result, id, domain_id: id, name: body.name, zone_tag: ZONE.id };
+      if ((state.domains[p.name] ?? []).some((d) => d.name === body.name)) return { status: 409, body: { success: false, errors: [{ code: 8000018, message: 'MADE: the domain is already attached' }], messages: [] } };
+      (state.domains[p.name] ??= []).push({ ...copy(b.result), status: 'pending', verification_data: copy(answer('T1-086').result.verification_data), validation_data: copy(answer('T1-086').result.validation_data) });
+      // Whether the project's list names a pending domain was not captured (plan, Not verified 12):
+      // `state.pendingUnlisted` plays the case where it does not.
+      if (!state.pendingUnlisted) p.domains.push(body.name);
+      return { status: 200, body: b };
+    }
+    case 'GET domain': {
+      // MADE: a domain not attached answers 404 (no trial asked for one; Cloudflare's reference).
+      const d = (state.domains[args[1]] ?? []).find((x) => x.name === args[2]);
+      if (state.hideDomainReads > 0) { state.hideDomainReads--; return notFound('domain'); } // MADE: a read that misses it
+      if (!d) return notFound('domain');
+      const b = answer(d.status === 'active' ? 'T1-127' : 'T1-086');
+      b.result = { ...b.result, ...copy(d) };
+      if (d.status === 'active') b.result.verification_data = { status: 'active' };
       return { status: 200, body: b };
     }
     case 'GET projects':
@@ -291,6 +352,7 @@ export function handle(state, method, p, query, body, contentType) {
       state.deployments[p.name].unshift(d);
       const b = answer('T1-030');
       b.result = copy(d);
+      if (state.deployAnswerNoCommit) delete b.result.deployment_trigger.metadata.commit_hash; // MADE: no trial saw it
       return { status: 200, body: b };
     }
     case 'GET deployment': {
@@ -369,6 +431,76 @@ export async function startApi(state) {
     writes: () => log.filter((e) => e.method !== 'GET'),
     finish: (name, outcome = 'success') => { const d = state.deployments[name].find((x) => x.latest_stage.status !== 'success' && !x.is_skipped); finish(d, outcome); return d; },
     close: () => { server.closeAllConnections?.(); return new Promise((r) => server.close(r)); },
+  };
+}
+
+// A custom domain as Cloudflare holds it once attached (T1-085 to T1-127): `status` is pending,
+// active, or, MADE from Cloudflare's reference, error, blocked or deactivated.
+export function attachedDomain(name, status = 'active') {
+  const d = copy(fixture(status === 'active' ? 'T1-127' : 'T1-086').response.result);
+  return Object.assign(d, { id: newUuid(), name, zone_tag: ZONE.id, status },
+    ['error', 'blocked', 'deactivated'].includes(status) ? { verification_data: { status, error_message: 'MADE: the reason Cloudflare gives' } } : {});
+}
+
+// ---------------------------------------------------------------- the domain and pages.dev, played
+
+// Two small sites on 127.0.0.1 that answer as the stub API's state says, the way Cloudflare would
+// serve the project: the domain serves the newest production build that succeeded (its build.txt),
+// sends the NEL headers while `state.siteSendsNel` holds and no rule removes them, redirects http://
+// while Always Use HTTPS is on, and sets Bot Fight Mode's cookie while it is on. The pages.dev address
+// forwards every page, path and query, as functions/_middleware.ts does, once the live build has
+// CANONICAL_URL (unless `state.pagesStays200`). Each records the requests it gets.
+export async function startSites(state, project = REPO) {
+  const asked = { site: [], pages: [] };
+  const liveBuild = () => (state.deployments[project] ?? []).find((d) => d.environment === 'production' && d.latest_stage?.name === 'deploy' && d.latest_stage.status === 'success');
+  const ruleRemovesNel = () => state.ruleset?.rules?.some((r) => r.enabled !== false && r.action_parameters?.headers?.NEL?.operation === 'remove');
+  let siteHost;
+  const site = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://x');
+    asked.site.push(`${url.pathname}`);
+    const headers = { server: 'cloudflare', 'cf-ray': '8a1b2c3d4e5f6071-AMS' };
+    if (state.siteSendsNel && !ruleRemovesNel()) Object.assign(headers, { nel: '{"report_to":"cf-nel","max_age":604800}', 'report-to': '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4"}]}' });
+    if (state.bot.fight_mode) headers['set-cookie'] = '__cf_bm=made-up; path=/';
+    if (state.siteDown) { req.socket.destroy(); return; } // MADE: the edge does not answer yet
+    // The check's http:// probe is "/" with no cache-buster (cloudflare-check.mjs, observe): only
+    // that request gets Always Use HTTPS's redirect here.
+    if (url.pathname === '/' && !url.searchParams.has('cb')) {
+      if (state.settings.always_use_https === 'on') { res.writeHead(301, { ...headers, location: `https://${siteHost}/` }); res.end(); return; }
+    }
+    if (url.pathname === '/build.txt') {
+      if (state.siteServes === null) { res.writeHead(404, headers); res.end(); return; }
+      res.writeHead(200, { ...headers, 'content-type': 'text/plain' });
+      res.end(`${state.siteServes ?? liveBuild()?.deployment_trigger?.metadata?.commit_hash ?? 'dev'}
+`);
+      return;
+    }
+    if (url.pathname === '/robots.txt') {
+      res.writeHead(200, { ...headers, 'content-type': 'text/plain' });
+      res.end(`User-agent: *
+Allow: /
+
+Sitemap: https://${siteHost}/sitemap-index.xml
+`);
+      return;
+    }
+    res.writeHead(200, { ...headers, 'content-type': 'text/html; charset=utf-8' });
+    res.end(`<!doctype html><title>Lenas Backstube</title><p>${state.settings.email_obfuscation === 'on' ? '<a href="/cdn-cgi/l/email-protection" data-cfemail="00">mail</a>' : 'Brot'}</p>`);
+  });
+  const pages = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://x');
+    asked.pages.push(`${url.pathname}${url.search}`);
+    const saved = liveBuild()?.env_vars?.CANONICAL_URL?.value;
+    if (state.pagesProbeSilent && url.pathname !== '/') { req.socket.destroy(); return; }
+    if (state.pagesRedirect302) { res.writeHead(302, { location: `https://${siteHost}${url.pathname}${url.search}` }); res.end(); return; }
+    if (saved && !state.pagesStays200) { res.writeHead(301, { location: `https://${siteHost}${url.pathname}${url.search}` }); res.end(); return; }
+    res.writeHead(200, { 'content-type': 'text/html', 'x-robots-tag': 'noindex, nofollow' });
+    res.end('<p>Brot</p>');
+  });
+  await Promise.all([site, pages].map((x) => new Promise((r) => x.listen(0, '127.0.0.1', r))));
+  siteHost = `127.0.0.1:${site.address().port}`;
+  return {
+    site: `http://${siteHost}`, pages: `http://127.0.0.1:${pages.address().port}`, asked,
+    close: () => Promise.all([site, pages].map((x) => { x.closeAllConnections?.(); return new Promise((r) => x.close(r)); })),
   };
 }
 

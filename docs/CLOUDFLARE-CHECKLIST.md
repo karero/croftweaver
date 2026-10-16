@@ -296,7 +296,7 @@ serves the previous deployment or an error, and the kit's notes describe such a 
 cached at Cloudflare's edge ("Never request a page on the live domain before its build is
 Active" in [`PUBLISHING.md`](../skills/new-website/templates/PUBLISHING.md)). Don't run
 them earlier. Replace `yourdomain.com` with your domain and `yourproject` with your Pages
-project's name (the first part of its `.pages.dev` address). Before you trust any answer,
+project's own address, the first part of its `.pages.dev` address as Cloudflare shows it on the project's page (not always the project's name). Before you trust any answer,
 make sure the domain in the command is yours: a placeholder left in can reach a stranger's
 site and print a clean-looking 200, and the robots.txt below must be your own file. An
 empty answer is never a pass either: it means curl could not reach the site. Your
@@ -440,8 +440,9 @@ environment variable for the session, or a file the repository ignores. Don't pa
 into email, a document or a chat other people can read. Never commit it, and never put it
 in a file the repository tracks or in the README. Ask the assistant to look before it
 writes, to tell you each change before it makes it, and to read each setting back
-afterwards. Some changes replace a whole list, as the Transform Rules do: it must read
-what is there and send it back with the change. A change to one variable may replace the
+afterwards. A rule must be added to the Transform Rules, never the list sent back whole:
+the setup script adds one rule and sends the others nothing, and writes the whole list only
+where the zone has none yet. A change to one variable may replace the
 project's others: it must list the variables before and after, and stop and tell you if
 any is missing, because it may not be able to put them back. If the API refuses a setting
 (some are limited to certain plans), or it can't be sure the project's other variables are

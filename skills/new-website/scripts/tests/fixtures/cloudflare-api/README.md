@@ -53,6 +53,12 @@ item's latest and canonical deployment set to null: they hold another site's his
 | The accounts list is empty with the plan's rows | T2-003 |
 | With previews off, a push to a pull request leaves a skipped `github:push` deployment; a push to the production branch builds | T2-021, T2-022, T2-026, T2-028, T2-029 |
 
-Not here yet, since only the launch stage uses them: attaching a domain and its statuses
-(first trial 085 to 142, second trial 042 to 056) and a record's comment and its length
-(second trial 046, 047, 057, 058). They come with the launch stage.
+| Attaching a domain creates no record: `initializing`, then `pending` with "CNAME record not set" | T1-085, T1-086, T1-130, T1-131, T2-043, T2-044 |
+| A proxied CNAME to the `pages.dev` address turns the domain `active`; its verification turns active first | T1-104, T1-127, T1-141, T1-142, T2-055, T2-056 |
+| Attaching keeps the host's A record; one PATCH turns it into a proxied CNAME, with a comment, and keeps its id. Cloudflare's answer to that PATCH says changing a record's type is deprecated | T1-129, T1-132, T2-042, T2-045 to T2-047 |
+| A record comment holds 100 characters; 101 is refused, code 9313 | T2-057, T2-058 |
+
+T1-102, the zone's list of records on launch day, is not here: it is the live zone's mail and
+other records. `clean-captures.mjs` takes the captures in two batches, the setup stage's and
+then the launch stage's, and gives the second its made-up ids after the first, so adding it left
+the first batch's files as they were.

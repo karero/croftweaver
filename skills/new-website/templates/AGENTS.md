@@ -5,7 +5,8 @@ Live: [LIVE_URL] · Preview: [PREVIEW_URL]
 
 <!-- Scaffold note (delete after filling): new-website fills the [BRACKET] slots at
      scaffold time — SITE_NAME, LIVE_URL, PREVIEW_URL (two-stage: main.<project>.pages.dev;
-     single-stage: "pull-request previews only, <branch>.<project>.pages.dev"),
+     single-stage: "pull-request previews only, <branch>.<project>.pages.dev"; where
+     Cloudflare gave the project another address than its name, the address on its page),
      TITLE_SUFFIX + SUFFIX_LENGTH + TITLE_MAX in §6, and keeps ONE publish-model block
      in §2. §5 ships with single-owner defaults; website-team-setup rewrites it
      (collaborators, rights level, merge rule, who publishes). This file stays English

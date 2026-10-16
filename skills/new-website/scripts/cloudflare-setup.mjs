@@ -5,12 +5,13 @@
 //
 //   node cloudflare-setup.mjs setup [--project <name>] [--skip <id>]... [--record "<type> <name> <content>"]...
 //                                   [--confirm <code>]
+//   node cloudflare-setup.mjs launch [--project <name>] [--skip <id>]... [--confirm <code>]
 //
 // Run it in the site's folder. A run with something to change prints its question and a code,
 // changes nothing, and ends with 3; the same command with --confirm <code> makes the changes the
 // question named. It needs Node 18 or newer and nothing from npm, and it never runs Wrangler. What it
 // does, and the exit statuses, are in references/CLOUDFLARE_FIRST_DEPLOY.md next to this folder.
-// The `launch` stage, which attaches the domain, is not in this version.
+// `setup` is setup day; `launch`, which attaches the domain and makes the site public, is launch day.
 import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
@@ -19,7 +20,7 @@ import { createHash } from 'node:crypto';
 import { Resolver, promises as dnsPromises } from 'node:dns';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const API_HOST = 'https://api.cloudflare.com';
 const API_PREFIX = '/client/v4';
@@ -35,6 +36,7 @@ const ROW = {
   settings: 'Zone → Zone Settings → Edit',
   bot: 'Zone → Bot Management → Edit',
   dns: 'Zone → DNS → Edit',
+  rules: 'Zone → Transform Rules → Edit',
   pages: 'Account → Cloudflare Pages → Edit',
 };
 
@@ -72,7 +74,7 @@ export const BOT_LINES = [
 const BOT_PUT_FIELDS = ['fight_mode', 'enable_js', 'ai_bots_protection', 'ai_search', 'ai_user', 'ai_training',
   'crawler_protection', 'content_bots_protection', 'cf_robots_variant'];
 export const SKIP_IDS = [...SETTINGS.map((s) => s.id), ...BOT_LINES.map((b) => b.id)];
-const LAUNCH_SKIP_IDS = ['canonical', 'nel-rule'];
+export const LAUNCH_SKIP_IDS = ['canonical', 'nel-rule'];
 // Hosts a verification record points AT. A record whose NAME ends in one has name and target swapped.
 const VERIFY_TARGETS = ['verify.bing.com'];
 
@@ -84,7 +86,7 @@ class Deadline extends Error {}
 
 // ---------------------------------------------------------------- what was asked for
 
-const USAGE = `Usage: node cloudflare-setup.mjs setup [options]
+const USAGE = `Usage: node cloudflare-setup.mjs setup|launch [options]
 
 Run it in the site's folder, with the token in CLOUDFLARE_API_TOKEN or in .dev.vars (a file git
 ignores). A run with something to change asks first: it prints the list and a code, changes
@@ -92,13 +94,17 @@ nothing, and ends with 3. On the owner's yes, run the same command again with --
 
   setup                  the project, its connection to GitHub, the checklist's settings, and
                          the records given with --record (setup day)
+  launch                 attach the domain, point it at the project, forward the pages.dev
+                         address to it, and add the NEL rule if the headers are still sent
+                         (launch day: this makes the site public)
   --project <name>       the Pages project to use or create (by default the one connected to
                          this repository, or one named like it)
-  --skip <id>            leave one line as it is: ${SKIP_IDS.join(', ')}
+  --skip <id>            leave one line as it is: ${SKIP_IDS.join(', ')}; on launch also
+                         ${LAUNCH_SKIP_IDS.join(', ')}
   --record "<type> <name> <content>"
-                         a verification record to write, DNS only: TXT or CNAME, a name relative
-                         to the domain (@ for the domain itself) or a full name, then the content
-                         (at most five)
+                         setup only: a verification record to write, DNS only: TXT or CNAME, a
+                         name relative to the domain (@ for the domain itself) or a full name,
+                         then the content (at most five)
   --confirm <code>       the code of the question the owner said yes to
   -h, --help             this text
 
@@ -126,14 +132,13 @@ export function parseArgs(argv) {
     else throw new UsageError(`unexpected "${a}": give one stage`);
   }
   if (opts.help) return opts;
-  if (opts.stage === 'launch') {
-    throw new UsageError('the launch stage is not in this version of the script. Attach the domain by hand, as "Going live" in references/CLOUDFLARE_FIRST_DEPLOY.md says');
-  }
-  if (opts.stage !== 'setup') throw new UsageError(opts.stage ? `unknown stage "${opts.stage}"` : 'give the stage: setup');
+  if (opts.stage !== 'setup' && opts.stage !== 'launch') throw new UsageError(opts.stage ? `unknown stage "${opts.stage}"` : 'give the stage: setup or launch');
+  const ids = opts.stage === 'launch' ? [...SKIP_IDS, ...LAUNCH_SKIP_IDS] : SKIP_IDS;
   for (const id of opts.skip) {
-    if (LAUNCH_SKIP_IDS.includes(id)) throw new UsageError(`--skip ${id} belongs to the launch stage`);
-    if (!SKIP_IDS.includes(id)) throw new UsageError(`--skip takes one of ${SKIP_IDS.join(', ')} (got "${id}")`);
+    if (opts.stage === 'setup' && LAUNCH_SKIP_IDS.includes(id)) throw new UsageError(`--skip ${id} belongs to the launch stage`);
+    if (!ids.includes(id)) throw new UsageError(`--skip takes one of ${ids.join(', ')} (got "${id}")`);
   }
+  if (opts.stage === 'launch' && opts.records.length) throw new UsageError('--record belongs to the setup stage');
   opts.skip = [...new Set(opts.skip)].sort();
   if (opts.project !== null && !/^[a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?$/.test(opts.project)) {
     throw new UsageError(`"${opts.project}" is not a Pages project name: lower-case letters, digits and hyphens, at most 58, no hyphen at either end`);
@@ -337,10 +342,12 @@ function deploymentReader(api, base) {
     if (!got.length || !pages || page >= pages) done = true;
   };
   return {
-    async find(pred) {
+    // `pages`, when given, is how many pages at most it reads for this question: a search that may
+    // find nothing need not read a long history inside the run's time.
+    async find(pred, { pages = Infinity } = {}) {
       for (let i = 0; ;) {
         for (; i < seen.length; i++) if (pred(seen[i])) return seen[i];
-        if (done) return null;
+        if (done || page >= pages) return null;
         await more();
       }
     },
@@ -419,7 +426,9 @@ export function codeFits(code, input, left, possible) {
 const unquote = (s) => (/^".*"$/s.test(s) ? s.slice(1, -1) : s);
 const show = (v) => (typeof v === 'string' ? v : JSON.stringify(v));
 
-async function setupStage(opts, io) {
+// Script step 1, both stages: the repository and its publish model, the token, the zone, and the
+// project (null when none exists yet). `launch` also reads src/config.ts at the commit that goes live.
+async function prepare(opts, io) {
   const { say, cwd } = io;
   const clock = makeClock();
   const apiOrigin = loopback('CLOUDFLARE_SETUP_API', process.env.CLOUDFLARE_SETUP_API, { origin: true });
@@ -457,16 +466,8 @@ async function setupStage(opts, io) {
   if (!mainSha) throw new Stop(1, `${repository} has no branch main on GitHub. The kit's sites keep their reviewed work there.`);
   const present = await git('cat-file', '-e', `${mainSha}^{commit}`);
   if (present.code !== 0) throw new Stop(1, `The head of main on GitHub (${short(mainSha)}) is not in this folder yet. Run git fetch origin, then run this again.`);
-  const config = await git('show', `${mainSha}:src/config.ts`);
-  if (config.code !== 0) throw new Stop(1, `src/config.ts is missing at the head of main (${short(mainSha)}): is this a site made with the kit?`);
-  const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(config.stdout)?.[1];
-  const siteBlock = config.stdout.slice(config.stdout.search(/^export const SITE = \{/m));
-  const siteUrl = /^\s*url:\s*['"]([^'"]+)['"]/m.exec(siteBlock)?.[1];
-  if (!prodBranch) throw new Stop(1, 'src/config.ts at the head of main has no line "export const PROD_BRANCH = \'…\';".');
-  if (!siteUrl) throw new Stop(1, 'src/config.ts at the head of main has no SITE.url.');
-  if (STOCK_URL.test(siteUrl)) throw new Stop(1, 'SITE.url in src/config.ts is still the starter\'s https://example.com. Set your own domain there, on main, first.');
-  let host;
-  try { host = new URL(siteUrl).hostname.toLowerCase(); } catch { throw new Stop(1, `SITE.url in src/config.ts is not an address: ${siteUrl}`); }
+  const { prodBranch, host: mainHost } = await readConfig(git, mainSha, 'main');
+  let host = mainHost;
 
   // The publish model: the value of PROD_BRANCH and the branches on GitHub must agree.
   let model;
@@ -479,6 +480,16 @@ async function setupStage(opts, io) {
       'Single-stage (main is the live site): PROD_BRANCH is "main", and there is no branch production.');
   }
   const prodSha = branch.get(prodBranch);
+  // `launch` reads the site at the commit that goes live, the head of the production branch.
+  if (opts.stage === 'launch' && prodSha !== mainSha) {
+    const here = await git('cat-file', '-e', `${prodSha}^{commit}`);
+    if (here.code !== 0) throw new Stop(1, `The head of ${prodBranch} on GitHub (${short(prodSha)}) is not in this folder yet. Run git fetch origin, then run this again.`);
+    const live = await readConfig(git, prodSha, prodBranch);
+    if (live.prodBranch !== prodBranch) {
+      throw new Stop(1, `src/config.ts says PROD_BRANCH is "${prodBranch}" at the head of main and "${live.prodBranch}" at the head of ${prodBranch}, the commit that would go live. Publish main to ${prodBranch} first (npm run ship, on the owner's word).`);
+    }
+    host = live.host;
+  }
 
   // 2. The token: verified, with an end date a week away at most, and reaching this one zone.
   const verify = await api('GET', '/user/tokens/verify');
@@ -553,6 +564,16 @@ async function setupStage(opts, io) {
       throw new Stop(1, `Cloudflare returned the project ${name} without its preview setting, so a change to it could not be checked afterwards. Nothing was changed. Look at it in the dashboard (Workers & Pages → ${name} → Settings → Builds).`);
     }
   }
+  const ctx = { say, clock, apiOrigin, resolverAt, git, root, gh, repository, token, api, branch, mainSha, prodBranch, host, model, prodSha,
+    zone, account, projectsAt, connected, name, project, projectAt };
+  ctx.childEnv = () => env;
+  return ctx;
+}
+
+async function setupStage(opts, io) {
+  const ctx = await prepare(opts, io);
+  const { say, clock, resolverAt, gh, repository, api, prodBranch, host, model, prodSha, zone, account, projectsAt, name, projectAt } = ctx;
+  let { project } = ctx;
   const custom = project ? project.domains.filter((d) => d !== project.subdomain) : [];
 
   // What changes on the project: created whole, or a PATCH that holds only what changes.
@@ -860,8 +881,26 @@ async function setupStage(opts, io) {
     say(`Waiting for ${results.waiting.join(' and ')}. Run the same command again in a few minutes. Status 4.`);
     return 4;
   }
-  say(`Setup is done, as far as Cloudflare's API shows: the settings were read back through the API only. Requests to the domain come on launch day, which checks them from outside and adds the NEL header rule if the headers are still sent. The launch stage is not in this version: attach the domain by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md). The live build is at https://${project.subdomain}/`);
+  say(`Setup is done, as far as Cloudflare's API shows: the settings were read back through the API only. Requests to the domain come on launch day, which checks them from outside and adds the NEL header rule if the headers are still sent. The live build is at https://${project.subdomain}/`);
+  say(`On launch day, once the site is finished: node cloudflare-setup.mjs launch${opts.project ? ` --project ${opts.project}` : ''}${opts.skip.map((id) => ` --skip ${id}`).join('')}`);
   return 0;
+}
+
+// src/config.ts at a commit: PROD_BRANCH, and the host of SITE.url, which must not be the starter's.
+async function readConfig(git, sha, where) {
+  const config = await git('show', `${sha}:src/config.ts`);
+  if (config.code !== 0) throw new Stop(1, `src/config.ts is missing at the head of ${where} (${short(sha)}): is this a site made with the kit?`);
+  const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(config.stdout)?.[1];
+  const siteBlock = config.stdout.slice(config.stdout.search(/^export const SITE = \{/m));
+  const siteUrl = /^\s*url:\s*['"]([^'"]+)['"]/m.exec(siteBlock)?.[1];
+  if (!prodBranch) throw new Stop(1, `src/config.ts at the head of ${where} has no line "export const PROD_BRANCH = '…';".`);
+  if (!siteUrl) throw new Stop(1, `src/config.ts at the head of ${where} has no SITE.url.`);
+  if (STOCK_URL.test(siteUrl)) throw new Stop(1, `SITE.url in src/config.ts is still the starter's https://example.com. Set your own domain there, on ${where}, first.`);
+  try {
+    return { prodBranch, host: new URL(siteUrl).hostname.toLowerCase() };
+  } catch {
+    throw new Stop(1, `SITE.url in src/config.ts is not an address: ${siteUrl}`);
+  }
 }
 
 // The one check of a project Cloudflare returns after a create or a PATCH: every field the script
@@ -1001,6 +1040,547 @@ async function readToken(root, git) {
   return m[1];
 }
 
+// ---------------------------------------------------------------- the launch stage
+
+// The checklist's rule that removes the NEL headers (its section 3, step 4), as the trials wrote it
+// (T2-023): found again by its description.
+const NEL_RULE = {
+  action: 'rewrite', expression: 'true', description: 'Remove NEL headers',
+  action_parameters: { headers: { NEL: { operation: 'remove' }, 'Report-To': { operation: 'remove' } } }, enabled: true,
+};
+const PHASE = 'http_response_headers_transform';
+const COMMENT_MAX = 100; // a record comment: 100 characters stored, 101 refused (T2-057, T2-058)
+const ENDED = ['error', 'blocked', 'deactivated']; // a domain status that will not turn active by waiting
+// Beside this file's real path: the skills are symlinked into place, as the run-as-program check below knows.
+const CHECK_SCRIPT = path.join(path.dirname(realpathSync(fileURLToPath(import.meta.url))), 'cloudflare-check.mjs');
+
+// What a `fail` of each check item gives at the end of a launch run: 1; 0; a --skip id, which makes
+// it 0 when the run was given it; or null for an item that never fails (it gives 1 if it does).
+export const LAUNCH_FAIL = {
+  pages: 1, 'build-settings': null, domain: 1, 'fail-open': null, canonical: 'canonical', https: 'https', tls: null,
+  hsts: null, nel: 'nel-rule', bot: 'bot', analytics: 0, email: 'email', hints: null, ai: null, robots: 1, build: 1, scripts: null,
+};
+
+// The exit status a launch run takes from the check's JSON, in the plan's order: no answer or an item
+// not judged gives 1 whatever the rest says; then a counted `fail` gives 1; then 0.
+export function launchVerdict(check, skip) {
+  const silent = check.unanswered ?? [];
+  const blocked = check.results.filter((r) => r.blocked).map((r) => r.id);
+  const fails = check.results.filter((r) => r.state === 'fail');
+  const let0 = (r) => LAUNCH_FAIL[r.id] === 0 || (typeof LAUNCH_FAIL[r.id] === 'string' && skip.includes(LAUNCH_FAIL[r.id]));
+  const counted = fails.filter((r) => !let0(r));
+  const code = silent.length || blocked.length || counted.length ? 1 : 0;
+  return { code, silent, blocked, counted, passed: fails.filter(let0) };
+}
+
+// The code of the launch question: its end state and the actions it listed (`attach`, `record`,
+// `forwarding`, `nel`), as for setup. A later run takes the code for any part of that list, so the
+// stage's own writes keep it; an action the question did not list needs a new yes (R1).
+export function launchCode(input, listed = []) {
+  const end = {
+    stage: 'launch', project: input.project, subdomain: input.subdomain, host: input.host, commit: input.commit,
+    forwarding: input.forwarding, nelRule: input.nelRule, hosts: input.nelRule ? [...input.hosts].sort() : [],
+  };
+  return createHash('sha256').update(JSON.stringify({ end, listed: [...listed].sort() })).digest('hex').slice(0, 16);
+}
+
+// Does `code` fit what is left to do? As codeFits: some list made of all that is left and any of the
+// actions that could since have been done gives it.
+export function launchFits(code, input, left, possible) {
+  const done = possible.filter((k) => !left.includes(k));
+  for (let mask = 0; mask < 2 ** done.length; mask++) {
+    if (launchCode(input, [...left, ...done.filter((_, i) => mask & (2 ** i))]) === code) return true;
+  }
+  return false;
+}
+
+// The text of a regular expression or a grep pattern that stands for a fixed string: "\[MISSING:" is
+// "[MISSING:". Anything that is more than a fixed string gives null.
+export function fixedText(pattern) {
+  const unescaped = pattern.replace(/\\[[\]().*+?^${}|\\/:-]/g, '');
+  if (/[[\]().*+?^${}|\\]/.test(unescaped)) return null;
+  return pattern.replace(/\\(.)/g, '$1');
+}
+
+// Script step 8's reading of the site at the commit that goes live: the list of pages still unfilled,
+// and the draft token in src/ and public/. `cannot` says why the script cannot tell.
+async function draftsAt(git, sha) {
+  const cannot = (why) => ({ cannot: why });
+  const spec = await git('show', `${sha}:tests/placeholders.spec.ts`);
+  if (spec.code !== 0) return cannot('tests/placeholders.spec.ts is missing at that commit');
+  const list = /^const UNFILLED_UNTIL_LAUNCH = new Set<string>\(\[(.*)\]\);$/m.exec(spec.stdout);
+  const tokenLine = /^const DRAFT_TOKEN = \/\^(.+)\/;$/m.exec(spec.stdout);
+  if (!list || list[1].replace(/'[^']*'|"[^"]*"/g, '').replace(/[\s,]/g, '')) return cannot('its UNFILLED_UNTIL_LAUNCH line is not in the starter\'s form, so the script cannot read it');
+  if (!tokenLine) return cannot('its DRAFT_TOKEN line is not in the starter\'s form, so the script cannot read it');
+  const token = fixedText(tokenLine[1]);
+  if (!token) return cannot(`its DRAFT_TOKEN (/^${tokenLine[1]}/) is more than a fixed text, so the script cannot search for it`);
+  const ci = await git('show', `${sha}:.github/workflows/ci.yml`);
+  const ciLine = ci.code === 0 ? /grep -rnI '([^']+)' src public/.exec(ci.stdout) : null;
+  if (!ciLine) return cannot('.github/workflows/ci.yml at that commit has no search for the draft token in the starter\'s form');
+  const ciToken = fixedText(ciLine[1]);
+  if (ciToken !== token) return cannot(`DRAFT_TOKEN in tests/placeholders.spec.ts is "${token}" and ci.yml searches for "${ciToken ?? ciLine[1]}": the two must be the same`);
+  const unfilled = [...list[1].matchAll(/'([^']*)'|"([^"]*)"/g)].map((m) => m[1] ?? m[2]);
+  const found = await git('grep', '-n', '-I', '-F', '-e', token, sha, '--', 'src', 'public');
+  if (found.code > 1) return cannot(`git could not search the commit for "${token}"`);
+  const hits = found.code === 0 ? found.stdout.split('\n').filter(Boolean).map((l) => l.slice(sha.length + 1).split(':').slice(0, 2).join(':')) : [];
+  return { token, unfilled, hits };
+}
+
+// What the comment on the host's record says it was: the script wrote "Was: <type> <content>, <proxy
+// state>." at the front, then as much of the owner's comment as fitted.
+const wasLine = (r) => `Was: ${r.type} ${r.content}, ${r.proxied ? 'proxied' : 'DNS only'}.`;
+const OWN_NOTE = /^Was: (?:(?:A|AAAA|CNAME) \S+, (?:proxied|DNS only)\.|no record\.)/;
+const oldFromComment = (r) => (typeof r?.comment === 'string' && OWN_NOTE.test(r.comment) ? r.comment : null);
+
+// The domain as Cloudflare holds it on the project (T1-086, T1-127). Any answer but the domain stops
+// the run, so a misread changes nothing.
+async function readDomain(api, projectAt, host) {
+  const r = await api('GET', `${projectAt}/domains/${host}`);
+  if (!ok(r) || !r.body?.result?.status) throw new Stop(1, `Cloudflare did not say whether ${host} is attached to the project: ${refusal(r, ROW.pages)}. Nothing was changed.`);
+  return r.body.result;
+}
+// The same, for a domain the project's list does not name: a pending domain may be missing from that
+// list (the plan, Not verified 12), so once the launch conditions hold, the domains API is asked too.
+// Any answer but the domain means not attached; the attach call then says what Cloudflare thinks.
+async function findDomain(api, projectAt, host) {
+  const r = await api('GET', `${projectAt}/domains/${host}`);
+  return ok(r) && r.body?.result?.status ? r.body.result : null;
+}
+
+// The nameservers' addresses, for the check's lookups of the domain (script step 11). None found is
+// a wait, never a quiet fall back to this computer's own lookup, which is what the option avoids.
+export async function nameserverIps(zone, { resolverAt, clock, resolve4 = (n) => dnsPromises.resolve4(n) }) {
+  if (resolverAt) return [resolverAt];
+  const ips = [];
+  for (const ns of zone.name_servers ?? []) {
+    if (clock.left() < 4000) break;
+    try {
+      ips.push(...await withTimeout(resolve4(ns), 3000));
+    } catch { /* ask the others */ }
+  }
+  // One message for every way of finding none, with no guess at the cause.
+  if (!ips.length) {
+    throw new Stop(4, `This run found no address for the zone's nameservers (Cloudflare lists: ${(zone.name_servers ?? []).join(', ') || 'none'}), and the domain is asked only through them. Run the same command again in a minute; if this repeats, look them up by hand (dig NS ${zone.name ?? 'your domain'}).`);
+  }
+  return [...new Set(ips)];
+}
+
+// The check script's arguments: the domain (or, in the tests, the loopback address standing in for it),
+// the pages.dev address, the commit, and the nameservers when the domain is asked by its name.
+export function checkArgs({ site, pages, commit, timeoutS, only, nameservers }) {
+  return [CHECK_SCRIPT, site, '--json', '--timeout', String(timeoutS), '--project', pages, '--build', commit,
+    ...(only ? ['--only', only.join(',')] : []), ...(nameservers?.length ? ['--nameserver', nameservers.join(',')] : [])];
+}
+
+async function runCheck(ctx, { commit, only }) {
+  const timeoutS = Math.min(120, Math.floor(ctx.clock.left() / 4000));
+  if (timeoutS < 1) throw new Deadline();
+  const nameservers = ctx.siteOverride ? null : await nameserverIps(ctx.zone, ctx);
+  const args = checkArgs({ site: ctx.siteOverride ?? ctx.host, pages: ctx.pagesOverride ?? `https://${ctx.project.subdomain}`, commit, timeoutS, only, nameservers });
+  const r = await runProgram(process.execPath, args, { cwd: ctx.root, env: ctx.childEnv(), clock: ctx.clock });
+  let json = null;
+  try { json = JSON.parse(r.stdout); } catch { /* reported below */ }
+  if (!json || !Array.isArray(json.results)) throw new Stop(1, `The check script did not answer as expected (status ${r.code}): ${(r.stderr || r.stdout).trim().split('\n')[0] ?? ''}`);
+  return Object.assign(json, { by: Object.fromEntries(json.results.map((x) => [x.id, x])) });
+}
+
+// The live build's variables and build settings beside the project's, apart from CANONICAL_URL. A secret
+// is compared by name only: its value reads empty on both (capture T1-062).
+export function otherDifferences(d, p) {
+  const a = d.env_vars ?? {};
+  const b = p.deployment_configs?.production?.env_vars ?? {};
+  const out = [];
+  for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
+    if (k === 'CANONICAL_URL') continue;
+    if (!(k in a)) out.push(`the variable ${k} was saved after the live build`);
+    else if (!(k in b)) out.push(`the variable ${k} is in the live build and no longer saved`);
+    else if (a[k].type !== b[k].type) out.push(`the variable ${k} changed its type since the live build`);
+    else if (a[k].type !== 'secret_text' && a[k].value !== b[k].value) out.push(`the variable ${k} changed since the live build`);
+  }
+  for (const k of ['build_command', 'destination_dir', 'root_dir']) {
+    if ((d.build_config?.[k] ?? '') !== (p.build_config?.[k] ?? '')) out.push(`the build setting ${k} changed since the live build`);
+  }
+  return out;
+}
+
+async function launchStage(opts, io) {
+  const siteOverride = loopback('CLOUDFLARE_SETUP_SITE', process.env.CLOUDFLARE_SETUP_SITE, { origin: true });
+  const pagesOverride = loopback('CLOUDFLARE_SETUP_PAGES', process.env.CLOUDFLARE_SETUP_PAGES, { origin: true });
+  const ctx = await prepare(opts, io);
+  const { say, git, api, prodBranch, host, model, prodSha, zone, name, projectAt, repository } = ctx;
+  let { project } = ctx;
+  Object.assign(ctx, { siteOverride, pagesOverride });
+  if (ctx.siteOverride) say(`Test mode: the domain is asked at ${ctx.siteOverride}.`);
+  if (ctx.pagesOverride) say(`Test mode: the pages.dev address is asked at ${ctx.pagesOverride}.`);
+  if (!project) throw new Stop(1, `No Pages project ${name} is connected to ${repository}. Run the setup stage first: node cloudflare-setup.mjs setup`);
+  if (typeof project.subdomain !== 'string' || !project.subdomain.endsWith('.pages.dev')) throw new Stop(1, `Cloudflare returned the project ${name} without its pages.dev address. Nothing was changed.`);
+  const live = project.subdomain; // Cloudflare's own address, never one made from the name
+  const zoneAt = `/zones/${zone.id}`;
+  const skip = (id) => opts.skip.includes(id);
+  const deps = deploymentReader(api, projectAt);
+
+  say(`Cloudflare launch for ${host} (zone ${zone.name}): project ${name}, live at https://${live}/ until now.`);
+  say(`Repository ${repository}, ${model}: ${model === 'two-stage' ? `${prodBranch} goes live` : 'main goes live'}.`);
+
+  // The host's records, for the record it points (script step 10) and for the hosts the NEL rule
+  // changes (R5). The launch needs them in every case.
+  const dns = await allPages(api, `${zoneAt}/dns_records`, 100);
+  if (!dns.items) {
+    throw new Stop(1, `Cloudflare refused to list the zone's records (${cfWords(dns.r)}): the token needs the row ${ROW.dns}. The script will not attach a domain whose records it cannot see. "Going live" in CLOUDFLARE_FIRST_DEPLOY.md has the way by hand.`);
+  }
+  const here = dns.items.filter((r) => r.name === host);
+  const address = here.filter((r) => ['A', 'AAAA', 'CNAME'].includes(r.type));
+  const otherHosts = [...new Set(dns.items.filter((r) => r.proxied && ['A', 'AAAA', 'CNAME'].includes(r.type) && r.name !== host).map((r) => r.name))].sort();
+  const isWanted = (r) => r?.type === 'CNAME' && String(r.content).toLowerCase().replace(/\.$/, '') === live && r.proxied === true;
+
+  let domain = project.domains.includes(host) ? await readDomain(api, projectAt, host) : null;
+  if (domain && ENDED.includes(domain.status)) domainEnded(domain, oldFromComment(address[0]));
+  const newestProduction = () => deps.find((d) => d.environment === 'production' && !d.is_skipped);
+
+  // ---- before the domain is active: the launch conditions (script step 8), then the question.
+  let commit;
+  let startedHere = false;
+  if (domain?.status !== 'active') {
+    const stops = [];
+    let waitFor = null;
+    const offProject = [];
+    if (project.production_branch !== prodBranch) offProject.push(`production branch ${project.production_branch}, not ${prodBranch}`);
+    for (const [k, v] of Object.entries(BUILD)) if (project.build_config?.[k] !== v) offProject.push(`${k} ${project.build_config?.[k] || '(none)'}, not ${v}`);
+    if (project.deployment_configs?.production?.fail_open !== true || project.deployment_configs?.preview?.fail_open !== true) offProject.push('Fail open not on for both');
+    if (offProject.length) stops.push(`The project is not as the setup stage leaves it (${offProject.join('; ')}). Run the setup stage first.`);
+    if (!await deps.find(pushProof)) stops.push('Cloudflare has never built this project from a push, so the connection to GitHub was not shown. Run the setup stage: it says how to show it.');
+    const newest = await newestProduction();
+    if (newest && running(newest)) waitFor = `the build under way (${describeDeployment(newest)})`;
+    else if (!newest || !goodProductionBuild(newest, prodSha, prodBranch)) {
+      const ofHead = newest && commitOf(newest) === prodSha ? newest : await deps.find((d) => d.environment === 'production' && commitOf(d) === prodSha);
+      if (!ofHead) stops.push(`Cloudflare did not build the head of ${prodBranch} (${short(prodSha)}), so the connection to GitHub may be broken: the project page then shows a banner about the Git connection.`);
+      else if (ofHead !== newest) stops.push(`The newest production deployment is of another commit (${describeDeployment(newest)}), not of the head of ${prodBranch} (${short(prodSha)}).`);
+      else if (failed(newest)) stops.push(`The build of the head of ${prodBranch} failed: ${describeDeployment(newest)}. Look at its log (Workers & Pages → ${name} → Deployments).`);
+      else if (!cloudflareBuilt(newest)) stops.push(`The newest production deployment of ${short(prodSha)} was uploaded, not built by Cloudflare from GitHub.`);
+      else stops.push(`The newest production deployment of ${short(prodSha)} was built while ${newest.production_branch} was the production branch: a build of ${prodBranch} is needed.`);
+    }
+    const drafts = await draftsAt(git, prodSha);
+    if (drafts.cannot) stops.push(`At ${short(prodSha)}, ${drafts.cannot}. So the script cannot tell whether the site is finished. The domain can be attached by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md).`);
+    else {
+      if (drafts.unfilled.length) stops.push(`At ${short(prodSha)}, UNFILLED_UNTIL_LAUNCH in tests/placeholders.spec.ts still lists ${drafts.unfilled.join(', ')}: fill ${drafts.unfilled.length === 1 ? 'that page' : 'those pages'} and empty the list first (new-website §4).`);
+      if (drafts.hits.length) stops.push(`At ${short(prodSha)}, the search for "${drafts.token}" in src/ and public/ finds ${drafts.hits.join(', ')}: fill ${drafts.hits.length === 1 ? 'it' : 'them'} first.`);
+    }
+    if (address.length > 1) stops.push(`${host} has ${address.length} address records (${address.map((r) => `${r.type} ${r.content}`).join(', ')}). The site needs one CNAME there, and the script deletes no record: remove the others by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md).`);
+    const besides = host === zone.name ? [] : here.filter((r) => !['A', 'AAAA', 'CNAME'].includes(r.type));
+    if (besides.length) stops.push(`${host} also has ${besides.map((r) => `a ${r.type} record`).join(', ')}, and a CNAME cannot stand beside a record of another type below the domain itself. Move or remove ${besides.length === 1 ? 'it' : 'them'} by hand ("Going live").`);
+    if (address.length === 1 && !isWanted(address[0]) && wasLine(address[0]).length > COMMENT_MAX) {
+      stops.push(`The record ${address[0].type} ${address[0].content} is too long to note in the comment of the record that replaces it (${COMMENT_MAX} characters), so it could not be put back from there. Write it down and change the record by hand ("Going live").`);
+    }
+    if (stops.length) {
+      say('', `Not launched: the script does not attach ${host} while any of these holds.`);
+      for (const s of stops) say(`  - ${s}`);
+      say('These are the script\'s own stops, not the launch check: that stays new-website §4 and the site\'s tests.');
+      throw new Stop(1, `${stops.length === 1 ? 'one condition' : `${stops.length} conditions`} of the launch ${stops.length === 1 ? 'is' : 'are'} not met (above). Nothing was changed.`);
+    }
+    if (waitFor) {
+      say('', `Waiting for ${waitFor}. Nothing was changed. Run the same command again in a few minutes. Status 4.`);
+      return 4;
+    }
+    commit = prodSha;
+    // The conditions hold, so the domains API may be asked: the project's list may not name a domain
+    // that is attached and pending (Not verified 12).
+    domain ??= await findDomain(api, projectAt, host);
+    if (domain && ENDED.includes(domain.status)) domainEnded(domain, oldFromComment(address[0]));
+  } else {
+    // Attached and active, by hand or by an earlier run (scenario 31): no launch condition is checked
+    // and nothing is attached. The commit expected is the newest production deployment that succeeded.
+    // The newest production deployment decides first: one under way is waited for, and one that failed
+    // (the forwarding build, say) stops the run rather than being built again.
+    const newest = await newestProduction();
+    if (newest && running(newest)) {
+      say('', `Waiting for the production build under way (${describeDeployment(newest)}). Run the same command again in a few minutes. Status 4.`);
+      return 4;
+    }
+    if (newest && failed(newest)) {
+      throw new Stop(1, `The newest production build failed: ${describeDeployment(newest)}. The script starts no build after a failed one. Look at its log (Workers & Pages → ${name} → Deployments).`);
+    }
+    const liveBuild = await deps.find((d) => d.environment === 'production' && succeeded(d));
+    if (!liveBuild) throw new Stop(1, `${host} is attached and active, but the project has no production deployment that succeeded. Look at Workers & Pages → ${name} → Deployments.`);
+    commit = commitOf(liveBuild);
+    if (!/^[0-9a-f]{7,40}$/i.test(commit)) throw new Stop(1, `${host} is attached and active, but its live build names no commit (it was uploaded, not built from GitHub), so the script cannot tell what the domain should serve. Nothing was changed.`);
+  }
+
+  const forwarding = !skip('canonical');
+  const nelRule = !skip('nel-rule');
+  const codeInput = { project: name, subdomain: live, host, commit, forwarding, nelRule, hosts: otherHosts };
+  const possible = ['attach', 'record', ...(forwarding ? ['forwarding'] : []), ...(nelRule ? ['nel'] : [])];
+  const fits = (left) => Boolean(opts.confirm) && launchFits(opts.confirm, codeInput, left, possible);
+  const secrets = Object.entries(project.deployment_configs?.production?.env_vars ?? {}).filter(([, v]) => v?.type === 'secret_text').map(([k]) => k);
+  const forwardingLine = `Then, once the domain answers: save the variable CANONICAL_URL = https://${domain?.name ?? host} for production, and start one production build of the same commit, so https://${live}/ forwards every page to the domain.${secrets.length ? ` That build takes the project's secrets (${secrets.join(', ')}) as they are saved now: their values read back empty, so the script cannot tell whether one changed since the live build.` : ''}`;
+  const nelLine = `If the domain still sends the NEL headers: add the checklist's rule "Remove NEL headers" to the zone's response header rules. It changes the whole domain ${zone.name}: ${otherHosts.length ? `besides ${host}, the hosts that run through Cloudflare are ${otherHosts.join(', ')}` : `no other host runs through Cloudflare`}.`;
+  const ask = (lines, listed, intro) => {
+    const code = launchCode(codeInput, listed);
+    if (opts.confirm) say('', `The code ${opts.confirm} does not fit this question: it lists something the question you said yes to did not, or the commit, the project, the domain, the hosts it names or a --skip have changed. Nothing was changed. Here is the question as it stands now.`);
+    if (intro) say('', intro);
+    say('', 'Nothing has been changed yet. If you say yes, I will:');
+    lines.forEach((t, i) => say(`  ${String(i + 1).padStart(2)}. ${t}`));
+    say('These are the script\'s own checks, not the launch check: that stays new-website §4 and the site\'s tests.');
+    say('', `To go ahead, run the same command again with: --confirm ${code}`);
+    return 3;
+  };
+
+  // ---- attach, then point the host (script step 10).
+  if (domain?.status !== 'active') {
+    const now = address[0] ?? null;
+    const left = [...(!domain ? ['attach'] : []), ...(!isWanted(now) ? ['record'] : [])];
+    if (left.length && !fits(left)) {
+      const lines = [];
+      if (!domain) lines.push(`Attach ${host} to the project ${name}.`);
+      if (!isWanted(now)) {
+        lines.push(now
+          ? `Change the record of ${host}: now ${now.type} ${now.content}, ${now.proxied ? 'proxied' : 'DNS only'}; it becomes CNAME ${live}, proxied. The old record goes in the record's comment, so it can be put back by hand.`
+          : `Create the record CNAME ${host} → ${live}, proxied.`);
+      }
+      lines.push(`This makes the site public: https://${host}/ serves commit ${short(commit)} (${prodBranch}). Visitors may get errors for a few minutes while Cloudflare takes the domain on.`);
+      if (forwarding) lines.push(forwardingLine);
+      if (nelRule) lines.push(nelLine);
+      return ask(lines, possible.filter((k) => k !== 'attach' || !domain).filter((k) => k !== 'record' || !isWanted(now)));
+    }
+    if (!domain) {
+      const r = await api('POST', `${projectAt}/domains`, { json: { name: host } });
+      if (!ok(r) || !r.body?.result) {
+        // Attached meanwhile, or by a run cut off after this call: read it before giving up.
+        domain = await findDomain(api, projectAt, host);
+        if (!domain) throw new Stop(1, `Cloudflare did not attach ${host}: ${refusal(r, ROW.pages)}. Nothing else was changed.`);
+        say('', `  as is    ${host} is attached already: Cloudflare says ${domain.status}.`);
+      } else {
+        domain = r.body.result;
+        say('', `  done     Attached ${host} to ${name}: Cloudflare says ${domain.status}.`);
+      }
+    }
+    if (!isWanted(now)) {
+      const was = now ? wasLine(now) : 'Was: no record.';
+      if (was.length > COMMENT_MAX) {
+        throw new Stop(1, `The record of ${host} (${now.type} ${now.content}, ${now.proxied ? 'proxied' : 'DNS only'}) is too long to note in a ${COMMENT_MAX}-character comment, so it could not be put back from there. The domain is attached and waits for its record: write the old one down, then change it by hand to CNAME ${live}, proxied.`);
+      }
+      const theirs = now?.comment ? String(now.comment) : '';
+      const comment = theirs ? `${was} ${theirs}`.slice(0, COMMENT_MAX) : was;
+      const lost = theirs ? `${was} ${theirs}`.slice(COMMENT_MAX) : '';
+      const body = { type: 'CNAME', content: live, proxied: true, comment };
+      const r = now
+        ? await api('PATCH', `${zoneAt}/dns_records/${now.id}`, { json: body })
+        : await api('POST', `${zoneAt}/dns_records`, { json: { ...body, name: host, ttl: 1 } });
+      if (!ok(r)) {
+        throw new Stop(1, `Cloudflare refused to ${now ? 'change' : 'create'} the record of ${host}: ${refusal(r, ROW.dns)}. The record is as it was and the domain is attached, waiting for it: change it by hand to CNAME ${live}, proxied (DNS → Records).`);
+      }
+      const back = await api('GET', `${zoneAt}/dns_records/${r.body?.result?.id}`);
+      if (!ok(back) || !isWanted(back.body?.result) || back.body.result.name !== host) {
+        throw new Stop(1, `Cloudflare accepted the record of ${host}, but it does not read back as CNAME ${live}, proxied. Look at it in DNS → Records.`);
+      }
+      say(`  done     ${host} → ${live}, proxied. ${now ? `The old record is in its comment: ${was}` : 'There was no record before.'}`);
+      if (lost) say(`           The record's own comment did not fit whole; the part left out was: ${lost}`);
+      for (const m of r.body?.messages ?? []) if (m?.message) say(`           Cloudflare said: ${m.message}`);
+    }
+    domain = await readDomain(api, projectAt, host);
+    if (ENDED.includes(domain.status)) domainEnded(domain, now && !isWanted(now) ? wasLine(now) : oldFromComment(now));
+    if (domain.status !== 'active') {
+      const old = oldFromComment(address[0]) ?? (address[0] && !isWanted(address[0]) ? wasLine(address[0]) : null);
+      say('', `Waiting for Cloudflare to take on ${host}: it says ${domain.status}${domain.verification_data?.error_message ? ` (${domain.verification_data.error_message})` : ''}. In the trials this took two to three minutes after the record. Run the same command, with the same code, again in a few minutes. Status 4.`);
+      if (old) say(`The record before: ${old.replace(/^Was: /, '')}`);
+      return 4;
+    }
+    startedHere = true;
+  }
+
+  // ---- the domain is active: the first request (script step 11), through the check script.
+  const first = await runCheck(ctx, { commit, only: ['build', 'nel', 'canonical'] });
+  if (first.by.build?.state === 'skip') {
+    // Not judged: the domain did not answer (an edge that still says 522 right after it turned active).
+    say('', `${host} is active but did not answer the check yet: ${first.by.build.detail} Run the same command, with the same code, again in a few minutes. Status 4.`);
+    return 4;
+  }
+  if (first.by.build?.state !== 'ok') {
+    throw new Stop(1, `${host} is active, but the check of its build is not ok: ${first.by.build?.detail ?? 'no answer'}`, `It should serve ${short(commit)}. Nothing more was changed: the forwarding and the NEL rule wait until it does.`);
+  }
+  say('', `  ok       ${host} serves ${short(commit)}${startedHere ? ', its first answer since it went live' : ''}.`);
+
+  const todo = [];
+  // Script step 12: the NEL rule, only when the headers are still sent.
+  let ruleset;
+  const nelFails = first.by.nel?.state === 'fail';
+  if (nelFails && nelRule) {
+    ruleset = await readRuleset(api, zoneAt);
+    if (ruleset?.rules?.some((x) => x.description === NEL_RULE.description)) {
+      throw new Stop(1, `The domain still sends the NEL headers, and the zone's response header rules already hold "${NEL_RULE.description}": the rule is there and the headers still come. Look at it in Rules → Transform Rules (the checklist's section 3, step 4).`);
+    }
+    todo.push('nel');
+  }
+  // Script step 13: the forwarding.
+  const wanted = `https://${domain.name ?? host}`;
+  const savedVar = project.deployment_configs?.production?.env_vars?.CANONICAL_URL;
+  let liveBuild = null;
+  const canonical = first.by.canonical;
+  if (forwarding && canonical?.state === 'skip') {
+    say('', `The forwarding could not be judged yet: ${canonical.detail} Run the same command, with the same code, again in a few minutes. Status 4.`);
+    return 4;
+  }
+  if (forwarding && canonical?.state === 'look') {
+    throw new Stop(1, `https://${live}/ forwards, but not as the kit's forwarding does: ${canonical.detail}`, 'Look at what sets that redirect before the script saves anything. Nothing was changed.');
+  }
+  if (forwarding && canonical?.state !== 'ok') {
+    liveBuild = await deps.find((d) => d.environment === 'production' && succeeded(d));
+    if (liveBuild?.env_vars?.CANONICAL_URL?.value === wanted) {
+      throw new Stop(1, `The live build has CANONICAL_URL = ${wanted}, and https://${live}/ still does not forward: ${first.by.canonical?.detail ?? 'no answer'}`,
+        'The checklist\'s section 5 names the causes of a 200 there: the variable is not under Production, is misnamed or malformed, the deployment is older than the variable, or the day\'s Functions allowance ran out with Fail open on. No build was started.');
+    }
+    todo.push('forwarding');
+  }
+
+  if (todo.length && !fits(todo)) {
+    return ask([
+      ...(todo.includes('forwarding') ? [forwardingLine.replace(/^Then, once the domain answers: s/, 'S')] : []),
+      ...(todo.includes('nel') ? [nelLine.replace(/^If the domain still sends the NEL headers: a/, 'The domain still sends the NEL headers: a')] : []),
+    ], todo, `${host} is live and serves commit ${short(commit)}, the newest production build that succeeded.`);
+  }
+
+  let waiting = null;
+  if (todo.includes('nel')) {
+    await addNelRule(api, zoneAt, ruleset);
+    say(`  done     Added the rule "${NEL_RULE.description}". It took effect within 20 seconds in the trial; the next run asks the domain again.`);
+    waiting = 'the NEL rule to take effect';
+  }
+  if (todo.includes('forwarding')) {
+    if (savedVar?.value !== wanted || savedVar?.type !== 'plain_text') {
+      const before = varNames(project);
+      const r = await api('PATCH', projectAt, { json: { deployment_configs: { production: { env_vars: { CANONICAL_URL: { type: 'plain_text', value: wanted } } } } } });
+      if (!ok(r)) throw new Stop(1, `Cloudflare refused to save CANONICAL_URL: ${refusal(r, ROW.pages)}.`);
+      const after = varNames(r.body?.result);
+      const lost = before.filter((v) => !after.includes(v));
+      if (lost.length) throw new Stop(1, `After saving CANONICAL_URL, Cloudflare no longer lists ${lost.join(', ')}. The script cannot put a secret back (its value reads empty): set ${lost.length === 1 ? 'it' : 'them'} again by hand, under the project's Settings → Variables and Secrets.`);
+      if (r.body?.result?.deployment_configs?.production?.env_vars?.CANONICAL_URL?.value !== wanted) throw new Stop(1, 'Cloudflare accepted CANONICAL_URL, but it does not read back as sent. Look at the project\'s Settings → Variables and Secrets.');
+      project = r.body.result;
+      say(`  done     Saved CANONICAL_URL = ${wanted} for production. Variables and secrets before: ${before.join(', ') || 'none'}; after: ${after.join(', ')}.`);
+    }
+    // A variable reaches only builds made after it: one production build, but only of the live commit,
+    // after a live build Cloudflare made, whose recorded settings differ from the saved ones in
+    // CANONICAL_URL alone.
+    liveBuild ??= await deps.find((d) => d.environment === 'production' && succeeded(d));
+    const reasons = [];
+    if (project.production_branch !== prodBranch) reasons.push(`the project's production branch is ${project.production_branch}, not ${prodBranch}, so its build would publish that branch`);
+    if (liveBuild.production_branch !== prodBranch) reasons.push(`the live build was made while ${liveBuild.production_branch} was the production branch`);
+    if (prodSha !== commitOf(liveBuild)) reasons.push(`the head of ${prodBranch} (${short(prodSha)}) is not the live commit (${short(commitOf(liveBuild))})`);
+    if (!cloudflareBuilt(liveBuild)) reasons.push('the live build was uploaded, not built by Cloudflare');
+    reasons.push(...otherDifferences(liveBuild, project));
+    if (reasons.length) {
+      throw new Stop(1, `The variable is saved, but no build has picked it up, and the script starts none: ${reasons.join('; ')}.`,
+        'A build now would publish more than the forwarding. Publish the next change the usual way; that build takes the variable with it.');
+    }
+    deps.reset();
+    const busy = await newestProduction();
+    if (busy && failed(busy)) {
+      throw new Stop(1, `CANONICAL_URL is saved, and the newest production build failed: ${describeDeployment(busy)}. The script starts no build after a failed one. Look at its log (Workers & Pages → ${name} → Deployments).`);
+    }
+    if (busy && running(busy)) {
+      say(`  waiting  A production build is under way: ${describeDeployment(busy)}.`);
+    } else {
+      // The call builds the head of the production branch as it is then (T1-030): read it once more
+      // just before, so only a push in the moment between can slip in, and that is said below.
+      const head = await git('ls-remote', '--heads', 'origin', `refs/heads/${prodBranch}`);
+      const headNow = head.code === 0 ? head.stdout.split('\t')[0].trim() : '';
+      if (head.code === 0 && !headNow) throw new Stop(1, `The variable is saved, but no build was started: GitHub has no branch ${prodBranch} any more, so a build would publish nothing the site is set up for. Look at the repository's branches.`);
+      if (!headNow) throw new Stop(1, `The variable is saved, but no build was started: ${prodBranch} on GitHub could not be read again just before the build call, so the script cannot tell what the build would publish. Run the same command again.`);
+      if (headNow !== commit) throw new Stop(1, `The variable is saved, but no build was started: ${prodBranch} on GitHub is now at ${short(headNow)}, not at the live commit ${short(commit)}, and a build now would publish it. Publish the next change the usual way; that build takes the variable with it.`);
+      const r = await api('POST', `${projectAt}/deployments`, { form: true });
+      if (!ok(r) || !r.body?.result) throw new Stop(1, `Cloudflare did not start the build: ${refusal(r, ROW.pages)}. CANONICAL_URL is saved; the next build takes it.`);
+      const started = commitOf(r.body.result);
+      // T1-030's answer names the commit. One that names none cannot be checked: said, and 1.
+      if (!started) throw new Stop(1, `Cloudflare started a production build, but its answer names no commit, so whether it is of the live commit ${short(commit)} could not be checked. CANONICAL_URL is saved. Look at the build under Workers & Pages → ${name} → Deployments.`);
+      // A commit pushed in the moment since that read is published with it: said, never hidden; the
+      // build cannot be called back.
+      if (started && started !== commit) throw new Stop(1, `Cloudflare started a production build of ${short(started)}, not of the live commit ${short(commit)}: ${prodBranch} moved on since this run read it. That build publishes ${short(started)}. Look at Workers & Pages → ${name} → Deployments.`);
+      say(`  waiting  Started one production build of ${short(commit)}, which takes CANONICAL_URL: ${describeDeployment(r.body.result)}.`);
+    }
+    waiting = waiting ? `${waiting} and the build that takes CANONICAL_URL` : 'the build that takes CANONICAL_URL';
+  }
+  if (waiting) {
+    say('', `Waiting for ${waiting}. Run the same command, with the same code, again in a few minutes. Status 4.`);
+    return 4;
+  }
+
+  // ---- nothing left to do: the whole check decides the status.
+  const whole = await runCheck(ctx, { commit });
+  return launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project });
+}
+
+// A domain status that waiting will not change: 1, with Cloudflare's words; nothing is detached.
+function domainEnded(domain, old) {
+  const words = [domain.verification_data?.error_message, domain.validation_data?.error_message].filter(Boolean).join('; ');
+  throw new Stop(1, `Cloudflare says ${domain.name} is ${domain.status}${words ? `: ${words}` : ''}. The domain stays attached; the script detaches nothing.`,
+    old ? `The record before the launch, as the script noted it in the record's comment: ${old.replace(/^Was: /, '')} Put it back by hand (DNS → Records) if the site must go back.` : 'Look at Workers & Pages → the project → Custom domains.');
+}
+
+// The zone's ruleset for the response header phase, or null when it has none (code 10003, T2-018).
+async function readRuleset(api, zoneAt) {
+  const r = await api('GET', `${zoneAt}/rulesets/phases/${PHASE}/entrypoint`);
+  if (r.status === 404 && r.body?.errors?.some((e) => e.code === 10003)) return null;
+  if (!ok(r) || !r.body?.result) throw new Stop(1, `Cloudflare did not show the zone's response header rules: ${refusal(r, ROW.rules)}. Add the NEL rule by hand (the checklist's section 3, step 4).`);
+  return r.body.result;
+}
+
+// One rule added to the ruleset (T2-024, T2-025: the rules already there keep their ids and versions),
+// or, with no ruleset, one created holding it (T2-023), after reading the phase once more just before.
+async function addNelRule(api, zoneAt, ruleset) {
+  let rs = ruleset;
+  if (!rs) {
+    rs = await readRuleset(api, zoneAt);
+    if (rs?.rules?.some((x) => x.description === NEL_RULE.description)) {
+      throw new Stop(1, `A ruleset holding "${NEL_RULE.description}" appeared while this run read the zone, and the domain still sends the NEL headers. Nothing was added. Run the same command again.`);
+    }
+  }
+  const r = rs
+    ? await api('POST', `${zoneAt}/rulesets/${rs.id}/rules`, { json: NEL_RULE })
+    : await api('PUT', `${zoneAt}/rulesets/phases/${PHASE}/entrypoint`, { json: { rules: [NEL_RULE] } });
+  if (!ok(r)) throw new Stop(1, `Cloudflare did not add the NEL rule: ${refusal(r, ROW.rules)}. Add it by hand (the checklist's section 3, step 4).`);
+  const kept = rs ? rs.rules.map((x) => x.id) : [];
+  const after = r.body?.result?.rules ?? [];
+  if (!after.some((x) => x.description === NEL_RULE.description) || kept.some((id) => !after.some((x) => x.id === id))) {
+    throw new Stop(1, 'Cloudflare accepted the NEL rule, but the ruleset does not read back with it and every rule that was there. Look at Rules → Transform Rules.');
+  }
+}
+
+// The end of a launch run with nothing left to do: the whole check, read by LAUNCH_FAIL, and the report
+// the plan asks for (scenarios 36 and 37).
+async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project }) {
+  const { say, host, model, prodBranch } = ctx;
+  const v = launchVerdict(whole, opts.skip);
+  say('', `The check of ${host}, from outside:`);
+  for (const r of whole.results) say(`  ${(r.state === 'fail' ? 'FAIL' : r.state === 'hand' ? 'by hand' : r.state === 'skip' ? 'not run' : r.state).padEnd(8)} ${r.title.replace(/`/g, '')}: ${r.detail}`);
+  if (v.silent.length) say(`No answer, which counts as a failure: ${v.silent.join(', ')}.`);
+  if (v.blocked.length) say(`Not judged, which counts as a failure: ${v.blocked.join(', ')}.`);
+  for (const r of v.counted) {
+    const id = Object.entries({ canonical: 'canonical', https: 'https', nel: 'nel-rule', bot: 'bot', email: 'email' }).find(([k]) => k === r.id)?.[1];
+    if (id) say(`If ${r.title.replace(/`/g, '')} was left out on purpose, its --skip ${id} belongs on the command.`);
+  }
+  for (const r of v.passed) say(`Left to you: ${r.title.replace(/`/g, '')} fails, and was left out on purpose (or is yours to decide).`);
+
+  say('', `Live: https://${host}/ serves ${short(commit)}.`);
+  if (model === 'two-stage') {
+    const preview = await deps.find((d) => d.environment === 'preview' && d.deployment_trigger?.metadata?.branch === 'main' && !d.is_skipped, { pages: 2 });
+    // Named only when the newest preview of main read has an address; otherwise nothing is said
+    // about it, so the line can never claim a preview that is not there, or deny one that is.
+    if (preview?.aliases?.[0]) say(`The preview of main, as Cloudflare lists it: ${preview.aliases[0]}`);
+  } else {
+    say(`main is the live site (${prodBranch}); each pull request gets a preview of its own.`);
+  }
+  say(forwarding ? `https://${live}/ forwards to https://${host}/ (CANONICAL_URL).` : `https://${live}/ does not forward to the domain: --skip canonical.`);
+  if (!nelRule) say('The NEL rule was left out (--skip nel-rule).');
+  const dc = project.deployment_configs ?? {};
+  const fo = (e) => (dc[e]?.fail_open === true ? 'on' : 'off');
+  say(`No outside check exists for these. As the project reads now through the API: Fail open ${fo('production')} for production and ${fo('preview')} for previews; build command ${project.build_config?.build_command || '(none)'}, output folder ${project.build_config?.destination_dir || '(none)'}. This stage does not read Minimum TLS Version or the AI fields: the setup stage, run again, shows them and changes nothing that is as the checklist wants. For TLS, run the domain through ssllabs.com/ssltest: TLS 1.0 and 1.1 should say No.`);
+  const hsts = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+  say('Left to do by hand (CLOUDFLARE_CHECK.md, "By hand, always"): Crawler Hints, the Web Analytics switch, the script monitor\'s switch (the checklist\'s section 3, step 5),',
+    `and HSTS once the site has worked for a few days, not before ${hsts} (the checklist's section 2).`);
+  say('Previews can be put behind a sign-in (Cloudflare Access); the script does not do that.');
+  say('Delete the token now: My Profile → API Tokens → ⋯ → Delete.');
+  say('', v.code ? 'Not finished: the lines above say what fails. Status 1.' : 'Launched. Status 0.');
+  return v.code;
+}
+
 // ---------------------------------------------------------------- running it
 
 export async function main(argv, io = {}) {
@@ -1016,7 +1596,8 @@ export async function main(argv, io = {}) {
   }
   if (opts.help) { say(USAGE); return 0; }
   try {
-    return await setupStage(opts, { say: sink, cwd: io.cwd ?? process.cwd() });
+    const stage = opts.stage === 'launch' ? launchStage : setupStage;
+    return await stage(opts, { say: sink, cwd: io.cwd ?? process.cwd() });
   } catch (e) {
     if (e instanceof UsageError) {
       process.stderr.write(`cloudflare-setup: ${e.message}\n`);

@@ -50,7 +50,8 @@ git commit -m "describe what you changed, e.g. update opening hours"
 git push
 
 # 3. Look at the preview. Open the preview link from Cloudflare
-#    (stable address: main.<your-project>.pages.dev) and check it's right.
+#    (stable address: main.<your-project>.pages.dev; if Cloudflare gave the project an
+#    address other than its name, use the one on the project's page) and check it's right.
 
 # 4. Happy? Publish it to the live site — ONE command:
 npm run ship
@@ -131,9 +132,11 @@ branch the project was created with: `main` on a single-stage site, `production`
 two-stage one. You upload from `main` either way: with no preview step, `main` holds the
 change you just checked and saved. Put the same branch name in both places, and leave both in:
 
-- `CF_PAGES_BRANCH=` turns on your visitor statistics. Without it the live site counts no
-  visitors, with no error to tell you. (It only works when the name matches `PROD_BRANCH`
-  in `src/config.ts`. If you're not sure it does, ask your assistant to check.)
+- `CF_PAGES_BRANCH=` lets your visitor statistics run on the live site, once they are
+  switched on (`USE_ANALYTICS = true` in `src/config.ts`; a new site has them off). With
+  them on and this left out, the live site counts no visitors, with no error to tell you.
+  (It only works when the name matches `PROD_BRANCH` in `src/config.ts`. If you're not sure
+  it does, ask your assistant to check.)
 - Without `--branch`, the upload can land as a preview instead of on the live site.
 
 The `&&` means each line runs only if the one before it worked. If `git` or the build stops
@@ -220,7 +223,10 @@ rule wins over both models: a push builds nothing, not even a preview. Say the c
 saved on GitHub only, and goes live when the deploy command runs. Deliver these
 announcements in the owner's language, like everything else you say to them.
 
-**Which URL to quote.** Prefer the **memorable `pages.dev` alias** — the branch alias
+**Which URL to quote.** Where Cloudflare gave the project an address other than its name
+(it does when the name is taken), use that address, from the project's page, in place of
+`<project>.pages.dev` below. Prefer the
+**memorable `pages.dev` alias** — the branch alias
 `main.<project>.pages.dev` (or, before go-live, the project alias `<project>.pages.dev` —
 after go-live it redirects to the live domain) — over the random
 per-deploy hash URL `<hash>.<project>.pages.dev`. The hash URL is ugly but **immutable**, so

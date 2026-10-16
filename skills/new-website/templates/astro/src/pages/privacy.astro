@@ -3,9 +3,14 @@
 //   1. Fill every [BRACKET] slot. The controller is whoever legally runs the site.
 //      Then delete '/privacy' from UNFILLED_UNTIL_LAUNCH in
 //      tests/placeholders.spec.ts (the test turns red until you do).
-//   2. Make section 3 match reality: pick the self-hosted OR cloud Plausible
-//      wording, or delete the analytics paragraphs entirely if the site ships
-//      without analytics (then also trim the meta description below). It has
+//   2. Make section 3 match reality. The starter ships with analytics off
+//      (USE_ANALYTICS = false in src/config.ts), but this page still ships the
+//      Plausible paragraphs. A site without analytics deletes them (then also
+//      trim the meta description below) and leaves the switch off. A site with
+//      Plausible keeps them, picks the self-hosted OR cloud wording, and switches
+//      analytics on: USE_ANALYTICS = true in src/config.ts and the analytics host
+//      added to public/_headers (the analytics comment in src/config.ts says
+//      how; in server mode the host stays out of _headers, since no script loads). Keeping the text does not start the script. Section 3 has
 //      slots to settle: the hosting choice (self-hosted: first confirm that your
 //      web server, reverse proxy or CDN keeps no IP addresses in access logs for
 //      the measurement host, or say so here); one sentence each for outbound links,
