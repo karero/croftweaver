@@ -63,7 +63,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
    (`SITE.url`, name, theme color). Analytics ships off (`USE_ANALYTICS = false`). For
    Plausible, switch it on as the analytics comment in that file says: `USE_ANALYTICS = true`,
-   `scriptHost` and the per-site `scriptId` from Plausible's Site installation page, the
+   `scriptHost` and the per-site `scriptId` from the site's installation page in Plausible
+   (`<scriptHost>/<your domain>/installation`), the
    same host in `script-src` and `connect-src` of `public/_headers`, and a `PROD_BRANCH`
    that matches the branch Cloudflare Pages will call "Production", or analytics never
    loads. No analytics: leave it off and delete the privacy page's analytics paragraphs.
@@ -76,12 +77,16 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    file downloads, form submissions), or keep the page's sentence for each one you leave ticked.
    For a ticked one, click such a link on the live site once and look for its address in the
    instance's report: the sentence says the address is sent and stored.
-   Before launch, add the enquiry goal: in Plausible, the site's Settings > Goals >
-   Add goal, type "Custom event", name `Email Tap` (exactly). A click on an email address
+   Before launch, add the enquiry goal on the site's goals page in Plausible,
+   `<scriptHost>/<your domain>/settings/goals` (Settings > Goals): Add goal, type
+   "Custom event", name `Email Tap` (exactly). A click on an email address
    or the contact form's button sends that event; Plausible's documentation says it shows
-   only once the goal exists, and earlier ones are not counted. To see a test tap, choose
+   only once the goal exists, and earlier ones are not counted. Once a test tap has
+   reached Plausible, the goals page offers `Email Tap` to add in one click (seen on a
+   self-hosted instance). To see a test tap, choose
    Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views end yesterday
-   (checked in version 3.2.1). On a site just added to Plausible, tap again a few minutes later if the
+   (checked on self-hosted version 3.2.1; the cloud version may differ). On a site just added
+   to Plausible, tap again a few minutes later if the
    first tap does not show.
    **Server mode instead** (`USE_ANALYTICS = true` and `ANALYTICS.mode: 'server'` in
    `src/config.ts`): no Plausible script in the browser; the Pages Function sends each page

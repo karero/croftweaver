@@ -173,6 +173,15 @@ non-expert can answer, and record the answers in the project `README.md`.
      consent banner: the last point of this question). In its installer, untick the
      optional measurements (outbound links, file downloads, form submissions)
      unless you keep the privacy page's slot sentence for each one you leave ticked.
+     Plausible's menus hide the pages the owner needs, so give each one as a link,
+     with `scriptHost` and the site's domain (as added in Plausible) filled in: the
+     installer and the script id at `<scriptHost>/<domain>/installation`, the goals at
+     `<scriptHost>/<domain>/settings/goals`, a new site at `<scriptHost>/sites/new`.
+     Seen on a self-hosted Community Edition instance on 2026-10-16: the owner added
+     the goal on that goals page; the other two sent a signed-out visitor to the
+     login page, where an unknown path gives 404. On Plausible Cloud (`scriptHost`
+     `https://plausible.io`) the same paths are expected, not checked. If a link
+     gives 404, say so, and find the page in Plausible's own menus with the owner.
      Ask whether the owner already runs a Plausible server. If not, the usual case,
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing), so the owner runs no server; point at a
@@ -188,10 +197,13 @@ non-expert can answer, and record the answers in the project `README.md`.
      **The enquiry count comes with it.** Each click on an email address, and each
      press of the contact form's button that passes its checks, sends one "Email Tap"
      event (with the page and the referrer, as every event; no address, nothing typed).
-     In Plausible, under the site's Settings > Goals, add a goal of type "Custom event"
+     On the site's goals page in Plausible (`<scriptHost>/<domain>/settings/goals`,
+     under Settings > Goals), add a goal of type "Custom event"
      named exactly `Email Tap` **before launch**: Plausible's documentation says an
-     event shows only once its goal exists and earlier ones are not counted. To see a
-     test tap, choose Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views
+     event shows only once its goal exists and earlier ones are not counted. Once a
+     test tap has reached Plausible, the goals page offers `Email Tap` to add in one
+     click. That rules out a typo in the name (seen on a self-hosted instance).
+     To see a test tap, choose Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views
      end yesterday (checked on self-hosted version 3.2.1; the cloud version may differ).
      On a site just added to Plausible, a tap in its first
      minute or so may not be kept; tap again a few minutes later. Filtered
