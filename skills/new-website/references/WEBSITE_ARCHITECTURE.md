@@ -184,7 +184,7 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
   (convention: clean URLs with **no trailing slash** — `/about`, not `/about/`),
   `build.inlineStylesheets: 'always'`, `@astrojs/sitemap`.
 - **`src/config.ts`**: single source of truth — facts, nav, schema metadata, analytics gating
-  (`process.env.CF_PAGES_BRANCH === 'production'`).
+  (`USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH`; ships off).
 - **`src/layouts/Base.astro`**: canonical, OG/Twitter, JSON-LD, analytics script.
 - **`src/components/`**: `Header`, `Footer`, `PageHero`, `Subnav`, `EmailLink` (build-time obfuscated).
 - **`src/content/`** (if blog/events/team): Content Collections + Zod schema.
