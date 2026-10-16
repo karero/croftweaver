@@ -262,7 +262,7 @@ test.describe('the email route (S9–S12)', () => {
   test('a link to the route planted on another site cannot open a mail to a stranger under this site\'s name', async () => {
     const p = plausible();
     try {
-      const stranger = new URLSearchParams({ e: encodeEmail('phish@evil.example') }).toString();
+      const stranger = new URLSearchParams({ e: encodeEmail('stranger@example.org') }).toString();
       const res = await tap(stranger, { ...CLICK, 'Sec-Fetch-Site': 'cross-site', Referer: 'https://evil.example/' });
       expect(res.status).toBe(200);
       expect(res.headers.get('Location')).toBeNull();
