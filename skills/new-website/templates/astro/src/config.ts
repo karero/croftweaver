@@ -70,8 +70,8 @@ export const KNOWS_ABOUT: string[] = [];
 // keep a sentence only if its own measurement is ticked. A scriptHost or scriptId left
 // as the placeholder loads nothing (the browser reports a failed request; the build
 // does not).
-// Changing scriptHost also means changing script-src and connect-src in
-// public/_headers; tests/check_analytics_gate.sh checks both against this file. It
+// With analytics on, changing scriptHost also means changing script-src and connect-src
+// in public/_headers; tests/check_analytics_gate.sh checks both against this file. It
 // also means changing the host named in section 3 of the privacy page, in the
 // sentence on refusing the measurement; tests/privacy-host.spec.ts checks that one
 // once its slot is filled.

@@ -217,9 +217,9 @@ test('mail form — every text of the form keeps to the site\'s tone rules, in e
 
 // The site's one conversion: the button reports one "Email Tap" event, the same one the
 // starter's email link sends, and nothing the visitor typed goes with it. Plausible runs
-// on the live build only (Base.astro writes window.plausible there), so each test puts
-// its own recorder in its place, under the same name, before the page's scripts run, and
-// presses the real button.
+// only on a live build with analytics switched on (Base.astro writes window.plausible
+// there), so each test puts its own recorder in its place, under the same name, before
+// the page's scripts run, and presses the real button.
 type Counted = Window & { __taps?: unknown[][]; plausible?: unknown };
 const countTaps = () => {
   const w = window as Counted;
