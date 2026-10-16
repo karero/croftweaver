@@ -9,6 +9,7 @@ Base `17ade08` · depth: Normal (instructions an owner and an assistant follow, 
 | 2 | `c949a87` | delta since `b1f9c66` | Codex, medium | — | 0/2/0 (re-raises of F1, F2/F3) |
 | 3 | `8029300` | delta since `c949a87` | Codex, medium; GLM 5.3 on melious | Codex 85 s, 37,434 tokens; melious 103 s, 7,523 tokens | 0/2/0 |
 | prose re-gate | `389b069` | delta since `8029300`, plus the BUGLOG row | Codex | 95 s, 54,119 tokens | 0/0/0 |
+| merge link | `23200ad` | merge link: old base `17ade08`, last seen head `389b069`, new base `e1f33ce` (#343 merged) | Codex | 130 s, 60,517 tokens | 0/0/0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -28,4 +29,4 @@ Base `17ade08` · depth: Normal (instructions an owner and an assistant follow, 
 
 Waivers and deferrals: none.
 Follow-ups: whether Plausible Cloud has the same three paths (needs a plausible.io account).
-Notes: data check 2026-10-16: no keys, tokens or customer data in the diff (the account id appears only as a placeholder). Consent for Codex and melious: the owner's choice of "a Normal review" for this PR, after this session named the pair (Codex plus GLM 5.3 on melious). Round 1 was degraded (one script seat) until 1b reran GLM. In the prose re-gate Codex took the scope sentence, which was put inside the artifact, as an injection attempt and reviewed the delta in full. Stamp seat: Codex, unbroken chain `b1f9c66` → `c949a87` → `8029300` → `389b069`; GLM's chain `c949a87` → `8029300`.
+Notes: data check 2026-10-16: no keys, tokens or customer data in the diff (the account id appears only as a placeholder). Consent for Codex and melious: the owner's choice of "a Normal review" for this PR, after this session named the pair (Codex plus GLM 5.3 on melious). Round 1 was degraded (one script seat) until 1b reran GLM. In the prose re-gate Codex took the scope sentence, which was put inside the artifact, as an injection attempt and reviewed the delta in full. Stamp seat: Codex, unbroken chain `b1f9c66` → `c949a87` → `8029300` → `389b069` → merge link `23200ad`. The merge kept #343's two Q5 changes; the starter README took its "checked on self-hosted version 3.2.1" wording. CI's private-name scan failed once on the owner's first name in this trail; replaced by "the owner" before the merge; GLM's chain `c949a87` → `8029300`.
