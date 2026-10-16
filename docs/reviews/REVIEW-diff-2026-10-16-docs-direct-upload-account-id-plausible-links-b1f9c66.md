@@ -1,6 +1,6 @@
 # DIFF review — branch `docs/direct-upload-account-id-plausible-links` — direct upload sets `CLOUDFLARE_ACCOUNT_ID`; Plausible's pages given as links
 
-Base `17ade08` · depth: Normal (instructions an owner and an assistant follow, in shipped skill and template files; no code that runs) · verdict: CLEAN · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created the worktree and the branch); POST AUTHORITY — atom B (Daniel, 2026-10-16: "Put the docs PR into 0.32: push and open it now")
+Base `17ade08` · depth: Normal (instructions an owner and an assistant follow, in shipped skill and template files; no code that runs) · verdict: CLEAN · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created the worktree and the branch); POST AUTHORITY — atom B (the owner, 2026-10-16: "Put the docs PR into 0.32: push and open it now")
 
 | Round | Head | Artifact | Reviewers | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
@@ -17,7 +17,7 @@ Base `17ade08` · depth: Normal (instructions an owner and an assistant follow, 
 | F3 | RISK | Codex, fresh-eyes | 1, 2 | the owner's "Deploy by command" had no account-id line; then stated its cause categorically | fixed, externally_reverified (prose re-gate) | `PUBLISHING.md`: one sentence, "(this happened with a Cloudflare token that could not look up the account)" |
 | F4 | RISK | fresh-eyes | 1 | `export` is lost where each command runs in a fresh shell | fixed, externally_reverified (r2) | step 0 gives the per-command prefix form |
 | F5 | NIT | fresh-eyes, Codex | 1 | dashboard path to the account id unsupported | refuted | https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/ (read 2026-10-16): Workers & Pages → Account Details → copy button; search "Copy account ID". An "address bar" hint with no support was removed before round 1 |
-| F6 | NIT | fresh-eyes | 1 | the goals page offering `Email Tap` is not in the repo's record | refuted | Daniel's report in session, 2026-10-16: "I was offered to add the event the moment I openend the link" |
+| F6 | NIT | fresh-eyes | 1 | the goals page offering `Email Tap` is not in the repo's record | refuted | the owner's report in session, 2026-10-16: "I was offered to add the event the moment I openend the link" |
 | F7 | NIT | fresh-eyes | 1 | a long sentence in Q5 | fixed, externally_reverified (r2) | split |
 | F8 | RISK | GLM | 1b | the Cloud paths are handed to Cloud users unverified | fixed, externally_reverified (r3, then F10) | a 404 fallback added |
 | F9 | NIT | GLM | 1b | "the variable included" ambiguous next to step 0 | fixed, externally_reverified (r3) | "`CF_PAGES_BRANCH=` still included" |
@@ -28,4 +28,4 @@ Base `17ade08` · depth: Normal (instructions an owner and an assistant follow, 
 
 Waivers and deferrals: none.
 Follow-ups: whether Plausible Cloud has the same three paths (needs a plausible.io account).
-Notes: data check 2026-10-16: no keys, tokens or customer data in the diff (the account id appears only as a placeholder). Consent for Codex and melious: Daniel's choice of "a Normal review" for this PR, after this session named the pair (Codex plus GLM 5.3 on melious). Round 1 was degraded (one script seat) until 1b reran GLM. In the prose re-gate Codex took the scope sentence, which was put inside the artifact, as an injection attempt and reviewed the delta in full. Stamp seat: Codex, unbroken chain `b1f9c66` → `c949a87` → `8029300` → `389b069`; GLM's chain `c949a87` → `8029300`.
+Notes: data check 2026-10-16: no keys, tokens or customer data in the diff (the account id appears only as a placeholder). Consent for Codex and melious: the owner's choice of "a Normal review" for this PR, after this session named the pair (Codex plus GLM 5.3 on melious). Round 1 was degraded (one script seat) until 1b reran GLM. In the prose re-gate Codex took the scope sentence, which was put inside the artifact, as an injection attempt and reviewed the delta in full. Stamp seat: Codex, unbroken chain `b1f9c66` → `c949a87` → `8029300` → `389b069`; GLM's chain `c949a87` → `8029300`.
