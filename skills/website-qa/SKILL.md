@@ -46,8 +46,13 @@ cosmetics; red → green → commit.
   Offline. The judgment-side report (inbound count, thin pages, where to add links) is
   the `internal-link-audit` skill.
 - `middleware.spec.ts` — `functions/_middleware.ts`, which `astro preview` never runs,
-  called directly: previews noindexed, the live domain untouched, and the project alias
+  called directly: previews noindexed, live-domain responses unchanged, and the project alias
   `<project>.pages.dev` 301ing to the live domain only once `CANONICAL_URL` is set. Offline.
+- `analytics-server.spec.ts` — analytics server mode, the middleware and
+  `functions/go/email.ts` called directly with a stand-in for Plausible: one page view per
+  page a visitor opens and none for assets, prefetches, scripts or previews; an email tap
+  counted and answered with the mailto: link; crawlers and links from other sites given the
+  "[at]" hint, never the address. Offline.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).
@@ -169,7 +174,8 @@ into the starters / `website-design-system`:
 - Render-blocking CSS: Astro inlines it (`inlineStylesheets: 'always'`).
 - Fonts: self-hosted woff2, `font-display: swap`, preload only above-the-fold.
 - Layout shift (CLS): explicit `width`/`height` on media.
-- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only).
+- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only; none
+  in analytics server mode).
 
 For deeper technical SEO (crawl, indexability, Core Web Vitals strategy), run the
 existing **`seo-audit`** skill — do not duplicate it here.

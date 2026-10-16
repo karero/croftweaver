@@ -209,6 +209,12 @@ either way, so the sentence is not optional on a site that runs Plausible. In Pl
 installer leave "Form submissions" unticked: whether Plausible would count this form a
 second time was not checked.
 
+**In analytics server mode** (`ANALYTICS.mode: 'server'`, new-website Q5) the button is
+not counted: no Plausible script runs, so the form's call does nothing, and counting it
+from the server would mean passing what the visitor typed through it (owner's decision,
+2026-10-15). The mail program opens as before. The privacy page's server-mode slots
+already leave the button out.
+
 ## 5. What it does not do
 
 - **No sending, no storage, no count of sent messages.** The site never learns whether

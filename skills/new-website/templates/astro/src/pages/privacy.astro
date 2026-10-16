@@ -10,7 +10,8 @@
 //      Plausible keeps them, picks the self-hosted OR cloud wording, and switches
 //      analytics on: USE_ANALYTICS = true in src/config.ts and the analytics host
 //      added to public/_headers (the analytics comment in src/config.ts says
-//      how). Keeping the text does not start the script. Section 3 has
+//      how; in server mode the host stays out of _headers, since no script loads).
+//      Keeping the text does not start the script. Section 3 has
 //      slots to settle: the hosting choice (self-hosted: first confirm that your
 //      web server, reverse proxy or CDN keeps no IP addresses in access logs for
 //      the measurement host, or say so here); one sentence each for outbound links,
@@ -28,6 +29,11 @@
 //      lib/plausible/ingestion/event.ex, salts.ex, and the RotateSalts cron in
 //      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
 //      the same; with another analytics tool delete it together with the paragraph.
+//      Analytics mode (ANALYTICS.mode in src/config.ts): in script mode (the default)
+//      delete every [SERVER MODE ONLY …] slot and keep the text of the [SCRIPT MODE
+//      ONLY …] ones; in server mode the other way round, and delete the three
+//      optional-measurement slot sentences too (no script runs, so none of them
+//      happens). Section 2 has one server-mode sentence.
 //      The sentence on how to refuse the measurement has a slot for the host
 //      name: name the same host as ANALYTICS.scriptHost in src/config.ts
 //      (plausible.io for Plausible Cloud). If that host is the site's own domain
@@ -41,6 +47,9 @@
 //      California's CalOPPA asks the policy to say whether third parties may
 //      collect personal information across websites through the site, and how the
 //      site answers "Do Not Track" if it collects such information itself.
+//      In server mode that refusal sentence is deleted with the other [SCRIPT MODE
+//      ONLY …] slots, mark and all (no script loads, so there is nothing to block), and
+//      its server-mode slot says so.
 //   3. German-market sites: German law expects legal pages in German. German-ONLY
 //      site → swap this page for the vetted German draft that ships in this
 //      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
@@ -73,6 +82,17 @@
 //      the script reading the page address or the referrer. This tag measures more
 //      than bare counting. Other EU markets have their own ePrivacy transpositions.
 //      Have the position reviewed for your market and record who accepted it.
+//      Server mode changes the facts above, not the need for a review: no script runs,
+//      nothing is read from or written to the device, and the browser sends only the
+//      page request it sends anyway; Cloudflare's Function passes the page address,
+//      the referrer, the user agent and the IP address on to Plausible. Paras 33 and
+//      53 then no longer describe the measurement. But the same guidelines (paras 54
+//      and 55) say that tracking based on the IP address alone can fall under Article
+//      5(3) when the address comes from the visitor's device, and that unless the site
+//      can ensure it does not, it has to take the Article 5(3) steps; para 56 again
+//      says this does not by itself make consent necessary. Plausible still uses the
+//      IP address and the user agent to tell visitors apart for a day. And a visitor
+//      can no longer opt out by blocking a script. Record who reviewed this too.
 //      ANY third-party embed (YouTube iframe, remote Google Fonts), another
 //      analytics tool, or wider measurement (optional measurements such as outbound
 //      links, file downloads or form submissions; custom properties) needs this
@@ -122,6 +142,9 @@ import { SITE } from '../config';
       processor under Art. 28 GDPR; transfers to the USA are covered by the
       EU-U.S. Data Privacy Framework and standard contractual clauses. We do not
       combine these logs with any other data.
+      [SERVER MODE ONLY, DELETE IN SCRIPT MODE: On this site's own domain,
+      Cloudflare also passes the data described in section 3 to our analytics
+      tool.]
     </p>
 
     <h2>3. Cookies and analytics</h2>
@@ -143,7 +166,8 @@ import { SITE } from '../config';
       [CHOOSE ONE: self-hosted on our own server (first confirm that no web server,
       proxy or CDN log keeps IP addresses, or say so here) / operated for us as our processor
       (Art. 28 GDPR) by Plausible Insights O&Uuml;, V&auml;striku tn 2, 50403 Tartu,
-      Estonia (EU)]. Its script sets no cookies and writes nothing to your
+      Estonia (EU)].
+      [SCRIPT MODE ONLY, DELETE IN SERVER MODE: Its script sets no cookies and writes nothing to your
       device. It checks one setting in your browser, which lets you exclude your
       own visits, and whether the browser is automated; neither is sent to the
       measurement server. When you open a page, it sends the address of that page and the
@@ -151,17 +175,29 @@ import { SITE } from '../config';
       technical data your browser sends with every request (browser, operating
       system, device type, IP address). When you leave the page or switch to
       another tab or window, it also sends
-      how far you scrolled and how long the page was visible and in focus.
+      how far you scrolled and how long the page was visible and in focus.]
+      [SERVER MODE ONLY, DELETE IN SCRIPT MODE: No analytics code runs in your
+      browser, and nothing is stored on or read from your device for it. When
+      you open a page, the server that delivers this site (Cloudflare, see
+      section 2) passes the address of that page and the page or site you came
+      from, if your browser sends it, to the measurement server, together with
+      the technical data your browser sends with every request (browser,
+      operating system, device type, IP address).]
       [DELETE UNLESS OUTBOUND LINKS IS TICKED IN PLAUSIBLE: It counts clicks on
       links to other websites and sends and stores the address of the link you clicked.]
       [DELETE UNLESS FILE DOWNLOADS IS TICKED IN PLAUSIBLE: It counts clicks on
       links to files, such as PDFs, and sends and stores the address of the file.]
       [DELETE UNLESS FORM SUBMISSIONS IS TICKED IN PLAUSIBLE: It counts
       submissions of forms on the site, but not what you enter.]
-      It also counts each click on an email address on this site, and on a
+      [SCRIPT MODE ONLY, DELETE IN SERVER MODE: It also counts each click on an email address on this site, and on a
       button that opens your email program, together with the page it was on
       and the page or site you came from. Neither the email address nor
-      anything you typed is sent.
+      anything you typed is sent.]
+      [SERVER MODE ONLY, DELETE IN SCRIPT MODE: A click on an email address on
+      this site passes through the server that delivers this site (Cloudflare),
+      which counts it together with the
+      page it was on and then opens your email program. The email address is
+      not sent to the measurement server.]
       The tool derives your
       approximate location from the IP address and does not keep the IP
       address in its own records. From your IP address, your browser data
@@ -173,8 +209,8 @@ import { SITE } from '../config';
       browser; only a visit that is still going at that moment (one with
       activity in about the last 30 minutes) continues as the same visit. Nor
       can the tool recognise that browser on another website. The individual
-      events (for example each page view, and the scroll depth and engaged
-      time sent when you leave a page or switch away from it) and the
+      events (for example each page view[SCRIPT MODE ONLY, DELETE IN SERVER MODE: , and the scroll depth and engaged
+      time sent when you leave a page or switch away from it]) and the
       session records are stored with this identifier, the page address, the
       referrer, the location and the device data, and are shown as
       aggregated counts, for example page views, referrers and countries.
@@ -183,11 +219,13 @@ import { SITE } from '../config';
       The legal basis is our legitimate interest in understanding how the
       website is used and in improving it (Art. 6(1)(f) GDPR).
       [STATE THE STORAGE PERIOD, for example: We keep these records for 24
-      months and then delete them.] You can refuse the measurement: block
+      months and then delete them.] [SCRIPT MODE ONLY, DELETE IN SERVER MODE: You can refuse the measurement: block
       scripts from <span data-analytics-host>[ANALYTICS HOST, the host name in
       ANALYTICS.scriptHost in src/config.ts, for example plausible.io]</span>
       with a content blocker in your browser. The site works the same without
-      the measurement.
+      the measurement.] [SERVER MODE ONLY, DELETE IN SCRIPT
+      MODE: The measurement happens on the server, so blocking scripts in your
+      browser does not prevent it. You can object to it (see section 5).]
     </p>
 
     <h2>4. Contact by email</h2>

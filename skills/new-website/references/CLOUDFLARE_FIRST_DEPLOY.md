@@ -318,7 +318,10 @@ plan offers:
 
 - **Fail open** (recommended): the static site is served without the middleware until
   midnight UTC. Nothing changes on the live domain, which the middleware passes through
-  untouched. Previews still carry the `X-Robots-Tag: noindex` that Cloudflare adds to every
+  untouched, unless analytics runs in server mode: then counting stops for the rest of
+  that day, and the email links, which go through `/go/email`, do not open the mail
+  program until midnight UTC (with no Function, no page answers `/go/email`, so the visitor
+  should get the site's 404 page; reasoned from how Pages serves files, not tested). Previews still carry the `X-Robots-Tag: noindex` that Cloudflare adds to every
   preview deployment itself. `<project>.pages.dev` is the one address that changes: for the
   rest of that day it loses what the middleware gives it, the redirect (once
   `CANONICAL_URL` is set, below) and the noindex.

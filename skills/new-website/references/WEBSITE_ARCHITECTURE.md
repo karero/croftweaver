@@ -185,20 +185,23 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
   `build.inlineStylesheets: 'always'`, `@astrojs/sitemap`.
 - **`src/config.ts`**: single source of truth — facts, nav, schema metadata, analytics gating
   (`USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH`; ships off).
-- **`src/layouts/Base.astro`**: canonical, OG/Twitter, JSON-LD, analytics script.
+- **`src/layouts/Base.astro`**: canonical, OG/Twitter, JSON-LD, analytics script (none in
+  analytics server mode, where the Function counts).
 - **`src/components/`**: `Header`, `Footer`, `PageHero`, `Subnav`, `EmailLink` (build-time obfuscated).
 - **`src/content/`** (if blog/events/team): Content Collections + Zod schema.
 - **`public/_headers`**: CSP, `X-Content-Type-Options` and the other security headers. HSTS is a Cloudflare dashboard setting, not in this file (`docs/CLOUDFLARE-CHECKLIST.md`, section 2).
 - **`public/_redirects`**: legacy → clean-URL 301s.
 - **`functions/_middleware.ts`**: `noindex` the `*.pages.dev` preview deploys; after go-live,
   301 the project alias `<project>.pages.dev` to the live domain (Production variable
-  `CANONICAL_URL`, see `CLOUDFLARE_FIRST_DEPLOY.md`).
+  `CANONICAL_URL`, see `CLOUDFLARE_FIRST_DEPLOY.md`). In analytics server mode it also
+  sends each live page view to Plausible, and `functions/go/email.ts` counts email taps.
 - **2-branch deploy:** `main` → Preview (noindex), `production` → live.
 - **Analytics (optional):** Plausible — cookieless; running it without a consent banner is a
   position to have reviewed (see the header of the privacy page) — needs a paid license (from
   €9/mo, https://plausible.io/#pricing). For many small sites, **Google Search Console** alone
   (free) covers search & referral traffic. Add it only if you'll act on the numbers; gate the
-  script to production.
+  script to production. Server mode (`ANALYTICS.mode: 'server'`) counts from the Function
+  instead, with no script on the device; what it loses is in new-website's SKILL.md, Q5.
 - **Test gate (Playwright + axe):** per-page a11y light *and* dark, route 200s, button contrast,
   tone-of-voice spec. Run in GitHub Actions on every push.
 

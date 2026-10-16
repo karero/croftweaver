@@ -17,7 +17,8 @@ src/styles/global.css         # light/dark theme tokens (mirror BRAND.md)
 src/pages/index.astro         # minimal home so the suite is green from commit 1
 src/pages/privacy.astro       # GDPR privacy draft (fill [BRACKET] slots before launch)
 public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
-functions/_middleware.ts      # noindex *.pages.dev previews; 301 <project>.pages.dev once CANONICAL_URL is set
+functions/_middleware.ts      # noindex *.pages.dev previews; 301 <project>.pages.dev once CANONICAL_URL is set; page views in analytics server mode
+functions/go/email.ts         # analytics server mode: counts the email tap, then opens the mail program
 .github/workflows/ci.yml      # astro check + the suite on push/PR
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
 scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin / deep pages (offline; not in CI)
@@ -30,9 +31,9 @@ scripts/ship.sh                  # `npm run ship`: two-stage sites only, promote
 scripts/hooks/pre-push           # blocks a push when the site's checks fail
 scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, which fails without it: wires the pre-push hook
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
-tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: off in all four with USE_ANALYTICS = false (as shipped), or on only when CF_PAGES_BRANCH is PROD_BRANCH (the suite's own CI)
+tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: off in all four with USE_ANALYTICS = false (as shipped), or on only when CF_PAGES_BRANCH is PROD_BRANCH; in server mode no script and email links to /go/email on the live build only (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -82,10 +83,31 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views end yesterday
    (checked in version 3.2.1). On a site just added to Plausible, tap again a few minutes later if the
    first tap does not show.
+   **Server mode instead** (`USE_ANALYTICS = true` and `ANALYTICS.mode: 'server'` in
+   `src/config.ts`): no Plausible script in the browser; the Pages Function sends each page
+   view and email tap. Leave `scriptId` as it is, and leave the host out of
+   `public/_headers` (no script loads). In Cloudflare, the project's Settings > Variables and Secrets >
+   Production, add `PLAUSIBLE_HOST` (the instance, e.g. `https://analytics.example.com`, or
+   `https://plausible.io`) and `PLAUSIBLE_DOMAIN` (the site's domain exactly as added in
+   Plausible), then redeploy; set them only in server mode, or every page view counts
+   twice. Add the site and the `Email Tap` goal in Plausible by hand as above; the
+   installer's optional measurements do not apply (no script runs). In
+   `src/pages/privacy.astro`, keep the server-mode slots. An existing site also takes from
+   this starter what `whats-new` does not report, because the site owns it: the `mode`
+   line in `src/config.ts`, `src/layouts/Base.astro`, `src/components/EmailLink.astro`, the
+   privacy slots and `Disallow: /go/` in `public/robots.txt`; then runs
+   `bash tests/check_analytics_gate.sh`. Without the mode line and `Base.astro`, its old
+   layout keeps loading the script and every page view counts twice; without
+   `EmailLink.astro`, email taps are not counted. Lost compared with the script:
+   scroll depth, engaged time, the optional measurements, excluding your own visits (the
+   `plausible_ignore` flag), and the contact form's button (not counted); also pages a browser prefetched or prerendered, and visitors whose
+   browser sends no Fetch Metadata headers (Safari before 16.4, some in-app browsers),
+   who get the "name [at] domain" hint instead of their mail program when they tap the
+   email link. Test on the live domain, not a `pages.dev` address: previews never count.
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware out of the box. Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware/analytics-server out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
 > `links.spec.ts` is the **offline** guard: it only blocks domains you've already

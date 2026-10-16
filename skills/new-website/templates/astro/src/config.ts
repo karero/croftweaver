@@ -59,7 +59,9 @@ export const KNOWS_ABOUT: string[] = [];
 // `bash tests/check_analytics_gate.sh` (a site's CI does not): it checks the builds and
 // the headers, either way. Off or on, leave scriptHost and scriptId in place: Base.astro
 // and tests/privacy-host.spec.ts read them. Email links and the contact form work either
-// way; they count a tap only when Plausible is on the page. Left off by mistake,
+// way. They count a tap only with analytics on: in script mode through the script on the
+// page; in server mode email links through functions/go/email.ts, and the contact form's
+// button not at all (the mode is described below). Left off by mistake,
 // Plausible gets no data and nothing says so.
 //
 // scriptId is the per-site script Plausible's installer shows (Settings > General >
@@ -75,12 +77,12 @@ export const KNOWS_ABOUT: string[] = [];
 // also means changing the host named in section 3 of the privacy page, in the
 // sentence on refusing the measurement; tests/privacy-host.spec.ts checks that one
 // once its slot is filled.
-// Base.astro writes two tags: the script, and the short stub that calls
-// plausible.init(); without the stub the script never starts.
+// Base.astro writes two tags (script mode; none in server mode): the script, and the short
+// stub that calls plausible.init(); without the stub the script never starts.
 //
-// The site's one conversion, the "Email Tap" event, is sent from
-// src/components/EmailLink.astro (and public/js/mail-form.js when the contact form is
-// installed). It needs a goal named exactly "Email Tap" in Plausible before launch. Plausible
+// The site's one conversion, the "Email Tap" event, is sent (script mode; in server mode by
+// functions/go/email.ts) from src/components/EmailLink.astro (and, in script mode only, public/js/mail-form.js when
+// the contact form is installed). It needs a goal named exactly "Email Tap" in Plausible before launch. Plausible
 // counts a custom event as interaction, so a visit with a tap is not a bounce (its default,
 // kept on purpose). Another analytics tool means changing those two calls and section 3 of
 // the privacy page.
@@ -88,6 +90,19 @@ export const KNOWS_ABOUT: string[] = [];
 // IMPORTANT: PROD_BRANCH must equal the branch Cloudflare Pages calls "Production"
 // for THIS project (house convention: 'production'; Cloudflare's default is 'main').
 // A mismatch means analytics silently never loads — no error, no data.
+//
+// mode, once USE_ANALYTICS is true: 'script' (the default) loads Plausible's script in the browser, as described
+// above. 'server' loads nothing in the browser: functions/_middleware.ts sends one page
+// view per page request to Plausible's Events API, and on the live build EmailLink.astro
+// links to /go/email, where functions/go/email.ts counts the "Email Tap" and opens the
+// mail program. Server mode needs two Production variables in Cloudflare (Settings >
+// Variables and Secrets): PLAUSIBLE_HOST (the Plausible instance's https origin, usually
+// scriptHost's value, never a proxy on this site's own domain) and PLAUSIBLE_DOMAIN (the
+// site's domain as added in Plausible); scriptId is not used. It loses scroll depth,
+// engaged time and the optional measurements, and the contact form's button is not
+// counted. Set those two variables ONLY with USE_ANALYTICS true and mode 'server': the
+// Function cannot read this file, so with them set in script mode every page view is
+// counted twice, and with analytics off the Function counts anyway.
 export const PROD_BRANCH = 'production';
 
 // Keep the value on one line: tests/check_analytics_gate.sh reads it.
@@ -95,6 +110,7 @@ export const USE_ANALYTICS = false;
 
 export const ANALYTICS = {
   enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,
+  mode: 'script' as 'script' | 'server', // keep on one line: tests/check_analytics_gate.sh reads it
   scriptHost: 'https://analytics.example.com',
   scriptId: 'pa-XXXXXXXXXXXXXXXXXXXX',
 } as const;

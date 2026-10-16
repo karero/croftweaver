@@ -231,7 +231,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | Google Antigravity | `independent-review`, only when you ask for it | your Antigravity sign-in | sends the plan or code change |
 | Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs` | none | reads only |
 | docs.astro.build, developers.cloudflare.com, keystatic.com | the assistant, when it looks up documentation (allowed without asking in Claude Code) | none | reads only |
-| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured |
+| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured. In server mode the site's Cloudflare Function sends instead, from Cloudflare: per page view the page address, the referrer, the visitor's user agent and IP; per email tap the event name and the page (measured in a trial, 2026-10-15), plus the visitor's user agent and IP (read from the code). The contact form's button is not counted then |
 
 Some details:
 
@@ -250,7 +250,8 @@ Some details:
 - **The built site**, apart from the optional analytics script, loads no fonts, scripts
   or styles from other servers. Its security header (`public/_headers`) allows scripts only
   from the site itself, and from the analytics address you set once you switch analytics
-  on: the starter ships with it off. Analytics run only on the live site, not on previews.
+  on: the starter ships with it off. Analytics run only on the live site, not on previews. In analytics
+  server mode no analytics script loads at all.
 
 ## Telemetry
 

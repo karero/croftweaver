@@ -137,6 +137,18 @@ jobs:
           npm run check
           bash tests/check_analytics_gate.sh
           git checkout -- src/config.ts public/_headers
+      # The same four builds in server mode (USE_ANALYTICS = true, ANALYTICS.mode = 'server'):
+      # no script in any, email links to /go/email on the live build only; _headers needs no
+      # analytics host. config.ts is put back afterwards, so the suite below runs on the default.
+      - name: Analytics in server mode (src/config.ts switched for this step only)
+        run: |
+          sed -i "s/^export const USE_ANALYTICS = false;/export const USE_ANALYTICS = true;/" src/config.ts
+          grep -q "^export const USE_ANALYTICS = true;" src/config.ts
+          sed -i "s/^  mode: 'script' as/  mode: 'server' as/" src/config.ts
+          grep -q "^  mode: 'server' as" src/config.ts
+          npm run check
+          bash tests/check_analytics_gate.sh
+          git checkout -- src/config.ts
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       # Email links on the live build as shipped: no tracker there, and a click still asks

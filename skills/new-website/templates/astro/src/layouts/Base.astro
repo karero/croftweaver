@@ -169,7 +169,8 @@ const chrome = CHROME[SITE.locale.toLowerCase().split('-')[0]] ?? CHROME.en;
       <script type="application/ld+json" is:inline set:html={JSON.stringify(schema)} />
     ))}
 
-    {ANALYTICS.enabled && (
+    {/* Server mode (src/config.ts) counts from the Pages Function: no tag in the page. */}
+    {ANALYTICS.enabled && ANALYTICS.mode === 'script' && (
       <Fragment>
         <script is:inline async src={`${ANALYTICS.scriptHost}/js/${ANALYTICS.scriptId}.js`} />
         <script is:inline set:html={'window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()'} />

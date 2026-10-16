@@ -23,7 +23,8 @@
 //      Plausible paragraphs. A site without analytics deletes them and leaves
 //      the switch off. A site with Plausible keeps them and switches analytics
 //      on: USE_ANALYTICS = true in src/config.ts and the analytics host added to
-//      public/_headers (the analytics comment in src/config.ts says how).
+//      public/_headers (the analytics comment in src/config.ts says how; in server
+//      mode the host stays out of _headers, since no script loads).
 //      Keeping the text does not start the script. Section 3 has slots to settle: the
 //      hosting choice (self-hosted: first confirm that your web server, reverse
 //      proxy or CDN keeps no IP addresses in access logs for the measurement
@@ -43,6 +44,11 @@
 //      lib/plausible/ingestion/event.ex, salts.ex, and the RotateSalts cron in
 //      config/runtime.exs). With Plausible Cloud keep it only if Plausible confirms
 //      the same; with another analytics tool delete it together with the paragraph.
+//      Analytics mode (ANALYTICS.mode in src/config.ts): in script mode (the default)
+//      delete every [NUR SERVERMODUS …] slot and keep the text of the [NUR
+//      SKRIPTMODUS …] ones; in server mode the other way round, and delete the three
+//      optional-measurement slot sentences too (no script runs, so none of them
+//      happens). Section 2 has one server-mode sentence.
 //      The sentence on how to refuse the measurement ("Sie können die Messung
 //      ablehnen") has a slot for the host name: name the same host as
 //      ANALYTICS.scriptHost in src/config.ts (plausible.io for Plausible Cloud).
@@ -53,6 +59,9 @@
 //      slot is filled. Switzerland's Telecommunications Act (Art. 45c FMG) asks
 //      that visitors are told about the processing and its purpose, and that they
 //      may refuse it.
+//      In server mode that refusal sentence is deleted with the other [NUR SKRIPTMODUS
+//      …] slots, mark and all (no script loads, so there is nothing to block), and its
+//      server-mode slot says so.
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
 //   your German privacy page lives at the locale-prefixed route
 //   (/de/privacy); use this text as its content.
@@ -80,7 +89,18 @@
 // service (Rz. 90). Plausible's own legal assessment concludes from "does not
 // store any information on the user's device" and does not discuss the script
 // reading the page address or the referrer. This tag measures more than bare
-// counting. Have the position reviewed and record who accepted it. ANY
+// counting. Have the position reviewed and record who accepted it.
+// Server mode changes the facts above, not the need for a review: no script runs,
+// nothing is read from or written to the device (so § 25 Abs. 1 TDDDG no longer turns
+// on a script), and the browser sends only the page request it sends anyway;
+// Cloudflare's Function passes the page address, the referrer, the user agent and the
+// IP address on to Plausible. But EDPB Guidelines 2/2023 v2.0 (paras 54 and 55) say
+// that tracking based on the IP address alone can fall under Article 5(3) ePrivacy
+// when the address comes from the visitor's device, and that unless the site can
+// ensure it does not, it has to take the Article 5(3) steps; para 56 says this does
+// not by itself make consent necessary. Plausible still uses the IP address and the
+// user agent to tell visitors apart for a day, and a visitor can no longer opt out by
+// blocking a script. Record who reviewed this too. ANY
 // third-party embed (YouTube iframe, remote Google Fonts), another analytics
 // tool, or wider measurement (optional measurements such as outbound links,
 // file downloads or form submissions; custom properties) needs this position
@@ -136,6 +156,9 @@ import { SITE } from '../config';
       abgesichert. Wir führen diese Protokolle nicht mit anderen Daten zusammen;
       sie werden nur so lange vorgehalten, wie es für den sicheren Betrieb und
       die Zugriffsstatistiken erforderlich ist, und anschließend gelöscht.
+      [NUR SERVERMODUS, IM SKRIPTMODUS LÖSCHEN: Auf der eigenen Domain dieser
+      Website gibt Cloudflare außerdem die in Abschnitt 3 beschriebenen Daten an
+      unser Analysewerkzeug weiter.]
     </p>
 
     <h2>3. Cookies und Analyse</h2>
@@ -152,7 +175,7 @@ import { SITE } from '../config';
       sagen) / betrieben für uns als
       Auftragsverarbeiter (Art. 28 DSGVO) von Plausible Insights OÜ, Västriku tn 2,
       50403 Tartu, Estland (EU)].
-      Das Skript von Plausible setzt keine Cookies und schreibt nichts auf Ihr
+      [NUR SKRIPTMODUS, IM SERVERMODUS LÖSCHEN: Das Skript von Plausible setzt keine Cookies und schreibt nichts auf Ihr
       Endgerät. Es prüft eine Einstellung in Ihrem Browser, mit der Sie Ihre
       eigenen Besuche ausnehmen können, und ob der Browser automatisiert gesteuert
       wird; beides wird nicht an den Messserver gesendet. Beim Aufruf einer Seite
@@ -161,7 +184,15 @@ import { SITE } from '../config';
       Browser bei jeder Anfrage übermittelt (Browser, Betriebssystem, Gerätetyp,
       IP-Adresse). Beim Verlassen der Seite oder beim Wechsel zu einem
       anderen Tab oder Fenster sendet es zusätzlich, wie weit Sie
-      gescrollt haben und wie lange die Seite sichtbar und im Fokus war.
+      gescrollt haben und wie lange die Seite sichtbar und im Fokus war.]
+      [NUR SERVERMODUS, IM SKRIPTMODUS LÖSCHEN: In Ihrem Browser läuft dafür
+      kein Analyse-Code, und auf Ihrem Endgerät wird dafür nichts gespeichert
+      oder ausgelesen. Beim Aufruf einer Seite gibt der Server, der diese
+      Website ausliefert (Cloudflare, siehe Abschnitt 2), die Adresse dieser
+      Seite und die Seite oder Website, von der Sie kamen, falls Ihr Browser sie
+      mitsendet, an den Messserver weiter, zusammen mit den technischen Daten,
+      die Ihr Browser bei jeder Anfrage übermittelt (Browser, Betriebssystem,
+      Gerätetyp, IP-Adresse).]
       [SATZ LÖSCHEN, WENN AUSGEHENDE LINKS IN PLAUSIBLE NICHT ANGEKREUZT SIND: Es
       zählt Klicks auf Links zu anderen Websites und sendet und speichert
       die Adresse des angeklickten Links.]
@@ -169,11 +200,17 @@ import { SITE } from '../config';
       zählt Klicks auf Links zu Dateien, etwa PDFs, und sendet und speichert die Adresse der Datei.]
       [SATZ LÖSCHEN, WENN FORMULARÜBERMITTLUNGEN IN PLAUSIBLE NICHT ANGEKREUZT
       SIND: Es zählt abgeschickte Formulare auf der Website, aber nicht, was Sie eingeben.]
-      Außerdem zählt es jeden Klick auf eine E-Mail-Adresse auf dieser Website
+      [NUR SKRIPTMODUS, IM SERVERMODUS LÖSCHEN: Außerdem zählt es jeden Klick auf eine E-Mail-Adresse auf dieser Website
       und auf eine Schaltfläche, die Ihr E-Mail-Programm öffnet, zusammen mit
       der Seite, auf der er geschah, und der Seite oder Website, von der Sie
       kamen. Weder die E-Mail-Adresse noch etwas, das
-      Sie eingegeben haben, wird dabei gesendet.
+      Sie eingegeben haben, wird dabei gesendet.]
+      [NUR SERVERMODUS, IM SKRIPTMODUS LÖSCHEN: Ein Klick auf eine
+      E-Mail-Adresse auf dieser Website läuft über den Server, der diese Website
+      ausliefert (Cloudflare), der ihn
+      zusammen mit der Seite, auf der er geschah, zählt und dann Ihr
+      E-Mail-Programm öffnet. Die E-Mail-Adresse wird dabei nicht an den
+      Messserver gesendet.]
       Aus der IP-Adresse leitet das Werkzeug Ihren ungefähren Standort ab
       und speichert die IP-Adresse nicht in seinen eigenen Datensätzen. Aus
       Ihrer
@@ -185,9 +222,9 @@ import { SITE } from '../config';
       wieder; nur ein Besuch, der in diesem Moment noch läuft (mit Aktivität
       in den letzten rund 30 Minuten), wird als derselbe Besuch fortgeführt.
       Auch auf einer anderen Website erkennt es diesen Browser nicht. Die
-      einzelnen Ereignisse (zum Beispiel jeder Seitenaufruf sowie
+      einzelnen Ereignisse (zum Beispiel jeder Seitenaufruf[NUR SKRIPTMODUS, IM SERVERMODUS LÖSCHEN: , dazu
       Scrolltiefe und aktive Zeit, die beim Verlassen einer Seite oder beim
-      Wechsel zu etwas anderem gesendet werden) und die Sitzungsdatensätze
+      Wechsel zu etwas anderem gesendet werden]) und die Sitzungsdatensätze
       werden mit dieser Kennung, der Seitenadresse, der Herkunftsseite, dem
       Standort und den Gerätedaten gespeichert und als aggregierte Zählungen
       angezeigt, zum Beispiel Seitenaufrufe, Verweisquellen und Länder.
@@ -197,11 +234,14 @@ import { SITE } from '../config';
       die Website genutzt wird, und sie zu verbessern (Art. 6 Abs. 1 lit. f
       DSGVO).
       [SPEICHERDAUER ANGEBEN, zum Beispiel: Wir bewahren diese Daten 24 Monate
-      auf und löschen sie danach.] Sie können die Messung ablehnen: Blockieren
+      auf und löschen sie danach.] [NUR SKRIPTMODUS, IM SERVERMODUS LÖSCHEN: Sie können die Messung ablehnen: Blockieren
       Sie Skripte von <span data-analytics-host>[ANALYSE-HOST, der Hostname aus
       ANALYTICS.scriptHost in src/config.ts, zum Beispiel plausible.io]</span>
       mit einem Inhaltsblocker in Ihrem Browser.
-      Die Website funktioniert ohne die Messung genauso.
+      Die Website funktioniert ohne die Messung genauso.] [NUR SERVERMODUS, IM
+      SKRIPTMODUS LÖSCHEN: Die Messung geschieht auf dem Server; das Blockieren
+      von Skripten in Ihrem Browser verhindert sie daher nicht. Sie können ihr
+      widersprechen (siehe Abschnitt 5).]
     </p>
 
     <h2>4. Kontakt per E-Mail</h2>

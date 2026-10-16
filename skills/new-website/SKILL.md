@@ -191,14 +191,41 @@ non-expert can answer, and record the answers in the project `README.md`.
      by that goal, the dashboard shows which sources and pages bring enquiries. It
      counts visitors who asked to write an email; whether their mail program opened,
      and whether they sent the mail, the site never learns.
+     **Script or server mode.** With analytics switched on, Plausible by default runs as a
+     script in the browser (`ANALYTICS.mode: 'script'`). Offer **server mode** (`'server'`) to an owner who
+     wants no analytics code on the visitor's device: the site's Cloudflare Function
+     sends each page view and email tap to Plausible itself, so no script loads and
+     nothing is read from or written to the device. It loses scroll depth, engaged
+     time, the optional measurements and the exclusion of the owner's own visits (`plausible_ignore`), the contact form's button is not counted
+     (only email links are), and a visitor can no longer opt out by blocking a script.
+     Its numbers differ from the script's: it counts visitors who block scripts, but not
+     a page a browser prefetched or prerendered before the visitor opened it, and not
+     visitors whose browser sends no Fetch Metadata headers (Safari before 16.4, some
+     in-app browsers); a tap on the email link shows those visitors a page with the
+     address written as "name [at] domain" instead of opening their mail program.
+     It forwards the visitor's IP to Plausible, as the script's request carries it;
+     EDPB Guidelines 2/2023 (paras 54–56) say IP-based tracking can itself fall under
+     the ePrivacy rule, so it is a stronger position, not a way out of a review. It
+     needs two Production variables in Cloudflare (`PLAUSIBLE_HOST`,
+     `PLAUSIBLE_DOMAIN`; the starter README, step 4; an existing site also takes the
+     site-owned files that step names, which `whats-new` does not report, or it keeps
+     counting with the script too) and works with self-hosted
+     Plausible (tried on Community Edition 3.2.1) and, per Plausible's documentation,
+     with the cloud version (not tried there with a real site). Counting uses the
+     Functions quota the site already uses (free plan: 100,000 requests a day); past
+     it, with "Fail open" (what the deploy guide sets; Cloudflare names no default, so check it), Cloudflare serves the site
+     without the Function until midnight UTC, so counting stops and email links do not
+     open the mail program until then ("Fail closed" shows an error page for the whole
+     site instead; `references/CLOUDFLARE_FIRST_DEPLOY.md`).
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
      banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the
      banner-free position at risk by different routes: a YouTube iframe triggers § 25
      itself (device storage/readout), while remote Google Fonts change the
      answer via the GDPR instead (unconsented IP disclosure — LG München I,
-     3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only. The
-     privacy page must match whatever is chosen here.
+     3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only
+     (server mode: the Production variables, on the live domain only). The
+     privacy page must match whatever is chosen here, script or server mode included.
    - **When the site needs no consent banner.** Tell the owner plainly: a site built
      with this kit needs no consent banner in the EU, Germany, Switzerland or California
      as long as it runs no analytics script: nothing reaches the visitor's browser that
@@ -209,6 +236,10 @@ non-expert can answer, and record the answers in the project `README.md`.
      build writes the script (a site's CI does not run it). Plausible runs as a small script in the visitor's
      browser. With it, running without a banner is a defensible position in the EU,
      Germany, Switzerland and California, not a settled one; to be sure, ask a lawyer.
+     Server mode runs no script, but it is not banner-free by definition either: the
+     visitor's IP still reaches Plausible through the site's Function, and EDPB
+     Guidelines 2/2023 (paras 54–56) say IP-based tracking can fall under the same rule;
+     the same headers say what changes in server mode.
      For the EU and Germany, the headers of `privacy.astro` and `_datenschutz.astro` set
      out the sources on both sides and ask you to record who accepted the position. In
      Switzerland and California the position rests on the privacy page informing
@@ -665,9 +696,13 @@ hold Search Console Request Indexing until then.
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
       No analytics: the analytics paragraphs deleted, `USE_ANALYTICS = false` as shipped.
-      With Plausible: `USE_ANALYTICS = true`, the host in `script-src` and `connect-src`
-      of `public/_headers`, `bash tests/check_analytics_gate.sh` green, and the
-      `Email Tap` goal exists in Plausible (§1 Q5).
+      With Plausible: `USE_ANALYTICS = true`, `bash tests/check_analytics_gate.sh` green,
+      and the `Email Tap` goal exists in Plausible (§1 Q5). In script mode (the default)
+      also the host in `script-src` and `connect-src` of `public/_headers`.
+      In server mode also: `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` set as Production
+      variables (and nowhere in script mode or with analytics off), the host left out of
+      `public/_headers` (no script loads), the privacy page's server-mode slots kept, and
+      one page view and one email tap on the live domain seen under Today.
       Whether the site may run without a consent banner: §1 Q5's last point.
       German-market sites: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
