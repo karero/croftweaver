@@ -21,8 +21,10 @@ const NAVIGATION = {
   'User-Agent': UA,
   'CF-Connecting-IP': VISITOR_IP,
 };
-// What a browser sends when its visitor clicks a link on this site.
-const CLICK = { ...NAVIGATION, 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-User': '?1', Referer: `${LIVE}/contact` };
+// What a browser sends when its visitor clicks a link on this site. Safari sends no
+// Sec-Fetch-User (MDN browser-compat-data); Chrome and Firefox add 'Sec-Fetch-User: ?1'.
+const CLICK = { ...NAVIGATION, 'Sec-Fetch-Site': 'same-origin', Referer: `${LIVE}/contact` };
+const CHROME_CLICK = { ...CLICK, 'Sec-Fetch-User': '?1' };
 const HTML = { 'content-type': 'text/html; charset=utf-8' };
 
 type Sent = { url: string; headers: Headers; body: Record<string, string> };
@@ -103,9 +105,13 @@ test.describe('page views (S1–S8)', () => {
     const p = plausible();
     try {
       await page(`${LIVE}/about`, NAVIGATION, { status: 304, headers: {} });
+      await page(`${LIVE}/about.html`, NAVIGATION, { status: 304, headers: {} });
       await page(`${LIVE}/no-such-page`, NAVIGATION, { status: 404 });
       await page(`${LIVE}/about`, NAVIGATION, { status: 500 });
-      expect(p.sent.map((e) => e.body.url)).toEqual([`${LIVE}/about`, `${LIVE}/no-such-page`]);
+      // A 304 has no Content-Type: a reload of a file opened on its own is not a page view.
+      await page(`${LIVE}/images/oak.svg`, NAVIGATION, { status: 304, headers: {} });
+      await page(`${LIVE}/build.txt`, NAVIGATION, { status: 304, headers: {} });
+      expect(p.sent.map((e) => e.body.url)).toEqual([`${LIVE}/about`, `${LIVE}/about.html`, `${LIVE}/no-such-page`]);
     } finally {
       p.restore();
     }
@@ -160,6 +166,26 @@ test.describe('page views (S1–S8)', () => {
     }
   });
 
+  test('a page that loads the Plausible script (built in script mode, variables set by mistake) is not counted a second time', async () => {
+    const p = plausible();
+    try {
+      const scriptPage = '<!doctype html><script>window.plausible=window.plausible||function(){};plausible.init()</script>';
+      for (const status of [200, 404]) {
+        const pending: Promise<unknown>[] = [];
+        await onRequest({
+          request: new Request(`${LIVE}/about`, { headers: NAVIGATION }),
+          env: ENV,
+          next: async () => new Response(scriptPage, { status, headers: HTML }),
+          waitUntil: (pr) => { pending.push(pr); },
+        });
+        await Promise.all(pending);
+      }
+      expect(p.sent).toEqual([]);
+    } finally {
+      p.restore();
+    }
+  });
+
   test('a PLAUSIBLE_HOST that is not an https URL counts nothing instead of sending visitor data in the clear', async () => {
     const p = plausible();
     try {
@@ -189,9 +215,14 @@ test.describe('page views (S1–S8)', () => {
     }
   });
 
-  test('the page is answered before the event is sent: counting waits in waitUntil, not in the response', async () => {
+  test('the page does not wait for Plausible: the answer is complete while Plausible has not replied', async () => {
     let release!: () => void;
-    const p = plausible(() => new Promise((resolve) => { release = () => resolve(new Response('ok', { status: 202 })); }));
+    let asked!: () => void;
+    const wasAsked = new Promise<void>((resolve) => { asked = resolve; });
+    const p = plausible(() => {
+      asked();
+      return new Promise((resolve) => { release = () => resolve(new Response('ok', { status: 202 })); });
+    });
     try {
       const pending: Promise<unknown>[] = [];
       const res = await onRequest({
@@ -200,11 +231,14 @@ test.describe('page views (S1–S8)', () => {
         next: async () => new Response('<!doctype html>', { status: 200, headers: HTML }),
         waitUntil: (pr) => { pending.push(pr); },
       });
-      // The response is complete while Plausible has not answered yet.
+      // The visitor's answer is complete, body and all, while Plausible has not replied.
       expect(res.status).toBe(200);
+      expect(await res.text()).toBe('<!doctype html>');
       expect(pending).toHaveLength(1);
+      await wasAsked;
       release();
       await Promise.all(pending);
+      expect(p.sent).toHaveLength(1);
     } finally {
       p.restore();
     }
@@ -222,6 +256,20 @@ test.describe('the email route (S9–S12)', () => {
       expect(p.sent[0].body).toEqual({ name: 'Email Tap', url: `${LIVE}/contact`, domain: 'oakandpine.example' });
       expect(JSON.stringify(p.sent[0].body)).not.toContain(ADDRESS);
       expect(p.sent[0].headers.get('X-Plausible-IP')).toBe(VISITOR_IP);
+    } finally {
+      p.restore();
+    }
+  });
+
+  test('a click in Safari, which sends no Sec-Fetch-User, and one in Chrome both open the mail program and count once each', async () => {
+    const p = plausible();
+    try {
+      for (const headers of [CLICK, CHROME_CLICK]) {
+        const res = await tap(LINK, headers);
+        expect(res.status).toBe(302);
+        expect(res.headers.get('Location')).toMatch(/^mailto:/);
+      }
+      expect(p.sent.map((e) => e.body.name)).toEqual(['Email Tap', 'Email Tap']);
     } finally {
       p.restore();
     }

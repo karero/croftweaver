@@ -2,7 +2,7 @@
 // src/config.ts). EmailLink.astro points here only on the live build; everywhere else its
 // link is a plain mailto: link and this route is never asked.
 //
-// A visitor's click on the link (a same-site, user-activated navigation) is answered with
+// A visitor's click on the link (a navigation from a page of this site) is answered with
 // `302 Location: mailto:<address>?subject=…`, and on the live domain one "Email Tap" event
 // goes to Plausible for the page the click came from (functions/_middleware.ts has the
 // rules and the sending; a goal named exactly "Email Tap" must exist in Plausible).
@@ -14,6 +14,8 @@
 //   cannot be used to open a stranger's address under this site's name;
 // - a browser too old to send Sec-Fetch headers (Safari before 16.4) still shows the
 //   visitor how to write.
+// Sec-Fetch-User is NOT required: Safari never sends it (MDN browser-compat-data, read
+// 2026-10-16), and requiring it sent every Safari visitor to the hint page.
 // The route only ever answers with mailto:, never a web address.
 import { eventsUrl, navigationSkip, sendEvent, type AnalyticsEnv } from '../_middleware';
 import { emailHint } from '../../src/lib/obfuscate';
@@ -26,6 +28,7 @@ interface RouteContext {
 
 // The same pattern encodeEmail (src/lib/obfuscate.ts) accepts at build time.
 const ADDRESS = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+// CHANGES IN LOCKSTEP with the build-time check in EmailLink.astro.
 const MAX_SUBJECT = 200;
 
 // encodeEmail reverses the address and base64-encodes it; this undoes it. CHANGES IN
@@ -42,7 +45,7 @@ function decodeAddress(encoded: string | null): string | null {
 
 function clicked(request: Request): boolean {
   const h = request.headers;
-  return navigationSkip(request) === null && h.get('Sec-Fetch-Site') === 'same-origin' && h.get('Sec-Fetch-User') === '?1';
+  return navigationSkip(request) === null && h.get('Sec-Fetch-Site') === 'same-origin';
 }
 
 const NO_STORE = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };

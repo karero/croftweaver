@@ -188,7 +188,11 @@ non-expert can answer, and record the answers in the project `README.md`.
      nothing is read from or written to the device. It loses scroll depth, engaged
      time and the optional measurements, the contact form's button is not counted
      (only email links are), and a visitor can no longer opt out by blocking a script.
-     It counts visitors who block scripts, so its numbers run higher than the script's.
+     Its numbers differ from the script's: it counts visitors who block scripts, but not
+     a page a browser prefetched or prerendered before the visitor opened it, and not
+     visitors whose browser sends no Fetch Metadata headers (Safari before 16.4, some
+     in-app browsers); a tap on the email link shows those visitors a page with the
+     address written as "name [at] domain" instead of opening their mail program.
      It forwards the visitor's IP to Plausible, as the script's request carries it;
      EDPB Guidelines 2/2023 (paras 54–56) say IP-based tracking can itself fall under
      the ePrivacy rule, so it is a stronger position, not a way out of a review. It
@@ -197,8 +201,10 @@ non-expert can answer, and record the answers in the project `README.md`.
      Plausible (tried on Community Edition 3.2.1) and, per Plausible's documentation,
      with the cloud version (not tried there with a real site). Counting uses the
      Functions quota the site already uses (free plan: 100,000 requests a day); past
-     it, Cloudflare serves the site without the Function until midnight UTC, so
-     counting stops and email links do not open the mail program until then.
+     it, with "Fail open" (Cloudflare's default, and what the deploy guide sets), Cloudflare serves the site
+     without the Function until midnight UTC, so counting stops and email links do not
+     open the mail program until then ("Fail closed" shows an error page for the whole
+     site instead; `references/CLOUDFLARE_FIRST_DEPLOY.md`).
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
      banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the

@@ -531,8 +531,9 @@ expect_off() {
 }
 
 # Email links (<a> tags whose class has email-link, as EmailLink.astro writes them) and links
-# to /go/email, per page: prints "<email links> <go links> <path>". HTML comments are dropped
-# first, so a commented-out link does not count.
+# to /go/email, per page: prints "<email links> <email links whose own href is /go/email>
+# <links to /go/email> <path>". Attributes are matched whole (data-href is not href), and
+# HTML comments are dropped first, so a commented-out link does not count.
 go_program() {
   cat <<'PERL'
 local $/;
@@ -541,13 +542,16 @@ for my $file (@ARGV) {
   my $html = <$fh>;
   close $fh;
   $html =~ s/<!--.*?-->//gs;
-  my ($email, $go) = (0, 0);
+  my ($email, $emailgo, $go) = (0, 0, 0);
   while ($html =~ /<a\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi) {
     my $attrs = $1;
-    $email++ if $attrs =~ /\bclass\s*=\s*("[^"]*"|'[^']*')/i && $1 =~ /(?:^|[\s"'])email-link(?:[\s"']|$)/;
-    $go++ if $attrs =~ /\bhref\s*=\s*["']\/go\/email\?/i;
+    my $is_email = $attrs =~ /(?<![\w-])class\s*=\s*("[^"]*"|'[^']*')/i && $1 =~ /(?:^|[\s"'])email-link(?:[\s"']|$)/;
+    my $is_go = $attrs =~ /(?<![\w-])href\s*=\s*["']\/go\/email\?/i;
+    $email++ if $is_email;
+    $emailgo++ if $is_email && $is_go;
+    $go++ if $is_go;
   }
-  print "$email $go $file\n";
+  print "$email $emailgo $go $file\n";
 }
 PERL
 }
@@ -572,9 +576,13 @@ go_selftest() {
   gofix handmade '<a href="/go/email?e=x">a</a>'
   gofix comment  '<!-- <a class="email-link" href="/go/email?e=x">a</a> -->'
   gofix quoted   '<a title="a > b" class="email-link" href="/go/email?e=x">a</a>'
-  for expect in plain:'1 0' go:'1 1' extra:'1 1' lookalike:'0 0' handmade:'0 1' comment:'0 0' quoted:'1 1'; do
+  gofix apart    '<a class="email-link" href="#">a</a><a href="/go/email?e=x">b</a>'
+  gofix datahref '<a class="email-link" data-href="/go/email?e=x" href="#">a</a>'
+  gofix dataclass '<a data-class="email-link" href="/go/email?e=x">a</a>'
+  for expect in plain:'1 0 0' go:'1 1 1' extra:'1 1 1' lookalike:'0 0 0' handmade:'0 0 1' comment:'0 0 0' \
+                quoted:'1 1 1' apart:'1 0 1' datahref:'1 0 0' dataclass:'0 0 1'; do
     name="${expect%%:*}"; want="${expect#*:}"; k=$((k + 1))
-    got="$(perl -e "$(go_program)" "$dir/$name.html" | awk '{print $1, $2}')"
+    got="$(perl -e "$(go_program)" "$dir/$name.html" | awk '{print $1, $2, $3}')"
     if [ "$got" != "$want" ]; then
       echo "✗ analytics gate: the email-link reader reads fixture '$name' as '$got', expected '$want'."
       fail=1
@@ -592,9 +600,9 @@ expect_go() {
   local name="$1" what="$2" want="$3" counts bad
   counts="$(go_links "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
   if [ "$want" = all ]; then
-    bad="$(printf '%s\n' "$counts" | awk '$1 != $2 { path = $0; sub(/^[^ ]* [^ ]* /, "", path); print path }')"
+    bad="$(printf '%s\n' "$counts" | awk '$1 != $2 { path = $0; sub(/^[^ ]* [^ ]* [^ ]* /, "", path); print path }')"
   else
-    bad="$(printf '%s\n' "$counts" | awk '$2 > 0 { path = $0; sub(/^[^ ]* [^ ]* /, "", path); print path }')"
+    bad="$(printf '%s\n' "$counts" | awk '$3 > 0 { path = $0; sub(/^[^ ]* [^ ]* [^ ]* /, "", path); print path }')"
   fi
   if [ -z "$bad" ]; then
     if [ "$want" = all ]; then echo "✓ $what: every email link goes to /go/email"

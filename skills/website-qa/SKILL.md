@@ -48,6 +48,11 @@ cosmetics; red → green → commit.
 - `middleware.spec.ts` — `functions/_middleware.ts`, which `astro preview` never runs,
   called directly: previews noindexed, the live domain untouched, and the project alias
   `<project>.pages.dev` 301ing to the live domain only once `CANONICAL_URL` is set. Offline.
+- `analytics-server.spec.ts` — analytics server mode, the middleware and
+  `functions/go/email.ts` called directly with a stand-in for Plausible: one page view per
+  page a visitor opens and none for assets, prefetches, scripts or previews; an email tap
+  counted and answered with the mailto: link; crawlers and links from other sites given the
+  "[at]" hint, never the address. Offline.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).

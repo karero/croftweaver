@@ -29,6 +29,11 @@ const data = encodeEmail(address);
 const subj = subject ? encodeURIComponent(subject) : '';
 const label = text ?? emailHint(address, lang);
 const viaServer = ANALYTICS.enabled && ANALYTICS.mode === 'server';
+// functions/go/email.ts refuses a longer subject (MAX_SUBJECT, in lockstep): fail the
+// build, not the visitor's click on the live site.
+if (viaServer && subject && subject.length > 200) {
+  throw new Error(`EmailLink: the subject "${subject.slice(0, 40)}…" is ${subject.length} characters; server mode allows 200.`);
+}
 // URLSearchParams escapes the base64 (+, /, =) and the subject for the query string.
 const goHref = `/go/email?${new URLSearchParams({ e: data, ...(subject ? { s: subject } : {}), l: lang })}`;
 ---

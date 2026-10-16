@@ -90,7 +90,10 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    installer's optional measurements do not apply (no script runs). In
    `src/pages/privacy.astro`, keep the server-mode slots. Lost compared with the script:
    scroll depth, engaged time, the optional measurements, and the contact form's button
-   (not counted). Test on the live domain, not a `pages.dev` address: previews never count.
+   (not counted); also pages a browser prefetched or prerendered, and visitors whose
+   browser sends no Fetch Metadata headers (Safari before 16.4, some in-app browsers),
+   who get the "name [at] domain" hint instead of their mail program when they tap the
+   email link. Test on the live domain, not a `pages.dev` address: previews never count.
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +

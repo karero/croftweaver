@@ -81,14 +81,14 @@ A joinery's site, "Oak & Pine", at `https://oakandpine.example`, on Plausible, w
 otherwise.
 
 **S1. A page view is counted once.** Given a visitor who searched on Google, when they open
-`/about`, then the page is answered first and afterwards Plausible receives one `pageview` for
+`/about`, then the page does not wait for Plausible, and Plausible receives one `pageview` for
 `https://oakandpine.example/about` with the referrer, the visitor's user agent and IP.
 
 **S2. The next page joins the visit.** When the same visitor clicks on to `/contact`, then one
 more page view is sent, and Plausible shows one visit with two pages.
 
 **S3. A reload counts, as with the script.** A reload answered `304 Not Modified` for the page
-itself counts as a page view.
+itself counts as a page view; a 304 for a file opened on its own (an image, `build.txt`) does not.
 
 **S4. Requests that are not a page view are not counted.** No event for: images, styles,
 scripts, fonts, `robots.txt`, the sitemap and other non-HTML files; `HEAD` and any method but
@@ -119,7 +119,9 @@ receives one `Email Tap` for `https://oakandpine.example/contact`, and the answe
 encoded the way `EmailLink` encodes it today; the readable address still appears only after the
 page's own decoder runs, and without JavaScript the "[at]" hint shows and the link still works.
 
-**S11. The email route counts browsers only.** A request to `/go/email` without browser headers
+**S11. The email route counts browsers only.** A click is a navigation from a page of this site
+(`Sec-Fetch-Site: same-origin`, plus S4's rule). `Sec-Fetch-User` is not required: Safari never
+sends it (review round 1, 2026-10-16). A request to `/go/email` without browser headers
 (S4's rule), or on a preview host, still gets the redirect but sends no event.
 
 **S12. The email route sends nowhere but mail.** `/go/email` answers only with a `mailto:` to one
@@ -134,8 +136,8 @@ development, where no Function runs (`astro preview`, `astro dev`), the link is 
 button opens the mail program as before and sends nothing. The docs say so.
 
 **S15. Script mode is unchanged.** A site with the default `ANALYTICS.mode = 'script'` builds the
-same pages as before this change, and the Function counts nothing even if the variables were set
-by mistake. (How the Function knows the mode is in "Design" below.)
+same pages as before this change, and the Function does not count a page that loads the script,
+even if the variables were set by mistake (it logs why instead).
 
 **S16. The privacy page stays true, EN and DE.** Given server mode, section 3 of `privacy.astro`
 and `_datenschutz.astro` says that no analytics code runs in the browser, what the server passes
@@ -162,8 +164,8 @@ account.
   which a Pages Function does not have without the Node compatibility flag). So it counts only
   when both Production variables are set (`PLAUSIBLE_EVENTS_URL`, `PLAUSIBLE_DOMAIN`) and the host
   is not `*.pages.dev` or `localhost`. Production variables reach only production deployments,
-  and only production serves the custom domain. S15's guard is the docs plus a build-time marker
-  (see open point P1).
+  and only production serves the custom domain. S15's guard: a page carrying Plausible's init
+  stub is not counted by the Function (P1, settled in review round 1).
 - **Counting** sits in `functions/_middleware.ts`, which today returns early for the live domain;
   that path changes so counting runs there.
 - **Email route** `functions/go/email.ts`: decodes the address the link carries, validates it

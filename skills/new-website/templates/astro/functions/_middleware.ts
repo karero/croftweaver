@@ -16,8 +16,8 @@
 //    preview, exactly as before.
 //
 // 3. Analytics in server mode (ANALYTICS.mode in src/config.ts) only: on the live domain,
-//    one page view per page request is sent to Plausible's Events API, after the page
-//    has been answered (waitUntil), so no analytics code runs in the visitor's browser.
+//    one page view per page request is sent to Plausible's Events API without the page
+//    waiting for it (waitUntil), so no analytics code runs in the visitor's browser.
 //    It runs only when the Production variables PLAUSIBLE_HOST and PLAUSIBLE_DOMAIN are
 //    set; this file cannot read src/config.ts (that file reads process.env, which a
 //    Pages Function does not have), so those two variables are the switch. Previews,
@@ -118,12 +118,14 @@ export function navigationSkip(request: Request): string | null {
 
 // Why this response is not a page view, or null when it is: a navigation (above) to a
 // page, answered with the page (200), the 404 page (the script counts there too), or a
-// 304 for a reload. /go/ routes count their own events.
+// 304 for a reload. A 304 carries no Content-Type, so it counts only for a page address:
+// no file extension, or .html (the build writes pages as /about, served from about.html).
+// /go/ routes count their own events.
 export function pageviewSkip(request: Request, path: string, res: Response): string | null {
   const skip = navigationSkip(request);
   if (skip) return skip;
   if (path.startsWith('/go/')) return 'go-route';
-  if (res.status === 304) return null;
+  if (res.status === 304) return /\.(?!html$)[^/.]+$/i.test(path) ? 'not-a-page' : null;
   if (res.status !== 200 && res.status !== 404) return 'status';
   if (!(res.headers.get('Content-Type') ?? '').startsWith('text/html')) return 'not-html';
   return null;
@@ -159,11 +161,23 @@ export async function sendEvent(endpoint: string, env: AnalyticsEnv, request: Re
   }
 }
 
+// The mode lives in src/config.ts and the switch here is the two variables; nothing makes
+// them agree. A page built in script mode carries Plausible's init stub, and its script
+// counts the view already, so such a page is not counted here a second time.
+const SCRIPT_STUB = /plausible\.init\(/;
+
 function countPageview(context: MiddlewareContext, url: URL, host: string, res: Response): void {
   const endpoint = eventsUrl(context.env, host);
   if (!endpoint || !context.waitUntil) return;
   if (pageviewSkip(context.request, url.pathname, res)) return;
-  context.waitUntil(sendEvent(endpoint, context.env, context.request, 'pageview', context.request.url));
+  const copy = res.status === 304 ? null : res.clone(); // a 304 has no body to read
+  context.waitUntil((async () => {
+    if (copy && SCRIPT_STUB.test(await copy.text())) {
+      console.error('This page loads the Plausible script (ANALYTICS.mode is \'script\'), so the Function does not count it too; unset PLAUSIBLE_HOST and PLAUSIBLE_DOMAIN, or switch to server mode.');
+      return;
+    }
+    await sendEvent(endpoint, context.env, context.request, 'pageview', context.request.url);
+  })());
 }
 
 export const onRequest = async (context: MiddlewareContext): Promise<Response> => {
