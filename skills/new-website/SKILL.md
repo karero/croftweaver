@@ -173,8 +173,9 @@ non-expert can answer, and record the answers in the project `README.md`.
      with `scriptHost` and the site's domain (as added in Plausible) filled in: the
      installer and the script id at `<scriptHost>/<domain>/installation`, the goals at
      `<scriptHost>/<domain>/settings/goals`, a new site at `<scriptHost>/sites/new`.
-     Checked on a self-hosted instance (version 3.2.1); on Plausible Cloud
-     (`scriptHost` `https://plausible.io`) the same paths are expected, not checked.
+     All three answered on a self-hosted Community Edition instance on 2026-10-16,
+     where an unknown path gives 404. On Plausible Cloud (`scriptHost`
+     `https://plausible.io`) the same paths are expected, not checked.
      If you run a **self-hosted** Plausible instance, point at it; otherwise
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
@@ -193,8 +194,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      named exactly `Email Tap` **before launch**: Plausible's documentation says an
      event shows only once its goal exists and earlier ones are not counted. Once a
      test tap has reached Plausible, the goals page offers `Email Tap` to add in one
-     click, which rules out a typo in the name (seen on a self-hosted instance, 3.2.1). To see a
-     test tap, choose Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views
+     click. That rules out a typo in the name (seen on a self-hosted instance).
+     To see a test tap, choose Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views
      end yesterday (checked in version 3.2.1). On a site just added to Plausible, a tap in its first
      minute or so may not be kept; tap again a few minutes later. Filtered
      by that goal, the dashboard shows which sources and pages bring enquiries. It

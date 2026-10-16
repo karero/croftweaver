@@ -235,6 +235,9 @@ live fast with zero dashboard time.
 #    button next to "Account ID", or search (Cmd/Ctrl+K) for "Copy account ID"
 #    (https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/).
 #    Set it for every command below; where Wrangler could find it alone, it changes nothing.
+#    A shell that keeps no variable from one command to the next loses the export: there,
+#    put it in front of each wrangler command instead
+#    (`CLOUDFLARE_ACCOUNT_ID=<account-id> npx wrangler pages …`), as the 2026-10-16 run did.
 export CLOUDFLARE_ACCOUNT_ID=<account-id>
 
 # 1. Create the Pages project (direct-upload). <production-branch> is main or production.

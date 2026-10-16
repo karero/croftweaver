@@ -83,7 +83,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    or the contact form's button sends that event; Plausible's documentation says it shows
    only once the goal exists, and earlier ones are not counted. Once a test tap has
    reached Plausible, the goals page offers `Email Tap` to add in one click (seen on a
-   self-hosted instance, 3.2.1). To see a test tap, choose
+   self-hosted instance). To see a test tap, choose
    Today or Realtime: Plausible's "Last 7, 28, 30 and 91 days" views end yesterday
    (checked in version 3.2.1). On a site just added to Plausible, tap again a few minutes later if the
    first tap does not show.
