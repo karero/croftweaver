@@ -92,17 +92,21 @@ async function download(url) {
 async function checkSum(zip, from) {
   const at = new URL(SUMS, from);
   let res;
+  let text;
   try {
     res = await fetch(at, { signal: AbortSignal.timeout(TIMEOUT) });
+    if (res.ok) text = await res.text();
   } catch (e) {
     throw new Error(`the download of ${at} failed (${e.cause?.code ?? e.message}). Check your internet connection, then run the command again.`);
   }
   if (res.status === 404) {
-    throw new Error(`the release has no ${SUMS} file to check the download against (releases before 0.32 have none), so it was not used`);
+    throw new Error(`the release has no ${SUMS} file to check the download against, so it was not used`);
   }
   if (!res.ok) throw new Error(`${at} could not be downloaded (the server answered ${res.status})`);
-  const name = decodeURIComponent(from.pathname.split('/').pop());
-  const listed = (await res.text()).split(/\r?\n/).map((line) => SUM_LINE.exec(line)).filter((m) => m?.[2] === name);
+  const last = from.pathname.split('/').pop();
+  let name = last;
+  try { name = decodeURIComponent(last); } catch { /* a stray % in a custom address: compare it as written */ }
+  const listed = text.split(/\r?\n/).map((line) => SUM_LINE.exec(line)).filter((m) => m?.[2] === name);
   if (listed.length !== 1) throw new Error(`${SUMS} does not list ${name} exactly once, so the download was not used`);
   if (crypto.createHash('sha256').update(zip).digest('hex') !== listed[0][1]) {
     throw new Error(`the download does not match the checksum in the release's ${SUMS}, so it was not used. Run the command again; if it still fails, the release may be broken`);

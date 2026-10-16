@@ -435,8 +435,10 @@ test('a download that cannot be used changes nothing in an install that works', 
   });
 });
 
-// The zip's own CRCs only show it is the file someone zipped, not the file the release built
-// and tested. SHA256SUMS is that proof, so without it, or against it, nothing is unpacked.
+// The zip's own CRCs only show the file is whole as zipped. SHA256SUMS, written when the
+// release was built and uploaded with it, also catches a download that was damaged, cut
+// short or swapped for another release's on the way. It is only as trustworthy as the
+// release it comes from. Without it, or against it, nothing is unpacked.
 test('a download that its release\'s SHA256SUMS does not vouch for changes nothing', async (t) => {
   const home = tmp();
   const dest = path.join(home, '.claude', 'skills');
@@ -445,7 +447,7 @@ test('a download that its release\'s SHA256SUMS does not vouch for changes nothi
   const working = tree(dest);
   const zip = makeZip(V2);
   const bad = {
-    'the release has no SHA256SUMS (as 0.31 and older)': [null, /has no SHA256SUMS file .*releases before 0\.32/],
+    'the release has no SHA256SUMS (as 0.31 and older)': [null, /has no SHA256SUMS file to check the download against/],
     'SHA256SUMS cannot be fetched': [500, /could not be downloaded \(the server answered 500\)/],
     'the zip does not match its sum': [`${sha256(makeZip(V1))}  croftweaver.zip\n`, /does not match the checksum/],
     'the sum is for another file': [`${sha256(zip)}  something-else.zip\n`, /does not list croftweaver\.zip exactly once/],
@@ -466,6 +468,18 @@ test('a download that its release\'s SHA256SUMS does not vouch for changes nothi
       assert.deepEqual(fs.readdirSync(dest).sort(), ['.croftweaver.json', 'alpha', 'gone', 'new-website']);
     });
   }
+
+  // The check comes before the unpacking, not after it: a zip that is wrong in two ways is
+  // refused for its sum, so not one of its bytes was written into the skills folder first.
+  await t.test('the sum is checked before anything is unpacked', async () => {
+    served = { status: 200, release: 'v9.2', zip: makeZip({ ...V2, 'skills/alpha/../../../escaped.txt': 'out' }), sums: null };
+
+    const result = await run(home);
+
+    assert.equal(result.code, 1, result.stdout);
+    assert.match(result.stderr, /has no SHA256SUMS file/);
+    assert.doesNotMatch(result.stderr, /could not be unpacked/);
+  });
 
   await t.test('on a computer without the skills, a refused download leaves no folder behind', async () => {
     const fresh = tmp();
