@@ -269,9 +269,9 @@ Croftweaver sends nothing to its maintainer. This was checked in two passes:
 
 What touches the maintainer's own places:
 
-- `npm create croftweaver` reads the release zip from GitHub, Claude Code reads the plugin
-  from GitHub, and a `git clone` of the toolkit (one of the README's install routes) reads
-  it from GitHub.
+- `npm create croftweaver` reads the release zip and its `SHA256SUMS` from GitHub, Claude Code
+  reads the plugin from GitHub, and a `git clone` of the toolkit (one of the README's install
+  routes) reads it from GitHub.
 - After launch, `new-website` asks you once whether you want a "Built with Croftweaver"
   credit in your footer. Only if you say yes does the assistant read the badge code and
   files from croftweaver.com; like any web request, that one shows up in croftweaver.com's

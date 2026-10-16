@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import zlib from 'node:zlib';
+import { makeZip } from './zip.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const INSTALLER = path.join(HERE, '..', 'index.mjs');
@@ -70,50 +70,6 @@ function run(home, args = [], env = {}) {
   });
 }
 
-// A zip from { name: text } or { name: { data, mode, store, crc } }. It writes what the reader
-// has to cope with, including what no zip tool writes on request: a path that climbs out, a
-// link, a wrong checksum.
-function makeZip(files) {
-  const locals = [];
-  const centrals = [];
-  let offset = 0;
-  for (const [entryName, spec] of Object.entries(files)) {
-    const { data = '', mode = 0o100644, store = false, crc } = typeof spec === 'string' ? { data: spec } : spec;
-    const name = Buffer.from(entryName);
-    const plain = Buffer.from(data);
-    const body = store ? plain : zlib.deflateRawSync(plain);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(store ? 0 : 8, 8);
-    local.writeUInt32LE(crc ?? zlib.crc32(plain), 14);
-    local.writeUInt32LE(body.length, 18);
-    local.writeUInt32LE(plain.length, 22);
-    local.writeUInt16LE(name.length, 26);
-    const central = Buffer.alloc(46);
-    central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE((3 << 8) | 30, 4);   // made on unix, so the mode below counts
-    central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(store ? 0 : 8, 10);
-    central.writeUInt32LE(crc ?? zlib.crc32(plain), 16);
-    central.writeUInt32LE(body.length, 20);
-    central.writeUInt32LE(plain.length, 24);
-    central.writeUInt16LE(name.length, 28);
-    central.writeUInt32LE((mode << 16) >>> 0, 38);
-    central.writeUInt32LE(offset, 42);
-    locals.push(local, name, body);
-    centrals.push(central, name);
-    offset += 30 + name.length + body.length;
-  }
-  const directory = Buffer.concat(centrals);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(centrals.length / 2, 8);
-  end.writeUInt16LE(centrals.length / 2, 10);
-  end.writeUInt32LE(directory.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...locals, directory, end]);
-}
 
 // Every file under `dir` as { 'a/b.md': text }. Links are not followed.
 function tree(dir) {
@@ -514,6 +470,13 @@ test('SHA256SUMS comes from the release the redirect names, and is read the way 
       assert.equal(result.code, 0, result.stderr);
     });
   }
+  // An address may spell the file name with %-escapes; SHA256SUMS spells it plainly.
+  await t.test('a file name written with %-escapes in the address is the same name', async () => {
+    served = { status: 200, release: 'v9.3', zip };
+    const port = new URL(latest).port;
+    const result = await run(tmp(), [], { CROFTWEAVER_ZIP_URL: `http://127.0.0.1:${port}/download/v9.3/croft%77eaver.zip` });
+    assert.equal(result.code, 0, result.stderr);
+  });
   // scripts/package.sh writes the file with sha256sum on Linux and `shasum -a 256` on macOS.
   await t.test('the line sha256sum or shasum writes for the zip', { skip: POSIX ? false : 'Windows runners have neither tool' }, async () => {
     const folder = tmp();
