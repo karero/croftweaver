@@ -44,8 +44,8 @@ export const SAME_AS: string[] = [
 // Topics the site is authoritative on (schema knowsAbout).
 export const KNOWS_ABOUT: string[] = [];
 
-// Plausible (cookieless; scriptHost is your own self-hosted instance, or
-// https://plausible.io for the paid cloud version). Fire only on the production
+// Plausible (cookieless; scriptHost is https://plausible.io for the paid cloud
+// version, or your own self-hosted instance). Fire only on the production
 // deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built.
 //
 // The starter ships with analytics OFF (USE_ANALYTICS = false): no build, the live one
@@ -64,8 +64,8 @@ export const KNOWS_ABOUT: string[] = [];
 // button not at all (the mode is described below). Left off by mistake,
 // Plausible gets no data and nothing says so.
 //
-// scriptId is the per-site script Plausible's installer shows (Settings > General >
-// Tracking, next to "Site installation"): in <script src=".../js/pa-AbC123.js"> it is
+// scriptId is the per-site script Plausible's installer shows (the site's installation
+// page, <scriptHost>/<your domain>/installation): in <script src=".../js/pa-AbC123.js"> it is
 // the part between "/js/" and ".js", here 'pa-AbC123'. The domain and the optional
 // measurements (outbound links, file downloads, form submissions) are switched in
 // Plausible, not here. Section 3 of the privacy page has one slot sentence for each:
