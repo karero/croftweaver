@@ -79,10 +79,13 @@ def load_credentials(client_secret: Path, token_path: Path, interactive: bool = 
 
     interactive=False NEVER opens a browser: if the token is missing/expired and a
     silent refresh isn't possible, it raises instead of launching a consent flow —
-    so non-interactive callers (insights.py's combined view) can't hang on a browser."""
+    so non-interactive callers (insights.py's combined view) can't hang on a browser.
+    Interactive, a refresh Google refuses (the sign-in was revoked, or it expired) falls
+    through to the browser sign-in: that run is how the owner reconnects."""
     try:
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
+        from google.auth.exceptions import RefreshError
         from google_auth_oauthlib.flow import InstalledAppFlow
     except ImportError:
         eprint(
@@ -97,13 +100,20 @@ def load_credentials(client_secret: Path, token_path: Path, interactive: bool = 
 
     if creds and creds.valid:
         return creds
+    refreshed = False
     if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-    elif not interactive:
+        try:
+            creds.refresh(Request())
+            refreshed = True
+        except RefreshError:
+            if not interactive:
+                raise
+            eprint("Google refused the saved Search Console sign-in; opening the browser to sign in again.")
+    if not refreshed and not interactive:
         raise RuntimeError(
             "GSC token missing or expired and a silent refresh isn't possible — "
             "re-run the connect/onboarding step to re-consent.")
-    else:
+    if not refreshed:
         if not client_secret.exists():
             eprint(
                 f"OAuth client not found: {client_secret}\n"

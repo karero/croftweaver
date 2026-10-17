@@ -31,8 +31,9 @@ class RefreshError(Exception):
     pass
 
 
-def google_stubs(creds, calls):
-    """Stand-ins for the three google modules load_credentials imports."""
+def google_stubs(creds, calls, signed_in=None):
+    """Stand-ins for the google modules load_credentials imports. With signed_in, the
+    browser flow succeeds and returns it; without, reaching the flow fails the test."""
     class Credentials:
         @staticmethod
         def from_authorized_user_file(path, scopes):
@@ -43,7 +44,9 @@ def google_stubs(creds, calls):
         @staticmethod
         def from_client_secrets_file(*a, **k):
             calls.append("browser flow")
-            raise AssertionError("the browser flow must never start with --no-browser")
+            if signed_in is None:
+                raise AssertionError("the browser flow must never start with --no-browser")
+            return types.SimpleNamespace(run_local_server=lambda port: signed_in)
 
     mods = {
         "google": types.ModuleType("google"),
@@ -143,6 +146,58 @@ class NoBrowser(unittest.TestCase):
         with self.assertRaises(AssertionError) as cm:
             self.run_main(Creds(refresh_token=None))
         self.assertIn("browser flow must never start", str(cm.exception))
+
+
+class Reconnect(unittest.TestCase):
+    """The owner's way back after a scheduled run exits 2: a run without --no-browser.
+
+    Why: a rejected refresh is how a dead sign-in shows up (revoked, or the 7-day token a
+    Google app in Testing gets), and the exit-2 line says to reconnect, which re-runs
+    gsc_query without the flag. That run used to call the same refresh, get the same
+    refusal and stop on a traceback, so reconnecting never worked until someone deleted
+    token.json by hand (BUGLOG 2026-10-14, the weekly job row). It must open the browser
+    sign-in instead and save the new token over the dead one."""
+
+    def test_rejected_refresh_opens_the_browser_and_saves_the_new_token(self):
+        calls = []
+        dead = Creds(refresh_token="r", refresh_raises=RefreshError("invalid_grant"))
+        fresh = types.SimpleNamespace(to_json=lambda: '{"token": "new"}')
+        with tempfile.TemporaryDirectory() as d:
+            token = Path(d, "token.json")
+            token.write_text('{"token": "dead"}')
+            secret = Path(d, "client_secret.json")
+            secret.write_text("{}")
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token", str(token),
+                    "--client-secret", str(secret)]
+            err = io.StringIO()
+            reached = []
+            with mock.patch.dict(sys.modules, google_stubs(dead, calls, signed_in=fresh)), \
+                    mock.patch.object(sys, "argv", argv), \
+                    mock.patch.object(gsc_query, "build_service",
+                                      side_effect=lambda c: reached.append(c) or sys.exit(9)), \
+                    contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+            saved = token.read_text()
+        self.assertEqual(cm.exception.code, 9)  # went on to the API with the new sign-in
+        self.assertEqual(calls, ["loaded token", "browser flow"])
+        self.assertIs(reached[0], fresh)
+        self.assertEqual(saved, '{"token": "new"}')
+        self.assertIn("Google refused the saved Search Console sign-in", err.getvalue())
+
+    def test_non_interactive_callers_still_get_the_refusal(self):
+        # insights.py and search_report.py call load_credentials(interactive=False) and turn
+        # the RefreshError into their own message; the fallback must not reach them.
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            token = Path(d, "token.json")
+            token.write_text("{}")
+            dead = Creds(refresh_token="r", refresh_raises=RefreshError("invalid_grant"))
+            with mock.patch.dict(sys.modules, google_stubs(dead, calls)):
+                with self.assertRaises(RefreshError):
+                    gsc_query.load_credentials(Path(d, "client_secret.json"), token,
+                                               interactive=False)
+        self.assertEqual(calls, ["loaded token"])
 
 
 class DefaultClientFile(unittest.TestCase):
