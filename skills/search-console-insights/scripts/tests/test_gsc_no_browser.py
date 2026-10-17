@@ -184,7 +184,26 @@ class Reconnect(unittest.TestCase):
         self.assertEqual(calls, ["loaded token", "browser flow"])
         self.assertIs(reached[0], fresh)
         self.assertEqual(saved, '{"token": "new"}')
-        self.assertIn("Google refused the saved Search Console sign-in", err.getvalue())
+        self.assertIn("Google refused the saved Search Console sign-in; opening the browser", err.getvalue())
+
+    def test_without_the_client_file_no_browser_is_promised(self):
+        # The refusal message names the browser, so it must not print when the next line
+        # says the OAuth client file is missing and no browser will open.
+        calls = []
+        dead = Creds(refresh_token="r", refresh_raises=RefreshError("invalid_grant"))
+        with tempfile.TemporaryDirectory() as d:
+            token = Path(d, "token.json")
+            token.write_text("{}")
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token", str(token),
+                    "--client-secret", os.path.join(d, "absent.json")]
+            err = io.StringIO()
+            with mock.patch.dict(sys.modules, google_stubs(dead, calls)), \
+                    mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("OAuth client not found", err.getvalue())
+        self.assertNotIn("opening the browser", err.getvalue())
 
     def test_non_interactive_callers_still_get_the_refusal(self):
         # insights.py and search_report.py call load_credentials(interactive=False) and turn
@@ -226,7 +245,7 @@ class ReconnectWithTheRealLibrary(unittest.TestCase):
 
         class TokenEndpoint:  # stands in for google.auth.transport.requests.Request
             def __call__(self, url, method="GET", body=None, headers=None, **kwargs):
-                posts.append(url)
+                posts.append((method, url, body))
                 return types.SimpleNamespace(
                     status=400, headers={"content-type": "application/json"},
                     data=b'{"error": "invalid_grant", "error_description": "Token has been expired or revoked."}')
@@ -262,10 +281,16 @@ class ReconnectWithTheRealLibrary(unittest.TestCase):
                     gsc_query.main()
             saved = json.loads(token.read_text())
         self.assertEqual(cm.exception.code, 9, err.getvalue())
-        self.assertEqual(len(posts), 1)       # the refresh really went to the token endpoint
+        # The refresh really went to the token endpoint, as a refresh of the old token.
+        self.assertEqual(len(posts), 1)
+        method, url, body = posts[0]
+        body = body.decode() if isinstance(body, bytes) else body
+        self.assertEqual((method, url), ("POST", "https://oauth2.googleapis.com/token"))
+        self.assertIn("grant_type=refresh_token", body)
+        self.assertIn("refresh_token=old-refresh", body)
         self.assertEqual(flows, [str(secret)])
         self.assertEqual(saved["refresh_token"], "new-refresh")  # next week's run can refresh
-        self.assertIn("Google refused the saved Search Console sign-in", err.getvalue())
+        self.assertIn("Google refused the saved Search Console sign-in; opening the browser", err.getvalue())
 
 
 class DefaultClientFile(unittest.TestCase):

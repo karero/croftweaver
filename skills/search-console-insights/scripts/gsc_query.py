@@ -100,7 +100,7 @@ def load_credentials(client_secret: Path, token_path: Path, interactive: bool = 
 
     if creds and creds.valid:
         return creds
-    refreshed = False
+    refreshed = refused = False
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
@@ -108,7 +108,7 @@ def load_credentials(client_secret: Path, token_path: Path, interactive: bool = 
         except RefreshError:
             if not interactive:
                 raise
-            eprint("Google refused the saved Search Console sign-in, so it has to be given again.")
+            refused = True
     if not refreshed and not interactive:
         raise RuntimeError(
             "GSC token missing or expired and a silent refresh isn't possible — "
@@ -122,6 +122,8 @@ def load_credentials(client_secret: Path, token_path: Path, interactive: bool = 
                 "then download it as client_secret.json (see SKILL.md, one-time setup)."
             )
             sys.exit(2)
+        if refused:
+            eprint("Google refused the saved Search Console sign-in; opening the browser to sign in again.")
         flow = InstalledAppFlow.from_client_secrets_file(str(client_secret), SCOPES)
         creds = flow.run_local_server(port=0)
 
