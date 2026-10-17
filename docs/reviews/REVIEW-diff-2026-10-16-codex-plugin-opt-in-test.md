@@ -18,7 +18,8 @@ found a BUG), 5 findings: 1 BUG and 2 RISKs in round 1, 2 RISKs in round 2.
 
 ## Round 2 (a69ed56, verifying)
 
-All three fixes verified. Two RISKs remain, both proposed for the owner's waiver:
+All three fixes verified. Two RISKs remain. The owner waived both on 2026-10-17, in his
+words: "push it: record my waiver of both RISKs". The reasons put to him:
 
 - RISK: a release during the run still fails it (it asks for a re-run, not a retry). Proposed
   waiver: the test is opt-in and run by hand; a release takes seconds and a re-run costs one
