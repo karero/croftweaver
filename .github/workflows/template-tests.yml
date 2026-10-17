@@ -149,6 +149,37 @@ jobs:
           npm run check
           bash tests/check_analytics_gate.sh
           git checkout -- src/config.ts
+      # functions/go/email.ts answers 400 to a subject over 200 characters, so EmailLink.astro
+      # fails the build instead: the owner learns it from the build, not from a visitor's
+      # broken click on the live site. A preview build (no CF_PAGES_BRANCH) must fail too, and
+      # script mode, where the link is a plain mailto:, must still build. A throwaway page
+      # carries the link; it and config.ts are put back afterwards.
+      - name: Server mode refuses an email subject over 200 characters at build time
+        run: |
+          sed -i "s/^export const USE_ANALYTICS = false;/export const USE_ANALYTICS = true;/" src/config.ts
+          grep -q "^export const USE_ANALYTICS = true;" src/config.ts
+          page=src/pages/subject-length-check.astro
+          out="$RUNNER_TEMP/subject-check"
+          # subject_page <length>: the page, with one email link whose subject is that long.
+          subject_page() {
+            printf -- "---\nimport EmailLink from '../components/EmailLink.astro';\n---\n<EmailLink address=\"hello@example.com\" subject=\"%s\" />\n" "$(head -c "$1" /dev/zero | tr '\0' a)" > "$page"
+          }
+          build() { env -u CF_PAGES_BRANCH ./node_modules/.bin/astro build --outDir "$out" > "$out.log" 2>&1; }
+          # Script mode: 201 characters build.
+          subject_page 201
+          build || { tail -n 20 "$out.log"; echo "script mode must build with a 201-character subject"; exit 1; }
+          sed -i "s/^  mode: 'script' as/  mode: 'server' as/" src/config.ts
+          grep -q "^  mode: 'server' as" src/config.ts
+          # Server mode: 200 characters build; 201 fail, with EmailLink's message.
+          subject_page 200
+          build || { tail -n 20 "$out.log"; echo "server mode must build with a 200-character subject"; exit 1; }
+          subject_page 201
+          if build; then
+            echo "server mode built with a 201-character subject; EmailLink.astro must fail the build"; exit 1
+          fi
+          grep -q "is 201 characters; server mode allows 200" "$out.log" || { tail -n 20 "$out.log"; echo "the build failed, but not with EmailLink's message"; exit 1; }
+          rm "$page"
+          git checkout -- src/config.ts
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       # Email links on the live build as shipped: no tracker there, and a click still asks
