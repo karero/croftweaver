@@ -14,6 +14,7 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 """
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -198,6 +199,73 @@ class Reconnect(unittest.TestCase):
                     gsc_query.load_credentials(Path(d, "client_secret.json"), token,
                                                interactive=False)
         self.assertEqual(calls, ["loaded token"])
+
+
+def google_auth_installed():
+    try:
+        import google.oauth2.credentials  # noqa: F401
+        import google_auth_oauthlib.flow  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+@unittest.skipUnless(google_auth_installed(), "needs the skill's requirements (CI installs them)")
+class ReconnectWithTheRealLibrary(unittest.TestCase):
+    """The stubs above choose the exception themselves. Here google-auth's own Credentials
+    refreshes against a token endpoint that answers as Google does for a dead sign-in
+    (400, invalid_grant), so the test fails if the library reports that as anything the
+    fallback does not catch. Only the network and the browser are replaced."""
+
+    def test_invalid_grant_from_the_token_endpoint_leads_to_a_new_sign_in(self):
+        from google.oauth2.credentials import Credentials
+        import google.auth.transport.requests as transport
+        import google_auth_oauthlib.flow as oauth_flow
+
+        posts = []
+
+        class TokenEndpoint:  # stands in for google.auth.transport.requests.Request
+            def __call__(self, url, method="GET", body=None, headers=None, **kwargs):
+                posts.append(url)
+                return types.SimpleNamespace(
+                    status=400, headers={"content-type": "application/json"},
+                    data=b'{"error": "invalid_grant", "error_description": "Token has been expired or revoked."}')
+
+        fresh = Credentials(token="new-access", refresh_token="new-refresh",
+                            token_uri="https://oauth2.googleapis.com/token",
+                            client_id="id", client_secret="secret", scopes=gsc_query.SCOPES)
+        flows = []
+
+        def from_client_secrets_file(path, scopes):
+            flows.append(path)
+            return types.SimpleNamespace(run_local_server=lambda port: fresh)
+
+        with tempfile.TemporaryDirectory() as d:
+            token = Path(d, "token.json")
+            token.write_text(json.dumps({
+                "token": "old-access", "refresh_token": "old-refresh",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "client_id": "id", "client_secret": "secret",
+                "scopes": gsc_query.SCOPES, "expiry": "2020-01-01T00:00:00Z"}))
+            secret = Path(d, "client_secret.json")
+            secret.write_text("{}")
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token", str(token),
+                    "--client-secret", str(secret)]
+            err = io.StringIO()
+            with mock.patch.object(transport, "Request", TokenEndpoint), \
+                    mock.patch.object(oauth_flow.InstalledAppFlow, "from_client_secrets_file",
+                                      staticmethod(from_client_secrets_file)), \
+                    mock.patch.object(sys, "argv", argv), \
+                    mock.patch.object(gsc_query, "build_service", side_effect=lambda c: sys.exit(9)), \
+                    contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+            saved = json.loads(token.read_text())
+        self.assertEqual(cm.exception.code, 9, err.getvalue())
+        self.assertEqual(len(posts), 1)       # the refresh really went to the token endpoint
+        self.assertEqual(flows, [str(secret)])
+        self.assertEqual(saved["refresh_token"], "new-refresh")  # next week's run can refresh
+        self.assertIn("Google refused the saved Search Console sign-in", err.getvalue())
 
 
 class DefaultClientFile(unittest.TestCase):

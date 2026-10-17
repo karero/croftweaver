@@ -108,7 +108,7 @@ def load_credentials(client_secret: Path, token_path: Path, interactive: bool = 
         except RefreshError:
             if not interactive:
                 raise
-            eprint("Google refused the saved Search Console sign-in; opening the browser to sign in again.")
+            eprint("Google refused the saved Search Console sign-in, so it has to be given again.")
     if not refreshed and not interactive:
         raise RuntimeError(
             "GSC token missing or expired and a silent refresh isn't possible — "
