@@ -14,6 +14,7 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 """
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -31,8 +32,9 @@ class RefreshError(Exception):
     pass
 
 
-def google_stubs(creds, calls):
-    """Stand-ins for the three google modules load_credentials imports."""
+def google_stubs(creds, calls, signed_in=None):
+    """Stand-ins for the google modules load_credentials imports. With signed_in, the
+    browser flow succeeds and returns it; without, reaching the flow fails the test."""
     class Credentials:
         @staticmethod
         def from_authorized_user_file(path, scopes):
@@ -43,7 +45,9 @@ def google_stubs(creds, calls):
         @staticmethod
         def from_client_secrets_file(*a, **k):
             calls.append("browser flow")
-            raise AssertionError("the browser flow must never start with --no-browser")
+            if signed_in is None:
+                raise AssertionError("the browser flow must never start with --no-browser")
+            return types.SimpleNamespace(run_local_server=lambda port: signed_in)
 
     mods = {
         "google": types.ModuleType("google"),
@@ -143,6 +147,150 @@ class NoBrowser(unittest.TestCase):
         with self.assertRaises(AssertionError) as cm:
             self.run_main(Creds(refresh_token=None))
         self.assertIn("browser flow must never start", str(cm.exception))
+
+
+class Reconnect(unittest.TestCase):
+    """The owner's way back after a scheduled run exits 2: a run without --no-browser.
+
+    Why: a rejected refresh is how a dead sign-in shows up (revoked, or the 7-day token a
+    Google app in Testing gets), and the exit-2 line says to reconnect, which re-runs
+    gsc_query without the flag. That run used to call the same refresh, get the same
+    refusal and stop on a traceback, so reconnecting never worked until someone deleted
+    token.json by hand (BUGLOG 2026-10-14, the weekly job row). It must open the browser
+    sign-in instead and save the new token over the dead one."""
+
+    def test_rejected_refresh_opens_the_browser_and_saves_the_new_token(self):
+        calls = []
+        dead = Creds(refresh_token="r", refresh_raises=RefreshError("invalid_grant"))
+        fresh = types.SimpleNamespace(to_json=lambda: '{"token": "new"}')
+        with tempfile.TemporaryDirectory() as d:
+            token = Path(d, "token.json")
+            token.write_text('{"token": "dead"}')
+            secret = Path(d, "client_secret.json")
+            secret.write_text("{}")
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token", str(token),
+                    "--client-secret", str(secret)]
+            err = io.StringIO()
+            reached = []
+            with mock.patch.dict(sys.modules, google_stubs(dead, calls, signed_in=fresh)), \
+                    mock.patch.object(sys, "argv", argv), \
+                    mock.patch.object(gsc_query, "build_service",
+                                      side_effect=lambda c: reached.append(c) or sys.exit(9)), \
+                    contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+            saved = token.read_text()
+        self.assertEqual(cm.exception.code, 9)  # went on to the API with the new sign-in
+        self.assertEqual(calls, ["loaded token", "browser flow"])
+        self.assertIs(reached[0], fresh)
+        self.assertEqual(saved, '{"token": "new"}')
+        self.assertIn("Google refused the saved Search Console sign-in; opening the browser", err.getvalue())
+
+    def test_without_the_client_file_no_browser_is_promised(self):
+        # The refusal message names the browser, so it must not print when the next line
+        # says the OAuth client file is missing and no browser will open.
+        calls = []
+        dead = Creds(refresh_token="r", refresh_raises=RefreshError("invalid_grant"))
+        with tempfile.TemporaryDirectory() as d:
+            token = Path(d, "token.json")
+            token.write_text("{}")
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token", str(token),
+                    "--client-secret", os.path.join(d, "absent.json")]
+            err = io.StringIO()
+            with mock.patch.dict(sys.modules, google_stubs(dead, calls)), \
+                    mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("OAuth client not found", err.getvalue())
+        self.assertNotIn("opening the browser", err.getvalue())
+
+    def test_non_interactive_callers_still_get_the_refusal(self):
+        # insights.py and search_report.py call load_credentials(interactive=False) and turn
+        # the RefreshError into their own message; the fallback must not reach them.
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            token = Path(d, "token.json")
+            token.write_text("{}")
+            dead = Creds(refresh_token="r", refresh_raises=RefreshError("invalid_grant"))
+            with mock.patch.dict(sys.modules, google_stubs(dead, calls)):
+                with self.assertRaises(RefreshError):
+                    gsc_query.load_credentials(Path(d, "client_secret.json"), token,
+                                               interactive=False)
+        self.assertEqual(calls, ["loaded token"])
+
+
+def google_auth_installed():
+    try:
+        import google.oauth2.credentials  # noqa: F401
+        import google_auth_oauthlib.flow  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+@unittest.skipUnless(google_auth_installed(), "needs the skill's requirements (CI installs them)")
+class ReconnectWithTheRealLibrary(unittest.TestCase):
+    """The stubs above choose the exception themselves. Here google-auth's own Credentials
+    refreshes against a token endpoint that answers as Google does for a dead sign-in
+    (400, invalid_grant), so the test fails if the library reports that as anything the
+    fallback does not catch. Only the network and the browser are replaced."""
+
+    def test_invalid_grant_from_the_token_endpoint_leads_to_a_new_sign_in(self):
+        from google.oauth2.credentials import Credentials
+        import google.auth.transport.requests as transport
+        import google_auth_oauthlib.flow as oauth_flow
+
+        posts = []
+
+        class TokenEndpoint:  # stands in for google.auth.transport.requests.Request
+            def __call__(self, url, method="GET", body=None, headers=None, **kwargs):
+                posts.append((method, url, body))
+                return types.SimpleNamespace(
+                    status=400, headers={"content-type": "application/json"},
+                    data=b'{"error": "invalid_grant", "error_description": "Token has been expired or revoked."}')
+
+        fresh = Credentials(token="new-access", refresh_token="new-refresh",
+                            token_uri="https://oauth2.googleapis.com/token",
+                            client_id="id", client_secret="secret", scopes=gsc_query.SCOPES)
+        flows = []
+
+        def from_client_secrets_file(path, scopes):
+            flows.append(path)
+            return types.SimpleNamespace(run_local_server=lambda port: fresh)
+
+        with tempfile.TemporaryDirectory() as d:
+            token = Path(d, "token.json")
+            token.write_text(json.dumps({
+                "token": "old-access", "refresh_token": "old-refresh",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "client_id": "id", "client_secret": "secret",
+                "scopes": gsc_query.SCOPES, "expiry": "2020-01-01T00:00:00Z"}))
+            secret = Path(d, "client_secret.json")
+            secret.write_text("{}")
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token", str(token),
+                    "--client-secret", str(secret)]
+            err = io.StringIO()
+            with mock.patch.object(transport, "Request", TokenEndpoint), \
+                    mock.patch.object(oauth_flow.InstalledAppFlow, "from_client_secrets_file",
+                                      staticmethod(from_client_secrets_file)), \
+                    mock.patch.object(sys, "argv", argv), \
+                    mock.patch.object(gsc_query, "build_service", side_effect=lambda c: sys.exit(9)), \
+                    contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+            saved = json.loads(token.read_text())
+        self.assertEqual(cm.exception.code, 9, err.getvalue())
+        # The refresh really went to the token endpoint, as a refresh of the old token.
+        self.assertEqual(len(posts), 1)
+        method, url, body = posts[0]
+        body = body.decode() if isinstance(body, bytes) else body
+        self.assertEqual((method, url), ("POST", "https://oauth2.googleapis.com/token"))
+        self.assertIn("grant_type=refresh_token", body)
+        self.assertIn("refresh_token=old-refresh", body)
+        self.assertEqual(flows, [str(secret)])
+        self.assertEqual(saved["refresh_token"], "new-refresh")  # next week's run can refresh
+        self.assertIn("Google refused the saved Search Console sign-in; opening the browser", err.getvalue())
 
 
 class DefaultClientFile(unittest.TestCase):
