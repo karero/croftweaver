@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Guard: every file under skills/new-website/templates/astro/ must be accounted for in
-# exactly one bucket — TEMPLATE_TRACKED (drift-tracked via TESTS-VERSION), SITE_OWNED
+# Guard: every file under skills/new-website/templates/ (the astro overlay, the root
+# templates beside it and templates/claude/) must be accounted for in exactly one bucket — TEMPLATE_TRACKED (drift-tracked via TESTS-VERSION), SITE_OWNED
 # (deliberately not tracked — sites hand-edit it), or SITE_SOURCE (below — becomes the
 # site's own application content at scaffold time, or never ships to a site at all).
 # TEMPLATE_TRACKED and SITE_OWNED are extracted straight out of scripts/whats-new.sh
@@ -11,7 +11,8 @@ set -uo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 
 WN="scripts/whats-new.sh"
-TEMPLATE_ASTRO_DIR="skills/new-website/templates/astro"
+TEMPLATES_DIR="skills/new-website/templates"
+TEMPLATE_ASTRO_DIR="$TEMPLATES_DIR/astro"
 
 [ -f "$WN" ] || { echo "FAIL — $WN not found; can't extract TEMPLATE_TRACKED/SITE_OWNED."; exit 1; }
 
@@ -102,6 +103,13 @@ if ! in_bucket "$TEMPLATE_ASTRO_DIR/package.json" "$SITE_OWNED"; then
   echo "trusting the scan."
   exit 1
 fi
+# A root template must not count as covered by the astro/ entries beside it.
+if in_bucket "$TEMPLATES_DIR/astro" "$TEMPLATE_TRACKED $SITE_OWNED $SITE_SOURCE" \
+   || in_bucket "$TEMPLATES_DIR/new-root-file.md" "$TEMPLATE_TRACKED $SITE_OWNED $SITE_SOURCE"; then
+  echo "FAIL — self-test: in_bucket matched a root template path that no bucket names."
+  echo "Fix the matcher before trusting the scan."
+  exit 1
+fi
 if in_bucket "$TEMPLATE_ASTRO_DIR/definitely-not-a-real-file.txt" "$TEMPLATE_TRACKED $SITE_OWNED $SITE_SOURCE"; then
   echo "FAIL — self-test: in_bucket matched a file that is in none of the bucket lists."
   echo "Fix the matcher before trusting the scan."
@@ -137,6 +145,7 @@ if ! has_case_arm "skills/new-website/templates/astro/tests" \
 fi
 
 [ -d "$TEMPLATE_ASTRO_DIR" ] || { echo "FAIL — $TEMPLATE_ASTRO_DIR does not exist; the template moved."; exit 1; }
+[ -d "$TEMPLATES_DIR/claude" ] || { echo "FAIL — $TEMPLATES_DIR/claude does not exist; the template moved."; exit 1; }
 
 # Reverse validation — coverage is otherwise only one-way (every discovered file must
 # hit a bucket), which would silently let a stale/misspelled bucket entry (pointing at
@@ -178,16 +187,16 @@ fi
 # Captured via command substitution (not process substitution) so find's own exit
 # status is checkable via PIPESTATUS — a mid-scan find error must not leave FILES
 # looking like a complete, trustworthy listing.
-find_output="$(find "$TEMPLATE_ASTRO_DIR" \( -type f -o -type l \) ! -name .DS_Store | sort)"
+find_output="$(find "$TEMPLATES_DIR" \( -type f -o -type l \) ! -name .DS_Store | sort)"
 find_rc="${PIPESTATUS[0]}"
 if [ "$find_rc" -ne 0 ]; then
-  echo "FAIL — find exited $find_rc scanning $TEMPLATE_ASTRO_DIR; the file listing is unreliable."
+  echo "FAIL — find exited $find_rc scanning $TEMPLATES_DIR; the file listing is unreliable."
   exit 1
 fi
 FILES=()
 while IFS= read -r f; do [ -n "$f" ] && FILES+=("$f"); done <<< "$find_output"
 if [ "${#FILES[@]}" -lt 1 ]; then
-  echo "FAIL — no files found under $TEMPLATE_ASTRO_DIR; find/path broke or the dir moved."
+  echo "FAIL — no files found under $TEMPLATES_DIR; find/path broke or the dir moved."
   exit 1
 fi
 
@@ -208,7 +217,7 @@ done
 fail=0
 if [ "${#unaccounted[@]}" -gt 0 ]; then
   fail=1
-  echo "FAIL — ${#unaccounted[@]} file(s) under $TEMPLATE_ASTRO_DIR are in no bucket:"
+  echo "FAIL — ${#unaccounted[@]} file(s) under $TEMPLATES_DIR are in no bucket:"
   printf '    %s\n' "${unaccounted[@]}"
   echo "Pick one: add it to TEMPLATE_TRACKED or SITE_OWNED in $WN (with its in-site path"
   echo "mapping in process_tests_stamp's switch, per TEMPLATE_TRACKED, if you add it there),"
@@ -216,7 +225,7 @@ if [ "${#unaccounted[@]}" -gt 0 ]; then
 fi
 if [ "${#ambiguous[@]}" -gt 0 ]; then
   fail=1
-  echo "FAIL — ${#ambiguous[@]} file(s) under $TEMPLATE_ASTRO_DIR are in more than one bucket:"
+  echo "FAIL — ${#ambiguous[@]} file(s) under $TEMPLATES_DIR are in more than one bucket:"
   printf '    %s\n' "${ambiguous[@]}"
   echo "Each file must be in exactly one of TEMPLATE_TRACKED, SITE_OWNED, SITE_SOURCE."
 fi
@@ -224,4 +233,4 @@ fi
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
-echo "OK — all ${#FILES[@]} files under $TEMPLATE_ASTRO_DIR are accounted for (TEMPLATE_TRACKED, SITE_OWNED, or SITE_SOURCE)."
+echo "OK — all ${#FILES[@]} files under $TEMPLATES_DIR are accounted for (TEMPLATE_TRACKED, SITE_OWNED, or SITE_SOURCE)."

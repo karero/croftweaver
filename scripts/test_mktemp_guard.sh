@@ -44,6 +44,7 @@ SCRIPTS=(
   scripts/test_install_pin.sh
   scripts/test_package_leak.sh
   scripts/test_pre_push_hook.sh
+  scripts/test_template_coverage.sh
   scripts/test_whats_new_removed_skill.sh
   skills/independent-review/scripts/check_prompt_sync.sh
   skills/independent-review/scripts/test_failed_tier_report.sh

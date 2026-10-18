@@ -73,16 +73,17 @@ write_stamp() {  # $1 = skills dir
 
 # Upstream template files that scaffolded sites carry as FROZEN copies (tests/*,
 # CONTENT_GUIDE.md, playwright.config.ts, and the root/infra files below). Tracked via
-# TESTS-VERSION; never auto-refreshed. Every file under templates/astro/ must land in
+# TESTS-VERSION; never auto-refreshed. Every file under templates/ must land in
 # exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
 # scripts/check_template_coverage.sh enforces that so a new template file can no longer
 # go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/PUBLISHING.md skills/new-website/templates/SETUP.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/functions/go/email.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs'
-# The guard scans templates/astro/ only, so the root templates beside it are added here
-# by hand and nothing checks the choice. AGENTS.md, PUBLISHING.md and SETUP.md are
-# tracked because a site's assistants follow them or its skills point into them:
-# PUBLISHING.md's "For AI assistants" section holds the deploy rules, and website-qa and
-# website-team-setup cite SETUP.md. The other root templates have no recorded decision yet.
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/PUBLISHING.md skills/new-website/templates/SETUP.md skills/new-website/templates/CLAUDE.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/functions/go/email.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs'
+# The root templates beside templates/astro/ and the files under templates/claude/ are
+# scanned by the guard too. AGENTS.md, CLAUDE.md, PUBLISHING.md and SETUP.md are tracked
+# because a site's assistants follow them or its skills point into them: PUBLISHING.md's
+# "For AI assistants" section holds the deploy rules, CLAUDE.md points Claude Code at
+# AGENTS.md, and website-qa and website-team-setup cite SETUP.md. .gitignore, brand.md and
+# positioning.md are SITE_OWNED (below).
 
 # Upstream template files that scaffolded sites are EXPECTED to hand-edit — deliberately NOT
 # drift-tracked, for two different reasons:
@@ -95,10 +96,13 @@ TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/te
 #    per-page translated title/subtitle text) are hand-edited by construction — every
 #    customized site's copy diverges from upstream immediately, so tracking it would fire on
 #    every site, every time, which is the same noise problem as the dep-bump case above.
+#  - per-site DOCS and settings: templates/brand.md and templates/positioning.md are blanks the
+#    site fills in as BRAND.md and POSITIONING.md, and templates/.gitignore is the site's first
+#    commit, which it adds to as it goes (the owner's decision, 2026-10-18).
 # This list changes no runtime reporting behavior on its own (nothing above reads it) — it
 # exists purely so scripts/check_template_coverage.sh has a machine-readable record of the
 # decision instead of a silent gap it would otherwise flag as unaccounted-for.
-SITE_OWNED='skills/new-website/templates/astro/astro.config.mjs skills/new-website/templates/astro/package.json skills/new-website/templates/astro/scripts/generate_og_cards.py'
+SITE_OWNED='skills/new-website/templates/astro/astro.config.mjs skills/new-website/templates/astro/package.json skills/new-website/templates/astro/scripts/generate_og_cards.py skills/new-website/templates/.gitignore skills/new-website/templates/brand.md skills/new-website/templates/positioning.md'
 
 write_tests_stamp() {  # $1 = tests dir
   printf 'suite_commit: %s\ncopied: %s\n' \
@@ -331,6 +335,7 @@ site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, o
   case "$1" in
     skills/new-website/templates/content-guide.md) echo "CONTENT_GUIDE.md" ;;
     skills/new-website/templates/AGENTS.md) echo "AGENTS.md" ;;
+    skills/new-website/templates/CLAUDE.md) echo "CLAUDE.md" ;;
     skills/new-website/templates/SETUP.md) echo "SETUP.md" ;;
     skills/new-website/templates/astro/*) echo "${1#skills/new-website/templates/astro/}" ;;
     skills/new-website/templates/claude/*) echo ".claude/${1#skills/new-website/templates/claude/}" ;;
@@ -378,6 +383,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  templates/AGENTS.md (site copy: AGENTS.md — rules the assistants execute; merge by hand, the site's copy carries filled slots and §5)" ;;
       skills/new-website/templates/PUBLISHING.md)
         echo "  templates/PUBLISHING.md (site copy: PUBLISHING.md, or the owner's translation — deploy rules the assistants execute; merge by hand, keeping its \"For AI assistants\" section)" ;;
+      skills/new-website/templates/CLAUDE.md)
+        echo "  templates/CLAUDE.md (site copy: CLAUDE.md — the line that has Claude Code read AGENTS.md; copied unchanged at scaffold, so unless the site edited it, take the new version)" ;;
       skills/new-website/templates/SETUP.md)
         echo "  templates/SETUP.md (site copy: SETUP.md — setup steps the site's skills point into; copied unchanged at scaffold, so unless the site edited it, take the new version)" ;;
       skills/new-website/templates/astro/playwright.config.ts)

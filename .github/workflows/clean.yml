@@ -6,7 +6,7 @@ name: clean
 # status a large enough input flips (see scripts/check_pipefail_pipes.sh), if a concrete model name/tag creeps into
 # independent-review's pipeline files — that skill is model-agnostic and lets the
 # owner's own CLI config/signin choose the models (see scripts/check_model_agnostic.sh),
-# if a new file under the astro template overlay isn't accounted for in any of
+# if a new file under the new-website templates isn't accounted for in any of
 # whats-new.sh's TEMPLATE_TRACKED/SITE_OWNED buckets or check_template_coverage.sh's own
 # SITE_SOURCE bucket (see scripts/check_template_coverage.sh) — landing in SITE_SOURCE is
 # a deliberate, reviewed "not drift-tracked" decision, not a pass-through for anything
@@ -146,8 +146,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Check every astro template file is accounted for (TEMPLATE_TRACKED/SITE_OWNED/SITE_SOURCE)
+      - name: Check every template file is accounted for (TEMPLATE_TRACKED/SITE_OWNED/SITE_SOURCE)
         run: bash scripts/check_template_coverage.sh
+      - name: Check the guard fails on a template file left out of every bucket
+        run: bash scripts/test_template_coverage.sh
   skill-budgets:
     runs-on: ubuntu-latest
     steps:
