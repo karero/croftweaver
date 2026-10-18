@@ -150,14 +150,20 @@ def page_form(ask: str) -> str:
     path as ask_of gives it, each escape's hex digits uppercased, the closing slash dropped, the
     query kept. Nothing is decoded, so "/a%2Fb" and "/a/b" stay two pages."""
     path, q, query = ask.partition("?")
-    return (upper_escapes(path).rstrip("/") or "/") + q + query
+    return (upper_escapes(path).rstrip("/") or "/") + q + upper_escapes(query)
+
+
+def escaped(p: urllib.parse.SplitResult) -> str:
+    """Path and query of a split address, escaped one way wherever the scripts write or compare
+    a new address: raw characters escaped, existing escapes kept."""
+    query = urllib.parse.quote(p.query, safe=SAFE_PATH + "=?") if p.query else ""
+    return urllib.parse.quote(p.path or "/", safe=SAFE_PATH) + ("?" + query if query else "")
 
 
 def absolute_form(url: str) -> str:
     """An address on another host, in page_form's spirit: scheme and host in lower case."""
     p = urllib.parse.urlsplit(url)
-    ask = urllib.parse.quote(p.path or "/", safe=SAFE_PATH) + ("?" + p.query if p.query else "")
-    return "%s://%s%s" % (p.scheme.lower(), p.netloc.lower(), page_form(ask))
+    return "%s://%s%s" % (p.scheme.lower(), p.netloc.lower(), page_form(escaped(p)))
 
 
 class Decision(NamedTuple):
@@ -229,8 +235,7 @@ def decide(new: str, old_host: str, site_host: str) -> Decision:
         return Decision("not understood", note="* and : have a meaning in _redirects")
     if p.username is not None or p.password is not None:
         return Decision("not understood", note="a name or password in the address")
-    query = urllib.parse.quote(p.query, safe=SAFE_PATH + "=?") if p.query else ""
-    path = upper_escapes(urllib.parse.quote(p.path or "/", safe=SAFE_PATH) + ("?" + query if query else ""))
+    path = upper_escapes(escaped(p))
     if absolute:
         return Decision("off", "%s://%s%s" % (p.scheme.lower(), p.netloc.lower(), path))
     return Decision("move", path)
@@ -258,7 +263,8 @@ def gather(rows: List[Tuple[int, str, str]], old_host: str, site_host: str,
     unlisted: List[str] = []
     for line, old, new in rows:
         try:
-            ask = ask_of(old, old_host)
+            # a line break or tab inside the cell would be dropped by urlsplit: "/a\nb" is not "/ab"
+            ask = None if any(ord(c) < 32 or ord(c) == 127 for c in old) else ask_of(old, old_host)
         except ValueError:                                # "http://[::1" and the like
             ask = None
         page = page_form(ask) if ask is not None else None
@@ -269,7 +275,7 @@ def gather(rows: List[Tuple[int, str, str]], old_host: str, site_host: str,
                 first[page] = (line, old, new)
             continue
         d = decide(new, old_host, site_host)
-        if page in first and decisions[page].kind != "not in the address list":
+        if page in first:                                 # a listed page: never "not in the address list"
             if same_decision(decisions[page], page) != same_decision(d, page):
                 l0, old0, new0 = first[page]
                 raise ValueError("one page, two different decisions: %s (row %s) says %r, %s (row %s) says %r"
@@ -288,6 +294,11 @@ def resolve(decisions: Dict[str, Decision]) -> Dict[str, Decision]:
         here, d, seen = page, decisions[page], [page]
         while d.kind == "move":
             nxt = page_form(d.target)
+            bare = page_form(d.target.split("?")[0])
+            if "?" in d.target and bare != here and bare in decisions and same_decision(decisions[bare], bare) != ("keep",):
+                # _redirects matches a path whatever its query (measured), so /a -> /b?x walks into /b's rule
+                d = Decision("chain", note="points at %s, whose path %s has its own decision" % (d.target, bare))
+                break
             if nxt == here or nxt not in decisions:
                 break                                     # the same page, or a page of the new site
             nd = decisions[nxt]
@@ -305,16 +316,16 @@ def resolve(decisions: Dict[str, Decision]) -> Dict[str, Decision]:
     return out
 
 
-def expectations(moves_file: str, old_host: str, site_host: str) -> Dict[str, Decision]:
+def expectations(moves_file: str, old_host: str, site_host: str) -> Tuple[Dict[str, Decision], List[str]]:
     """{page_form of an old page: its decision, chains followed}. Raises ValueError for a sheet
     that cannot be read, one page with two decisions, or a loop: make_redirects.py stops on
     those too, so no check can rest on them."""
-    decisions, _, _ = gather(read_moves(moves_file), old_host, site_host)
+    decisions, _, unread = gather(read_moves(moves_file), old_host, site_host)
     final = resolve(decisions)
     loops = sorted({d.note for d in final.values() if d.kind == "loop"})
     if loops:
         raise ValueError("moves.csv has a loop: %s" % "; ".join(loops))
-    return final
+    return final, [u.split(": add it")[0] for u in unread]
 
 
 def observed(url: str, origin: Tuple[str, str, int]) -> str:
@@ -322,8 +333,7 @@ def observed(url: str, origin: Tuple[str, str, int]) -> str:
     site's own origin (another port too) keeps its full address."""
     if not wi.web_address(url) or wi.origin_of(url) != origin:
         return absolute_form(url)
-    p = urllib.parse.urlsplit(url)
-    return page_form(urllib.parse.quote(p.path or "/", safe=SAFE_PATH) + ("?" + p.query if p.query else ""))
+    return page_form(escaped(urllib.parse.urlsplit(url)))
 
 
 def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay: float, timeout: float,
@@ -334,19 +344,23 @@ def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay:
         let_go_raw = read_addresses(let_go_file) if let_go_file else []
     except (OSError, UnicodeDecodeError, StopIteration, csv.Error) as e:
         return None, "cannot read the address list (%s)" % (e if str(e) else type(e).__name__)
-    old_host, todo, elsewhere = split_old(addresses)
+    try:
+        old_host, todo, elsewhere = split_old(addresses)
+        let_go = {key_of(a) for a in (ask_of(x, old_host) for x in let_go_raw) if a is not None}
+    except ValueError as e:                               # "http://[::1" and the like
+        return None, "an address cannot be read (%s)" % e
     if not todo:
         return None, "no addresses to check in %s" % addresses_file
-    let_go = {key_of(a) for a in (ask_of(x, old_host) for x in let_go_raw) if a is not None}
 
     if not wi.web_address(new_site):
         return None, "not a web address: %s" % new_site
     if site is not None and not wi.web_address(site):
         return None, "--site is not a web address: %s" % site
     expected: Optional[Dict[str, Decision]] = None
+    unread: List[str] = []
     if moves_file:
         try:
-            expected = expectations(moves_file, old_host, urllib.parse.urlsplit(site or new_site).hostname or "")
+            expected, unread = expectations(moves_file, old_host, urllib.parse.urlsplit(site or new_site).hostname or "")
         except ValueError as e:
             return None, str(e)
     p = urllib.parse.urlsplit(new_site)
@@ -423,7 +437,7 @@ def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay:
     order = ORDER + (("not as decided",) if expected is not None else ())
     return {
         "new_site": base + "/", "old_host": old_host, "moved": moved, "checked": len(rows), "rows": rows,
-        "counts": {k: counts.get(k, 0) for k in order}, "order": order, "moves": expected is not None,
+        "counts": {k: counts.get(k, 0) for k in order}, "order": order, "moves": expected is not None, "unread": unread,
         "elsewhere": elsewhere,
         "temporary": sum(1 for r in rows if r["temporary_redirect"]),
         "findings": sum(counts.get(k, 0) for k in FINDINGS), "requests": fetcher.count, "cap_hit": fetcher.cap_hit,
@@ -477,6 +491,11 @@ def render(d: dict, list_limit: int = 200) -> str:
         L.extend("- %s → %s" % (md(r["old_address"], 300), md(r["ends_at"], 300)) for r in off[:list_limit])
         if len(off) > list_limit:
             add("- … and %s more, all in move-check.csv" % (len(off) - list_limit))
+    if d.get("unread"):
+        add("")
+        add("## Rows of moves.csv that name no address it can read (%s)" % len(d["unread"]))
+        add("")
+        L.extend("- %s" % md(u, 300) for u in d["unread"][:list_limit])
     if d["elsewhere"]:
         add("")
         add("## On another host, not checked (%s)" % len(d["elsewhere"]))

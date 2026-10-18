@@ -292,6 +292,13 @@ class Chains(Case):
         self.assertEqual((code, self.f.lines()), (1, []))
         self.assertIn("chain: %s/a/ points at /typo" % OLD, out)
 
+    def test_a_loop_closed_through_a_query_is_a_finding(self):
+        # _redirects matches /b whatever the query, so /a -> /b?x and /b -> /a would loop
+        code, out, _ = self.f.write([(OLD + "/a/", "/b?x=1"), (OLD + "/b/", "/a")])
+        self.assertEqual(code, 1)
+        self.assertEqual(self.f.lines(), [])
+        self.assertIn("chain: %s/a/ points at /b?x=1" % OLD, out)
+
     def test_a_chain_through_a_page_moved_to_itself_ends_there(self):
         code, out, _ = self.f.write([(OLD + "/a/", "/b"), (OLD + "/b", "/b/")])
         self.assertEqual(code, 0)
@@ -362,6 +369,11 @@ class Findings(Case):
         code, out, _ = self.f.write([(OLD + "/a/", "/con\ntact")])
         self.assertEqual((code, self.f.lines()), (1, []))
         self.assertIn("not understood", out)
+
+    def test_a_line_break_inside_an_old_address_matches_no_page(self):
+        code, out, _ = self.f.write([(OLD + "/a\nb/", "/contact")], [OLD + "/ab/"])
+        self.assertEqual((code, self.f.lines()), (1, []))
+        self.assertIn("not in the address list: ", out)
 
     def test_a_name_or_password_in_a_destination_is_not_understood(self):
         code, _, _ = self.f.write([(OLD + "/a/", "https://user:pw" + chr(64) + "shop.example/x")])  # no literal at sign: check_clean

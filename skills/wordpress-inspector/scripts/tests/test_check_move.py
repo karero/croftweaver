@@ -457,8 +457,8 @@ class Moves(unittest.TestCase):
 
     def test_a_redirect_to_another_port_is_not_the_decided_page(self):
         site = NewSite()
-        site.redirects["/x/"] = (301, "https://new.example:8443/about")
-        with serve(site):
+        with serve(site):                                 # same scheme and host, another port
+            site.redirects["/x/"] = (301, "http://127.0.0.1:%d/about/" % (site.port + 1 if site.port < 65535 else 1))
             code, rows, _, _ = run_moves([OLD + "/x/"], site.base(), [(OLD + "/x/", "/about")])
         self.assertEqual((code, rows[OLD + "/x/"]["result"]), (1, "not as decided"))
 
@@ -487,6 +487,26 @@ class Moves(unittest.TestCase):
             code, _, _, err = run_moves([OLD + "/about/"], site.base(), [(OLD + "/about/", "keep")], ("--site", "acme"))
         self.assertEqual(code, 2)
         self.assertIn("--site", err)
+
+    def test_a_query_compares_in_one_escaped_form(self):
+        site = NewSite()
+        site.redirects["/alt/"] = (301, "/about/?q=%c3%bcber")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/alt/"], site.base(), [(OLD + "/alt/", "/about?q=über")])
+        self.assertEqual((code, rows[OLD + "/alt/"]["result"]), (0, "redirected"))
+
+    def test_rows_naming_no_readable_address_are_listed(self):
+        with serve() as site:
+            code, _, report, _ = run_moves([OLD + "/about/"], site.base(),
+                                           [(OLD + "/about/", "keep"), ("http://[::1", "/x")])
+        self.assertEqual(code, 0)
+        self.assertIn("## Rows of moves.csv that name no address it can read (1)", report)
+
+    def test_an_address_list_with_an_address_that_cannot_be_parsed_stops_the_run(self):
+        with serve() as site:
+            code, rows, _, err = run([OLD + "/about/", "http://[::1"], site.base())
+        self.assertEqual((code, rows), (2, None))
+        self.assertIn("cannot be read", err)
 
     def test_a_sheet_that_cannot_be_read_stops_the_run(self):
         with serve() as site, tempfile.TemporaryDirectory() as tmp:
