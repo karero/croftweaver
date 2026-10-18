@@ -35,11 +35,32 @@ RAN_ANYWAY = "for another AI check run, then ran anyway"
 UNUSABLE = "could not use the lock that keeps AI checks one at a time"
 
 
+def start(cmd, **kw):
+    """Start a child in a process group of its own, so that stop() can end all it started."""
+    return subprocess.Popen(cmd, start_new_session=True, **kw)
+
+
 def stop(proc):
-    """A test's cleanup: end a child it started, and reap it."""
-    if proc.poll() is None:
-        proc.kill()
+    """A test's cleanup: end a child it started and everything that child started, and reap it.
+    Killing only track.sh's shell would leave its geo_check.py running when a test fails, still
+    holding the lock or calling the stub. The kill is sent only while the group still exists: the
+    child is not reaped, so its pid is still taken, or ps still finds a running member. A group
+    that ended in between could reach a stranger's only if its pid were handed out again in that
+    moment, which takes the system's whole pid range."""
+    if proc.returncode is None or live_in_group(proc.pid):
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
     proc.wait()
+
+
+def live_in_group(pgid):
+    """The pids of the processes in a group that are still running (a zombie has already ended)."""
+    ps = subprocess.run(["ps", "-A", "-o", "pid=,pgid=,stat="], capture_output=True, text=True,
+                        check=True).stdout
+    return [int(pid) for pid, group, stat in (line.split()[:3] for line in ps.splitlines())
+            if int(group) == pgid and not stat.startswith("Z")]
 
 
 class AiCheckLock(unittest.TestCase):
@@ -122,8 +143,8 @@ class AiCheckLock(unittest.TestCase):
         procs = {}
         for d in SITES:
             with open(logs[d], "w") as out:
-                procs[d] = subprocess.Popen(self.track_cmd(d), env=self.env, stdout=out,
-                                            stderr=subprocess.STDOUT)
+                procs[d] = start(self.track_cmd(d), env=self.env, stdout=out,
+                                 stderr=subprocess.STDOUT)
             self.addCleanup(stop, procs[d])
         deadline = time.monotonic() + 30
         while not any(WAITING in f.read_text() for f in logs.values()) and time.monotonic() < deadline:
@@ -158,7 +179,7 @@ class AiCheckLock(unittest.TestCase):
         d = next(iter(SITES))
         self.set_up_site(d)
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        child = subprocess.Popen(
+        child = start(
             [sys.executable, "-c", "import fcntl, sys, time; f = open(sys.argv[1], 'a'); "
              "fcntl.flock(f, fcntl.LOCK_EX); print('locked', flush=True); time.sleep(120)",
              str(self.lock_path)], stdout=subprocess.PIPE, text=True)
@@ -219,8 +240,8 @@ class AiCheckLock(unittest.TestCase):
         holder = self.hold_lock()
         log = self.home / "site.log"
         with open(log, "w") as out:
-            proc = subprocess.Popen(self.track_cmd(d), env={**self.env, "GEO_LOCK_WAIT": "60"},
-                                    stdout=out, stderr=subprocess.STDOUT)
+            proc = start(self.track_cmd(d), env={**self.env, "GEO_LOCK_WAIT": "60"},
+                         stdout=out, stderr=subprocess.STDOUT)
         self.addCleanup(stop, proc)
         deadline = time.monotonic() + 20
         while WAITING not in log.read_text() and time.monotonic() < deadline and proc.poll() is None:
@@ -234,6 +255,42 @@ class AiCheckLock(unittest.TestCase):
         self.assertIn("… waited", text)
         self.assertNotIn(RAN_ANYWAY, text)
         self.assertTrue(self.engine_spans(d))
+
+    def test_a_failing_tests_cleanup_ends_the_whole_run(self):
+        """stop() is what a failing test leaves behind it. It must end geo_check.py as well as the
+        track.sh shell that started it, or the AI check lives on, holding the lock or calling
+        the stub while the next test runs."""
+        d = next(iter(SITES))
+        self.set_up_site(d)
+        self.hold_lock()
+        log = self.home / "site.log"
+        with open(log, "w") as out:
+            proc = start(self.track_cmd(d), env={**self.env, "GEO_LOCK_WAIT": "60"},
+                         stdout=out, stderr=subprocess.STDOUT)
+        self.addCleanup(stop, proc)
+        deadline = time.monotonic() + 20
+        while WAITING not in log.read_text() and time.monotonic() < deadline and proc.poll() is None:
+            time.sleep(0.1)
+        self.assertIn(WAITING, log.read_text(), "geo_check.py never reached the lock")
+        self.assertGreater(len(live_in_group(proc.pid)), 1, "only the shell is running")
+        stop(proc)
+        deadline = time.monotonic() + 10
+        while live_in_group(proc.pid) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        self.assertEqual(live_in_group(proc.pid), [], "a process the run started is still running")
+
+    def test_cleanup_after_the_test_reaped_the_child_still_ends_its_group(self):
+        """T1 and T6 wait for or poll their run before cleanup does; anything it left running
+        must still be ended."""
+        proc = start(["/bin/bash", "-c", "sleep 60 & exit 0"])
+        self.addCleanup(stop, proc)
+        proc.wait(timeout=10)
+        self.assertEqual(len(live_in_group(proc.pid)), 1, "the shell left nothing running")
+        stop(proc)
+        deadline = time.monotonic() + 10
+        while live_in_group(proc.pid) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        self.assertEqual(live_in_group(proc.pid), [], "a process the run started is still running")
 
 
 if __name__ == "__main__":
