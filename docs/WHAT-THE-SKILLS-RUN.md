@@ -171,7 +171,8 @@ an "Email Tap" event there, as a click on an email address does.
   sitemap and compares facts across them. It edits nothing.
 - **`wordpress-inspector`** runs `wp_inventory.py` and `check_move.py`, which read a
   WordPress site's public pages, its public `wp-json` data and its sitemaps. They need no
-  sign-in.
+  sign-in. Its `make_redirects.py` reads only local files and writes the new site's
+  `public/_redirects`.
 - **`outgoing-link-audit`** runs `scripts/check_external_links.sh`, which builds the site
   if needed and then requests every outside link on it with `curl`.
 - **`search-console-insights`** (optional) builds a Python environment in
