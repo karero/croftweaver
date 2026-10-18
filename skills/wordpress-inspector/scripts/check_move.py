@@ -108,7 +108,11 @@ def _bare(host: str) -> str:
 
 def ask_of(address: str, old_host: str) -> Optional[str]:
     """The path (and query) to ask the new site for, or None for an address on another host.
-    A line without a host ("/about/") is a path on the old site."""
+    A line without a host ("/about/") is a path on the old site. An address with a control
+    character raises ValueError: urlsplit would drop a tab or line break, and "/a<tab>b" is not
+    "/ab". Every address both scripts read comes through here."""
+    if any(ord(c) < 32 or ord(c) == 127 for c in address):
+        raise ValueError("a control character (a tab or line break) in %r" % address)
     p = urllib.parse.urlsplit(address if "://" in address else "//" + old_host + "/" + address.lstrip("/"))
     if _bare(p.hostname or "") != old_host:
         return None
@@ -263,9 +267,8 @@ def gather(rows: List[Tuple[int, str, str]], old_host: str, site_host: str,
     unlisted: List[str] = []
     for line, old, new in rows:
         try:
-            # a line break or tab inside the cell would be dropped by urlsplit: "/a\nb" is not "/ab"
-            ask = None if any(ord(c) < 32 or ord(c) == 127 for c in old) else ask_of(old, old_host)
-        except ValueError:                                # "http://[::1" and the like
+            ask = ask_of(old, old_host)
+        except ValueError:                                # "http://[::1", a tab or a line break
             ask = None
         page = page_form(ask) if ask is not None else None
         if page is None or (listed is not None and page not in listed):
@@ -296,7 +299,10 @@ def resolve(decisions: Dict[str, Decision]) -> Dict[str, Decision]:
             nxt = page_form(d.target)
             bare = page_form(d.target.split("?")[0])
             if "?" in d.target and bare != here and bare in decisions and same_decision(decisions[bare], bare) != ("keep",):
-                # _redirects matches a path whatever its query (measured), so /a -> /b?x walks into /b's rule
+                # _redirects matches a path whatever its query and passes the query on (measured on a
+                # live kit site, 2026-10-18: a rule for /a/ answered /a/?x=1 with 301 to /b?x=1), so
+                # /a -> /b?x walks into /b's rule. Strict on purpose: such a row is a finding even
+                # when /b's rule would end well, since where the query lands is not checked.
                 d = Decision("chain", note="points at %s, whose path %s has its own decision" % (d.target, bare))
                 break
             if nxt == here or nxt not in decisions:
@@ -317,9 +323,9 @@ def resolve(decisions: Dict[str, Decision]) -> Dict[str, Decision]:
 
 
 def expectations(moves_file: str, old_host: str, site_host: str) -> Tuple[Dict[str, Decision], List[str]]:
-    """{page_form of an old page: its decision, chains followed}. Raises ValueError for a sheet
-    that cannot be read, one page with two decisions, or a loop: make_redirects.py stops on
-    those too, so no check can rest on them."""
+    """({page_form of an old page: its decision, chains followed}, the rows that name no address
+    it can read). Raises ValueError for a sheet that cannot be read, one page with two decisions,
+    or a loop: make_redirects.py stops on those too, so no check can rest on them."""
     decisions, _, unread = gather(read_moves(moves_file), old_host, site_host)
     final = resolve(decisions)
     loops = sorted({d.note for d in final.values() if d.kind == "loop"})
@@ -496,6 +502,8 @@ def render(d: dict, list_limit: int = 200) -> str:
         add("## Rows of moves.csv that name no address it can read (%s)" % len(d["unread"]))
         add("")
         L.extend("- %s" % md(u, 300) for u in d["unread"][:list_limit])
+        if len(d["unread"]) > list_limit:
+            add("- … and %s more" % (len(d["unread"]) - list_limit))
     if d["elsewhere"]:
         add("")
         add("## On another host, not checked (%s)" % len(d["elsewhere"]))

@@ -199,7 +199,8 @@ def plan(pages, rows, old_host: str, site_host: str):
             continue
         target_path = d.target.split("?")[0]
         if d.kind == "move" and "?" in d.target and cm.page_form(target_path) == page:
-            # a rule matches its path whatever the query, and passes the query on (measured: /a/?x=1 -> /b?x=1)
+            # a rule matches its path whatever the query, and passes the query on (measured on a live
+            # kit site, 2026-10-18: a rule for /a/ answered /a/?x=1 with 301 to /b?x=1)
             findings["cannot be written"].append("%s: %s would send it to itself, since _redirects does not read the query"
                                                  % (old, d.target))
             continue

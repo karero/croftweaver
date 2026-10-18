@@ -375,6 +375,11 @@ class Findings(Case):
         self.assertEqual((code, self.f.lines()), (1, []))
         self.assertIn("not in the address list: ", out)
 
+    def test_a_tab_in_the_address_list_stops_the_run(self):
+        code, _, err = self.f.write([(OLD + "/ab/", "/x")], [OLD + "/a\tb/", OLD + "/ab/"])
+        self.assertEqual(code, 2)
+        self.assertIn("control character", err)
+
     def test_a_name_or_password_in_a_destination_is_not_understood(self):
         code, _, _ = self.f.write([(OLD + "/a/", "https://user:pw" + chr(64) + "shop.example/x")])  # no literal at sign: check_clean
         self.assertEqual((code, self.f.lines()), (1, []))
@@ -522,7 +527,8 @@ class Input(Case):
 
 class CroftweaverSite(BaseHTTPRequestHandler):
     """The new site as Cloudflare Pages serves a Croftweaver build, as measured on two live kit
-    sites: _redirects lines first, matched exactly (slash, letter case, escapes as written);
+    sites: _redirects lines first, matched exactly (slash, letter case, escapes as written)
+    whatever the query, which is passed on to the target;
     then pages, which live without the closing slash, "/page/" forwarded to "/page" with 308."""
 
     def log_message(self, *a):
@@ -540,9 +546,9 @@ class CroftweaverSite(BaseHTTPRequestHandler):
 
     def do_GET(self):
         site = self.server.site
-        path = urllib.parse.urlsplit(self.path).path
+        path, query = urllib.parse.urlsplit(self.path).path, urllib.parse.urlsplit(self.path).query
         if path in site["rules"]:
-            return self.answer(301, site["rules"][path])
+            return self.answer(301, site["rules"][path] + ("?" + query if query else ""))
         if path in site["pages"]:
             return self.answer(200)
         if path.endswith("/") and path.rstrip("/") in site["pages"]:

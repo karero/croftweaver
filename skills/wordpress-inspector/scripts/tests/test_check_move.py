@@ -458,7 +458,7 @@ class Moves(unittest.TestCase):
     def test_a_redirect_to_another_port_is_not_the_decided_page(self):
         site = NewSite()
         with serve(site):                                 # same scheme and host, another port
-            site.redirects["/x/"] = (301, "http://127.0.0.1:%d/about/" % (site.port + 1 if site.port < 65535 else 1))
+            site.redirects["/x/"] = (301, "http://127.0.0.1:%d/about/" % (site.port + 1))
             code, rows, _, _ = run_moves([OLD + "/x/"], site.base(), [(OLD + "/x/", "/about")])
         self.assertEqual((code, rows[OLD + "/x/"]["result"]), (1, "not as decided"))
 
@@ -502,11 +502,23 @@ class Moves(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("## Rows of moves.csv that name no address it can read (1)", report)
 
+    def test_unreadable_rows_past_200_are_counted(self):
+        with serve() as site:
+            _, _, report, _ = run_moves([OLD + "/about/"], site.base(),
+                                        [(OLD + "/about/", "keep")] + [("http://[::%d" % i, "/x") for i in range(201)])
+        self.assertIn("(201)", report)
+        self.assertIn("- … and 1 more", report)
+
     def test_an_address_list_with_an_address_that_cannot_be_parsed_stops_the_run(self):
         with serve() as site:
             code, rows, _, err = run([OLD + "/about/", "http://[::1"], site.base())
         self.assertEqual((code, rows), (2, None))
         self.assertIn("cannot be read", err)
+
+    def test_a_tab_in_the_address_list_or_let_go_list_stops_the_run(self):
+        with serve() as site:
+            self.assertEqual(run([OLD + "/about/", OLD + "/a\tb/"], site.base())[0], 2)
+            self.assertEqual(run([OLD + "/about/"], site.base(), let_go=["/gone\there/"])[0], 2)
 
     def test_a_sheet_that_cannot_be_read_stops_the_run(self):
         with serve() as site, tempfile.TemporaryDirectory() as tmp:
