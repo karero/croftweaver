@@ -92,7 +92,9 @@ def read_addresses(path: str) -> List[str]:
             col = next(c for c in reader.fieldnames if c.strip().lower() == "url")
             raw = [row.get(col) or "" for row in reader]
         else:
-            raw = fh.read().splitlines()
+            # real line ends only: splitlines() also splits on a vertical tab or form feed, which
+            # must reach ask_of and be refused, not make two addresses of one
+            raw = fh.read().replace("\r\n", "\n").replace("\r", "\n").split("\n")
     out = []
     for line in raw:
         line = cell(line)

@@ -546,9 +546,12 @@ class CroftweaverSite(BaseHTTPRequestHandler):
 
     def do_GET(self):
         site = self.server.site
-        path, query = urllib.parse.urlsplit(self.path).path, urllib.parse.urlsplit(self.path).query
-        if path in site["rules"]:
-            return self.answer(301, site["rules"][path] + ("?" + query if query else ""))
+        parts = urllib.parse.urlsplit(self.path)
+        if parts.path in site["rules"]:
+            target = site["rules"][parts.path]
+            joint = "&" if "?" in target else "?"
+            return self.answer(301, target + (joint + parts.query if parts.query else ""))
+        path = parts.path
         if path in site["pages"]:
             return self.answer(200)
         if path.endswith("/") and path.rstrip("/") in site["pages"]:

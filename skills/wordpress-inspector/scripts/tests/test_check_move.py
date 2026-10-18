@@ -10,6 +10,7 @@ import contextlib
 import csv
 import io
 import os
+import socket
 import sys
 import tempfile
 import threading
@@ -458,7 +459,10 @@ class Moves(unittest.TestCase):
     def test_a_redirect_to_another_port_is_not_the_decided_page(self):
         site = NewSite()
         with serve(site):                                 # same scheme and host, another port
-            site.redirects["/x/"] = (301, "http://127.0.0.1:%d/about/" % (site.port + 1))
+            with socket.socket() as other:               # a real port, bound and let go: nothing answers there
+                other.bind(("127.0.0.1", 0))
+                port = other.getsockname()[1]
+            site.redirects["/x/"] = (301, "http://127.0.0.1:%d/about/" % port)
             code, rows, _, _ = run_moves([OLD + "/x/"], site.base(), [(OLD + "/x/", "/about")])
         self.assertEqual((code, rows[OLD + "/x/"]["result"]), (1, "not as decided"))
 
@@ -519,6 +523,7 @@ class Moves(unittest.TestCase):
         with serve() as site:
             self.assertEqual(run([OLD + "/about/", OLD + "/a\tb/"], site.base())[0], 2)
             self.assertEqual(run([OLD + "/about/"], site.base(), let_go=["/gone\there/"])[0], 2)
+            self.assertEqual(run([OLD + "/about/", OLD + "/a\x0bb/"], site.base())[0], 2)  # a vertical tab: one address, refused
 
     def test_a_sheet_that_cannot_be_read_stops_the_run(self):
         with serve() as site, tempfile.TemporaryDirectory() as tmp:
