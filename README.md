@@ -399,9 +399,10 @@ skills/            the suite skills (canonical)
                    one number), the sitemap's addresses and where the two
                    disagree, shows signs of a page builder and forms, and says when
                    the count is incomplete; the first step before moving a site, and
-                   the basis for an estimate. After the move it asks the new site for
-                   each address the count listed and names those that are missing or
-                   were sent to the home page)
+                   the basis for an estimate. From the owner's decisions it writes
+                   the new site's redirects. After the move it asks the new site for
+                   each address the count listed and names those that are missing,
+                   were sent to the home page, or end where the decisions do not say)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
   website-story    (optional story layer — the home page as the customer's story:

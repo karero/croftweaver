@@ -10,7 +10,8 @@ listing pages the sitemap left out. Every address must end in one of these:
   kept          the new site answers at the same address
   redirected    the new site forwards it to another of its pages, and that page answers
   off the site  the new site forwards it to another host (not followed, only listed)
-  let go        the address is missing, and it is in your --let-go list: dropped on purpose
+  let go        the address is missing, and it is in your --let-go list (or let go in
+                --moves): dropped on purpose
 
 Anything else is a finding, and the run exits 1:
 
@@ -18,16 +19,19 @@ Anything else is a finding, and the run exits 1:
   sent home     a deep address is forwarded to the home page: a reader who follows an old
                 link to it lands on the front page and has to search again
   unreadable    the new site refused, was too busy, or forwards in a loop
+  not as decided  (with --moves) the address answers, but not where moves.csv sends it
 
 Read-only: it only asks the new site for pages. Standard library only (Python 3.9+).
 
 Usage:
   python3 check_move.py inventory/urls.csv https://new-site.example --out ./move-check
   python3 check_move.py old-addresses.txt https://preview.new-site.example --let-go let-go.txt
+  python3 check_move.py urls.csv https://preview.new-site.example --moves moves.csv --site https://new-site.example
 
 Exit codes: 0 every address is accounted for, 1 at least one finding, 2 the run could not
 start (no address list, the new site does not answer, or asking it for an address that
-cannot exist did not bring a plain "not found", so kept and missing cannot be told apart).
+cannot exist did not bring a plain "not found", so kept and missing cannot be told apart;
+or moves.csv cannot be read).
 
 Notes:
   - Run it against a deployed address (the preview or the live site). A preview server on
@@ -38,6 +42,9 @@ Notes:
     robots out on purpose. It still pauses between requests (--delay).
   - The old addresses' paths are asked on the new host. Addresses on a host other than the
     old site's (a shop, a policy page elsewhere) are listed and skipped.
+  - --moves takes the decisions sheet make_redirects.py reads (old_address,new_address). A
+    decision may name the live site's full address; when the check runs on a preview, pass
+    the live address as --site, or such a row reads "not as decided".
 """
 
 from __future__ import annotations
@@ -46,21 +53,32 @@ import argparse
 import collections
 import csv
 import os
+import re
 import secrets
 import sys
 import urllib.parse
-from typing import List, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import wp_inventory as wi  # noqa: E402  (one fetcher for both scripts)
 
 USER_AGENT = "wordpress-inventory/0.1 (move check, read-only)"
-FINDINGS = ("missing", "sent home", "unreadable")
-ORDER = ("kept", "redirected", "off the site", "let go") + FINDINGS
+FINDINGS = ("missing", "sent home", "unreadable", "not as decided")
+ORDER = ("kept", "redirected", "off the site", "let go") + FINDINGS[:3]  # + "not as decided" with --moves
 TEMPORARY = (302, 303, 307)
 HOME_FILES = ("index.html", "index.htm", "index.php")  # "/index.php" is the old home page under another name
 CSV_FIELDS = ["old_address", "result", "status", "ends_at", "temporary_redirect", "note"]
+SAFE_PATH = "/%:@!$&'()*+,;=~-._"  # what ask_of leaves unescaped in a path: existing escapes stay as they are
+SENT_HOME_REASON = ("a reader who follows an old link to it lands on the front page and has to search again: "
+                    "point it at the page that replaced it, or let it go")
+_ESCAPE = re.compile(r"%[0-9A-Fa-f]{2}")
+
+
+def cell(value) -> str:
+    """A cell as the sheet means it: trimmed, without the apostrophe wp_inventory puts before a
+    cell a spreadsheet would run."""
+    return (value or "").strip().lstrip("'")
 
 
 def read_addresses(path: str) -> List[str]:
@@ -76,7 +94,7 @@ def read_addresses(path: str) -> List[str]:
             raw = fh.read().splitlines()
     out = []
     for line in raw:
-        line = line.strip().lstrip("'")  # wp_inventory puts an apostrophe before a cell a spreadsheet would run
+        line = cell(line)
         if line and not line.startswith("#"):
             out.append(line)
     return out
@@ -93,7 +111,7 @@ def ask_of(address: str, old_host: str) -> Optional[str]:
     p = urllib.parse.urlsplit(address if "://" in address else "//" + old_host + "/" + address.lstrip("/"))
     if _bare(p.hostname or "") != old_host:
         return None
-    return urllib.parse.quote(p.path or "/", safe="/%:@!$&'()*+,;=~-._") + ("?" + p.query if p.query else "")
+    return urllib.parse.quote(p.path or "/", safe=SAFE_PATH) + ("?" + p.query if p.query else "")
 
 
 def key_of(ask: str) -> str:
@@ -118,8 +136,146 @@ def split_old(addresses: List[str]) -> Tuple[str, List[Tuple[str, str]], List[st
     return old_host, mine, elsewhere
 
 
+def upper_escapes(text: str) -> str:
+    return _ESCAPE.sub(lambda m: m.group(0).upper(), text)
+
+
+def lower_escapes(text: str) -> str:
+    return _ESCAPE.sub(lambda m: m.group(0).lower(), text)
+
+
+def page_form(ask: str) -> str:
+    """The one form every "is this the same page?" question uses, in make_redirects.py too: the
+    path as ask_of gives it, each escape's hex digits uppercased, the closing slash dropped, the
+    query kept. Nothing is decoded, so "/a%2Fb" and "/a/b" stay two pages."""
+    path, q, query = ask.partition("?")
+    return (upper_escapes(path).rstrip("/") or "/") + q + query
+
+
+def absolute_form(url: str) -> str:
+    """An address on another host, in page_form's spirit: scheme and host in lower case."""
+    p = urllib.parse.urlsplit(url)
+    ask = urllib.parse.quote(p.path or "/", safe=SAFE_PATH) + ("?" + p.query if p.query else "")
+    return "%s://%s%s" % (p.scheme.lower(), p.netloc.lower(), page_form(ask))
+
+
+class Decision(NamedTuple):
+    """What moves.csv says for one old page. kind: keep, let go, move (target is a path on the new
+    site, escaped as written), off (target is an address on another host), not decided, not
+    understood. resolve() adds: loop, chain (note says into what)."""
+    kind: str
+    target: str = ""
+    note: str = ""
+
+
+def read_moves(path: str) -> List[Tuple[int, str, str]]:
+    """(line number, old_address, new_address) for each row of a decisions sheet. Commas or
+    semicolons (German Excel), UTF-8 with or without the mark Excel adds. Raises ValueError with
+    the reason the sheet cannot be read."""
+    try:
+        with open(path, encoding="utf-8-sig", newline="") as fh:
+            text = fh.read()
+    except UnicodeDecodeError:
+        raise ValueError("%s is not UTF-8: save it as CSV UTF-8" % path)
+    except OSError as e:
+        raise ValueError("cannot read %s (%s)" % (path, e.strerror or type(e).__name__))
+    head = text.split("\n", 1)[0]
+    delimiter = ";" if head.count(";") > head.count(",") else ","
+    reader = csv.reader(text.splitlines(), delimiter=delimiter)
+    try:
+        header = [c.strip().lower() for c in next(reader)]
+    except StopIteration:
+        raise ValueError("%s is empty" % path)
+    except csv.Error as e:
+        raise ValueError("cannot read %s (%s)" % (path, e))
+    if "old_address" not in header or "new_address" not in header:
+        raise ValueError("%s needs the columns old_address and new_address" % path)
+    o, n = header.index("old_address"), header.index("new_address")
+    rows = []
+    try:
+        for line, row in enumerate(reader, start=2):
+            old = cell(row[o]) if o < len(row) else ""
+            if old:
+                rows.append((line, old, cell(row[n]) if n < len(row) else ""))
+    except csv.Error as e:
+        raise ValueError("cannot read %s (%s)" % (path, e))
+    return rows
+
+
+def decide(new: str, old_host: str, site_host: str) -> Decision:
+    """One new_address cell, read. A full address on the old host or the new site's own host
+    (site_host) is read as its path, so it can never become a redirect to itself."""
+    word = new.strip().lower()
+    if word == "keep":
+        return Decision("keep")
+    if word == "let go":
+        return Decision("let go")
+    if not new:
+        return Decision("not decided")
+    if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in new) or "#" in new:
+        return Decision("not understood", note="a space, a line break or a # anchor; this script writes no anchors")
+    if new.startswith("/") and not new.startswith("//"):
+        p = urllib.parse.urlsplit(new)
+        absolute = False
+    elif new.lower().startswith(("http://", "https://")) and wi.web_address(new):
+        p = urllib.parse.urlsplit(new)
+        absolute = _bare(p.hostname or "") not in {old_host, _bare(site_host)}
+    else:
+        return Decision("not understood", note="a new address starts with / or https://, or reads keep or let go")
+    if "*" in p.path or ":" in p.path:
+        return Decision("not understood", note="* and : have a meaning in _redirects")
+    path = upper_escapes(urllib.parse.quote(p.path or "/", safe=SAFE_PATH)) + ("?" + p.query if p.query else "")
+    if absolute:
+        return Decision("off", "%s://%s%s" % (p.scheme.lower(), p.netloc.lower(), path))
+    return Decision("move", path)
+
+
+def resolve(decisions: Dict[str, Decision]) -> Dict[str, Decision]:
+    """Each page's decision with its chain followed to the end: /a -> /b and /b -> /c gives
+    /a -> /c. A chain that runs into a page let go, not decided or not understood (or any kind
+    make_redirects marks as a finding) ends in kind "chain"; one that comes back is a "loop"."""
+    out = {}
+    for page in decisions:
+        here, d, seen = page, decisions[page], [page]
+        while d.kind == "move":
+            nxt = page_form(d.target)
+            if nxt == here or nxt not in decisions:
+                break                                     # the same page, or a page of the new site
+            nd = decisions[nxt]
+            if nd.kind == "keep":
+                break
+            if nxt in seen:
+                d = Decision("loop", note=" -> ".join(seen + [nxt]))
+                break
+            if nd.kind not in ("move", "off"):
+                d = Decision("chain", note="points at %s, which is %s" % (nxt, nd.kind))
+                break
+            here, d = nxt, nd
+            seen.append(nxt)
+        out[page] = d
+    return out
+
+
+def expectations(moves_file: str, old_host: str, site_host: str) -> Dict[str, Decision]:
+    """{page_form of an old page: its decision, chains followed}. Raises ValueError."""
+    decisions: Dict[str, Decision] = {}
+    for _, old, new in read_moves(moves_file):
+        ask = ask_of(old, old_host)
+        if ask is not None:
+            decisions.setdefault(page_form(ask), decide(new, old_host, site_host))
+    return resolve(decisions)
+
+
+def observed(url: str, host: str) -> str:
+    """Where a redirect ended, in the form decisions are compared in."""
+    p = urllib.parse.urlsplit(url)
+    if p.hostname and _bare(p.hostname) != _bare(host):
+        return absolute_form(url)
+    return page_form(urllib.parse.quote(p.path or "/", safe=SAFE_PATH) + ("?" + p.query if p.query else ""))
+
+
 def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay: float, timeout: float,
-          max_requests: int) -> Tuple[Optional[dict], str]:
+          max_requests: int, moves_file: Optional[str] = None, site: Optional[str] = None) -> Tuple[Optional[dict], str]:
     """(result, "") or (None, why the run could not start)."""
     try:
         addresses = read_addresses(addresses_file)
@@ -133,6 +289,14 @@ def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay:
 
     if not wi.web_address(new_site):
         return None, "not a web address: %s" % new_site
+    if site is not None and not wi.web_address(site):
+        return None, "--site is not a web address: %s" % site
+    expected: Optional[Dict[str, Decision]] = None
+    if moves_file:
+        try:
+            expected = expectations(moves_file, old_host, urllib.parse.urlsplit(site or new_site).hostname or "")
+        except ValueError as e:
+            return None, str(e)
     p = urllib.parse.urlsplit(new_site)
     base = urllib.parse.urlunsplit((p.scheme, p.netloc, p.path.rstrip("/"), "", ""))
     fetcher = wi.Fetcher(base + "/", delay, timeout, max_requests, USER_AGENT)  # .robots stays None: see the notes above
@@ -181,17 +345,34 @@ def check(addresses_file: str, new_site: str, let_go_file: Optional[str], delay:
             else:
                 result = "redirected"
         elif resp.status in (404, 410):
-            result = "let go" if key_of(ask) in let_go else "missing"
+            dropped = key_of(ask) in let_go or (expected is not None and expected.get(page_form(ask), Decision("")).kind == "let go")
+            result = "let go" if dropped else "missing"
             if resp.via:
                 note = "forwards to %s, which is not found" % resp.url
         else:
             result, note = "unreadable", problem
-        rows.append({"old_address": old, "result": result, "status": resp.status or "", "ends_at": ends_at,
-                     "temporary_redirect": temp[0] if temp else "", "note": note})
+        row = {"old_address": old, "result": result, "status": resp.status or "", "ends_at": ends_at,
+               "temporary_redirect": temp[0] if temp else "", "note": note}
+        if expected is not None:
+            d = expected.get(page_form(ask), Decision(""))
+            want = {"keep": page_form(ask), "move": page_form(d.target) if d.kind == "move" else "",
+                    "off": d.target if d.kind == "off" else ""}.get(d.kind, "")
+            row["decided"] = want if d.kind in ("keep", "move", "off") else d.kind
+            if want and result in ("kept", "redirected", "off the site"):
+                got = page_form(ask) if result == "kept" else observed(ends_at, host)
+                if got != (absolute_form(want) if d.kind == "off" else want):
+                    row["result"] = "not as decided"
+                    row["note"] = "moves.csv sends it to %s; it %s" % (want, "stays where it was" if result == "kept"
+                                                                       else "ends at %s" % ends_at)
+                    if d.kind == "off" and site is None and not got.startswith(("http://", "https://")):
+                        row["note"] += " (if %s is the new site's live address, pass it as --site)" % urllib.parse.urlsplit(want).hostname
+        rows.append(row)
     counts = collections.Counter(r["result"] for r in rows)
+    order = ORDER + (("not as decided",) if expected is not None else ())
     return {
         "new_site": base + "/", "old_host": old_host, "moved": moved, "checked": len(rows), "rows": rows,
-        "counts": {k: counts.get(k, 0) for k in ORDER}, "elsewhere": elsewhere,
+        "counts": {k: counts.get(k, 0) for k in order}, "order": order, "moves": expected is not None,
+        "elsewhere": elsewhere,
         "temporary": sum(1 for r in rows if r["temporary_redirect"]),
         "findings": sum(counts.get(k, 0) for k in FINDINGS), "requests": fetcher.count, "cap_hit": fetcher.cap_hit,
     }, ""
@@ -218,13 +399,14 @@ def render(d: dict, list_limit: int = 200) -> str:
     add("")
     add("| Result | Addresses |")
     add("|---|---|")
-    L.extend("| %s | %s |" % (k, d["counts"][k]) for k in ORDER)
+    L.extend("| %s | %s |" % (k, d["counts"][k]) for k in d["order"])
     if d["temporary"]:
         add("")
         add("%s temporary (302, 303 or 307); move-check.csv says which. If the move is for good, make "
             "%s permanent (301 or 308)." % (("1 redirect is", "it") if d["temporary"] == 1
                                            else ("%s redirects are" % d["temporary"], "them")))
-    for kind, title in (("missing", "Missing"), ("sent home", "Sent to the home page"), ("unreadable", "Unreadable")):
+    for kind, title in (("missing", "Missing"), ("sent home", "Sent to the home page"), ("unreadable", "Unreadable"),
+                        ("not as decided", "Not where moves.csv sends it")):
         hit = [r for r in d["rows"] if r["result"] == kind]
         if hit:
             add("")
@@ -257,11 +439,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("new_site", help="the new site's deployed address, e.g. https://preview.example.com")
     ap.add_argument("--out", default="move-check", help="folder for move-check.md and move-check.csv")
     ap.add_argument("--let-go", help="text file: one address per line that was dropped on purpose")
+    ap.add_argument("--moves", help="moves.csv, the decisions make_redirects.py writes from: is each address where it says?")
+    ap.add_argument("--site", help="with --moves: the new site's live address, when the checked address is a preview")
     ap.add_argument("--delay", type=float, default=0.2, help="seconds between requests (default 0.2)")
     ap.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for one answer (default 30)")
     ap.add_argument("--max-requests", type=int, default=5000, help="stop after this many requests (default 5000)")
     args = ap.parse_args(argv)
-    data, stop = check(args.addresses, args.new_site, args.let_go, max(args.delay, 0.0), args.timeout, max(args.max_requests, 3))
+    data, stop = check(args.addresses, args.new_site, args.let_go, max(args.delay, 0.0), args.timeout, max(args.max_requests, 3),
+                       args.moves, args.site)
     if data is None:
         print("check_move: %s" % stop, file=sys.stderr)
         return 2
@@ -269,11 +454,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     with open(os.path.join(args.out, "move-check.md"), "w", encoding="utf-8") as fh:
         fh.write(render(data))
     with open(os.path.join(args.out, "move-check.csv"), "w", encoding="utf-8", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=CSV_FIELDS)
+        fields = CSV_FIELDS + (["decided"] if data["moves"] else [])
+        w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()
         for row in data["rows"]:
-            w.writerow({k: wi.safe_cell(row[k]) for k in CSV_FIELDS})
-    for k in ORDER:
+            w.writerow({k: wi.safe_cell(row[k]) for k in fields})
+    for k in data["order"]:
         print("%-14s %s" % (k, data["counts"][k]))
     print("%s: %s" % ("FINDINGS" if data["findings"] else "all accounted for", os.path.join(args.out, "move-check.md")))
     return 1 if data["findings"] else 0

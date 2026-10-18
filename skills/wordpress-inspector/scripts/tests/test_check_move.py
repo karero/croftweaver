@@ -348,6 +348,122 @@ class AddressList(unittest.TestCase):
             self.assertEqual(cm.read_addresses(p), ["=odd/address", "https://old.example/b/"])
 
 
+def run_moves(lines, new_site, decisions, extra=()):
+    """run() with a moves.csv of (old_address, new_address) rows."""
+    with tempfile.TemporaryDirectory() as tmp:
+        moves = os.path.join(tmp, "moves.csv")
+        with open(moves, "w", encoding="utf-8", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["old_address", "new_address"])
+            w.writerows(decisions)
+        return run(lines, new_site, extra=("--moves", moves, *extra))
+
+
+class Moves(unittest.TestCase):
+    """With --moves the check asks more than "does it lead somewhere": does it lead where the
+    owner decided? A redirect to the wrong page answers 200 and passes every other test."""
+
+    def test_a_redirect_to_another_page_than_decided_is_a_finding(self):
+        site = NewSite()
+        site.redirects["/a/"] = (301, "/news/first/")
+        with serve(site):
+            code, rows, report, _ = run_moves([OLD + "/a/"], site.base(), [(OLD + "/a/", "/about")])
+        self.assertEqual((code, rows[OLD + "/a/"]["result"]), (1, "not as decided"))
+        self.assertIn("moves.csv sends it to /about", rows[OLD + "/a/"]["note"])
+        self.assertIn("## Not where moves.csv sends it (1)", report)
+
+    def test_a_page_kept_though_a_move_was_decided_is_a_finding(self):
+        site = NewSite()
+        site.pages.add("/a/")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/a/"], site.base(), [(OLD + "/a/", "/about")])
+        self.assertEqual((code, rows[OLD + "/a/"]["result"]), (1, "not as decided"))
+
+    def test_the_decided_page_passes(self):
+        site = NewSite()
+        site.redirects["/a/"] = (301, "/about/")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/a/", OLD + "/about/"], site.base(),
+                                         [(OLD + "/a/", "/about"), (OLD + "/about/", "keep")])
+        self.assertEqual(code, 0)
+        self.assertEqual(rows[OLD + "/a/"]["decided"], "/about")
+
+    def test_let_go_rows_count_as_let_go(self):
+        with serve() as site:
+            code, rows, _, _ = run_moves([OLD + "/gone/"], site.base(), [(OLD + "/gone/", "let go")])
+        self.assertEqual((code, rows[OLD + "/gone/"]["result"]), (0, "let go"))
+
+    def test_a_let_go_row_matches_across_escape_case(self):
+        with serve() as site:
+            code, rows, _, _ = run_moves([OLD + "/%c3%bcber/"], site.base(), [(OLD + "/%C3%BCber", "let go")])
+        self.assertEqual((code, rows[OLD + "/%c3%bcber/"]["result"]), (0, "let go"))
+
+    def test_a_let_go_row_that_still_answers_keeps_its_label(self):
+        site = NewSite()
+        site.redirects["/deep/"] = (301, "/")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/about/", OLD + "/deep/"], site.base(),
+                                         [(OLD + "/about/", "let go"), (OLD + "/deep/", "let go")])
+        self.assertEqual(rows[OLD + "/about/"]["result"], "kept")
+        self.assertEqual((code, rows[OLD + "/deep/"]["result"]), (1, "sent home"))  # still a finding
+
+    def test_raw_and_escaped_forms_are_one_page(self):
+        site = NewSite()
+        site.pages.add("/%C3%BCber/")
+        site.redirects["/alt/"] = (301, "/%C3%BCber/")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/alt/"], site.base(), [(OLD + "/alt/", "/über")])
+        self.assertEqual((code, rows[OLD + "/alt/"]["result"]), (0, "redirected"))
+
+    def test_an_escaped_slash_or_hash_is_not_decoded(self):
+        site = NewSite()
+        site.pages.add("/a/b/")
+        site.redirects["/x/"] = (301, "/a/b/")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/x/"], site.base(), [(OLD + "/x/", "/a%2Fb")])
+        self.assertEqual((code, rows[OLD + "/x/"]["result"]), (1, "not as decided"))
+
+    def test_a_preview_checked_against_live_addresses_needs_site(self):
+        site = NewSite()
+        site.redirects["/old-x/"] = (301, "/about/")
+        decisions = [(OLD + "/old-x/", "https://acme.example/about")]
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/old-x/"], site.base(), decisions, ("--site", "https://acme.example"))
+            self.assertEqual((code, rows[OLD + "/old-x/"]["result"]), (0, "redirected"))
+            code, rows, _, _ = run_moves([OLD + "/old-x/"], site.base(), decisions)
+        self.assertEqual((code, rows[OLD + "/old-x/"]["result"]), (1, "not as decided"))
+        self.assertIn("pass it as --site", rows[OLD + "/old-x/"]["note"])
+
+    def test_an_off_site_decision_against_an_off_site_result(self):
+        site = NewSite()
+        site.redirects["/shop/"] = (301, "https://shop.example/x/")
+        site.redirects["/cart/"] = (301, "https://other.example/x")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/shop/", OLD + "/cart/"], site.base(),
+                                         [(OLD + "/shop/", "https://SHOP.example/x"), (OLD + "/cart/", "https://shop.example/x")])
+        self.assertEqual(rows[OLD + "/shop/"]["result"], "off the site")
+        self.assertEqual((code, rows[OLD + "/cart/"]["result"]), (1, "not as decided"))
+
+    def test_decided_column_and_report_section_only_with_moves(self):
+        site = NewSite()
+        with serve(site):
+            _, plain, plain_report, _ = run([OLD + "/about/"], site.base())
+            _, moved, moved_report, _ = run_moves([OLD + "/about/"], site.base(), [(OLD + "/about/", "keep")])
+        self.assertNotIn("decided", plain[OLD + "/about/"])
+        self.assertNotIn("not as decided", plain_report)
+        self.assertEqual(moved[OLD + "/about/"]["decided"], "/about")
+        self.assertIn("| not as decided | 0 |", moved_report)
+
+    def test_a_sheet_that_cannot_be_read_stops_the_run(self):
+        with serve() as site, tempfile.TemporaryDirectory() as tmp:
+            bad = os.path.join(tmp, "moves.csv")
+            with open(bad, "w", encoding="cp1252") as fh:
+                fh.write("old_address,new_address\n/a/,/über\n")
+            code, rows, _, err = run([OLD + "/about/"], site.base(), extra=("--moves", bad))
+        self.assertEqual((code, rows), (2, None))
+        self.assertIn("save it as CSV UTF-8", err)
+
+
 class TheRealChain(unittest.TestCase):
     """wp_inventory.py counts the old site; its urls.csv, unedited, is what check_move.py reads."""
 
