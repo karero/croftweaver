@@ -1,9 +1,9 @@
 # Using Croftweaver with OpenAI Codex
 
-The Croftweaver skill suite was developed and used with Claude Code, but the skills
-are plain Markdown (`SKILL.md` + templates), so Codex can run the same suite through a
-small adaptation layer. **`skills/*` stays the single source of truth** — nothing is
-duplicated for Codex.
+The Croftweaver skill suite is developed and used with Claude Code. The skills are plain
+Markdown (`SKILL.md` + templates), so Codex reads the same skills through a small
+adaptation layer. **`skills/*` stays the single source of truth** — nothing is duplicated
+for Codex. The suite has been tested from start to finish with Codex on one site.
 
 > Want to verify it works on your setup? Run through [CODEX-TEST.md](CODEX-TEST.md) — a step-by-step compatibility checklist with a report-back template.
 

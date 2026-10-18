@@ -12,6 +12,7 @@
 #
 #   bash schedule_tracking.sh install <domain> "<comma,keywords>" [weekday 0-7] [hour 0-23]
 #     weekday: launchd values — 1=Mon … 6=Sat, and BOTH 0 and 7 = Sunday (default 1=Mon).
+#     The minute is picked for you: each site starts in its own slot (see "Start minute").
 #   bash schedule_tracking.sh remove  <domain>
 #   bash schedule_tracking.sh list
 #   bash schedule_tracking.sh status <domain>   # exact match for ONE site — see below
@@ -50,6 +51,10 @@ write_site_settings() {
 }
 # Values land inside XML text; an unescaped & or < makes a plist launchd rejects.
 xml_esc() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
+plist_when() { plutil -extract "StartCalendarInterval.$2" raw -o - "$1" 2>/dev/null || true; }
+# A day and hour in one form, so Sunday 7 matches Sunday 0 and "09" matches 9.
+nozero() { local n="${1#"${1%%[!0]*}"}"; echo "${n:-0}"; }
+day_hour() { local d; d="$(nozero "$1")"; [ "$d" = 7 ] && d=0; echo "$d $(nozero "$2")"; }
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
@@ -72,11 +77,42 @@ case "$cmd" in
     # went back to the shared default -- one trend split across two files. Domains
     # are case-insensitive, and so is the "is this the same site" check; the
     # sanitize() collision case ("a.b-c.com" vs "a-b.c.com") carries nothing over.
+    same_site=""
     if [ "$(lower "$(plist_domain "$plist")")" = "$(lower "$domain")" ]; then
+      same_site=1
       [ -n "${GSC_HISTORY_CSV+set}" ] || GSC_HISTORY_CSV="$(plist_env "$plist" GSC_HISTORY_CSV)"
       [ -n "${GSC_COUNTRY+set}" ] || GSC_COUNTRY="$(plist_env "$plist" GSC_COUNTRY)"
     fi
     hist="${GSC_HISTORY_CSV:-}"; country="${GSC_COUNTRY:-}"
+    # Start minute. Every job used to start at :00, so several sites ran at once and the
+    # AI check's parallel calls hit the providers' rate limits (HTTP 429 from Anthropic
+    # and Perplexity, 2026-10-12). Re-installing at the same day and hour keeps this
+    # site's minute unless another site's job has it too (as every job from before this
+    # change does); otherwise it takes the first of :00, :15, :30, :45 (then the
+    # 5-minute gaps) that no other site's job uses at that day and hour.
+    want="$(day_hour "$weekday" "$hour")"; taken=" "
+    for other in "$LA_DIR/$PREFIX."*.plist; do
+      [ -f "$other" ] && [ "$other" != "$plist" ] || continue
+      d="$(plist_when "$other" Weekday)"; h="$(plist_when "$other" Hour)"
+      [ -n "$d" ] && [ -n "$h" ] && [ "$(day_hour "$d" "$h")" = "$want" ] || continue
+      taken="$taken$(nozero "$(plist_when "$other" Minute)") "
+    done
+    minute=""
+    if [ -n "$same_site" ] && [ "$(day_hour "$(plist_when "$plist" Weekday)" "$(plist_when "$plist" Hour)")" = "$want" ]; then
+      minute="$(plist_when "$plist" Minute)"
+      if [ -n "$minute" ]; then
+        minute="$(nozero "$minute")"
+        case "$taken" in *" $minute "*) minute="" ;; esac
+      fi
+    fi
+    if [ -z "$minute" ]; then
+      for m in 0 15 30 45 5 20 35 50 10 25 40 55; do
+        case "$taken" in *" $m "*) ;; *) minute=$m; break ;; esac
+      done
+      if [ -z "$minute" ]; then
+        minute=0; echo "  ⚠ every slot at this day and hour is taken; this site shares :00 — consider another hour"
+      fi
+    fi
     cat > "$plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -98,7 +134,7 @@ case "$cmd" in
   <dict>
     <key>Weekday</key><integer>$weekday</integer>
     <key>Hour</key><integer>$hour</integer>
-    <key>Minute</key><integer>0</integer>
+    <key>Minute</key><integer>$minute</integer>
   </dict>
   <key>StandardOutPath</key><string>$(xml_esc "$log")</string>
   <key>StandardErrorPath</key><string>$(xml_esc "$log")</string>
@@ -112,7 +148,7 @@ PLIST
     # Reload idempotently. bootout/bootstrap is the modern path; fall back to load/unload.
     launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || launchctl unload "$plist" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$plist" 2>/dev/null || launchctl load "$plist"
-    echo "✓ Weekly tracking scheduled for $domain — weekday $weekday at ${hour}:00."
+    echo "✓ Weekly tracking scheduled for $domain — weekday $weekday at $(nozero "$hour"):$(printf '%02d' "$minute")."
     echo "  label : $label"
     echo "  log   : $log"
     echo "  history: ${hist:-(shared default file)}"
