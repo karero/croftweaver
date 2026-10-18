@@ -1,5 +1,5 @@
 # DIFF review — branch feat/wordpress-redirects — wordpress-inspector writes a move's redirects (make_redirects.py) and checks them against the decisions (check_move.py --moves)
-Base `89f965b5` · depth: Normal (shipped code; no auth, payments, personal data or deploy) · verdict: CLEAN, closing edits not externally re-verified · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A: this session created the worktree and the branch
+Base `89f965b5` · depth: Normal (shipped code; no auth, payments, personal data or deploy) · verdict: CLEAN · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A: this session created the worktree and the branch
 
 | Round | Head | Artifact | Reviewers | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
@@ -7,6 +7,7 @@ Base `89f965b5` · depth: Normal (shipped code; no auth, payments, personal data
 | 2 | `821a6fe2` | delta since `d83746cb` | Codex (medium); GLM 5.3 | 160 s 58,247; 596 s 60,934 | 2/3/5 |
 | 3 | `ffe2b82a` | delta since `821a6fe2` | Codex (medium); GLM 5.3 | 138 s 67,979; 484 s 46,080 | 1/1/4 |
 | 4 | `9cbeeea6` | delta since `ffe2b82a` | Codex (medium); GLM 5.3 | 131 s 51,631; 292 s 22,858 | 1/1/3 |
+| re-gate | `94f5d183` | delta since `9cbeeea6` (the owner-decided H1 fix and the H3–H5 test NITs) | Codex (medium) | 91 s 43,178 | 0/1/0 |
 | wording | `94f5d183` + the release-note row | the row only | Codex (medium) | 86 s 51,380 | 0/0/0 |
 | merge link | `d3b20404` (merge of origin/main `9ce0f906`; BUGLOG conflict resolved by keeping both sides' rows) | `merge_link.sh 89f965b5 598e4fd4 9ce0f906`: README.md and docs/BUGLOG.md only | Codex (medium) | 78 s 55,008 | 0/0/0 |
 
@@ -30,12 +31,13 @@ Base `89f965b5` · depth: Normal (shipped code; no auth, payments, personal data
 | E9, E10 | RISK, NIT | GLM | 2 | slash and escape case in `--moves` | refuted | `page_form` drops the slash and uppercases escapes |
 | G1 | BUG | GLM | 3 | control characters guarded for the old address only | fixed by a cut, externally_reverified r4 | the rule moved into `ask_of`, the one entry point for every address |
 | G3–G6 | NIT | Codex, GLM | 3 | overflow line; docstring; strictness comment; dead test branch | fixed, externally_reverified r4 | — |
-| H1 | BUG | Codex | 4 | a plain-text list split one address in two on a vertical tab (`splitlines`); a trailing tab trimmed | first part fixed locally_verified, not externally re-verified (the owner's decision); trailing trim refuted (cells are trimmed by design) | `94f5d183`; the test fails against `splitlines` (mutant run) |
-| H3–H5 | NIT | GLM | 4 | stub parses twice; query appended with `?`; other-port test could hit 65536 | fixed locally_verified | `94f5d183` |
+| H1 | BUG | Codex | 4 | a plain-text list split one address in two on a vertical tab (`splitlines`); a trailing tab trimmed | first part fixed (the owner's decision), locally_verified, externally_reverified by the re-gate; trailing trim refuted (cells are trimmed by design) | `94f5d183`; the test fails against `splitlines` (mutant run) |
+| H3–H5 | NIT | GLM | 4 | stub parses twice; query appended with `?`; other-port test could hit 65536 | fixed, externally_reverified by the re-gate | `94f5d183` |
+| I1 | RISK | Codex | re-gate | the test stub joins an incoming query to a target that has its own with `&`; unmeasured on Cloudflare | follow-up | no test sends a query to a rule whose target has one, so the branch is unexercised |
 
 Waivers and deferrals: none. The owner, 2026-10-18, on H1: "Fix it now (Recommended)".
 
-Follow-ups: none from the review. The first real WordPress move is the first real-host run (`%c3%bc` against `%C3%BC` is still unmeasured).
+Follow-ups: I1 (measure Cloudflare's `Location` for a query sent to a rule whose target has its own query, then match the stub to it). The first real WordPress move is the first real-host run (`%c3%bc` against `%C3%BC` is still unmeasured).
 
 Notes:
 - Round 4 was earned by round 3's BUG G1 (`--earned-by control-characters`); `--cut`: per-reader checks replaced by one strict rule in `ask_of`.
