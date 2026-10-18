@@ -1,8 +1,6 @@
 # Using Croftweaver with Google Antigravity
 
-The Croftweaver skill suite was originally designed for Claude Code, but its underlying architecture (Markdown files with YAML frontmatter, sibling directories, and template folders) is **100% compatible with Google Antigravity**.
-
-Antigravity natively understands the `SKILL.md` format and can seamlessly orchestrate the pipeline from insights to launch.
+The Croftweaver skill suite is developed and used with Claude Code. Its skills are plain Markdown files with YAML frontmatter, sibling directories and template folders, and they go into Google Antigravity unchanged. The suite has been tested from start to finish with Antigravity on one site.
 
 > Want to verify it works on your setup? Run through [ANTIGRAVITY-TEST.md](ANTIGRAVITY-TEST.md) — a step-by-step compatibility checklist with a report-back template.
 
@@ -32,7 +30,7 @@ Once installed, open an Antigravity chat. With a global install (Option A), open
 
 > *"I want to build a new website"* or *"new website"*
 
-Antigravity will recognize the `new-website` skill, run the stack-decision interview, scaffold the `templates/astro` overlay, and sequence the rest of the `website-*` skills perfectly.
+Antigravity will recognize the `new-website` skill, run the stack-decision interview, scaffold the `templates/astro` overlay, and sequence the rest of the `website-*` skills.
 
 When the suite is installed through Antigravity (`$SKILLS_ROOT` = `~/.gemini/config/skills`), the scaffold bundles the project's skills into **`.agents/skills/`** (which Antigravity reads as workspace skills), so the generated project is self-contained for Antigravity rather than Claude's `.claude/skills/`. To force it regardless: `export PROJECT_SKILLS_DIR=.agents/skills` before scaffolding.
 
@@ -43,7 +41,3 @@ Because Antigravity and Claude Code handle permissions differently, you will not
 *   **Permissions & Sandboxing:** The `templates/claude/settings.json` file dictates allowed commands for Claude. Antigravity uses a different security model: it runs in a sandbox and asks for your manual approval on **every** shell command it proposes through its `run_command` tool (`mkdir`, `cp`, `npm install`, etc.) — not only ones that need network access. So the `.claude/settings.json` allowlist does nothing here; you can ignore the `.claude` folder entirely, and expect to approve the scaffold's commands as they run.
 *   **The `website-permissions` Skill:** This skill is bundled to help Claude safely extend its allowlist. It won't do anything for Antigravity, as Antigravity doesn't use the allowlist model.
 *   **Path references:** A skill names its own files relative to its folder ("this skill's `templates/`"), and a command may show `${CLAUDE_SKILL_DIR}`, a name only Claude Code fills in: put the path of that skill's folder under your Antigravity skills root there (`~/.gemini/config/skills/<skill>`). The scaffold's own lookup needs no such help: left as written, that candidate drops out. The scaffold's `new-website` skill resolves this automatically via `$SKILLS_ROOT`.
-
-## 4. Why Antigravity Excels Here
-
-Antigravity is uniquely well-suited for this suite because it supports **Subagents**. During the build pipeline, Antigravity can spin up background subagents to asynchronously run the `customer-research` or `seo-audit` skills while the primary agent continues scaffolding your Astro components!
