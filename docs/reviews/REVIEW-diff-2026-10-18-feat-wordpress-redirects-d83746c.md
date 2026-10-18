@@ -10,6 +10,7 @@ Base `89f965b5` · depth: Normal (shipped code; no auth, payments, personal data
 | re-gate | `94f5d183` | delta since `9cbeeea6` (the owner-decided H1 fix and the H3–H5 test NITs) | Codex (medium) | 91 s 43,178 | 0/1/0 |
 | wording | `94f5d183` + the release-note row | the row only | Codex (medium) | 86 s 51,380 | 0/0/0 |
 | merge link | `d3b20404` (merge of origin/main `9ce0f906`; BUGLOG conflict resolved by keeping both sides' rows) | `merge_link.sh 89f965b5 598e4fd4 9ce0f906`: README.md and docs/BUGLOG.md only | Codex (medium) | 78 s 55,008 | 0/0/0 |
+| merge link 2 | `75d5287c` (merge of origin/main `7f747e31`; BUGLOG conflict: main's newer track.sh row kept, then this branch's row) | `merge_link.sh 9ce0f906 ce06c116 7f747e31`: docs/BUGLOG.md only | Codex (medium) | 59 s 27,433 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
