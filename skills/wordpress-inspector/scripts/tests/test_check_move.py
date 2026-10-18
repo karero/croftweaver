@@ -242,6 +242,7 @@ class TheHomePage(unittest.TestCase):
         with serve(self.site()) as site:
             code, rows, _, _ = run([OLD + "/programme/", OLD + "/speakers/"], site.base())
         self.assertEqual((code, {r["result"] for r in rows.values()}), (1, {"sent home"}))
+        self.assertEqual({r["note"] for r in rows.values()}, {cm.SENT_HOME_REASON})
 
 
 class LetGo(unittest.TestCase):
@@ -453,6 +454,39 @@ class Moves(unittest.TestCase):
         self.assertNotIn("not as decided", plain_report)
         self.assertEqual(moved[OLD + "/about/"]["decided"], "/about")
         self.assertIn("| not as decided | 0 |", moved_report)
+
+    def test_a_redirect_to_another_port_is_not_the_decided_page(self):
+        site = NewSite()
+        site.redirects["/x/"] = (301, "https://new.example:8443/about")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/x/"], site.base(), [(OLD + "/x/", "/about")])
+        self.assertEqual((code, rows[OLD + "/x/"]["result"]), (1, "not as decided"))
+
+    def test_an_off_site_decision_ending_in_a_slash(self):
+        site = NewSite()
+        site.redirects["/shop/"] = (301, "https://shop.example/x")
+        with serve(site):
+            code, rows, _, _ = run_moves([OLD + "/shop/"], site.base(), [(OLD + "/shop/", "https://shop.example/x/")])
+        self.assertEqual((code, rows[OLD + "/shop/"]["result"]), (0, "off the site"))
+
+    def test_a_sheet_with_two_decisions_for_one_page_or_a_loop_stops_the_run(self):
+        for decisions in ([(OLD + "/a", "/x"), (OLD + "/a/", "/about")],
+                          [(OLD + "/a/", "/b"), (OLD + "/b/", "/a")]):
+            with self.subTest(decisions=decisions), serve() as site:
+                code, rows, _, err = run_moves([OLD + "/a/"], site.base(), decisions)
+                self.assertEqual((code, rows), (2, None))
+
+    def test_an_undecided_row_is_named_in_the_decided_column(self):
+        with serve() as site:
+            _, rows, _, _ = run_moves([OLD + "/about/"], site.base(), [(OLD + "/about/", "")])
+        self.assertEqual(rows[OLD + "/about/"]["decided"], "not decided")
+
+    def test_site_without_moves_or_not_a_web_address(self):
+        with serve() as site:
+            self.assertEqual(run([OLD + "/about/"], site.base(), extra=("--site", "https://acme.example"))[0], 2)
+            code, _, _, err = run_moves([OLD + "/about/"], site.base(), [(OLD + "/about/", "keep")], ("--site", "acme"))
+        self.assertEqual(code, 2)
+        self.assertIn("--site", err)
 
     def test_a_sheet_that_cannot_be_read_stops_the_run(self):
         with serve() as site, tempfile.TemporaryDirectory() as tmp:

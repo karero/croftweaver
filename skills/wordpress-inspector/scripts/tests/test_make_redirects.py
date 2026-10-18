@@ -124,6 +124,15 @@ class Draft(Case):
         with open(self.f.path("moves.csv"), encoding="utf-8") as fh:
             self.assertIn("/a/,/b", fh.read())
 
+    def test_merged_records_take_the_first_type_given(self):
+        code, rows, _ = self.draft([OLD + "/a/", OLD + "/a"], types={OLD + "/a/": "", OLD + "/a": "post"})
+        self.assertEqual((code, [r["type"] for r in rows]), (0, ["post"]))
+
+    def test_a_cell_a_spreadsheet_would_run_is_defused(self):
+        code, _, _ = self.draft(["-x/"])
+        with open(self.f.path("moves.csv"), encoding="utf-8") as fh:
+            self.assertIn("'-x/,", fh.read())
+
     def test_addresses_on_another_host_are_left_out_and_named(self):
         code, rows, out = self.draft([OLD + "/a/", OLD + "/b/", "https://shop.example/cart"])
         self.assertEqual((code, len(rows)), (0, 2))
@@ -151,8 +160,26 @@ class Lines(Case):
         self.assertRegex(out, r"let go\s+1")
 
     def test_a_page_moved_to_another_host(self):
-        code, _, _ = self.f.write([(OLD + "/shop/", "https://shop.example/")])
+        code, out, _ = self.f.write([(OLD + "/shop/", "https://shop.example/")])
         self.assertEqual((code, self.f.lines()), (0, ["/shop https://shop.example/ 301", "/shop/ https://shop.example/ 301"]))
+        self.assertRegex(out, r"off the site\s+1")
+        self.assertRegex(out, r"moved\s+0")
+
+    def test_lowercase_spellings_are_added_when_the_list_has_uppercase_only(self):
+        code, _, _ = self.f.write([(OLD + "/%C3%BCber/", "/ueber")])
+        self.assertEqual(code, 0)
+        self.assertIn("/%c3%bcber /ueber 301", self.f.lines())
+        self.assertIn("/%c3%bcber/ /ueber 301", self.f.lines())
+
+    def test_a_query_in_the_destination_is_escaped(self):
+        self.f.write([(OLD + "/alt/", "/suche?q=über")])
+        self.assertEqual(self.f.lines()[0], "/alt /suche?q=%C3%BCber 301")
+
+    def test_the_same_path_with_a_query_is_refused_not_looped(self):
+        # _redirects does not read the query, so /search -> /search?lang=de would match again
+        code, out, _ = self.f.write([(OLD + "/search/", "/search?lang=de")])
+        self.assertEqual((code, self.f.lines()), (1, []))
+        self.assertIn("send it to itself", out)
 
     def test_a_full_address_on_the_site_itself_is_a_path(self):
         code, _, _ = self.f.write([(OLD + "/x/", SITE + "/x"), (OLD + "/y/", OLD + "/neu")])
@@ -260,6 +287,32 @@ class Chains(Case):
                 self.assertFalse([ln for ln in self.f.lines() if ln.startswith("/a")])
                 self.assertIn("chain: %s/a/ points at /b" % OLD, out)
 
+    def test_a_chain_into_an_address_not_in_the_list_writes_no_line(self):
+        code, out, _ = self.f.write([(OLD + "/a/", "/typo"), (OLD + "/typo/", "/x")], [OLD + "/a/"])
+        self.assertEqual((code, self.f.lines()), (1, []))
+        self.assertIn("chain: %s/a/ points at /typo" % OLD, out)
+
+    def test_a_chain_through_a_page_moved_to_itself_ends_there(self):
+        code, out, _ = self.f.write([(OLD + "/a/", "/b"), (OLD + "/b", "/b/")])
+        self.assertEqual(code, 0)
+        self.assertEqual([ln for ln in self.f.lines() if ln.startswith("/a")], ["/a /b 301", "/a/ /b 301"])
+        self.assertNotIn("note:", out)
+
+    def test_keep_and_a_move_to_the_same_page_are_one_decision(self):
+        code, _, _ = self.f.write([(OLD + "/a", "keep"), (OLD + "/a/", "/a"),
+                                   (OLD + "/s", "https://shop.example/x"), (OLD + "/s/", "https://shop.example/x/")])
+        self.assertEqual(code, 0)
+
+    def test_the_same_missing_address_twice_is_a_finding_not_a_crash(self):
+        code, out, _ = self.f.write([(OLD + "/a/", "/b"), (OLD + "/typo/", "/x"), (OLD + "/typo", "/y")], [OLD + "/a/"])
+        self.assertEqual(code, 1)
+        self.assertEqual(out.count("not in the address list: "), 2)
+
+    def test_an_address_that_cannot_be_parsed_is_a_finding_not_a_crash(self):
+        code, out, _ = self.f.write([(OLD + "/a/", "/b"), ("http://[::1", "/x")], [OLD + "/a/"])
+        self.assertEqual(code, 1)
+        self.assertIn("not in the address list: http://[::1", out)
+
     def test_home_and_query_rules_run_on_the_final_target(self):
         code, out, _ = self.f.write([(OLD + "/a/", "/index.php"), (OLD + "/index.php", "/")])
         self.assertEqual(code, 1)
@@ -304,6 +357,27 @@ class Findings(Case):
                 self.assertEqual((code, self.f.lines()), (1, []))
                 self.assertIn("not understood: ", out)
 
+    def test_a_line_break_inside_a_cell_is_not_understood(self):
+        # a quoted cell may hold a line break; it must not be joined into a valid path
+        code, out, _ = self.f.write([(OLD + "/a/", "/con\ntact")])
+        self.assertEqual((code, self.f.lines()), (1, []))
+        self.assertIn("not understood", out)
+
+    def test_a_name_or_password_in_a_destination_is_not_understood(self):
+        code, _, _ = self.f.write([(OLD + "/a/", "https://user:pw" + chr(64) + "shop.example/x")])  # no literal at sign: check_clean
+        self.assertEqual((code, self.f.lines()), (1, []))
+
+    def test_a_destination_with_a_broken_port_is_not_understood(self):
+        code, _, _ = self.f.write([(OLD + "/a/", "https://shop.example:abc/")])
+        self.assertEqual((code, self.f.lines()), (1, []))
+
+    def test_findings_past_200_are_counted_not_listed(self):
+        listed = [OLD + "/p%d/" % i for i in range(202)]  # one decided, 201 not
+        code, out, _ = self.f.write([(listed[0], "/x")], listed)
+        self.assertEqual(code, 1)
+        self.assertEqual(out.count("not decided: "), 201)  # 200 listed, then the line naming the rest
+        self.assertIn("not decided: … and 1 more", out)
+
     def test_a_protocol_relative_destination_is_not_understood(self):
         code, out, _ = self.f.write([(OLD + "/x/", "//shop.example/cart")])
         self.assertEqual((code, self.f.lines()), (1, []))
@@ -333,6 +407,9 @@ class Limits(Case):
         self.assertFalse(os.path.exists(self.f.out))
         code, _, _ = self.f.write(many[:1000])
         self.assertEqual((code, len(self.f.lines())), (0, 2000))
+        code, _, err = self.f.write([(OLD + "/", "/en")] + many[:1000], None, "--replace")  # "/" takes one line
+        self.assertEqual(code, 2)
+        self.assertIn("2,001 lines", err)
 
 
 class Overwrite(Case):
@@ -365,6 +442,28 @@ class Overwrite(Case):
         self.assertEqual(code, 2)
         self.assertFalse(os.path.exists(self.f.out))
 
+    def test_a_site_that_is_no_web_address_stops_the_run(self):
+        code, _, err = self.f.run(self.f.urls([OLD + "/a/"]), self.f.moves([(OLD + "/a/", "/b")]),
+                                  "--site", "acme.example", "--out", self.f.out)
+        self.assertEqual(code, 2)
+        self.assertIn("--site", err)
+
+    def test_draft_with_site_is_a_usage_error(self):
+        self.assertEqual(self.f.run(self.f.urls([OLD + "/a/"]), "--draft", self.f.path("d.csv"), "--site", SITE)[0], 2)
+
+    def test_an_output_that_cannot_be_written_exits_2(self):
+        locked = self.f.path("locked")
+        os.makedirs(locked)
+        os.chmod(locked, 0o555)
+        self.addCleanup(os.chmod, locked, 0o755)
+        if os.access(locked, os.W_OK):
+            self.skipTest("running as a user who can write anywhere")
+        code, _, _ = self.f.run(self.f.urls([OLD + "/a/"]), self.f.moves([(OLD + "/a/", "/b")]),
+                                "--site", SITE, "--out", os.path.join(locked, "_redirects"))
+        self.assertEqual(code, 2)
+        code, _, _ = self.f.run(self.f.urls([OLD + "/a/"]), "--draft", os.path.join(locked, "moves.csv"))
+        self.assertEqual(code, 2)
+
     def test_draft_and_moves_together_is_a_usage_error(self):
         urls, moves = self.f.urls([OLD + "/a/"]), self.f.moves([(OLD + "/a/", "/b")])
         self.assertEqual(self.f.run(urls, moves, "--draft", self.f.path("d.csv"))[0], 2)
@@ -392,6 +491,16 @@ class Input(Case):
         self.assertEqual(code, 2)
         self.assertIn("save it as CSV UTF-8", err)
         self.assertFalse(os.path.exists(self.f.out))
+
+    def test_a_sheet_without_the_two_columns_or_empty_stops_the_run(self):
+        urls = self.f.urls([OLD + "/a/"])
+        for text in ("address,target\n/a/,/b\n", ""):
+            with self.subTest(text=text):
+                with open(self.f.path("moves.csv"), "w", encoding="utf-8") as fh:
+                    fh.write(text)
+                code, _, _ = self.f.run(urls, self.f.path("moves.csv"), "--site", SITE, "--out", self.f.out)
+                self.assertEqual(code, 2)
+                self.assertFalse(os.path.exists(self.f.out))
 
     def test_a_cell_the_inventory_defused_is_read_back(self):
         # wp_inventory writes '-x/ for an address a spreadsheet would run as a formula

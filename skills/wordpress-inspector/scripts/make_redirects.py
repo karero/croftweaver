@@ -69,8 +69,11 @@ import wp_inventory as wi  # noqa: E402
 
 HEADER = "# Written by make_redirects.py (wordpress-inspector) from moves.csv."
 HEADER_REST = "# Change moves.csv and run it again: edits made here are lost."
-MAX_LINES = 2000        # Cloudflare reads 2,000 static redirects per file
-MAX_LINE = 1000         # ... of at most 1,000 characters each
+# Cloudflare's limits, from https://developers.cloudflare.com/pages/configuration/redirects/ (and the
+# same on Workers static assets): 2,000 static redirects in a _redirects file, which a site has one
+# of, and 1,000 characters per line.
+MAX_LINES = 2000
+MAX_LINE = 1000
 OLD_HOME = {"/"} | {"/" + f for f in cm.HOME_FILES}
 FINDING_KINDS = ("not decided", "not understood", "not in the address list", "cannot be written", "sent home",
                  "chain")
@@ -115,16 +118,24 @@ def draft(list_file: str, out: str) -> int:
     except (OSError, UnicodeDecodeError, StopIteration, csv.Error) as e:
         print("make_redirects: cannot read the address list (%s)" % (e if str(e) else type(e).__name__), file=sys.stderr)
         return 2
-    _, pages, elsewhere = pages_of(addresses)
+    try:
+        _, pages, elsewhere = pages_of(addresses)
+    except ValueError as e:
+        print("make_redirects: an address in %s cannot be read (%s)" % (list_file, e), file=sys.stderr)
+        return 2
     if not pages:
         print("make_redirects: no addresses in %s" % list_file, file=sys.stderr)
         return 2
-    with open(out, "w", encoding="utf-8", newline="") as fh:
-        w = csv.writer(fh)
-        w.writerow(["old_address", "new_address", "type"])
-        for spellings in pages.values():
-            kind = next((types.get(old, "") for old, _ in spellings if types.get(old)), "")
-            w.writerow([wi.safe_cell(spellings[0][0]), "", wi.safe_cell(kind)])
+    try:
+        with open(out, "w", encoding="utf-8", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["old_address", "new_address", "type"])
+            for spellings in pages.values():
+                kind = next((types.get(old, "") for old, _ in spellings if types.get(old)), "")
+                w.writerow([wi.safe_cell(spellings[0][0]), "", wi.safe_cell(kind)])
+    except OSError as e:
+        print("make_redirects: cannot write %s (%s)" % (out, e.strerror or type(e).__name__), file=sys.stderr)
+        return 2
     print("%s pages in %s: fill in new_address for each" % (len(pages), out))
     for a in elsewhere[:LIST_LIMIT]:
         print("left out, on another host: %s" % a)
@@ -144,36 +155,17 @@ def sources(spellings: List[Tuple[str, str]]) -> List[str]:
     return out
 
 
-def same(d: cm.Decision, page: str) -> tuple:
-    """What a decision means for one page, for telling two rows of it apart: keep and a move to
-    the same page are one decision."""
-    if d.kind == "keep" or (d.kind == "move" and cm.page_form(d.target) == page):
-        return ("keep",)
-    return (d.kind, cm.page_form(d.target) if d.kind == "move" else d.target)
-
-
 def plan(pages, rows, old_host: str, site_host: str):
     """(lines, counts, findings, notes, stop). stop is why nothing may be written, or ""."""
     findings: Dict[str, List[str]] = collections.defaultdict(list)
-    decisions: Dict[str, cm.Decision] = {}
-    first_row: Dict[str, Tuple[int, str, str]] = {}
-    for line, old, new in rows:
-        ask = cm.ask_of(old, old_host)
-        page = cm.page_form(ask) if ask is not None else None
-        if page is None or page not in pages:
-            findings["not in the address list"].append("%s (row %s): add it to the address list first, or fix it" % (old, line))
-            if page is not None:
-                decisions.setdefault(page, cm.Decision("not in the address list"))  # a chain into it is a finding too
-            continue
-        d = cm.decide(new, old_host, site_host)
-        if page in decisions and same(decisions[page], page) != same(d, page):
-            l0, old0, new0 = first_row[page]
-            return [], {}, findings, [], ("one page, two different decisions: %s (row %s) says %r, %s (row %s) says %r"
-                                          % (old0, l0, new0 or "(empty)", old, line, new or "(empty)"))
-        if page in decisions:
-            continue                                      # the same decision again
-        decisions[page], first_row[page] = d, (line, old, new)
+    try:
+        decisions, first, unlisted = cm.gather(rows, old_host, site_host, set(pages))
+    except ValueError as e:
+        return [], {}, findings, [], str(e)
+    findings["not in the address list"].extend(unlisted)
+    for page, d in decisions.items():
         if d.kind == "not understood":
+            line, old, new = first[page]
             findings["not understood"].append("%s (row %s): %r — %s" % (old, line, new, d.note))
     for page in pages:
         decisions.setdefault(page, cm.Decision("not decided"))
@@ -205,7 +197,12 @@ def plan(pages, rows, old_host: str, site_host: str):
         if d.kind == "move" and cm.page_form(d.target) == "/" and page not in OLD_HOME:
             findings["sent home"].append("%s: %s" % (old, cm.SENT_HOME_REASON))
             continue
-        own = [s for s in sources(spellings) if d.kind == "off" or (s.rstrip("/") or "/") != (d.target.rstrip("/") or "/")]
+        target_path = d.target.split("?")[0]
+        if d.kind == "move" and "?" in d.target and cm.page_form(target_path) == page:
+            findings["cannot be written"].append("%s: %s would send it to itself, since _redirects does not read the query"
+                                                 % (old, d.target))
+            continue
+        own = [s for s in sources(spellings) if d.kind == "off" or (s.rstrip("/") or "/") != (target_path.rstrip("/") or "/")]
         page_lines = ["%s %s 301" % (s, d.target) for s in own]
         long = [ln for ln in page_lines if len(ln) > MAX_LINE]
         if long:
@@ -219,7 +216,7 @@ def plan(pages, rows, old_host: str, site_host: str):
             counts["kept"] += 1
         else:
             counts["moved"] += 1
-        if d.kind == "move" and d.target.split("?")[0].endswith("/") and d.target.split("?")[0] != "/":
+        if page_lines and d.kind == "move" and target_path.endswith("/") and target_path != "/":
             notes.append("%s ends in /: a Croftweaver site serves its pages without it, so each visit takes a second hop"
                          % d.target)
     if len(lines) > MAX_LINES:
@@ -256,15 +253,21 @@ def write(list_file: str, moves_file: str, site: str, out: str, replace: bool) -
         rows = cm.read_moves(moves_file)
     except ValueError as e:
         return stop(str(e))
-    old_host, pages, elsewhere = pages_of(addresses)
+    try:
+        old_host, pages, elsewhere = pages_of(addresses)
+    except ValueError as e:
+        return stop("an address in %s cannot be read (%s)" % (list_file, e))
     if not pages:
         return stop("no addresses in %s" % list_file)
     lines, counts, findings, notes, why = plan(pages, rows, old_host, urllib.parse.urlsplit(site).hostname or "")
     if why:
         return stop(why)
-    with open(out, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write("%s\n%s\n" % (HEADER, HEADER_REST))
-        fh.writelines(ln + "\n" for ln in lines)
+    try:
+        with open(out, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("%s\n%s\n" % (HEADER, HEADER_REST))
+            fh.writelines(ln + "\n" for ln in lines)
+    except OSError as e:
+        return stop("cannot write %s (%s)" % (out, e.strerror or type(e).__name__))
     for k in ("kept", "moved", "off the site", "let go"):
         print("%-24s %s" % (k, counts.get(k, 0)))
     for k in FINDING_KINDS:
@@ -293,7 +296,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--replace", action="store_true", help="write over a _redirects this script wrote before")
     args = ap.parse_args(argv)
     if args.draft:
-        if args.moves or args.out or args.replace:
+        if args.moves or args.out or args.replace or args.site:
             ap.print_usage(sys.stderr)
             print("make_redirects: --draft takes only the address list", file=sys.stderr)
             return 2
