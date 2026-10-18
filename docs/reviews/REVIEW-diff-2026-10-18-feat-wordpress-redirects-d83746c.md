@@ -11,6 +11,7 @@ Base `89f965b5` · depth: Normal (shipped code; no auth, payments, personal data
 | wording | `94f5d183` + the release-note row | the row only | Codex (medium) | 86 s 51,380 | 0/0/0 |
 | merge link | `d3b20404` (merge of origin/main `9ce0f906`; BUGLOG conflict resolved by keeping both sides' rows) | `merge_link.sh 89f965b5 598e4fd4 9ce0f906`: README.md and docs/BUGLOG.md only | Codex (medium) | 78 s 55,008 | 0/0/0 |
 | merge link 2 | `75d5287c` (merge of origin/main `7f747e31`; BUGLOG conflict: main's newer track.sh row kept, then this branch's row) | `merge_link.sh 9ce0f906 ce06c116 7f747e31`: docs/BUGLOG.md only | Codex (medium) | 59 s 27,433 | 0/0/0 |
+| merge link 3 | `e0736293` (merge of origin/main `7e3e4a9e`; BUGLOG conflict: main's new test_ai_lock.py row kept, then this branch's row) | `merge_link.sh 7f747e31 e71f65d7 7e3e4a9e`: docs/BUGLOG.md only | Codex (medium) | 61 s 27,239 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
