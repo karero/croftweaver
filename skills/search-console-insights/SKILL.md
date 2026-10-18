@@ -392,7 +392,7 @@ carries over to the next site connected later.
 
 ```bash
 bash scripts/schedule_tracking.sh install example.com \
-  "AI Events Munich,AI Meetups Munich,AI Treffen München" 1 9   # Mon 09:00 (weekday: 1=Mon…6=Sat, 0/7=Sun; hour 0-23)
+  "AI Events Munich,AI Meetups Munich,AI Treffen München" 1 9   # Mon 09:xx (weekday: 1=Mon…6=Sat, 0/7=Sun; hour 0-23)
 bash scripts/schedule_tracking.sh status example.com    # is THIS site scheduled? (exact)
 bash scripts/schedule_tracking.sh list                  # everything scheduled (sanitized labels)
 bash scripts/schedule_tracking.sh remove example.com
@@ -403,6 +403,10 @@ both trends), logging to
 `~/.config/gsc-insights/logs/<domain>.log` (dots become dashes: `example-com.log`). A month
 later, *"is my ranking improving?"*
 answers from real data instead of a single snapshot.
+
+Each site starts in its own minute: a new site takes the first of :00, :15, :30 and :45 that no
+other site uses at that day and hour, so their AI checks don't run at once and hit the engines'
+rate limits. Re-installing a site at the same day and hour keeps its minute, even one set by hand.
 
 Every step runs even if an earlier one failed (an expired Google sign-in no longer costs the
 week's Bing and AI data), and the log ends with a **"This run needs attention"** list naming
