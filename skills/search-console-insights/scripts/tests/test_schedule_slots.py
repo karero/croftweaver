@@ -66,7 +66,7 @@ class StartSlots(unittest.TestCase):
         return self.run_cmd("install", domain, "k", *when)
 
     def old_plists(self, *label_minutes):
-        """Plists written by plistlib, not by install: another layout, as a hand edit leaves."""
+        """Plists that install did not write, as after a hand edit."""
         self.agents.mkdir(parents=True, exist_ok=True)
         for label, minute in label_minutes:
             with open(self.agents / f"com.gsc-insights.{label}.plist", "wb") as f:
@@ -102,7 +102,7 @@ class StartSlots(unittest.TestCase):
         self.assertEqual(self.when("c.example"), (1, 9, 0))
 
     def test_a_slot_set_by_hand_is_kept_and_respected(self):
-        """The owner staggered jobs by hand, in plists not laid out as install writes them."""
+        """The owner staggered jobs by hand."""
         self.old_plists(("old-example", 0), ("hand-example", 15))
         self.install("hand.example")
         self.assertEqual(self.when("hand.example"), (1, 9, 15))

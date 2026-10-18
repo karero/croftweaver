@@ -406,9 +406,10 @@ answers from real data instead of a single snapshot.
 
 Each site starts in its own minute: a new site takes the first of :00, :15, :30 and :45 that no
 other site uses at that day and hour (then :05, :20 and the other 5-minute gaps), so their AI
-checks don't start at once and hit the engines' rate limits. A 13th site at one day and hour
-shares :00, and install warns you to pick another hour. Re-installing a site keeps its minute, even one set by hand, unless another site has
-it too. A Mac asleep at those times still starts every missed job together when it wakes.
+checks are less likely to run at once and hit the engines' rate limits. A 13th site at one day
+and hour shares :00, and install warns you to pick another hour. Re-installing a site at the
+same day and hour keeps its minute, even one set by hand, unless another site has it too. A Mac
+asleep at those times still starts every missed job together when it wakes.
 
 Every step runs even if an earlier one failed (an expired Google sign-in no longer costs the
 week's Bing and AI data), and the log ends with a **"This run needs attention"** list naming
