@@ -25,6 +25,8 @@ def reset():
         # SerpApi engine name -> (status, JSON body), e.g. "google_ai_mode", "google"
         "serp": {},
         "hits": [],
+        # (path, request body as text, start, end) per POST, for tests that check timing
+        "spans": [],
     })
 
 
@@ -98,7 +100,14 @@ class _H(BaseHTTPRequestHandler):
         self._send(STATE["homepage_status"], STATE["homepage"], "text/html; charset=utf-8")
 
     def do_POST(self):
-        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        start = time.time()
+        raw = self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}"
+        try:
+            self._post(json.loads(raw))
+        finally:
+            STATE["spans"].append((self.path, raw.decode("utf-8", "replace"), start, time.time()))
+
+    def _post(self, body):
         STATE["hits"].append(("POST", self.path, dict(self.headers), body))
         if self.path == "/api/v1/chat/completions":          # OpenRouter
             engine = next((e for p, e in ROUTER_PREFIX.items() if str(body.get("model", "")).startswith(p)), None)
@@ -112,6 +121,8 @@ class _H(BaseHTTPRequestHandler):
                 return self._send(200, raw if isinstance(raw, str) else json.dumps(raw))
             return self._send(200, json.dumps(_router_payload(spec, body)))
         engine = _engine_of(self.path)
+        if STATE.get("gate") is not None:        # a threading.Event the test sets to let replies through
+            STATE["gate"].wait(60)
         if STATE.get("delay", {}).get(engine):
             time.sleep(STATE["delay"][engine])
         spec = STATE["engines"].get(engine)
