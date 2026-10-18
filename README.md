@@ -4,11 +4,16 @@
 
 **Build for search and AI.**
 
-Croftweaver is an open-source suite of website skills for **Claude Code**, **OpenAI Codex**, and
-**Google Antigravity**. It turns a short brief into a complete website — content, mobile-first
-responsive design, SEO, accessibility checks, schema markup, tests, and launch support — on a
-modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages). After launch, it helps you
-keep improving SEO and GEO (how your site shows up in AI answers), week by week.
+Croftweaver is a free, open-source suite of website skills: instructions your AI coding
+assistant follows to build and test a site you own. Build or rebuild your site with your
+assistant, so people can find it on Google and in AI answers. From a short brief it makes a
+complete website — content, mobile-first responsive design, SEO, accessibility checks, schema
+markup, tests, and launch support — on Astro → GitHub → Cloudflare Pages, and its test suites
+check every change by default. After launch, your Search Console data and a weekly check of
+which AI assistants name your site point to the next edit for SEO and GEO (how your site shows
+up in AI answers). Developed and used with **Claude Code**; the install guides also cover
+**OpenAI Codex** and **Google Antigravity**, and both have been tested from start to finish on
+one site.
 
 **Already have a website?** Part of Croftweaver works on a site that is already live, on any
 stack, without a rebuild: the checks and measurements. They are Search Console insights, the
@@ -69,7 +74,8 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 ## The easiest way to start
 
 1. **Install one AI assistant** — [Claude Code](https://code.claude.com/docs/en/setup)
-   (recommended), or Google Antigravity, or OpenAI Codex.
+   (recommended), or Google Antigravity, or OpenAI Codex. Croftweaver is developed and used
+   with Claude Code; the other two have been tested from start to finish on one site.
 2. **Open it** and paste the prompt below.
 3. **Answer its questions.** That's it — it handles the rest.
 
@@ -139,9 +145,9 @@ orchestrated set of agent skills that build a new website end-to-end (insights �
 positioning → content → SEO/GEO → design → QA → review → launch), on the house stack
 **Astro → GitHub → Cloudflare Pages**.
 
-Developed and used with **Claude Code**. It also works with **Google Antigravity** and
-**OpenAI Codex** — the skills are plain `SKILL.md` files, so any of the three can run the
-same suite (see the per-tool notes below).
+Developed and used with **Claude Code**. The skills are plain `SKILL.md` files, and the
+install guides also cover **Google Antigravity** and **OpenAI Codex**; the suite has been
+tested from start to finish with each on one site (see the per-tool notes below).
 
 It replaces the previous arrangement where the suite lived in three hand-synced copies
 (`~/.claude/skills/`, a de-personalized `_new-site/` package, and a hand-built zip), which
@@ -342,10 +348,9 @@ hash it prints with the one in `SHA256SUMS` (it prints capitals, the file small 
 
 ### Using with Google Antigravity
 
-This suite is **100% compatible** with Google Antigravity, which natively understands the
-`SKILL.md` format and can orchestrate the whole pipeline (it can even run skills like
-`customer-research` or `seo-audit` as asynchronous subagents). Install the skills into your
-global config, then type `new website` in chat:
+The skills go into Google Antigravity unchanged, as plain `SKILL.md` files. The suite has been
+tested from start to finish with Antigravity on one site. Install the skills into your global
+config, then type `new website` in chat:
 
 ```bash
 mkdir -p ~/.gemini/config/skills && cp -R skills/* ~/.gemini/config/skills/
@@ -357,8 +362,9 @@ step-by-step compatibility checklist.
 
 ### Using with OpenAI Codex
 
-Codex runs the same suite through a thin adaptation layer — `skills/*` stays the single
-source of truth. Install, restart Codex, and say `new website` (or `$new-website`):
+Codex reads the same skills through a thin adaptation layer — `skills/*` stays the single
+source of truth. The suite has been tested from start to finish with Codex on one site.
+Install, restart Codex, and say `new website` (or `$new-website`):
 
 ```bash
 ./scripts/install-codex.sh        # symlinks skills/* into ~/.agents/skills/  (or: make install-codex)
