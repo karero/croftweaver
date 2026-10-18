@@ -1,7 +1,7 @@
 # PLAN review — one site's AI check at a time
 Base `89f965b5` · depth: Normal (a plan for shipped code; it touches no user data, login, money or deletion, so no red team) · verdict: CLEAN (2026-10-18). Three rounds (2 BUG, both in round 1), a final full read, a wording pass and one confirmation; 47 findings in the rounds and the final read; no BUG open; nothing waived; closing edits after round 3 not externally re-verified except by the wording pass
 
-Artifact: `docs/reviews/SKILL-PLAN-ai-check-lock.md`, whole. Destinations: Codex and melious.ai, as the global working rules name them (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`); this repository is public and its content has gone to both before. Claims sweep run before round 1 (25 sentences); two claims corrected from it (which runs failed on 2026-10-12, and why GSC and Bing are out of scope).
+Artifact: `docs/reviews/SKILL-PLAN-ai-check-lock.md`, whole. Destinations: Codex and melious.ai, as the global working rules name them (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`); this repository is public and its content has gone to both before. Heads named here from before `1c4f9b41` were folded into that one commit on the maintainer's OK (an earlier commit named the owner's sites), so they are not in the pushed history; the reviewed content is. Claims sweep run before round 1 (25 sentences); two claims corrected from it (which runs failed on 2026-10-12, and why GSC and Bing are out of scope).
 
 | Round | Head | Artifact | Reviewers | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
