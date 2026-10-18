@@ -8,6 +8,7 @@ Base `89f965b5` · depth: Normal (shipped code; no auth, payments, personal data
 | 3 | `ffe2b82a` | delta since `821a6fe2` | Codex (medium); GLM 5.3 | 138 s 67,979; 484 s 46,080 | 1/1/4 |
 | 4 | `9cbeeea6` | delta since `ffe2b82a` | Codex (medium); GLM 5.3 | 131 s 51,631; 292 s 22,858 | 1/1/3 |
 | wording | `94f5d183` + the release-note row | the row only | Codex (medium) | 86 s 51,380 | 0/0/0 |
+| merge link | `d3b20404` (merge of origin/main `9ce0f906`; BUGLOG conflict resolved by keeping both sides' rows) | `merge_link.sh 89f965b5 598e4fd4 9ce0f906`: README.md and docs/BUGLOG.md only | Codex (medium) | 78 s 55,008 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -39,5 +40,5 @@ Follow-ups: none from the review. The first real WordPress move is the first rea
 Notes:
 - Round 4 was earned by round 3's BUG G1 (`--earned-by control-characters`); `--cut`: per-reader checks replaced by one strict rule in `ask_of`.
 - Round 4's BUG H1 was the same kind after its cut, so patching stopped and the owner decided; no round 5.
-- Tests: 180 pass on Python 3.9.6 and the default; `make check` passes.
+- Tests: 180 pass on Python 3.9.6 and the default; `make check` passes, before and after the merge of origin/main.
 - The plan passed its own PLAN gate (5 rounds and a final full read), recorded in the private tracker.
