@@ -11,8 +11,8 @@ jobs", `track.sh`). Code written against origin/main `89f965b5`, branch `fix/gsc
 | 2 | PLAN gate (Normal) | ✅ clean: 3 rounds, final full read, wording pass; no BUG open | trail `REVIEW-plan-2026-10-18-ai-check-lock.md` |
 | 3 | Stagger fix merged (it adds the BUGLOG row this closes and the SKILL.md sentence this edits) | ✅ karero/croftweaver#354 merged | merge commit `9ce0f906` |
 | 4 | Build the lock and tests T1 to T6 (the maintainer's go, asked in this session on 2026-10-18 after the PLAN gate: "Yes, go ahead") | ✅ built; `make check` and `make test` green | `ad40835f`, `a1933ba3` (`references/geo-check.md`'s note, moved here from step 5 because #354 does not touch that file) |
-| 5 | After step 3: merge main in, then SKILL.md and the BUGLOG row | ▶ written; prose re-gate next | merge `c5c9dee0` |
-| 6 | DIFF gate (Normal: shipped code) | ▶ 2 rounds, 12 findings, no BUG; rounds closed at `458af541`; step 5's prose still to be re-gated | trail `REVIEW-diff-2026-10-18-ai-check-lock.md` |
+| 5 | After step 3: merge main in, then SKILL.md and the BUGLOG row | ✅ written and re-gated | merge `c5c9dee0`, `fd248838` |
+| 6 | DIFF gate (Normal: shipped code) | ✅ clean: 2 rounds, 12 findings, no BUG; prose re-gate clean | trail `REVIEW-diff-2026-10-18-ai-check-lock.md` |
 | 7 | Push and PR, after the maintainer says yes. Before the first push, the branch's earlier commits are folded into one, because one of them named the owner's sites; `git log -p 89f965b5..HEAD` must match no name `scripts/check_clean.sh` refuses | ⏸ | — |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked

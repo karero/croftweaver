@@ -1,5 +1,5 @@
 # DIFF review — one site's AI check at a time
-Base `89f965b5` · depth: Normal (shipped code in a skill; no user data, login, money or deletion) · verdict: rounds closed 2026-10-18 at `458af541` (2 rounds, 12 findings, no BUG; one round-2 NIT fixed after the last round, not externally re-verified). Still to come: SKILL.md and the BUGLOG row after karero/croftweaver#354 merges, and their prose-only re-gate.
+Base `89f965b5` · depth: Normal (shipped code in a skill; no user data, login, money or deletion) · verdict: CLEAN (2026-10-18). 2 rounds, 12 findings, no BUG; one round-2 NIT fixed after the last round, not externally re-verified. The record prose (SKILL.md, the BUGLOG row), written after #354 merged, passed a prose-only re-gate and one confirmation.
 
 Artifact: `git diff 89f965b5...HEAD -- . ':(exclude)docs/reviews/'`; round 2 the delta since `5f63f1ef`. Plan: `SKILL-PLAN-ai-check-lock.md`, its gate in `REVIEW-plan-2026-10-18-ai-check-lock.md`. Destinations: Codex and melious.ai, as for the PLAN gate. The maintainer's go to build: "Yes, go ahead" (asked in session, 2026-10-18). A first round-1 start was stopped before any seat reported, while that go was asked for.
 
@@ -7,6 +7,8 @@ Artifact: `git diff 89f965b5...HEAD -- . ':(exclude)docs/reviews/'`; round 2 the
 |---|---|---|---|---|---|
 | 1 | `5f63f1ef` | full diff | Codex CLI 0.162.1, gpt-6.1-sol, config effort, read-only · Melious glm-5.3, text only · fresh-eyes sub-agent, sonnet, read-only (ran the tests and three mutations) | Codex 196 s, 62,174 · Melious 320 s, 28,530 · fresh-eyes 189 s, 102,134 | 0 / 2 / 4 after merging duplicates (Codex 0/1/0, Melious 0/1/2, fresh-eyes 0/0/3, one UNVERIFIABLE, the clock, merged into D2) |
 | 2 | `93931e51` | delta since `5f63f1ef`, as a verification round (D1 to D6) | Codex (medium) · Melious glm-5.3 | Codex 86 s, 35,411 · Melious 198 s, 16,948 | 0 / 1 / 3 (Codex's RISK re-raises D2 without new evidence; Melious 0/0/3). No BUG, no RISK calling for a fix: rounds end (stop condition a2) |
+| prose re-gate (not a round) | `787553da` | delta since the merge of main (`c5c9dee0`): SKILL.md, BUGLOG | Codex (medium) | 60 s, 50,670 | 1 contradiction (P1), fixed |
+| confirmation (not a round) | `fd248838` | that fix's delta | Codex (medium) | 34 s, 21,617 | No BUG/RISK/NIT findings |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -19,5 +21,7 @@ Artifact: `git diff 89f965b5...HEAD -- . ':(exclude)docs/reviews/'`; round 2 the
 | E1 | NIT | Melious | 2 | T1's poll would wait out its 30 s if the waiting line were not flushed | refuted | it is flushed (`flush=True` in `_ai_check_lock`); the six tests run in about 8 s; T6 fails if the flush is removed |
 | E2 | NIT | Melious | 2 | `STATE["gate"]` is never cleared | refuted | `stub.reset()` in every `setUp` clears all of `STATE` |
 | E3 | NIT | Melious | 2 | killed children are never reaped | fixed, locally_verified (not externally re-verified) | `stop()` kills and waits, `458af541` |
+
+| P1 | BUG (contradiction) | Codex | prose re-gate | SKILL.md said the wait is listed under "This run needs attention"; the list holds only "AI check: exit 1", the wait is a ⚠ line above it | fixed, externally_reverified (confirmation) | `fd248838` |
 
 Negative controls, run by hand and not committed: the lock taken out (`ai_lock = None`): T1, T2, T5 and T6 fail; `asks = usable` (ignoring `--engines`): T4 fails; the waiting line not flushed: T6 fails. `make check` and `make test` (387 tests) green at `458af541`.
