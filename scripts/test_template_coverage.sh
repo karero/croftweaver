@@ -10,7 +10,7 @@
 # file at the templates root, the guard still passed, so sites were never told when that file
 # changed. These cases pin that the guard now fails for a file left out at the root, under
 # claude/ and (as before) under astro/, for a tracked or a site-owned root file dropped from
-# its list, and that it passes on the templates as they are.
+# its list, and for a folder it cannot read, and that it passes on the templates as they are.
 #
 # It enters the way make check and CI do: it runs the guard script, which finds its files from
 # where it sits, so the copies are laid out as the repo is.
@@ -81,6 +81,16 @@ expect "a new file under templates/claude/ fails" "$c" fail "$TPL/claude/hooks/n
 
 fresh; echo new >"$c/$TPL/astro/new-file.txt"
 expect "a new file under templates/astro/ still fails" "$c" fail "$TPL/astro/new-file.txt"
+
+# A folder find cannot read: the scan is incomplete, so the guard must stop, not pass on
+# what it did see. Root reads any folder, so the case cannot be set up there.
+if [ "$(id -u)" -ne 0 ]; then
+  fresh; mkdir "$c/$TPL/unreadable" && echo x >"$c/$TPL/unreadable/f" && chmod 000 "$c/$TPL/unreadable"
+  expect "a folder find cannot read fails" "$c" fail "find exited"
+  chmod 755 "$c/$TPL/unreadable"
+else
+  echo "skip a folder find cannot read: running as root"
+fi
 
 if [ "$fails" -ne 0 ]; then
   echo "test_template_coverage.sh: $fails case(s) failed"

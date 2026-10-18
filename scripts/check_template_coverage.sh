@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Guard: every file under skills/new-website/templates/ (the astro overlay, the root
-# templates beside it and templates/claude/) must be accounted for in exactly one bucket — TEMPLATE_TRACKED (drift-tracked via TESTS-VERSION), SITE_OWNED
+# templates beside it and templates/claude/) must be accounted for in exactly one
+# bucket — TEMPLATE_TRACKED (drift-tracked via TESTS-VERSION), SITE_OWNED
 # (deliberately not tracked — sites hand-edit it), or SITE_SOURCE (below — becomes the
 # site's own application content at scaffold time, or never ships to a site at all).
 # TEMPLATE_TRACKED and SITE_OWNED are extracted straight out of scripts/whats-new.sh
