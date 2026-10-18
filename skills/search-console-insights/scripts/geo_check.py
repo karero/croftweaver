@@ -831,6 +831,61 @@ def new_run_id() -> str:
     return f"{stamp}-{os.getpid()}-{random.getrandbits(16):04x}"
 
 
+LOCK_WAIT = 90 * 60   # seconds; a full run took 9 to 13 minutes (the plan's measurements)
+
+
+def _duration(seconds: float) -> str:
+    return f"{seconds:.0f} s" if seconds < 60 else f"{seconds / 60:.0f} min"
+
+
+def _ai_check_lock(problems):
+    """Wait for the lock that lets one AI check run at a time, and return the open file that holds
+    it. The kernel drops the lock when the file is closed or the process ends, however it ends, so
+    a crash leaves none behind. Gives up after LOCK_WAIT and returns None with a problem added: the
+    run then asks the engines anyway and says so. The same if the lock file can't be used. The wait
+    is counted with time.monotonic, which on macOS is mach_absolute_time (time.get_clock_info);
+    Apple's page for that says "this clock does not increment while the system is asleep", so a
+    Mac that sleeps mid-wait does not use the wait up."""
+    test = os.environ.get("GEO_TEST_MODE") == "1"
+    limit = float(os.environ.get("GEO_LOCK_WAIT") or LOCK_WAIT) if test else LOCK_WAIT
+    step = 0.1 if test else 5
+    unusable = "could not use the lock that keeps AI checks one at a time ({}), so this run did not wait for any other"
+    try:
+        geo_dir().mkdir(parents=True, exist_ok=True)
+        f = open(geo_dir() / "ai-check.lock", "a")
+    except OSError as e:
+        problems.append(unusable.format(e))
+        return None
+    start = time.monotonic()
+    waiting = False
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except BlockingIOError:
+            pass
+        except OSError as e:
+            f.close()
+            problems.append(unusable.format(e))
+            return None
+        waited = time.monotonic() - start
+        if waited >= limit:
+            f.close()
+            problems.append(f"waited {_duration(waited)} for another AI check run, then ran anyway, "
+                            "so answers may hit the engines' rate limits")
+            return None
+        if not waiting:
+            # Flushed: under launchd stdout is the site's log file, which Python would otherwise
+            # hold back until the run ends.
+            print(f"  waiting for another AI check run to finish, one at a time "
+                  f"(at most {_duration(limit)}) …", flush=True)
+            waiting = True
+        time.sleep(step)
+    if waiting:
+        print(f"  … waited {_duration(time.monotonic() - start)}", flush=True)
+    return f
+
+
 def run(domain: str, only=None) -> int:
     cfg = load_config(domain)
     if cfg is None:
@@ -865,6 +920,15 @@ def run(domain: str, only=None) -> int:
                         f"(add {ROUTER_VAR}=... to {base_dir() / '.env'}: one key for all four assistants)")
     if not queries:
         problems.append("the AI check has no questions yet (ask Claude to draft them)")
+
+    # One AI check at a time on this Mac, whichever site: launchd starts every job whose time
+    # passed during sleep on the same wake, and their engine calls together hit HTTP 429s
+    # (docs/reviews/SKILL-PLAN-ai-check-lock.md). Only a run that will ask an engine waits, and
+    # it waits before the run id and date are set, so they say when it really ran. Lock order:
+    # this lock is the outer one, never waited for while another is held; append_history's lock
+    # is taken inside it. Held while `ai_lock` is open, so until this function returns.
+    asks = [e for e in usable if not only or e in only]
+    ai_lock = _ai_check_lock(problems) if asks and queries else None
 
     run_id = new_run_id()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -997,6 +1061,8 @@ def run(domain: str, only=None) -> int:
             print(f"  (couldn't write the report page: {e})")
     for p in problems:
         print(f"⚠ {p}")
+    if ai_lock:
+        ai_lock.close()
     return 1 if problems else 0
 
 
