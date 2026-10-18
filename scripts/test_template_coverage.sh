@@ -22,7 +22,7 @@ ROOT="$(dirname -- "$HERE")"
 T="$(mktemp -d "${TMPDIR:-/tmp}/template-coverage-test.XXXXXX")" \
   || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
-fails=0; n=0
+fails=0; skips=0; n=0
 
 # fresh — sets c to a new copy of what the guard reads. Not run in $(…), so a failed copy
 # ends the test here instead of leaving c empty for the cases below.
@@ -89,11 +89,15 @@ if [ "$(id -u)" -ne 0 ]; then
   expect "a folder find cannot read fails" "$c" fail "find exited"
   chmod 755 "$c/$TPL/unreadable"
 else
-  echo "skip a folder find cannot read: running as root"
+  echo "skip a folder find cannot read: running as root"; skips=$((skips+1))
 fi
 
 if [ "$fails" -ne 0 ]; then
   echo "test_template_coverage.sh: $fails case(s) failed"
   exit 1
 fi
-echo "test_template_coverage.sh: all cases passed"
+if [ "$skips" -ne 0 ]; then
+  echo "test_template_coverage.sh: every case that ran passed ($skips skipped)"
+else
+  echo "test_template_coverage.sh: all cases passed"
+fi
