@@ -11,8 +11,14 @@ The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the Croftwe
 **Quick path** (a site that is already set up). Run these with `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> …`:
 
 1. `--check-drift`: is the question still right? (see "Every session")
-2. no flag: ask the engines (a few minutes); `--engines google-ai-mode,gemini` asks only the listed engines.
+2. no flag: ask the engines (a few minutes; start it in the background, see below); `--engines google-ai-mode,gemini` asks only the listed engines.
 3. `--report`: the owner's page. `--trend`: week over week.
+
+**One AI check at a time.** A run that will ask an engine first waits while another AI check on this
+computer is asking the engines (a weekly job, often several at once when a Mac wakes), up to 90
+minutes, and prints "waiting for another AI check run to finish". So start a run in the
+background, not as a call that must end within a time limit. Never start a second run of the same
+site while one waits: the first still runs, and a second pays for the same engine calls again.
 
 Three rules that are easy to miss: say **"N of M"** with the numbers from the report, because not
 every assistant is asked both ways; never answer the questions yourself or through a coding
@@ -243,7 +249,7 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
    - `--check-drift` prints the homepage's title, description and main heading, and a **page code**. Read them with the owner;
      only if it is the real homepage (not a cookie banner or a "checking your browser" page) run
      `--confirm --expect <page code>`. It saves only if the page still matches that preview.
-5. 🤖 **Run it once** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
+5. 🤖 **Run it once**, in the background ("One AI check at a time" above) (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
    (`--report`) and walk the owner through it. It takes a few minutes with every engine on. If an engine shows FAILED, read its
    reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit; "HTTP 402" means prepaid credit ran out (see "When prepaid credit runs out" above; on OpenRouter it stops every assistant that goes through it).
 6. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
