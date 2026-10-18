@@ -87,19 +87,25 @@ case "$cmd" in
     # Start minute. Every job used to start at :00, so several sites ran at once and the
     # AI check's parallel calls hit the providers' rate limits (HTTP 429 from Anthropic
     # and Perplexity, 2026-10-12). Re-installing at the same day and hour keeps this
-    # site's minute; otherwise it takes the first of :00, :15, :30, :45 (then the
+    # site's minute unless another site's job has it too (as every job from before this
+    # change does); otherwise it takes the first of :00, :15, :30, :45 (then the
     # 5-minute gaps) that no other site's job uses at that day and hour.
-    want="$(day_hour "$weekday" "$hour")"; minute=""
+    want="$(day_hour "$weekday" "$hour")"; taken=" "
+    for other in "$LA_DIR/$PREFIX."*.plist; do
+      [ -f "$other" ] && [ "$other" != "$plist" ] || continue
+      d="$(plist_when "$other" Weekday)"; h="$(plist_when "$other" Hour)"
+      [ -n "$d" ] && [ -n "$h" ] && [ "$(day_hour "$d" "$h")" = "$want" ] || continue
+      taken="$taken$(nozero "$(plist_when "$other" Minute)") "
+    done
+    minute=""
     if [ -n "$same_site" ] && [ "$(day_hour "$(plist_when "$plist" Weekday)" "$(plist_when "$plist" Hour)")" = "$want" ]; then
-      minute="$(plist_when "$plist" Minute)"; [ -z "$minute" ] || minute="$(nozero "$minute")"
+      minute="$(plist_when "$plist" Minute)"
+      if [ -n "$minute" ]; then
+        minute="$(nozero "$minute")"
+        case "$taken" in *" $minute "*) minute="" ;; esac
+      fi
     fi
     if [ -z "$minute" ]; then
-      taken=" "
-      for other in "$LA_DIR/$PREFIX."*.plist; do
-        [ -f "$other" ] && [ "$other" != "$plist" ] || continue
-        [ "$(day_hour "$(plist_when "$other" Weekday)" "$(plist_when "$other" Hour)")" = "$want" ] || continue
-        taken="$taken$(nozero "$(plist_when "$other" Minute)") "
-      done
       for m in 0 15 30 45 5 20 35 50 10 25 40 55; do
         case "$taken" in *" $m "*) ;; *) minute=$m; break ;; esac
       done
@@ -142,7 +148,7 @@ PLIST
     # Reload idempotently. bootout/bootstrap is the modern path; fall back to load/unload.
     launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || launchctl unload "$plist" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$plist" 2>/dev/null || launchctl load "$plist"
-    echo "✓ Weekly tracking scheduled for $domain — weekday $weekday at ${hour}:$(printf '%02d' "$minute")."
+    echo "✓ Weekly tracking scheduled for $domain — weekday $weekday at $(nozero "$hour"):$(printf '%02d' "$minute")."
     echo "  label : $label"
     echo "  log   : $log"
     echo "  history: ${hist:-(shared default file)}"

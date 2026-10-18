@@ -4,7 +4,9 @@ Why: every job used to start Mondays at 09:00. With several sites, their AI chec
 same moment and the providers refused the extra connections: on 2026-10-12 all three of one
 owner's runs ended "AI check: exit 1" from Anthropic and Perplexity HTTP 429. So install gives
 a new site the first free slot (:00, :15, :30, :45) at its day and hour, and re-installing a
-site (to change its keywords, say) keeps the slot it has, including one the owner set by hand.
+site (to change its keywords, say) keeps the slot it has, including one the owner set by hand,
+unless another site's job has that slot too: then it moves, so sites installed before this
+change, all at :00, spread out as each is re-installed.
 
 This runs the real install and remove commands, as a user does, with HOME in a temp folder
 (so nothing touches the real ~/Library/LaunchAgents) and a stand-in launchctl that loads
@@ -63,6 +65,15 @@ class StartSlots(unittest.TestCase):
     def install(self, domain, *when):
         return self.run_cmd("install", domain, "k", *when)
 
+    def old_plists(self, *label_minutes):
+        """Plists written by plistlib, not by install: another layout, as a hand edit leaves."""
+        self.agents.mkdir(parents=True, exist_ok=True)
+        for label, minute in label_minutes:
+            with open(self.agents / f"com.gsc-insights.{label}.plist", "wb") as f:
+                plistlib.dump({"Label": f"com.gsc-insights.{label}",
+                               "ProgramArguments": ["/bin/bash", "track.sh", label.replace("-", "."), "k"],
+                               "StartCalendarInterval": {"Weekday": 1, "Hour": 9, "Minute": minute}}, f)
+
     def when(self, domain):
         label = domain.replace(".", "-")
         with open(self.agents / f"com.gsc-insights.{label}.plist", "rb") as f:
@@ -91,17 +102,29 @@ class StartSlots(unittest.TestCase):
         self.assertEqual(self.when("c.example"), (1, 9, 0))
 
     def test_a_slot_set_by_hand_is_kept_and_respected(self):
-        """The owner staggered jobs by hand; plutil rewrites a plist in its own layout."""
-        self.agents.mkdir(parents=True)
-        for label, minute in (("old-example", 0), ("hand-example", 15)):
-            with open(self.agents / f"com.gsc-insights.{label}.plist", "wb") as f:
-                plistlib.dump({"Label": f"com.gsc-insights.{label}",
-                               "ProgramArguments": ["/bin/bash", "track.sh", label.replace("-", "."), "k"],
-                               "StartCalendarInterval": {"Weekday": 1, "Hour": 9, "Minute": minute}}, f)
+        """The owner staggered jobs by hand, in plists not laid out as install writes them."""
+        self.old_plists(("old-example", 0), ("hand-example", 15))
         self.install("hand.example")
         self.assertEqual(self.when("hand.example"), (1, 9, 15))
         self.install("new.example")
         self.assertEqual(self.when("new.example"), (1, 9, 30))
+
+    def test_sites_from_before_the_change_spread_out_when_reinstalled(self):
+        """Every job installed before this change starts at :00; keeping that would keep the bug."""
+        sites = ["a.example", "b.example", "c.example"]
+        self.old_plists(*((d.replace(".", "-"), 0) for d in sites))
+        for d in sites:
+            self.install(d)
+        self.assertEqual(sorted(self.when(d)[2] for d in sites), [0, 15, 30])
+
+    def test_a_thirteenth_site_at_one_hour_is_told_to_pick_another(self):
+        sites = [f"s{i}.example" for i in range(12)]
+        for d in sites:
+            self.install(d)
+        self.assertEqual(sorted(self.when(d)[2] for d in sites), list(range(0, 60, 5)))
+        out = self.install("s12.example")
+        self.assertIn("every slot at this day and hour is taken", out)
+        self.assertEqual(self.when("s12.example"), (1, 9, 0))
 
     def test_only_jobs_at_the_same_day_and_hour_take_a_slot(self):
         self.install("a.example", "1", "9")
