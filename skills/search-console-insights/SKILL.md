@@ -410,8 +410,8 @@ checks are less likely to run at once and hit the engines' rate limits. A 13th s
 and hour shares :00, and install warns you to pick another hour. Re-installing a site at the
 same day and hour keeps its minute, even one set by hand, unless another site has it too. A Mac
 asleep at those times still starts every missed job together when it wakes; their AI checks then
-take turns, one site at a time. A site waits up to 90 minutes for its turn, then asks anyway and
-lists the wait under "This run needs attention".
+take turns, one site at a time. A site waits up to 90 minutes for its turn, then asks anyway: the
+log says so in a ⚠ line, and "This run needs attention" lists the AI check.
 
 Every step runs even if an earlier one failed (an expired Google sign-in no longer costs the
 week's Bing and AI data), and the log ends with a **"This run needs attention"** list naming
