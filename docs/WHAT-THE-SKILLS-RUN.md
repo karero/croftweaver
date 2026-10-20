@@ -188,12 +188,14 @@ an "Email Tap" event there, as a click on an email address does.
   weekly AI check. `ai_reports.py` reads the Google and Bing AI reports you download and hand
   over, on your computer only, and with `--keep-in` keeps a copy in the site's `analytics/`
   folder. `schedule_tracking.sh install` sets up a weekly run on macOS, and only on an
-  explicit yes: it gives each site's job its own start minute, so several sites do not run
-  at once. Once per site per session it runs `schedule_tracking.sh status`, which only
+  explicit yes: it gives each site's job its own start minute where one is free, so several sites are
+  less likely to run at once (a re-install keeps a free minute the site already has; with
+  all twelve slots at one day and hour taken, a site shares :00 and the script says so). Once per site per session it runs `schedule_tracking.sh status`, which only
   reads. The AI check takes turns: a run waits (up to 90 minutes, then goes on anyway) while
   another site's AI check holds a lock file, so the AI services see one site at a time. If
-  Google refuses the saved Search Console sign-in, a run you start by hand opens the browser
-  to sign in again; a scheduled run only reports it.
+  Google refuses the saved Search Console sign-in, running `gsc_query.py` by hand opens the
+  browser to sign in again. The weekly job, `insights.py` and the weekly report never open a
+  browser: they report it, and you reconnect by running `gsc_query.py`.
   - The weekly fix proposal: `fix_proposal.py` keeps the list of proposed page fixes in
     `~/.config/gsc-insights/sites/` and asks GitHub (`gh pr view`) whether a pull request it
     recorded was merged. The weekly report reads your own live pages (only on your own
@@ -212,7 +214,7 @@ an "Email Tap" event there, as a click on an email address does.
   cards again. To do that it runs the site's own `node` and Python scripts and then the
   site's build and tests (`npm run build && npm test`, or a test command the assistant
   names). It draws the icons with the site's own `sharp` package, without a browser. It
-  makes no network call and needs no key. In Claude Code, `python3` is not on the
+  makes no network call of its own and needs no key; the site's build and tests it runs are the site's own, and whatever they fetch is not covered here. In Claude Code, `python3` is not on the
   allowlist, so starting it asks; the commands it runs from there are not asked one by one.
 - **`website-permissions`** copies `.claude/settings.json` and the sync hook script it
   registers (`git-stand.mjs`, which runs `git fetch`) into the site (see
@@ -242,7 +244,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 
 | Who | Used by | Key or sign-in | Reads or sends |
 |---|---|---|---|
-| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix) | your git and `gh` sign-in | reads, and sends your site's code when pushing; a fix proposal's pull request carries search figures only if you say yes |
+| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix) | your git and `gh` sign-in | reads, and sends your site's code when pushing; a fix proposal's pull request carries search figures if the repository is private, and in a public one only if you have said yes (the assistant asks once) |
 | GitHub release downloads | `npm create croftweaver` | none | reads `croftweaver.zip` and its `SHA256SUMS` from the newest release |
 | npm registry | `npm install`, `npm ci`, `npx`, `npm create astro` | none | reads packages |
 | Playwright's download servers | `npx playwright install chromium` | none | reads the test browser |
@@ -340,7 +342,7 @@ with its own terms.
 | `<skill>.pre-website-builder.bak` next to the skills | `scripts/install.sh` | when a folder with a skill's name was already there | rename it back |
 | `skills-before-croftweaver-…` next to the skills folder | `npm create croftweaver` | when the skills folder held folders it did not recognise | move them back |
 | `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/` with `ai-check.lock`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
-| `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
+| `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour; a re-install keeps a free minute, and with all twelve taken the site shares :00) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
 | `~/.local/state/independent-review/runs.tsv` | `independent-review` | each review (turn off with `REVIEW_LOG=off`) | delete it |
 | a folder in your temp folder | `independent-review` | each review; holds the reviewers' answers, readable only by you | the skill tells the assistant to delete it at the end |
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |
