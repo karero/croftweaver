@@ -29,7 +29,7 @@ Base `688164f`, after the merge of origin/main `16b4a4f` · depth: High (privacy
 | F8 | RISK | fresh-eyes | 1 | "numbers run higher" unsupported; prefetched pages never counted | fixed, externally_reverified (2) | both differences named in SKILL.md and README |
 | F9 | RISK | Codex | 1 | quota text unconditional | fixed (G5 corrected it) | names "Fail open", what the deploy guide sets |
 | F10 | NIT | Melious | 1 | browsers without Fetch Metadata headers not named as lost | fixed | SKILL.md, README |
-| F11 | RISK | Codex, fresh-eyes | 1 | Plausible Cloud and a real mail program opening not observed | **open**, prerequisite: the live test on `plausible-trial.croftweaver.com` after merge (owner's choice, 2026-10-16) | IP precedence and bot drops rest on Plausible CE v3.2.1 source and the 2026-10-15 trial (plan "Facts") |
+| F11 | RISK | Codex, fresh-eyes | 1 | Plausible Cloud and a real mail program opening not observed | **half closed 2026-10-20**: the mail-program half is closed by plan row 6 (server mode on the throwaway site `e2e.webcroft.dev`: `302` to `mailto:`, Apple Mail opened a draft, `Email Tap` counted; owner's screenshots). The Plausible Cloud half stays **open** (plan row 11); it is not waived | IP precedence and bot drops rest on Plausible CE v3.2.1 source and the 2026-10-15 trial (plan "Facts") |
 | F12 | NIT | fresh-eyes | 1 | website-qa spec list | fixed | entry added; G8 reworded |
 | G1 | BUG | Codex; Melious (NIT), fresh-eyes (RISK) | 2 | the stub check matched `plausible.init(` in any text | fixed in 2, then cut (H1) | — |
 | G2 | BUG | Codex | 2 | gate reader fooled by `href=` inside another quoted value | fixed, externally_reverified (3) | attributes read one at a time; fixtures inquote, unquoted |
@@ -66,4 +66,4 @@ Base `688164f`, after the merge of origin/main `16b4a4f` · depth: High (privacy
 - Data check: no keys or customer data in the diff. Consent this session, verbatim: "Codex + melious (Recommended)".
 - Final full read: Kimi on ollama was out of quota; nothing else was sent to melious in its place. A new Claude Opus reader ran instead (a host-family pass). A first attempt died on a network error and was rerun.
 - The fresh-eyes chain ends at round 3, by design at High depth. Codex holds an unbroken chain from round 1 through the merge link, round 5 and the wording pass at `1ecd109`; the stamp rests on it. Melious's chain ends at round 5 (`67b6800`). The commit after `1ecd109` adds only this trail (`docs/reviews/`, outside the reviewed scope).
-- Owner decisions: F6 waived; F11 open until the live test, merge before it ("Integrate, review, merge").
+- Owner decisions: F6 waived; F11's mail-program half closed 2026-10-20 (plan row 6), Cloud half open (plan row 11); the merge came before the test ("Integrate, review, merge").

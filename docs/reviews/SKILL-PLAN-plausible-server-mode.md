@@ -14,11 +14,13 @@ the files win. The business in the scenarios is made up.
 | 3 | Requirements and scenarios (this file) | ✅ built from as written; the owner asked for the build, review and merge (2026-10-16) | this file |
 | 4 | Build, test-first: config, layout, middleware, email route, email link | ✅ built; review fixes since; starter suite 91 passed, 1 skipped (positioning, by design) | `721e5442` … `1ecd109c` |
 | 5 | Gate script, CSP, privacy pages EN and DE, setup docs, release-note row | ✅ gate green off, on (script) and on (server); CI runs all three; privacy slots pass tone and a11y | same range; merge of #336/#338 at `7c75855e` |
-| 6 | End-to-end test on a fresh site from this branch | ⏸ after merge, by the owner's choice (2026-10-16): throwaway project `cw-plausible-e2e` deployed, Plausible site `plausible-trial.croftweaver.com` and goal added; waits for the custom domain (it did not resolve on 2026-10-16). Settles F11 (Plausible Cloud, a real mail program) | — |
-| 7 | Review gate (High) | ✅ clean 2026-10-16: 5 rounds, a final full read, a merge link and a wording pass; F6 waived by the owner, F11 open until step 6 | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
+| 6 | End-to-end test: self-hosted Plausible, on the throwaway site `e2e.webcroft.dev` (not the planned `plausible-trial.croftweaver.com` address) | ✅ done 2026-10-20 for self-hosted; Plausible Cloud is row 11. What ran: the starter from `main` at `92cfb268` with `USE_ANALYTICS = true` and `mode: 'server'`, built with `CF_PAGES_BRANCH=production`, deployed to the Pages project `cw-plausible-e2e` (branch `production`) at 13:12:33 UTC; the project's Production variables `PLAUSIBLE_HOST` (the owner's Plausible) and `PLAUSIBLE_DOMAIN` (the Plausible site's name) were set. Checked from outside at 13:13 UTC: the page has no Plausible script; its email link goes through `/go/email`; a same-origin browser-style request to `/go/email` answered `302 Location: mailto:hello@example.com?subject=Questions`. That request also counted one `Email Tap`. Then the owner clicked the email link once in a browser on a Mac: Apple Mail opened a new message to `hello@example.com` with the subject "Questions" (screenshot). The Plausible goal list for the site then showed `Email Tap`: 2 uniques, 2 total (screenshot), the owner's click and the 13:13 request. Earlier runs this day did not test this: five runs on `croftweaver.com` (script mode, `/go/email` answers 404) and three clicks on `e2e.webcroft.dev` at about 14:46 CEST on a build from before `8dfb4811`, which showed the hint page and counted nothing, because that build required `Sec-Fetch-User`, which Safari never sends. Not recorded: page-view counts, the exact time of the owner's click, and the owner's browser name; evidence is the owner's screenshots and the checks above, no log | owner's screenshots and report, 2026-10-20; this session's checks |
+| 7 | Review gate (High) | ✅ clean 2026-10-16: 5 rounds, a final full read, a merge link and a wording pass; F6 waived by the owner, F11's mail-program half closed by row 6 (2026-10-20); its Plausible Cloud half open (row 11) | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
 | 8 | PR | ✅ merged 2026-10-16 | #339, merge commit `17ade087` |
 | 9 | Test for the build-time subject check (a subject over 200 characters fails a server-mode build) | ✅ CI builds 200 and 201 characters in server mode, 201 in script mode | `template-tests.yml`, step "Server mode refuses an email subject over 200 characters at build time"; review finding H4 in `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
 | 10 | Release-note line | ✅ in the v0.32 notes (2026-10-16) | [v0.32](https://github.com/karero/croftweaver/releases/tag/v0.32), "Count visitors without a script"; the `docs/BUGLOG.md` row "Next release notes, for analytics server mode" is still open until it is closed with the release's other rows |
+| 11 | Plausible Cloud (D1, S18): `X-Debug-Request` check, then a real Cloud site | ⏸ open, not dropped (owner, 2026-10-20); D1 and S18 stand. The debug check needs no account; showing real visits on a Cloud site does | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md`, F11 (its Cloud half) |
+| 12 | Goal setup in Plausible, as the starter docs describe it | ▶ tested, docs question open: tested 2026-10-20 on the owner's self-hosted Plausible, with the screenshots of step 6: on the site's goals page (`<host>/<site name>/settings/goals`, under Settings > Goals) the "Add goal" form offered `Email Tap` in its event-name list after events had arrived, and the owner added it as a custom event named `Email Tap` (display name the same); the goal then counted the email click. This matches `skills/new-website/SKILL.md` §1 Q5 and the starter README step 4. The owner finds the goals page hard to find; whether the docs should change is **open**, not decided (2026-10-20). Not part of this plan's code | owner's screenshots and report, 2026-10-20 |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
@@ -69,7 +71,7 @@ self-hosted instance behind Cloudflare; read through the Stats API.
 ## Decisions (owner, 2026-10-15)
 
 - **D1** Server mode supports self-hosted Plausible and Plausible Cloud. Cloud is tested in
-  step 6 as far as can be done without an account (the Events API's `X-Debug-Request`), and the
+  row 11 (not yet run) as far as can be done without an account (the Events API's `X-Debug-Request`), and the
   docs say what was and was not tested.
 - **D2** The contact form's button is not counted in server mode; only email links are. Counting
   it without a script would mean passing the typed message through our server.
@@ -154,8 +156,8 @@ set `ANALYTICS.mode`, set the two Production variables in Cloudflare, add the si
 test.
 
 **S18. Plausible Cloud (D1).** The same request works against `https://plausible.io`: the
-visitor's IP, not Cloudflare's, is the one Plausible uses. Checked in step 6 with
-`X-Debug-Request`; whether a real Cloud site shows the visits is not checked without a Cloud
+visitor's IP, not Cloudflare's, is the one Plausible uses. To be checked in row 11 with
+`X-Debug-Request` (not yet run); whether a real Cloud site shows the visits is not checked without a Cloud
 account.
 
 ## Design
