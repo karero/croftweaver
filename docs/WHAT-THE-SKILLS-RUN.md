@@ -189,7 +189,7 @@ an "Email Tap" event there, as a click on an email address does.
   over, on your computer only, and with `--keep-in` keeps a copy in the site's `analytics/`
   folder. `schedule_tracking.sh install` sets up a weekly run on macOS, and only on an
   explicit yes: it gives each site's job its own start minute where one is free, so several sites are
-  less likely to run at once (a re-install keeps a free minute the site already has; with
+  less likely to run at once (a re-install at the same day and hour keeps the site's minute if no other site uses it; with
   all twelve slots at one day and hour taken, a site shares :00 and the script says so). Once per site per session it runs `schedule_tracking.sh status`, which only
   reads. The AI check takes turns: a run waits (up to 90 minutes, then goes on anyway) while
   another site's AI check holds a lock file, so the AI services see one site at a time. If
@@ -342,7 +342,7 @@ with its own terms.
 | `<skill>.pre-website-builder.bak` next to the skills | `scripts/install.sh` | when a folder with a skill's name was already there | rename it back |
 | `skills-before-croftweaver-…` next to the skills folder | `npm create croftweaver` | when the skills folder held folders it did not recognise | move them back |
 | `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/` with `ai-check.lock`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
-| `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour; a re-install keeps a free minute, and with all twelve taken the site shares :00) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
+| `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour; a re-install at the same day and hour keeps the site's minute if no other site uses it, and with all twelve taken the site shares :00) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
 | `~/.local/state/independent-review/runs.tsv` | `independent-review` | each review (turn off with `REVIEW_LOG=off`) | delete it |
 | a folder in your temp folder | `independent-review` | each review; holds the reviewers' answers, readable only by you | the skill tells the assistant to delete it at the end |
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |
