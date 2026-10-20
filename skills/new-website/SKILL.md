@@ -227,7 +227,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      the ePrivacy rule, so it is a stronger position, not a way out of a review. It
      needs two Production variables in Cloudflare (`PLAUSIBLE_HOST`,
      `PLAUSIBLE_DOMAIN`). `PLAUSIBLE_DOMAIN` must equal the site's name in Plausible, or Plausible
-     drops every event without an error. The Function counts nothing on a `*.pages.dev`
+     answers 202 and drops every event without an error. The Function counts nothing on a `*.pages.dev`
      address, so test on a custom domain. The starter README, step 4, has the setup and a
      list of what to check when nothing arrives; an existing site also takes the
      site-owned files that step names, which `whats-new` does not report, or it keeps
