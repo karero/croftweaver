@@ -472,7 +472,8 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
 .claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
                    from the branch `stable`, which the release-tag workflow moves to each release (make test-plugin)
 .agents/plugins/ (repo only) marketplace.json: the same plugin for Codex, from the same branch; Codex reads
-                   its name and number from .claude-plugin/plugin.json (make test-plugin)
+                   its name and number from .claude-plugin/plugin.json (make test-plugin; with Codex installed,
+                   make test-codex-plugin installs the released plugin from GitHub)
 packages/      (repo only: the zip does not hold it)
   create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
                    into the assistant's skills folder. The maintainer publishes it to npm (make test-create)
