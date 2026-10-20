@@ -78,8 +78,9 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    For a ticked one, click such a link on the live site once and look for its address in the
    instance's report: the sentence says the address is sent and stored.
    Before launch, add the enquiry goal on the site's goals page in Plausible,
-   `<scriptHost>/<your domain>/settings/goals` (Settings > Goals): Add goal, type
-   "Custom event", name `Email Tap` (exactly). A click on an email address
+   `<scriptHost>/<your domain>/settings/goals` (Settings > Goals; open that address directly,
+   owners find the page hard to reach from the dashboard): Add goal, type
+   "Custom event", name `Email Tap` (exactly); the form asks for an Event name and a Display name (seen on a self-hosted instance). A click on an email address
    or the contact form's button sends that event; Plausible's documentation says it shows
    only once the goal exists, and earlier ones are not counted. Once a test tap has
    reached Plausible, the goals page offers `Email Tap` to add in one click (seen on a
@@ -94,7 +95,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    `public/_headers` (no script loads). In Cloudflare, the project's Settings > Variables and Secrets >
    Production, add `PLAUSIBLE_HOST` (the instance, e.g. `https://analytics.example.com`, or
    `https://plausible.io`) and `PLAUSIBLE_DOMAIN` (the site's domain exactly as added in
-   Plausible), then redeploy; set them only in server mode, or every page view counts
+   Plausible; if `PLAUSIBLE_DOMAIN` and the site's name in Plausible differ by one letter, Plausible answers 202 and silently drops every
+   event: no error, nothing counted; seen on self-hosted Community Edition 3.2.1), then redeploy; set them only in server mode, or every page view counts
    twice. Add the site and the `Email Tap` goal in Plausible by hand as above; the
    installer's optional measurements do not apply (no script runs). In
    `src/pages/privacy.astro`, keep the server-mode slots. An existing site also takes from
@@ -108,7 +110,14 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    `plausible_ignore` flag), and the contact form's button (not counted); also pages a browser prefetched or prerendered, and visitors whose
    browser sends no Fetch Metadata headers (Safari before 16.4, some in-app browsers),
    who get the "name [at] domain" hint instead of their mail program when they tap the
-   email link. Test on the live domain, not a `pages.dev` address: previews never count.
+   email link. Test on the live domain, not a `pages.dev` address: the Function skips every `*.pages.dev` host, previews and the project's own `<project>.pages.dev` address alike, whatever the site is called in Plausible; a subdomain you control (for example `e2e.example.com`) on a throwaway project is enough, added in Plausible as its own site and set as that deployment's `PLAUSIBLE_DOMAIN`.
+   A server-mode build has no Plausible script in its page and its email links go to `/go/email`.
+   **If nothing arrives, check in this order:**
+   - The site's name in Plausible must match `PLAUSIBLE_DOMAIN` exactly: a one-letter difference drops every event.
+   - You edited the variables since the last deployment: redeploy. Dashboard edits take effect only on deployments made after the save (seen on a live site; Cloudflare's bindings page says to redeploy for a binding to take effect).
+   - The page has a Plausible script or a plain `mailto:` link instead of the `/go/email` link: the build is not the server-mode build; check `USE_ANALYTICS`, `ANALYTICS.mode` and the branch the deployment was built from.
+   - A click on the email link shows the "name [at] domain" page instead of opening the mail program: the request was not a same-origin click in a browser (a crawler, a prefetch, a link from another site, a browser without Fetch Metadata), or the deployed build is older than the starter you mean to test. Redeploy from the current starter and reload the page without its cache.
+   - The variable rows in Cloudflare's dashboard cannot be edited: a Wrangler config file in the project defines them, and Cloudflare's documentation says the dashboard then shows those fields but does not let you change them. Change the file and deploy again with `CF_PAGES_BRANCH=<PROD_BRANCH> npm run build && npx wrangler pages deploy dist --project-name <project> --branch <PROD_BRANCH>` (the build needs the branch name, or the page is written without the `/go/email` links), or delete the file and deploy again the same way; Cloudflare says the values of the last deployment then stay in effect and become editable in the dashboard, but check that both `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` are still listed, and enter them again if not.
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +
