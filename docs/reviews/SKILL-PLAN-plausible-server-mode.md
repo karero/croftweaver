@@ -14,8 +14,8 @@ the files win. The business in the scenarios is made up.
 | 3 | Requirements and scenarios (this file) | ✅ built from as written; the owner asked for the build, review and merge (2026-10-16) | this file |
 | 4 | Build, test-first: config, layout, middleware, email route, email link | ✅ built; review fixes since; starter suite 91 passed, 1 skipped (positioning, by design) | `721e5442` … `1ecd109c` |
 | 5 | Gate script, CSP, privacy pages EN and DE, setup docs, release-note row | ✅ gate green off, on (script) and on (server); CI runs all three; privacy slots pass tone and a11y | same range; merge of #336/#338 at `7c75855e` |
-| 6 | End-to-end test on a fresh site from this branch | ✅ self-hosted half, 2026-10-20, on the owner's report: the owner's self-hosted Plausible CE; the email link opened a real mail program and the `Email Tap` goal was counted, in 5 runs. A screenshot of the site `croftweaver.com` in that Plausible shows `Email Tap` 5 uniques, 6 total over 7 days; it is not a screenshot of `plausible-trial.croftweaver.com` (it did not resolve when checked on 2026-10-20). Plausible Cloud was not run: row 11 | owner's report and screenshot, 2026-10-20; no log of the runs |
-| 7 | Review gate (High) | ✅ clean 2026-10-16: 5 rounds, a final full read, a merge link and a wording pass; F6 waived by the owner, F11 half open: Plausible Cloud, row 11 | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
+| 6 | End-to-end test on a fresh site from this branch | ⏸ still open, by the owner's choice (2026-10-16): throwaway project `cw-plausible-e2e` deployed, Plausible site `plausible-trial.croftweaver.com` and goal added; waits for the custom domain (it did not resolve on 2026-10-16 or 2026-10-20). Settles F11 (a real mail program opening in server mode). On 2026-10-20 the owner reported 5 runs on `croftweaver.com`: the email link opened a mail program and `Email Tap` was counted (screenshot: 5 uniques, 6 total, 7 days). That site runs **script mode** (checked 2026-10-20: it loads a script from the owner's Plausible server, and `/go/email` answers 404), so those runs do not test server mode | owner's report and screenshot, 2026-10-20; no log |
+| 7 | Review gate (High) | ✅ clean 2026-10-16: 5 rounds, a final full read, a merge link and a wording pass; F6 waived by the owner, F11 open until step 6 | `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
 | 8 | PR | ✅ merged 2026-10-16 | #339, merge commit `17ade087` |
 | 9 | Test for the build-time subject check (a subject over 200 characters fails a server-mode build) | ✅ CI builds 200 and 201 characters in server mode, 201 in script mode | `template-tests.yml`, step "Server mode refuses an email subject over 200 characters at build time"; review finding H4 in `REVIEW-diff-2026-10-16-feat-plausible-server-side.md` |
 | 10 | Release-note line | ✅ in the v0.32 notes (2026-10-16) | [v0.32](https://github.com/karero/croftweaver/releases/tag/v0.32), "Count visitors without a script"; the `docs/BUGLOG.md` row "Next release notes, for analytics server mode" is still open until it is closed with the release's other rows |
@@ -70,7 +70,7 @@ self-hosted instance behind Cloudflare; read through the Stats API.
 ## Decisions (owner, 2026-10-15)
 
 - **D1** Server mode supports self-hosted Plausible and Plausible Cloud. Cloud is tested in
-  step 6 as far as can be done without an account (the Events API's `X-Debug-Request`), and the
+  row 11 (not yet run) as far as can be done without an account (the Events API's `X-Debug-Request`), and the
   docs say what was and was not tested.
 - **D2** The contact form's button is not counted in server mode; only email links are. Counting
   it without a script would mean passing the typed message through our server.
@@ -155,8 +155,8 @@ set `ANALYTICS.mode`, set the two Production variables in Cloudflare, add the si
 test.
 
 **S18. Plausible Cloud (D1).** The same request works against `https://plausible.io`: the
-visitor's IP, not Cloudflare's, is the one Plausible uses. Checked in step 6 with
-`X-Debug-Request`; whether a real Cloud site shows the visits is not checked without a Cloud
+visitor's IP, not Cloudflare's, is the one Plausible uses. To be checked in row 11 with
+`X-Debug-Request` (not yet run); whether a real Cloud site shows the visits is not checked without a Cloud
 account.
 
 ## Design
