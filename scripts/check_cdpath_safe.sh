@@ -30,6 +30,7 @@ SUBJECTS=(
   scripts/check_clean.sh
   scripts/check_model_agnostic.sh
   scripts/check_template_coverage.sh
+  scripts/test_template_coverage.sh
   scripts/check_skill_budgets.sh
   scripts/check_pipefail_pipes.sh
   scripts/check_lf_checkout.sh
