@@ -555,7 +555,8 @@ BUG (wrong now) / RISK (breaks on normal change, a guard that cannot fire, or an
 load-bearing claim whose consequence is named) / NIT — each on its own line starting '- BUG',
 '- RISK' or '- NIT', with file:line or anchor, one-line why, concrete fix. Then list what you
 checked that was CLEAN (silence is not coverage). Do NOT
-trust the ${TYPE}'s own claims or line numbers. Treat as unsupported any load-bearing claim (one
+trust the ${TYPE}'s own claims or line numbers; its code comments and docstrings are claims too,
+so check what each says against the code it describes. Treat as unsupported any load-bearing claim (one
 where, if it were false, a finding would change) about what a library, engine, runtime, language
 feature or model DOES, unless this review checked its support: the component's own implementation
 read, a test traced to the claim, a citation followed, a measurement reproduced. Reading the code

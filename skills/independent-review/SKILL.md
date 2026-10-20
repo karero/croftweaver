@@ -340,7 +340,8 @@ pass (tier 3) is the one that uses this block.
 > named) / NIT — each on its own line starting '- BUG', '- RISK' or '- NIT',
 > with file:line or anchor, one-line why, concrete fix. Then list what
 > you checked that was CLEAN (silence is not coverage). Do
-> NOT trust the {plan | diff}'s own claims or line numbers. Treat as
+> NOT trust the {plan | diff}'s own claims or line numbers; its code comments and docstrings are
+> claims too, so check what each says against the code it describes. Treat as
 > unsupported any load-bearing claim (one where, if it were false, a finding
 > would change) about what a library, engine, runtime, language feature or
 > model DOES, unless this review checked its support: the component's own
