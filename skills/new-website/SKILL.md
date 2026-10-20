@@ -226,9 +226,12 @@ non-expert can answer, and record the answers in the project `README.md`.
      EDPB Guidelines 2/2023 (paras 54–56) say IP-based tracking can itself fall under
      the ePrivacy rule, so it is a stronger position, not a way out of a review. It
      needs two Production variables in Cloudflare (`PLAUSIBLE_HOST`,
-     `PLAUSIBLE_DOMAIN`; `PLAUSIBLE_DOMAIN` must equal the site's name in Plausible, or every event is dropped without an error; the Function counts nothing on a `*.pages.dev` address, so test on a custom domain; the starter README, step 4, lists what to check when nothing arrives; an existing site also takes the
+     `PLAUSIBLE_DOMAIN`). `PLAUSIBLE_DOMAIN` must equal the site's name in Plausible, or Plausible
+     drops every event without an error. The Function counts nothing on a `*.pages.dev`
+     address, so test on a custom domain. The starter README, step 4, has the setup and a
+     list of what to check when nothing arrives; an existing site also takes the
      site-owned files that step names, which `whats-new` does not report, or it keeps
-     counting with the script too) and works with self-hosted
+     counting with the script too. It works with self-hosted
      Plausible (tried on Community Edition 3.2.1) and, per Plausible's documentation,
      with the cloud version (not tried there with a real site). Counting uses the
      Functions quota the site already uses (free plan: 100,000 requests a day); past

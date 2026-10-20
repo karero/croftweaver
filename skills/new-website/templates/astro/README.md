@@ -80,7 +80,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Before launch, add the enquiry goal on the site's goals page in Plausible,
    `<scriptHost>/<your domain>/settings/goals` (Settings > Goals; open that address directly,
    owners find the page hard to reach from the dashboard): Add goal, type
-   "Custom event", name `Email Tap` (exactly); the form asks for an Event name and a Display name. A click on an email address
+   "Custom event", name `Email Tap` (exactly); the form asks for an Event name and a Display name (seen on a self-hosted instance). A click on an email address
    or the contact form's button sends that event; Plausible's documentation says it shows
    only once the goal exists, and earlier ones are not counted. Once a test tap has
    reached Plausible, the goals page offers `Email Tap` to add in one click (seen on a
@@ -96,7 +96,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Production, add `PLAUSIBLE_HOST` (the instance, e.g. `https://analytics.example.com`, or
    `https://plausible.io`) and `PLAUSIBLE_DOMAIN` (the site's domain exactly as added in
    Plausible; if `PLAUSIBLE_DOMAIN` and the site's name in Plausible differ by one letter, Plausible answers 202 and silently drops every
-   event: no error, nothing counted), then redeploy; set them only in server mode, or every page view counts
+   event: no error, nothing counted; seen on self-hosted Community Edition 3.2.1), then redeploy; set them only in server mode, or every page view counts
    twice. Add the site and the `Email Tap` goal in Plausible by hand as above; the
    installer's optional measurements do not apply (no script runs). In
    `src/pages/privacy.astro`, keep the server-mode slots. An existing site also takes from
@@ -111,13 +111,13 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    browser sends no Fetch Metadata headers (Safari before 16.4, some in-app browsers),
    who get the "name [at] domain" hint instead of their mail program when they tap the
    email link. Test on the live domain, not a `pages.dev` address: the Function skips every `*.pages.dev` host, previews and the project's own `<project>.pages.dev` address alike, whatever the site is called in Plausible; a subdomain you control (for example `e2e.example.com`) on a throwaway project is enough.
-   A server-mode build has no Plausible script and its email links go to `/go/email`. A page with a script was built in script mode; a page with a plain `mailto:` link was built with analytics off, in script mode, or on a branch other than `PROD_BRANCH` (the build counts only when `USE_ANALYTICS` is true and `CF_PAGES_BRANCH` equals `PROD_BRANCH`), whatever the variables say.
+   A server-mode build has no Plausible script and its email links go to `/go/email`. A page with a script was built in script mode; a page with a plain `mailto:` link was built with analytics off or on a branch other than `PROD_BRANCH`: `USE_ANALYTICS`, `ANALYTICS.mode` and `CF_PAGES_BRANCH` decide whether the build writes the script or the `/go/email` links. Page views are counted by the Function whenever both Production variables are set, whatever the build wrote; to stop counting, remove the two variables and redeploy.
    **If nothing arrives, check in this order:**
    - The site's name in Plausible and `PLAUSIBLE_DOMAIN` differ.
-   - The variables were saved after the last deployment: redeploy. Variables set in the dashboard applied to the next deployment only (seen on a live site; Cloudflare's bindings page says to redeploy for a binding to take effect).
+   - You edited the variables since the last deployment: redeploy. Dashboard edits take effect only on deployments made after the save (seen on a live site; Cloudflare's bindings page says to redeploy for a binding to take effect).
    - The build is not the server-mode build above: check `USE_ANALYTICS`, `ANALYTICS.mode` and the branch the deployment was built from.
    - A click on the email link shows the "name [at] domain" page instead of opening the mail program: the request was not a same-origin click in a browser (a crawler, a prefetch, a link from another site, a browser without Fetch Metadata), or the deployed build is older than the starter you mean to test. Redeploy from the current starter and reload the page without its cache.
-   - The variable rows in Cloudflare's dashboard cannot be edited: a Wrangler config file in the project defines them, and Cloudflare's documentation says the dashboard then shows those fields but does not let you change them. Change the file and run `npx wrangler pages deploy` again, or delete the file and deploy once to hand them back to the dashboard.
+   - The variable rows in Cloudflare's dashboard cannot be edited: a Wrangler config file in the project defines them, and Cloudflare's documentation says the dashboard then shows those fields but does not let you change them. Change the file and deploy again with `npx wrangler pages deploy dist --project-name <project> --branch production`, or delete the file, deploy again the same way, and edit the variables in the dashboard from then on (Cloudflare: the values of the last deployment stay in effect).
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +
