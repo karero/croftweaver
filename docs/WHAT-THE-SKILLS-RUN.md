@@ -7,8 +7,11 @@ and the skill files, not from memory.
 
 **Checked on 2026-10-14, against `main` at commit `e038603`; the changes up to `034472d`
 were read again, and those up to `edf97ba` (the brand kit, the weekly fix proposal and the
-analytics folder) on the same day.** A later change can make a line here wrong. Where
-something could not be checked, the line says so.
+analytics folder) on the same day. On 2026-10-20 the parts that changed after that were
+read again, up to `92cfb26`: the weekly job's start time, the one-at-a-time AI check, the
+Search Console sign-in, the installer's checksum check, and the state of release v0.32.**
+A later change can make a line here wrong. Where something could not be checked, the line
+says so.
 
 A skill is a set of written instructions for your AI assistant (Claude Code, Codex or
 Antigravity). Some skills also bring small scripts. The assistant reads the instructions
@@ -33,10 +36,10 @@ and runs the commands; the skills cannot run anything by themselves.
   [What runs without asking](#what-runs-without-asking); read from Claude Code's
   documentation on permission rules, not tried in a live session). That list also lets `node`,
   `npm run` and `git push` run without asking. It saves clicks; it is not a safety fence.
-- **Releases carry no signature of our own.** From the next release on, a `SHA256SUMS`
-  file goes up beside the zip, the release cannot change once published, and GitHub signs a
-  record of it; v0.31 and earlier have none of this, but GitHub shows a SHA-256 for each
-  download. See [Releases](#releases).
+- **Releases carry no signature of our own.** Since v0.32 a `SHA256SUMS` file sits beside
+  the zip, the release cannot change once published, and GitHub signs a record of it;
+  v0.31 and earlier have none of this, but GitHub shows a SHA-256 for each download. See
+  [Releases](#releases).
 
 ## What runs without asking
 
@@ -185,8 +188,12 @@ an "Email Tap" event there, as a click on an email address does.
   weekly AI check. `ai_reports.py` reads the Google and Bing AI reports you download and hand
   over, on your computer only, and with `--keep-in` keeps a copy in the site's `analytics/`
   folder. `schedule_tracking.sh install` sets up a weekly run on macOS, and only on an
-  explicit yes. Once per site per session it runs `schedule_tracking.sh status`, which only
-  reads.
+  explicit yes: it gives each site's job its own start minute, so several sites do not run
+  at once. Once per site per session it runs `schedule_tracking.sh status`, which only
+  reads. The AI check takes turns: a run waits (up to 90 minutes, then goes on anyway) while
+  another site's AI check holds a lock file, so the AI services see one site at a time. If
+  Google refuses the saved Search Console sign-in, a run you start by hand opens the browser
+  to sign in again; a scheduled run only reports it.
   - The weekly fix proposal: `fix_proposal.py` keeps the list of proposed page fixes in
     `~/.config/gsc-insights/sites/` and asks GitHub (`gh pr view`) whether a pull request it
     recorded was merged. The weekly report reads your own live pages (only on your own
@@ -332,8 +339,8 @@ with its own terms.
 | `~/.claude/skills/.croftweaver.json` (or the same in the other skills folders) | `npm create croftweaver` | when you install | delete it |
 | `<skill>.pre-website-builder.bak` next to the skills | `scripts/install.sh` | when a folder with a skill's name was already there | rename it back |
 | `skills-before-croftweaver-…` next to the skills folder | `npm create croftweaver` | when the skills folder held folders it did not recognise | move them back |
-| `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
-| `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
+| `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/` with `ai-check.lock`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
+| `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
 | `~/.local/state/independent-review/runs.tsv` | `independent-review` | each review (turn off with `REVIEW_LOG=off`) | delete it |
 | a folder in your temp folder | `independent-review` | each review; holds the reviewers' answers, readable only by you | the skill tells the assistant to delete it at the end |
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |
@@ -393,8 +400,10 @@ What protects a download today:
 - GitHub shows a SHA-256 for each file on the release page. For v0.31,
   `croftweaver.zip` and `website-builder.zip` are the same file:
   `sha256:ac18578f2746af5a5e7f02fa6b30c45e869c4f86d973d994574c68407a952a76`.
-- Up to v0.31 there is no checksum file. From the next release on, `SHA256SUMS` sits beside
-  the zip; the README ("Releases & versioning") says how to check a download against it.
+- Up to v0.31 there is no checksum file. Since v0.32 (published 2026-10-16), `SHA256SUMS`
+  sits beside `croftweaver.zip`; the README ("Releases & versioning") says how to check a
+  download against it. GitHub shows `croftweaver.zip` of v0.32 as
+  `sha256:d8caec1ad00c3b5a996f0c6bc7a29001cb927a35bc5ca131ca8a7166f169061d`.
 - There is no signature of our own. From version 0.2.0, `npm create croftweaver` compares the
   download with the SHA-256 the release's `SHA256SUMS` lists for it before unpacking, and
   refuses a release without that file (v0.31 and older). Both files come from the same
@@ -403,15 +412,19 @@ What protects a download today:
   It also checks each skill file it unpacks (its CRC) and refuses links and odd entries.
   Version 0.1.0 does not compare the download with a checksum.
 - v0.31 is not marked immutable on GitHub, so its files could be replaced after
-  publishing. Since 2026-10-14 the repository has release immutability on: from the next
-  release on, a published release's files and tag cannot change, and GitHub creates a
-  signed record of the tag, commit and files that anyone can check with
-  `gh release verify`.
-- Releases v0.29 to v0.31 are plain tags; the README's command makes annotated ones. The
-  commit v0.31 points at is a merge commit signed by GitHub.
-- `create-croftweaver` 0.1.0 on npm has no provenance record.
-- As of 2026-10-14 the branch `stable` does not exist yet: the first release after the
-  plugin was added (0.32) creates it.
+  publishing. Since 2026-10-14 the repository has release immutability on: v0.32 is marked
+  immutable on GitHub, so its files and tag cannot change, and `gh release verify v0.32`
+  passed on 2026-10-20 (GitHub's signed record of the tag, commit and files).
+- Releases v0.29 to v0.32 are plain tags (checked for v0.32: `git cat-file -t` says
+  `commit`, not `tag`); the README's command makes annotated ones. The commit v0.31 points
+  at is a merge commit signed by GitHub; v0.32 was not checked for that.
+- `create-croftweaver` 0.2.0 is the newest on npm (checked 2026-10-20). `npm view` shows no
+  provenance record for it, and 0.1.0 has none.
+- The branch `stable` exists and points at v0.32's commit (`a0fbfb1`, checked 2026-10-20).
+- Before the maintainer publishes a new version of `create-croftweaver` to npm, its
+  `prepublishOnly` step runs `packages/create-croftweaver/check-release.mjs`, which downloads
+  the latest GitHub release and runs the installer on it; if the installer would refuse it,
+  the publish stops. That runs on the maintainer's computer only, and npm skips it if the maintainer publishes with `--ignore-scripts`.
 
 ## Outside audits
 
