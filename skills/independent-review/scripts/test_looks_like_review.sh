@@ -143,6 +143,9 @@ check accept "KNOWN WRONG (B-REFUSAL-TEXT): two refusal-shaped findings count as
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): the prescribed clean-verdict shape is discarded when an UNVERIFIABLE entry says a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
 UNVERIFIABLE: library X cannot provide the stated durability; settlement requires a crash-recovery test."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real review is discarded for an aside about the reviewer's own sandbox ('could not complete')" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout; the test never stalls the server. Fix: add a stalled-server case.
+
+The original coverage command could not complete because Bash attempted a sandbox-forbidden temporary file."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."
