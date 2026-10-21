@@ -7,8 +7,8 @@ go. Where this plan and the shipped files disagree, the files win.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-20 | this file |
-| 2 | Plan review gate (High depth: deploy code that deletes folders), then red team | ▶ 8 rounds, final read, wording pass and red team done; round 8 fixes not re-checked; next: the maintainer (close, or grant round 9) | trail `REVIEW-plan-2026-10-21-plan-ship-from-worktree-f6266ac.md` |
-| 3 | Template change (D3.1) | ⏸ | — |
+| 2 | Plan review gate (High depth: deploy code that deletes folders), then red team | ✅ closed by the maintainer 2026-10-21 after 8 rounds, a final full read, a wording pass and a red team; about 133 findings, every BUG fixed; round 8's fixes not re-checked by a reviewer | trail `REVIEW-plan-2026-10-21-plan-ship-from-worktree-f6266ac.md` |
+| 3 | Template change (D3.1) | ⏸ waiting for the maintainer's go to build | — |
 | 4 | The three site copies (D3.2 to D3.4) | ⏸ | — |
 
 ## What and why
