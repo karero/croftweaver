@@ -185,6 +185,10 @@ run t4fp2 "$W" "$T/t4fp2.diff" --seat codex --depth normal --base "$E0"
 check "T4 a one-patch format-patch ending in a hunk: runs" rc_is t4fp2 0
 check "T4 fixture: a rename to a C-quoted name, a type change, an empty file, binary and symlink swapping" \
   sh -c 'grep -q "^rename to \"" "$1" && grep -q "^new file mode 120000" "$1" && grep -q "^new file mode 100644" "$1" && grep -q "^Binary files a/bin2.dat and /dev/null differ" "$1" && grep -q "^Binary files /dev/null and b/sl2 differ" "$1"' _ "$T/t4.diff"
+# A type change's text half is applied too: a hand-edited symlink target, or its hunk cut off, is caught.
+sed 's|^+target.txt$|+elsewhere.txt|' "$T/t4.diff" >"$T/t5link.diff"
+run t5link "$W" "$T/t5link.diff" --seat codex --depth normal
+check "T5 a symlink's target edited by hand (in a binary/symlink swap): refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "headers match the base, but" "$1.err" && grep -qF "bin2.dat" "$1.err"' _ "$T/t5link"
 g "$W" diff -U0 "$E0"..HEAD >"$T/t4u0.diff"
 run t4u0 "$W" "$T/t4u0.diff" --seat codex --depth normal
 check "T4 -U0: runs" rc_is t4u0 0

@@ -1,10 +1,10 @@
 # The base check's reader (independent_review.sh, "BASE CHECK" in its header): reads the diff under
 # review on stdin and checks it against git in two steps. Headers: the mode and id of every file
-# side it states must match git's own patch of the same base. Content: its text records, applied to
-# the base in a throwaway index, must give the target's content (HEAD's, or the working tree's)
-# for every file they name, so a diff made with -w or another option that drops lines is caught too. Arguments: the repository's
-# top directory, the base commit, the HEAD commit, and 1 to list the changed files the diff leaves
-# out (the default base only), else 0.
+# side it states must match git's own patch of the same base. Content: its text records, applied
+# to the base in a throwaway index, must give the target's content (HEAD's, or the working
+# tree's) for every file they name, so a diff made with -w or another option that drops lines is
+# caught too. Arguments: the repository's top directory, the base commit, the HEAD commit, and 1
+# to list the changed files the diff leaves out (the default base only), else 0.
 # Prints tab-separated lines on stdout, one fact each:
 #   target <HEAD|the working tree>   what the new sides were compared with
 #   left-out <path>                  a file git's patch changes that the diff does not name
@@ -235,14 +235,15 @@ sub compare {
   return grep { !$dup{$_->[0] . "\t" . $_->[1]}++ } @bad;
 }
 
-# The content step: apply the diff's text records to the base in a throwaway index, then name
-# each file they touch whose content there differs from the target's. Binary records are not
-# applied (a body made with --binary is skipped too), and neither is a text record for a path a
-# binary record also names (one half of a type change): the header check above covered them.
+# The content step: apply every text record of the diff to the base in a throwaway index, then
+# name each file they touch whose content there differs from the target's. A binary record is
+# not applied (a body made with --binary is skipped too): it only clears its old path from the
+# throwaway index, so the other half of a type change applies, and its new path's content is left
+# to the ids the header check matched. So no text record is ever left out of this step.
 sub content {
   my ($recs, $tname) = @_;
-  my %binpath = map { ($_ => 1) } grep { defined } map { ($_->{old}, $_->{new}) } grep { $_->{binary} } @$recs;
-  my @text = grep { !$_->{binary} && !(defined $_->{old} && $binpath{$_->{old}}) && !(defined $_->{new} && $binpath{$_->{new}}) } @$recs;
+  my @bin = grep { $_->{binary} } @$recs;
+  my @text = grep { !$_->{binary} } @$recs;
   return () unless @text;
   my $dir = tempdir("ir-base.XXXXXX", TMPDIR => 1, CLEANUP => 1);
   open(my $p, ">", "$dir/text.diff") or do { say_line("error", "cannot write a temp file: $!"); exit 4; };
@@ -251,6 +252,13 @@ sub content {
   close($p) or do { say_line("error", "cannot write a temp file: $!"); exit 4; };
   local $ENV{GIT_INDEX_FILE} = "$dir/index";
   system("git", "-C", $top, "read-tree", $base) == 0 or do { say_line("error", "git read-tree of the base failed"); exit 4; };
+  my @clear = grep { defined } map { $_->{old} } @bin;
+  if (@clear) {
+    open(my $u, "|-", "git", "-C", $top, "update-index", "--force-remove", "-z", "--stdin")
+      or do { say_line("error", "could not run git update-index: $!"); exit 4; };
+    binmode $u; print $u map { "$_\0" } @clear;
+    close($u) or do { say_line("error", "git update-index failed (exit " . ($? >> 8) . ")"); exit 4; };
+  }
   open(my $saved, ">&STDERR") or do { say_line("error", "cannot save stderr: $!"); exit 4; };
   open(STDERR, ">", "$dir/apply.err") or do { say_line("error", "cannot write a temp file: $!"); exit 4; };
   my $rc = system("git", "-C", $top, "apply", "--cached", "--unidiff-zero", "--whitespace=nowarn", "$dir/text.diff");
@@ -266,7 +274,8 @@ sub content {
   local $/ = "\0";
   my %differ = map { chomp; ($_ => 1) } <$fh>;
   close($fh) or do { say_line("error", "git $cmd[0] failed (exit " . ($? >> 8) . ")"); exit 4; };
-  my %touched = map { ($_ => 1) } grep { defined } map { ($_->{old}, $_->{new}) } @text;
+  my %binnew = map { ($_ => 1) } grep { defined } map { $_->{new} } @bin;
+  my %touched = map { ($_ => 1) } grep { defined && !$binnew{$_} } map { ($_->{old}, $_->{new}) } @text;
   return grep { $differ{$_} } sort keys %touched;
 }
 

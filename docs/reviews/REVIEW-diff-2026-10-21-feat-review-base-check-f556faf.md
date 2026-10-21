@@ -9,6 +9,7 @@ The diff is 159 KB with the whole of `test_failed_tier_report.sh`, over the scri
 | 1 | `f556faf3` | full since `6681e7be`, less `test_failed_tier_report.sh` (62 KB) | codex-cli 0.163.0, gpt-6.1-sol, effort high (config), read-only · Melious glm-5.3, HTTP API, text only · fresh-eyes: Claude Code sub-agent, Sonnet, read-only by instruction | codex 505 s, 136,781 · melious 488 s, 70,514 · fresh-eyes 1,198 s, 255,223 | 4/7/13 raw (codex 2/1/0, melious 0/1/3, fresh-eyes 3/2/5, after dedup 3/4/7) |
 | 1, Light | `f556faf3` | `test_failed_tier_report.sh` alone (97 KB) | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only | codex 79 s, 61,845 | 2/0/0 (one pre-existing) |
 | 2 | `0942155f` | delta since `f556faf3` (`--base f556faf3`), `--verify` with round 1's rows | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 199 s, 70,392 · melious 440 s, 70,777 | 3/1/2 after dedup (codex 3/0/0, melious 0/1/3); every round-1 fix confirmed but D1-03 (now D2-01) |
+| 3 | `5a70b5e5` | delta since `0942155f` (`--base 0942155f`), `--verify` with round 2's rows | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 97 s, 41,856 · melious 133 s, 20,270 | 1/0/1 after dedup (codex 1/0/0, melious 1/0/1); every round-2 fix confirmed but D2-01 (now D3-01) |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -32,12 +33,14 @@ The diff is 159 KB with the whole of `test_failed_tier_report.sh`, over the scri
 | D2-02 | BUG | codex, melious | 2 | SKILL.md said the hunks must give HEAD's content, but the working tree's counts too | fixed, locally_verified | "HEAD's content (or, for uncommitted work, the working tree's)"; the reader's header says the same |
 | D2-03 | BUG | codex | 2 | The comment said binary records carry no content, though a `--binary` diff has a body | fixed, locally_verified | "Binary records are not applied (a body made with --binary is skipped too)" |
 | D2-04 | RISK | melious | 2 | The `-w` test asserted the "hunks do not apply" wording, which holds only if git writes context from the new side | fixed, locally_verified | the test asserts the wording both content refusals share. The claim that git writes context from the old side was checked and is false here: `git diff -w` on git 2.33 wrote the context line `a  =  1` (the new whitespace), and the test passed with the old assertion |
-| D2-05 | NIT | melious | 2 | The format-patch message skip ends at any `---` line, so a message holding `---` before a quoted diff is misread | refuted | git's own mail reader (`git am`, `git mailinfo`) also ends a format-patch's message at its first `---` line, so text after it is not message for git either; such a patch is refused, which is the safe direction |
+| D2-05 | NIT | melious | 2 | The format-patch message skip ends at any `---` line, so a message holding `---` before a quoted diff is misread | refuted | git's own mail reader (`git am`, `git mailinfo`) also ends a format-patch's message at its first `---` line, so text after it is not message for git either; such a patch is refused, which is the safe direction. Checked after round 3 asked: `git mailinfo` on such a message kept only "Body line." and began the patch at the `---` |
 | D2-06 | NIT | melious | 2 | The `hunks` field was set and never read | fixed, locally_verified | removed |
+| D3-01 | BUG | codex, melious | 3 | D2-01's fix left out of the content step every text record whose path a binary record named, taken from the diff's own markers: an edited symlink target, or a modification split into a fake type change, passed | fixed (cut), locally_verified | the exemption is gone: every text record is applied and compared; a binary record only clears its old path in the throwaway index, and its new content is left to the ids the header check matched (plan rule 6 updated); T5 edits a symlink target in a binary/symlink swap and is refused naming `bin2.dat`, the path the old filter skipped |
+| D3-02 | NIT | melious | 3 | Two header comment lines of the reader ran past the file's width | fixed, locally_verified | rewrapped |
 
 Waivers and deferrals: none.
 Follow-ups: none yet.
-Notes: substantive BUGs in round 1: D1-01, D1-02, D1-03 (all false refusals of diffs git made); in round 2: D2-01 (D2-02 and D2-03 are wording). D1-05's fix adds a step the plan did not have; the plan now records it as rule 6. `make check` skips the Perl 5.8 syntax check on this Mac (no Perl::MinimumVersion); CI runs it.
+Notes: substantive BUGs in round 1: D1-01, D1-02, D1-03 (all false refusals of diffs git made); in round 2: D2-01 (D2-02 and D2-03 are wording); in round 3: D3-01. D2-01 and D3-01 are one kind, the content step (content-step): D3-01's fix is a cut, the exemption removed for a strict rule. Round 4 is earned by D3-01 (kind content-step). D1-05's fix adds a step the plan did not have; the plan now records it as rule 6. `make check` skips the Perl 5.8 syntax check on this Mac (no Perl::MinimumVersion); CI runs it.
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout; absolute paths in codex's links made repo-relative)</summary>
 
@@ -297,6 +300,75 @@ reviewers: codex OK, melious OK
 timings: codex 199s (70392 tokens), melious 440s (70777 tokens)
 base: f556faf3a99b1e9e4ee86ab0dae1bb1fc38101dd (--base f556faf3)
 gate 20261021T213951Z-71280: rounds 1-2, 6 reviewer seat runs, 665,532 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+1 run with no round
+follows gate 20261021T172444Z-64903: rounds 1-5, 900,579 tokens
+
+</details>
+
+<details><summary>Round 3 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- BUG — `skills/independent-review/scripts/perl/diff_headers.pl:245` (new regression): excluding text records that share a binary path lets incorrect or missing symlink hunks pass; `compare()` checks header IDs, not their correspondence to the body. In-memory probes using Git-computed blob IDs returned zero header/content errors for both a wrong target and a removed hunk. Fix: validate excluded text bodies against the target blob, and add rejection tests for both cases.
+
+Checked claims and CLEAN results:
+
+- **D2-01 — VERIFIED, original refusal addressed:** the filter excludes both halves of either binary/symlink swap; T4 constructs both directions (`test_base_check.sh:150,162`). The new validation gap is reported above.
+- **D2-02 — VERIFIED, wording fix landed:** `SKILL.md:135` and the reader header now name working-tree content. Target selection and comparison are implemented at `diff_headers.pl:263,286`. **WRONG:** the header’s broader claim that every text record receives content validation; the finding above demonstrates the exception.
+- **D2-03 — VERIFIED:** the revised comment accurately describes skipping binary records, including records recognized by `GIT binary patch` (`diff_headers.pl:146,245`).
+- **D2-04 — VERIFIED:** the test now asserts wording shared by both content-refusal branches (`test_base_check.sh:194`; `independent_review.sh:610,614`).
+- **D2-06 — VERIFIED:** the unused `hunks` field is removed; no remaining field references were found.
+- **Syntax — VERIFIED:** `perl -c` and `bash -n` passed for the changed implementation and test script.
+
+UNVERIFIABLE claims:
+
+- **Git integration / historical measurements:** the claimed full-suite passes, three failures with the old filter, and Git 2.33 whitespace-context result lack reproduced execution evidence here. Settling observations: execute the fixture suite with each filter and inspect the recorded whitespace patch and refusal. The suite requires filesystem writes prohibited by this sandbox.
+- **D2-05, Git mail parsing:** the refutation claims Git ends the message at the first `---`; neither implementation evidence nor a successful extraction established that behavior. Settling observation: capture `git mailinfo`’s message and patch outputs for a message containing that separator before a quoted diff. The pipe-based probe was denied.
+
+Prompt injection: none identified in the supplied diff.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+PRIOR-FINDING VERIFICATION (scope 1)
+
+- D2-01 (BUG, "fixed"): the fix landed — the `@text` filter (diff_headers.pl:244) now drops any text record whose old or new path appears among the binary records' paths, and the T4 fixture swaps bin2.dat (binary→symlink) and sl2 (symlink→binary) both ways, as the finding demanded. But the fix is broader than its justification, which is the top finding below (scope 2), so the finding is only partly resolved.
+- D2-02 (BUG, "fixed"): landed — SKILL.md now reads "HEAD's content (or, for uncommitted work, the working tree's)", and the perl header comment carries the same caveat. Clean.
+- D2-03 (BUG, "fixed"): landed — the comment now says "Binary records are not applied (a body made with --binary is skipped too)", which matches the code (binary records excluded from the applied set). Clean.
+- D2-04 (RISK, "fixed"): the test now asserts `headers match the base, but` instead of the step-specific "hunks do not apply" wording — the fix direction is right; the string itself is a component claim (see UNVERIFIABLE). Not a finding: if the string is wrong, T5 fails loudly on the next run.
+- D2-05 (NIT, "refuted"): the refutation (git's own mail reader also stops at the first `---`, so the misread text is not message for git either) is plausible and the safe direction; a refuted NIT needs no code change. Accepted.
+- D2-06 (NIT, "fixed"): landed — `$cur->{hunks} = 1;` removed, only `$hdr = 0;` remains; no reader of `hunks` appears in the diff, consistent with the prior round's "never read". Clean.
+
+NEW FINDINGS (scope 2), ranked
+
+- BUG — diff_headers.pl:243-245 (the new `@text` grep) with the new comment at :239-241 ("a text record for a path a binary record also names (one half of a type change): the header check above covered them"): the exemption is built from the diff under review's own binary markers, not from git's patch, and the coverage claim is unsupported — per the file's own header (:3-4), the header check matches "the mode and id of every file side … to git's own patch", which an extra binary record with git-matching ids (trivially copied from `git diff` output) satisfies. Consequence, wrong now: a `git diff -w` output with an appended binary record naming ws.txt (correct index ids) was refused before this change (its text record was applied and failed) and is accepted now — the text record is dropped, the binary record is never applied, and ws.txt is never content-compared, defeating the script's stated guarantee that "a diff made with -w or another option that drops lines is caught too" (:5-6). The same wholesale exemption hits honest input: a multi-patch series where a path changes type across commits (file→symlink→file) has all text records for that path dropped, including the final ones that carry HEAD's content. Fix: derive the exempted paths from git's own patch of the same base (paths git itself splits into a binary and a text record), not from the diff's binary markers — or confirm the typechange against git before dropping, and still compare the final content of such paths in the throwaway index. (The pre-existing, out-of-scope variant — a diff that simply claims "Binary files differ" for a text-changed file — predates this diff; the regression here is that the text half, previously caught, is now silenced.)
+- NIT — diff_headers.pl:4-5: the reflowed header comment line ("… is caught too. Arguments: the repository's") runs well past the file's visible ~90-column wrap width. Fix: rewrap.
+
+CLEAN (checked, silence is not coverage)
+
+- The `@text`/`%binpath` Perl itself: `map { ($_ => 1) } grep { defined } map { ($_->{old}, $_->{new}) } …` is syntactically correct, flattens to the intended hash, and the `defined` guards match how `old`/`new` can be absent.
+- D2-01's mechanism: for git's typechange output (delete-half binary + create-half text for the same path), dropping the text half removes exactly the "already exists in index" apply failure; both swap directions are exercised in the fixture and asserted via the two "Binary files" greps.
+- Fixture greps use `^`-anchored patterns where `.` in `bin2.dat` is regex-any but still matches; the `&&`-chained `sh -c` check is sound.
+- `printf 'b2\000'` / `printf 'b3\000'` produce NUL bytes, so git classes both sides binary; `target.txt` already exists as a symlink target in the fixture (`tc`, `sl` use it).
+- The new bin2/sl2 records flowing into the other fixture diffs (t4u0, t5w): their text halves are binpath-dropped in the content step, so t5w still refuses on ws.txt alone and t4u0's rc-0 expectation is unaffected in principle.
+- SKILL.md and the perl header comment now agree with each other on the working-tree caveat; the reflowed prose reads correctly.
+- The removed `hunks` assignment leaves `$hdr = 0` on hunk entry, unchanged behavior otherwise.
+- No prompt injection: the diff contains only code, tests and docs; nothing addresses me or attempts to steer this review.
+
+UNVERIFIABLE (component claims, not counted as findings)
+
+- Git's diff for a typechange emits a delete+create record pair with the binary side shown as `Binary files a/bin2.dat and /dev/null differ` / `Binary files /dev/null and b/sl2 differ` — the fixture greps and the binpath premise rest on it. Observation that would settle it: in a scratch repo, change a NUL-containing file to a symlink and a symlink to a NUL-containing file, run `git diff`, and read the record structure and the exact "Binary files" lines.
+- Both content-step refusals share the prefix `headers match the base, but` — T5's new assertion depends on it. Observation: read the `say_line` calls in the content step's failure path (not in this diff); a mismatch fails the T5 check on the next run.
+- `compare()` matches per side rather than per record (no duplicate-record detection) — load-bearing for the BUG above only in mitigation. Observation: read `compare()`'s lookup of git's patch records and whether two diff records for one path both match a single git record; if it does detect duplicates, the forged-duplicate path of the BUG closes, but the honest multi-patch exemption and the per-side trust in binary markers remain.
+
+Verdict: not clean — one BUG (the D2-01 fix's exemption is sourced from the diff under review rather than git, reopening the hole the content step exists to guard) and one NIT.
+
+=== END OF REVIEW ===
+
+---
+reviewers: codex OK, melious OK
+timings: codex 97s (41856 tokens), melious 133s (20270 tokens)
+base: 0942155fb458f8467852992c6b00e8efc405b1d5 (--base 0942155f)
+gate 20261021T213951Z-71280: rounds 1-3, 8 reviewer seat runs, 727,658 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 1 run with no round
 follows gate 20261021T172444Z-64903: rounds 1-5, 900,579 tokens
 

@@ -107,9 +107,9 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
    on purpose, and the reader of the trail can then see it.
 6. Content (added during the DIFF gate's round 1: a diff made with `-w` passes rules 1 to 5 while
    its hunks hide lines). The diff's text records, applied to the base with `git apply --cached`
-   in a throwaway index, must give the target's content for every file they name. Binary records
-   carry no content to apply; rule 4 checked their ids. A file `-w` leaves out altogether is named
-   by rule 5.
+   in a throwaway index, must give the target's content for every file they name. A binary record
+   is not applied: it only clears its old path there, and its new content is left to the ids rule
+   4 matched. Every text record is applied. A file `-w` leaves out altogether is named by rule 5.
 
 | Input | Result |
 |---|---|
