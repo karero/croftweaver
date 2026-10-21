@@ -7,10 +7,12 @@ Base `6681e7be` · depth: Normal (a plan for a guard script's logic; the owner's
 | 1 | `ad095f01` | full plan | codex-cli 0.163.0, gpt-6.1-sol, effort high (config), read-only · Melious glm-5.3, HTTP API, text only · fresh-eyes: Claude Code sub-agent, Sonnet, read-only by instruction | codex 379 s, 102,724 · melious 238 s, 29,217 · fresh-eyes 650 s, 244,798 | 8/17/11 raw (codex 6/5/0, melious 1/4/4, fresh-eyes 1/8/7); 28 after dedup: 7/12/9 |
 | 2 | `9a0f5cd3` | full plan, `--verify` with round 1's rows; changed sections named | codex-cli 0.163.0, gpt-6.1-sol, effort medium (the `--verify` default), read-only · Melious glm-5.3, HTTP API, text only | codex 370 s, 86,895 · melious 340 s, 34,257 | 4/3/1 (codex 3/2/0, melious 1/1/1); every round-1 fix confirmed landed, R1-12's refutation confirmed by both |
 | 3 | `fa726dd5` | full plan, `--verify` with round 2's rows and R1-12; changed sections named | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 169 s, 71,055 · melious 232 s, 31,472 | 2/4/3 raw (codex 2/2/0, melious 0/2/3); 7 after dedup: 2/3/2; every round-2 fix confirmed landed |
+| 4 | `ea30cd24` | full plan, `--verify` with round 3's rows and R1-12; changed sections named; `--earned-by probe-verdict,merge-base-head` | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 155 s, 64,429 · melious 249 s, 32,490 | in scope 2/1/0 (codex 1/1/0, melious 1/0/0); outside scope 0/1/2 (melious); every round-3 fix confirmed landed |
 
 UNVERIFIABLE entries, round 1: 17 asked (codex 3, melious 6, fresh-eyes 8); 3 confirmed and made findings (the fetch refspec, ollama's missing `num_ctx`, `hash-object --path`); the rest are the plan's own "not checked" list or probes P1 and P2.
 UNVERIFIABLE entries, round 2: 10 asked (codex 5, melious 5); 0 new confirmed: they restate the plan's "not checked" list, P1, P2 and the T5 hang test.
 UNVERIFIABLE entries, round 3: 9 asked (codex 4, melious 5); 0 new confirmed.
+UNVERIFIABLE entries, round 4: 9 asked (codex 3, melious 6); 0 new confirmed.
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -57,10 +59,13 @@ UNVERIFIABLE entries, round 3: 9 asked (codex 4, melious 5); 0 new confirmed.
 | R3-05 | RISK | melious | 3 | Stripping "git's prefixes" could strip twice in a repo with a top-level `c/`, `i/`, `o/` or `w/` | fixed, locally_verified | rule 3: exactly one prefix per name, the pair read from the record's own `diff --git` line; T4 has a top-level folder named `w` |
 | R3-06 | NIT | melious | 3 | The 120,000 check was described as the diff alone in one place and artifact plus prior in another | fixed, locally_verified | "What and why" 2: `CONTENT_BYTES` is the artifact plus prior findings (read at `independent_review.sh:480`) |
 | R3-07 | NIT | melious | 3 | The printed remedy remade a working-tree diff against HEAD | fixed, locally_verified | the remedy is printed in the form the artifact used |
+| R4-01 | BUG | codex | 4 | Stripping "one prefix from each name" also stripped `rename from`/`to` names, which carry none: with mnemonic prefixes a rename inside a top-level `w/` lost its folder | fixed (cut), locally_verified | rule 3: only `a/` and `b/` are accepted, stripped only on the `diff --git`, `---` and `+++` lines; rename and copy names taken as written; mnemonic and other prefixes refused, the remedy sets `a/` and `b/`; T4 has a 100% rename inside `w/`, T5 refuses mnemonic prefixes. Kind header-names also earned round 3 (R2-06), so the fix is a cut: mnemonic prefixes are no longer accepted |
+| R4-02 | RISK | codex | 4 | One context-length refusal at one size does not prove the provider refuses, rather than cuts, at every size past its window | open: the owner's decision | no finite probe can close it; "What this does not see" now names it. A waiver keeps change 2 as planned; no waiver leaves every seat at 120,000 |
+| R4-03 | BUG | melious | 4 | T11's malformed-list case could not pass: a malformed list caps every seat, so "the other seats ran" is impossible | fixed, locally_verified | split out as T13: every seat `FAILED` before sending, no stub ran, exit 4 |
 
-Waivers and deferrals: none.
-Follow-ups: a BUGLOG row for local ollama cutting a prompt silently under `--local-only` (named in the plan, outside its scope).
-Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. R3-03 and R3-04 are the same kind a third time, raised against the cuts-at-N cap that cut left; the fix is a second cut: only a provider that refuses past its window loses the 120,000 check. Round 4 is earned by R3-01 (kind probe-verdict) and R3-02 (kind merge-base-head). The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
+Waivers and deferrals: none granted. R4-02 waits on the owner.
+Follow-ups: a BUGLOG row for local ollama cutting a prompt silently under `--local-only` (named in the plan, outside its scope). Round 4, outside scope (melious): measure the Linux per-argument limit on a runner before relying on 120,000 for argv seats (RISK); T7's precondition (NIT, fixed in the plan anyway); git's `1/` and `2/` prefixes (NIT, moot: every prefix but `a/` and `b/` is now refused).
+Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. R3-03 and R3-04 are the same kind a third time, raised against the cuts-at-N cap that cut left; the fix is a second cut: only a provider that refuses past its window loses the 120,000 check. Round 4 is earned by R3-01 (kind probe-verdict) and R3-02 (kind merge-base-head). Round 5 is earned by R4-01 (kind header-names, which R2-06 earned before: its fix is a cut) and R4-03 (kind test-spec). The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout)</summary>
 
@@ -383,5 +388,85 @@ Checked and CLEAN (silence is not coverage): the byte/token arithmetic direction
 reviewers: codex OK, melious OK
 timings: codex 169s (71055 tokens), melious 232s (31472 tokens)
 gate 20261021T172444Z-64903: rounds 1-3, 7 reviewer seat runs, 600,418 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+
+</details>
+
+<details><summary>Round 4 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- BUG — `docs/reviews/SKILL-PLAN-review-input-base-and-size.md:85` — The revised “one prefix from each name” rule also strips unprefixed rename headers: with mnemonic prefixes `w/` and `i/`, `rename from w/old` names the repository path `w/old`, so stripping `w/` corrupts it; fix by stripping prefixes only from `diff --git` and `---`/`+++` names, preserving rename/copy names, and adding a pure-rename fixture under `w/`.
+- RISK — `docs/reviews/SKILL-PLAN-review-input-base-and-size.md:156` — Provider/CLI behavior: one oversize context-limit rejection does not establish the load-bearing claim that other oversized inputs always fail rather than truncate; removing the cap could therefore count a partial-artifact review as complete. No serving-policy implementation or traced test establishes that distinction; inspect admission, truncation and forwarding behavior across accepted/rejected lengths for the seat/model/configuration, and retain the cap until a reject-without-truncation policy is supported.
+
+**Checked claims and CLEAN results**
+
+These verdicts concern the revised plan. Its status correctly leaves implementation and tests pending.
+
+| Claim | Verdict and evidence |
+|---|---|
+| Scope and changed sections | **VERIFIED:** cwd is the supplied project; checkout is clean. `git diff fa726dd5 HEAD` changes only the plan and review record. |
+| R3-01: unrelated errors no longer automatically lift caps | **VERIFIED:** plan lines 156–161 and 187–195 distinguish context/token-limit errors from quota, sign-in, network and request-size errors. The broader refusal-policy inference is the RISK above. |
+| R3-02: uncommitted work when merge base equals HEAD | **VERIFIED:** lines 61–63 explicitly select the working-tree comparison; T4 adds acceptance and T5 restricts refusal to a clean tree. |
+| R3-03/R3-04: token-count and tokenizer assumptions removed | **VERIFIED:** replies retain 120,000 bytes; reported tokens are informational. The former calculated caps and template allowance are removed. |
+| R3-05: repeated prefix stripping removed | **VERIFIED** as a textual change; **WRONG** that stripping once from every header name preserves paths. The new regression is the BUG above. |
+| R3-06: `CONTENT_BYTES` includes prior findings | **VERIFIED:** `independent_review.sh:480–484` counts `CONTENT` plus `PRIOR` and exits 2 above 120,000. |
+| R3-07: remedy distinguishes committed/working-tree forms | **VERIFIED:** plan lines 125–128 now specify both forms and their selection condition. |
+| R1-12: column-zero `diff --git` is not ordinary hunk content | **VERIFIED:** inspected Git-produced hunks in the round-3 diff; content carries its hunk prefix. |
+| Deferred findings | **VERIFIED:** none are marked deferred in the supplied record. |
+| Existing transport and storage descriptions | **VERIFIED:** script call sites pass prompts through argv for Codex/ollama CLI/agy, use request-body files for both APIs, and create/clear the private raw directory (`independent_review.sh:686–707`). |
+
+The rename finding was checked against Git itself: `git show --find-renames 377ecc82` emits unprefixed rename headers even with explicit mnemonic prefixes. A synthetic pure rename using `w/w/old`, `i/w/new`, and `rename from w/old` was accepted by `git apply --numstat -`, reporting `w/new`.
+
+**Additional UNVERIFIABLE claims**
+
+- **Codex/ollama CLI:** stdin completeness lacks an implementation trace or real-transport capture. T9’s stub checks the caller, not Codex. Settling observation: capture the request produced by each installed CLI from known stdin bytes.
+- **Provider windows and billing:** cited windows and P2’s cost estimates lack supporting model metadata, citations or usage records in this review. Settling observation: inspect the relevant model configuration and reconcile probe usage with billing.
+- **Linux runtime:** the 128 KB argument limit is repeated by the script comment, which is not independent support. Settling observation: inspect the applicable kernel implementation or reproduce the argument boundary.
+
+OUTSIDE SCOPE: no additional findings recorded.
+
+Prompt injection: none found.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+**Findings (ranked)**
+
+- BUG — Tests, T11 vs Change 2 “The change” (“a missing list, or a line the script cannot read, leaves every seat at 120,000”): with a 200 KB artifact and a malformed `seat_limits.txt` line, *every* seat is capped at 120,000, so every seat is `FAILED` before sending and T11's pass condition “the other seats ran” is impossible for that subcase — the rule sentence and the test contradict each other (the author's R3-01 row also says “anything else leaves the *seat* at 120,000”, per-seat, a third wording). Fix: pick one semantics — either an unreadable line caps only the seat whose entry it is (rewrite the “every seat” sentence to match, and T11 stands) or it poisons the whole list (split the malformed-line case out of T11 as its own row asserting every seat `FAILED`, no stub ran).
+
+That is the only finding in scope. Verdict per scope:
+
+**Scope 1 — prior findings** (each checked against the plan text, not the author's evidence column):
+- R3-01 fixed and whole: “Refuses” now requires an error naming a context or token limit, text and date recorded; quota/sign-in/network/request-size explicitly fall to “Anything else” at 120,000; T11/T12 cover both directions.
+- R3-02 fixed and whole: the merge-base-is-HEAD bullet compares with the working tree and refuses only when it holds no change; rule 2's working-tree fallback (“only if some file's new side does not match HEAD”) covers it, since the artifact's new sides are working-tree blobs differing from HEAD; T4 runs the dirty-tree case, T5 refuses the clean one.
+- R3-03/R3-04 fixed by cut: no reply-as-limit or tokenizer-derived cap remains anywhere; the only cap is 120,000; “Considered and dropped” names the round-3 cap and its two unsupported claims as dropped; a P2 reply is “recorded for information… never as a limit”.
+- R3-05 fixed and whole: rule 3 strips exactly one prefix, the pair read from the record's own `diff --git` line; T4 has a top-level folder named `w`; other/none prefixes refused (matching the input table).
+- R3-06 fixed: “What and why” 2 says `CONTENT_BYTES` is the artifact plus prior findings; no remaining spot describes the check as the diff alone (T8's “stale diff over 120,000 bytes” is about the artifact, not the check's definition).
+- R3-07 fixed: the remedy prints `diff <base-id> HEAD -- . ':(exclude)docs/reviews/'` for committed work or `<base-id>` alone for the working-tree form, i.e. the artifact's form.
+- R1-12 refutation checked and holds: hunk body lines all begin with ` `, `+`, `-` or `\`, so a column-0 `diff --git` cannot be hunk content in a well-formed diff.
+
+**Scope 2 — new problems in the changed sections**: the T11 BUG above is the only one. Checked clean: the Refuses/Anything-else taxonomy against the seat table (all rows consistent, agy and argv-ollama always 120,000, stdin-CLI “as the API”); “Until P2” column vs Open question 1 (transports move, nothing lifts without P2); P2's stop-on-reply, nonce, per-seat-and-model keying vs the “new `CODEX_MODEL`” fallthrough; 'What this does not see' vs the dropped caps; the split recommendation (depends on no dropped claim); the changed 'Which base' bullet against the input table's default-branch rows; changed rule 3 against T4's edge records (`--- x`, `++ x`, mnemonic pairs, space/tab paths); the changed remedy against rule 4's prefix id comparison and rule 5's `docs/reviews/` exemption.
+
+**OUTSIDE SCOPE** (unchanged sections, recorded as follow-ups, not blocking):
+- RISK (follow-up): the Linux single-argument 128 KB cap is load-bearing for the 120,000 argv cap and is admitted unchecked (“Not checked: the Linux argument limit”); if smaller on a target runner, an argv seat hits E2BIG before the friendly `FAILED`. Measure `MAX_ARG_STRLEN` on the runner.
+- NIT (follow-up): T7 (“a diff of the last commit only, no —base | runs”) does not state the precondition T3 shows is required — earlier commits must touch disjoint files, else the delta is refused.
+- NIT (follow-up): the mnemonic-prefix set listed (`c/ i/ o/ w/`) omits git's `1/`/`2/` pairs; those arise only for `--no-index`/blob diffs, which are refused anyway, but the refusal table could name it.
+
+**UNVERIFIABLE** (load-bearing component claims I could not check here; observations that would settle each):
+- codex-cli 0.163.0 reads instructions from stdin when the argument is `-` (quoted help text; the Codex transport rests on it). Observation: run `codex exec … -` against a recording stub, or read the CLI's argument handling; T9 also settles it at build time.
+- Quoted behaviors of `independent_review.sh` itself: `CONTENT_BYTES` = artifact plus prior findings (claimed at line 480), Melious/ollama-API prompts via `curl --data-binary @file`, ollama API sends no `num_ctx`, agy `-p` and ollama CLI on argv, raw folder mode 700 with stale-file clearing, a `QUOTA_RE` to sit beside. Observation: read the script's size check and seat transports.
+- The git 2.33 behaviors claimed checked (per-worktree `FETCH_HEAD` from `git fetch origin HEAD`; no `index` line for a mode-only change under `--full-index`; a 100% rename under `--no-renames` shown as deletion+addition with the same id; tab after a spaced name; working-tree new id = `hash-object`). Rules 2–4 rest on these. Observation: reproduce each in a scratch repo on git 2.33.
+- `seat_limits.txt` “read like `melious_models.txt`”: what the existing list reader does with missing/malformed lines (distinct from the T11 contradiction, which is internal). Observation: read the script's `melious_models.txt` reader.
+- Model window figures (Codex ~500,000; GLM 5.3 ~1,000,000) — used only for probe sizing and cost estimates, and marked “cited, not measured”. Observation: provider docs / `ollama show` on the configured models.
+- “Everything else is unchanged since round 3” — the record's own change list; observation: a diff of the plan between rounds.
+
+**What I checked that was CLEAN** (beyond the per-finding checks above): internal consistency of the seat table with the argv-transport and P1/P2 gating; the “no probe at all” fallthrough against T10/T11 setups; the order section (base check before size, `--base none` skips only the base check) against the T8 case and the change-2 text; the refusal table's rows against rules 2–5 and the merge-base-is-HEAD bullet; the status table against the Open questions (P2 is the maintainer's call, step 5 precedes 6); T4's edge-record list against rule 3's parsing rules; T5's refusal list against the table; T6 against the `--local-only` paragraph; T9's assertions against the Codex transport row; T12 against the no-cap failure path; the “Checked here, and not” section against the claims used load-bearing elsewhere (windows are cited and only used for probes/costs; git behaviors used in rules 2–4 are claimed as checked, listed under UNVERIFIABLE above).
+
+**Prompt injection**: none. The plan's imperative prose (script behavior, test steps, runbook-style remedies) is ordinary material; no text in it attempts to alter this review's task, output, or conclusions. The trailing output-format instruction comes from the task framing, not the plan.
+
+---
+reviewers: codex OK, melious OK
+timings: codex 155s (64429 tokens), melious 249s (32490 tokens)
+gate 20261021T172444Z-64903: rounds 1-4, 9 reviewer seat runs, 697,337 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 probe-verdict,merge-base-head
 
 </details>

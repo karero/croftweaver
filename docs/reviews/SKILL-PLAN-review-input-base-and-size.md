@@ -10,7 +10,7 @@ plan and land one after the other.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ revised after round 1 | this file |
-| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 to 3 done (36, 8 and 9 findings) | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
+| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 to 4 done (36, 8, 9 and 6 findings) | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
 | 3 | The maintainer's go, and the answers under "Open" | ⏸ | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ⏸ | — |
 | 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
@@ -82,13 +82,15 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
    between `diff --git` and the record's first `@@` or `Binary files` line: `---` and `+++`,
    `rename from` and `rename to`, `copy from` and `copy to` (read only to refuse it). Each hunk
    is skipped by its line counts, so a removed line `-- x` (shown `--- x`) is never read as a
-   header. It strips exactly one prefix from each name: the one git wrote for that side, read
-   from the record's own `diff --git` line (`a/` and `b/`, or a mnemonic pair from `c/`, `i/`,
-   `o/`, `w/`), so a top-level folder named `w` keeps its name. A diff with other prefixes or none
-   is refused. It unquotes C-quoted names, drops the tab git adds after a name
-   with a space, and splits a `diff --git` line with no other name source where both halves name
-   the same path, as `git apply` does. It uses Perl 5.8 syntax only, so `check_perl_minimum.sh`
-   lists it as ungated; a missing `perl` or `git` refuses the run.
+   header. Prefixes: only git's default ones are accepted, `a/` on the old side and `b/` on the
+   new. They appear only on the `diff --git`, `---` and `+++` lines, and are stripped there, once,
+   and nowhere else: `rename from`/`to` and `copy from`/`to` carry no prefix, so their names are
+   taken as written. Any other prefix, git's mnemonic ones (`c/`, `i/`, `o/`, `w/`) included, or
+   none, is refused with the remedy below, which sets `a/` and `b/` explicitly. It unquotes
+   C-quoted names, drops the tab git adds after a name with a space, and splits a `diff --git`
+   line with no other name source where both halves name the same path, as `git apply` does. It
+   uses Perl 5.8 syntax only, so `check_perl_minimum.sh` lists it as ungated; a missing `perl` or
+   `git` refuses the run.
 4. Every mode and id the artifact states must match git's for that path and side: the old side
    against git's old side of the old path, the new side against git's new side of the new path.
    Ids compare as prefixes, at least 4 hex digits, git's shortest. A record with no `index` line
@@ -111,7 +113,7 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
 | Rename or mode change with no `index` line | checked by rule 4 |
 | A stale mode change (both trees already hold the new mode) | refused |
 | `format-patch`, one patch or a series | one patch: checked like a diff; a series: refused, since a later patch's old side is an earlier one's new side |
-| `diff --cc`, a copy record (`git diff -C`), other prefixes, colour codes | refused, naming the command below |
+| `diff --cc`, a copy record (`git diff -C`), prefixes other than `a/` and `b/` (mnemonic ones included), colour codes | refused, naming the command below |
 | No `diff --git` record at all (hand-made, `diff -u`), or `--no-index` | refused, naming `--base none` |
 | A diff with a side taken from the index | judged by its sides, not its command: `git diff --cached <base>` with the index at `HEAD` is the same patch and runs; plain `git diff` (index to working tree) is refused wherever the index differs from the base |
 | stdin | the same check: the script reads stdin into the artifact first |
@@ -123,7 +125,7 @@ A refusal exits 2. It names the base (the revision as given, its full id, how it
 lists every file that does not match and which side failed ("old side 8352675, the base has
 1592e5c", "no such file at the base"), never cut short, and prints the command that makes a
 correct diff in the form the artifact used:
-`git -C <top> diff --no-ext-diff --no-color <base-id> HEAD -- . ':(exclude)docs/reviews/'` for
+`git -C <top> diff --no-ext-diff --no-color --src-prefix=a/ --dst-prefix=b/ <base-id> HEAD -- . ':(exclude)docs/reviews/'` for
 committed work, or `<base-id>` alone where its new sides matched the working tree; with the line
 "for a delta since a reviewed head, pass --base <that head>".
 
@@ -203,8 +205,10 @@ label of its own for a length refusal (a `CONTEXT_RE` beside `QUOTA_RE`), since 
 already quotes the provider's message; and a nonce check in every review, which needs the model to
 cooperate every time, so a forgotten quote would fail a real review.
 
-**What this does not see:** a provider that later starts cutting instead of refusing, and Codex
-compacting its first message in a run with heavy file reading. P2 can be run
+**What this does not see:** a provider that refuses the probe's prompt but cuts a prompt of some
+other size (P2 tests one prompt per model; no finite probe proves "always refuses"); a provider
+that later starts cutting instead of refusing; and Codex compacting its first message in a run
+with heavy file reading. P2 can be run
 again, and `seat_limits.txt` dates each result.
 
 **The split the maintainer suggested**: give Codex the diff as a file to read from the checkout, and
@@ -246,14 +250,15 @@ is real and local.
 | T1 | Stale base: origin gains commits touching other files, the branch takes them (as the host's update button does), and the diff is made against the old local default branch | exit 2; stderr lists exactly those files and the command; no stub seat ran |
 | T2 | Origin moved on, the branch did not take it, a three-dot diff against the old local branch | runs: the most common case, and the one a wrong check would refuse |
 | T3 | Delta: `git diff A..HEAD` with `--verify prior.md --base A` | runs, `base:` names A. With `--verify` and no `--base`: refused, naming `--base`. A delta with no `--verify` and no `--base`, touching a file the branch changed before A: refused with the "--base <that head>" line; one touching only files unchanged before A: runs, and the `base:` line names the files it leaves out |
-| T4 | Edge records, each from git itself: a rename at 100% and one below, mode change, binary, new, deleted, symlink, a path with a space and one with a tab, a working-tree diff, `git diff --cached <base>` with the index at `HEAD`, one-patch `format-patch`, a removed line `-- x` and an added `++ x`, mnemonic prefixes, a top-level folder named `w`, uncommitted work on the default branch itself; and the run started in a subdirectory (a modified and a new file) | each runs |
-| T5 | Refusals: a stale mode change, a hand-made diff, a series, `diff --cc`, a copy record, `--no-prefix`, colour, plain `git diff` with the index ahead of the base, a run on the default branch itself with a clean working tree (merge base is `HEAD`), outside a work tree, a shallow clone, a fetch that fails, a fetch that hangs (a stub remote that never answers: refused within the limit), `--base -x`, `--base` on a plan | exit 2, each with its message; `--base none` runs, outside a repo too, and prints `base: not checked` |
+| T4 | Edge records, each from git itself: a rename at 100% and one below, mode change, binary, new, deleted, symlink, a path with a space and one with a tab, a working-tree diff, `git diff --cached <base>` with the index at `HEAD`, one-patch `format-patch`, a removed line `-- x` and an added `++ x`, a top-level folder named `w` with a 100% rename inside it, uncommitted work on the default branch itself; and the run started in a subdirectory (a modified and a new file) | each runs |
+| T5 | Refusals: a stale mode change, a hand-made diff, a series, `diff --cc`, a copy record, `--no-prefix`, mnemonic prefixes, colour, plain `git diff` with the index ahead of the base, a run on the default branch itself with a clean working tree (merge base is `HEAD`), outside a work tree, a shallow clone, a fetch that fails, a fetch that hangs (a stub remote that never answers: refused within the limit), `--base -x`, `--base` on a plan | exit 2, each with its message; `--base none` runs, outside a repo too, and prints `base: not checked` |
 | T6 | `--local-only` | no fetch reaches the stub remote; uses `origin/HEAD`, or refuses naming `--base` |
-| T7 | Coverage: a diff of the last commit only, no `--base` | runs; the `base:` line names the files left out |
+| T7 | Coverage: a diff of the last commit only, whose files no earlier commit of the branch touched, no `--base` | runs; the `base:` line names the files left out |
 | T8 | Base before size: a stale diff over 120,000 bytes, with no seat measured | refused for its base, not its size |
 | T9 | stdin to Codex: the stub asserts its last argument is `-`, that no argument holds `--- BEGIN`, and that stdin carries a 400 KB prompt whole (same bytes, same hash) | passes |
 | T10 | A 400 KB artifact, with every off-argv seat listed "refuses" in the `seat_limits.txt` of a copy of the script: each stub records the whole prompt | `reviewers:` reads OK for each |
-| T11 | Caps: agy, an unlisted model (a new `CODEX_MODEL`), a seat P2 found replying, and a malformed `seat_limits.txt` line, each with a 200 KB artifact | each `FAILED` before sending (its stub never ran); the other seats ran |
+| T11 | Caps: agy, an unlisted model (a new `CODEX_MODEL`), and a seat P2 found replying, each with a 200 KB artifact, beside a seat listed "refuses" | each capped seat `FAILED` before sending (its stub never ran); the "refuses" seat ran |
+| T13 | A malformed `seat_limits.txt` line, a 200 KB artifact | every seat `FAILED` before sending, no stub ran, exit 4 as for any round with no reviewer |
 | T12 | A seat listed "refuses" whose stub answers with a length error | `FAILED`, quoting the stub's message, like any failed seat |
 
 The existing cases send a hand-made `change.diff` with no `index` line, from whatever directory
