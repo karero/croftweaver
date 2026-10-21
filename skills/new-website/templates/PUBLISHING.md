@@ -85,8 +85,8 @@ git config ship.fromGitHub true
 ```
 
 From then on, `npm run ship` publishes **GitHub's `main`**, from a temporary copy it makes
-and removes again. The checks run on exactly what goes live, and nothing in this folder is
-built, published or changed. Unsaved files no longer block it: they're listed under "Not
+and removes again. The checks run on exactly what goes live, and none of the files in this
+folder are built, published or changed. Unsaved files no longer block it: they're listed under "Not
 published", and the last line says how many there were. So the one thing to keep in mind:
 **an edit that is only in this folder doesn't go live.** Get it onto GitHub's `main` first
 (a pull request, or a push), then ship.
@@ -96,7 +96,8 @@ published", and the last line says how many there were. So the one thing to keep
   copy of the site starts without it.
 - Each publish installs the site's packages fresh in the temporary copy (`npm ci`), so it
   needs the internet (or packages npm has cached before) and takes a little longer.
-- One publish runs at a time in a folder; a second one stops and says the first is running.
+- One publish runs at a time across this folder and every copy that shares its settings; a
+  second one stops and says why.
 - To see whether it's on: `git config --get ship.fromGitHub`. To switch it off:
   `git config --unset ship.fromGitHub`.
 
@@ -243,8 +244,8 @@ With `ship.fromGitHub` switched on (see "On a shared computer" above), you may a
 - **"this folder's scripts/ship.sh is not the one on GitHub's main"?** The script that
   publishes has to be the one being published. Run it from a copy that is up to date with
   GitHub's `main`.
-- **"installing the site's packages in the temporary copy failed"?** Most often no internet.
-  Read npm's error just above it, then try again.
+- **"installing the site's packages in the temporary copy failed"?** Read npm's error just
+  above it. The install needs the internet, or packages npm has cached before.
 - **"has no runnable scripts/hooks/pre-push"?** GitHub's `main` lacks the pre-push check this
   mode insists on, so it publishes nothing. Ask for help.
 

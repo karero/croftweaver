@@ -1106,10 +1106,14 @@ GATE
   # --- S18: the clone's shared hooks setting elsewhere, unset, changed; no hook ------------
   fixture s18; advance 1
   mkdir -p "$D/elsewhere"; printf '#!/bin/sh\necho "ELSEWHERE HOOK RAN"\nexit 1\n' > "$D/elsewhere/pre-push"; chmod +x "$D/elsewhere/pre-push"
+  # ...and a post-checkout hook there, which making a worktree would start; one that installed
+  # packages would rewrite the shared hooks setting mid-publish.
+  printf '#!/bin/sh\n: > "%s/post-checkout-ran"\n' "$M" > "$D/elsewhere/post-checkout"; chmod +x "$D/elsewhere/post-checkout"
   git -C "$C" config core.hooksPath "$D/elsewhere"
   run_ship s18-elsewhere; exits 0
   want "the commit's own gate ran" has "▶ pre-push gate: tiny gate"
   want "... not the one the shared setting names" lacks "ELSEWHERE HOOK RAN"
+  want "making the worktree started no post-checkout hook" test ! -e "$M/post-checkout-ran"
   want "the shared setting is as it was" eq "$(git -C "$C" config --get core.hooksPath)" "$D/elsewhere"
   advance 1; git -C "$C" config --unset core.hooksPath
   run_ship s18-unset; exits 0

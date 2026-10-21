@@ -512,12 +512,19 @@ if [ "$from_github" = 1 ]; then
   if wt_real="$(real_dir "$wt")" && [ -n "$wt_real" ]; then wt="$wt_real"; fi
   my_line="$(printf '%s\t%s\t%s' "$wt" "$$" "$my_start")"
   printf '%s\n' "$my_line" >> "$list"
-  if git worktree add -q --detach "$wt" "$id"; then wt_added=1; else wt_added=0; fi
+  # Made without a checkout, then filled by a reset: that way git runs no post-checkout hook.
+  # The clone's shared hooks setting may name another session's folder, and a hook there could
+  # install packages and so rewrite that very setting.
+  wt_ok=0
+  if git worktree add -q --detach --no-checkout "$wt" "$id"; then
+    wt_added=1
+    if git -C "$wt" reset -q --hard; then wt_ok=1; fi
+  fi
   stop_point "Nothing was published and $here."
-  if [ "$wt_added" = 0 ]; then
+  if [ "$wt_ok" = 0 ]; then
     echo ""
-    echo "✗ Publish stopped — couldn't make the temporary copy (git worktree add; git's error is above)."
-    echo "  Nothing was published and $here."
+    echo "✗ Publish stopped — couldn't make the temporary copy (git worktree add, or filling it;"
+    echo "  git's error is above). Nothing was published and $here."
     exit 1
   fi
   # What stays behind: read with git's optional locks off, because plain `git status` rewrites
@@ -540,6 +547,16 @@ if [ "$from_github" = 1 ]; then
       echo "  push where direct pushes to 'main' are allowed), then run npm run ship again."
     fi
   fi
+  # Nothing goes live in this mode without the commit's own pre-push hook having run (what the
+  # hook checks is the site's own choice).
+  if [ ! -x "$wt/scripts/hooks/pre-push" ]; then
+    echo ""
+    echo "✗ Publish stopped — GitHub's main as of the fetch ($short) has no runnable"
+    echo "  scripts/hooks/pre-push. This mode publishes only once the commit's own pre-push"
+    echo "  check has run, and without the hook nothing would run."
+    echo "  Nothing was published and $here."
+    exit 1
+  fi
   # The exact packages of the commit, so the gate tests what goes live (npm ci never rewrites
   # the lockfile). Its prepare step, scripts/wire-hooks.mjs, would write core.hooksPath, which
   # every worktree of this clone shares and another session may rely on; SHIP_KEEP_HOOKS_PATH
@@ -553,16 +570,6 @@ if [ "$from_github" = 1 ]; then
     echo "✗ Publish stopped — installing the site's packages in the temporary copy failed"
     echo "  (npm ci; npm's error is above). This mode installs them fresh for every publish,"
     echo "  so it needs the npm registry, or packages npm has cached before."
-    echo "  Nothing was published and $here."
-    exit 1
-  fi
-  # Nothing goes live in this mode without the commit's own pre-push hook having run (what the
-  # hook checks is the site's own choice).
-  if [ ! -x "$wt/scripts/hooks/pre-push" ]; then
-    echo ""
-    echo "✗ Publish stopped — GitHub's main as of the fetch ($short) has no runnable"
-    echo "  scripts/hooks/pre-push. This mode publishes only once the commit's own pre-push"
-    echo "  check has run, and without the hook nothing would run."
     echo "  Nothing was published and $here."
     exit 1
   fi
