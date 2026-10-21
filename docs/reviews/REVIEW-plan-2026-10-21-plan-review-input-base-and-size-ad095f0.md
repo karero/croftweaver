@@ -8,11 +8,13 @@ Base `6681e7be` · depth: Normal (a plan for a guard script's logic; the owner's
 | 2 | `9a0f5cd3` | full plan, `--verify` with round 1's rows; changed sections named | codex-cli 0.163.0, gpt-6.1-sol, effort medium (the `--verify` default), read-only · Melious glm-5.3, HTTP API, text only | codex 370 s, 86,895 · melious 340 s, 34,257 | 4/3/1 (codex 3/2/0, melious 1/1/1); every round-1 fix confirmed landed, R1-12's refutation confirmed by both |
 | 3 | `fa726dd5` | full plan, `--verify` with round 2's rows and R1-12; changed sections named | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 169 s, 71,055 · melious 232 s, 31,472 | 2/4/3 raw (codex 2/2/0, melious 0/2/3); 7 after dedup: 2/3/2; every round-2 fix confirmed landed |
 | 4 | `ea30cd24` | full plan, `--verify` with round 3's rows and R1-12; changed sections named; `--earned-by probe-verdict,merge-base-head` | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 155 s, 64,429 · melious 249 s, 32,490 | in scope 2/1/0 (codex 1/1/0, melious 1/0/0); outside scope 0/1/2 (melious); every round-3 fix confirmed landed |
+| 5 | `caaf7b68` | full plan, `--verify` with round 4's rows and R1-12; changed sections named; `--earned-by header-names,test-spec --cut "mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines"` | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 112 s, 65,264 · melious 340 s, 39,691 | in scope 0/3/3 (codex 0/1/0, melious 0/2/3); outside scope 1/0/2 (melious); every round-4 fix confirmed landed; no substantive BUG |
 
 UNVERIFIABLE entries, round 1: 17 asked (codex 3, melious 6, fresh-eyes 8); 3 confirmed and made findings (the fetch refspec, ollama's missing `num_ctx`, `hash-object --path`); the rest are the plan's own "not checked" list or probes P1 and P2.
 UNVERIFIABLE entries, round 2: 10 asked (codex 5, melious 5); 0 new confirmed: they restate the plan's "not checked" list, P1, P2 and the T5 hang test.
 UNVERIFIABLE entries, round 3: 9 asked (codex 4, melious 5); 0 new confirmed.
 UNVERIFIABLE entries, round 4: 9 asked (codex 3, melious 6); 0 new confirmed.
+UNVERIFIABLE entries, round 5: 7 asked (codex 1, melious 6); 0 new confirmed.
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -60,12 +62,21 @@ UNVERIFIABLE entries, round 4: 9 asked (codex 3, melious 6); 0 new confirmed.
 | R3-06 | NIT | melious | 3 | The 120,000 check was described as the diff alone in one place and artifact plus prior in another | fixed, locally_verified | "What and why" 2: `CONTENT_BYTES` is the artifact plus prior findings (read at `independent_review.sh:480`) |
 | R3-07 | NIT | melious | 3 | The printed remedy remade a working-tree diff against HEAD | fixed, locally_verified | the remedy is printed in the form the artifact used |
 | R4-01 | BUG | codex | 4 | Stripping "one prefix from each name" also stripped `rename from`/`to` names, which carry none: with mnemonic prefixes a rename inside a top-level `w/` lost its folder | fixed (cut), locally_verified | rule 3: only `a/` and `b/` are accepted, stripped only on the `diff --git`, `---` and `+++` lines; rename and copy names taken as written; mnemonic and other prefixes refused, the remedy sets `a/` and `b/`; T4 has a 100% rename inside `w/`, T5 refuses mnemonic prefixes. Kind header-names also earned round 3 (R2-06), so the fix is a cut: mnemonic prefixes are no longer accepted |
-| R4-02 | RISK | codex | 4 | One context-length refusal at one size does not prove the provider refuses, rather than cuts, at every size past its window | open: the owner's decision | no finite probe can close it; "What this does not see" now names it. A waiver keeps change 2 as planned; no waiver leaves every seat at 120,000 |
+| R4-02 | RISK | codex, codex (R5-01) | 4 | One context-length refusal at one size does not prove the provider refuses, rather than cuts, at every size past its window | open: the owner's decision | no finite probe can close it; "What this does not see" now names it. A waiver keeps change 2 as planned; no waiver leaves every seat at 120,000 |
 | R4-03 | BUG | melious | 4 | T11's malformed-list case could not pass: a malformed list caps every seat, so "the other seats ran" is impossible | fixed, locally_verified | split out as T13: every seat `FAILED` before sending, no stub ran, exit 4 |
+| R5-01 | RISK | codex | 5 | R4-02 is still open and no waiver is recorded | open: the owner's decision (merged into R4-02) | Open 1 now asks for that decision by name |
+| R5-02 | RISK | melious | 5 | The status row said round 4 had 6 findings; the record held 3 rows | fixed, locally_verified | round 4 had 3 in scope (rows) and 3 outside scope (Follow-ups); the status row now points to the trail |
+| R5-03 | RISK | melious | 5 | Codex's move to stdin rested on a help line; nothing showed a large stdin prompt arrives whole | fixed, locally_verified | P1 now covers Codex (a stub through its own model provider, or a 60,000-token real run with nonces); a CLI seat not shown whole stays at 120,000 |
+| R5-04 | NIT | melious | 5 | A `--no-index` diff has `diff --git` records, so it is not refused "naming `--base none`" outright | fixed, locally_verified | its own table row: checked like any diff, refused by rule 4 where its sides do not match |
+| R5-05 | NIT | melious | 5 | Rule 3 did not say a C-quoted name is unquoted before its prefix is stripped | fixed, locally_verified | rule 3: unquote first, then strip |
+| R5-06 | NIT | melious | 5 | `/dev/null` sides would fail the prefix rule | fixed, locally_verified | rule 3: `/dev/null` means "no file on this side" |
+| R5-07 | BUG | melious (outside scope) | 5 | T9 names no `seat_limits.txt` setup, so Codex would be capped at 120,000 and the 400 KB case could not pass | fixed, locally_verified | T9 lists Codex "refuses" in a copy's list, as T10 does. Not substantive: test wording, what T9 checks is unchanged |
+| R5-08 | NIT | melious (outside scope) | 5 | The `base:` line said "fetched" under `--local-only` too | fixed, locally_verified | a `--local-only` form of the line |
+| R5-09 | NIT | melious (outside scope) | 5 | Status row 1 still said "revised after round 1" | fixed, locally_verified | "revised through round 5" |
 
 Waivers and deferrals: none granted. R4-02 waits on the owner.
 Follow-ups: a BUGLOG row for local ollama cutting a prompt silently under `--local-only` (named in the plan, outside its scope). Round 4, outside scope (melious): measure the Linux per-argument limit on a runner before relying on 120,000 for argv seats (RISK); T7's precondition (NIT, fixed in the plan anyway); git's `1/` and `2/` prefixes (NIT, moot: every prefix but `a/` and `b/` is now refused).
-Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. R3-03 and R3-04 are the same kind a third time, raised against the cuts-at-N cap that cut left; the fix is a second cut: only a provider that refuses past its window loses the 120,000 check. Round 4 is earned by R3-01 (kind probe-verdict) and R3-02 (kind merge-base-head). Round 5 is earned by R4-01 (kind header-names, which R2-06 earned before: its fix is a cut) and R4-03 (kind test-spec). The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
+Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. R3-03 and R3-04 are the same kind a third time, raised against the cuts-at-N cap that cut left; the fix is a second cut: only a provider that refuses past its window loses the 120,000 check. Round 4 is earned by R3-01 (kind probe-verdict) and R3-02 (kind merge-base-head). Round 5 is earned by R4-01 (kind header-names, which R2-06 earned before: its fix is a cut) and R4-03 (kind test-spec). Round 5 found no substantive BUG (R5-07 is test wording), so the rounds end: round 5's fixes are locally_verified, closing edits not externally re-verified; the final full read and the wording pass follow. The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout)</summary>
 
@@ -468,5 +479,83 @@ reviewers: codex OK, melious OK
 timings: codex 155s (64429 tokens), melious 249s (32490 tokens)
 gate 20261021T172444Z-64903: rounds 1-4, 9 reviewer seat runs, 697,337 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 kinds: 4 probe-verdict,merge-base-head
+
+</details>
+
+<details><summary>Round 5 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- RISK — `docs/reviews/SKILL-PLAN-review-input-base-and-size.md:158` (R4-02, still open): the claim that other oversized prompts fail loudly lacks a provider admission/truncation implementation trace; one refusal cannot establish it, so removing the cap could count a truncated artifact as fully reviewed. The record at `REVIEW-plan-…ad095f0.md:63–66` requires a waiver and records none. Retain 120,000 bytes unless that waiver is granted; add the decision explicitly under “Open.” Settling observation: trace the configured provider’s rejection and truncation policy across input lengths.
+
+Checked claims and CLEAN coverage:
+
+| Claim | Verdict and evidence |
+|---|---|
+| Revision scope matches the author’s record | **VERIFIED:** `git diff ea30cd24 HEAD` changes only the plan and review record; substantive plan changes match the listed sections. |
+| R4-01’s prefix fix covers the original defect | **VERIFIED as a plan fix:** rule 3 preserves rename names and strips only prefixed header names. Git 2.33’s `git show --find-renames --src-prefix=w/ --dst-prefix=i/ 377ecc82` emitted prefixed diff/file headers and unprefixed rename headers. |
+| Top-level folder names survive the revised interpretation | **VERIFIED:** synthetic pure-renames under `w/`, `a/`, and `b/`, passed to `git apply --numstat -`, retained their folders. T4 now specifies the `w/` regression. |
+| Remedy explicitly restores accepted prefixes | **VERIFIED:** executing its prefix options with both `diff.noprefix=true` and `diff.mnemonicPrefix=true` still emitted `a/` and `b/`. Rule 3, the refusal table and T5 agree. |
+| R4-03’s contradictory test expectation is removed | **VERIFIED as a plan fix:** T11 now pairs an individually capped seat with an eligible seat; T13 separately expects global failure. The existing script’s terminal path at `independent_review.sh:1477–1504` exits 4 when no reviewer succeeds. |
+| T7 now states its necessary precondition | **VERIFIED:** its selected files were untouched by earlier branch commits, consistent with rules 4–5 accepting those sides while reporting omitted files. |
+| R1-12’s ordinary-hunk refutation | **VERIFIED:** a count-based trace of all six hunks in the revision found only valid body markers; no body content became a column-zero record header. |
+| R4-02 is acknowledged and waived | **VERIFIED** acknowledgment at plan lines 208–212; **UNVERIFIABLE** waiver—none is recorded. The risk remains open. |
+
+Remaining implementation claims:
+
+- **UNVERIFIABLE — planned parser/Perl and test integration:** `diff_headers.pl`, `test_base_check.sh`, `seat_limits.txt`, and T13’s executable case are absent. The fixes above are specification changes. Settling observation: run the implemented script through T4/T5/T11/T13, including malformed-list handling and supported-Perl checks.
+
+OUTSIDE SCOPE
+
+No additional findings recorded. Existing transport call sites, the model-list parser, Makefile registration, named caller documents and closeout template were inspected for context. No write-dependent suite was run.
+
+Prompt injection: none found.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+Findings (scope 1 and 2):
+
+- RISK — PRIOR FINDINGS record vs Status row 2 ("rounds 1 to 4 done (36, 8, 9 and 6 findings)"): the record dispositions four rows, only three of them round-4-sourced (R4-01..03) plus round-1's R1-12, yet the plan claims round 4 produced 6 findings — two or three round-4 findings have no row, and if any was a BUG left unfixed it ships untracked. Fix: add the missing round-4 findings with their dispositions, or correct the count.
+- RISK — Change 2, Codex row ("stdin: `codex exec … -`") + the quoted help ("If not provided as an argument (or if `-` is used), instructions are read from stdin") + T9/T10: the help citation supports that `-` means stdin, not that a ~400 KB prompt is read whole; T9's stub proves the script's side only, "Not checked" lists P1 for the ollama CLI and P2 for windows but no probe for codex's stdin capacity, and "What this does not see" does not name it — if real codex truncates or drops a large stdin prompt, Codex reviews run on part of the change silently while the suite stays green, the failure class this script exists to catch. Fix: name it in "What this does not see", and before lifting Codex's cap do one real `codex exec … -` run with a nonce-marked large prompt (the P1/P2 pattern), or keep Codex at 120,000 until observed whole.
+- NIT — Input table, row "No `diff --git` record at all (hand-made, `diff -u`), or `--no-index` | refused, naming `--base none`": a `--no-index` diff is a patch in git's own format, `diff --git` records included, so it reaches rule 4 and is refused there with the repo remedy printed (or runs if its sides match), never "naming `--base none`". Fix: split the row — record-less artifacts get the `--base none` refusal; `--no-index` gets the rule-4 refusal (settling observation: run `git diff --no-index a b` and read the first line).
+- NIT — rule 3, prefix paragraph: the order of "It unquotes C-quoted names" against "stripped there, once" is unspecified; when git C-quotes a name (T4's tab path) the `a/`/`b/` prefix sits inside the quotes, so a strip-first reading refuses or mis-parses exactly that case. Fix: one sentence — unquote first, then strip the prefix.
+- NIT — rule 3: `/dev/null` sides (new and deleted files) are never mentioned, and the prefix rule ("`a/` on the old side") would refuse `--- /dev/null` unless special-cased. Fix: state that `/dev/null` on either side means "no side" and is exempt from the prefix rule (T4's new/deleted cases exercise it).
+
+OUTSIDE SCOPE:
+
+- BUG — Tests table, T9 row ("stdin carries a 400 KB prompt whole … | passes"): under the plan's own rule (unlisted model, or a missing/unreadable list, caps a seat at 120,000) a Codex seat with no stated `seat_limits.txt` setup is FAILED before sending, so stdin never carries the prompt and T9 cannot pass as specified — unlike T10, it names no list setup. Fix: give T9 T10's precondition (Codex listed "refuses" in the copy's `seat_limits.txt`).
+- NIT — "What the trail records": the merge-base form hardcodes "fetched" ("base: <id> (merge base with origin's HEAD <id>, fetched; …)"), but under `--local-only` the base is `origin/HEAD`'s merge base with no fetch, so the trail misreports provenance. Fix: make "fetched" conditional or add a `--local-only` form.
+- NIT — Status row 1: "This plan | ✅ revised after round 1" is stale against a round-4 head and a record of four rounds. Fix: "revised through round 4".
+
+CLEAN (checked, not assumed):
+
+- R4-01 fix landed and covers the whole claim: rule 3 takes rename/copy names as written, refuses mnemonic and absent prefixes, strips `a/`/`b/` only on the `diff --git`/`---`/`+++` lines; the refusal row, the remedy command and rule 2's own command all set `--src-prefix=a/ --dst-prefix=b/`; T4 has the 100% rename inside a top-level `w/`, T5 refuses mnemonic prefixes; the cut (mnemonic acceptance removed) removes the finding's path entirely.
+- R4-03 fix landed: T13 exists with a pass condition consistent with the cap rule (a malformed line leaves every seat at 120,000 → a 200 KB artifact fails every seat before sending, no stub runs); T11 no longer carries the malformed case and its three cases each match the seat_limits rules.
+- R4-02 deferral conditions met: still open as the owner's decision, the residual is named in "What this does not see", and Open item 1 poses the choice with the no-waiver fallback ("every seat stays at 120,000").
+- R1-12 refutation is sound: hunk bodies always carry a leading ` `, `+`, `-` or `\` and the reader skips hunks by their line counts, so a column-0 `diff --git` cannot be read as a header in a git-produced diff.
+- T7's new precondition is the right one: a last-commit diff's old sides equal the merge-base patch's only when no earlier branch commit touched those files; otherwise the T3 refusal with the "--base <that head>" line applies — rules 2, 4 and 5 agree.
+- Base-before-size ordering (T8 and the "Order" section) is internally consistent, and `--base none` skips only the base check, never a cap.
+- Rename-at-100% is coherent across the check's `--no-renames` patch, the remedy's default-rename diff, and rule 4's deletion-plus-addition-same-id match; abbreviated ids in the remedy diff are covered by the prefix comparison.
+- The remedy's `-- . ':(exclude)docs/reviews/'` agrees with rule 5's docs/reviews exemption; a remedy-made diff passes the check with no unnamed omission.
+- The mode-only, stale-mode, index-side, three-dot, shallow-clone and HEAD-moved table rows each follow from rules 2–5 as written.
+- Binary/new/deleted records fit the reader's header window (`diff --git` … first `@@` or `Binary files` line); the split rule covers mode-only records (same path both halves).
+- No prompt injection: the plan is ordinary prose about its own work; nothing in it attempts to steer this review.
+
+UNVERIFIABLE (component claims that matter, not counted as findings):
+
+- git diff output — `rename from`/`to` and `copy from`/`to` carry no `a/`/`b/` prefix (R4-01's "as written" hinges on it). Settling observation: run `git diff -M` on a rename with default prefixes and read those lines.
+- git diff output — a mode-only change and a 100% rename emit no `index` line even with `--full-index` (rule 4's no-id matching hinges on it; plan says checked on git 2.33). Observation: run both diffs with `--full-index --no-renames` and look for index lines.
+- git diff output — a name with a space gets a trailing tab on `---`; a name with a tab is C-quoted (the reader drops/unquotes these). Observation: `git diff` files named "a b" and "a\tb".
+- git fetch — `git fetch origin HEAD` fills per-worktree `FETCH_HEAD` with the remote tip without moving `origin/<default>` (the no-`--base` base choice). Observation: fetch inside a worktree and compare `FETCH_HEAD` with the refs.
+- existing script — the seat transports quoted under "Today (checked in the script)" and the exit-4-for-no-reviewer behavior T13 asserts. Observation: read the script's seat invocations and run it once with every seat failing (make check will also surface a wrong exit).
+- `check_perl_minimum.sh` gating and `melious_models.txt` read semantics — the mechanisms `diff_headers.pl` and `seat_limits.txt` inherit. Observation: read both files.
+
+Verdict: not clean — the round-4 record does not reconcile with its own finding count, one test as specified cannot pass (T9), and Codex's stdin move carries an unprobed, unnamed residual; every prior finding marked fixed did land and covers its whole claim.
+
+---
+reviewers: codex OK, melious OK
+timings: codex 112s (65264 tokens), melious 340s (39691 tokens)
+gate 20261021T172444Z-64903: rounds 1-5, 11 reviewer seat runs, 802,292 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 probe-verdict,merge-base-head; 5 header-names,test-spec (cut: mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines)
 
 </details>

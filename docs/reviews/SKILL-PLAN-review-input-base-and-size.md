@@ -9,8 +9,8 @@ plan and land one after the other.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | This plan | ✅ revised after round 1 | this file |
-| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 to 4 done (36, 8, 9 and 6 findings) | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
+| 1 | This plan | ✅ revised through round 5 | this file |
+| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 to 5 done (findings per round in the trail); rounds ended (round 5 had no substantive BUG); final full read next | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
 | 3 | The maintainer's go, and the answers under "Open" | ⏸ | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ⏸ | — |
 | 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
@@ -82,12 +82,13 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
    between `diff --git` and the record's first `@@` or `Binary files` line: `---` and `+++`,
    `rename from` and `rename to`, `copy from` and `copy to` (read only to refuse it). Each hunk
    is skipped by its line counts, so a removed line `-- x` (shown `--- x`) is never read as a
-   header. Prefixes: only git's default ones are accepted, `a/` on the old side and `b/` on the
+   header. A C-quoted name is unquoted first, and the tab git adds after a name with a space is
+   dropped. Prefixes: only git's default ones are accepted, `a/` on the old side and `b/` on the
    new. They appear only on the `diff --git`, `---` and `+++` lines, and are stripped there, once,
-   and nowhere else: `rename from`/`to` and `copy from`/`to` carry no prefix, so their names are
-   taken as written. Any other prefix, git's mnemonic ones (`c/`, `i/`, `o/`, `w/`) included, or
-   none, is refused with the remedy below, which sets `a/` and `b/` explicitly. It unquotes
-   C-quoted names, drops the tab git adds after a name with a space, and splits a `diff --git`
+   after unquoting, and nowhere else: `rename from`/`to` and `copy from`/`to` carry no prefix, so
+   their names are taken as written, and `/dev/null` (a new or deleted file) means "no file on
+   this side". Any other prefix, git's mnemonic ones (`c/`, `i/`, `o/`, `w/`) included, or none,
+   is refused with the remedy below, which sets `a/` and `b/` explicitly. It splits a `diff --git`
    line with no other name source where both halves name the same path, as `git apply` does. It
    uses Perl 5.8 syntax only, so `check_perl_minimum.sh` lists it as ungated; a missing `perl` or
    `git` refuses the run.
@@ -114,7 +115,8 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
 | A stale mode change (both trees already hold the new mode) | refused |
 | `format-patch`, one patch or a series | one patch: checked like a diff; a series: refused, since a later patch's old side is an earlier one's new side |
 | `diff --cc`, a copy record (`git diff -C`), prefixes other than `a/` and `b/` (mnemonic ones included), colour codes | refused, naming the command below |
-| No `diff --git` record at all (hand-made, `diff -u`), or `--no-index` | refused, naming `--base none` |
+| No `diff --git` record at all (hand-made, `diff -u`) | refused, naming `--base none` |
+| `git diff --no-index` (git's format, paths from outside the repo's history) | checked like any diff: refused by rule 4 where its sides do not match, with `--base none` named |
 | A diff with a side taken from the index | judged by its sides, not its command: `git diff --cached <base>` with the index at `HEAD` is the same patch and runs; plain `git diff` (index to working tree) is refused wherever the index differs from the base |
 | stdin | the same check: the script reads stdin into the artifact first |
 | Run from a subdirectory of the repo | the same result as from the top (rule 1) |
@@ -131,8 +133,9 @@ committed work, or `<base-id>` alone where its new sides matched the working tre
 
 **What the trail records.** Every diff run ends with a `base:` line beside `reviewers:` and
 `timings:`, on stdout and stderr: `base: <id> (merge base with origin's HEAD <id>, fetched;
-every changed file present)` or `(…; not in this diff: <files>)`, `base: <id> (--base <as
-given>)`, or `base: not checked (--base none)`. The trail template in `references/closeout.md`
+every changed file present)` or `(…; not in this diff: <files>)`; under `--local-only`,
+`(merge base with origin/HEAD <id>, not fetched: --local-only; …)`; `base: <id> (--base <as
+given>)`; or `base: not checked (--base none)`. The trail template in `references/closeout.md`
 already has a `Base` field and an "Artifact (full / delta since <sha>)" column: the `base:` line
 fills both, and SKILL.md step 8 reports it with `timings:`.
 
@@ -171,10 +174,10 @@ is degraded, as today.
 
 | Seat | Prompt travels by | Until P2 | After P2 |
 |---|---|---|---|
-| Codex | stdin: `codex exec … -`, reading the prompt file | 120,000 bytes | no cap if its configured model refuses; else 120,000 |
+| Codex | stdin: `codex exec … -`, reading the prompt file | 120,000 bytes | no cap if P1 shows its stdin arrives whole and its configured model refuses; else 120,000 |
 | Melious | file body (no change) | 120,000 bytes | no cap if the model refuses; else 120,000 |
 | ollama, API | file body (no change) | 120,000 bytes | no cap if the model refuses; else 120,000 |
-| ollama, CLI | stdin if P1 passes, else argv | 120,000 bytes | stdin: as the API; argv: 120,000 |
+| ollama, CLI | stdin if P1 passes, else argv | 120,000 bytes | stdin: as the API, P1 having shown it whole; argv: 120,000 |
 | agy (opt-in) | argv (no change) | 120,000 bytes | 120,000 (not probed: a probe spends an Antigravity credit) |
 
 Codex's help (codex-cli 0.163.0), quoted: "If not provided as an argument (or if `-` is used),
@@ -183,9 +186,14 @@ already holding the request bodies) and joins the list of stale files cleared at
 
 **Step 0 probes**, before building change 2:
 
-- **P1, free.** Does the ollama 0.40.7 CLI send a piped stdin, whole, as the prompt? Its help shows
-  stdin only with `--ask`. Checked against a stub server on 127.0.0.1 (`OLLAMA_HOST`) that records
-  the request: no model runs.
+- **P1, free.** Do the two CLIs that would read the prompt from stdin send a 400 KB prompt whole?
+  The ollama 0.40.7 CLI (its help shows stdin only with `--ask`) is pointed at a stub server on
+  127.0.0.1 (`OLLAMA_HOST`) that records the request. Codex is pointed at the same kind of stub
+  through a model provider of its own (`-c model_provider=…` with a `base_url` on 127.0.0.1;
+  not checked that 0.163.0 accepts it). No model runs. If Codex cannot be pointed at a stub, a
+  real run with a nonce on the first and last lines of a 200 KB prompt settles it instead, at
+  roughly 60,000 tokens. A CLI seat not shown to deliver its stdin whole stays at 120,000,
+  whatever P2 finds.
 - **P2, the maintainer's call.** One prompt a little past each model's cited window, per seat and
   model in use (Codex's configured model, Melious's GLM 5.3, ollama cloud's GLM 5.3; the ollama
   CLI too if P1 passes), with the reply capped at a few tokens. It is repeated text with a random
@@ -255,7 +263,7 @@ is real and local.
 | T6 | `--local-only` | no fetch reaches the stub remote; uses `origin/HEAD`, or refuses naming `--base` |
 | T7 | Coverage: a diff of the last commit only, whose files no earlier commit of the branch touched, no `--base` | runs; the `base:` line names the files left out |
 | T8 | Base before size: a stale diff over 120,000 bytes, with no seat measured | refused for its base, not its size |
-| T9 | stdin to Codex: the stub asserts its last argument is `-`, that no argument holds `--- BEGIN`, and that stdin carries a 400 KB prompt whole (same bytes, same hash) | passes |
+| T9 | stdin to Codex, listed "refuses" in the `seat_limits.txt` of a copy of the script: the stub asserts its last argument is `-`, that no argument holds `--- BEGIN`, and that stdin carries a 400 KB prompt whole (same bytes, same hash) | passes |
 | T10 | A 400 KB artifact, with every off-argv seat listed "refuses" in the `seat_limits.txt` of a copy of the script: each stub records the whole prompt | `reviewers:` reads OK for each |
 | T11 | Caps: agy, an unlisted model (a new `CODEX_MODEL`), and a seat P2 found replying, each with a 200 KB artifact, beside a seat listed "refuses" | each capped seat `FAILED` before sending (its stub never ran); the "refuses" seat ran |
 | T13 | A malformed `seat_limits.txt` line, a 200 KB artifact | every seat `FAILED` before sending, no stub ran, exit 4 as for any round with no reviewer |
@@ -287,16 +295,18 @@ Codex's model cache (500,000 tokens, 95% usable, for the model configured here);
 with `--full-index --no-renames` git's own patch has no `index` line for a mode-only change and
 shows a rename as a deletion and an addition with the same id.
 
-Not checked: the Linux argument limit (cited by the script today); whether the ollama CLI reads
-stdin as the prompt (P1); whether agy's `-p` reads stdin; what each seat does past its window (P2);
-any provider's real serving window.
+Not checked: the Linux argument limit (cited by the script today); whether the ollama CLI and
+Codex send a large stdin prompt whole (P1); whether agy's `-p` reads stdin; what each seat does
+past its window (P2); any provider's real serving window.
 
 Outside this plan: under `--local-only`, a local model with a small context may cut the prompt
 silently today, whatever its size. A BUGLOG row, not this change.
 
 ## Open for the maintainer
 
-1. P2: test each seat once past its model's window? Free where the provider refuses; up to one
-   window of input tokens (about 500,000 for Codex, 1,000,000 for GLM 5.3) where it cuts. Without
-   it, change 2 moves the transports but every seat stays at 120,000 bytes, so it lifts nothing.
+1. P2, and the risk it cannot close (R4-02 in the trail): test each seat once past its model's
+   window, and accept that one refusal stands for "this provider refuses rather than cuts"? The
+   probe is free where the provider refuses; up to one window of input tokens (about 500,000 for
+   Codex, 1,000,000 for GLM 5.3) where it replies. Without both, change 2 moves the transports but
+   every seat stays at 120,000 bytes, so it lifts nothing.
 2. The split: build it, or leave it as recommended above?
