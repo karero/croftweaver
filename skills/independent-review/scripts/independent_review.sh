@@ -101,12 +101,14 @@
 # wording pass, the final full read) needs neither option. Both options are recorded on every
 # cost-log line of the run.
 # BASE CHECK. Before any reviewer starts and before any of it leaves the machine, a diff is
-# checked against git: every mode and id its headers state must match git's own patch of the same
-# base (perl/diff_headers.pl reads both the same way), with the new sides from HEAD, or else from
-# the working tree. A diff on a stale base, or one made before HEAD moved, is refused (exit 2)
-# with every file that does not match and the command that makes a correct one; so is a diff the
-# check cannot read (colour codes, prefixes other than a/ and b/, a copy record, a combined diff,
-# a format-patch series). Which base:
+# checked against git (perl/diff_headers.pl) in two steps. Headers: every mode and id they state
+# must match git's own patch of the same base, read the same way, with the new sides from HEAD,
+# or else from the working tree. Content: its text records, applied to the base in a throwaway
+# index, must give that target's content for every file they name, so a diff made with -w or
+# another option that drops lines is caught too. A diff on a stale base, or one made before HEAD
+# moved, is refused (exit 2) with every file that does not match and the command that makes a
+# correct one; so is a diff the check cannot read (colour codes, prefixes other than a/ and b/, a
+# copy record, a combined diff, a format-patch series). Which base:
 #   - no --base: the whole change, from the merge base of HEAD with origin's default branch, which
 #     is fetched first (`git fetch origin HEAD`, bounded by REVIEW_FETCH_TIMEOUT; no prompts). Under
 #     --local-only nothing is fetched and origin/HEAD is used. The base: line then names any
@@ -551,7 +553,7 @@ else
       # http give up on a dead or stalled connection by themselves, and the whole fetch has a time
       # limit. GIT_SSH_COMMAND is set only when the person has not chosen an ssh of their own.
       fetch_err="$(
-        export GIT_TERMINAL_PROMPT=0
+        export GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never
         if [ -z "${GIT_SSH_COMMAND:-}" ] && [ -z "${GIT_SSH:-}" ] && ! git -C "$top" config core.sshCommand >/dev/null 2>&1; then
           export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=2'
         fi
@@ -570,12 +572,13 @@ else
       || base_refuse "HEAD and origin's HEAD ($tip) have no merge base here: a shallow clone, or unrelated histories." "Fetch the history (git fetch --unshallow), or name the base: --base <rev>."
   fi
   bc_out="$(printf '%s\n' "$CONTENT" | perl "$PERL_DIR/diff_headers.pl" "$top" "$base_id" "$head_id" "$coverage" 2>&1)"; bc_rc=$?
-  bc_target="" ; bc_left="" ; bc_bad="" ; bc_bad_n=0 ; bc_why="" ; bc_other=""
+  bc_target="" ; bc_left="" ; bc_bad="" ; bc_bad_n=0 ; bc_cont="" ; bc_cont_n=0 ; bc_why="" ; bc_other=""
   while IFS= read -r bc_line; do
     case "$bc_line" in
       target$'\t'*)   bc_target="${bc_line#*$'\t'}" ;;
       left-out$'\t'*) bc_left="${bc_left:+$bc_left, }${bc_line#*$'\t'}" ;;
       mismatch$'\t'*) bc_line="${bc_line#*$'\t'}"; bc_bad="$bc_bad  ${bc_line%%$'\t'*}: ${bc_line#*$'\t'}"$'\n'; bc_bad_n=$((bc_bad_n + 1)) ;;
+      content$'\t'*) bc_cont="$bc_cont  ${bc_line#*$'\t'}"$'\n'; bc_cont_n=$((bc_cont_n + 1)) ;;
       refuse$'\t'*|error$'\t'*) bc_why="${bc_line#*$'\t'}" ;;
       '') ;;
       *) bc_other="${bc_other:+$bc_other; }$bc_line" ;;
@@ -583,7 +586,7 @@ else
   done <<<"$bc_out"
   remedy_revs="$base_id HEAD"
   [ "$bc_target" = "the working tree" ] && remedy_revs="$base_id"
-  remedy="git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --src-prefix=a/ --dst-prefix=b/ $remedy_revs -- . ':(exclude)docs/reviews/'"
+  remedy="git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ $remedy_revs -- . ':(exclude)docs/reviews/'"
   case $bc_rc in
     0)
       BASE_LINE="base: $base_id ($base_how"
@@ -603,7 +606,13 @@ else
         "no diff --git record"*) base_refuse "this diff cannot be checked: $bc_why." "$none_hint" ;;
         *) base_refuse "this diff cannot be checked: $bc_why." "Make it with git: $remedy" "$none_hint" ;;
       esac ;;
-    5) base_refuse "the base is HEAD ($base_id) and the working tree holds no change, so there is nothing to review against it." "Name the base: --base <rev>." ;;
+    5) base_refuse "git sees no change from the base ($base_id) to HEAD or to the working tree, so there is nothing to review against it." "Name the commit the diff starts from: --base <rev>." ;;
+    6) base_refuse "its headers match the base, but its hunks do not apply to it: $bc_why." \
+         "Was it edited by hand, or cut short? Make it with git: $remedy" ;;
+    7)
+      bc_with="$bc_target"; [ "$bc_with" = HEAD ] && bc_with="HEAD $head_id"
+      base_refuse "its headers match the base, but for $bc_cont_n file(s) its hunks do not give the content of $bc_with, so the reviewers would not see every line:" \
+        "${bc_cont%$'\n'}" "Was it made with -w, --ignore-blank-lines or a textconv driver? Make it again: $remedy" ;;
     *) base_refuse "the check itself failed (exit $bc_rc): ${bc_why:-${bc_other:-no output}}" "$none_hint" ;;
   esac
 fi

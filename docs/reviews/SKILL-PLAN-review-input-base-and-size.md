@@ -12,7 +12,7 @@ plan and land one after the other.
 | 1 | This plan | ✅ revised through round 5 | this file |
 | 2 | PLAN gate (Normal: a plan for a guard script's logic) | ✅ clean: 5 rounds, final full read, wording pass and confirmation; no BUG open; R4-02 waived by the maintainer | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
 | 3 | The maintainer's go, and the answers under "Open" | ✅ answers given 2026-10-21 (below); go to build change 1 the same day: "yes, build change 1" | — |
-| 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ▶ built on branch `feat/review-base-check`; DIFF gate next | — |
+| 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ▶ built on branch `feat/review-base-check`; DIFF gate round 1 done (findings fixed, see its trail); round 2 next | trail `REVIEW-diff-2026-10-21-feat-review-base-check-f556faf.md` |
 | 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
 | 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ⏸ | — |
 
@@ -105,6 +105,11 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
 5. With no `--base` only: every file git's patch changes outside `docs/reviews/` that the artifact
    leaves out is named on the `base:` line. A note, not a refusal: a caller may leave a path out
    on purpose, and the reader of the trail can then see it.
+6. Content (added during the DIFF gate's round 1: a diff made with `-w` passes rules 1 to 5 while
+   its hunks hide lines). The diff's text records, applied to the base with `git apply --cached`
+   in a throwaway index, must give the target's content for every file they name. Binary records
+   carry no content to apply; rule 4 checked their ids. A file `-w` leaves out altogether is named
+   by rule 5.
 
 | Input | Result |
 |---|---|

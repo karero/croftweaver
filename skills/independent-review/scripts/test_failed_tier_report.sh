@@ -2,7 +2,8 @@
 #
 # test_failed_tier_report.sh — drives independent_review.sh end to end, the way a
 # caller does (default flags, auto-detected ollama model), with stub `codex` and
-# `ollama` CLIs first on PATH and $HOME relocated. No reviewer is contacted and
+# `ollama` CLIs first on PATH and $HOME relocated. Its diffs are hand-made, so each diff
+# run passes --base none, which skips the base check (test_base_check.sh tests that). No reviewer is contacted and
 # nothing leaves the machine; Antigravity is forced off except in case 23, which
 # turns it on against a stub `agy`.
 #
@@ -202,7 +203,8 @@ while [ $# -gt 0 ]; do
   shift
 done
 printf '%s\n' "$ARGV0" >"$STUB_MARKS/curl-argv-any"
-# Is the key anywhere on disk while the call is in flight (an interrupt here would leave it)?
+# Is the key in the run's raw folder while the call is in flight (an interrupt here would leave
+# it)? Only there: the stub's own capture of the header (curl-hdr, above) is the test's record.
 if [ -n "${STUB_KEY:-}" ] && grep -rqF -- "$STUB_KEY" "$REVIEW_RAW_DIR" 2>/dev/null; then : >"$STUB_MARKS/key-on-disk"; fi
 case "$url" in
   https://api.melious.ai/*|*/chat/completions)   # the Melious seat: an OpenAI-style SSE stream
@@ -808,7 +810,7 @@ run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret STU
 check "apikey: the key reaches curl on its stdin" \
   sh -c 'grep -qxF "Authorization: Bearer stub-secret" "$1/curl-hdr" && [ -e "$1/curl-hdr-stdin" ]' _ "$T/apikey.marks"
 check "apikey: and no header file is written" [ ! -e "$T/apikey.raw/ollama.hdr" ]
-check "apikey: the key is nowhere on disk during the call" test ! -e "$T/apikey.marks/key-on-disk"
+check "apikey: the key is nowhere in the run's raw folder during the call" test ! -e "$T/apikey.marks/key-on-disk"
 check "apikey: codex never sees OLLAMA_API_KEY" test ! -e "$T/apikey.marks/codex-saw-ollama-key"
 run clikey CODEX_STUB=ok OLLAMA_STUB=ok OLLAMA_API_KEY=cli-secret bash "$SCRIPT" "$T/change.diff" --base none
 check "clikey: the ollama CLI still gets OLLAMA_API_KEY" grep -qxF "cli-secret" "$T/clikey.marks/ollama-cli-key"
@@ -1296,7 +1298,7 @@ run mkeyfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_API_KEY="$MK" S
 check "mkeyfall: codex never sees MELIOUS_API_KEY" test ! -e "$T/mkeyfall.marks/codex-saw-melious-key"
 check "mkeyfall: melious still gets it, on stdin" grep -qxF "Authorization: Bearer $MK" "$T/mkeyfall.marks/melious-hdr"
 check "mkeyfall: the key is not on curl's command line" not_in "$T/mkeyfall.marks/curl-argv-any" "$MK"
-check "mkeyfall: the key is nowhere on disk during the call" test ! -e "$T/mkeyfall.marks/key-on-disk"
+check "mkeyfall: the key is nowhere in the run's raw folder during the call" test ! -e "$T/mkeyfall.marks/key-on-disk"
 printf '%s\r\n' 'OTHER=1' "MELIOUS_API_KEY=\"file-key\"" 'MELIOUS_API_KEY=second-line' >"$T/melious.env"
 run menv MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_ENV_FILE="$T/melious.env" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "menv: the env file's first key line, quotes and CR dropped" grep -qxF "Authorization: Bearer file-key" "$T/menv.marks/melious-hdr"

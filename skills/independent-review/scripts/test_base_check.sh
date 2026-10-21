@@ -16,9 +16,10 @@ set -u
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$HERE/independent_review.sh"
 command -v git >/dev/null 2>&1 || { echo "SKIP test_base_check.sh — git not found"; exit 0; }
+command -v perl >/dev/null 2>&1 || { echo "SKIP test_base_check.sh — perl not found"; exit 0; }
 T="$(mktemp -d "${TMPDIR:-/tmp}/ir-base-test.XXXXXX")" \
   || { echo "FAIL — could not create a temp dir."; exit 1; }
-trap 'rm -rf "$T"' EXIT
+trap '[ -n "${KEEP:-}" ] || rm -rf "$T"' EXIT
 T="$(CDPATH= cd -- "$T" && pwd -P)"
 mkdir -p "$T/bin" "$T/u/.codex" "$T/marks" "$T/notrepo"
 : >"$T/u/.codex/auth.json"
@@ -81,7 +82,7 @@ check "T1 stale base: refused (exit 2)" rc_is t1 2
 check "T1 stale base: names z" has t1.err "  z: the diff changes it, but it is the same at the base and in HEAD"
 check "T1 stale base: names big.txt" has t1.err "  big.txt: the diff changes it"
 check "T1 stale base: does not name x, whose sides match" lacks t1.err "  x:"
-check "T1 stale base: prints the command for a correct diff" has t1.err "diff --no-ext-diff --no-color --src-prefix=a/ --dst-prefix=b/ $(sha "$R/w" origin/main) HEAD"
+check "T1 stale base: prints the command for a correct diff" has t1.err "diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ $(sha "$R/w" origin/main) HEAD"
 check "T1 stale base: no reviewer ran" not_ran t1
 # T8: base before size. The stale diff is over the 120,000-byte check; the base check speaks first.
 check "T8 the stale diff is over 120,000 bytes" [ "$(wc -c <"$T/t1.diff" | tr -d ' ')" -gt 120000 ]
@@ -144,6 +145,8 @@ printf 'bin\000\001\002' >"$W/bin.dat"; printf 'delete me\n' >"$W/del.txt"; prin
 printf 'space\n' >"$W/sp ace.txt"; printf 'tab\n' >"$W/t	ab.txt"; printf 'inside w\n' >"$W/w/inside.txt"
 printf 'old has no newline' >"$W/nonl-old.txt"; printf 'new will have none\n' >"$W/nonl-new.txt"; printf 'neither' >"$W/nonl-both.txt"
 printf 'keep\n-- x\nkeep\n' >"$W/dash.txt"; printf 'deep\n' >"$W/w/sub/deep.txt"
+printf 'plain name\n' >"$W/plain.txt"; printf 'a file\n' >"$W/tc"; ln -s target.txt "$W/sl"
+printf 'x = 1\ny = 2\n' >"$W/ws.txt"; printf 'copy me\n' >"$W/cp_src.txt"; printf '#!/bin/sh\n' >"$W/late.sh"
 commit "$W" E0 && g "$W" remote add origin "$R/origin.git" && g "$W" push -q origin main \
   && g "$W" remote set-head origin main || { echo "FAIL — could not build repository 2."; exit 1; }
 E0="$(sha "$W" HEAD)"
@@ -154,7 +157,16 @@ ln -s target.txt "$W/link"; printf 'space two\n' >"$W/sp ace.txt"; printf 'tab t
 g "$W" mv w/inside.txt w/moved.txt
 printf 'old has no newline\n' >"$W/nonl-old.txt"; printf 'new will have none' >"$W/nonl-new.txt"; printf 'still neither' >"$W/nonl-both.txt"
 printf 'keep\nkeep\n++ x\n' >"$W/dash.txt"; printf 'deep two\n' >"$W/w/sub/deep.txt"
+g "$W" mv plain.txt "über.txt"; rm "$W/tc" && ln -s target.txt "$W/tc"; rm "$W/sl" && printf 'now a file\n' >"$W/sl"
+: >"$W/empty.txt"; printf 'x  =  1\ny = 3\n' >"$W/ws.txt"; cp "$W/cp_src.txt" "$W/cp_dst.txt"; printf 'copy me\nmore\n' >"$W/cp_src.txt"
 commit "$W" E1
+mkdir "$W/subm" && g "$W" update-index --add --cacheinfo "160000,$E0,subm" && g "$W" commit -q -m "a submodule pointer"
+chmod +x "$W/late.sh" && g "$W" add late.sh && g "$W" commit -q -m "late.sh runs now
+
+The message quotes a diff:
+diff --git a/x b/x
+index 1234567..89abcde 100644"
+
 g "$W" diff -M "$E0"..HEAD >"$T/t4.diff"
 check "T4 fixture: git wrote a 100% rename, a rename with an edit, a mode change and a quoted name" \
   sh -c 'grep -q "^similarity index 100%" "$1" && grep -q "^rename from r80" "$1" && grep -q "^new mode 100755" "$1" && grep -q "^diff --git \"a/t" "$1"' _ "$T/t4.diff"
@@ -165,7 +177,33 @@ run t4sub "$W/w/sub" "$T/t4.diff" --seat codex --depth normal
 check "T4 run from a subdirectory: the same result" rc_is t4sub 0
 g "$W" format-patch -1 --stdout >"$T/t4fp.diff"
 run t4fp "$W" "$T/t4fp.diff" --seat codex --depth normal
-check "T4 a one-patch format-patch: runs" rc_is t4fp 0
+check "T4 a one-patch format-patch ending in a mode-only record, its message quoting a diff: runs" rc_is t4fp 0
+check "T4 fixture: the diff holds a submodule pointer" grep -q '^+Subproject commit' "$T/t4.diff"
+g "$W" format-patch -1 --stdout HEAD~1 >"$T/t4fp2.diff"
+run t4fp2 "$W" "$T/t4fp2.diff" --seat codex --depth normal --base "$E0"
+check "T4 a one-patch format-patch ending in a hunk: runs" rc_is t4fp2 0
+check "T4 fixture: a rename to a C-quoted name, a type change, an empty file" \
+  sh -c 'grep -q "^rename to \"" "$1" && grep -q "^new file mode 120000" "$1" && grep -q "^new file mode 100644" "$1"' _ "$T/t4.diff"
+g "$W" diff -U0 "$E0"..HEAD >"$T/t4u0.diff"
+run t4u0 "$W" "$T/t4u0.diff" --seat codex --depth normal
+check "T4 -U0: runs" rc_is t4u0 0
+g "$W" diff -w "$E0"..HEAD >"$T/t5w.diff"
+run t5w "$W" "$T/t5w.diff" --seat codex --depth normal
+check "T5 -w hides a whitespace change beside a real one: refused" rc_is t5w 2
+check "T5 ... its hunks do not apply to the base, naming the file" sh -c 'grep -qF "hunks do not apply" "$1.err" && grep -qF "ws.txt" "$1.err"' _ "$T/t5w"
+printf 'diff --git a/new.txt b/new.txt\nnew file mode 100644\n' >"$T/t5cut.diff"
+run t5cut "$W" "$T/t5cut.diff" --seat codex --depth normal
+check "T5 a new-file record cut before its index line: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "no index line" "$1.err"' _ "$T/t5cut"
+g "$W" diff "$E0"..HEAD -- dash.txt | sed '/^@@/,$d' >"$T/t5nohunk.diff"
+run t5nohunk "$W" "$T/t5nohunk.diff" --seat codex --depth normal --base "$E0"
+check "T5 a record whose hunks were cut off: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "headers match the base, but" "$1.err"' _ "$T/t5nohunk"
+g "$W" -c diff.renames=copies diff "$E0"..HEAD >"$T/t5copies.diff"
+run t5copies "$W" "$T/t5copies.diff" --seat codex --depth normal
+check "T5 diff.renames=copies writes a copy record: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "copy record" "$1.err"' _ "$T/t5copies"
+remedy="$(sed -n 's/^Make it with git: //p' "$T/t5copies.err")"
+( cd "$W" && eval "git -c diff.renames=copies ${remedy#git }" ) >"$T/t4remedy.diff" 2>/dev/null
+run t4remedy "$W" "$T/t4remedy.diff" --seat codex --depth normal
+check "T4 the printed remedy, run with diff.renames=copies still set, makes a diff that runs" rc_is t4remedy 0
 g "$W" diff --cached "$E0" >"$T/t4cached.diff"
 run t4cached "$W" "$T/t4cached.diff" --seat codex --depth normal
 check "T4 git diff --cached <base> with the index at HEAD: runs" rc_is t4cached 0
@@ -226,6 +264,12 @@ RUN_ENV=()
 check "T5 REVIEW_FETCH_TIMEOUT=0: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "REVIEW_FETCH_TIMEOUT" "$1.err"' _ "$T/t5to"
 # The merge base is HEAD and the working tree is clean: on main itself.
 g "$W" checkout -q main
+printf 'dirty on main\n' >>"$W/dash.txt"
+g "$W" diff HEAD >"$T/t4main.diff"
+run t4main "$W" "$T/t4main.diff" --seat codex --depth normal
+check "T4 uncommitted work on the default branch itself: runs" rc_is t4main 0
+check "T4 ... against the working tree" has t4main.out "new sides from the working tree"
+g "$W" checkout -q -- dash.txt
 run t5head "$W" "$T/t4.diff" --seat codex --depth normal
 check "T5 on the default branch with a clean tree: refused, nothing to review" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "nothing to review" "$1.err"' _ "$T/t5head"
 # No merge base: an unrelated history, in a clone of its own (the shallow clone's message).
