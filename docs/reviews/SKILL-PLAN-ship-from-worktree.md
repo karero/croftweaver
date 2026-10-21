@@ -7,7 +7,7 @@ go. Where this plan and the shipped files disagree, the files win.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-20 | this file |
-| 2 | Plan review gate (High depth: deploy code that deletes folders), then red team | ▶ round 1 | — |
+| 2 | Plan review gate (High depth: deploy code that deletes folders), then red team | ▶ round 2 | trail `REVIEW-plan-2026-10-21-plan-ship-from-worktree-f6266ac.md` |
 | 3 | Template change (D3.1) | ⏸ | — |
 | 4 | The three site copies (D3.2 to D3.4) | ⏸ | — |
 
@@ -25,43 +25,63 @@ clean check keeps the gate honest as well as catching the owner's forgotten edit
 
 So: an opt-in mode that publishes GitHub's `main` from a throwaway git worktree, created
 detached at the exact commit and removed on every exit. The gate then tests exactly the
-commit that goes live, and the shared folder is neither read nor changed.
+commit that goes live. Nothing in the shared folder is built, tested, published or changed;
+D2 lists what the run reads there and what it updates in the clone's shared records.
 
-## Checked 2026-10-20 (a scratch repo, git 2.33, bash 3.2 and 5.3)
+## Checked 2026-10-20 and 2026-10-21 (scratch repos, git 2.33, bash 3.2 and 5.3)
 
 - A second worktree cannot check out `main` while another has it ("'main' is already
   checked out at …"). A detached one at the fetched commit can.
 - Detached, the branch name reads `HEAD` and the upstream lookup fails ("HEAD does not
   point to a branch"), so today's branch and upstream checks cannot run there unchanged.
 - A push from the worktree runs the worktree's own committed pre-push hook, not the shared
-  folder's edited copy. Pushing a commit id to `refs/heads/production` works.
-- Removing a worktree holding untracked files (packages, build output) needs the force
-  option. A worktree whose folder has vanished is listed as prunable; pruning drops it.
+  folder's edited copy, because the hooks path is the relative `scripts/hooks` (so in all
+  three sites' config). Pushing a commit id to `refs/heads/production` works.
+- Removing a worktree that holds untracked files needs the force option; ignored files
+  alone, such as installed packages, do not. Removing one record by its path works even
+  when its folder is gone.
+- A worktree's HEAD, index and reflog live in the clone's git folder, not in its own
+  folder. A repo-wide prune dropped the record of a worktree whose folder had only been
+  moved away (as an unmounted disk would be): a commit made there was left reachable from
+  nothing, and the folder, once back, was no longer a git checkout.
 - bash ran the exit trap on interrupt, terminate and hang-up, in 3.2 and 5.3, and skipped
-  it after `exec`. A hard kill or a power cut skips it too.
+  it after `exec`. A hard kill or a power cut skips it too. A terminate sent to the script's
+  own process alone runs the trap at once while a child it waits on keeps running.
 - From a linked worktree, git hands the pre-push hook `GIT_DIR` set to that worktree's git
-  folder (from the primary checkout, none). A gate step that runs git in a scratch repo would
-  then hit the site instead. None does today: in the template and the three sites, gate
-  steps call git only to read the current commit or to set the hooks path.
+  folder (from the primary checkout, it does not). Gate steps today call git only to read
+  the current commit, to set the hooks path, or (Site C's test config) to find the folder's
+  top, which with `GIT_DIR` set returns the current folder: right at the worktree's root,
+  where the tests start, wrong from a subfolder.
+- Plain `git status` rewrote the index, which takes its lock for a moment; with git's
+  optional locks turned off it did not.
+- Production moving on the remote while the pre-push hook ran: stock git refused the push
+  with `! [remote rejected] … (failed to update ref)`, after `remote: error: cannot lock
+  ref …: is at … but expected …`. Today's classifier knows only `! [rejected]`, so it says
+  "a reason this script can't name" (nothing is published). Production moving before the
+  push starts gives `! [rejected] … (fetch first)`, which it does know. GitHub's wording
+  for the first case is not checked.
 - A fresh install of the template's packages took 4.6 s with a warm npm cache (286 packages).
-- The template's test server never reuses a server already on its port, so a dev server
-  left running elsewhere cannot answer the gate's tests.
+- The template's test server never reuses a server already on its port: a dev server left
+  running elsewhere cannot answer the gate's tests, but it does make the gate fail.
 
 ## Decisions
 
 **D1. Who gets it, and what happens to uncommitted files.** The script cannot tell whose
-files are in the folder; only the person running it knows. So the mode is opt-in, through a
-per-checkout git setting, `ship.fromGitHub`, set once on a shared machine; there is no
-per-run switch (decided 2026-10-21, below). It lives in the local git config, never in the repo, so a fresh clone (a beginner,
-a new owner) keeps today's behaviour, block included: "I edited a page and forgot to
-commit" still stops the publish with today's message, which does not mention the setting.
+files are in the folder; only the person running it knows. So the mode is opt-in, through
+one git setting, `ship.fromGitHub`, kept in the clone's own git config. That config is
+shared by all of the clone's worktrees, on purpose: every session working in the clone gets
+the mode. There is no per-run switch (decided 2026-10-21, below). The script reads the
+setting from the clone's config only, never the user's global one, so a fresh clone (a
+beginner, a new owner) keeps today's behaviour, block included: "I edited a page and forgot
+to commit" still stops the publish with today's message, which does not mention the setting.
 
 With the setting on, the first line says the run publishes GitHub's `main` and ignores this
 folder. Uncommitted and untracked files never block: before the push they are listed (the
 first 20, then a count) under "Not published: in this folder, not on GitHub's main", and the
 last line, success or failure, repeats the count. Commits on this computer's `main` that
-GitHub lacks never block either; the script gives their number and says to push them if
-they should go live. The folder's branch does not matter, so a session can run ship from its
+GitHub lacks never block either; the script gives their number and says to get them onto
+GitHub's `main` if they should go live (a pull request, or a push where direct pushes to
+`main` are allowed). The folder's branch does not matter, so a session can run ship from its
 own worktree.
 
 *Counter-argument:* with the setting on, the maintainer's own forgotten edit stays
@@ -71,86 +91,135 @@ would be more visible, but every session has to remember it, and one that forget
 today's block again.
 
 **D2. The checks in worktree mode.** With the setting off, the script runs in the folder as
-today; of the changes below, only the switch to the commit id applies.
+today; of the changes below, only the commit id, the race message and the trap apply.
 - The fetch is unchanged (same classifier). `origin/main` must exist (new message: no `main`
   on GitHub yet), and so must `origin/production`, as today.
-- The commit to publish is `origin/main`'s id, read once after the fetch. Everything after
-  uses that id: the worktree is created detached at it, the divergence check asks whether
-  `origin/production` is its ancestor, the push sends it to `refs/heads/production`, and the
-  live check waits for it. Today the push and the live check read local `main`; both modes
-  switch to the id, so a commit landing on local `main` mid-publish changes nothing.
+- **The commit id.** In worktree mode it is `origin/main`'s id, read once after the fetch.
+  In today's mode it is the folder's own commit, once today's checks have shown it is on
+  `main`, clean and equal to its upstream; that upstream need not be `origin/main`, so
+  today's mode must not switch to `origin/main`'s id. Everything after uses the id: the
+  worktree is created detached at it, the divergence check asks whether `origin/production`
+  is its ancestor, the push sends it to `refs/heads/production`, and the live check waits for
+  it. Today the push and the live check read local `main` again; both modes switch to the id,
+  so a commit landing on local `main` mid-publish changes nothing.
 - "Main is pushed" holds by construction: the commit came from GitHub. The branch check and
   the upstream check are skipped; D1's two lists replace them.
-- Before the push the script installs the packages in the worktree, because the gate builds
-  and tests there. A gate that runs `scripts/verify.mjs` installs a second time (its install
-  stamp is missing), costing about 5 s; accepted, rather than have ship write that file's
-  private stamp. A failed install stops before the push.
-- The post-publish checks (the live-build poll, and any site's own smoke test) run inside
-  the worktree before it is removed, so they read the published copy's site address and
-  expected text. A smoke test using only Node's built-ins and the network needs no packages.
-  No `exec` is allowed in the post-publish path: it replaces the shell, and the exit trap
-  never runs. One site's smoke-test retry does exactly that today.
-- The worktree folder is a fresh temp folder whose name only this script makes: a fixed
-  prefix, the process id, a random tail. At start the script lists the repo's worktrees and
-  touches only those matching that name under the temp folder. If the process it names is alive,
-  another publish is running: stop, nothing published. If not, it is a leftover: remove it
-  and say so. If its folder is gone: prune. (Pruning drops every unlocked record whose
-  folder is gone, not only ours; git's own housekeeping does the same once such a record is
-  three months old, and a record without its folder holds no files.) A reused
-  process id makes a leftover look alive; the message names the folder and how to remove it
-  by hand, so the error is on the side of not publishing.
-- One exit trap removes the worktree (forced, run from the starting folder) and the scratch
-  log. If removal fails, it deletes the folder, prunes, and says so. The trap covers success,
-  every failure arm, a failed install and an interrupt.
+- **What the run touches in the clone.** It reads the folder's status with git's optional
+  locks off, so it never takes the index lock another session's `git add` may need. It
+  updates the clone's shared records: the fetched GitHub branches (as today), a lock and a
+  worktree entry while it runs, and, through the install, the hooks path (below). It changes
+  nothing in the folder itself.
+- **The gate.** The gate is whatever the clone's hooks path names. The template sets the
+  relative `scripts/hooks`, as all three sites have, and from the worktree that runs the
+  worktree's committed hook. If the hooks path is anything else, or unset, the run says
+  before the push which hook will run, or that none will: the same gate today's mode runs.
+- **The install.** Before the push the script installs the packages in the worktree, because
+  the gate builds and tests there. A gate that runs `scripts/verify.mjs` installs a second
+  time (its install stamp is missing), about 5 s more; accepted, rather than have ship write
+  that file's private stamp. A failed install stops before the push. The install runs the
+  packages' prepare step, which sets the clone's hooks path to `scripts/hooks`, as any install
+  in that clone already does; so a gate switched off by unsetting the hooks path is switched
+  back on by the next publish in this mode. Accepted: it errs toward testing. Site B's hook
+  runs no build, so its copy skips the install (D3.3).
+- **The hook's variables.** The pre-push hook clears, before any step, the repository
+  variables git hands a hook (the list git itself prints for that purpose; from a linked
+  worktree it includes `GIT_DIR`). Then a gate step that runs git in a scratch repo, or from
+  a subfolder, finds the right repository by itself.
+- **After the push.** The live-build poll and any site's own smoke test run inside the
+  worktree before it is removed, so they read the published copy's site address and expected
+  text. A smoke test using only Node's built-ins and the network needs no packages. There is
+  no `exec` anywhere in `ship.sh`: it replaces the shell, and the exit trap never runs (one
+  site's smoke-test retry does exactly that today). A test fails on any `exec` in the script.
+- **One publish per clone at a time.** Before the fetch, the run takes a lock: it creates a
+  folder in the clone's shared git folder (creating a folder either succeeds or fails, at
+  once) and writes its process id there. If the lock exists and that process is alive, or
+  the check is refused, another publish is running: stop, nothing published. If that process
+  is gone, a run was cut off: the lock is removed only if it still names that same process,
+  then taken again; failing that, stop. Two runs starting within moments of each other,
+  right after a cut-off run, can still both get through. That is safe: neither forces the
+  push, so production only moves forward, and each removes only its own worktree.
+- **Leftovers.** The worktree is a fresh temp folder whose name only this script makes: a
+  fixed prefix, the process id, a random tail. Holding the lock, the run looks for that name
+  in git's worktree list wherever the folder is (the temp folder differs between sessions,
+  and on macOS git prints `/private/var/…` for `/var/…`). One whose process is gone is
+  removed by its own path, forced twice so that one left locked is removed too, and the run
+  says so. The script never runs a repo-wide prune: that also drops a worktree
+  whose folder is only away, and with it the only record of commits made there.
+- **The exit trap.** One trap removes the worktree (by path, from the starting folder), the
+  lock and the scratch log. It first turns off stop-on-error and saves the exit status, so a
+  failing step neither skips the rest nor turns a success into a failure, and it exits with
+  that status. If removal fails, it deletes the folder, removes the record by path, and says
+  so. On interrupt, terminate or hang-up it first stops the push and the gate under it and
+  waits for them, so nothing can publish after the script has said it stopped and no test
+  server is left holding the port; then it says whether the push had begun.
+- **The messages.** Every message that today says "you're still safely on 'main'" says, in
+  worktree mode, that this folder was not touched; the script's own rule that each message
+  states the state you are in now holds in both modes.
+- **The script that runs** is the `ship.sh` in the folder it is started from; the worktree
+  supplies what is published and tested, not the publishing logic.
+- **Known limit, not solved here.** The gate's test server uses one port per site, derived
+  from its address, so another session's test run or preview of the same site makes the gate
+  fail (Playwright's error is printed, then "can't name"; nothing is published). A port per
+  checkout, as Site C has, is a separate change.
 
 **D3. Where it lands: in this order, one pull request each.**
-1. Template: `ship.sh` and its test, template-version 0.21 → 0.22 in both. `PUBLISHING.md`
-   gets the new messages, `AGENTS.md` the setting (the folder check still applies without
-   it), the README a note for shared machines, and a release-note row tells sites. The temp
-   folder follows the repo's mktemp-guard pattern and joins that guard's list. No pipe ends
-   early under pipefail, and every `cd` is CDPATH-safe. Diff review at Normal or above: the
-   code publishes to a live site.
-2. Site A (byte-identical to 0.21): both files replaced with 0.22.
+1. Template: `ship.sh` and its test, template-version 0.21 → 0.22 in both, and the pre-push
+   hook (clearing its variables). The push classifier also gains the remote's ref-lock
+   refusal as "production moved", in both modes; its fixture uses stock git's wording, and
+   GitHub's stays unchecked. `PUBLISHING.md` gets the new messages, `AGENTS.md` the setting
+   (the folder check still applies without it), the README a note for shared machines, and a
+   release-note row tells sites. The mktemp guard cannot test `ship.sh` (its probe runs
+   outside a git repo and stops at the first git call), so `ship.sh` stays on its exempt list
+   with the reason updated, and `check_ship_push.sh` covers a failing mktemp instead. No pipe
+   ends early under pipefail. The CDPATH guard does not run `ship.sh` or its test, so review
+   checks their `cd`s. Diff review at High depth.
+2. Site A (byte-identical to 0.21): both files replaced with 0.22, and its pre-push hook
+   clears its variables.
 3. Site B (0.20, plus a post-publish smoke test; its pre-push hook runs no build): take
-   0.22, re-apply the smoke test as a marked site addition with the `exec` fix.
-4. Site C (0.20, restructured, plus an analytics probe and a "no common history" arm):
-   last. Take 0.22 and re-apply both as marked blocks, rather than graft the mode into its
-   own structure: then one structure is tested everywhere. Its marker reads "0.22 plus site
-   additions". Its existing no-common-history test case carries over. Nothing tests the
-   probe today; this plan does not change that.
-5. The setting is switched on per checkout by the maintainer after each site merges. It is
-   not part of any pull request.
+   0.22 without the install step, and re-apply the smoke test as a marked site addition,
+   without `exec`.
+4. Site C (0.20, restructured, plus an analytics probe and a "no common history" arm),
+   right after: take 0.22 and re-apply both as marked blocks, rather than graft the mode into
+   its own structure: then one structure is tested everywhere. Its pre-push hook clears its
+   variables. Its marker reads "0.22 plus site additions". Its existing no-common-history
+   test case carries over. Nothing tests the probe today; this plan does not change that.
+5. The setting is switched on per clone by the maintainer after each site merges. It is not
+   part of any pull request.
 
 ## D4. Scenarios: given / when `npm run ship` runs / then
 
 | # | Given | Then |
 |---|-------|------|
 | S1 | setting off, a page edited but not committed | stops exactly as today; nothing published |
-| S2 | setting on, folder on a feature branch, one edited file, an untracked data folder; GitHub's `main` two commits ahead of production | names the mode; lists the two as not published; production equals GitHub's `main`; last line "✓ LIVE … 2 not published"; folder's branch and files unchanged; no worktree left |
+| S2 | setting on, folder on a feature branch, one edited file, an untracked data folder; GitHub's `main` two commits ahead of production | names the mode; lists the two as not published; production equals GitHub's `main`; last line "✓ LIVE … 2 not published"; no message mentions being on `main`; folder's branch, files and index unchanged; no worktree or lock left |
 | S3 | setting on, this computer's `main` one commit ahead of GitHub | publishes GitHub's `main`; says 1 commit is not on GitHub and was not published |
-| S4 | GitHub's `main` has a broken page | tests fail inside the worktree; "Nothing was published"; no worktree left; folder unchanged |
-| S5 | GitHub unreachable on both tries | today's message; no worktree left |
+| S4 | GitHub's `main` has a broken page | tests fail inside the worktree; "Nothing was published", and this folder was not touched; no worktree left |
+| S5 | GitHub unreachable on both tries | today's message, with "this folder was not touched"; no worktree left |
 | S6 | the package install fails | stops before the push; nothing published; no worktree left |
-| S7 | production moves while the gate runs | today's "production moved" message; no worktree left; a re-run starts fresh from the new state |
-| S8 | an earlier run was killed hard; its worktree is still registered | says it removed a leftover from an earlier run, then publishes; if the system already deleted the folder, the record is pruned |
-| S9 | a publish is already running for this site | the second stops, names the running one's folder; the first is unaffected |
-| S10 | Ctrl-C during the build | nothing published; no worktree left |
+| S7 | another clone moves production while the gate runs | "production moved", run again; nothing published; no worktree left; a re-run starts from the new state |
+| S8 | an earlier run was killed hard; its worktree is still registered, with or without its folder | says it removed a leftover from an earlier run, then publishes |
+| S9 | a publish is already running in this clone | the second stops, naming the first; the first is unaffected |
+| S10 | Ctrl-C during the gate; or a terminate sent to the script alone | nothing published; no worktree, lock or test server left |
 | S11 | the folder's pre-push hook or tests are edited, not committed | the gate that runs is GitHub `main`'s |
 | S12 | Site B's smoke test fails once, then passes | LIVE; no worktree left |
 | S13 | GitHub's `main` already equals production | "Everything up-to-date"; live check passes; no worktree left |
+| S14 | another session's worktree of this clone, its folder moved away | still registered, untouched, after the publish |
+| S15 | setting on, mktemp fails | stops before any push; no worktree; folder unchanged; the error is the last line |
 
-**How it is tested.** The existing stubbed-git test grows cases for the checks and
-messages (S1, S3, S5, S9's message); its stub learns the new git calls. A new section in
-the same file (so no new wiring in the hook or CI) uses real git: a bare repo in a temp
-folder as `origin`, a clone with `main` and `production`, and a tiny committed pre-push
-gate, with only npm, curl and sleep stubbed. It starts the real `ship.sh` the way
-`npm run ship` does and asserts production's commit, the printed lists, the folder's branch
-and status, and the worktree list, for S2, S4, S6, S7 (a second clone moves production from
-inside the gate), S8 (a registered worktree with a dead process id), S10 (an interrupt sent
-mid-gate), S11 and S13. It first clears the repository variables git hands a hook (from a
-linked worktree, `GIT_DIR`, as checked above): inherited, they would aim its git calls at
-the real site. Each new case must fail once on a deliberate break before it counts. S12 is tested in
-Site B's own copy.
+**How it is tested.** The existing stubbed-git test grows cases for the checks and messages
+(S1, S3, S5), the ref-lock refusal, and a check that `ship.sh` has no `exec`. Its pin on
+today's push command becomes `push origin <id>:refs/heads/production`. A new section in the
+same file (so no new wiring in the hook or CI) uses real git: a bare repo in a temp folder as
+`origin`, a clone with `main` and `production`, and a tiny committed pre-push gate, with only
+npm, curl and sleep stubbed. It shuts out the machine's own git settings (no global or system
+config, its own name and email, branches created as `main`) and clears the repository
+variables a hook hands it. It starts the real `ship.sh` the way `npm run ship` does and
+asserts production's commit, the printed lists, the folder's branch, status and index, and
+the worktree list, for S2, S4, S6, S7 (a second clone moves production from inside the gate),
+S8, S9 (two runs started together), S10 (the interrupt sent to the run's process group, as a
+terminal does, and a terminate to the script alone), S11, S13, S14 and S15. On Windows, S10
+is skipped with a printed note. Each new case must fail once on a deliberate break before it
+counts. S12 is tested in Site B's own copy.
 
 ## Decided by the maintainer, 2026-10-21
 
