@@ -9,11 +9,11 @@ plan and land one after the other.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | This plan | ✅ written | this file |
-| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ⏸ | — |
+| 1 | This plan | ✅ revised after round 1 | this file |
+| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ round 1 done (3 seats, 36 findings) | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
 | 3 | The maintainer's go, and the answers under "Open" | ⏸ | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ⏸ | — |
-| 5 | Change 2, step 0: the probes below | ⏸ | — |
+| 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
 | 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ⏸ | — |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
@@ -33,112 +33,149 @@ On 2026-10-21 two things went wrong with the script's input.
 
 ## Change 1: refuse a diff on the wrong base
 
-**Which base.** A new option, `--base <rev>|none`, for diff runs only (on a plan it is refused,
-exit 2: a flag that does nothing must not pass silently).
+**Which base.** A new option, `--base <rev>|none`, for diff runs only. On a plan it is refused,
+exit 2: a flag that does nothing must not pass silently. A value starting with `-` is refused, as
+`--cut` does today, and a revision must resolve with
+`git rev-parse --verify --quiet "<rev>^{commit}"`, as `merge_link.sh` does.
 
-- No `--base`, no `--verify` (round 1, a final full read): the script runs
-  `git fetch --quiet origin <default>`, where `<default>` comes from `origin/HEAD`, and takes
-  `git merge-base origin/<default> HEAD`. Fresh, because a branch the server updated with the
-  base (the host's "update branch" button), then pulled by name (`git pull origin <branch>`
-  fetches that branch alone), holds base commits the local `origin/<default>` has not seen, and a
-  stale ref would let them through. A failed fetch, or an unset `origin/HEAD`, refuses the run and
-  prints the `--base` command that would go on with the local ref. `--local-only` never fetches:
-  it uses the local ref, and says so.
-- `--verify` on a diff needs `--base <last-reviewed-head>`, or it is refused. A verification round
-  sends a delta (`git diff <last-reviewed-head>..HEAD`) or a merge link (`merge_link.sh`, which also
-  diffs from the last reviewed head). A default of the merge base would refuse every one of them.
-- `--base none` skips the check, for a diff that did not come from `git diff` in this repo (a
-  hand-made patch, `--no-index`, another project's patch). The closing lines then say
-  `base: not checked (--base none)`, so nobody reads it as checked.
+- **No `--base`**: the run reviews the whole change. The base is the merge base of `HEAD` with the
+  tip of origin's default branch, fetched fresh with `git fetch --quiet origin HEAD`. That fetch
+  needs no `origin/HEAD` and leaves the tip in `FETCH_HEAD`, a file each worktree has to itself
+  (checked on git 2.33: `FETCH_HEAD` held the remote's new tip while `origin/<default>` stayed
+  where it was). Fresh, because a branch the server updated with the base, then pulled by name,
+  holds base commits a stale local ref has not seen. The fetch is bounded the way the site
+  template's `git-stand.mjs` bounds its own: `GIT_TERMINAL_PROMPT=0`; ssh `BatchMode=yes` and
+  `ConnectTimeout=10` unless the person set their own ssh command; `http.lowSpeedLimit=1000` and
+  `lowSpeedTime=20`; and a 30-second limit (a Perl `alarm`, since macOS has no `timeout`). A
+  fetch that fails or runs out of time refuses the run, printing the `--base` command that would
+  go on with the local `origin/HEAD` where one is set. `--local-only` never fetches: it uses
+  `origin/HEAD`, or refuses and names `--base`.
+- **`--base <rev>`**: every diff that is not the whole change. A verification round (`--verify`
+  on a diff needs it, or is refused), a merge link (`merge_link.sh` diffs from the last reviewed
+  head), the wording pass and its confirmation, a closeout re-gate. A default of the merge base
+  would refuse every one of them.
+- **`--base none`** skips the whole check, rules 1 to 5 below included, for a diff that did not
+  come from `git diff` in this repo (a hand-made patch, `--no-index`, another project's patch). It
+  runs anywhere, outside a repo too. The closing lines say `base: not checked (--base none)`.
 
-Considered and dropped: a mode where the script builds the diff itself from a range. It adds a
-second input path, and a file still needs this check for deltas.
+**How it tells.** After the artifact is read and the type is known, and before any size limit,
+any reviewer, or any of the artifact leaving the machine (the fetch above goes first):
 
-**How it tells.** After the artifact is read and the type is known, before any size rule, before
-any reviewer starts, and before anything leaves the machine:
-
-1. The current directory must be inside a git work tree, or the run is refused: the diff's paths
-   mean nothing elsewhere, and Codex reads the same directory to check the diff's claims.
-2. A small Perl reader (`perl/diff_sides.pl`, beside the script's other Perl programs) splits the
-   diff into one record per `diff --git` header: old path, new path, old id, new id. Names come
-   from `---`/`+++`, `rename from/to` or `copy from/to`, and else from the `diff --git` line when
-   both names are equal. A C-quoted name is unquoted; the tab git adds after a name with a space
-   (seen: `--- a/sp ace.txt<TAB>`) is dropped.
-3. One `git --literal-pathspecs ls-tree -z` per side looks up every path: the base for the old
-   side, `HEAD` for the new. The old id must be a prefix of the base's id, and the new id a prefix
-   of `HEAD`'s or of the working tree's (`git hash-object --path=<p>`, for a diff of uncommitted
-   work). All zeros means the file must be absent on that side. An id shorter than 4 hex digits,
-   git's shortest, is a malformed record.
-4. A record with no `index` line (a rename at 100% similarity, a mode-only change) must have the
-   same id at the base's old path and at the new path in `HEAD` or the working tree.
+1. The current directory must be inside a git work tree. Every git command below runs from the
+   top of it (`git -C "$(git rev-parse --show-toplevel)"`), so paths are read from the repo root
+   whatever directory the run starts in.
+2. Git makes its own patch of the same base:
+   `git diff --no-ext-diff --no-color --full-index --no-renames --src-prefix=a/ --dst-prefix=b/ <base> HEAD`,
+   and only if some file's new side does not match `HEAD`, the same against the working tree
+   (`<base>` alone). No path goes on argv, so a large diff cannot reach the argument limit, and
+   git, not this script, hashes the working tree (filters, symlinks and submodules as the diff's
+   own `index` line did).
+3. One small reader, `perl/diff_headers.pl`, reads both the artifact and git's patch the same way:
+   per `diff --git` record, old and new path, mode and id. Names come only from header lines,
+   between `diff --git` and the record's first `@@` or `Binary files` line; each hunk is skipped
+   by its line counts, so a removed line `-- x` (shown `--- x`) is never read as a header. It
+   strips git's prefixes (`a/`, `b/`, and the mnemonic `c/`, `i/`, `o/`, `w/`); a diff with other
+   prefixes or none is refused. It unquotes C-quoted names, drops the tab git adds after a name
+   with a space, and splits a `diff --git` line with no other name source where both halves name
+   the same path, as `git apply` does. It uses Perl 5.8 syntax only, so `check_perl_minimum.sh`
+   lists it as ungated; a missing `perl` or `git` refuses the run.
+4. Every mode and id the artifact states must match git's for that path and side: the old side
+   against git's old side of the old path, the new side against git's new side of the new path.
+   Ids compare as prefixes, at least 4 hex digits, git's shortest. A record with no `index` line
+   (a rename at 100%, a mode-only change) must have equal ids on its two sides in git's patch,
+   and its modes must match its mode lines. A path git's patch does not change cannot be claimed
+   changed.
+5. With no `--base` only: every file git's patch changes outside `docs/reviews/` that the artifact
+   leaves out is named on the `base:` line. A note, not a refusal: a caller may leave a path out
+   on purpose, and the reader of the trail can then see it.
 
 | Input | Result |
 |---|---|
-| Diff made from the right base, new side at `HEAD` or the working tree | runs |
-| Diff from a stale base, or two-dot from a moved base | refused, every file whose old side differs listed |
-| `HEAD` moved after the diff was made | refused, the files whose new side differs listed |
-| Binary file, new file, deleted file, submodule | checked by its `index` line like any file |
+| `git diff <merge base>..HEAD`, or `<merge base>` alone for uncommitted work | runs |
+| A diff from a stale base, or a two-dot diff from a moved base | refused, every file whose old side differs listed |
+| `HEAD` moved after the diff was made | refused, every file whose new side differs listed |
+| Origin moved on, the branch did not take it, a three-dot diff | runs: the merge base did not move |
+| Binary, new, deleted, symlink, submodule | checked by its `index` line |
 | Rename or mode change with no `index` line | checked by rule 4 |
-| `format-patch` file with one patch | checked like a diff, against the base the run names |
-| `format-patch` series (more than one `From <40 hex>` header) | refused: a later patch's old side is an earlier patch's new side, not the base; use `git diff <base>..HEAD` |
-| Combined diff (`diff --cc`) | refused: it has no single old side |
-| No `diff --git` record at all (hand-made, `diff -u`) | refused, naming `--base none` |
-| `--no-index` diff | its paths and ids do not match the repo: refused, naming `--base none` |
-| stdin | the same check: the script reads stdin into the artifact before checking |
-| Current directory not the diff's repo | refused (rule 1) or every file listed (rule 3) |
+| A stale mode change (both trees already hold the new mode) | refused |
+| `format-patch`, one patch or a series | one patch: checked like a diff; a series: refused, since a later patch's old side is an earlier one's new side |
+| `diff --cc`, a copy record (`git diff -C`), other prefixes, colour codes | refused, naming the command below |
+| No `diff --git` record at all (hand-made, `diff -u`), or `--no-index` | refused, naming `--base none` |
+| Plain `git diff` or `git diff --cached` (one side is the index) | refused: the old side is the index, not a base |
+| stdin | the same check: the script reads stdin into the artifact first |
+| Run from a subdirectory of the repo | the same result as from the top (rule 1) |
+| Not in a work tree | refused, naming `--base none` |
+| No merge base (a shallow clone, unrelated histories) | refused, naming `git fetch --unshallow` and `--base` |
 
-A refusal exits 2. It names the base it used (the revision as given, its full id, and how it was
-chosen), lists every file that does not match and which side failed ("old side 8352675, the base
-has 1592e5c" or "no such file at the base"), and prints the command that makes a correct diff for
-that base: `git diff <base-id>..HEAD -- . ':(exclude)docs/reviews/'`. The list is never cut short.
+A refusal exits 2. It names the base (the revision as given, its full id, how it was chosen),
+lists every file that does not match and which side failed ("old side 8352675, the base has
+1592e5c", "no such file at the base"), never cut short, and prints the command that makes a
+correct diff:
+`git -C <top> diff --no-ext-diff --no-color <base-id> HEAD -- . ':(exclude)docs/reviews/'`, with
+the line "for a delta since a reviewed head, pass --base <that head>".
 
 **What the trail records.** Every diff run ends with a `base:` line beside `reviewers:` and
-`timings:`, on stdout and stderr: `base: <full id> (merge base with origin/main, fetched)`,
-`base: <full id> (--base <as given>)`, or `base: not checked (--base none)`. SKILL.md step 8
-already has the host report the `timings:` line each round; this change adds the `base:` line
-there and to the trail entry in `references/closeout.md`, so every round's record says its base.
+`timings:`, on stdout and stderr: `base: <id> (merge base with origin's HEAD <id>, fetched;
+every changed file present)` or `(…; not in this diff: <files>)`, `base: <id> (--base <as
+given>)`, or `base: not checked (--base none)`. The trail template in `references/closeout.md`
+already has a `Base` field and an "Artifact (full / delta since <sha>)" column: the `base:` line
+fills both, and SKILL.md step 8 reports it with `timings:`.
+
+**Considered and dropped:** the script building the diff itself from a revision range. That would
+make round 1 stale-proof by construction and replace the header reader (about 150 lines of Perl
+and the cases in the table, an estimate). It is dropped because files stay either way: merge
+links, other skills' documented `--diff` commands (`website-review`, `seo-reposition`) and site
+repos that vendor this skill send files, and the ask is that those files be checked. Built later,
+it would sit beside the check, not replace it.
 
 ## Change 2: the 117 KB limit
 
 **Today (checked in the script).** Codex gets the prompt as its last argv argument, the ollama CLI
 transport as `ollama run MODEL "$PROMPT_TEXTONLY"`, agy as `-p "$PROMPT_AGY"`. Melious and ollama's
-API transport write the request to a file.
+API transport write the request to a file, and ollama's sends no `num_ctx`, so a request is served
+with whatever window the server defaults to.
 
 **The change.** Every seat that can take the prompt off argv does, and the script-wide 120,000-byte
-check goes. Each seat then has its own limit, and a seat over it fails loud in its own `FAILED`
-section while the others run. A seat never reviews part of the artifact.
+check is replaced by one cap per seat, checked before sending. A seat's cap is the largest size it
+was measured to take whole (probe P2); a seat not measured keeps 120,000 bytes, today's number. A
+seat over its cap is `FAILED` before anything is sent ("artifact 410 KB, over this seat's measured
+400 KB"), and the other seats run. A round with fewer than two seats is degraded, as today. So no
+seat is sent more than it was measured to take whole.
 
-| Seat | Prompt travels by | Its limit | Source | Over the limit |
-|---|---|---|---|---|
-| Codex | stdin: `codex exec … -` reading the prompt file | the configured model's window, less the room it needs to read files and reply: 500,000 tokens, 95% usable, for the model configured here | Codex's own model cache (read 2026-10-21) | the CLI's or API's refusal, named (not checked) |
-| Melious | file body (no change) | 1,000,000 tokens | a third-party listing; Melious's `/v1/models` gives none (checked) | the API's refusal, named (not checked) |
-| ollama, API | file body (no change) | 1,048,576 tokens | `ollama show` on ollama 0.40.7, GLM 5.3 on ollama cloud | not checked |
-| ollama, CLI | stdin, if probe P1 passes; else argv | argv: 128,000 bytes of prompt | the Linux argument limit the script cites today | argv: refused before sending |
-| agy (opt-in) | argv (no change) | 128,000 bytes of prompt | the same | refused before sending |
+| Seat | Prompt travels by | Cap before P2 | After P2 |
+|---|---|---|---|
+| Codex | stdin: `codex exec … -`, reading the prompt file | 120,000 bytes | its measured size |
+| Melious | file body (no change) | 120,000 bytes | its measured size |
+| ollama, API | file body (no change) | 120,000 bytes | its measured size |
+| ollama, CLI | stdin if P1 passes, else argv | 120,000 bytes | stdin: its own measured size; argv: 120,000 |
+| agy (opt-in) | argv (no change) | 120,000 bytes | 120,000 (not probed: a probe spends an Antigravity credit) |
 
 Codex's help (codex-cli 0.163.0), quoted: "If not provided as an argument (or if `-` is used),
-instructions are read from stdin." The prompt file goes in the run's private raw folder (mode 700),
-which already holds the request bodies, so nothing new is exposed. agy keeps argv: whether its
-`-p` reads stdin is unknown, and finding out spends an Antigravity credit.
-
-A refusal for length is named apart from other failures, the way a quota refusal is today: a
-`CONTEXT_RE` beside `QUOTA_RE`, reading only the error lines the quota check reads, so an echoed
-artifact that talks about context windows does not trip it (the tests already pin an echoed
-artifact that mentions a 429). The summary reads, for example,
-`melious FAILED (input over the model's limit: …)`, with the remedy "split it, or keep the round
-with the seats that took it whole".
+instructions are read from stdin." The prompt file goes in the run's private raw folder (mode 700,
+already holding the request bodies) and joins the list of stale files cleared at start.
 
 **Step 0 probes**, before building change 2:
 
 - **P1, free.** Does the ollama 0.40.7 CLI send a piped stdin, whole, as the prompt? Its help shows
   stdin only with `--ask`. Checked against a stub server on 127.0.0.1 (`OLLAMA_HOST`) that records
   the request: no model runs.
-- **P2, the maintainer's call.** One prompt past each cited window, to Codex, Melious and ollama
-  cloud: does each refuse, or cut silently? A refusal costs nothing; a silent cut costs one window
-  of input tokens. A seat that cuts silently gets a limit checked before sending: its window less
-  its reply room, counted at one byte per token (a byte-level tokenizer never makes a token of less
-  than one byte; not checked for every tokenizer). Without P2 the table's "not checked" stays,
-  and the risk is named in the script's comments.
+- **P2, the maintainer's call.** One prompt of 400 KB per seat (Codex, Melious, ollama cloud, and
+  the ollama CLI if P1 passes): synthetic text with a random nonce on its first line, in its middle
+  and on its last line. The seat must quote all three. Where the API reports prompt tokens, the
+  count must match a small calibration call's count scaled to 400 KB. Codex is told to read a few
+  large files in the repo first, so its own context handling is part of the test. A seat that
+  passes gets a 400 KB cap; one that fails keeps 120,000, and the script's comment says why.
+  Cost: roughly 100,000 to 130,000 input tokens per seat (400 KB at 3 to 4 bytes a token, not
+  measured), about 350,000 in all. 400 KB is twice the size that started this.
+
+**Considered and dropped:** a label of its own for a refusal over the model's window (a
+`CONTEXT_RE` beside `QUOTA_RE`). With every seat capped at a measured size, such a refusal means
+the provider changed its limit, and the `FAILED` section already quotes the provider's message.
+Also dropped: a nonce check in every review. It needs the model to cooperate every time, and a
+forgotten quote would fail a real review.
+
+**What the caps do not see:** a provider that later shrinks its window, or Codex compacting its
+first message in a run far longer than the probe's. P2 can be run again.
 
 **The split the maintainer suggested**: give Codex the diff as a file to read from the checkout, and
 GLM only the app code. Weighed:
@@ -148,11 +185,10 @@ GLM only the app code. Weighed:
   whether it read every hunk; today the whole artifact is in its context. A GLM that never sees the
   tests cannot check them, and tests are where intent lives. Telling app code from tests is a
   per-repo guess about paths.
-- **Recommendation: not now.** With the cap gone, a 200 KB diff is roughly 50,000 to 70,000 tokens
-  (at 3 to 4 bytes a token, usual for code; not measured here), well under every cited window, so
-  every seat takes it whole. Revisit only if a real artifact exceeds a seat's window. If a split is
-  ever built, each seat's section and the `reviewers:` line must say what that seat saw, so a
-  two-seat round is never read as two seats over the whole change.
+- **Recommendation: not now.** If P2 passes, both default seats, Codex and Melious, take a 400 KB
+  artifact whole, twice the size that started this. Revisit only if a real artifact goes over a
+  measured cap. If a split is ever built, each seat's section and the `reviewers:` line must say
+  what that seat saw, so a two-seat round is never read as two seats over the whole change.
 - **Strongest case against this recommendation.** A model can read a very long prompt less
   carefully than a short one, and round 1 sends the whole change to every seat. Two focused halves
   might find more than one long whole. That is not measured either way.
@@ -161,55 +197,65 @@ GLM only the app code. Weighed:
 
 Change 1 lands first, in its own PR: it is the one that cost a wrong round. Its check goes just
 before today's size check, so from the start a big stale diff is refused for its base, not its
-size: cutting a wrong diff down is the wrong remedy. Change 2 follows in a second PR built on it:
-it removes the script-wide size check and adds the per-seat limits, still after the base check.
-A big delta round passes the base check with `--base`, then meets each seat's limit on its own.
-`--base none` skips only the base check, never a size limit.
+size: cutting a wrong diff down is the wrong remedy. Change 2 follows in a second PR built on it,
+after P2: it replaces the script-wide check with the per-seat caps, still after the base check. A
+big delta round passes the base check with `--base`, then meets each seat's cap on its own.
+`--base none` skips only the base check, never a cap.
 
 ## Tests
 
-All in `test_failed_tier_report.sh` (or a new `test_base_check.sh`, listed in the Makefile), and
-all through the script itself, as a caller runs it, with stub CLIs on `PATH`. The base cases build
-a throwaway repo with a bare `origin`, so the fetch is real and local.
+In a new `test_base_check.sh` (listed in the Makefile) for change 1 and in
+`test_failed_tier_report.sh` for change 2, all through the script itself, as a caller runs it,
+with stub CLIs on `PATH`. The base cases build a throwaway repo with a bare `origin`, so the fetch
+is real and local.
 
 | # | Case | Pass when |
 |---|---|---|
-| T1 | Stale base: origin moved on by commits touching other files; the diff made against the old local default branch | exit 2; stderr lists exactly those files and the correct `git diff` command; no stub seat ran |
-| T2 | Delta round: `git diff A..HEAD` with `--verify prior.md --base A` | runs; `base:` names A's full id. The same delta without `--base`: refused, naming `--base` |
-| T3 | Base checked before size: a 300 KB stale diff | refused for its base, not its size |
-| T4 | Edge records: rename, mode change, binary, new, deleted, quoted path with a space, working-tree diff, one-patch `format-patch` | each runs |
-| T5 | Refusals: hand-made diff, series, `diff --cc`, cwd outside a repo, fetch failure, `--base` on a plan | exit 2, each with its message; `--base none` runs and prints `base: not checked` |
-| T6 | stdin to Codex: the stub asserts its last argument is `-`, that no argument holds `--- BEGIN`, and that stdin carries the artifact | passes, with a 200 KB artifact arriving whole (same byte count and hash) |
-| T7 | A 200 KB diff reaches every seat that takes it: Codex, Melious, ollama API (and the CLI if P1 passed) | each stub records the artifact whole; `reviewers:` reads OK for each |
-| T8 | Over a seat's limit: agy with a 200 KB artifact; a Melious stub answering HTTP 400 "maximum context length is N tokens" | agy `FAILED` before sending; Melious `FAILED (input over the model's limit …)`; the other seats ran, the round reports fewer than 2 as today |
-| T9 | Change 2 only: an artifact over 117 KB no longer exits 2 | runs |
+| T1 | Stale base: origin gains commits touching other files, the branch takes them (as the host's update button does), and the diff is made against the old local default branch | exit 2; stderr lists exactly those files and the command; no stub seat ran |
+| T2 | Origin moved on, the branch did not take it, a three-dot diff against the old local branch | runs: the most common case, and the one a wrong check would refuse |
+| T3 | Delta: `git diff A..HEAD` with `--verify prior.md --base A` | runs, `base:` names A. Without `--base`: refused, naming `--base`. A wording-pass delta with no `--verify` and no `--base`: refused with the "--base <that head>" line |
+| T4 | Edge records, each from git itself: rename, mode change, binary, new, deleted, symlink, a path with a space and one with a tab, a working-tree diff, one-patch `format-patch`, a removed line `-- x` and an added `++ x`, mnemonic prefixes; and the run started in a subdirectory (a modified and a new file) | each runs |
+| T5 | Refusals: a stale mode change, a hand-made diff, a series, `diff --cc`, a copy record, `--no-prefix`, colour, plain `git diff` and `--cached`, outside a work tree, a shallow clone, a fetch that fails, a fetch that hangs (a stub remote that never answers: refused within the limit), `--base -x`, `--base` on a plan | exit 2, each with its message; `--base none` runs, outside a repo too, and prints `base: not checked` |
+| T6 | `--local-only` | no fetch reaches the stub remote; uses `origin/HEAD`, or refuses naming `--base` |
+| T7 | Coverage: a diff of the last commit only, no `--base` | runs; the `base:` line names the files left out |
+| T8 | Base before size: a stale diff over every cap | refused for its base, not its size |
+| T9 | stdin to Codex: the stub asserts its last argument is `-`, that no argument holds `--- BEGIN`, and that stdin carries a 400 KB artifact whole (same bytes, same hash) | passes |
+| T10 | A 400 KB artifact reaches every seat with a 400 KB cap whole, and each stub records it | `reviewers:` reads OK for each |
+| T11 | Over a cap: agy, and an unmeasured seat, with a 200 KB artifact | each `FAILED` before sending (its stub never ran); the other seats ran |
 
-The existing cases send a hand-made `change.diff` from outside a repo, so they pass `--base none`.
-`make check` must be green before each DIFF gate.
+The existing cases send a hand-made `change.diff` with no `index` line, from whatever directory
+the suite runs in (the repo root under `make`), so they pass `--base none`. `make check` must be
+green before each DIFF gate.
 
 ## Docs touched
 
 The script's header (usage, `--base`, the closing lines); SKILL.md step 2 (the round-1 command,
-the `base:` line, and "Over 117 KB: split it" replaced by the per-seat rule) and step 6 (`--verify`
-needs `--base`); `references/closeout.md` where the trail copies the closing lines.
+the `base:` line, and "Over 117 KB: split it" replaced by the per-seat caps), step 6 (`--base` for
+verification rounds, merge links, the wording pass and its confirmation) and step 8;
+`references/closeout.md` (the trail's `Base` field and Artifact column, re-gates);
+`skills/website-review/SKILL.md` and `skills/seo-reposition/SKILL.md`, whose `--diff` commands
+gain a sentence on `--base`; and the README, since site repos that vendor this skill may have no
+`origin` and must pass `--base`.
 
 ## Checked here, and not
 
 Checked on 2026-10-21: the script's code paths quoted above; Codex's help (codex-cli 0.163.0);
-Codex's model cache (500,000 tokens, 95% usable); `ollama show` (1,048,576 tokens); Melious's
-model list (no context field); `getconf ARG_MAX` on macOS (1,048,576); on git 2.33, that a binary
-file has an `index` line, a pure rename and a mode-only change have none, a working-tree diff's new
-id equals `git hash-object --path`, and `ls-tree` takes literal paths.
+Codex's model cache (500,000 tokens, 95% usable, for the model configured here); `ollama show`
+(1,048,576 tokens for GLM 5.3); Melious's model list (no context field; a third-party listing says
+1,000,000 tokens); `getconf ARG_MAX` on macOS (1,048,576). On git 2.33: a binary file has an
+`index` line, a pure rename and a mode-only change have none, a working-tree diff's new id equals
+`git hash-object -- <path>` of the file, a name with a space gets a tab after it on the `---` line,
+and `git fetch origin HEAD` fills `FETCH_HEAD` (per worktree) without moving `origin/<default>`.
 
-Not checked: the Linux argument limit (cited by the script today, not re-run); whether the ollama
-CLI reads stdin as the prompt (P1); whether agy's `-p` reads stdin; how each provider answers a
-prompt past its window (P2); Melious's own window (third-party figure only).
+Not checked: the Linux argument limit (cited by the script today); whether the ollama CLI reads
+stdin as the prompt (P1); whether agy's `-p` reads stdin; how much each seat takes whole (P2);
+any provider's real serving window.
 
 Outside this plan: under `--local-only`, a local model with a small context may cut the prompt
 silently today, whatever its size. A BUGLOG row, not this change.
 
 ## Open for the maintainer
 
-1. P2: spend up to one window of input tokens per seat, if a seat cuts silently, to learn each
-   seat's real behaviour? Without it the seats keep a named, unchecked risk.
+1. P2: spend about 350,000 tokens to measure what each seat takes whole? Without it, change 2
+   moves the transports but every cap stays at 120,000 bytes, so it lifts nothing.
 2. The split: build it, or leave it as recommended above?
