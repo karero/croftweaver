@@ -10,7 +10,7 @@ plan and land one after the other.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ revised through round 5 | this file |
-| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 to 5 done (findings per round in the trail); rounds ended (round 5 had no substantive BUG); final full read next | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
+| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 to 5, final full read and wording pass done; R4-02 waits on the maintainer | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
 | 3 | The maintainer's go, and the answers under "Open" | ⏸ | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ⏸ | — |
 | 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
@@ -85,8 +85,8 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
    header. A `\ No newline at end of file` line is not in those counts: any line starting with
    `\` is passed over without counting, inside a hunk or right after it. A C-quoted name is
    unquoted first, and the tab git adds after a name with a space is dropped. Prefixes: only
-   git's default ones are accepted, `a/` on the old side and `b/` on the new. They appear only on the `diff --git`, `---` and `+++` lines, and are stripped there, once,
-   after unquoting, and nowhere else: `rename from`/`to` and `copy from`/`to` carry no prefix, so
+   git's default ones are accepted, `a/` on the old side and `b/` on the new. They appear only
+   on the `diff --git`, `---` and `+++` lines, and are stripped there, once, after unquoting, and nowhere else: `rename from`/`to` and `copy from`/`to` carry no prefix, so
    their names are taken as written, and `/dev/null` (a new or deleted file) means "no file on
    this side". Any other prefix, git's mnemonic ones (`c/`, `i/`, `o/`, `w/`) included, or none,
    is refused with the remedy below, which sets `a/` and `b/` explicitly. It splits a `diff --git`
@@ -136,8 +136,8 @@ easily, and rule 4 accepts both short ids and rename records. With it goes the l
 
 **What the trail records.** Every diff run ends with a `base:` line beside `reviewers:` and
 `timings:`, on stdout and stderr: `base: <id> (merge base with origin's HEAD <id>, fetched;
-every changed tracked file present)` or `(…; not in this diff: <files>)`, where untracked
-files are in no diff at all, the artifact's or git's; under `--local-only`,
+every changed tracked file present)` or `(…; not in this diff: <files>)`; untracked files
+appear in neither git's patch nor a diff made with `git diff <base>`; under `--local-only`,
 `(merge base with origin/HEAD <id>, not fetched: --local-only; …)`; `base: <id> (--base <as
 given>)`; or `base: not checked (--base none)`. The trail template in `references/closeout.md`
 already has a `Base` field and an "Artifact (full / delta since <sha>)" column: the `base:` line
@@ -191,13 +191,12 @@ already holding the request bodies) and joins the list of stale files cleared at
 **Step 0 probes**, before building change 2:
 
 - **P1, free.** Do the two CLIs that would read the prompt from stdin send a 400 KB prompt whole?
-  The ollama 0.40.7 CLI (its help shows stdin only with `--ask`) is pointed at a stub server on
-  127.0.0.1 (`OLLAMA_HOST`) that records the request. Codex is pointed at the same kind of stub
-  through a model provider of its own (`-c model_provider=…` with a `base_url` on 127.0.0.1;
-  not checked that 0.163.0 accepts it). No model runs. If Codex cannot be pointed at a stub, a
-  real run with a nonce on the first and last lines of a 200 KB prompt settles it instead, at
-  roughly 60,000 tokens. A CLI seat not shown to deliver its stdin whole stays at 120,000,
-  whatever P2 finds.
+  Each is pointed at a stub server on 127.0.0.1 that records the request, and the prompt in the
+  recorded request must equal the prompt sent, byte for byte. The ollama 0.40.7 CLI (its help
+  shows stdin only with `--ask`) reaches it through `OLLAMA_HOST`; Codex through a model provider
+  of its own (`-c model_provider=…` with a `base_url` on 127.0.0.1; not checked that 0.163.0
+  accepts it). No model runs. A CLI that cannot be pointed at a stub, or whose recorded prompt
+  differs, stays at 120,000, whatever P2 finds.
 - **P2, the maintainer's call.** One prompt a little past each model's cited window, per seat and
   model in use (Codex's configured model, Melious's GLM 5.3, ollama cloud's GLM 5.3; the ollama
   CLI too if P1 passes), with the reply capped at a few tokens. It is repeated text with a random
