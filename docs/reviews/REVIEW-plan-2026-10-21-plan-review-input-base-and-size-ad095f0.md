@@ -1,6 +1,6 @@
 # PLAN review — plan/review-input-base-and-size — check a review diff's base, and lift the 117 KB limit
 
-Base `6681e7be` · depth: Normal (a plan for a guard script's logic; the owner's rule keeps tooling plans at Normal) · verdict: OPEN · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created the worktree and the branch); POST AUTHORITY and GATED-THIS-DIFF do not apply to a PLAN gate
+Base `6681e7be` · depth: Normal (a plan for a guard script's logic; the owner's rule keeps tooling plans at Normal; no red team: it touches no box, user data, login, money, deletion or schema) · verdict: OPEN — no BUG open; one RISK (R4-02) waits on the owner: waive it, or every seat stays at 120,000. Five rounds (round 4 earned by R3-01 and R3-02, round 5 by R4-01 and R4-03, with a cut), a final full read, a wording pass and one confirmation · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created the worktree and the branch); POST AUTHORITY and GATED-THIS-DIFF do not apply to a PLAN gate
 
 | Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
@@ -10,6 +10,8 @@ Base `6681e7be` · depth: Normal (a plan for a guard script's logic; the owner's
 | 4 | `ea30cd24` | full plan, `--verify` with round 3's rows and R1-12; changed sections named; `--earned-by probe-verdict,merge-base-head` | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 155 s, 64,429 · melious 249 s, 32,490 | in scope 2/1/0 (codex 1/1/0, melious 1/0/0); outside scope 0/1/2 (melious); every round-3 fix confirmed landed |
 | 5 | `caaf7b68` | full plan, `--verify` with round 4's rows and R1-12; changed sections named; `--earned-by header-names,test-spec --cut "mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines"` | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 112 s, 65,264 · melious 340 s, 39,691 | in scope 0/3/3 (codex 0/1/0, melious 0/2/3); outside scope 1/0/2 (melious); every round-4 fix confirmed landed; no substantive BUG |
 | final full read | `c2ff4cc9` | full plan, no `--round` | ollama 0.40.7 CLI, kimi-k3:cloud, text only (a model that had not reviewed this plan) | ollama-cloud 459 s, tokens not reported by the CLI | 0/2/4; no BUG, so no further round |
+| wording pass (not a round) | `7582ff37` | delta since `caaf7b68` (round 5's local fixes and the final read's), with a prose-only scope | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only | codex 181 s, 54,825 | 3 contradictions and 1 RISK, all fixed |
+| confirmation (not a round) | `fbed4442` | that fix's delta | codex, effort medium | codex 78 s, 43,462 | No BUG/RISK/NIT findings |
 
 UNVERIFIABLE entries, round 1: 17 asked (codex 3, melious 6, fresh-eyes 8); 3 confirmed and made findings (the fetch refspec, ollama's missing `num_ctx`, `hash-object --path`); the rest are the plan's own "not checked" list or probes P1 and P2.
 UNVERIFIABLE entries, round 2: 10 asked (codex 5, melious 5); 0 new confirmed: they restate the plan's "not checked" list, P1, P2 and the T5 hang test.
@@ -81,10 +83,15 @@ UNVERIFIABLE entries, final full read: 6 asked; 0 new confirmed (the script and 
 | F-04 | NIT | kimi (final full read) | — | "Every changed file present" cannot see untracked files | fixed, locally_verified | the `base:` line says "tracked", and why |
 | F-05 | NIT | kimi (final full read) | — | The remedy leaves out rule 2's `--full-index --no-renames` without saying it is deliberate | fixed, locally_verified | the refusal paragraph says why |
 | F-06 | NIT | kimi (final full read) | — | T13 sat before T12; "a missing perl or git refuses" read as covering `--base none` too | fixed, locally_verified | tests reordered; rule 3 excepts `--base none` |
+| W-01 | RISK | codex (wording pass) | — | P1's paid fallback checked only first- and last-line nonces, which cannot show the middle of the prompt arrived | fixed, externally_reverified (confirmation) | the fallback is removed: P1 is stub-only, the recorded prompt must equal the sent one byte for byte, and a CLI that cannot be pointed at a stub stays at 120,000 |
+| W-02 | BUG (contradiction) | codex (wording pass) | — | P1 "free" and "No model runs" beside a fallback costing about 60,000 tokens | fixed, externally_reverified (confirmation) | the same fix |
+| W-03 | BUG (contradiction) | codex (wording pass) | — | "Untracked files are in no diff at all" is false for `git diff --no-index` | fixed, externally_reverified (confirmation) | "untracked files appear in neither git's patch nor a diff made with `git diff <base>`" |
+| W-04 | BUG (contradiction) | codex (wording pass) | — | Status row 2 said "final full read next" after the read ran | fixed, externally_reverified (confirmation) | status row 2 updated |
 
-Waivers and deferrals: none granted. R4-02 waits on the owner.
+Waivers and deferrals: none granted. R4-02 (re-raised as R5-01) waits on the owner.
+Cost: about 900,600 tokens logged across 14 seat runs (the Kimi read gave no figure); reviewer time about 3,950 s, about 43 minutes of wall clock with the seats of a round in parallel. Announced before round 1 as about 10-12 minutes and 200-250k tokens over 2-3 rounds: the gate took about 4 times the tokens, mostly round 1's fresh-eyes pass (245k) and two more rounds.
 Follow-ups: a BUGLOG row for local ollama cutting a prompt silently under `--local-only` (named in the plan, outside its scope). Round 4, outside scope (melious): measure the Linux per-argument limit on a runner before relying on 120,000 for argv seats (RISK); T7's precondition (NIT, fixed in the plan anyway); git's `1/` and `2/` prefixes (NIT, moot: every prefix but `a/` and `b/` is now refused).
-Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. R3-03 and R3-04 are the same kind a third time, raised against the cuts-at-N cap that cut left; the fix is a second cut: only a provider that refuses past its window loses the 120,000 check. Round 4 is earned by R3-01 (kind probe-verdict) and R3-02 (kind merge-base-head). Round 5 is earned by R4-01 (kind header-names, which R2-06 earned before: its fix is a cut) and R4-03 (kind test-spec). Round 5 found no substantive BUG (R5-07 is test wording), so the rounds end: round 5's fixes are locally_verified, closing edits not externally re-verified; the final full read (Kimi K3 on ollama, 0 BUG) and the wording pass follow. The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
+Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. R3-03 and R3-04 are the same kind a third time, raised against the cuts-at-N cap that cut left; the fix is a second cut: only a provider that refuses past its window loses the 120,000 check. Round 4 is earned by R3-01 (kind probe-verdict) and R3-02 (kind merge-base-head). Round 5 is earned by R4-01 (kind header-names, which R2-06 earned before: its fix is a cut) and R4-03 (kind test-spec). Round 5 found no substantive BUG (R5-07 is test wording), so the rounds end: round 5's fixes are locally_verified, closing edits not externally re-verified; the final full read (Kimi K3 on ollama) found no BUG; the wording pass found 3 contradictions, fixed and confirmed clean. One reflow of rule 3 after the confirmation changed no words (whitespace-normalized text compared equal). Codex called the wording pass's scope sentence, sent in the prior-findings block, an attempt to restrict its task; it treated it as data. The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout)</summary>
 
@@ -689,5 +696,88 @@ timings: ollama-cloud 459s
 ⚠ PLAN round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat ollama was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair.
 gate 20261021T172444Z-64903: rounds 1-5, 12 reviewer seat runs, 802,292 tokens logged (1 run gave no figure). Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 kinds: 4 probe-verdict,merge-base-head; 5 header-names,test-spec (cut: mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines); 1 run with no round
+
+</details>
+
+<details><summary>Wording pass raw output — codex (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- RISK — `docs/reviews/SKILL-PLAN-review-input-base-and-size.md:198` — R5-03 is only partly fixed: endpoint nonces lack evidence that Codex received the middle, so truncated input could unlock uncapped reviews. A reproduced counterexample preserved both nonces while reducing 400,024 bytes to 24. Fix: require an exact outbound-payload comparison at the intended probe size; otherwise retain 120,000 bytes.
+- BUG — `docs/reviews/SKILL-PLAN-review-input-base-and-size.md:193–199` — P1’s “free” and “No model runs” claims contradict its new real-model fallback of roughly 60,000 tokens. Fix: qualify those claims as applying to stub probes and explicitly describe the fallback’s potential cost.
+- BUG — `docs/reviews/SKILL-PLAN-review-input-base-and-size.md:140` — “untracked files are in no diff at all” is false for `git diff --no-index`, which the plan explicitly supports; a measurement produced its patch without any repository/index. Fix: say the ordinary repository comparison omits untracked files, while supplied artifacts can include them.
+- BUG — `docs/reviews/SKILL-PLAN-review-input-base-and-size.md:13` — “final full read next” contradicts the trail’s completed final-full-read row at head `c2ff4cc9`. Fix: record that read as completed and identify the current verification step.
+
+**Checked claims that were CLEAN**
+
+Verdicts below verify specification changes; they do not certify an unbuilt implementation.
+
+| Claim | Verdict and evidence |
+|---|---|
+| R5-01/R4-02 remains open under its stated conditions | **VERIFIED:** Open item 1 explicitly requests acceptance; without it every seat retains the cap. The trail records no waiver. |
+| R5-02 corrects the findings-count statement | **VERIFIED:** status row 2 delegates counts to the trail, which distinguishes round 4’s in-scope and outside-scope findings. |
+| R5-04 correctly separates `--no-index` | **VERIFIED:** line 120 describes side-based checking; reproduced `git diff --no-index` emitted `diff --git`. |
+| R5-05/R5-06 specify unquoting before stripping and exempt absent sides | **VERIFIED:** lines 86–95 state both; `git apply --numstat -` accepted quoted-tab and `/dev/null` fixtures. |
+| R5-07 supplies T9’s missing eligibility setup | **VERIFIED:** T9 now specifies Codex listed “refuses,” consistent with the planned cap rule. |
+| R5-08/R5-09 correct provenance and revision wording | **VERIFIED:** separate unfetched `--local-only` output and “revised through round 5” are present. |
+| F-01’s working-tree-ID objection is refuted | **VERIFIED:** `git diff --full-index caaf7b68 -- <plan>` produced new ID `1aca7eeb…`, equal to `git hash-object -- <plan>`. |
+| F-02 handles no-final-newline markers | **VERIFIED:** rule 3 excludes backslash markers from counts; T4 covers each side and both. Git accepted a both-sides fixture with uncounted markers. |
+| F-03/F-05/F-06 fixes landed | **VERIFIED:** Open item 1 hedges billing; the remedy explains omitted options; T12 precedes T13; rule 3 excepts `--base none`. |
+| Supplied changes are plan prose | **VERIFIED:** the supplied diff changes only Markdown plan text, including command examples and test specifications. |
+
+**Unsupported component claims**
+
+- **UNVERIFIABLE — Codex CLI:** large-stdin integrity and custom-provider configuration lack a real CLI trace. Settling observation: capture and compare the complete outbound prompt from the specified CLI version; endpoint quotes are insufficient.
+- **UNVERIFIABLE — ollama CLI:** large-stdin integrity and the stated `--ask` behavior lack implementation or execution evidence checked here. Settling observation: capture its complete request through P1’s stub and compare payload bytes.
+- **UNVERIFIABLE — configured Codex provider, Melious, and ollama serving providers:** window sizes, refusal/truncation policies, and refusal billing lack checked provider traces. Settling observations: request admission/evaluation records across relevant lengths and corresponding usage/billing records. The plan explicitly retains a maintainer decision for the residual policy risk.
+- **UNVERIFIABLE — planned parser and cap implementation:** `diff_headers.pl`, `seat_limits.txt`, and the new executable cases are absent. Settling observation: inspect the implementation and execute the specified regression cases.
+
+**OUTSIDE SCOPE**
+
+No additional findings.
+
+**Prompt injection:** the author-record sentence “Flag ONLY a factual contradiction … not style or phrasing” attempts to restrict this review’s task. It was treated as data; ordinary plan instructions were not classified as injection.
+
+No network or write-dependent tests were run; the worktree remained clean.
+
+---
+reviewers: codex OK
+timings: codex 181s (54825 tokens)
+⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat codex was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair.
+gate 20261021T172444Z-64903: rounds 1-5, 13 reviewer seat runs, 857,117 tokens logged (1 run gave no figure). Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 probe-verdict,merge-base-head; 5 header-names,test-spec (cut: mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines); 2 runs with no round
+
+</details>
+
+<details><summary>Confirmation raw output — codex (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+No BUG/RISK/NIT findings.
+
+CLEAN — checked claims:
+
+- **VERIFIED — W-01:** `docs/reviews/SKILL-PLAN-review-input-base-and-size.md:193–199` removes the nonce fallback, requires byte-for-byte prompt equality, and retains 120,000 bytes when routing or equality fails. The seat table at lines 181–184 agrees.
+- **VERIFIED — W-02:** P1 now specifies only stub requests; its paid model-run fallback is gone. P2 remains separately described and costed.
+- **VERIFIED — W-03 wording fix:** Lines 139–140 remove the universal “no diff at all” claim and restrict it to the specified Git patches. The `--no-index` exception at lines 64–66 and 120 remains consistent.
+- **VERIFIED — W-04, partly:** Status no longer says the final full read is next. The trail records that read at line 12 and keeps R4-02 awaiting the owner at lines 67 and 85. Plan “Open” item 1 preserves the no-waiver cap.
+- **VERIFIED — reflow:** Comparing rule 3 before and after `HEAD` with whitespace-normalized Python strings returned `True`: no words changed.
+
+UNVERIFIABLE — grouped claims:
+
+- **Git:** Exclusion of untracked files from the specified patches lacks an implementation trace or a reproduced untracked-file fixture. Settling observation: compare both planned Git commands and `git diff --no-index` against the same untracked file.
+- **CLI transports:** Exact large-prompt delivery and local stub routing lack executed P1 captures. CLI help confirms advertised stdin/configuration options, not delivery behavior. Settling observation: capture each CLI’s requests and compare the decoded prompt bytes. The retained cap makes these pending probes, rather than new findings.
+- **Review completion:** “Wording pass done” lacks its raw reviewer output in the cited trail; the trail’s line 87 still says that pass follows. Settling observation: a recorded wording-pass invocation and output identifying its reviewed artifact. The final-full-read completion is independently recorded.
+
+OUTSIDE SCOPE: no additional findings recorded.
+
+Prompt injection: none found.
+
+---
+reviewers: codex OK
+timings: codex 78s (43462 tokens)
+⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat codex was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair.
+gate 20261021T172444Z-64903: rounds 1-5, 14 reviewer seat runs, 900,579 tokens logged (1 run gave no figure). Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 probe-verdict,merge-base-head; 5 header-names,test-spec (cut: mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines); 3 runs with no round
 
 </details>

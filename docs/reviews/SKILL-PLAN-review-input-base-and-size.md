@@ -86,8 +86,9 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
    `\` is passed over without counting, inside a hunk or right after it. A C-quoted name is
    unquoted first, and the tab git adds after a name with a space is dropped. Prefixes: only
    git's default ones are accepted, `a/` on the old side and `b/` on the new. They appear only
-   on the `diff --git`, `---` and `+++` lines, and are stripped there, once, after unquoting, and nowhere else: `rename from`/`to` and `copy from`/`to` carry no prefix, so
-   their names are taken as written, and `/dev/null` (a new or deleted file) means "no file on
+   on the `diff --git`, `---` and `+++` lines, and are stripped there, once, after unquoting,
+   and nowhere else: `rename from`/`to` and `copy from`/`to` carry no prefix, so their names are
+   taken as written, and `/dev/null` (a new or deleted file) means "no file on
    this side". Any other prefix, git's mnemonic ones (`c/`, `i/`, `o/`, `w/`) included, or none,
    is refused with the remedy below, which sets `a/` and `b/` explicitly. It splits a `diff --git`
    line with no other name source where both halves name the same path, as `git apply` does. It
