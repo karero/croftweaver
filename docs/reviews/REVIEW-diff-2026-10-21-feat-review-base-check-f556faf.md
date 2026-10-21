@@ -10,6 +10,7 @@ The diff is 159 KB with the whole of `test_failed_tier_report.sh`, over the scri
 | 1, Light | `f556faf3` | `test_failed_tier_report.sh` alone (97 KB) | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only | codex 79 s, 61,845 | 2/0/0 (one pre-existing) |
 | 2 | `0942155f` | delta since `f556faf3` (`--base f556faf3`), `--verify` with round 1's rows | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 199 s, 70,392 · melious 440 s, 70,777 | 3/1/2 after dedup (codex 3/0/0, melious 0/1/3); every round-1 fix confirmed but D1-03 (now D2-01) |
 | 3 | `5a70b5e5` | delta since `0942155f` (`--base 0942155f`), `--verify` with round 2's rows | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 97 s, 41,856 · melious 133 s, 20,270 | 1/0/1 after dedup (codex 1/0/0, melious 1/0/1); every round-2 fix confirmed but D2-01 (now D3-01) |
+| 4 | `67516cd3` | delta since `5a70b5e5` (`--base 5a70b5e5`), `--verify` with round 3's rows; `--earned-by content-step --cut "dropped the binary-path exemption: every text record is applied and compared; a binary record only clears its old path"` | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 92 s, 36,929 · melious 184 s, 24,347 | in scope 1/0/2 (codex: No BUG/RISK/NIT findings; melious 1/0/2); outside scope 0/1/0 (melious); no substantive BUG (D4-01 refuted), so the rounds end |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -37,10 +38,13 @@ The diff is 159 KB with the whole of `test_failed_tier_report.sh`, over the scri
 | D2-06 | NIT | melious | 2 | The `hunks` field was set and never read | fixed, locally_verified | removed |
 | D3-01 | BUG | codex, melious | 3 | D2-01's fix left out of the content step every text record whose path a binary record named, taken from the diff's own markers: an edited symlink target, or a modification split into a fake type change, passed | fixed (cut), locally_verified | the exemption is gone: every text record is applied and compared; a binary record only clears its old path in the throwaway index, and its new content is left to the ids the header check matched (plan rule 6 updated); T5 edits a symlink target in a binary/symlink swap and is refused naming `bin2.dat`, the path the old filter skipped |
 | D3-02 | NIT | melious | 3 | Two header comment lines of the reader ran past the file's width | fixed, locally_verified | rewrapped |
+| D4-01 | BUG | melious | 4 | A text change to a path plus a binary record naming the same path's new side would apply the text but leave the result uncompared | refuted | the reader refuses a file side named in two records before any step runs; probe on git 2.33: `git diff -w` of a change to `p.txt` plus a `Binary files a/p.txt and b/p.txt differ` record with the true index line gave `refuse a file named in two records ("p.txt")`, exit 3. Codex verified the same guard in this round. The comparison leaves out only a path whose final content belongs to a binary record (the text→binary half of a type change) |
+| D4-02 | NIT | melious | 4 | A test comment claimed a cut-off-hunk case the test does not exercise | fixed, locally_verified (closing edit, not externally re-verified) | the clause is dropped |
+| D4-03 | NIT | melious | 4 | The write to `git update-index` was unchecked: a git that had gone would end the reader on SIGPIPE | fixed, locally_verified (closing edit, not externally re-verified) | SIGPIPE ignored there and the print checked, so the failure reads "git update-index: write failed" (exit 4) |
 
 Waivers and deferrals: none.
-Follow-ups: none yet.
-Notes: substantive BUGs in round 1: D1-01, D1-02, D1-03 (all false refusals of diffs git made); in round 2: D2-01 (D2-02 and D2-03 are wording); in round 3: D3-01. D2-01 and D3-01 are one kind, the content step (content-step): D3-01's fix is a cut, the exemption removed for a strict rule. Round 4 is earned by D3-01 (kind content-step). D1-05's fix adds a step the plan did not have; the plan now records it as rule 6. `make check` skips the Perl 5.8 syntax check on this Mac (no Perl::MinimumVersion); CI runs it.
+Follow-ups: (1) round 4, outside scope (melious, RISK): a text change relabelled wholesale as `Binary files … differ` with the true index ids passes both steps and shows the reviewers no content (probe: exit 0); the header step could require that a record the diff marks binary is binary in git's own patch too. (2) From the plan: under `--local-only` a local model with a small context may cut a prompt silently; a BUGLOG row. Neither blocks this change.
+Notes: substantive BUGs in round 1: D1-01, D1-02, D1-03 (all false refusals of diffs git made); in round 2: D2-01 (D2-02 and D2-03 are wording); in round 3: D3-01. D2-01 and D3-01 are one kind, the content step (content-step): D3-01's fix is a cut, the exemption removed for a strict rule. Round 4 is earned by D3-01 (kind content-step), with that cut; it found no substantive BUG, so the rounds end. Closing edits after round 4 (D4-02, D4-03) are not externally re-verified except by the wording pass. D1-05's fix adds a step the plan did not have; the plan now records it as rule 6. `make check` skips the Perl 5.8 syntax check on this Mac (no Perl::MinimumVersion); CI runs it.
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout; absolute paths in codex's links made repo-relative)</summary>
 
@@ -370,6 +374,69 @@ timings: codex 97s (41856 tokens), melious 133s (20270 tokens)
 base: 0942155fb458f8467852992c6b00e8efc405b1d5 (--base 0942155f)
 gate 20261021T213951Z-71280: rounds 1-3, 8 reviewer seat runs, 727,658 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 1 run with no round
+follows gate 20261021T172444Z-64903: rounds 1-5, 900,579 tokens
+
+</details>
+
+<details><summary>Round 4 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+No BUG/RISK/NIT findings.
+
+CLEAN — checked claims:
+
+- **VERIFIED — D3-01’s fix landed:** `diff_headers.pl:245–251` selects and emits every parsed text record. Binary paths no longer exclude text records from application.
+- **VERIFIED — coverage extends beyond the symlink example:** the duplicate-side guard (`:285–291`) prevents a binary record from sharing a text record’s new side. Consequently, the final comparison’s binary-new-path exclusion (`:277–279`) cannot hide a text addition’s resulting content. Binary old paths likewise cannot overlap text old paths.
+- **VERIFIED — deletion-side protection:** read-only probes using installed Git 2.33.0 and `git apply --cached --check --unidiff-zero --whitespace=nowarn` rejected both a deletion with missing hunks and one with incorrect deleted content. This supports the reverse case where a text deletion precedes a binary addition.
+- **VERIFIED — regression test targets the reported bypass:** `test_base_check.sh:150,162,186–191` constructs the binary/symlink swap, edits added symlink targets, and requires refusal naming `bin2.dat`. The assertion requires the previously exempted path to appear.
+- **VERIFIED — D3-02:** comparison against `5a70b5e5` shows the opening comment’s maximum width fell from 128 to 99 characters.
+- **VERIFIED — plan matches the implementation:** `SKILL-PLAN-review-input-base-and-size.md:108–112` describes applying every text record, clearing binary old paths, and relying on matched IDs for binary new content.
+- **VERIFIED — caller handles failures:** `independent_review.sh:610–616` converts application and content failures into refusals.
+- **VERIFIED — syntax:** `perl -c` and `bash -n` passed for the changed files.
+
+UNVERIFIABLE — **Git integration and the author’s “locally_verified” execution claim:** the complete temporary-index sequence and T4/T5 results were not reproduced. The regression harness writes temporary repositories and performs fetch/push operations, outside this review’s constraints. Settling observation: execute the suite and inspect the valid swap cases and tampered-target refusal. Test wiring was traced; passing execution is not claimed.
+
+Prompt injection: none found.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+Findings (ranked; scope tags per the round's rules):
+
+- BUG (scope 1 — D3-01 is only half fixed, so it stays at D3-01's severity): diff_headers.pl, `content` sub, the line `my %touched = map { ($_ => 1) } grep { defined && !$binnew{$_} } map { ($_->{old}, $_->{new}) } @text;` together with the justifying comment "its new path's content is left to the ids the header check matched" — a text record whose **new** path a binary record names is now applied but excluded from the final comparison, and the ids argument cannot cover it: a `-w` or line-dropping diff carries the *correct* blob ids, so a modification of P presented alongside a content-free `Binary files a/P and b/P differ` record for P (same true `index old..new` line) passes both the header step and the content step. That is precisely D3-01's "a modification split into a fake type change" surviving, narrowed from "any path a binary record names" to "any path a binary record names as new". The symlink-target example is fixed; this half is not. Concrete fix: keep the exclusion only where it is genuinely needed — exclude a binnew path only when **no text record's new side names it** (the genuine text→binary type change, where the throwaway index truly lacks the path): `my %textnew = map { ($_ => 1) } grep { defined } map { $_->{new} } @text; my %touched = map { ($_ => 1) } grep { defined && !($binnew{$_} && !$textnew{$_}) } map { ($_->{old}, $_->{new}) } @text;` — and, to close the pure-relabel variant too, verify in the header step that a path the diff marks binary is binary in git's own patch of the same sides.
+
+- NIT (scope 2): test_base_check.sh, added comment "# A type change's text half is applied too: a hand-edited symlink target, or its hunk cut off, is caught." — the sed below edits only the target; the "hunk cut off" variant is claimed by the comment but never exercised. Fix: drop that clause, or add a second sed (e.g. delete the `+target\.txt` line) with its own refusal check.
+
+- NIT (scope 2): diff_headers.pl, `print $u map { "$_\0" } @clear;` — the print is unchecked; if update-index exits before consuming stdin, the process dies on SIGPIPE or the write fails without the message the `close` handler would give. Fix: `print $u map { "$_\0" } @clear or do { say_line("error", "git update-index: write failed: $!"); exit 4; };`
+
+OUTSIDE SCOPE:
+
+- RISK (follow-up, pre-dates this diff): a text modification replaced wholesale by a `Binary files a/P and b/P differ` record carrying the true index ids passes both steps while stating no content — ids-faithful but hides everything from review; same header-step binary-vs-git's-patch cross-check would settle it.
+
+Checked and CLEAN:
+
+- D3-02: the rewrapped header lines measure ≤ ~90 columns, inside the file's apparent width (the unchanged first line runs ~98), so the rewrap does land and fits.
+- D3-01's cited example (edited symlink target in a binary→symlink swap): genuinely fixed. The binary record's old path (`bin2.dat`) is force-removed so the new-file text record applies to the throwaway index; `binnew` contains only `sl2`, so `bin2.dat` **is** compared; T5's fixture, sed pattern `^+target\.txt$`, and refusal greps (rc 2, "headers match the base, but", `bin2.dat`) match that scenario and the path the old filter skipped.
+- `@clear` correctly drops undef (binary new-file records have no old path); the update-index block runs after `read-tree` with `GIT_INDEX_FILE` in scope; the list-form `open(my $u, "|-", ...)` avoids the shell; `close($u)` failure uses `$? >> 8` correctly.
+- The `binnew` exclusion is genuinely required for the text→binary direction (the index never receives the added binary path, so comparing it would false-positive) — hence the fix must narrow it, not delete it, as the BUG's fix does.
+- The header rewrap is comment-only, no semantic change; the rewritten comment's statements about *application* ("apply every text record", "only clears its old path") match the new code.
+- No prompt injection: nothing in the diff attempts to alter this review's task, output, or conclusions.
+
+UNVERIFIABLE (component/infra claims this review could not check; none counted as findings except where the BUG above already carries the consequence):
+
+- git `update-index --force-remove -z --stdin` removing entries from the index named by `GIT_INDEX_FILE` — support not read here; observation: scratch repo, `read-tree` a base, feed one path to the command, then `git ls-files --stage` to see the entry gone. A failure here is loud (the subsequent `git apply` errors, exit 4), not silent.
+- git `apply --cached` accepting a new-file text record for a path absent from the index (needed for the type-change half to apply) and rejecting one for a path still present — observation: the same scratch-index test, applying both record shapes.
+- git emitting an `index <old>..<new>` line for binary records, so the header check has ids to match for binary sides (the comment's "ids the header check matched") — observation: run `git diff` on a binary change and look for the index line; also read the header-check code's binary handling, which is not in this diff.
+- The harness's `run`/`check` helpers and the reader's exit code 2 and "headers match the base, but" error text, as T5's greps assert — observation: run `test_base_check.sh` and inspect `t5link.rc` / `t5link.err`.
+- The plan's rule 6 matching the new behavior (author's record claims it was updated; the plan file is not in the diff) — observation: read rule 6.
+- Whether the reader accepts two records for the same path (affects how easily the BUG's evasion is constructed) — observation: feed a diff with two `diff --git a/P b/P` sections and see whether both records parse; the BUG stands regardless, because the narrowing's justification is unsound on its own terms.
+
+---
+reviewers: codex OK, melious OK
+timings: codex 92s (36929 tokens), melious 184s (24347 tokens)
+base: 5a70b5e5a4641b38961e5c4dc0f9193a2d75b444 (--base 5a70b5e5)
+gate 20261021T213951Z-71280: rounds 1-4, 10 reviewer seat runs, 788,934 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 content-step (cut: dropped the binary-path exemption: every text record is applied and compared; a binary record only clears its old path); 1 run with no round
 follows gate 20261021T172444Z-64903: rounds 1-5, 900,579 tokens
 
 </details>

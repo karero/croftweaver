@@ -256,7 +256,9 @@ sub content {
   if (@clear) {
     open(my $u, "|-", "git", "-C", $top, "update-index", "--force-remove", "-z", "--stdin")
       or do { say_line("error", "could not run git update-index: $!"); exit 4; };
-    binmode $u; print $u map { "$_\0" } @clear;
+    binmode $u;
+    local $SIG{PIPE} = "IGNORE";   # a write to a git that has gone fails here, with a message
+    print $u map { "$_\0" } @clear or do { say_line("error", "git update-index: write failed: $!"); exit 4; };
     close($u) or do { say_line("error", "git update-index failed (exit " . ($? >> 8) . ")"); exit 4; };
   }
   open(my $saved, ">&STDERR") or do { say_line("error", "cannot save stderr: $!"); exit 4; };
