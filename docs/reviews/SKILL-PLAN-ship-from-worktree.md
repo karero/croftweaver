@@ -7,7 +7,7 @@ go. Where this plan and the shipped files disagree, the files win.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-20 | this file |
-| 2 | Plan review gate (High depth: deploy code that deletes folders), then red team | ▶ round 5 | trail `REVIEW-plan-2026-10-21-plan-ship-from-worktree-f6266ac.md` |
+| 2 | Plan review gate (High depth: deploy code that deletes folders), then red team | ▶ round 6 | trail `REVIEW-plan-2026-10-21-plan-ship-from-worktree-f6266ac.md` |
 | 3 | Template change (D3.1) | ⏸ | — |
 | 4 | The three site copies (D3.2 to D3.4) | ⏸ | — |
 
@@ -193,19 +193,23 @@ clearing its variables.
   promised here. The script kills nothing itself. git's own exit status is written down by
   the push step itself, into a scratch file inside the same pipeline, and never read back
   from the pipeline afterwards: on bash 3.2 a stop noted the moment the pipeline ends resets
-  that, and a failed push read as a success. The script traps interrupt, terminate, hang-up
+  that, and a failed push read as a success. A missing or empty status file (an interrupt
+  can end the step before it writes one) means git's result is unknown, never a success.
+  The script traps interrupt, terminate, hang-up
   and quit only to note that a stop was asked for; bash runs that note when the step in the
   foreground ends, so a terminate sent to the script alone lets the current step finish and
   the worktree is never removed under a running gate. After each step, and at each poll of
   the live check, the script looks at the note; if it is set, it stops there, says so, and
   exits with a failure status. Once git has reported a successful push, a stop at any later
   step says the publish went out and names what was skipped (the live check, a smoke test).
-  If the push failed, the push classifier reads git's output first, as today, and its
-  message stands where it names the failure; where it would fall to "a reason this script
-  can't name", the stop message says "nothing was published" only when the gate's start line
-  is in the log and its pass line is not (the push never reached the network). In every
-  other case, including a hook that prints no such lines (Site B's), no hook, or another
-  hook, it says the publish may or may not have landed and to run ship again, as for a
+  If the push failed or its result is unknown, the push classifier reads git's output first,
+  as today, and its message stands where it names the failure; where it would fall to "a
+  reason this script can't name", the stop message says "nothing was published" only when
+  the gate's start line is in the log and its pass line is not. Those two lines are the ones
+  this kit's own pre-push hook prints, and that hook prints its pass line before it lets the
+  push go on, so with them the push never reached the network. In every other case,
+  including a hook that prints no such lines (Site B's), no hook, or another hook with other
+  lines, it says the publish may or may not have landed and to run ship again, as for a
   dropped connection.
 - **The exit trap.** One trap removes the worktree (by path, forced twice, from the starting
   folder), its own lock and the scratch log, skipping whatever this run did not make (a run
@@ -265,13 +269,13 @@ clearing its variables.
 | S7 | another clone moves production while the gate runs | on stock git, "production moved", run again; nothing published; no worktree left. On GitHub, the same if GitHub words it alike, else "can't name" (nothing published either way) |
 | S8 | an earlier run was killed hard: its worktree is still registered (with or without its folder) and its lock is left (with or without a process id) | stops, naming the lock, its full path and the command to remove it; after that command, the next run removes the leftover worktree, says so, and publishes |
 | S9 | a publish is already running in this clone | the second stops, naming the first; afterwards the lock still exists and names the first, which is unaffected |
-| S10 | (a) Ctrl-C during the gate, an interrupt to the whole foreground group; (b) a terminate sent to the script alone during the gate; (c) Ctrl-C during the push with a hook that prints no gate lines, git failing; (d) a terminate sent to the script alone during the push with such a hook, git succeeding; (e) as (a), on the Mac's built-in bash 3.2 | (a) the gate stops; "stopped", "nothing was published"; exit non-zero; no worktree or lock left. (b) the gate and the push finish; the message says a stop was asked for and that the publish went out, live check skipped; production equals the id; exit non-zero; no worktree or lock left. (c) "may or may not have landed", run again. (d) "the publish went out", live check skipped. (e) the same as (a): a failed push is never reported as a success |
+| S10 | (a) Ctrl-C during the gate, an interrupt to the whole foreground group; (b) a terminate sent to the script alone during the gate; (c) Ctrl-C during the push with a hook that prints no gate lines, git failing; (d) a terminate sent to the script alone during the push with such a hook, git succeeding; (e) on the Mac's built-in bash 3.2, a terminate sent to the script alone during the push, git failing | (a) the gate stops; "stopped", "nothing was published"; exit non-zero; no worktree or lock left. (b) the gate and the push finish; the message says a stop was asked for and that the publish went out, live check skipped; production equals the id; exit non-zero; no worktree or lock left. (c) "may or may not have landed", run again; exit non-zero; no worktree or lock left. (d) "the publish went out", live check skipped; exit non-zero; no worktree or lock left. (e) the failed push is reported as failed, never as a success; production unchanged; exit non-zero; its deliberate break is reading git's result back from the pipeline, which on bash 3.2 then reads as a success |
 | S11 | the folder's pre-push hook or tests are edited, not committed | the gate that runs is GitHub `main`'s |
 | S12 | Site B's smoke test fails once, then passes | LIVE; no worktree left |
 | S13 | GitHub's `main` already equals production | "Everything up-to-date"; live check passes; no worktree left |
 | S14 | another session's worktree of this clone, its folder moved away; git's housekeeping set to prune at once and due to run | still registered, untouched, after the publish; its deliberate break is the fetch without the switch, which drops the record |
 | S15 | setting on, one mktemp call fails (each of the script's calls in turn) | stops before any push; no worktree; folder and a committed sentinel file in it unchanged; the error is the last line |
-| S16 | setting on, the folder's `ship.sh` differs from GitHub `main`'s (its body edited with the version line untouched, or an older branch) | stops before the worktree is made, naming both versions; nothing published; its lock removed |
+| S16 | setting on, the folder's `ship.sh` differs from GitHub `main`'s (its body edited with the version line untouched, or an older branch) | stops before the worktree is made, naming both versions (or, when they match, saying the two files differ anyway); nothing published; its lock removed |
 
 **How it is tested.** The existing stubbed-git test grows cases for the checks and messages
 (S1, S3, S5, S16), the ref-lock refusal, and a check that `ship.sh` has no `exec`. Its pin
@@ -288,8 +292,10 @@ and S15. Cases that need two things at once wait on a marker file the tiny gate 
 never on time, so they cannot flake in the pre-push gate where this file runs. S10 starts
 the run under test in its own process group, checks that group differs from the test's own,
 and only then signals it, so an interrupt can never reach a real publish the test runs
-inside; its case (c) uses a tiny hook that prints no gate lines. On Windows, S10 is skipped
-with a printed note. The hook's own test gains a push from a linked worktree: a step sees no
+inside; its case (c) uses a tiny hook that prints no gate lines, and its case (e) runs only
+where bash 3.2 is installed (the Mac's own `/bin/bash`), skipped with a printed note
+elsewhere. On Windows, S10 is skipped with a
+printed note. The hook's own test gains a push from a linked worktree: a step sees no
 `GIT_DIR`, and the folder's top from a subfolder is the worktree's root. Each new case must
 fail once on a deliberate break before it counts. S12 is tested in Site B's own copy.
 
