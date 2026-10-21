@@ -82,16 +82,17 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
    between `diff --git` and the record's first `@@` or `Binary files` line: `---` and `+++`,
    `rename from` and `rename to`, `copy from` and `copy to` (read only to refuse it). Each hunk
    is skipped by its line counts, so a removed line `-- x` (shown `--- x`) is never read as a
-   header. A C-quoted name is unquoted first, and the tab git adds after a name with a space is
-   dropped. Prefixes: only git's default ones are accepted, `a/` on the old side and `b/` on the
-   new. They appear only on the `diff --git`, `---` and `+++` lines, and are stripped there, once,
+   header. A `\ No newline at end of file` line is not in those counts: any line starting with
+   `\` is passed over without counting, inside a hunk or right after it. A C-quoted name is
+   unquoted first, and the tab git adds after a name with a space is dropped. Prefixes: only
+   git's default ones are accepted, `a/` on the old side and `b/` on the new. They appear only on the `diff --git`, `---` and `+++` lines, and are stripped there, once,
    after unquoting, and nowhere else: `rename from`/`to` and `copy from`/`to` carry no prefix, so
    their names are taken as written, and `/dev/null` (a new or deleted file) means "no file on
    this side". Any other prefix, git's mnemonic ones (`c/`, `i/`, `o/`, `w/`) included, or none,
    is refused with the remedy below, which sets `a/` and `b/` explicitly. It splits a `diff --git`
    line with no other name source where both halves name the same path, as `git apply` does. It
    uses Perl 5.8 syntax only, so `check_perl_minimum.sh` lists it as ungated; a missing `perl` or
-   `git` refuses the run.
+   `git` refuses the run, except under `--base none`, which runs none of this.
 4. Every mode and id the artifact states must match git's for that path and side: the old side
    against git's old side of the old path, the new side against git's new side of the new path.
    Ids compare as prefixes, at least 4 hex digits, git's shortest. A record with no `index` line
@@ -128,12 +129,15 @@ lists every file that does not match and which side failed ("old side 8352675, t
 1592e5c", "no such file at the base"), never cut short, and prints the command that makes a
 correct diff in the form the artifact used:
 `git -C <top> diff --no-ext-diff --no-color --src-prefix=a/ --dst-prefix=b/ <base-id> HEAD -- . ':(exclude)docs/reviews/'` for
-committed work, or `<base-id>` alone where its new sides matched the working tree; with the line
+committed work, or `<base-id>` alone where its new sides matched the working tree. It leaves out
+rule 2's `--full-index --no-renames` on purpose: the diff is for reviewers, who read renames more
+easily, and rule 4 accepts both short ids and rename records. With it goes the line
 "for a delta since a reviewed head, pass --base <that head>".
 
 **What the trail records.** Every diff run ends with a `base:` line beside `reviewers:` and
 `timings:`, on stdout and stderr: `base: <id> (merge base with origin's HEAD <id>, fetched;
-every changed file present)` or `(…; not in this diff: <files>)`; under `--local-only`,
+every changed tracked file present)` or `(…; not in this diff: <files>)`, where untracked
+files are in no diff at all, the artifact's or git's; under `--local-only`,
 `(merge base with origin/HEAD <id>, not fetched: --local-only; …)`; `base: <id> (--base <as
 given>)`; or `base: not checked (--base none)`. The trail template in `references/closeout.md`
 already has a `Base` field and an "Artifact (full / delta since <sha>)" column: the `base:` line
@@ -258,7 +262,7 @@ is real and local.
 | T1 | Stale base: origin gains commits touching other files, the branch takes them (as the host's update button does), and the diff is made against the old local default branch | exit 2; stderr lists exactly those files and the command; no stub seat ran |
 | T2 | Origin moved on, the branch did not take it, a three-dot diff against the old local branch | runs: the most common case, and the one a wrong check would refuse |
 | T3 | Delta: `git diff A..HEAD` with `--verify prior.md --base A` | runs, `base:` names A. With `--verify` and no `--base`: refused, naming `--base`. A delta with no `--verify` and no `--base`, touching a file the branch changed before A: refused with the "--base <that head>" line; one touching only files unchanged before A: runs, and the `base:` line names the files it leaves out |
-| T4 | Edge records, each from git itself: a rename at 100% and one below, mode change, binary, new, deleted, symlink, a path with a space and one with a tab, a working-tree diff, `git diff --cached <base>` with the index at `HEAD`, one-patch `format-patch`, a removed line `-- x` and an added `++ x`, a top-level folder named `w` with a 100% rename inside it, uncommitted work on the default branch itself; and the run started in a subdirectory (a modified and a new file) | each runs |
+| T4 | Edge records, each from git itself: a rename at 100% and one below, mode change, binary, new, deleted, symlink, a path with a space and one with a tab, a working-tree diff, `git diff --cached <base>` with the index at `HEAD`, one-patch `format-patch`, a removed line `-- x` and an added `++ x`, a top-level folder named `w` with a 100% rename inside it, uncommitted work on the default branch itself, a file with no newline at its end on the old side, the new side and both; and the run started in a subdirectory (a modified and a new file) | each runs |
 | T5 | Refusals: a stale mode change, a hand-made diff, a series, `diff --cc`, a copy record, `--no-prefix`, mnemonic prefixes, colour, plain `git diff` with the index ahead of the base, a run on the default branch itself with a clean working tree (merge base is `HEAD`), outside a work tree, a shallow clone, a fetch that fails, a fetch that hangs (a stub remote that never answers: refused within the limit), `--base -x`, `--base` on a plan | exit 2, each with its message; `--base none` runs, outside a repo too, and prints `base: not checked` |
 | T6 | `--local-only` | no fetch reaches the stub remote; uses `origin/HEAD`, or refuses naming `--base` |
 | T7 | Coverage: a diff of the last commit only, whose files no earlier commit of the branch touched, no `--base` | runs; the `base:` line names the files left out |
@@ -266,8 +270,8 @@ is real and local.
 | T9 | stdin to Codex, listed "refuses" in the `seat_limits.txt` of a copy of the script: the stub asserts its last argument is `-`, that no argument holds `--- BEGIN`, and that stdin carries a 400 KB prompt whole (same bytes, same hash) | passes |
 | T10 | A 400 KB artifact, with every off-argv seat listed "refuses" in the `seat_limits.txt` of a copy of the script: each stub records the whole prompt | `reviewers:` reads OK for each |
 | T11 | Caps: agy, an unlisted model (a new `CODEX_MODEL`), and a seat P2 found replying, each with a 200 KB artifact, beside a seat listed "refuses" | each capped seat `FAILED` before sending (its stub never ran); the "refuses" seat ran |
-| T13 | A malformed `seat_limits.txt` line, a 200 KB artifact | every seat `FAILED` before sending, no stub ran, exit 4 as for any round with no reviewer |
 | T12 | A seat listed "refuses" whose stub answers with a length error | `FAILED`, quoting the stub's message, like any failed seat |
+| T13 | A malformed `seat_limits.txt` line, a 200 KB artifact | every seat `FAILED` before sending, no stub ran, exit 4 as for any round with no reviewer |
 
 The existing cases send a hand-made `change.diff` with no `index` line, from whatever directory
 the suite runs in (the repo root under `make`), so they pass `--base none`. `make check` must be
@@ -306,7 +310,8 @@ silently today, whatever its size. A BUGLOG row, not this change.
 
 1. P2, and the risk it cannot close (R4-02 in the trail): test each seat once past its model's
    window, and accept that one refusal stands for "this provider refuses rather than cuts"? The
-   probe is free where the provider refuses; up to one window of input tokens (about 500,000 for
-   Codex, 1,000,000 for GLM 5.3) where it replies. Without both, change 2 moves the transports but
+   probe is expected to cost nothing where the provider refuses (whether a refused request is
+   billed is not checked); up to one window of input tokens (about 500,000 for Codex, 1,000,000
+   for GLM 5.3) where it replies. Without both, change 2 moves the transports but
    every seat stays at 120,000 bytes, so it lifts nothing.
 2. The split: build it, or leave it as recommended above?

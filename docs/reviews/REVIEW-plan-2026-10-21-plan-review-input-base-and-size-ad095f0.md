@@ -9,12 +9,14 @@ Base `6681e7be` · depth: Normal (a plan for a guard script's logic; the owner's
 | 3 | `fa726dd5` | full plan, `--verify` with round 2's rows and R1-12; changed sections named | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 169 s, 71,055 · melious 232 s, 31,472 | 2/4/3 raw (codex 2/2/0, melious 0/2/3); 7 after dedup: 2/3/2; every round-2 fix confirmed landed |
 | 4 | `ea30cd24` | full plan, `--verify` with round 3's rows and R1-12; changed sections named; `--earned-by probe-verdict,merge-base-head` | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 155 s, 64,429 · melious 249 s, 32,490 | in scope 2/1/0 (codex 1/1/0, melious 1/0/0); outside scope 0/1/2 (melious); every round-3 fix confirmed landed |
 | 5 | `caaf7b68` | full plan, `--verify` with round 4's rows and R1-12; changed sections named; `--earned-by header-names,test-spec --cut "mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines"` | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 112 s, 65,264 · melious 340 s, 39,691 | in scope 0/3/3 (codex 0/1/0, melious 0/2/3); outside scope 1/0/2 (melious); every round-4 fix confirmed landed; no substantive BUG |
+| final full read | `c2ff4cc9` | full plan, no `--round` | ollama 0.40.7 CLI, kimi-k3:cloud, text only (a model that had not reviewed this plan) | ollama-cloud 459 s, tokens not reported by the CLI | 0/2/4; no BUG, so no further round |
 
 UNVERIFIABLE entries, round 1: 17 asked (codex 3, melious 6, fresh-eyes 8); 3 confirmed and made findings (the fetch refspec, ollama's missing `num_ctx`, `hash-object --path`); the rest are the plan's own "not checked" list or probes P1 and P2.
 UNVERIFIABLE entries, round 2: 10 asked (codex 5, melious 5); 0 new confirmed: they restate the plan's "not checked" list, P1, P2 and the T5 hang test.
 UNVERIFIABLE entries, round 3: 9 asked (codex 4, melious 5); 0 new confirmed.
 UNVERIFIABLE entries, round 4: 9 asked (codex 3, melious 6); 0 new confirmed.
 UNVERIFIABLE entries, round 5: 7 asked (codex 1, melious 6); 0 new confirmed.
+UNVERIFIABLE entries, final full read: 6 asked; 0 new confirmed (the script and git claims it could not read are checked in this trail).
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -73,10 +75,16 @@ UNVERIFIABLE entries, round 5: 7 asked (codex 1, melious 6); 0 new confirmed.
 | R5-07 | BUG | melious (outside scope) | 5 | T9 names no `seat_limits.txt` setup, so Codex would be capped at 120,000 and the 400 KB case could not pass | fixed, locally_verified | T9 lists Codex "refuses" in a copy's list, as T10 does. Not substantive: test wording, what T9 checks is unchanged |
 | R5-08 | NIT | melious (outside scope) | 5 | The `base:` line said "fetched" under `--local-only` too | fixed, locally_verified | a `--local-only` form of the line |
 | R5-09 | NIT | melious (outside scope) | 5 | Status row 1 still said "revised after round 1" | fixed, locally_verified | "revised through round 5" |
+| F-01 | RISK | kimi (final full read) | — | For a file edited after the last commit, `git diff` writes `0000000` as the new id, so headers cannot pin working-tree content | refuted | on git 2.33 an unstaged edit's patch carried its real id (`index 422c2b7..af19230`, equal to `git hash-object` of the file); all-zero ids appear in `--raw` output, which the plan does not use |
+| F-02 | RISK | kimi (final full read) | — | Hunk counts leave out `\ No newline at end of file` lines, so a strict count-based skip goes wrong on any file with no final newline | fixed, locally_verified | rule 3: a line starting with `\` is passed over uncounted; T4 has no-newline cases on each side; checked: `@@ -1,2 +1,2 @@` with two uncounted `\` lines, one inside the hunk |
+| F-03 | NIT | kimi (final full read) | — | Open 1 called the probe "free" where P2 says billing of a refusal is not checked | fixed, locally_verified | Open 1 now carries P2's hedge |
+| F-04 | NIT | kimi (final full read) | — | "Every changed file present" cannot see untracked files | fixed, locally_verified | the `base:` line says "tracked", and why |
+| F-05 | NIT | kimi (final full read) | — | The remedy leaves out rule 2's `--full-index --no-renames` without saying it is deliberate | fixed, locally_verified | the refusal paragraph says why |
+| F-06 | NIT | kimi (final full read) | — | T13 sat before T12; "a missing perl or git refuses" read as covering `--base none` too | fixed, locally_verified | tests reordered; rule 3 excepts `--base none` |
 
 Waivers and deferrals: none granted. R4-02 waits on the owner.
 Follow-ups: a BUGLOG row for local ollama cutting a prompt silently under `--local-only` (named in the plan, outside its scope). Round 4, outside scope (melious): measure the Linux per-argument limit on a runner before relying on 120,000 for argv seats (RISK); T7's precondition (NIT, fixed in the plan anyway); git's `1/` and `2/` prefixes (NIT, moot: every prefix but `a/` and `b/` is now refused).
-Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. R3-03 and R3-04 are the same kind a third time, raised against the cuts-at-N cap that cut left; the fix is a second cut: only a provider that refuses past its window loses the 120,000 check. Round 4 is earned by R3-01 (kind probe-verdict) and R3-02 (kind merge-base-head). Round 5 is earned by R4-01 (kind header-names, which R2-06 earned before: its fix is a cut) and R4-03 (kind test-spec). Round 5 found no substantive BUG (R5-07 is test wording), so the rounds end: round 5's fixes are locally_verified, closing edits not externally re-verified; the final full read and the wording pass follow. The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
+Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. R3-03 and R3-04 are the same kind a third time, raised against the cuts-at-N cap that cut left; the fix is a second cut: only a provider that refuses past its window loses the 120,000 check. Round 4 is earned by R3-01 (kind probe-verdict) and R3-02 (kind merge-base-head). Round 5 is earned by R4-01 (kind header-names, which R2-06 earned before: its fix is a cut) and R4-03 (kind test-spec). Round 5 found no substantive BUG (R5-07 is test wording), so the rounds end: round 5's fixes are locally_verified, closing edits not externally re-verified; the final full read (Kimi K3 on ollama, 0 BUG) and the wording pass follow. The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout)</summary>
 
@@ -557,5 +565,129 @@ reviewers: codex OK, melious OK
 timings: codex 112s (65264 tokens), melious 340s (39691 tokens)
 gate 20261021T172444Z-64903: rounds 1-5, 11 reviewer seat runs, 802,292 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 kinds: 4 probe-verdict,merge-base-head; 5 header-names,test-spec (cut: mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines)
+
+</details>
+
+<details><summary>Final full read raw output — ollama kimi-k3:cloud (independent_review.sh stdout)</summary>
+
+## Independent review — ollama (kimi-k3:cloud)
+
+## Findings (ranked)
+
+- RISK — "Checked here, and not": the claim "`a working-tree diff's new id 
+equals `git hash-object -- <path>` of the file`" and rule 2's "git, not 
+this script, hashes the working tree" — for a file dirty relative to the 
+index, `git diff` emits `0000000` as the new-side id (there is no object), 
+so headers cannot pin worktree content: a diff made from `git diff <base>` 
+before worktree edits still passes (artifact `0000000` vs fresh 
+`0000000`), no rule ever compares hunk text, and the "HEAD moved after the 
+diff was made → refused" guarantee is undefended for exactly the 
+"uncommitted work" table row. Fix: for records whose git-side new id is 
+all-zero, compare content instead of headers — regenerate `git diff 
+<base>` and byte-compare those records, or run `git apply --check` of the 
+artifact's records against the worktree — then correct the "Checked" line 
+and add a T5 case "worktree edited after the diff was made → refused."
+
+- RISK — Rule 3 ("Each hunk is skipped by its line counts"): the `@@` line 
+counts exclude `\ No newline at end of file` marker lines, which follow an 
+unterminated removed/added line; a strict count-based skip lands on the 
+marker in the header zone and desyncs the next record for extremely common 
+artifacts (any file lacking a trailing newline), and no T4/T5 case 
+exercises it. Fix: in the reader spec, treat lines beginning with `\` as 
+non-counting continuations of the previous content line, and add a T4 case 
+with missing trailing newline on the old side, the new side, and both.
+
+- NIT — "Open for the maintainer" #1 says "The probe is free where the 
+provider refuses," directly contradicting P2's own "(whether a refused 
+request is billed is not checked)" — a maintainer answering "Open" would 
+rely on the stronger statement. Fix: drop "free" there and mirror P2's 
+hedge.
+
+- NIT — Rule 5 / base-line format "`(…; every changed file present)`": 
+untracked files appear in neither `git diff <base> HEAD` nor any artifact, 
+so the line can claim full coverage while a brand-new un-`add`ed file is 
+never reviewed. Fix: under no-`--base`, append untracked paths from `git 
+status --porcelain --untracked-files=all` to the `base:` line, or soften 
+the wording to "every tracked file."
+
+- NIT — Refusal remedy command omits `--full-index --no-renames` that rule 
+2 uses for its own comparison; it only works because rule 4 tolerates 
+abbreviated ids and rename records — this is invisible in the plan trail. 
+Fix: either print the same flags for one-to-one reproducibility, or note 
+explicitly that the acceptance of shortened ids/rename records is 
+deliberate.
+
+- NIT — Tests table: T13 is listed before T12; and "a missing `perl` or 
+`git` refuses the run" is not scoped to runs where the base check actually 
+executes, sitting oddly with "`--base none` … runs anywhere, outside a 
+repo too." Fix: renumber and state the tool-availability refusal applies 
+only when the base check runs.
+
+## Checked, CLEAN
+
+- `--base` validation design (`rev-parse --verify --quiet 
+"<rev>^{commit}"`, refusal of `-`-leading values, refusal on plans) — 
+internally consistent and matches normal git usage.
+- Ordering consistency: "base before size before seats" traced across "How 
+it tells", the "Order" section, T8, and T1's "no stub seat ran" — 
+coherent.
+- Header-grammar claims (prefixes `a/`/`b/` limited to `diff 
+--git`/`---`/`+++`; `rename from/to` unprefixed; tab after 
+space-containing names; C-quoting; body lines always prefixed so column-0 
+`diff --git` is unambiguous) — consistent with git's known diff format.
+- Mode-only changes and 100% renames carrying no `index` line, and rule 
+4's matching of them via `--no-renames` (mode-only↔mode-only, 
+rename↔delete+add with equal ids) — coherent and matches known git 
+behavior; T3's four delta sub-cases trace cleanly through rules 4 and 5.
+- T13 vs the text rule ("malformed line leaves every seat at 120,000") — 
+not contradictory: a 200 KB artifact then fails every seat pre-send, exit 
+4; T12 likewise matches "fails loud in the FAILED section."
+- The Linux per-argument cap motivation matches `MAX_ARG_STRLEN` 
+(32×PAGE_SIZE = 131,072 bytes); the plan also correctly separates it from 
+macOS `ARG_MAX` and flags it as unchecked.
+- The "split by seat" weighing and the degraded-round semantics are 
+internally consistent.
+
+## UNVERIFIABLE (no findings; needed observations)
+
+- **git 2.33 behaviors** (all of the "Checked on 2026-10-21: On git 2.33" 
+bullets other than the worktree-id one): FETCH_HEAD being per-worktree and 
+not moving `origin/<default>` after `git fetch origin HEAD`; no `index` 
+line for mode-only changes under `--full-index`; rename→delete+add with 
+same id; binary `index` lines; tab-after-space names. Lacked: any 
+reproduced output or test trace. Observation: run each stated command on 
+git 2.33 and capture raw stdout.
+- **`independent_review.sh` as it exists today** (the "Today (checked in 
+the script)" block): transports (codex last-argv, `ollama run MODEL 
+"$PROMPT_TEXTONLY"`, agy `-p`, melious/ollama-API `curl --data-binary`), 
+the `CONTENT_BYTES ≤ 120,000` check covering artifact+prior findings, 
+mode-700 raw folder and its stale-cleanup list, `melious_models.txt` read 
+semantics that `seat_limits.txt` mirrors, exit-4-on-no-reviewer (T13 
+relies on it), `--cut`'s refusal pattern. Lacked: the script's text. 
+Observation: read the script and match each behavior; likewise 
+`merge_link.sh`, `git-stand.mjs`, `closeout.md`, SKILL.md for the cited 
+patterns/fields.
+- **codex CLI 0.163.0**: the quoted help line and whether `-c 
+model_provider=…` + `base_url` works. Observation: `codex exec --help`; 
+the P1 stub run at 127.0.0.1.
+- **ollama CLI 0.40.7**: stdin delivery under `--ask`. Observation: same 
+P1 stub run.
+- **Providers** (Codex's configured model, Melious GLM 5.3, ollama cloud 
+GLM 5.3): refuse-vs-cut past window, cited windows (500k / 1,048,576 / 
+1,000,000), error wording, billing of refused requests. Observation: the 
+P2 probe per seat/model plus provider docs and billing statements.
+- **Linux per-argument cap**: plan itself marks it "Not checked." 
+Observation: execve an ~130 KiB single argument on Linux and observe 
+E2BIG, or cite `MAX_ARG_STRLEN` in the kernel headers.
+
+No prompt-injection content found in the plan.
+
+
+---
+reviewers: ollama-cloud OK
+timings: ollama-cloud 459s
+⚠ PLAN round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat ollama was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair.
+gate 20261021T172444Z-64903: rounds 1-5, 12 reviewer seat runs, 802,292 tokens logged (1 run gave no figure). Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 probe-verdict,merge-base-head; 5 header-names,test-spec (cut: mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines); 1 run with no round
 
 </details>
