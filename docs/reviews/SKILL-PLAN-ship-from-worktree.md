@@ -192,13 +192,14 @@ clearing its variables.
   hard kill, the next publish needs that one command first. The exit trap removes the lock
   only if this run took it.
 - **Leftovers.** The worktree is a fresh temp folder whose name only this script makes: a
-  fixed prefix, the process id, a random tail. Holding the lock, the run looks for that name
-  in git's worktree list wherever the folder is (the temp folder differs between sessions,
-  and on macOS git prints `/private/var/…` for `/var/…`). Any such worktree is a leftover of
-  an earlier run, since only the lock holder makes one: it is removed by its own path, forced
-  twice, and the run says so. Ship never prunes, itself or through a fetch's housekeeping: a
-  prune also drops a worktree whose folder is only away, and with it the only record of
-  commits made there.
+  fixed prefix, the process id, a random tail. Holding the lock, the run looks in git's
+  worktree list for any folder named that way, by an earlier run with its own process id and
+  tail, wherever the folder is (the temp folder differs between sessions, and on macOS git
+  prints `/private/var/…` for `/var/…`). Any such worktree is a leftover of an earlier run,
+  since only the lock holder makes one: it is removed by its own path, forced twice, and the
+  run says so. Ship never prunes, itself or through a fetch's housekeeping: a prune also
+  drops a worktree whose folder is only away, and with it the only record of commits made
+  there.
 - **Signals.** The push stays in the foreground, as today, so a credential prompt still
   reaches the terminal, and a Ctrl-C still reaches every process there, git and the gate
   included, exactly as today; how the gate's own tools clean up on it is unchanged and not
@@ -291,7 +292,7 @@ clearing its variables.
 | S7 | another clone moves production while the gate runs | on stock git, "production moved", run again; nothing published; no worktree left. On GitHub, the same if GitHub words it alike, else "can't name" (nothing published either way) |
 | S8 | an earlier run was killed hard: its worktree is still registered (with or without its folder) and its lock is left (with or without a process id) | stops, naming the lock, its full path and the command to remove it; after that command, the next run removes the leftover worktree, says so, and publishes |
 | S9 | a publish is already running in this clone | the second stops, naming the first; afterwards the lock still exists and names the first, which is unaffected |
-| S10 | (a) Ctrl-C during the gate, an interrupt to the whole foreground group; (b) a terminate sent to the script alone during the gate; (c) Ctrl-C during the push with a hook that prints no gate lines, git failing; (d) a terminate sent to the script alone during the push with such a hook, git succeeding; (e) on the Mac's built-in bash 3.2, started as `/bin/bash`, a terminate sent to the script alone while the gate fails; (f) Ctrl-C during the live check | (a) the gate stops; "stopped", "may or may not have landed", run again; production unchanged; exit non-zero; no worktree or lock left. (b) the gate and the push finish; the message says a stop was asked for and that the publish went out, live check skipped; production equals the id; exit non-zero; no worktree or lock left. (c) "may or may not have landed", run again; exit non-zero; no worktree or lock left. (d) "the publish went out", live check skipped; exit non-zero; no worktree or lock left. (e) the run's bash is 3.2; the failed push is never reported as a success ("may or may not have landed"); production unchanged; exit non-zero; its deliberate break is reading git's result back from the pipeline, which on bash 3.2 then reads as a success. (f) "the publish went out", the live check stopped; exit non-zero; no worktree or lock left |
+| S10 | (a) Ctrl-C during the gate, an interrupt to the whole foreground group; (b) a terminate sent to the script alone during the gate; (c) Ctrl-C during the push with a hook that prints no gate lines, git failing; (d) a terminate sent to the script alone during the push with such a hook, git succeeding; (e) on the Mac's built-in bash 3.2, started as `/bin/bash`, a terminate sent to the script alone while the gate fails; (f) Ctrl-C during the live check | (a) the gate stops; "stopped", "may or may not have landed", run again; production unchanged; exit non-zero; no worktree or lock left. (b) the gate, which runs inside the push step, and the push finish; the message says a stop was asked for and that the publish went out, live check skipped; production equals the id; exit non-zero; no worktree or lock left. (c) "may or may not have landed", run again; exit non-zero; no worktree or lock left. (d) "the publish went out", live check skipped; exit non-zero; no worktree or lock left. (e) the run's bash is 3.2; the failed push is never reported as a success ("may or may not have landed"); production unchanged; exit non-zero; its deliberate break is reading git's result back from the pipeline, which on bash 3.2 then reads as a success. (f) "the publish went out", the live check stopped; exit non-zero; no worktree or lock left |
 | S11 | the folder's pre-push hook or tests are edited, not committed | the gate that runs is GitHub `main`'s |
 | S12 | Site B's smoke test fails once, then passes | LIVE; no worktree left |
 | S13 | GitHub's `main` already equals production | "Everything up-to-date"; live check passes; no worktree left |

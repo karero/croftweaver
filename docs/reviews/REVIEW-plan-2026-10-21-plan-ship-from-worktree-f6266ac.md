@@ -10,6 +10,7 @@ Base `6681e7be` · depth: High (deploy code that publishes to live sites and del
 | 4 | `f7d79d5d` | full, as a verification round (prior findings C1 to C18, A15); earned by C1 and C2, kinds script-check-order and signals, signals with its cut | Codex and Melious (no fresh-eyes past round 3 at High); Codex at config effort | Codex 304 s, 88,908 · Melious 647 s, 48,938 | 2 / 4 / 6, plus 2 NIT outside scope, fixed (Codex 2/3/0, Melious 0/1/6+2). Substantive BUG: E1 (kind: signals, after its cut), so the rounds stopped for the owner's decision. Unverifiable entries: Codex 2 groups, Melious 5; one (housekeeping) was settled by the host and backs E4 |
 | 5 | `1905538b` | full, as a verification round (prior findings E1 to E13, A15); the round the owner granted after E1 (O4) | Codex and Melious; Codex at config effort | Codex 520 s, 118,287 · Melious 607 s, 40,177 | 0 / 2 / 4 (Codex 0/2/0, Melious 0/1/4; F2 from both). No substantive BUG, so the rounds ended; the owner then said in chat "address these RISKs now and run another full round" |
 | 6 | `0f9c84f5` | full, over the whole plan as the owner asked (prior findings F1 to F6, A15) | Codex, Melious and fresh-eyes (claude-opus-5-5, granted for this round); Codex at config effort | Codex 622 s, 212,781 · Melious 291 s, 40,600 · fresh-eyes 1,591 s, 294,729 | 0 / 5 / 3, plus 3 RISK and 6 NIT outside scope, all fixed locally (Codex 0/1/0, Melious 0/1/2, fresh-eyes 0/4/2 + 3/6). No substantive BUG: the rounds end. Unverifiable entries: Codex 5 groups, Melious 5, fresh-eyes 6; the housekeeping one was settled by the host (G10) |
+| final full read (not a round) | `2b713c3c` | full | ollama, deepseek-v4-pro:cloud, text only (a model no round used) | 299 s, tokens not reported | 0 / 1 / 2; the RISK refuted (H1), both NITs fixed. No substantive BUG: no further round |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -112,6 +113,9 @@ Base `6681e7be` · depth: High (deploy code that publishes to live sites and del
 | G15 | NIT | fresh-eyes (outside scope) | 6 | A second Ctrl-C could kill the exit trap's cleanup | fixed | D2 "The exit trap" |
 | G16 | NIT | fresh-eyes (outside scope) | 6 | How S10 starts its own process group was unstated | fixed | "How it is tested": perl, interrupt and quit reset |
 | G17 | NIT | fresh-eyes (outside scope) | 6 | The exit trap did not list the status file | fixed | D2 "The exit trap" |
+| H1 | RISK | DeepSeek (final read) | final | The signal scenarios rely on Playwright 1.64 stopping its server on a Ctrl-C | refuted | the plan does not rely on it: D2 "Signals" says "how the gate's own tools clean up on it is unchanged and not promised here", no scenario asserts a server's state, and Ctrl-C reaches Playwright exactly as today |
+| H2 | NIT | DeepSeek (final read) | final | "Looks for that name" read as this run's own name | fixed, locally_verified | D2 "Leftovers": any folder named that way by an earlier run |
+| H3 | NIT | DeepSeek (final read) | final | S10 (b) did not say the gate runs inside the push step | fixed, locally_verified | S10 (b) |
 
 Waivers and deferrals: A15 waived by the owner, 2026-10-21, in chat, choosing "Leave as a known limit (Recommended)" for the shared test port.
 
