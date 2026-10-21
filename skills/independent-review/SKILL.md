@@ -132,7 +132,8 @@ Codex's effort for any run.
    reviewers auditing it cost rounds). Run from the repository the diff came from: before
    anything is sent, the script checks the diff against git (BASE CHECK in its header). With no
    `--base` it fetches origin's HEAD and checks the diff against the whole change from the merge
-   base: every file's sides, and that its hunks give HEAD's content; a diff that fails is
+   base: every file's sides, and that its hunks give HEAD's content (or, for uncommitted work,
+   the working tree's); a diff that fails is
    refused, naming each file and the command that makes a correct one. Any other diff (a delta,
    a merge link, the wording pass) passes `--base <the commit it starts from>`; so does a change
    whose PR targets a branch other than the default one (`--base <its merge base with that

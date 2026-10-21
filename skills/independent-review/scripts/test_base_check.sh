@@ -147,6 +147,7 @@ printf 'old has no newline' >"$W/nonl-old.txt"; printf 'new will have none\n' >"
 printf 'keep\n-- x\nkeep\n' >"$W/dash.txt"; printf 'deep\n' >"$W/w/sub/deep.txt"
 printf 'plain name\n' >"$W/plain.txt"; printf 'a file\n' >"$W/tc"; ln -s target.txt "$W/sl"
 printf 'x = 1\ny = 2\n' >"$W/ws.txt"; printf 'copy me\n' >"$W/cp_src.txt"; printf '#!/bin/sh\n' >"$W/late.sh"
+printf 'b2\000' >"$W/bin2.dat"; ln -s target.txt "$W/sl2"
 commit "$W" E0 && g "$W" remote add origin "$R/origin.git" && g "$W" push -q origin main \
   && g "$W" remote set-head origin main || { echo "FAIL — could not build repository 2."; exit 1; }
 E0="$(sha "$W" HEAD)"
@@ -158,7 +159,7 @@ g "$W" mv w/inside.txt w/moved.txt
 printf 'old has no newline\n' >"$W/nonl-old.txt"; printf 'new will have none' >"$W/nonl-new.txt"; printf 'still neither' >"$W/nonl-both.txt"
 printf 'keep\nkeep\n++ x\n' >"$W/dash.txt"; printf 'deep two\n' >"$W/w/sub/deep.txt"
 g "$W" mv plain.txt "über.txt"; rm "$W/tc" && ln -s target.txt "$W/tc"; rm "$W/sl" && printf 'now a file\n' >"$W/sl"
-: >"$W/empty.txt"; printf 'x  =  1\ny = 3\n' >"$W/ws.txt"; cp "$W/cp_src.txt" "$W/cp_dst.txt"; printf 'copy me\nmore\n' >"$W/cp_src.txt"
+: >"$W/empty.txt"; printf 'x  =  1\ny = 3\n' >"$W/ws.txt"; rm "$W/bin2.dat" && ln -s target.txt "$W/bin2.dat"; rm "$W/sl2" && printf 'b3\000' >"$W/sl2"; cp "$W/cp_src.txt" "$W/cp_dst.txt"; printf 'copy me\nmore\n' >"$W/cp_src.txt"
 commit "$W" E1
 mkdir "$W/subm" && g "$W" update-index --add --cacheinfo "160000,$E0,subm" && g "$W" commit -q -m "a submodule pointer"
 chmod +x "$W/late.sh" && g "$W" add late.sh && g "$W" commit -q -m "late.sh runs now
@@ -182,15 +183,15 @@ check "T4 fixture: the diff holds a submodule pointer" grep -q '^+Subproject com
 g "$W" format-patch -1 --stdout HEAD~1 >"$T/t4fp2.diff"
 run t4fp2 "$W" "$T/t4fp2.diff" --seat codex --depth normal --base "$E0"
 check "T4 a one-patch format-patch ending in a hunk: runs" rc_is t4fp2 0
-check "T4 fixture: a rename to a C-quoted name, a type change, an empty file" \
-  sh -c 'grep -q "^rename to \"" "$1" && grep -q "^new file mode 120000" "$1" && grep -q "^new file mode 100644" "$1"' _ "$T/t4.diff"
+check "T4 fixture: a rename to a C-quoted name, a type change, an empty file, binary and symlink swapping" \
+  sh -c 'grep -q "^rename to \"" "$1" && grep -q "^new file mode 120000" "$1" && grep -q "^new file mode 100644" "$1" && grep -q "^Binary files a/bin2.dat and /dev/null differ" "$1" && grep -q "^Binary files /dev/null and b/sl2 differ" "$1"' _ "$T/t4.diff"
 g "$W" diff -U0 "$E0"..HEAD >"$T/t4u0.diff"
 run t4u0 "$W" "$T/t4u0.diff" --seat codex --depth normal
 check "T4 -U0: runs" rc_is t4u0 0
 g "$W" diff -w "$E0"..HEAD >"$T/t5w.diff"
 run t5w "$W" "$T/t5w.diff" --seat codex --depth normal
 check "T5 -w hides a whitespace change beside a real one: refused" rc_is t5w 2
-check "T5 ... its hunks do not apply to the base, naming the file" sh -c 'grep -qF "hunks do not apply" "$1.err" && grep -qF "ws.txt" "$1.err"' _ "$T/t5w"
+check "T5 ... by the content step, naming the file" sh -c 'grep -qF "headers match the base, but" "$1.err" && grep -qF "ws.txt" "$1.err"' _ "$T/t5w"
 printf 'diff --git a/new.txt b/new.txt\nnew file mode 100644\n' >"$T/t5cut.diff"
 run t5cut "$W" "$T/t5cut.diff" --seat codex --depth normal
 check "T5 a new-file record cut before its index line: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "no index line" "$1.err"' _ "$T/t5cut"

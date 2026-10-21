@@ -8,6 +8,7 @@ The diff is 159 KB with the whole of `test_failed_tier_report.sh`, over the scri
 |---|---|---|---|---|---|
 | 1 | `f556faf3` | full since `6681e7be`, less `test_failed_tier_report.sh` (62 KB) | codex-cli 0.163.0, gpt-6.1-sol, effort high (config), read-only · Melious glm-5.3, HTTP API, text only · fresh-eyes: Claude Code sub-agent, Sonnet, read-only by instruction | codex 505 s, 136,781 · melious 488 s, 70,514 · fresh-eyes 1,198 s, 255,223 | 4/7/13 raw (codex 2/1/0, melious 0/1/3, fresh-eyes 3/2/5, after dedup 3/4/7) |
 | 1, Light | `f556faf3` | `test_failed_tier_report.sh` alone (97 KB) | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only | codex 79 s, 61,845 | 2/0/0 (one pre-existing) |
+| 2 | `0942155f` | delta since `f556faf3` (`--base f556faf3`), `--verify` with round 1's rows | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only · Melious glm-5.3, HTTP API, text only | codex 199 s, 70,392 · melious 440 s, 70,777 | 3/1/2 after dedup (codex 3/0/0, melious 0/1/3); every round-1 fix confirmed but D1-03 (now D2-01) |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -27,10 +28,16 @@ The diff is 159 KB with the whole of `test_failed_tier_report.sh`, over the scri
 | D1-14 | NIT | fresh-eyes | 1 | Over-long lines in SKILL.md; no word on a PR that targets another branch | fixed, locally_verified | reflowed; SKILL.md step 2 names `--base <its merge base with that branch>` |
 | L-01 | BUG | codex (Light pass, pre-existing) | 1 | Two test descriptions said the key is "nowhere on disk", while the stub keeps its own capture | fixed, locally_verified | "nowhere in the run's raw folder", and the stub's comment says the capture is the test's own record |
 | L-02 | BUG | codex (Light pass) | 1 | test_failed_tier_report.sh's header said "default flags" while its diff runs now pass `--base none` | fixed, locally_verified | the header says why they pass it |
+| D2-01 | BUG | codex | 2 | D1-03 only partly fixed: the content step dropped a binary record but kept the symlink half of a binary-to-symlink type change, so `git apply` refused it ("already exists in index") | fixed, locally_verified | a text record for a path a binary record also names is left to the header check; T4 swaps a binary file and a symlink both ways; with the old filter put back, three T4 checks fail (checked) |
+| D2-02 | BUG | codex, melious | 2 | SKILL.md said the hunks must give HEAD's content, but the working tree's counts too | fixed, locally_verified | "HEAD's content (or, for uncommitted work, the working tree's)"; the reader's header says the same |
+| D2-03 | BUG | codex | 2 | The comment said binary records carry no content, though a `--binary` diff has a body | fixed, locally_verified | "Binary records are not applied (a body made with --binary is skipped too)" |
+| D2-04 | RISK | melious | 2 | The `-w` test asserted the "hunks do not apply" wording, which holds only if git writes context from the new side | fixed, locally_verified | the test asserts the wording both content refusals share. The claim that git writes context from the old side was checked and is false here: `git diff -w` on git 2.33 wrote the context line `a  =  1` (the new whitespace), and the test passed with the old assertion |
+| D2-05 | NIT | melious | 2 | The format-patch message skip ends at any `---` line, so a message holding `---` before a quoted diff is misread | refuted | git's own mail reader (`git am`, `git mailinfo`) also ends a format-patch's message at its first `---` line, so text after it is not message for git either; such a patch is refused, which is the safe direction |
+| D2-06 | NIT | melious | 2 | The `hunks` field was set and never read | fixed, locally_verified | removed |
 
 Waivers and deferrals: none.
 Follow-ups: none yet.
-Notes: substantive BUGs in round 1: D1-01, D1-02, D1-03 (all false refusals of diffs git made). D1-05's fix adds a step the plan did not have; the plan now records it as rule 6. `make check` skips the Perl 5.8 syntax check on this Mac (no Perl::MinimumVersion); CI runs it.
+Notes: substantive BUGs in round 1: D1-01, D1-02, D1-03 (all false refusals of diffs git made); in round 2: D2-01 (D2-02 and D2-03 are wording). D1-05's fix adds a step the plan did not have; the plan now records it as rule 6. `make check` skips the Perl 5.8 syntax check on this Mac (no Perl::MinimumVersion); CI runs it.
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout; absolute paths in codex's links made repo-relative)</summary>
 
@@ -190,6 +197,106 @@ timings: codex 79s (61845 tokens)
 base: 6681e7bec0b5641c36a40c7fa6359530a7304ffd (merge base with origin's HEAD 6681e7bec0b5641c36a40c7fa6359530a7304ffd, fetched; not in this diff: Makefile, scripts/check_cdpath_safe.sh, scripts/test_mktemp_guard.sh, skills/independent-review/SKILL.md, skills/independent-review/references/closeout.md, skills/independent-review/scripts/check_perl_minimum.sh, skills/independent-review/scripts/independent_review.sh, skills/independent-review/scripts/perl/diff_headers.pl, skills/independent-review/scripts/perl/run_limited.pl, skills/independent-review/scripts/test_base_check.sh, skills/seo-reposition/SKILL.md, skills/website-review/SKILL.md)
 ⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat codex was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair.
 gate 20261021T213951Z-71280: no numbered round, 1 reviewer seat run, 61,845 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+1 run with no round
+follows gate 20261021T172444Z-64903: rounds 1-5, 900,579 tokens
+
+</details>
+
+<details><summary>Round 2 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- BUG — `skills/independent-review/scripts/perl/diff_headers.pl:243` — **D1-03 remains partly unfixed:** excluding binary records drops a binary file’s deletion while retaining its replacement symlink’s addition, so a valid type change is refused; reproduced by extracting the text records and running read-only `git apply --cached --check`, which reported “already exists in index.” Fix: incorporate verified binary sides into the temporary index alongside text changes, and test both binary-file↔symlink directions.
+- BUG — `skills/independent-review/SKILL.md:135` — **WRONG:** the new text promises hunks matching HEAD’s content, but `diff_headers.pl:284–291` also accepts working-tree content; tests `t4wt` and `t4main` explicitly expect that behavior. Fix: describe matching the selected target, HEAD or the working tree.
+- BUG — `skills/independent-review/scripts/perl/diff_headers.pl:239` — **WRONG:** “Binary records carry no content to apply” contradicts supported `GIT binary patch` records; `git log -1 -p --binary -- skills/website-brand-kit/evals/files/logo.png` produced a `literal 4868` body. Fix: say binary bodies are skipped and their header IDs checked.
+
+CLEAN — prior-finding verification  
+“VERIFIED” below identifies source checks and traced assertions; it does not assert that the suites ran.
+
+| Prior finding | Verdict and evidence |
+|---|---|
+| D1-01 | **VERIFIED:** signature terminates the record at `diff_headers.pl:98`; an in-memory parser probe accepted a hunkless format-patch ending. |
+| D1-02 | **VERIFIED:** rename headers supply names at `:133–155`; an in-memory mixed-quote rename probe passed. |
+| D1-03 | **WRONG:** text type changes parse correctly, but binary type changes still fail; first BUG above. |
+| D1-04 | **VERIFIED:** `:164–167` rejects unsupported records without IDs; the truncated-new-file parser probe was refused. |
+| D1-05 | **VERIFIED:** content application and result comparison landed at `:241–268`; T5 traces whitespace filtering and cut-hunk refusals. |
+| D1-06 | **VERIFIED:** `scripts/package.sh` REQUIRED includes both Perl programs and `test_base_check.sh`. |
+| D1-07 | **VERIFIED:** remedy includes `--no-textconv -M`; T4 runs that remedy with `diff.renames=copies` still set. |
+| D1-08 | **VERIFIED:** exit-5 wording describes empty comparisons without asserting base equals HEAD. |
+| D1-09 | **VERIFIED:** Perl SKIP guard exists; Makefile and CDPATH descriptions name Perl. |
+| D1-10 | **VERIFIED:** message skipping landed at `diff_headers.pl:93–97`; the parser probe ignored a quoted diff before the separator. |
+| D1-11 | **VERIFIED:** `references/closeout.md:136` explicitly requires `--base <that head>`. |
+| D1-12 | **VERIFIED:** T4 contains dirty-default-branch and submodule cases; `git ls-files -s` reports mode `100755`. |
+| D1-13 | **VERIFIED:** fetch exports `GCM_INTERACTIVE=never`, matching `git-stand.mjs:29`. |
+| D1-14 | **VERIFIED:** requested prose was reflowed and another-target-branch guidance added; the separate HEAD-content contradiction is reported above. |
+| L-01 | **VERIFIED:** both descriptions now limit the assertion to the run’s raw folder, matching the stub’s scan and documented capture. |
+| L-02 | **VERIFIED:** the header now explicitly explains synthetic diffs’ `--base none` exception. |
+
+Additional CLEAN checks: changed shell files passed `bash -n`; the Perl reader passed `perl -c`; `git diff --check f556faf3 HEAD` passed. The actual revision diff and HEAD format-patch both parsed successfully. No prior rows were marked deferred.
+
+UNVERIFIABLE — grouped component claims:
+
+- **Git content-check integration:** complete application/result-comparison success lacks an executed regression suite. Settling observation: run `test_base_check.sh` in a writable environment, including the added binary type-change cases.
+- **Perl runtime:** the Perl 5.8 compatibility claim lacks compilation and execution under that runtime. Settling observation: exercise the reader and temporary-index path under Perl 5.8.
+- **Git transports:** exporting prompt-control variables is verified; suppression of actual credential-manager and SSH prompts lacks controlled transport evidence. Settling observation: exercise prompting helpers under the configured fetch environment.
+
+Prompt injection: none detected.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+RANKED FINDINGS
+
+- RISK — test_base_check.sh, T5 `-w` case (`check "T5 ... its hunks do not apply to the base, naming the file" sh -c 'grep -qF "hunks do not apply" "$1.err" && ...'`): that grep holds only if `git apply` fails on the -w hunks, but git's xdiff emits context lines from the preimage (xdf1), so the line changed only in whitespace (`x = 1` → `x  =  1`) is emitted as context carrying the base's whitespace, the hunk applies cleanly to E0, and the refusal comes via exit 7 ("do not give the content") — this check goes red while the sibling `rc_is t5w 2` still passes (the script itself refuses either way, so D1-05's substance is unaffected; only the test's asserted reason is). Fix: assert the prefix both messages share (`grep -qF "headers match the base, but"`, exactly as the t5nohunk check already does) or the exit-7 wording. Settling observation: `printf 'x = 1\ny = 2\n' >a; printf 'x  =  1\ny = 3\n' >b; git diff -w --no-index a b` — if the context line reads `x = 1` (preimage), the test as written fails.
+- NIT — perl/diff_headers.pl, `if ($in_msg) { $in_msg = 0 if $l eq "---"; next; }` (D1-10, fixed only in part): the message skip ends at any `---` line, so a commit message containing `---` before its quoted `diff --git`/`index` lines (a quoted patch — the exact D1-10 shape) has those lines parsed as a record again and the valid format-patch is refused as unreadable. Fix: end the skip at a `---` line only when the next line is a diffstat row (`^ .*|`) or starts with `diff --git `, else keep skipping.
+- NIT — SKILL.md step 2, "and that its hunks give HEAD's content": the check falls back to the working tree for uncommitted work (script header: "from HEAD, or else from the working tree"; t4main exercises it), which the sentence omits — a reader would expect a working-tree diff to be refused. Fix: "…give HEAD's content — or the working tree's, where the change is uncommitted".
+- NIT — perl/diff_headers.pl, `$hdr = 0; $cur->{hunks} = 1;`: the `hunks` field is set here and read nowhere (the content step filters on `binary` only) — dead store, or an unwired intent. Fix: drop the field or wire it to whatever it was meant to gate.
+
+VERIFICATION OF PRIOR FINDINGS (scope 1)
+
+- D1-01 fixed: the `-- ` handler ends the record; hunk bodies (where `-- ` could occur as a deleted line) are consumed by the count skip, so it cannot misfire; t4fp is a one-patch format-patch ending in a mode-only record. Only the `---`-in-message gap above remains (NIT).
+- D1-02 fixed: the `diff --git` line is read only when rename/`---`/`+++` lines leave a name missing; the early gate (`^"?a\/` … ` "?b\/`) admits the mixed-quoted rename line; names unquote. T4 renames `plain.txt`→`über.txt`.
+- D1-03 fixed: `git_patch` builds separate old/new side maps; `compare` and the duplicate check work per side; left-out merges both maps; T4 has both type changes (`tc`, `sl`).
+- D1-04 fixed: the no-index `elsif` admits only pure renames (`rfrom`&&`rto`) and mode-only records (`old==new` with `om` and `nm`); deleted-file and created-file cuts are refused; t5cut exercises the new-file cut.
+- D1-05 fixed in substance: `content()` applies the text records via `read-tree` + `git apply --cached --unidiff-zero` in a tempdir index and compares with `diff-index --cached`/`git diff --name-only` (both `-z`, so paths are literal and match the unquoted keys); exits 6 and 7 are both wired in independent_review.sh with file lists and remedies; whichever branch a `-w` diff takes, it is refused. (The test's asserted branch is the RISK above.)
+- D1-06 fixed: REQUIRED lists test_base_check.sh, diff_headers.pl, run_limited.pl.
+- D1-07 fixed: the remedy carries `-M --no-textconv` (and `git_patch` too); T1's remedy assertion matches the new string exactly; t4remedy runs the printed remedy under `diff.renames=copies`.
+- D1-08 fixed: message reworded; the exit-5 condition was correctly rewritten for the two-map structure (the old emptiness test would have been always-false on `{old,new}` — checked).
+- D1-09 fixed: perl SKIP line; Makefile and check_cdpath_safe.sh descriptions updated.
+- D1-10 fixed except the NIT above.
+- D1-11 fixed: closeout.md says `--base <that head>`.
+- D1-12 fixed: mode 100755; t4main and the submodule fixture (`^+Subproject commit`, t4fp2) added.
+- D1-13 fixed: `GCM_INTERACTIVE=never` on the fetch line.
+- D1-14 fixed: reflowed; the other-branch PR merge-base wording present.
+- L-01/L-02 fixed: "nowhere in the run's raw folder" with the stub-capture comment; the header explains why its diffs pass `--base none`.
+
+CHECKED AND CLEAN (new code, scope 2)
+
+- `compare` traced end to end: same-at-base-and-target, add-vs-existing-base, remove-vs-still-in-target, mode and id prefix checks, the rename content-equality check (now guarded on both git records existing, with the `$A == $B` ref-identity mode-only case), and the dedup of doubled messages — no false fire found for renames, type changes, or mode-only records.
+- `git_line_name`: the unquoted same-path split is exact for well-formed lines (length parity always holds for `a/P b/P`) and refuses rather than guesses otherwise; the quoted branch requires `b/`-mirror equality.
+- Exit 6/7 plumbing in independent_review.sh: `content\t` lines accumulate into `$bc_cont`/`$bc_cont_n`; case arms map 6/7 to base_refuse (exit 2) with the working-tree/HEAD wording derived from `$bc_target`.
+- The `From`/`in_msg`/`-- ` handlers cannot swallow hunk bodies (count-skipped) and diffstat lines are inert while `$cur` is undef; a message quoting a `diff --git` line without a `---` line is skipped.
+- The throwaway index is scoped (`local $ENV{GIT_INDEX_FILE}`) across read-tree/apply/diff; stderr save/restore; tempdir CLEANUP; the docstring honestly notes object-store writes.
+- Record slicing (`start`/`end`) includes `\ No newline` lines (needed by apply) and excludes the signature; -U0 hunks parse and apply under `--unidiff-zero`; empty files, mode-only records, and rename records survive the no-index rule.
+- t4main traced: it works iff base==HEAD at that point (see UNVERIFIABLE); the worktree content step compares the throwaway index against tracked working-tree files, consistent for adds, deletes and renames.
+- Makefile/check_cdpath/package descriptions match the actual perl dependency and new files.
+
+UNVERIFIABLE (only the ones that matter)
+
+- `git apply --cached` on gitlink records (mode 160000 + `Subproject commit` hunk) in a throwaway index: every E0..HEAD run in test_base_check.sh (t4, t4u0, t5w, t4remedy) and t4fp2 pass through it; if it fails, valid submodule diffs are refused as exit 6 and those tests go red. Observation: in a scratch repo, `git update-index --add --cacheinfo 160000,<sha>,subm`, commit, regenerate the diff, and `git apply --cached` it against a fresh `GIT_INDEX_FILE`. (Traced by the t4/t4fp2 tests in this diff; not re-run here.)
+- `-M` overriding `diff.renames=copies` to plain renames: traced by the t4remedy test (it runs the printed remedy under the setting and expects rc 0); not re-run here.
+- t4main/t5head depend on fixture/script text outside this diff: a second `push -q origin main` advancing origin to HEAD (else the merge base is E0 and t4main's old-side ids mismatch → refused), and the stdout phrase "new sides from the working tree" in independent_review.sh. Observation: grep test_base_check.sh between the fixture and t5head for the push, and independent_review.sh for the phrase.
+
+PROMPT INJECTION
+
+None. The diff is ordinary code, docs and test prose (including the commit message quoted inside a fixture); nothing in it addresses this review or attempts to alter its task, output or conclusions.
+
+Verdict: 1 RISK, 3 NITs; every prior finding otherwise landed and covers its claim apart from the D1-10 partial noted above.
+
+---
+reviewers: codex OK, melious OK
+timings: codex 199s (70392 tokens), melious 440s (70777 tokens)
+base: f556faf3a99b1e9e4ee86ab0dae1bb1fc38101dd (--base f556faf3)
+gate 20261021T213951Z-71280: rounds 1-2, 6 reviewer seat runs, 665,532 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 1 run with no round
 follows gate 20261021T172444Z-64903: rounds 1-5, 900,579 tokens
 

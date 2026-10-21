@@ -1,8 +1,8 @@
 # The base check's reader (independent_review.sh, "BASE CHECK" in its header): reads the diff under
 # review on stdin and checks it against git in two steps. Headers: the mode and id of every file
 # side it states must match git's own patch of the same base. Content: its text records, applied to
-# the base in a throwaway index, must give the target's content for every file they name, so a
-# diff made with -w or another option that drops lines is caught too. Arguments: the repository's
+# the base in a throwaway index, must give the target's content (HEAD's, or the working tree's)
+# for every file they name, so a diff made with -w or another option that drops lines is caught too. Arguments: the repository's
 # top directory, the base commit, the HEAD commit, and 1 to list the changed files the diff leaves
 # out (the default base only), else 0.
 # Prints tab-separated lines on stdout, one fact each:
@@ -104,7 +104,7 @@ sub parse {
     }
     if ($l =~ /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/) {
       next unless $cur;
-      $hdr = 0; $cur->{hunks} = 1;
+      $hdr = 0;
       my ($ob, $nb) = (defined $1 ? $1 : 1, defined $2 ? $2 : 1);
       # Skip the hunk by its counts. A "\ No newline at end of file" line is not in them.
       while ($ob > 0 || $nb > 0) {
@@ -236,11 +236,13 @@ sub compare {
 }
 
 # The content step: apply the diff's text records to the base in a throwaway index, then name
-# each file they touch whose content there differs from the target's. Binary records carry no
-# content to apply; their ids were checked above.
+# each file they touch whose content there differs from the target's. Binary records are not
+# applied (a body made with --binary is skipped too), and neither is a text record for a path a
+# binary record also names (one half of a type change): the header check above covered them.
 sub content {
   my ($recs, $tname) = @_;
-  my @text = grep { !$_->{binary} } @$recs;
+  my %binpath = map { ($_ => 1) } grep { defined } map { ($_->{old}, $_->{new}) } grep { $_->{binary} } @$recs;
+  my @text = grep { !$_->{binary} && !(defined $_->{old} && $binpath{$_->{old}}) && !(defined $_->{new} && $binpath{$_->{new}}) } @$recs;
   return () unless @text;
   my $dir = tempdir("ir-base.XXXXXX", TMPDIR => 1, CLEANUP => 1);
   open(my $p, ">", "$dir/text.diff") or do { say_line("error", "cannot write a temp file: $!"); exit 4; };
