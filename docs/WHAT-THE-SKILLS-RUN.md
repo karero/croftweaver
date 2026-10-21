@@ -144,7 +144,12 @@ What the site's own scripts do (from `package.json` in the
 - `npm run ship` (two-stage sites) pushes `main` to the `production` branch on GitHub,
   which makes Cloudflare publish the live site, then reads the live `build.txt` until it
   shows the new commit. It refuses to run on a branch other than `main`, with unsaved
-  changes, or when `production` has moved on its own, and it never force-pushes.
+  changes, or when `production` has moved on its own, and it never force-pushes. With
+  `git config ship.fromGitHub true` set in a site's folder (for a folder several people or
+  assistants share), it publishes GitHub's `main` instead, from a temporary copy in your
+  temp folder that it removes again, and only lists the folder's unsaved changes. That
+  copy installs the site's packages from npm (`npm ci`) for each publish. It also keeps a
+  lock and a list of its temporary copies in the site's `.git` folder while it runs.
 
 `website-contact-form` builds a `mailto:` link: the visitor's own mail program sends the
 message. There is no form server. If the site's analytics are on, the press also counts as

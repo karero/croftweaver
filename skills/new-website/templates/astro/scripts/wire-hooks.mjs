@@ -11,6 +11,7 @@
 //  - site in a subfolder of a bigger repo: change nothing. Pointed at a scripts/hooks the
 //    bigger repo does not have, git runs none of that repo's hooks, and says nothing;
 //  - no git repo around the site, or no git on this machine: nothing to do;
+//  - SHIP_KEEP_HOOKS_PATH set (by scripts/ship.sh): change nothing (below);
 //  - never fail the install: every case above exits 0, without a word. If git refuses the
 //    write at a repo's root, that is one line on stderr and still exit 0.
 import { spawnSync } from 'node:child_process';
@@ -21,6 +22,12 @@ import { dirname, join } from 'node:path';
 // folder: `scripts/hooks` means the hooks next to this file only where that folder is the
 // top of the repo, wherever the script was started from.
 const site = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// `npm run ship`, publishing GitHub's main from a throwaway worktree (ship.fromGitHub), installs
+// the packages there, and the pre-push gate it runs may install again. Each install would write
+// core.hooksPath, which every worktree of the clone shares and another session may have set its
+// own way. ship.sh sets this variable for both, so the setting is never changed by a publish.
+if (process.env.SHIP_KEEP_HOOKS_PATH) process.exit(0);
 
 // A git hook that runs `npm install` can hand down GIT_DIR (in a linked worktree git
 // exports an absolute one), and a git started with --git-dir and --work-tree hands its

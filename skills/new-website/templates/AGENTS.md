@@ -156,7 +156,13 @@ applies there; instead of steps 2 to 4, only this:
   someone runs `npm run ship`, which publishes `main` to `production` and verifies the
   live site serves the new build. Who may run it is set in §5. The assistant never
   runs `npm run ship` unasked, and always says whether an address is the preview or
-  the live site (see `PUBLISHING.md`).
+  the live site (see `PUBLISHING.md`). `npm run ship` stops when the folder is not on
+  `main` or has unsaved files, unless `git config ship.fromGitHub true` is set in this
+  folder: then it publishes GitHub's `main` from a temporary copy and only lists the
+  folder's unsaved files (for a folder that several people or assistants share; see
+  `PUBLISHING.md`, "On a shared computer"). With it on, an edit that is only in this
+  folder never goes live, so whether to switch it on is the owner's call: do not switch
+  it on or off unasked. `git config --get ship.fromGitHub` shows whether it is on.
 
   **Single-stage (merge = online).** Cloudflare rebuilds the live site from `main`
   after every merge (takes a few minutes). Whether the new state is there is shown by
