@@ -149,7 +149,9 @@ What the site's own scripts do (from `package.json` in the
   assistants share), it publishes GitHub's `main` instead, from a temporary copy in your
   temp folder that it removes again, and only lists the folder's unsaved changes. That
   copy installs the site's packages from npm (`npm ci`) for each publish. It also keeps a
-  lock and a list of its temporary copies in the site's `.git` folder while it runs.
+  lock and a list of its temporary copies in the site's `.git` folder while it runs. In
+  either mode, after a push that failed or was stopped, it leaves git's output in your temp
+  folder and prints where.
 
 `website-contact-form` builds a `mailto:` link: the visitor's own mail program sends the
 message. There is no form server. If the site's analytics are on, the press also counts as

@@ -36,10 +36,17 @@
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
+self="$PWD/tests/$(basename -- "$0")"
+# Inside a real publish's pre-push gate in worktree mode, ship.sh hands this down; left set, the
+# hooks-setting cases below could not fail.
+unset SHIP_KEEP_HOOKS_PATH
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-mkdir -p "$work/bin" "$work/teefail" "$work/cwd" "$work/cases"
+mkdir -p "$work/bin" "$work/teefail" "$work/cwd" "$work/cases" "$work/tmp"
+# ship.sh keeps git's output in a temp file after a failed push, so every run here gets a temp
+# folder of this file's own, which goes with it.
+export TMPDIR="$work/tmp"
 
 # Stub git: canned answers for ship.sh's pre-flight checks, scripted push outcomes.
 # Every push is logged so a scenario can assert the refspec as well as the count.
@@ -69,10 +76,17 @@ case "$1" in
   rev-parse)
     case "$*" in
       *"--abbrev-ref HEAD"*) echo main ;;
-      *"--git-common-dir"*) mkdir -p "$FAKE_DIR/gitdir"; echo "$FAKE_DIR/gitdir" ;;
+      # A Ctrl-C that ends this git call: a terminate to ship.sh (from the pid file `expect` writes)
+      # and the status a killed git leaves. A git folder the lock cannot be made in: read-only.
+      *"--git-common-dir"*)
+        if [ -f "$FAKE_DIR/stopat-commondir" ]; then kill -TERM "$(cat "$FAKE_DIR/shippid")"; exit 130; fi
+        if [ -f "$FAKE_DIR/gitdirro" ]; then mkdir -p "$FAKE_DIR/gitdir-ro"; chmod a-w "$FAKE_DIR/gitdir-ro"; echo "$FAKE_DIR/gitdir-ro"; exit 0; fi
+        mkdir -p "$FAKE_DIR/gitdir"; echo "$FAKE_DIR/gitdir" ;;
       # `@{u}` is the branch's GitHub counterpart: absent on a branch never pushed,
       # and a DIFFERENT commit when the two have moved apart.
-      *"@{u}"*) [ -f "$FAKE_DIR/noupstream" ] && exit 1; echo "$UP" ;;
+      *"@{u}"*)
+        if [ -f "$FAKE_DIR/stopat-upstream" ]; then kill -TERM "$(cat "$FAKE_DIR/shippid")"; exit 130; fi
+        [ -f "$FAKE_DIR/noupstream" ] && exit 1; echo "$UP" ;;
       *"--verify -q origin/production"*) [ -f "$FAKE_DIR/noprod" ] && exit 1; echo "$SHA" ;;
       *) echo "$SHA" ;;
     esac ;;
@@ -111,9 +125,8 @@ case "$1" in
     [ -f "$FAKE_DIR/$n.out" ] || n=1
     cat "$FAKE_DIR/$n.out" >&2
     # A stop asked for during the push: a terminate sent to ship.sh alone, as `kill <its pid>`
-    # sends one. ship.sh runs the push in a pipeline's subshell, so it is this stub's
-    # grandparent.
-    if [ -f "$FAKE_DIR/stop" ]; then kill -TERM "$(ps -o ppid= -p "$PPID" | tr -d ' ')"; fi
+    # sends one. Its pid comes from the file `expect` writes as it starts it.
+    if [ -f "$FAKE_DIR/stop" ]; then kill -TERM "$(cat "$FAKE_DIR/shippid")"; fi
     exit "$(cat "$FAKE_DIR/$n.code")" ;;
   *)
     # No silent success for a subcommand nobody taught this stub. An unmatched `case`
@@ -161,7 +174,7 @@ fail=0
 # they are there.
 version_of() { sed -n 's/^# template-version: *\([^ ]*\).*/\1/p' "$1" | head -1; }
 ship_version="$(version_of "$ship")"
-gate_version="$(version_of "$0")"
+gate_version="$(version_of "$self")"
 if [ -z "$ship_version" ] || [ -z "$gate_version" ]; then
   echo "✗ ship push gate: a template-version marker is missing (ship.sh: '$ship_version',"
   echo "  this file: '$gate_version'). The marker is how a site checks whether its copy"
@@ -181,7 +194,9 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   local dir="$work/cases/$name" log="$work/$name.log" path="$work/bin:$PATH" got_exit pushes
   [ -n "$extra" ] && path="$extra:$path"
   mkdir -p "$dir"; rm -f "$dir/pushes" "$dir/fetches" "$dir/settings" "$dir/fetchargs"; : > "$dir/pushes"
-  ( cd "$work/cwd" && FAKE_DIR="$dir" PATH="$path" bash "$ship" > "$log" 2>&1 ) && got_exit=0 || got_exit=$?
+  # The wrapper writes down its pid, then becomes ship.sh, so the pid is ship.sh's (the stub's
+  # stop cases signal it).
+  ( cd "$work/cwd" && FAKE_DIR="$dir" PATH="$path" bash -c 'echo "$$" > "$FAKE_DIR/shippid"; exec bash "$0"' "$ship" > "$log" 2>&1 ) && got_exit=0 || got_exit=$?
   pushes="$(wc -l < "$dir/pushes" | tr -d ' ')"
   # Every fetch with git's housekeeping off, in both modes: housekeeping can prune, and a prune
   # drops the record of another session's worktree whose folder is only away.
@@ -525,6 +540,36 @@ if [ "$(grep -c "^-q origin +refs/heads/main:refs/remotes/origin/main +refs/head
   sed 's/^/  | /' "$work/cases/wtfetchfail/fetchargs"; fail=1
 fi
 
+# --- a Ctrl-C that ends a git call before the push ----------------------------------
+# Its failure must not read as a verdict about the branches ("isn't connected to GitHub yet"),
+# and one that ends the run through set -e must not end it without a word.
+mark stopverdict stopat-upstream
+expect stopverdict 1 0 "a stop was asked for"
+if grep -q "isn't connected to GitHub yet" "$work/stopverdict.log"; then
+  echo "✗ ship push gate [stopverdict]: a git call ended by a stop was read as a verdict about the branch."; fail=1
+fi
+mark stopsilent fromgithub
+mark stopsilent stopat-commondir
+expect stopsilent 130 0 "Nothing was published and this folder was not touched."
+if ! grep -q "a stop was asked for" "$work/stopsilent.log"; then
+  echo "✗ ship push gate [stopsilent]: a stop that ended a git call ended the run without saying so."; fail=1
+fi
+
+# --- worktree mode, a git folder the lock cannot be made in ------------------------
+# Not "another publish holds the lock", with a command to remove one that does not exist.
+mark lockro fromgithub
+mark lockro gitdirro
+if [ -w "$work/cases/lockro" ] && mkdir "$work/cases/lockro/w-probe" 2>/dev/null && chmod a-w "$work/cases/lockro/w-probe" \
+   && ! mkdir "$work/cases/lockro/w-probe/x" 2>/dev/null; then
+  expect lockro 1 0 "couldn't create this clone's publish lock"
+  if grep -q "another publish holds" "$work/lockro.log"; then
+    echo "✗ ship push gate [lockro]: a lock that could not be made was reported as another publish's."; fail=1
+  fi
+else
+  echo "  note: [lockro] skipped: a read-only folder does not stop this user (root?), so the case cannot be set up."
+fi
+chmod -R u+w "$work/cases/lockro" 2>/dev/null || true
+
 # --- production moved WHILE the gate ran: the remote refuses the update ------------
 # git checked production when the push started, so it sends the update; the remote then finds
 # production somewhere else. Stock git's wording; GitHub's is not checked.
@@ -647,10 +692,31 @@ fi
 # that leaves them).
 real_git_cases() {
   rg_n=0 rg_skipped=""
-  if ! command -v git >/dev/null 2>&1; then rg_skipped="no git here: not run"; return 0; fi
-  local REAL_SLEEP NODE on_windows G
-  REAL_SLEEP="$(command -v sleep)"; NODE="$(command -v node || true)"
-  case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) on_windows=1 ;; *) on_windows=0 ;; esac
+  local gv REAL_SLEEP NODE PERL ps_starts G
+  # skip_all <why>: none of these cases can run here. Said out loud, and a failure where CI
+  # requires the bash 3.2 case.
+  skip_all() {
+    rg_skipped="$1: not run"
+    echo "  note: the checks of the mode that publishes GitHub's main were not run: $1."
+    if [ -n "${SHIP_TEST_REQUIRE_BASH32:-}" ]; then
+      echo "✗ ship push gate, real git: S10 (e) did not run (SHIP_TEST_REQUIRE_BASH32 is set)."; fail=1
+    fi
+  }
+  if ! command -v git >/dev/null 2>&1; then skip_all "no git here"; return 0; fi
+  # Windows' Git Bash: git records a worktree's path in its own C:/… form, and its ps reads
+  # neither start times nor parent ids, so these cases, written for macOS and Linux, would fail
+  # there for reasons of their own. Not run, and said.
+  case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) skip_all "Windows (Git Bash)"; return 0 ;; esac
+  # ship.sh's worktree mode needs `git worktree remove` (git 2.17).
+  gv="$(git version 2>/dev/null | sed -n 's/^git version \([0-9]*\)\.\([0-9]*\).*/\1 \2/p')"
+  set -- $gv
+  if [ "$#" != 2 ] || [ "$1" -lt 2 ] || { [ "$1" = 2 ] && [ "$2" -lt 17 ]; }; then
+    skip_all "it needs git 2.17 or newer ($(git version 2>/dev/null))"; return 0
+  fi
+  REAL_SLEEP="$(command -v sleep)"; NODE="$(command -v node || true)"; PERL="$(command -v perl || true)"
+  # Whether ps here gives start times: without them a lock's owner cannot be told apart from a
+  # process that reused its id, so ship.sh says it cannot tell, and S8 and S9 expect that.
+  if [ -n "$(ps -o lstart= -p "$$" 2>/dev/null)" ]; then ps_starts=1; else ps_starts=0; fi
   # Real paths (macOS's temp folder is a link), the form git records a worktree's path in.
   G="$(CDPATH= cd -- "$work" && pwd -P)/git"
   mkdir -p "$G/bin" "$G/mk" "$G/home"
@@ -733,8 +799,9 @@ GATE
   fixture() {
     D="$G/$1"; O="$D/origin.git"; C="$D/clone"; S="$D/seed"; M="$D/marks"
     mkdir -p "$D/tmp" "$M"
-    git init -q --bare -b main "$O"
-    git init -q -b main "$S"
+    # Branches named main without `git init -b` (git 2.28), so an older git still runs these.
+    git init -q --bare "$O" && git --git-dir="$O" symbolic-ref HEAD refs/heads/main
+    git init -q "$S" && git -C "$S" symbolic-ref HEAD refs/heads/main
     mkdir -p "$S/scripts/hooks" "$S/tests"
     cp "$ship" "$S/scripts/ship.sh"
     cp scripts/wire-hooks.mjs "$S/scripts/wire-hooks.mjs"
@@ -821,6 +888,8 @@ GATE
     perl -e 'sleep 120; kill "KILL", -$ARGV[0]' "$bg" & dog=$!
     brc=0; wait "$bg" || brc=$?
     kill "$dog" 2>/dev/null || true; wait "$dog" 2>/dev/null || true
+    # Gone, so off the list the way out kills: a later process could reuse the id.
+    local g kept=""; for g in $groups; do [ "$g" = "$bg" ] || kept="$kept $g"; done; groups="$kept"
   }
   # On this file's way out, every group it started goes too. A setup step that fails stops the
   # file (set -e) with no word of its own, so say which case it was in.
@@ -830,7 +899,7 @@ GATE
 
   # --- S2: a feature branch, an edit and an untracked folder; GitHub's main two ahead -------
   fixture s2; advance 2
-  git -C "$C" switch -q -c feat
+  git -C "$C" checkout -q -b feat
   echo "an edit" >> "$C/page.txt"
   mkdir "$C/data" && echo "1,2" > "$C/data/x.csv"
   # A tracked file's time changed but not its content: plain `git status` would now rewrite
@@ -859,11 +928,13 @@ GATE
   # --- S4: GitHub's main has a broken page ------------------------------------------------
   fixture s4
   echo "broken" > "$S/BROKEN"; git -C "$S" add BROKEN; git -C "$S" commit -qm "a broken page"; git -C "$S" push -q origin main
+  m="$(gh main)"
   p0="$(gh production)"
   run_ship s4; exits 1
   want "production is unchanged" eq "$(gh production)" "$p0"
   want "the tests failed inside the worktree" has "✘ tests: a page is broken"
   want "nothing was published, this folder untouched" has "Nothing was published and this folder was not touched."
+  want "the last line names the commit it was for" last_has "GitHub's main as of the fetch: ${m:0:12}"
 
   # --- S6: the package install fails ------------------------------------------------------
   fixture s6; advance 1; p0="$(gh production)"
@@ -875,7 +946,7 @@ GATE
   # --- S7: another clone moves production while the gate runs -----------------------------
   fixture s7; advance 1
   git clone -q "$O" "$D/clone2"
-  git -C "$D/clone2" switch -q -c moved origin/production
+  git -C "$D/clone2" checkout -q -b moved origin/production
   git -C "$D/clone2" commit -q --allow-empty -m "published from elsewhere"
   m="$(git -C "$D/clone2" rev-parse HEAD)"
   run_ship s7 SHIP_T_MOVE="$D/clone2"; exits 1
@@ -889,15 +960,22 @@ GATE
   git -C "$C" worktree add -q --detach "$l1"; echo "work in progress" > "$l1/note.txt"
   git -C "$C" worktree add -q --detach "$l2"; rm -rf "$l2"
   # The third line's worktree was removed by hand since: neither its folder nor git's record is left.
-  printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970\n%s\t4244\tThu Jan  1 00:00:00 1970\n' \
-    "$l1" "$l2" "$gone" > "$C/.git/ship-worktrees"
-  # A lock naming a running process (this test) with another start time: the process id was reused.
+  # The fourth was cut short (a full disk) and names the folder above: never one to delete.
+  printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970\n%s\t4244\tThu Jan  1 00:00:00 1970\n%s\t4245\tThu Jan  1 00:00:00 1970\n' \
+    "$l1" "$l2" "$gone" "$D/tmp" > "$C/.git/ship-worktrees"
+  # A lock naming a running process (this test), on this computer, with another start time: the
+  # process id was reused.
   mkdir "$C/.git/ship.lock"; echo "$$" > "$C/.git/ship.lock/pid"; echo "Thu Jan  1 00:00:00 1970" > "$C/.git/ship.lock/start"
+  uname -n > "$C/.git/ship.lock/host"
   WT_COUNT=3 TMP_WT=1 LOCK_LEFT=1 LIST_WANT="$(list_now)"
   run_ship s8-lock; exits 1
   want "production is unchanged" eq "$(gh production)" "$p0"
   want "names the lock by its full path" has "    $C/.git/ship.lock"
-  want "says its process is not running" has "That process is not running"
+  if [ "$ps_starts" = 1 ]; then
+    want "says its process is not running" has "That process is not running"
+  else
+    want "says it cannot tell (ps gives no start times here)" has "cannot tell whether that publish is still running"
+  fi
   want "warns that a killed run's push may still be running" has "can leave its push and its tests running"
   want "gives the command that removes the lock" has "    rm -r '$C/.git/ship.lock'"
   want "the lock is still there, naming the same process" eq "$(cat "$C/.git/ship.lock/pid")" "$$"
@@ -909,7 +987,7 @@ GATE
   want "without a process id it says it cannot tell" has "cannot tell whether that publish is still running"
   want "... with the warning and the command" has "    rm -r '$C/.git/ship.lock'"
   eval "$(sed -n "s/^    \(rm -r '.*'\)\$/\1/p" "$L")" 2>/dev/null || true
-  LOCK_LEFT=0 LIST_WANT="$(printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970' "$l1" "$l2")"
+  LOCK_LEFT=0 LIST_WANT="$(printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970\n%s\t4245\tThu Jan  1 00:00:00 1970' "$l1" "$l2" "$D/tmp")"
   m="$(gh main)"
   run_ship s8-next; exits 0
   want "publishes" eq "$(gh production)" "$m"
@@ -917,38 +995,43 @@ GATE
   want "... and its removal command" has "git worktree remove --force --force '$l1'"
   want "reports the leftover whose folder is gone" has "git worktree remove --force --force '$l2'"
   want "does not report the one removed by hand" lacks "$gone"
+  want "gives no delete command for a folder this script does not name" lacks "rm -rf '$D/tmp'"
+  want "... and says to check it by hand" has "not a name this script gives its folders"
   want "the leftover's files are untouched" eq "$(cat "$l1/note.txt")" "work in progress"
 
   # --- S9: a publish already running in this clone ----------------------------------------
-  fixture s9; advance 1; m="$(gh main)"
-  local first_pid first_start first_log
-  start_bg s9-first bash SHIP_T_HOLD=1; first_log="$L"
-  local first="$bg"
-  if wait_for "$M/in-gate"; then
-    first_pid="$(cat "$C/.git/ship.lock/pid" 2>/dev/null)" || true; first_start="$(cat "$C/.git/ship.lock/start" 2>/dev/null)" || true
-    WT_COUNT=2 TMP_WT=1 LOCK_LEFT=1 LIST_WANT="$(list_now)"
-    run_ship s9-second; exits 1
-    if [ -n "$(proc_start_t "$$")" ]; then
-      want "says a publish is under way" has "a publish is under way"
-    else
-      want "says it cannot tell (no start times here)" has "cannot tell"
-    fi
-    want "gives no removal command" lacks "rm -r"
-    want "the lock still names the first run" eq "$(cat "$C/.git/ship.lock/pid") $(cat "$C/.git/ship.lock/start")" "$first_pid $first_start"
-    want "the first run is still running" kill -0 "$first"
+  # The second run asks in another time zone and language, as an assistant started from an app
+  # may, while the first runs in a terminal: ps writes start times in the caller's.
+  if [ -z "$PERL" ]; then
+    rg_skipped="${rg_skipped:+$rg_skipped; }S9 skipped: no perl here"
+    echo "  note: S9 (a publish already running) is skipped: it starts the first run with perl, which is not here."
   else
-    cname=s9; want "the first run reached its gate" false
+    fixture s9; advance 1; m="$(gh main)"
+    local first_pid first_start first_log first
+    start_bg s9-first bash SHIP_T_HOLD=1; first_log="$L"; first="$bg"
+    if wait_for "$M/in-gate"; then
+      first_pid="$(cat "$C/.git/ship.lock/pid" 2>/dev/null)" || true; first_start="$(cat "$C/.git/ship.lock/start" 2>/dev/null)" || true
+      WT_COUNT=2 TMP_WT=1 LOCK_LEFT=1 LIST_WANT="$(list_now)"
+      run_ship s9-second TZ=Asia/Tokyo LANG=de_DE.UTF-8 LC_TIME=de_DE.UTF-8; exits 1
+      if [ "$ps_starts" = 1 ]; then
+        want "says a publish is under way" has "a publish is under way"
+        want "gives no removal command" lacks "rm -r"
+      else
+        want "says it cannot tell (ps gives no start times here)" has "cannot tell whether that publish is still running"
+      fi
+      want "the lock still names the first run" eq "$(cat "$C/.git/ship.lock/pid") $(cat "$C/.git/ship.lock/start")" "$first_pid $first_start"
+      want "the first run is still running" kill -0 "$first"
+    else
+      cname=s9; want "the first run reached its gate" false
+    fi
+    : > "$M/release"; bg="$first"; wait_bg
+    cname=s9-first; L="$first_log"; logged=0; WT_COUNT=1 TMP_WT=0 LOCK_LEFT=0 LIST_WANT=""
+    want "the first run publishes" eq "$brc $(gh production)" "0 $m"
+    want "... and leaves nothing behind" leaves_nothing
   fi
-  : > "$M/release"; bg="$first"; wait_bg
-  cname=s9-first; L="$first_log"; logged=0; WT_COUNT=1 TMP_WT=0 LOCK_LEFT=0 LIST_WANT=""
-  want "the first run publishes" eq "$brc $(gh production)" "0 $m"
-  want "... and leaves nothing behind" leaves_nothing
 
   # --- S10: stops (Ctrl-C to the whole group, or a terminate to the script alone) ----------
-  if [ "$on_windows" = 1 ]; then
-    rg_skipped="${rg_skipped:+$rg_skipped; }S10 skipped on Windows"
-    echo "  note: S10 (stopping a publish) is skipped on Windows."
-  elif ! command -v perl >/dev/null 2>&1; then
+  if [ -z "$PERL" ]; then
     rg_skipped="${rg_skipped:+$rg_skipped; }S10 skipped: no perl here"
     echo "  note: S10 (stopping a publish) is skipped: it starts each run with perl, which is not here."
     if [ -n "${SHIP_TEST_REQUIRE_BASH32:-}" ]; then
@@ -1060,8 +1143,12 @@ GATE
   done
   WT_COUNT=2
   run_ship s14; exits 0
-  want "housekeeping was due" test "$(find "$C/.git/objects/17" -type f | wc -l | tr -d ' ')" -ge 2
   want "the moved-away worktree is still registered" grep -qxF "worktree $D/other" <<<"$(git -C "$C" worktree list --porcelain)"
+  # The control: in the same clone, one plain fetch with its housekeeping on drops that record.
+  # Without it, the check above could pass because housekeeping would not have pruned anyway.
+  advance 1; git -C "$C" fetch -q origin 2>/dev/null || true
+  want "control: a plain fetch with housekeeping on drops the record (so the check above can fail)" \
+    eval '! grep -qxF "worktree $D/other" <<<"$(git -C "$C" worktree list --porcelain)"'
 
   # --- S15: one mktemp call fails, each in turn -------------------------------------------
   fixture s15; advance 1; p0="$(gh production)"
@@ -1086,7 +1173,7 @@ GATE
   want "production is unchanged" eq "$(gh production)" "$p0"
   want "says the two files differ though the versions match" has "Both say template-version $ship_version, but the two files differ anyway"
   git -C "$C" checkout -q -- scripts/ship.sh
-  git -C "$C" switch -q -c old
+  git -C "$C" checkout -q -b old
   sed "s/^# template-version: $ship_version/# template-version: 0.21/" "$C/scripts/ship.sh" > "$D/old.sh"
   cat "$D/old.sh" > "$C/scripts/ship.sh"; git -C "$C" commit -qam "an older ship.sh"
   run_ship s16-old; exits 1
@@ -1106,14 +1193,17 @@ GATE
   # --- S18: the clone's shared hooks setting elsewhere, unset, changed; no hook ------------
   fixture s18; advance 1
   mkdir -p "$D/elsewhere"; printf '#!/bin/sh\necho "ELSEWHERE HOOK RAN"\nexit 1\n' > "$D/elsewhere/pre-push"; chmod +x "$D/elsewhere/pre-push"
-  # ...and a post-checkout hook there, which making a worktree would start; one that installed
-  # packages would rewrite the shared hooks setting mid-publish.
-  printf '#!/bin/sh\n: > "%s/post-checkout-ran"\n' "$M" > "$D/elsewhere/post-checkout"; chmod +x "$D/elsewhere/post-checkout"
+  # ...and hooks there that making a worktree would start (its checkout runs post-checkout and
+  # post-index-change); one that installed packages would rewrite the shared hooks setting
+  # mid-publish.
+  for h in post-checkout post-index-change; do
+    printf '#!/bin/sh\necho %s >> "%s/foreign-hooks-ran"\n' "$h" "$M" > "$D/elsewhere/$h"; chmod +x "$D/elsewhere/$h"
+  done
   git -C "$C" config core.hooksPath "$D/elsewhere"
   run_ship s18-elsewhere; exits 0
   want "the commit's own gate ran" has "▶ pre-push gate: tiny gate"
   want "... not the one the shared setting names" lacks "ELSEWHERE HOOK RAN"
-  want "making the worktree started no post-checkout hook" test ! -e "$M/post-checkout-ran"
+  want "making the worktree started none of the shared folder's hooks" test ! -e "$M/foreign-hooks-ran"
   want "the shared setting is as it was" eq "$(git -C "$C" config --get core.hooksPath)" "$D/elsewhere"
   advance 1; git -C "$C" config --unset core.hooksPath
   run_ship s18-unset; exits 0
@@ -1129,15 +1219,13 @@ GATE
   run_ship s18-nohook; exits 1
   want "says the commit has no runnable hook" has "has no runnable"
   want "production is unchanged" eq "$(gh production)" "$p0"
-  if [ "$on_windows" = 0 ]; then
-    # A hook that is there but not runnable: git would skip it with a hint and push anyway.
-    mkdir -p "$S/scripts/hooks"; cp "$G/gate" "$S/scripts/hooks/pre-push"; chmod -x "$S/scripts/hooks/pre-push"
-    git -C "$S" add scripts/hooks/pre-push; git -C "$S" update-index --chmod=-x scripts/hooks/pre-push
-    git -C "$S" commit -qm "a hook that is not runnable"; git -C "$S" push -q origin main
-    run_ship s18-noexec; exits 1
-    want "says the commit has no runnable hook" has "has no runnable"
-    want "production is unchanged" eq "$(gh production)" "$p0"
-  fi
+  # A hook that is there but not runnable: git would skip it with a hint and push anyway.
+  mkdir -p "$S/scripts/hooks"; cp "$G/gate" "$S/scripts/hooks/pre-push"; chmod -x "$S/scripts/hooks/pre-push"
+  git -C "$S" add scripts/hooks/pre-push; git -C "$S" update-index --chmod=-x scripts/hooks/pre-push
+  git -C "$S" commit -qm "a hook that is not runnable"; git -C "$S" push -q origin main
+  run_ship s18-noexec; exits 1
+  want "says the commit has no runnable hook" has "has no runnable"
+  want "production is unchanged" eq "$(gh production)" "$p0"
 
   # --- S19: a worktree ship did not make, named like ship's, locked, with work in it -------
   fixture s19; advance 1; m="$(gh main)"
@@ -1175,7 +1263,6 @@ GATE
   fi
   rg_done=1
 }
-proc_start_t() { ps -o lstart= -p "$1" 2>/dev/null || true; }
 
 real_git_cases
 

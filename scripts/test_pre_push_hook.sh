@@ -62,7 +62,7 @@ cat >"$T/bin/npm" <<'NPM'
 echo "npm $*"
 if [ -n "${NPM_PROBE:-}" ]; then
   { echo "GIT_DIR=${GIT_DIR-unset}"; echo "GIT_CONFIG_PARAMETERS=${GIT_CONFIG_PARAMETERS-unset}"
-    echo "top=$(cd sub 2>/dev/null && git rev-parse --show-toplevel 2>&1)"; } >"$NPM_PROBE"
+    echo "top=$(CDPATH= cd -- sub 2>/dev/null && git rev-parse --show-toplevel 2>&1)"; } >"$NPM_PROBE"
 fi
 case "$*" in
   "run build")                                [ "${NPM_FAIL:-}" = build ] && exit 1 ;;

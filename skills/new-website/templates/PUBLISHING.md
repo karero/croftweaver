@@ -98,7 +98,7 @@ published", and the last line says how many there were. So the one thing to keep
   needs the internet (or packages npm has cached before) and takes a little longer.
 - One publish runs at a time across this folder and every copy that shares its settings; a
   second one stops and says why.
-- To see whether it's on: `git config --get ship.fromGitHub`. To switch it off:
+- To see whether it's on: `git config --local --get ship.fromGitHub`. To switch it off:
   `git config --unset ship.fromGitHub`.
 
 ---
@@ -265,19 +265,24 @@ publish as usual with `npm run ship`.
 `main` by hand, from the site's folder:
 
 ```bash
-git fetch origin
-git push --no-verify origin origin/main:refs/heads/production
+git -c maintenance.auto=false -c gc.auto=0 fetch origin main
+git push --no-verify origin FETCH_HEAD:refs/heads/production
 ```
 
-`--no-verify` skips the pre-push check on purpose: that check also runs ship's own test, and
-ship is the part that may be broken. So nothing checks this publish. Do it only for a `main`
-whose checks are green on GitHub, and never add `--force`. A few minutes later, open your live
-site's `/build.txt`: it shows the commit the live site serves, which should be the one
-`git rev-parse origin/main` prints.
+The first line fetches GitHub's `main` by name, whatever this folder's fetch settings say, and
+keeps git from tidying up while it does (on a shared folder, a tidy-up can drop the record of
+another session's work). `--no-verify` skips the pre-push check on purpose: that check also
+runs ship's own test, and ship is the part that may be broken. So nothing checks this publish.
+Do it only for a `main` whose checks are green on GitHub, and never add `--force`. A few
+minutes later, open your live site's `/build.txt`: it shows the commit the live site serves,
+which should be the one `git rev-parse FETCH_HEAD` prints.
 
 **Is the pre-push check switched on?** `git config --get core.hooksPath` prints
 `scripts/hooks` when it is. Anything else, or nothing: run `npm install` once in the site's
-folder, which switches it on (unless the site sits inside a bigger repository).
+folder, which switches it on (unless the site sits inside a bigger repository). On a shared
+computer, first ask whoever else works in this folder: they may have set it their own way on
+purpose. With `ship.fromGitHub` on, `npm run ship` runs the published commit's own check
+whatever this setting says.
 
 ---
 

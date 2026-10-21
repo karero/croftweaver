@@ -59,10 +59,12 @@ log_view() { grep -v '^  | ' "$1" 2>/dev/null || true; }
 
 # A process's start time as `ps` gives it, spaces trimmed; empty where ps cannot say (Windows'
 # Git Bash has no `-o lstart`) or the process is gone. With the id it tells a running process
-# from a later one that reused the id.
+# from a later one that reused the id. In one time zone and language whoever asks: ps writes the
+# time in the caller's, and two sessions sharing a clone (a terminal, an assistant started from
+# an app) need not share either.
 proc_start() {
   local s
-  s="$(ps -o lstart= -p "$1" 2>/dev/null)" || s=""
+  s="$(LC_ALL=C TZ=UTC ps -o lstart= -p "$1" 2>/dev/null)" || s=""
   s="${s#"${s%%[![:space:]]*}"}"
   printf '%s' "${s%"${s##*[![:space:]]}"}"
 }
@@ -82,6 +84,7 @@ registered() { # <path>: is it one of this clone's worktrees, by git's records?
 
 stop_point() { # <what is true now, one sentence>: stop here if a stop was asked for
   [ "$stop_asked" = 1 ] || return 0
+  stop_said=1
   echo ""
   echo "✗ Publish stopped — a stop was asked for (Ctrl-C, or a terminate signal)."
   echo "  $1"
@@ -118,7 +121,8 @@ take_lock() {
   lock="$common/ship.lock"
   if mkdir "$lock" 2>/dev/null; then
     lock_taken=1
-    if printf '%s\n' "$$" > "$lock/pid" 2>/dev/null && printf '%s\n' "$my_start" > "$lock/start" 2>/dev/null; then
+    if printf '%s\n' "$$" > "$lock/pid" 2>/dev/null && printf '%s\n' "$my_start" > "$lock/start" 2>/dev/null \
+       && printf '%s\n' "$my_host" > "$lock/host" 2>/dev/null; then
       return 0
     fi
     rm -rf "$lock"; lock_taken=0
@@ -126,11 +130,18 @@ take_lock() {
     echo "  Nothing was published and $here."
     exit 1
   fi
-  local pid start state
+  if [ ! -d "$lock" ]; then
+    echo "✗ Publish stopped — couldn't create this clone's publish lock ($lock): is the git folder"
+    echo "  read-only, or the disk full? Nothing was published and $here."
+    exit 1
+  fi
+  local pid start host state
   pid="$(cat "$lock/pid" 2>/dev/null)" || pid=""
   start="$(cat "$lock/start" 2>/dev/null)" || start=""
+  host="$(cat "$lock/host" 2>/dev/null)" || host=""
   # Running means: that id exists with that same start time, so a reused id does not count.
-  if [ -z "$pid" ] || [ -z "$start" ] || [ -z "$my_start" ]; then state=unknown
+  # Asked on another computer (a shared disk) or where ps cannot say, there is no telling.
+  if [ -z "$pid" ] || [ -z "$start" ] || [ -z "$my_start" ] || [ "$host" != "$my_host" ]; then state=unknown
   elif [ "$(proc_start "$pid")" = "$start" ]; then state=running
   else state=gone
   fi
@@ -141,7 +152,7 @@ take_lock() {
   elif [ -z "$start" ]; then
     echo "  It names process $pid, with no start time."
   else
-    echo "  It names process $pid, started $start."
+    echo "  It names process $pid${host:+ on $host}, started $start (UTC)."
   fi
   if [ "$state" = running ]; then
     echo "  That process is still running, so a publish is under way. Let it finish, and run"
@@ -182,7 +193,12 @@ report_leftovers() {
     if grep -qxF "worktree $path" <<<"$wl"; then
       how="git worktree remove --force --force '$path'"
     elif [ -e "$path" ]; then
-      how="rm -rf '$path'"
+      # Made by mktemp, never a worktree. A delete command only for a name this script gives
+      # its folders: a line cut short (a full disk) could name a folder above it.
+      case "${path##*/}" in
+        ship-worktree.?*) how="rm -rf '$path'" ;;
+        *) how="(not a name this script gives its folders: check it by hand)" ;;
+      esac
     else
       continue
     fi
@@ -193,7 +209,7 @@ report_leftovers() {
       echo "⚠ Left over from an earlier publish that was stopped hard; this run leaves it alone:"
       seen=1
     fi
-    echo "    $path  (made by process $pid${start:+, started $start})"
+    echo "    $path  (made by process $pid${start:+, started $start UTC})"
     echo "      remove with:  $how"
   done < "$list"
   if [ "$seen" = 1 ]; then
@@ -222,6 +238,7 @@ check_script() {
   local want mine theirs
   want="$(git rev-parse --verify -q "$id:scripts/ship.sh")" || want=""
   if [ -n "$self_blob" ] && [ "$self_blob" = "$want" ]; then return 0; fi
+  stop_point "Nothing was published and $here."   # a Ctrl-C may have ended the git call above
   mine="$(sed -n 's/^# template-version: *\([^ ]*\).*/\1/p' "${BASH_SOURCE[0]}" 2>/dev/null)" || mine=""
   theirs="$(git cat-file -p "$id:scripts/ship.sh" 2>/dev/null | sed -n 's/^# template-version: *\([^ ]*\).*/\1/p')" || theirs=""
   echo ""
@@ -268,6 +285,13 @@ on_exit() {
   local status=$?
   set +e
   trap '' INT TERM HUP QUIT
+  # A Ctrl-C that ended a git call before the push can stop the run through set -e, without a
+  # word: say what is true.
+  if [ "$status" != 0 ] && [ "$stop_asked" = 1 ] && [ "$stop_said" = 0 ] && [ "$push_started" = 0 ]; then
+    echo ""
+    echo "✗ Publish stopped — a stop was asked for (Ctrl-C, or a terminate signal)."
+    echo "  Nothing was published and $here."
+  fi
   if [ -n "$wt" ]; then
     if [ "$wt_added" = 1 ] && ! git worktree remove --force --force "$wt" >/dev/null 2>&1; then
       # git could not remove it. The folder is this run's own: its path came from this run's
@@ -301,10 +325,16 @@ on_exit() {
       rm -f "$git_log"
     fi
   fi
+  # The last line: a run that went well says it in full; in worktree mode any other run that got
+  # as far as reading GitHub's main names that commit, and how many files stayed behind.
   if [ -n "$final_line" ]; then
     echo "$final_line"
-  elif [ "$not_published" -gt 0 ]; then
-    echo "  (GitHub's main as of the fetch: ${id:0:12}. $not_published not published from this folder, listed above.)"
+  elif [ "$from_github" = 1 ] && [ -n "$id" ]; then
+    if [ "$not_published" -gt 0 ]; then
+      echo "  (GitHub's main as of the fetch: ${id:0:12}. $not_published not published from this folder, listed above.)"
+    else
+      echo "  (GitHub's main as of the fetch: ${id:0:12}.)"
+    fi
   fi
   exit "$status"
 }
@@ -337,7 +367,7 @@ if [ "$from_github" = 1 ]; then here="this folder was not touched"; else here="y
 
 # All the EXIT trap may clean up, empty until this run makes it.
 git_log="" push_status="" wt="" wt_added=0 lock="" lock_taken=0 list="" my_line="" my_start=""
-push_started=0 stop_asked=0 final_line="" id="" short="" not_published=0
+my_host="" push_started=0 stop_asked=0 stop_said=0 final_line="" id="" short="" not_published=0
 # A stop (Ctrl-C, or a terminate signal) is only NOTED, and bash runs the note once the step in
 # the foreground ends. The script kills nothing itself: a Ctrl-C still reaches git and the gate
 # exactly as it always did, and a terminate sent to the script alone lets the current step
@@ -362,6 +392,7 @@ else
   common="$(CDPATH= cd -- "$common" && pwd -P)"
   list="$common/ship-worktrees"
   my_start="$(proc_start "$$")"
+  my_host="$(uname -n 2>/dev/null)" || my_host=""
   take_lock
 fi
 # Everything below needs an up-to-date view of the remote: the origin/production
@@ -382,6 +413,12 @@ fi
 tmp_base="${TMPDIR:-/tmp}"; tmp_base="${tmp_base%/}"
 git_log="$(mktemp "$tmp_base/ship-log.XXXXXX")" || no_temp
 push_status="$(mktemp "$tmp_base/ship-status.XXXXXX")" || no_temp
+if [ "$from_github" = 1 ]; then
+  # The folder the worktree goes into, further down; made here with the other scratch files, so
+  # a failing mktemp stops the run before anything else happens.
+  wt="$(mktemp -d "$tmp_base/ship-worktree.XXXXXX")" || no_temp
+  if wt_real="$(real_dir "$wt")" && [ -n "$wt_real" ]; then wt="$wt_real"; fi
+fi
 if fetch_origin 2>"$git_log"; then fetch_ok=1; else fetch_ok=0; fi
 stop_point "Nothing was published and $here."
 if [ "$fetch_ok" = 0 ]; then
@@ -435,7 +472,10 @@ if [ "$fetch_ok" = 0 ]; then
     exit 1
   fi
 fi
+# From here to the push, a Ctrl-C can end one of the git calls below, and its failure would read
+# as a verdict about the branches. So each verdict looks at the note first.
 if ! git rev-parse --verify -q origin/production >/dev/null; then
+  stop_point "Nothing was published and $here."
   echo "✗ No 'production' branch on GitHub yet — this site isn't set up two-stage."; exit 1
 fi
 if [ "$from_github" = 0 ]; then
@@ -444,14 +484,20 @@ if [ "$from_github" = 0 ]; then
   # is BEHIND to "run git push" sends them to the one command that cannot help (and that
   # git will then reject), so ask which side moved and say the matching thing.
   upstream="$(git rev-parse '@{u}' 2>/dev/null || true)"
+  stop_point "Nothing was published and $here."
   if [ -z "$upstream" ]; then
     echo "✗ This branch isn't connected to GitHub yet. Run: git push -u origin main"; exit 1
   fi
   if [ "$(git rev-parse @)" != "$upstream" ]; then
-    if git merge-base --is-ancestor @ "$upstream"; then
+    if git merge-base --is-ancestor @ "$upstream"; then moved=behind
+    elif git merge-base --is-ancestor "$upstream" @; then moved=ahead
+    else moved=both
+    fi
+    stop_point "Nothing was published and $here."
+    if [ "$moved" = behind ]; then
       echo "✗ GitHub has changes that aren't on your computer yet — publishing now would"
       echo "  put an OLDER version of the site live. Get them first:  git pull"
-    elif git merge-base --is-ancestor "$upstream" @; then
+    elif [ "$moved" = ahead ]; then
       echo "✗ Your latest changes aren't uploaded yet. Run: git push"
     else
       echo "✗ Your copy and GitHub's have BOTH changed since they last matched."
@@ -492,6 +538,7 @@ fi
 # timeout to github.com printed the divergence message while production was simply two
 # commits behind main and cleanly fast-forwardable.
 if ! git merge-base --is-ancestor origin/production "$id"; then
+  stop_point "Nothing was published and $here."
   echo ""
   if [ "$from_github" = 1 ]; then
     echo "✗ Publish blocked — 'production' has commits that GitHub's 'main' doesn't have."
@@ -508,23 +555,18 @@ if [ "$from_github" = 1 ]; then
   # The worktree: detached at the commit, so it can exist while another worktree has `main`
   # checked out. Its line goes on ship's list BEFORE it is made, so a hard kill at any point
   # after leaves a line the next run reports.
-  wt="$(mktemp -d "$tmp_base/ship-worktree.XXXXXX")" || no_temp
-  if wt_real="$(real_dir "$wt")" && [ -n "$wt_real" ]; then wt="$wt_real"; fi
   my_line="$(printf '%s\t%s\t%s' "$wt" "$$" "$my_start")"
   printf '%s\n' "$my_line" >> "$list"
-  # Made without a checkout, then filled by a reset: that way git runs no post-checkout hook.
-  # The clone's shared hooks setting may name another session's folder, and a hook there could
-  # install packages and so rewrite that very setting.
-  wt_ok=0
-  if git worktree add -q --detach --no-checkout "$wt" "$id"; then
-    wt_added=1
-    if git -C "$wt" reset -q --hard; then wt_ok=1; fi
-  fi
+  # The hooks folder is pinned, for this one command, to one that does not exist, so making the
+  # worktree runs no hook (git would run post-checkout, post-index-change and
+  # reference-transaction): the clone's shared setting may name another session's folder, and a
+  # hook there could install packages and so rewrite that very setting.
+  if git -c core.hooksPath="$wt/.ship-no-hooks" worktree add -q --detach "$wt" "$id"; then wt_added=1; else wt_added=0; fi
   stop_point "Nothing was published and $here."
-  if [ "$wt_ok" = 0 ]; then
+  if [ "$wt_added" = 0 ]; then
     echo ""
-    echo "✗ Publish stopped — couldn't make the temporary copy (git worktree add, or filling it;"
-    echo "  git's error is above). Nothing was published and $here."
+    echo "✗ Publish stopped — couldn't make the temporary copy (git worktree add; git's error is above)."
+    echo "  Nothing was published and $here."
     exit 1
   fi
   # What stays behind: read with git's optional locks off, because plain `git status` rewrites
@@ -589,6 +631,7 @@ fi
 # temp filesystem) turn a push that went out into "nothing was published". An empty or missing
 # status (an interrupt ended the step before it wrote one, or the disk is full) is never read as
 # a success, nor as "nothing was published".
+stop_point "Nothing was published and $here."   # the last look before anything leaves this computer
 push_tries=2
 kind=""
 for attempt in $(seq 1 "$push_tries"); do

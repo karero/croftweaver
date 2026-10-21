@@ -162,7 +162,7 @@ applies there; instead of steps 2 to 4, only this:
   folder's unsaved files (for a folder that several people or assistants share; see
   `PUBLISHING.md`, "On a shared computer"). With it on, an edit that is only in this
   folder never goes live, so whether to switch it on is the owner's call: do not switch
-  it on or off unasked. `git config --get ship.fromGitHub` shows whether it is on.
+  it on or off unasked. `git config --local --get ship.fromGitHub` shows whether it is on.
 
   **Single-stage (merge = online).** Cloudflare rebuilds the live site from `main`
   after every merge (takes a few minutes). Whether the new state is there is shown by
