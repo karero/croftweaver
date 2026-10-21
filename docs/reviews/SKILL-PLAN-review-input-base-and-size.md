@@ -10,7 +10,7 @@ plan and land one after the other.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written | this file |
-| 2 | PLAN gate (Normal: review tooling is never Light) | ⏸ | — |
+| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ⏸ | — |
 | 3 | The maintainer's go, and the answers under "Open" | ⏸ | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ⏸ | — |
 | 5 | Change 2, step 0: the probes below | ⏸ | — |
