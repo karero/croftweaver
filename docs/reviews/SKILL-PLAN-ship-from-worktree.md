@@ -7,7 +7,7 @@ go. Where this plan and the shipped files disagree, the files win.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-20 | this file |
-| 2 | Plan review gate, then red team | ⏸ | — |
+| 2 | Plan review gate (High depth: deploy code that deletes folders), then red team | ▶ round 1 | — |
 | 3 | Template change (D3.1) | ⏸ | — |
 | 4 | The three site copies (D3.2 to D3.4) | ⏸ | — |
 
@@ -37,8 +37,12 @@ commit that goes live, and the shared folder is neither read nor changed.
   folder's edited copy. Pushing a commit id to `refs/heads/production` works.
 - Removing a worktree holding untracked files (packages, build output) needs the force
   option. A worktree whose folder has vanished is listed as prunable; pruning drops it.
-- bash runs the exit trap on interrupt, terminate and hang-up, in 3.2 and 5.3. Only a hard
-  kill or a power cut skips it.
+- bash ran the exit trap on interrupt, terminate and hang-up, in 3.2 and 5.3, and skipped
+  it after `exec`. A hard kill or a power cut skips it too.
+- From a linked worktree, git hands the pre-push hook `GIT_DIR` set to that worktree's git
+  folder (from the primary checkout, none). A gate step that runs git in a scratch repo would
+  then hit the site instead. None does today: in the template and the three sites, gate
+  steps call git only to read the current commit or to set the hooks path.
 - A fresh install of the template's packages took 4.6 s with a warm npm cache (286 packages).
 - The template's test server never reuses a server already on its port, so a dev server
   left running elsewhere cannot answer the gate's tests.
@@ -47,8 +51,8 @@ commit that goes live, and the shared folder is neither read nor changed.
 
 **D1. Who gets it, and what happens to uncommitted files.** The script cannot tell whose
 files are in the folder; only the person running it knows. So the mode is opt-in, through a
-per-checkout git setting (name to be fixed, e.g. `ship.fromGitHub`), set once on a shared
-machine. It lives in the local git config, never in the repo, so a fresh clone (a beginner,
+per-checkout git setting, `ship.fromGitHub`, set once on a shared machine; there is no
+per-run switch (decided 2026-10-21, below). It lives in the local git config, never in the repo, so a fresh clone (a beginner,
 a new owner) keeps today's behaviour, block included: "I edited a page and forgot to
 commit" still stops the publish with today's message, which does not mention the setting.
 
@@ -90,8 +94,9 @@ today; of the changes below, only the switch to the commit id applies.
   prefix, the process id, a random tail. At start the script lists the repo's worktrees and
   touches only those matching that name under the temp folder. If the process it names is alive,
   another publish is running: stop, nothing published. If not, it is a leftover: remove it
-  and say so. If its folder is gone: prune. (Pruning drops every record whose folder is
-  gone, as git's own housekeeping later would; such a record holds no files.) A reused
+  and say so. If its folder is gone: prune. (Pruning drops every unlocked record whose
+  folder is gone, not only ours; git's own housekeeping does the same once such a record is
+  three months old, and a record without its folder holds no files.) A reused
   process id makes a leftover look alive; the message names the folder and how to remove it
   by hand, so the error is on the side of not publishing.
 - One exit trap removes the worktree (forced, run from the starting folder) and the scratch
@@ -142,14 +147,16 @@ gate, with only npm, curl and sleep stubbed. It starts the real `ship.sh` the wa
 `npm run ship` does and asserts production's commit, the printed lists, the folder's branch
 and status, and the worktree list, for S2, S4, S6, S7 (a second clone moves production from
 inside the gate), S8 (a registered worktree with a dead process id), S10 (an interrupt sent
-mid-gate), S11 and S13. It first clears the repository variables git sets for hooks:
-running inside a real pre-push hook, an inherited one would aim its git calls at the real
-site. Each new case must fail once on a deliberate break before it counts. S12 is tested in
+mid-gate), S11 and S13. It first clears the repository variables git hands a hook (from a
+linked worktree, `GIT_DIR`, as checked above): inherited, they would aim its git calls at
+the real site. Each new case must fail once on a deliberate break before it counts. S12 is tested in
 Site B's own copy.
 
-## Open for the maintainer
+## Decided by the maintainer, 2026-10-21
 
-- O1. The setting's name, and whether a per-run flag should exist as well (plan: setting only).
-- O2. With the setting on, should uncommitted changes to page content still block, as the
-  nearest sign of a forgotten edit? Plan: no; other sessions edit pages too.
-- O3. Port Site C now, or leave it on 0.20 until it next needs a change.
+- O1. A saved setting only, no per-run switch: a switch is one more path to test, and a
+  helper could use it to get past a beginner's block.
+- O2. With the setting on, unsaved page edits do not block; they are listed like any other
+  file. The script cannot tell one session's page edit from another's.
+- O3. Site C is ported right after Sites A and B, not left on 0.20: left, it keeps today's
+  block.
