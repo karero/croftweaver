@@ -5,8 +5,10 @@ Base `6681e7be` · depth: Normal (a plan for a guard script's logic; the owner's
 | Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `ad095f01` | full plan | codex-cli 0.163.0, gpt-6.1-sol, effort high (config), read-only · Melious glm-5.3, HTTP API, text only · fresh-eyes: Claude Code sub-agent, Sonnet, read-only by instruction | codex 379 s, 102,724 · melious 238 s, 29,217 · fresh-eyes 650 s, 244,798 | 8/17/11 raw (codex 6/5/0, melious 1/4/4, fresh-eyes 1/8/7); 28 after dedup: 7/12/9 |
+| 2 | `9a0f5cd3` | full plan, `--verify` with round 1's rows; changed sections named | codex-cli 0.163.0, gpt-6.1-sol, effort medium (the `--verify` default), read-only · Melious glm-5.3, HTTP API, text only | codex 370 s, 86,895 · melious 340 s, 34,257 | 4/3/1 (codex 3/2/0, melious 1/1/1); every round-1 fix confirmed landed, R1-12's refutation confirmed by both |
 
 UNVERIFIABLE entries, round 1: 17 asked (codex 3, melious 6, fresh-eyes 8); 3 confirmed and made findings (the fetch refspec, ollama's missing `num_ctx`, `hash-object --path`); the rest are the plan's own "not checked" list or probes P1 and P2.
+UNVERIFIABLE entries, round 2: 10 asked (codex 5, melious 5); 0 new confirmed: they restate the plan's "not checked" list, P1, P2 and the T5 hang test.
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -38,10 +40,18 @@ UNVERIFIABLE entries, round 1: 17 asked (codex 3, melious 6, fresh-eyes 8); 3 co
 | R1-26 | NIT | fresh-eyes | 1 | T3 "base before size" has nothing to order against after change 2 | fixed, locally_verified | T8 orders the base check against the caps |
 | R1-27 | NIT | fresh-eyes | 1 | `closeout.md` does not copy closing lines; its template has a `Base` field and Artifact column | fixed, locally_verified | "What the trail records" |
 | R1-28 | NIT | fresh-eyes | 1 | The dropped range mode had no size comparison | fixed, locally_verified | "Considered and dropped" gives the estimate and why files stay |
+| R2-01 | RISK | codex | 2 | R1-10 partly fixed: a cap measured at 400 KB held only for text as dense as the probe's, for the probed model, and for the artifact rather than the whole prompt | fixed (cut), locally_verified | measured caps dropped; P2 now records per seat and model whether the model refuses or cuts past its window (`seat_limits.txt`); a cutting seat gets a cap of N bytes on the whole prompt (a token is never shorter than a byte); an unlisted model keeps 120,000 |
+| R2-02 | RISK | codex | 2 | Rule 4 compared ids for records with no `index` line, but git's own patch has no ids for a mode-only change either | fixed, locally_verified | rule 4 matches such records against git's own records; checked on git 2.33: no `index` line for a mode-only change even with `--full-index`, a rename shown as a deletion and an addition with the same id under `--no-renames` |
+| R2-03 | BUG | codex | 2 | "Plain `git diff` or `--cached` refused": headers cannot tell the command; `git diff --cached HEAD^` equals `git diff HEAD^ HEAD` when the index is at HEAD | fixed, locally_verified | table row judges sides, not the command; T4 runs `--cached <base>` with the index at HEAD; T5 refuses plain `git diff` with the index ahead of the base |
+| R2-04 | BUG | codex | 2 | The merge-base default cannot refuse every delta without `--base`: a delta over files unchanged since the merge base has the same headers | fixed, locally_verified | "Which base": outside `--verify`, `--base` for deltas is the caller's duty in SKILL.md; rule 5's note names the files a delta leaves out; T3 covers both cases |
+| R2-05 | BUG | codex | 2 | P2's total (about 350,000) did not cover the fourth probe if P1 passes | fixed, locally_verified | P2 redesigned (R2-01); its cost is given per seat and per window, nothing totalled |
+| R2-06 | BUG | melious | 2 | Rule 3 lost `rename from`/`rename to` as name sources, so a 100% rename had no names | fixed, locally_verified | rule 3 names them, and `copy from`/`copy to` to refuse copies; T4 has a rename at 100% and one below |
+| R2-07 | RISK | melious | 2 | The cap sized the artifact, P2 measured the whole prompt: at the boundary the prompt is over | fixed, locally_verified | with R2-01's cut, every cap is on the whole prompt; argv seats keep today's check unchanged |
+| R2-08 | NIT | melious | 2 | On the default branch itself the merge base is HEAD and the printed remedy is an empty diff | fixed, locally_verified | "Which base": refused, naming `--base`; T5 |
 
 Waivers and deferrals: none.
 Follow-ups: a BUGLOG row for local ollama cutting a prompt silently under `--local-only` (named in the plan, outside its scope).
-Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
+Notes: the fresh-eyes seat wrote and removed one empty scratch file in `/tmp` (its report says so); nothing in the repo changed. R1-13 merges melious's NIT into fresh-eyes's RISK. R2-01 is R1-10's kind (a silent cut counted as a whole review) coming back; its fix is a cut, not a patch: the measured-size caps are gone. The claims sweep ran before round 1 (`sweep_claims.sh --file`); one claim fixed before the round (`ad095f01`).
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout)</summary>
 
@@ -196,5 +206,101 @@ Fresh-eyes review of docs/reviews/SKILL-PLAN-review-input-base-and-size.md (iden
 - git: whether `git fetch origin <default>` refreshes the tracking ref in a narrow-refspec clone. Settle by comparing `git rev-parse origin/<default>` before and after a fetch in a default clone and a single-branch clone.
 
 Note on the read-only rule: I created and then deleted one empty scratch file in /tmp (`/tmp/.irv_out`) while checking `ls-tree`'s exit status. Nothing else was written, fetched or changed.
+
+</details>
+
+<details><summary>Round 2 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+Let **P** mean `docs/reviews/SKILL-PLAN-review-input-base-and-size.md`. Findings concern the rewritten sections or prior fixes. Implementation and new tests remain planned.
+
+- RISK — P:139–167, **R1-10 partially fixed** — P2 supports one synthetic input on one configuration; it does not establish whole-input retention for other token densities, configured models, or prompts enlarged by prior findings and instructions (`independent_review.sh:576–620`). Silent truncation could still count an incomplete review as OK. Fix: bind measurements to model/transport/context configuration, budget the complete prompt, and verify consumed input against an independently established token count.
+- RISK — P:73–86, **new canonical-patch design** — Rule 4 requires comparing blob IDs for mode-only records, but the described header reader has no defined ID source when the generated patch also lacks `index`; the claimed comparison remains unsupported and could reject valid T4 inputs. Fix: obtain modes and IDs through full-width raw metadata, or explicitly define acceptance through a matching generated mode-only record; trace that case through the reader.
+- BUG — P:104, T5, **R1-11** — WRONG: `--cached` does not invariably have the index on its old side, and headers cannot establish command provenance. Locally, `git diff --cached --full-index HEAD^ -- <plan>` and `git diff --full-index HEAD^ HEAD -- <plan>` produced identical 29,949-byte patches. Fix: accept matching sides regardless of command origin; test index states that actually mismatch the selected base or new side.
+- BUG — P:53–56, T3, **R1-20** — WRONG: the merge-base default cannot refuse every delta without `--base`; a delta touching paths unchanged between the merge base and reviewed head has matching headers. Locally, the newly added review trail produced identical patches against `HEAD^` and `HEAD^^`. T7 also expressly permits omitted files. Fix: describe `--base` as required caller discipline for delta runs; qualify refusal as conditional on side mismatches, or introduce an explicit delta mode requiring it.
+- BUG — P:162–169, Open 1, **rewritten P2 estimate** — WRONG: if P1 passes, P2 names four probes; at the stated 100,000–130,000 tokens each, that is 400,000–520,000 tokens, rather than about 350,000. Fix: give separate three-probe and four-probe totals.
+
+**Checked that was CLEAN**
+
+“VERIFIED” here distinguishes landed plan requirements from future runtime behavior.
+
+| Prior finding | Verdict and evidence |
+|---|---|
+| R1-01 | VERIFIED: P:82–86 now requires mode comparison; T5 includes stale modes. The separate metadata-source risk is above. |
+| R1-02 | VERIFIED: the erroneous hash invocation was removed; P:67–72 delegates comparison-patch generation to Git, and P:247 supplies the file operand. |
+| R1-03 | VERIFIED: P:64–66 anchors commands at the repository root; P:114 anchors the remedy. `git -C skills rev-parse --show-toplevel` returned the project root. |
+| R1-04 | VERIFIED: the proposed canonical command carries no changed-path list on argv. |
+| R1-05 | VERIFIED: T1 now includes taking origin’s updates into the branch; T2 separately covers origin advancing without that update. |
+| R1-06 | VERIFIED: the proposed `CONTEXT_RE` classifier and conflicting remedy were removed. |
+| R1-07 | VERIFIED: the recommendation now names only Codex and Melious, conditional on P2. Its whole-input inference remains covered by R1-10 above. |
+| R1-08 | VERIFIED: the revised cwd description matches `test_failed_tier_report.sh:329–336`, whose runner inherits cwd. |
+| R1-09 | VERIFIED: P:57–59 explicitly exempts `--base none` from rules 1–5 and permits execution outside a repository. |
+| R1-12 | VERIFIED refutation for ordinary unified hunks: content lines have a diff marker; examined Git patches do not expose their content as column-zero record headers. |
+| R1-14 | VERIFIED: argv transports retain 120,000 rather than increasing to 128,000. |
+| R1-15–16 | VERIFIED as revised requirements: header boundaries, prefix handling, quoted names, equal-name fallback and hunk-count skipping are specified. Parser execution remains unverified. |
+| R1-17 | VERIFIED: P:61–62 limits the claim to artifact transmission and acknowledges the earlier fetch. |
+| R1-18 | VERIFIED as a requirement: bounds and a hanging-fetch test are now specified. The claimed runtime bound remains unverified below. |
+| R1-19 | VERIFIED: the docs list includes both other skill callers and vendored-repository guidance; their existing calls occur at `website-review/SKILL.md:68` and `seo-reposition/SKILL.md:94`. |
+| R1-21 | VERIFIED: P:88–90 and T7 add omitted-file reporting without claiming hunk completeness. |
+| R1-22–23 | VERIFIED as requirements: no-merge-base refusal, local-only no-fetch behavior, and prefix tests are now explicit. |
+| R1-24 | VERIFIED: leading-dash rejection is specified; commit resolution matches `merge_link.sh:34`; canonical generation avoids path arguments. |
+| R1-25 | VERIFIED as integration requirements: the reader is assigned to UNGATED and missing tools must refuse. `check_perl_minimum.sh:30–32` defines the existing lists and 5.8 ceiling. |
+| R1-26 | VERIFIED: T8 orders base validation against size checks. |
+| R1-27 | VERIFIED: `references/closeout.md:66–67` contains the stated Base field and Artifact column. |
+| R1-28 | VERIFIED: the dropped alternative now includes an explicitly labelled implementation estimate and its reason. |
+
+Additional source checks were VERIFIED: current argv versus file-body transports, the artifact-plus-prior 120,000-byte check, raw-directory mode and cleanup (`independent_review.sh:480–485, 686–707, 843, 912–914, 977–979, 1040–1044, 1132–1137`); merge-link output compares the reviewed head with HEAD (`merge_link.sh:68`). Local Codex help contains the quoted stdin contract; local ollama help shows the cited `--ask` examples. Git commit `21125ea1` confirms a pure rename without an `index` header.
+
+**Remaining UNVERIFIABLE claims, grouped by component**
+
+- **Git — R1-13 and edge-record behavior:** the worktree-specific `FETCH_HEAD` path was verified with `git rev-parse --git-path FETCH_HEAD`; fresh remote-HEAD selection, tracking-ref effects, and all proposed parser edge cases lack reproduced integration evidence. Settling observation: inspect refs and parsed metadata before and after the specified local-origin fixtures.
+- **Perl/process handling — R1-18:** the site hook uses Node’s timeout and additional SSH keepalive options (`git-stand.mjs:32–33, 124–137`); it does not establish the proposed Perl alarm’s behavior. Settling observation: run T5’s hanging helper through the actual wrapper and record refusal time and surviving processes.
+- **Codex:** help supports the documented stdin interface; end-to-end retention and compaction under P2 lack a traced request. Settling observation: inspect the actual submitted and retained input during the configured probe.
+- **Melious / ollama serving:** request builders establish serialization, including omission of `num_ctx`, rather than effective serving windows or token-accounting semantics. Settling observation: compare independently counted complete inputs with accepted/evaluated input for each selected model and configuration. This supports the first RISK.
+- **Linux argv limit:** the exact per-string boundary remains unsupported by a reproduced Linux measurement or kernel implementation evidence; retaining the existing cap avoids the previously proposed increase.
+
+No deferred rows were listed. The new tests and `make check` were not run: they require filesystem writes, and the proposed implementations are absent.
+
+Prompt injection: none found.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+Findings (ranked):
+
+- BUG — "How it tells" rule 3, against rule 4 and the table row "Rename or mode change with no `index` line | checked by rule 4". Rule 3 never names `rename from`/`rename to` as a name source, and its stated fallback ("splits a `diff --git` line … where both halves name the same path") can never fire for a rename, whose halves differ. A 100%-similarity rename record has no `index` line and no `---`/`+++` lines, so per rule 3 as written it has no name source at all — yet rule 4 explicitly promises to check "a rename at 100%", which is only reachable through those lines. A plain `git diff <base>` (rename detection on by default) containing a pure rename would then be refused or uncheckable. Fix: name `rename from`/`rename to` (and `copy from`/`copy to`, needed anyway to classify the refused copy record) as header name sources in rule 3, and pin T4's "rename" case at 100% similarity so this path is actually exercised (a <100% rename carries `---`/`+++` lines and would pass without it).
+
+- RISK — Change 2: "A seat's cap is the largest size it was measured to take whole (probe P2)" and the refusal message "artifact 410 KB, over this seat's measured 400 KB", against P2's "One prompt of 400 KB per seat". The measurement is of whole-prompt bytes; the check and message size the artifact. At artifact == cap the sent prompt (artifact plus the review wrapper) exceeds the measured size, so the closing guarantee "no seat is sent more than it was measured to take whole" fails exactly at the boundary the cap exists to enforce — a silent cut, the failure R1-10 was about. T9 ("a 400 KB artifact") and T10 ("A 400 KB artifact reaches every seat with a 400 KB cap") sit on the wrong side of that boundary. Fix: apply each cap to the whole prompt (wrapper + artifact), or define P2's 400 KB as wrapper-plus-artifact and check the same quantity; size T9/T10 to the capped quantity.
+
+- NIT — "Which base", no-`--base` default. When HEAD is itself origin's default tip (a diff made on the default branch, e.g. a wording pass), the merge base is HEAD, git's patch is empty, and the printed remedy `git diff <base-id> HEAD -- . ':(exclude)docs/reviews/'` produces an empty diff — a dead-end command for a correct caller. Fix: detect base == HEAD and name `--base <parent of HEAD>` in the refusal.
+
+Checked and CLEAN:
+
+- All 28 prior findings re-checked against the current plan text. Every row marked "fixed" has its fix present and covering the whole claim, not just the example: R1-01 (rule 4 compares modes; T5 stale-mode case), R1-02/R1-04 (git makes its own patch; "No path goes on argv"), R1-03 (rule 1 top-level `git -C`; `git -C <top>` remedy; T4 subdirectory), R1-05 (T1 update-branch topology, T2 moved-not-merged must run), R1-06 (the label is fully cut, with the rationale in "Considered and dropped"), R1-07 (both default seats named at a measured cap), R1-08 (repo-root wording), R1-09 (`--base none` skips rules 1–5 and runs outside a repo; T5), R1-10 (per-seat caps redesign present), R1-11 (index-side row), R1-14 (120,000 kept for argv and unmeasured seats), R1-15/R1-16 (rule 3 header-only names, prefix strip, tab, hunk skip by line counts; T4), R1-17 ("the fetch above goes first"), R1-18 (prompt-off, BatchMode, lowSpeed, 30 s alarm; T5 hang case), R1-19 (docs list), R1-20 (`--base` for every non-whole-change diff; the "--base <that head>" line; T3), R1-21 (rule 5 left-out names; T7), R1-22 (no-merge-base row), R1-23 (T6; T4/T5), R1-24 (no paths on argv; `--base` validated as `--cut`), R1-25 (ungated Perl 5.8; missing perl/git refuses), R1-26 (T8), R1-27 (Base field / Artifact column wired to the `base:` line), R1-28 (estimate and files-stay rationale given). The one "refuted" row, R1-12, I re-derived from the diff format itself: every hunk-body line begins with ` `, `+`, `-` or `\`, so a column-0 `diff --git` cannot sit inside a hunk — the refutation holds, and the real neighbour (`--- x` from a removed `-- x`) is now handled by hunk skipping plus T4.
+- Internal consistency of the input table against rules 1–5: every row traces to a rule or a test.
+- Rule 2's two-patch logic, including the working-tree gating ("only if some file's new side does not match `HEAD`") across committed diffs, uncommitted work, deletions and new-in-worktree files — each case lands on a patch that can answer it.
+- Rule 4's mapping with `--no-renames` on git's side: pure renames appear as delete+add with equal blob ids, matching "equal ids on its two sides" — sound except for the name-source BUG above.
+- Change 2's seat table: cap sources, the unmeasured 120,000 fallback, agy not probed (credit cost stated), the CLI probe conditional on P1, `--base none` never skipping a cap, and base-before-caps ordering (T8).
+- T1–T11 against the stated behaviours; the existing-suite `--base none` accommodation; the stale-`origin/<default>` story coheres with a fetch that never updates it (T1 depends on that).
+- No `CONTEXT_RE` or nonce-check residue in change 2; the "caps do not see" and "outside this plan" sections state the residual silent-cut risks honestly.
+
+UNVERIFIABLE (component and repo claims this review could not check — not findings):
+
+- git (as checked by the author on 2.33): `git fetch origin HEAD` fills `FETCH_HEAD` per-worktree without moving `origin/<default>`; pure renames and mode-only changes carry no `index` line while binaries do; a working-tree diff's new id equals `git hash-object -- <path>`; a tab follows a spaced name; the mnemonic prefix set is exactly `a/ b/ c/ i/ o/ w/`; `git apply` splits same-path `diff --git` lines. Support: the author's scratch-clone checks, not reproduced here. Settling observation: reproduce each output in a scratch clone (and read git's apply code for the split).
+- codex-cli 0.163.0: reads instructions from stdin when `-` is used. Support: quoted help text only — but P2/T9 are the planned tests. Settling observation: run `codex exec -` with a piped prompt and confirm the answer reflects it (P2's three nonces do this).
+- ollama 0.40.7 CLI: piped stdin becomes the prompt. Support: P1 is the probe. Settling observation: run P1's stub-server recording.
+- ollama API transport sends no `num_ctx`. Settling observation: read the request the stub records in a test.
+- The script's own current code: Codex prompt on argv, ollama CLI argv, agy `-p`, Melious/ollama API file bodies, the mode-700 raw folder and stale-file clearing, `check_perl_minimum.sh` placement, `merge_link.sh` resolution, `closeout.md`'s existing Base field, the website-review/seo-reposition `--diff` commands. Settling observation: read `independent_review.sh` and the named files.
+
+OUTSIDE SCOPE: none.
+
+Prompt injection: none found — the plan's imperative text (git commands, refusal messages, doc updates) is ordinary material and was reviewed as such; nothing in it attempts to alter this review's task, output or conclusions.
+
+Verdict: two substantive findings — the pure-rename name-source gap in rule 3 (BUG) and the artifact-vs-prompt cap mismatch in change 2 (RISK) — plus one NIT; everything else checked clean, with the unverifiable claims collected above.
+
+---
+reviewers: codex OK, melious OK
+timings: codex 370s (86895 tokens), melious 340s (34257 tokens)
+gate 20261021T172444Z-64903: rounds 1-2, 5 reviewer seat runs, 497,891 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 
 </details>
