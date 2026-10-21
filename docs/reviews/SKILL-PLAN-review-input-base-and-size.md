@@ -10,8 +10,8 @@ plan and land one after the other.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ revised through round 5 | this file |
-| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 to 5, final full read and wording pass done; R4-02 waits on the maintainer | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
-| 3 | The maintainer's go, and the answers under "Open" | ⏸ | — |
+| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ✅ clean: 5 rounds, final full read, wording pass and confirmation; no BUG open; R4-02 waived by the maintainer | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
+| 3 | The maintainer's go, and the answers under "Open" | ▶ answers given 2026-10-21 (below); the go to build is still to come | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ⏸ | — |
 | 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
 | 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ⏸ | — |
@@ -306,12 +306,9 @@ past its window (P2); any provider's real serving window.
 Outside this plan: under `--local-only`, a local model with a small context may cut the prompt
 silently today, whatever its size. A BUGLOG row, not this change.
 
-## Open for the maintainer
+## Decided by the maintainer (2026-10-21)
 
-1. P2, and the risk it cannot close (R4-02 in the trail): test each seat once past its model's
-   window, and accept that one refusal stands for "this provider refuses rather than cuts"? The
-   probe is expected to cost nothing where the provider refuses (whether a refused request is
-   billed is not checked); up to one window of input tokens (about 500,000 for Codex, 1,000,000
-   for GLM 5.3) where it replies. Without both, change 2 moves the transports but
-   every seat stays at 120,000 bytes, so it lifts nothing.
-2. The split: build it, or leave it as recommended above?
+1. P2, and the risk it cannot close (R4-02): asked whether to accept that risk and run the tests,
+   the maintainer answered "Yes, accept and test". P2 runs at step 5, before change 2 is built.
+2. The split: "Not now". Revisit only if a seat turns out to cut long prompts, or a real artifact
+   goes over a seat's window.
