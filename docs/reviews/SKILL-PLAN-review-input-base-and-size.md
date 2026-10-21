@@ -11,8 +11,8 @@ plan and land one after the other.
 |---|------|-------|----------|
 | 1 | This plan | ✅ revised through round 5 | this file |
 | 2 | PLAN gate (Normal: a plan for a guard script's logic) | ✅ clean: 5 rounds, final full read, wording pass and confirmation; no BUG open; R4-02 waived by the maintainer | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
-| 3 | The maintainer's go, and the answers under "Open" | ▶ answers given 2026-10-21 (below); the go to build is still to come | — |
-| 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ⏸ | — |
+| 3 | The maintainer's go, and the answers under "Open" | ✅ answers given 2026-10-21 (below); go to build change 1 the same day: "yes, build change 1" | — |
+| 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ▶ built on branch `feat/review-base-check`; DIFF gate next | — |
 | 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
 | 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ⏸ | — |
 
@@ -284,8 +284,8 @@ the `base:` line, and "Over 117 KB: split it" replaced by the per-seat rule), st
 verification rounds, merge links, the wording pass and its confirmation) and step 8;
 `references/closeout.md` (the trail's `Base` field and Artifact column, re-gates);
 `skills/website-review/SKILL.md` and `skills/seo-reposition/SKILL.md`, whose `--diff` commands
-gain a sentence on `--base`; and the README, since site repos that vendor this skill may have no
-`origin` and must pass `--base`.
+gain a sentence on `--base`. (Built: the README was left as it is. It lists the skill but shows no
+review command, and site repos that vendor the skill read the command in `website-review`.)
 
 ## Checked here, and not
 

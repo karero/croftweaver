@@ -67,10 +67,12 @@
 # Usage:
 #   independent_review.sh PLAN.md               # type auto-detected: plan
 #   independent_review.sh change.patch --diff   # force diff framing
-#   git diff main...HEAD | independent_review.sh -   # stdin -> auto diff
+#   git diff origin/main...HEAD | independent_review.sh -   # stdin -> auto diff, checked against
+#                                                     # the fetched merge base (BASE CHECK below)
 #   independent_review.sh PLAN.md --with-antigravity  # explicitly spend an Antigravity credit too
 #   git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/' \
-#     | independent_review.sh - --verify prior-findings.md --depth normal --round 2
+#     | independent_review.sh - --verify prior-findings.md --base <last-reviewed-head> \
+#       --depth normal --round 2
 #                                                     # verification round (SKILL.md step 6)
 #   ... --round 4 --earned-by config-advice,zip-names # a round past 3 names every kind of finding
 #                                                     # with a substantive BUG in the round before
@@ -98,6 +100,23 @@
 # line, and the review goes on. Bookkeeping never fails a review. A run with no --round (the
 # wording pass, the final full read) needs neither option. Both options are recorded on every
 # cost-log line of the run.
+# BASE CHECK. Before any reviewer starts and before any of it leaves the machine, a diff is
+# checked against git: every mode and id its headers state must match git's own patch of the same
+# base (perl/diff_headers.pl reads both the same way), with the new sides from HEAD, or else from
+# the working tree. A diff on a stale base, or one made before HEAD moved, is refused (exit 2)
+# with every file that does not match and the command that makes a correct one; so is a diff the
+# check cannot read (colour codes, prefixes other than a/ and b/, a copy record, a combined diff,
+# a format-patch series). Which base:
+#   - no --base: the whole change, from the merge base of HEAD with origin's default branch, which
+#     is fetched first (`git fetch origin HEAD`, bounded by REVIEW_FETCH_TIMEOUT; no prompts). Under
+#     --local-only nothing is fetched and origin/HEAD is used. The base: line then names any
+#     changed file the diff leaves out.
+#   - --base <rev>: any diff that is not the whole change, such as a delta since the last
+#     reviewed head, a merge link or the wording pass. A --verify round on a diff must name it.
+#   - --base none: no check, for a diff not made by git diff in this repository; said so on the
+#     base: line.
+# Every diff run ends with that base: line, beside reviewers: and timings:. Plan:
+# docs/reviews/SKILL-PLAN-review-input-base-and-size.md (change 1).
 # Env:
 #   (codex model + reasoning effort default from ~/.codex/config.toml — daily driver)
 #   CODEX_MODEL    (unset)           ad-hoc codex model override for THIS run only,
@@ -144,6 +163,8 @@
 #                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
 #   WITH_ANTIGRAVITY (0)             set to 1 (or pass --with-antigravity) to include
 #                                    the Antigravity/agy tier for this run. Off by default.
+#   REVIEW_FETCH_TIMEOUT (30)       seconds the base check's fetch of origin's HEAD may take
+#                                    (1-600) before the run is refused; see BASE CHECK.
 #   INDEPENDENT_REVIEW_CHECKS_ONLY (unset)  TEST ONLY (test_round_checks.sh): 1 makes the script
 #                                    stop right after the option and round checks, before any
 #                                    reviewer runs or anything leaves the machine. It says
@@ -155,9 +176,9 @@ set -uo pipefail
 
 # --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity,
 #     --verify <prior-findings file>
-USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--earned-by KIND[,KIND...]] [--cut \"TEXT\"] [--seat codex|ollama|melious|agy]"
+USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--earned-by KIND[,KIND...]] [--cut \"TEXT\"] [--seat codex|ollama|melious|agy] [--base <rev>|none]"
 FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND="" ; SEAT=""
-EARNED_BY="" ; CUT=""
+EARNED_BY="" ; CUT="" ; BASE=""
 while [ $# -gt 0 ]; do
   a="$1"; shift
   case "$a" in
@@ -171,6 +192,12 @@ while [ $# -gt 0 ]; do
                      # head, and this file holds the prior round's findings (SKILL.md step 6)
              [ $# -gt 0 ] && [ -n "$1" ] || { echo "--verify needs the prior-findings file" >&2; echo "$USAGE" >&2; exit 2; }
              VERIFY_FILE="$1"; shift ;;
+    --base)  # the commit a diff starts from, or none to skip the check (BASE CHECK above)
+             [ $# -gt 0 ] && [ -n "$1" ] || { echo "--base needs a revision, or none" >&2; echo "$USAGE" >&2; exit 2; }
+             case "$1" in
+               -*) echo "bad value for --base: \"$1\" starts with '-', which reads as the next flag: name a revision, or none" >&2; echo "$USAGE" >&2; exit 2 ;;
+             esac
+             BASE="$1"; shift ;;
     --seat)  # run this ONE reviewer only (SKILL.md step 6: the wording pass, the final full read)
              [ $# -gt 0 ] || { echo "--seat needs a value" >&2; echo "$USAGE" >&2; exit 2; }
              case "$1" in codex|ollama|melious|agy) SEAT="$1" ;;
@@ -473,6 +500,112 @@ fi
 # when a plan lands with <2 reviewers, whatever the reason.
 if [ "$TYPE" = "plan" ] && [ "$FIRST_SUCCESS" = "1" ]; then
   echo "note: --first-success requested for a plan review — proceeding with 1 reviewer as asked (the default recommendation is 2; override accepted, not blocked)." >&2
+fi
+# BASE CHECK (header). Here: after the artifact is read and its type known, before the size check,
+# any reviewer, or any of the artifact leaving the machine. Only the default base's fetch goes out
+# first, and it sends nothing of the artifact.
+BASE_LINE=""
+base_refuse() {   # <why> [<what to do> ...]: refuse the run before anything is reviewed
+  printf 'Base check: %s\n' "$1" >&2; shift
+  [ $# -eq 0 ] || printf '%s\n' "$@" >&2
+  exit 2
+}
+if [ "$TYPE" != diff ]; then
+  [ -z "$BASE" ] || base_refuse "--base is for a diff, and this run reviews a $TYPE." "Drop --base, or pass --diff if the artifact is a diff."
+elif [ "$BASE" = none ]; then
+  BASE_LINE="base: not checked (--base none)"
+else
+  none_hint="For a diff that did not come from git diff in this repository, pass --base none."
+  [ -n "$BASE" ] || [ -z "$VERIFY_FILE" ] \
+    || base_refuse "a verification round reviews the change since the last reviewed head, so it must name that head." "Pass --base <last-reviewed-head>."
+  command -v git >/dev/null 2>&1 || base_refuse "git not found, so the diff cannot be checked." "$none_hint"
+  command -v perl >/dev/null 2>&1 || { WHY="perl not found, so the diff cannot be checked."; base_refuse "$WHY" "$none_hint"; }
+  top="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -n "$top" ] \
+    || base_refuse "not inside a git work tree, so the diff's paths mean nothing here." "Run from the repository the diff came from. $none_hint"
+  head_id="$(git -C "$top" rev-parse --verify --quiet 'HEAD^{commit}')" \
+    || base_refuse "the repository has no commit at HEAD." "$none_hint"
+  coverage=0
+  if [ -n "$BASE" ]; then
+    base_id="$(git -C "$top" rev-parse --verify --quiet "$BASE^{commit}")" \
+      || base_refuse "--base $BASE is not a commit in this repository." "Name the commit the diff starts from, or none."
+    base_how="--base $BASE"
+  else
+    coverage=1
+    local_tip="$(git -C "$top" rev-parse --verify --quiet 'refs/remotes/origin/HEAD^{commit}')" || local_tip=""
+    local_hint="Or name the base: --base <rev>."
+    if [ -n "$local_tip" ] && local_base="$(git -C "$top" merge-base "$local_tip" HEAD 2>/dev/null)"; then
+      local_hint="To go on with the local origin/HEAD instead: --base $local_base"
+    fi
+    if [ "$LOCAL_ONLY" = 1 ]; then
+      [ -n "$local_tip" ] \
+        || base_refuse "--local-only never fetches, and origin/HEAD is not set here, so the base of the whole change is unknown." "Name it: --base <the merge base of HEAD with the default branch>."
+      tip="$local_tip"
+      base_how="merge base with origin/HEAD $tip, not fetched: --local-only"
+    else
+      fetch_limit="${REVIEW_FETCH_TIMEOUT:-30}"
+      case "$fetch_limit" in
+        ''|*[!0-9]*|0*) base_refuse "REVIEW_FETCH_TIMEOUT=\"$fetch_limit\" is not a whole number of seconds from 1 to 600." ;;
+      esac
+      [ ${#fetch_limit} -le 3 ] && [ "$fetch_limit" -le 600 ] || base_refuse "REVIEW_FETCH_TIMEOUT=\"$fetch_limit\" is over 600 seconds."
+      # Bounded the way the site template's git-stand.mjs bounds its own fetch: no prompts, ssh and
+      # http give up on a dead or stalled connection by themselves, and the whole fetch has a time
+      # limit. GIT_SSH_COMMAND is set only when the person has not chosen an ssh of their own.
+      fetch_err="$(
+        export GIT_TERMINAL_PROMPT=0
+        if [ -z "${GIT_SSH_COMMAND:-}" ] && [ -z "${GIT_SSH:-}" ] && ! git -C "$top" config core.sshCommand >/dev/null 2>&1; then
+          export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=2'
+        fi
+        perl "$PERL_DIR/run_limited.pl" "$fetch_limit" git -C "$top" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 fetch --quiet origin HEAD 2>&1
+      )"; fetch_rc=$?
+      if [ "$fetch_rc" -eq 142 ]; then
+        base_refuse "fetching origin's HEAD did not finish within $fetch_limit seconds, so the base of the whole change is unknown." "$local_hint"
+      elif [ "$fetch_rc" -ne 0 ]; then
+        base_refuse "fetching origin's HEAD failed (exit $fetch_rc), so the base of the whole change is unknown: ${fetch_err##*$'\n'}" "$local_hint"
+      fi
+      tip="$(git -C "$top" rev-parse --verify --quiet 'FETCH_HEAD^{commit}')" \
+        || base_refuse "the fetch left no FETCH_HEAD to read." "$local_hint"
+      base_how="merge base with origin's HEAD $tip, fetched"
+    fi
+    base_id="$(git -C "$top" merge-base "$tip" HEAD 2>/dev/null)" \
+      || base_refuse "HEAD and origin's HEAD ($tip) have no merge base here: a shallow clone, or unrelated histories." "Fetch the history (git fetch --unshallow), or name the base: --base <rev>."
+  fi
+  bc_out="$(printf '%s\n' "$CONTENT" | perl "$PERL_DIR/diff_headers.pl" "$top" "$base_id" "$head_id" "$coverage" 2>&1)"; bc_rc=$?
+  bc_target="" ; bc_left="" ; bc_bad="" ; bc_bad_n=0 ; bc_why="" ; bc_other=""
+  while IFS= read -r bc_line; do
+    case "$bc_line" in
+      target$'\t'*)   bc_target="${bc_line#*$'\t'}" ;;
+      left-out$'\t'*) bc_left="${bc_left:+$bc_left, }${bc_line#*$'\t'}" ;;
+      mismatch$'\t'*) bc_line="${bc_line#*$'\t'}"; bc_bad="$bc_bad  ${bc_line%%$'\t'*}: ${bc_line#*$'\t'}"$'\n'; bc_bad_n=$((bc_bad_n + 1)) ;;
+      refuse$'\t'*|error$'\t'*) bc_why="${bc_line#*$'\t'}" ;;
+      '') ;;
+      *) bc_other="${bc_other:+$bc_other; }$bc_line" ;;
+    esac
+  done <<<"$bc_out"
+  remedy_revs="$base_id HEAD"
+  [ "$bc_target" = "the working tree" ] && remedy_revs="$base_id"
+  remedy="git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --src-prefix=a/ --dst-prefix=b/ $remedy_revs -- . ':(exclude)docs/reviews/'"
+  case $bc_rc in
+    0)
+      BASE_LINE="base: $base_id ($base_how"
+      [ "$bc_target" = "the working tree" ] && BASE_LINE="$BASE_LINE; new sides from the working tree"
+      if [ "$coverage" = 1 ]; then
+        if [ -n "$bc_left" ]; then BASE_LINE="$BASE_LINE; not in this diff: $bc_left"
+        else BASE_LINE="$BASE_LINE; every changed tracked file present"; fi
+      fi
+      BASE_LINE="$BASE_LINE)" ;;
+    1)
+      bc_with="$bc_target"; [ "$bc_with" = HEAD ] && bc_with="HEAD $head_id"
+      base_refuse "$bc_bad_n file side(s) in this diff do not match its base, so it is not reviewed." \
+        "  base: $base_id ($base_how)" "  new sides compared with: $bc_with" "${bc_bad%$'\n'}" \
+        "Make the diff again from that base:" "  $remedy" "For a delta since a reviewed head, pass --base <that head>." ;;
+    3)
+      case "$bc_why" in
+        "no diff --git record"*) base_refuse "this diff cannot be checked: $bc_why." "$none_hint" ;;
+        *) base_refuse "this diff cannot be checked: $bc_why." "Make it with git: $remedy" "$none_hint" ;;
+      esac ;;
+    5) base_refuse "the base is HEAD ($base_id) and the working tree holds no change, so there is nothing to review against it." "Name the base: --base <rev>." ;;
+    *) base_refuse "the check itself failed (exit $bc_rc): ${bc_why:-${bc_other:-no output}}" "$none_hint" ;;
+  esac
 fi
 # argv ceiling: the whole artifact rides inside ONE -p argument. Linux caps a single
 # argv string at 128 KB (MAX_ARG_STRLEN=131072 — hard kernel limit; macOS is laxer,
@@ -1358,6 +1491,8 @@ report_round() {
   # Wall-clock seconds per attempted tier (they overlap in the default parallel run). Recorded
   # in the trail, it is the data for judging what a round costs.
   if [ -n "$TIMINGS" ]; then printf 'timings: %s\n' "$TIMINGS"; printf 'timings: %s\n' "$TIMINGS" >&2; fi
+  # The diff's base (BASE CHECK), so the trail can say which base each round used.
+  if [ -n "$BASE_LINE" ]; then printf '%s\n' "$BASE_LINE"; printf '%s\n' "$BASE_LINE" >&2; fi
   if [ -n "$note" ]; then printf '%s\n' "$note"; printf '%s\n' "$note" >&2; fi
   if [ -n "$capnote" ]; then printf '%s\n' "$capnote"; printf '%s\n' "$capnote" >&2; fi
   # The gate's running total, after this run's seats were logged: the cost so far sits beside

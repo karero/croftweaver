@@ -4,7 +4,8 @@
 # `perlver`): a file whose syntax needs a newer Perl than it declares fails, and so does a file
 # declaring more than its path allows. The programs the HTTP API transports run (GATED) may need up
 # to the version api_tools_ok probes for; the ones that run with no version check (UNGATED: the
-# ollama CLI filter, and readable_tail for any tier's FAILED section) may need no more than 5.8.
+# ollama CLI filter, readable_tail for any tier's FAILED section, and the base check's
+# diff_headers and run_limited) may need no more than 5.8.
 # Every file must be in exactly one list, so a new program has to be placed. Before 2026-10-06 the
 # programs were inline and guarded one construct at a time (no r-flag substitution, no `//` in the
 # CLI filter); the tool checks every construct it knows.
@@ -29,7 +30,7 @@ set -u
 here="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$here/independent_review.sh"; PL="$here/perl"
 GATED="ollama_request.pl ollama_stream.pl melious_key.pl melious_request.pl melious_stream.pl"
-UNGATED="ollama_filter.pl readable_tail.pl"
+UNGATED="ollama_filter.pl readable_tail.pl diff_headers.pl run_limited.pl"
 UNGATED_MAX=5.008
 fails=0
 fail() { echo "FAIL — $*"; fails=$((fails+1)); }

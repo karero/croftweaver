@@ -67,6 +67,10 @@ website content/structure work:
 # independent-review vendored in:
 skills/independent-review/scripts/independent_review.sh <file> --plan --first-success   # or --diff
 ```
+A `--diff` run first checks the diff against git, from the repository it came from: a diff
+`git diff` made from the merge base with the default branch passes as it is; a diff of only some
+commits names its start with `--base <commit>`, and one not made by `git diff` there passes
+`--base none` (independent-review's script header, BASE CHECK).
 `--first-success` stops at the first reviewer that answers (Codex CLI,
 falling back to ollama-cloud) instead of running both — independent-review
 honors this override for plans, it doesn't force the pair. Setup: if
