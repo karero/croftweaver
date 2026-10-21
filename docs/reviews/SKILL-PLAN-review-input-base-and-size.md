@@ -10,7 +10,7 @@ plan and land one after the other.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ revised after round 1 | this file |
-| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 and 2 done (36 and 8 findings) | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
+| 2 | PLAN gate (Normal: a plan for a guard script's logic) | ▶ rounds 1 to 3 done (36, 8 and 9 findings) | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
 | 3 | The maintainer's go, and the answers under "Open" | ⏸ | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ⏸ | — |
 | 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
@@ -26,8 +26,9 @@ On 2026-10-21 two things went wrong with the script's input.
    commits, and the reviewers spent a whole round on them. The script never compares a diff with
    git: the type comes from the flag or the file's extension
    (`case "$FILE" in -|*.diff|*.patch) TYPE="diff"`), and nothing more.
-2. A diff over 117 KB is refused (`CONTENT_BYTES -gt 120000`, exit 2), because the whole prompt
-   rides in one argv argument and Linux caps one at 128 KB. A change that moves many tests then
+2. An artifact over 117 KB is refused: `CONTENT_BYTES`, the artifact plus any prior findings, must
+   be at most 120,000 bytes, or exit 2. The whole prompt, those plus a few KB of instructions,
+   rides in one argv argument, and Linux caps one at 128 KB. A change that moves many tests then
    has to be cut down by hand. Two of the seats never needed the cap: Melious and ollama's API
    transport already send a file body (`curl --data-binary @"$body"`).
 
@@ -57,8 +58,9 @@ exit 2: a flag that does nothing must not pass silently. A value starting with `
   did not change between the merge base and the reviewed head has the same headers either way and
   runs. Rule 5 then names on the `base:` line every changed file it leaves out, so the trail shows
   it was not the whole change.
-- **The merge base is `HEAD`** (a diff made on the default branch itself): refused, since there is
-  nothing to compare against; the message names `--base`.
+- **The merge base is `HEAD`** (a diff made on the default branch itself): git's committed patch
+  is empty, so rule 2 compares with the working tree. If that holds no change either, there is
+  nothing to review: refused, naming `--base`.
 - **`--base none`** skips the whole check, rules 1 to 5 below included, for a diff that did not
   come from `git diff` in this repo (a hand-made patch, `--no-index`, another project's patch). It
   runs anywhere, outside a repo too. The closing lines say `base: not checked (--base none)`.
@@ -80,8 +82,10 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
    between `diff --git` and the record's first `@@` or `Binary files` line: `---` and `+++`,
    `rename from` and `rename to`, `copy from` and `copy to` (read only to refuse it). Each hunk
    is skipped by its line counts, so a removed line `-- x` (shown `--- x`) is never read as a
-   header. It strips git's prefixes (`a/`, `b/`, and the mnemonic `c/`, `i/`, `o/`, `w/`); a diff with other
-   prefixes or none is refused. It unquotes C-quoted names, drops the tab git adds after a name
+   header. It strips exactly one prefix from each name: the one git wrote for that side, read
+   from the record's own `diff --git` line (`a/` and `b/`, or a mnemonic pair from `c/`, `i/`,
+   `o/`, `w/`), so a top-level folder named `w` keeps its name. A diff with other prefixes or none
+   is refused. It unquotes C-quoted names, drops the tab git adds after a name
    with a space, and splits a `diff --git` line with no other name source where both halves name
    the same path, as `git apply` does. It uses Perl 5.8 syntax only, so `check_perl_minimum.sh`
    lists it as ungated; a missing `perl` or `git` refuses the run.
@@ -118,9 +122,10 @@ any reviewer, or any of the artifact leaving the machine (the fetch above goes f
 A refusal exits 2. It names the base (the revision as given, its full id, how it was chosen),
 lists every file that does not match and which side failed ("old side 8352675, the base has
 1592e5c", "no such file at the base"), never cut short, and prints the command that makes a
-correct diff:
-`git -C <top> diff --no-ext-diff --no-color <base-id> HEAD -- . ':(exclude)docs/reviews/'`, with
-the line "for a delta since a reviewed head, pass --base <that head>".
+correct diff in the form the artifact used:
+`git -C <top> diff --no-ext-diff --no-color <base-id> HEAD -- . ':(exclude)docs/reviews/'` for
+committed work, or `<base-id>` alone where its new sides matched the working tree; with the line
+"for a delta since a reviewed head, pass --base <that head>".
 
 **What the trail records.** Every diff run ends with a `base:` line beside `reviewers:` and
 `timings:`, on stdout and stderr: `base: <id> (merge base with origin's HEAD <id>, fetched;
@@ -148,14 +153,15 @@ into each seat. What a seat may be sent depends on what probe P2 found its model
 past its window, recorded per seat and model in a list beside the script (`seat_limits.txt`, read
 like `melious_models.txt`):
 
-- **Refuses** (an error, no review): no cap. A prompt past the window fails loud by itself, with
-  the provider's message in the seat's `FAILED` section, as any failure does today.
-- **Cuts silently at N tokens**: a cap of N bytes on the whole prompt, less the reply room
-  (`MELIOUS_MAX_TOKENS` for Melious) and 1,000 for the chat template's own tokens, checked before
-  sending. A token is never shorter than a byte
-  in a byte-level tokenizer, so N bytes is at most N tokens, whatever the text.
-- **Not measured** (P2 not run, or a model it did not cover, such as a new `CODEX_MODEL`): today's
-  check, artifact plus prior findings at most 120,000 bytes.
+- **Refuses**: the provider answered the probe with an error that names a context or token limit
+  (its text and the date go in the list). No cap: a prompt past the window fails loud by itself,
+  with the provider's message in the seat's `FAILED` section, as any failure does today.
+- **Anything else**: a reply (the provider cut the prompt or took it whole), any other error (quota,
+  sign-in, network, request size), or no probe at all, as for a model P2 did not cover such as a
+  new `CODEX_MODEL`. Today's check: artifact plus prior findings at most 120,000 bytes.
+
+The list is read like `melious_models.txt`: a missing list, or a line the script cannot read,
+leaves every seat at 120,000.
 
 Seats on argv (agy, and the ollama CLI if P1 fails) keep today's 120,000-byte check. A seat over its
 cap is `FAILED` before anything is sent, and the other seats run. A round with fewer than two seats
@@ -163,10 +169,10 @@ is degraded, as today.
 
 | Seat | Prompt travels by | Until P2 | After P2 |
 |---|---|---|---|
-| Codex | stdin: `codex exec … -`, reading the prompt file | 120,000 bytes | as P2 found for the configured model |
-| Melious | file body (no change) | 120,000 bytes | as P2 found for the model |
-| ollama, API | file body (no change) | 120,000 bytes | as P2 found for the model |
-| ollama, CLI | stdin if P1 passes, else argv | 120,000 bytes | stdin: as P2 found; argv: 120,000 |
+| Codex | stdin: `codex exec … -`, reading the prompt file | 120,000 bytes | no cap if its configured model refuses; else 120,000 |
+| Melious | file body (no change) | 120,000 bytes | no cap if the model refuses; else 120,000 |
+| ollama, API | file body (no change) | 120,000 bytes | no cap if the model refuses; else 120,000 |
+| ollama, CLI | stdin if P1 passes, else argv | 120,000 bytes | stdin: as the API; argv: 120,000 |
 | agy (opt-in) | argv (no change) | 120,000 bytes | 120,000 (not probed: a probe spends an Antigravity credit) |
 
 Codex's help (codex-cli 0.163.0), quoted: "If not provided as an argument (or if `-` is used),
@@ -181,21 +187,24 @@ already holding the request bodies) and joins the list of stale files cleared at
 - **P2, the maintainer's call.** One prompt a little past each model's cited window, per seat and
   model in use (Codex's configured model, Melious's GLM 5.3, ollama cloud's GLM 5.3; the ollama
   CLI too if P1 passes), with the reply capped at a few tokens. It is repeated text with a random
-  nonce on its first and last lines. An error is "refuses". A reply is "cuts": its reported prompt
-  token count is the cut point N, and asking for the first-line nonce shows which end was kept.
-  One seat at a time; if one cuts, stop and report before the next. Cost: nothing for a seat that
-  refuses; up to one window of input tokens for a seat that cuts (about 500,000 for Codex's model,
-  1,000,000 for GLM 5.3; cited, not measured).
+  nonce on its first and last lines. Only an error naming a context or token limit counts as
+  "refuses". A reply is recorded for information (its reported prompt tokens, and which nonce it
+  can quote), never as a limit. One seat at a time; if one replies, stop and report before the
+  next. Cost: expected nothing for a seat that refuses (whether a refused request is billed is not
+  checked); up to one window of input tokens for a seat that replies (about 500,000 for Codex's
+  model, 1,000,000 for GLM 5.3; cited, not measured).
 
 **Considered and dropped:** a cap per seat at a size measured to arrive whole (round 2 of this
 plan). It held only for text as dense in tokens as the probe's, for the probed model, and for the
-artifact rather than the whole prompt; the rule above needs none of the three. Also dropped: a
+artifact rather than the whole prompt. Then a cap at the point a cutting provider stops (round 3):
+it rested on two claims nothing here checks, that every seat's tokenizer is byte-level and that a
+reported prompt count is the cut point. The rule above needs neither. Also dropped: a
 label of its own for a length refusal (a `CONTEXT_RE` beside `QUOTA_RE`), since the `FAILED` section
 already quotes the provider's message; and a nonce check in every review, which needs the model to
 cooperate every time, so a forgotten quote would fail a real review.
 
-**What this does not see:** a provider that later starts cutting, or cuts at a smaller window than
-P2 found; and Codex compacting its first message in a run with heavy file reading. P2 can be run
+**What this does not see:** a provider that later starts cutting instead of refusing, and Codex
+compacting its first message in a run with heavy file reading. P2 can be run
 again, and `seat_limits.txt` dates each result.
 
 **The split the maintainer suggested**: give Codex the diff as a file to read from the checkout, and
@@ -207,10 +216,11 @@ GLM only the app code. Weighed:
   tests cannot check them, and tests are where intent lives. Telling app code from tests is a
   per-repo guess about paths.
 - **Recommendation: not now.** If P2 finds that Codex and Melious refuse rather than cut, both
-  default seats take any artifact up to their model's window, and one past it fails loud.
-  Revisit only if a real artifact goes over a seat's limit. If a split is ever built, each seat's
-  section and the `reviewers:` line must say what that seat saw, so a two-seat round is never
-  read as two seats over the whole change.
+  default seats take any artifact up to their model's window, and one past it fails loud. A seat
+  whose model cuts gains nothing from change 2: for that seat the split would be the way past
+  120,000 bytes. Revisit only then, or if a real artifact goes over a seat's window. If a split
+  is ever built, each seat's section and the `reviewers:` line must say what that seat saw, so a
+  two-seat round is never read as two seats over the whole change.
 - **Strongest case against this recommendation.** A model can read a very long prompt less
   carefully than a short one, and round 1 sends the whole change to every seat. Two focused halves
   might find more than one long whole. That is not measured either way.
@@ -236,14 +246,14 @@ is real and local.
 | T1 | Stale base: origin gains commits touching other files, the branch takes them (as the host's update button does), and the diff is made against the old local default branch | exit 2; stderr lists exactly those files and the command; no stub seat ran |
 | T2 | Origin moved on, the branch did not take it, a three-dot diff against the old local branch | runs: the most common case, and the one a wrong check would refuse |
 | T3 | Delta: `git diff A..HEAD` with `--verify prior.md --base A` | runs, `base:` names A. With `--verify` and no `--base`: refused, naming `--base`. A delta with no `--verify` and no `--base`, touching a file the branch changed before A: refused with the "--base <that head>" line; one touching only files unchanged before A: runs, and the `base:` line names the files it leaves out |
-| T4 | Edge records, each from git itself: a rename at 100% and one below, mode change, binary, new, deleted, symlink, a path with a space and one with a tab, a working-tree diff, `git diff --cached <base>` with the index at `HEAD`, one-patch `format-patch`, a removed line `-- x` and an added `++ x`, mnemonic prefixes; and the run started in a subdirectory (a modified and a new file) | each runs |
-| T5 | Refusals: a stale mode change, a hand-made diff, a series, `diff --cc`, a copy record, `--no-prefix`, colour, plain `git diff` with the index ahead of the base, a run on the default branch itself (merge base is `HEAD`), outside a work tree, a shallow clone, a fetch that fails, a fetch that hangs (a stub remote that never answers: refused within the limit), `--base -x`, `--base` on a plan | exit 2, each with its message; `--base none` runs, outside a repo too, and prints `base: not checked` |
+| T4 | Edge records, each from git itself: a rename at 100% and one below, mode change, binary, new, deleted, symlink, a path with a space and one with a tab, a working-tree diff, `git diff --cached <base>` with the index at `HEAD`, one-patch `format-patch`, a removed line `-- x` and an added `++ x`, mnemonic prefixes, a top-level folder named `w`, uncommitted work on the default branch itself; and the run started in a subdirectory (a modified and a new file) | each runs |
+| T5 | Refusals: a stale mode change, a hand-made diff, a series, `diff --cc`, a copy record, `--no-prefix`, colour, plain `git diff` with the index ahead of the base, a run on the default branch itself with a clean working tree (merge base is `HEAD`), outside a work tree, a shallow clone, a fetch that fails, a fetch that hangs (a stub remote that never answers: refused within the limit), `--base -x`, `--base` on a plan | exit 2, each with its message; `--base none` runs, outside a repo too, and prints `base: not checked` |
 | T6 | `--local-only` | no fetch reaches the stub remote; uses `origin/HEAD`, or refuses naming `--base` |
 | T7 | Coverage: a diff of the last commit only, no `--base` | runs; the `base:` line names the files left out |
 | T8 | Base before size: a stale diff over 120,000 bytes, with no seat measured | refused for its base, not its size |
 | T9 | stdin to Codex: the stub asserts its last argument is `-`, that no argument holds `--- BEGIN`, and that stdin carries a 400 KB prompt whole (same bytes, same hash) | passes |
 | T10 | A 400 KB artifact, with every off-argv seat listed "refuses" in the `seat_limits.txt` of a copy of the script: each stub records the whole prompt | `reviewers:` reads OK for each |
-| T11 | Caps: agy, an unlisted model (a new `CODEX_MODEL`), and a seat listed "cuts at N" given a prompt over N bytes | each `FAILED` before sending (its stub never ran); the other seats ran |
+| T11 | Caps: agy, an unlisted model (a new `CODEX_MODEL`), a seat P2 found replying, and a malformed `seat_limits.txt` line, each with a 200 KB artifact | each `FAILED` before sending (its stub never ran); the other seats ran |
 | T12 | A seat listed "refuses" whose stub answers with a length error | `FAILED`, quoting the stub's message, like any failed seat |
 
 The existing cases send a hand-made `change.diff` with no `index` line, from whatever directory
