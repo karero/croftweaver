@@ -160,7 +160,7 @@ You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude pla
 Console/API account).
 
 **The short way.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
-skills (building a site needs Node 22.23.4 or newer; the setup guide has the details). It runs in any
+skills (building a site needs a newer Node; the setup guide says which). It runs in any
 terminal, on Windows too:
 
 ```bash
@@ -309,6 +309,7 @@ download asset and a `SHA256SUMS` file beside it. Underneath, updates stay commi
 Versions step by **0.01** (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
+# Before anything else, look at Node's security releases (the paragraph after this block).
 # First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
 # ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip,
@@ -338,6 +339,31 @@ node packages/create-croftweaver/check-release.mjs
 # installer. npm runs the same check before publishing, except with --ignore-scripts or
 # ignore-scripts=true in an .npmrc: hence running it by hand first.
 (cd packages/create-croftweaver && npm run prepublishOnly && npm publish)
+```
+
+**Node's security releases, before each release.** `make check` has no network, so it cannot know a
+Node release newer than the repo. Before the version bump, look yourself: the commands below print the
+newest security release on each current Node line from Node's own index, what the starter's `engines`
+names, and every place that states one of those versions. A security release newer than the version
+`engines` names for its line means moving `engines` first, then the docs (`make check` names the ones
+it checks), then `EXPECTED_RANGE` in `scripts/test_node_floor.sh`, which pins the range on purpose.
+Run the grep again with each old version after the move, to find a place left behind. Expected hits that
+are not findings: the history rows of `docs/BUGLOG.md`, and `scripts/check_node_floor.sh` and its test,
+which quote versions. The installer's own floor, 22.12, is a different number and is not searched for.
+
+```bash
+curl -s https://nodejs.org/dist/index.json | node -e '
+const seen = {};
+for (const r of JSON.parse(require("fs").readFileSync(0, "utf8"))) {
+  const line = r.version.split(".")[0];
+  if (r.security && Number(line.slice(1)) >= 22 && !seen[line]) seen[line] = r.version + " (" + r.date + ")";
+}
+if (!Object.keys(seen).length) { console.error("no security releases seen: check the index format"); process.exit(1); }
+console.log(seen);'
+node -p 'require("./skills/new-website/templates/astro/package.json").engines.node'
+for v in $(node -p 'require("./skills/new-website/templates/astro/package.json").engines.node.match(/[0-9]+\.[0-9]+\.[0-9]+/g).join(" ")'); do
+  git grep -n -F "$v" -- . ':!docs/reviews' ':!*package-lock.json'
+done
 ```
 
 Zip users download the newest release from the Releases page; clone users keep using
@@ -443,6 +469,8 @@ scripts/
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
   check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
+  check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree (make check)
+  test_node_floor.sh        the Node-floor check goes red for each way the floor can drift (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
@@ -554,7 +582,7 @@ The suite is a handoff artifact, so it must carry **no personal names, contact i
 credentials**.
 
 ```bash
-make check       # PII/secrets + model-agnostic + template coverage + per-skill size budgets
+make check       # PII/secrets + model-agnostic + template coverage + Node floor + per-skill size budgets
 ```
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic

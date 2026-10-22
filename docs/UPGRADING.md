@@ -15,9 +15,8 @@ automatically and don't need this.)
 Tell the site owner what you're about to do and why (a build-tooling version bump, not a
 content or design change), and confirm they want it now rather than later.
 
-Check the computer's Node first: `node --version` must be 22.23.4 or newer, which is the floor
-of the Astro that `^7.4.2` installs. Node's October 2026 security releases are 22.23.4, 24.22.1
-and 26.12.1, one for each line; update Node before the bump when it is older.
+Check the computer's Node first. `node --version` must be 22.23.4 or newer on Node 22, 24.22.1 or newer on Node 24, or 26.12.1 or newer (Node 23 and 25 are not supported).
+SETUP.md has the details; update Node before the bump when it is older.
 
 ## Steps
 

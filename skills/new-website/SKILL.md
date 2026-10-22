@@ -469,9 +469,12 @@ full path (the output of `pwd` inside it):
    intermediate `npm test` fails navigation on the footer link.
    The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
-   bug Q4a exists to catch. **Astro needs Node ≥22.23.4**, and Node's October 2026
-   security fixes are in 22.23.4, 24.22.1 and 26.12.1 (by line) — the overlay's `.nvmrc` pins 24 for
-   local + Cloudflare Pages builds.
+   bug Q4a exists to catch.
+   **This starter needs Node ≥22.23.4**, and Node's current security fixes are in 22.23.4, 24.22.1 and 26.12.1 (one per line).
+   The overlay's `.nvmrc` pins 24 for local + Cloudflare Pages builds. If `npm install` prints
+   `EBADENGINE` for the site's own package (the `name@version` in the site's `package.json`, whatever the
+   owner named it) and `node`, stop and have the owner update Node (SETUP.md) before going on; a warning
+   for another package is not this.
 2. **Permissions + working rules.** Copy the setup guide into the project (all tools), then — **Claude Code
    only** — copy the allowlist so routine `npm`/`astro`/`playwright`/`git commit` calls don't
    prompt (it blocks `rm -rf`, force pushes, `wrangler … delete`, `gh repo delete`: Claude Code
