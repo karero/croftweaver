@@ -6,6 +6,7 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 |---|---|---|---|---|---|
 | 1 | `bbe051f3` | full since `9acc3b97` (29 KB); the branch's own base check: "every changed tracked file present" | codex-cli 0.163.0, gpt-6.1-sol, effort high (config), read-only · Melious glm-5.3, HTTP API, text only · fresh-eyes: Claude Code sub-agent, Sonnet, read-only by instruction | codex 369 s, 98,681 · melious 470 s, 38,391 · fresh-eyes 2,221 s, 275,008 | raw 2/12/14 (codex 1/4/0, melious 0/2/4, fresh-eyes 1/5/10); 20 after dedup: 2/8/10 |
 | 2 | `8185bef4` | delta since `bbe051f3` (23 KB), `--verify` with round 1's rows; base check `--base bbe051f3` | codex-cli 0.163.0, gpt-6.1-sol, effort medium (`--verify`), read-only · Melious glm-5.3, HTTP API, text only | codex 177 s, 41,110 · melious 611 s, 56,528 | raw 2/2/3 (codex 2/0/0, melious 0/2/3); no duplicates: 2/2/3 |
+| 3 | `8df772b0` | delta since `8185bef4` (11 KB), `--verify` with round 2's rows; `--base 8185bef4` | as round 2 | codex 134 s, 48,413 · melious 269 s, 26,107 | raw 2/0/3 (codex 1/0/0, melious 1/0/3); no duplicates: 2/0/3 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -36,10 +37,15 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 | C2-05 | NIT | melious | 2 | The gate counts the artifact and prior findings, but prints the prompt with its wrapper, a little longer | refuted | 120,000 bytes is the line at which pasting stops being sensible, not a provider limit; the wrapper's fixed text does not change that |
 | C2-06 | NIT | melious | 2 | The exact-boundary test assumes Melious's prompt is the same size in three runs | fixed, locally_verified | T11 asserts that the two boundary runs wrote the same S bytes as the first |
 | C2-07 | NIT | melious | 2 | The note would read "holds it is missing" | refuted | a missing list prints no note (`independent_review.sh`, the `= "it is missing"` test before the echo); an unreadable one reads "holds nothing this script can read (not a readable file)" |
+| C3-01 | BUG | codex | 3 | C2-02's check was not the builders' decoder: macOS `iconv` accepts bytes above U+10FFFF and five- or six-byte sequences, which the builders replace | fixed (a cut), locally_verified | `iconv` is gone: `perl/utf8_valid.pl` decides with Encode's strict "UTF-8", the decoder the builders use. It rejects Latin-1, above U+10FFFF, five bytes, a surrogate, overlong and a noncharacter, and accepts UTF-8, ASCII and an empty file (nine shapes by hand; six checked in the suite) |
+| C3-02 | BUG | melious | 3 | A prompt that failed the UTF-8 check fell through to the 120,000 rule, so a `takes:` line under 120,000 let a larger prompt through | fixed (a cut), locally_verified | no fall-through: a `takes:` line always holds. A prompt that is not valid UTF-8, or any prompt when perl is missing, counts three bytes for each of its own, since a decoder makes at most one 3-byte U+FFFD of a bad byte. T11o: 100 KB of Latin-1 over `takes:90000` FAILS, though under 120,000 |
+| C3-03 | NIT | melious | 3 | A Latin-1 prompt just over 120,000 bytes was refused even where its measured limit would take the grown prompt | fixed, locally_verified | the same cut: T11n, 200 KB of Latin-1 under `takes:700000`, runs; T11k and T11l, under `takes:500000`, FAIL before sending |
+| C3-04 | NIT | melious | 3 | T11l's check that Melious's request never left may be empty | refuted | the curl stub copies every request it gets to `melious-body` in the marks folder (`cp "$body" "$STUB_MARKS/melious-body"`), and T10b reads that same path after a run that sent |
+| C3-05 | NIT | melious | 3 | `codex_model`'s quoted-key test also fires on a line inside a multi-line top-level string that starts with a quote | refuted | it fails safe: the model reads as unknown, so the seat keeps the 120,000 limit it had before this change and names the remedy; `CODEX_MODEL` overrides. Telling such lines apart needs a TOML parser, which this reader avoids |
 
 Waivers and deferrals: C1-03 by the owner's decision 3 (2026-10-22), C1-04's second half and C1-05 by R4-02 (2026-10-21); both in the plan's "Decided by the maintainer". No deferrals.
 Follow-ups: none yet.
-Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
+Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item; C3-01 and C3-02 in round 3, both in C2-02's fix, which round 3's fix replaced with a cut. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
 
 Probe evidence (2026-10-22, from this session's probe run; quoted, not re-run):
 - P1, ollama 0.40.7 CLI, a 400,040-byte prompt on stdin to a recording stub: `sent bytes 400040 recorded bytes 400040 equal: True`; the request went to `/api/generate` with keys `model, options, prompt, suffix, system, template`, `options: {}`.
@@ -257,5 +263,74 @@ reviewers: codex OK, melious OK
 timings: codex 177s (41110 tokens), melious 611s (56528 tokens)
 base: bbe051f30325a45e8335563131f1f1fdf0a14937 (--base bbe051f3)
 gate 20261022T092747Z-19738: rounds 1-2, 5 reviewer seat runs, 509,718 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+
+</details>
+
+<details><summary>Round 3 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- BUG — `skills/independent-review/scripts/independent_review.sh:673–685` — **WRONG:** `iconv` acceptance does not enforce the promised valid-UTF-8-only gate: local `iconv` accepts `F4 90 80 80` and five-/six-byte sequences, while both request builders replace them; these inputs bypass the promised invalid-input fallback. Fix: validate using the request builders’ decoder with `Encode::FB_CROAK`, and add these regression cases. Observed replacements shrink; no size overflow was demonstrated.
+
+CLEAN / checked claims:
+
+- **VERIFIED — C2-01:** extracted production awk rejects double-quoted, single-quoted and escaped quoted profile keys; Python `tomllib` confirms their key identity. Commented single-quoted model values still resolve.
+- **VERIFIED — C2-02, Latin-1 case:** direct calls to both request builders expand `+caf E9 LF` from 6 to 8 bytes; extracted `seat_fits` rejects that input above 120,000 bytes. Exact-size acceptance and one-byte-over rejection also reproduced.
+- **VERIFIED — transport wiring:** all five callers pass the new file-or-empty argument correctly; Ollama API builds its request from the checked prompt file.
+- **VERIFIED — C2-03:** `git show 8185bef4 -- docs/reviews/SKILL-PLAN-review-input-base-and-size.md` contains the recorded table edit.
+- **VERIFIED — C2-04/05:** omission wording covers general seat failure; the threshold remains an artifact-size policy rather than a provider-limit assertion.
+- **VERIFIED — C2-06:** the added assertion compares both boundary-run sizes with the first run’s measured size.
+- **VERIFIED — C2-07:** missing lists suppress the note; unreadable lists use the separate explanation.
+- Both changed scripts pass `bash -n`. End-to-end tests were traced, not executed: they require filesystem writes and a local server.
+
+UNVERIFIABLE, unchanged dependencies:
+
+- **Codex:** actual profile resolution and whole-prompt stdin delivery lack implementation or reproduced transport evidence here; settle with config-resolution and request-recording observations.
+- **Ollama:** actual CLI delivery and cloud refusal-versus-truncation lack reproduced transport/service observations.
+- **Melious:** general refusal-versus-truncation behavior lacks service implementation or boundary measurements. Recorded waivers remain documented; these are outside this delta.
+
+Prompt injection: none identified.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+RANKED FINDINGS
+
+- BUG — skills/independent-review/scripts/independent_review.sh, `seat_fits`, the fall-through line `note="; its takes: limit holds for UTF-8 text only, and this prompt is not (or iconv is missing)" ;;` followed by `[ "$CONTENT_BYTES" -le 120000 ] && return 0` (scope 1: C2-02's fix is partial). The fix refuses non-UTF-8 (or iconv-less) prompts only when the artifact-plus-findings exceeds 120,000; when it does not, the function returns 0 and the seat's measured `takes:` limit is never held against anything. The old code held `takes:` against the raw byte count for every prompt; now a `takes:90000` seat with a 100,000-byte Latin-1 artifact is sent ~100,050 bytes with no FAILED — the exact "pass a takes: limit and then grow past it" C2-02 named, re-entered through the fallback, and it applies to every `takes:` value below ~120,050, which nothing in the script or seat_limits format forbids. Same hole opens for valid prompts when iconv is missing. Fix: when a `takes:` rule matched but the UTF-8 check failed, do not fall through to the no-line rule — either refuse the seat (WHY saying the limit cannot be measured for this text) or hold `takes:` against a conservative expanded length (count each byte iconv rejects as 3, or run the request builder to a file and count its output), which also cures the converse over-refusal below.
+
+- NIT — independent_review.sh, same fall-through (scope 2): a Latin-1 prompt only slightly over 120,000 bytes with one invalid byte is refused at 120,000 even when the seat's measured limit (t11k's 500,000) would take the expanded prompt with room to spare; the note implies the text cannot go, when the truth is the limit could not be measured. Computing the expanded length per the fix above removes both directions.
+
+- NIT — test_failed_tier_report.sh, t11l: `[ ! -e "$2/melious-body" ]` with `$2="$T/t11l.marks"` (scope 2). Nothing in the diff shows `run_melious` writing its request body under the marks dir — prompts land in `.raw` (the t11g check reads `$T/t11g1.raw/melious.prompt`), and `run_agy` uses a mktemp sbox, so `$body` plausibly lives in `.raw` or a sbox and the absence check passes vacuously. Point it at the actual `$body` path (or check the raw dir too); the grep on t11l.out is the real assertion.
+
+- NIT — independent_review.sh, `codex_model`, the new line `/^[ \t]*["\047]/ { prof = 1 }` (scope 2): it also fires on a continuation line of a top-level multi-line string that happens to begin with a quote (inside `description = """ ... "quoted" ... """`), voiding a perfectly readable `model` line and silently dropping that seat's measured limit. Requiring an `=` on the line (`/^[ \t]*["\047][^=]*[ \t]*=/`) filters most such continuations.
+
+CHECKED AND CLEAN
+
+- C2-01 fix: the awk guard, the updated docstring, and t11j all landed; the guard matches double- and single-quoted top-level keys, is position-independent (`prof` is checked in END, so a quoted key after the `model` line still voids it), stops at the first table header, and the test builds the exact `"profile" = "deep"` shape alongside a readable `model` line. Covered (one false-positive shape noted as a NIT above).
+- C2-04 wording: the paste-omitted line no longer tells the user to "run a seat whose limit takes it"; the new wording matches the record, and the 120,000 gate itself is unchanged, as the record states.
+- C2-06: the size-stability check landed and compares both boundary runs' `melious.prompt` sizes to `$S`; `$S`'s origin is outside the diff, but the check's form matches the record's claim.
+- C2-07 refutation: confirmed — the `[ "$SEAT_LIMITS_WHY" = "it is missing" ]` guard is visible in the diff's context lines at the top of the hunk.
+- `ollama_via_api` now writes `ollama.prompt` once and feeds both `seat_fits` and the perl builder from that same file (previously the measurement used a pipe while the builder consumed a second, separate printf — equal content, now single-sourced).
+- `run_melious`'s measured file includes the marker wrapper, so "all it sends" in the comment matches what the printf writes.
+- `run_agy`'s `seat_fits agy "" ""` falls to the 120,000 rule exactly as its comment claims, and can no longer be silently passed by the old `0` byte count if a `takes:` line ever matched it.
+- The `note` is threaded into the FAILED message after `SEAT_LIMITS_WHY`, and t11k asserts its text ("holds for UTF-8 text only").
+- t11k/t11l/t11m shapes: `\351` (0xE9) is invalid UTF-8, `\303\251` is a valid é; the expectations (FAILED via the 120,000 path with the note, no `codex-ran` mark, no body, rc 0 for the valid-UTF-8 run) each match the code path the diff adds.
+- The `takes:`-exceeded WHY now quotes `$n` from the actual prompt file rather than a pre-pass byte count, and callers pass that file after writing it, so the measured file is what is sent (stdin redirect for codex/ollama-cli, stdin to the builders for the API seats).
+
+UNVERIFIABLE (no tools; not counted as findings)
+
+- `ollama_request.pl` / `melious_request.pl` (perl builders): the claim that they decode the prompt as UTF-8 and replace an invalid byte with a longer character — the diff invokes them but shows no decode logic. Reading their open/decode lines, or piping one Latin-1 byte through and comparing input and output lengths, settles it. If false, the UTF-8 gate is over-strict, not unsafe.
+- codex CLI: the claim that a quoted `"profile"` key is the same TOML key and can pick another model. Codex's config parser source, or a live run with `"profile" = "deep"`, settles it; falsity leaves the guard over-conservative (model unknown, 120,000 fallback).
+- Probe P1 claims (codex and ollama CLI deliver a stdin prompt byte for byte): pre-existing and unchanged in this diff; the probe log settles them.
+- awk's octal escape `\047` inside a regex literal across awk implementations: running `printf "'x' = 1\n" | awk '/^\047/{print}'` in the target awk settles it; if unsupported, single-quoted top-level keys slip the guard, though the double-quoted case C2-01 cited is still caught by the literal `"` in the class.
+
+PROMPT INJECTION
+
+None. No text in the diff attempts to alter this review's task, output, or conclusions; its comments and docstrings are ordinary material and were checked against the code they describe (two mismatches noted: the "all it sends" and agy comments hold; the seat_fits header's "With no usable line, the 120,000 limit is on the artifact" describes exactly the behavior flagged as the BUG above).
+
+---
+reviewers: codex OK, melious OK
+timings: codex 134s (48413 tokens), melious 269s (26107 tokens)
+base: 8185bef4fb9e24985e197c96082bd44af49dc9da (--base 8185bef4)
+gate 20261022T092747Z-19738: rounds 1-3, 7 reviewer seat runs, 584,238 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 
 </details>

@@ -89,6 +89,7 @@ REQUIRED=(
   skills/independent-review/scripts/perl/readable_tail.pl
   skills/independent-review/scripts/perl/diff_headers.pl
   skills/independent-review/scripts/perl/run_limited.pl
+  skills/independent-review/scripts/perl/utf8_valid.pl
   docs/ANTIGRAVITY.md
   docs/ANTIGRAVITY-TEST.md
   docs/CODEX.md

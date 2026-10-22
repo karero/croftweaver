@@ -1621,23 +1621,40 @@ melious $MELIOUS_OK takes:$S$REF
 check "T11: exactly what Melious sends: it runs" has t11g2.out "reviewers: codex OK, melious OK"
 check "T11: ... and all three runs wrote the same $S bytes" \
   sh -c '[ "$(wc -c <"$1" | tr -d " ")" = "$3" ] && [ "$(wc -c <"$2" | tr -d " ")" = "$3" ]' _ "$T/t11g1.raw/melious.prompt" "$T/t11g2.raw/melious.prompt" "$S"
-# A takes: limit holds for valid UTF-8 only: a request builder turns an invalid byte into a longer
-# character, so such a prompt falls back to 120,000 bytes on the artifact. Valid UTF-8 still runs.
+# A request builder replaces a byte that is not valid UTF-8 with a 3-byte U+FFFD, so such a prompt
+# counts three bytes for each of its own against a takes: limit. perl/utf8_valid.pl decides, with
+# the builders' own decoder: each shape below is one a looser check (iconv on macOS) let through.
+for v in 'Latin-1:caf\351' 'above U+10FFFF:\364\220\200\200' 'five bytes:\370\210\200\200\200' \
+         'a surrogate:\355\240\200' 'overlong:\300\257'; do
+  printf "x ${v#*:} y\n" >"$T/u8bad"
+  check "utf8_valid: ${v%%:*} is not valid" sh -c '! perl "$1" "$2"' _ "$HERE/perl/utf8_valid.pl" "$T/u8bad"
+done
+printf 'caf\303\251, \342\202\254 and ASCII\n' >"$T/u8good"; : >"$T/u8empty"
+check "utf8_valid: UTF-8 and empty files are valid" sh -c 'perl "$1" "$2" && perl "$1" "$3"' _ "$HERE/perl/utf8_valid.pl" "$T/u8good" "$T/u8empty"
 { printf 'diff --git a/x b/x\n+caf\351 in Latin-1\n'; cat "$T/big200.diff"; } >"$T/latin1.diff"
 { printf 'diff --git a/x b/x\n+caf\303\251 in UTF-8\n'; cat "$T/big200.diff"; } >"$T/utf8.diff"
 limitcase t11k "codex stub-codex takes:500000$REF
 " "$T/latin1.diff" -- --seat codex
-check "T11: a Latin-1 byte under codex's takes: limit: FAILED at 120,000" has t11k.out "codex FAILED (artifact and prior findings of"
-check "T11: ... saying why its limit did not hold" has t11k.out "holds for UTF-8 text only"
+check "T11: Latin-1, 200 KB, under codex's 500000: three times it is over, FAILED" has t11k.out "codex FAILED (a prompt of"
+check "T11: ... saying the prompt is not valid UTF-8" has t11k.out "is not valid UTF-8"
 check "T11: ... and codex never ran" [ ! -e "$T/t11k.marks/codex-ran" ]
 limitcase t11l "codex stub-codex refuses$REF
 melious $MELIOUS_OK takes:500000$REF
 " "$T/latin1.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
 check "T11: the same for Melious: FAILED, its request never left" \
-  sh -c 'grep -qF "melious FAILED (artifact and prior findings of" "$1" && [ ! -e "$2/melious-body" ]' _ "$T/t11l.out" "$T/t11l.marks"
+  sh -c 'grep -qF "melious FAILED (a prompt of" "$1" && [ ! -e "$2/melious-body" ]' _ "$T/t11l.out" "$T/t11l.marks"
 limitcase t11m "codex stub-codex takes:500000$REF
 " "$T/utf8.diff" -- --seat codex
 check "T11: valid UTF-8 under the same limit runs" rc_is t11m 0
+limitcase t11n "codex stub-codex takes:700000$REF
+" "$T/latin1.diff" -- --seat codex
+check "T11: Latin-1 runs where three times it fits" rc_is t11n 0
+# Under 120,000 bytes the no-line limit is no way round a smaller takes: limit.
+bigdiff 100000 "$T/big100.diff"
+{ printf 'diff --git a/x b/x\n+caf\351 in Latin-1\n'; cat "$T/big100.diff"; } >"$T/latin1-100.diff"
+limitcase t11o "codex stub-codex takes:90000$REF
+" "$T/latin1-100.diff" -- --seat codex
+check "T11: Latin-1, 100 KB, over a takes:90000 line: FAILED, though under 120,000" has t11o.out "codex FAILED (a prompt of"
 # The codex model is read from config.toml strictly: a commented, single-quoted line still reads,
 # and a top-level profile key, which can pick another model, leaves it unknown (120,000 bytes).
 mkdir -p "$T/u3/.codex" "$T/u4/.codex" && : >"$T/u3/.codex/auth.json" && : >"$T/u4/.codex/auth.json"

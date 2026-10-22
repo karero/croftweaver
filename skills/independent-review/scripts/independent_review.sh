@@ -631,7 +631,8 @@ CONTENT_BYTES="$(printf '%s%s' "$CONTENT" "$PRIOR" | wc -c | tr -d ' ')"
 #   <seat> <model> refuses <date> <evidence>        past the model's window the provider refuses
 #                                                   with an error naming the limit: no cap here
 #   <seat> <model> takes:<bytes> <date> <evidence>  it took a prompt of that many bytes whole: a
-#                                                   cap on the whole prompt sent
+#                                                   cap on the whole prompt sent (one not valid
+#                                                   UTF-8 counts three bytes for each)
 # Seats: codex, melious, ollama-cli, ollama-api. A seat and model with no line keeps the 120,000-byte
 # limit on the artifact plus prior findings that every seat had while the prompt rode in one argv
 # argument (Linux caps one at 128 KB); agy, still on argv, always keeps it, and a line for agy or any
@@ -669,29 +670,32 @@ if [ -n "$SEAT_LIMITS_WHY" ]; then
     || echo "note: $SEAT_LIMITS_FILE holds $SEAT_LIMITS_WHY, so every seat keeps the 120,000-byte limit." >&2
 fi
 # seat_fits <seat> <model> <the prompt file it would send, or empty>: may this seat send it? Sets
-# WHY for its FAILED section when not. A takes: line is held against the file's bytes, and only
-# for valid UTF-8: a request builder replaces an invalid byte with a longer character, so such a
-# prompt could grow past the bytes measured. With no usable line, the 120,000 limit is on the
-# artifact plus prior findings (CONTENT_BYTES).
+# WHY for its FAILED section when not. A takes: line is held against the file's bytes when it is
+# valid UTF-8 for the decoder the request builders use (perl/utf8_valid.pl), else against three
+# times them: a decoder replaces a bad byte with at most one 3-byte U+FFFD, so the prompt can grow.
+# With no line, the 120,000 limit is on the artifact plus prior findings (CONTENT_BYTES).
 seat_fits() {
-  local rule="" line n note=""
+  local rule="" line n n3
   while IFS= read -r line; do
     case "$line" in "$1 $2 "*) rule="${line#"$1 $2 "}"; break ;; esac
   done <<<"$SEAT_LIMITS"
   case "$rule" in
     refuses) return 0 ;;
     takes:*)
-      if [ -n "$3" ] && [ -r "$3" ] && command -v iconv >/dev/null 2>&1 \
-         && iconv -f UTF-8 -t UTF-8 <"$3" >/dev/null 2>&1; then
-        n="$(wc -c <"$3" | tr -d ' ')"
+      n="$(wc -c <"$3" | tr -d ' ')"
+      case "$n" in ''|*[!0123456789]*) WHY="could not count the prompt's bytes; nothing was sent"; return 1 ;; esac
+      if command -v perl >/dev/null 2>&1 && perl "$PERL_DIR/utf8_valid.pl" "$3"; then
         [ "$n" -le "${rule#takes:}" ] && return 0
         WHY="a prompt of $n bytes, over the ${rule#takes:} this seat took whole (seat_limits.txt); nothing was sent"
-        return 1
+      else
+        n3=$((3 * n))
+        [ "$n3" -le "${rule#takes:}" ] && return 0
+        WHY="a prompt of $n bytes that is not valid UTF-8 (or perl is missing), so up to $n3 once its bad bytes are replaced, over the ${rule#takes:} this seat took whole (seat_limits.txt); nothing was sent"
       fi
-      note="; its takes: limit holds for UTF-8 text only, and this prompt is not (or iconv is missing)" ;;
+      return 1 ;;
   esac
   [ "$CONTENT_BYTES" -le 120000 ] && return 0
-  WHY="artifact and prior findings of $CONTENT_BYTES bytes, over the 120,000 a seat with no measured limit may take (${2:+$1 $2, }seat_limits.txt${SEAT_LIMITS_WHY:+: $SEAT_LIMITS_WHY}$note); nothing was sent"
+  WHY="artifact and prior findings of $CONTENT_BYTES bytes, over the 120,000 a seat with no measured limit may take (${2:+$1 $2, }seat_limits.txt${SEAT_LIMITS_WHY:+: $SEAT_LIMITS_WHY}); nothing was sent"
   return 1
 }
 

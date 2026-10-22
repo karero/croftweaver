@@ -3,6 +3,7 @@
 #   refuses        past the model's window the provider refuses, with an error naming the limit:
 #                  no cap here, a longer prompt fails loud by itself.
 #   takes:<bytes>  the seat took a prompt of that many bytes whole: a cap on the whole prompt sent.
+#                  A prompt that is not valid UTF-8 counts three bytes for each of its bytes.
 # Seats: codex, melious, ollama-cli, ollama-api. agy, which still takes its prompt in one argv
 # argument, has no line: a line for it, or for any other seat, is one the script cannot read. A
 # seat and model with no line keeps the 120,000-byte limit, and so does every seat if this file is
