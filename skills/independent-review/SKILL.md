@@ -260,10 +260,11 @@ Codex's effort for any run.
    code behaviour, test logic that lets wrong behaviour pass, a requirement or decision someone
    would build from. Not substantive: how a sentence reads when its meaning for a builder is
    unchanged, comments, the review record, test wording or tightening an assertion on a test that
-   already fails on wrong behaviour.
+   already fails on wrong behaviour. Past round 3 the budget also counts **an earning RISK**: an
+   in-scope RISK whose fix changed what runs or what someone acts on (the test above).
 
    **Stop conditions.** (a) Clean — done. **(a2) A round with no BUG and no in-scope RISK that
-   calls for a fix is clean** (refuted findings, waived RISKs, deferred BUGs and follow-ups call
+   calls for a fix changing what runs or what someone acts on is clean** (refuted findings, waived RISKs, deferred BUGs and follow-ups call
    for none): stop; fix or refute its NITs without another round,
    recording fixed NITs as `locally_verified`, "closing edits not externally re-verified". Judge by
    the BUG/RISK series, not the NIT column. (b) The round budget, below. (c) Budget or credits run
@@ -274,25 +275,31 @@ Codex's effort for any run.
 
    **The round budget (6(b)).** Round 1 always runs; rounds 2–3 run when owed (above).
    **After round 3, a round is earned only
-   by the previous round finding a substantive BUG** — however many, rising or falling: a chain of
-   fixes that each expose the next real defect is the gate working, until one kind comes back.
-   Run such a round with `--earned-by <kinds>`: every kind with a substantive BUG in the previous
-   round, comma-separated, each one short name for one invariant in one piece of code
+   by the previous round finding a substantive BUG or an earning RISK** — however many, rising or
+   falling: a chain of fixes that each expose the next real defect is the gate working, until one
+   kind comes back. Fix an earning RISK and run the round; don't put it to the owner. Run such a
+   round with `--earned-by <kinds>`: every kind with a substantive BUG or an earning RISK in the
+   previous round, comma-separated, each one short name for one invariant in one piece of code
    (`config-advice,zip-names`); the script refuses round 4 and later without it. **Cut, don't
    patch:** where a kind earned an earlier round of the gate too, the fix since then must be a
    cut, not another patch: take the feature out, or replace it by a strict rule that accepts only
    the input it names and refuses the rest, with a test that ordinary input still passes.
    Refusing the one input the last BUG used is a patch. Where the cost log can tell, the script
    refuses that round without `--cut "<what was removed or replaced>"`, and logs it; where it
-   cannot, it warns. The owner sees the kinds and cuts in the script's running-total line. A round
-   that finds no substantive BUG ends the rounds: open RISK/NIT go to the owner as ONE decision (fix locally — `locally_verified`, "not
-   externally re-verified" — or waive), and the remaining wording goes to the wording pass.
+   cannot, it warns. The owner sees the kinds and cuts in the script's running-total line. A RISK
+   whose fix leaves the meaning unchanged is wording: fix it like a NIT under (a2). Past round 3, a
+   round with neither a substantive BUG nor an earning RISK ends the rounds: fix or refute its NITs without
+   another round ((a2)), and the remaining wording goes to the wording pass or, where no round had
+   a substantive BUG, to the prose-only re-gate (step 2). Aim to finish by round 5. **Don't ask the
+   owner whether to run the next round** (the owner's rule, 2026-10-22); when a round ends, ask
+   about its findings and the rounds only for what the owner alone gives: a RISK or NIT waiver (for one the host would leave unfixed
+   and cannot refute), a BUG deferral (step 5), a change of scope, and past round 8 the decision below.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
    hold the change — an open BUG is never waived. The same holds whenever the rounds end with a
    confirmed BUG still open (unfixed, or blocked on a missing prerequisite): the gate is blocked
-   until it is fixed and verified, deferred under step 5, or the owner holds the change. Name each round past 3 and the BUG that earned it
-   in the trail. A redesign is a new artifact with a new count; say in the trail which artifact
+   until it is fixed and verified, deferred under step 5, or the owner holds the change. Name each round past 3 and the BUG or RISK that
+   earned it in the trail. A redesign is a new artifact with a new count; say in the trail which artifact
    each round belongs to. Re-gates forced by a moved diff (closeout, clerk item 2), the final full
    read and the wording pass don't count as rounds.
 
@@ -301,12 +308,12 @@ Codex's effort for any run.
    delta, by a reviewer that has not yet reviewed this artifact — preferably another model: another
    ollama cloud model (`OLLAMA_MODEL=<other>:cloud` with `--seat ollama`), Antigravity with the
    owner's OK, or a stronger host-family pass. Delta rounds never look at untouched text again;
-   this pass does. Triage its findings like a round's; a substantive BUG earns a verification round
-   (past round 8, with the owner's OK).
+   this pass does. Triage its findings like a round's; a substantive BUG or an earning RISK earns a
+   verification round (past round 8, with the owner's OK).
 
-   **The wording pass.** After the last round with a substantive BUG (and the final full
-   read, where one runs), whatever changed since — wording, comments, docs prose, the review
-   record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex`, or `--seat ollama`
+   **The wording pass.** In a gate where a round found a substantive BUG, after the rounds end
+   (and the final full read, where one runs), whatever changed since the last round — wording,
+   comments, docs prose, the review record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex`, or `--seat ollama`
    with a `:cloud` tag — a local model never counts), with closeout clerk item 2's prose-only
    scope; a delta sent as a diff names its start with `--base <head>`. Its RISK/NIT are
    follow-ups; a contradiction with the code it describes is fixed. The
@@ -317,7 +324,7 @@ Codex's effort for any run.
    that fix the same way, once; still wrong, it goes to the owner. Only a substantive BUG reopens
    the rounds. There is no second wording pass.
 7. **Convergence check** after every round — not a count's direction (a real fix chain can run
-   flat or noisy; the round budget already follows substantive BUGs): do findings land on new
+   flat or noisy; the round budget already follows substantive BUGs and earning RISKs): do findings land on new
    ground (code the last fixes added, or a named new check, input, path or evidence source — "more
    careful" doesn't count); is anything oscillating? **STOP patching** when a verified fix
    re-breaks something an earlier round fixed (even once); or when MOST of a round's findings
@@ -333,7 +340,9 @@ Codex's effort for any run.
    (the `timings:` line; the host seats' duration and tokens), a diff round's `base:` line, and
    any follow-ups.
    The owner may stop, waive, redirect, or run a manual round (a first-class seat
-   in the trail, not a cross-model one). Never run rounds silently back-to-back. Once the pair and
+   in the trail, not a cross-model one). Never run rounds silently back-to-back. The update is a
+   report, not a question: up to round 8, an owed or earned round runs without waiting for an
+   answer; past round 8, the owner decides each further round (6(b)). Once the pair and
    fresh-eyes have reported, offer — don't run — a `--with-antigravity` round or a stronger
    same-family pass.
 9. **Close out** — read `references/closeout.md`, permission table first, and do both halves:
@@ -382,7 +391,9 @@ pass (tier 3) is the one that uses this block.
 The script then adds one paragraph saying what the reviewer can do: open files
 (`PROMPT_TOOLED`), no tools (`PROMPT_TEXTONLY`), has tools but must not use them (`PROMPT_AGY`;
 see `run_agy`), or unknown (`PROMPT_PORTABLE`). Give the fresh-eyes pass the matching
-paragraph; a read-only sub-agent that can open files gets `PROMPT_TOOLED`'s.
+paragraph; a read-only sub-agent that can open files gets `PROMPT_TOOLED`'s. At a PLAN gate
+the script also adds `PROMPT_PLAN`, on the guards a plan proposes (with `--verify`, only those in
+the sections that changed); give the fresh-eyes pass that paragraph too.
 
 ## Boundaries
 
