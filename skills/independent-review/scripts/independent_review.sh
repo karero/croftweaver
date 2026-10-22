@@ -1390,7 +1390,7 @@ run_melious() {
   # goes on: a hit, and a check that could not run, both refuse, before anything is sent.
   if [ "${melious_rule:-}" = light ]; then
     tt_msg="$(perl "$PERL_DIR/think_tag.pl" "$RAW_DIR/melious.prompt" 2>&1)"; tt_rc=$?
-    tt_msg="$(printf '%s' "$tt_msg" | tr '\n\r' '  ')"   # the status file keeps one line of WHY
+    tt_msg="$(printf '%s' "$tt_msg" | tr '\n\r' '  ' | sed 's/^ *//; s/ *$//')"   # one line, trimmed: the status file keeps one line of WHY
     case $tt_rc in
       1) ;;
       0) WHY="$THINK_TAG_WHY the text holds a think tag and this model was measured skipping the text between such tags, so nothing was sent"; return 1 ;;
