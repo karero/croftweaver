@@ -86,7 +86,8 @@ check "T1 stale base: prints the command for a correct diff" has t1.err "diff --
 check "T1 stale base: no reviewer ran" not_ran t1
 # T8: base before size. The stale diff is over the 120,000-byte check; the base check speaks first.
 check "T8 the stale diff is over 120,000 bytes" [ "$(wc -c <"$T/t1.diff" | tr -d ' ')" -gt 120000 ]
-check "T8 base before size: refused for its base, not its size" lacks t1.err "117 KB"
+check "T8 base before size: refused by the base check" has t1.err "Base check:"
+check "T8 ... before any seat's size limit was reached" sh -c '! grep -q "FAILED" "$1.out" && ! grep -qF "120,000" "$1.err"' _ "$T/t1"
 
 # T2: origin moved on, the branch did not take it; a three-dot diff against the stale local main.
 g "$R/w" checkout -q -b old main && printf 'y two\n' >"$R/w/y" && commit "$R/w" G

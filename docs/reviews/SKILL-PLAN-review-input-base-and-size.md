@@ -186,7 +186,7 @@ on every seat (one letter and a space per token, denser than code or prose):
 | Seat and model | Probe | Result | Rule |
 |---|---|---|---|
 | Codex, the configured model | 1,300,130 bytes | its CLI refused it: "Input exceeds the maximum length of 1048576 characters" (`input_too_large`), before any model | — |
-| Codex, the same | 1,040,130 bytes, about 520,000 tokens, past the advertised 500,000-token window | answered; "tokens used 522,639", the whole prompt | takes 1,040,000 bytes |
+| Codex, the same | 1,040,130 bytes, about 520,000 tokens: past its 500,000-token default window, inside its 872,000-token maximum (Codex's model cache) | answered; "tokens used 522,639", the whole prompt | takes 1,040,000 bytes |
 | Melious, GLM 5.3 | 2,300,130 bytes, 1,152,340 tokens | HTTP 400 `context_length_exceeded`: over its 1,000,000-token window | refuses |
 | ollama CLI, GLM 5.3 on ollama cloud | the same | "400 Bad Request: The prompt is too long: 1152362, model maximum context length: 1048576" | refuses |
 | ollama API, agy, any other model | not probed | — | 120,000 bytes |

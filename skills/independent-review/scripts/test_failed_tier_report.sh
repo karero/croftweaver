@@ -291,7 +291,7 @@ case "$url" in
               # line, so both must collapse or the text after them reaches column 0
               printf 'upstream\rError: bad gateway\033[1Gfailed' >"$out"; printf 502 ;;
       notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
-      ctx400) # a prompt past the model's window, refused in Melious's words (probe P2, 2026-10-22)
+      ctx400) # a prompt past the model's window, refused in the shape of Melious's reply (probe P2, 2026-10-22; wording shortened)
               printf '%s\n' '{"error":{"message":"This conversation (1,152,340 tokens) exceeds the context window (1,000,000 tokens).","type":"invalid_request_error","param":null,"code":"context_length_exceeded"}}' >"$out"; printf 400 ;;
       html)   printf '%s\n' '<html><body>Sign in to continue</body></html>' >"$out"; printf 200 ;;   # a proxy's page
       keepalive) printf ': PROCESSING\n\n: PROCESSING\n\n' >"$out"; printf 200 ;;   # comments only, then closed
@@ -1549,6 +1549,7 @@ check "T9: a 400 KB artifact runs (exit 0)" rc_is t9 0
 check "T9: codex's last argument is -, and no argument carries the prompt" \
   sh -c 'grep -q "\[-\] cwd=" "$1" && ! grep -qF "<prompt>" "$1"' _ "$T/t9.marks/codex-args"
 check "T9: the prompt came on stdin, the artifact in it whole" whole "$T/big400.diff" "$T/t9.marks/codex-prompt"
+check "T9: ... the very bytes the script wrote, no more and no fewer" cmp -s "$T/t9.raw/codex.prompt" "$T/t9.marks/codex-prompt"
 # T10: every seat off argv, each listed "refuses", gets the 400 KB artifact whole.
 limitcase t10a "codex stub-codex refuses$REF
 ollama-cli $STUB_TAG refuses$REF
@@ -1556,6 +1557,7 @@ ollama-cli $STUB_TAG refuses$REF
 check "T10: codex and the ollama CLI both ran on 400 KB" has t10a.out "reviewers: codex OK, ollama-cloud OK"
 check "T10: the ollama CLI got the prompt on stdin" [ -e "$T/t10a.marks/ollama-stdin" ]
 check "T10: ... the artifact in it whole" whole "$T/big400.diff" "$T/t10a.marks/ollama-prompt"
+check "T10: ... the very bytes the script wrote" cmp -s "$T/t10a.raw/ollama.prompt" "$T/t10a.marks/ollama-prompt"
 limitcase t10b "codex stub-codex refuses$REF
 melious $MELIOUS_OK refuses$REF
 " "$T/big400.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
@@ -1588,6 +1590,46 @@ limitcase t11d "codex stub-codex takes:500000$REF
 ollama-cli $STUB_TAG refuses$REF
 " "$T/big200.diff" --
 check "T11: under its takes: limit the seat runs" has t11d.out "reviewers: codex OK, ollama-cloud OK"
+check "T11: a size FAILED names its remedy" has t11b.out "Split the artifact, or measure this seat's model"
+check "T11: ... and says the seat never started" has t11b.out "The seat never started"
+# Every seat_fits call can fail a test: the ollama API transport and Melious with no line for
+# their model FAIL before sending, and their request never leaves.
+limitcase t11e "codex stub-codex refuses$REF
+" "$T/big200.diff" PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" --
+check "T11: the ollama API transport with no line FAILS before sending" has t11e.out "ollama-cloud FAILED (artifact and prior findings of"
+check "T11: ... curl never ran for it" [ ! -e "$T/t11e.marks/curl-body" ]
+limitcase t11f "codex stub-codex refuses$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: Melious with no line FAILS before sending" has t11f.out "melious FAILED (artifact and prior findings of"
+check "T11: ... its request never left, and ollama stood in" sh -c '[ ! -e "$1/melious-body" ] && grep -qF "ollama-cloud OK" "$2"' _ "$T/t11f.marks" "$T/t11f.out"
+# Melious's limit is held against all it sends, its output-format line included: at a takes: limit
+# one byte short of that it FAILS, at the exact size it runs.
+limitcase t11g0 "codex stub-codex refuses$REF
+melious $MELIOUS_OK refuses$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+S="$(wc -c <"$T/t11g0.raw/melious.prompt" | tr -d ' ')"
+check "T11: the Melious prompt file is all it sends (its request carries it)" \
+  sh -c 'perl -MJSON::PP -0777 -ne "binmode STDOUT, q(:encoding(UTF-8)); print decode_json(\$_)->{messages}[0]{content}" "$1" | cmp -s - "$2"' _ "$T/t11g0.marks/melious-body" "$T/t11g0.raw/melious.prompt"
+limitcase t11g1 "codex stub-codex refuses$REF
+melious $MELIOUS_OK takes:$((S - 1))$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: one byte under what Melious sends: FAILED" has t11g1.out "melious FAILED (a prompt of $S bytes, over the $((S - 1)) this seat took whole"
+limitcase t11g2 "codex stub-codex refuses$REF
+melious $MELIOUS_OK takes:$S$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: exactly what Melious sends: it runs" has t11g2.out "reviewers: codex OK, melious OK"
+# The codex model is read from config.toml strictly: a commented, single-quoted line still reads,
+# and a top-level profile key, which can pick another model, leaves it unknown (120,000 bytes).
+mkdir -p "$T/u3/.codex" "$T/u4/.codex" && : >"$T/u3/.codex/auth.json" && : >"$T/u4/.codex/auth.json"
+printf "  model = 'stub-codex'   # the daily driver\n[profiles.deep]\nmodel = \"other\"\n" >"$T/u3/.codex/config.toml"
+printf 'profile = "deep"\nmodel = "stub-codex"\n[profiles.deep]\nmodel = "other"\n' >"$T/u4/.codex/config.toml"
+limitcase t11h "codex stub-codex refuses$REF
+" "$T/big200.diff" HOME="$T/u3" -- --seat codex
+check "T11: a commented, single-quoted model line reads (its listed limit applies)" rc_is t11h 0
+limitcase t11i "codex stub-codex refuses$REF
+" "$T/big200.diff" HOME="$T/u4" -- --seat codex
+check "T11: a top-level profile key leaves the model unknown: 120,000 bytes" has t11i.out "codex FAILED (artifact and prior findings of"
 # T12: a seat listed "refuses" whose provider refuses for length FAILS, quoting the provider.
 limitcase t12 "codex stub-codex refuses$REF
 melious $MELIOUS_OK refuses$REF
@@ -1603,12 +1645,14 @@ ollama-cli $STUB_TAG refuses$REF
 check "T13: a malformed list: every seat FAILS before sending (exit 4)" rc_is t13 4
 check "T13: ... no stub ran" sh -c '[ ! -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/t13.marks"
 check "T13: ... and the run says why" has t13.err "holds a line it cannot read"
+check "T13: ... and does not print the whole prompt to paste" sh -c 'grep -qF "The paste prompt is not printed" "$1" && ! grep -qF -- "--- BEGIN diff ---" "$1"' _ "$T/t13.out"
 limitcase t13b - "$T/big200.diff" --
 check "T13: no list at all: every seat FAILS before sending (exit 4)" rc_is t13b 4
 limitcase t13c "codex stub-codex takes:12x$REF
 " "$T/big200.diff" --
 check "T13: a byte count the script cannot read leaves every seat at the limit" has t13c.err "a byte count it cannot read"
 check "T13: the real list beside the script reads cleanly" not_in "$T/noround.err" "seat_limits.txt holds"
+check "T13: its Melious line names the id melious_models.txt allows" grep -q "^melious $MELIOUS_OK refuses " "$HERE/seat_limits.txt"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

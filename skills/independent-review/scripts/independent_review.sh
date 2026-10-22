@@ -634,11 +634,16 @@ CONTENT_BYTES="$(printf '%s%s' "$CONTENT" "$PRIOR" | wc -c | tr -d ' ')"
 #                                                   cap on the whole prompt sent
 # Seats: codex, melious, ollama-cli, ollama-api. A seat and model with no line keeps the 120,000-byte
 # limit on the artifact plus prior findings that every seat had while the prompt rode in one argv
-# argument (Linux caps one at 128 KB); agy, still on argv, always keeps it. Read like
-# melious_models.txt: a missing list, or a line this script cannot read, leaves every seat there.
+# argument (Linux caps one at 128 KB); agy, still on argv, always keeps it, and a line for agy or any
+# other seat is one this script cannot read. Strict like melious_models.txt, failing safe the other
+# way: a missing list, or one line this script cannot read, leaves every seat at 120,000.
 SEAT_LIMITS_FILE="$SCRIPT_DIR/seat_limits.txt"
 SEAT_LIMITS="" ; SEAT_LIMITS_WHY=""
-if [ -f "$SEAT_LIMITS_FILE" ] && [ -r "$SEAT_LIMITS_FILE" ]; then
+if [ ! -e "$SEAT_LIMITS_FILE" ]; then
+  SEAT_LIMITS_WHY="it is missing"
+elif [ ! -f "$SEAT_LIMITS_FILE" ] || [ ! -r "$SEAT_LIMITS_FILE" ]; then
+  SEAT_LIMITS_WHY="nothing this script can read (not a readable file)"
+else
   while read -r l_seat l_model l_rule l_rest || [ -n "$l_seat" ]; do
     case "$l_seat" in ''|'#'*) continue ;; esac
     case "$l_seat:$l_rule" in
@@ -652,12 +657,11 @@ if [ -f "$SEAT_LIMITS_FILE" ] && [ -r "$SEAT_LIMITS_FILE" ]; then
                [ ${#l_rule} -le 15 ] || { SEAT_LIMITS_WHY="a byte count it cannot read (\"$l_rule\")"; break; } ;;
     esac
     [ -n "$l_rest" ] || { SEAT_LIMITS_WHY="a line with no date or evidence (\"$l_seat $l_model $l_rule\")"; break; }
-    # The first line for a seat and model decides; a later one cannot change it.
+    # The first well-formed line for a seat and model decides; a later well-formed one cannot change
+    # it (a malformed line anywhere voids the list, above).
     case "$SEAT_LIMITS" in *$'\n'"$l_seat $l_model "*) continue ;; esac
     SEAT_LIMITS="$SEAT_LIMITS"$'\n'"$l_seat $l_model $l_rule"
   done <"$SEAT_LIMITS_FILE"
-else
-  SEAT_LIMITS_WHY="it is missing"
 fi
 if [ -n "$SEAT_LIMITS_WHY" ]; then
   SEAT_LIMITS=""
@@ -665,7 +669,8 @@ if [ -n "$SEAT_LIMITS_WHY" ]; then
     || echo "note: $SEAT_LIMITS_FILE holds $SEAT_LIMITS_WHY, so every seat keeps the 120,000-byte limit." >&2
 fi
 # seat_fits <seat> <model> <bytes of the prompt it would send>: may this seat send it? Sets WHY
-# for its FAILED section when not.
+# for its FAILED section when not. The byte count is held against a takes: line only; with no
+# line, the 120,000 limit is on the artifact plus prior findings (CONTENT_BYTES).
 seat_fits() {
   local rule="" line
   while IFS= read -r line; do
@@ -901,7 +906,7 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status,prompt} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered,prompt} \
-  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full} \
+  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full,prompt} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
 # ollama.hdr and melious.hdr are cleared with the stale files above: earlier versions wrote the API
 # key to them for the request, and a run stopped mid-request could leave one behind. Neither API
@@ -1013,10 +1018,25 @@ looks_like_review() {
 # the prompt (R-PROJCTX). Not adopted:
 # --ignore-rules, which by its help text also drops the user's own .rules, forbidden
 # commands included — those are guards (R-PROJCTX).
-# The model a codex run uses: CODEX_MODEL, else config.toml's first `model =` line.
+# The model a codex run uses: CODEX_MODEL, else config.toml's top-level `model = "<name>"` (single
+# quotes and a trailing comment allowed). Empty where the file cannot say which model runs: no
+# such line, a value it cannot read, or a top-level `profile` key, which can pick another model.
+# Empty matches no seat_limits.txt line, so the seat keeps the 120,000-byte limit.
 codex_model() {
   if [ -n "${CODEX_MODEL:-}" ]; then printf '%s' "$CODEX_MODEL"; return; fi
-  grep -m 1 -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//'
+  [ -r "$HOME/.codex/config.toml" ] || return 0
+  awk -v q="'" '
+    /^[ \t]*\[/ { exit }                      # a table begins: the top-level keys are above it
+    /^[ \t]*profile[ \t]*=/ { prof = 1 }
+    /^[ \t]*model[ \t]*=/ && !seen { seen = 1; line = $0 }
+    END {
+      if (prof || !seen) exit
+      sub(/^[ \t]*model[ \t]*=[ \t]*/, "", line)
+      if (match(line, /^"[^"\\]*"/) || match(line, "^" q "[^" q "]*" q)) {
+        v = substr(line, 2, RLENGTH - 2); rest = substr(line, RLENGTH + 1)
+        if (v != "" && rest ~ /^[ \t]*(#.*)?$/) print v
+      }
+    }' "$HOME/.codex/config.toml" 2>/dev/null
 }
 codex_bin() {
   command -v codex 2>/dev/null && return 0
@@ -1069,7 +1089,7 @@ run_codex() {
   # model_reasoning_effort key, which a bare ^model prefix match also catches —
   # confirmed live in this session's own captured review headers, which were
   # garbled by exactly this ("codex (~/.codex config: <model>\nmodel_rea…").
-  local cfg; cfg="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
+  local cfg; cfg="$(codex_model)"
   printf '## Independent review — codex (%s%s, read-only)\n\n%s\n' "${cfg:-unknown}" \
     "${CODEX_EFFORT_EFFECTIVE:+, effort $CODEX_EFFORT_EFFECTIVE}" "$out"
 }
@@ -1340,10 +1360,11 @@ run_melious() {
   esac
   [ ${#max} -le 7 ] || { echo "MELIOUS_MAX_TOKENS=\"$max\" is implausibly large" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1; }
   url="${url%/}/chat/completions"
-  seat_fits melious "$MELIOUS_MODEL" "$(printf '%s' "$PROMPT_TEXTONLY" | wc -c | tr -d ' ')" || return 1
   local mark; mark="$(melious_marker)"
   printf '%s\n\nOutput format for this reply: put your final answer after a line that holds exactly %s and nothing else, and write nothing after the final answer.\n' \
-    "$PROMPT_TEXTONLY" "$mark" | perl "$PERL_DIR/melious_request.pl" "$MELIOUS_MODEL" "$max" >"$body" || { WHY="could not build the API request"; return 1; }
+    "$PROMPT_TEXTONLY" "$mark" >"$RAW_DIR/melious.prompt" || { WHY="could not write the prompt file"; return 1; }
+  seat_fits melious "$MELIOUS_MODEL" "$(wc -c <"$RAW_DIR/melious.prompt" | tr -d ' ')" || return 1   # all it sends
+  perl "$PERL_DIR/melious_request.pl" "$MELIOUS_MODEL" "$max" <"$RAW_DIR/melious.prompt" >"$body" || { WHY="could not build the API request"; return 1; }
   key="$(melious_key)"
   # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
   code="$(if [ -n "$key" ]; then printf 'Authorization: Bearer %s\n' "$key"; fi \
@@ -1439,7 +1460,7 @@ run_tier() {
 # quoting its error.
 SUMMARY="" ; TIMINGS="" ; WHY="" ; TIER_PRINTED=0
 report_tier() {
-  local label="$1" stem="$2" rc=1 secs="" err="" out="" error_lines="" model="" outcome reason
+  local label="$1" stem="$2" rc=1 secs="" err="" out="" error_lines="" model="" outcome reason sized=0
   WHY="tier did not report (killed or crashed?)" ; TIER_PRINTED=0
   if [ -s "$RAW_DIR/$stem.status" ]; then
     { read -r rc; read -r TIER_PRINTED; read -r secs; IFS= read -r WHY; } <"$RAW_DIR/$stem.status"
@@ -1481,6 +1502,9 @@ report_tier() {
         && grep -qiE "$QUOTA_RE" <<<"$error_lines"; then
       outcome="FAILED (${WHY:-exit $rc}; quota/rate limit: wait or add credits)"
       reason="${WHY:-exit $rc}; the quoted error reads as a quota or rate limit: wait for the limit to reset or add credits. If that line is text from the reviewed artifact rather than the CLI's own error, treat this as a setup failure instead."
+    elif case "$WHY" in *"; nothing was sent") true ;; *) false ;; esac; then
+      outcome="FAILED ($WHY)" ; sized=1   # seat_fits: over this seat's size limit
+      reason="$WHY. Split the artifact, or measure this seat's model (probe P2 in docs/reviews/SKILL-PLAN-review-input-base-and-size.md) and add its line to seat_limits.txt."
     else
       outcome="FAILED (${WHY:-exit $rc})"
       reason="${WHY:-exit $rc}; no quota or rate-limit error recognised below. Read the quoted lines, then check the CLI, its sign-in and the model name."
@@ -1494,7 +1518,9 @@ report_tier() {
     printf '## Independent review — %s — FAILED\n\n' "$label"
     [ -n "$model" ] && printf 'Model: %s\n' "$model"
     printf 'Reason: %s\n' "$reason"
-    if [ -n "$err" ]; then
+    if [ "$sized" = 1 ]; then
+      printf '\nThe seat never started: its size limit is checked before it sends anything.\n'
+    elif [ -n "$err" ]; then
       printf '\nLast lines of its stderr (full file: %s):\n\n' "$RAW_DIR/$stem.err"
       printf '%s\n' "$err" | sed 's/^/    /'
     elif [ -s "$RAW_DIR/$stem.err" ]; then
@@ -1527,7 +1553,7 @@ log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
   local model="" effort="-" oc="${5%% (*}"
   [ -r "$SCRIPT_DIR/review_log.sh" ] || return 0
   case "$2" in
-    codex)  model="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
+    codex)  model="$(codex_model)"
             effort="${CODEX_EFFORT_EFFECTIVE:-config}" ;;
     ollama) model="${OLLAMA_MODEL:-}" ;;
     melious) model="${MELIOUS_MODEL:-}" ;;
@@ -1716,5 +1742,11 @@ EOF
 # skipped tiers (missing CLI/auth) return before writing anything — only ATTEMPTED
 # reviewers leave .out/.err files here.
 printf 'per-tier stderr for attempted reviewers (auth error vs I/O failure): %s\n' "$RAW_DIR" >&2
-printf '%s\n' "$PROMPT_PORTABLE"
+# Over 120,000 bytes the paste prompt is left out: every seat that could take it has failed, and
+# printing it would put the whole artifact in the caller's output.
+if [ "$CONTENT_BYTES" -le 120000 ]; then
+  printf '%s\n' "$PROMPT_PORTABLE"
+else
+  printf '(The paste prompt is not printed: the artifact and prior findings are %s bytes. Split the artifact, or run a seat whose limit takes it.)\n' "$CONTENT_BYTES"
+fi
 exit 4
