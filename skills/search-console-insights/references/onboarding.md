@@ -15,18 +15,16 @@ In 3–4 plain sentences, tell them what they get and why ~10 minutes is worth i
   for (your fastest wins), the pages that get seen but not clicked (a quick title fix),
   and — with a free add-on — who's beating you in the Top 10."*
 - *"It's **read-only** and free. The one-time setup is ~10 minutes — I do most of it;
-  you do three clicks inside Google's console that I'm not allowed to do for you."*
+  you do a few clicks inside Google's console that I'm not allowed to do for you."*
 
 Then ask **"Want to connect it now?"** and only continue on a yes.
 
 ### Step 2 — Check what's already done; ask only for what's missing
 So a returning user is never re-onboarded:
 - token at `~/.config/gsc-insights/token.json` → **already connected**, skip to Step 5.
-  If they don't know whether their app was published, ask them to check the **Publish app**
-  part of step c too.
 - `~/.config/gsc-insights/client_secret.json` exists → creds done; just venv + first run.
-  Still ask them to check the **Publish app** part of step c: the app's **Audience** tab
-  must read **In production**, or the weekly check stops after a week.
+  Still ask them to check the **Publish app** part of Step 3c: the app's **Audience** tab
+  must read **In production** (or **Internal**), or the weekly check stops after a week.
 - venv at `~/.config/gsc-insights/venv` exists → deps done.
 
 ### Step 3 — The human-only steps ( 🧑 **you do this** )
@@ -42,7 +40,8 @@ others, such as **Publish app**, as you meet them):
        as a **Test user** (the "OAuth consent screen" was renamed Google Auth Platform).
        Then, on the same page, **Publish app** → Confirm, so the status reads **In
        production**. Say why: while the app is in "Testing", Google ends the sign-in 7 days
-       after it is given, so the weekly check would stop after its first week.
+       after it is given, so the weekly check would stop after its first week. If the tab
+       already reads **In production** or **Internal**, skip Publish and leave it as it is.
 - 🧑 d. **APIs & Services → Credentials → Create credentials → OAuth client ID →
        Desktop app → Create → Download JSON**.
 - 🧑 e. Tell me where it downloaded (usually `~/Downloads`).
@@ -50,12 +49,14 @@ others, such as **Publish app**, as you meet them):
 ### Step 4 — Your steps ( 🤖 **I do this** )
 - 🤖 Move their JSON to `~/.config/gsc-insights/client_secret.json`.
 - 🤖 Build the venv + install deps (see SKILL.md's "One-time setup").
-- 🤖 Run `gsc_query.py` once — **a browser opens for their single consent click**, then
+- 🤖 Run `gsc_query.py` once — **a browser opens for their consent click**, then
   the token caches and every future run is silent. Google may first warn that it has not
   verified the app: tell them it is their own app, reading only their own Search Console
-  data, and that if the screen offers a way on (expected under **Advanced**), they take it.
-  Neither the screen nor its wording was checked with a first sign-in. If Google blocks the
-  sign-in instead, stop and say so: the app may then need Google's verification.
+  data, and that if the screen offers a way on, they take it. Check first that the screen
+  names their own app and asks only to view Search Console data; if it asks for more, or
+  names another app, stop. Neither the screen nor its wording was checked with a first
+  sign-in. If Google blocks the sign-in instead, stop and say so: the app may then need
+  Google's verification.
 
 ### Step 5 — Confirm the connection in plain words
 After the first successful run: *"✅ Connected — Google confirms you own `<site>`

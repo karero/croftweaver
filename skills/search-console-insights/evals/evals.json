@@ -8,7 +8,7 @@
       "assertions": [
         "Explains the benefit BEFORE asking for setup steps",
         "Asks for confirmation before starting setup",
-        "Checks existing token/creds/venv and skips already-done steps",
+        "Checks existing token/creds/venv and skips already-done steps (except the Publish check)",
         "Flags the human-only Google-console clicks separately from agent steps",
         "References Google Auth Platform → Audience → Test users (not the old 'OAuth consent screen' path)",
         "Has the owner publish the app (In production), so the weekly sign-in does not end after 7 days",
@@ -104,6 +104,7 @@
         "Actually asks whether to schedule weekly auto-tracking for this specific site, not just a passing mention",
         "Does not skip the ask on the reasoning that onboarding already happened previously or that history already exists",
         "Does not auto-install the scheduled job without an explicit yes",
+        "Before the yes, asks the owner to read the Google app's Audience tab: In production or Internal is fine, Testing means publish it and sign in again",
         "Names the site specifically (not a vague 'your sites') when asking"
       ],
       "files": []
