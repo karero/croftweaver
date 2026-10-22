@@ -2,7 +2,8 @@
 #
 # test_failed_tier_report.sh — drives independent_review.sh end to end, the way a
 # caller does (default flags, auto-detected ollama model), with stub `codex` and
-# `ollama` CLIs first on PATH and $HOME relocated. No reviewer is contacted and
+# `ollama` CLIs first on PATH and $HOME relocated. Its diffs are hand-made, so each diff
+# run passes --base none, which skips the base check (test_base_check.sh tests that). No reviewer is contacted and
 # nothing leaves the machine; Antigravity is forced off except in case 23, which
 # turns it on against a stub `agy`.
 #
@@ -202,7 +203,8 @@ while [ $# -gt 0 ]; do
   shift
 done
 printf '%s\n' "$ARGV0" >"$STUB_MARKS/curl-argv-any"
-# Is the key anywhere on disk while the call is in flight (an interrupt here would leave it)?
+# Is the key in the run's raw folder while the call is in flight (an interrupt here would leave
+# it)? Only there: the stub's own capture of the header (curl-hdr, above) is the test's record.
 if [ -n "${STUB_KEY:-}" ] && grep -rqF -- "$STUB_KEY" "$REVIEW_RAW_DIR" 2>/dev/null; then : >"$STUB_MARKS/key-on-disk"; fi
 case "$url" in
   https://api.melious.ai/*|*/chat/completions)   # the Melious seat: an OpenAI-style SSE stream
@@ -345,7 +347,7 @@ not_in() { [ -e "$1" ] && ! grep -qF -- "$2" "$1"; }   # not_in <path> <text>: f
 rc_is() { [ "$(cat "$T/$1.rc")" = "$2" ]; }
 
 # 1. The incident itself: codex answers, ollama-cloud is refused with a 429.
-run incident CODEX_STUB=ok OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+run incident CODEX_STUB=ok OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
 check "incident: exit stays 0 (one gate-eligible reviewer succeeded)" rc_is incident 0
 check "incident: the codex review is still printed" has incident.out "## Independent review — codex (stub-codex, read-only)"
 check "incident: the failed tier gets its own section on stdout" has incident.out "## Independent review — ollama-cloud — FAILED"
@@ -357,7 +359,7 @@ check "incident: a DIFF round with 1 reviewer says so" has incident.out "⚠ DIF
 check "incident: the summary also reaches stderr" has incident.err "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota"
 
 # 2. The normal pair: both reviews, no FAILED section, no degraded note.
-run pair bash "$SCRIPT" "$T/change.diff"
+run pair bash "$SCRIPT" "$T/change.diff" --base none
 check "pair: exit 0" rc_is pair 0
 check "pair: codex section" has pair.out "## Independent review — codex (stub-codex, read-only)"
 check "pair: ollama section, header unchanged" has pair.out "## Independent review — ollama ($STUB_TAG)"
@@ -366,7 +368,7 @@ check "pair: summary lists both OK" has pair.out "reviewers: codex OK, ollama-cl
 check "pair: no fewer-than-2 note" lacks pair.out "fewer than the 2"
 
 # 3. A config failure (bad model tag) is NOT reported as a quota problem.
-run badtag CODEX_STUB=ok OLLAMA_STUB=badtag bash "$SCRIPT" "$T/change.diff"
+run badtag CODEX_STUB=ok OLLAMA_STUB=badtag bash "$SCRIPT" "$T/change.diff" --base none
 check "badtag: FAILED section" has badtag.out "## Independent review — ollama-cloud — FAILED"
 check "badtag: quotes the real error line" has badtag.out "Error: pull model manifest: file does not exist"
 check "badtag: summary says exit 1, not quota" has badtag.out "reviewers: codex OK, ollama-cloud FAILED (exit 1)"
@@ -376,17 +378,17 @@ check "badtag: spinner redraws collapse to one line" [ "$(grep -c 'pulling manif
 # 4. Only error-record lines decide quota: codex echoes the reviewed diff (which
 #    mentions a 429) into stderr before its real, non-quota error — far from it (4)
 #    and right next to it (4b; round-1 review, Codex).
-run codexauth CODEX_STUB=auth bash "$SCRIPT" "$T/change.diff"
+run codexauth CODEX_STUB=auth bash "$SCRIPT" "$T/change.diff" --base none
 check "codexauth: exit 0 (ollama-cloud succeeded)" rc_is codexauth 0
 check "codexauth: codex FAILED section" has codexauth.out "## Independent review — codex — FAILED"
 check "codexauth: quotes the real error" has codexauth.out "not signed in"
 check "codexauth: a 429 in the echoed artifact is not read as quota" has codexauth.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
-run codexshort CODEX_STUB=authshort bash "$SCRIPT" "$T/change.diff"
+run codexshort CODEX_STUB=authshort bash "$SCRIPT" "$T/change.diff" --base none
 check "codexshort: the 429 line sits inside the quoted tail" has codexshort.out "+retry on HTTP 429 Too Many Requests"
 check "codexshort: and still is not read as quota" has codexshort.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
 
 # 5. Nothing succeeds: exit 4, both failures on stdout, paste prompt still printed.
-run none CODEX_STUB=auth OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+run none CODEX_STUB=auth OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
 check "none: exit 4" rc_is none 4
 check "none: codex FAILED section" has none.out "## Independent review — codex — FAILED"
 check "none: ollama FAILED section" has none.out "## Independent review — ollama-cloud — FAILED"
@@ -402,14 +404,14 @@ check "firstplan: summary lists codex only" has firstplan.out "reviewers: codex 
 check "firstplan: note names the deliberate choice" has firstplan.out "⚠ PLAN round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --first-success was requested."
 
 # 7. A local model outside --local-only: its review prints but does not count.
-run local OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff"
+run local OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base none
 check "local: its review is printed" has local.out "## Independent review — ollama (stub-local)"
 check "local: no FAILED section for a policy rejection" lacks local.out "— FAILED"
 check "local: summary says NOT COUNTED" has local.out "reviewers: codex OK, ollama-local NOT COUNTED (local model: sanity pass only)"
 check "local: counts 1 reviewer" has local.out "landed with 1 reviewer(s) counted toward the gate"
 
 # 8. --local-only: the one local reviewer counts (degraded), and is not called external.
-run localonly OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --local-only
+run localonly OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base none --local-only
 check "localonly: exit 0" rc_is localonly 0
 check "localonly: codex never ran" [ ! -e "$T/localonly.marks/codex-ran" ]
 check "localonly: summary" has localonly.out "reviewers: ollama-local OK"
@@ -417,30 +419,30 @@ check "localonly: note names the mode" has localonly.out "landed with 1 reviewer
 check "localonly: not described as external" lacks localonly.out "external reviewer"
 
 # 9. An error printed on STDOUT before a non-zero exit is quoted and classified.
-run out429 CODEX_STUB=ok OLLAMA_STUB=out429 bash "$SCRIPT" "$T/change.diff"
+run out429 CODEX_STUB=ok OLLAMA_STUB=out429 bash "$SCRIPT" "$T/change.diff" --base none
 check "out429: stdout is quoted" has out429.out "    Error: 429 Too Many Requests: weekly usage limit reached"
 check "out429: classified as quota" has out429.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)"
 
 # 10. A named model whose `ollama list` fails (daemon down) is a FAILED tier with its
 #     error, not a silent SKIPPED; with no model named, it is skipped and stderr says why.
-run listfail CODEX_STUB=ok OLLAMA_STUB=listfail OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff"
+run listfail CODEX_STUB=ok OLLAMA_STUB=listfail OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff" --base none
 check "listfail: FAILED section" has listfail.out "## Independent review — ollama-cloud — FAILED"
 check "listfail: quotes the daemon error" has listfail.out "could not connect to ollama app"
 check "listfail: summary names the preflight" has listfail.out "ollama-cloud FAILED ('ollama list' failed (is the ollama daemon running?))"
-run listfailauto CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
+run listfailauto CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff" --base none
 check "listfailauto: skipped, with the startup note on stderr" has listfailauto.err "'ollama list' failed — cannot auto-detect"
 check "listfailauto: summary says SKIPPED" has listfailauto.out "reviewers: codex OK, ollama SKIPPED (not available)"
 check "listfailauto: the note fits a skip, not a failure (round 2, ollama)" has listfailauto.out "the standard pair did not both run"
 check "listfailauto: no pointer to a FAILED section that is not there" lacks listfailauto.out "each FAILED section above"
 
 # 11. Escapes outside the simple ESC[..letter shape are stripped too.
-run oddesc CODEX_STUB=ok OLLAMA_STUB=oddesc bash "$SCRIPT" "$T/change.diff"
+run oddesc CODEX_STUB=ok OLLAMA_STUB=oddesc bash "$SCRIPT" "$T/change.diff" --base none
 check "oddesc: the error text survives" has oddesc.out "    Error: bad model"
 check "oddesc: no escape bytes reach stdout" lacks oddesc.out $'\033'
 check "oddesc: no BEL reaches stdout" lacks oddesc.out $'\007'
 
 # 12. stderr cut mid-glyph (tail -c cuts on bytes) must not kill the quote (round 2, fresh-eyes).
-run utf8cut CODEX_STUB=ok OLLAMA_STUB=utf8cut bash "$SCRIPT" "$T/change.diff"
+run utf8cut CODEX_STUB=ok OLLAMA_STUB=utf8cut bash "$SCRIPT" "$T/change.diff" --base none
 check "utf8cut: the error is still quoted" has utf8cut.out "    Error: 429 Too Many Requests: weekly usage limit reached"
 check "utf8cut: and classified as quota" has utf8cut.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)"
 
@@ -457,8 +459,8 @@ for m in $bq_modes; do
   bq_ok=1
   for k in 1 2 3 4 5 6; do
     if [ "$m" = ignore ]; then
-      run bigquota CODEX_STUB=ok OLLAMA_STUB=bigquota perl -e '$SIG{PIPE}="IGNORE"; exec @ARGV' bash "$SCRIPT" "$T/change.diff"
-    else run bigquota CODEX_STUB=ok OLLAMA_STUB=bigquota bash "$SCRIPT" "$T/change.diff"; fi
+      run bigquota CODEX_STUB=ok OLLAMA_STUB=bigquota perl -e '$SIG{PIPE}="IGNORE"; exec @ARGV' bash "$SCRIPT" "$T/change.diff" --base none
+    else run bigquota CODEX_STUB=ok OLLAMA_STUB=bigquota bash "$SCRIPT" "$T/change.diff" --base none; fi
     has bigquota.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)" || bq_ok=0
   done
   check "bigquota: classified as quota on all 6 runs$([ "$m" = ignore ] && echo " (SIGPIPE ignored)")" [ "$bq_ok" = 1 ]
@@ -466,7 +468,7 @@ done
 
 # 13. A reply rejected as not a review: its own outcome, never quota or setup advice,
 #     even with an error-shaped 429 line in it (round 2, fresh-eyes; the other branch's reviewers).
-run notreview CODEX_STUB=ok OLLAMA_STUB=notreview bash "$SCRIPT" "$T/change.diff"
+run notreview CODEX_STUB=ok OLLAMA_STUB=notreview bash "$SCRIPT" "$T/change.diff" --base none
 check "notreview: exit 0 (codex counted)" rc_is notreview 0
 check "notreview: FAILED section" has notreview.out "## Independent review — ollama-cloud — FAILED"
 check "notreview: summary names the rejection" has notreview.out "reviewers: codex OK, ollama-cloud FAILED (output is not a review)"
@@ -476,27 +478,27 @@ check "notreview: the decoy 429 is not read as quota" lacks notreview.out "quota
 check "notreview: no sign-in advice" lacks notreview.out "sign-in"
 
 # 14. A tracing-style codex error with trailer lines after it is still classified.
-run tracing CODEX_STUB=tracing429 bash "$SCRIPT" "$T/change.diff"
+run tracing CODEX_STUB=tracing429 bash "$SCRIPT" "$T/change.diff" --base none
 check "tracing: codex classified as quota" has tracing.out "reviewers: codex FAILED (exit 1; quota/rate limit: wait or add credits), ollama-cloud OK"
 
 # 15. A diff context line (leading space) shaped like an error is not read as quota
 #     (round 2, Codex).
-run codexctx CODEX_STUB=authctx bash "$SCRIPT" "$T/change.diff"
+run codexctx CODEX_STUB=authctx bash "$SCRIPT" "$T/change.diff" --base none
 check "codexctx: an indented artifact line is not read as quota" has codexctx.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
 
 # 16. The review-body filter consumes an escape it does not emulate (ESC[0~) instead of
 #     silently ending the review there (round 2, Codex; pre-existing on main)...
-run oddbody CODEX_STUB=ok OLLAMA_STUB=oddbody bash "$SCRIPT" "$T/change.diff"
+run oddbody CODEX_STUB=ok OLLAMA_STUB=oddbody bash "$SCRIPT" "$T/change.diff" --base none
 check "oddbody: the finding after the escape survives" has oddbody.out "1. BUG: important finding"
 check "oddbody: counted" has oddbody.out "reviewers: codex OK, ollama-cloud OK"
 check "oddbody: no escape bytes" lacks oddbody.out $'\033'
 
 # 17. ...and fails the tier on one it cannot parse, rather than counting a truncated review.
-run strayesc CODEX_STUB=ok OLLAMA_STUB=strayesc bash "$SCRIPT" "$T/change.diff"
+run strayesc CODEX_STUB=ok OLLAMA_STUB=strayesc bash "$SCRIPT" "$T/change.diff" --base none
 check "strayesc: FAILED, not a truncated review" has strayesc.out "reviewers: codex OK, ollama-cloud FAILED (output filter failed (exit 4))"
 
 # 18. "disk quota exceeded" is a setup failure, not a provider refusal (round 2, ollama).
-run diskquota CODEX_STUB=diskquota bash "$SCRIPT" "$T/change.diff"
+run diskquota CODEX_STUB=diskquota bash "$SCRIPT" "$T/change.diff" --base none
 check "diskquota: not read as a provider quota" has diskquota.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
 
 # 19. A clean verdict with a qualifier between "no" and the severity word counts. On 2026-09-20
@@ -506,11 +508,11 @@ n=0
 for reply in "No confirmed BUG or RISK in the supplied diff." "No definite BUG." \
              "I found no confirmed bugs in this change." "No new or confirmed RISK."; do
   n=$((n+1))
-  run "verdict$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff"
+  run "verdict$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff" --base none
   check "verdict$n: codex counted — $reply" has "verdict$n.out" "reviewers: codex OK, ollama-cloud OK"
   check "verdict$n: printed as codex's review, not quoted in a FAILED section" lacks "verdict$n.out" "— FAILED"
 done
-run verdictollama OLLAMA_STUB=reply STUB_REPLY="No confirmed BUG or RISK in the supplied diff." bash "$SCRIPT" "$T/change.diff"
+run verdictollama OLLAMA_STUB=reply STUB_REPLY="No confirmed BUG or RISK in the supplied diff." bash "$SCRIPT" "$T/change.diff" --base none
 check "verdictollama: the ollama seat counts the same verdict" has verdictollama.out "reviewers: codex OK, ollama-cloud OK"
 check "verdictollama: no FAILED section" lacks verdictollama.out "FAILED"
 
@@ -523,7 +525,7 @@ for reply in "I'm sorry, but I am unable to review this diff because the reposit
              "No confirmed BUG or RISK, because I cannot access the diff you supplied." \
              "There is no way to find bugs in this without more context."; do
   n=$((n+1))
-  run "refusal$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff"
+  run "refusal$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff" --base none
   check "refusal$n: exit 0 (ollama-cloud counted)" rc_is "refusal$n" 0
   check "refusal$n: codex rejected — $reply" has "refusal$n.out" "reviewers: codex FAILED (output is not a review), ollama-cloud OK"
 done
@@ -555,11 +557,11 @@ done
 # refused under --local-only and counted as a cloud reviewer outside it. These pin today's wrong
 # results through the real entry point, so whoever fixes the classifier changes them on purpose.
 BIG_TAG="stub-big"; BIG_TAG="${BIG_TAG}:120b"   # built at runtime, like STUB_TAG
-run bigtaglocal OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff" --local-only
+run bigtaglocal OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff" --base none --local-only
 check "KNOWN WRONG (B-TAGCLASS): a local *:120b tag is refused under --local-only" has bigtaglocal.err "looks like a cloud tag"
 check "KNOWN WRONG (B-TAGCLASS): ...with exit 2, before any reviewer runs" \
   sh -c '[ "$(cat "$1/bigtaglocal.rc")" = 2 ] && [ ! -e "$1/bigtaglocal.marks/ollama-ran" ]' _ "$T"
-run bigtag OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff"
+run bigtag OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff" --base none
 check "KNOWN WRONG (B-TAGCLASS): a local *:120b tag counts as a cloud reviewer" has bigtag.out "reviewers: codex OK, ollama-cloud OK"
 check "B-TAGCLASS guard: the tag that ran is the configured one, not the listed cloud model" \
   grep -qxF -- "$BIG_TAG" "$T/bigtag.marks/ollama-model"
@@ -576,7 +578,7 @@ check "B-TAGCLASS guard: the tag that ran is the configured one, not the listed 
 #     must never get the false sentence back.
 for m in "" stub-agy-model; do
   name="agy${m:+-model}"
-  run "$name" WITH_ANTIGRAVITY=1 AGY_MODEL="$m" bash "$SCRIPT" "$T/change.diff"
+  run "$name" WITH_ANTIGRAVITY=1 AGY_MODEL="$m" bash "$SCRIPT" "$T/change.diff" --base none
   check "$name: agy counted alongside the pair" has "$name.out" "reviewers: codex OK, ollama-cloud OK, antigravity OK"
   check "$name: header names the model" has "$name.out" "## Independent review — antigravity/agy (${m:-CLI default}"
   check "$name: header says plan mode, told not to use tools" has "$name.out" ", sandbox, plan mode, told not to use tools)"
@@ -606,7 +608,7 @@ for m in "" stub-agy-model; do
 done
 # ...and if agy still comes back empty, the tier is FAILED with its stderr quoted, not dropped
 # and not counted; the pair still carries the round.
-run agydenied WITH_ANTIGRAVITY=1 AGY_STUB=denied bash "$SCRIPT" "$T/change.diff"
+run agydenied WITH_ANTIGRAVITY=1 AGY_STUB=denied bash "$SCRIPT" "$T/change.diff" --base none
 check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
 check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
 check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
@@ -615,7 +617,7 @@ check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode 
 #     it finishes, and the sections still print in tier order, codex first. A timings line
 #     follows the reviewers line. The proof is the order of events, not a clock: a 4s
 #     threshold on two 2s reviewers failed under heavy load (2026-10-04, `make check` twice).
-run parallel CODEX_STUB=meet OLLAMA_STUB=meet bash "$SCRIPT" "$T/change.diff"
+run parallel CODEX_STUB=meet OLLAMA_STUB=meet bash "$SCRIPT" "$T/change.diff" --base none
 check "parallel: both counted" has parallel.out "reviewers: codex OK, ollama-cloud OK"
 check "parallel: the two reviewers' runs overlapped" \
   sh -c '[ -e "$1/codex-saw-ollama" ] && [ -e "$1/ollama-saw-codex" ]' _ "$T/parallel.marks"
@@ -625,11 +627,11 @@ check "parallel: a timings line names both tiers" \
   grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s$' "$T/parallel.out"
 check "parallel: a failed tier still gets its FAILED section" has incident.out "## Independent review — ollama-cloud — FAILED"
 # --first-success stays one tier at a time: the second never starts once the first counts.
-run firstsucc CODEX_STUB=ok bash "$SCRIPT" "$T/change.diff" --first-success
+run firstsucc CODEX_STUB=ok bash "$SCRIPT" "$T/change.diff" --base none --first-success
 check "first-success: ollama never ran" [ ! -e "$T/firstsucc.marks/ollama-ran" ]
 check "first-success: timings name codex alone" grep -qE '^timings: codex [0-9]+s$' "$T/firstsucc.out"
 # A skipped tier (not installed) has no time to report.
-run notimeskip CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
+run notimeskip CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff" --base none
 check "skipped tier: not in the timings line" grep -qE '^timings: codex [0-9]+s$' "$T/notimeskip.out"
 
 # 24b. Stopping the script stops its reviewers, even one that ignores SIGTERM: none keeps
@@ -637,7 +639,7 @@ check "skipped tier: not in the timings line" grep -qE '^timings: codex [0-9]+s$
 mkdir -p "$T/stop.marks"
 env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL PATH="$T/bin:$PATH" HOME="$T/u" \
   WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/stop.raw" STUB_MARKS="$T/stop.marks" STUB_TAG="$STUB_TAG" \
-  CODEX_STUB=stubborn OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" >"$T/stop.out" 2>"$T/stop.err" &
+  CODEX_STUB=stubborn OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" --base none >"$T/stop.out" 2>"$T/stop.err" &
 spid=$!
 i=0; while [ ! -s "$T/stop.marks/codex-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 kill -TERM "$spid"; wait "$spid"; echo $? >"$T/stop.rc"
@@ -650,7 +652,7 @@ check "stop: the TERM-ignoring reviewer is gone" \
 mkdir -p "$T/stopw.marks"
 env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL PATH="$T/bin:$PATH" HOME="$T/u" \
   WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/stopw.raw" STUB_MARKS="$T/stopw.marks" STUB_TAG="$STUB_TAG" \
-  CODEX_STUB=wrapped OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" >"$T/stopw.out" 2>"$T/stopw.err" &
+  CODEX_STUB=wrapped OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" --base none >"$T/stopw.out" 2>"$T/stopw.err" &
 spid=$!
 i=0; while [ ! -s "$T/stopw.marks/codex-worker" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 kill -TERM "$spid"; wait "$spid"; echo $? >"$T/stopw.rc"
@@ -660,7 +662,7 @@ check "stop: a TERM-ignoring worker under the CLI is gone too" \
 # 25. --verify: a verification round sends the prior findings in their own block, with the
 #     round's scope, to every tier; without the flag the prompt carries neither.
 printf '%s\n' 'F1 BUG fixed in abc1234: retry loop never ended' 'F2 RISK waived: owner J1' >"$T/prior.md"
-run verify bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+run verify bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "verify: exit 0" rc_is verify 0
 for tier in codex ollama; do
   check "verify: $tier gets the scope paragraph" grep -qF -- "VERIFICATION ROUND." "$T/verify.marks/$tier-prompt"
@@ -669,18 +671,18 @@ for tier in codex ollama; do
   check "verify: $tier's prior findings come before the artifact" \
     sh -c 'p=$(grep -nxF -- "--- END PRIOR FINDINGS ---" "$1" | cut -d: -f1); a=$(grep -nxF -- "--- BEGIN diff ---" "$1" | cut -d: -f1); [ -n "$p" ] && [ -n "$a" ] && [ "$p" -lt "$a" ]' _ "$T/verify.marks/$tier-prompt"
 done
-run noverify bash "$SCRIPT" "$T/change.diff"
+run noverify bash "$SCRIPT" "$T/change.diff" --base none
 check "no --verify: no scope paragraph" not_in "$T/noverify.marks/codex-prompt" "VERIFICATION ROUND"
 check "no --verify: no prior-findings block" not_in "$T/noverify.marks/ollama-prompt" "PRIOR FINDINGS"
 check "no --verify: one blank line before the artifact, as before" \
   sh -c 'grep -B2 -xF -- "--- BEGIN diff ---" "$1" | head -1 | grep -qF "Every WRONG must also appear as a BUG."' _ "$T/noverify.marks/codex-prompt"
-run verifynoarg bash "$SCRIPT" "$T/change.diff" --verify
+run verifynoarg bash "$SCRIPT" "$T/change.diff" --base none --verify
 check "verify without a file: exit 2" rc_is verifynoarg 2
-run verifymissing bash "$SCRIPT" "$T/change.diff" --verify "$T/no-such-file.md"
+run verifymissing bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/no-such-file.md"
 check "verify with a missing file: exit 2, nothing ran" \
   sh -c '[ "$(cat "$1/verifymissing.rc")" = 2 ] && [ ! -e "$1/verifymissing.marks/codex-ran" ]' _ "$T"
 printf '  \n\n' >"$T/blank.md"
-run verifyblank bash "$SCRIPT" "$T/change.diff" --verify "$T/blank.md"
+run verifyblank bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/blank.md"
 check "verify with an empty record: exit 2" has verifyblank.err "the prior-findings file is empty"
 
 # 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
@@ -688,20 +690,20 @@ check "verify with an empty record: exit 2" has verifyblank.err "the prior-findi
 #     round and lands after the model override, before the prompt.
 base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]'
 argv_of() { sed -e 's/^argv=//' -e 's/ cwd=.*$//' "$T/$1.marks/codex-args"; }
-run effverify bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+run effverify bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "effort: a verify round asks for medium" \
   [ "$(argv_of effverify)" = "$base[-c][model_reasoning_effort=\"medium\"][<prompt>]" ]
 check "effort: the codex header names it" has effverify.out "## Independent review — codex (stub-codex, effort medium, read-only)"
-run effconfig CODEX_EFFORT=config bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+run effconfig CODEX_EFFORT=config bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "effort: CODEX_EFFORT=config keeps config.toml's, even on a verify round" \
   [ "$(argv_of effconfig)" = "$base[<prompt>]" ]
-run efffull bash "$SCRIPT" "$T/change.diff"
+run efffull bash "$SCRIPT" "$T/change.diff" --base none
 check "effort: a full round leaves config.toml's alone" [ "$(argv_of efffull)" = "$base[<prompt>]" ]
 check "effort: ...and its header says nothing about effort" has efffull.out "## Independent review — codex (stub-codex, read-only)"
-run effboth CODEX_EFFORT=xhigh CODEX_MODEL=stub-strong bash "$SCRIPT" "$T/change.diff"
+run effboth CODEX_EFFORT=xhigh CODEX_MODEL=stub-strong bash "$SCRIPT" "$T/change.diff" --base none
 check "effort: explicit effort after the model override" \
   [ "$(argv_of effboth)" = "$base[-c][model=\"stub-strong\"][-c][model_reasoning_effort=\"xhigh\"][<prompt>]" ]
-run effbad CODEX_EFFORT='high"' bash "$SCRIPT" "$T/change.diff"
+run effbad CODEX_EFFORT='high"' bash "$SCRIPT" "$T/change.diff" --base none
 check "effort: an unknown value exits 2 before any reviewer runs" \
   sh -c '[ "$(cat "$1/effbad.rc")" = 2 ] && [ ! -e "$1/effbad.marks/codex-ran" ]' _ "$T"
 
@@ -709,29 +711,29 @@ check "effort: an unknown value exits 2 before any reviewer runs" \
 #     from the flags, codex's own token count, and nothing when REVIEW_LOG=off. A log that cannot
 #     be written never fails the review.
 LOGT="$T/costs.tsv"
-run costlog REVIEW_LOG="$LOGT" CODEX_STUB=tokens bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
+run costlog REVIEW_LOG="$LOGT" CODEX_STUB=tokens bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 2
 check "costlog: exit 0" rc_is costlog 0
 check "costlog: a header and one line per seat" [ "$(wc -l <"$LOGT" | tr -d ' ')" = 3 ]
 check "costlog: codex line — gate, depth, round, seat, model, effort, tokens, outcome" \
   awk -F'\t' '$8=="codex" && $5=="diff" && $6=="normal" && $7=="2" && $9=="stub-codex" && $10=="config" && $11 ~ /^[0-9]+$/ && $12=="61108" && $13=="OK" {f=1} END {exit !f}' "$LOGT"
 check "costlog: ollama line" awk -F'\t' '$8=="ollama-cloud" && $10=="-" && $12=="-" && $13=="OK" {f=1} END {exit !f}' "$LOGT"
 check "costlog: the timings line carries codex's tokens" grep -qE '^timings: codex [0-9]+s \(61108 tokens\), ollama-cloud [0-9]+s$' "$T/costlog.out"
-run costfail REVIEW_LOG="$T/costs2.tsv" OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+run costfail REVIEW_LOG="$T/costs2.tsv" OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
 check "costlog: a failed seat is logged as FAILED" awk -F'\t' '$8=="ollama-cloud" && $13=="FAILED" {f=1} END {exit !f}' "$T/costs2.tsv"
-run costskip REVIEW_LOG="$T/costs3.tsv" OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
+run costskip REVIEW_LOG="$T/costs3.tsv" OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff" --base none
 check "costlog: a skipped seat is not logged" [ "$(wc -l <"$T/costs3.tsv" | tr -d ' ')" = 2 ]
 DEFLOG="$T/u/.local/state/independent-review/runs.tsv"   # earlier runs here set no REVIEW_LOG
 before="$(cat "$DEFLOG" 2>/dev/null | wc -l | tr -d ' ')"
-run costoff REVIEW_LOG=off bash "$SCRIPT" "$T/change.diff"
+run costoff REVIEW_LOG=off bash "$SCRIPT" "$T/change.diff" --base none
 check "costlog: REVIEW_LOG=off writes nothing" \
   sh -c '[ ! -e "$1/off" ] && [ ! -e "$1/u/off" ] && [ ! -e "$PWD/off" ] && [ "$(cat "$2" 2>/dev/null | wc -l | tr -d " ")" = "$3" ]' _ "$T" "$DEFLOG" "$before"
-run costdefault bash "$SCRIPT" "$T/change.diff"
+run costdefault bash "$SCRIPT" "$T/change.diff" --base none
 check "costlog: default path under the (relocated) home" [ -s "$T/u/.local/state/independent-review/runs.tsv" ]
 : >"$T/notadir"
-run costbad REVIEW_LOG="$T/notadir/x/costs.tsv" bash "$SCRIPT" "$T/change.diff"
+run costbad REVIEW_LOG="$T/notadir/x/costs.tsv" bash "$SCRIPT" "$T/change.diff" --base none
 check "costlog: an unwritable log never fails the review" rc_is costbad 0
 check "costlog: ...and says so" has costbad.err "could not write the review cost log"
-run costdepth bash "$SCRIPT" "$T/change.diff" --depth extreme
+run costdepth bash "$SCRIPT" "$T/change.diff" --base none --depth extreme
 check "costlog: an unknown depth exits 2" rc_is costdepth 2
 # The host logs its own seats; the summary groups by depth and seat, and counts rounds per gate.
 REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --seat fresh-eyes --model sonnet --seconds 395 \
@@ -751,11 +753,11 @@ check "add without --seat is refused" [ $? = 2 ]
 G="$T/gaterepo"; mkdir -p "$G"; git -C "$G" init -q
 GL="$T/gates.tsv"
 inrepo() { run "$1" REVIEW_LOG="$GL" sh -c 'cd "$0" && shift && exec "$@"' "$G" "${@:2}"; }
-inrepo gate1a bash "$SCRIPT" "$T/change.diff" --depth normal --round 1
-inrepo gate1b bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
-inrepo gate2a bash "$SCRIPT" "$T/change.diff" --depth normal --round 1
-inrepo gate2b bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
-inrepo gate2c bash "$SCRIPT" "$T/change.diff" --depth normal --round 3
+inrepo gate1a bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 1
+inrepo gate1b bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 2
+inrepo gate2a bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 1
+inrepo gate2b bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 2
+inrepo gate2c bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 3
 inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
 # A wording pass, a final full read or a re-gate is not a round and leaves --round off (SKILL.md step 2):
 # the open gate's id is what it must carry, and it must not start a gate of its own.
@@ -764,7 +766,7 @@ rows_join_gate() {   # rows_join_gate <log> <lines before> <gate id>: there are 
 }
 # Line 1 is the open gate; line 2, when there is one, the gate it follows (review_log.sh new-gate).
 gate_before="$(sed -n 1p "$G/.git/independent-review-gate")"; lines_before="$(wc -l <"$GL")"
-inrepo gatenr bash "$SCRIPT" "$T/change.diff" --depth normal
+inrepo gatenr bash "$SCRIPT" "$T/change.diff" --base none --depth normal
 check "gates: a run with no --round is logged, under the open gate's id" rows_join_gate "$GL" "$lines_before" "$gate_before"
 check "gates: a run with no --round starts no gate" [ "$(sed -n 1p "$G/.git/independent-review-gate")" = "$gate_before" ]
 check "gates: --round 1 leaves an id in the repo's git dir" [ -s "$G/.git/independent-review-gate" ]
@@ -794,7 +796,7 @@ check "race: a spare header is not counted as a seat" [ "$(awk 'NR > 1 && NF == 
 #     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, reaches
 #     curl on stdin and is never in a file (#165); the tokens reach the timings line and the cost log.
 NOCLI="$T/bin2:/usr/bin:/bin"
-run api PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" REVIEW_LOG="$T/api.tsv" bash "$SCRIPT" "$T/change.diff"
+run api PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" REVIEW_LOG="$T/api.tsv" bash "$SCRIPT" "$T/change.diff" --base none
 check "api: counted" has api.out "reviewers: codex OK, ollama-cloud OK"
 check "api: header names the transport" has api.out "## Independent review — ollama ($STUB_TAG, HTTP API)"
 check "api: the streamed pieces are joined" has api.out "- BUG: api finding one"
@@ -804,59 +806,59 @@ check "api: the model without its :cloud suffix, streamed, carrying the artifact
 check "api: no key set, no Authorization header sent" not_in "$T/api.marks/curl-hdr" "Authorization"
 check "api: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s \(750 tokens\)$' "$T/api.out"
 check "api: tokens in the cost log" awk -F'\t' '$8=="ollama-cloud" && $12=="750" && $13=="OK" {f=1} END {exit !f}' "$T/api.tsv"
-run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret STUB_KEY=stub-secret bash "$SCRIPT" "$T/change.diff"
+run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret STUB_KEY=stub-secret bash "$SCRIPT" "$T/change.diff" --base none
 check "apikey: the key reaches curl on its stdin" \
   sh -c 'grep -qxF "Authorization: Bearer stub-secret" "$1/curl-hdr" && [ -e "$1/curl-hdr-stdin" ]' _ "$T/apikey.marks"
 check "apikey: and no header file is written" [ ! -e "$T/apikey.raw/ollama.hdr" ]
-check "apikey: the key is nowhere on disk during the call" test ! -e "$T/apikey.marks/key-on-disk"
+check "apikey: the key is nowhere in the run's raw folder during the call" test ! -e "$T/apikey.marks/key-on-disk"
 check "apikey: codex never sees OLLAMA_API_KEY" test ! -e "$T/apikey.marks/codex-saw-ollama-key"
-run clikey CODEX_STUB=ok OLLAMA_STUB=ok OLLAMA_API_KEY=cli-secret bash "$SCRIPT" "$T/change.diff"
+run clikey CODEX_STUB=ok OLLAMA_STUB=ok OLLAMA_API_KEY=cli-secret bash "$SCRIPT" "$T/change.diff" --base none
 check "clikey: the ollama CLI still gets OLLAMA_API_KEY" grep -qxF "cli-secret" "$T/clikey.marks/ollama-cli-key"
 check "clikey: codex, running beside it, does not" test ! -e "$T/clikey.marks/codex-saw-ollama-key"
 check "apikey: never in any output" sh -c '! grep -rqF stub-secret "$1/apikey.out" "$1/apikey.err" "$1/apikey.raw"' _ "$T"
-run api429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=429 bash "$SCRIPT" "$T/change.diff"
+run api429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
 check "api429: read as quota" has api429.out "ollama-cloud FAILED (HTTP 429; quota/rate limit: wait or add credits)"
 check "api429: the API's message is quoted" has api429.out "weekly usage limit"
-run apitrunc PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=trunc bash "$SCRIPT" "$T/change.diff"
+run apitrunc PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=trunc bash "$SCRIPT" "$T/change.diff" --base none
 check "apitrunc: a stream without its done line fails the tier, named as truncated" has apitrunc.out "ollama-cloud FAILED (truncated review (HTTP 200))"
 check "apitrunc: and says it was truncated" has apitrunc.out "a truncated review"
-run apitrunc429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=trunc429 bash "$SCRIPT" "$T/change.diff"
+run apitrunc429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=trunc429 bash "$SCRIPT" "$T/change.diff" --base none
 check "apitrunc429: a 429-chunk truncated stream is not read as quota" \
   sh -c 'grep -qF "ollama-cloud FAILED (truncated review (HTTP 200))" "$1" && ! grep -qF "quota/rate limit: wait" "$1"' _ "$T/apitrunc429.out"
-run apinonjson PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=nonjson200 bash "$SCRIPT" "$T/change.diff"
+run apinonjson PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=nonjson200 bash "$SCRIPT" "$T/change.diff" --base none
 check "apinonjson: review text on a non-JSON 200 line is quoted below, not read as quota" \
   sh -c 'grep -qF "ollama-cloud FAILED (a stream line that is not JSON (HTTP 200))" "$1" && ! grep -qF "quota/rate limit: wait" "$1" && grep -qF "line began:" "$1"' _ "$T/apinonjson.out"
-run apimiderr PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=miderr200 bash "$SCRIPT" "$T/change.diff"
+run apimiderr PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=miderr200 bash "$SCRIPT" "$T/change.diff" --base none
 check "apimiderr: an error line in a 200 stream is named as an error mid-stream" \
   sh -c 'grep -qF "ollama-cloud FAILED (error mid-stream (HTTP 200))" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/apimiderr.out"
-run apiempty PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=empty200 bash "$SCRIPT" "$T/change.diff"
+run apiempty PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=empty200 bash "$SCRIPT" "$T/change.diff" --base none
 check "apiempty: an empty 200 reply is named as empty, not truncated" \
   sh -c 'grep -qF "ollama-cloud FAILED (empty reply (HTTP 200))" "$1" && ! grep -qF "truncated" "$1"' _ "$T/apiempty.out"
-run apihtml PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=html200 bash "$SCRIPT" "$T/change.diff"
+run apihtml PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=html200 bash "$SCRIPT" "$T/change.diff" --base none
 check "apihtml: a 200 page whose first line is not JSON is named as not a stream, as Melious names it" \
   sh -c 'grep -qF "ollama-cloud FAILED (not a stream (HTTP 200))" "$1" && grep -qF "line began: <html>" "$1"' _ "$T/apihtml.out"
-run api502 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=502 bash "$SCRIPT" "$T/change.diff"
+run api502 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=502 bash "$SCRIPT" "$T/change.diff" --base none
 check "api502: a non-JSON error body is quoted" has api502.out "response is not JSON: upstream request failed"
 check "api502: ...and the summary keeps the status" has api502.out "ollama-cloud FAILED (HTTP 502)"
-run apidown PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=down bash "$SCRIPT" "$T/change.diff"
+run apidown PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=down bash "$SCRIPT" "$T/change.diff" --base none
 check "apidown: a network failure names curl's exit" has apidown.out "ollama-cloud FAILED (curl exit 56)"
 check "apidown: ...with a hint" has apidown.out "is the host allowed by the network policy?"
-run apinomodel PATH="$NOCLI" bash "$SCRIPT" "$T/change.diff"
+run apinomodel PATH="$NOCLI" bash "$SCRIPT" "$T/change.diff" --base none
 check "apinomodel: no CLI and no model — skipped" has apinomodel.out "ollama SKIPPED (not available)"
 check "apinomodel: the note names OLLAMA_MODEL" has apinomodel.err "Set OLLAMA_MODEL=<name>:cloud"
 check "apinomodel: nothing was sent" [ ! -e "$T/apinomodel.marks/curl-url" ]
-run apiforced OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff"
+run apiforced OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff" --base none
 check "apiforced: OLLAMA_TRANSPORT=api wins over an installed CLI" \
   sh -c '[ -e "$1/curl-url" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/apiforced.marks"
-run apibadtransport OLLAMA_TRANSPORT=grpc bash "$SCRIPT" "$T/change.diff"
+run apibadtransport OLLAMA_TRANSPORT=grpc bash "$SCRIPT" "$T/change.diff" --base none
 check "an unknown OLLAMA_TRANSPORT exits 2" rc_is apibadtransport 2
-run apilocal PATH="$NOCLI" OLLAMA_MODEL=stub-local OLLAMA_HOST=127.0.0.1:11434 bash "$SCRIPT" "$T/change.diff"
+run apilocal PATH="$NOCLI" OLLAMA_MODEL=stub-local OLLAMA_HOST=127.0.0.1:11434 bash "$SCRIPT" "$T/change.diff" --base none
 check "apilocal: a local tag goes to OLLAMA_HOST" grep -qxF "http://127.0.0.1:11434/api/chat" "$T/apilocal.marks/curl-url"
 check "apilocal: with its tag unchanged" grep -qF '"model":"stub-local"' "$T/apilocal.marks/curl-body"
 check "apilocal: and stays a sanity pass" has apilocal.out "ollama-local NOT COUNTED (local model: sanity pass only)"
 
 # 29. --seat runs ONE named reviewer (2026-09-26: the wording pass and the final full read).
-run seatollama bash "$SCRIPT" "$T/change.diff" --seat ollama
+run seatollama bash "$SCRIPT" "$T/change.diff" --base none --seat ollama
 check "seat ollama: a successful single-seat run exits 0" rc_is seatollama 0
 check "seat ollama: only ollama ran" sh -c '[ -e "$1/ollama-ran" ] && [ ! -e "$1/codex-ran" ]' _ "$T/seatollama.marks"
 check "seat ollama: the summary names it alone" has seatollama.out "reviewers: ollama-cloud OK"
@@ -868,21 +870,21 @@ check "depth: a run without --depth is told to state one" has seatollama.out "de
 check "depth: ...on stderr too" has seatollama.err "depth: not stated"
 check "depth: a run with --depth is not, on either stream" \
   sh -c '! grep -qF "depth: not stated" "$1/costlog.out" "$1/costlog.err"' _ "$T"
-run seatfirst bash "$SCRIPT" "$T/change.diff" --seat codex --first-success
+run seatfirst bash "$SCRIPT" "$T/change.diff" --base none --seat codex --first-success
 check "seat: with --first-success exits 2" rc_is seatfirst 2
-run seatwithagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/change.diff" --seat ollama
+run seatwithagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/change.diff" --base none --seat ollama
 check "seat: another seat with the Antigravity opt-in exits 2" rc_is seatwithagy 2
-run seatagyboth bash "$SCRIPT" "$T/change.diff" --seat agy --with-antigravity
+run seatagyboth bash "$SCRIPT" "$T/change.diff" --base none --seat agy --with-antigravity
 check "seat agy with --with-antigravity is allowed (same reviewer)" has seatagyboth.out "reviewers: antigravity OK"
 check "seat agy with --with-antigravity: exactly one Antigravity section, no other seat" \
   sh -c '[ "$(grep -c "^## Independent review — antigravity" "$1/seatagyboth.out")" = 1 ] && [ ! -e "$1/seatagyboth.marks/codex-ran" ] && [ ! -e "$1/seatagyboth.marks/ollama-ran" ]' _ "$T"
-run seatcodex bash "$SCRIPT" "$T/change.diff" --seat codex
+run seatcodex bash "$SCRIPT" "$T/change.diff" --base none --seat codex
 check "seat codex: only codex ran" sh -c '[ -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/seatcodex.marks"
-run seatagy bash "$SCRIPT" "$T/change.diff" --seat agy
+run seatagy bash "$SCRIPT" "$T/change.diff" --base none --seat agy
 check "seat agy: names Antigravity, so it runs without WITH_ANTIGRAVITY" has seatagy.out "reviewers: antigravity OK"
-run seatbad bash "$SCRIPT" "$T/change.diff" --seat gemini
+run seatbad bash "$SCRIPT" "$T/change.diff" --base none --seat gemini
 check "seat: an unknown seat exits 2" rc_is seatbad 2
-run seatlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --local-only --seat codex
+run seatlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base none --local-only --seat codex
 check "seat: --local-only refuses an external seat, exit 2, nothing ran" \
   sh -c '[ "$(cat "$1/seatlocal.rc")" = 2 ] && [ ! -e "$1/seatlocal.marks/codex-ran" ]' _ "$T"
 
@@ -974,24 +976,24 @@ fi
 
 # 31. A reasoning model's trace is kept out of the answer (2026-09-27): its trace quoted the
 #     prompt's "could not read" advice, and the whole reply was rejected as not a review.
-run think OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+run think OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff" --base none
 check "think: the CLI is asked to hide the trace" test -e "$T/think.marks/ollama-hidethinking"
 check "think: ollama-cloud counted, not FAILED" has think.out "reviewers: codex OK, ollama-cloud OK"
 check "think: the answer is printed, the trace is not" \
   sh -c 'grep -qF "RISK — retry.rb:12" "$1" && ! grep -qF "Thinking..." "$1"' _ "$T/think.out"
 check "think: the model and prompt still reach the CLI" \
   sh -c 'grep -qxF "$2" "$1/ollama-model" && [ -s "$1/ollama-prompt" ]' _ "$T/think.marks" "$STUB_TAG"
-run thinkold STUB_OLDCLI=1 OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+run thinkold STUB_OLDCLI=1 OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff" --base none
 check "thinkold: a CLI without the flag is not given it" test ! -e "$T/thinkold.marks/ollama-hidethinking"
 check "thinkold: ...and still runs the model, as before this change" test -e "$T/thinkold.marks/ollama-ran"
 for how in failhelp longword; do   # round 1, Codex: a failed help, or the flag inside a longer word
-  run "think$how" STUB_OLDCLI=$how OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+  run "think$how" STUB_OLDCLI=$how OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff" --base none
   check "think$how: the flag is not passed" test ! -e "$T/think$how.marks/ollama-hidethinking"
 done
 
 # 32. The Melious fallback for the ollama seat (2026-10-05): it runs only when MELIOUS_MODEL names
 #     a model and the ollama seat did not count, or as --seat melious. Same text-only prompt.
-run mfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" REVIEW_LOG="$T/mfall.tsv" bash "$SCRIPT" "$T/change.diff"
+run mfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" REVIEW_LOG="$T/mfall.tsv" bash "$SCRIPT" "$T/change.diff" --base none
 check "mfall: ollama refused, melious stands in and counts" \
   has mfall.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
 check "mfall: two counted, so no fewer-than-2 note" lacks mfall.out "fewer than the 2"
@@ -1004,72 +1006,72 @@ check "mfall: the model, streamed, the text-only prompt" \
 check "mfall: no key set, no Authorization header sent" not_in "$T/mfall.marks/melious-hdr" "Authorization"
 check "mfall: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s, melious [0-9]+s \(600 tokens\)$' "$T/mfall.out"
 check "mfall: tokens in the cost log" awk -F'\t' -v m="$MELIOUS_OK" '$8=="melious" && $9==m && $12=="600" && $13=="OK" {f=1} END {exit !f}' "$T/mfall.tsv"
-run mnomodel OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+run mnomodel OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
 check "mnomodel: no MELIOUS_MODEL, no Melious seat and no call" \
   sh -c '! grep -qF melious "$1/mnomodel.out" && [ ! -e "$1/mnomodel.marks/melious-url" ]' _ "$T"
-run mpair MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run mpair MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "mpair: ollama counted, so Melious is not called" \
   sh -c 'grep -qF "reviewers: codex OK, ollama-cloud OK" "$1/mpair.out" && ! grep -qF melious "$1/mpair.out" && [ ! -e "$1/mpair.marks/melious-url" ]' _ "$T"
-run mnocli PATH="$NOCLI" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run mnocli PATH="$NOCLI" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "mnocli: no ollama at all, Melious runs with the pair" has mnocli.out "reviewers: codex OK, ollama SKIPPED (not available), melious OK"
 check "mnocli: the no-CLI note names MELIOUS_MODEL" has mnocli.err "MELIOUS_MODEL=<model> sends the seat to Melious instead"
-run mlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run mlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "mlocal: a local sanity pass does not count, so Melious runs" \
   has mlocal.out "reviewers: codex OK, ollama-local NOT COUNTED (local model: sanity pass only), melious OK"
-run mkey OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_API_KEY=stub-msecret bash "$SCRIPT" "$T/change.diff"
+run mkey OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_API_KEY=stub-msecret bash "$SCRIPT" "$T/change.diff" --base none
 check "mkey: the key reaches curl on its stdin" \
   sh -c 'grep -qxF "Authorization: Bearer stub-msecret" "$1/melious-hdr" && [ -e "$1/melious-hdr-stdin" ]' _ "$T/mkey.marks"
 check "mkey: and no header file is written" [ ! -e "$T/mkey.raw/melious.hdr" ]
 check "mkey: never in any output" sh -c '! grep -rqF stub-msecret "$1/mkey.out" "$1/mkey.err" "$1/mkey.raw"' _ "$T"
-run m429 OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
+run m429 OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
 check "m429: read as quota" has m429.out "melious FAILED (HTTP 429; quota/rate limit: wait or add credits)"
 check "m429: the API's message is quoted" has m429.out "Rate limit exceeded for your plan"
 check "m429: the FAILED section names the model" has m429.out "Model: $MELIOUS_OK"
-run mtrunc OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff"
+run mtrunc OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff" --base none
 check "mtrunc: a stream with no finish_reason or [DONE] fails the tier, named as truncated" \
   sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "a truncated review" "$1"' _ "$T/mtrunc.out"
-run mlength OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff"
+run mlength OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff" --base none
 check "mlength: finish_reason length fails the tier" \
   sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "finish_reason length" "$1"' _ "$T/mlength.out"
-run mthink OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=inlinethink bash "$SCRIPT" "$T/change.diff"
+run mthink OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=inlinethink bash "$SCRIPT" "$T/change.diff" --base none
 check "mthink: an inline think block is cut, and the review counts" \
   sh -c 'grep -qF "melious OK" "$1" && grep -qF -- "- RISK: inline finding" "$1" && ! grep -qF "could not read the file" "$1"' _ "$T/mthink.out"
-run mmiderr OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff"
+run mmiderr OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff" --base none
 check "mmiderr: an error object mid-stream fails the tier and is quoted" \
   sh -c 'grep -qF "melious FAILED (error mid-stream (HTTP 200))" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
-run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff"
+run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff" --base none
 check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
   sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
 check "mnotstream: a 429 inside the quoted review is not read as quota (round 3, fresh-eyes)" \
   sh -c 'grep -qF "melious FAILED (not a stream (HTTP 200))" "$1" && ! grep -qE "melious FAILED \([^;]*; quota" "$1"' _ "$T/mnotstream.out"
-run msplit OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=splitchunk bash "$SCRIPT" "$T/change.diff"
+run msplit OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=splitchunk bash "$SCRIPT" "$T/change.diff" --base none
 check "msplit: review text in a non-JSON chunk is quoted, not read as quota (re-gate, fresh-eyes)" \
   sh -c 'grep -qF "melious FAILED (a stream chunk that is not JSON (HTTP 200))" "$1" && ! grep -qE "melious FAILED \([^;]*; quota" "$1" && grep -qF "chunk began:" "$1"' _ "$T/msplit.out"
-run mcr OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=crchunk bash "$SCRIPT" "$T/change.diff"
+run mcr OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=crchunk bash "$SCRIPT" "$T/change.diff" --base none
 check "mcr: a control byte in a quoted chunk cannot start an error line (second re-gate, fresh-eyes)" \
   sh -c 'grep -qF "melious FAILED (a stream chunk that is not JSON (HTTP 200))" "$1" && ! grep -qE "melious FAILED \([^;]*; quota" "$1"' _ "$T/mcr.out"
-run mbad502 OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=bad502 bash "$SCRIPT" "$T/change.diff"
+run mbad502 OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=bad502 bash "$SCRIPT" "$T/change.diff" --base none
 check "mbad502: a non-JSON 502 body is quoted on one line, control bytes collapsed" \
   sh -c 'grep -qF "response is not JSON: upstream Error: bad gateway [1Gfailed" "$1" && grep -qF "melious FAILED (HTTP 502)" "$1"' _ "$T/mbad502.out"
-run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff"
+run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff" --base none
 check "mnotstreamerr: a 200 reply carrying an error message is classified by that message" \
   has mnotstreamerr.out "melious FAILED (error reply, not a stream (HTTP 200); quota/rate limit: wait or add credits)"
-run mhtml OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=html bash "$SCRIPT" "$T/change.diff"
+run mhtml OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=html bash "$SCRIPT" "$T/change.diff" --base none
 check "mhtml: a 200 page that is neither a stream nor JSON is named and quoted, not read as truncated" \
   sh -c 'grep -qF "melious FAILED (not a stream (HTTP 200))" "$1" && grep -qF "reply began: <html>" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mhtml.out"
-run mkeepalive OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=keepalive bash "$SCRIPT" "$T/change.diff"
+run mkeepalive OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=keepalive bash "$SCRIPT" "$T/change.diff" --base none
 check "mkeepalive: keep-alive comments, then a closed stream: a truncated review, not \"not a stream\"" \
   sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && ! grep -qF "not a stream" "$1"' _ "$T/mkeepalive.out"
-run mempty OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=empty bash "$SCRIPT" "$T/change.diff"
+run mempty OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=empty bash "$SCRIPT" "$T/change.diff" --base none
 check "mempty: an empty 200 reply is named as empty, not truncated" \
   sh -c 'grep -qF "an empty reply" "$1" && grep -qF "melious FAILED (empty reply (HTTP 200))" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
-run mdown OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff"
+run mdown OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff" --base none
 check "mdown: a network failure names curl's exit, with a hint" \
   sh -c 'grep -qF "melious FAILED (curl exit 56)" "$1" && grep -qF "is the host allowed by the network policy?" "$1"' _ "$T/mdown.out"
 # The fallback waits for ollama alone, not for codex (round 1, fresh-eyes). A handshake, not wall
 # time (rounds 2 and 3): codex finishes only once Melious has started, so code that holds Melious
 # back until codex is done shows as melious-after-codex after codex's 10s cap.
-run mparallel CODEX_STUB=waitmelious OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
+run mparallel CODEX_STUB=waitmelious OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff" --base none
 check "mparallel: melious counted" has mparallel.out "melious OK"
 check "mparallel: Melious started while codex was still running" \
   sh -c '[ -e "$1/codex-done" ] && [ ! -e "$1/melious-after-codex" ]' _ "$T/mparallel.marks"
@@ -1078,7 +1080,7 @@ mkdir -p "$T/mstop.marks"
 env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
   PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
   CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=stubborn MELIOUS_API_KEY=stub-stopkey \
-  bash "$SCRIPT" "$T/change.diff" >"$T/mstop.out" 2>"$T/mstop.err" &
+  bash "$SCRIPT" "$T/change.diff" --base none >"$T/mstop.out" 2>"$T/mstop.err" &
 spid=$!
 i=0; while [ ! -s "$T/mstop.marks/melious-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 kill -TERM "$spid"; wait "$spid"; echo $? >"$T/mstop.rc"
@@ -1087,60 +1089,60 @@ check "mstop: the key reached curl, and no copy of it is left in RAW_DIR (final 
   sh -c 'grep -qxF "Authorization: Bearer stub-stopkey" "$1/mstop.marks/melious-hdr" && ! grep -rqF stub-stopkey "$1/mstop.raw"' _ "$T"
 check "mstop: the TERM-ignoring fallback is gone" \
   sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/mstop.marks/melious-pid"
-run mseat MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --seat melious
+run mseat MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mseat: only Melious ran" \
   sh -c 'grep -qF "reviewers: melious OK" "$1/mseat.out" && [ ! -e "$1/mseat.marks/codex-ran" ] && [ ! -e "$1/mseat.marks/ollama-ran" ]' _ "$T"
-run mseatnomodel bash "$SCRIPT" "$T/change.diff" --seat melious
+run mseatnomodel bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mseatnomodel: --seat melious without a model is skipped, exit 4" \
   sh -c 'grep -qF "reviewers: melious SKIPPED (not available)" "$1/mseatnomodel.out" && [ "$(cat "$1/mseatnomodel.rc")" = 4 ]' _ "$T"
-run mfirst CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --first-success
+run mfirst CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --first-success
 check "mfirst: --first-success falls through to Melious after ollama" \
   has mfirst.out "reviewers: codex FAILED (exit 1), ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
-run mlocalonly OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --local-only
+run mlocalonly OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --local-only
 check "mlocalonly: --local-only never calls Melious" \
   sh -c '! grep -qF melious "$1/mlocalonly.out" && [ ! -e "$1/mlocalonly.marks/melious-url" ]' _ "$T"
-run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --local-only --seat melious
+run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --local-only --seat melious
 check "mlocalseat: --local-only refuses --seat melious, exit 2" \
   sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
 
 # 32b. SECOND_SEAT=melious (2026-10-06): Melious holds the second seat and ollama is its fallback,
 #      the other way round from section 32. A refused Melious seat must still hand over, or the
 #      round lands with one reviewer.
-run sfirst SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run sfirst SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "sfirst: Melious runs with Codex and counts" has sfirst.out "reviewers: codex OK, melious OK"
 check "sfirst: ollama is not run while Melious counts" [ ! -e "$T/sfirst.marks/ollama-ran" ]
 check "sfirst: two counted, so no fewer-than-2 note" lacks sfirst.out "fewer than the 2"
-run sfall SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
+run sfall SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
 check "sfall: Melious out of credits, ollama stands in and counts" \
   has sfall.out "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud OK"
 check "sfall: ollama ran" [ -e "$T/sfall.marks/ollama-ran" ]
-run sparallel CODEX_STUB=waitmelious SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
+run sparallel CODEX_STUB=waitmelious SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff" --base none
 check "sparallel: Melious started while codex was still running" \
   sh -c 'grep -qF "melious OK" "$1/sparallel.out" && [ -e "$1/sparallel.marks/codex-done" ] && [ ! -e "$1/sparallel.marks/melious-after-codex" ]' _ "$T"
-run sfirstsucc CODEX_STUB=auth SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --first-success
+run sfirstsucc CODEX_STUB=auth SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none --first-success
 check "sfirstsucc: --first-success tries Melious before ollama" \
   has sfirstsucc.out "reviewers: codex FAILED (exit 1), melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud OK"
-run snomodel SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff"
+run snomodel SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --base none
 check "snomodel: SECOND_SEAT=melious without a model stops before any call, exit 2" \
   sh -c '[ "$(cat "$1/snomodel.rc")" = 2 ] && grep -qF "needs MELIOUS_MODEL" "$1/snomodel.err" && [ ! -e "$1/snomodel.marks/codex-ran" ]' _ "$T"
-run sbad SECOND_SEAT=gpt MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run sbad SECOND_SEAT=gpt MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "sbad: an unknown SECOND_SEAT is refused, exit 2" \
   sh -c '[ "$(cat "$1/sbad.rc")" = 2 ] && grep -qF "expected ollama or melious" "$1/sbad.err" && [ ! -e "$1/sbad.marks/codex-ran" ]' _ "$T"
-run sseat SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --seat codex
+run sseat SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --base none --seat codex
 check "sseat: --seat runs without SECOND_SEAT's model" \
   sh -c 'grep -qF "reviewers: codex OK" "$1/sseat.out" && [ "$(cat "$1/sseat.rc")" = 0 ]' _ "$T"
-run sbadseat SECOND_SEAT=gpt bash "$SCRIPT" "$T/change.diff" --seat codex
+run sbadseat SECOND_SEAT=gpt bash "$SCRIPT" "$T/change.diff" --base none --seat codex
 check "sbadseat: a typo is refused under --seat too, exit 2" \
   sh -c '[ "$(cat "$1/sbadseat.rc")" = 2 ] && [ ! -e "$1/sbadseat.marks/codex-ran" ]' _ "$T"
-run sbadlocal SECOND_SEAT=gpt OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --local-only
+run sbadlocal SECOND_SEAT=gpt OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base none --local-only
 check "sbadlocal: a typo is refused under --local-only too, exit 2" \
   sh -c '[ "$(cat "$1/sbadlocal.rc")" = 2 ] && grep -qF "expected ollama or melious" "$1/sbadlocal.err" && [ ! -e "$1/sbadlocal.marks/ollama-ran" ]' _ "$T"
-run sboth SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+run sboth SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
 check "sboth: both seats refused, so the round is marked short" \
   sh -c 'grep -qF "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud FAILED" "$1" && grep -qF "fewer than the 2" "$1"' _ "$T/sboth.out"
 # A reused raw dir: run 1's Melious OK must not stop run 2's fallback.
-run sreuse1 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" REVIEW_RAW_DIR="$T/sreuse.raw" bash "$SCRIPT" "$T/change.diff"
-run sreuse2 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 REVIEW_RAW_DIR="$T/sreuse.raw" bash "$SCRIPT" "$T/change.diff"
+run sreuse1 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" REVIEW_RAW_DIR="$T/sreuse.raw" bash "$SCRIPT" "$T/change.diff" --base none
+run sreuse2 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 REVIEW_RAW_DIR="$T/sreuse.raw" bash "$SCRIPT" "$T/change.diff" --base none
 check "sreuse: a stale Melious OK in a reused raw dir does not hold ollama back" \
   sh -c 'grep -qF "reviewers: codex OK, melious OK" "$1/sreuse1.out" && grep -qF "melious FAILED (HTTP 429" "$1/sreuse2.out" && [ -e "$1/sreuse2.marks/ollama-ran" ]' _ "$T"
 # Stopping the script stops an ollama fallback started after Melious failed.
@@ -1148,7 +1150,7 @@ mkdir -p "$T/sstop.marks"
 env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
   PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/sstop.raw" STUB_MARKS="$T/sstop.marks" STUB_TAG="$STUB_TAG" \
   CODEX_STUB=slow SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_STUB=stubborn \
-  bash "$SCRIPT" "$T/change.diff" >"$T/sstop.out" 2>"$T/sstop.err" &
+  bash "$SCRIPT" "$T/change.diff" --base none >"$T/sstop.out" 2>"$T/sstop.err" &
 spid=$!
 i=0; while [ ! -s "$T/sstop.marks/ollama-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 kill -TERM "$spid"; wait "$spid"; echo $? >"$T/sstop.rc"
@@ -1156,7 +1158,7 @@ check "sstop: the script exits 130" rc_is sstop 130
 check "sstop: the TERM-ignoring ollama fallback is gone" \
   sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/sstop.marks/ollama-pid"
 check "sstop: it was killed, not left to finish (a foreground fallback would finish)" [ ! -e "$T/sstop.marks/ollama-slept" ]
-run slocal SECOND_SEAT=melious OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --local-only
+run slocal SECOND_SEAT=melious OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --local-only
 check "slocal: --local-only never calls Melious, whatever SECOND_SEAT says" \
   sh -c '! grep -qF melious "$1/slocal.out" && [ ! -e "$1/slocal.marks/melious-url" ]' _ "$T"
 
@@ -1173,22 +1175,22 @@ refused() {   # refused <name> <text on stderr>: exit 2, that text, nothing on s
 }
 # Not the whole sentence: it names every listed model, and a longer list must not fail these.
 NOT_LISTED="and no other model (the owner's rule, 2026-10-12; the list is $HERE/melious_models.txt). Kimi and every other model run on ollama: name the tag in OLLAMA_MODEL"
-run rfall OLLAMA_STUB=429 MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff"
+run rfall OLLAMA_STUB=429 MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --base none
 check "rfall: Kimi as the fallback's model is refused, exit 2, nothing sent and no reviewer run" refused rfall "$NOT_LISTED"
 check "rfall: the refusal names the model it was given" has rfall.err 'MELIOUS_MODEL="kimi-k3" refused'
 check "rfall: ...and the models Melious does run" \
   sh -c 'grep -qF "Melious runs $2" "$1" && grep -qF "for a Light review (--depth light) $3" "$1"' _ "$T/rfall.err" "$MELIOUS_OK" "$MELIOUS_LIGHT"
-run rseat MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --seat melious
+run rseat MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "rseat: --seat melious with Kimi is refused the same way" refused rseat "$NOT_LISTED"
-run rsecond SECOND_SEAT=melious MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff"
+run rsecond SECOND_SEAT=melious MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --base none
 check "rsecond: SECOND_SEAT=melious with Kimi is refused, and ollama does not stand in" refused rsecond "$NOT_LISTED"
-run rfirst CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --first-success
+run rfirst CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --base none --first-success
 check "rfirst: --first-success with Kimi is refused before codex is tried" refused rfirst "$NOT_LISTED"
-run rcodex MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --seat codex
+run rcodex MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --base none --seat codex
 check "rcodex: refused in every mode, a seat that would not call Melious included" refused rcodex "$NOT_LISTED"
-run rlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --local-only
+run rlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --base none --local-only
 check "rlocal: ...and under --local-only" refused rlocal "$NOT_LISTED"
-run rlightdepth MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --seat melious --depth light
+run rlightdepth MELIOUS_MODEL=kimi-k3 bash "$SCRIPT" "$T/change.diff" --base none --seat melious --depth light
 check "rlightdepth: --depth light opens the door to the light model alone, not to Kimi" refused rlightdepth "$NOT_LISTED"
 # The slips to expect: ollama's tag for the same model pasted into MELIOUS_MODEL, a longer id,
 # another case, a word of the list's own. The name must match a listed id whole. The tag is
@@ -1198,38 +1200,38 @@ MELIOUS_UPPER="$(printf '%s' "$MELIOUS_OK" | tr '[:lower:]' '[:upper:]')"
 i=0
 for near in "$MELIOUS_NEAR" "${MELIOUS_OK}-x" "${MELIOUS_OK}." "x$MELIOUS_OK" "$MELIOUS_UPPER" "light" "#" "$MELIOUS_OK light" "$MELIOUS_OK $MELIOUS_LIGHT"; do
   i=$((i+1))
-  run "rnear$i" MELIOUS_MODEL="$near" bash "$SCRIPT" "$T/change.diff" --seat melious --depth light
+  run "rnear$i" MELIOUS_MODEL="$near" bash "$SCRIPT" "$T/change.diff" --base none --seat melious --depth light
   check "rnear$i: \"$near\" is no listed id, refused" refused "rnear$i" "$NOT_LISTED"
 done
-run rallow MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --seat melious
+run rallow MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "rallow: a model listed for any depth passes with no --depth, runs and counts" \
   sh -c '[ "$(cat "$1/rallow.rc")" = 0 ] && grep -qF "reviewers: melious OK" "$1/rallow.out" && ! grep -qF refused "$1/rallow.err"' _ "$T"
 check "rallow: ...and it is the model sent" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{model} eq $ARGV[1])' "$T/rallow.marks/melious-body" "$MELIOUS_OK"
-run rallowhigh MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --seat melious --depth high
+run rallowhigh MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious --depth high
 check "rallowhigh: ...and at --depth high" has rallowhigh.out "reviewers: melious OK"
 
 # 32d. A model the list marks "light" runs in a Light review and nowhere else (the owner,
 #      2026-10-12). The run has to say --depth light: no --depth is not Light.
 LIGHT_ONLY="on Melious that model is for a Light review only, and this run says"
-run lseat MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --seat melious --depth light
+run lseat MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --base none --seat melious --depth light
 check "lseat: the light model as --seat melious at --depth light runs and counts" \
   sh -c '[ "$(cat "$1/lseat.rc")" = 0 ] && grep -qF "reviewers: melious OK" "$1/lseat.out" && ! grep -qF refused "$1/lseat.err"' _ "$T"
 check "lseat: ...and it is the model sent" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{model} eq $ARGV[1])' "$T/lseat.marks/melious-body" "$MELIOUS_LIGHT"
-run lsecond SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --depth light
+run lsecond SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --base none --depth light
 check "lsecond: beside Codex at --depth light, both count" has lsecond.out "reviewers: codex OK, melious OK"
-run lnodepth MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --seat melious
+run lnodepth MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "lnodepth: with no --depth it is refused, nothing sent" refused lnodepth "$LIGHT_ONLY no --depth."
 check "lnodepth: the refusal says what Melious runs at any depth, not where Kimi runs" \
   sh -c 'grep -qF "Melious runs $2" "$1" && ! grep -qF Kimi "$1"' _ "$T/lnodepth.err" "$MELIOUS_OK"
-run lnormal SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --depth normal
+run lnormal SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --base none --depth normal
 check "lnormal: at --depth normal it is refused, and neither Codex nor ollama runs" refused lnormal "$LIGHT_ONLY --depth normal."
-run lhigh MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --seat melious --depth high
+run lhigh MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --base none --seat melious --depth high
 check "lhigh: at --depth high it is refused" refused lhigh "$LIGHT_ONLY --depth high."
-run lfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --depth normal
+run lfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --base none --depth normal
 check "lfall: as the fallback's model at --depth normal it is refused before any reviewer" refused lfall "$LIGHT_ONLY --depth normal."
-run lcodex MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --seat codex
+run lcodex MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --base none --seat codex
 check "lcodex: refused in every mode, a seat that would not call Melious included" refused lcodex "$LIGHT_ONLY no --depth."
 
 # 32e. The list itself. The script reads the one beside it, so each case runs a copy of the
@@ -1243,7 +1245,7 @@ listcase() {   # listcase <name> <list text, or "-" for no list> [VAR=value ...]
   mkdir -p "$T/$name.scripts"
   (cd "$HERE" && tar cf - --exclude melious_models.txt .) | (cd "$T/$name.scripts" && tar xf -)
   [ "$text" = - ] || printf '%s' "$text" >"$T/$name.scripts/melious_models.txt"
-  run "$name" ${envs[@]+"${envs[@]}"} bash "$T/$name.scripts/independent_review.sh" "$T/change.diff" "$@"
+  run "$name" ${envs[@]+"${envs[@]}"} bash "$T/$name.scripts/independent_review.sh" "$T/change.diff" --base none "$@"
 }
 NL='
 '
@@ -1282,96 +1284,96 @@ check "lunset: with MELIOUS_MODEL unset a missing list stops nothing" has lunset
 # 34. #165 on top of the fallback: the key's sources and reach, the budget, the final-review marker
 #     against leaked reasoning, think blocks anywhere, finish reasons, a reply cut off mid-stream.
 MK=stub-melious-secret
-run mbody MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --seat melious
+run mbody MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbody: default budget 96000 and the final-review marker ask" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /holds exactly === FINAL REVIEW [0-9a-f]{8,} ===/)' "$T/mbody.marks/melious-body"
 check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, melious)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
-run mbudget MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_MAX_TOKENS=48000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
+run mbudget MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_MAX_TOKENS=48000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 48000)' "$T/mbudget.marks/melious-body"
 check "mbudget: MELIOUS_BASE_URL, trailing slash dropped" grep -qxF "https://example.test/v9/chat/completions" "$T/mbudget.marks/melious-url"
-run mbadbudget MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_MAX_TOKENS=lots bash "$SCRIPT" "$T/change.diff" --seat melious
+run mbadbudget MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_MAX_TOKENS=lots bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbadbudget: a non-number budget fails before any call" sh -c 'grep -qF "melious FAILED (bad MELIOUS_MAX_TOKENS)" "$1" && [ ! -e "$2" ]' _ "$T/mbadbudget.out" "$T/mbadbudget.marks/melious-url"
-run mkeyfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_API_KEY="$MK" STUB_KEY="$MK" bash "$SCRIPT" "$T/change.diff"
+run mkeyfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_API_KEY="$MK" STUB_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --base none
 check "mkeyfall: codex never sees MELIOUS_API_KEY" test ! -e "$T/mkeyfall.marks/codex-saw-melious-key"
 check "mkeyfall: melious still gets it, on stdin" grep -qxF "Authorization: Bearer $MK" "$T/mkeyfall.marks/melious-hdr"
 check "mkeyfall: the key is not on curl's command line" not_in "$T/mkeyfall.marks/curl-argv-any" "$MK"
-check "mkeyfall: the key is nowhere on disk during the call" test ! -e "$T/mkeyfall.marks/key-on-disk"
+check "mkeyfall: the key is nowhere in the run's raw folder during the call" test ! -e "$T/mkeyfall.marks/key-on-disk"
 printf '%s\r\n' 'OTHER=1' "MELIOUS_API_KEY=\"file-key\"" 'MELIOUS_API_KEY=second-line' >"$T/melious.env"
-run menv MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_ENV_FILE="$T/melious.env" bash "$SCRIPT" "$T/change.diff" --seat melious
+run menv MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_ENV_FILE="$T/melious.env" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "menv: the env file's first key line, quotes and CR dropped" grep -qxF "Authorization: Bearer file-key" "$T/menv.marks/melious-hdr"
 printf 'export MELIOUS_API_KEY=keyendingr  \n' >"$T/melious2.env"
-run menv2 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_ENV_FILE="$T/melious2.env" bash "$SCRIPT" "$T/change.diff" --seat melious
+run menv2 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_ENV_FILE="$T/melious2.env" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "menv2: an export line works; trailing blanks dropped; a final r kept" grep -qxF "Authorization: Bearer keyendingr" "$T/menv2.marks/melious-hdr"
 mkdir -p "$T/u/.config/reviewers"; printf 'MELIOUS_API_KEY=home-key\n' >"$T/u/.config/reviewers/melious.env"
-run mhome MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --seat melious
+run mhome MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mhome: the default env file under HOME is read" grep -qxF "Authorization: Bearer home-key" "$T/mhome.marks/melious-hdr"
 rm -f "$T/u/.config/reviewers/melious.env"
-run mleak MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=leak bash "$SCRIPT" "$T/change.diff" --seat melious
+run mleak MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=leak bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mleak: the answer after the LAST marker line is the review" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: the real finding" "$1" && ! grep -qF "draft finding" "$1" && ! grep -qF "Let me think" "$1"' _ "$T/mleak.out"
 check "mleak: the section says text was dropped" has mleak.out "text before the final-review marker dropped"
 check "mleak: a usable marker gives no no-marker warning" lacks mleak.out "no usable final-review marker"
 check "mleak: the untrimmed reply is kept in melious.full" grep -qF "Let me think" "$T/mleak.raw/melious.full"
-run mleaknofull MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=leaknofull bash "$SCRIPT" "$T/change.diff" --seat melious
+run mleaknofull MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=leaknofull bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mleaknofull: the note does not promise a melious.full it could not write" sh -c 'grep -qF "the full reply could not be saved" "$1" && ! grep -qF "is in melious.full" "$1" && grep -qF "BUG: the real finding" "$1"' _ "$T/mleaknofull.out"
-run mbig MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --seat melious
+run mbig MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
-run mmarkdup MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --seat melious
+run mmarkdup MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mmarkdup: a marker repeated at the end does not win" sh -c 'grep -qF "BUG: kept finding" "$1" && ! grep -qF "Thinking about it" "$1" && grep -qF "dropped, under 1 KB" "$1"' _ "$T/mmarkdup.out"
-run mmarkfence MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markfence bash "$SCRIPT" "$T/change.diff" --seat melious
+run mmarkfence MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markfence bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mmarkfence: a marker quoted in a fence after the review does not win" sh -c 'grep -qF "RISK: fenced case kept" "$1" && ! grep -qF "Thinking first" "$1"' _ "$T/mmarkfence.out"
-run mmarkwrap MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markwrap bash "$SCRIPT" "$T/change.diff" --seat melious
+run mmarkwrap MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markwrap bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mmarkwrap: a marker in bold is still found" sh -c 'grep -qF "BUG: wrapped marker kept" "$1" && ! grep -qF "Reasoning that leaked" "$1"' _ "$T/mmarkwrap.out"
-run mbigmarkend MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
+run mbigmarkend MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
-run mglued MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=glued bash "$SCRIPT" "$T/change.diff" --seat melious
+run mglued MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=glued bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, melious)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
 check "mglued: a cut at a glued marker says so" grep -qF "the marker ended a line of other text" "$T/mglued.out"
-run mechoglued MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=echoglued bash "$SCRIPT" "$T/change.diff" --seat melious
+run mechoglued MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=echoglued bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mechoglued: reasoning that restates the marker on a line of its own, then glues the real one: cut at the glued one, and said" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "More reasoning" "$1" && grep -qF "the marker ended a line of other text" "$1"' _ "$T/mechoglued.out"
-run mfencequote MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fencequote bash "$SCRIPT" "$T/change.diff" --seat melious
+run mfencequote MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fencequote bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mfencequote: a finding that quotes the marker in a fence does not cut the findings above it" sh -c 'grep -qF "BUG: real finding one" "$1" && grep -qF "NIT: three" "$1" && ! grep -qF "marker dropped" "$1"' _ "$T/mfencequote.out"
-run mafterfence MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=afterfence bash "$SCRIPT" "$T/change.diff" --seat melious
+run mafterfence MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=afterfence bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mafterfence: the real marker skipped as quoted, an earlier one used: the findings are kept and the cut is flagged" sh -c 'grep -qF "BUG: the real finding" "$1" && grep -qF "the marker came 2 times with findings after it, so check that the section starts with the review" "$1"' _ "$T/mafterfence.out"
-run mindentquote MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=indentquote bash "$SCRIPT" "$T/change.diff" --seat melious
+run mindentquote MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=indentquote bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mindentquote: a quote the rules miss moves the cut, and the cut is flagged" grep -qF "so check that the section starts with the review" "$T/mindentquote.out"
-run mtopecho MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=topecho bash "$SCRIPT" "$T/change.diff" --seat melious
+run mtopecho MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=topecho bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mtopecho: a cut at the very top with another usable marker below is still flagged" sh -c 'grep -qF "BUG: the real finding" "$1" && grep -qF "the final-review marker came 2 times with findings after it, so check that the section starts with the review" "$1"' _ "$T/mtopecho.out"
-run mquotemark MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=quotemark bash "$SCRIPT" "$T/change.diff" --seat melious
+run mquotemark MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=quotemark bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mquotemark: a finding that quotes the marker at its line end does not cut the findings above it" sh -c 'grep -qF "BUG: real finding one" "$1" && grep -qF "NIT: three" "$1" && ! grep -qF "marker dropped" "$1" && ! grep -qF "no usable final-review marker" "$1"' _ "$T/mquotemark.out"
-run moldmark MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=oldmark bash "$SCRIPT" "$T/change.diff" --seat melious
+run moldmark MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=oldmark bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "moldmark: a reply quoting the old fixed marker: only this run's marker counts" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "a draft that quotes" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/moldmark.out"
 # The marker is never one the reviewed text holds, even when the random source repeats itself.
 mkdir -p "$T/odbin"; printf '#!/bin/sh\nprintf " de ad be ef\\n"\n' >"$T/odbin/od"; chmod +x "$T/odbin/od"
 printf 'diff --git a/x b/x\n+=== FINAL REVIEW deadbeef ===\n+=== FINAL REVIEW deadbeefdeadbeef ===\n' >"$T/markdiff.diff"
-run mcollide MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markend PATH="$T/odbin:$T/bin:$PATH" bash "$SCRIPT" "$T/markdiff.diff" --seat melious
+run mcollide MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markend PATH="$T/odbin:$T/bin:$PATH" bash "$SCRIPT" "$T/markdiff.diff" --base none --seat melious
 check "mcollide: markers the diff holds are skipped, even from a stuck random source" sh -c 'grep -qF "holds exactly === FINAL REVIEW deadbeefdeadbeefdeadbeef ===" "$1" && grep -qF "reviewers: melious OK" "$2"' _ "$T/mcollide.marks/melious-body" "$T/mcollide.out"
-run mbody2 MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --seat melious
+run mbody2 MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbody2: each run asks for a marker of its own" sh -c 'a=$(grep -o "FINAL REVIEW [0-9a-f]* ===" "$1" | head -n 1); b=$(grep -o "FINAL REVIEW [0-9a-f]* ===" "$2" | head -n 1); [ -n "$a" ] && [ -n "$b" ] && [ "$a" != "$b" ]' _ "$T/mbody.marks/melious-body" "$T/mbody2.marks/melious-body"
-run mmarkend MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --seat melious
+run mmarkend MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mmarkend: a marker with nothing after it: the reply is kept whole" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: before the marker" "$1"' _ "$T/mmarkend.out"
-run mthinkonly MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=thinkonly bash "$SCRIPT" "$T/change.diff" --seat melious
+run mthinkonly MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=thinkonly bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mthinkonly: a reply that is only thinking has no review text" sh -c 'grep -qF "melious FAILED (HTTP 200 but no review text)" "$1" && grep -qF "the reply holds no text, only thinking" "$1"' _ "$T/mthinkonly.out"
-run mthinklast MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=thinklast bash "$SCRIPT" "$T/change.diff" --seat melious
+run mthinklast MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=thinklast bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mthinklast: a think block after the review is dropped, the review kept" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept before" "$1" && ! grep -qF "trailing thoughts" "$1"' _ "$T/mthinklast.out"
-run munclosed MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=unclosed bash "$SCRIPT" "$T/change.diff" --seat melious
+run munclosed MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=unclosed bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "munclosed: an opener never closed: the rest is thinking and is dropped" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept first" "$1" && ! grep -qF "could not read" "$1"' _ "$T/munclosed.out"
 check "mthinklast: and says what it cut" has mthinklast.out "think block text dropped"
-run mquotedtag MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=quotedtag bash "$SCRIPT" "$T/change.diff" --seat melious
+run mquotedtag MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=quotedtag bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mquotedtag: a tag quoted inside a finding cuts nothing (re-gate, fresh-eyes)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "NIT: keep this line" "$1" && ! grep -qF "think block text dropped" "$1"' _ "$T/mquotedtag.out"
-run moddfinish MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=oddfinish bash "$SCRIPT" "$T/change.diff" --seat melious
+run moddfinish MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=oddfinish bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "moddfinish: a finish_reason carrying 429 text is not read as quota" sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && ! grep -qF "quota/rate limit" "$1" && ! grep -qF "finish_reason 429" "$1"' _ "$T/moddfinish.out"
-run mfilter MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=filter bash "$SCRIPT" "$T/change.diff" --seat melious
+run mfilter MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=filter bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mfilter: a finish other than stop is a truncated review" sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "finish_reason content_filter" "$1"' _ "$T/mfilter.out"
-run mlengthbudget MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff" --seat melious
+run mlengthbudget MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mlengthbudget: a reply cut by the budget names the knob" has mlengthbudget.out "raise MELIOUS_MAX_TOKENS"
 check "mlengthbudget: the raw reply is saved on a failure path too" grep -qF "cut off" "$T/mlengthbudget.raw/melious.full"
-run mreset MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=reset bash "$SCRIPT" "$T/change.diff" --seat melious
+run mreset MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=reset bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mreset: a reply that broke off is named as such" has mreset.out "reviewers: melious FAILED (curl exit 56, reply cut off)"
 check "mreset: ...not as a blocked host" sh -c '! grep -qF "network policy" "$1"' _ "$T/mreset.out"
 check "mreset: ...and the part that came is kept" grep -qF "half a reply" "$T/mreset.raw/melious.resp"
-run mstale MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --seat melious
-run mstale2 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nousage REVIEW_RAW_DIR="$T/mstale.raw" bash "$SCRIPT" "$T/change.diff" --seat melious
+run mstale MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
+run mstale2 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nousage REVIEW_RAW_DIR="$T/mstale.raw" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mstale: the first run counted its tokens" grep -qE '^timings: melious [0-9]+s \(600 tokens\)$' "$T/mstale.out"
 check "mstale2: a reused raw dir does not lend it the old count, nor the old melious.full" \
   sh -c 'grep -qE "^timings: melious [0-9]+s$" "$1" && ! grep -qF "melious finding one" "$2"' _ "$T/mstale2.out" "$T/mstale.raw/melious.full"
@@ -1422,11 +1424,11 @@ PY
   else
     RC_PATH="$(dirname "$REAL_CURL"):/usr/bin:/bin"
     run mreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_API_KEY=real-curl-key \
-      MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
+      MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
     run mrealnokey PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL="$MELIOUS_OK" \
-      MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
+      MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
     run oreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 OLLAMA_TRANSPORT=api OLLAMA_MODEL=stub-local \
-      OLLAMA_HOST="127.0.0.1:$(cat "$T/echo.port")" OLLAMA_API_KEY=real-ollama-key bash "$SCRIPT" "$T/change.diff" --seat ollama
+      OLLAMA_HOST="127.0.0.1:$(cat "$T/echo.port")" OLLAMA_API_KEY=real-ollama-key bash "$SCRIPT" "$T/change.diff" --base none --seat ollama
     check "mreal: real curl, keyed: counted" has mreal.out "reviewers: melious OK"
     check "mreal: real curl sends the stdin header" grep -qxF "auth=Bearer real-curl-key" "$T/echo.log"
     check "mrealnokey: real curl with an empty stdin header list: counted" has mrealnokey.out "reviewers: melious OK"
@@ -1452,10 +1454,10 @@ for a; do case "\$a" in 'require 5.010') : >"\$STUB_MARKS/perl510-refused"; echo
 exec "$REALPERL" "\$@"
 EOF
 chmod +x "$T/oldperl/perl"
-run oldcli PATH="$T/oldperl:$T/bin:$PATH" bash "$SCRIPT" "$T/change.diff"
+run oldcli PATH="$T/oldperl:$T/bin:$PATH" bash "$SCRIPT" "$T/change.diff" --base none
 check "oldcli: an old Perl still runs the ollama CLI tier, it counts, and no version probe ran" \
   sh -c 'grep -qF "reviewers: codex OK, ollama-cloud OK" "$1/oldcli.out" && [ -e "$1/oldcli.marks/ollama-ran" ] && [ ! -e "$1/oldcli.marks/perl510-refused" ]' _ "$T"
-run oldapi PATH="$T/oldperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run oldapi PATH="$T/oldperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "oldapi: an old Perl skips the ollama API and Melious tiers, says why, nothing sent" \
   sh -c 'grep -qF "ollama-cloud SKIPPED (Perl 5.10 or newer not found), melious SKIPPED (Perl 5.10 or newer not found)" "$1/oldapi.out" && [ ! -e "$1/oldapi.marks/curl-url" ] && [ ! -e "$1/oldapi.marks/melious-url" ] && [ -e "$1/oldapi.marks/perl510-refused" ]' _ "$T"
 
@@ -1470,7 +1472,7 @@ fi
 exec "$REALPERL" "\$@"
 EOF
 chmod +x "$T/nojsonperl/perl"
-run nojson PATH="$T/nojsonperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run nojson PATH="$T/nojsonperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "nojson: no JSON::PP: both API tiers skipped, the module named, nothing sent" \
   sh -c 'grep -qF "ollama-cloud SKIPPED (Perl module JSON::PP not found), melious SKIPPED (Perl module JSON::PP not found)" "$1/nojson.out" && [ ! -e "$1/nojson.marks/curl-url" ] && [ ! -e "$1/nojson.marks/melious-url" ] && [ -e "$1/nojson.marks/jsonpp-refused" ]' _ "$T"
 # A PATH of links to every tool in /usr/bin and /bin, less one: two ln calls, not one per file.
@@ -1479,10 +1481,10 @@ mkdir -p "$T/bin3"; cp "$T/bin/codex" "$T/bin3/"
 for drop in curl perl; do
   mkdir -p "$T/no$drop"; ln -s /usr/bin/* "$T/no$drop/" 2>/dev/null; ln -s /bin/* "$T/no$drop/" 2>/dev/null; rm -f "$T/no$drop/$drop"
 done
-run nocurl PATH="$T/bin3:$T/nocurl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run nocurl PATH="$T/bin3:$T/nocurl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "nocurl: no curl: both API tiers skipped, curl named" \
   has nocurl.out "reviewers: codex OK, ollama-cloud SKIPPED (curl not found), melious SKIPPED (curl not found)"
-run noperl PATH="$T/bin3:$T/noperl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff"
+run noperl PATH="$T/bin3:$T/noperl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "noperl: no perl at all: named as missing, not as too old" \
   has noperl.out "ollama-cloud SKIPPED (perl not found), melious SKIPPED (perl not found)"
 
@@ -1491,10 +1493,10 @@ check "noperl: no perl at all: named as missing, not as too old" \
 #     13-round gate had no owner decision recorded past round 8; a refusal would stop the process,
 #     so this is a line the caller reads in the round's own output.
 #     Each names --earned-by: a round past 3 is refused without it (test_round_checks.sh).
-run round8 REVIEW_LOG="$T/round8.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 8 --earned-by stub-kind
-run round9 REVIEW_LOG="$T/round9.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 9 --earned-by stub-kind
-run round12 bash "$SCRIPT" "$T/change.diff" --depth normal --round 12 --earned-by stub-kind
-run noround bash "$SCRIPT" "$T/change.diff"
+run round8 REVIEW_LOG="$T/round8.tsv" bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 8 --earned-by stub-kind
+run round9 REVIEW_LOG="$T/round9.tsv" bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 9 --earned-by stub-kind
+run round12 bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 12 --earned-by stub-kind
+run noround bash "$SCRIPT" "$T/change.diff" --base none
 check "round 8: no past-round-8 notice" lacks round8.out "is past round 8"
 check "round 9: the notice names the round, the step and the owner" \
   has round9.out "⚠ Round 9 is past round 8 (SKILL.md step 6): each round from here on is the owner's decision, one at a time."

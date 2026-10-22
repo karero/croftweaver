@@ -78,6 +78,7 @@ REQUIRED=(
   scripts/check_lf_checkout.sh
   scripts/list_shell_scripts.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
+  skills/independent-review/scripts/test_base_check.sh
   skills/independent-review/scripts/check_perl_minimum.sh
   skills/independent-review/scripts/perl/melious_key.pl
   skills/independent-review/scripts/perl/melious_request.pl
@@ -86,6 +87,8 @@ REQUIRED=(
   skills/independent-review/scripts/perl/ollama_request.pl
   skills/independent-review/scripts/perl/ollama_stream.pl
   skills/independent-review/scripts/perl/readable_tail.pl
+  skills/independent-review/scripts/perl/diff_headers.pl
+  skills/independent-review/scripts/perl/run_limited.pl
   docs/ANTIGRAVITY.md
   docs/ANTIGRAVITY-TEST.md
   docs/CODEX.md

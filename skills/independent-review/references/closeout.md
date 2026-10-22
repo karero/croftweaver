@@ -64,7 +64,7 @@ narrative — raw reviewer text lives in the PR comment:
 ```
 # <GATE> review — <PR/MR or branch> — <the change, one line>
 Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OPEN · authority used: <property — atom>
-| Round | Head | Artifact (full / delta since <sha>) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
+| Round | Head | Artifact (full / delta since <sha>, as the run's `base:` line says) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 | id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote (a parser or validator fix: the invariant and the variants or comparison, step 5) |
 Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction;
 the owner's grant for each round past 8, quoted.
@@ -133,7 +133,8 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      prose, tell the seat so, and to flag ONLY a factual contradiction or misleading claim against
      the code or behaviour described — not style or phrasing; the scope is prepended to the
      unchanged strict prompt and the ranking still applies. Send the delta since that seat's last
-     seen head, as any chain link (without an unbroken chain it gets the full pair). A clean
+     seen head, as any chain link, with `--base <that head>` (without an unbroken chain it gets
+     the full pair). A clean
      narrow pass IS the re-gate. A fix the wording pass asked for is re-gated the same way, as
      its confirmation (SKILL.md step 6) — not a second wording pass.
      **Prose-only** is decided from a changed-file/hunk inventory, never by eye: every hunk is
