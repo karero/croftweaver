@@ -1,0 +1,45 @@
+# DIFF review — deps/node-floor-guard — a check that holds the starter's Node floor, the stricter `engines`, the installer's comment
+Base `1e5cf467` · depth: Normal (a new check script and instruction files an assistant follows are never Light; no data, login or money is touched, so not High — a judgment) · verdict: CLEAN, pending the wording pass and the merge link below (3 rounds; 26 findings after dedup, 6 BUG, 10 RISK, 10 NIT; 2 refuted, the rest fixed) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created this worktree and branch); POST AUTHORITY — atom A once the PR is opened (this session creates that exact PR); GATED-THIS-DIFF — atom A (reviewer input captured against the pairs in the table)
+
+Seats: Codex CLI 0.163.0 (gpt-6.1-sol, read-only; medium effort in rounds 2 and 3), GLM 5.3 on melious (HTTP API), a fresh-eyes Sonnet sub-agent in round 1 (by design at Normal depth). The PLAN gate that came first is in `SKILL-PLAN-node-floor-guard.md` (five rounds, a closing full read by Kimi on ollama, one narrow pass); its raw outputs are in the PR's second comment.
+
+| Round | Head | Artifact | New findings (BUG/RISK/NIT) | Seats |
+|---|---|---|---|---|
+| 1 | `e73cce58` | full, `1e5cf467...e73cce58` | 4/8/7 after dedup (19 rows) | codex 437 s / 93,239; melious 597 s / 58,757; fresh-eyes not recorded |
+| 2 | `35a5943a` | delta since `e73cce58` | 2/2/1 (5 rows) | codex 279 s / 48,215; melious 688 s / 52,071 |
+| 3 | `37d19698` | delta since `35a5943a` | 0/0/2 | codex 212 s / 57,469; melious 510 s / 26,619 |
+
+Round 1 (full diff, 20 files):
+- R1-01 BUG (Codex, fresh-eyes) FIXED, re-verified: the no-node probes of `test_node_floor.sh` inherited `REQUIRE_NODE_FLOOR=1`, which both CI jobs set, so both exited 1 and the new `node-floor` and `macos-stock-tools` jobs would have gone red. The plain probe now runs under `env -u`, the strict one under `env REQUIRE_NODE_FLOOR=1`; the test ran plainly and with the variable exported, 51 cases ok both times.
+- R1-02 BUG (Codex) FIXED, re-verified: G5 counted the alternatives but not their shape, so `^24.22.1` widened to `>=24.22.1` passed with the docs unchanged. Every alternative but the highest must now be caret-bounded; a test case widens the middle one.
+- R1-03 BUG (Codex) FIXED, re-verified: `null` as the whole of package.json or the lockfile bypassed the checks and could print OK. `readJson` fails unless the value is a plain object; a final sanity check refuses to say OK unless every rule was reached; cases for `null` in both files and `[]`.
+- R1-04 BUG (GLM) FIXED: the README said the installer's own 22.12 is an expected hit of the grep, which searches only the versions in `engines`. The paragraph now says what hits to expect and that 22.12 is not searched; the grep of each old version after a move is written down.
+- R1-05 RISK (GLM) FIXED: the runbook assumed `dist/index.json` entries carry a `security` flag. Checked on the live index by the host (the flag is there); the command now exits 1 with "no security releases seen" when it finds none, run both ways.
+- R1-06 RISK (GLM) REFUTED by running it: `exec node - "$@"` puts `--admits` at `argv[2]`; `--admits` agrees with npm's semver in the test.
+- R1-07 to R1-12 RISK (fresh-eyes; Codex for R1-08) FIXED, re-verified: case 2 asserted a string every message holds (it now moves only the 24 alternative and asserts exactly one flagged); no case moved only the 24 or the 26 version (two added); no case reached an interval edge or a green containment (edges against npm's semver, two green cases); the test hard-coded about ten literals (read from package.json, `EXPECTED_RANGE` the one pin); the starter README's step 3 offered `npm i` lines that carry no `engines` (step 3 now copies the overlay's package.json first); npm's warning was measured on npm 11 only (see below).
+- R1-13 to R1-19 NIT (fresh-eyes, GLM) FIXED: a stray tail in the dependabot comment; hard-coded `node-version: 24` in two jobs (now `node-version-file`); "no `.github/`" wording in two headers (now "repo-root"); a no-op strip and its case; `RANGE` and `EXPECTED_RANGE` duplicated; "or newer" in UPGRADING; the installer comment mixing two files.
+
+Round 2 (verification, 2 BUG):
+- R2-01 BUG (Codex; GLM as NIT) FIXED, re-verified in round 3: `docs/UPGRADING.md` said "22.23.4 or newer", which reads as fine on Node 23 and 25, though `engines` refuses them. It now says 22.23.4 or newer on Node 22, 24.22.1 or newer on Node 24, or 26.12.1 or newer, and that 23 and 25 are not supported; the guard's phrase row for it captures all three (`use: 'lines'`); the plan's three places that described the old phrase say what changed.
+- R2-02 RISK (Codex, GLM) FIXED, re-verified: `drop()` made `24.23.-1` when a fix lands on a `.0` patch. It now gives `24.22.999` (and the major before when the minor is 0 too).
+- R2-03 RISK (Codex, GLM) FIXED, re-verified: cases 1, 2 and the twice-named-line case hard-coded `>=22.30.1`, `^24.30.0` and `^22.30.0`. They are derived one patch above the real versions.
+- R2-04 BUG (Codex) FIXED, re-verified: the header promised that a security release changes one line of the test. That was false until R2-02 and R2-03. Shown now by running the test in a throwaway copy with the 24 line moved from 24.22.1 to 24.23.0 (engines, lockfile root, docs, `EXPECTED_RANGE`): 51 cases ok.
+- R2-05 NIT (GLM) REFUTED: GLM said the README half of R1-18 ("a newer Node" pointing at the setup guide) was missing; it was not in the delta because it landed in the first commit (root README line 163: "building a site needs a newer Node; the setup guide says which"). Codex read the line in round 3.
+
+Round 3 (verification, 0 BUG, 0 RISK):
+- R3-01 NIT (GLM) FIXED, `locally_verified`: the test header named only cases 19 and 20 as assuming three lines; it now names the version plumbing and case 12 too.
+- R3-02 NIT (GLM) FIXED, `locally_verified`: the `LINE_COUNT` comment named two documents; UPGRADING.md is the third.
+
+Checked by the host and not left as UNVERIFIABLE: Astro's `bin/astro.mjs` (`engines='>=22.23.4'`, `skipSemverCheckIfAbove = 23`) was read in the first PR; Node's advisory page and `dist/index.json` (the `security` flag, newest first) were read raw; npm's behaviour on an unmet root `engines` was run again for this trail on Node 26.12.1 with each npm from `npx`: npm 9.9.4, 10.9.2 and 11.20.0, `npm install` and `npm ci` on a dependency-free `site@1.0.0` requiring `>=99.0.0`: all six printed `EBADENGINE` for `site@1.0.0` and exited 0 (npm 9 and 10 were not run on the Node 22 that ships them; the warning is npm's own); the committed test repeats the `install` case on whichever npm the job has. `make check` ran on the merged head (below). Not run here: the new CI jobs themselves, and what `setup-node` resolves `24` to (checked by major only, a known risk of the plan).
+
+Merge: before the push `main` had moved (#378, per-seat size limits in `independent-review`). It was merged into the branch (not rebased, so the heads quoted here stay valid) without a conflict; the two files both sides touched, `README.md` and `scripts/package.sh`, took `main`'s lines beside the branch's. The new seen pair is base `7e65bfed`. The merge link (`merge_link.sh 1e5cf467 37d19698 7e65bfed`) is four hunks: `main`'s README sentence, `main`'s `utf8_valid.pl` line in the zip's `REQUIRED` list, and the two comment fixes of R3-01 and R3-02; none of the files #378 changed is called by this change's code (the callee suggestions are names mentioned in README and BUGLOG text).
+
+Cost: the PLAN gate logged 641,937 tokens for rounds 1 to 5, plus a full read by Kimi and a narrow pass; the DIFF gate logged 336,370 tokens for rounds 1 to 3, plus the fresh-eyes pass (not recorded). Round 3 was earned by round 2's substantive BUGs; no round was past 3.
+
+Follow-ups:
+- The owner adds `node-floor` to the ruleset "main checks" required checks (a new job blocks nothing until it is listed).
+- The owner publishes `create-croftweaver` 0.2.1 after 0.33 is live; then `docs/WHAT-THE-SKILLS-RUN.md` stops saying 0.2.0 is the newest.
+- Case 19 of the test hard-codes `^25.9.0` as the added line (GLM, outside the delta): safe while no supported line is Node 25.
+Notes:
+- Round 2's UPGRADING fix changed a decision of the reviewed plan (the lowest version only); the plan's rows say so.
+- Round 3's two NITs are `locally_verified`, "not externally re-verified"; the wording pass and the merge link below read them.
