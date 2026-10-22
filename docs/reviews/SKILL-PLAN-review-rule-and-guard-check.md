@@ -6,7 +6,7 @@ login, money, deletion or schema).
 
 | Step | What | State | Evidence |
 |---|---|---|---|
-| 1 | Past round 3, an in-scope RISK whose fix changed what runs earns a round, instead of going to the owner | planned | — |
+| 1 | Past round 3, an in-scope RISK whose fix changed what runs or what someone acts on earns a round, instead of going to the owner | planned | — |
 | 2 | Bug-log row: Codex refuses a prompt that is not valid UTF-8 | planned | — |
 | 3 | The plan prompt asks about the guards a plan proposes | planned; build waits for the owner's go | — |
 | 4 | Live trials T2 and T3 of step 3 | planned, after `make check` | — |
@@ -26,9 +26,9 @@ waive)".
   215–217) as well.
 - **277–279 and 288 (6(b))**: a round past 3 is earned by a substantive BUG or by such a RISK; the
   host fixes the RISK and runs the round with `--earned-by <its kind>`, under the same cut rule,
-  without asking. A RISK whose fix changes no meaning is wording and goes to the wording pass, as
-  step 6 already says. A round with neither ends the rounds: its NITs are fixed or refuted without
-  another round ((a2)). New: aim to finish by round 5; don't ask the owner whether to run the next
+  without asking. A RISK whose fix changes no meaning is wording: it is fixed like a NIT under
+  (a2), without another round, and the wording pass reads it where one runs. A round with neither
+  ends the rounds: its NITs are fixed or refuted without another round ((a2)). New: aim to finish by round 5; don't ask the owner whether to run the next
   round; ask only for what the owner alone gives: a RISK waiver, a BUG deferral (step 5), a change
   of scope, and past round 8 the decision 6(b) already names (kept). **294**: "the BUG that earned
   it" becomes "the BUG or RISK".
@@ -37,26 +37,31 @@ waive)".
   becomes: in a gate where a round found a substantive BUG, after the rounds end (and the final full
   read), whatever changed since the last round. Otherwise a RISK-earned round after the last BUG
   round would put already-verified fixes into a prose-only pass.
-- **320** (step 7): "the round budget already follows substantive BUGs" adds "and fixed RISKs".
+- **320** (step 7): "the round budget already follows substantive BUGs" adds "and the RISKs that earn rounds".
 - **Step 8**, after "Never run rounds silently back-to-back": the update is a report, not a
   question; an owed or earned round runs without waiting for an answer.
-- **Stay as they are:** 144 (when record prose gets the wording pass) and 317 (a wording pass's
-  RISKs are follow-ups by its prose-only scope, so only a BUG reopens rounds): their trigger is
-  unchanged. 221 points at the test. Step 7's "take the open items to the owner" follows a stop
+- **Stay as they are:** 144 (when record prose gets the wording pass) and 317 (only a substantive
+  BUG reopens the rounds after a wording pass). The wording pass is not a round: it runs after the
+  rounds end, on prose only; a contradiction it finds is fixed and that fix gets one confirmation
+  by the same seat (lines 312–318); its other RISKs are follow-ups, which need no owner decision.
+  The owner's rule is about a round's open RISK going to the owner, which the wording pass never
+  does. 221 points at the test. Step 7's "take the open items to the owner" follows a stop
   for non-convergence, a redesign or scope call.
 
 **Elsewhere.** `references/rationale.md` line 374 and `references/closeout.md` line 71 get "BUG or
 RISK"; the script's header (lines 77–78, 87–88) gets "a substantive BUG, or an in-scope RISK whose
-fix changed what runs, in the round before". The script itself needs no change: it never sees a
-severity. Line 266 refuses round 4 and later when `--earned-by` is empty, lines 224–241 check a
+fix changed what runs or what someone acts on, in the round before". The script's checks need no
+change: they never see a severity. Line 266 refuses round 4 and later when `--earned-by` is empty, lines 224–241 check a
 kind's shape, and the cut check compares kind names; none reads a severity. Its past-round-8
 notice (pinned by `test_failed_tier_report.sh` case 37) stays. `rationale.md`'s
 section of 2026-09-26 (line 465) and the review trails are dated records and stay. `rationale.md`
 gains a short dated section: the rule; why it was not done before (on 2026-09-26 RISK counts never
-reached zero while each round re-read the whole change); what limits it now, and how firmly. The
-script refuses a kind that earned an earlier round of the gate since its last cut, unless the
-round names a cut. Everything else is the host's judgment, shown to the owner but not enforced:
-whether a RISK is in scope, whether its fix changed what runs, and how a kind is named. A
+reached zero while each round re-read the whole change); what limits it now, and how firmly. Where
+the cost log can answer, the script refuses a kind that earned an earlier round of the gate since
+its last cut, unless the round names a cut; where it cannot (`REVIEW_LOG=off`, an unreadable log),
+it warns and goes on (lines 305–308), and the rule is the host's to keep. Everything else is the
+host's judgment, shown to the owner but not enforced: whether a RISK is in scope, whether its fix
+changed what runs or what someone acts on, and how a kind is named. A
 verification round sees only the fixes, and an out-of-scope RISK is a follow-up. Past round 8 the
 owner decides. `test_round_checks.sh` has no case naming "substantive BUG" or the owner decision.
 
@@ -68,9 +73,12 @@ and the round loses its tooled reviewer. Source: #378's trail
 (`docs/reviews/REVIEW-diff-2026-10-22-feat-review-seat-limits-bbe051f.md`, C4-04 and Follow-ups).
 Re-checked here, 2026-10-22, codex-cli 0.163.0: `printf 'Say OK. caf\351\n' | codex exec
 --skip-git-repo-check -s read-only -` printed "Failed to read prompt from stdin: input is not valid
-UTF-8 (invalid byte at offset 11)". Through the script (`--seat codex --base none` on a two-line
+UTF-8 (invalid byte at offset 11)"; the same text as an argument exited 2 with "invalid UTF-8 was
+detected in one or more arguments". Through the script (`--seat codex --base none` on a two-line
 Latin-1 diff) the seat FAILED with that line quoted, under a reason line that points elsewhere:
-"check the CLI, its sign-in and the model name". The fix the row names: make the prompt valid UTF-8
+"check the CLI, its sign-in and the model name". (Round 1's fresh-eyes pass also saw `cut: stdin:
+Illegal byte sequence` on stderr; the same run here did not, so the row leaves it out.) The fix the
+row names: make the prompt valid UTF-8
 before any seat gets it, and say so in the reason line; it changes what reviewers read, so it gets
 its own plan.
 
@@ -108,9 +116,8 @@ can deliver what the plan credits it with.
   > GUARDS THE PLAN PROPOSES. For each guard the plan adds to catch a future mistake — a test, a
   > tripwire, a CI or lint check, an assertion — ask what it can catch and what gets past it,
   > whether it would fail if the behaviour it protects broke, and whether a cheaper check, or none,
-  > would do as well. A check that reads source text or syntax catches only the patterns it was
-  > written for: a ban misses a form it does not list; an allow-list refuses what it does not list
-  > but cannot see what an allowed form does. A guard the plan credits with more than it can catch,
+  > would do as well. For a check that reads source text or syntax, name an input it would miss,
+  > if there is one. A guard the plan credits with more than it can catch,
   > or one that cannot fail when its behaviour breaks, is a RISK even if it is also redundant: name
   > a concrete input that gets past it, and fix the claim, not the list: narrow the claim to what
   > the guard catches, test the behaviour where it is used, or drop the guard. Banning one more form
@@ -137,7 +144,10 @@ can deliver what the plan credits it with.
   catch: the fresh-eyes prompt (the host builds it), or whether a reviewer acts on the paragraph.
 - **T2, one live run, after `make check`:** `--seat codex --plan`, `CODEX_EFFORT=medium`, on the
   security fix's plan in a `git archive` copy of the commit that closed its PLAN gate (`1ec9cf1`),
-  outside this repo, with `docs/reviews/` removed so the old findings are not in reach. Pass: a RISK
+  outside this repo, with `docs/reviews/` removed so the old findings are not in reach. Before the
+  run, the copy is searched for phrases from the old findings ("literal pattern", "cannot express",
+  "RT-4") and stripped wherever they occur; on 2026-10-22 the plan itself held only the trail's
+  path and a status line naming "PLAN gate round 1". Pass: a RISK
   that the tripwire cannot deliver the protection the plan credits it with, whose fix narrows the
   claim, leans on the route tests or drops the guard, not one that bans more forms. Also counted:
   guard entries about anything else (the noise). The comparison is that plan's own PLAN gate, a
@@ -147,8 +157,9 @@ can deliver what the plan credits it with.
   minutes.
 - **T3, one live run:** `--seat melious --plan` on sections 1 and 2 of this plan alone (they add no
   guard). Pass: no entry about guards. About 20k tokens.
-- **On a fail:** revise the paragraph once and rerun the failed trial once. A second fail goes to
-  the owner: step 3 is held, and steps 1 and 2 ship without it.
+- **On a fail:** revise the paragraph once and rerun both trials on the revised text; both must
+  pass on the paragraph that ships. A second fail goes to the owner: step 3 is held, and steps 1
+  and 2 ship without it.
 - `make check` green; then the DIFF gate.
 
 **What is checked and what is judgment.** Checked: the old rule's text and each line above (read
