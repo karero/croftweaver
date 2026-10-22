@@ -45,14 +45,13 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 2. `npm create astro@latest .` → Empty, TypeScript **Strict**. Requires **Node ≥22.23.4**
    (this starter's floor, never below Astro's own); keep Node current: SETUP.md lists the fixed version of
    each line. The committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
-3. Copy this overlay over the scaffold (the files above) + `tests/`, then:
+3. Copy this overlay over the scaffold (the files above, `package.json` included: it carries `engines`,
+   which makes npm warn when Node is older than the fixed version of its line) + `tests/`, then:
    ```bash
-   npm i -D @playwright/test @axe-core/playwright @astrojs/check typescript @types/node
-   npm i @astrojs/sitemap node-html-parser
+   npm install
    npx playwright install chromium
    ```
-   (Better: copy this `package.json` over the scaffold's and run `npm install`. It carries `engines`, which
-   makes npm warn when Node is older than the fixed version of its line; the `npm i` lines above do not add it.) **Commit the
+   **Commit the
    `package-lock.json`** — CI uses `npm ci`, which fails without it.
    On **npm ≥11.16**, `install` prints "packages have install scripts not yet covered"
    for scripts it hasn't been told to trust — per npm's own docs this is currently

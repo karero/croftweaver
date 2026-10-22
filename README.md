@@ -346,8 +346,10 @@ Node release newer than the repo. Before the version bump, look yourself: the co
 newest security release on each current Node line from Node's own index, what the starter's `engines`
 names, and every place that states one of those versions. A security release newer than the version
 `engines` names for its line means moving `engines` first, then the docs (`make check` names the ones
-it checks). The history rows of `docs/BUGLOG.md` and the installer's own 22.12 are expected hits; any
-other hit outside the starter's files and docs is a place to read.
+it checks), then `EXPECTED_RANGE` in `scripts/test_node_floor.sh`, which pins the range on purpose.
+Run the grep again with each old version after the move, to find a place left behind. Expected hits that
+are not findings: the history rows of `docs/BUGLOG.md`, and `scripts/check_node_floor.sh` and its test,
+which quote versions. The installer's own floor, 22.12, is a different number and is not searched for.
 
 ```bash
 curl -s https://nodejs.org/dist/index.json | node -e '
@@ -356,6 +358,7 @@ for (const r of JSON.parse(require("fs").readFileSync(0, "utf8"))) {
   const line = r.version.split(".")[0];
   if (r.security && Number(line.slice(1)) >= 22 && !seen[line]) seen[line] = r.version + " (" + r.date + ")";
 }
+if (!Object.keys(seen).length) { console.error("no security releases seen: check the index format"); process.exit(1); }
 console.log(seen);'
 node -p 'require("./skills/new-website/templates/astro/package.json").engines.node'
 for v in $(node -p 'require("./skills/new-website/templates/astro/package.json").engines.node.match(/[0-9]+\.[0-9]+\.[0-9]+/g).join(" ")'); do

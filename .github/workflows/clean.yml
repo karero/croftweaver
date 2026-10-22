@@ -161,7 +161,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: Check the starter's Node floor (engines inside Astro's, the lockfile and the docs agree)
         run: bash scripts/check_node_floor.sh
       - name: Check the guard fails on each way the floor can drift
@@ -488,7 +488,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: Put macOS's own bash, awk, sed, tr and grep first on PATH
         run: |
           stock="$RUNNER_TEMP/stock-tools"; mkdir -p "$stock"

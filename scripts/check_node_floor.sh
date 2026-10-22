@@ -13,14 +13,16 @@
 #       one its lockfile records for node_modules/astro (offline, read by key). A line may be stricter
 #       than Astro's, never looser, so a bump that raises ANY line of Astro's range is caught.
 #   G2  the lockfile's root engines.node (packages[""]) equals package.json's.
-#   G3  six anchored phrases in four shipped docs (the PHRASES table below) each appear exactly once, on
-#       ONE line, and carry the versions package.json gives: the lowest, and the fixed version of each
-#       Node line. The check never joins lines (a leading ">" of a blockquote and leading spaces are
-#       ignored), so a rewrap that splits a phrase gives a red "phrase not on one line", on purpose.
+#   G3  six phrases in four shipped docs (the PHRASES table below) each appear exactly once, on ONE
+#       line, and carry the versions package.json gives: the lowest, and the fixed version of each Node
+#       line. The phrases are unanchored, so a blockquote's ">" or leading spaces do not matter, and the
+#       check never joins lines: a rewrap that splits a phrase gives a red "phrase not on one line", on
+#       purpose.
 #   G4  the major in .nvmrc and in the starter's ci.yml node-version is one some alternative admits.
-#   G5  the set of Node lines is pinned: one alternative per major, and as many alternatives as the
-#       SETUP.md and SKILL.md phrases list versions (LINE_COUNT). Adding "|| ^25.9.0" or dropping the 24
-#       alternative is red until the phrase table is changed on purpose.
+#   G5  the set of Node lines is pinned: one alternative per major, every one but the highest bounded to
+#       its line with a caret (so ">=24.22.1" in the middle, which would admit 25, is red), and as many
+#       alternatives as the SETUP.md and SKILL.md phrases list versions (LINE_COUNT). Adding "|| ^25.9.0"
+#       or dropping the 24 alternative is red until the phrase table is changed on purpose.
 #
 # Ranges it reads: alternatives joined by "||", each ">=X[.Y[.Z]]" or "^X[.Y[.Z]]" (X at least 1), with
 # optional spaces after the operator and around "||". Anything else ("22", "22.x", "~22.23") is refused
@@ -33,7 +35,8 @@
 # routine greps for each version in engines instead).
 #
 # Every file it reads ships in the handoff zip (CI runs make check inside it, with no git): nothing
-# under .github/, packages/ or docs/BUGLOG.md is read.
+# under the repo-root .github/, packages/ or docs/BUGLOG.md is read (the starter's own ci.yml, under
+# skills/, is).
 #
 # Without node it prints one SKIP line and exits 0. With REQUIRE_NODE_FLOOR=1 (both CI jobs set it) it
 # prints the same line and exits 1: a skip turned into a failure.
@@ -152,7 +155,10 @@ function readText(p) {
 function readJson(p) {
   const t = readText(p);
   if (t === null) return null;
-  try { return JSON.parse(t); } catch (e) { fail(p + ': not valid JSON'); return null; }
+  let d;
+  try { d = JSON.parse(t); } catch (e) { fail(p + ': not valid JSON'); return null; }
+  if (d === null || typeof d !== 'object' || Array.isArray(d)) { fail(p + ': not a JSON object'); return null; }
+  return d;
 }
 
 const pkg = readJson(FILES.pkg);
@@ -201,6 +207,11 @@ if (starter && astro) {
 if (starter) {
   const majors = starter.map(function (r) { return r.lo[0]; });
   if (new Set(majors).size !== majors.length) fail(FILES.pkg + ': engines names a Node line twice: "' + starterText + '" (G5)');
+  starter.slice().sort(function (a, b) { return cmp(a.lo, b.lo); }).slice(0, -1).forEach(function (r) {
+    if (r.hi === null) {
+      fail(FILES.pkg + ': engines alternative "' + r.text + '" is open above but is not the highest; it admits lines the docs do not list (G5): bound it to its line with a caret');
+    }
+  });
   if (starter.length !== LINE_COUNT) {
     fail(FILES.pkg + ': engines names ' + starter.length + ' lines, the docs list ' + LINE_COUNT + ' (G5): change the phrase table in scripts/check_node_floor.sh on purpose');
   }
@@ -235,7 +246,7 @@ PHRASES.forEach(function (p) {
   if (!(p.file in textOf)) textOf[p.file] = readText(p.file);
   const text = textOf[p.file];
   if (text === null) return;
-  const lines = text.split('\n').map(function (l) { return l.replace(/^\s*(?:>\s*)*/, ''); });
+  const lines = text.split('\n');
   const hits = [];
   lines.forEach(function (l) {
     let rest = l, m;
@@ -262,6 +273,9 @@ PHRASES.forEach(function (p) {
   }
 });
 
+if (!fails.length && (!starter || !astro || !sorted || phrasesOk !== PHRASES.length)) {
+  fail('internal: the check did not reach every rule (starter ' + !!starter + ', astro ' + !!astro + ', phrases ' + phrasesOk + ' of ' + PHRASES.length + '); it will not say OK');
+}
 if (fails.length) {
   fails.forEach(function (f) { console.log('FAIL — ' + f); });
   process.exit(1);

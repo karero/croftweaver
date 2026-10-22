@@ -7,17 +7,21 @@
 # Why it exists: the starter's Node floor sat in several places, a Dependabot bump of Astro changed none
 # of them, and nothing noticed (Astro 7.4.0 and 7.4.2 each raised its minimum). These cases pin that the
 # guard goes red for Astro raising any line, for a floor looser than Astro's, for a range it cannot read,
-# for a lockfile root that differs, for a missing Astro entry or a missing file, for a phrase that is
-# missing, doubled or split over lines, for an .nvmrc or CI major no alternative admits, and for a
-# change of the set of Node lines, and that it stays green when the starter is stricter than Astro and
-# the docs follow. It enters the way make check and CI do: it runs the guard script, which finds its
-# files from where it sits, so each copy is laid out as the handoff zip is (no .github/, no packages/,
-# no git).
+# for a lockfile root that differs, for a missing Astro entry, a missing file or a JSON file that is not
+# an object, for a phrase that is missing, doubled or split over lines, for an .nvmrc or CI major no
+# alternative admits, and for a change of the set of Node lines (one more, one fewer, or one widened with
+# ">="), and that it stays green when the starter is stricter than Astro and the docs follow. It enters
+# the way make check and CI do: it runs the guard script, which finds its files from where it sits, so
+# each copy is laid out as the handoff zip is (no repo-root .github/, no packages/, no git).
 #
-# It also compares the guard's --admits answers for eleven Node versions with npm's own semver
-# (found at $(npm root -g)/npm/node_modules/semver), runs one real npm install on a dependency-free
-# fixture (an unmet engines gives EBADENGINE and exit 0, with no engine-strict), and runs the guard and
-# this script with no node on PATH (a skip, or with REQUIRE_NODE_FLOOR=1 a failure).
+# The versions in the cases are read from the real package.json, so a Node security release that moves
+# the range changes ONE line here, EXPECTED_RANGE, which pins the real range on purpose (a stale range
+# cannot pass by being stale everywhere at once): after moving engines and the docs, change it too.
+#
+# It also compares the guard's --admits answers with npm's own semver (found at
+# $(npm root -g)/npm/node_modules/semver) for the edges of every line, runs one real npm install on a
+# dependency-free fixture (an unmet engines gives EBADENGINE and exit 0, with no engine-strict), and runs
+# the guard and this script with no node on PATH (a skip, or with REQUIRE_NODE_FLOOR=1 a failure).
 #
 # Without node it prints one SKIP line and exits 0; with REQUIRE_NODE_FLOOR=1 (both CI jobs set it) it
 # exits 1. A case that skips for want of npm or its semver module counts the same way.
@@ -47,11 +51,22 @@ README=$ASTRO/README.md
 SETUP=$TPL/SETUP.md
 SKILL=skills/new-website/SKILL.md
 UPG=docs/UPGRADING.md
-RANGE='^22.23.4 || ^24.22.1 || >=26.12.1'
-# The real range, pinned on purpose: when a Node security release moves it, change it here too, so a
-# stale range cannot pass by being stale everywhere at once.
-EXPECTED_RANGE='^22.23.4 || ^24.22.1 || >=26.12.1'
 ASTRO_ENG='["packages","node_modules/astro","engines","node"]'
+# The real range, pinned on purpose: change it here when a Node security release moves it.
+EXPECTED_RANGE='^22.23.4 || ^24.22.1 || >=26.12.1'
+
+# The real range and its three versions, read from package.json: V22 (the lowest), V24 and V26.
+RANGE="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).engines.node)' "$ROOT/$PKG")" \
+  || { echo "FAIL — could not read engines.node from $PKG."; exit 1; }
+vers="$(node -e 'console.log(process.argv[1].split("||").map(s=>s.trim().replace(/^[\^>=]+\s*/,"")).join(" "))' "$RANGE")" \
+  || { echo "FAIL — could not read the versions in \"$RANGE\"."; exit 1; }
+set -- $vers
+V22=${1:-}; V24=${2:-}; V26=${3:-}
+[ -n "$V22" ] && [ -n "$V24" ] && [ -n "$V26" ] \
+  || { echo "FAIL — the real range \"$RANGE\" does not name three lines; this test reads V22, V24 and V26 from it."; exit 1; }
+bump() { echo "${1%.*}.$(( ${1##*.} + 1 ))"; }   # the patch one higher
+drop() { echo "${1%.*}.$(( ${1##*.} - 1 ))"; }   # the patch one lower
+NEW22="$(bump "$V22")"; NEW24="$(bump "$V24")"; NEW26="$(bump "$V26")"
 
 # fresh — sets c to a new copy of what the guard reads, laid out as the handoff zip is.
 fresh() {
@@ -74,7 +89,7 @@ jset() {
 # tsub <file> <from> <to> — replaces every occurrence of a literal string; fails if there is none.
 tsub() {
   node -e 'const fs=require("fs");const [f,a,b]=process.argv.slice(1);const t=fs.readFileSync(f,"utf8");if(!t.includes(a)){console.error("not found: "+a);process.exit(3)}fs.writeFileSync(f,t.split(a).join(b))' "$1" "$2" "$3" \
-    || { echo "FAIL — could not edit $1 (looking for: $2)."; exit 1; }
+    || { echo "FAIL — could not edit $1 (looking for: $2): the real text moved, change this test with it."; exit 1; }
 }
 # set_engines <copy> <range> — the same range in package.json and the lockfile root.
 set_engines() {
@@ -82,7 +97,7 @@ set_engines() {
   jset "$1/$LOCK" '["packages","","engines","node"]' "\"$2\""
 }
 
-# expect <name> <copy> <pass|fail> [<text the output must hold>]
+# expect <name> <copy> <pass|fail> [<text the output must hold> [<a second text>]]
 expect() {
   local out rc
   out="$(bash "$2/scripts/check_node_floor.sh" 2>&1)"; rc=$?
@@ -95,27 +110,43 @@ expect() {
   if [ -n "${4:-}" ] && ! grep -Fq -- "$4" <<<"$out"; then
     printf 'FAIL %s: the output does not name %s:\n%s\n' "$1" "$4" "$out"; fails=$((fails+1)); return
   fi
+  if [ -n "${5:-}" ] && ! grep -Fq -- "$5" <<<"$out"; then
+    printf 'FAIL %s: the output does not name %s:\n%s\n' "$1" "$5" "$out"; fails=$((fails+1)); return
+  fi
   printf 'ok   %s\n' "$1"
 }
 
 # -- the tree as it is, and the pinned range --------------------------------------------------------
 fresh
 expect "the files as they are pass" "$c" pass "Node floor holds"
-got="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).engines.node)' "$ROOT/$PKG")"
-if [ "$got" = "$EXPECTED_RANGE" ]; then echo "ok   the starter's real range is the pinned one"
-else printf 'FAIL the starter range is "%s", the test pins "%s": change one on purpose.\n' "$got" "$EXPECTED_RANGE"; fails=$((fails+1)); fi
+if [ "$RANGE" = "$EXPECTED_RANGE" ]; then echo "ok   the starter's real range is the pinned one"
+else printf 'FAIL the starter range is "%s", the test pins "%s": change EXPECTED_RANGE on purpose.\n' "$RANGE" "$EXPECTED_RANGE"; fails=$((fails+1)); fi
 
-# -- scenarios 1 to 2: Astro raises a line ----------------------------------------------------------
+# -- scenarios 1 and 2: Astro raises a line (case 2 moves only the 24 line, so only it is refused) ---
 fresh; jset "$c/$LOCK" "$ASTRO_ENG" '">=22.30.1"'
-expect "1 Astro raises its floor above the starter's: red, names Astro's range" "$c" fail "refuses"
-fresh; jset "$c/$LOCK" "$ASTRO_ENG" '"^22.23.4 || ^24.30.0"'
-expect "2 Astro raises another line: the starter's 24.22.1 is refused" "$c" fail "24.22.1"
+expect "1 Astro raises its floor above the starter's: red, names Astro's range" "$c" fail "refuses" '">=22.30.1"'
+fresh; jset "$c/$LOCK" "$ASTRO_ENG" "\"^$V22 || ^24.30.0 || >=$V26\""
+expect "2 Astro raises only the 24 line: red, names the 24 alternative" "$c" fail "alternative \"^$V24\""
+out="$(bash "$c/scripts/check_node_floor.sh" 2>&1)"
+if [ "$(grep -c 'which Astro' <<<"$out")" -eq 1 ]; then echo "ok   2 only the 24 alternative is flagged"
+else printf 'FAIL 2 expected exactly one alternative flagged:\n%s\n' "$out"; fails=$((fails+1)); fi
+
+# -- green G1 cases that reach the containment edges ----------------------------------------------
+fresh; jset "$c/$LOCK" "$ASTRO_ENG" "\"$RANGE\""
+expect "G1 Astro's range equal to the starter's: green" "$c" pass "Node floor holds"
+fresh; jset "$c/$LOCK" "$ASTRO_ENG" "\"^$V22 || ^24.0.0 || >=26.0.0\""
+expect "G1 Astro's range wider on 24 and 26 (a caret inside a caret, a lower open range): green" "$c" pass "Node floor holds"
 
 # -- scenarios 3, 4, 6: the starter moves its floor ------------------------------------------------
-fresh; set_engines "$c" '^22.24.1 || ^24.22.1 || >=26.12.1'
-expect "3 engines moved, the docs still name 22.23.4: red, names SETUP.md" "$c" fail "SETUP.md"
-for f in "$README" "$SETUP" "$SKILL" "$UPG"; do tsub "$c/$f" "22.23.4" "22.24.1"; done
+fresh; set_engines "$c" "^$NEW22 || ^$V24 || >=$V26"
+expect "3 engines moved, the docs still name $V22: red, names SETUP.md" "$c" fail "SETUP.md"
+for f in "$README" "$SETUP" "$SKILL" "$UPG"; do tsub "$c/$f" "$V22" "$NEW22"; done
 expect "4+6 engines stricter than Astro's on the 22 line, docs follow: green" "$c" pass "Node floor holds"
+# the 24 line and the 26 line alone: the half of G3 that exists because Astro skips its own check there
+fresh; set_engines "$c" "^$V22 || ^$NEW24 || >=$V26"
+expect "3 engines moves only the 24 version, the docs do not: red, names SETUP.md and SKILL.md" "$c" fail "SETUP.md: says" "SKILL.md: says"
+fresh; set_engines "$c" "^$V22 || ^$V24 || >=$NEW26"
+expect "3 engines moves only the 26 version, the docs do not: red, names SETUP.md and SKILL.md" "$c" fail "SETUP.md: says" "SKILL.md: says"
 
 # -- scenario 5: looser than Astro's ---------------------------------------------------------------
 fresh; set_engines "$c" '>=22.12.0'
@@ -128,36 +159,42 @@ for r in '22.x' '~22.23' '20 || >=22'; do
 done
 
 # -- scenario 8: Astro's range spelled other ways ----------------------------------------------------
-for r in '>= 22.23.4' '>=22.23' '>=22'; do
+for r in ">= $V22" '>=22.23' '>=22'; do
   fresh; jset "$c/$LOCK" "$ASTRO_ENG" "\"$r\""
   expect "8 Astro's range spelled \"$r\" is read" "$c" pass "Node floor holds"
 done
 
-# -- scenarios 9 to 11: the lockfile and package.json ----------------------------------------------
+# -- scenarios 9 to 11, and files that are not what they should be ------------------------------------
 fresh; jset "$c/$LOCK" '["packages","","engines","node"]' '">=22.12.0"'
 expect "9 the lockfile root differs from package.json: red" "$c" fail "differs from package.json"
 fresh; jset "$c/$LOCK" '["packages","node_modules/astro","engines"]' '__delete__'
 expect "10 the astro entry has no engines: red, says so (not the next entry's)" "$c" fail "node_modules/astro entry has no engines.node"
 fresh; jset "$c/$PKG" '["engines"]' '__delete__'
 expect "11 package.json has no engines: red" "$c" fail "no engines.node"
+fresh; printf 'null\n' >"$c/$PKG"
+expect "11 package.json holding null: red, not a silent OK" "$c" fail "package.json: not a JSON object"
+fresh; printf 'null\n' >"$c/$LOCK"
+expect "11 the lockfile holding null: red, not a silent OK" "$c" fail "package-lock.json: not a JSON object"
+fresh; printf '[]\n' >"$c/$PKG"
+expect "11 package.json holding an array: red" "$c" fail "package.json: not a JSON object"
 
 # -- scenario 12: files and phrases ------------------------------------------------------------------
 fresh; rm "$c/$SETUP"
 expect "12 a listed file is missing: red, names it" "$c" fail "SETUP.md: cannot read the file"
-pairs="$README|the starter needs >=|the starter wants >=|the starter needs >=22.23.4 (Cloudflare Pages reads it)
-$SETUP|current security fixes are in|current fixes are in|> current security fixes are in **22.23.4, 24.22.1 and 26.12.1**
-$SKILL|This starter needs Node|This starter wants Node|**This starter needs Node ≥22.23.4**, and Node's current security fixes are in 22.23.4, 24.22.1 and 26.12.1
-$UPG|which is what this version of the starter needs|which this version needs|must be 22.23.4 or newer, which is what this version of the starter needs"
+pairs="$README|the starter needs >=|the starter wants >=|the starter needs >=$V22 (Cloudflare Pages reads it)
+$SETUP|current security fixes are in|current fixes are in|> current security fixes are in **$V22, $V24 and $V26**
+$SKILL|This starter needs Node|This starter wants Node|**This starter needs Node ≥$V22**, and Node's current security fixes are in $V22, $V24 and $V26
+$UPG|which is what this version of the starter needs|which this version needs|must be $V22 or newer, which is what this version of the starter needs"
 while IFS='|' read -r f from to dup; do
   fresh; tsub "$c/$f" "$from" "$to"
   expect "12 a phrase broken in ${f##*/}: red, names the file" "$c" fail "${f}: phrase not on one line, or missing"
   fresh; printf '\n%s\n' "$dup" >>"$c/$f"
   expect "12 a phrase doubled in ${f##*/}: red, names the file" "$c" fail "${f}: phrase found 2 times"
 done <<<"$pairs"
-fresh; tsub "$c/$SETUP" "**22.23.4, 24.22.1 and 26.12.1**" $'**22.23.4,\n> 24.22.1 and 26.12.1**'
+fresh; tsub "$c/$SETUP" "**$V22, $V24 and $V26**" "**$V22,"$'\n'"> $V24 and $V26**"
 expect "12 a blockquote rewrapped inside the phrase: red, \"not on one line\"" "$c" fail "SETUP.md: phrase not on one line"
-fresh; tsub "$c/$SETUP" "> **Node ≥22.23.4 required**" "   >   **Node ≥22.23.4 required**"
-expect "12 a blockquote marker and spaces before a phrase are ignored" "$c" pass "Node floor holds"
+fresh; tsub "$c/$SETUP" "> **Node ≥$V22 required**" "   >   **Node ≥$V22 required**"
+expect "12 a blockquote marker and spaces before a phrase do not matter" "$c" pass "Node floor holds"
 
 # -- scenarios 13 and 21: .nvmrc and the CI major --------------------------------------------------
 fresh; printf '25\n' >"$c/$ASTRO/.nvmrc"
@@ -175,28 +212,39 @@ expect "ci.yml node-version quoted '24' is read" "$c" pass "Node floor holds"
 fresh; printf 'Node 22.12 or newer.\n' >"$c/docs/NEWDOC.md"
 expect "14 a new doc states an old floor and is not in the table: green (a known limit)" "$c" pass "Node floor holds"
 
-# -- scenarios 19 and 20: the set of lines is pinned (G5) --------------------------------------------
-fresh; set_engines "$c" '^22.23.4 || ^24.22.1 || ^25.9.0 || >=26.12.1'
+# -- scenarios 19 and 20, and G5's shape: the set of lines is pinned ----------------------------------
+fresh; set_engines "$c" "^$V22 || ^$V24 || ^25.9.0 || >=$V26"
 expect "19 engines gains ^25.9.0: red, 4 lines against 3 listed" "$c" fail "names 4 lines, the docs list 3"
-fresh; set_engines "$c" '^22.23.4 || >=26.12.1'
+fresh; set_engines "$c" "^$V22 || >=$V26"
 expect "20 engines drops the 24 line: red" "$c" fail "names 2 lines, the docs list 3"
-fresh; set_engines "$c" '^22.23.4 || ^22.30.0 || >=26.12.1'
+fresh; set_engines "$c" "^$V22 || ^22.30.0 || >=$V26"
 expect "G5 engines names the 22 line twice: red" "$c" fail "names a Node line twice"
+fresh; set_engines "$c" "^$V22 || >=$V24 || >=$V26"
+expect "G5 a middle alternative widened from ^ to >=: red (it would admit 25), docs unchanged" "$c" fail "is open above but is not the highest"
 
 # -- the range reader against npm's own semver ------------------------------------------------------
 SEMVER="$(npm root -g 2>/dev/null)/npm/node_modules/semver"
 if [ -f "$SEMVER/package.json" ]; then
-  bad=0; admitted=""
-  for v in 22.12.0 22.23.3 22.23.4 23.11.0 24.10.0 24.22.0 24.22.1 25.9.0 26.12.0 26.12.1 27.0.0; do
+  bad=0; checked=0
+  cands="22.12.0 $(drop "$V22") $V22 22.99.99 23.0.0 23.11.0 24.0.0 $(drop "$V24") $V24 24.99.99 25.0.0 25.9.0 26.0.0 $(drop "$V26") $V26 27.0.0"
+  for v in $cands; do
     want="$(node -e 'const s=require(process.argv[1]);console.log(s.satisfies(process.argv[2],process.argv[3])?"yes":"no")' "$SEMVER" "$v" "$RANGE")"
     got="$(bash "$ROOT/scripts/check_node_floor.sh" --admits "$RANGE" "$v")"
-    [ "$want" = "$got" ] || { printf 'FAIL --admits %s for %s says %s, npm semver says %s\n' "$RANGE" "$v" "$got" "$want"; bad=1; }
-    [ "$got" = yes ] && admitted="$admitted $v"
+    checked=$((checked+1))
+    [ "$want" = "$got" ] || { printf 'FAIL --admits "%s" for %s says %s, npm semver says %s\n' "$RANGE" "$v" "$got" "$want"; bad=1; }
   done
-  if [ "$bad" -eq 0 ] && [ "$admitted" = " 22.23.4 24.22.1 26.12.1 27.0.0" ]; then
-    echo "ok   --admits agrees with npm's semver ($(node -e 'console.log(require(process.argv[1]+"/package.json").version)' "$SEMVER")) for 11 versions; admitted:$admitted"
+  # the edges that matter, stated and not only compared: each fixed version in, the patch below out,
+  # the top of a caret in (X.99.99) and the next major out (X+1.0.0), the lines with no fixes out
+  for pair in "$V22 yes" "$V24 yes" "$V26 yes" "$(drop "$V22") no" "$(drop "$V24") no" "$(drop "$V26") no" \
+              "22.99.99 yes" "24.99.99 yes" "23.0.0 no" "25.0.0 no" "27.0.0 yes"; do
+    set -- $pair
+    got="$(bash "$ROOT/scripts/check_node_floor.sh" --admits "$RANGE" "$1")"
+    [ "$got" = "$2" ] || { printf 'FAIL --admits "%s" for %s says %s, expected %s\n' "$RANGE" "$1" "$got" "$2"; bad=1; }
+  done
+  if [ "$bad" -eq 0 ]; then
+    echo "ok   --admits agrees with npm's semver ($(node -e 'console.log(require(process.argv[1]+"/package.json").version)' "$SEMVER")) for $checked versions, edges included"
   else
-    printf 'FAIL the range table: admitted "%s"\n' "$admitted"; fails=$((fails+1))
+    fails=$((fails+1))
   fi
 else
   echo "SKIP: the range table (npm's bundled semver not found at $SEMVER)"; skips=$((skips+1))
@@ -219,15 +267,17 @@ else
 fi
 
 # -- the skip, and the skip turned into a failure ----------------------------------------------------
+# The first call of each pair CLEARS REQUIRE_NODE_FLOOR: CI sets it for the whole job, and a probe that
+# inherited it would exit 1 where it is meant to show the plain skip.
 BASH_BIN="$(command -v bash)"
 mkdir "$T/nonode" || { echo "FAIL — could not make the PATH without node."; exit 1; }
 for t in bash dirname; do ln -s "$(command -v "$t")" "$T/nonode/$t" || { echo "FAIL — could not link $t."; exit 1; }; done
 fresh
 for s in "$c/scripts/check_node_floor.sh" "$ROOT/scripts/test_node_floor.sh"; do
-  out="$(PATH="$T/nonode" "$BASH_BIN" "$s" 2>&1)"; rc=$?
+  out="$(env -u REQUIRE_NODE_FLOOR PATH="$T/nonode" "$BASH_BIN" "$s" 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ] && grep -Fq "SKIP" <<<"$out"; then echo "ok   no node: ${s##*/} prints SKIP and exits 0"
   else printf 'FAIL no node: %s exit %s:\n%s\n' "${s##*/}" "$rc" "$out"; fails=$((fails+1)); fi
-  out="$(REQUIRE_NODE_FLOOR=1 PATH="$T/nonode" "$BASH_BIN" "$s" 2>&1)"; rc=$?
+  out="$(env REQUIRE_NODE_FLOOR=1 PATH="$T/nonode" "$BASH_BIN" "$s" 2>&1)"; rc=$?
   if [ "$rc" -eq 1 ] && grep -Fq "SKIP" <<<"$out"; then echo "ok   no node, REQUIRE_NODE_FLOOR=1: ${s##*/} exits 1"
   else printf 'FAIL no node with the variable: %s exit %s:\n%s\n' "${s##*/}" "$rc" "$out"; fails=$((fails+1)); fi
 done
