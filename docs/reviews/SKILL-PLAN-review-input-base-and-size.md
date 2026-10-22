@@ -13,8 +13,8 @@ plan and land one after the other.
 | 2 | PLAN gate (Normal: a plan for a guard script's logic) | ✅ clean: 5 rounds, final full read, wording pass and confirmation; no BUG open; R4-02 waived by the maintainer | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
 | 3 | The maintainer's go, and the answers under "Open" | ✅ answers given 2026-10-21 (below); go to build change 1 the same day: "yes, build change 1" | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ✅ merged; DIFF gate clean (4 rounds, Light pass, wording pass, confirmation; 28 findings: 26 fixed, 2 refuted) | karero/croftweaver#372, merge commit 9acc3b97; trail `REVIEW-diff-2026-10-21-feat-review-base-check-f556faf.md` |
-| 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
-| 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ⏸ | — |
+| 5 | Change 2, step 0: probes P1 and P2 below | ✅ run 2026-10-22: P1 passed for both CLIs; P2 below | `skills/independent-review/scripts/seat_limits.txt` |
+| 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ▶ built on branch `feat/review-seat-limits`; DIFF gate clean (5 rounds, wording pass; 42 findings: 31 fixed, 8 refuted, 3 waived); push and PR wait on the maintainer's yes | trail `REVIEW-diff-2026-10-22-feat-review-seat-limits-bbe051f.md` |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
@@ -171,9 +171,30 @@ like `melious_models.txt`):
 - **Refuses**: the provider answered the probe with an error that names a context or token limit
   (its text and the date go in the list). No cap: a prompt past the window fails loud by itself,
   with the provider's message in the seat's `FAILED` section, as any failure does today.
+- **Takes N bytes** (added by the maintainer's decision of 2026-10-22, below): the seat answered a
+  probe of N bytes and its token count shows it read the whole prompt. A cap of N bytes on the
+  whole prompt sent. A prompt that is not valid UTF-8 to the request builders' decoder, or any
+  prompt when perl is missing, counts three bytes for each of its own: a decoder makes at most one
+  3-byte U+FFFD of a bad byte (added in the DIFF gate, C2-02 and C3-02; Codex refuses such a
+  prompt outright).
 - **Anything else**: a reply (the provider cut the prompt or took it whole), any other error (quota,
   sign-in, network, request size), or no probe at all, as for a model P2 did not cover such as a
   new `CODEX_MODEL`. Today's check: artifact plus prior findings at most 120,000 bytes.
+
+**What P1 and P2 found (2026-10-22).** P1: the ollama 0.40.7 CLI and codex-cli 0.163.0 each sent a
+400,040-byte prompt read from stdin to a recording stub byte for byte (Codex reached the stub
+through a model provider set in a throwaway `CODEX_HOME`). P2, with text measured at 2 bytes a token
+on every seat (one letter and a space per token, denser than code or prose):
+
+| Seat and model | Probe | Result | Rule |
+|---|---|---|---|
+| Codex, the configured model | 1,300,130 bytes | its CLI refused it: "Input exceeds the maximum length of 1048576 characters" (`input_too_large`), before any model | — |
+| Codex, the same | 1,040,130 bytes, about 520,000 tokens: past its 500,000-token default window, inside its 872,000-token maximum (Codex's model cache) | answered; "tokens used 522,639", the whole prompt | takes 1,040,000 bytes |
+| Melious, GLM 5.3 | 2,300,130 bytes, 1,152,340 tokens | HTTP 400 `context_length_exceeded`: over its 1,000,000-token window | refuses |
+| ollama CLI, GLM 5.3 on ollama cloud | the same | "400 Bad Request: The prompt is too long: 1152362, model maximum context length: 1048576" | refuses |
+| ollama API, agy, any other model | not probed | — | 120,000 bytes |
+
+The probes cost about 660,000 tokens, 522,639 of them Codex's answer to the second probe.
 
 The list is read like `melious_models.txt`: a missing list, or a line the script cannot read,
 leaves every seat at 120,000.
@@ -317,3 +338,7 @@ silently today, whatever its size. A BUGLOG row, not this change.
    the maintainer answered "Yes, accept and test". P2 runs at step 5, before change 2 is built.
 2. The split: "Not now". Revisit only if a seat turns out to cut long prompts, or a real artifact
    goes over a seat's window.
+3. (2026-10-22, after P2's Codex probe was answered, not refused.) Asked whether Codex may be sent
+   up to the size it was shown to take whole, the maintainer chose "Up to its own 1 MB cap": the
+   **Takes N bytes** rule above, N = 1,040,000 for Codex. Not tested: text denser than the probe
+   near that size, such as a diff full of base64 hashes.
