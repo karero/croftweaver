@@ -764,7 +764,8 @@ hold Search Console Request Indexing until then.
       `alerts: on` and `security updates: on`. Not skippable: the site's lockfile is its
       own, so no suite update ever patches it. The starter also ships
       `.github/dependabot.yml` (monthly, grouped version updates; a new major of any package but the two held
-      back comes as its own pull request): keep it if someone will merge the monthly
+      back comes as its own pull request; Dependabot raises no new version pull request
+      while five are open, so merge or close them): keep it if someone will merge the monthly
       pull request (name them in the site's README), delete it if not; security updates
       stay on either way.
 - [ ] **`<project>.pages.dev` redirects to the live domain**: once the live domain serves
