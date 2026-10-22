@@ -166,8 +166,8 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
    `export SERPER_API_KEY=...` (or a SerpApi key → `export SERPAPI_KEY=...`).
 
 **Signing in again** — after publishing an app that already had a sign-in, or when the weekly
-job reports a refused sign-in. A sign-in Google still accepts is refreshed silently and never
-replaced, so move it aside first, then run a report by hand (no `--no-browser`):
+job reports a refused sign-in. A sign-in Google still accepts is refreshed silently, with no new
+consent, so move it aside first, then run a report by hand (no `--no-browser`):
 
 ```bash
 mv ~/.config/gsc-insights/token.json ~/.config/gsc-insights/token.json.old

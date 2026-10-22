@@ -8,17 +8,18 @@ Seats: Codex CLI 0.163.0 (gpt-6.1-sol, read-only; config effort in round 1, medi
 | 1 | `5649f77` (#363 as merged) | full, `f037c24...5649f77` | 1/4/7 | codex 132 s / 61,355; melious 226 s / 14,970; fresh-eyes 337 s / 133,594 |
 | 2 | `34982a6` | full follow-up, `22ae4e4...34982a6` | 0/2/6 | codex 293 s / 59,810; melious 500 s / 32,771 |
 | 3 | `80e1712` | delta since `34982a6` | 0/1/1 | codex 82 s / 57,882 (none); melious 199 s / 21,091 |
-| wording pass | pending | | | |
+| wording pass | `a7dacf2` + record | delta since `80e1712`, prose only | 0/0/2 (one wrong line count in this record, one overclaim, "never replaced"; both fixed) | codex 169 s / 65,054 |
+| confirmation | pending | the two fixes alone | | |
 
 Round 1 (on #363's merged text):
 - R1-01 BUG (Codex, fresh-eyes) FIXED, `locally_verified` and `externally_reverified` in round 2: SKILL.md loads onboarding.md only when there is no token, so the Publish check for an owner who has one could not fire. Now the schedule paragraph of SKILL.md asks every owner it asks about scheduling to read the Audience tab. Evidence: `SKILL.md` "Before the yes".
-- R1-02 RISK (Codex, GLM, fresh-eyes) FIXED, re-verified: after publishing, an old sign-in is refreshed silently and not replaced, and "reconnect" was defined nowhere. "Signing in again" now says: move `token.json` aside, run `gsc_query.py` by hand. Invariant: a sign-in Google still accepts is never replaced by itself (`load_credentials`, `gsc_query.py:101-131`). Whether the old sign-in keeps its 7-day limit after publishing is UNVERIFIABLE; the text says it was not checked.
+- R1-02 RISK (Codex, GLM, fresh-eyes) FIXED, re-verified: after publishing, an old sign-in is refreshed silently, with no new consent, and "reconnect" was defined nowhere. "Signing in again" now says: move `token.json` aside, run `gsc_query.py` by hand. Invariant: a sign-in Google still accepts gets no new consent (`load_credentials`, `gsc_query.py:101-131`). The first wording said "never replaced"; the wording pass pointed out that google-auth 2.55.1 (`_perform_refresh_token`) stores a new refresh token if Google sends one, so the claim was cut to the consent. Whether the old sign-in keeps its 7-day limit after publishing is UNVERIFIABLE; the text says it was not checked.
 - R1-03 RISK (fresh-eyes) FIXED, re-verified: an app already In production, or Internal, needs nothing; never switch Internal to External. Google's page, read 2026-10-20, names only "an external user type" with status "Testing".
 - R1-04 RISK (fresh-eyes) FIXED, re-verified: the exit-2 line no longer says "most likely Testing".
 - R1-05 RISK (GLM) REFUTED: "then reconnect" needs #352 on the branch. `git merge-base --is-ancestor 89f965b5 5649f77a` is true; `load_credentials` writes the new token after a refused refresh. Confirmed by Codex in round 2.
 - R1-06 to R1-10 NIT (fresh-eyes, GLM) FIXED, re-verified: "Step 3c" wording and the eval carve-out; the stale "three clicks" and "single consent click"; no control named on the unverified-app screen, and what the assistant checks on it; the "not yet checked" sentences are to go after the live check; the BUGLOG status named a branch.
 - R1-11 NIT (GLM) REFUTED: ask the Publish check only if the weekly job has not run twice. `load_credentials` rewrites `token.json` on every refresh (`gsc_query.py:131-133`), so its age says nothing about when the sign-in was given.
-- R1-12 NIT (fresh-eyes) FOLLOW-UP: SKILL.md is over its 500-line soft budget (522 at #363's head, 547 now); `check_skill_budgets.sh` warns and exits 0.
+- R1-12 NIT (fresh-eyes) FOLLOW-UP: SKILL.md is over its 500-line soft budget (522 at #363's head, 548 now); `check_skill_budgets.sh` warns and exits 0.
 
 Round 2 (verification, 0 BUG):
 - R2-01 RISK (Codex, GLM) FIXED, re-verified in round 3: eval 1 required publishing unconditionally.
