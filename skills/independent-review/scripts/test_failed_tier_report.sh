@@ -1631,6 +1631,7 @@ for v in 'Latin-1:caf\351' 'above U+10FFFF:\364\220\200\200' 'five bytes:\370\21
 done
 printf 'caf\303\251, \342\202\254 and ASCII\n' >"$T/u8good"; : >"$T/u8empty"
 check "utf8_valid: UTF-8 and empty files are valid" sh -c 'perl "$1" "$2" && perl "$1" "$3"' _ "$HERE/perl/utf8_valid.pl" "$T/u8good" "$T/u8empty"
+check "utf8_valid: a file it cannot read (a folder) is not" sh -c '! perl "$1" "$2"' _ "$HERE/perl/utf8_valid.pl" "$T"
 { printf 'diff --git a/x b/x\n+caf\351 in Latin-1\n'; cat "$T/big200.diff"; } >"$T/latin1.diff"
 { printf 'diff --git a/x b/x\n+caf\303\251 in UTF-8\n'; cat "$T/big200.diff"; } >"$T/utf8.diff"
 limitcase t11k "codex stub-codex takes:500000$REF
@@ -1655,6 +1656,11 @@ bigdiff 100000 "$T/big100.diff"
 limitcase t11o "codex stub-codex takes:90000$REF
 " "$T/latin1-100.diff" -- --seat codex
 check "T11: Latin-1, 100 KB, over a takes:90000 line: FAILED, though under 120,000" has t11o.out "codex FAILED (a prompt of"
+# With no perl nothing can say the prompt is valid UTF-8, so even one that is counts three times
+# (section 36's PATH of every tool but perl, codex's stub ahead of it).
+limitcase t11p "codex stub-codex takes:500000$REF
+" "$T/utf8.diff" PATH="$T/bin3:$T/noperl" -- --seat codex
+check "T11: no perl: valid UTF-8 that runs at its bytes (T11m) FAILS at three times them" has t11p.out "is not valid UTF-8 (or perl is missing)"
 # The codex model is read from config.toml strictly: a commented, single-quoted line still reads,
 # and a top-level profile key, which can pick another model, leaves it unknown (120,000 bytes).
 mkdir -p "$T/u3/.codex" "$T/u4/.codex" && : >"$T/u3/.codex/auth.json" && : >"$T/u4/.codex/auth.json"

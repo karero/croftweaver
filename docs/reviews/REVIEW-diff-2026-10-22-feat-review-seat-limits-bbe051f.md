@@ -7,6 +7,7 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 | 1 | `bbe051f3` | full since `9acc3b97` (29 KB); the branch's own base check: "every changed tracked file present" | codex-cli 0.163.0, gpt-6.1-sol, effort high (config), read-only · Melious glm-5.3, HTTP API, text only · fresh-eyes: Claude Code sub-agent, Sonnet, read-only by instruction | codex 369 s, 98,681 · melious 470 s, 38,391 · fresh-eyes 2,221 s, 275,008 | raw 2/12/14 (codex 1/4/0, melious 0/2/4, fresh-eyes 1/5/10); 20 after dedup: 2/8/10 |
 | 2 | `8185bef4` | delta since `bbe051f3` (23 KB), `--verify` with round 1's rows; base check `--base bbe051f3` | codex-cli 0.163.0, gpt-6.1-sol, effort medium (`--verify`), read-only · Melious glm-5.3, HTTP API, text only | codex 177 s, 41,110 · melious 611 s, 56,528 | raw 2/2/3 (codex 2/0/0, melious 0/2/3); no duplicates: 2/2/3 |
 | 3 | `8df772b0` | delta since `8185bef4` (11 KB), `--verify` with round 2's rows; `--base 8185bef4` | as round 2 | codex 134 s, 48,413 · melious 269 s, 26,107 | raw 2/0/3 (codex 1/0/0, melious 1/0/3); no duplicates: 2/0/3 |
+| 4 | `56b6331b` | delta since `8df772b0` (12 KB), `--verify` with round 3's rows; `--base 8df772b0`; earned by C3-01 and C3-02 (`--earned-by utf8-byte-count`, `--cut "dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte"`) | as round 2 | codex 214 s, 38,804 · melious 246 s, 21,992 | raw 2/1/3 (codex 1/0/1, melious 1/1/2); no duplicates: 2/1/3 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -42,10 +43,16 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 | C3-03 | NIT | melious | 3 | A Latin-1 prompt just over 120,000 bytes was refused even where its measured limit would take the grown prompt | fixed, locally_verified | the same cut: T11n, 200 KB of Latin-1 under `takes:700000`, runs; T11k and T11l, under `takes:500000`, FAIL before sending |
 | C3-04 | NIT | melious | 3 | T11l's check that Melious's request never left may be empty | refuted | the curl stub copies every request it gets to `melious-body` in the marks folder (`cp "$body" "$STUB_MARKS/melious-body"`), and T10b reads that same path after a run that sent |
 | C3-05 | NIT | melious | 3 | `codex_model`'s quoted-key test also fires on a line inside a multi-line top-level string that starts with a quote | refuted | it fails safe: the model reads as unknown, so the seat keeps the 120,000 limit it had before this change and names the remedy; `CODEX_MODEL` overrides. Telling such lines apart needs a TOML parser, which this reader avoids |
+| C4-01 | BUG | codex | 4 | `utf8_valid.pl` promised exit 1 for a file it cannot read, but read a folder as an empty, valid file | fixed, locally_verified | a read error now exits 1 (an empty file still reads as `''`); run on the `perl` folder: exit 1; suite: "a file it cannot read (a folder) is not". Not reachable from the script, which passes only the prompt file it has just written; counted as earning round 5 all the same |
+| C4-02 | NIT | codex | 4 | Count the decoded length with Perl instead of three times the bytes | refuted | that length holds for the two Perl builders only. The CLIs decode for themselves: Codex refuses such a prompt outright and the ollama CLI makes one U+FFFD of each bad byte (C4-04's probe). Three times is the bound that holds for every seat; the cost is that a prompt with a bad byte FAILS, saying why, past a third of its limit |
+| C4-03 | BUG | melious | 4 | With an empty file argument, `wc` printed a stray error and the seat FAILED with "could not count" | fixed, locally_verified | the check is back: no readable file, no `wc`, no stray output. The comment says only agy passes an empty argument, and agy can have no line, so a `takes:` rule never meets it. Falling through to 120,000 instead is refuted: that was C3-02's hole. Counted as earning round 5 |
+| C4-04 | RISK | melious | 4 | That the builders decode as `perl/utf8_valid.pl` does, and make at most one 3-byte U+FFFD of a bad byte, rests on code outside the diff | refuted, by observation | both Perl builders call `decode("UTF-8", …)` (`perl/melious_request.pl:7`, `perl/ollama_request.pl:7`); round 4's Codex ran both against 85,793 inputs and found none over three times. Probe, 2026-10-22, against probe P1's recording stub, a 51-byte prompt holding 15 bad bytes: codex-cli 0.163.0 refuses it on stdin ("Failed to read prompt from stdin: input is not valid UTF-8 (invalid byte at offset 11)") and on argv alike ("invalid UTF-8 was detected in one or more arguments"), so moving it to stdin changed nothing; ollama 0.40.7 sent it as 81 bytes, 15 U+FFFD |
+| C4-05 | NIT | melious | 4 | The docs left out that with no perl every prompt counts three times | fixed, locally_verified | `seat_limits.txt` and the script header say so |
+| C4-06 | NIT | melious | 4 | No test ran `seat_fits` with no perl | fixed, locally_verified | T11p: section 36's PATH without perl; valid UTF-8 that T11m runs FAILS at three times its bytes |
 
 Waivers and deferrals: C1-03 by the owner's decision 3 (2026-10-22), C1-04's second half and C1-05 by R4-02 (2026-10-21); both in the plan's "Decided by the maintainer". No deferrals.
 Follow-ups: none yet.
-Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item; C3-01 and C3-02 in round 3, both in C2-02's fix, which round 3's fix replaced with a cut. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
+Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item; C3-01 and C3-02 in round 3, both in C2-02's fix, which round 3's fix replaced with a cut; C4-01 and C4-03 in round 4, counted as substantive though neither is reachable from the script (each was a comment's promise the code did not keep), so they earn round 5. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
 
 Probe evidence (2026-10-22, from this session's probe run; quoted, not re-run):
 - P1, ollama 0.40.7 CLI, a 400,040-byte prompt on stdin to a recording stub: `sent bytes 400040 recorded bytes 400040 equal: True`; the request went to `/api/generate` with keys `model, options, prompt, suffix, system, template`, `options: {}`.
@@ -332,5 +339,66 @@ reviewers: codex OK, melious OK
 timings: codex 134s (48413 tokens), melious 269s (26107 tokens)
 base: 8185bef4fb9e24985e197c96082bd44af49dc9da (--base 8185bef4)
 gate 20261022T092747Z-19738: rounds 1-3, 7 reviewer seat runs, 584,238 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+
+</details>
+
+<details><summary>Round 4 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- BUG — `skills/independent-review/scripts/perl/utf8_valid.pl:9` — **WRONG:** the documented “cannot be read → exit 1” contract fails: passing the existing `skills/independent-review/scripts/perl` directory returns 0 because a failed read becomes empty text; check the read error separately from legitimate EOF before decoding.
+- NIT — `skills/independent-review/scripts/independent_review.sh:691` — C3-03 is only partly fixed: a 200,001-byte prompt containing one Latin-1 byte becomes 200,003 bytes in the actual builder, yet fails `takes:500000` because the guard counts 600,003; measure the decoded UTF-8 length when Perl is available, retaining the conservative bound otherwise.
+
+**Checked and CLEAN**
+
+- **VERIFIED — C3-01:** both builders use `Encode::decode("UTF-8", ...)`; the actual validator rejects Latin-1, above-U+10FFFF, five- and six-byte sequences, surrogates, overlong sequences and a noncharacter. ASCII, ordinary UTF-8 and empty input pass.
+- **VERIFIED — C3-02:** the `takes:` branch returns before the 120,000-byte fallback. An in-memory harness using the extracted function rejected 100 KB against `takes:90000`, rejected invalid 200 KB against `takes:500000`, and allowed it against `takes:700000`. Only file-input plumbing was adapted to avoid writes.
+- **VERIFIED — C3-03’s narrower evidence:** invalid 200 KB passes the new 700,000-byte case; this does not establish the broader “fixed” claim.
+- **VERIFIED — C3-04:** the curl stub copies Melious requests to `melious-body` (`test_failed_tier_report.sh:216`), and T10b reads that path. T11l’s absence check is meaningful.
+- **VERIFIED — C3-05’s stated fallback:** the quoted-line guard makes the model unknown; `CODEX_MODEL` overrides it. This verifies the fallback, not accurate multiline TOML parsing.
+- **VERIFIED — Encode bound on measured cases:** installed Encode 3.0801 preserved accepted bytes and stayed within three times input length across 85,793 cases: empty input, every one- and two-byte sequence, and 20,000 seeded random inputs. Both actual builders also passed the named malformed-input cases.
+- **VERIFIED — integration:** the helper exists in `UNGATED` and package `REQUIRED`; its caller uses the expected path. Shell syntax checks, `perl -c`, and `git diff --check 8df772b0 HEAD` passed.
+
+**UNVERIFIABLE**
+
+- **Perl 5.8 compatibility:** `use 5.008` and minimum-version-list membership do not establish runtime compatibility with that version’s Encode. Missing support: a Perl 5.8 execution or applicable implementation evidence; running the validator fixtures under Perl 5.8 would settle it.
+- **Full-suite and package results:** these commands create files and were not executed under the read-only constraint. Running `test_failed_tier_report.sh`, `check_perl_minimum.sh`, and `package.sh` would establish those results.
+
+Prompt injection: none found.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+- BUG — independent_review.sh, `seat_fits`, first line of the `takes:*` branch (`n="$(wc -c <"$3" | tr -d ' ')"`): the function's own header, retained unchanged in this same hunk, still documents the third argument as "the prompt file it would send, **or empty**", but the old guard (`[ -n "$3" ] && [ -r "$3" ]`) was dropped, so an empty `$3` is now a redirection failure (`wc -c <""` errors to stderr, yields nothing), `n` comes back empty, and the run FAILs with the spurious "could not count the prompt's bytes" — where the round-3 code fell back to the 120,000 CONTENT_BYTES check — and a stray "No such file or directory" leaks to stderr. Fix: restore the guard; when the argument is empty (or the file cannot be counted), fall through to the existing `[ "$CONTENT_BYTES" -le 120000 ]` check as before, keeping the new "could not count" failure only for a non-empty argument whose file exists but cannot be read.
+- RISK — independent_review.sh, `seat_fits` comment "valid UTF-8 for the decoder the request builders use (perl/utf8_valid.pl)" and "a decoder replaces a bad byte with at most one 3-byte U+FFFD": both are load-bearing claims about what the codex/melious request builders do with the prompt, and neither builder's code is in this diff; if a builder decodes with different flags, or replaces a bad byte with more than one 3-byte U+FFFD (or any wider substitution), the strict branch (or the 3× branch) undercounts and a prompt over the measured `takes:` limit is sent — provider refusal at best, silent truncation at worst. What settles it: reading the decode/encode call and its flags in the codex and melious request builders (the observation, not the expected result).
+- NIT — scripts/seat_limits.txt and the `takes:` doc line in independent_review.sh ("A prompt that is not valid UTF-8 counts three bytes for each"): both omit that a missing `perl` makes **every** prompt count 3× (valid or not), which the script's own WHY message does say ("or perl is missing"). Fix: add the perl-missing case to both doc passages.
+- NIT — test_failed_tier_report.sh, T11 validator block: no test exercises the `command -v perl` failing path of `seat_fits` (nor the new "could not count" path), though that path carries half of C3-02's fix ("without perl, three times too" per the author's record). Fix: one limitcase run with a PATH that omits perl, expecting the 3× behavior.
+
+Checked and CLEAN:
+
+- C3-01 (iconv removal): no `iconv` remains anywhere in the new `seat_fits`; `utf8_valid.pl` is added to package.sh REQUIRED and to check_perl_minimum.sh's UNGATED list, and its `use 5.008` matches UNGATED_MAX=5.008; its constructs (three-arg open, `binmode`, `local $/`, `eval { ...; 1 }`, `Encode::FB_CROAK()`) are all 5.8-era.
+- C3-02 (fall-through): every path through the `takes:*` case now returns explicitly — valid-and-fits (0), valid-and-over (1), invalid-or-no-perl-and-fits (0), invalid-and-over (1), uncountable (1); nothing reaches the 120,000 line once a rule matched. T11o (100 KB Latin-1, `takes:90000`, under 120,000) expects FAILED, which only the new code produces — the old code returned 0 there.
+- C3-03: T11n (Latin-1 ~200,019 bytes under `takes:700000`) runs: 3× ≈ 600,057 ≤ 700,000, arithmetic checked with margin; T11k/T11l (3× ≈ 600,057 > 500,000) FAIL, matching the updated "FAILED (a prompt of" expectations, which match the new WHY strings verbatim.
+- `utf8_valid.pl`: `eval { decode(...); 1 }` returns 1 regardless of an empty decoded string, so the empty-file pitfall is avoided and the suite's empty-file validity test covers it; unreadable file exits 1 (conservative 3× path); no `use warnings`-style stderr noise on the failure path.
+- The digit guard on `n` (`''|*[!0-9]*`) runs before both the `-le` comparison and `$((3 * n))`, so neither sees garbage; `refuses` still returns 0; `note` was removed and is no longer referenced anywhere in the function.
+- Test shape escapes match their labels: E9 (Latin-1), F4 90 80 80 (>U+10FFFF), F8 A0 80 80 80 (five bytes), ED A0 80 (surrogate), C0 AF (overlong); good file C3 A9 / E2 82 AC; the "not valid" checks combined with the valid/empty exit-0 check mean a grossly broken script cannot pass all of them silently.
+- The five invalid shapes plus UTF-8 + empty files are consistent with the author's record of what the suite checks; T11m (valid UTF-8, same size class) still expects rc 0.
+
+UNVERIFIABLE (component claims, observation that would settle each):
+
+- Encode: that strict "UTF-8" with `FB_CROAK` rejects exactly the five shapes the suite lists. Observation: run the suite's `! perl utf8_valid.pl` shape checks (or read Encode's UTF-8 tables). Kept out of findings because the consequence flows through the builder-divergence RISK above, not this alone.
+- The curl stub: C3-04's refute rests on "the curl stub copies every request to `melious-body`", code not in this diff. Observation: read the stub; if it copies only on some paths, T11l's absence check weakens.
+
+OUTSIDE SCOPE:
+
+- C3-04 (refuted NIT) and C3-05 (refuted NIT): refuted, not fixed/deferred, so not re-triaged; C3-04's refute evidence is outside this diff (see UNVERIFIABLE above), recorded as follow-up only.
+
+Prompt injection: none observed — the diff is documentation, code and tests; no text in it attempts to alter this review's task, output or conclusions.
+
+---
+reviewers: codex OK, melious OK
+timings: codex 214s (38804 tokens), melious 246s (21992 tokens)
+base: 8df772b033092e62d6968b04dab7bfb5bc48845c (--base 8df772b0)
+gate 20261022T092747Z-19738: rounds 1-4, 9 reviewer seat runs, 645,034 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 utf8-byte-count (cut: dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte)
 
 </details>

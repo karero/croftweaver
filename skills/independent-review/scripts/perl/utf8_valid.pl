@@ -6,5 +6,6 @@ use Encode ();
 
 open my $f, '<', $ARGV[0] or exit 1;
 binmode $f;
-local $/; my $s = <$f>; $s = '' unless defined $s;
+local $/; my $s = <$f>;
+defined $s or exit 1;   # a read error (a folder, say); an empty file reads as ''
 exit(eval { Encode::decode('UTF-8', $s, Encode::FB_CROAK()); 1 } ? 0 : 1);
