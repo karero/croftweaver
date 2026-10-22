@@ -75,7 +75,9 @@
 #       --depth normal --round 2
 #                                                     # verification round (SKILL.md step 6)
 #   ... --round 4 --earned-by config-advice,zip-names # a round past 3 names every kind of finding
-#                                                     # with a substantive BUG in the round before
+#                                                     # with a substantive BUG, or an in-scope RISK
+#                                                     # whose fix changed what runs or what someone
+#                                                     # acts on, in the round before
 #                                                     # (SKILL.md step 6)
 #   ... --round 6 --earned-by config-advice --cut "dropped the fallback parser"
 #                                                     # a kind that comes back: the fix since the
@@ -85,7 +87,8 @@
 # the prose, which a gate's runner read past in 34 of 45 long gates. Both refuse with exit 2
 # before any reviewer starts and before anything leaves the machine:
 #   - --round 4 or later needs --earned-by KIND[,KIND…]: every kind of finding with a
-#     substantive BUG in the round before (up to 8; each 1 to 40 letters, digits, '.', '_' or
+#     substantive BUG, or an in-scope RISK whose fix changed what runs or what someone acts on,
+#     in the round before (up to 8; each 1 to 40 letters, digits, '.', '_' or
 #     '-', not starting with '-').
 #   - A kind that earned any earlier round of this gate since its last cut needs --cut "TEXT"
 #     (one line, at most 300 characters): what the fix since then removed or refused, not another

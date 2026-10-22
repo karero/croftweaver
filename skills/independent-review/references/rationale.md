@@ -371,7 +371,8 @@ reproduction, and a new tool has none). None of it is measured: judge it by roun
    is not itself non-convergence — see (a) above — it's a slower signal the artifact's surface
    area is bigger than first estimated, worth naming explicitly rather than silently forcing
    STOP). (This is an early-exit heuristic layered on top of, not instead of, point 6(b)'s round
-   budget — past round 3 only a substantive BUG earns a round, past round 8 the owner decides —
+   budget — past round 3 only a substantive BUG or an earning RISK earns a round, past round 8
+   the owner decides —
    which bounds iteration regardless of how these signals read.) When triggered: step back and redesign the
    component (patch-churn on a wrong design converges never), or take the open items to the owner
    as a decision — escalation can postpone, re-scope, or reject the release, but it cannot waive a
@@ -561,3 +562,27 @@ What this does not show: that the gate finds the same real defects with fresh-ey
 1 to 3: in the brand-kit gate 34 BUGs were found by fresh-eyes alone, 14 of them in rounds 4 to 9,
 and those would have been left to the pair and the final full read; and how many rounds the cut check saves (an estimate of 15 to 25 rounds over the 45
 gates, not a measurement). Judge both by the cost log's rounds and tokens per gate.
+
+## An earning RISK — the owner's rule of 2026-10-22
+
+The owner, 2026-10-22: "Try to reduce the number of asks to me for a review. A review can run
+really anytime until it's clean. Yes we want to avoid rounds over 5, but if required let it run
+another round and another." Until then a round past 3 that found no substantive BUG ended the
+rounds, and its open RISKs went to the owner as one decision: fix locally, not re-verified, or
+waive. Now an in-scope RISK whose fix changed what runs or what someone acts on (an earning RISK)
+is fixed and earns the next round, under the same `--earned-by` kind and the same cut rule; the
+owner is asked only for a RISK waiver, a BUG deferral, a change of scope, and the decision past
+round 8, which stays.
+
+Why this was not done before: on 2026-09-26 RISK counts per round never reached zero while each
+round re-read the whole change ("Step 6 — why verification rounds are scoped and capped", above). What limits it now, and how
+firmly. Where the cost log can answer, the script refuses a kind that earned an earlier round of
+the gate since its last cut, unless the round names a cut; where it cannot, it warns and goes on,
+and the rule is the host's to keep. Everything else is the host's judgment, shown to the owner but
+not enforced: whether a RISK is in scope, whether its fix changed what runs or what someone acts
+on, and how a kind is named. A verification round sees only the fixes, and an out-of-scope RISK is
+a follow-up. Past round 8 the owner decides. The script needed no change: it never sees a
+severity, and `test_round_checks.sh` already pins what such a round meets. What this gives up: the
+owner no longer sees a late round's RISKs before the next round runs, only in the round's update
+(step 8). Not measured: whether RISK-earned rounds cost less than the owner's questions did. Judge
+it by rounds and tokens per gate in the cost log, and by how often a gate passes round 5.
