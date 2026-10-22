@@ -589,7 +589,8 @@ chmod -R u+w "$work/cases/lockro" 2>/dev/null || true
 
 # --- production moved WHILE the gate ran: the remote refuses the update ------------
 # git checked production when the push started, so it sends the update; the remote then finds
-# production somewhere else. Stock git's wording; GitHub's is not checked.
+# production somewhere else. Stock git's two wordings: git 2.33's, then the newer git's on
+# GitHub's runners (seen in this file's own CI). GitHub's is not checked.
 attempt reflock 1 1 <<'EOF'
 ▶ pre-push gate: check, build and tests (scripts/verify.mjs)…
 ✓ pre-push gate passed — pushing.
@@ -599,6 +600,15 @@ To github.com:you/your-site.git
 error: failed to push some refs to 'github.com:you/your-site.git'
 EOF
 expect reflock 1 1 "moved while this was publishing"
+attempt reflocknew 1 1 <<'EOF'
+▶ pre-push gate: check, build and tests (scripts/verify.mjs)…
+✓ pre-push gate passed — pushing.
+remote: error: cannot lock ref 'refs/heads/production': is at 3333333333333333333333333333333333333333 but expected 1111111111111111111111111111111111111111
+To github.com:you/your-site.git
+ ! [remote rejected] 1111111111111111111111111111111111111111 -> production (incorrect old value provided)
+error: failed to push some refs to 'github.com:you/your-site.git'
+EOF
+expect reflocknew 1 1 "moved while this was publishing"
 
 # --- a red gate whose output holds a NESTED run's lines: they change nothing --------
 # This file runs inside the gate, and prints a failing case's nested ship output behind
@@ -968,7 +978,7 @@ GATE
   m="$(git -C "$D/clone2" rev-parse HEAD)"
   run_ship s7 SHIP_T_MOVE="$D/clone2"; exits 1
   want "production is the other clone's" eq "$(gh production)" "$m"
-  want "git's own refusal reached the log" has "(failed to update ref)"
+  want "git's own refusal reached the log" eval 'grep -qE "^ *! \[remote rejected\] .*\((failed to update ref|incorrect old value provided)\)" "$L"'
   want "names it as production moved" has "moved while this was publishing"
 
   # --- S8: an earlier run killed hard: its lock and worktrees left -------------------------

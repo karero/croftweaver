@@ -671,12 +671,13 @@ for attempt in $(seq 1 "$push_tries"); do
     # Anchoring a pattern to the start of a line proves its shape, never its author —
     # this is the only check here that establishes provenance.
     kind=gate
-  elif grep -qE '^ *! \[rejected\].*\((non-fast-forward|fetch first|stale info)\)|^hint: Updates were rejected|^ *! \[remote rejected\].*\(failed to update ref\)' <<<"$view"; then
+  elif grep -qE '^ *! \[rejected\].*\((non-fast-forward|fetch first|stale info)\)|^hint: Updates were rejected|^ *! \[remote rejected\].*\((failed to update ref|incorrect old value provided)\)' <<<"$view"; then
     # The check above ruled out a pre-existing divergence seconds ago, so this is the
     # narrow race it cannot cover: production moved WHILE this was publishing. Moved before
     # the push started, git refuses it itself ("fetch first"); moved while the pre-push gate
-    # ran, the remote refuses the update it was sent ("failed to update ref", stock git's
-    # wording; GitHub's is not checked, and would land in "can't name").
+    # ran, the remote refuses the update it was sent. Stock git words that "failed to update
+    # ref" (git 2.33) or "incorrect old value provided" (the newer git on GitHub's runners);
+    # GitHub's own wording is not checked, and would land in "can't name".
     kind=raced
   elif looks_like_local_or_auth_failure "$view"; then
     # An SSH key, host-key or access problem also ends in "Could not read from remote
