@@ -624,6 +624,19 @@ expect reflockother 1 1 "can't name"
 if grep -q "moved while this was publishing" "$work/reflockother.log"; then
   echo "✗ ship push gate [reflockother]: a ref the remote could not write was read as production moving."; fail=1
 fi
+# The same rule for the newer wording: without the line saying production is elsewhere, the
+# refusal proves no race either.
+attempt reflocknewother 1 1 <<'EOF'
+▶ pre-push gate: check, build and tests (scripts/verify.mjs)…
+✓ pre-push gate passed — pushing.
+To github.com:you/your-site.git
+ ! [remote rejected] 1111111111111111111111111111111111111111 -> production (incorrect old value provided)
+error: failed to push some refs to 'github.com:you/your-site.git'
+EOF
+expect reflocknewother 1 1 "can't name"
+if grep -q "moved while this was publishing" "$work/reflocknewother.log"; then
+  echo "✗ ship push gate [reflocknewother]: a refusal with no line saying production moved was read as a race."; fail=1
+fi
 
 # --- a red gate whose output holds a NESTED run's lines: they change nothing --------
 # This file runs inside the gate, and prints a failing case's nested ship output behind
