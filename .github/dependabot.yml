@@ -8,6 +8,7 @@ updates:
     groups:
       astro-template-minor-and-patch:
         update-types: [minor, patch]
+    # Same ignore rules as the starter's copy for sites, skills/new-website/templates/astro/.github/dependabot.yml; change them together.
     ignore:
       # Tracks the Node major in .nvmrc and ci.yml (engines stays at Astro's floor, >=22.23.4; the fixed versions for Node 24 and 26, 24.22.1 and 26.12.1, are advice in the docs (SETUP.md, the READMEs, UPGRADING.md), enforced nowhere, since Astro skips its own check there and npm only warns); bump them together by hand.
       - dependency-name: "@types/node"
