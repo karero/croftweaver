@@ -1,6 +1,6 @@
 # Plan: the starter's Node floor, held by a check and enforced as a warning
 
-A second pull request, stacked on `deps/astro-7-4-2-node-floor` (PR #377, the Astro 7.4.2 bump). It
+A second pull request, after the one for the Astro 7.4.2 bump (#377, planned stacked on it, merged before this was built, so the branch starts from `main`). It
 closes the three items that review waived for that PR. Written 2026-10-22, before any of it is built;
 this is the fifth version, after four rounds of its own review: round 1 (33 findings from three reviewers, merged into 19 rows and answered in the second version), round 2 (2 BUG, 6 RISK, 5 NIT; answered in the third), round 3 (3 BUG, 4 RISK, 3 NIT; answered in the fourth) and round 4 (2 BUG, 1 RISK, 4 NIT; answered here).
 
@@ -184,12 +184,12 @@ had printed the warning that morning: both halves, on one machine, before and af
 
 | # | Step | State | Evidence |
 |---|---|---|---|
-| 1 | This plan, reviewed until no BUG is open | ▶ plan gate closing | PLAN gate round 1: 1 BUG, 10 RISK, 5 NIT from the pair and 2 BUG, 8 RISK, 7 NIT from fresh-eyes; round 2: 2 BUG, 6 RISK, 5 NIT; round 3: 3 BUG, 4 RISK, 3 NIT; round 4: 2 BUG, 1 RISK, 4 NIT; round 5: 2 BUG-labelled wording errors (rated not substantive), 1 RISK, 4 NIT; the closing full read (Kimi): 0 BUG, 3 RISK, 2 NIT. This version answers them |
-| 2 | A: `check_node_floor.sh` and `test_node_floor.sh`; wiring in `Makefile` (target and the long `##` description), `clean.yml` (the job and its header), `package.sh` (the zip list and `REQUIRED`, both scripts), `check_cdpath_safe.sh` (subjects or not-run), `test_mktemp_guard.sh` (scripts or exempt), `README.md` (script list and the `make check` line); `check_pipefail_pipes.sh` finds the scripts by their shebang and needs nothing. The `node-floor` job runs on `ubuntu-latest`; both it and `macos-stock-tools` get an explicit `actions/setup-node` step (`node-version: 24`, the starter's), because the existing tests skip without Node and prove nothing about the image (`test_verify.sh` prints "SKIP" and exits 0 without it); both set `REQUIRE_NODE_FLOOR=1`, the variable that turns a skip into a failure | ⏸ not started | — |
-| 3 | B: `engines`, the lockfile root (regenerated), the texts, the one skill sentence, the README step 3 line | ⏸ not started | — |
-| 4 | C: the installer comment, README line, version | ⏸ not started | — |
-| 5 | D: the README release paragraph; BUGLOG rows | ⏸ not started | — |
-| 6 | `make check` green; the diff reviewed (Normal depth); the PR opened and stamped | ⏸ not started | — |
+| 1 | This plan, reviewed until no BUG is open | ✅ closed; the seventh version is the one built | PLAN gate round 1: 1 BUG, 10 RISK, 5 NIT from the pair and 2 BUG, 8 RISK, 7 NIT from fresh-eyes; round 2: 2 BUG, 6 RISK, 5 NIT; round 3: 3 BUG, 4 RISK, 3 NIT; round 4: 2 BUG, 1 RISK, 4 NIT; round 5: 2 BUG-labelled wording errors (rated not substantive), 1 RISK, 4 NIT; the closing full read (Kimi): 0 BUG, 3 RISK, 2 NIT. This version answers them |
+| 2 | A: `check_node_floor.sh` and `test_node_floor.sh`; wiring in `Makefile` (target and the long `##` description), `clean.yml` (the job and its header), `package.sh` (the zip list and `REQUIRED`, both scripts), `check_cdpath_safe.sh` (subjects or not-run), `test_mktemp_guard.sh` (scripts or exempt), `README.md` (script list and the `make check` line); `check_pipefail_pipes.sh` finds the scripts by their shebang and needs nothing. The `node-floor` job runs on `ubuntu-latest`; both it and `macos-stock-tools` get an explicit `actions/setup-node` step (`node-version: 24`, the starter's), because the existing tests skip without Node and prove nothing about the image (`test_verify.sh` prints "SKIP" and exits 0 without it); both set `REQUIRE_NODE_FLOOR=1`, the variable that turns a skip into a failure | ✅ done | `e73cce58`; review fixes `35a5943a`, `37d19698`, `ae960e71` |
+| 3 | B: `engines`, the lockfile root (regenerated), the texts, the one skill sentence, the README step 3 line | ✅ done | `e73cce58`; UPGRADING changed in `37d19698` (all three lines named) |
+| 4 | C: the installer comment, README line, version | ✅ done, publish is task 8 | `e73cce58`, `35a5943a` |
+| 5 | D: the README release paragraph; BUGLOG rows | ✅ done | `e73cce58`, `35a5943a` |
+| 6 | `make check` green; the diff reviewed (Normal depth); the PR opened and stamped | ▶ this pull request | trail: `docs/reviews/REVIEW-diff-2026-10-22-deps-node-floor-guard-e73cce5.md` |
 | 7 | The owner adds `node-floor` to the ruleset's required checks | ⏸ not started | — |
 | 8 | The owner publishes `create-croftweaver` 0.2.1 after 0.33 is live; then `docs/WHAT-THE-SKILLS-RUN.md` stops saying 0.2.0 is the newest | ⏸ not started | — |
 
