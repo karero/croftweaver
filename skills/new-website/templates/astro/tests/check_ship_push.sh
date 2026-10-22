@@ -609,6 +609,21 @@ To github.com:you/your-site.git
 error: failed to push some refs to 'github.com:you/your-site.git'
 EOF
 expect reflocknew 1 1 "moved while this was publishing"
+# ...but git 2.33's "failed to update ref" also covers a ref the remote could not write for
+# another reason (here a full disk): without the line saying production is elsewhere, it is
+# not a race, and "run it again" would be the wrong advice.
+attempt reflockother 1 1 <<'EOF'
+▶ pre-push gate: check, build and tests (scripts/verify.mjs)…
+✓ pre-push gate passed — pushing.
+remote: error: unable to write file ./objects/ab/cdef: No space left on device
+To github.com:you/your-site.git
+ ! [remote rejected] 1111111111111111111111111111111111111111 -> production (failed to update ref)
+error: failed to push some refs to 'github.com:you/your-site.git'
+EOF
+expect reflockother 1 1 "can't name"
+if grep -q "moved while this was publishing" "$work/reflockother.log"; then
+  echo "✗ ship push gate [reflockother]: a ref the remote could not write was read as production moving."; fail=1
+fi
 
 # --- a red gate whose output holds a NESTED run's lines: they change nothing --------
 # This file runs inside the gate, and prints a failing case's nested ship output behind
