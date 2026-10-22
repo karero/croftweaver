@@ -103,12 +103,13 @@
 # BASE CHECK. Before any reviewer starts and before any of it leaves the machine, a diff is
 # checked against git (perl/diff_headers.pl) in two steps. Headers: every mode and id they state
 # must match git's own patch of the same base, read the same way, with the new sides from HEAD,
-# or else from the working tree. Content: its text records, applied to the base in a throwaway
-# index, must give that target's content for every file they name, so a diff made with -w or
-# another option that drops lines is caught too. A diff on a stale base, or one made before HEAD
-# moved, is refused (exit 2) with every file that does not match and the command that makes a
-# correct one; so is a diff the check cannot read (colour codes, prefixes other than a/ and b/, a
-# copy record, a combined diff, a format-patch series). Which base:
+# or else from the working tree, and a record marked binary must be binary there too. Content:
+# its text records, applied to the base in a throwaway index, must give that target's content for
+# every file they name, so a diff made with -w or another option that drops lines is caught too.
+# A diff on a stale base, or one made before HEAD moved, is refused (exit 2) with every file that
+# does not match and the command that makes a correct one; so is a diff the check cannot read
+# (colour codes, prefixes other than a/ and b/, a copy record, a combined diff, a format-patch
+# series). Which base:
 #   - no --base: the whole change, from the merge base of HEAD with origin's default branch, which
 #     is fetched first (`git fetch origin HEAD`, bounded by REVIEW_FETCH_TIMEOUT; no prompts). Under
 #     --local-only nothing is fetched and origin/HEAD is used. The base: line then names any
