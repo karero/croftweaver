@@ -1,13 +1,14 @@
 # DIFF review — branch `skill/review-rule-and-guard-check` — independent-review: an earning RISK earns a round; plan reviews ask about proposed guards; BUGLOG row
 Base `001c68b7` (merge base with origin/main after merging it at `09bd5309`) · depth: Normal (an instruction file, a review prompt and its test; nothing in the High row) · verdict: CLEAN · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the worktree and the branch (worktree stamped `ccd.owner`)
 
-Artifact: `git diff <base>...HEAD -- . ':(exclude)docs/reviews/'`. Seen pair for the stamp: merge base `001c68b7`, head `8db31704`; Codex's chain is unbroken (round 1 full, round 2 and the re-gate each the delta since the head before).
+Artifact: `git diff <base>...HEAD -- . ':(exclude)docs/reviews/'`. Seen pair for the stamp: merge base `d2d015c6`, head `70553e4f` after the second merge of `main`; Codex's chain is unbroken (round 1 full, round 2, the re-gate and the merge link each from the head before).
 
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `09bd5309` | full (base check: merge base with origin's HEAD, fetched) | codex-cli 0.163.0 (config.toml model and effort, read-only); melious GLM 5.3; fresh-eyes Sonnet sub-agent | codex 286, 86,560; melious 228, 29,164; fresh-eyes 648, 278,892 | 2 / 2 / 6 |
 | 2 | `fbd4df6f` | delta since `09bd5309` (`--base 09bd5309`), `--verify` with round 1's rows | codex (medium); melious GLM 5.3 | codex 134, 62,572; melious 175, 23,877 | 0 / 0 / 2, plus 2 NIT outside scope |
 | re-gate (prose only) | `8db31704` | delta since `fbd4df6f` (`--base fbd4df6f`) | codex (medium) | 53, 34,148 | 0 / 0 / 0 |
+| merge link | `70553e4f` | `merge_link.sh 001c68b7 8db31704 d2d015c6` (`--base 8db31704`): `docs/BUGLOG.md` only | codex (medium) | 177, 57,895 | 0 / 0 / 0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -24,4 +25,4 @@ Artifact: `git diff <base>...HEAD -- . ':(exclude)docs/reviews/'`. Seen pair for
 
 Waivers and deferrals: none.
 Follow-ups: (a2) says "no BUG" while its parenthetical says deferred BUGs call for no fix (older text; melious r2, outside scope). Test 25b checks the verify sentence's absence in the Codex prompt only, not ollama's (melious r2, outside scope; both prompts embed the same variable).
-Notes: no substantive BUG in any round (D1-01 and D1-02 were prose in the rationale and the bug log), so no wording pass; the closing edits got the prose-only re-gate (closeout, clerk item 2). No round past 3. Before review the branch merged origin/main (`09bd5309`; one conflict, two BUGLOG rows appended by #376, both kept). Fresh-eyes ran its own mutation check of test 25b (seven mutants caught) and one `--seat codex` run, refused by Codex before sending. `make check` green at `6ae85997` and at the merged head `09bd5309`; the tier test green at `fbd4df6f`. Cost logged: 515,213 tokens over 6 seat runs; the PLAN gate before it, 593,047. Raw reviewer output goes in this PR's review comment, not here.
+Notes: no substantive BUG in any round (D1-01 and D1-02 were prose in the rationale and the bug log), so no wording pass; the closing edits got the prose-only re-gate (closeout, clerk item 2). No round past 3. Before review the branch merged origin/main (`09bd5309`; one conflict, two BUGLOG rows appended by #376, both kept). After review it merged origin/main again (`70553e4f`, for #380 and #379's release-notes row; the same kind of BUGLOG conflict, both rows kept), bridged by the merge link; its `--suggest-callees` names came from BUGLOG prose, none called by the change's code. Fresh-eyes ran its own mutation check of test 25b (seven mutants caught) and one `--seat codex` run, refused by Codex before sending. `make check` green at `6ae85997`, at the merged head `09bd5309`, at `8db31704` and at the second merged head `70553e4f`; the tier test green at `fbd4df6f`. Cost logged: 515,213 tokens over 6 seat runs, plus the merge link's 57,895; the PLAN gate before it, 593,047. Raw reviewer output goes in this PR's review comment, not here.
