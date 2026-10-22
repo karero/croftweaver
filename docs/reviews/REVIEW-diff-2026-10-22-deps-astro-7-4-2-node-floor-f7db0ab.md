@@ -1,5 +1,5 @@
 # DIFF review — deps/astro-7-4-2-node-floor — Astro 7.4.2 in the starter, and the Node floor it now needs
-Base `9acc3b9` · depth: Normal (dependencies and instructions an assistant follows are never Light; no data, login or money is touched, so not High — a judgment) · verdict: OPEN until the wording pass lands · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created this worktree and branch); POST AUTHORITY — not used, no PR yet
+Base `9acc3b9` · depth: Normal (dependencies and instructions an assistant follows are never Light; no data, login or money is touched, so not High — a judgment) · verdict: CLEAN (2 rounds, a wording pass and its confirmation; 15 findings, 2 BUG, both found in round 1 and fixed; 2 RISKs waived by the owner and taken by a second PR) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created this worktree and branch); POST AUTHORITY — not used, no PR yet
 
 Seats: Codex CLI 0.163.0 (gpt-6.1-sol, read-only; config effort in round 1, medium after), GLM 5.3 on melious, a fresh-eyes Sonnet sub-agent in round 1 (by design at Normal depth). The change is a public repo's text and a lockfile; the data check found no secret.
 
@@ -8,7 +8,7 @@ Seats: Codex CLI 0.163.0 (gpt-6.1-sol, read-only; config effort in round 1, medi
 | 1 | `f7db0ab` | full, `9acc3b9...f7db0ab` | 2/4/5 | codex 385 s / 136,330; melious 148 s / 27,175; fresh-eyes 758 s / 197,215 |
 | 2 | `7d95437` | delta since `f7db0ab` | 0/1/2 | codex 159 s / 54,937; melious 189 s / 22,272 |
 | wording pass | `5e9afe1` | delta since `7d95437`, prose only | 0/1/0 (R3-01) | codex 111 s / 47,913 |
-| confirmation | pending | the fix alone | | |
+| confirmation | `ee928fb` | the fix alone, `5e9afe1..ee928fb` | 0/0/0 | codex 77 s / 50,011 |
 
 Round 1:
 - R1-01 BUG (Codex; GLM as NIT) FIXED, `externally_reverified` in round 2: "24.22.1 on Node 24" was stated as part of Astro's own floor. Astro's check is `engines = '>=22.23.4'` with `skipSemverCheckIfAbove = 23` (`astro/bin/astro.mjs:27-39`, read by the host and by Codex), so 24.22.1 and 26.12.1 are Node's security fixes, not Astro's floor. The four texts now give the two separately.
@@ -30,6 +30,8 @@ Checked by the host and not left as UNVERIFIABLE: Node's advisory page, read raw
 
 Wording pass:
 - R3-01 RISK (Codex) FIXED: the BUGLOG row for the guard said "the maintainer reads both values at every release", a manual safeguard the public release procedure does not contain. It now says that nothing compares them and how to compare by hand.
+
+Cost: about 536k reviewer tokens in all. A first confirmation run was refused by the review script's base check (the diff did not match the `--base` given); it was redone from the right base, and nothing was reviewed on the wrong one.
 
 Follow-ups: the guard and the installer comment (R1-04, R1-06) in the second PR; the stricter `engines` (R1-07) there too.
 Notes:
