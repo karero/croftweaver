@@ -207,13 +207,18 @@ check "T5 a new-file record cut before its index line: refused" sh -c 'grep -q "
 g "$W" diff "$E0"..HEAD -- dash.txt | sed '/^@@/,$d' >"$T/t5nohunk.diff"
 run t5nohunk "$W" "$T/t5nohunk.diff" --seat codex --depth normal --base "$E0"
 check "T5 a record whose hunks were cut off: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "headers match the base, but" "$1.err"' _ "$T/t5nohunk"
-# A record marked binary shows the reviewers no content and the content step does not apply it, so
-# git's patch must mark its new side binary too. Refused: a text record relabelled as binary, its
-# index line true, and a rename marked binary from a deleted binary file to a new text one. Still
-# run: a real binary record, and git's own rename of a text file to a binary one (T4).
+# A record marked binary shows the reviewers no readable lines and the content step does not apply
+# it, so git's patch must mark its new side binary too (its old side, for a deletion). Refused: a
+# text change or deletion relabelled as binary, its index line true, and a rename marked binary
+# from a deleted binary file to a new text one. Still run: a real binary record, and git's own
+# rename of a text file to a binary one (T4). Git's own rename of a binary file to a text one:
+# repository 3.
 { g "$W" diff "$E0"..HEAD -- dash.txt | sed '/^--- /,$d'; printf 'Binary files a/dash.txt and b/dash.txt differ\n'; } >"$T/t5bin.diff"
 run t5bin "$W" "$T/t5bin.diff" --seat codex --depth normal --base "$E0"
 check "T5 a text record relabelled as binary: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "  dash.txt: the diff marks it binary, but git shows its content" "$1.err"' _ "$T/t5bin"
+{ g "$W" diff "$E0"..HEAD -- del.txt | sed '/^--- /,$d'; printf 'Binary files a/del.txt and /dev/null differ\n'; } >"$T/t5bindel.diff"
+run t5bindel "$W" "$T/t5bindel.diff" --seat codex --depth normal --base "$E0"
+check "T5 a deleted text file relabelled as binary: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "  del.txt: the diff marks it binary, but git shows its content" "$1.err"' _ "$T/t5bindel"
 printf 'diff --git a/gone.bin b/new.txt\nsimilarity index 60%%\nrename from gone.bin\nrename to new.txt\nindex %s..%s 100644\nBinary files a/gone.bin and b/new.txt differ\n' \
   "$(sha "$W" "$E0:gone.bin")" "$(sha "$W" HEAD:new.txt)" >"$T/t5binmv.diff"
 run t5binmv "$W" "$T/t5binmv.diff" --seat codex --depth normal --base "$E0"
@@ -317,5 +322,25 @@ RUN_ENV=()
 check "T5 a fetch that hangs: refused within the limit" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "did not finish within 2 seconds" "$1.err"' _ "$T/t5hang"
 check "T5 ... in under 6 seconds (took ${took}s)" [ "$took" -lt 6 ]
 check "T5 ... and no reviewer ran on any refusal" sh -c 'for m in "$1"/marks/t5*; do case "$m" in *t5none|*t5wt) continue ;; esac; [ ! -e "$m/codex-ran" ] || exit 1; done' _ "$T"
+
+# --- repository 3: git -M's own rename of a binary file to a text one --------------------------
+# git writes it as one binary record, so the new text would go unread: refused, and the remedy it
+# prints uses --no-renames, which writes the text side's lines. That diff runs.
+R="$T/r3"; git init -q "$R" && g "$R" symbolic-ref HEAD refs/heads/main
+lines() { for i in 1 2 3 4 5 6 7 8; do printf 'binary until it is renamed, line %s\n' "$i"; done; }
+{ lines; printf '\000'; } >"$R/b.dat"
+commit "$R" X0 || { echo "FAIL — could not build repository 3."; exit 1; }
+X0="$(sha "$R" HEAD)"
+g "$R" mv b.dat t.txt && lines >"$R/t.txt" && commit "$R" X1
+g "$R" diff -M "$X0" HEAD >"$T/t5bt.diff"
+check "T5 fixture: git -M wrote the rename as one binary record" grep -q "^Binary files a/b.dat and b/t.txt differ" "$T/t5bt.diff"
+run t5bt "$R" "$T/t5bt.diff" --seat codex --depth normal --base "$X0"
+check "T5 git -M's rename of a binary file to a text one: refused, naming t.txt" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "  t.txt: the diff marks it binary, but git shows its content" "$1.err"' _ "$T/t5bt"
+check "T5 ... and no reviewer ran" not_ran t5bt
+remedy="$(sed -n '/^Make the diff again from that base:$/{n;s/^  //p;}' "$T/t5bt.err")"
+check "T5 ... the printed remedy uses --no-renames" sh -c 'case "$1" in *" --no-renames "*) exit 0 ;; esac; exit 1' _ "$remedy"
+( cd "$R" && eval "$remedy" ) >"$T/t4bt.diff" 2>/dev/null
+run t4bt "$R" "$T/t4bt.diff" --seat codex --depth normal --base "$X0"
+check "T4 the printed remedy makes a diff that runs" rc_is t4bt 0
 
 if [ "$fails" -eq 0 ]; then echo "PASS — test_base_check.sh"; else echo "FAIL — test_base_check.sh: $fails check(s) failed"; exit 1; fi

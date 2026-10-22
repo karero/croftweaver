@@ -218,10 +218,11 @@ sub compare {
         push @bad, [$n, "new side " . $r->{nid} . ", $tname has " . id7($G->{nid})] if $r->{ids} && !id_ok($r->{nid}, $G->{nid});
       }
     }
-    # A record marked binary shows the reviewers no content, so git's patch must mark its new side
-    # binary too (its old side, for a deletion). Not its old side as well: git -M writes a text
-    # file renamed to a binary one as one binary record, where git's patch, with no renames,
-    # shows the text side's lines.
+    # A record marked binary shows the reviewers no readable lines, so git's patch must mark its new
+    # side binary too (its old side, for a deletion). Not its old side as well: git -M writes a text
+    # file renamed to a binary one as one binary record, where git's patch, with no renames, shows
+    # the text side's lines. A binary file renamed to a text one is refused, since its new text
+    # would go unread; the remedy the script prints then uses --no-renames.
     if ($r->{binary}) {
       my $G = defined $n ? $gn->{$n} : $go->{$o};
       push @bad, [defined $n ? $n : $o, "the diff marks it binary, but git shows its content"] if $G && !$G->{binary};
