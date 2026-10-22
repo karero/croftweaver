@@ -12,7 +12,8 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     # The ignore section below is the Croftweaver starter's own (the toolkit keeps the same two holds in its own
-    # .github/dependabot.yml; the group names differ). When the starter lifts one, `make whats-new` lists this file as changed.
+    # .github/dependabot.yml; the group names differ). When the starter lifts one, `make whats-new PROJECT=<this folder>`,
+    # run in the toolkit clone, lists this file as changed.
     ignore:
       # Tracks the Node major in .nvmrc and ci.yml; bump them together by hand.
       - dependency-name: "@types/node"
