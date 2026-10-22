@@ -55,9 +55,15 @@ mkdir -p "$T/bin" "$T/site"
 # NPM_FAIL=build, =check or =test makes that step fail, to prove a red gate stops the push.
 # `run build` and `test` are what the hook runs in a site without scripts/verify.mjs; the
 # `run --silent …` forms are what verify.mjs runs (the cases after the shell loop).
+# NPM_PROBE=<file> writes down what a gate step finds about its repository (the linked-worktree
+# case near the end).
 cat >"$T/bin/npm" <<'NPM'
 #!/bin/sh
 echo "npm $*"
+if [ -n "${NPM_PROBE:-}" ]; then
+  { echo "GIT_DIR=${GIT_DIR-unset}"; echo "GIT_CONFIG_PARAMETERS=${GIT_CONFIG_PARAMETERS-unset}"
+    echo "top=$(CDPATH= cd -- sub 2>/dev/null && git rev-parse --show-toplevel 2>&1)"; } >"$NPM_PROBE"
+fi
 case "$*" in
   "run build")                                [ "${NPM_FAIL:-}" = build ] && exit 1 ;;
   test|"run --silent test -- --reporter=dot") [ "${NPM_FAIL:-}" = test ] && exit 1 ;;
@@ -213,6 +219,24 @@ for v in off on; do
   fi
 done
 
+# A push from a linked worktree, the way scripts/ship.sh publishes GitHub's main from a
+# throwaway one: git hands the hook GIT_DIR (that worktree's git folder), and a `git -c …` push
+# hands down its settings. The hook clears them before any step, so a step that runs git finds
+# the repository from its own folder. With GIT_DIR left set, git takes the folder a step runs in
+# for the top of the working tree: right at the worktree's root, wrong from a subfolder.
+R="$T/remote-linked.git"; W="$T/work-linked"; LW="$T/linked"
+$git init -q --bare "$R"
+$git init -q "$W"
+mkdir -p "$W/sub"; echo x >"$W/sub/f"; $git -C "$W" add -A; $git -C "$W" commit -q -m one
+$git -C "$W" worktree add -q --detach "$LW"
+mkdir -p "$T/linked-hooks"; cp "$T/off" "$T/linked-hooks/pre-push"; chmod +x "$T/linked-hooks/pre-push"
+out="$( (cd "$LW" && NPM_PROBE="$T/probe" $TO $git -c core.hooksPath="$T/linked-hooks" push "$R" HEAD:refs/heads/main) 2>&1; printf '\n@@rc=%s\n' "$?")"
+check "git, linked worktree: the push runs the gate"         GATE "$(outcome "$out")"
+check "git, linked worktree: a step sees no GIT_DIR"          "GIT_DIR=unset" "$(sed -n 1p "$T/probe" 2>/dev/null)"
+check "git, linked worktree: ... nor the push's -c settings"  "GIT_CONFIG_PARAMETERS=unset" "$(sed -n 2p "$T/probe" 2>/dev/null)"
+check "git, linked worktree: ... and from a subfolder, the top is the worktree's root" \
+  "top=$(CDPATH= cd -- "$LW" && pwd -P)" "$(sed -n 3p "$T/probe" 2>/dev/null)"
+
 # The "prepare" script in the template's package.json is what wires the hook: npm runs it in
 # the site's folder on every install, through the shell it uses for scripts — by default sh
 # on macOS and Linux, cmd.exe on Windows. So the line may hold nothing that one shell reads
@@ -275,6 +299,13 @@ else
   $git -C "$T/big" config core.hooksPath .githooks
   check "prepare, ... also when it has a hook folder: exits 0"   0 "$(prep "$T/big/apps/site")"
   check "prepare, ... and that folder stays in use"              .githooks "$(hooks_path "$T/big")"
+  # scripts/ship.sh, publishing GitHub's main from a throwaway worktree, sets SHIP_KEEP_HOOKS_PATH
+  # for its install and its push. The clone's hooks setting is shared by all its worktrees, and
+  # another session may have set it its own way: it must stay as it is.
+  $git init -q "$T/ship-site"; site "$T/ship-site"; $git -C "$T/ship-site" config core.hooksPath "$T/another-session"
+  check "prepare, site at its repo's root, run by ship (SHIP_KEEP_HOOKS_PATH set): exits 0" 0 "$(SHIP_KEEP_HOOKS_PATH=1 prep "$T/ship-site")"
+  check "prepare, ... and the shared hooks setting is left as it was" "$T/another-session" "$(hooks_path "$T/ship-site")"
+  check "prepare, ... without a word"                            "" "$(SHIP_KEEP_HOOKS_PATH=1 said "$T/ship-site")"
   site "$T/plain"
   check "prepare, folder outside any repo: exits 0"              0 "$(GIT_CEILING_DIRECTORIES="$T" prep "$T/plain")"
   check "prepare, ... and says nothing"                          "" "$(GIT_CEILING_DIRECTORIES="$T" said "$T/plain")"

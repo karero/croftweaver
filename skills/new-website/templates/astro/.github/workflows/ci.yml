@@ -118,7 +118,8 @@ jobs:
             0) echo '::error::unfilled "[MISSING: …]" placeholder(s) listed above — fill them before merging'; exit 1 ;;
             *) echo "::error::grep failed (exit $rc) — the placeholder gate did not run"; exit 1 ;;
           esac
-      # Needs no build, no browser and no network, so it runs first and fails in ~1s.
+      # Needs no build, no browser and no network, so it runs first and fails within a
+      # minute or so.
       # The pre-push hook runs it too, but a hook is bypassable with --no-verify and
       # is absent in a clone that has not run `npm install` yet.
       - name: Publish classifier (scripts/ship.sh)
