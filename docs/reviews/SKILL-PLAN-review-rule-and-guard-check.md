@@ -63,7 +63,11 @@ it warns and goes on (lines 305–308), and the rule is the host's to keep. Ever
 host's judgment, shown to the owner but not enforced: whether a RISK is in scope, whether its fix
 changed what runs or what someone acts on, and how a kind is named. A
 verification round sees only the fixes, and an out-of-scope RISK is a follow-up. Past round 8 the
-owner decides. `test_round_checks.sh` has no case naming "substantive BUG" or the owner decision.
+owner decides. `test_round_checks.sh` has no case naming "substantive BUG" or the owner decision,
+and already pins what a RISK-earned round meets, since a kind is only a name: round 4 refused
+without `--earned-by` and accepted with any well-shaped kind (its sections 3 and 4), a kind that comes back
+refused without `--cut` (section 6), and the warning when the log cannot answer (section 9). So
+step 1 adds no test.
 
 ## 2. Bug-log row: Codex and a prompt that is not valid UTF-8
 
@@ -156,7 +160,8 @@ can deliver what the plan credits it with.
   the trail gets one anonymised line, pass or fail and the count. About 100k–200k tokens, 10–20
   minutes.
 - **T3, one live run:** `--seat melious --plan` on sections 1 and 2 of this plan alone (they add no
-  guard). Pass: no entry about guards. About 20k tokens.
+  guard). Pass: no finding that treats either section as adding a guard; any other mention of
+  guards is counted and reported as noise, as in T2. About 20k tokens.
 - **On a fail:** revise the paragraph once and rerun both trials on the revised text; both must
   pass on the paragraph that ships. A second fail goes to the owner: step 3 is held, and steps 1
   and 2 ship without it.
