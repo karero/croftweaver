@@ -1660,7 +1660,8 @@ check "T11: Latin-1, 100 KB, over a takes:90000 line: FAILED, though under 120,0
 # (section 36's PATH of every tool but perl, codex's stub ahead of it).
 limitcase t11p "codex stub-codex takes:500000$REF
 " "$T/utf8.diff" PATH="$T/bin3:$T/noperl" -- --seat codex
-check "T11: no perl: valid UTF-8 that runs at its bytes (T11m) FAILS at three times them" has t11p.out "is not valid UTF-8 (or perl is missing)"
+check "T11: no perl: valid UTF-8 that runs at its bytes (T11m) FAILS at three times them" has t11p.out "codex FAILED (a prompt of"
+check "T11: ... saying why" has t11p.out "is not valid UTF-8 (or perl is missing)"
 # The codex model is read from config.toml strictly: a commented, single-quoted line still reads,
 # and a top-level profile key, which can pick another model, leaves it unknown (120,000 bytes).
 mkdir -p "$T/u3/.codex" "$T/u4/.codex" && : >"$T/u3/.codex/auth.json" && : >"$T/u4/.codex/auth.json"
@@ -1698,6 +1699,13 @@ check "T13: no list at all: every seat FAILS before sending (exit 4)" rc_is t13b
 limitcase t13c "codex stub-codex takes:12x$REF
 " "$T/big200.diff" --
 check "T13: a byte count the script cannot read leaves every seat at the limit" has t13c.err "a byte count it cannot read"
+# agy has no line, so seat_fits never holds a takes: line against its empty prompt argument: a line
+# for agy is one the script cannot read, and voids the list.
+limitcase t13d "agy any takes:999999$REF
+codex stub-codex refuses$REF
+" "$T/big200.diff" -- --seat codex
+check "T13: a line for agy voids the list" has t13d.err "holds a line it cannot read (\"agy any takes:999999\")"
+check "T13: ... so codex keeps 120,000 bytes, though listed" has t13d.out "codex FAILED (artifact and prior findings of"
 check "T13: the real list beside the script reads cleanly" not_in "$T/noround.err" "seat_limits.txt holds"
 check "T13: its Melious line names the id melious_models.txt allows" grep -q "^melious $MELIOUS_OK refuses " "$HERE/seat_limits.txt"
 

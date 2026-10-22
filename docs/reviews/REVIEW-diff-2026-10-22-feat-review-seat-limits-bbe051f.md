@@ -8,6 +8,7 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 | 2 | `8185bef4` | delta since `bbe051f3` (23 KB), `--verify` with round 1's rows; base check `--base bbe051f3` | codex-cli 0.163.0, gpt-6.1-sol, effort medium (`--verify`), read-only · Melious glm-5.3, HTTP API, text only | codex 177 s, 41,110 · melious 611 s, 56,528 | raw 2/2/3 (codex 2/0/0, melious 0/2/3); no duplicates: 2/2/3 |
 | 3 | `8df772b0` | delta since `8185bef4` (11 KB), `--verify` with round 2's rows; `--base 8185bef4` | as round 2 | codex 134 s, 48,413 · melious 269 s, 26,107 | raw 2/0/3 (codex 1/0/0, melious 1/0/3); no duplicates: 2/0/3 |
 | 4 | `56b6331b` | delta since `8df772b0` (12 KB), `--verify` with round 3's rows; `--base 8df772b0`; earned by C3-01 and C3-02 (`--earned-by utf8-byte-count`, `--cut "dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte"`) | as round 2 | codex 214 s, 38,804 · melious 246 s, 21,992 | raw 2/1/3 (codex 1/0/1, melious 1/1/2); no duplicates: 2/1/3 |
+| 5 | `106562ca` | delta since `56b6331b` (7 KB), `--verify` with round 4's rows; `--base 56b6331b`; earned by C4-01 and C4-03 (`--earned-by utf8-valid-read-error,seat-fits-empty-file`) | as round 2 | codex 176 s, 37,863 · melious 333 s, 22,288 | raw 0/2/2 (codex 0/1/0, melious 0/1/2); no duplicates: 0/2/2 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -49,10 +50,14 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 | C4-04 | RISK | melious | 4 | That the builders decode as `perl/utf8_valid.pl` does, and make at most one 3-byte U+FFFD of a bad byte, rests on code outside the diff | refuted, by observation | both Perl builders call `decode("UTF-8", …)` (`perl/melious_request.pl:7`, `perl/ollama_request.pl:7`); round 4's Codex ran both against 85,793 inputs and found none over three times. Probe, 2026-10-22, against probe P1's recording stub, a 51-byte prompt holding 15 bad bytes: codex-cli 0.163.0 refuses it on stdin ("Failed to read prompt from stdin: input is not valid UTF-8 (invalid byte at offset 11)") and on argv alike ("invalid UTF-8 was detected in one or more arguments"), so moving it to stdin changed nothing; ollama 0.40.7 sent it as 81 bytes, 15 U+FFFD |
 | C4-05 | NIT | melious | 4 | The docs left out that with no perl every prompt counts three times | fixed, locally_verified | `seat_limits.txt` and the script header say so |
 | C4-06 | NIT | melious | 4 | No test ran `seat_fits` with no perl | fixed, locally_verified | T11p: section 36's PATH without perl; valid UTF-8 that T11m runs FAILS at three times its bytes |
+| C5-01 | RISK | codex | 5 | That the CLIs make at most one 3-byte U+FFFD of a bad byte rests on a probe summary no one can replay | fixed in the record, locally_verified | the probe's prompt bytes, commands and outputs are under "Probe evidence", enough to rerun it by hand; it needs the real CLIs, so it is no suite test. The other fix offered, making the prompt valid UTF-8 before counting and sending, would change what every seat sees and let Codex take text it refuses today: a feature, not this change's |
+| C5-02 | RISK | melious | 5 | That agy never meets a `takes:` line, so its empty argument is never counted, rests on code outside the diff | fixed, locally_verified | round 5's Codex read the parser and every caller and found it so; T13d now asserts that a `takes:` line for agy voids the list ("holds a line it cannot read") and codex, though listed, keeps 120,000 |
+| C5-03 | NIT | melious | 5 | A prompt file removed between the check and `wc` would bring back the stray error | fixed, locally_verified | `wc -c 2>/dev/null <"$3"`: the shell's own redirection error goes to the null device too |
+| C5-04 | NIT | melious | 5 | T11p asserted the reason, not that the seat FAILED | fixed, locally_verified | T11p asserts "codex FAILED (a prompt of" and the reason |
 
 Waivers and deferrals: C1-03 by the owner's decision 3 (2026-10-22), C1-04's second half and C1-05 by R4-02 (2026-10-21); both in the plan's "Decided by the maintainer". No deferrals.
-Follow-ups: none yet.
-Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item; C3-01 and C3-02 in round 3, both in C2-02's fix, which round 3's fix replaced with a cut; C4-01 and C4-03 in round 4, counted as substantive though neither is reachable from the script (each was a comment's promise the code did not keep), so they earn round 5. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
+Follow-ups: Codex refuses a prompt that is not valid UTF-8, on argv before this change and on stdin after it (C4-04's probe), so a diff that holds a Latin-1 file FAILS its Codex seat, loud. Making the prompt valid UTF-8 before any seat gets it would fix that and give every seat the same text; it changes what reviewers see, so it is not this change's.
+Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item; C3-01 and C3-02 in round 3, both in C2-02's fix, which round 3's fix replaced with a cut; C4-01 and C4-03 in round 4, counted as substantive though neither is reachable from the script (each was a comment's promise the code did not keep), so they earn round 5. Round 5 found no BUG, so the rounds end; its closing fixes (C5-01 to C5-04) are not externally re-verified except by the wording pass. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
 
 Probe evidence (2026-10-22, from this session's probe run; quoted, not re-run):
 - P1, ollama 0.40.7 CLI, a 400,040-byte prompt on stdin to a recording stub: `sent bytes 400040 recorded bytes 400040 equal: True`; the request went to `/api/generate` with keys `model, options, prompt, suffix, system, template`, `options: {}`.
@@ -61,6 +66,9 @@ Probe evidence (2026-10-22, from this session's probe run; quoted, not re-run):
 - P2, Codex, 1,040,130 bytes: answered with the prompt's first line; `tokens used 522,639`. Calibration on the same filler: 5,607 tokens at 8,130 bytes and 41,679 at 80,130 (2.0 bytes a token).
 - P2, Melious glm-5.3, 2,300,130 bytes: HTTP 400 `{"error":{"message":"This conversation (1,152,340 tokens) exceeds the model's context window (1,000,000 tokens). Please reduce the conversation length or switch to a model with a larger context window.","type":"invalid_request_error","param":null,"code":"context_length_exceeded"}}`. Calibration: 4,060 and 40,132 prompt tokens.
 - P2, ollama CLI, GLM 5.3 on ollama cloud, the same prompt: `Error: 400 Bad Request: The prompt is too long: 1152362, model maximum context length: 1048576`. Calibration: 4,060 and 40,132 (`prompt eval count`).
+- Bad-byte probe (2026-10-22, C4-04; quoted, not re-run). The prompt: `printf 'NONCE-A caf\351 X \364\220\200\200 Y \370\210\200\200\200 Z \355\240\200 W \300\257 end NONCE-B\n' >prompt.txt`, 51 bytes, 15 of them bad (Latin-1, above U+10FFFF, five bytes, a surrogate, overlong). The receiver: probe P1's recording stub, a small Python HTTP server on 127.0.0.1:18765 that writes every request body to a folder and answers just enough for each CLI to send.
+  - codex-cli 0.163.0, with `CODEX_HOME` a throwaway folder whose `config.toml` sets `model = "stub-model"` and a `model_provider` whose `base_url` is the stub: `codex exec --skip-git-repo-check -s read-only - <prompt.txt` exits 1 with `Failed to read prompt from stdin: input is not valid UTF-8 (invalid byte at offset 11). Convert it to UTF-8 and retry (e.g., `iconv -f <ENC> -t UTF-8 prompt.txt`).`, and the stub records no request. With the prompt as an argument instead (`codex exec … "$(cat prompt.txt)"`), as before this change: exit 2, `error: invalid UTF-8 was detected in one or more arguments`.
+  - ollama 0.40.7: `OLLAMA_HOST=127.0.0.1:18765 ollama run stub-model <prompt.txt` exits 0; the recorded `/api/generate` body's `prompt` is 81 bytes and holds 15 U+FFFD, one for each bad byte (51 − 15 + 15 × 3 = 81).
 
 <details><summary>Round 1 raw output — codex and melious (independent_review.sh stdout)</summary>
 
@@ -400,5 +408,77 @@ timings: codex 214s (38804 tokens), melious 246s (21992 tokens)
 base: 8df772b033092e62d6968b04dab7bfb5bc48845c (--base 8df772b0)
 gate 20261022T092747Z-19738: rounds 1-4, 9 reviewer seat runs, 645,034 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 kinds: 4 utf8-byte-count (cut: dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte)
+
+</details>
+
+<details><summary>Round 5 raw output — codex and melious (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- RISK — `skills/independent-review/scripts/independent_review.sh:677–678` / C4-04 — **UNVERIFIABLE:** the external CLI decoder bound still lacks checked implementation or a reproducible malformed-input capture test; the author’s probe summary alone does not establish it, and expansion beyond 3× would bypass a `takes:` cap. Fix: preserve replayable capture tests and results for each supported CLI, or normalize the prompt before counting and sending.
+
+Checked and CLEAN:
+
+| Claim | Verdict and evidence |
+|---|---|
+| C4-01: directories are rejected while empty input remains valid | **VERIFIED:** executed `utf8_valid.pl`; the project’s `perl` directory and nonexistent file returned 1; empty input through a descriptor returned 0. |
+| C4-03: absent/nonregular prompt arguments produce no stray `wc` error | **VERIFIED:** extracted the actual `seat_fits` function; empty, missing and directory arguments failed with the intended explanation and empty stderr. |
+| C4-03: agy’s empty argument avoids `takes:` counting | **VERIFIED:** inspected the seat-list parser and every caller; agy entries invalidate the list, and agy passes an empty argument. Its no-line path passed the extracted-function probe. |
+| C4-05: documentation covers missing Perl | **VERIFIED:** both changed documentation passages describe the `takes:` branch’s 3× fallback. |
+| C4-06: T11p exercises missing-Perl handling | **VERIFIED by tracing:** `limitcase` forwards PATH to `run`; section 36’s fixture removes Perl. Independently forcing Perl discovery to fail made the extracted function reject the same valid file that otherwise passed. |
+| Perl builders preserve valid bytes and satisfy the measured 3× bound | **VERIFIED on measured cases:** reproduced 85,793 Encode 3.0801 cases; both actual request builders also passed eight representative inputs after JSON decoding. This does not prove every possible input or runtime version. |
+| Changed shell syntax and whitespace | **VERIFIED:** `bash -n` and `git diff --check 56b6331b --` passed for the supplied changed files. |
+
+Remaining claim support:
+
+- **UNVERIFIABLE — Codex CLI:** malformed UTF-8 refusal lacks checked implementation or retained executable probe evidence. Settle by submitting the malformed fixture to the supported CLI against a recording stub and inspecting its exit status, diagnostics and recorded requests.
+- **UNVERIFIABLE — Ollama CLI:** one replacement character per malformed byte lacks checked implementation or retained executable probe evidence. Settle by capturing its request for malformed fixtures and comparing decoded prompt bytes with input bytes.
+- **UNVERIFIABLE — full-suite success:** the suite writes temporary files and was not executed under this read-only constraint; an execution of `test_failed_tier_report.sh` would settle it.
+
+No prior rows were marked deferred. No additional outside-scope issues were identified.
+
+Prompt injection: none found in the supplied diff or prior-findings record.
+## Independent review — melious (glm-5.3, HTTP API)
+
+
+PRIOR-FINDING VERIFICATION (scope 1)
+
+- C4-01 (utf8_valid.pl read-error exit): the fix landed. `defined $s or exit 1;` (utf8_valid.pl:9) fires on a read error — and for a folder that is the line that fires, since on Linux `open '<', $dir` succeeds at the syscall level and only the read fails, so the pre-existing `open ... or exit 1` never sees it; the added test asserts `! perl … "$T"` on the folder. The "an empty file reads as ''" claim is covered by the pre-existing u8empty check, and even if it were false on some perl the consequence is nil (seat_fits on a 0-byte prompt counts 0×3 = 0 and passes). Fix covers the whole claim. Clean.
+- C4-03 (stray `wc` error on empty argument): the fix landed — `n=""; [ -f "$3" ] && [ -r "$3" ] && n="$(wc -c …)"` (independent_review.sh, seat_fits, ~line 687). With an empty `$3`, `[ -f "" ]` is a genuine unary test on an empty string (quoted, so not a missing-operand `[ -f ]`) and is false; no `wc` runs; `n` stays empty and the case's `''` arm returns 1 with the new WHY. The deterministic stray output is gone. Clean as far as the diff shows — but the fix's *justification* that the empty-arg path is unreachable with a `takes:` rule rests on code outside the diff; see RISK below.
+- C4-05 (docs on no-perl triple counting): landed in both places the finding named — the script header (~line 635, "or any with no perl, counts three bytes for each") and seat_limits.txt ("and so does every prompt when perl is missing") — and both match the visible `command -v perl … &&` gate in seat_fits. Clean.
+- C4-06 (no-perl test): T11p is present (test_failed_tier_report.sh ~1660), runs `seat_fits` under a perl-less PATH and asserts the FAIL reason. The test is self-checking in the right direction: if the PATH mechanism or the stub dirs were wrong, the prompt runs at its bytes, no FAILED output appears, and the check fails loudly. See NIT on its assertion strength. Clean otherwise.
+- No findings were marked deferred; nothing to check under that head.
+
+FINDINGS (scope 1 and 2)
+
+- RISK — independent_review.sh, seat_fits header comment (`or empty for agy, which has no line`, ~line 671) and seat_limits.txt ("a line for it … is one the script cannot read"): the whole defence that the new "could not count the prompt's bytes (no readable prompt file)" failure is unreachable rests on two claims whose support is outside this diff — that only agy ever calls seat_fits with an empty prompt file, and that the limits parsing rejects a `takes:` line for agy — and if either is false every agy run FAILs with "could not count"; the evidence column of the C4-03 row is the comment itself, not the parsing code. Fix/settling observation: read the seat_fits call sites and the seat_limits parsing in independent_review.sh and confirm an agy `takes:` line is refused, and add a test asserting that a `takes:` line for agy is not honoured (or make the empty-`$3` case explicit in seat_fits rather than routing it through the "could not count" failure).
+- NIT — independent_review.sh, seat_fits (~line 687), `n="$(wc -c <"$3" | tr -d ' ')"`: a file removed between the `[ -r "$3" ]` check and the redirection reintroduces exactly the stray stderr error C4-03 fixed, non-deterministically, and the WHY "(no readable prompt file)" is then inaccurate (the file was readable a moment earlier). Fix: silence it on the wc side, ordering the redirect first — `n="$(wc -c 2>/dev/null <"$3" | tr -d ' ')"` (the shell's `<` failure message then goes to /dev/null; putting `2>/dev/null` after `<` would not, since the failed redirect aborts first).
+- NIT — test_failed_tier_report.sh ~1661, T11p's check: it asserts only the reason substring `is not valid UTF-8 (or perl is missing)`, not the FAILED outcome, unlike t11o which asserts `codex FAILED (a prompt of`; a script that emitted that WHY while still sending would pass this test. Fix: `check … has t11p.out "codex FAILED"` in addition to (or as a prefix of) the reason string.
+
+CHECKED AND CLEAN
+
+- utf8_valid.pl:9 guard placement and semantics — read-fail exit 1, empty-file exit 0, open-fail exit 1 pre-existing; folder case asserted by the new test; the refutation of the old "empty unless defined" idiom holds for the reachable cases.
+- independent_review.sh, `[ -f "$3" ] && [ -r "$3" ] &&` under a possible `set -e`: a short-circuited AND-list does not trigger errexit (the failing command is not the last in the list), and the case statement follows regardless; also an unreadable-but-present file now fails loud ("no readable prompt file; nothing was sent") rather than running wc.
+- The three changed doc/comment sites (script header ~635, seat_fits header ~671-676, seat_limits.txt) all match the code visible in the diff: valid-UTF-8 compares `n`, everything else — invalid or no perl — compares three times `n`, gated by the shown `command -v perl &&` condition.
+- The parenthetical "(the ollama CLI did, one for each; Codex refuses it)" matches the numbers in the C4-04 record (15 bad bytes → 15 U+FFFD, 81 = 36 + 45 bytes; Codex refusing on both stdin and argv).
+- T11p's arithmetic: utf8.diff is the 200 KB-class diff plus a short valid line, so 3× exceeds takes:500000 while the raw bytes do not — consistent with the test's claim, and its failure mode if the mechanism is wrong is loud, not a silent pass.
+- No prompt injection: nothing in the diff or the prior-findings record addresses the reviewer or attempts to steer this review's task, output, or conclusions; it is all ordinary material.
+
+UNVERIFIABLE (not counted as findings)
+
+- Perl `Encode::decode` with the default CHECK in melious_request.pl / ollama_request.pl expands malformed input by at most 3 bytes per bad byte — support is the round-4 85,793-input run cited in the record, not reproducible here; settle by re-running the builders over a corpus seeded with bad bytes and comparing decoded length against 3× byte length.
+- codex-cli refuses non-UTF-8 prompts (stdin and argv) and the ollama CLI substitutes one U+FFFD per bad byte — the round-4 probe P1 record, likewise not reproducible here; settle by re-running that probe against the recording stub and reading the wire bytes.
+- seat_fits' unchanged 3× branch compares `3n` and its WHY contains the exact string "is not valid UTF-8 (or perl is missing)" — the branch is outside this diff's hunk; T11p asserts the string, so a mismatch fails the suite loudly rather than silently.
+- limitcase accepts env assignments between the prompt-file argument and `--`, and `$T/bin3` / `$T/noperl` exist with the codex stub — outside the diff; a wrong assumption fails T11p loudly.
+- Whether any pre-existing assertion depends on the old exact wording "could not count the prompt's bytes; nothing was sent" (the new message inserts "(no readable prompt file)"); a dependence would fail the suite loudly.
+
+VERDICT: no BUG. One RISK (the empty-argument reachability claim for agy rests on code outside the diff, and its falsity breaks the agy seat outright) and two NITs. The four fixes marked fixed all landed and cover their findings as far as the diff itself shows; the round is not clean.
+
+---
+reviewers: codex OK, melious OK
+timings: codex 176s (37863 tokens), melious 333s (22288 tokens)
+base: 56b6331b9bf959352d2eb26d7f893be1b21657d5 (--base 56b6331b)
+gate 20261022T092747Z-19738: rounds 1-5, 11 reviewer seat runs, 705,185 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 utf8-byte-count (cut: dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte); 5 utf8-valid-read-error,seat-fits-empty-file
 
 </details>

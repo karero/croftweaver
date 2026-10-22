@@ -684,7 +684,7 @@ seat_fits() {
   case "$rule" in
     refuses) return 0 ;;
     takes:*)
-      n=""; [ -f "$3" ] && [ -r "$3" ] && n="$(wc -c <"$3" | tr -d ' ')"
+      n=""; [ -f "$3" ] && [ -r "$3" ] && n="$(wc -c 2>/dev/null <"$3" | tr -d ' ')"
       case "$n" in ''|*[!0123456789]*) WHY="could not count the prompt's bytes (no readable prompt file); nothing was sent"; return 1 ;; esac
       if command -v perl >/dev/null 2>&1 && perl "$PERL_DIR/utf8_valid.pl" "$3"; then
         [ "$n" -le "${rule#takes:}" ] && return 0
