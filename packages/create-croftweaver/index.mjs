@@ -254,7 +254,8 @@ function report({ copied, kept, moved, removed, backup }, dest, release, { label
   if (copied.length) console.log('To update later, run this command again.');
 }
 
-// The same floor as the site template's package.json, so one Node serves both.
+// This installer's own floor. Building a site needs more, and templates/SETUP.md in the skills says
+// how much, so a Node that passes here may still be too old for the site.
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 22 || (major === 22 && minor < 12)) {
   console.error(`This installer needs Node 22.12 or newer, and this is Node ${process.versions.node}. Get the current version from https://nodejs.org, then run the command again.`);

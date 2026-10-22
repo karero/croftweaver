@@ -33,7 +33,7 @@ zip -r -X "$OUT/croftweaver.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md SECURITY.md Makefile .gitattributes \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
-  scripts/test_install_pin.sh scripts/test_whats_new_removed_skill.sh scripts/check_template_coverage.sh scripts/test_template_coverage.sh scripts/check_cdpath_safe.sh \
+  scripts/test_install_pin.sh scripts/test_whats_new_removed_skill.sh scripts/check_template_coverage.sh scripts/test_template_coverage.sh scripts/check_node_floor.sh scripts/test_node_floor.sh scripts/check_cdpath_safe.sh \
   scripts/test_package_leak.sh scripts/check_pipefail_pipes.sh \
   scripts/test_pre_push_hook.sh scripts/test_verify.sh scripts/test_clean_denylist.sh scripts/test_git_stand_hook.sh scripts/test_whats_new.sh \
   scripts/test_mktemp_guard.sh scripts/check_lf_checkout.sh scripts/list_shell_scripts.sh \
@@ -66,6 +66,8 @@ REQUIRED=(
   scripts/test_whats_new_removed_skill.sh
   scripts/check_template_coverage.sh
   scripts/test_template_coverage.sh
+  scripts/check_node_floor.sh
+  scripts/test_node_floor.sh
   scripts/check_cdpath_safe.sh
   scripts/test_package_leak.sh
   scripts/check_pipefail_pipes.sh

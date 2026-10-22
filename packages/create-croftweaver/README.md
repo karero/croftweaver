@@ -14,7 +14,8 @@ folder, and say `new website`.
 To update, run the same command again.
 
 You need [Node](https://nodejs.org) 22.12 or newer and an internet connection. It runs on
-macOS, Linux and Windows, in any terminal.
+macOS, Linux and Windows, in any terminal. Building a site needs a newer Node: the setup guide
+that comes with the skills says which.
 
 ## Which assistant
 

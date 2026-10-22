@@ -31,6 +31,7 @@ SUBJECTS=(
   scripts/check_model_agnostic.sh
   scripts/check_template_coverage.sh
   scripts/test_template_coverage.sh
+  scripts/check_node_floor.sh
   scripts/check_skill_budgets.sh
   scripts/check_pipefail_pipes.sh
   scripts/check_lf_checkout.sh
@@ -56,6 +57,7 @@ NOT_RUN=(
   scripts/test_git_stand_hook.sh                                # builds throwaway repos; needs git and node
   scripts/test_whats_new.sh                                     # builds a throwaway suite repo and site; needs git
   scripts/test_mktemp_guard.sh                                  # runs other scripts with mktemp stubbed to fail
+  scripts/test_node_floor.sh                                    # builds throwaway copies and runs npm; needs node
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself
