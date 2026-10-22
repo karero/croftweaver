@@ -57,6 +57,9 @@ for a; do
   case "$a" in *'--- BEGIN '*) printf '%s\n' "$a" >"$STUB_MARKS/codex-prompt"; a='<prompt>' ;; esac
   argv="$argv[$a]"
 done
+# The script sends its prompt on stdin, the last argument "-": keep it as the prompt the cases read.
+last=; for a; do last="$a"; done
+if [ "$last" = - ]; then cat >"$STUB_MARKS/codex-prompt"; : >"$STUB_MARKS/codex-stdin"; fi
 printf 'argv=%s cwd=%s git=%s\n' "$argv" "$(pwd -P)" \
   "$(git rev-parse --is-inside-work-tree 2>/dev/null || echo no)" >"$STUB_MARKS/codex-args"
 if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -122,7 +125,8 @@ case "$1" in
         if [ "$1" = --hidethinking ]; then : >"$STUB_MARKS/ollama-hidethinking"; shift; fi
         : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$1" >"$STUB_MARKS/ollama-model"
         [ -n "${OLLAMA_API_KEY:-}" ] && printf '%s\n' "$OLLAMA_API_KEY" >"$STUB_MARKS/ollama-cli-key"
-        printf '%s\n' "$2" >"$STUB_MARKS/ollama-prompt" ;;
+        if [ $# -ge 2 ]; then printf '%s\n' "$2" >"$STUB_MARKS/ollama-prompt"   # a prompt on argv
+        else cat >"$STUB_MARKS/ollama-prompt"; : >"$STUB_MARKS/ollama-stdin"; fi ;;   # on stdin
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
@@ -287,6 +291,8 @@ case "$url" in
               # line, so both must collapse or the text after them reaches column 0
               printf 'upstream\rError: bad gateway\033[1Gfailed' >"$out"; printf 502 ;;
       notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
+      ctx400) # a prompt past the model's window, refused in Melious's words (probe P2, 2026-10-22)
+              printf '%s\n' '{"error":{"message":"This conversation (1,152,340 tokens) exceeds the context window (1,000,000 tokens).","type":"invalid_request_error","param":null,"code":"context_length_exceeded"}}' >"$out"; printf 400 ;;
       html)   printf '%s\n' '<html><body>Sign in to continue</body></html>' >"$out"; printf 200 ;;   # a proxy's page
       keepalive) printf ': PROCESSING\n\n: PROCESSING\n\n' >"$out"; printf 200 ;;   # comments only, then closed
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
@@ -547,7 +553,7 @@ for m in "" stub-override; do
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
   # git=no is what git said from inside the stub itself, so the case cannot pass from
   # inside a repo (round 4, fresh-eyes).
-  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT git=no"
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]${m:+[-c][model=\"$m\"]}[-] cwd=$NOGIT git=no"
   check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
@@ -692,17 +698,17 @@ base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][
 argv_of() { sed -e 's/^argv=//' -e 's/ cwd=.*$//' "$T/$1.marks/codex-args"; }
 run effverify bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "effort: a verify round asks for medium" \
-  [ "$(argv_of effverify)" = "$base[-c][model_reasoning_effort=\"medium\"][<prompt>]" ]
+  [ "$(argv_of effverify)" = "$base[-c][model_reasoning_effort=\"medium\"][-]" ]
 check "effort: the codex header names it" has effverify.out "## Independent review — codex (stub-codex, effort medium, read-only)"
 run effconfig CODEX_EFFORT=config bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "effort: CODEX_EFFORT=config keeps config.toml's, even on a verify round" \
-  [ "$(argv_of effconfig)" = "$base[<prompt>]" ]
+  [ "$(argv_of effconfig)" = "$base[-]" ]
 run efffull bash "$SCRIPT" "$T/change.diff" --base none
-check "effort: a full round leaves config.toml's alone" [ "$(argv_of efffull)" = "$base[<prompt>]" ]
+check "effort: a full round leaves config.toml's alone" [ "$(argv_of efffull)" = "$base[-]" ]
 check "effort: ...and its header says nothing about effort" has efffull.out "## Independent review — codex (stub-codex, read-only)"
 run effboth CODEX_EFFORT=xhigh CODEX_MODEL=stub-strong bash "$SCRIPT" "$T/change.diff" --base none
 check "effort: explicit effort after the model override" \
-  [ "$(argv_of effboth)" = "$base[-c][model=\"stub-strong\"][-c][model_reasoning_effort=\"xhigh\"][<prompt>]" ]
+  [ "$(argv_of effboth)" = "$base[-c][model=\"stub-strong\"][-c][model_reasoning_effort=\"xhigh\"][-]" ]
 run effbad CODEX_EFFORT='high"' bash "$SCRIPT" "$T/change.diff" --base none
 check "effort: an unknown value exits 2 before any reviewer runs" \
   sh -c '[ "$(cat "$1/effbad.rc")" = 2 ] && [ ! -e "$1/effbad.marks/codex-ran" ]' _ "$T"
@@ -1508,6 +1514,101 @@ check "round 9: the cost log's outcome column is as at round 8, and says OK" \
   sh -c 'a="$(awk -F"\t" "NR>1{print \$13}" "$1/round9.tsv")"; [ -n "$a" ] && [ "$a" = "$(awk -F"\t" "NR>1{print \$13}" "$1/round8.tsv")" ] && ! printf "%s" "$a" | grep -qv OK' _ "$T"
 check "round 12: a two-digit round gets the notice" has round12.out "⚠ Round 12 is past round 8"
 check "no --round: no notice (a limit; SKILL.md step 6 still applies)" lacks noround.out "is past round 8"
+
+# 38. (2026-10-22) Seat limits: change 2 of docs/reviews/SKILL-PLAN-review-input-base-and-size.md
+#     (its tests T9 to T13). Codex and the ollama CLI get the prompt on stdin, so the old 117 KB
+#     refusal of the whole run is gone; each seat takes what seat_limits.txt, beside the script,
+#     says it was measured to take, and a seat over its limit FAILS before it sends anything while
+#     the others run. Each case runs a copy of the scripts with a list of its own, as 32e does.
+limitcase() {   # limitcase <name> <list text, or "-" for none> <artifact> [VAR=value ...] -- <flags>
+  local name="$1" text="$2" art="$3"; shift 3
+  local envs=()
+  while [ "$1" != -- ]; do envs+=("$1"); shift; done; shift
+  mkdir -p "$T/$name.scripts"
+  (cd "$HERE" && tar cf - --exclude seat_limits.txt .) | (cd "$T/$name.scripts" && tar xf -)
+  [ "$text" = - ] || printf '%s' "$text" >"$T/$name.scripts/seat_limits.txt"
+  run "$name" ${envs[@]+"${envs[@]}"} bash "$T/$name.scripts/independent_review.sh" "$art" --base none "$@"
+}
+bigdiff() {   # bigdiff <bytes> <file>: a hand-made diff of about that size, its first and last lines marked
+  perl -e 'my ($n) = @ARGV; print "diff --git a/x b/x\n+FIRST LINE OF THE BIG DIFF\n"; my $s = 50;
+    while ($s < $n) { my $l = "+" . ("one more line of a large change " x 3) . "\n"; print $l; $s += length $l }
+    print "+LAST LINE OF THE BIG DIFF\n"' "$1" >"$2"
+}
+whole() {   # whole <artifact> <file holding what a seat received>: the artifact arrived whole in it
+  perl -0777 -e 'open my $a, "<", $ARGV[0] or die; open my $b, "<", $ARGV[1] or die; my ($x, $y) = (<$a>, <$b>);
+    $x =~ s/\n+\z//; exit(index($y, $x) >= 0 ? 0 : 1)' "$1" "$2"
+}
+bigdiff 400000 "$T/big400.diff"; bigdiff 200000 "$T/big200.diff"
+check "seat limits: the big artifacts are over the old 120,000 bytes" \
+  sh -c '[ "$(wc -c <"$1")" -gt 390000 ] && [ "$(wc -c <"$2")" -gt 190000 ]' _ "$T/big400.diff" "$T/big200.diff"
+REF=" 2026-10-22 test"
+# T9: Codex reads a 400 KB prompt from stdin, the last argument "-", whole; none of its arguments holds it.
+limitcase t9 "codex stub-codex refuses$REF
+" "$T/big400.diff" -- --seat codex
+check "T9: a 400 KB artifact runs (exit 0)" rc_is t9 0
+check "T9: codex's last argument is -, and no argument carries the prompt" \
+  sh -c 'grep -q "\[-\] cwd=" "$1" && ! grep -qF "<prompt>" "$1"' _ "$T/t9.marks/codex-args"
+check "T9: the prompt came on stdin, the artifact in it whole" whole "$T/big400.diff" "$T/t9.marks/codex-prompt"
+# T10: every seat off argv, each listed "refuses", gets the 400 KB artifact whole.
+limitcase t10a "codex stub-codex refuses$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big400.diff" --
+check "T10: codex and the ollama CLI both ran on 400 KB" has t10a.out "reviewers: codex OK, ollama-cloud OK"
+check "T10: the ollama CLI got the prompt on stdin" [ -e "$T/t10a.marks/ollama-stdin" ]
+check "T10: ... the artifact in it whole" whole "$T/big400.diff" "$T/t10a.marks/ollama-prompt"
+limitcase t10b "codex stub-codex refuses$REF
+melious $MELIOUS_OK refuses$REF
+" "$T/big400.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T10: Melious ran on 400 KB" has t10b.out "reviewers: codex OK, melious OK"
+check "T10: Melious's request carries the artifact whole" \
+  sh -c 'perl -MJSON::PP -0777 -ne "binmode STDOUT, q(:encoding(UTF-8)); print decode_json(\$_)->{messages}[0]{content}" "$1" >"$1.txt" && perl -0777 -e "open my \$a, q(<), \$ARGV[0]; open my \$b, q(<), \$ARGV[1]; my (\$x, \$y) = (<\$a>, <\$b>); \$x =~ s/\n+\z//; exit(index(\$y, \$x) >= 0 ? 0 : 1)" "$2" "$1.txt"' _ "$T/t10b.marks/melious-body" "$T/big400.diff"
+limitcase t10c "codex stub-codex refuses$REF
+ollama-api $STUB_TAG refuses$REF
+" "$T/big400.diff" PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" --
+check "T10: the ollama API transport ran on 400 KB" has t10c.out "ollama-cloud OK"
+# T11: caps. agy (argv), a model with no line, and a seat listed takes:<bytes>, each over its limit
+# with 200 KB, FAIL before sending; a seat listed "refuses" beside them runs.
+limitcase t11a "ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" -- --seat agy
+check "T11: agy FAILS before sending" has t11a.out "antigravity FAILED (artifact and prior findings of"
+check "T11: ... its stub never ran" [ ! -e "$T/t11a.marks/agy-prompt" ]
+limitcase t11b "codex stub-codex refuses$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" CODEX_MODEL=stub-strong --
+check "T11: codex with an unlisted model FAILS before sending" has t11b.out "codex FAILED (artifact and prior findings of"
+check "T11: ... codex never ran, and the listed ollama seat did" \
+  sh -c '[ ! -e "$1/codex-ran" ] && [ -e "$1/ollama-ran" ]' _ "$T/t11b.marks"
+limitcase t11c "codex stub-codex takes:150000$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" --
+check "T11: a seat over the bytes it took whole FAILS, naming them" has t11c.out "codex FAILED (a prompt of"
+check "T11: ... over the 150000 this seat took whole" has t11c.out "over the 150000 this seat took whole"
+check "T11: ... codex never ran; ollama did" sh -c '[ ! -e "$1/codex-ran" ] && [ -e "$1/ollama-ran" ]' _ "$T/t11c.marks"
+limitcase t11d "codex stub-codex takes:500000$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" --
+check "T11: under its takes: limit the seat runs" has t11d.out "reviewers: codex OK, ollama-cloud OK"
+# T12: a seat listed "refuses" whose provider refuses for length FAILS, quoting the provider.
+limitcase t12 "codex stub-codex refuses$REF
+melious $MELIOUS_OK refuses$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=ctx400 --
+check "T12: Melious FAILS on the length refusal" has t12.out "melious FAILED (HTTP 400"
+check "T12: ... quoting the provider's words" has t12.out "exceeds the context window"
+check "T12: ... and ollama stands in, as for any failed Melious seat" has t12.out "ollama-cloud OK"
+# T13: a list this script cannot read, or none, leaves every seat at 120,000 bytes.
+limitcase t13 "codex stub-codex refuses-ish$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" --
+check "T13: a malformed list: every seat FAILS before sending (exit 4)" rc_is t13 4
+check "T13: ... no stub ran" sh -c '[ ! -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/t13.marks"
+check "T13: ... and the run says why" has t13.err "holds a line it cannot read"
+limitcase t13b - "$T/big200.diff" --
+check "T13: no list at all: every seat FAILS before sending (exit 4)" rc_is t13b 4
+limitcase t13c "codex stub-codex takes:12x$REF
+" "$T/big200.diff" --
+check "T13: a byte count the script cannot read leaves every seat at the limit" has t13c.err "a byte count it cannot read"
+check "T13: the real list beside the script reads cleanly" not_in "$T/noround.err" "seat_limits.txt holds"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

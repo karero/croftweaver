@@ -143,7 +143,9 @@ Codex's effort for any run.
    cost rounds. It is then read once, by the wording pass (step 6) or, where no round had a
    substantive BUG, by the prose-only re-gate the stamp needs (closeout, clerk item 2). An entry
    carrying commands or config is not prose: it goes in with the change.
-   Over 117 KB: split it. Output: one section per attempted
+   Size: each seat has its own limit (SEAT LIMITS in the script's header, `scripts/seat_limits.txt`);
+   a seat over it FAILS before sending and the others run, so split only an artifact the pair
+   cannot both take. Output: one section per attempted
    reviewer (its review, or a `— FAILED` section with the error and remedy), then a `reviewers:`
    and a `timings:` line, for a diff a `base:` line (past round 8, also a ⚠ notice). Exit 0
    means at least one reviewer counted, not the pair — read the
