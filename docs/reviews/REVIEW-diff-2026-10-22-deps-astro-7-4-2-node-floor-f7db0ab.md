@@ -7,7 +7,8 @@ Seats: Codex CLI 0.163.0 (gpt-6.1-sol, read-only; config effort in round 1, medi
 |---|---|---|---|---|
 | 1 | `f7db0ab` | full, `9acc3b9...f7db0ab` | 2/4/5 | codex 385 s / 136,330; melious 148 s / 27,175; fresh-eyes 758 s / 197,215 |
 | 2 | `7d95437` | delta since `f7db0ab` | 0/1/2 | codex 159 s / 54,937; melious 189 s / 22,272 |
-| wording pass | pending | | | |
+| wording pass | `5e9afe1` | delta since `7d95437`, prose only | 0/1/0 (R3-01) | codex 111 s / 47,913 |
+| confirmation | pending | the fix alone | | |
 
 Round 1:
 - R1-01 BUG (Codex; GLM as NIT) FIXED, `externally_reverified` in round 2: "24.22.1 on Node 24" was stated as part of Astro's own floor. Astro's check is `engines = '>=22.23.4'` with `skipSemverCheckIfAbove = 23` (`astro/bin/astro.mjs:27-39`, read by the host and by Codex), so 24.22.1 and 26.12.1 are Node's security fixes, not Astro's floor. The four texts now give the two separately.
@@ -26,6 +27,9 @@ Round 2 (verification, 0 BUG):
 - Re-raised, not new: R1-04 and R1-06 (the two waivers above).
 
 Checked by the host and not left as UNVERIFIABLE: Node's advisory page, read raw (10 CVEs, 4 High, fixed 22.23.4, 24.22.1, 26.12.1); `npm view astro@7.4.0 engines.node` is `>=22.22.0` and 7.3.8's `>=22.12.0`; `npm audit --package-lock-only` finds 0, with and without dev dependencies; a clean `npm ci` installs Astro 7.4.2, `astro check` reports 0 errors and `npm run build` completes. Not run here: the Playwright suite (CI runs it), and npm's behaviour on an engines mismatch ("only warns", from npm's documented default).
+
+Wording pass:
+- R3-01 RISK (Codex) FIXED: the BUGLOG row for the guard said "the maintainer reads both values at every release", a manual safeguard the public release procedure does not contain. It now says that nothing compares them and how to compare by hand.
 
 Follow-ups: the guard and the installer comment (R1-04, R1-06) in the second PR; the stricter `engines` (R1-07) there too.
 Notes:
