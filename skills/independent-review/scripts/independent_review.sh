@@ -103,12 +103,14 @@
 # BASE CHECK. Before any reviewer starts and before any of it leaves the machine, a diff is
 # checked against git (perl/diff_headers.pl) in two steps. Headers: every mode and id they state
 # must match git's own patch of the same base, read the same way, with the new sides from HEAD,
-# or else from the working tree. Content: its text records, applied to the base in a throwaway
-# index, must give that target's content for every file they name, so a diff made with -w or
-# another option that drops lines is caught too. A diff on a stale base, or one made before HEAD
-# moved, is refused (exit 2) with every file that does not match and the command that makes a
-# correct one; so is a diff the check cannot read (colour codes, prefixes other than a/ and b/, a
-# copy record, a combined diff, a format-patch series). Which base:
+# or else from the working tree, and a record marked binary must be binary there too, on its new
+# side (its old side, for a deletion). Content: its text records, applied to the base in a
+# throwaway index, must give that target's content for every file they name, so a diff made with
+# -w or another option that drops lines is caught too.
+# A diff on a stale base, or one made before HEAD moved, is refused (exit 2) with every file that
+# does not match and the command that makes a correct one; so is a diff the check cannot read
+# (colour codes, prefixes other than a/ and b/, a copy record, a combined diff, a format-patch
+# series). Which base:
 #   - no --base: the whole change, from the merge base of HEAD with origin's default branch, which
 #     is fetched first (`git fetch origin HEAD`, bounded by REVIEW_FETCH_TIMEOUT; no prompts). Under
 #     --local-only nothing is fetched and origin/HEAD is used. The base: line then names any
@@ -593,7 +595,11 @@ else
   done <<<"$bc_out"
   remedy_revs="$base_id HEAD"
   [ "$bc_target" = "the working tree" ] && remedy_revs="$base_id"
-  remedy="git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ $remedy_revs -- . ':(exclude)docs/reviews/'"
+  # A record marked binary whose new side git shows as text is git -M's own rename of a binary file
+  # to a text one, or a hand edit: with no renames, git writes the text side's lines.
+  remedy_renames="-M"
+  case "$bc_bad" in *": the diff marks it binary, but git shows its content"*) remedy_renames="--no-renames" ;; esac
+  remedy="git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv $remedy_renames --src-prefix=a/ --dst-prefix=b/ $remedy_revs -- . ':(exclude)docs/reviews/'"
   case $bc_rc in
     0)
       BASE_LINE="base: $base_id ($base_how"
