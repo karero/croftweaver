@@ -20,6 +20,7 @@ public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
 functions/_middleware.ts      # noindex *.pages.dev previews; 301 <project>.pages.dev once CANONICAL_URL is set; page views in analytics server mode
 functions/go/email.ts         # analytics server mode: counts the email tap, then opens the mail program
 .github/workflows/ci.yml      # astro check + the suite on push/PR
+.github/dependabot.yml        # monthly grouped npm + Actions version updates (delete it if nobody will merge them)
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
 scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin / deep pages (offline; not in CI)
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)

@@ -171,8 +171,9 @@ Dependabot security updates.
 
 The starter also ships `.github/dependabot.yml`. Once a month Dependabot then opens one
 grouped pull request for the minor and patch updates of the site's packages, and one for
-the GitHub Actions the workflow uses. Someone has to merge it once CI is green: name that
-person in the README. If nobody will, delete the file; the security updates above stay on
+the GitHub Actions the workflow uses. A new major version of any other package arrives as a
+pull request of its own and can stay open until you want it. Someone has to merge the
+monthly ones once CI is green: name that person in the README. If nobody will, delete the file; the security updates above stay on
 without it. Dependabot opens its pull requests against the repo's default branch, so check
 which that is (`gh repo view --json defaultBranchRef`): on a two-stage site it should be
 `main`, the preview stage, so nothing goes live before `npm run ship`.

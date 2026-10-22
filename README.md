@@ -281,7 +281,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
 > `AGENTS.md`, `PUBLISHING.md`, `SETUP.md`, `playwright.config.ts`,
 > `functions/_middleware.ts`, `functions/go/email.ts`, `.github/workflows/ci.yml`,
-> `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
+> `.github/dependabot.yml`, `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
 > `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, `scripts/wire-hooks.mjs`,
