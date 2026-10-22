@@ -171,7 +171,7 @@ attempt() { # attempt <case> <n> <exit-status>; git's output for that attempt on
   echo "$3" > "$work/cases/$1/$2.code"
 }
 
-fail=0
+fail=0 stub_skipped=""
 
 # The marker exists so a site can check whether its copy is current with one grep. Two
 # files carry it, so assert they agree rather than trusting a comment to keep them so.
@@ -211,7 +211,7 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   fetches="$(cat "$dir/fetches" 2>/dev/null || echo 0)"
   settings_off="$(grep -cxE 'maintenance\.auto=false|gc\.auto=0' "$dir/settings" 2>/dev/null || true)"
   if [ "${settings_off:-0}" != $((fetches * 2)) ]; then
-    echo "✗ ship push gate [$name]: $fetches fetch(es), but $settings_off of the $((fetches * 2)) housekeeping-off settings"
+    echo "✗ ship push gate [$name]: $fetches fetch(es), but ${settings_off:-0} of the $((fetches * 2)) housekeeping-off settings"
     echo "  (-c maintenance.auto=false -c gc.auto=0 on every fetch)."; fail=1
   fi
   # A lock is worktree mode's, and its EXIT trap removes it on every way out.
@@ -583,6 +583,7 @@ if [ -w "$work/cases/lockro" ] && mkdir "$work/cases/lockro/w-probe" 2>/dev/null
   fi
 else
   echo "  note: [lockro] skipped: a read-only folder does not stop this user (root?), so the case cannot be set up."
+  stub_skipped="lockro (a read-only folder stops nobody here)"
 fi
 chmod -R u+w "$work/cases/lockro" 2>/dev/null || true
 
@@ -1189,7 +1190,7 @@ GATE
   want "the moved-away worktree is still registered" grep -qxF "worktree $D/other" <<<"$(git -C "$C" worktree list --porcelain)"
   # The control: in the same clone, one plain fetch with its housekeeping on drops that record.
   # Without it, the check above could pass because housekeeping would not have pruned anyway.
-  advance 1; git -C "$C" fetch -q origin 2>/dev/null || true
+  advance 1; git -C "$C" fetch -q origin 2>>"$L" || true
   want "control: a plain fetch with housekeeping on drops the record (so the check above can fail)" \
     eval '! grep -qxF "worktree $D/other" <<<"$(git -C "$C" worktree list --porcelain)"'
 
@@ -1322,6 +1323,6 @@ GATE
 real_git_cases
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks of the mode that publishes GitHub's main, on real git${rg_skipped:+ ($rg_skipped)}"
+  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks of the mode that publishes GitHub's main, on real git${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
 fi
 exit "$fail"

@@ -772,7 +772,7 @@ if [ "$kind" != ok ]; then
       ;;
     maybe)
       if [ "$stop_asked" = 1 ]; then
-        echo "✗ The push was cut short, so the publish may or may not have landed."
+        echo "  The push was cut short, so the publish may or may not have landed."
       else
         echo "✗ This script could not read git's result for the push (the file it writes it"
         echo "  to is empty or missing: a full disk?), so the publish may or may not have landed."
