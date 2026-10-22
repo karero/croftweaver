@@ -9,7 +9,7 @@ drives assembly; this README is the manual reference.
 
 ```
 package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
-.nvmrc                        # Node 24 — Astro needs >=22.23.4 (Cloudflare Pages reads it)
+.nvmrc                        # Node 24 — the starter needs >=22.23.4 (Cloudflare Pages reads it)
 .gitattributes                # LF line endings for *.sh and scripts/hooks/*, so the pre-push hook runs on Windows
 src/config.ts                 # single source of truth (URL, name, analytics, EEAT)
 src/layouts/Base.astro        # title/OG/Twitter/canonical/JSON-LD/no-FOUC theme spine
@@ -43,15 +43,16 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 1. **Git first** (see SETUP.md): `mkdir <site> && cd <site> && git init`, copy the
    `templates/.gitignore`, commit.
 2. `npm create astro@latest .` → Empty, TypeScript **Strict**. Requires **Node ≥22.23.4**
-   (the floor of the Astro this starter ships); keep Node at or above its October 2026 security fixes (22.23.4, 24.22.1,
-   26.12.1, by line); the committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
+   (this starter's floor, never below Astro's own); keep Node current: SETUP.md lists the fixed version of
+   each line. The committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
 3. Copy this overlay over the scaffold (the files above) + `tests/`, then:
    ```bash
    npm i -D @playwright/test @axe-core/playwright @astrojs/check typescript @types/node
    npm i @astrojs/sitemap node-html-parser
    npx playwright install chromium
    ```
-   (Or copy this `package.json` and run `npm install`.) **Commit the
+   (Better: copy this `package.json` over the scaffold's and run `npm install`. It carries `engines`, which
+   makes npm warn when Node is older than the fixed version of its line; the `npm i` lines above do not add it.) **Commit the
    `package-lock.json`** — CI uses `npm ci`, which fails without it.
    On **npm ≥11.16**, `install` prints "packages have install scripts not yet covered"
    for scripts it hasn't been told to trust — per npm's own docs this is currently
