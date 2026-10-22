@@ -416,7 +416,7 @@ here — see the platform note below); ask the user directly instead. Let the us
 a complete answer; don't re-ask in the same session, and don't assume a yes for one site
 carries over to the next site connected later.
 
-Before the yes, one more check, for every owner, new or connected earlier: ask them to open
+Before the yes, one more check, for every owner you ask about scheduling, new or connected earlier: ask them to open
 the Google app's **Audience** tab and read its status. **In production** or **Internal**:
 carry on. **Testing**: publish the app as in One-time setup, then sign in again, or the weekly
 job stops at Google from its second week.
@@ -448,11 +448,12 @@ Every step runs even if an earlier one failed (an expired Google sign-in no long
 week's Bing and AI data), and the log ends with a **"This run needs attention"** list naming
 each problem. Exit code: 0 when that list is empty; otherwise GSC's own code if GSC failed
 (2 = the sign-in needs renewing — the job never waits for a browser. If the logged reason is
-Google refusing the refresh (`RefreshError`), read the Google app's **Audience** tab: if it
-says "Testing", publish the app as in One-time setup; if it already says **In production**, the
-cause is something else, such as access removed in the Google account or a deleted OAuth
-client. Either way, sign in again as under "Signing in again"), else 4 if a GSC or Bing
-history write failed, else 1. Bing API errors are on the list too (they used to be swallowed). An AI check that isn't set up is not a problem; homepage warnings from
+Google refusing the refresh (`RefreshError`), read the Google app's **Audience** tab.
+**Testing**: publish the app as in One-time setup, then sign in again as under "Signing in
+again". Already **In production**: the sign-in may have been given before the app was
+published, so sign in again; if that run fails too, look for access removed in the Google
+account (restore it) or a deleted OAuth client (make a new one as in One-time setup)), else 4
+if a GSC or Bing history write failed, else 1. Bing API errors are on the list too (they used to be swallowed). An AI check that isn't set up is not a problem; homepage warnings from
 the AI check aren't either (see `references/geo-check.md`).
 
 - **macOS** uses **launchd** — one LaunchAgent per site, *never* cron. Per-site means each is
