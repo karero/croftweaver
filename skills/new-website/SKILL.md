@@ -469,8 +469,8 @@ full path (the output of `pwd` inside it):
    intermediate `npm test` fails navigation on the footer link.
    The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
-   bug Q4a exists to catch. **Astro needs Node ≥22.12** — the overlay's `.nvmrc` pins
-   24 for local + Cloudflare Pages builds.
+   bug Q4a exists to catch. **Astro needs Node ≥22.23.4** (≥24.22.1 on Node 24, for Node's
+   October 2026 security fixes) — the overlay's `.nvmrc` pins 24 for local + Cloudflare Pages builds.
 2. **Permissions + working rules.** Copy the setup guide into the project (all tools), then — **Claude Code
    only** — copy the allowlist so routine `npm`/`astro`/`playwright`/`git commit` calls don't
    prompt (it blocks `rm -rf`, force pushes, `wrangler … delete`, `gh repo delete`: Claude Code

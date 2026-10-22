@@ -81,7 +81,10 @@ npx playwright install chromium        # per machine, once
 > the tools with the macOS/Linux commands above (including `pip3 install Pillow`) inside the
 > WSL2 shell, not the PowerShell ones.
 
-> **Node ≥22.12 required** (Astro's own floor) — the LTS installs above satisfy it; the repo's
+> **Node ≥22.23.4 required** (Astro's own floor; on Node 24 that means ≥24.22.1). Both carry
+> Node's October 2026 security fixes, and older Node versions have known security flaws. The
+> current LTS installs above satisfy it; if Node is already on your computer, run
+> `node --version` and update it when it is older. The repo's
 > `.nvmrc` pins 24 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` warns
 > "packages have install scripts not yet covered" for scripts it hasn't been told to trust
 > — per npm's own docs this is currently advisory only (the scripts still run; a future

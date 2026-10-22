@@ -2,7 +2,7 @@ name: CI
 # Runs astro check (strict TS) + the full quality harness (a11y / seo / navigation /
 # images / tone / positioning / placeholders / email / links) against a production build. A red check blocks the
 # merge — the point. Needs a committed package-lock.json (npm ci).
-# node-version 24: keep in sync with .nvmrc. Astro itself needs Node >=22.12, the floor in package.json's engines.
+# node-version 24: keep in sync with .nvmrc. Astro itself needs Node >=22.23.4, the floor in package.json's engines.
 on:
   push:
     branches: [main, production]
