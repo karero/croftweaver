@@ -29,12 +29,12 @@ Round 2 (verification, 0 BUG):
 - R2-08 NIT FOLLOW-UP: the budget again (R1-12).
 
 Round 3 (verification, Codex clean, 0 BUG):
-- R3-01 RISK (GLM) FIXED, `locally_verified`, not externally re-verified: the schedule check let through an owner who published only after signing in. Now that owner signs in again.
-- R3-02 NIT (GLM) FIXED, same status: the exit-2 paragraph names Internal beside In production.
+- R3-01 RISK (GLM) FIXED, `locally_verified`; the wording pass (Codex) read it in place at `SKILL.md:419-423`: the schedule check let through an owner who published only after signing in. Now that owner signs in again.
+- R3-02 NIT (GLM) FIXED, same status; the wording pass read it at `SKILL.md:454`: the exit-2 paragraph names Internal beside In production.
 
 Waivers and deferrals: none.
 Follow-ups: R1-12/R2-08, SKILL.md over its soft line budget.
 Notes:
 - Round 1 read #363's merged text: the owner merged it (2026-10-21 21:48 UTC) before these fixes, so R1-01's BUG was on `main` until this PR. #363's earlier "3 rounds, 15 findings" left no trail and are not counted here.
-- No round 4 was earned (round 3 had no BUG). Round 3's two fixes are `locally_verified`; the wording pass below is the last read.
+- No round 4 was earned (round 3 had no BUG). Round 3's two fixes are `locally_verified`, and the wording pass read both in place, the last read before the confirmation.
 - Not run: the "Signing in again" command (it would touch a live token; its flags come from `gsc_query.py --help`) and the Python tests (no code changed). The first-consent check and the 8-day run stay open in the BUGLOG row.
