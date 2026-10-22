@@ -129,15 +129,24 @@ Codex's effort for any run.
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
    `git diff <base>...HEAD -- . ':(exclude)docs/reviews/'` (the trail still ships in the PR;
-   reviewers auditing it cost rounds). For a DIFF gate at Normal or High depth, write the
-   change's record prose — its changelog entry, a tracker's status row — after the last round:
-   in a round its sentences draw findings that cost rounds. It is then read once, by the wording
-   pass (step 6) or, where no round had a substantive BUG, by the prose-only re-gate the stamp
-   needs (closeout, clerk item 2). An entry carrying commands or config is not prose: it goes in
-   with the change.
+   reviewers auditing it cost rounds). Run from the repository the diff came from: before
+   anything is sent, the script checks the diff against git (BASE CHECK in its header). With no
+   `--base` it fetches origin's HEAD and checks the diff against the whole change from the merge
+   base: every file's sides, and that its hunks give HEAD's content (or, for uncommitted work,
+   the working tree's); a diff that fails is
+   refused, naming each file and the command that makes a correct one. Any other diff (a delta,
+   a merge link, the wording pass) passes `--base <the commit it starts from>`; so does a change
+   whose PR targets a branch other than the default one (`--base <its merge base with that
+   branch>`). A diff not made by `git diff` in this repository passes `--base none`. For a DIFF
+   gate at Normal or High depth, write the change's record prose — its changelog entry, a
+   tracker's status row — after the last round: in a round its sentences draw findings that
+   cost rounds. It is then read once, by the wording pass (step 6) or, where no round had a
+   substantive BUG, by the prose-only re-gate the stamp needs (closeout, clerk item 2). An entry
+   carrying commands or config is not prose: it goes in with the change.
    Over 117 KB: split it. Output: one section per attempted
    reviewer (its review, or a `— FAILED` section with the error and remedy), then a `reviewers:`
-   and a `timings:` line (past round 8, also a ⚠ notice). Exit 0 means at least one reviewer counted, not the pair — read the
+   and a `timings:` line, for a diff a `base:` line (past round 8, also a ⚠ notice). Exit 0
+   means at least one reviewer counted, not the pair — read the
    reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
    TOP (the list is ranked); never through `tail`.
 
@@ -210,7 +219,8 @@ Codex's effort for any run.
    unchanged (the test under "A substantive BUG", below) is wording and goes to the wording
    pass. A refuted BUG gets no reviewer's second look this way, so name it to the owner with its
    evidence before the gate closes (step 8).
-   - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`.
+   - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`,
+     sent with `--base <last-reviewed-head>` (a `--verify` round on a diff is refused without it).
      After a merge of the base or a rebase, the **merge link** instead, not a full round: what
      changed in the change's own files since the last review, merge effects included, plus any
      file the merge changed that the change's code calls directly, when known:
@@ -218,6 +228,8 @@ Codex's effort for any run.
      ```
      scripts/merge_link.sh <old-merge-base> <last-reviewed-head> <new-merge-base> [-- <path>...]
      ```
+
+     Its diff starts from the last reviewed head too: send it with `--base <last-reviewed-head>`.
 
      It takes the change's files from both the old and the new pair (an own edit the merge threw
      away matches the new base and drops out of the new pair alone) and passes names literally.
@@ -294,7 +306,8 @@ Codex's effort for any run.
    read, where one runs), whatever changed since — wording, comments, docs prose, the review
    record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex`, or `--seat ollama`
    with a `:cloud` tag — a local model never counts), with closeout clerk item 2's prose-only
-   scope. Its RISK/NIT are follow-ups; a contradiction with the code it describes is fixed. The
+   scope; a delta sent as a diff names its start with `--base <head>`. Its RISK/NIT are
+   follow-ups; a contradiction with the code it describes is fixed. The
    fix moves the head, and the stamp needs a seen head (closeout, clerk item 2), so the same seat
    gets ONE **confirmation** over that fix's delta alone, scoped to whether it removed the
    contradiction without adding one. A confirmation is a re-gate, not a round and not a second
@@ -315,7 +328,8 @@ Codex's effort for any run.
    `references/rationale.md`.
 8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,
    fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost (and, from round 4, the script's running-total line)
-   (the `timings:` line; the host seats' duration and tokens) and any follow-ups.
+   (the `timings:` line; the host seats' duration and tokens), a diff round's `base:` line, and
+   any follow-ups.
    The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. Once the pair and
    fresh-eyes have reported, offer — don't run — a `--with-antigravity` round or a stronger

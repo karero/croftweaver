@@ -92,7 +92,8 @@ green as pages land and stay as regression guards forever:
   Commit per phase. Full QA via `website-qa` where available.
 - **Gate (owner's choice, same as Phase 2):** `website-review` / `/code-review`
   by default; `independent_review.sh <diff> --diff --first-success` (one
-  reviewer) only if the owner opts in for this PR specifically. Ask, don't
+  reviewer, run from the repo the diff came from: it checks the diff's base
+  first) only if the owner opts in for this PR specifically. Ask, don't
   assume the heavier option.
 
 ## Phase 5 — Ship → grade (close the loop)

@@ -139,6 +139,14 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
    - Add yourself as a **test user**: APIs & Services → **Google Auth Platform** (the
      2024+ name for the OAuth consent screen) → **Audience** tab → **Test users** → Add.
      Without this, consent is blocked for an external app in "Testing".
+   - Then **Publish app** on the same **Audience** tab, so the status reads **In
+     production**. In "Testing", Google ends the sign-in 7 days after it is given (Google's
+     page https://developers.google.com/identity/protocols/oauth2, "Refresh token
+     expiration"), so the weekly job would fail from its second week. Published but not
+     verified by Google, the app may show a warning at sign-in; it is the owner's own app,
+     so if the warning offers a way on, they take it (not yet checked with a first sign-in).
+     If Google blocks the sign-in instead of warning, stop and say
+     so: the app may then need Google's verification.
 2. **Create a venv + install deps** (one-time, local — plain `pip install` fails on
    PEP-668 "externally-managed" Python, e.g. Homebrew/macOS). Use a stable home that
    matches where the OAuth token is cached. Any Python 3.9+ works, including macOS's stock
@@ -416,7 +424,10 @@ log says so in a ⚠ line, and "This run needs attention" lists the AI check.
 Every step runs even if an earlier one failed (an expired Google sign-in no longer costs the
 week's Bing and AI data), and the log ends with a **"This run needs attention"** list naming
 each problem. Exit code: 0 when that list is empty; otherwise GSC's own code if GSC failed
-(2 = the sign-in needs renewing — the job never waits for a browser), else 4 if a GSC or Bing
+(2 = the sign-in needs renewing — the job never waits for a browser. If the logged reason is
+Google refusing the refresh (`RefreshError`) and it comes back every week, the Google app is
+most likely still in "Testing": check its **Audience** tab, publish it as in One-time setup,
+then reconnect), else 4 if a GSC or Bing
 history write failed, else 1. Bing API errors are on the list too (they used to be swallowed). An AI check that isn't set up is not a problem; homepage warnings from
 the AI check aren't either (see `references/geo-check.md`).
 
