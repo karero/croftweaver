@@ -221,7 +221,7 @@ report_leftovers() {
       echo "⚠ Left over from an earlier publish that was stopped hard; this run leaves it alone:"
       seen=1
     fi
-    echo "    $path${pid:+  (made by process $pid${start:+, started $start UTC})}"
+    if [ "$whole" = 1 ]; then echo "    $path  (made by process $pid${start:+, started $start UTC})"; else echo "    $path"; fi
     echo "      remove with:  $how"
   done < "$list"
   if [ "$seen" = 1 ]; then

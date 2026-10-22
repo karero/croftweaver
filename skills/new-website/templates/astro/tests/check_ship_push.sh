@@ -1033,6 +1033,7 @@ GATE
   # Each of the two damaged lines gets its own report: its path line, then the by-hand advice;
   # and a line with no fields is not read as a process id.
   want "a line with no fields names no process" lacks "(made by process $D/"
+  want "... nor one that is not a whole line this script wrote" lacks "(made by process 4245"
   local damaged
   for damaged in "$D/tmp" "$D/tmp/ship-worktree.trunc"; do
     want "reports $damaged, then says to check it by hand, naming the list" \

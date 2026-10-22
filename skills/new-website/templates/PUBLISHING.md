@@ -266,18 +266,19 @@ publish as usual with `npm run ship`.
 `main` by hand, from the site's folder. It is one command over four lines: copy all of it.
 
 ```bash
-git -c maintenance.auto=false -c gc.auto=0 fetch -q origin +refs/heads/main:refs/ship-emergency/main &&
-  id="$(git rev-parse --verify refs/ship-emergency/main)" &&
+id="$(git ls-remote origin refs/heads/main | cut -f1)" &&
+  git -c maintenance.auto=false -c gc.auto=0 fetch -q origin "${id:?}" &&
   git push --no-verify origin "${id:?}:refs/heads/production" &&
   echo "Published $id. The live site's /build.txt should show it in a few minutes."
 ```
 
-It fetches GitHub's `main` branch into a name of its own, whatever this folder's fetch
-settings say, and publishes exactly that commit: nothing another command writes (a fetch an
-assistant runs meanwhile, say) can change which commit goes live, and a tag that happens to be
-called `main` is not taken for the branch. The two settings keep git from tidying up while it
-fetches: on a shared folder, a tidy-up can drop the record of another session's work. If the
-fetch fails, nothing is published. `--no-verify` skips the pre-push check on purpose: that
+It asks GitHub which commit its `main` branch points at now, fetches exactly that commit and
+publishes it. The commit's id stays in your terminal, so nothing else that runs in this folder
+(an assistant's fetch, say, or the same command in another terminal) can change which commit
+goes live; nor do this folder's fetch settings, or a tag that happens to be called `main`. The
+two settings keep git from tidying up while it fetches: on a shared folder, a tidy-up can drop
+the record of another session's work. If GitHub can't be reached or has no `main`, nothing is
+published. `--no-verify` skips the pre-push check on purpose: that
 check also runs ship's own test, and ship is the part that may be broken. So nothing checks
 this publish. Do it only for a `main` whose checks are green on GitHub, and never add
 `--force`. A few minutes later, open your live site's `/build.txt`: it shows the commit the
