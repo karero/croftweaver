@@ -6,8 +6,9 @@
 # says why). The caller refuses on 0 and on 2, and goes on only on 1.
 # Read as raw bytes, so a malformed byte beside a tag cannot hide it. A newline between the
 # bracket and the name does not count, and neither does an entity spelling of the bracket.
-# The pattern spells the word with a bracket class so that this file holds no tag itself: the
-# change that added it was reviewed, and a Light-model review of a tag would have missed it.
+# The pattern spells the word with a bracket class, so that nothing written near it can make this
+# file hold a tag: a review of it by the light model would be refused. Plain spelling would pass
+# today too; the class is kept as a guard against a later edit.
 use 5.008;
 
 my $path = $ARGV[0];

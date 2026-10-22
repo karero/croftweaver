@@ -1376,7 +1376,7 @@ melious_marker() {   # prints a marker line the reviewed text does not contain
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
   api_tools_ok || return 3
-  local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
+  local tt_msg tt_rc key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc
   case "$max" in
     ''|*[!0-9]*|0*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a whole number from 1" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;;
@@ -1390,6 +1390,7 @@ run_melious() {
   # goes on: a hit, and a check that could not run, both refuse, before anything is sent.
   if [ "${melious_rule:-}" = light ]; then
     tt_msg="$(perl "$PERL_DIR/think_tag.pl" "$RAW_DIR/melious.prompt" 2>&1)"; tt_rc=$?
+    tt_msg="$(printf '%s' "$tt_msg" | tr '\n\r' '  ')"   # the status file keeps one line of WHY
     case $tt_rc in
       1) ;;
       0) WHY="$THINK_TAG_WHY the text holds a think tag and this model was measured skipping the text between such tags, so nothing was sent"; return 1 ;;

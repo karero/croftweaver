@@ -1287,7 +1287,8 @@ check "lunset: with MELIOUS_MODEL unset a missing list stops nothing" has lunset
 #      marks "light" was measured skipping the text between think tags while the seat said OK, so
 #      the seat refuses it, with nothing sent, when the prompt holds a tag. The model allowed at
 #      any depth is not touched. The tag is built here from pieces, so this file holds no plain
-#      pair; the spaced and cased variants are written out, because they hold none either.
+#      pair. The spaced and cased variants are written out and DO match the guard: by intent, a
+#      change to this file cannot be reviewed by the light model (the depth rule keeps it off).
 TTO='<'"think"'>'; TTC='</'"think"'>'
 printf 'diff --git a/t.sh b/t.sh\n+echo "%s zebra %s"\n' "$TTO" "$TTC" >"$T/tt.diff"
 msec() { LC_ALL=C awk '/^## /{p = ($0 ~ /Independent review — melious/)} p' "$T/$1.out"; }   # msec <run>: the melious section
@@ -1361,11 +1362,11 @@ check "ttfall: as ollama's fallback the light model is refused too; both reasons
 for tt_h in error gone; do
   mkdir -p "$T/tth$tt_h.scripts"
   (cd "$HERE" && tar cf - .) | (cd "$T/tth$tt_h.scripts" && tar xf -)
-  if [ $tt_h = error ]; then printf 'print STDERR "disk on fire\\n"; exit 2;\n' >"$T/tth$tt_h.scripts/perl/think_tag.pl"; else rm -f "$T/tth$tt_h.scripts/perl/think_tag.pl"; fi
+  if [ $tt_h = error ]; then printf 'print STDERR "disk on fire\\nsecond line\\n"; exit 2;\n' >"$T/tth$tt_h.scripts/perl/think_tag.pl"; else rm -f "$T/tth$tt_h.scripts/perl/think_tag.pl"; fi
   run tth$tt_h MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$T/tth$tt_h.scripts/independent_review.sh" "$T/change.diff" --base none --seat melious --depth light
   check "tth$tt_h: a think-tag check that cannot run refuses the clean diff, nothing sent" ttrefused tth$tt_h
 done
-check "ttherror: ...and the reason carries the helper's own line" has ttherror.out "disk on fire"
+check "ttherror: ...and the reason carries the helper's own lines, flattened to one" has ttherror.out "disk on fire second line"
 check "tthgone: ...and a missing helper is reported as a check that could not run" has tthgone.out "the check could not run"
 
 # 33. (2026-10-06) The Perl programs' minimum versions: check_perl_minimum.sh, which reads perl/*.pl
