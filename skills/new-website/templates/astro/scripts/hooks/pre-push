@@ -25,6 +25,12 @@
 #
 set -e
 
+# The repository variables git hands a hook (git's own list of them). Pushed from a linked
+# worktree, they include GIT_DIR, and a `git -c …` push hands its settings down as well. A step
+# that runs git in a scratch repo, or from a subfolder, would then find the wrong repository
+# or the wrong top folder. Cleared, git finds the repository from the folder a step runs in.
+unset $(git rev-parse --local-env-vars)
+
 # git writes one line per ref being pushed to this hook's stdin:
 #   <local ref> <local sha> <remote ref> <remote sha>
 # stdin can be read only once and two steps below want it, so read it here into
@@ -80,9 +86,9 @@ if [ "$saw_ref" = 1 ] && [ "$pushes_commits" = 0 ]; then
 fi
 
 # First, because it needs neither the build nor a browser nor the network: it drives
-# scripts/ship.sh against a stubbed git and checks that a failed publish is diagnosed
-# correctly. Nothing else exercises that script — its only other workout is an actual
-# publish, when a wrong message is most expensive.
+# scripts/ship.sh against a stubbed git, and against throwaway repos on this computer, and
+# checks that a failed publish is diagnosed correctly. Nothing else exercises that script —
+# its only other workout is an actual publish, when a wrong message is most expensive.
 if [ -f tests/check_ship_push.sh ]; then
   echo "▶ pre-push gate: publish classifier…"
   bash tests/check_ship_push.sh

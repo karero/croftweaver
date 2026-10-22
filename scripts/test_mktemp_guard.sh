@@ -63,7 +63,7 @@ EXEMPT=(
   "skills/independent-review/scripts/merge_link.sh|set -e ends it on a failed mktemp"
   "skills/independent-review/scripts/independent_review.sh|run_agy does not check mktemp (docs/BUGLOG.md)"
   "skills/new-website/templates/astro/scripts/check_internal_links.sh|a site template that makes files, not a folder, and does not check mktemp (docs/BUGLOG.md)"
-  "skills/new-website/templates/astro/scripts/ship.sh|set -e ends it on a failed mktemp"
+  "skills/new-website/templates/astro/scripts/ship.sh|the probe here runs outside a git repo, where its first git call whose failure stops the run (git rev-parse --abbrev-ref HEAD) fails, exit 128, before any mktemp; tests/check_ship_push.sh fails each of its mktemp calls in turn (case S15)"
   "skills/new-website/templates/astro/tests/check_analytics_gate.sh|set -e ends it on a failed mktemp"
   "skills/new-website/templates/astro/tests/check_ship_push.sh|set -e ends it on a failed mktemp"
 )
