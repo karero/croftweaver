@@ -9,7 +9,7 @@ drives assembly; this README is the manual reference.
 
 ```
 package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
-.nvmrc                        # Node 24 — Astro needs >=22.12 (Cloudflare Pages reads it)
+.nvmrc                        # Node 24 — Astro needs >=22.23.4 (Cloudflare Pages reads it)
 .gitattributes                # LF line endings for *.sh and scripts/hooks/*, so the pre-push hook runs on Windows
 src/config.ts                 # single source of truth (URL, name, analytics, EEAT)
 src/layouts/Base.astro        # title/OG/Twitter/canonical/JSON-LD/no-FOUC theme spine
@@ -42,8 +42,9 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 
 1. **Git first** (see SETUP.md): `mkdir <site> && cd <site> && git init`, copy the
    `templates/.gitignore`, commit.
-2. `npm create astro@latest .` → Empty, TypeScript **Strict**. Requires **Node ≥22.12**
-   (Astro's own floor); the committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
+2. `npm create astro@latest .` → Empty, TypeScript **Strict**. Requires **Node ≥22.23.4**
+   (the floor of the Astro this starter ships); keep Node at or above its October 2026 security fixes (22.23.4, 24.22.1,
+   26.12.1, by line); the committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
 3. Copy this overlay over the scaffold (the files above) + `tests/`, then:
    ```bash
    npm i -D @playwright/test @axe-core/playwright @astrojs/check typescript @types/node
