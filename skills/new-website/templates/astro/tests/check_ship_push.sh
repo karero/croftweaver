@@ -91,11 +91,13 @@ case "$1" in
       *) echo "$SHA" ;;
     esac ;;
   status) [ -f "$FAKE_DIR/dirty" ] && echo " M src/pages/index.astro"; exit 0 ;;
-  # GitHub's copy of ship.sh, read when this folder's differs (worktree mode), or a Ctrl-C that ends
-  # the read.
+  # GitHub's copy of ship.sh, read when this folder's differs (worktree mode). Only the case of a
+  # Ctrl-C that ends that read gets here, so that read, exactly, is all this answers.
   cat-file)
-    if [ -f "$FAKE_DIR/stopat-catfile" ]; then kill -TERM "$(cat "$FAKE_DIR/shippid")"; exit 130; fi
-    echo "# template-version: 0.22" ;;
+    if [ "$*" = "cat-file -p $SHA:scripts/ship.sh" ] && [ -f "$FAKE_DIR/stopat-catfile" ]; then
+      kill -TERM "$(cat "$FAKE_DIR/shippid")"; exit 130
+    fi
+    echo "STUB: unexpected git invocation: git $*" >&2; exit 3 ;;
   fetch)
     echo "${*:2}" >> "$FAKE_DIR/fetchargs"
     n=$(( $(cat "$FAKE_DIR/fetches" 2>/dev/null || echo 0) + 1 ))
@@ -1028,7 +1030,15 @@ GATE
   want "does not report the one removed by hand" lacks "$gone"
   want "gives no delete command for a folder this script does not name" lacks "rm -rf '$D/tmp'"
   want "... nor for a ship-worktree line cut short" lacks "rm -rf '$D/tmp/ship-worktree.trunc'"
-  want "... and says to check them by hand, naming the list" has "check it by hand: not a whole line this script wrote; then delete the line from $C/.git/ship-worktrees"
+  # Each of the two damaged lines gets its own report: its path line, then the by-hand advice;
+  # and a line with no fields is not read as a process id.
+  want "a line with no fields names no process" lacks "(made by process $D/"
+  local damaged
+  for damaged in "$D/tmp" "$D/tmp/ship-worktree.trunc"; do
+    want "reports $damaged, then says to check it by hand, naming the list" \
+      eval 'awk -v p="    $damaged" -v h="      remove with:  (check it by hand: not a whole line this script wrote; then delete the line from $C/.git/ship-worktrees)" \
+        "f { ok = (\$0 == h); f = 0; seen = 1 } \$0 == p || index(\$0, p \"  (\") == 1 { f = 1 } END { exit !(seen && ok) }" "$L"'
+  done
   want "the leftover's files are untouched" eq "$(cat "$l1/note.txt")" "work in progress"
 
   # --- S9: a publish already running in this clone ----------------------------------------
@@ -1231,11 +1241,23 @@ GATE
   for h in post-checkout post-index-change; do
     printf '#!/bin/sh\necho %s >> "%s/foreign-hooks-ran"\n' "$h" "$M" > "$D/elsewhere/$h"; chmod +x "$D/elsewhere/$h"
   done
+  # reference-transaction runs for the fetch too, but only making a worktree touches HEAD.
+  printf '#!/bin/sh\nwhile read -r _o _n ref; do echo "$ref" >> "%s/foreign-reftx"; done\n' "$M" > "$D/elsewhere/reference-transaction"
+  chmod +x "$D/elsewhere/reference-transaction"
+  # ...and the same hooks committed in a folder named like a pin inside the checkout would be: a
+  # pin there would run them once the checkout wrote them.
+  mkdir -p "$S/.ship-no-hooks"
+  for h in post-checkout post-index-change; do
+    printf '#!/bin/sh\necho %s >> "%s/committed-hooks-ran"\n' "$h" "$M" > "$S/.ship-no-hooks/$h"; chmod +x "$S/.ship-no-hooks/$h"
+  done
+  git -C "$S" add .ship-no-hooks; git -C "$S" commit -qm "a folder of hooks"; git -C "$S" push -q origin main
   git -C "$C" config core.hooksPath "$D/elsewhere"
   run_ship s18-elsewhere; exits 0
   want "the commit's own gate ran" has "▶ pre-push gate: tiny gate"
   want "... not the one the shared setting names" lacks "ELSEWHERE HOOK RAN"
   want "making the worktree started none of the shared folder's hooks" test ! -e "$M/foreign-hooks-ran"
+  want "... nor its reference-transaction hook for the worktree's HEAD" eval '! grep -qxE "(ORIG_)?HEAD" "$M/foreign-reftx" 2>/dev/null'
+  want "... nor hooks committed in the checkout" test ! -e "$M/committed-hooks-ran"
   want "the shared setting is as it was" eq "$(git -C "$C" config --get core.hooksPath)" "$D/elsewhere"
   advance 1; git -C "$C" config --unset core.hooksPath
   run_ship s18-unset; exits 0

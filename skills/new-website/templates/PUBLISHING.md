@@ -240,7 +240,8 @@ With `ship.fromGitHub` switched on (see "On a shared computer" above), you may a
   that publish is still running.
 - **"Left over from an earlier publish that was stopped hard"?** Its temporary copy is still
   there. It blocks nothing. Once nothing is working in it any more, remove it with the command
-  the message gives.
+  the message gives; where the message says to check by hand, its record is damaged, so look
+  at that folder yourself (or ask for help) before deleting anything.
 - **"this folder's scripts/ship.sh is not the one on GitHub's main"?** The script that
   publishes has to be the one being published. Run it from a copy that is up to date with
   GitHub's `main`.
@@ -262,18 +263,19 @@ request that brought it in has a **Revert** button; merge the pull request it ma
 publish as usual with `npm run ship`.
 
 **`npm run ship` itself is broken**, and the live site needs a fix now. Publish GitHub's
-`main` by hand, from the site's folder:
+`main` by hand, from the site's folder. It is one command over four lines: copy all of it.
 
 ```bash
-# One command over three lines: copy all of it.
-id="$(git -c maintenance.auto=false -c gc.auto=0 fetch -q origin main && git rev-parse FETCH_HEAD)" &&
+git -c maintenance.auto=false -c gc.auto=0 fetch -q origin +refs/heads/main:refs/ship-emergency/main &&
+  id="$(git rev-parse --verify refs/ship-emergency/main)" &&
   git push --no-verify origin "${id:?}:refs/heads/production" &&
   echo "Published $id. The live site's /build.txt should show it in a few minutes."
 ```
 
-It fetches GitHub's `main` by name, whatever this folder's fetch settings say, notes that
-commit's id at once (any later fetch, an assistant's included, changes what `FETCH_HEAD`
-names) and publishes exactly that commit. The two settings keep git from tidying up while it
+It fetches GitHub's `main` branch into a name of its own, whatever this folder's fetch
+settings say, and publishes exactly that commit: nothing another command writes (a fetch an
+assistant runs meanwhile, say) can change which commit goes live, and a tag that happens to be
+called `main` is not taken for the branch. The two settings keep git from tidying up while it
 fetches: on a shared folder, a tidy-up can drop the record of another session's work. If the
 fetch fails, nothing is published. `--no-verify` skips the pre-push check on purpose: that
 check also runs ship's own test, and ship is the part that may be broken. So nothing checks

@@ -141,8 +141,9 @@ take_lock() {
   host="$(cat "$lock/host" 2>/dev/null)" || host=""
   # Running means: that id exists with that same start time, so a reused id does not count. A
   # lock written on another computer (a shared disk) cannot be read as gone from here, nor can
-  # one where ps cannot say; a computer's own name can change (a Mac's follows the network), so
-  # the name never overrules a running match.
+  # one where ps cannot say; a computer's own name can change (on a Mac with no host name set,
+  # `uname -n` gives a local network name, which macOS renames on a clash), so the name never
+  # overrules a running match.
   if [ -z "$pid" ] || [ -z "$start" ] || [ -z "$my_start" ]; then state=unknown
   elif [ "$(proc_start "$pid")" = "$start" ]; then state=running
   elif [ "$host" != "$my_host" ]; then state=unknown
@@ -192,24 +193,26 @@ report_leftovers() {
   wl="$(git worktree list --porcelain)"
   while IFS= read -r line || [ -n "$line" ]; do
     [ -n "$line" ] || continue
-    # path, process id, start time: tab-separated, as this script writes them
-    path="${line%%"$tab"*}"; rest="${line#*"$tab"}"; pid="${rest%%"$tab"*}"; start="${rest#*"$tab"}"
+    # Path, process id, start time: tab-separated, as this script writes them. A line cut short
+    # (a full disk) lacks the later fields, and its path may name another folder: only a whole
+    # line (all three fields, a numeric process id) naming a folder this script names gets a
+    # command that removes it.
+    path="${line%%"$tab"*}" pid="" start="" whole=0
+    case "$line" in
+      *"$tab"*"$tab"*)
+        rest="${line#*"$tab"}"; pid="${rest%%"$tab"*}"; start="${rest#*"$tab"}"
+        case "$pid" in ''|*[!0-9]*) ;; *) whole=1 ;; esac ;;
+    esac
+    case "${path##*/}" in ship-worktree.?*) ;; *) whole=0 ;; esac
     if grep -qxF "worktree $path" <<<"$wl"; then
       how="git worktree remove --force --force '$path'"
     elif [ -e "$path" ]; then
-      # Made by mktemp, never a worktree. A delete command only for a whole line this script
-      # wrote (three fields, a process id) naming a folder it names: a line cut short (a full
-      # disk) could name another folder.
-      whole=0
-      case "$rest" in *"$tab"*) case "$pid" in ''|*[!0-9]*) ;; *) whole=1 ;; esac ;; esac
-      case "${path##*/}" in ship-worktree.?*) ;; *) whole=0 ;; esac
-      if [ "$whole" = 1 ]; then
-        how="rm -rf '$path'"
-      else
-        how="(check it by hand: not a whole line this script wrote; then delete the line from $list)"
-      fi
+      how="rm -rf '$path'"   # made by mktemp, never a worktree
     else
       continue
+    fi
+    if [ "$whole" = 0 ]; then
+      how="(check it by hand: not a whole line this script wrote; then delete the line from $list)"
     fi
     kept="$kept$line
 "
@@ -218,7 +221,7 @@ report_leftovers() {
       echo "⚠ Left over from an earlier publish that was stopped hard; this run leaves it alone:"
       seen=1
     fi
-    echo "    $path  (made by process $pid${start:+, started $start UTC})"
+    echo "    $path${pid:+  (made by process $pid${start:+, started $start UTC})}"
     echo "      remove with:  $how"
   done < "$list"
   if [ "$seen" = 1 ]; then
