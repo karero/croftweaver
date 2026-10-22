@@ -339,7 +339,8 @@ check "T5 git -M's rename of a binary file to a text one: refused, naming t.txt"
 check "T5 ... and no reviewer ran" not_ran t5bt
 remedy="$(sed -n '/^Make the diff again from that base:$/{n;s/^  //p;}' "$T/t5bt.err")"
 check "T5 ... the printed remedy uses --no-renames" sh -c 'case "$1" in *" --no-renames "*) exit 0 ;; esac; exit 1' _ "$remedy"
-( cd "$R" && eval "$remedy" ) >"$T/t4bt.diff" 2>/dev/null
+( cd "$R" && eval "$remedy" ) >"$T/t4bt.diff" 2>"$T/t4bt.remedy.err"
+check "T4 the printed remedy runs without an error" [ ! -s "$T/t4bt.remedy.err" ]
 run t4bt "$R" "$T/t4bt.diff" --seat codex --depth normal --base "$X0"
 check "T4 the printed remedy makes a diff that runs" rc_is t4bt 0
 
