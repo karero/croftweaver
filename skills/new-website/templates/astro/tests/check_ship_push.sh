@@ -91,6 +91,11 @@ case "$1" in
       *) echo "$SHA" ;;
     esac ;;
   status) [ -f "$FAKE_DIR/dirty" ] && echo " M src/pages/index.astro"; exit 0 ;;
+  # GitHub's copy of ship.sh, read when this folder's differs (worktree mode), or a Ctrl-C that ends
+  # the read.
+  cat-file)
+    if [ -f "$FAKE_DIR/stopat-catfile" ]; then kill -TERM "$(cat "$FAKE_DIR/shippid")"; exit 130; fi
+    echo "# template-version: 0.22" ;;
   fetch)
     echo "${*:2}" >> "$FAKE_DIR/fetchargs"
     n=$(( $(cat "$FAKE_DIR/fetches" 2>/dev/null || echo 0) + 1 ))
@@ -555,6 +560,15 @@ if ! grep -q "a stop was asked for" "$work/stopsilent.log"; then
   echo "✗ ship push gate [stopsilent]: a stop that ended a git call ended the run without saying so."; fail=1
 fi
 
+# ...and in worktree mode, one that ends the read of GitHub's copy of ship.sh: not a verdict
+# about the two scripts.
+mark stopcatfile fromgithub
+mark stopcatfile stopat-catfile
+expect stopcatfile 1 0 "a stop was asked for"
+if grep -q "is not the one on GitHub's main" "$work/stopcatfile.log"; then
+  echo "✗ ship push gate [stopcatfile]: a read ended by a stop was taken for two different scripts."; fail=1
+fi
+
 # --- worktree mode, a git folder the lock cannot be made in ------------------------
 # Not "another publish holds the lock", with a command to remove one that does not exist.
 mark lockro fromgithub
@@ -960,14 +974,17 @@ GATE
   git -C "$C" worktree add -q --detach "$l1"; echo "work in progress" > "$l1/note.txt"
   git -C "$C" worktree add -q --detach "$l2"; rm -rf "$l2"
   # The third line's worktree was removed by hand since: neither its folder nor git's record is left.
-  # The fourth was cut short (a full disk) and names the folder above: never one to delete.
-  printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970\n%s\t4244\tThu Jan  1 00:00:00 1970\n%s\t4245\tThu Jan  1 00:00:00 1970\n' \
-    "$l1" "$l2" "$gone" "$D/tmp" > "$C/.git/ship-worktrees"
+  # The fourth was cut short (a full disk) and names the folder above; the fifth was cut short
+  # inside a name this script gives (its tab and the fields after it lost). Neither gets a delete
+  # command.
+  mkdir "$D/tmp/ship-worktree.trunc"
+  printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970\n%s\t4244\tThu Jan  1 00:00:00 1970\n%s\t4245\tThu Jan  1 00:00:00 1970\n%s\n' \
+    "$l1" "$l2" "$gone" "$D/tmp" "$D/tmp/ship-worktree.trunc" > "$C/.git/ship-worktrees"
   # A lock naming a running process (this test), on this computer, with another start time: the
   # process id was reused.
   mkdir "$C/.git/ship.lock"; echo "$$" > "$C/.git/ship.lock/pid"; echo "Thu Jan  1 00:00:00 1970" > "$C/.git/ship.lock/start"
   uname -n > "$C/.git/ship.lock/host"
-  WT_COUNT=3 TMP_WT=1 LOCK_LEFT=1 LIST_WANT="$(list_now)"
+  WT_COUNT=3 TMP_WT=2 LOCK_LEFT=1 LIST_WANT="$(list_now)"
   run_ship s8-lock; exits 1
   want "production is unchanged" eq "$(gh production)" "$p0"
   want "names the lock by its full path" has "    $C/.git/ship.lock"
@@ -987,7 +1004,21 @@ GATE
   want "without a process id it says it cannot tell" has "cannot tell whether that publish is still running"
   want "... with the warning and the command" has "    rm -r '$C/.git/ship.lock'"
   eval "$(sed -n "s/^    \(rm -r '.*'\)\$/\1/p" "$L")" 2>/dev/null || true
-  LOCK_LEFT=0 LIST_WANT="$(printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970\n%s\t4245\tThu Jan  1 00:00:00 1970' "$l1" "$l2" "$D/tmp")"
+  # Written on another computer (a shared disk), with a start time that does not match here:
+  # not "gone" from here, but no telling.
+  rm -rf "$C/.git/ship.lock"; mkdir "$C/.git/ship.lock"
+  echo "$$" > "$C/.git/ship.lock/pid"; echo "Thu Jan  1 00:00:00 1970" > "$C/.git/ship.lock/start"; echo another-computer > "$C/.git/ship.lock/host"
+  run_ship s8-otherhost; exits 1
+  want "a lock from another computer is \"cannot tell\", not \"not running\"" has "cannot tell whether that publish is still running"
+  if [ "$ps_starts" = 1 ]; then
+    # A matching process id and start time is a running publish, whatever the computer's name
+    # says now: a Mac's name can change with the network.
+    LC_ALL=C TZ=UTC ps -o lstart= -p "$$" | sed -e 's/^ *//' -e 's/ *$//' > "$C/.git/ship.lock/start"
+    run_ship s8-renamed; exits 1
+    want "a running match is \"under way\", whatever the host name" has "a publish is under way"
+  fi
+  rm -rf "$C/.git/ship.lock"
+  LOCK_LEFT=0 LIST_WANT="$(printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970\n%s\t4245\tThu Jan  1 00:00:00 1970\n%s' "$l1" "$l2" "$D/tmp" "$D/tmp/ship-worktree.trunc")"
   m="$(gh main)"
   run_ship s8-next; exits 0
   want "publishes" eq "$(gh production)" "$m"
@@ -996,7 +1027,8 @@ GATE
   want "reports the leftover whose folder is gone" has "git worktree remove --force --force '$l2'"
   want "does not report the one removed by hand" lacks "$gone"
   want "gives no delete command for a folder this script does not name" lacks "rm -rf '$D/tmp'"
-  want "... and says to check it by hand" has "not a name this script gives its folders"
+  want "... nor for a ship-worktree line cut short" lacks "rm -rf '$D/tmp/ship-worktree.trunc'"
+  want "... and says to check them by hand, naming the list" has "check it by hand: not a whole line this script wrote; then delete the line from $C/.git/ship-worktrees"
   want "the leftover's files are untouched" eq "$(cat "$l1/note.txt")" "work in progress"
 
   # --- S9: a publish already running in this clone ----------------------------------------

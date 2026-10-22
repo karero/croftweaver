@@ -139,12 +139,16 @@ take_lock() {
   pid="$(cat "$lock/pid" 2>/dev/null)" || pid=""
   start="$(cat "$lock/start" 2>/dev/null)" || start=""
   host="$(cat "$lock/host" 2>/dev/null)" || host=""
-  # Running means: that id exists with that same start time, so a reused id does not count.
-  # Asked on another computer (a shared disk) or where ps cannot say, there is no telling.
-  if [ -z "$pid" ] || [ -z "$start" ] || [ -z "$my_start" ] || [ "$host" != "$my_host" ]; then state=unknown
+  # Running means: that id exists with that same start time, so a reused id does not count. A
+  # lock written on another computer (a shared disk) cannot be read as gone from here, nor can
+  # one where ps cannot say; a computer's own name can change (a Mac's follows the network), so
+  # the name never overrules a running match.
+  if [ -z "$pid" ] || [ -z "$start" ] || [ -z "$my_start" ]; then state=unknown
   elif [ "$(proc_start "$pid")" = "$start" ]; then state=running
+  elif [ "$host" != "$my_host" ]; then state=unknown
   else state=gone
   fi
+  stop_point "Nothing was published and $here."   # a Ctrl-C may have ended the ps call above
   echo "✗ Publish stopped — another publish holds this clone's lock:"
   echo "    $lock"
   if [ -z "$pid" ]; then
@@ -184,7 +188,7 @@ take_lock() {
 # A worktree that is not on the list is never touched or reported, whatever its name or lock.
 report_leftovers() {
   [ -s "$list" ] || return 0
-  local wl line path rest pid start how kept="" seen=0 tab=$'\t'
+  local wl line path rest pid start how whole kept="" seen=0 tab=$'\t'
   wl="$(git worktree list --porcelain)"
   while IFS= read -r line || [ -n "$line" ]; do
     [ -n "$line" ] || continue
@@ -193,12 +197,17 @@ report_leftovers() {
     if grep -qxF "worktree $path" <<<"$wl"; then
       how="git worktree remove --force --force '$path'"
     elif [ -e "$path" ]; then
-      # Made by mktemp, never a worktree. A delete command only for a name this script gives
-      # its folders: a line cut short (a full disk) could name a folder above it.
-      case "${path##*/}" in
-        ship-worktree.?*) how="rm -rf '$path'" ;;
-        *) how="(not a name this script gives its folders: check it by hand)" ;;
-      esac
+      # Made by mktemp, never a worktree. A delete command only for a whole line this script
+      # wrote (three fields, a process id) naming a folder it names: a line cut short (a full
+      # disk) could name another folder.
+      whole=0
+      case "$rest" in *"$tab"*) case "$pid" in ''|*[!0-9]*) ;; *) whole=1 ;; esac ;; esac
+      case "${path##*/}" in ship-worktree.?*) ;; *) whole=0 ;; esac
+      if [ "$whole" = 1 ]; then
+        how="rm -rf '$path'"
+      else
+        how="(check it by hand: not a whole line this script wrote; then delete the line from $list)"
+      fi
     else
       continue
     fi
@@ -238,9 +247,9 @@ check_script() {
   local want mine theirs
   want="$(git rev-parse --verify -q "$id:scripts/ship.sh")" || want=""
   if [ -n "$self_blob" ] && [ "$self_blob" = "$want" ]; then return 0; fi
-  stop_point "Nothing was published and $here."   # a Ctrl-C may have ended the git call above
   mine="$(sed -n 's/^# template-version: *\([^ ]*\).*/\1/p' "${BASH_SOURCE[0]}" 2>/dev/null)" || mine=""
   theirs="$(git cat-file -p "$id:scripts/ship.sh" 2>/dev/null | sed -n 's/^# template-version: *\([^ ]*\).*/\1/p')" || theirs=""
+  stop_point "Nothing was published and $here."   # a Ctrl-C may have ended a git call above
   echo ""
   echo "✗ Publish stopped — this folder's scripts/ship.sh is not the one on GitHub's main."
   if [ -z "$want" ]; then
@@ -553,15 +562,17 @@ fi
 
 if [ "$from_github" = 1 ]; then
   # The worktree: detached at the commit, so it can exist while another worktree has `main`
-  # checked out. Its line goes on ship's list BEFORE it is made, so a hard kill at any point
-  # after leaves a line the next run reports.
+  # checked out. Its line goes on ship's list before git makes the worktree in its folder, so a
+  # hard kill at any point after leaves a line the next run reports. (A kill before leaves at
+  # most the empty folder from mktemp, in the temp folder.)
   my_line="$(printf '%s\t%s\t%s' "$wt" "$$" "$my_start")"
   printf '%s\n' "$my_line" >> "$list"
-  # The hooks folder is pinned, for this one command, to one that does not exist, so making the
-  # worktree runs no hook (git would run post-checkout, post-index-change and
-  # reference-transaction): the clone's shared setting may name another session's folder, and a
-  # hook there could install packages and so rewrite that very setting.
-  if git -c core.hooksPath="$wt/.ship-no-hooks" worktree add -q --detach "$wt" "$id"; then wt_added=1; else wt_added=0; fi
+  # The hooks folder is pinned, for this one command, to a path that cannot exist (one below a
+  # file, outside the checkout, so no commit can put hooks there), so making the worktree runs
+  # no hook (git would run post-checkout, post-index-change and reference-transaction): the
+  # clone's shared setting may name another session's folder, and a hook there could install
+  # packages and so rewrite that very setting.
+  if git -c core.hooksPath="$push_status/no-hooks" worktree add -q --detach "$wt" "$id"; then wt_added=1; else wt_added=0; fi
   stop_point "Nothing was published and $here."
   if [ "$wt_added" = 0 ]; then
     echo ""
@@ -603,6 +614,7 @@ if [ "$from_github" = 1 ]; then
   # the lockfile). Its prepare step, scripts/wire-hooks.mjs, would write core.hooksPath, which
   # every worktree of this clone shares and another session may rely on; SHIP_KEEP_HOOKS_PATH
   # makes it leave that setting alone.
+  stop_point "Nothing was published and $here."
   echo ""
   echo "→ Installing the site's packages in the temporary copy (npm ci)…"
   if ( CDPATH= cd -- "$wt" && SHIP_KEEP_HOOKS_PATH=1 npm ci --no-audit --no-fund ); then install_ok=1; else install_ok=0; fi

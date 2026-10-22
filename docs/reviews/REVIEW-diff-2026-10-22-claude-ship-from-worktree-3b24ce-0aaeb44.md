@@ -9,6 +9,7 @@ Test records before round 1 (macOS, git 2.33): `tests/check_ship_push.sh` exit 0
 | Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `0aaeb44b` | full | Codex CLI 0.163.0, gpt-6.1-sol, config effort, read-only · Melious HTTP API, glm-5.3, text only · fresh-eyes sub-agent, claude-opus-5-5, read-only by instruction | Codex 483 s, 114,674 · Melious 411 s, 83,268 · fresh-eyes 1,290 s, 324,361 | 9 / 9 / 12 after merging duplicates (Codex 4/3/0, Melious 0/1/4, fresh-eyes 6/6/8; one host finding merged into A7). Unverifiable entries: Codex 2 groups, Melious 4, fresh-eyes 4; one (Windows) confirmed by the host and part of A7 |
+| 2 | `f6f55768` | the change since `0aaeb44b`, as a verification round (prior findings A1 to A29) | same three seats; Codex at config effort | Codex 510 s, 162,447 · Melious 497 s, 60,960 · fresh-eyes 1,050 s, 280,657 | 1 / 3 / 9 after merging duplicates (Codex 0/3/1 plus 2 RISK outside scope, both re-raises of refuted rows without new evidence; Melious 0/1/3; fresh-eyes 0/2/4 plus 2 NIT outside scope, fixed). B1 raised from RISK to BUG by the host on fresh-eyes' measurement. Unverifiable entries: Codex 2 groups, Melious 2, fresh-eyes 3; none became a finding |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -41,6 +42,19 @@ Test records before round 1 (macOS, git 2.33): `tests/check_ship_push.sh` exit 0
 | A27 | NIT | fresh-eyes | 1 | The log is kept only once the push started (plan: on a failure exit), and WHAT-THE-SKILLS-RUN does not say a log stays | fixed (doc); the narrowing kept | before the push the log holds nothing a message rests on, and S15 needs the error last; WHAT-THE-SKILLS-RUN now says it |
 | A28 | NIT | fresh-eyes | 1 | The emergency section's "run npm install" can overwrite a hooks setting another session set on purpose | fixed | a caveat added |
 | A29 | NIT | fresh-eyes | 1 | The test could not start from the repo root (it re-read `$0` after its own `cd`) | fixed | `self` holds its absolute path |
+| B1 | BUG | Codex, fresh-eyes (both RISK) | 2 | The emergency recipe pushed `FETCH_HEAD`, which any later fetch rewrites (the template's session hook fetches at start): fresh-eyes measured production set to a feature branch's commit | fixed, locally_verified | the id is read once, right after the fetch, and published; the block as written in PUBLISHING.md, extracted and run in zsh with `FETCH_HEAD` naming `feat` and a narrowed fetch setting, set production to GitHub's main; with a fetch inserted between, the same; a failing fetch published nothing |
+| B2 | RISK | fresh-eyes | 2 | The lock's host check had no case that could fail | fixed, locally_verified | S8 `s8-otherhost`: another computer's lock with a stale start time reads "cannot tell"; break g53 |
+| B3 | NIT | fresh-eyes | 2 | `uname -n` follows the network on a Mac, so a renamed host would read a live lock as "cannot tell" | fixed, locally_verified | a running match (pid and start time) is decided first; the host only turns "gone" into "cannot tell"; S8 `s8-renamed`; break g54 |
+| B4 | RISK | Codex | 2 | The missing hooks folder lay inside the checkout, so a commit could supply it | fixed | pinned below the status file, a path that cannot exist and lies outside the checkout; no case can fail on it (only a commit carrying that folder could), the pin itself is S18's (break g46) |
+| B5 | RISK | Codex, Melious | 2 | A9 incomplete: a Ctrl-C ending `check_script`'s `git cat-file` still printed a verdict about the scripts | fixed, locally_verified | the stop look comes after both reads; stubbed `stopcatfile`; break g55 |
+| B6 | NIT | Codex | 2 | A23 incomplete: a line cut short inside a `ship-worktree.*` name still got `rm -rf` | fixed, locally_verified | a delete command only for a whole line (two tabs, a numeric process id); S8's fifth line; break g56 |
+| B7 | NIT | fresh-eyes | 2 | A line that gets "check it by hand" stays on the list for good, and nothing names the list | fixed | the message names the list file and says to delete the line |
+| B8 | NIT | Melious | 2 | Older records' start times are local time, yet labelled UTC | refuted | no released ship.sh writes a lock or a list (0.21 has neither); every record comes from this version, which writes UTC |
+| B9 | NIT | Melious, fresh-eyes | 2 | "Its line goes on ship's list BEFORE it is made" is no longer true of the folder | fixed | reworded: before git makes the worktree in it; a kill before leaves at most the empty folder |
+| B10 | NIT | Melious | 2 | The mktemp guard's reason read as if the call could not fail | fixed | "its first git call whose failure stops the run (…) fails, exit 128, before any mktemp" |
+| B11 | NIT | fresh-eyes | 2 | WHAT-THE-SKILLS-RUN's "a push that failed or was stopped" left out a timed-out or stopped live check | fixed | "a run that ends in an error once its push has started" |
+| B12 | NIT | fresh-eyes (outside scope) | 2 | A Ctrl-C ending take_lock's `ps` could read a live lock as gone before "stopped" | fixed | a stop look after the liveness read; no case |
+| B13 | NIT | fresh-eyes (outside scope) | 2 | No stop look before the install | fixed | one added; no case |
 
 Waivers and deferrals: none.
 

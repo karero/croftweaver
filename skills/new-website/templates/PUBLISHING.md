@@ -265,17 +265,21 @@ publish as usual with `npm run ship`.
 `main` by hand, from the site's folder:
 
 ```bash
-git -c maintenance.auto=false -c gc.auto=0 fetch origin main
-git push --no-verify origin FETCH_HEAD:refs/heads/production
+# One command over three lines: copy all of it.
+id="$(git -c maintenance.auto=false -c gc.auto=0 fetch -q origin main && git rev-parse FETCH_HEAD)" &&
+  git push --no-verify origin "${id:?}:refs/heads/production" &&
+  echo "Published $id. The live site's /build.txt should show it in a few minutes."
 ```
 
-The first line fetches GitHub's `main` by name, whatever this folder's fetch settings say, and
-keeps git from tidying up while it does (on a shared folder, a tidy-up can drop the record of
-another session's work). `--no-verify` skips the pre-push check on purpose: that check also
-runs ship's own test, and ship is the part that may be broken. So nothing checks this publish.
-Do it only for a `main` whose checks are green on GitHub, and never add `--force`. A few
-minutes later, open your live site's `/build.txt`: it shows the commit the live site serves,
-which should be the one `git rev-parse FETCH_HEAD` prints.
+It fetches GitHub's `main` by name, whatever this folder's fetch settings say, notes that
+commit's id at once (any later fetch, an assistant's included, changes what `FETCH_HEAD`
+names) and publishes exactly that commit. The two settings keep git from tidying up while it
+fetches: on a shared folder, a tidy-up can drop the record of another session's work. If the
+fetch fails, nothing is published. `--no-verify` skips the pre-push check on purpose: that
+check also runs ship's own test, and ship is the part that may be broken. So nothing checks
+this publish. Do it only for a `main` whose checks are green on GitHub, and never add
+`--force`. A few minutes later, open your live site's `/build.txt`: it shows the commit the
+live site serves, which should be the id the last line printed.
 
 **Is the pre-push check switched on?** `git config --get core.hooksPath` prints
 `scripts/hooks` when it is. Anything else, or nothing: run `npm install` once in the site's
