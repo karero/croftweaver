@@ -292,7 +292,7 @@ Codex's effort for any run.
    another round ((a2)), and the remaining wording goes to the wording pass or, where no round had
    a substantive BUG, to the prose-only re-gate (step 2). Aim to finish by round 5. **Don't ask the
    owner whether to run the next round** (the owner's rule, 2026-10-22); when a round ends, ask
-   only for what the owner alone gives: a RISK or NIT waiver (for one the host would leave unfixed
+   about its findings and the rounds only for what the owner alone gives: a RISK or NIT waiver (for one the host would leave unfixed
    and cannot refute), a BUG deferral (step 5), a change of scope, and past round 8 the decision below.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
@@ -342,7 +342,7 @@ Codex's effort for any run.
    The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. The update is a
    report, not a question: up to round 8, an owed or earned round runs without waiting for an
-   answer; past round 8, 6(b) decides. Once the pair and
+   answer; past round 8, the owner decides each further round (6(b)). Once the pair and
    fresh-eyes have reported, offer — don't run — a `--with-antigravity` round or a stronger
    same-family pass.
 9. **Close out** — read `references/closeout.md`, permission table first, and do both halves:
