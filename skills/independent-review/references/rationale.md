@@ -586,3 +586,28 @@ severity, and `test_round_checks.sh` already pins what such a round meets. What 
 owner no longer sees a late round's RISKs before the next round runs, only in the round's update
 (step 8). Not measured: whether RISK-earned rounds cost less than the owner's questions did. Judge
 it by rounds and tokens per gate in the cost log, and by how often a gate passes round 5.
+
+## Guards a plan proposes — why the plan prompt asks about them
+
+Codified 2026-10-22 from a security fix in another of the owner's repositories (an open redirect).
+Its plan proposed a tripwire test that reads two source files and bans some names and call forms,
+and said the tripwire "guards its source". The plan's gate (High: six rounds, a final full read, a
+red team) raised the tripwire's gaps in several rounds: nothing pinned every error redirect to the
+trust check; the ban missed a URL built in a variable; it fired "only on the literal pattern"; a
+static file-content assertion "cannot express" what the plan meant. Each fix the findings proposed
+kept the tripwire and made it more complete or more exact. None asked whether the route tests
+already did its job. The change's DIFF gate then spent rounds 1 to 4 on the tripwire, a BUG each
+round (spaced, bound and pieced-together spellings got past it; a syntax-tree rule replaced the
+text match in round 3 and was beaten in round 4), and the owner closed it as "an ordinary-mistake
+guard and the route tests are the real check". His idea afterwards: "Next time, I'd ask the plan
+review whether a static guard can deliver what the plan claims, before anyone builds one."
+
+Hence `PROMPT_PLAN`, sent at a PLAN gate only: for each guard a plan adds to catch a future
+mistake, what it can catch and what gets past it, whether it would fail if the behaviour broke, and
+whether a cheaper check, or none, would do. A guard credited with more than it can catch is a
+RISK whose fix is to the claim (narrow it, test the behaviour where it is used, or drop the guard),
+not one more banned form: the cut of step 6, asked before anything is built. A plan with no guard
+gets no entry. Not in `PROMPT_CORE`, which both gates share and which already calls "a guard that
+cannot fire" a RISK; not a host precondition, since the host wrote the plan. Not measured: two
+live trials when it was added (the old plan, with its trails removed; and a plan with no guard)
+are one run each, not a rate. Judge it by whether DIFF rounds on guards a plan proposed become rarer.

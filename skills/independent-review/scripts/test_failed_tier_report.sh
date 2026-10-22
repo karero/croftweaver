@@ -691,6 +691,35 @@ printf '  \n\n' >"$T/blank.md"
 run verifyblank bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/blank.md"
 check "verify with an empty record: exit 2" has verifyblank.err "the prior-findings file is empty"
 
+# 25b. --plan: the paragraph on the guards a plan proposes (PROMPT_PLAN, 2026-10-22) reaches every
+#      tier for a plan (Codex the tooled prompt, ollama the text-only one, agy its own, the paste
+#      fallback the portable one), and in a verification round it comes before the round's scope
+#      and is limited to the sections that changed. A diff gets none of it in any tier: the
+#      diff runs are the ones the cases above made (agy in case 23, the paste fallback in case 5).
+GUARDS="GUARDS THE PLAN PROPOSES."
+run planguards bash "$SCRIPT" "$T/plan.md"
+check "plan guards: exit 0" rc_is planguards 0
+for tier in codex ollama; do
+  check "plan guards: $tier gets the paragraph" grep -qF -- "$GUARDS" "$T/planguards.marks/$tier-prompt"
+done
+check "plan guards: no verification sentence outside a verification round" \
+  not_in "$T/planguards.marks/codex-prompt" "In this verification round, ask it only"
+run planguardsagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/plan.md"
+check "plan guards: agy gets the paragraph" grep -qF -- "$GUARDS" "$T/planguardsagy.marks/agy-prompt"
+run planguardsnone CODEX_STUB=auth OLLAMA_STUB=429 bash "$SCRIPT" "$T/plan.md"
+check "plan guards: nothing counted, exit 4" rc_is planguardsnone 4
+check "plan guards: the paste prompt has the paragraph" has planguardsnone.out "$GUARDS"
+run planguardsv bash "$SCRIPT" "$T/plan.md" --verify "$T/prior.md"
+for tier in codex ollama; do
+  check "plan guards, verify: $tier's paragraph is limited to the changed sections" \
+    grep -qF -- "In this verification round, ask it only of guards in the sections that changed." "$T/planguardsv.marks/$tier-prompt"
+  check "plan guards, verify: $tier's paragraph comes before the round's scope" \
+    sh -c 'g=$(grep -nF -- "$2" "$1" | cut -d: -f1); v=$(grep -nF -- "VERIFICATION ROUND." "$1" | cut -d: -f1); [ -n "$g" ] && [ -n "$v" ] && [ "$g" -lt "$v" ]' _ "$T/planguardsv.marks/$tier-prompt" "$GUARDS"
+done
+for f in verify.marks/codex-prompt verify.marks/ollama-prompt noverify.marks/codex-prompt noverify.marks/ollama-prompt agy.marks/agy-prompt none.out; do
+  check "diff: no guards paragraph in $f" not_in "$T/$f" "GUARDS THE PLAN"
+done
+
 # 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
 #     CODEX_EFFORT says otherwise; "config" keeps config.toml's; an explicit value applies to any
 #     round and lands after the model override, before the prompt.

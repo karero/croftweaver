@@ -389,7 +389,9 @@ pass (tier 3) is the one that uses this block.
 The script then adds one paragraph saying what the reviewer can do: open files
 (`PROMPT_TOOLED`), no tools (`PROMPT_TEXTONLY`), has tools but must not use them (`PROMPT_AGY`;
 see `run_agy`), or unknown (`PROMPT_PORTABLE`). Give the fresh-eyes pass the matching
-paragraph; a read-only sub-agent that can open files gets `PROMPT_TOOLED`'s.
+paragraph; a read-only sub-agent that can open files gets `PROMPT_TOOLED`'s. At a PLAN gate
+the script also adds `PROMPT_PLAN`, on the guards a plan proposes (with `--verify`, only those in
+the sections that changed); give the fresh-eyes pass that paragraph too.
 
 ## Boundaries
 
