@@ -579,8 +579,8 @@ installer's copy of it (`packages/create-croftweaver/LICENSE`) while that copy i
 file byte for byte. A genuine false positive is fixed by tightening a pattern in the
 script — never by loosening it. The same `make check` (and the same CI workflow) also keeps
 `independent-review` free of the model names and tags the pattern in
-`scripts/check_model_agnostic.sh` knows, outside its setup guide and its list of the models
-the Melious seat may run, and holds every skill to its size budgets
+`scripts/check_model_agnostic.sh` knows, outside its setup guide, its list of the models
+the Melious seat may run and its list of measured seat limits, and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 
 ### Merging stacked PRs

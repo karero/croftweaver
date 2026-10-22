@@ -57,6 +57,9 @@ for a; do
   case "$a" in *'--- BEGIN '*) printf '%s\n' "$a" >"$STUB_MARKS/codex-prompt"; a='<prompt>' ;; esac
   argv="$argv[$a]"
 done
+# The script sends its prompt on stdin, the last argument "-": keep it as the prompt the cases read.
+last=; for a; do last="$a"; done
+if [ "$last" = - ]; then cat >"$STUB_MARKS/codex-prompt"; : >"$STUB_MARKS/codex-stdin"; fi
 printf 'argv=%s cwd=%s git=%s\n' "$argv" "$(pwd -P)" \
   "$(git rev-parse --is-inside-work-tree 2>/dev/null || echo no)" >"$STUB_MARKS/codex-args"
 if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -122,7 +125,8 @@ case "$1" in
         if [ "$1" = --hidethinking ]; then : >"$STUB_MARKS/ollama-hidethinking"; shift; fi
         : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$1" >"$STUB_MARKS/ollama-model"
         [ -n "${OLLAMA_API_KEY:-}" ] && printf '%s\n' "$OLLAMA_API_KEY" >"$STUB_MARKS/ollama-cli-key"
-        printf '%s\n' "$2" >"$STUB_MARKS/ollama-prompt" ;;
+        if [ $# -ge 2 ]; then printf '%s\n' "$2" >"$STUB_MARKS/ollama-prompt"   # a prompt on argv
+        else cat >"$STUB_MARKS/ollama-prompt"; : >"$STUB_MARKS/ollama-stdin"; fi ;;   # on stdin
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
@@ -287,6 +291,8 @@ case "$url" in
               # line, so both must collapse or the text after them reaches column 0
               printf 'upstream\rError: bad gateway\033[1Gfailed' >"$out"; printf 502 ;;
       notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
+      ctx400) # a prompt past the model's window, refused in the shape of Melious's reply (probe P2, 2026-10-22; wording shortened)
+              printf '%s\n' '{"error":{"message":"This conversation (1,152,340 tokens) exceeds the context window (1,000,000 tokens).","type":"invalid_request_error","param":null,"code":"context_length_exceeded"}}' >"$out"; printf 400 ;;
       html)   printf '%s\n' '<html><body>Sign in to continue</body></html>' >"$out"; printf 200 ;;   # a proxy's page
       keepalive) printf ': PROCESSING\n\n: PROCESSING\n\n' >"$out"; printf 200 ;;   # comments only, then closed
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
@@ -547,7 +553,7 @@ for m in "" stub-override; do
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
   # git=no is what git said from inside the stub itself, so the case cannot pass from
   # inside a repo (round 4, fresh-eyes).
-  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT git=no"
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]${m:+[-c][model=\"$m\"]}[-] cwd=$NOGIT git=no"
   check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
@@ -692,17 +698,17 @@ base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][
 argv_of() { sed -e 's/^argv=//' -e 's/ cwd=.*$//' "$T/$1.marks/codex-args"; }
 run effverify bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "effort: a verify round asks for medium" \
-  [ "$(argv_of effverify)" = "$base[-c][model_reasoning_effort=\"medium\"][<prompt>]" ]
+  [ "$(argv_of effverify)" = "$base[-c][model_reasoning_effort=\"medium\"][-]" ]
 check "effort: the codex header names it" has effverify.out "## Independent review — codex (stub-codex, effort medium, read-only)"
 run effconfig CODEX_EFFORT=config bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "effort: CODEX_EFFORT=config keeps config.toml's, even on a verify round" \
-  [ "$(argv_of effconfig)" = "$base[<prompt>]" ]
+  [ "$(argv_of effconfig)" = "$base[-]" ]
 run efffull bash "$SCRIPT" "$T/change.diff" --base none
-check "effort: a full round leaves config.toml's alone" [ "$(argv_of efffull)" = "$base[<prompt>]" ]
+check "effort: a full round leaves config.toml's alone" [ "$(argv_of efffull)" = "$base[-]" ]
 check "effort: ...and its header says nothing about effort" has efffull.out "## Independent review — codex (stub-codex, read-only)"
 run effboth CODEX_EFFORT=xhigh CODEX_MODEL=stub-strong bash "$SCRIPT" "$T/change.diff" --base none
 check "effort: explicit effort after the model override" \
-  [ "$(argv_of effboth)" = "$base[-c][model=\"stub-strong\"][-c][model_reasoning_effort=\"xhigh\"][<prompt>]" ]
+  [ "$(argv_of effboth)" = "$base[-c][model=\"stub-strong\"][-c][model_reasoning_effort=\"xhigh\"][-]" ]
 run effbad CODEX_EFFORT='high"' bash "$SCRIPT" "$T/change.diff" --base none
 check "effort: an unknown value exits 2 before any reviewer runs" \
   sh -c '[ "$(cat "$1/effbad.rc")" = 2 ] && [ ! -e "$1/effbad.marks/codex-ran" ]' _ "$T"
@@ -1508,6 +1514,200 @@ check "round 9: the cost log's outcome column is as at round 8, and says OK" \
   sh -c 'a="$(awk -F"\t" "NR>1{print \$13}" "$1/round9.tsv")"; [ -n "$a" ] && [ "$a" = "$(awk -F"\t" "NR>1{print \$13}" "$1/round8.tsv")" ] && ! printf "%s" "$a" | grep -qv OK' _ "$T"
 check "round 12: a two-digit round gets the notice" has round12.out "⚠ Round 12 is past round 8"
 check "no --round: no notice (a limit; SKILL.md step 6 still applies)" lacks noround.out "is past round 8"
+
+# 38. (2026-10-22) Seat limits: change 2 of docs/reviews/SKILL-PLAN-review-input-base-and-size.md
+#     (its tests T9 to T13). Codex and the ollama CLI get the prompt on stdin, so the old 117 KB
+#     refusal of the whole run is gone; each seat takes what seat_limits.txt, beside the script,
+#     says it was measured to take, and a seat over its limit FAILS before it sends anything while
+#     the others run. Each case runs a copy of the scripts with a list of its own, as 32e does.
+limitcase() {   # limitcase <name> <list text, or "-" for none> <artifact> [VAR=value ...] -- <flags>
+  local name="$1" text="$2" art="$3"; shift 3
+  local envs=()
+  while [ "$1" != -- ]; do envs+=("$1"); shift; done; shift
+  mkdir -p "$T/$name.scripts"
+  (cd "$HERE" && tar cf - --exclude seat_limits.txt .) | (cd "$T/$name.scripts" && tar xf -)
+  [ "$text" = - ] || printf '%s' "$text" >"$T/$name.scripts/seat_limits.txt"
+  run "$name" ${envs[@]+"${envs[@]}"} bash "$T/$name.scripts/independent_review.sh" "$art" --base none "$@"
+}
+bigdiff() {   # bigdiff <bytes> <file>: a hand-made diff of about that size, its first and last lines marked
+  perl -e 'my ($n) = @ARGV; print "diff --git a/x b/x\n+FIRST LINE OF THE BIG DIFF\n"; my $s = 50;
+    while ($s < $n) { my $l = "+" . ("one more line of a large change " x 3) . "\n"; print $l; $s += length $l }
+    print "+LAST LINE OF THE BIG DIFF\n"' "$1" >"$2"
+}
+whole() {   # whole <artifact> <file holding what a seat received>: the artifact arrived whole in it
+  perl -0777 -e 'open my $a, "<", $ARGV[0] or die; open my $b, "<", $ARGV[1] or die; my ($x, $y) = (<$a>, <$b>);
+    $x =~ s/\n+\z//; exit(index($y, $x) >= 0 ? 0 : 1)' "$1" "$2"
+}
+bigdiff 400000 "$T/big400.diff"; bigdiff 200000 "$T/big200.diff"
+check "seat limits: the big artifacts are over the old 120,000 bytes" \
+  sh -c '[ "$(wc -c <"$1")" -gt 390000 ] && [ "$(wc -c <"$2")" -gt 190000 ]' _ "$T/big400.diff" "$T/big200.diff"
+REF=" 2026-10-22 test"
+# T9: Codex reads a 400 KB prompt from stdin, the last argument "-", whole; none of its arguments holds it.
+limitcase t9 "codex stub-codex refuses$REF
+" "$T/big400.diff" -- --seat codex
+check "T9: a 400 KB artifact runs (exit 0)" rc_is t9 0
+check "T9: codex's last argument is -, and no argument carries the prompt" \
+  sh -c 'grep -q "\[-\] cwd=" "$1" && ! grep -qF "<prompt>" "$1"' _ "$T/t9.marks/codex-args"
+check "T9: the prompt came on stdin, the artifact in it whole" whole "$T/big400.diff" "$T/t9.marks/codex-prompt"
+check "T9: ... the very bytes the script wrote, no more and no fewer" cmp -s "$T/t9.raw/codex.prompt" "$T/t9.marks/codex-prompt"
+# T10: every seat off argv, each listed "refuses", gets the 400 KB artifact whole.
+limitcase t10a "codex stub-codex refuses$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big400.diff" --
+check "T10: codex and the ollama CLI both ran on 400 KB" has t10a.out "reviewers: codex OK, ollama-cloud OK"
+check "T10: the ollama CLI got the prompt on stdin" [ -e "$T/t10a.marks/ollama-stdin" ]
+check "T10: ... the artifact in it whole" whole "$T/big400.diff" "$T/t10a.marks/ollama-prompt"
+check "T10: ... the very bytes the script wrote" cmp -s "$T/t10a.raw/ollama.prompt" "$T/t10a.marks/ollama-prompt"
+limitcase t10b "codex stub-codex refuses$REF
+melious $MELIOUS_OK refuses$REF
+" "$T/big400.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T10: Melious ran on 400 KB" has t10b.out "reviewers: codex OK, melious OK"
+check "T10: Melious's request carries the artifact whole" \
+  sh -c 'perl -MJSON::PP -0777 -ne "binmode STDOUT, q(:encoding(UTF-8)); print decode_json(\$_)->{messages}[0]{content}" "$1" >"$1.txt" && perl -0777 -e "open my \$a, q(<), \$ARGV[0]; open my \$b, q(<), \$ARGV[1]; my (\$x, \$y) = (<\$a>, <\$b>); \$x =~ s/\n+\z//; exit(index(\$y, \$x) >= 0 ? 0 : 1)" "$2" "$1.txt"' _ "$T/t10b.marks/melious-body" "$T/big400.diff"
+limitcase t10c "codex stub-codex refuses$REF
+ollama-api $STUB_TAG refuses$REF
+" "$T/big400.diff" PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" --
+check "T10: the ollama API transport ran on 400 KB" has t10c.out "ollama-cloud OK"
+# T11: caps. agy (argv), a model with no line, and a seat listed takes:<bytes>, each over its limit
+# with 200 KB, FAIL before sending; a seat listed "refuses" beside them runs.
+limitcase t11a "ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" -- --seat agy
+check "T11: agy FAILS before sending" has t11a.out "antigravity FAILED (artifact and prior findings of"
+check "T11: ... its stub never ran" [ ! -e "$T/t11a.marks/agy-prompt" ]
+limitcase t11b "codex stub-codex refuses$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" CODEX_MODEL=stub-strong --
+check "T11: codex with an unlisted model FAILS before sending" has t11b.out "codex FAILED (artifact and prior findings of"
+check "T11: ... codex never ran, and the listed ollama seat did" \
+  sh -c '[ ! -e "$1/codex-ran" ] && [ -e "$1/ollama-ran" ]' _ "$T/t11b.marks"
+limitcase t11c "codex stub-codex takes:150000$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" --
+check "T11: a seat over the bytes it took whole FAILS, naming them" has t11c.out "codex FAILED (a prompt of"
+check "T11: ... over the 150000 this seat took whole" has t11c.out "over the 150000 this seat took whole"
+check "T11: ... codex never ran; ollama did" sh -c '[ ! -e "$1/codex-ran" ] && [ -e "$1/ollama-ran" ]' _ "$T/t11c.marks"
+limitcase t11d "codex stub-codex takes:500000$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" --
+check "T11: under its takes: limit the seat runs" has t11d.out "reviewers: codex OK, ollama-cloud OK"
+check "T11: a size FAILED names its remedy" has t11b.out "Split the artifact, or measure this seat's model"
+check "T11: ... and says the seat never started" has t11b.out "The seat never started"
+# Every seat_fits call can fail a test: the ollama API transport and Melious with no line for
+# their model FAIL before sending, and their request never leaves.
+limitcase t11e "codex stub-codex refuses$REF
+" "$T/big200.diff" PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" --
+check "T11: the ollama API transport with no line FAILS before sending" has t11e.out "ollama-cloud FAILED (artifact and prior findings of"
+check "T11: ... curl never ran for it" [ ! -e "$T/t11e.marks/curl-body" ]
+limitcase t11f "codex stub-codex refuses$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: Melious with no line FAILS before sending" has t11f.out "melious FAILED (artifact and prior findings of"
+check "T11: ... its request never left, and ollama stood in" sh -c '[ ! -e "$1/melious-body" ] && grep -qF "ollama-cloud OK" "$2"' _ "$T/t11f.marks" "$T/t11f.out"
+# Melious's limit is held against all it sends, its output-format line included: at a takes: limit
+# one byte short of that it FAILS, at the exact size it runs.
+limitcase t11g0 "codex stub-codex refuses$REF
+melious $MELIOUS_OK refuses$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+S="$(wc -c <"$T/t11g0.raw/melious.prompt" | tr -d ' ')"
+check "T11: the Melious prompt file is all it sends (its request carries it)" \
+  sh -c 'perl -MJSON::PP -0777 -ne "binmode STDOUT, q(:encoding(UTF-8)); print decode_json(\$_)->{messages}[0]{content}" "$1" | cmp -s - "$2"' _ "$T/t11g0.marks/melious-body" "$T/t11g0.raw/melious.prompt"
+limitcase t11g1 "codex stub-codex refuses$REF
+melious $MELIOUS_OK takes:$((S - 1))$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: one byte under what Melious sends: FAILED" has t11g1.out "melious FAILED (a prompt of $S bytes, over the $((S - 1)) this seat took whole"
+limitcase t11g2 "codex stub-codex refuses$REF
+melious $MELIOUS_OK takes:$S$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: exactly what Melious sends: it runs" has t11g2.out "reviewers: codex OK, melious OK"
+check "T11: ... and all three runs wrote the same $S bytes" \
+  sh -c '[ "$(wc -c <"$1" | tr -d " ")" = "$3" ] && [ "$(wc -c <"$2" | tr -d " ")" = "$3" ]' _ "$T/t11g1.raw/melious.prompt" "$T/t11g2.raw/melious.prompt" "$S"
+# A request builder replaces a byte that is not valid UTF-8 with a 3-byte U+FFFD, so such a prompt
+# counts three bytes for each of its own against a takes: limit. perl/utf8_valid.pl decides, with
+# the builders' own decoder: each shape below is one a looser check (iconv on macOS) let through.
+for v in 'Latin-1:caf\351' 'above U+10FFFF:\364\220\200\200' 'five bytes:\370\210\200\200\200' \
+         'a surrogate:\355\240\200' 'overlong:\300\257'; do
+  printf "x ${v#*:} y\n" >"$T/u8bad"
+  check "utf8_valid: ${v%%:*} is not valid" sh -c '! perl "$1" "$2"' _ "$HERE/perl/utf8_valid.pl" "$T/u8bad"
+done
+printf 'caf\303\251, \342\202\254 and ASCII\n' >"$T/u8good"; : >"$T/u8empty"
+check "utf8_valid: UTF-8 and empty files are valid" sh -c 'perl "$1" "$2" && perl "$1" "$3"' _ "$HERE/perl/utf8_valid.pl" "$T/u8good" "$T/u8empty"
+check "utf8_valid: a file it cannot read (a folder) is not" sh -c '! perl "$1" "$2"' _ "$HERE/perl/utf8_valid.pl" "$T"
+{ printf 'diff --git a/x b/x\n+caf\351 in Latin-1\n'; cat "$T/big200.diff"; } >"$T/latin1.diff"
+{ printf 'diff --git a/x b/x\n+caf\303\251 in UTF-8\n'; cat "$T/big200.diff"; } >"$T/utf8.diff"
+limitcase t11k "codex stub-codex takes:500000$REF
+" "$T/latin1.diff" -- --seat codex
+check "T11: Latin-1, 200 KB, under codex's 500000: three times it is over, FAILED" has t11k.out "codex FAILED (a prompt of"
+check "T11: ... saying the prompt is not valid UTF-8" has t11k.out "is not valid UTF-8"
+check "T11: ... and codex never ran" [ ! -e "$T/t11k.marks/codex-ran" ]
+limitcase t11l "codex stub-codex refuses$REF
+melious $MELIOUS_OK takes:500000$REF
+" "$T/latin1.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: the same for Melious: FAILED, its request never left" \
+  sh -c 'grep -qF "melious FAILED (a prompt of" "$1" && [ ! -e "$2/melious-body" ]' _ "$T/t11l.out" "$T/t11l.marks"
+limitcase t11m "codex stub-codex takes:500000$REF
+" "$T/utf8.diff" -- --seat codex
+check "T11: valid UTF-8 under the same limit runs" rc_is t11m 0
+limitcase t11n "codex stub-codex takes:700000$REF
+" "$T/latin1.diff" -- --seat codex
+check "T11: Latin-1 runs where three times it fits" rc_is t11n 0
+# Under 120,000 bytes the no-line limit is no way round a smaller takes: limit.
+bigdiff 100000 "$T/big100.diff"
+{ printf 'diff --git a/x b/x\n+caf\351 in Latin-1\n'; cat "$T/big100.diff"; } >"$T/latin1-100.diff"
+limitcase t11o "codex stub-codex takes:90000$REF
+" "$T/latin1-100.diff" -- --seat codex
+check "T11: Latin-1, 100 KB, over a takes:90000 line: FAILED, though under 120,000" has t11o.out "codex FAILED (a prompt of"
+# With no perl nothing can say the prompt is valid UTF-8, so even one that is counts three times
+# (section 36's PATH of every tool but perl, codex's stub ahead of it).
+limitcase t11p "codex stub-codex takes:500000$REF
+" "$T/utf8.diff" PATH="$T/bin3:$T/noperl" -- --seat codex
+check "T11: no perl: valid UTF-8 that runs at its bytes (T11m) FAILS at three times them" has t11p.out "codex FAILED (a prompt of"
+check "T11: ... saying why" has t11p.out "is not valid UTF-8 (or perl is missing)"
+# The codex model is read from config.toml strictly: a commented, single-quoted line still reads,
+# and a top-level profile key, which can pick another model, leaves it unknown (120,000 bytes).
+mkdir -p "$T/u3/.codex" "$T/u4/.codex" && : >"$T/u3/.codex/auth.json" && : >"$T/u4/.codex/auth.json"
+printf "  model = 'stub-codex'   # the daily driver\n[profiles.deep]\nmodel = \"other\"\n" >"$T/u3/.codex/config.toml"
+printf 'profile = "deep"\nmodel = "stub-codex"\n[profiles.deep]\nmodel = "other"\n' >"$T/u4/.codex/config.toml"
+limitcase t11h "codex stub-codex refuses$REF
+" "$T/big200.diff" HOME="$T/u3" -- --seat codex
+check "T11: a commented, single-quoted model line reads (its listed limit applies)" rc_is t11h 0
+limitcase t11i "codex stub-codex refuses$REF
+" "$T/big200.diff" HOME="$T/u4" -- --seat codex
+check "T11: a top-level profile key leaves the model unknown: 120,000 bytes" has t11i.out "codex FAILED (artifact and prior findings of"
+mkdir -p "$T/u5/.codex" && : >"$T/u5/.codex/auth.json"
+printf '"profile" = "deep"\nmodel = "stub-codex"\n[profiles.deep]\nmodel = "other"\n' >"$T/u5/.codex/config.toml"
+limitcase t11j "codex stub-codex refuses$REF
+" "$T/big200.diff" HOME="$T/u5" -- --seat codex
+check "T11: so does a quoted key (\"profile\" is the same key)" has t11j.out "codex FAILED (artifact and prior findings of"
+# T12: a seat listed "refuses" whose provider refuses for length FAILS, quoting the provider.
+limitcase t12 "codex stub-codex refuses$REF
+melious $MELIOUS_OK refuses$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=ctx400 --
+check "T12: Melious FAILS on the length refusal" has t12.out "melious FAILED (HTTP 400"
+check "T12: ... quoting the provider's words" has t12.out "exceeds the context window"
+check "T12: ... and ollama stands in, as for any failed Melious seat" has t12.out "ollama-cloud OK"
+# T13: a list this script cannot read, or none, leaves every seat at 120,000 bytes.
+limitcase t13 "codex stub-codex refuses-ish$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" --
+check "T13: a malformed list: every seat FAILS before sending (exit 4)" rc_is t13 4
+check "T13: ... no stub ran" sh -c '[ ! -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/t13.marks"
+check "T13: ... and the run says why" has t13.err "holds a line it cannot read"
+check "T13: ... and does not print the whole prompt to paste" sh -c 'grep -qF "The paste prompt is not printed" "$1" && ! grep -qF -- "--- BEGIN diff ---" "$1"' _ "$T/t13.out"
+limitcase t13b - "$T/big200.diff" --
+check "T13: no list at all: every seat FAILS before sending (exit 4)" rc_is t13b 4
+limitcase t13c "codex stub-codex takes:12x$REF
+" "$T/big200.diff" --
+check "T13: a byte count the script cannot read leaves every seat at the limit" has t13c.err "a byte count it cannot read"
+# agy has no line, so seat_fits never holds a takes: line against its empty prompt argument: a line
+# for agy is one the script cannot read, and voids the list.
+limitcase t13d "agy any takes:999999$REF
+codex stub-codex refuses$REF
+" "$T/big200.diff" -- --seat codex
+check "T13: a line for agy voids the list" has t13d.err "holds a line it cannot read (\"agy any takes:999999\")"
+check "T13: ... so codex keeps 120,000 bytes, though listed" has t13d.out "codex FAILED (artifact and prior findings of"
+check "T13: the real list beside the script reads cleanly" not_in "$T/noround.err" "seat_limits.txt holds"
+check "T13: its Melious line names the id melious_models.txt allows" grep -q "^melious $MELIOUS_OK refuses " "$HERE/seat_limits.txt"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
