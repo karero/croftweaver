@@ -2,7 +2,7 @@
 
 A second pull request, after the one for the Astro 7.4.2 bump (#377, planned stacked on it, merged before this was built, so the branch starts from `main`). It
 closes the three items that review waived for that PR. Written 2026-10-22, before any of it is built;
-this is the fifth version, after four rounds of its own review: round 1 (33 findings from three reviewers, merged into 19 rows and answered in the second version), round 2 (2 BUG, 6 RISK, 5 NIT; answered in the third), round 3 (3 BUG, 4 RISK, 3 NIT; answered in the fourth) and round 4 (2 BUG, 1 RISK, 4 NIT; answered here).
+this is the seventh version, after five rounds of its own review and a closing full read: round 1 (33 findings from three reviewers, merged into 19 rows and answered in the second version), round 2 (2 BUG, 6 RISK, 5 NIT; answered in the third), round 3 (3 BUG, 4 RISK, 3 NIT; answered in the fourth), round 4 (2 BUG, 1 RISK, 4 NIT; answered in the fifth), round 5 (2 BUG-labelled wording errors, rated not substantive, 1 RISK, 4 NIT; answered in the sixth) and the closing full read by another model (0 BUG, 3 RISK, 2 NIT; answered here).
 
 ## Why
 
