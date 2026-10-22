@@ -264,7 +264,7 @@ Codex's effort for any run.
    in-scope RISK whose fix changed what runs or what someone acts on (the test above).
 
    **Stop conditions.** (a) Clean — done. **(a2) A round with no BUG and no in-scope RISK that
-   calls for a fix is clean** (refuted findings, waived RISKs, deferred BUGs and follow-ups call
+   calls for a fix changing what runs or what someone acts on is clean** (refuted findings, waived RISKs, deferred BUGs and follow-ups call
    for none): stop; fix or refute its NITs without another round,
    recording fixed NITs as `locally_verified`, "closing edits not externally re-verified". Judge by
    the BUG/RISK series, not the NIT column. (b) The round budget, below. (c) Budget or credits run
@@ -289,9 +289,10 @@ Codex's effort for any run.
    cannot, it warns. The owner sees the kinds and cuts in the script's running-total line. A RISK
    whose fix leaves the meaning unchanged is wording: fix it like a NIT under (a2). Past round 3, a
    round with neither a substantive BUG nor an earning RISK ends the rounds: fix or refute its NITs without
-   another round ((a2)), and the remaining wording goes to the wording pass. Aim to finish by
-   round 5. **Don't ask the owner whether to run the next round** (the owner's rule, 2026-10-22);
-   ask only for what the owner alone gives: a RISK waiver (for a RISK the host would leave unfixed
+   another round ((a2)), and the remaining wording goes to the wording pass or, where no round had
+   a substantive BUG, to the prose-only re-gate (step 2). Aim to finish by round 5. **Don't ask the
+   owner whether to run the next round** (the owner's rule, 2026-10-22); when a round ends, ask
+   only for what the owner alone gives: a RISK or NIT waiver (for one the host would leave unfixed
    and cannot refute), a BUG deferral (step 5), a change of scope, and past round 8 the decision below.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
@@ -340,7 +341,8 @@ Codex's effort for any run.
    any follow-ups.
    The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. The update is a
-   report, not a question: an owed or earned round runs without waiting for an answer. Once the pair and
+   report, not a question: up to round 8, an owed or earned round runs without waiting for an
+   answer; past round 8, 6(b) decides. Once the pair and
    fresh-eyes have reported, offer — don't run — a `--with-antigravity` round or a stronger
    same-family pass.
 9. **Close out** — read `references/closeout.md`, permission table first, and do both halves:

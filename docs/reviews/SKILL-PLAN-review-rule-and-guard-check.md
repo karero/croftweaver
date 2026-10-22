@@ -129,7 +129,7 @@ can deliver what the plan credits it with.
   > none, would do, that is a NIT naming it. List the guards you looked at on your CLEAN line. If the
   > plan adds no guard, write nothing about guards.
 
-  With `--verify` it adds: "In this verification round, ask it only of guards in the sections that
+  With `--verify` it adds: "In this verification round, ask these questions only of guards in the sections that
   changed." The scope paragraph then follows it.
 - SKILL.md, "The strict review prompt", last paragraph: at a PLAN gate the script adds `PROMPT_PLAN`;
   the fresh-eyes pass gets it too.

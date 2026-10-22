@@ -697,13 +697,14 @@ check "verify with an empty record: exit 2" has verifyblank.err "the prior-findi
 #      and is limited to the sections that changed. A diff gets none of it in any tier: the
 #      diff runs are the ones the cases above made (agy in case 23, the paste fallback in case 5).
 GUARDS="GUARDS THE PLAN PROPOSES."
+GUARDS_VERIFY="In this verification round, ask these questions only of guards in the sections that changed."
 run planguards bash "$SCRIPT" "$T/plan.md"
 check "plan guards: exit 0" rc_is planguards 0
 for tier in codex ollama; do
   check "plan guards: $tier gets the paragraph" grep -qF -- "$GUARDS" "$T/planguards.marks/$tier-prompt"
 done
 check "plan guards: no verification sentence outside a verification round" \
-  not_in "$T/planguards.marks/codex-prompt" "In this verification round, ask it only"
+  not_in "$T/planguards.marks/codex-prompt" "$GUARDS_VERIFY"
 run planguardsagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/plan.md"
 check "plan guards: agy gets the paragraph" grep -qF -- "$GUARDS" "$T/planguardsagy.marks/agy-prompt"
 run planguardsnone CODEX_STUB=auth OLLAMA_STUB=429 bash "$SCRIPT" "$T/plan.md"
@@ -712,12 +713,12 @@ check "plan guards: the paste prompt has the paragraph" has planguardsnone.out "
 run planguardsv bash "$SCRIPT" "$T/plan.md" --verify "$T/prior.md"
 for tier in codex ollama; do
   check "plan guards, verify: $tier's paragraph is limited to the changed sections" \
-    grep -qF -- "In this verification round, ask it only of guards in the sections that changed." "$T/planguardsv.marks/$tier-prompt"
+    grep -qF -- "$GUARDS_VERIFY" "$T/planguardsv.marks/$tier-prompt"
   check "plan guards, verify: $tier's paragraph comes before the round's scope" \
     sh -c 'g=$(grep -nF -- "$2" "$1" | cut -d: -f1); v=$(grep -nF -- "VERIFICATION ROUND." "$1" | cut -d: -f1); [ -n "$g" ] && [ -n "$v" ] && [ "$g" -lt "$v" ]' _ "$T/planguardsv.marks/$tier-prompt" "$GUARDS"
 done
 for f in verify.marks/codex-prompt verify.marks/ollama-prompt noverify.marks/codex-prompt noverify.marks/ollama-prompt agy.marks/agy-prompt none.out; do
-  check "diff: no guards paragraph in $f" not_in "$T/$f" "GUARDS THE PLAN"
+  check "diff: no guards paragraph in $f" not_in "$T/$f" "$GUARDS"
 done
 
 # 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless

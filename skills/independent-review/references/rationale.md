@@ -581,10 +581,10 @@ the gate since its last cut, unless the round names a cut; where it cannot, it w
 and the rule is the host's to keep. Everything else is the host's judgment, shown to the owner but
 not enforced: whether a RISK is in scope, whether its fix changed what runs or what someone acts
 on, and how a kind is named. A verification round sees only the fixes, and an out-of-scope RISK is
-a follow-up. Past round 8 the owner decides. The script needed no change: it never sees a
+a follow-up. Past round 8 the owner decides. The round checks needed no change: they never read a
 severity, and `test_round_checks.sh` already pins what such a round meets. What this gives up: the
-owner no longer sees a late round's RISKs before the next round runs, only in the round's update
-(step 8). Not measured: whether RISK-earned rounds cost less than the owner's questions did. Judge
+owner still gets each round's update (step 8), but no longer decides a late round's RISKs before
+the next round runs. Not measured: whether RISK-earned rounds cost less than the owner's questions did. Judge
 it by rounds and tokens per gate in the cost log, and by how often a gate passes round 5.
 
 ## Guards a plan proposes — why the plan prompt asks about them
@@ -606,8 +606,8 @@ Hence `PROMPT_PLAN`, sent at a PLAN gate only: for each guard a plan adds to cat
 mistake, what it can catch and what gets past it, whether it would fail if the behaviour broke, and
 whether a cheaper check, or none, would do. A guard credited with more than it can catch is a
 RISK whose fix is to the claim (narrow it, test the behaviour where it is used, or drop the guard),
-not one more banned form: the cut of step 6, asked before anything is built. A plan with no guard
-gets no entry. Not in `PROMPT_CORE`, which both gates share and which already calls "a guard that
+not one more banned form: the cut of step 6, asked before anything is built. For a plan with no guard
+the prompt asks for no entry. Not in `PROMPT_CORE`, which both gates share and which already calls "a guard that
 cannot fire" a RISK; not a host precondition, since the host wrote the plan. Two live trials ran
 once each on 2026-10-22. On the old plan, with its trails removed, Codex raised one finding: a
 RISK that the tripwire cannot establish what the plan claimed, naming a spelling that gets past

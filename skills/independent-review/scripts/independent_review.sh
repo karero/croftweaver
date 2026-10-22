@@ -845,7 +845,7 @@ and fix the claim, not the list: narrow the claim to what the guard catches, tes
 where it is used, or drop the guard. Banning one more form is a patch, not a fix. Where the plan's
 claim for a guard is accurate but a cheaper check, or none, would do, that is a NIT naming it. List
 the guards you looked at on your CLEAN line. If the plan adds no guard, write nothing about guards.${PRIOR:+
-In this verification round, ask it only of guards in the sections that changed.}
+In this verification round, ask these questions only of guards in the sections that changed.}
 "
 fi
 
