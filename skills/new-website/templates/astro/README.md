@@ -43,7 +43,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 1. **Git first** (see SETUP.md): `mkdir <site> && cd <site> && git init`, copy the
    `templates/.gitignore`, commit.
 2. `npm create astro@latest .` → Empty, TypeScript **Strict**. Requires **Node ≥22.23.4**
-   (Astro's own floor); keep Node at or above its October 2026 security fixes (22.23.4, 24.22.1,
+   (the floor of the Astro this starter ships); keep Node at or above its October 2026 security fixes (22.23.4, 24.22.1,
    26.12.1, by line); the committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
 3. Copy this overlay over the scaffold (the files above) + `tests/`, then:
    ```bash
