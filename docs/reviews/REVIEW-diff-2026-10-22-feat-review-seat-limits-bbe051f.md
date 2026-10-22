@@ -10,6 +10,7 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 | 4 | `56b6331b` | delta since `8df772b0` (12 KB), `--verify` with round 3's rows; `--base 8df772b0`; earned by C3-01 and C3-02 (`--earned-by utf8-byte-count`, `--cut "dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte"`) | as round 2 | codex 214 s, 38,804 · melious 246 s, 21,992 | raw 2/1/3 (codex 1/0/1, melious 1/1/2); no duplicates: 2/1/3 |
 | 5 | `106562ca` | delta since `56b6331b` (7 KB), `--verify` with round 4's rows; `--base 56b6331b`; earned by C4-01 and C4-03 (`--earned-by utf8-valid-read-error,seat-fits-empty-file`) | as round 2 | codex 176 s, 37,863 · melious 333 s, 22,288 | raw 0/2/2 (codex 0/1/0, melious 0/1/2); no duplicates: 0/2/2 |
 | wording pass (not a round) | `846dfb58` | delta since `56b6331b` (`--base 56b6331b`, 39 KB): round 4's and 5's closing edits and the record, prose scope with the code hunks round 5 had not seen named | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only | codex 183 s, 58,051 | no contradiction; 1 RISK, C5-01 again (follow-up) |
+| merge link (not a round) | `4ba8de94` | `merge_link.sh 9acc3b97 846dfb58 810a9e07 -- skills/independent-review/scripts/perl/diff_headers.pl` (14 KB, `--base 846dfb58`): `main` (#374) merged in | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only | codex 89 s, 61,229 | no findings |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -59,8 +60,9 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 Waivers and deferrals: C1-03 by the owner's decision 3 (2026-10-22), C1-04's second half and C1-05 by R4-02 (2026-10-21); both in the plan's "Decided by the maintainer". No deferrals.
 Follow-ups: Codex refuses a prompt that is not valid UTF-8, on argv before this change and on stdin after it (C4-04's probe), so a diff that holds a Latin-1 file FAILS its Codex seat, loud. Making the prompt valid UTF-8 before any seat gets it would fix that and give every seat the same text; it changes what reviewers see, so it is not this change's. The wording pass raised C5-01 again, with no new evidence: the three-times bound for the CLIs rests on the bad-byte probe quoted under "Probe evidence", not on a test the suite can run. No line in `seat_limits.txt` depends on it today: the one `takes:` line is Codex's, and Codex refuses such a prompt before sending anything. A `takes:` line for the ollama CLI would; probe that CLI again before adding one.
 
-Cost: 5 rounds and a wording pass; 50 findings raw, 42 after dedup (BUG 8, RISK 13, NIT 21): 31 fixed, 8 refuted (C1-19, C2-03, C2-05, C2-07, C3-04, C3-05, C4-02, C4-04), 3 waived by the owner (C1-03, C1-04 in part, C1-05). 763,236 tokens logged (fresh-eyes 275,008 of them), about 5,400 s of seat time, and about 3½ hours of wall clock (11:27 to 15:00, with fixes and `make check` runs between rounds on a machine at load 120 to 480). Not counted here: probes P1 and P2 (about 660,000 tokens) and the bad-byte probe (none: stub only).
-Stamp: the seen pair is `9acc3b97`...`846dfb58`. Codex holds the unbroken chain (rounds 1-5 and the wording pass); Melious's ends at round 5 (`106562ca`). Commits after `846dfb58` touch only `docs/reviews/`, which the reviewed scope leaves out.
+Cost: 5 rounds, a wording pass and a merge link; 50 findings raw, 42 after dedup (BUG 8, RISK 13, NIT 21): 31 fixed, 8 refuted (C1-19, C2-03, C2-05, C2-07, C3-04, C3-05, C4-02, C4-04), 3 waived by the owner (C1-03, C1-04 in part, C1-05). 824,465 tokens logged (fresh-eyes 275,008 of them), about 5,500 s of seat time, and about 4 hours of wall clock (11:27 to 15:15, with fixes and `make check` runs between rounds on a machine at load 120 to 480). Not counted here: probes P1 and P2 (about 660,000 tokens) and the bad-byte probe (none: stub only).
+Merge: before the push `main` had moved (#374, the base check's binary-relabel fix, which touched `independent_review.sh`, `perl/diff_headers.pl` and `test_base_check.sh`). `main` was merged in at `4ba8de94`, not rebased, so the heads quoted here stay valid; the one conflict was the plan's status table, where `main`'s row 4 and this branch's rows 5 and 6 were kept. `make check` passed on the merged tree, and the merge link found nothing.
+Stamp: the seen pair is `810a9e07`...`4ba8de94`. Codex holds the unbroken chain (rounds 1-5, the wording pass and the merge link); Melious's ends at round 5 (`106562ca`). Commits after `4ba8de94` touch only `docs/reviews/`, which the reviewed scope leaves out.
 Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item; C3-01 and C3-02 in round 3, both in C2-02's fix, which round 3's fix replaced with a cut; C4-01 and C4-03 in round 4, counted as substantive though neither is reachable from the script (each was a comment's promise the code did not keep), so they earn round 5. Round 5 found no BUG, so the rounds end; its closing fixes (C5-01 to C5-04) are not externally re-verified except by the wording pass, which verified C5-02 to C5-04 and found no contradiction. No confirmation was owed: the wording pass changed nothing. `make check` skips the Perl 5.8 syntax check on this Mac (no Perl::MinimumVersion); CI runs it. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
 
 Probe evidence (2026-10-22, from this session's probe run; quoted, not re-run):
@@ -523,5 +525,36 @@ base: 56b6331b9bf959352d2eb26d7f893be1b21657d5 (--base 56b6331b)
 ⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat codex was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair.
 gate 20261022T092747Z-19738: rounds 1-5, 12 reviewer seat runs, 763,236 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 kinds: 4 utf8-byte-count (cut: dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte); 5 utf8-valid-read-error,seat-fits-empty-file; 1 run with no round
+
+</details>
+
+<details><summary>Merge link raw output — codex (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+No BUG/RISK/NIT findings.
+
+CLEAN claims checked:
+
+- VERIFIED — Merge retained both parents: `git show -s HEAD` identifies `4ba8de94` with parents `926619f1` and `810a9e07`.
+- VERIFIED — Base-side changes survived: `diff_headers.pl` is byte-identical to `810a9e07`; comparison against that parent shows the base-check shell changes and binary regression cases retained.
+- VERIFIED — Seat-limit changes survived: `seat_limits.txt` and `test_failed_tier_report.sh` are byte-identical to `846dfb58`; all five `seat_fits` calls and size-specific `report_tier` handling remain in `independent_review.sh`.
+- VERIFIED — Base refusal precedes seat limiting: `independent_review.sh:519–630` exits 2 before the seat-limit block. T8 checks a large stale diff, base refusal, and absence of seat failures (`test_base_check.sh:87–90`).
+- VERIFIED — Binary relabel checking selects the new path, or old path for deletion (`perl/diff_headers.pl:225–228`). Traced tests cover modified text, deleted text, fabricated binary-to-text rename, genuine binary patches, and text-to-binary rename.
+- VERIFIED — Binary-to-text rename remedy selects `--no-renames` (`independent_review.sh:600–602`). The repository-3 test constructs the Git rename, checks refusal and no reviewer invocation, executes the printed remedy, then checks acceptance (`test_base_check.sh:327–347`).
+- VERIFIED — Seat refusal remains local to that seat; overall success exits 0 and no successful seat exits 4 (`independent_review.sh:1744–1775`), matching T11/T13 assertions.
+- VERIFIED — Shell syntax checks and `perl -c` passed.
+
+UNVERIFIABLE — Fresh runtime passage of the regression suites: no execution result was produced in this review. Settling observation: run `test_base_check.sh` and `test_failed_tier_report.sh` in a writable, isolated environment. Tests were traced, not executed, under the read-only constraint.
+
+Prompt injection: none identified.
+
+---
+reviewers: codex OK
+timings: codex 89s (61229 tokens)
+base: 846dfb583a65070da77bdb566955e7f29d0ae1f8 (--base 846dfb58)
+⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat codex was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair.
+gate 20261022T092747Z-19738: rounds 1-5, 13 reviewer seat runs, 824,465 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 utf8-byte-count (cut: dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte); 5 utf8-valid-read-error,seat-fits-empty-file; 2 runs with no round
 
 </details>
