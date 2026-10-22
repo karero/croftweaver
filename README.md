@@ -160,7 +160,8 @@ You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude pla
 Console/API account).
 
 **The short way.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
-skills. It runs in any terminal, on Windows too:
+skills (building a site needs Node 22.23.4 or newer; the setup guide has the details). It runs in any
+terminal, on Windows too:
 
 ```bash
 npm create croftweaver

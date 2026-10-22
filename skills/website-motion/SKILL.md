@@ -257,7 +257,7 @@ for (const path of PAGES) {
 
 > **`test.use({ reducedMotion: 'reduce' })` may not be a substitute.** Measured
 > once, on Playwright **1.60**, against **a different repo's config** — not this
-> toolkit's, whose lockfile currently resolves 1.64.0. There, the `test.use` form
+> toolkit's, whose lockfile currently resolves 1.64.1. There, the `test.use` form
 > was accepted without complaint while the page's `matchMedia` still reported
 > `no-preference`; `page.emulateMedia` and `browser.newContext` both worked in the
 > same run. That contradicts how the option is documented, and the mechanism was
