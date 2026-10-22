@@ -12,7 +12,7 @@ plan and land one after the other.
 | 1 | This plan | ✅ revised through round 5 | this file |
 | 2 | PLAN gate (Normal: a plan for a guard script's logic) | ✅ clean: 5 rounds, final full read, wording pass and confirmation; no BUG open; R4-02 waived by the maintainer | trail `REVIEW-plan-2026-10-21-plan-review-input-base-and-size-ad095f0.md` |
 | 3 | The maintainer's go, and the answers under "Open" | ✅ answers given 2026-10-21 (below); go to build change 1 the same day: "yes, build change 1" | — |
-| 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ▶ built on `feat/review-base-check`; DIFF gate clean (4 rounds, Light pass, wording pass, confirmation; 28 findings: 26 fixed, 2 refuted); push and PR wait on the maintainer's yes | trail `REVIEW-diff-2026-10-21-feat-review-base-check-f556faf.md` |
+| 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ✅ merged; DIFF gate clean (4 rounds, Light pass, wording pass, confirmation; 28 findings: 26 fixed, 2 refuted) | karero/croftweaver#372, merge commit 9acc3b97; trail `REVIEW-diff-2026-10-21-feat-review-base-check-f556faf.md` |
 | 5 | Change 2, step 0: probes P1 and P2 below | ⏸ | — |
 | 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ⏸ | — |
 
