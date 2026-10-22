@@ -572,7 +572,7 @@ rounds, and its open RISKs went to the owner as one decision: fix locally, not r
 waive. Now an in-scope RISK whose fix changed what runs or what someone acts on (an earning RISK)
 is fixed and earns the next round, under the same `--earned-by` kind and the same cut rule; the
 owner is asked only for a RISK waiver, a BUG deferral, a change of scope, and the decision past
-round 8, which stays.
+round 8, which stays (the owner's choice, asked the same day).
 
 Why this was not done before: on 2026-09-26 RISK counts per round never reached zero while each
 round re-read the whole change ("Step 6 — why verification rounds are scoped and capped", above). What limits it now, and how
@@ -608,6 +608,10 @@ whether a cheaper check, or none, would do. A guard credited with more than it c
 RISK whose fix is to the claim (narrow it, test the behaviour where it is used, or drop the guard),
 not one more banned form: the cut of step 6, asked before anything is built. A plan with no guard
 gets no entry. Not in `PROMPT_CORE`, which both gates share and which already calls "a guard that
-cannot fire" a RISK; not a host precondition, since the host wrote the plan. Not measured: two
-live trials when it was added (the old plan, with its trails removed; and a plan with no guard)
-are one run each, not a rate. Judge it by whether DIFF rounds on guards a plan proposed become rarer.
+cannot fire" a RISK; not a host precondition, since the host wrote the plan. Two live trials ran
+once each on 2026-10-22. On the old plan, with its trails removed, Codex raised one finding: a
+RISK that the tripwire cannot establish what the plan claimed, naming a spelling that gets past
+it, with the fix to narrow the claim and credit the route tests, "adding another banned spelling
+would retain the same weakness". On a plan that adds no guard, the second seat raised no finding
+about guards (one CLEAN line said there was none). One run each, not a rate: judge it by whether
+DIFF rounds on guards a plan proposed become rarer.

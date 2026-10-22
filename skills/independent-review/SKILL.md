@@ -287,12 +287,12 @@ Codex's effort for any run.
    Refusing the one input the last BUG used is a patch. Where the cost log can tell, the script
    refuses that round without `--cut "<what was removed or replaced>"`, and logs it; where it
    cannot, it warns. The owner sees the kinds and cuts in the script's running-total line. A RISK
-   whose fix leaves the meaning unchanged is wording: fix it like a NIT under (a2). A round with
-   neither a substantive BUG nor an earning RISK ends the rounds: fix or refute its NITs without
+   whose fix leaves the meaning unchanged is wording: fix it like a NIT under (a2). Past round 3, a
+   round with neither a substantive BUG nor an earning RISK ends the rounds: fix or refute its NITs without
    another round ((a2)), and the remaining wording goes to the wording pass. Aim to finish by
    round 5. **Don't ask the owner whether to run the next round** (the owner's rule, 2026-10-22);
-   ask only for what the owner alone gives: a RISK waiver, a BUG deferral (step 5), a change of
-   scope, and past round 8 the decision below.
+   ask only for what the owner alone gives: a RISK waiver (for a RISK the host would leave unfixed
+   and cannot refute), a BUG deferral (step 5), a change of scope, and past round 8 the decision below.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
    hold the change — an open BUG is never waived. The same holds whenever the rounds end with a
