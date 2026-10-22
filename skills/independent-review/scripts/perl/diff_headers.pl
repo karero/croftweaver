@@ -1,10 +1,11 @@
 # The base check's reader (independent_review.sh, "BASE CHECK" in its header): reads the diff under
 # review on stdin and checks it against git in two steps. Headers: the mode and id of every file
-# side it states must match git's own patch of the same base. Content: its text records, applied
-# to the base in a throwaway index, must give the target's content (HEAD's, or the working
-# tree's) for every file they name, so a diff made with -w or another option that drops lines is
-# caught too. Arguments: the repository's top directory, the base commit, the HEAD commit, and 1
-# to list the changed files the diff leaves out (the default base only), else 0.
+# side it states must match git's own patch of the same base, and a record it marks binary must
+# be binary there too, on its new side. Content: its text records, applied to the base in a
+# throwaway index, must give the target's content (HEAD's, or the working tree's) for every file
+# they name, so a diff made with -w or another option that drops lines is caught too. Arguments:
+# the repository's top directory, the base commit, the HEAD commit, and 1 to list the changed
+# files the diff leaves out (the default base only), else 0.
 # Prints tab-separated lines on stdout, one fact each:
 #   target <HEAD|the working tree>   what the new sides were compared with
 #   left-out <path>                  a file git's patch changes that the diff does not name
@@ -217,6 +218,15 @@ sub compare {
         push @bad, [$n, "new side " . $r->{nid} . ", $tname has " . id7($G->{nid})] if $r->{ids} && !id_ok($r->{nid}, $G->{nid});
       }
     }
+    # A record marked binary shows the reviewers no readable lines, so git's patch must mark its new
+    # side binary too (its old side, for a deletion). Not its old side as well: git -M writes a text
+    # file renamed to a binary one as one binary record, where git's patch, with no renames, shows
+    # the text side's lines. A binary file renamed to a text one is refused, since its new text
+    # would go unread; the remedy the script prints then uses --no-renames.
+    if ($r->{binary}) {
+      my $G = defined $n ? $gn->{$n} : $go->{$o};
+      push @bad, [defined $n ? $n : $o, "the diff marks it binary, but git shows its content"] if $G && !$G->{binary};
+    }
     if (!$r->{ids} && defined $o && defined $n && $go->{$o} && $gn->{$n}) {
       my ($A, $B) = ($go->{$o}, $gn->{$n});
       if ($A == $B) { push @bad, [$n, "the diff changes only its mode, but its content changed too"] if $A->{ids}; }
@@ -239,7 +249,8 @@ sub compare {
 # name each file they touch whose content there differs from the target's. A binary record is
 # not applied (a body made with --binary is skipped too): it only clears its old path from the
 # throwaway index, so the other half of a type change applies, and its new path's content is left
-# to the ids the header check matched. So no text record is ever left out of this step.
+# to the ids the header check matched (and found binary in git's patch too). So no text record is
+# ever left out of this step.
 sub content {
   my ($recs, $tname) = @_;
   my @bin = grep { $_->{binary} } @$recs;
