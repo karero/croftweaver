@@ -418,8 +418,9 @@ carries over to the next site connected later.
 
 Before the yes, one more check, for every owner you ask about scheduling, new or connected earlier: ask them to open
 the Google app's **Audience** tab and read its status. **In production** or **Internal**:
-carry on. **Testing**: publish the app as in One-time setup, then sign in again, or the weekly
-job stops at Google from its second week.
+carry on, unless they published only after their sign-in was given: then sign in again, as
+under "Signing in again". **Testing**: publish the app as in One-time setup, then sign in
+again, or the weekly job stops at Google from its second week.
 
 ```bash
 bash scripts/schedule_tracking.sh install example.com \
@@ -450,7 +451,7 @@ each problem. Exit code: 0 when that list is empty; otherwise GSC's own code if 
 (2 = the sign-in needs renewing — the job never waits for a browser. If the logged reason is
 Google refusing the refresh (`RefreshError`), read the Google app's **Audience** tab.
 **Testing**: publish the app as in One-time setup, then sign in again as under "Signing in
-again". Already **In production**: the sign-in may have been given before the app was
+again". Already **In production** or **Internal**: the sign-in may have been given before the app was
 published, so sign in again; if that run fails too, look for access removed in the Google
 account (restore it) or a deleted OAuth client (make a new one as in One-time setup)), else 4
 if a GSC or Bing history write failed, else 1. Bing API errors are on the list too (they used to be swallowed). An AI check that isn't set up is not a problem; homepage warnings from
