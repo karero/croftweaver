@@ -1283,6 +1283,91 @@ check "lother: the list, not the script, decides: another list's model passes" h
 listcase lunset - -- --seat codex
 check "lunset: with MELIOUS_MODEL unset a missing list stops nothing" has lunset.out "reviewers: codex OK"
 
+# 32f. The think-tag guard (R-MELIOUS-THINK, 2026-10-22, the owner's decision): a model the list
+#      marks "light" was measured skipping the text between think tags while the seat said OK, so
+#      the seat refuses it, with nothing sent, when the prompt holds a tag. The model allowed at
+#      any depth is not touched. The tag is built here from pieces, so this file holds no plain
+#      pair; the spaced and cased variants are written out, because they hold none either.
+TTO='<'"think"'>'; TTC='</'"think"'>'
+printf 'diff --git a/t.sh b/t.sh\n+echo "%s zebra %s"\n' "$TTO" "$TTC" >"$T/tt.diff"
+msec() { LC_ALL=C awk '/^## /{p = ($0 ~ /Independent review — melious/)} p' "$T/$1.out"; }   # msec <run>: the melious section
+ttrefused() {   # ttrefused <run>: the seat alone, refused: exit 4, FAILED line, no request, no quota or size words
+  [ "$(cat "$T/$1.rc")" = 4 ] && grep -qF "reviewers: melious FAILED (think-tag guard:" "$T/$1.out" \
+    && [ ! -e "$T/$1.marks/melious-body" ] && [ ! -e "$T/$1.marks/melious-url" ] \
+    && ! msec "$1" | grep -qiE 'quota|Split the artifact|size limit'
+}
+run tseat REVIEW_LOG="$T/tt-costs.tsv" MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --seat melious --depth light
+check "tseat: a diff that adds a test about think tags: the light model is refused, exit 4, nothing sent" ttrefused tseat
+check "tseat: ...and the section says why and where to go, not a size or quota remedy" \
+  sh -c 'grep -qF "Model: $2" "$1/tseat.out" && grep -qF "Run this round on Codex" "$1/tseat.out" && grep -qF "never started: the think-tag check" "$1/tseat.out"' _ "$T" "$MELIOUS_LIGHT"
+check "tseat: timings and cost log stay well formed: melious with no tokens, FAILED" \
+  sh -c 'grep -qE "^timings: melious [0-9]+s\$" "$1/tseat.out" && awk -F"\t" "\$8==\"melious\" && \$12==\"-\" && \$13==\"FAILED\" {f=1} END {exit !f}" "$1/tt-costs.tsv"' _ "$T"
+# Every spelling the pattern must catch, each through the script with the light model.
+tt_i=0
+while IFS= read -r variant; do
+  tt_i=$((tt_i+1))
+  printf 'diff --git a/t b/t\n+%s\n' "$variant" >"$T/ttv$tt_i.diff"
+  run ttv$tt_i MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/ttv$tt_i.diff" --base none --seat melious --depth light
+  check "ttv$tt_i: refused: $variant" ttrefused ttv$tt_i
+done <<VARIANTS
+$TTO
+$TTC
+< / THINK >
+a < think
+<Think>
+<$(printf thinking)>
+\`\`\`$TTO\`\`\`
+VARIANTS
+printf 'diff --git a/t b/t\n+%s\n+zebra\n+%s\n' '```' "$TTO" >"$T/ttfence.diff"
+run ttfence MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/ttfence.diff" --base none --seat melious --depth light
+check "ttfence: a tag inside a fenced block is refused too" ttrefused ttfence
+printf 'diff --git a/t b/t\n+bad \377 byte %s\n' "$TTO" >"$T/ttbyte.diff"
+run ttbyte MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/ttbyte.diff" --base none --seat melious --depth light
+check "ttbyte: a malformed byte beside a tag does not hide it" ttrefused ttbyte
+# Text that is not a tag goes ahead.
+printf 'diff --git a/t b/t\n+rethink; thinking about it; &lt;%s&gt;\n+<\n+%s>\n' "think" "think" >"$T/ttclean.diff"
+run ttclean MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/ttclean.diff" --base none --seat melious --depth light
+check "ttclean: prose, an entity spelling and a newline between bracket and name are not tags: it runs and counts" \
+  sh -c '[ "$(cat "$1/ttclean.rc")" = 0 ] && grep -qF "reviewers: melious OK" "$1/ttclean.out" && [ -e "$1/ttclean.marks/melious-body" ]' _ "$T"
+# The plan and the prior-findings inputs reach the same guard.
+printf '# Plan\n\nStep 1: the codename is zebra %s\n' "$TTC" >"$T/tt-plan.md"
+run ttplan MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt-plan.md" --plan --seat melious --depth light
+check "ttplan: a plan with a tag is refused" ttrefused ttplan
+printf 'RISK: the %s step\n' "$TTO" >"$T/tt-prior.md"
+run ttverify MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/tt-prior.md" --seat melious --depth light
+check "ttverify: a tag only in the prior findings is refused" ttrefused ttverify
+# The model allowed at any depth is untouched: the request goes out with the tag as written.
+run ttany MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/tt.diff" --base none --seat melious --depth normal
+check "ttany: the any-depth model runs and counts on the same diff" \
+  sh -c '[ "$(cat "$1/ttany.rc")" = 0 ] && grep -qF "reviewers: melious OK" "$1/ttany.out"' _ "$T"
+check "ttany: ...and its request holds the tag unchanged" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(index(decode_json(<$f>)->{messages}[0]{content}, $ARGV[1]) >= 0)' "$T/ttany.marks/melious-body" "$TTO"
+# Beside Codex: ollama stands in for the refused seat; the exit stays 0 while a seat counts.
+run ttpair SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
+check "ttpair: Codex OK, Melious refused, ollama stands in and counts, exit 0" \
+  sh -c '[ "$(cat "$1/ttpair.rc")" = 0 ] && grep -qF "reviewers: codex OK, melious FAILED (think-tag guard:" "$1/ttpair.out" && grep -qF ", ollama-cloud OK" "$1/ttpair.out" && [ ! -e "$1/ttpair.marks/melious-body" ]' _ "$T"
+run ttpair2 SECOND_SEAT=melious OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
+check "ttpair2: ollama also refused: both FAILED in the line, Codex still counts, exit 0" \
+  sh -c '[ "$(cat "$1/ttpair2.rc")" = 0 ] && grep -qF "codex OK, melious FAILED (think-tag guard:" "$1/ttpair2.out" && grep -qF "ollama-cloud FAILED" "$1/ttpair2.out"' _ "$T"
+check "ttpair2: ollama's quota wording stays in ollama's section; the melious section has none" \
+  sh -c 'grep -qiF "quota" "$1/ttpair2.out" && ! { awk "/^## /{p = (\$0 ~ /Independent review — melious/)} p" "$1/ttpair2.out" | grep -qi quota; }' _ "$T"
+run ttpair3 SECOND_SEAT=melious CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
+check "ttpair3: no seat counts: exit 4" rc_is ttpair3 4
+# The fallback path: ollama refused, Melious (the light model) asked in its place.
+run ttfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
+check "ttfall: as ollama's fallback the light model is refused too; both reasons show" \
+  sh -c 'grep -qF "ollama-cloud FAILED" "$1/ttfall.out" && grep -qF "melious FAILED (think-tag guard:" "$1/ttfall.out" && [ ! -e "$1/ttfall.marks/melious-body" ]' _ "$T"
+# The check itself failing is a refusal, not a pass: a helper that errors, and one that is gone.
+for tt_h in error gone; do
+  mkdir -p "$T/tth$tt_h.scripts"
+  (cd "$HERE" && tar cf - .) | (cd "$T/tth$tt_h.scripts" && tar xf -)
+  if [ $tt_h = error ]; then printf 'print STDERR "disk on fire\\n"; exit 2;\n' >"$T/tth$tt_h.scripts/perl/think_tag.pl"; else rm -f "$T/tth$tt_h.scripts/perl/think_tag.pl"; fi
+  run tth$tt_h MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$T/tth$tt_h.scripts/independent_review.sh" "$T/change.diff" --base none --seat melious --depth light
+  check "tth$tt_h: a think-tag check that cannot run refuses the clean diff, nothing sent" ttrefused tth$tt_h
+done
+check "ttherror: ...and the reason carries the helper's own line" has ttherror.out "disk on fire"
+check "tthgone: ...and a missing helper is reported as a check that could not run" has tthgone.out "the check could not run"
+
 # 33. (2026-10-06) The Perl programs' minimum versions: check_perl_minimum.sh, which reads perl/*.pl
 #     with Perl::MinimumVersion. It replaced the one-construct guards that stood here (no r-flag
 #     substitution in the script) and in section 35 (no `//` in the ollama CLI filter).

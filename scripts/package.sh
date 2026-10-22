@@ -85,6 +85,7 @@ REQUIRED=(
   skills/independent-review/scripts/perl/melious_key.pl
   skills/independent-review/scripts/perl/melious_request.pl
   skills/independent-review/scripts/perl/melious_stream.pl
+  skills/independent-review/scripts/perl/think_tag.pl
   skills/independent-review/scripts/perl/ollama_filter.pl
   skills/independent-review/scripts/perl/ollama_request.pl
   skills/independent-review/scripts/perl/ollama_stream.pl

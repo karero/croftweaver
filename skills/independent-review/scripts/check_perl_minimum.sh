@@ -29,7 +29,7 @@
 set -u
 here="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$here/independent_review.sh"; PL="$here/perl"
-GATED="ollama_request.pl ollama_stream.pl melious_key.pl melious_request.pl melious_stream.pl"
+GATED="ollama_request.pl ollama_stream.pl melious_key.pl melious_request.pl melious_stream.pl think_tag.pl"
 UNGATED="ollama_filter.pl readable_tail.pl diff_headers.pl run_limited.pl utf8_valid.pl"
 UNGATED_MAX=5.008
 fails=0

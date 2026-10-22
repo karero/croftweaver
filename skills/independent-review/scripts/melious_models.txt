@@ -8,6 +8,8 @@
 # that sets MELIOUS_MODEL, so a slip in the second word cannot read as "any depth". If an id
 # stands on two lines, the first decides.
 #
+# A model marked light is also refused, with nothing sent, when the prompt holds a think tag
+# (scripts/perl/think_tag.pl; R-MELIOUS-THINK, the owner's decision of 2026-10-22).
 # The owner's rule, 2026-10-12: GLM 5.3 and no other model, and GLM 5.3 Flash for a Light
 # review. Kimi and every other model run on ollama (OLLAMA_MODEL), never here. Change the list
 # by a reviewed change to this file. With the setup guide and seat_limits.txt, it is one of the
