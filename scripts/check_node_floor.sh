@@ -76,7 +76,7 @@ const PHRASES = [
   { file: T + '/SETUP.md', rx: /\*\*Node ≥([0-9.]+) required\*\*/, use: 'lowest' },
   { file: T + '/SETUP.md', rx: /current security fixes are in \*\*([0-9.]+), ([0-9.]+) and ([0-9.]+)\*\*/, use: 'lines' },
   { file: 'skills/new-website/SKILL.md', rx: /This starter needs Node ≥([0-9.]+)\*\*, and Node's current security fixes are in ([0-9.]+), ([0-9.]+) and ([0-9.]+)/, use: 'lowest+lines' },
-  { file: 'docs/UPGRADING.md', rx: /must be ([0-9.]+) or newer, which is what this version of the starter needs/, use: 'lowest' },
+  { file: 'docs/UPGRADING.md', rx: /must be ([0-9.]+) or newer on Node 22, ([0-9.]+) or newer on Node 24, or ([0-9.]+) or newer/, use: 'lines' },
 ];
 const LINE_COUNT = 3; // the versions the SETUP.md and SKILL.md phrases list: the 22, 24 and 26 lines
 

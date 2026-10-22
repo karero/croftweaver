@@ -29,7 +29,7 @@ https://nodejs.org/dist/index.json, which carries a `security` flag per release.
 | starter README: the tree comment, step 2 | yes | the lowest version only (the per-line fixed versions are removed: "keep Node current; SETUP.md lists the fixed version of each line") | G3, one phrase each |
 | `templates/SETUP.md` | yes | the lowest version, and the fixed version of each line | G3, one phrase for each |
 | `new-website/SKILL.md` | yes | the same | G3 |
-| `docs/UPGRADING.md` | yes | the lowest version only (the per-line list is removed, a pointer to SETUP.md instead) | G3 |
+| `docs/UPGRADING.md` | yes | the fixed version of each line, odd lines named unsupported (build review, round 2: "22.23.4 or newer" alone reads as fine on Node 23 and 25, which `engines` refuses) | G3 |
 | root `README.md` | yes | no number for the site (a pointer to the setup guide); the installer's own 22.12 stays, as the installer's floor | — |
 | the starter's `ci.yml` comment | yes | no number: "the floor in `package.json`'s engines" | — |
 | `.github/dependabot.yml` comment | **no** (root `.github/` is not in the zip) | no number: "engines never goes below Astro's floor; see `package.json`" | not read |
@@ -62,7 +62,7 @@ the file, when any of these is false:
   | `templates/SETUP.md` | `\*\*Node ≥([0-9.]+) required\*\*` | the lowest |
   | `templates/SETUP.md` | `current security fixes are in \*\*([0-9.]+), ([0-9.]+) and ([0-9.]+)\*\*` | the minimum of the 22, 24 and 26 alternatives |
   | `new-website/SKILL.md` | `This starter needs Node ≥([0-9.]+)\*\*, and Node's current security fixes are in ([0-9.]+), ([0-9.]+) and ([0-9.]+)` | the lowest, then the three minima |
-  | `docs/UPGRADING.md` | `must be ([0-9.]+) or newer, which is what this version of the starter needs` | the lowest |
+  | `docs/UPGRADING.md` | `must be ([0-9.]+) or newer on Node 22, ([0-9.]+) or newer on Node 24, or ([0-9.]+) or newer` | the minimum of the 22, 24 and 26 alternatives (changed from the lowest only, build review round 2) |
 
   The version-bearing phrases say what is required now ("current security fixes"), not history
   ("October 2026"), so a later floor change moves them together with `engines` and the check can demand
@@ -98,8 +98,9 @@ named it) and `node`, stop and have the owner update Node (SETUP.md); a warning 
 not this. The parentheticals "the floor of the Astro this starter ships" (SETUP.md, the starter README) become "this starter's
 floor, never below Astro's own", and `new-website/SKILL.md`'s "**Astro needs Node ≥22.23.4**" becomes "**This starter needs Node ≥22.23.4**"; all stay true when the starter is stricter than Astro.
 `SETUP.md` and `new-website/SKILL.md` say "current security fixes" (not "October 2026") beside the three
-versions; the starter README and `docs/UPGRADING.md` keep only the lowest version and point to SETUP.md (UPGRADING's sentence
-becomes "`node --version` must be 22.23.4 or newer, which is what this version of the starter needs").
+versions; the starter README keeps only the lowest version and points to SETUP.md. `docs/UPGRADING.md` says
+"`node --version` must be 22.23.4 or newer on Node 22, 24.22.1 or newer on Node 24, or 26.12.1 or newer (Node 23 and 25 are not supported)"
+(it was to keep only the lowest; the build review's round 2 found that reads as fine on Node 23 and 25).
 `SETUP.md` and the starter README say a new site
 gets the warning ("a new site's `package.json`"), because `package.json` is the site's own file for
 `whats-new` and an existing site keeps the one it has. The starter README's step 3 says the overlay's

@@ -14,9 +14,11 @@
 # the way make check and CI do: it runs the guard script, which finds its files from where it sits, so
 # each copy is laid out as the handoff zip is (no repo-root .github/, no packages/, no git).
 #
-# The versions in the cases are read from the real package.json, so a Node security release that moves
-# the range changes ONE line here, EXPECTED_RANGE, which pins the real range on purpose (a stale range
-# cannot pass by being stale everywhere at once): after moving engines and the docs, change it too.
+# The versions in the cases are read from the real package.json, so a Node security release that moves a
+# version in the range changes ONE line here, EXPECTED_RANGE, which pins the real range on purpose (a
+# stale range cannot pass by being stale everywhere at once): after moving engines and the docs, change
+# it too. A change in the number of Node lines is a different move: the cases that count three lines
+# (19 and 20) change with it.
 #
 # It also compares the guard's --admits answers with npm's own semver (found at
 # $(npm root -g)/npm/node_modules/semver) for the edges of every line, runs one real npm install on a
@@ -65,7 +67,14 @@ V22=${1:-}; V24=${2:-}; V26=${3:-}
 [ -n "$V22" ] && [ -n "$V24" ] && [ -n "$V26" ] \
   || { echo "FAIL — the real range \"$RANGE\" does not name three lines; this test reads V22, V24 and V26 from it."; exit 1; }
 bump() { echo "${1%.*}.$(( ${1##*.} + 1 ))"; }   # the patch one higher
-drop() { echo "${1%.*}.$(( ${1##*.} - 1 ))"; }   # the patch one lower
+# drop — the version just below: the patch one lower, or when the patch is 0 the last of the minor before
+# (a release at 24.23.0 gives 24.22.999), and of the major before when the minor is 0 too.
+drop() {
+  local x=${1%%.*} r=${1#*.}; local y=${r%%.*} z=${r#*.}
+  if [ "$z" -gt 0 ]; then echo "$x.$y.$((z-1))"
+  elif [ "$y" -gt 0 ]; then echo "$x.$((y-1)).999"
+  else echo "$((x-1)).999.999"; fi
+}
 NEW22="$(bump "$V22")"; NEW24="$(bump "$V24")"; NEW26="$(bump "$V26")"
 
 # fresh — sets c to a new copy of what the guard reads, laid out as the handoff zip is.
@@ -123,9 +132,9 @@ if [ "$RANGE" = "$EXPECTED_RANGE" ]; then echo "ok   the starter's real range is
 else printf 'FAIL the starter range is "%s", the test pins "%s": change EXPECTED_RANGE on purpose.\n' "$RANGE" "$EXPECTED_RANGE"; fails=$((fails+1)); fi
 
 # -- scenarios 1 and 2: Astro raises a line (case 2 moves only the 24 line, so only it is refused) ---
-fresh; jset "$c/$LOCK" "$ASTRO_ENG" '">=22.30.1"'
-expect "1 Astro raises its floor above the starter's: red, names Astro's range" "$c" fail "refuses" '">=22.30.1"'
-fresh; jset "$c/$LOCK" "$ASTRO_ENG" "\"^$V22 || ^24.30.0 || >=$V26\""
+fresh; jset "$c/$LOCK" "$ASTRO_ENG" "\">=$NEW22\""
+expect "1 Astro raises its floor above the starter's: red, names Astro's range" "$c" fail "refuses" "\">=$NEW22\""
+fresh; jset "$c/$LOCK" "$ASTRO_ENG" "\"^$V22 || ^$NEW24 || >=$V26\""
 expect "2 Astro raises only the 24 line: red, names the 24 alternative" "$c" fail "alternative \"^$V24\""
 out="$(bash "$c/scripts/check_node_floor.sh" 2>&1)"
 if [ "$(grep -c 'which Astro' <<<"$out")" -eq 1 ]; then echo "ok   2 only the 24 alternative is flagged"
@@ -184,7 +193,7 @@ expect "12 a listed file is missing: red, names it" "$c" fail "SETUP.md: cannot 
 pairs="$README|the starter needs >=|the starter wants >=|the starter needs >=$V22 (Cloudflare Pages reads it)
 $SETUP|current security fixes are in|current fixes are in|> current security fixes are in **$V22, $V24 and $V26**
 $SKILL|This starter needs Node|This starter wants Node|**This starter needs Node ≥$V22**, and Node's current security fixes are in $V22, $V24 and $V26
-$UPG|which is what this version of the starter needs|which this version needs|must be $V22 or newer, which is what this version of the starter needs"
+$UPG|or newer on Node 24|or newer on Node 25|must be $V22 or newer on Node 22, $V24 or newer on Node 24, or $V26 or newer"
 while IFS='|' read -r f from to dup; do
   fresh; tsub "$c/$f" "$from" "$to"
   expect "12 a phrase broken in ${f##*/}: red, names the file" "$c" fail "${f}: phrase not on one line, or missing"
@@ -217,7 +226,7 @@ fresh; set_engines "$c" "^$V22 || ^$V24 || ^25.9.0 || >=$V26"
 expect "19 engines gains ^25.9.0: red, 4 lines against 3 listed" "$c" fail "names 4 lines, the docs list 3"
 fresh; set_engines "$c" "^$V22 || >=$V26"
 expect "20 engines drops the 24 line: red" "$c" fail "names 2 lines, the docs list 3"
-fresh; set_engines "$c" "^$V22 || ^22.30.0 || >=$V26"
+fresh; set_engines "$c" "^$V22 || ^$NEW22 || >=$V26"
 expect "G5 engines names the 22 line twice: red" "$c" fail "names a Node line twice"
 fresh; set_engines "$c" "^$V22 || >=$V24 || >=$V26"
 expect "G5 a middle alternative widened from ^ to >=: red (it would admit 25), docs unchanged" "$c" fail "is open above but is not the highest"

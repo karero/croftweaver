@@ -15,8 +15,8 @@ automatically and don't need this.)
 Tell the site owner what you're about to do and why (a build-tooling version bump, not a
 content or design change), and confirm they want it now rather than later.
 
-Check the computer's Node first: `node --version` must be 22.23.4 or newer, which is what this version of the starter needs, and on Node 24 or 26 the fixed
-version of that line. SETUP.md lists them; update Node before the bump when it is older.
+Check the computer's Node first. `node --version` must be 22.23.4 or newer on Node 22, 24.22.1 or newer on Node 24, or 26.12.1 or newer (Node 23 and 25 are not supported).
+SETUP.md has the details; update Node before the bump when it is older.
 
 ## Steps
 
