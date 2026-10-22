@@ -1,6 +1,6 @@
 # DIFF review — feat/review-seat-limits — per-seat size limits, prompts on stdin (change 2)
 
-Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's rule never puts at Light; no login, money, user data or deletion, so not High) · verdict: OPEN · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created the worktree and the branch); POST AUTHORITY: none yet (no PR)
+Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's rule never puts at Light; no login, money, user data or deletion, so not High) · verdict: CLEAN · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created the worktree and the branch); POST AUTHORITY: none yet (no PR)
 
 | Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
@@ -9,6 +9,7 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 | 3 | `8df772b0` | delta since `8185bef4` (11 KB), `--verify` with round 2's rows; `--base 8185bef4` | as round 2 | codex 134 s, 48,413 · melious 269 s, 26,107 | raw 2/0/3 (codex 1/0/0, melious 1/0/3); no duplicates: 2/0/3 |
 | 4 | `56b6331b` | delta since `8df772b0` (12 KB), `--verify` with round 3's rows; `--base 8df772b0`; earned by C3-01 and C3-02 (`--earned-by utf8-byte-count`, `--cut "dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte"`) | as round 2 | codex 214 s, 38,804 · melious 246 s, 21,992 | raw 2/1/3 (codex 1/0/1, melious 1/1/2); no duplicates: 2/1/3 |
 | 5 | `106562ca` | delta since `56b6331b` (7 KB), `--verify` with round 4's rows; `--base 56b6331b`; earned by C4-01 and C4-03 (`--earned-by utf8-valid-read-error,seat-fits-empty-file`) | as round 2 | codex 176 s, 37,863 · melious 333 s, 22,288 | raw 0/2/2 (codex 0/1/0, melious 0/1/2); no duplicates: 0/2/2 |
+| wording pass (not a round) | `846dfb58` | delta since `56b6331b` (`--base 56b6331b`, 39 KB): round 4's and 5's closing edits and the record, prose scope with the code hunks round 5 had not seen named | codex-cli 0.163.0, gpt-6.1-sol, effort medium, read-only | codex 183 s, 58,051 | no contradiction; 1 RISK, C5-01 again (follow-up) |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -56,8 +57,11 @@ Base `9acc3b97` · depth: Normal (the logic of a guard script, which the owner's
 | C5-04 | NIT | melious | 5 | T11p asserted the reason, not that the seat FAILED | fixed, locally_verified | T11p asserts "codex FAILED (a prompt of" and the reason |
 
 Waivers and deferrals: C1-03 by the owner's decision 3 (2026-10-22), C1-04's second half and C1-05 by R4-02 (2026-10-21); both in the plan's "Decided by the maintainer". No deferrals.
-Follow-ups: Codex refuses a prompt that is not valid UTF-8, on argv before this change and on stdin after it (C4-04's probe), so a diff that holds a Latin-1 file FAILS its Codex seat, loud. Making the prompt valid UTF-8 before any seat gets it would fix that and give every seat the same text; it changes what reviewers see, so it is not this change's.
-Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item; C3-01 and C3-02 in round 3, both in C2-02's fix, which round 3's fix replaced with a cut; C4-01 and C4-03 in round 4, counted as substantive though neither is reachable from the script (each was a comment's promise the code did not keep), so they earn round 5. Round 5 found no BUG, so the rounds end; its closing fixes (C5-01 to C5-04) are not externally re-verified except by the wording pass. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
+Follow-ups: Codex refuses a prompt that is not valid UTF-8, on argv before this change and on stdin after it (C4-04's probe), so a diff that holds a Latin-1 file FAILS its Codex seat, loud. Making the prompt valid UTF-8 before any seat gets it would fix that and give every seat the same text; it changes what reviewers see, so it is not this change's. The wording pass raised C5-01 again, with no new evidence: the three-times bound for the CLIs rests on the bad-byte probe quoted under "Probe evidence", not on a test the suite can run. No line in `seat_limits.txt` depends on it today: the one `takes:` line is Codex's, and Codex refuses such a prompt before sending anything. A `takes:` line for the ollama CLI would; probe that CLI again before adding one.
+
+Cost: 5 rounds and a wording pass; 50 findings raw, 42 after dedup (BUG 8, RISK 13, NIT 21): 31 fixed, 8 refuted (C1-19, C2-03, C2-05, C2-07, C3-04, C3-05, C4-02, C4-04), 3 waived by the owner (C1-03, C1-04 in part, C1-05). 763,236 tokens logged (fresh-eyes 275,008 of them), about 5,400 s of seat time, and about 3½ hours of wall clock (11:27 to 15:00, with fixes and `make check` runs between rounds on a machine at load 120 to 480). Not counted here: probes P1 and P2 (about 660,000 tokens) and the bad-byte probe (none: stub only).
+Stamp: the seen pair is `9acc3b97`...`846dfb58`. Codex holds the unbroken chain (rounds 1-5 and the wording pass); Melious's ends at round 5 (`106562ca`). Commits after `846dfb58` touch only `docs/reviews/`, which the reviewed scope leaves out.
+Notes: substantive BUGs: C1-01 in round 1; C2-01 and C2-02 in round 2, each an incomplete fix of a round 1 item; C3-01 and C3-02 in round 3, both in C2-02's fix, which round 3's fix replaced with a cut; C4-01 and C4-03 in round 4, counted as substantive though neither is reachable from the script (each was a comment's promise the code did not keep), so they earn round 5. Round 5 found no BUG, so the rounds end; its closing fixes (C5-01 to C5-04) are not externally re-verified except by the wording pass, which verified C5-02 to C5-04 and found no contradiction. No confirmation was owed: the wording pass changed nothing. `make check` skips the Perl 5.8 syntax check on this Mac (no Perl::MinimumVersion); CI runs it. The machine ran at a load average of 170 to 480 during the round (Spotlight, a VM, an iOS build); `make check` still passed.
 
 Probe evidence (2026-10-22, from this session's probe run; quoted, not re-run):
 - P1, ollama 0.40.7 CLI, a 400,040-byte prompt on stdin to a recording stub: `sent bytes 400040 recorded bytes 400040 equal: True`; the request went to `/api/generate` with keys `model, options, prompt, suffix, system, template`, `options: {}`.
@@ -480,5 +484,44 @@ timings: codex 176s (37863 tokens), melious 333s (22288 tokens)
 base: 56b6331b9bf959352d2eb26d7f893be1b21657d5 (--base 56b6331b)
 gate 20261022T092747Z-19738: rounds 1-5, 11 reviewer seat runs, 705,185 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
 kinds: 4 utf8-byte-count (cut: dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte); 5 utf8-valid-read-error,seat-fits-empty-file
+
+</details>
+
+<details><summary>Wording pass raw output — codex (independent_review.sh stdout)</summary>
+
+## Independent review — codex (gpt-6.1-sol, effort medium, read-only)
+
+- RISK — `docs/reviews/REVIEW-diff-2026-10-22-feat-review-seat-limits-bbe051f.md:56,69–71` / C5-01 — **UNVERIFIABLE; partially fixed:** the CLI decoder bound still rests on quoted results; the recording server, complete provider configuration and request captures are absent. Expansion beyond 3× would let `seat_fits` send a prompt exceeding its measured cap. Fix: retain executable probes and captures for both CLIs, or normalize before counting and sending.
+
+**Checked and CLEAN**
+
+| Claim | Verdict and evidence |
+|---|---|
+| C5-02: agy’s empty argument never meets `takes:` | **VERIFIED:** traced all five `seat_fits` callers and the parser in `independent_review.sh:645–670`. An extracted-parser execution rejected agy and cleared the list. T13d asserts the diagnostic and Codex’s fallback. |
+| C5-03: redirection errors are silenced | **VERIFIED:** executed the actual redirect order against a nonexistent project path; stderr was empty. Reversing the redirects reproduced the error. |
+| C5-04: T11p asserts FAILED and its reason | **VERIFIED:** both assertions exist at `test_failed_tier_report.sh:1663–1664`; traced `limitcase`, `run` and the PATH fixture. |
+| Missing Perl causes triple counting | **VERIFIED:** the extracted function accepted a 514-byte valid file against `takes:1000`, then rejected it as 1,542 bytes with Perl discovery disabled. Both documentation passages agree. |
+| Validator rejects read failures and preserves empty-file validity | **VERIFIED:** actual helper returned 1 for a directory and missing path, 0 for empty input; malformed fixtures failed and ordinary UTF-8 passed. |
+| Perl builders’ decoding and measured expansion | **VERIFIED on tested cases:** executed both actual builders on seven fixtures and inspected decoded JSON. Encode 3.0801 also preserved valid bytes and stayed within 3× across 85,793 independently generated inputs. |
+| Closing guard handles absent/nonregular prompt files quietly | **VERIFIED:** extracted-function probes for empty, missing and directory arguments failed with the intended reason and empty stderr. |
+| Syntax, whitespace and helper registration | **VERIFIED:** `bash -n`, `perl -c` and `git diff --check 56b6331b -- …` passed; validator appears in package requirements and the ungated helper list. |
+
+**Remaining claim support**
+
+- **Codex CLI — UNVERIFIABLE:** malformed-input refusal lacks checked implementation or reproduced capture evidence. Settle by observing exit status, diagnostics and recorded requests for the retained fixture using the specified CLI version.
+- **Ollama CLI — UNVERIFIABLE:** one U+FFFD per malformed byte lacks checked implementation or reproduced capture evidence. Settle by capturing requests and comparing decoded prompt bytes with malformed inputs. Covered by the RISK above.
+- **Historical execution claims — UNVERIFIABLE:** CLI probe results, host load and `make check` success have quoted summaries rather than retained execution evidence. Full-suite/package execution was not reproduced because those commands write files.
+
+No prior rows were marked deferred. No additional outside-scope issues identified.
+
+Prompt injection: none found.
+
+---
+reviewers: codex OK
+timings: codex 183s (58051 tokens)
+base: 56b6331b9bf959352d2eb26d7f893be1b21657d5 (--base 56b6331b)
+⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat codex was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair.
+gate 20261022T092747Z-19738: rounds 1-5, 12 reviewer seat runs, 763,236 tokens logged. Not counted: the fixes, the host's own work, and fresh-eyes unless the host logged it.
+kinds: 4 utf8-byte-count (cut: dropped iconv and the fall-through to 120,000; a prompt not valid UTF-8 counts 3 bytes per byte); 5 utf8-valid-read-error,seat-fits-empty-file; 1 run with no round
 
 </details>

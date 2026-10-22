@@ -14,7 +14,7 @@ plan and land one after the other.
 | 3 | The maintainer's go, and the answers under "Open" | ✅ answers given 2026-10-21 (below); go to build change 1 the same day: "yes, build change 1" | — |
 | 4 | Change 1 (base check) built, `make check` green, DIFF gate, PR | ▶ built on `feat/review-base-check`; DIFF gate clean (4 rounds, Light pass, wording pass, confirmation; 28 findings: 26 fixed, 2 refuted); push and PR wait on the maintainer's yes | trail `REVIEW-diff-2026-10-21-feat-review-base-check-f556faf.md` |
 | 5 | Change 2, step 0: probes P1 and P2 below | ✅ run 2026-10-22: P1 passed for both CLIs; P2 below | `skills/independent-review/scripts/seat_limits.txt` |
-| 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ▶ built on branch `feat/review-seat-limits`; DIFF gate next | — |
+| 6 | Change 2 built on top of change 1, `make check` green, DIFF gate, PR | ▶ built on branch `feat/review-seat-limits`; DIFF gate clean (5 rounds, wording pass; 42 findings: 31 fixed, 8 refuted, 3 waived); push and PR wait on the maintainer's yes | trail `REVIEW-diff-2026-10-22-feat-review-seat-limits-bbe051f.md` |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
@@ -173,7 +173,10 @@ like `melious_models.txt`):
   with the provider's message in the seat's `FAILED` section, as any failure does today.
 - **Takes N bytes** (added by the maintainer's decision of 2026-10-22, below): the seat answered a
   probe of N bytes and its token count shows it read the whole prompt. A cap of N bytes on the
-  whole prompt sent.
+  whole prompt sent. A prompt that is not valid UTF-8 to the request builders' decoder, or any
+  prompt when perl is missing, counts three bytes for each of its own: a decoder makes at most one
+  3-byte U+FFFD of a bad byte (added in the DIFF gate, C2-02 and C3-02; Codex refuses such a
+  prompt outright).
 - **Anything else**: a reply (the provider cut the prompt or took it whole), any other error (quota,
   sign-in, network, request size), or no probe at all, as for a model P2 did not cover such as a
   new `CODEX_MODEL`. Today's check: artifact plus prior findings at most 120,000 bytes.
