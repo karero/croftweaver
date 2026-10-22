@@ -1,5 +1,5 @@
 # DIFF review — fix/gsc-publish-app-followup — the Publish check reaches owners who already have a sign-in (follow-up to #363)
-Base `22ae4e4` · depth: Normal (instructions an assistant follows; a sign-in set-up for the owner's own read-only Search Console data, no secret stored or sent by the change — a judgment: it moves `token.json` aside, which would make it High if it deleted anything) · verdict: OPEN until the wording pass lands · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created this worktree and branch); POST AUTHORITY — not used, no PR yet
+Base `22ae4e4` · depth: Normal (instructions an assistant follows; a sign-in set-up for the owner's own read-only Search Console data, no secret stored or sent by the change — a judgment: it moves `token.json` aside, which would make it High if it deleted anything) · verdict: CLEAN (3 rounds, a wording pass and its confirmation; 24 findings counting refuted ones, 1 BUG, found in round 1 and fixed) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — atom A (this session created this worktree and branch); POST AUTHORITY — not used, no PR yet
 
 Seats: Codex CLI 0.163.0 (gpt-6.1-sol, read-only; config effort in round 1, medium after), GLM 5.3 on melious, a fresh-eyes Sonnet sub-agent in round 1 (by design at Normal depth). The text of #363 is public, and no secret is in the diff (grep: one env-var name).
 
@@ -8,8 +8,8 @@ Seats: Codex CLI 0.163.0 (gpt-6.1-sol, read-only; config effort in round 1, medi
 | 1 | `5649f77` (#363 as merged) | full, `f037c24...5649f77` | 1/4/7 | codex 132 s / 61,355; melious 226 s / 14,970; fresh-eyes 337 s / 133,594 |
 | 2 | `34982a6` | full follow-up, `22ae4e4...34982a6` | 0/2/6 | codex 293 s / 59,810; melious 500 s / 32,771 |
 | 3 | `80e1712` | delta since `34982a6` | 0/1/1 | codex 82 s / 57,882 (none); melious 199 s / 21,091 |
-| wording pass | `a7dacf2` + record | delta since `80e1712`, prose only | 0/0/2 (one wrong line count in this record, one overclaim, "never replaced"; both fixed) | codex 169 s / 65,054 |
-| confirmation | pending | the two fixes alone | | |
+| wording pass | `a7dacf2` + record | delta since `80e1712`, prose only | 0/0/2 (a wrong line count in this record, which Codex labelled BUG and the host counts as a NIT because it is in the record, not in what the product does; and one overclaim, "never replaced"; both fixed) | codex 169 s / 65,054 |
+| confirmation | `1403eb6` | the two fixes alone | 0/0/0 | codex 36 s / 23,693 |
 
 Round 1 (on #363's merged text):
 - R1-01 BUG (Codex, fresh-eyes) FIXED, `locally_verified` and `externally_reverified` in round 2: SKILL.md loads onboarding.md only when there is no token, so the Publish check for an owner who has one could not fire. Now the schedule paragraph of SKILL.md asks every owner it asks about scheduling to read the Audience tab. Evidence: `SKILL.md` "Before the yes".
