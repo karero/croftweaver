@@ -23,5 +23,5 @@ Waivers and deferrals: none.
 Follow-ups: none.
 Notes: substantive BUG in round 1: D1-01 (the remedy's dead end); D1-02 is comment wording. Round 2 found no BUG and no RISK, so the rounds end (stop condition a2). The plan's status row 4 (changed in the first commit, under `docs/reviews/`, which the rounds leave out) and this record are read by the wording pass.
 
-Cost: 2 rounds; 13 findings raw, 7 after dedup (BUG 2, RISK 1, NIT 4): 5 fixed, 2 refuted (D2-01, D2-02); 318,960 tokens logged (fresh-eyes 146,130 of them), 1,759 s of seat time, about 16 minutes of wall clock with each round's seats in parallel. Estimated before round 1 at 100-200k tokens for round 1.
+Cost: 2 rounds; 10 findings raw, 7 after dedup (BUG 2, RISK 1, NIT 4): 5 fixed, 2 refuted (D2-01, D2-02); 318,960 tokens logged (fresh-eyes 146,130 of them), 1,759 s of seat time, about 16 minutes of wall clock with each round's seats in parallel. Estimated before round 1 at 100-200k tokens for round 1.
 Raw reviewer output: in the PR's review comment (closeout, clerk item 1), not in this file.
