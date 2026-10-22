@@ -266,15 +266,16 @@ publish as usual with `npm run ship`.
 `main` by hand, from the site's folder. It is one command over four lines: copy all of it.
 
 ```bash
-id="$(git ls-remote origin refs/heads/main | cut -f1)" &&
+id="$(git ls-remote origin refs/heads/main | awk '$2 == "refs/heads/main" { print $1 }')" &&
   git -c maintenance.auto=false -c gc.auto=0 fetch -q origin "${id:?}" &&
   git push --no-verify origin "${id:?}:refs/heads/production" &&
   echo "Published $id. The live site's /build.txt should show it in a few minutes."
 ```
 
-It asks GitHub which commit its `main` branch points at now, fetches exactly that commit and
-publishes it. The commit's id stays in your terminal, so nothing else that runs in this folder
-(an assistant's fetch, say, or the same command in another terminal) can change which commit
+It asks GitHub which commit its `main` branch points at now (that branch alone: a branch
+whose name merely ends in `main` is ignored), fetches exactly that commit and publishes it.
+The commit's id stays in your terminal, so nothing else that runs in this folder (an
+assistant's fetch, say, or the same command in another terminal) can change which commit
 goes live; nor do this folder's fetch settings, or a tag that happens to be called `main`. The
 two settings keep git from tidying up while it fetches: on a shared folder, a tidy-up can drop
 the record of another session's work. If GitHub can't be reached or has no `main`, nothing is
