@@ -78,7 +78,7 @@ const PHRASES = [
   { file: 'skills/new-website/SKILL.md', rx: /This starter needs Node ≥([0-9.]+)\*\*, and Node's current security fixes are in ([0-9.]+), ([0-9.]+) and ([0-9.]+)/, use: 'lowest+lines' },
   { file: 'docs/UPGRADING.md', rx: /must be ([0-9.]+) or newer on Node 22, ([0-9.]+) or newer on Node 24, or ([0-9.]+) or newer/, use: 'lines' },
 ];
-const LINE_COUNT = 3; // the versions the SETUP.md and SKILL.md phrases list: the 22, 24 and 26 lines
+const LINE_COUNT = 3; // the versions the SETUP.md, SKILL.md and UPGRADING.md phrases list: the 22, 24 and 26 lines
 
 function cmp(a, b) {
   for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;

@@ -17,8 +17,8 @@
 # The versions in the cases are read from the real package.json, so a Node security release that moves a
 # version in the range changes ONE line here, EXPECTED_RANGE, which pins the real range on purpose (a
 # stale range cannot pass by being stale everywhere at once): after moving engines and the docs, change
-# it too. A change in the number of Node lines is a different move: the cases that count three lines
-# (19 and 20) change with it.
+# it too. A change in the number of Node lines is a different move: the cases and the version
+# plumbing that assume three lines (V22, V24, V26; cases 12, 19 and 20) change with it.
 #
 # It also compares the guard's --admits answers with npm's own semver (found at
 # $(npm root -g)/npm/node_modules/semver) for the edges of every line, runs one real npm install on a
