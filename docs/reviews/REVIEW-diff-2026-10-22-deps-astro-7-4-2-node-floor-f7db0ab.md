@@ -9,6 +9,7 @@ Seats: Codex CLI 0.163.0 (gpt-6.1-sol, read-only; config effort in round 1, medi
 | 2 | `7d95437` | delta since `f7db0ab` | 0/1/2 | codex 159 s / 54,937; melious 189 s / 22,272 |
 | wording pass | `5e9afe1` | delta since `7d95437`, prose only | 0/1/0 (R3-01) | codex 111 s / 47,913 |
 | confirmation | `ee928fb` | the fix alone, `5e9afe1..ee928fb` | 0/0/0 | codex 77 s / 50,011 |
+| merge link | `bfb126a` | `ee928fb..bfb126a`: `main` (#375) merged in; only `docs/BUGLOG.md` moved, by two rows from `main` | 0/0/0 | codex 99 s / 34,811 |
 
 Round 1:
 - R1-01 BUG (Codex; GLM as NIT) FIXED, `externally_reverified` in round 2: "24.22.1 on Node 24" was stated as part of Astro's own floor. Astro's check is `engines = '>=22.23.4'` with `skipSemverCheckIfAbove = 23` (`astro/bin/astro.mjs:27-39`, read by the host and by Codex), so 24.22.1 and 26.12.1 are Node's security fixes, not Astro's floor. The four texts now give the two separately.
@@ -31,7 +32,9 @@ Checked by the host and not left as UNVERIFIABLE: Node's advisory page, read raw
 Wording pass:
 - R3-01 RISK (Codex) FIXED: the BUGLOG row for the guard said "the maintainer reads both values at every release", a manual safeguard the public release procedure does not contain. It now says that nothing compares them and how to compare by hand.
 
-Cost: about 536k reviewer tokens in all. A first confirmation run was refused by the review script's base check (the diff did not match the `--base` given); it was redone from the right base, and nothing was reviewed on the wrong one.
+Cost: about 571k reviewer tokens in all. A first confirmation run was refused by the review script's base check (the diff did not match the `--base` given); it was redone from the right base, and nothing was reviewed on the wrong one.
+
+Merge: before the push `main` had moved (#375, two BUGLOG rows) and both sides had appended rows at the end of the table. `main` was merged in (not rebased, so the heads quoted here stay valid), `main`'s rows first and the branch's after, and `merge_link.sh 9acc3b9 ee928fb ccc0a86` showed that nothing else of the change moved; no file the merge changed on the base side is named in the change. The new seen pair is base `ccc0a86`.
 
 Follow-ups: the guard and the installer comment (R1-04, R1-06) in the second PR; the stricter `engines` (R1-07) there too.
 Notes:
