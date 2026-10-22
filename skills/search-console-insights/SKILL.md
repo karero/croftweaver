@@ -147,6 +147,12 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
      so if the warning offers a way on, they take it (not yet checked with a first sign-in).
      If Google blocks the sign-in instead of warning, stop and say
      so: the app may then need Google's verification.
+   - If the **Audience** tab already reads **In production** or **Internal**, there is
+     nothing to publish: leave it. Google's page names only external apps in "Testing" for the
+     7-day limit. Never switch an **Internal** app to **External**.
+   - If a sign-in already exists and was given while the app was in "Testing", sign in again
+     after publishing ("Signing in again", below). Whether that old sign-in keeps its 7-day
+     limit once the app is published was not checked.
 2. **Create a venv + install deps** (one-time, local — plain `pip install` fails on
    PEP-668 "externally-managed" Python, e.g. Homebrew/macOS). Use a stable home that
    matches where the OAuth token is cached. Any Python 3.9+ works, including macOS's stock
@@ -158,6 +164,18 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
    Save the downloaded `client_secret.json` to `~/.config/gsc-insights/client_secret.json`.
 3. **(Phase 2, optional)** free Serper key at https://serper.dev →
    `export SERPER_API_KEY=...` (or a SerpApi key → `export SERPAPI_KEY=...`).
+
+**Signing in again** — after publishing an app that already had a sign-in, or when the weekly
+job reports a refused sign-in. A sign-in Google still accepts is refreshed silently, with no new
+consent, so move it aside first, then run a report by hand (no `--no-browser`):
+
+```bash
+mv ~/.config/gsc-insights/token.json ~/.config/gsc-insights/token.json.old
+~/.config/gsc-insights/venv/bin/python scripts/gsc_query.py --site sc-domain:example.com --days 28 --no-csv
+```
+
+A browser opens for the owner's consent click, and the new sign-in is saved as `token.json`.
+Delete `token.json.old` once that run works. Ask the owner first: only they can click it.
 
 ## Reading the numbers — from GSC data to a conclusion
 
@@ -398,6 +416,12 @@ here — see the platform note below); ask the user directly instead. Let the us
 a complete answer; don't re-ask in the same session, and don't assume a yes for one site
 carries over to the next site connected later.
 
+Before the yes, one more check, for every owner you ask about scheduling, new or connected earlier: ask them to open
+the Google app's **Audience** tab and read its status. **In production** or **Internal**:
+carry on, unless they published only after their sign-in was given: then sign in again, as
+under "Signing in again". **Testing**: publish the app as in One-time setup, then sign in
+again, or the weekly job stops at Google from its second week.
+
 ```bash
 bash scripts/schedule_tracking.sh install example.com \
   "AI Events Munich,AI Meetups Munich,AI Treffen München" 1 9   # Mon 09:xx (weekday: 1=Mon…6=Sat, 0/7=Sun; hour 0-23)
@@ -425,10 +449,12 @@ Every step runs even if an earlier one failed (an expired Google sign-in no long
 week's Bing and AI data), and the log ends with a **"This run needs attention"** list naming
 each problem. Exit code: 0 when that list is empty; otherwise GSC's own code if GSC failed
 (2 = the sign-in needs renewing — the job never waits for a browser. If the logged reason is
-Google refusing the refresh (`RefreshError`) and it comes back every week, the Google app is
-most likely still in "Testing": check its **Audience** tab, publish it as in One-time setup,
-then reconnect), else 4 if a GSC or Bing
-history write failed, else 1. Bing API errors are on the list too (they used to be swallowed). An AI check that isn't set up is not a problem; homepage warnings from
+Google refusing the refresh (`RefreshError`), read the Google app's **Audience** tab.
+**Testing**: publish the app as in One-time setup, then sign in again as under "Signing in
+again". Already **In production** or **Internal**: the sign-in may have been given before the app was
+published, so sign in again; if that run fails too, look for access removed in the Google
+account (restore it) or a deleted OAuth client (make a new one as in One-time setup)), else 4
+if a GSC or Bing history write failed, else 1. Bing API errors are on the list too (they used to be swallowed). An AI check that isn't set up is not a problem; homepage warnings from
 the AI check aren't either (see `references/geo-check.md`).
 
 - **macOS** uses **launchd** — one LaunchAgent per site, *never* cron. Per-site means each is

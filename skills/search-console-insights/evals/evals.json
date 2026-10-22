@@ -4,14 +4,14 @@
     {
       "id": 1,
       "prompt": "I want to connect my Google Search Console so I can see how my site does in search. I'm not technical.",
-      "expected_output": "Should run the onboarding wizard, not dump commands. Must explain the BENEFIT first (real queries, positions, free, read-only) and ask 'want to connect now?' before any setup. Must check what's already done (token/creds/venv) and only ask for what's missing. Must clearly flag the human-only Google-console steps (enable API, Google Auth Platform → Audience → Test user and Publish app, create Desktop OAuth client, download JSON) as 'you do this', one at a time, and the agent-side steps (move JSON, build venv, first run) as 'I do this'. Must use a venv (not bare pip) and confirm the connection in plain words once done, then teach how to use it.",
+      "expected_output": "Should run the onboarding wizard, not dump commands. Must explain the BENEFIT first (real queries, positions, free, read-only) and ask 'want to connect now?' before any setup. Must check what's already done (token/creds/venv) and only ask for what's missing. Must clearly flag the human-only Google-console steps (enable API, Google Auth Platform → Audience → Test user and Publish app (unless it already reads In production or Internal), create Desktop OAuth client, download JSON) as 'you do this', one at a time, and the agent-side steps (move JSON, build venv, first run) as 'I do this'. Must use a venv (not bare pip) and confirm the connection in plain words once done, then teach how to use it.",
       "assertions": [
         "Explains the benefit BEFORE asking for setup steps",
         "Asks for confirmation before starting setup",
-        "Checks existing token/creds/venv and skips already-done steps",
+        "Checks existing token/creds/venv and skips already-done steps (except the Publish check when only the credentials exist)",
         "Flags the human-only Google-console clicks separately from agent steps",
         "References Google Auth Platform → Audience → Test users (not the old 'OAuth consent screen' path)",
-        "Has the owner publish the app (In production), so the weekly sign-in does not end after 7 days",
+        "Has the owner publish the app (In production) when it is still in Testing, so the weekly sign-in does not end after 7 days; leaves an app that already reads In production or Internal alone",
         "Uses a virtualenv, not a bare 'pip install'",
         "Confirms connection in plain language and then explains how to use it"
       ],
@@ -104,6 +104,7 @@
         "Actually asks whether to schedule weekly auto-tracking for this specific site, not just a passing mention",
         "Does not skip the ask on the reasoning that onboarding already happened previously or that history already exists",
         "Does not auto-install the scheduled job without an explicit yes",
+        "Before the yes, asks the owner to read the Google app's Audience tab: In production or Internal is fine, Testing means publish it and sign in again",
         "Names the site specifically (not a vague 'your sites') when asking"
       ],
       "files": []

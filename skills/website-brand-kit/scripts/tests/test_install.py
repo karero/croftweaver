@@ -2392,7 +2392,7 @@ class ColoursOnASiteAsSheLeftIt(SiteCase):
         self.assertEqual(data["read_back"]["src/config.ts"], {"status": "not-checked", "why": "the Node on this computer (v20.11.0) does not read a TypeScript file"})
         self.assertEqual(notes, [of_config % 10 + "the Node on this computer (v20.11.0) does not read a TypeScript file"])
         self.assertIn("and in the manifest, and in the share cards." + no_theme, colours)
-        # a Node that reads TypeScript only with the flag (22.12, the oldest the starter allows): asked again with it, and the answer counts
+        # a Node that reads TypeScript only with the flag (22.12, which an existing site may still allow): asked again with it, and the answer counts
         asked = self.old_node("reads")
         data, notes, colours = run({})
         self.assertEqual((T.read(asked).split(), data["read_back"], notes), (["plain", "flag"], self.READ_OK, []))

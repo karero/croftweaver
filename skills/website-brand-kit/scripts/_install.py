@@ -388,7 +388,7 @@ def _reads_config(site):
     """What the site's own Node reads from src/config.ts: ({"themeColor": ..., "logo": ...}, None), or
     (None, why it could not be asked). Node 22.18 and newer read a TypeScript file as it stands. One before
     that says it does not know the file's own extension (`.ts`; another is a file it could not load), and is
-    asked once more with --experimental-strip-types (the starter allows Node from 22.12, which reads
+    asked once more with --experimental-strip-types (an existing site may still allow Node from 22.12, which reads
     TypeScript only with that). Where that second asking fails too, its reason is the one given; a Node that
     does not know the flag (before 22.6: it ends with status 9, and one line of its error output is its own
     sentence for that: the program's name, from the line's start and not a blank, `: bad option: `, the
