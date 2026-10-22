@@ -1619,6 +1619,25 @@ limitcase t11g2 "codex stub-codex refuses$REF
 melious $MELIOUS_OK takes:$S$REF
 " "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
 check "T11: exactly what Melious sends: it runs" has t11g2.out "reviewers: codex OK, melious OK"
+check "T11: ... and all three runs wrote the same $S bytes" \
+  sh -c '[ "$(wc -c <"$1" | tr -d " ")" = "$3" ] && [ "$(wc -c <"$2" | tr -d " ")" = "$3" ]' _ "$T/t11g1.raw/melious.prompt" "$T/t11g2.raw/melious.prompt" "$S"
+# A takes: limit holds for valid UTF-8 only: a request builder turns an invalid byte into a longer
+# character, so such a prompt falls back to 120,000 bytes on the artifact. Valid UTF-8 still runs.
+{ printf 'diff --git a/x b/x\n+caf\351 in Latin-1\n'; cat "$T/big200.diff"; } >"$T/latin1.diff"
+{ printf 'diff --git a/x b/x\n+caf\303\251 in UTF-8\n'; cat "$T/big200.diff"; } >"$T/utf8.diff"
+limitcase t11k "codex stub-codex takes:500000$REF
+" "$T/latin1.diff" -- --seat codex
+check "T11: a Latin-1 byte under codex's takes: limit: FAILED at 120,000" has t11k.out "codex FAILED (artifact and prior findings of"
+check "T11: ... saying why its limit did not hold" has t11k.out "holds for UTF-8 text only"
+check "T11: ... and codex never ran" [ ! -e "$T/t11k.marks/codex-ran" ]
+limitcase t11l "codex stub-codex refuses$REF
+melious $MELIOUS_OK takes:500000$REF
+" "$T/latin1.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: the same for Melious: FAILED, its request never left" \
+  sh -c 'grep -qF "melious FAILED (artifact and prior findings of" "$1" && [ ! -e "$2/melious-body" ]' _ "$T/t11l.out" "$T/t11l.marks"
+limitcase t11m "codex stub-codex takes:500000$REF
+" "$T/utf8.diff" -- --seat codex
+check "T11: valid UTF-8 under the same limit runs" rc_is t11m 0
 # The codex model is read from config.toml strictly: a commented, single-quoted line still reads,
 # and a top-level profile key, which can pick another model, leaves it unknown (120,000 bytes).
 mkdir -p "$T/u3/.codex" "$T/u4/.codex" && : >"$T/u3/.codex/auth.json" && : >"$T/u4/.codex/auth.json"
@@ -1630,6 +1649,11 @@ check "T11: a commented, single-quoted model line reads (its listed limit applie
 limitcase t11i "codex stub-codex refuses$REF
 " "$T/big200.diff" HOME="$T/u4" -- --seat codex
 check "T11: a top-level profile key leaves the model unknown: 120,000 bytes" has t11i.out "codex FAILED (artifact and prior findings of"
+mkdir -p "$T/u5/.codex" && : >"$T/u5/.codex/auth.json"
+printf '"profile" = "deep"\nmodel = "stub-codex"\n[profiles.deep]\nmodel = "other"\n' >"$T/u5/.codex/config.toml"
+limitcase t11j "codex stub-codex refuses$REF
+" "$T/big200.diff" HOME="$T/u5" -- --seat codex
+check "T11: so does a quoted key (\"profile\" is the same key)" has t11j.out "codex FAILED (artifact and prior findings of"
 # T12: a seat listed "refuses" whose provider refuses for length FAILS, quoting the provider.
 limitcase t12 "codex stub-codex refuses$REF
 melious $MELIOUS_OK refuses$REF

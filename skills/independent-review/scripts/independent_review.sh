@@ -668,22 +668,30 @@ if [ -n "$SEAT_LIMITS_WHY" ]; then
   [ "$SEAT_LIMITS_WHY" = "it is missing" ] \
     || echo "note: $SEAT_LIMITS_FILE holds $SEAT_LIMITS_WHY, so every seat keeps the 120,000-byte limit." >&2
 fi
-# seat_fits <seat> <model> <bytes of the prompt it would send>: may this seat send it? Sets WHY
-# for its FAILED section when not. The byte count is held against a takes: line only; with no
-# line, the 120,000 limit is on the artifact plus prior findings (CONTENT_BYTES).
+# seat_fits <seat> <model> <the prompt file it would send, or empty>: may this seat send it? Sets
+# WHY for its FAILED section when not. A takes: line is held against the file's bytes, and only
+# for valid UTF-8: a request builder replaces an invalid byte with a longer character, so such a
+# prompt could grow past the bytes measured. With no usable line, the 120,000 limit is on the
+# artifact plus prior findings (CONTENT_BYTES).
 seat_fits() {
-  local rule="" line
+  local rule="" line n note=""
   while IFS= read -r line; do
     case "$line" in "$1 $2 "*) rule="${line#"$1 $2 "}"; break ;; esac
   done <<<"$SEAT_LIMITS"
   case "$rule" in
     refuses) return 0 ;;
-    takes:*) [ "$3" -le "${rule#takes:}" ] && return 0
-             WHY="a prompt of $3 bytes, over the ${rule#takes:} this seat took whole (seat_limits.txt); nothing was sent"
-             return 1 ;;
+    takes:*)
+      if [ -n "$3" ] && [ -r "$3" ] && command -v iconv >/dev/null 2>&1 \
+         && iconv -f UTF-8 -t UTF-8 <"$3" >/dev/null 2>&1; then
+        n="$(wc -c <"$3" | tr -d ' ')"
+        [ "$n" -le "${rule#takes:}" ] && return 0
+        WHY="a prompt of $n bytes, over the ${rule#takes:} this seat took whole (seat_limits.txt); nothing was sent"
+        return 1
+      fi
+      note="; its takes: limit holds for UTF-8 text only, and this prompt is not (or iconv is missing)" ;;
   esac
   [ "$CONTENT_BYTES" -le 120000 ] && return 0
-  WHY="artifact and prior findings of $CONTENT_BYTES bytes, over the 120,000 a seat with no measured limit may take (${2:+$1 $2, }seat_limits.txt${SEAT_LIMITS_WHY:+: $SEAT_LIMITS_WHY}); nothing was sent"
+  WHY="artifact and prior findings of $CONTENT_BYTES bytes, over the 120,000 a seat with no measured limit may take (${2:+$1 $2, }seat_limits.txt${SEAT_LIMITS_WHY:+: $SEAT_LIMITS_WHY}$note); nothing was sent"
   return 1
 }
 
@@ -1020,7 +1028,8 @@ looks_like_review() {
 # commands included — those are guards (R-PROJCTX).
 # The model a codex run uses: CODEX_MODEL, else config.toml's top-level `model = "<name>"` (single
 # quotes and a trailing comment allowed). Empty where the file cannot say which model runs: no
-# such line, a value it cannot read, or a top-level `profile` key, which can pick another model.
+# such line, a value it cannot read, a top-level `profile` key, which can pick another model, or
+# any quoted top-level key (`"profile" = …` is the same key, and this reader does not unquote).
 # Empty matches no seat_limits.txt line, so the seat keeps the 120,000-byte limit.
 codex_model() {
   if [ -n "${CODEX_MODEL:-}" ]; then printf '%s' "$CODEX_MODEL"; return; fi
@@ -1028,6 +1037,7 @@ codex_model() {
   awk -v q="'" '
     /^[ \t]*\[/ { exit }                      # a table begins: the top-level keys are above it
     /^[ \t]*profile[ \t]*=/ { prof = 1 }
+    /^[ \t]*["\047]/ { prof = 1 }               # a quoted key: possibly "profile" or "model"
     /^[ \t]*model[ \t]*=/ && !seen { seen = 1; line = $0 }
     END {
       if (prof || !seen) exit
@@ -1066,7 +1076,7 @@ run_codex() {
   # The prompt goes on stdin (`-`): no argv limit. Probe P1 (2026-10-22) recorded a 400,040-byte
   # prompt sent this way arriving byte for byte.
   printf '%s' "$PROMPT_TOOLED" >"$RAW_DIR/codex.prompt" || { WHY="could not write the prompt file"; return 1; }
-  seat_fits codex "$(codex_model)" "$(wc -c <"$RAW_DIR/codex.prompt" | tr -d ' ')" || return 1
+  seat_fits codex "$(codex_model)" "$RAW_DIR/codex.prompt" || return 1
   "$bin" "$@" - <"$RAW_DIR/codex.prompt" >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   local rc=$?
   # An explicit CODEX_MODEL request failing must not fail silently — with
@@ -1129,7 +1139,7 @@ run_codex() {
 # Whether the new wording lowers the rate is untested: no live run yet.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
-  seat_fits agy "" 0 || return 1   # still on argv: always the 120,000-byte limit
+  seat_fits agy "" "" || return 1   # still on argv: always the 120,000-byte limit
   local sbox out rc model="${AGY_MODEL:-}"
   sbox="$(mktemp -d)"
   # </dev/null: if the CLI ever prompts (tool-approval y/n) inside the captured
@@ -1203,7 +1213,7 @@ ollama_via_cli() {
   # The prompt goes on stdin: no argv limit. Probe P1 (2026-10-22, ollama 0.40.7) recorded a
   # 400,040-byte prompt sent this way arriving byte for byte.
   printf '%s' "$PROMPT_TEXTONLY" >"$RAW_DIR/ollama.prompt" || { WHY="could not write the prompt file"; return 1; }
-  seat_fits ollama-cli "$OLLAMA_MODEL" "$(wc -c <"$RAW_DIR/ollama.prompt" | tr -d ' ')" || return 1
+  seat_fits ollama-cli "$OLLAMA_MODEL" "$RAW_DIR/ollama.prompt" || return 1
   local help
   if help="$(ollama_cli run --help 2>&1)" && grep -qE -- '(^|[[:space:]])--hidethinking([[:space:]]|$)' <<<"$help"; then
     ollama_cli run --hidethinking "$OLLAMA_MODEL" >"$tmp" <"$RAW_DIR/ollama.prompt" 2>"$RAW_DIR/ollama.err"; rc=$?
@@ -1269,8 +1279,9 @@ ollama_via_api() {
     case "$url" in http://*|https://*) ;; *) url="http://$url" ;; esac
     url="${url%/}"
   fi
-  seat_fits ollama-api "$OLLAMA_MODEL" "$(printf '%s' "$PROMPT_TEXTONLY" | wc -c | tr -d ' ')" || return 1
-  printf '%s' "$PROMPT_TEXTONLY" | perl "$PERL_DIR/ollama_request.pl" "$model" >"$body" || { WHY="could not build the API request"; return 1; }
+  printf '%s' "$PROMPT_TEXTONLY" >"$RAW_DIR/ollama.prompt" || { WHY="could not write the prompt file"; return 1; }
+  seat_fits ollama-api "$OLLAMA_MODEL" "$RAW_DIR/ollama.prompt" || return 1
+  perl "$PERL_DIR/ollama_request.pl" "$model" <"$RAW_DIR/ollama.prompt" >"$body" || { WHY="could not build the API request"; return 1; }
   # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
   code="$(if [ -n "$OLLAMA_KEY_VALUE" ]; then printf 'Authorization: Bearer %s\n' "$OLLAMA_KEY_VALUE"; fi \
     | curl -sS --max-time "${OLLAMA_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
@@ -1363,7 +1374,7 @@ run_melious() {
   local mark; mark="$(melious_marker)"
   printf '%s\n\nOutput format for this reply: put your final answer after a line that holds exactly %s and nothing else, and write nothing after the final answer.\n' \
     "$PROMPT_TEXTONLY" "$mark" >"$RAW_DIR/melious.prompt" || { WHY="could not write the prompt file"; return 1; }
-  seat_fits melious "$MELIOUS_MODEL" "$(wc -c <"$RAW_DIR/melious.prompt" | tr -d ' ')" || return 1   # all it sends
+  seat_fits melious "$MELIOUS_MODEL" "$RAW_DIR/melious.prompt" || return 1   # all it sends
   perl "$PERL_DIR/melious_request.pl" "$MELIOUS_MODEL" "$max" <"$RAW_DIR/melious.prompt" >"$body" || { WHY="could not build the API request"; return 1; }
   key="$(melious_key)"
   # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
@@ -1747,6 +1758,6 @@ printf 'per-tier stderr for attempted reviewers (auth error vs I/O failure): %s\
 if [ "$CONTENT_BYTES" -le 120000 ]; then
   printf '%s\n' "$PROMPT_PORTABLE"
 else
-  printf '(The paste prompt is not printed: the artifact and prior findings are %s bytes. Split the artifact, or run a seat whose limit takes it.)\n' "$CONTENT_BYTES"
+  printf '(The paste prompt is not printed: the artifact and prior findings are %s bytes, too long to paste. Fix the failed seats above, or split the artifact.)\n' "$CONTENT_BYTES"
 fi
 exit 4
