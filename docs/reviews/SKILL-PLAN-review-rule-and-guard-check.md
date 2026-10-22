@@ -109,8 +109,8 @@ can deliver what the plan credits it with.
 
 **What changes.**
 - `scripts/independent_review.sh`: `PROMPT_PLAN`, assigned after `PROMPT_VERIFY` and before the four
-  tier prompts and the `readonly` line (which gains it), empty for a diff. Like `PROMPT_VERIFY` it
-  starts and ends with a newline. Each tier prompt's `${PROMPT_VERIFY}` becomes
+  tier prompts and the `readonly` line (which gains it). For a diff it is empty, zero bytes; for a
+  plan it starts and ends with a newline, like `PROMPT_VERIFY`. Each tier prompt's `${PROMPT_VERIFY}` becomes
   `${PROMPT_PLAN}${PROMPT_VERIFY}`, so a diff's prompt stays byte for byte what it is. The text:
 
   > GUARDS THE PLAN PROPOSES. For each guard the plan adds to catch a future mistake — a test, a
@@ -147,8 +147,8 @@ can deliver what the plan credits it with.
   outside this repo, with `docs/reviews/` removed so the old findings are not in reach. Before the
   run, the copy is searched for phrases from the old findings ("literal pattern", "cannot express",
   "RT-4") and stripped wherever they occur; on 2026-10-22 the plan itself held only the trail's
-  path and a status line naming "PLAN gate round 1". Pass: a RISK
-  that the tripwire cannot deliver the protection the plan credits it with, whose fix narrows the
+  path and a status line naming "PLAN gate round 1". Pass: a RISK saying
+  the tripwire cannot deliver the protection the plan credits it with, whose fix narrows the
   claim, leans on the route tests or drops the guard, not one that bans more forms. Also counted:
   guard entries about anything else (the noise). The comparison is that plan's own PLAN gate, a
   record made under other models and settings, not a controlled run. That fix is in a private
