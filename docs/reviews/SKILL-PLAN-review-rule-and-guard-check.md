@@ -10,7 +10,7 @@ login, money, deletion or schema).
 | 2 | Bug-log row: Codex refuses a prompt that is not valid UTF-8 | built | `1bd03a19` |
 | 3 | The plan prompt asks about the guards a plan proposes | built, after the owner's go (2026-10-22, "Yes, build it"; the round-8 stop kept: "Keep the round-8 stop") | `6ae85997`; test 25b fails 8 of its checks on the code before it, and 7 when the paragraph is sent for a diff too |
 | 4 | Live trials T2 and T3 of step 3 | both passed, one run each (2026-10-22) | T2: one finding, a RISK that the tripwire cannot establish the plan's claim, with a concrete bypass and the fix "narrow the claim, credit the route tests"; no other guard finding (Codex, 190 s, 59,261 tokens). T3: no finding about guards; one CLEAN line said there was none (melious, 154 s, 18,151 tokens) |
-| 5 | `make check`, then the DIFF gate at Normal | `make check` green at `6ae85997`; DIFF gate in progress | — |
+| 5 | `make check`, then the DIFF gate at Normal | done: `make check` green at `6ae85997`, `09bd5309` and `8db31704`; DIFF gate CLEAN (2 rounds and a prose-only re-gate, 12 findings) | `docs/reviews/REVIEW-diff-2026-10-22-skill-review-rule-and-guard-check-09bd530.md` |
 
 ## 1. A no-BUG round's open RISK
 
