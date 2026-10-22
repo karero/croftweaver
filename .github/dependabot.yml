@@ -8,6 +8,8 @@ updates:
     groups:
       astro-template-minor-and-patch:
         update-types: [minor, patch]
+    # The ignore section below is the same as the starter's copy for sites, skills/new-website/templates/astro/.github/dependabot.yml
+    # (the group names differ); change them together.
     ignore:
       # Tracks the Node major in .nvmrc and ci.yml (see package.json's engines); bump them together by hand.
       - dependency-name: "@types/node"

@@ -765,7 +765,12 @@ hold Search Console Request Indexing until then.
 - [ ] **Dependabot security fixes on** for the site's GitHub repo: run `SETUP.md`'s
       Dependabot lines from the site folder; the output must name this repo and show
       `alerts: on` and `security updates: on`. Not skippable: the site's lockfile is its
-      own, so no suite update ever patches it.
+      own, so no suite update ever patches it. The starter also ships
+      `.github/dependabot.yml` (monthly, grouped version updates; a new major of any package but the two held
+      back comes as its own pull request; Dependabot raises no new version pull request
+      while five are open, so merge or close them): keep it if someone will merge the monthly
+      pull request (name them in the site's README), delete it if not; security updates
+      stay on either way.
 - [ ] **`<project>.pages.dev` redirects to the live domain**: once the live domain serves
       this build, Production variable `CANONICAL_URL` set and redeployed; `curl -sI` on the
       alias shows `301` (`references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live").

@@ -71,6 +71,36 @@ message tells you exactly what to click. Never assume a push went live without t
 
 > **Nothing reaches the live domain until step 4.** Steps 1–3 only update the noindexed preview.
 
+### On a shared computer: publish GitHub's `main` instead
+
+`npm run ship` stops when this folder isn't on `main` or has unsaved files. That protects you
+from publishing while you've forgotten to save an edit. But where several people or AI
+assistants work in the same folder, it's seldom tidy: someone's draft, or a branch left
+checked out, blocks every publish, though none of it would have been published.
+
+For such a folder, switch on one setting, once, in the site's folder:
+
+```bash
+git config ship.fromGitHub true
+```
+
+From then on, `npm run ship` publishes **GitHub's `main`**, from a temporary copy it makes
+and removes again. The checks run on exactly what goes live, and none of the files in this
+folder are built, published or changed. Unsaved files no longer block it: they're listed under "Not
+published", and the last line says how many there were. So the one thing to keep in mind:
+**an edit that is only in this folder doesn't go live.** Get it onto GitHub's `main` first
+(a pull request, or a push), then ship.
+
+- The setting is saved in this folder's own git settings, so it covers every copy of the site
+  that shares them (an assistant's `git worktree` of it, say), and no other copy. A fresh
+  copy of the site starts without it.
+- Each publish installs the site's packages fresh in the temporary copy (`npm ci`), so it
+  needs the internet (or packages npm has cached before) and takes a little longer.
+- One publish runs at a time across this folder and every copy that shares its settings; a
+  second one stops and says why.
+- To see whether it's on: `git config --local --get ship.fromGitHub`. To switch it off:
+  `git config --unset ship.fromGitHub`.
+
 ---
 
 ## Single-stage (simplest) — "push = live"
@@ -162,7 +192,7 @@ On Windows, run it in Git Bash or WSL.
 - **`git push` says "rejected"?** (on `main`) Someone/something updated the cloud copy — run
   `git pull` first, then `git push` again.
 
-`npm run ship` names which of these it is, and stops before publishing anything. The
+`npm run ship` names which of these it is, and says whether anything was published. The
 ones you're most likely to meet:
 
 - **"Couldn't reach GitHub"** or **"couldn't fetch from GitHub"?** Your internet, not your
@@ -190,9 +220,77 @@ ones you're most likely to meet:
   an expired login both land here.
 - **"This branch isn't connected to GitHub yet"?** A brand-new site that has never been
   uploaded. Run `git push -u origin main` once, then ship.
+- **"may or may not have landed"?** The publish was stopped part-way (Ctrl-C, say), or the
+  script couldn't read git's result. Run `npm run ship` again: if it already landed, git says
+  "Everything up-to-date" and the checks carry on as normal.
+- **"The publish went out", after a stop?** You stopped it after the upload: the site is being
+  published, and only the last check was skipped. In a few minutes, open your live site's
+  `/build.txt`: it shows the commit the live site serves.
+- **"The site's test port was taken"?** Another test run, or a preview of the site
+  (`npm run dev`), is using the port the checks need. Close it, then ship again.
+- **"A newer publish followed"?** Someone published again right after you. Your live site's
+  `/build.txt` shows which of the two it serves.
+
+With `ship.fromGitHub` switched on (see "On a shared computer" above), you may also meet these:
+
+- **"another publish holds this clone's lock"?** One publish runs at a time. If the message
+  says that process is still running, a publish is under way: let it finish. If it isn't
+  running (or the script can't tell), an earlier publish was stopped hard and left its lock
+  behind. The message gives the command that removes it; first make sure no `git push` from
+  that publish is still running.
+- **"Left over from an earlier publish that was stopped hard"?** Its temporary copy is still
+  there. It blocks nothing. Once nothing is working in it any more, remove it with the command
+  the message gives; where the message says to check by hand, its record is damaged, so look
+  at that folder yourself (or ask for help) before deleting anything.
+- **"this folder's scripts/ship.sh is not the one on GitHub's main"?** The script that
+  publishes has to be the one being published. Run it from a copy that is up to date with
+  GitHub's `main`.
+- **"installing the site's packages in the temporary copy failed"?** Read npm's error just
+  above it. The install needs the internet, or packages npm has cached before.
+- **"has no runnable scripts/hooks/pre-push"?** GitHub's `main` lacks the pre-push check this
+  mode insists on, so it publishes nothing. Ask for help.
 
 When in doubt, ask before you `npm run ship`, `git push` or the deploy command above — those
 are the only commands that change what the public sees.
+
+---
+
+## In an emergency
+
+**Something wrong is live.** The quickest way back is Cloudflare's **Rollback** ("Mistake
+already live?" above). To fix it for good, undo the change on `main` (on GitHub, the pull
+request that brought it in has a **Revert** button; merge the pull request it makes), then
+publish as usual with `npm run ship`.
+
+**`npm run ship` itself is broken**, and the live site needs a fix now. Publish GitHub's
+`main` by hand, from the site's folder. It is one command over four lines: copy all of it.
+
+```bash
+id="$(git ls-remote origin refs/heads/main | awk '$2 == "refs/heads/main" { print $1 }')" &&
+  git -c maintenance.auto=false -c gc.auto=0 fetch -q origin "${id:?}" &&
+  git push --no-verify origin "${id:?}:refs/heads/production" &&
+  echo "Published $id. The live site's /build.txt should show it in a few minutes."
+```
+
+It asks GitHub which commit its `main` branch points at now (that branch alone: a branch
+whose name merely ends in `main` is ignored), fetches exactly that commit and publishes it.
+The commit's id stays in your terminal, so nothing else that runs in this folder (an
+assistant's fetch, say, or the same command in another terminal) can change which commit
+goes live; nor do this folder's fetch settings, or a tag that happens to be called `main`. The
+two settings keep git from tidying up while it fetches: on a shared folder, a tidy-up can drop
+the record of another session's work. If GitHub can't be reached or has no `main`, nothing is
+published. `--no-verify` skips the pre-push check on purpose: that
+check also runs ship's own test, and ship is the part that may be broken. So nothing checks
+this publish. Do it only for a `main` whose checks are green on GitHub, and never add
+`--force`. A few minutes later, open your live site's `/build.txt`: it shows the commit the
+live site serves, which should be the id the last line printed.
+
+**Is the pre-push check switched on?** `git config --get core.hooksPath` prints
+`scripts/hooks` when it is. Anything else, or nothing: run `npm install` once in the site's
+folder, which switches it on (unless the site sits inside a bigger repository). On a shared
+computer, first ask whoever else works in this folder: they may have set it their own way on
+purpose. With `ship.fromGitHub` on, `npm run ship` runs the published commit's own check
+whatever this setting says.
 
 ---
 

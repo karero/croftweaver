@@ -84,10 +84,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # The template's publish classifier. It needs no build, no browser and no
-      # network, so it runs first and fails in about a second. This step is the only
-      # place it runs in THIS repo: the copy wired into the template's own ci.yml and
-      # pre-push hook executes inside a scaffolded site, never here — so without this,
-      # a regression in scripts/ship.sh would reach recipients with CI green.
+      # network, so it runs first and fails within a minute or so. In THIS repo it runs here,
+      # on the macOS leg of prepare-any-shell, and in verify-windows, whose pushes go through
+      # a copied site's pre-push hook (there its real-git half skips itself, on Git Bash). The
+      # copy wired into the template's own ci.yml and pre-push hook otherwise executes inside a
+      # scaffolded site, never here — so without these, a regression in scripts/ship.sh would
+      # reach recipients with CI green.
       - name: Publish classifier (scripts/ship.sh)
         run: bash tests/check_ship_push.sh
       - uses: actions/setup-node@v7
@@ -260,6 +262,21 @@ jobs:
           echo "root-site: core.hooksPath=${root:-unset}, big: core.hooksPath=${big:-unset}"
           [ "$root" = scripts/hooks ] || { echo "::error::the install did not wire the site at its repo's root"; exit 1; }
           [ -z "$big" ] || { echo "::error::an install in a subfolder set core.hooksPath=$big in the bigger repo"; exit 1; }
+      # scripts/ship.sh on the Mac's own bash 3.2, /bin/bash, the only place it is: there a stop
+      # noted as the push pipeline ends resets that pipeline's status (case S10 (e) of
+      # tests/check_ship_push.sh). The playwright job runs the same file on Linux, where the
+      # case skips, so without this step it would first run in a site's pre-push gate.
+      # SHIP_TEST_REQUIRE_BASH32 makes a skip of it fail here. /bin first on PATH, so every
+      # case runs ship.sh on that bash, as a Mac's `npm run ship` does without Homebrew's.
+      - name: Publish script on the Mac's bash 3.2 (tests/check_ship_push.sh)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          SHIP_TEST_REQUIRE_BASH32: 1
+        run: |
+          PATH="/bin:$PATH"
+          echo "bash for every case: $(command -v bash), $(bash -c 'echo "$BASH_VERSION"')"
+          /bin/bash tests/check_ship_push.sh
 
   # scripts/verify.mjs has a Windows-only branch: started directly (the pre-push hook), it finds
   # npm on PATH, which on Windows is npm.cmd, and Node starts a .cmd only through a shell; run as

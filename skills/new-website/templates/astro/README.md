@@ -20,6 +20,7 @@ public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
 functions/_middleware.ts      # noindex *.pages.dev previews; 301 <project>.pages.dev once CANONICAL_URL is set; page views in analytics server mode
 functions/go/email.ts         # analytics server mode: counts the email tap, then opens the mail program
 .github/workflows/ci.yml      # astro check + the suite on push/PR
+.github/dependabot.yml        # monthly grouped npm + Actions version updates (delete it if nobody will merge them)
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
 scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin / deep pages (offline; not in CI)
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
@@ -32,7 +33,7 @@ scripts/hooks/pre-push           # blocks a push when the site's checks fail
 scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, which fails without it: wires the pre-push hook
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server}.spec.ts
-tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
+tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis, and its ship.fromGitHub mode on throwaway local repos (pre-push hook + CI)
 tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: off in all four with USE_ANALYTICS = false (as shipped), or on only when CF_PAGES_BRANCH is PROD_BRANCH; in server mode no script and email links to /go/email on the live build only (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
@@ -205,3 +206,11 @@ go-live". AI assistant deploying or announcing a
 deploy: read `PUBLISHING.md` § "For AI assistants — deploy-time guardrails"
 first (preview-vs-live announcements + the cached-404 rule) — every time, not
 just the first.
+
+Shared computers: where several people or AI assistants work in one checkout of a
+two-stage site, `npm run ship` stops on any unsaved file and on any branch but `main`,
+though none of that would be published. `git config ship.fromGitHub true` in that clone
+makes it publish GitHub's `main` from a throwaway git worktree instead: nothing in the
+folder is built or published, and its unsaved files are only listed. The setting is read
+from the clone's own config, never the global one, so a fresh clone keeps the folder check.
+`PUBLISHING.md`, "On a shared computer", has the details.
