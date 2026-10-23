@@ -23,10 +23,11 @@ test('tables — every exempt page is a live PAGES route and has a reason', () =
   }
 });
 
-// The first row header is one long word in a column forced narrow above the breakpoint, so a squeezed column breaks it.
+// The first row header is one long word in a table capped at 20rem above the breakpoint. Chromium raises a cell to
+// its longest word, so the word only breaks under a rule that lets it shrink (overflow-wrap: anywhere, word-break).
 // The second link is one character, so its tap target comes from the rule and not from the text's width.
 const FIXTURE = `
-<style>@media (min-width: 40.01rem) { #table-fixture th.narrow { width: 4.5rem; } }</style>
+<style>@media (min-width: 40.01rem) { #table-fixture .stack { max-width: 20rem; } }</style>
 <div id="table-fixture" class="wrap">
   <div class="table-wrap stack" role="region" aria-label="Text table fixture" tabindex="0">
     <table role="table">
@@ -35,7 +36,7 @@ const FIXTURE = `
       </tr></thead>
       <tbody role="rowgroup">
         <tr role="row">
-          <th scope="row" role="rowheader" class="narrow">Internationalisation</th>
+          <th scope="row" role="rowheader">Internationalisation</th>
           <td role="cell" class="nowrap" data-label="Steps">1, 3, 6</td>
           <td role="cell" data-label="Note">A sentence long enough to wrap onto several lines in a narrow column, as the notes of a real table do.</td>
         </tr>
@@ -63,7 +64,7 @@ async function openFixture(page: Page, width: number, theme: (typeof THEMES)[num
   await page.addInitScript((t) => {
     try { localStorage.setItem('theme', t); } catch (e) { /* ignore */ }
   }, theme);
-  await page.goto('/');
+  await page.goto(PAGES[0]);
   await page.evaluate((html) => document.querySelector('main')!.insertAdjacentHTML('afterbegin', html), FIXTURE);
 }
 
@@ -77,7 +78,13 @@ function markupProblems(root: string): string[] {
     if (!wrap.getAttribute('aria-label')) out.push(`table ${i}: its .table-wrap has no aria-label`);
     if (wrap.getAttribute('tabindex') !== '0') out.push(`table ${i}: its .table-wrap has no tabindex="0"`);
     if (!wrap.classList.contains('stack') && !wrap.classList.contains('figures')) out.push(`table ${i}: its .table-wrap is neither "stack" nor "figures"`);
-    if (t.querySelectorAll('thead th[scope="col"]').length === 0) out.push(`table ${i} has no <th scope="col"> in its header`);
+    const cols = [...t.querySelectorAll('thead th')];
+    if (cols.length === 0 || cols.some((h) => h.getAttribute('scope') !== 'col')) out.push(`table ${i}: every header cell needs scope="col"`);
+    t.querySelectorAll('tbody tr').forEach((tr, r) => {
+      if (tr.querySelectorAll(':scope > th[scope="row"]').length !== 1 || tr.firstElementChild?.tagName !== 'TH') {
+        out.push(`table ${i}, row ${r}: the row needs one <th scope="row"> as its first cell`);
+      }
+    });
     if (!wrap.classList.contains('stack')) return;
     const roles: [string, string][] = [
       ['', 'table'], ['thead', 'rowgroup'], ['tbody', 'rowgroup'], ['tr', 'row'],
@@ -88,10 +95,14 @@ function markupProblems(root: string): string[] {
       const wrong = els.filter((e) => e.getAttribute('role') !== role).length;
       if (wrong > 0) out.push(`table ${i}: ${wrong} of ${els.length} "${sel || 'table'}" lack role="${role}"`);
     }
-    const headers = [...t.querySelectorAll('thead th')].map((h) => (h.textContent ?? '').trim());
+    const norm = (x: string | null) => (x ?? '').replace(/\s+/g, ' ').trim();
+    const headers = cols.map((h) => norm(h.textContent));
     t.querySelectorAll('tbody tr').forEach((tr, r) => {
-      [...tr.querySelectorAll('td')].forEach((td, c) => {
-        if (td.getAttribute('data-label') !== headers[c + 1]) {
+      if (tr.querySelector('[colspan]')) return;
+      const tds = [...tr.querySelectorAll('td')];
+      if (tds.length !== headers.length - 1) out.push(`table ${i}, row ${r}: ${tds.length} cells for ${headers.length - 1} columns`);
+      tds.forEach((td, c) => {
+        if (norm(td.getAttribute('data-label')) !== headers[c + 1]) {
           out.push(`table ${i}, row ${r}: a cell's data-label is "${td.getAttribute('data-label')}", its column header is "${headers[c + 1]}"`);
         }
       });
@@ -147,7 +158,6 @@ for (const width of PHONES) {
     for (const row of labels) {
       expect(row, 'a cell shows no label, or one that is not its column header').toEqual(headers.slice(1).map((h) => `"${h}"`));
     }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `the page scrolls sideways at ${width} px`).toBeLessThanOrEqual(0);
     const scrolling = await page.locator('#table-fixture .table-wrap').evaluateAll((ws) => ws.filter((w) => w.scrollWidth - w.clientWidth > 1).length);
     expect(scrolling, `a fixture table scrolls inside its region at ${width} px`).toBe(0);
   });
@@ -158,6 +168,21 @@ test('tables — fixture on a phone: a link that stands alone in a cell is a 44p
   const box = await page.locator('#table-fixture a.tap').boundingBox();
   expect(box!.height, 'the link is shorter than the 44px tap target').toBeGreaterThanOrEqual(44);
   expect(box!.width, 'the link is narrower than the 44px tap target').toBeGreaterThanOrEqual(44);
+});
+
+// The region clips what is drawn outside it, and the first column starts at its edge.
+test('tables — fixture: the focus ring of a link in the first column is not clipped by the region', async ({ page }) => {
+  await openFixture(page, 360);
+  const link = page.locator('#table-fixture a.tap');
+  await link.focus();
+  const ring = await link.evaluate((a) => {
+    const s = getComputedStyle(a);
+    return { style: s.outlineStyle, reach: parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset) };
+  });
+  expect(ring.style, 'a focused link shows no outline').not.toBe('none');
+  const box = (await link.boundingBox())!;
+  const wrapBox = (await page.locator('#table-fixture .stack').boundingBox())!;
+  expect(box.x - ring.reach, 'the focus ring reaches outside the region, which clips it').toBeGreaterThanOrEqual(wrapBox.x);
 });
 
 for (const width of [641, 1280]) {
@@ -234,10 +259,21 @@ for (const width of PHONES) {
 }
 
 for (const width of [641, 1280]) {
-  test(`tables — at ${width} px no word in a real table is broken, and row headers take few lines`, async ({ page }) => {
+  test(`tables — at ${width} px a real stacked table is a table again, no word is broken, row headers take few lines`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     for (const path of SCANNED) {
       await page.goto(path);
+      const stackedBad = await page.evaluate(() => [...document.querySelectorAll('.table-wrap.stack')].flatMap((w, i) => {
+        const head = w.querySelector('thead')!;
+        const out: string[] = [];
+        if (head.getBoundingClientRect().height <= 20 || getComputedStyle(head).clipPath !== 'none') out.push(`stacked table ${i}: the header row is hidden or clipped`);
+        w.querySelectorAll('tbody tr').forEach((tr, r) => {
+          const tops = new Set([...tr.querySelectorAll('th, td')].map((c) => Math.round(c.getBoundingClientRect().top)));
+          if (tops.size > 1) out.push(`stacked table ${i}, row ${r}: the cells are stacked`);
+        });
+        return out;
+      }));
+      expect(stackedBad, `${path}: a stacked table is not a table again at ${width} px`).toEqual([]);
       const found = await page.evaluate(layoutProblems, '.table-wrap');
       expect(found.broken, `${path}: words broken across lines at ${width} px`).toEqual([]);
       expect(found.tall, `${path}: row headers with too many lines at ${width} px (a long header needs "long-head")`).toEqual([]);

@@ -1,0 +1,42 @@
+# DIFF review — branch skill/tables — a Tables section, the table CSS and tables.spec.ts in the starter
+Base: merge base with origin/main; round 1 saw head `4f49a0d` · depth: Normal (tooling that ships to sites; nothing in the High row) · verdict: round 1 had BUGs, all fixed; round 2 pending. DEGRADED: Codex alone plus a fresh-eyes Sonnet pass in round 1, and Codex alone after (GLM 5.3 on melious.ai has no balance, the ollama seat is at its weekly limit; the owner's OK covered Codex only, quoted for the plan gate: "Yes, send the plan to Codex alone (this repo's content, no melious, no ollama)", and carried to this diff by his "Go: build ... then the DIFF review"). Plan gate: `docs/reviews/PLAN-tables.md`, 2 rounds, no BUG open.
+
+| Round | Head | Artifact | Reviewers | seconds / tokens | BUG/RISK/NIT |
+|---|---|---|---|---|---|
+| 1 | `4f49a0d` | full change (25,406 bytes) | codex-cli gpt-6.1-sol, config effort, read-only; fresh-eyes Claude Sonnet sub-agent, read-only by instruction, ran nothing | codex 166 s / 73,793; fresh-eyes 154 s / 142,036 | Codex 3 / 1 / 0; fresh-eyes 0 / 2 / 6 |
+
+| id | Sev | Source | Round | Finding | Status | Evidence |
+|---|---|---|---|---|---|---|
+| D1 | BUG | Codex | 1 | the markup guard accepts a missing `scope="row"` and a missing `scope="col"`, and a row with the wrong cell count | fixed | `markupProblems` now needs `scope="col"` on every header cell, one `th[scope=row]` first in every row, and the cell count equal to the columns; labels compared after whitespace normalisation, rows with `colspan` skipped. Mutation: a row header without `scope="row"` fails "the fixture markup is wrong" |
+| D2 | BUG | Codex | 1 | the claim that real stacked tables regain their desktop layout is checked on the fixture only | fixed | the scan layer checks every real `.stack` table at 641 and 1280 px (header row showing and not clipped, cells of a row side by side). Run in the scratch starter with one real stacked table added to the home page: passes; with stacking widened to 80rem: fails "a stacked table is not a table again at 641 px" |
+| D3 | RISK | Codex | 1 | the claim that roles keep a stacked table's meaning in Safari and VoiceOver has no evidence | fixed by rewording; the check itself stays out of reach | SKILL.md and the CSS comment now say: kept where a browser would drop it, measured once in Chromium, other browsers and screen readers not checked |
+| D4 | BUG | Codex | 1 | the CSS comment says "as the header links are"; the starter has no header links | fixed | phrase removed |
+| D5 | RISK | fresh-eyes | 1 | the region clips an outline drawn outside the first column, so a keyboard user sees a partial focus ring on a first-column link | fixed | `.table-wrap a:focus-visible { outline-offset: -2px; }` and a fixture test that focuses the link and checks the ring's reach stays inside the region. Mutation: removing the rule fails "the focus ring reaches outside the region" |
+| D6 | RISK | fresh-eyes | 1 | the fixture's narrow column is inert, so the word-break check protects little | fixed | measured: the forced-width cell was 269 px, not 72; a table capped at 20rem gives 163 px at baseline (word whole) and 90 px with `overflow-wrap: anywhere` or `word-break: break-all` (word in two pieces). Fixture and comment changed; mutation `overflow-wrap: anywhere` fails "words broken across lines" |
+| D7 | NIT | fresh-eyes | 1 | website-qa does not list the new spec | fixed | a bullet in website-qa section 1 |
+| D8 | NIT | fresh-eyes | 1 | the fixture test hardcodes `/` and asserts page-level overflow, which fails for unrelated home content | fixed | `PAGES[0]`; the page-level line is dropped from the fixture test (the scan layer covers pages) |
+| D9 | NIT | fresh-eyes | 1 | label comparison breaks on a header wrapped across source lines or a `colspan` | fixed | with D1 |
+| D10 | NIT | fresh-eyes | 1 | `tr.avg` is undocumented | fixed | documented in the CSS comment |
+| D11 | NIT | fresh-eyes | 1 | SKILL.md says a figures table "needs no roles or labels"; the spec needs the wrapper's | fixed | "no per-cell roles and no `data-label`" |
+| D12 | NIT | fresh-eyes | 1 | generic class names can clash with a site's own `.table-wrap` or `.num` | refuted | every selector sits under `.table-wrap`; SKILL.md tells a site to remove its own table CSS first; `global.css` is site-owned, so nothing is overwritten |
+| D13 | — | fresh-eyes | 1 | the "either way" half of the accessibility-tree claim has no test | fixed by rewording | the comment says "measured once, in Chromium, on a real table"; roles cannot be made to fail a test in Chromium, so none is added |
+
+Proofs in a scratch copy of the starter (`cp -R`, `npm ci`, a private preview port):
+- Baseline: `tables.spec.ts` 17 passed; whole starter suite 108 passed, 1 skipped (the starter's own placeholder in `positioning.spec.ts`; the new spec skips nothing).
+- Eleven breaks, one at a time, restored from memory and compared by a hash of the files; each failed at its own message: a row header without `scope="row"`; the focus-ring rule removed; `overflow-wrap: anywhere` in a cell; `hyphens: auto` in a cell (fails "cells that inherit hyphens: auto"); the `stack` class removed; a `data-label` that differs from its header; a role removed; the tap rule without `min-width`; a table forced to 40rem; stacking up to 80rem; header text too faint in dark (axe).
+- The hyphen guard reads the computed style because headless Chromium 156 does not hyphenate: `hyphens: auto` and `manual` laid a 60 px paragraph out alike (3 lines, `scrollWidth` 124). Plan step 2's done-condition, met: baseline passing, and `hyphens: auto` failing at the computed-style assertion.
+- Scan layer: a bare `<table>` on the home page fails "table 0 is not inside a .table-wrap"; correctly marked tables pass.
+- Two runs overlapped on one port and one folder by my mistake and were discarded; the proofs above are from sequential runs.
+
+Waivers and deferrals: none.
+
+Follow-ups:
+- Safari with VoiceOver on a stacked table: unchecked; the roles stay as insurance.
+- The toolkit's own CI runs the starter's suite on a pull request; the PR says the proofs above are by hand in a scratch copy.
+- No GLM review exists for this change (melious has no balance).
+- `TABLE_EXEMPT` is empty in the starter, so its guard test cannot fail until a site adds an entry.
+
+Notes:
+- `make smoke` (check plus package) passed on the build; it failed once before, on a site name in the plan (the toolkit's privacy check), which was removed.
+- The review script ran from the worktree; the skill's script has `SECOND_SEAT` (16 matches).
+- POST AUTHORITY, BRANCH-COMMIT AUTHORITY: this session created branch `skill/tables` and its worktree; the owner's go covers the push and the pull request.

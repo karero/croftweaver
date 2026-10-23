@@ -105,9 +105,10 @@ Markup, every table:
 
 - Write the column names once, in a list, and use it for the header and for every `data-label`: the label
   of a stacked cell must equal its column header, and the test compares the two. A `figures` table needs no
-  roles or labels.
-- A stacked table is no longer `display: table`; the roles keep it a table for screen readers that would
-  otherwise drop it (Safari with VoiceOver is reported to; Chromium keeps it either way).
+  per-cell roles and no `data-label`.
+- A stacked table is no longer `display: table`; the roles keep its meaning where a browser would drop it.
+  In Chromium, measured once on a real table, the accessibility tree kept the table without them. Other
+  browsers and screen readers are not checked.
 - `class="tap"` on a link that stands alone in a cell makes it a 44px tap target on a phone. `nowrap` keeps a
   short value (`1, 3, 6`) on one line. `long-head` (with `stack`) widens the first column when the row
   headers are sentences.
@@ -117,9 +118,10 @@ Markup, every table:
   with the reason. `PAGES` stays whole: the sitemap and `llms.txt` checks need every live route in it.
 
 What `tables.spec.ts` checks: every table is in a `.table-wrap` of one kind with its region, label and
-`tabindex`; a stacked table has its roles and a label equal to the header on each cell; at 360 and 320px no
+`tabindex`, `scope="col"` on every header cell and one `<th scope="row">` first in every row; a stacked table has its roles and a label equal to the header on each cell; at 360 and 320px no
 page and no table scrolls sideways; at 641px and above a stacked table is a table again with its header row
-showing and no word broken; no cell has `hyphens: auto`. It also tests the CSS on a fixture it adds to the
+showing and no word broken (this catches rules such as `overflow-wrap: anywhere` that let a column squeeze a
+word); no cell has `hyphens: auto`. It also tests the CSS on a fixture it adds to the
 home page, with axe in both themes, so a site with no table still proves the block. Headless Chromium does
 not hyphenate, so the hyphen guard reads the computed style, not the layout. Safari and VoiceOver are not
 checked.

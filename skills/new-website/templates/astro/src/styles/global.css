@@ -95,10 +95,11 @@ h2, h3 { scroll-margin-top: 1.5rem; }
    - "long-head" (with "stack"): the row headers are long, so the first column is wider.
    - Two cell classes: "nowrap" keeps a short value on one line, "tap" (on a link that stands alone in a
      cell) makes it a 44px tap target on a phone.
-   A stacked table is no longer display: table. In Chromium its accessibility tree keeps the table, its rows,
-   headers and cells either way (measured: without roles only the tbody rowgroup drops out); the roles
-   (role="table", "rowgroup", "row", "columnheader", "rowheader", "cell") are there because Safari with
-   VoiceOver is reported to drop the table otherwise. That is not checked here.
+   A stacked table is no longer display: table. The roles (role="table", "rowgroup", "row", "columnheader",
+   "rowheader", "cell") keep its meaning where a browser would drop it. Measured once, in Chromium, on a real
+   table: its accessibility tree kept the table, rows, headers and cells without the roles too, and only the
+   tbody rowgroup dropped out. Other browsers and screen readers are not checked.
+   - "avg" on a <tr>: a total or average row, bold with a rule above it.
    Words are not hyphenated in cells: the body's hyphens: auto squeezes a narrow first column down to
    fragments such as "An-thropic". */
 .table-wrap { overflow-x: auto; margin: 1.2rem 0; max-width: 60rem; }
@@ -120,6 +121,7 @@ h2, h3 { scroll-margin-top: 1.5rem; }
 .table-wrap .nowrap { white-space: nowrap; }
 .table-wrap .num { text-align: right; font-variant-numeric: tabular-nums; }
 .table-wrap th.num, .table-wrap td.num { padding-right: 0.2rem; padding-left: 1rem; }
+.table-wrap a:focus-visible { outline-offset: -2px; }  /* the region clips an outline drawn outside the first column */
 .table-wrap tr.avg th, .table-wrap tr.avg td { font-weight: 700; border-top: 2px solid var(--line); }
 @media (max-width: 40rem) {
   /* A table of figures stays a table on a phone, so it gives its row header the room. */
@@ -140,7 +142,7 @@ h2, h3 { scroll-margin-top: 1.5rem; }
   /* A number sits on the line of its label, so a row of three figures is four lines, not seven. */
   .table-wrap.stack td.num { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; white-space: nowrap; }
   .table-wrap.stack td.num::before { white-space: normal; text-align: left; }
-  /* A link that stands alone in a cell is a tap target (BRAND.md): 44px tall, as the header links are. */
+  /* A link that stands alone in a cell is a tap target (BRAND.md): 44px tall. */
   .table-wrap a.tap { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
 }
 
