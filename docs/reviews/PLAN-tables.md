@@ -25,7 +25,7 @@ Not in this plan: a `<DataTable>` component (a page's cells hold links, code, `<
 - A scratch copy of the starter (`cp -R`, `npm ci`, build): the whole starter suite stays green with the new CSS and spec, including `a11y.spec.ts` (light and dark) and `tone.spec.ts`.
 - Each check of the new spec is shown to fail by a deliberate break, one at a time, restored from memory and compared by a hash of the diff: the `stack` class removed, a label changed, a role removed, `hyphens: auto` back in a cell with a narrow first column, the tap rule's `min-width` removed, a table forced to 40rem, a table outside `.table-wrap`.
 - `make check` (template coverage, skill budgets, no private names) and `make smoke`.
-- The toolkit's CI runs the starter's whole Playwright suite on a change under `templates/astro` (`.github/workflows/template-tests.yml`), so the new spec runs there too. Its contract layer is what gives that run something to check, because the starter has no table; the breaks above are proved by hand in the scratch copy and again on a CI run with a deliberate break (a throwaway branch, not merged), and the PR says so. The mutation list adds: the fixture's long word with `hyphens: auto`, and the fixture with its roles removed.
+- The toolkit's CI runs the starter's whole Playwright suite on a change under `templates/astro` (`.github/workflows/template-tests.yml`), so the new spec runs there too. Its contract layer is what gives that run something to check, because the starter has no table; the breaks above are proved by hand in the scratch copy and again on a CI run with a deliberate break (a throwaway branch, not merged), and the PR says so. The claim that a narrow column makes Chromium hyphenate the word is observed only on the croftweaver site (headless Chromium, `lang="en"`: with `hyphens: auto` and the first column at 3% the word-break test failed; `hyphens: auto` alone passed while the column was wide). It is not yet observed on this fixture, so it stays unproven until the two logs above exist. The mutation list adds: the fixture's long word with `hyphens: auto`, and the fixture with its roles removed.
 
 ## Risks
 
@@ -42,7 +42,7 @@ Not in this plan: a `<DataTable>` component (a page's cells hold links, code, `<
 | # | Step | State | Evidence |
 |---|---|---|---|
 | 1 | This plan, reviewed (PLAN gate) | round 1 done (Codex alone: 1 BUG, 2 RISK, all fixed in draft 2); round 2 not run | `docs/reviews/REVIEW-plan-2026-10-23-skill-tables-c4260eb.md` |
-| 2 | The CSS block and the spec in the starter, proven in a scratch copy | not built | — |
+| 2 | The CSS block and the spec in the starter, proven in a scratch copy | not built. Done only when two logs are in the PR: the unchanged baseline passing, and the one break `hyphens: auto` in a cell failing at the word-break assertion itself, with the fixture's `lang`, its dimensions and the browser version | — |
 | 3 | The skill section | not built | — |
 | 4 | DIFF review, PR, merge; release is the owner's | not started | — |
 
