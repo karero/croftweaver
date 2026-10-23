@@ -1,14 +1,15 @@
 # Plan: publish from a throwaway worktree, so a busy folder never blocks `npm run ship`
 
-Plan only; nothing is built. It goes through the plan review gate and, because it changes
-the script that publishes to a live site, one red-team pass, then waits for the maintainer's
-go. Where this plan and the shipped files disagree, the files win.
+The template change (row 3) is built and merged; the three site copies (row 4) are not. Before
+any build, the plan went through the plan review gate and, because it changes the script that
+publishes to a live site, one red-team pass, both closed by the maintainer (row 2). Where this
+plan and the shipped files disagree, the files win.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-20 | this file |
 | 2 | Plan review gate (High depth: deploy code that deletes folders), then red team | ✅ closed by the maintainer 2026-10-21 after 8 rounds, a final full read, a wording pass and a red team; about 133 findings, every BUG fixed; round 8's fixes not re-checked by a reviewer | trail `REVIEW-plan-2026-10-21-plan-ship-from-worktree-f6266ac.md` |
-| 3 | Template change (D3.1) | ✅ built 2026-10-22; pull request karero/croftweaver#376 open, not merged. DIFF gate at High depth: 6 rounds, a final full read, a re-gate of its closing edits, a merge link after each merge of `main`, and re-gates of a fix the PR's CI asked for (newer git words a refusal differently); 67 findings, every BUG fixed or refuted (the emergency recipe took a cut, then a redesign). On Windows the test's real-git half skips itself (the maintainer's choice, 2026-10-22; follow-up in `docs/BUGLOG.md`) | branch `claude/ship-from-worktree-3b24ce`, commits `d831de2e` to `230fe4da` and `52db3b54`, `9d2aa97b`, `2a3421f1` (code), merges of `main` `ca63e8fe`, `117773ff`, `713bcb24`; trail `REVIEW-diff-2026-10-22-claude-ship-from-worktree-3b24ce-0aaeb44.md` |
+| 3 | Template change (D3.1) | ✅ merged 2026-10-22 as karero/croftweaver#376. DIFF gate at High depth: 6 rounds, a final full read, a re-gate of its closing edits, a merge link after each merge of `main`, and re-gates of a fix the PR's CI asked for (newer git words a refusal differently); 67 findings, every BUG fixed or refuted (the emergency recipe took a cut, then a redesign). On Windows the test's real-git half skips itself (the maintainer's choice, 2026-10-22; follow-up in `docs/BUGLOG.md`) | merge commit `001c68b7` (head `283fa0a8`); branch `claude/ship-from-worktree-3b24ce`, deleted after the merge, commits `d831de2e` to `230fe4da` and `52db3b54`, `9d2aa97b`, `2a3421f1` (code), merges of `main` `ca63e8fe`, `117773ff`, `713bcb24`; trail `REVIEW-diff-2026-10-22-claude-ship-from-worktree-3b24ce-0aaeb44.md` |
 | 4 | The three site copies (D3.2 to D3.4) | ⏸ | — |
 
 ## What and why
