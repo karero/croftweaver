@@ -80,7 +80,7 @@ function markupProblems(root: string): string[] {
     if (!wrap.classList.contains('stack') && !wrap.classList.contains('figures')) out.push(`table ${i}: its .table-wrap is neither "stack" nor "figures"`);
     const cols = [...t.querySelectorAll('thead th')];
     if (cols.length === 0 || cols.some((h) => h.getAttribute('scope') !== 'col')) out.push(`table ${i}: every header cell needs scope="col"`);
-    // One row shape for both kinds: a <th scope="row"> first, a <td> for each other column (a row with colspan is skipped).
+    // One row shape for both kinds: a <th scope="row"> first, a <td> for each other column. Only the cell count skips a row that has colspan.
     t.querySelectorAll('tbody tr').forEach((tr, r) => {
       const [first, ...rest] = [...tr.children];
       if (first?.tagName !== 'TH' || first.getAttribute('scope') !== 'row' || rest.some((c) => c.tagName !== 'TD')) {
