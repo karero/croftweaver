@@ -1,6 +1,6 @@
 # Plan: a "Tables" section in website-design-system, with the CSS and a test in the starter
 
-Status: draft 1, 2026-10-23, not built. Written at the owner's request ("Yes: write a one-page plan for a Tables section in website-design-system plus the CSS and test in the starter template, and review the plan before building"). The plan gate (Codex) runs before any file below is built.
+Status: draft 2, 2026-10-23 (after PLAN round 1, `docs/reviews/REVIEW-plan-2026-10-23-skill-tables-c4260eb.md`), not built. Written at the owner's request ("Yes: write a one-page plan for a Tables section in website-design-system plus the CSS and test in the starter template, and review the plan before building"). The plan gate (Codex) runs before any file below is built.
 
 ## Why
 
@@ -13,8 +13,10 @@ A site built from the starter grew 13 tables on 9 pages, and each page wrote its
 3. **`templates/astro/tests/tables.spec.ts`: a new shipped test**, in two layers.
    - *Contract*, which runs on any site, including the starter, which has no table: the test puts a text table and a figures table into the home page's DOM and checks what the CSS promises. At 360 and 320 px the rows stack and each cell shows its column header as a label. At 641 px and above it is a table, the header row shows, no word breaks across lines, a row header takes at most four lines. A standalone link is 44 px tall and wide. Nothing scrolls sideways.
    - *Site scan*, over `PAGES`: every `<table>` is inside a `.table-wrap` that carries `stack` or `figures`, `role="region"`, an `aria-label` and `tabindex="0"`; a stacked table has its roles and a label equal to the header on every cell; at 360 and 320 px no page and no table scrolls sideways. The message names the fix.
-   The site's own count of stacked tables stays out: it is the site's business.
-4. **Where it lands.** `tests/` is drift-tracked as a whole (`TEMPLATE_TRACKED` in `scripts/whats-new.sh`), so a new spec reaches existing sites through `whats-new` with no list to edit. `global.css` is site-owned (`src/**`), so `whats-new` will not flag the CSS: the skill section tells an existing site to copy the block, and says so plainly.
+   A page whose tables a site cannot change (a table that comes from outside) goes into a `TABLE_EXEMPT` list in the spec, each entry with its reason, and a test that every exempt path is a live `PAGES` route, the pattern of `LLMS_EXEMPT`. `PAGES` itself is never narrowed: the sitemap check and the `llms.txt` check reject a route that is live and not listed. The site's own count of stacked tables stays out: it is the site's business.
+   - *Accessibility of the fixtures:* the contract layer also runs axe (already a starter dev dependency) on the injected fixtures, in light and dark, at 360 and at 1280 px, and reads the exposed table, header and cell roles from the browser's accessibility tree (a CDP `Accessibility.getFullAXTree` count at 360 px, which on the croftweaver site gave 1 table, 9 rows, 3 column headers, 8 row headers, 16 cells). It does not test Safari with VoiceOver.
+   - *The fixture is built to make a broken guard visible:* its first column holds a long word (a compound such as "Internationalisation") in a column forced narrow, so that with `hyphens: auto` back in the cell the browser hyphenates it and the word-break assertion fails. On the croftweaver site, `hyphens: auto` alone was not caught while the column was wide enough to hold the word, so the fixture has to force the case, not hope for it.
+4. **Where it lands.** `tests/` is drift-tracked as a whole (`TEMPLATE_TRACKED` in `scripts/whats-new.sh`), so a new spec needs no list entry; `whats-new` reports it to an existing site, which copies it by hand (it is reported, not installed). `global.css` is site-owned (`src/**`), so `whats-new` will not flag the CSS: the skill section tells an existing site to copy the block, and says so plainly.
 
 Not in this plan: a `<DataTable>` component (a page's cells hold links, code, `<time>`; a component would not fit them), any change to the croftweaver site (it keeps its tests; adopting the shipped spec and dropping its copy is a follow-up PR), a new skill, and the release (the owner's step: `website-builder-release`).
 
@@ -23,15 +25,15 @@ Not in this plan: a `<DataTable>` component (a page's cells hold links, code, `<
 - A scratch copy of the starter (`cp -R`, `npm ci`, build): the whole starter suite stays green with the new CSS and spec, including `a11y.spec.ts` (light and dark) and `tone.spec.ts`.
 - Each check of the new spec is shown to fail by a deliberate break, one at a time, restored from memory and compared by a hash of the diff: the `stack` class removed, a label changed, a role removed, `hyphens: auto` back in a cell with a narrow first column, the tap rule's `min-width` removed, a table forced to 40rem, a table outside `.table-wrap`.
 - `make check` (template coverage, skill budgets, no private names) and `make smoke`.
-- The toolkit's CI runs the starter's whole Playwright suite on a change under `templates/astro` (`.github/workflows/template-tests.yml`), so the new spec runs there too. Its contract layer is what gives that run something to check, because the starter has no table; the breaks above are proved by hand in the scratch copy, and the PR says so.
+- The toolkit's CI runs the starter's whole Playwright suite on a change under `templates/astro` (`.github/workflows/template-tests.yml`), so the new spec runs there too. Its contract layer is what gives that run something to check, because the starter has no table; the breaks above are proved by hand in the scratch copy and again on a CI run with a deliberate break (a throwaway branch, not merged), and the PR says so. The mutation list adds: the fixture's long word with `hyphens: auto`, and the fixture with its roles removed.
 
 ## Risks
 
 | Risk | Answer |
 |---|---|
 | The CSS changes how an existing site's tables look when someone copies it in | it is a copy the site chooses to make, and the skill says the pages' own table CSS has to go first; the starter has no table today |
-| The scan fails a site with a table the owner does not want to change | the message names the two classes to add; a site can narrow `PAGES`, as for every other suite |
-| The contract layer tests a fixture, not the site's real tables | the scan layer covers the real tables; the contract layer exists so the starter, with no table, still proves the CSS |
+| The scan fails a site with a table the owner cannot change | the message names the two classes to add; `TABLE_EXEMPT` takes the page with a reason, and `PAGES` stays whole |
+| The contract layer tests a fixture, not the site's real tables | the scan layer covers the real tables; the contract layer exists so the starter, with no table, still proves the CSS, and its fixture is built so that each break shows (see the word-break fixture above) |
 | Chromium-only measurements (Range rectangles for broken words and lines) | said in the spec's header; Safari and VoiceOver are not checked, as on the site |
 | A third layer of upkeep: skill text, CSS and spec can drift apart | the spec reads the CSS's behaviour, not its text; the skill section names the spec file and nothing else about it |
 
@@ -39,7 +41,7 @@ Not in this plan: a `<DataTable>` component (a page's cells hold links, code, `<
 
 | # | Step | State | Evidence |
 |---|---|---|---|
-| 1 | This plan, reviewed (PLAN gate) | draft, not reviewed | — |
+| 1 | This plan, reviewed (PLAN gate) | round 1 done (Codex alone: 1 BUG, 2 RISK, all fixed in draft 2); round 2 not run | `docs/reviews/REVIEW-plan-2026-10-23-skill-tables-c4260eb.md` |
 | 2 | The CSS block and the spec in the starter, proven in a scratch copy | not built | — |
 | 3 | The skill section | not built | — |
 | 4 | DIFF review, PR, merge; release is the owner's | not started | — |
