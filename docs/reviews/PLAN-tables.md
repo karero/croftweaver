@@ -1,6 +1,6 @@
 # Plan: a "Tables" section in website-design-system, with the CSS and a test in the starter
 
-Status: draft 2, 2026-10-23 (after PLAN round 1, `docs/reviews/REVIEW-plan-2026-10-23-skill-tables-c4260eb.md`), not built. Written at the owner's request ("Yes: write a one-page plan for a Tables section in website-design-system plus the CSS and test in the starter template, and review the plan before building"). The plan gate (Codex) runs before any file below is built.
+Status: built 2026-10-23 (PLAN gate: 2 rounds, `docs/reviews/REVIEW-plan-2026-10-23-skill-tables-c4260eb.md`; DIFF gate: `docs/reviews/REVIEW-diff-2026-10-23-skill-tables-4f49a0d.md`). Two things changed in the build: the hyphen guard reads the computed style (headless Chromium does not hyphenate), and the contract layer's fixture is a table capped at 20rem. Written at the owner's request ("Yes: write a one-page plan for a Tables section in website-design-system plus the CSS and test in the starter template, and review the plan before building"). The plan gate (Codex) runs before any file below is built.
 
 ## Why
 
