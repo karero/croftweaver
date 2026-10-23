@@ -80,11 +80,13 @@ function markupProblems(root: string): string[] {
     if (!wrap.classList.contains('stack') && !wrap.classList.contains('figures')) out.push(`table ${i}: its .table-wrap is neither "stack" nor "figures"`);
     const cols = [...t.querySelectorAll('thead th')];
     if (cols.length === 0 || cols.some((h) => h.getAttribute('scope') !== 'col')) out.push(`table ${i}: every header cell needs scope="col"`);
+    // One row shape for both kinds: a <th scope="row"> first, a <td> for each other column (a row with colspan is skipped).
     t.querySelectorAll('tbody tr').forEach((tr, r) => {
       const [first, ...rest] = [...tr.children];
       if (first?.tagName !== 'TH' || first.getAttribute('scope') !== 'row' || rest.some((c) => c.tagName !== 'TD')) {
         out.push(`table ${i}, row ${r}: the first cell must be a <th scope="row"> and every other cell a <td>`);
       }
+      if (!tr.querySelector('[colspan]') && tr.children.length !== cols.length) out.push(`table ${i}, row ${r}: ${tr.children.length} cells for ${cols.length} columns`);
     });
     if (!wrap.classList.contains('stack')) return;
     const roles: [string, string][] = [
@@ -101,7 +103,6 @@ function markupProblems(root: string): string[] {
     t.querySelectorAll('tbody tr').forEach((tr, r) => {
       if (tr.querySelector('[colspan]')) return;
       const tds = [...tr.querySelectorAll(':scope > td')];
-      if (tr.children.length !== headers.length) out.push(`table ${i}, row ${r}: ${tr.children.length} cells for ${headers.length} columns`);
       tds.forEach((td, c) => {
         if (norm(td.getAttribute('data-label')) !== headers[c + 1]) {
           out.push(`table ${i}, row ${r}: a cell's data-label is "${td.getAttribute('data-label')}", its column header is "${headers[c + 1]}"`);
