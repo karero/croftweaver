@@ -81,8 +81,9 @@ function markupProblems(root: string): string[] {
     const cols = [...t.querySelectorAll('thead th')];
     if (cols.length === 0 || cols.some((h) => h.getAttribute('scope') !== 'col')) out.push(`table ${i}: every header cell needs scope="col"`);
     t.querySelectorAll('tbody tr').forEach((tr, r) => {
-      if (tr.querySelectorAll(':scope > th[scope="row"]').length !== 1 || tr.firstElementChild?.tagName !== 'TH') {
-        out.push(`table ${i}, row ${r}: the row needs one <th scope="row"> as its first cell`);
+      const [first, ...rest] = [...tr.children];
+      if (first?.tagName !== 'TH' || first.getAttribute('scope') !== 'row' || rest.some((c) => c.tagName !== 'TD')) {
+        out.push(`table ${i}, row ${r}: the first cell must be a <th scope="row"> and every other cell a <td>`);
       }
     });
     if (!wrap.classList.contains('stack')) return;
@@ -99,8 +100,8 @@ function markupProblems(root: string): string[] {
     const headers = cols.map((h) => norm(h.textContent));
     t.querySelectorAll('tbody tr').forEach((tr, r) => {
       if (tr.querySelector('[colspan]')) return;
-      const tds = [...tr.querySelectorAll('td')];
-      if (tds.length !== headers.length - 1) out.push(`table ${i}, row ${r}: ${tds.length} cells for ${headers.length - 1} columns`);
+      const tds = [...tr.querySelectorAll(':scope > td')];
+      if (tr.children.length !== headers.length) out.push(`table ${i}, row ${r}: ${tr.children.length} cells for ${headers.length} columns`);
       tds.forEach((td, c) => {
         if (norm(td.getAttribute('data-label')) !== headers[c + 1]) {
           out.push(`table ${i}, row ${r}: a cell's data-label is "${td.getAttribute('data-label')}", its column header is "${headers[c + 1]}"`);

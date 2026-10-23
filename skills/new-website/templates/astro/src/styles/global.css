@@ -96,9 +96,9 @@ h2, h3 { scroll-margin-top: 1.5rem; }
    - Two cell classes: "nowrap" keeps a short value on one line, "tap" (on a link that stands alone in a
      cell) makes it a 44px tap target on a phone.
    A stacked table is no longer display: table. The roles (role="table", "rowgroup", "row", "columnheader",
-   "rowheader", "cell") keep its meaning where a browser would drop it. Measured once, in Chromium, on a real
-   table: its accessibility tree kept the table, rows, headers and cells without the roles too, and only the
-   tbody rowgroup dropped out. Other browsers and screen readers are not checked.
+   "rowheader", "cell") are a fallback for a browser that drops the table when the layout changes; that they
+   work there is not checked. Measured once, in Chromium, on a real table: its accessibility tree kept the
+   table, rows, headers and cells without the roles too, and only the tbody rowgroup dropped out.
    - "avg" on a <tr>: a total or average row, bold with a rule above it.
    Words are not hyphenated in cells: the body's hyphens: auto squeezes a narrow first column down to
    fragments such as "An-thropic". */

@@ -1,9 +1,10 @@
 # DIFF review — branch skill/tables — a Tables section, the table CSS and tables.spec.ts in the starter
-Base: merge base with origin/main; round 1 saw head `4f49a0d` · depth: Normal (tooling that ships to sites; nothing in the High row) · verdict: round 1 had BUGs, all fixed; round 2 pending. DEGRADED: Codex alone plus a fresh-eyes Sonnet pass in round 1, and Codex alone after (GLM 5.3 on melious.ai has no balance, the ollama seat is at its weekly limit; the owner's OK covered Codex only, quoted for the plan gate: "Yes, send the plan to Codex alone (this repo's content, no melious, no ollama)", and carried to this diff by his "Go: build ... then the DIFF review"). Plan gate: `docs/reviews/PLAN-tables.md`, 2 rounds, no BUG open.
+Base: merge base with origin/main; round 1 saw head `4f49a0d` · depth: Normal (tooling that ships to sites; nothing in the High row) · verdict: round 1 had BUGs and round 2 one more, all fixed; round 3 pending. DEGRADED: Codex alone plus a fresh-eyes Sonnet pass in round 1, and Codex alone after (GLM 5.3 on melious.ai has no balance, the ollama seat is at its weekly limit; the owner's OK covered Codex only, quoted for the plan gate: "Yes, send the plan to Codex alone (this repo's content, no melious, no ollama)", and carried to this diff by his "Go: build ... then the DIFF review"). Plan gate: `docs/reviews/PLAN-tables.md`, 2 rounds, no BUG open.
 
 | Round | Head | Artifact | Reviewers | seconds / tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `4f49a0d` | full change (25,406 bytes) | codex-cli gpt-6.1-sol, config effort, read-only; fresh-eyes Claude Sonnet sub-agent, read-only by instruction, ran nothing | codex 166 s / 73,793; fresh-eyes 154 s / 142,036 | Codex 3 / 1 / 0; fresh-eyes 0 / 2 / 6 |
+| 2 | `099fd0f` | delta `4f49a0d..099fd0f`, `--verify` | Codex medium, read-only | 135 s / 49,526 | 1 / 1 / 0 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -20,6 +21,8 @@ Base: merge base with origin/main; round 1 saw head `4f49a0d` · depth: Normal (
 | D11 | NIT | fresh-eyes | 1 | SKILL.md says a figures table "needs no roles or labels"; the spec needs the wrapper's | fixed | "no per-cell roles and no `data-label`" |
 | D12 | NIT | fresh-eyes | 1 | generic class names can clash with a site's own `.table-wrap` or `.num` | refuted | every selector sits under `.table-wrap`; SKILL.md tells a site to remove its own table CSS first; `global.css` is site-owned, so nothing is overwritten |
 | D13 | — | fresh-eyes | 1 | the "either way" half of the accessibility-tree claim has no test | fixed by rewording | the comment says "measured once, in Chromium, on a real table"; roles cannot be made to fail a test in Chromium, so none is added |
+| D14 | BUG | Codex | 2 | the D1 fix still lets the first cell be a `th` without `scope` when a later cell carries `scope="row"`, and counts only the `td`s | fixed | the guard needs the row's first cell to be `<th scope="row">`, every other cell a `<td>`, and the cell count equal to the columns. Mutation (first `th` without scope, a later cell as `th scope="row"`) fails "the fixture markup is wrong"; baseline 17 passed |
+| D15 | RISK | Codex | 2 | SKILL.md and the CSS comment still say the roles "keep its meaning where a browser would drop it" | fixed | reworded: the roles are a fallback for a browser that drops the table; that they work there is not checked |
 
 Proofs in a scratch copy of the starter (`cp -R`, `npm ci`, a private preview port):
 - Baseline: `tables.spec.ts` 17 passed; whole starter suite 108 passed, 1 skipped (the starter's own placeholder in `positioning.spec.ts`; the new spec skips nothing).
