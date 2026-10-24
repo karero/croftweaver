@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test test-facts test-brand-kit test-wordpress-inventory test-cloudflare-check test-create test-plugin test-codex-plugin smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts test-agy-release test-brand-kit test-wordpress-inventory test-cloudflare-check test-create test-plugin test-codex-plugin smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -49,6 +49,9 @@ test:      ## run the search-console-insights tests (tracker + AI check; needs `
 
 test-facts: ## run the facts-check tests (standard library only; a stub site on 127.0.0.1, no real requests)
 	@$(PYTHON) -m unittest discover -s skills/facts-check/scripts/tests
+
+test-agy-release: ## run the tests of the Antigravity release test (scripts/antigravity_release_test.py, a maintainer tool for releases; standard library only, needs git, node and npm; a stub agy, no credits spent). Not part of check/package: the handoff zip does not hold the tool or its tests
+	@$(PYTHON) -m unittest discover -s scripts/tests -p 'test_antigravity*.py'
 
 test-brand-kit: ## run the website-brand-kit tests (standard library only). The tests that draw icons need Node and an install of the starter to borrow `sharp` from (BRAND_KIT_NODE_MODULES=<its node_modules>), the share-card tests need Pillow; without those they skip, and with REQUIRE_SHARP=1 they fail instead
 	@$(PYTHON) -m unittest discover -s skills/website-brand-kit/scripts/tests
