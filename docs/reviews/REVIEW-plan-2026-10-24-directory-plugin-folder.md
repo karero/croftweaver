@@ -103,3 +103,14 @@ both seats. No BUG.
 | F45 | codex, melious | NIT (outside scope) | The README's hand `commit-tree` recovery repeats none of the step's refusals. | Follow-up, as F42. |
 
 Round 5 is earned by F43 (kind source-order) and F44 (kind exception-inventory, cut above).
+
+## Round 5 (verification, pair only, plan at 9ef903b0)
+
+timings: codex 300s (48,978 tokens), melious 146s (23,452 tokens). F43 and F44 confirmed. No
+BUG; no earning RISK left after the fixes below, so the rounds end here.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F46 | codex | RISK | Exact-text exceptions do not see structure: moving the unchanged `--stamp-tests` line below `fi` keeps every text but calls the missing script. | Fixed: the plan calls both checks literal-reference inventories, and adds one case that runs the stamp block from SKILL.md with no `whats-new.sh` and expects `suite_commit: unknown`. Not re-verified by a round; the final full read and wording pass read it. |
+| F47 | melious | NIT | "that commit" could mean `directory`'s tip, which is never on main. | Fixed: "the commit the `Source:` line names". |
+| F48 | melious | NIT | The F43 rewrite tangled the commit-tree clause. | Fixed: re-ordered. |

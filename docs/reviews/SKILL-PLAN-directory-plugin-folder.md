@@ -79,11 +79,11 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   +refs/heads/directory:refs/remotes/origin/directory`, and every check below reads
   `refs/remotes/origin/directory`. Build the tree from the tag; if `directory` exists, read the
   `Source:` line of its last commit's message, refuse when there is none, and refuse unless
-  that commit is an ancestor of the tag's; if `Source:` already names the tag's commit (a
-  re-run), stop green; else make one commit, even when the tree is unchanged, so `Source:`
-  always names the newest release published with `git commit-tree`, parent `directory` (none on the first
-  run), author and committer `github-actions[bot]`, message "Croftweaver v0.NN" plus `Source:
-  <tag's commit>`; push it to `refs/heads/directory` without force; then `git ls-remote origin
+  the commit the `Source:` line names is an ancestor of the tag's commit; if `Source:` already
+  names the tag's commit (a re-run), stop green; else make one commit with `git commit-tree`
+  (parent `directory`, none on the first run; author and committer `github-actions[bot]`;
+  message "Croftweaver v0.NN" plus `Source: <tag's commit>`), even when the tree is unchanged,
+  so `Source:` always names the newest release published; push it to `refs/heads/directory` without force; then `git ls-remote origin
   refs/heads/directory` must name that commit. The job already checks out with `fetch-depth: 0`.
   A `concurrency` group on the job keeps two release runs from overlapping. A refused push
   turns the run red; the README's release steps gain the hand commands (the script and the
@@ -139,6 +139,9 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
     `rm -rf "$PROJECT_SKILLS_DIR"/website-brand-kit/scripts/tests` (they remove it from sites);
     in `search-console-insights/references/geo-check.md`, "Tests: `scripts/tests/test_geo_check.py`"
     (describes one).
+  Both are inventories of literal references: they do not see where a line sits. So one more
+  case runs `new-website`'s stamp block, taken from SKILL.md, with no `scripts/whats-new.sh`
+  beside it, and expects `suite_commit: unknown` and exit 0.
   As a warning in its output only: the file count and any non-image file over 256 KiB (the
   reviewer-hold limits, not blocks). What the checks do not catch: a path built from pieces,
   or a script that finds a tests folder by itself.
