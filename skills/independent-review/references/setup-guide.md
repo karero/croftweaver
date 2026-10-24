@@ -128,7 +128,7 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   with a proxy 403, which the FAILED section reports as "is the host allowed by the network
   policy?". Settings take effect in a NEW session.
 - **Model:** `MELIOUS_MODEL=<id>`, one of the ids in `scripts/melious_models.txt` (the owner's
-  rule, 2026-10-12): today `glm-5.3`, and `glm-5.3-flash` for a Light review only, which the run
+  rule, 2026-10-12): today `glm-5.3`, and `glm-5.3-flash` and `deepseek-v4.1-flash-1017` for a Light review only, which the run
   must state with `--depth light`. Any other id is refused with exit 2 before any reviewer
   starts, whatever else `GET https://api.melious.ai/v1/models` lists; Kimi and every other model
   run on ollama. The script takes the run's word for its depth: it cannot tell whether the change
