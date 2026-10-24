@@ -6,6 +6,7 @@ Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | 97d6bc35 | full plan | codex-cli 0.164.0, gpt-6.1-sol, config effort (high), read-only · melious glm-5.3, text only · fresh-eyes claude-opus-5-5 sub-agent, read-only | codex 315 s, 107,560 · melious 91 s, 13,483 · fresh-eyes 209 s, 144,490 | 2/5/7 (after dedup) |
+| 2 | a42bd423 | full plan, --verify (changed sections named) | same three seats | codex 330 s, 80,526 · melious 196 s, 23,817 · fresh-eyes 219 s, 143,210 | 1/7/4 (after dedup) |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -25,7 +26,21 @@ Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (
 | F13 | NIT | melious | 1 | `/datenschutz` swap and i18n route untested | fixed | moved into the build's test list (How it is tested) |
 | F14 | NIT | melious | 1 | "(judgment, see below)" dangled | fixed | Judgment list has the item |
 
+| R2-1 | BUG | fresh-eyes, codex | 2 | "holds the note on all three templates": `/datenschutz` is not in `PAGES` (`_helpers.ts:4`), so CI never renders `_datenschutz.astro` | fixed, locally_verified | How 5 "Where it does not look" narrows the claim; a site that swaps it in is checked |
+| R2-2 | RISK | fresh-eyes, codex | 2 | Route list misses `/de/privacy` (`astro-i18n-setup/SKILL.md:304`) | fixed, locally_verified | How 5 selects by last path segment under any locale prefix |
+| R2-3 | RISK | fresh-eyes | 2 | Languages other than en/de undefined | fixed, locally_verified | How 5: map by `lang`; a missing language fails with the fix named |
+| R2-4 | RISK | fresh-eyes, codex | 2 | `whats-new` also drift-tracks tests, so an existing site taking the spec turns red | fixed, locally_verified | Handoff section states it as how a live site meets the question; a pre-change site copy is in the build's test list |
+| R2-5 | RISK | fresh-eyes, melious | 2 | README-prefix rule unenforced; an indented or reworded line could open the escape | fixed, locally_verified | How 5 matches only the three dated forms at a line start; the prose rule in How 4 dropped |
+| R2-6 | RISK | codex | 2 | `readPage` also reads metadata and attributes, so a note moved into `<Base description>` passes | fixed, locally_verified | How 5 asks for the note text to be visible (`toBeVisible`); description move added to the build's red list |
+| R2-7 | RISK | melious | 2 | No run point named on a site | fixed, locally_verified | How 5 names `npm test` and §4's first checklist item |
+| R2-8 | RISK | melious | 2 | Handoff item's scope unsupported | refuted | `SKILL.md:791`: "`AGENTS.md` + `CLAUDE.md` (no `[BRACKET]` slot left …)"; now cited in the plan |
+| R2-9 | NIT | fresh-eyes, melious | 2 | Handoff paragraph contradicted itself | fixed | rewritten: blocks launch; a pre-launch handover carries it |
+| R2-10 | NIT | melious | 2 | Which README the test reads was not pinned | fixed | "the `README.md` at the project root"; toolkit CI root named |
+| R2-11 | NIT | fresh-eyes | 2 | A collaborator could answer for the owner | fixed | How 2 clause |
+| R2-12 | NIT | fresh-eyes | 2 | F7 partial: AGENTS.md §5 bullet and `astro-i18n-setup` lines also say "filled" only | fixed | How 1 lists both |
 UNVERIFIABLE asked in round 1: 6 (Playwright totals, croftweaver-site `terms.astro`, scaffold copying, trail, tone/slot rules, drift); confirmed as findings: 1 (trail → F11). The Playwright totals and `terms.astro` stay the plan author's claims; the plan says the runs predate step 5.
+
+UNVERIFIABLE asked in round 2: 7 (the same runs and the external file, readPage scope, run point, handoff scope, language mapping); confirmed as findings: 2 (R2-6 readPage scope, R2-7 run point); the handoff scope was refuted (R2-8).
 
 Follow-ups: none.
 Notes: "no trace in git history" corrected to "before this plan" (fresh-eyes, letter only).
