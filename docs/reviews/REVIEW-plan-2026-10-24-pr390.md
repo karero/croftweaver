@@ -1,5 +1,5 @@
 # PLAN review — karero/croftweaver#390 — where the owner of a generated site meets "first draft, not legal advice"
-Base `36fdafef` · depth: High (the plan writes legal text a site owner relies on) · verdict: OPEN (wording pass next) · authority used: POST AUTHORITY and BRANCH-COMMIT — atom B, the maintainer's request to finish and merge this PR (2026-10-24, relayed by the starting session); WORKTREE-WRITE — atom A, this session created the worktree
+Base `36fdafef` · depth: High (the plan writes legal text a site owner relies on) · verdict: CLEAN · authority used: POST AUTHORITY and BRANCH-COMMIT — atom B, the maintainer's request to finish and merge this PR (2026-10-24, relayed by the starting session); WORKTREE-WRITE — atom A, this session created the worktree
 
 Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (table added); (2) four open owner questions → asked before round 1, answered "all as recommended" (2026-10-24), written into the plan's Decisions; (3) no separate spec; (4) no code.
 
@@ -11,6 +11,7 @@ Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (
 | 4 | 31a7e9b8 | full plan, --verify, `--earned-by owner-identity` | codex, melious (fresh-eyes ends at round 3 at High) | codex 347 s, 79,267 · melious 123 s, 19,972 | 0/2/2 |
 | final full read | 449a5fd1 | whole plan | claude-fable-5-1 sub-agent, read-only (kimi-k3:cloud on ollama FAILED: weekly quota, 429) | 776 s, 218,245 | 1/0/5 |
 | 5 | 568f7c96 | full plan, --verify, `--earned-by note-language` | codex, melious | codex 298 s, 106,319 · melious 187 s, 31,209 | 1/1/3 |
+| wording pass | da47ee36 | delta 568f7c96..da47ee36 (prose) | codex, config effort | 217 s, 61,408 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -76,4 +77,4 @@ UNVERIFIABLE asked in round 2: 7 (the same runs and the external file, readPage 
 UNVERIFIABLE asked in round 3: codex 3, melious 8, fresh-eyes 2 (Playwright visibility rule, Astro underscore routing, the external file, the earlier runs, file contents melious could not open); confirmed as findings: 1 (Playwright visibility, R3-3, by fresh-eyes reading playwright-core's `computeBox`).
 
 Follow-ups: none.
-Notes: round 4 earned by R3-1 (kind: owner-identity, first time); it found no BUG, so the rounds ended (6(b)) and its RISK/NIT were fixed locally. Final full read on Fable (ollama out of quota, no Kimi; melious is GLM only); its BUG FR-1 earned round 5 (kind: note-language), fixed by a cut. Round 5 had no substantive BUG: the rounds ended (6(b)). "no trace in git history" corrected to "before this plan" (fresh-eyes, letter only).
+Notes: round 4 earned by R3-1 (kind: owner-identity, first time); it found no BUG, so the rounds ended (6(b)) and its RISK/NIT were fixed locally. Final full read on Fable (ollama out of quota, no Kimi; melious is GLM only); its BUG FR-1 earned round 5 (kind: note-language), fixed by a cut. Round 5 had no substantive BUG: the rounds ended (6(b)). Wording pass clean. Totals: 5 rounds + final full read + wording pass, 55 findings (6 BUG, 19 RISK, 30 NIT, H1 included); 1,276,968 tokens logged across all seats (fresh-eyes and the final full read included); the host's own fixing not counted. "no trace in git history" corrected to "before this plan" (fresh-eyes, letter only).
