@@ -246,10 +246,13 @@ def tool_param(step, name):
     return str((info.get("parameters") or {}).get(name, ""))
 
 
+REFUSAL = "Matches user-configured deny rule"  # agy 1.4.2's text for a deny-rule refusal (fixture)
+
+
 def refused(step):
     """A tool step agy's own permission check refused (the deny rules in its settings)."""
     err = (step.get("tool_info") or {}).get("error")
-    return step.get("state") == "ERROR" and isinstance(err, dict) and "deny rule" in str(err.get("message", ""))
+    return step.get("state") == "ERROR" and isinstance(err, dict) and REFUSAL in str(err.get("message", ""))
 
 
 def tool_output(step):
@@ -549,12 +552,11 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
                 lines.append("6. Generated site build + tests:   NOT TRUSTED — agy changed: %s" % "; ".join(changed))
             else:
                 ok_n, d_n, tail = npm_runs(site, staging)
-                lines.append("6. Generated site build + tests:   %s — %s" % ("PASS" if ok_n else "FAIL", d_n))
+                lines.append("6. Generated site build + tests:   %s — %s; tests, config and scripts are the template's (PAGES entries not checked)" % ("PASS" if ok_n else "FAIL", d_n))
                 if tail:
                     lines += ["   | " + t for t in tail.strip().splitlines()[-8:]]
                 fails += [] if ok_n else ["build/tests"]
-            lines.append("   agy's first npm test:           %s" % first_npm_test(tools))
-            lines.append("   tests/_helpers.ts PAGES:        entries not checked")
+            lines.append("   First command naming npm test:  %s (matched by its text)" % first_npm_test(tools))
             perm = site and not os.path.exists(os.path.join(site, ".claude", "settings.json"))
             lines.append("   Permissions sanity:             %s — .claude/settings.json %s; website-permissions not tested"
                          % ("PASS" if perm else "FAIL", "not copied" if perm else "copied"))

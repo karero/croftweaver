@@ -184,12 +184,16 @@ class Checks(unittest.TestCase):
         r = [{"status": "SUCCESS", "response": "I loaded the skill. Starting the scaffold now."}]
         self.assertIs(self.t.check_interview(r)[0], False, "no question is a FAIL, not a note")
 
+    def test_an_error_that_only_mentions_deny_rules_is_not_a_refusal(self):
+        crashed = self.cmd("npm test", "ERROR", error="Test crashed while asserting deny rule behavior")
+        self.assertFalse(self.t.refused(crashed))
+
     def test_test_output_that_mentions_deny_rules_is_not_a_refusal(self):
         said = self.cmd("npm test", output="1 failed: deny rule is enforced")
         self.assertIn("1 failed", self.t.first_npm_test([said, self.cmd("npm test", output="3 passed")]))
 
     def test_first_npm_test_skips_a_deny_refusal(self):
-        refused = self.cmd("cd site && npm test", "ERROR", error="Matches user-configured deny rule.")
+        refused = self.cmd("cd site && npm test", "ERROR", error="Permission denied for unsandboxed(cd site && npm test). Matches user-configured deny rule.")
         self.assertEqual(self.t.first_npm_test([refused, self.cmd("npm test", output="3 passed")]), "`npm test` (DONE): 3 passed")
 
     def test_first_npm_test_sees_a_command_on_its_own_line(self):
@@ -370,7 +374,7 @@ class ReleaseTest(unittest.TestCase):
         rep = self.report()
         self.assertIn("5. Scaffold cp paths (no errors):  PASS — 2 skills checked", rep)
         self.assertIn("6. Generated site build + tests:   PASS", rep)
-        self.assertIn("agy's first npm test:           `npm test` (DONE): 3 passed", rep)
+        self.assertIn("First command naming npm test:  `npm test` (DONE): 3 passed", rep)
         self.assertIn("starts interview: SEE NOTE — for a person to judge", rep)
         self.assertIn("not tested (deny rule: git commit)", rep)
         self.assertNotIn("git commit -m init", rep, "a deny-rule refusal is not a failed command")
@@ -379,7 +383,7 @@ class ReleaseTest(unittest.TestCase):
 
     def test_a_first_npm_test_that_failed_is_quoted_even_when_repaired(self):
         self.assertEqual(self.credited("full", "first_fail"), 0, self.stdout)
-        self.assertIn("agy's first npm test:           `npm test` (DONE): 1 failed, 2 passed", self.report())
+        self.assertIn("First command naming npm test:  `npm test` (DONE): 1 failed, 2 passed", self.report())
 
     def test_weakened_test_script_is_not_trusted(self):
         self.assertEqual(self.credited("full", "tamper"), 5, self.stdout)
