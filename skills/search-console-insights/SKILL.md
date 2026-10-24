@@ -45,11 +45,12 @@ free; Serper 2,500 searches free) — nothing is ever written back to Google/Bin
 optional AI check is different: it sends the owner's questions to the AI engines the owner
 added keys for, on the owner's own account, and some of those cost money (see
 `references/geo-check.md` → Costs). Local
-writes are all under `~/.config/gsc-insights/`: the history CSV (plus a `.lock` sidecar) on
+writes are under `~/.config/gsc-insights/`: the history CSV (plus a `.lock` sidecar) on
 by default whenever `--keywords` is given (`--no-csv` opts a single run out), the cached OAuth
-token from onboarding, `--out` if you ask for a saved report, the AI check's `geo/` folder
-(its settings, history and saved answers) once it is set up, and — only if you explicitly
-schedule it — a per-site launchd plist/log. Built for a **low-volume** site — see the
+token from onboarding, the AI check's `geo/` folder (its settings, history and saved answers)
+once it is set up, and — only if you explicitly schedule it — a per-site launchd plist/log.
+Only when you ask, files also go into the site's git-ignored `analytics/` folder: a saved
+report (`--out`), a kept download (`--keep-in`) and the snapshot (`analytics_snapshot.py`). Built for a **low-volume** site — see the
 "Low-volume playbook" below. On first use the agent runs a guided **onboarding** (next
 section), so a non-technical owner never touches the terminal.
 
@@ -243,8 +244,14 @@ wrong and more useful.
   --days 90 \
   --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
   --client-secret ~/.config/gsc-insights/client_secret.json \
-  --out report.md
+  --out "<site folder>/analytics/<today>_gsc/report.md"
 ```
+
+`--out` is optional (without it the report is only printed). It creates no folder and writes
+over a file of that name, so first make the dated folder in the site's `analytics/` folder,
+`mkdir -p "<site folder>/analytics/<today>_gsc"`, and check that git ignores the file, as
+`references/analytics-folder.md` ("Before the first file") says for files you write. The
+report holds the site's queries: never write it into the site outside `analytics/`.
 
 - `--site` uses `sc-domain:<domain>` for a **Domain** property (what
   search-console-setup creates), or the full `https://…/` URL for a URL-prefix one.
@@ -346,8 +353,12 @@ Bing Webmaster Tools → **Sitemaps** (needed for a real site, 2026-07-24).
 set -a; . ~/.config/gsc-insights/.env; set +a    # loads BING_API_KEY
 ~/.config/gsc-insights/venv/bin/python scripts/bing_query.py \
   --site https://example.com \
-  --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" --out bing.md
+  --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
+  --out "<site folder>/analytics/<today>_bing/bing.md"
 ```
+
+The same rules as Phase 1's `--out`: make `<site folder>/analytics/<today>_bing` first and
+check that git ignores the file.
 
 Same report shape as Phase 1 (target keywords → striking distance → pages seen-but-not-
 clicked → top queries/pages), from Bing — `GetQueryStats` + `GetPageStats`. Note: Bing

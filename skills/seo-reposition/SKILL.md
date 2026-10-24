@@ -28,7 +28,20 @@ Serper key). Inputs to confirm up front: target **market, language, device** —
 always pass explicit `gl`/`hl` to the SERP fetch, never rely on the helper's
 defaults (a US default is wrong for a DACH-market site and vice versa).
 
-## Phase 1 — Diagnose → `SEO-FINDINGS.md`
+## Where the files go
+
+- `SEO-FINDINGS.md` and `SEO-CHANGELOG.md` live in the site's `docs/seo/` folder (search
+  engines; beside `docs/launch/` and `docs/geo/`). Both are living files, updated in place.
+- A site that already has one of them in its root or in `docs/`: move it there once, with
+  `git mv` when git tracks it and `mv` when not, and say so. If both places have one, move
+  nothing and ask the owner which to keep.
+- `WORDING-GUIDE.md` stays beside `POSITIONING.md` (the root, or `docs/` where the site keeps
+  `POSITIONING.md` there): it is a rule document the assistant reads, not a report.
+- Search Console figures pulled for the diagnosis belong in the site's git-ignored
+  `analytics/` folder (`search-console-insights`, `references/analytics-folder.md`); the
+  findings quote what they need.
+
+## Phase 1 — Diagnose → `docs/seo/SEO-FINDINGS.md`
 
 - **GSC pull**: brand vs non-brand demand, per-page impressions. The tell:
   brand queries dominate and category pages get ~0 non-brand impressions.
@@ -40,7 +53,7 @@ defaults (a US default is wrong for a DACH-market site and vice versa).
   snapshots with each verdict — graders re-check them later.
   The model assists the read; a human confirms each 🚫/🟠/✅ call.
 - ≥2 rounds: replacement candidates are themselves frequently traps.
-- Write `SEO-FINDINGS.md` from `references/seo-findings-template.md`.
+- Write `docs/seo/SEO-FINDINGS.md` from `references/seo-findings-template.md`.
 
 ## Phase 2 — Strategy → rewording plan + `WORDING-GUIDE.md`
 
@@ -100,7 +113,7 @@ green as pages land and stay as regression guards forever:
 
 - Deploy via the repo's own deploy model; submit sitemap / IndexNow; request
   indexing for the top changed pages.
-- Fill `SEO-CHANGELOG.md` (`references/seo-changelog-template.md`): one row per
+- Fill `docs/seo/SEO-CHANGELOG.md` (`references/seo-changelog-template.md`): one row per
   change — page, old→new target, expected GSC query, outcome (blank). Flip
   `planned → deployed <date>`.
 - **Schedule the grading run** (~3–6 weeks out) with a concrete mechanism —

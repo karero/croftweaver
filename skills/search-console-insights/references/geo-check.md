@@ -394,6 +394,13 @@ pages working. Results kept earlier under `docs/geo/` stay where they are.
 - **Keep them out of a public repo.** The reports and answers hold the questions, the answers
   word for word, and every listed source. The `analytics/` folder is kept off GitHub by the site's
   `.gitignore`; commit it only to a **private** repo and only on the owner's ask.
+- **Written conclusions can go in git.** When the owner wants the conclusions kept with the
+  site, write `docs/geo/geo-check-<run date>.md` in the site: which questions named the site
+  ("N of M"), which sources the run listed, in the report's own terms (a listed search result
+  is not a citation), and what to change. Quote no answer, and name the run's folder,
+  `analytics/<run date>_geo-run/`, as a path on the owner's computer, not as a link: git ignores
+  it. The questions and the sources are what the rule above keeps out of a public repo, so in a
+  public site repo ask the owner before committing the file.
 - **The "Also see" link breaks in a hand-made copy.** A report page links to the Google page by a
   relative path (`../../../reports/<domain>/google.html`); `analytics_snapshot.py` rewrites it, a
   copy made by hand does not. Tell the owner, rather than letting them find a dead link.

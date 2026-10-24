@@ -448,6 +448,14 @@ Same format as above
 3. Quick wins (easy, immediate benefit)
 4. Long-term recommendations
 
+### Keeping the report
+
+The audit is given in the chat. When the owner wants it kept with the site, write it to
+`docs/seo/seo-audit-<YYYY-MM-DD>.md` in the site's folder (a second audit on one day gets
+`-2`); never overwrite an earlier one. It holds what was read from the site and from public
+search results. Search Console or Bing figures stay in the site's git-ignored `analytics/`
+folder (`search-console-insights`): the report names the figure it rests on, not the data.
+
 ---
 
 ## References
