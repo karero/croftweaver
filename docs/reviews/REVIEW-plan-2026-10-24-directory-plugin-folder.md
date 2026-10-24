@@ -189,6 +189,6 @@ Confirmation of F57-F59 (Codex alone, diff bbda7305..7c33d78b), 235 s, 56,030 to
 | F61 | codex | NIT | The `melious_models.txt` exception left with `independent-review`. | Fixed: five lines in two files; the build's test drops it too. |
 | F62 | codex | RISK | `website-review/SKILL.md` still tells a directory user to copy the skill "from the suite". | Follow-up: a BUGLOG row in the build PR (name the GitHub repository there); not this plan's change. |
 
-Confirmation of F60-F61 (Codex alone, diff 7c33d78b..c7f931f0), 130 s, 50,040 tokens: no BUG.
+Confirmation of F60-F61 (Codex alone, diff 7c33d78b..c7f931f0), 130 s, 50,047 tokens: no BUG.
 F63 (RISK): "all allowed" for the icon, which Validate has not seen. Fixed as wording. The
 re-gates end here; the next Validate (before submitting) checks the icon.
