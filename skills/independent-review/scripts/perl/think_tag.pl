@@ -1,6 +1,6 @@
 # Does the file (the argument) hold a think tag: an angle bracket, an optional slash, the word
 # "think" or "thinking", with spaces or tabs allowed between them, in any case? run_melious asks
-# this before it sends a prompt to a model the list marks "light": such a model was measured
+# this before it sends a prompt to a model the list marks "light": one such model was measured
 # skipping the text between the tags, with the seat reporting OK (R-MELIOUS-THINK).
 # Exit 0 if there is one, 1 if the file is clean, 2 if it cannot be read (one line on stderr
 # says why). The caller refuses on 0 and on 2, and goes on only on 1.

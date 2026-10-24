@@ -1419,7 +1419,7 @@ run_melious() {
     tt_msg="$(printf '%s' "$tt_msg" | tr '\n\r' '  ' | sed 's/^ *//; s/ *$//')"   # one line, trimmed: the status file keeps one line of WHY
     case $tt_rc in
       1) ;;
-      0) WHY="$THINK_TAG_WHY the text holds a think tag and this model was measured skipping the text between such tags, so nothing was sent"; return 1 ;;
+      0) WHY="$THINK_TAG_WHY the text holds a think tag, and a model the list marks light was measured skipping the text between such tags, so nothing was sent"; return 1 ;;
       *) WHY="$THINK_TAG_WHY the check could not run (exit $tt_rc: ${tt_msg:-no message}), so nothing was sent"; return 1 ;;
     esac
   fi
