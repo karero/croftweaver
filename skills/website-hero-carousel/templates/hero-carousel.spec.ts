@@ -346,17 +346,19 @@ test('hero carousel — a first image that fails after the script has started, w
   for (let i = 0; i < 2; i++) { await page.clock.runFor(ms); expect(await active(page), 'still stopped after the recovery').toEqual([1]); }
 });
 
-test('hero carousel — a second image that fails: the rotation passes over it (with two photos, it stays on the first)', async ({ page }) => {
+test('hero carousel — a second image that fails: the rotation passes over every slide with that file and shows all the others (with two photos, it stays on the first)', async ({ page }) => {
   const late = await holdSecondPhoto(page);
-  const n = (await slidesOf(page)).length;
+  const slides = await slidesOf(page);
+  const n = slides.length;
   await page.route(late, (route) => route.fulfill({ status: 404, body: 'gone' }));
   await open(page);
   const ms = await interval(page);
-  const seen: number[] = [];
-  for (let i = 0; i < 2 * n; i++) { await page.clock.runFor(ms); seen.push(...(await active(page))); }
-  expect(seen, 'the failed photo is never shown').not.toContain(1);
-  if (n === 2) expect(seen.every((k) => k === 0), 'two photos: it stays on the first').toBe(true);
-  else expect(seen, 'the photos after the failed one are shown').toContain(2);
+  const seen = new Set<number>(await active(page));
+  for (let i = 0; i < 2 * n; i++) { await page.clock.runFor(ms); for (const k of await active(page)) seen.add(k); }
+  // which slides fail follows from the files: every slide whose image the route answers with 404
+  const fails = slides.map((s) => late.test(s.img.getAttribute('src') ?? ''));
+  const expected = slides.map((_, k) => k).filter((k) => !fails[k]);
+  expect([...seen].sort((a, b) => a - b), 'shown: every slide whose image is there, none whose image failed').toEqual(expected);
 });
 
 test('hero carousel — with JavaScript off, or with only the carousel script blocked, every slide shows and no control is offered', async ({ browser }) => {
