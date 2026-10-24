@@ -552,7 +552,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
                 lines.append("6. Generated site build + tests:   NOT TRUSTED — agy changed: %s" % "; ".join(changed))
             else:
                 ok_n, d_n, tail = npm_runs(site, staging)
-                lines.append("6. Generated site build + tests:   %s — %s; tests, config and scripts are the template's (PAGES entries not checked)" % ("PASS" if ok_n else "FAIL", d_n))
+                lines.append("6. Generated site build + tests:   %s — %s; package.json scripts and dependencies, playwright.config.ts, tests/*.spec.ts and tests/_helpers.ts match the template (PAGES entries not checked)" % ("PASS" if ok_n else "FAIL", d_n))
                 if tail:
                     lines += ["   | " + t for t in tail.strip().splitlines()[-8:]]
                 fails += [] if ok_n else ["build/tests"]
