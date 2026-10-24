@@ -340,6 +340,17 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual([d for d in os.listdir(self.home) if d.startswith("Croftweaver-agy-test.")], [],
                          "a passing run deletes its test folder")
 
+    def test_every_report_names_the_tested_zip_as_the_runbook_greps_it(self):
+        for scenario, code in (("short_pass", 0), ("global_read", 1), ("not_run", 3)):
+            z = self.zip_of(self.head)
+            with open(z, "rb") as f:
+                digest = hashlib.sha256(f.read()).hexdigest()
+            shutil.rmtree(os.path.join(self.case, "out"), ignore_errors=True)
+            self.assertEqual(self.run_tool("--short", "--yes-spend-agy-credits", scenario=scenario, zip_path=z), code)
+            self.assertIn("Release zip SHA-256: %s," % digest, self.report(),
+                          "Step 5 of the release runbook greps this exact line before publishing")
+            shutil.rmtree(os.path.dirname(z))
+
     def test_reading_the_global_copy_fails_discovery(self):
         self.assertEqual(self.credited("short", "global_read"), 1, self.stdout)
         self.assertIn("2. Discovery (sees new-website):   FAIL", self.report())
