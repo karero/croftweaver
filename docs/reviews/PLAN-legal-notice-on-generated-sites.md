@@ -34,6 +34,8 @@ Wording on the pages, shaped like the kit's other slots (`[CHOOSE ONE: …]`), d
 
 5. One guard in `make check`: each of the three template pages carries exactly one notice (`[DRAFT NOTICE,` or `[ENTWURFSHINWEIS,`). Without it, a reworded or dropped note would stop being gated and no test would say so.
 
+No liability clause, no "as it is" sentence, no promise about liability anywhere in the new text: that stays the owner's open decision (`terms.astro` header, croftweaver-site).
+
 ## Status
 
 Update a row when its step is done; the evidence is a commit SHA or a repo-qualified PR.
@@ -45,8 +47,6 @@ Update a row when its step is done; the evidence is a commit SHA or a repo-quali
 | 3. `templates/AGENTS.md` §4 rule | not started | — |
 | 4. Starter README sentence | not started | — |
 | 5. `make check` guard | not started | — |
-
-No liability clause, no "as it is" sentence, no promise about liability anywhere in the new text: that stays the owner's open decision (`terms.astro` header, croftweaver-site).
 
 ## How it is tested
 
