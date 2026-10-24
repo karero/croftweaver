@@ -352,11 +352,14 @@ test('hero carousel — a second image that fails: the rotation passes over ever
   const n = slides.length;
   await page.route(late, (route) => route.fulfill({ status: 404, body: 'gone' }));
   await open(page);
+  // the route did its work: the second photo has failed (complete, no width), so the expectation below is not empty of failures
+  await expect.poll(() => page.evaluate(() => { const im = document.querySelectorAll<HTMLImageElement>('[data-hc-slide] img')[1]; return im.complete && im.naturalWidth === 0; })).toBe(true);
   const ms = await interval(page);
   const seen = new Set<number>(await active(page));
   for (let i = 0; i < 2 * n; i++) { await page.clock.runFor(ms); for (const k of await active(page)) seen.add(k); }
   // which slides fail follows from the files: every slide whose image the route answers with 404
   const fails = slides.map((s) => late.test(s.img.getAttribute('src') ?? ''));
+  expect(fails[1], 'the second slide is one of those that fail').toBe(true);
   const expected = slides.map((_, k) => k).filter((k) => !fails[k]);
   expect([...seen].sort((a, b) => a - b), 'shown: every slide whose image is there, none whose image failed').toEqual(expected);
 });
