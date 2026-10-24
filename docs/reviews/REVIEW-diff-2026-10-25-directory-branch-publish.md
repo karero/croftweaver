@@ -34,3 +34,18 @@ timings: codex 279s (79,882 tokens), fresh-eyes 289s (117,213 tokens).
 
 After the fixes: `make check` exit 0; `make test-plugin` 31 tests, 30 pass, 1 skipped.
 Round 2 is earned by D1 to D3.
+
+## Round 2 (verification, diff d5cf422f..836cfdb2)
+
+timings: codex 304s (76,951 tokens), fresh-eyes 182s (105,216 tokens). D1, D2, D8 confirmed.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| D11 | codex (BUG), fresh-eyes (RISK) | BUG | The D1 `cd` moved a relative `--out` folder to the clone's top. Reproduced by both. | Fixed: no `cd`; `ls-tree --full-tree` counts paths from the top. Testing that found more: `git archive` from a subfolder wrote only that folder (214 of 224 files), so the archive runs with `-C` the top. The subfolder test now also unpacks with a relative `--out` and counts the files (fails without `-C`). |
+| D12 | codex | BUG | D3 half-fixed: the header's advice fits a tag run only; a hand-moved `stable` has already moved; the last step can fail after its push went through. | Fixed: the header says "on a tag run" and points to the README; the README and header say the script reports when `directory` already holds the release (re-running is how to tell). |
+| D13 | fresh-eyes | NIT | D6's premise is false: `commit-tree` does not read `commit.gpgSign` (git 2.9.1 on), shown with `gpg.program=false`. | D6 re-marked Refuted; the harmless `-c` stays. |
+| D14 | fresh-eyes | NIT | The website-review sentence was hard to read and "it" was unclear. | Fixed: re-worded; the URL clause names "that folder". |
+| D15 | fresh-eyes | NIT | A bare repo fails at `--show-toplevel`. | Fixed by D11 (no `--show-toplevel` before `--out`). |
+
+After the fixes: `make check` exit 0; `make test-plugin` 31 tests, 30 pass, 1 skipped.
+Round 3 is earned by D11 and D12.
