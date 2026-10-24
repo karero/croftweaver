@@ -49,3 +49,17 @@ timings: codex 304s (76,951 tokens), fresh-eyes 182s (105,216 tokens). D1, D2, D
 
 After the fixes: `make check` exit 0; `make test-plugin` 31 tests, 30 pass, 1 skipped.
 Round 3 is earned by D11 and D12.
+
+## Round 3 (verification, diff 836cfdb2..51ed074c)
+
+timings: codex 310s (72,231 tokens), fresh-eyes 205s (about 100,000 tokens; not reported
+exactly). D11, D14, D15 confirmed by both; fresh-eyes confirmed D12, Codex did not (D16).
+Fresh-eyes ran against 51ed074c while the D16 fix below was being written in the same
+checkout; its D12 confirmation is of the earlier wording, which D16 replaced.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| D16 | codex | BUG | D3/D12 again: a failed run does not tell which branches moved (a retried tag after an earlier attempt moved `stable`; an older tag refused while `stable` is newer). | Cut, not patched (kind failure-wording, third round): the README and header no longer infer state from the failed step. The README says to look first with `git ls-remote origin stable directory`, then gives the command for each step that can fail. |
+| D17 | codex | RISK | D4 restated: the listing's behaviour after release is unseen. | Open until the listing exists; checked then (first release after listing: the version Anthropic serves names the new commit). |
+| D18 | fresh-eyes | NIT | `--out` in a bare repo prints a stray git error while succeeding. | Fixed: `--show-toplevel` quiet, falling back to `.`. |
+| D19 | fresh-eyes | NIT | The header promised the README covers "each step". | Fixed: "see README.md". |

@@ -41,6 +41,7 @@ if [ -n "$out" ]; then
   mkdir -p "$out"
   [ -z "$(ls -A "$out")" ] || { echo "$0: $out is not empty" >&2; exit 1; }
   # Run from the top: from a subfolder, git archive would write only that folder's part.
-  git -C "$(git rev-parse --show-toplevel)" archive --format=tar "$tree" | tar -x -C "$out"
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || top=.
+  git -C "$top" archive --format=tar "$tree" | tar -x -C "$out"
 fi
 echo "$tree"
