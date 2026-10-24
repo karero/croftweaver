@@ -9,6 +9,7 @@ Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (
 | 2 | a42bd423 | full plan, --verify (changed sections named) | same three seats | codex 330 s, 80,526 · melious 196 s, 23,817 · fresh-eyes 219 s, 143,210 | 1/7/4 (after dedup) |
 | 3 | 9b52fcc6 | full plan, --verify | same three seats; the prior-findings file lost the R2 rows (a blank line in this table), so melious checked round 1's rows only; codex and fresh-eyes read the R2 rows from this trail | codex 686 s, 77,829 · melious 221 s, 28,644 · fresh-eyes 219 s, 140,989 | 1/5/8 (after dedup) |
 | 4 | 31a7e9b8 | full plan, --verify, `--earned-by owner-identity` | codex, melious (fresh-eyes ends at round 3 at High) | codex 347 s, 79,267 · melious 123 s, 19,972 | 0/2/2 |
+| final full read | 449a5fd1 | whole plan | claude-fable-5-1 sub-agent, read-only (kimi-k3:cloud on ollama FAILED: weekly quota, 429) | 776 s, 218,245 | 1/0/5 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -56,6 +57,12 @@ Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (
 | R4-2 | RISK | melious | 4 | R3-4 half fixed: the README arm accepts one dated line for every later page, so ask-again is enforced by nothing | fixed, locally_verified, not externally re-verified | named under "What it cannot catch"; Recommendation narrowed to "a first answer" |
 | R4-3 | NIT | melious | 4 | "step 5's map" points nowhere inside `astro-i18n-setup` | fixed | names `tests/placeholders.spec.ts` |
 | R4-4 | NIT | melious | 4 | The grep for others finds only marker-named sentences | fixed | claim narrowed, two more phrases |
+| FR-1 | BUG | final full read | ffr | A non-en/de site renders the English draft with `lang="fr"`; a note keyed by page `lang` fails from commit 1 and the pre-push hook refuses the first push (`Base.astro:38`, `placeholders.spec.ts:95-96`) | fixed (a cut), locally_verified | Language matching removed: any known note counts on any page; How 5 and the build list rewritten |
+| FR-2 | NIT | final full read | ffr | "malformed date" undefined | fixed | "YYYY-MM-DD shape (shape only)" |
+| FR-3 | NIT | final full read | ffr | "project root" ambiguous for a site in a subfolder; missing README | fixed | "the folder that holds `package.json`"; missing README counts as no record |
+| FR-4 | NIT | final full read | ffr | `website-review/SKILL.md` `npm test` item and `cloudflare-setup.test.mjs` pins | fixed | How 1 names both |
+| FR-5 | NIT | final full read | ffr | Decision 3 vs Handoff (tests drift too) | fixed | parenthetical under Decision 3; the decision's words unchanged |
+| FR-6 | NIT | final full read | ffr | `SKILL.md:791` should be `:792` | fixed | |
 UNVERIFIABLE asked in round 1: 6 (Playwright totals, croftweaver-site `terms.astro`, scaffold copying, trail, tone/slot rules, drift); confirmed as findings: 1 (trail → F11). The Playwright totals and `terms.astro` stay the plan author's claims; the plan says the runs predate step 5.
 
 UNVERIFIABLE asked in round 2: 7 (the same runs and the external file, readPage scope, run point, handoff scope, language mapping); confirmed as findings: 2 (R2-6 readPage scope, R2-7 run point); the handoff scope was refuted (R2-8).
@@ -63,4 +70,4 @@ UNVERIFIABLE asked in round 2: 7 (the same runs and the external file, readPage 
 UNVERIFIABLE asked in round 3: codex 3, melious 8, fresh-eyes 2 (Playwright visibility rule, Astro underscore routing, the external file, the earlier runs, file contents melious could not open); confirmed as findings: 1 (Playwright visibility, R3-3, by fresh-eyes reading playwright-core's `computeBox`).
 
 Follow-ups: none.
-Notes: round 4 earned by R3-1 (kind: owner-identity, first time); it found no BUG, so the rounds ended (6(b)) and its RISK/NIT were fixed locally. "no trace in git history" corrected to "before this plan" (fresh-eyes, letter only).
+Notes: round 4 earned by R3-1 (kind: owner-identity, first time); it found no BUG, so the rounds ended (6(b)) and its RISK/NIT were fixed locally. Final full read on Fable (ollama out of quota, no Kimi; melious is GLM only); its BUG FR-1 earned round 5 (kind: note-language), fixed by a cut. "no trace in git history" corrected to "before this plan" (fresh-eyes, letter only).
