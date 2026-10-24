@@ -1402,7 +1402,7 @@ melious_marker() {   # prints a marker line the reviewed text does not contain
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
   api_tools_ok || return 3
-  local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
+  local tt_msg tt_rc key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc
   case "$max" in
     ''|*[!0-9]*|0*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a whole number from 1" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;;
@@ -1412,6 +1412,17 @@ run_melious() {
   local mark; mark="$(melious_marker)"
   printf '%s\n\nOutput format for this reply: put your final answer after a line that holds exactly %s and nothing else, and write nothing after the final answer.\n' \
     "$PROMPT_TEXTONLY" "$mark" >"$RAW_DIR/melious.prompt" || { WHY="could not write the prompt file"; return 1; }
+  # A "light" model is not sent a think tag (R-MELIOUS-THINK). Only a clean answer (exit 1)
+  # goes on: a hit, and a check that could not run, both refuse, before anything is sent.
+  if [ "${melious_rule:-}" = light ]; then
+    tt_msg="$(perl "$PERL_DIR/think_tag.pl" "$RAW_DIR/melious.prompt" 2>&1)"; tt_rc=$?
+    tt_msg="$(printf '%s' "$tt_msg" | tr '\n\r' '  ' | sed 's/^ *//; s/ *$//')"   # one line, trimmed: the status file keeps one line of WHY
+    case $tt_rc in
+      1) ;;
+      0) WHY="$THINK_TAG_WHY the text holds a think tag, and a model the list marks light was measured skipping the text between such tags, so nothing was sent"; return 1 ;;
+      *) WHY="$THINK_TAG_WHY the check could not run (exit $tt_rc: ${tt_msg:-no message}), so nothing was sent"; return 1 ;;
+    esac
+  fi
   seat_fits melious "$MELIOUS_MODEL" "$RAW_DIR/melious.prompt" || return 1   # all it sends
   perl "$PERL_DIR/melious_request.pl" "$MELIOUS_MODEL" "$max" <"$RAW_DIR/melious.prompt" >"$body" || { WHY="could not build the API request"; return 1; }
   key="$(melious_key)"
@@ -1471,6 +1482,10 @@ run_melious() {
 # codex section alone, and the exit was 0 — so a one-reviewer round read as a clean
 # pair. A failure must be visible where the caller consolidates: on stdout.
 NOT_A_REVIEW="output is not a review"
+# R-MELIOUS-THINK: a model the list marks "light" was measured skipping the text between think
+# tags with the seat reporting OK. run_melious refuses it, before it sends anything, when the
+# prompt holds a tag; report_tier reads this prefix to give the refusal its own section.
+THINK_TAG_WHY="think-tag guard:"
 # A quota/rate-limit refusal needs a different remedy (wait, or add credits) from
 # every other failure (fix the CLI, sign-in or model name), so it is named apart.
 # No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
@@ -1509,7 +1524,7 @@ run_tier() {
 # quoting its error.
 SUMMARY="" ; TIMINGS="" ; WHY="" ; TIER_PRINTED=0
 report_tier() {
-  local label="$1" stem="$2" rc=1 secs="" err="" out="" error_lines="" model="" outcome reason sized=0
+  local label="$1" stem="$2" rc=1 secs="" err="" out="" error_lines="" model="" outcome reason sized=0 guarded=0
   WHY="tier did not report (killed or crashed?)" ; TIER_PRINTED=0
   if [ -s "$RAW_DIR/$stem.status" ]; then
     { read -r rc; read -r TIER_PRINTED; read -r secs; IFS= read -r WHY; } <"$RAW_DIR/$stem.status"
@@ -1543,7 +1558,10 @@ report_tier() {
     # The error-shaped lines are captured, then matched via a herestring: piped straight
     # into grep -q, the filter can be killed mid-write once they pass the pipe buffer
     # (~64 KiB), and pipefail would then report a quota failure as a generic one.
-    if [ "$WHY" = "$NOT_A_REVIEW" ]; then
+    if case "$WHY" in "$THINK_TAG_WHY"*) true ;; *) false ;; esac; then
+      outcome="FAILED ($WHY)" ; guarded=1
+      reason="$WHY. Run this round on Codex (--seat codex) at the depth the depth rule gives this change, or on the model Melious runs at any depth (melious_models.txt)."
+    elif [ "$WHY" = "$NOT_A_REVIEW" ]; then
       outcome="FAILED ($NOT_A_REVIEW)"
       reason="the reviewer answered, but its answer did not pass the review check (a refusal-shaped or finding-less reply). Not a quota or setup problem: read the quoted stdout, and if it is a real review, count it by hand from the raw file."
     elif error_lines="$(printf '%s\n%s\n' "$err" "$out" \
@@ -1569,6 +1587,8 @@ report_tier() {
     printf 'Reason: %s\n' "$reason"
     if [ "$sized" = 1 ]; then
       printf '\nThe seat never started: its size limit is checked before it sends anything.\n'
+    elif [ "$guarded" = 1 ]; then
+      printf '\nThe seat never started: the think-tag check runs before it sends anything.\n'
     elif [ -n "$err" ]; then
       printf '\nLast lines of its stderr (full file: %s):\n\n' "$RAW_DIR/$stem.err"
       printf '%s\n' "$err" | sed 's/^/    /'

@@ -133,7 +133,14 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   must state with `--depth light`. Any other id is refused with exit 2 before any reviewer
   starts, whatever else `GET https://api.melious.ai/v1/models` lists; Kimi and every other model
   run on ollama. The script takes the run's word for its depth: it cannot tell whether the change
-  under review is one a Light review fits. To change what the seat may run, change that file.
+  under review is one a Light review fits. A light model is also never sent text that holds a
+  think tag (an angle bracket, an optional slash and the word think or thinking, in any case,
+  with spaces or tabs allowed between them; the exact pattern is in `perl/think_tag.pl`):
+  `glm-5.3-flash` was measured skipping the text between the tags with the seat reporting OK.
+  So for any light model the seat refuses such text, with nothing sent, and the FAILED section
+  points to Codex (R-MELIOUS-THINK). That includes `deepseek-v4.1-flash-1017`, though it read
+  such a plan correctly in 3 runs of 3. The model allowed at any depth is not affected. To change
+  what the seat may run, change that file.
   The seat names no default: unset, it makes no call.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
   27 KB diff, and finished at 96000 in 296-1624 s; `MELIOUS_API_TIMEOUT` defaults to 3600 s). A
