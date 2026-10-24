@@ -67,7 +67,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # whats-new.sh: verify-windows runs the recovery command it prints.
-              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
+              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-hero-carousel/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
               \"*) run=true ;;
             esac
           done <<EOF
@@ -720,11 +720,97 @@ jobs:
           grep -q "professionals everywhere.'," src/config.ts
           red "a line of six long words" "is a real line within the limits" "has 67 characters"
 
+  # The website-hero-carousel skill ships files that live in a SITE, like the contact form. This
+  # builds a site from the starter, installs the skill the way its SKILL.md §2 says (the
+  # component, its words, the script, the test, the carousel on the home page with three
+  # generated photos: one pale, one dark, one in 4:3, two of them linked), and runs the type
+  # check and the whole suite. Three runs, so that every setting and the pairing the mid-fade
+  # assertions need are run: (button, instant), (dots, fade) and (button, fade). The photos are
+  # made here, not committed: the pale one is the worst case for white dots, so the contrast
+  # test can never pass only because the fixture was dark. Last step: a carousel that is
+  # missing something must stop the build.
+  hero-carousel-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          cp src/pages/index.astro "$RUNNER_TEMP/index.pristine.astro"
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          # three generated photos, not committed
+          mkdir -p src/assets
+          node --input-type=module -e "
+          import sharp from 'sharp';
+          const mk = (name, rgb, h = 1350) => sharp({ create: { width: 2400, height: h, channels: 3, background: rgb } }).jpeg({ quality: 80 }).toFile('src/assets/' + name);
+          await mk('hc-pale.jpg', { r: 244, g: 244, b: 240 });
+          await mk('hc-dark.jpg', { r: 24, g: 32, b: 40 });
+          await mk('hc-mid.jpg', { r: 120, g: 140, b: 130 }, 1800);
+          "
+      - name: The skill installed, three times, each with the type check and the whole suite
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          K="$GITHUB_WORKSPACE/skills/website-hero-carousel/templates"
+          for cfg in "button instant" "dots fade" "button fade"; do
+            set -- $cfg; PAUSE=$1; SWAP=$2
+            echo "::group::pause $PAUSE, swap $SWAP"
+            rm -f tests/hero-carousel.spec.ts public/js/hero-carousel.js src/components/HeroCarousel.astro src/components/hero-carousel-text.ts
+            cp "$RUNNER_TEMP/index.pristine.astro" src/pages/index.astro
+            mkdir -p public/js
+            cp "$K/hero-carousel.js" public/js/ && cp "$K/HeroCarousel.astro" "$K/hero-carousel-text.ts" src/components/ && cp "$K/hero-carousel.spec.ts" tests/
+            sed -i "s|^const PAGE: string = '';|const PAGE: string = '/';|; s|^const PAUSE: string = '';|const PAUSE: string = '$PAUSE';|; s|^const SWAP: string = '';|const SWAP: string = '$SWAP';|" tests/hero-carousel.spec.ts
+            # One check per line: in "a && b" a failing a does not stop the step.
+            grep -q "const PAGE: string = '/';" tests/hero-carousel.spec.ts
+            grep -q "const PAUSE: string = '$PAUSE';" tests/hero-carousel.spec.ts
+            grep -q "const SWAP: string = '$SWAP';" tests/hero-carousel.spec.ts
+            sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport HeroCarousel from '../components/HeroCarousel.astro';\nimport pale from '../assets/hc-pale.jpg';\nimport dark from '../assets/hc-dark.jpg';\nimport mid from '../assets/hc-mid.jpg';|" src/pages/index.astro
+            sed -i "s|^<Base title={SITE.name}>|<Base title={SITE.name}>\n<HeroCarousel label=\"Photos of our work\" pause=\"$PAUSE\" swap=\"$SWAP\" slides={[{ image: pale, alt: 'A pale wall in daylight, seen straight on', label: 'Pale wall', href: '/privacy' }, { image: dark, alt: 'A dark room with no light on', label: 'Dark room', href: '/impressum' }, { image: mid, alt: 'A green-grey field under an even sky', label: 'Field' }]} />|" src/pages/index.astro
+            grep -q '<HeroCarousel ' src/pages/index.astro
+            grep -q 'import HeroCarousel' src/pages/index.astro
+            npm run check
+            npm test
+            echo "::endgroup::"
+          done
+      # A carousel with one slide, without a label, without alt text, with a setting it does not
+      # know, or in a language it has no words for, must stop the build, not go out wrong.
+      # Last step: it leaves the site broken on purpose.
+      - name: A carousel that is missing something stops the build
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          stops() { # $1 what was broken, $2 the sed that breaks it, $3 the message the build must give
+            cp "$RUNNER_TEMP/index.broken-base.astro" src/pages/index.astro
+            sed -i "$2" src/pages/index.astro
+            if cmp -s src/pages/index.astro "$RUNNER_TEMP/index.broken-base.astro"; then echo "::error::$1: the sed changed nothing"; exit 1; fi
+            if npm run build > build.log 2>&1; then cat build.log; echo "::error::$1: it was built"; exit 1; fi
+            grep -qF "$3" build.log || { cat build.log; echo "::error::$1: the build failed, but not on: $3"; exit 1; }
+          }
+          # the page with a working two-slide carousel, which each case then breaks
+          cp "$RUNNER_TEMP/index.pristine.astro" "$RUNNER_TEMP/index.broken-base.astro"
+          K="$GITHUB_WORKSPACE/skills/website-hero-carousel/templates"
+          cp "$K/HeroCarousel.astro" src/components/
+          cp "$K/hero-carousel-text.ts" src/components/
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport HeroCarousel from '../components/HeroCarousel.astro';\nimport pale from '../assets/hc-pale.jpg';\nimport dark from '../assets/hc-dark.jpg';|" "$RUNNER_TEMP/index.broken-base.astro"
+          sed -i "s|^<Base title={SITE.name}>|<Base title={SITE.name}>\n<HeroCarousel label=\"Photos\" slides={[{ image: pale, alt: 'A pale wall in daylight, seen straight on', label: 'Pale wall' }, { image: dark, alt: 'A dark room with no light on', label: 'Dark room' }]} />|" "$RUNNER_TEMP/index.broken-base.astro"
+          stops "one slide" "s|, { image: dark, alt: 'A dark room with no light on', label: 'Dark room' }||" 'HeroCarousel: pass slides'
+          stops "no label" 's|label="Photos" ||' 'HeroCarousel: pass label'
+          stops "alt text missing" "s|alt: 'A pale wall in daylight, seen straight on'|alt: ''|" 'has no alt text of its own'
+          stops "a dot without a name" "s|, label: 'Dark room'||" 'has no label'
+          stops "an unknown pause setting" 's|label="Photos" |label="Photos" pause="never" |' 'pause is "button" or "dots"'
+          stops "an interval too short" 's|label="Photos" |label="Photos" intervalMs={500} |' 'intervalMs below 2000'
+          stops "a language with no texts" 's|label="Photos" |label="Photos" lang="xx" |' 'no texts for the language "xx"'
+
   # The one check main's ruleset requires from this workflow. It passes when every job
   # above passed (the change touched their paths) or every job was skipped (it did not),
   # and fails on anything else: a failure, a cancel, a skip where a run was due.
   template-tests-ok:
-    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, brand-kit-skill, tagline-skill]
+    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, hero-carousel-skill, brand-kit-skill, tagline-skill]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -732,18 +818,18 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           RUN: ${{ needs.changes.outputs.run }}
-          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }} ${{ needs.brand-kit-skill.result }} ${{ needs.tagline-skill.result }}
+          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }} ${{ needs.hero-carousel-skill.result }} ${{ needs.brand-kit-skill.result }} ${{ needs.tagline-skill.result }}
         run: |
-          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, brand-kit-skill, tagline-skill: $RESULTS"
+          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, hero-carousel-skill, brand-kit-skill, tagline-skill: $RESULTS"
           [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
           case "$RUN" in
             true) want=success ;;
             false) want=skipped ;;
             *) echo "::error::the changes job gave run='$RUN', neither true nor false"; exit 1 ;;
           esac
-          # one word per job named in RESULTS above (seven): a loop over the words would pass over an empty one unseen
+          # one word per job named in RESULTS above (eight): a loop over the words would pass over an empty one unseen
           set -- $RESULTS
-          [ "$#" -eq 7 ] || { echo "::error::expected 7 job results, got $#: '$RESULTS'"; exit 1; }
+          [ "$#" -eq 8 ] || { echo "::error::expected 8 job results, got $#: '$RESULTS'"; exit 1; }
           for r in "$@"; do
             [ "$r" = "$want" ] || { echo "::error::a job ended '$r' where '$want' was due"; exit 1; }
           done

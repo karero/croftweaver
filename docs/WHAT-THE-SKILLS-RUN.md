@@ -121,7 +121,7 @@ Two more name a few commands:
 `website-content-guide`, `website-positioning`, `website-story`, `website-tagline`,
 `website-testimonials`, `astro-i18n-setup`, `website-positioning-check`, `website-qa`,
 `website-review`, `internal-link-audit`, `og-images`, `website-seo-geo`, `double-knuth`,
-`website-contact-form`, `website-scorecard` and `website-brand-kit` run commands such as
+`website-contact-form`, `website-hero-carousel`, `website-scorecard` and `website-brand-kit` run commands such as
 `npm run build`, `npm test`, `npm run verify`, `npm run og`, `git status`, `git log` and
 `git diff` in the site's folder. Some copy template files into the site. All of this stays
 in the site's folder, apart from what npm and Playwright download (see [Network calls](#network-calls))

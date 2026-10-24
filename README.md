@@ -460,7 +460,7 @@ skills/            the suite skills (canonical)
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
                    consistency audit, trap-test → wedge → guard-tests method)
-  astro-i18n-setup, keystatic-setup, website-contact-form   (opt-in setup skills — see below)
+  astro-i18n-setup, keystatic-setup, website-contact-form, website-hero-carousel   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
@@ -534,6 +534,15 @@ site (like `website-motion`) but runs only when a team forms:
   Content-Security-Policy holds) and a test of the link the button opens. The owner's
   address always shows under the form, for visitors without a mail program set up. Run
   when interview Q2 = *a contact form*, or later when the owner asks for one.
+- **`website-hero-carousel`** — **photos that take turns by themselves**, with one dot per photo, at
+  the top of a page. Adds a component, one small script of the site's own (so a strict
+  Content-Security-Policy holds), its texts in English and German, and a test file that checks
+  what usually goes wrong: the page jumping when the photo changes, white dots disappearing on a
+  pale photo (measured on the rendered pixels), dots too small for a thumb, a slide that is not
+  on show still reachable by keyboard, and moving content with no way to stop it. Settings:
+  a visible **Pause button** (the default) or none, where choosing a dot stops it, and an
+  instant swap or a one-second fade. Run on request, never speculatively: a single photo is
+  often the better design.
 - **`website-team-setup`** — turns a one-person repo into one several people and several
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
   collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI
