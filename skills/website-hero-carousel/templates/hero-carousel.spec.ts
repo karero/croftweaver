@@ -315,16 +315,20 @@ test('hero carousel — a first image that fails: the first other slide whose im
   expect((await active(page)).length, 'one photo on show').toBe(1);
 });
 
-test('hero carousel — a first image that fails after the script has started, while the others are still on their way: the photo that arrives takes its place', async ({ page }) => {
+test('hero carousel — a first image that fails after the script has started, while the others are still on their way: the second photo takes its place when it arrives, and the stopped rotation stays stopped', async ({ page }) => {
   const slides = await slidesOf(page);
+  // three photos: the one after the second must be a working one, or a rotation restarted by the recovery would show nothing new
+  test.skip(slides.length < 3, 'needs three photos');
   const stem = (i: number) => stemOf(slides[i].img.getAttribute('src') ?? '').replace(/[^\w-]/g, '');
-  test.skip(stem(0) === stem(1), 'the first two slides share one file');
+  test.skip(new Set(slides.slice(0, 3).map((_, i) => stem(i))).size < 3, 'the first three slides do not have three files');
   const re = (i: number) => new RegExp(`/_astro/${stem(i)}\\.`);
-  let failFirst!: () => void; let releaseOthers!: () => void;
+  let failFirst!: () => void; let releaseSecond!: () => void; let releaseRest!: () => void;
   const gateFirst = new Promise<void>((r) => { failFirst = r; });
-  const gateOthers = new Promise<void>((r) => { releaseOthers = r; });
+  const gateSecond = new Promise<void>((r) => { releaseSecond = r; });
+  const gateRest = new Promise<void>((r) => { releaseRest = r; });
   await page.route(re(0), async (route) => { await gateFirst; await route.fulfill({ status: 404, body: 'gone' }); });
-  for (let i = 1; i < slides.length; i++) await page.route(re(i), async (route) => { await gateOthers; await route.continue(); });
+  await page.route(re(1), async (route) => { await gateSecond; await route.continue(); });
+  for (let i = 2; i < slides.length; i++) await page.route(re(i), async (route) => { await gateRest; await route.continue(); });
   await freeze(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(PAGE, { waitUntil: 'commit' });
@@ -332,13 +336,13 @@ test('hero carousel — a first image that fails after the script has started, w
   failFirst(); // now the first photo fails
   await expect.poll(() => page.evaluate(() => (document.querySelector('[data-hc-slide] img') as HTMLImageElement).complete)).toBe(true);
   expect(await active(page), 'nothing else is there yet: it stays').toEqual([0]);
-  releaseOthers();
-  await expect.poll(() => active(page), { timeout: 15000 }).not.toContain(0);
-  const now = await active(page);
-  expect(now.length, 'one photo on show').toBe(1);
-  // reduced motion started it stopped: the swap to the photo that arrived does not start the rotation
+  releaseSecond();
+  await expect.poll(() => active(page), { timeout: 15000 }).toEqual([1]);
+  releaseRest();
+  await expect.poll(() => page.evaluate(() => { const im = document.querySelectorAll<HTMLImageElement>('[data-hc-slide] img')[2]; return im.complete && im.naturalWidth > 0; }), { timeout: 15000 }).toBe(true);
+  // reduced motion started it stopped: the recovery does not start the rotation (the third photo is there to be shown if it did)
   const ms = await interval(page);
-  for (let i = 0; i < 2; i++) { await page.clock.runFor(ms); expect(await active(page), 'still stopped after the recovery').toEqual(now); }
+  for (let i = 0; i < 2; i++) { await page.clock.runFor(ms); expect(await active(page), 'still stopped after the recovery').toEqual([1]); }
 });
 
 test('hero carousel — a second image that fails: it stays on the first photo', async ({ page }) => {
