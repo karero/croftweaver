@@ -371,7 +371,8 @@ reproduction, and a new tool has none). None of it is measured: judge it by roun
    is not itself non-convergence — see (a) above — it's a slower signal the artifact's surface
    area is bigger than first estimated, worth naming explicitly rather than silently forcing
    STOP). (This is an early-exit heuristic layered on top of, not instead of, point 6(b)'s round
-   budget — past round 3 only a substantive BUG earns a round, past round 8 the owner decides —
+   budget — past round 3 only a substantive BUG or an earning RISK earns a round, past round 8
+   the owner decides —
    which bounds iteration regardless of how these signals read.) When triggered: step back and redesign the
    component (patch-churn on a wrong design converges never), or take the open items to the owner
    as a decision — escalation can postpone, re-scope, or reject the release, but it cannot waive a
@@ -561,3 +562,56 @@ What this does not show: that the gate finds the same real defects with fresh-ey
 1 to 3: in the brand-kit gate 34 BUGs were found by fresh-eyes alone, 14 of them in rounds 4 to 9,
 and those would have been left to the pair and the final full read; and how many rounds the cut check saves (an estimate of 15 to 25 rounds over the 45
 gates, not a measurement). Judge both by the cost log's rounds and tokens per gate.
+
+## An earning RISK — the owner's rule of 2026-10-22
+
+The owner, 2026-10-22: "Try to reduce the number of asks to me for a review. A review can run
+really anytime until it's clean. Yes we want to avoid rounds over 5, but if required let it run
+another round and another." Until then a round past 3 that found no substantive BUG ended the
+rounds, and its open RISKs went to the owner as one decision: fix locally, not re-verified, or
+waive. Now an in-scope RISK whose fix changed what runs or what someone acts on (an earning RISK)
+is fixed and earns the next round, under the same `--earned-by` kind and the same cut rule; the
+owner is asked only for a RISK waiver, a BUG deferral, a change of scope, and the decision past
+round 8, which stays (the owner's choice, asked the same day).
+
+Why this was not done before: on 2026-09-26 RISK counts per round never reached zero while each
+round re-read the whole change ("Step 6 — why verification rounds are scoped and capped", above). What limits it now, and how
+firmly. Where the cost log can answer, the script refuses a kind that earned an earlier round of
+the gate since its last cut, unless the round names a cut; where it cannot, it warns and goes on,
+and the rule is the host's to keep. Everything else is the host's judgment, shown to the owner but
+not enforced: whether a RISK is in scope, whether its fix changed what runs or what someone acts
+on, and how a kind is named. A verification round sees only the fixes, and an out-of-scope RISK is
+a follow-up. Past round 8 the owner decides. The round checks needed no change: they never read a
+severity, and `test_round_checks.sh` already pins what such a round meets. What this gives up: the
+owner still gets each round's update (step 8), but no longer decides a late round's RISKs before
+the next round runs. Not measured: whether RISK-earned rounds cost less than the owner's questions did. Judge
+it by rounds and tokens per gate in the cost log, and by how often a gate passes round 5.
+
+## Guards a plan proposes — why the plan prompt asks about them
+
+Codified 2026-10-22 from a security fix in another of the owner's repositories (an open redirect).
+Its plan proposed a tripwire test that reads two source files and bans some names and call forms,
+and said the tripwire "guards its source". The plan's gate (High: six rounds, a final full read, a
+red team) raised the tripwire's gaps in several rounds: nothing pinned every error redirect to the
+trust check; the ban missed a URL built in a variable; it fired "only on the literal pattern"; a
+static file-content assertion "cannot express" what the plan meant. Each fix the findings proposed
+kept the tripwire and made it more complete or more exact. None asked whether the route tests
+already did its job. The change's DIFF gate then spent rounds 1 to 4 on the tripwire, a BUG each
+round (spaced, bound and pieced-together spellings got past it; a syntax-tree rule replaced the
+text match in round 3 and was beaten in round 4), and the owner closed it as "an ordinary-mistake
+guard and the route tests are the real check". His idea afterwards: "Next time, I'd ask the plan
+review whether a static guard can deliver what the plan claims, before anyone builds one."
+
+Hence `PROMPT_PLAN`, sent at a PLAN gate only: for each guard a plan adds to catch a future
+mistake, what it can catch and what gets past it, whether it would fail if the behaviour broke, and
+whether a cheaper check, or none, would do. A guard credited with more than it can catch is a
+RISK whose fix is to the claim (narrow it, test the behaviour where it is used, or drop the guard),
+not one more banned form: the cut of step 6, asked before anything is built. For a plan with no guard
+the prompt asks for no entry. Not in `PROMPT_CORE`, which both gates share and which already calls "a guard that
+cannot fire" a RISK; not a host precondition, since the host wrote the plan. Two live trials ran
+once each on 2026-10-22. On the old plan, with its trails removed, Codex raised one finding: a
+RISK that the tripwire cannot establish what the plan claimed, naming a spelling that gets past
+it, with the fix to narrow the claim and credit the route tests, "adding another banned spelling
+would retain the same weakness". On a plan that adds no guard, the second seat raised no finding
+about guards (one CLEAN line said there was none). One run each, not a rate: judge it by whether
+DIFF rounds on guards a plan proposed become rarer.

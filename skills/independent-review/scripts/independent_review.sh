@@ -75,7 +75,9 @@
 #       --depth normal --round 2
 #                                                     # verification round (SKILL.md step 6)
 #   ... --round 4 --earned-by config-advice,zip-names # a round past 3 names every kind of finding
-#                                                     # with a substantive BUG in the round before
+#                                                     # with a substantive BUG, or an in-scope RISK
+#                                                     # whose fix changed what runs or what someone
+#                                                     # acts on, in the round before
 #                                                     # (SKILL.md step 6)
 #   ... --round 6 --earned-by config-advice --cut "dropped the fallback parser"
 #                                                     # a kind that comes back: the fix since the
@@ -85,7 +87,8 @@
 # the prose, which a gate's runner read past in 34 of 45 long gates. Both refuse with exit 2
 # before any reviewer starts and before anything leaves the machine:
 #   - --round 4 or later needs --earned-by KIND[,KIND…]: every kind of finding with a
-#     substantive BUG in the round before (up to 8; each 1 to 40 letters, digits, '.', '_' or
+#     substantive BUG, or an in-scope RISK whose fix changed what runs or what someone acts on,
+#     in the round before (up to 8; each 1 to 40 letters, digits, '.', '_' or
 #     '-', not starting with '-').
 #   - A kind that earned any earlier round of this gate since its last cut needs --cut "TEXT"
 #     (one line, at most 300 characters): what the fix since then removed or refused, not another
@@ -823,6 +826,29 @@ ${PRIOR}
 "
 fi
 
+# --plan: the guards a plan proposes (2026-10-22). A plan's gate saw the gaps of the source-text
+# tripwire it proposed in several rounds, and each finding asked for a longer or more exact check;
+# the change's DIFF gate then spent four rounds on that tripwire (rationale.md, "Guards a plan
+# proposes"). The question belongs before the build, and its answer should be a cut. Empty for a
+# diff, so a diff's prompt is unchanged byte for byte; in a verification round it comes before the
+# round's scope.
+PROMPT_PLAN=""
+if [ "$TYPE" = plan ]; then
+  PROMPT_PLAN="
+GUARDS THE PLAN PROPOSES. For each guard the plan adds to catch a future mistake — a test, a
+tripwire, a CI or lint check, an assertion — ask what it can catch and what gets past it, whether
+it would fail if the behaviour it protects broke, and whether a cheaper check, or none, would do
+as well. For a check that reads source text or syntax, name an input it would miss, if there is
+one. A guard the plan credits with more than it can catch, or one that cannot fail when its
+behaviour breaks, is a RISK even if it is also redundant: name a concrete input that gets past it,
+and fix the claim, not the list: narrow the claim to what the guard catches, test the behaviour
+where it is used, or drop the guard. Banning one more form is a patch, not a fix. Where the plan's
+claim for a guard is accurate but a cheaper check, or none, would do, that is a NIT naming it. List
+the guards you looked at on your CLEAN line. If the plan adds no guard, write nothing about guards.${PRIOR:+
+In this verification round, ask these questions only of guards in the sections that changed.}
+"
+fi
+
 PROMPT_TOOLED="${PROMPT_CORE}
 
 Read-only sandbox; cwd is usually the described project — check, don't assume. Stay in-project, no
@@ -833,7 +859,7 @@ content or assets alike. Prioritise claims the ${TYPE} enumerates, then decision
 
 Verdict each checked claim VERIFIED/WRONG/UNVERIFIABLE — cite the file or command, or for
 UNVERIFIABLE say what was missing. Every WRONG must also appear as a BUG.
-${PROMPT_VERIFY}
+${PROMPT_PLAN}${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
 --- END ${TYPE} ---
@@ -852,7 +878,7 @@ holds for whatever depends on text you were not given — whether a name exists,
 passes, what the rest of a file holds: an UNVERIFIABLE entry saying what to look at, not a BUG or
 RISK. A BUG or RISK quotes the line of the ${TYPE} that shows it, or in a verification round names
 the prior finding whose fix the ${TYPE} lacks.
-${PROMPT_VERIFY}
+${PROMPT_PLAN}${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
 --- END ${TYPE} ---
@@ -866,7 +892,7 @@ the refusal ends the run, and the author gets nothing. Review from the text alon
 load-bearing component claims are therefore UNVERIFIABLE here: collect those entries under a short
 UNVERIFIABLE heading — only the ones that matter — and do not count them as findings. If you call
 a tool anyway, name each call and what it returned. Never state or imply a check you did not name.
-${PROMPT_VERIFY}
+${PROMPT_PLAN}${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
 --- END ${TYPE} ---
@@ -882,7 +908,7 @@ passes, what the rest of a file holds — saying what to look at; these are not 
 Under TEXT-ONLY a BUG or RISK quotes the line of the ${TYPE} that shows it, or in a verification
 round names the prior finding whose fix the ${TYPE} lacks. Never describe a check you did not
 perform.
-${PROMPT_VERIFY}
+${PROMPT_PLAN}${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
 --- END ${TYPE} ---
@@ -891,7 +917,7 @@ ${CONTENT}
 # The runtime backstop for check_prompt_sync.sh: that check is textual, so an assignment built at
 # runtime (eval of a constructed string, a declare -n alias) can evade it. A later write of ANY
 # shape fails here instead, loudly, at the moment it happens. Nothing below reassigns these.
-readonly PROMPT_CORE PROMPT_VERIFY PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROMPT_PORTABLE
+readonly PROMPT_CORE PROMPT_VERIFY PROMPT_PLAN PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROMPT_PORTABLE
 
 # API keys are read ONCE into shell variables that are not exported, and the exported names are
 # unset: codex, agy and ollama are tool-using agents reading untrusted text, and none of them needs

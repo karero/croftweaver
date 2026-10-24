@@ -172,7 +172,19 @@ an "Email Tap" event there, as a click on an email address does.
   Cloudflare checklist, and writes the verification records you give it. It changes nothing
   until you have said yes to the list it prints, and it deletes nothing. It runs `git` to read
   your repository's branches and `src/config.ts`, and asks your domain's nameservers whether
-  a record it wrote is there. It sends your domain no request.
+  a record it wrote is there. It sends your domain no request. The `SETUP.md` it puts in
+  your site also has `gh` commands that change your GitHub repository's settings:
+  `gh repo edit --delete-branch-on-merge` (a merged pull request's branch is deleted), and two
+  `gh api -X PUT` calls that switch on Dependabot alerts and Dependabot security updates
+  (`vulnerability-alerts` and `automated-security-fixes`). Two more `gh api` calls only read
+  those two settings back. `gh repo edit` and `gh repo view` act on the repository of the folder
+  you run them in. So do the `gh api` lines, unless the `GH_REPO` environment variable is set:
+  they then follow it, and the name check does not show that, so make sure `GH_REPO` is empty
+  first. The first Dependabot line prints the folder's repository name: run it on its own and
+  go on only if it names your site; the `gh repo edit` line has no such check, so run
+  `gh repo view` before it. The launch checklist has the assistant run the Dependabot lines.
+  In Claude Code the `gh repo edit` and `gh api` commands are not on the list of what runs
+  without asking, so it may ask first (the `gh repo view` that prints the name is on the list).
 - **`website-team-setup`** uses `gh` to change GitHub settings once you ask for team
   setup: invite collaborators, edit repository settings, create and update branch rules,
   start a check run, and push and close a throwaway test branch. It runs these without a
@@ -251,7 +263,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 
 | Who | Used by | Key or sign-in | Reads or sends |
 |---|---|---|---|
-| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix) | your git and `gh` sign-in | reads, and sends your site's code when pushing; a fix proposal's pull request carries search figures if the repository is private, and in a public one only if you have said yes (the assistant asks once) |
+| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix) | your git and `gh` sign-in | reads, and sends your site's code when pushing; changes the repository's settings when the `SETUP.md` or team-setup commands run (see "Skills that run scripts"); a fix proposal's pull request carries search figures if the repository is private, and in a public one only if you have said yes (the assistant asks once) |
 | GitHub release downloads | `npm create croftweaver` | none | reads `croftweaver.zip` and its `SHA256SUMS` from the newest release |
 | npm registry | `npm install`, `npm ci`, `npx`, `npm create astro` | none | reads packages |
 | Playwright's download servers | `npx playwright install chromium` | none | reads the test browser |
