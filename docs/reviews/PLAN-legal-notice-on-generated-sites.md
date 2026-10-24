@@ -1,6 +1,6 @@
 # PLAN — the owner of a generated site meets "first draft, not legal advice"
 
-Status: draft for the PLAN gate. No code yet. Written 2026-10-23, after croftweaver-site PR 126.
+Status: plan, through the PLAN gate (see the end). No code yet. Written 2026-10-23, after croftweaver-site PR 126.
 
 ## What
 
@@ -64,13 +64,13 @@ A visible note does not break handoff: the handoff item asks for no `[BRACKET]` 
 - The note is slot-shaped to reuse the gate; a data attribute plus a new test would be clearer but adds test code.
 - "Publish the drafts as they are" is offered: an honest choice, recorded.
 
-## Open questions for the owner
+## Decisions (owner, 2026-10-24)
 
-1. Offer the third option, or only "reviewed" and "own texts"?
-2. Should the chat question link to croftweaver.com/terms, which carries the MIT "as it is" sentence? Left out here.
-3. Existing live sites: accept the `AGENTS.md` route only?
-4. The personal `website-launch-check` skill has its own Germany block; add the sentence there too? Not touched.
+1. The §4 question offers all three options, "Publish the drafts as they are" included.
+2. The chat question does not link to croftweaver.com/terms.
+3. Existing live sites learn only through `AGENTS.md` drift; their pages are not touched.
+4. The maintainer's personal `website-launch-check` skill is out of scope for this plan.
 
 ## Cost of the PLAN gate
 
-Five recent plan-review rounds (`timings:` lines in `docs/reviews/REVIEW-plan-2026-10-2*`): Codex 112 to 379 s and 64k to 103k tokens a round, melious 232 to 340 s and 29k to 39k tokens. This plan edits agent-loaded files, so it is Normal depth at least. Expect 1 to 2 rounds: about 5 to 7 minutes and 100k to 140k tokens a round. No red team (judgment: no user data, logins, money, deletion or schema). Not run.
+Five recent plan-review rounds (`timings:` lines in `docs/reviews/REVIEW-plan-2026-10-2*`): Codex 112 to 379 s and 64k to 103k tokens a round, melious 232 to 340 s and 29k to 39k tokens. Run at High depth, because the plan writes legal text a site owner relies on; the record is in `docs/reviews/REVIEW-plan-2026-10-24-pr390.md`. No red team (judgment: no user data, logins, money, deletion or schema).
