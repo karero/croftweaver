@@ -1,5 +1,5 @@
 # PLAN review — karero/croftweaver#390 — where the owner of a generated site meets "first draft, not legal advice"
-Base `36fdafef` · depth: High (the plan writes legal text a site owner relies on) · verdict: OPEN · authority used: POST AUTHORITY and BRANCH-COMMIT — atom B, the maintainer's request to finish and merge this PR (2026-10-24, relayed by the starting session); WORKTREE-WRITE — atom A, this session created the worktree
+Base `36fdafef` · depth: High (the plan writes legal text a site owner relies on) · verdict: OPEN (wording pass next) · authority used: POST AUTHORITY and BRANCH-COMMIT — atom B, the maintainer's request to finish and merge this PR (2026-10-24, relayed by the starting session); WORKTREE-WRITE — atom A, this session created the worktree
 
 Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (table added); (2) four open owner questions → asked before round 1, answered "all as recommended" (2026-10-24), written into the plan's Decisions; (3) no separate spec; (4) no code.
 
@@ -10,6 +10,7 @@ Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (
 | 3 | 9b52fcc6 | full plan, --verify | same three seats; the prior-findings file lost the R2 rows (a blank line in this table), so melious checked round 1's rows only; codex and fresh-eyes read the R2 rows from this trail | codex 686 s, 77,829 · melious 221 s, 28,644 · fresh-eyes 219 s, 140,989 | 1/5/8 (after dedup) |
 | 4 | 31a7e9b8 | full plan, --verify, `--earned-by owner-identity` | codex, melious (fresh-eyes ends at round 3 at High) | codex 347 s, 79,267 · melious 123 s, 19,972 | 0/2/2 |
 | final full read | 449a5fd1 | whole plan | claude-fable-5-1 sub-agent, read-only (kimi-k3:cloud on ollama FAILED: weekly quota, 429) | 776 s, 218,245 | 1/0/5 |
+| 5 | 568f7c96 | full plan, --verify, `--earned-by note-language` | codex, melious | codex 298 s, 106,319 · melious 187 s, 31,209 | 1/1/3 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -63,6 +64,11 @@ Host preconditions: (1) no status table → host RISK H1, fixed before round 1 (
 | FR-4 | NIT | final full read | ffr | `website-review/SKILL.md` `npm test` item and `cloudflare-setup.test.mjs` pins | fixed | How 1 names both |
 | FR-5 | NIT | final full read | ffr | Decision 3 vs Handoff (tests drift too) | fixed | parenthetical under Decision 3; the decision's words unchanged |
 | FR-6 | NIT | final full read | ffr | `SKILL.md:791` should be `:792` | fixed | |
+| R5-1 | BUG | codex | 5 | "pins both": `cloudflare-setup.test.mjs:859` pins the list shape and the message's start, not its advice | fixed, locally_verified; judged not substantive (what is built is unchanged), so it earned no round and went to the wording pass | How 1 narrowed: read the advice by hand |
+| R5-2 | RISK | melious | 5 | Nothing says the `/datenschutz` swap puts the route in `PAGES` | refuted | `_datenschutz.astro` HOW TO USE step 2: "Swap '/privacy' for '/datenschutz' in: tests/_helpers.ts PAGES"; `astro-i18n-setup/SKILL.md:218` generates `PAGES` from its route registry; now cited in How 5 |
+| R5-3 | NIT | codex, melious | 5 | How 2 still said "project root" | fixed | How 2 uses the `package.json` folder |
+| R5-4 | NIT | melious | 5 | How 2 allowed trailing text; How 5 asks for the exact form | fixed | "the form and nothing else on that line" |
+| R5-5 | NIT | melious | 5 | `en-GB`/`de-AT` build cases test nothing after FR-1 | fixed | kept the `fr` case only |
 UNVERIFIABLE asked in round 1: 6 (Playwright totals, croftweaver-site `terms.astro`, scaffold copying, trail, tone/slot rules, drift); confirmed as findings: 1 (trail → F11). The Playwright totals and `terms.astro` stay the plan author's claims; the plan says the runs predate step 5.
 
 UNVERIFIABLE asked in round 2: 7 (the same runs and the external file, readPage scope, run point, handoff scope, language mapping); confirmed as findings: 2 (R2-6 readPage scope, R2-7 run point); the handoff scope was refuted (R2-8).
@@ -70,4 +76,4 @@ UNVERIFIABLE asked in round 2: 7 (the same runs and the external file, readPage 
 UNVERIFIABLE asked in round 3: codex 3, melious 8, fresh-eyes 2 (Playwright visibility rule, Astro underscore routing, the external file, the earlier runs, file contents melious could not open); confirmed as findings: 1 (Playwright visibility, R3-3, by fresh-eyes reading playwright-core's `computeBox`).
 
 Follow-ups: none.
-Notes: round 4 earned by R3-1 (kind: owner-identity, first time); it found no BUG, so the rounds ended (6(b)) and its RISK/NIT were fixed locally. Final full read on Fable (ollama out of quota, no Kimi; melious is GLM only); its BUG FR-1 earned round 5 (kind: note-language), fixed by a cut. "no trace in git history" corrected to "before this plan" (fresh-eyes, letter only).
+Notes: round 4 earned by R3-1 (kind: owner-identity, first time); it found no BUG, so the rounds ended (6(b)) and its RISK/NIT were fixed locally. Final full read on Fable (ollama out of quota, no Kimi; melious is GLM only); its BUG FR-1 earned round 5 (kind: note-language), fixed by a cut. Round 5 had no substantive BUG: the rounds ended (6(b)). "no trace in git history" corrected to "before this plan" (fresh-eyes, letter only).
