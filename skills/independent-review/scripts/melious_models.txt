@@ -9,7 +9,9 @@
 # stands on two lines, the first decides.
 #
 # The owner's rule, 2026-10-12: GLM 5.3 and no other model, and GLM 5.3 Flash for a Light
-# review. Kimi and every other model run on ollama (OLLAMA_MODEL), never here. Change the list
+# review. Added 2026-10-24 at the owner's word: deepseek-v4.1-flash-1017, for a Light review only
+# (one graded trial on website-builder#179: no BUG, two reproduced RISKs, no false ones).
+# Kimi and every other model run on ollama (OLLAMA_MODEL), never here. Change the list
 # by a reviewed change to this file. With the setup guide and seat_limits.txt, it is one of the
 # files of this skill that scripts/check_model_agnostic.sh does not scan, so the others need no
 # model's name.
@@ -17,3 +19,4 @@
 # list with GET https://api.melious.ai/v1/models then.
 glm-5.3
 glm-5.3-flash light
+deepseek-v4.1-flash-1017 light
