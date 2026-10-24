@@ -182,7 +182,7 @@ class Checks(unittest.TestCase):
 
     def test_an_interview_needs_a_question(self):
         r = [{"status": "SUCCESS", "response": "I loaded the skill. Starting the scaffold now."}]
-        self.assertFalse(self.t.check_interview(r)[0])
+        self.assertIs(self.t.check_interview(r)[0], False, "no question is a FAIL, not a note")
 
     def test_test_output_that_mentions_deny_rules_is_not_a_refusal(self):
         said = self.cmd("npm test", output="1 failed: deny rule is enforced")
