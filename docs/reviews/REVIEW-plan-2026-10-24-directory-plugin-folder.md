@@ -42,3 +42,32 @@ not re-read), Windows CRLF behaviour (rests on `.gitattributes`'s comment; keepi
 harmless).
 
 Round 2 is earned by F1 (BUG) and by the redesign of "What and why" from the checklist.
+
+## Round 2 (verification, plan at a3639d0e)
+
+timings: codex 436s (59,517 tokens), melious 151s (23,503 tokens), fresh-eyes 174s (126,007 tokens).
+F2 to F17 confirmed by the seats except as below; F1 and F12 reopened (F18, F19, F21).
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F18 | codex, fresh-eyes | BUG | The new name checks fail on v0.33: README, SECURITY.md and `.gitattributes` name root files not in the branch; `mail-form-text.ts:10` names `docs/BUGLOG.md`; README:277 and `new-website/SKILL.md:566` name an excluded folder. | Fixed: both checks read kept files under `skills/` only (root files are prose, accepted); the exceptions were inventoried by grep on v0.33 and are listed by file and text, not line number. |
+| F19 | codex | RISK | The scratch harness runs only `run:` blocks, so a wrong `if:` or step order escapes. | Fixed: a case reads the YAML for the step's position and `if:`. |
+| F20 | fresh-eyes, melious (NIT) | RISK | The trial commit carries no `Source:` line; a missing line is undefined. | Fixed: the trial uses the same `commit-tree` line with `Source: a1f30899…`; a missing line refuses; a test case. |
+| F21 | codex | RISK | `origin/directory` is a local ref: the post-push check can read stale state. | Fixed: `git ls-remote origin refs/heads/directory` must name the new commit. |
+| F22 | fresh-eyes | RISK | A hand push to `stable` (the README's recovery) starts a branch run where the step never runs. | Fixed: the step also runs on that run. |
+| F23 | fresh-eyes | RISK | `docs/WHAT-THE-SKILLS-RUN.md` (linked from SECURITY.md) is what the scan asks about. | Fixed: in the branch (nine files, 255 in all). |
+| F24 | melious | RISK | "plugin.json declares no components" unchecked. | Fixed: stated what it holds; a test assertion. |
+| F25 | melious | RISK | "A tag not on main is refused" is not in the plan. | Fixed: cited (`release-tag.yml:73-77`); the new step depends on that step. |
+| F26 | melious | NIT | "After `stable` moved" is ambiguous on a re-run. | Fixed: "the Move stable step succeeded"; on a re-run its push changes nothing and succeeds. |
+| F27 | melious | NIT | The `npx` count dropped wordpress-inspector's kept tests and pinned `uvx`. | Fixed: command excludes only the four folders, pattern takes `@` and `==`; still 35, 17 wrangler. |
+| F28 | melious | NIT | `.gitattributes` claim unchecked. | Fixed: a test assertion. |
+| F29 | melious | NIT | Root paths other than docs/scripts unchecked; match rule unspecified. | Fixed: match is the literal path; paths built from pieces are named as not caught. Other root paths: accepted as prose (F18). |
+| F30 | melious | NIT | The step's fetch needs are unstated. | Fixed: `git fetch origin directory`; checkout already has `fetch-depth: 0`. |
+| F31 | fresh-eyes | NIT | Match rule and line-number pinning. | Fixed with F18. |
+| F32 | fresh-eyes | NIT | whats-new.sh is called, not only named. | Fixed: "called behind an `[ -f ]` check". |
+| F33 | fresh-eyes | NIT | How the folder becomes a tree is unsaid. | Fixed: the script builds the tree in a temporary index from the commit's own blobs (tried on v0.33: 255 entries); the folder is unpacked from it. |
+
+UNVERIFIABLE (codex, melious): Anthropic's page contents (the host fetched both on 2026-10-24;
+quotes in the plan), GitHub Actions engine behaviour (concurrency, `if:` gating), Windows checkout.
+
+Round 3 is earned by F18 (BUG).
