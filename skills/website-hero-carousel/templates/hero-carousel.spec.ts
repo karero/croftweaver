@@ -164,7 +164,7 @@ test('hero carousel — pause mode "button": Pause stops it and says Resume (no 
   expect(await active(page), 'one interval after the click').toEqual([1]);
   // a pick never clears a pause
   await toggle(page).click();
-  await page.locator(`${root} [data-hc-pick="0"]`).click();
+  await press(page, 0); // not a mouse click: the pointer left on the carousel would hold it anyway
   expect(await active(page)).toEqual([0]);
   await expect(toggle(page), 'still paused').toHaveText(t.resume);
   await page.clock.runFor(5 * ms);
@@ -183,7 +183,7 @@ test('hero carousel — pause mode "dots": choosing a dot shows its photo at onc
   await expect(page.locator(`${root} .hc-slides`), 'polite once it no longer moves').toHaveAttribute('aria-live', 'polite');
   await page.clock.runFor(10 * ms);
   expect(await active(page), 'it stays').toEqual([1]);
-  await dot(page, 0).click();
+  await press(page, 0); // not a mouse click: the pointer left on the carousel would hold it anyway
   expect(await active(page)).toEqual([0]);
   await page.clock.runFor(10 * ms);
   expect(await active(page), 'and stays again').toEqual([0]);
@@ -346,13 +346,17 @@ test('hero carousel — a first image that fails after the script has started, w
   for (let i = 0; i < 2; i++) { await page.clock.runFor(ms); expect(await active(page), 'still stopped after the recovery').toEqual([1]); }
 });
 
-test('hero carousel — a second image that fails: it stays on the first photo', async ({ page }) => {
+test('hero carousel — a second image that fails: the rotation passes over it (with two photos, it stays on the first)', async ({ page }) => {
   const late = await holdSecondPhoto(page);
+  const n = (await slidesOf(page)).length;
   await page.route(late, (route) => route.fulfill({ status: 404, body: 'gone' }));
   await open(page);
   const ms = await interval(page);
-  await page.clock.runFor(5 * ms);
-  expect(await active(page)).toEqual([0]);
+  const seen: number[] = [];
+  for (let i = 0; i < 2 * n; i++) { await page.clock.runFor(ms); seen.push(...(await active(page))); }
+  expect(seen, 'the failed photo is never shown').not.toContain(1);
+  if (n === 2) expect(seen.every((k) => k === 0), 'two photos: it stays on the first').toBe(true);
+  else expect(seen, 'the photos after the failed one are shown').toContain(2);
 });
 
 test('hero carousel — with JavaScript off, or with only the carousel script blocked, every slide shows and no control is offered', async ({ browser }) => {
@@ -442,10 +446,10 @@ test('hero carousel — the dots sit on the bottom edge of the photo, are 32 px 
       // under forced colours the fill is replaced by the system's; the border width is what still tells the photo on show from the others
       expect(c.width, `${scheme} dot ${i}: border width`).toBe(c.current ? '5px' : '1px');
     }
-    // the pill behind the controls: white on it is at least 3:1 even where the photo behind it is pure white
+    // the pill behind the controls: white on it is at least 4.5:1 (the bar for the small Pause text) even where the photo behind it is pure white
     const pill = await page.locator(`${root} .hc-controls`).evaluate((el) => getComputedStyle(el).backgroundColor);
     const [r, g, b, a = 1] = (pill.match(/[\d.]+/g) ?? []).map(Number);
-    expect(contrast(1, lum([r * a + 255 * (1 - a), g * a + 255 * (1 - a), b * a + 255 * (1 - a)])), `${scheme}: white on the pill over a white photo`).toBeGreaterThanOrEqual(3);
+    expect(contrast(1, lum([r * a + 255 * (1 - a), g * a + 255 * (1 - a), b * a + 255 * (1 - a)])), `${scheme}: white on the pill over a white photo`).toBeGreaterThanOrEqual(4.5);
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']).analyze();
     expect(JSON.stringify(results.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length }))), `axe, ${scheme}`).toBe('[]');
   }

@@ -803,6 +803,7 @@ jobs:
           stops "alt text missing" "s|alt: 'A pale wall in daylight, seen straight on'|alt: ''|" 'has no alt text of its own'
           stops "a dot without a name" "s|, label: 'Dark room'||" 'has no label'
           stops "an unknown pause setting" 's|label="Photos" |label="Photos" pause="never" |' 'pause is "button" or "dots"'
+          stops "an unknown swap setting" 's|label="Photos" |label="Photos" swap="slide" |' 'swap is "instant" or "fade"'
           stops "an interval too short" 's|label="Photos" |label="Photos" intervalMs={500} |' 'intervalMs below 2000'
           stops "a language with no texts" 's|label="Photos" |label="Photos" lang="xx" |' 'no texts for the language "xx"'
 

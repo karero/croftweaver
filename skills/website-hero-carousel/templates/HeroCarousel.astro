@@ -104,10 +104,10 @@ const n = slides.length;
   .hc[data-live][data-swap='fade'] .hc-slide { transition: opacity 1s ease, visibility 0s linear 1s; }
   .hc[data-live][data-swap='fade'] .hc-slide[data-active] { transition: opacity 1s ease, visibility 0s; }
   @media (prefers-reduced-motion: reduce) { .hc[data-live][data-swap='fade'] .hc-slide, .hc[data-live][data-swap='fade'] .hc-slide[data-active] { transition: none; } }
-  /* On a pale part of a photo white dots vanish, so the controls sit on a dark pill: even over pure white it gives white about 4:1. */
+  /* On a pale part of a photo white dots vanish, so the controls sit on a dark pill: even over pure white it gives the white Pause text 5:1 (4.5:1 is the bar for text this small). */
   .hc-controls {
     position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 1;
-    display: flex; align-items: center; border-radius: 999px; background: rgba(18, 33, 40, 0.6); color: #fff;
+    display: flex; align-items: center; border-radius: 999px; background: rgba(18, 33, 40, 0.65); color: #fff;
   }
   .hc-toggle { min-height: 2rem; padding: 0 0.9rem 0 1rem; font: inherit; font-size: 0.875rem; color: #fff; background: transparent; border: 0; cursor: pointer; }
   .hc-toggle:focus-visible { outline: 2px solid #fff; outline-offset: -4px; border-radius: 999px; }

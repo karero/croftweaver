@@ -510,9 +510,10 @@ packages/      (repo only: the zip does not hold it)
 
 ### Opt-in and on-demand setup skills
 
-Four skills are **not run** by the default build — the orchestrator copies the first three
-into a site only when the decision interview calls for them; the fourth travels with every
-site (like `website-motion`) but runs only when a team forms:
+Five skills are **not run** by the default build — the orchestrator copies the first three
+into a site only when the decision interview calls for them, and the fourth only when the owner
+asks for it; the fifth travels with every site (like `website-motion`) but runs only when a
+team forms:
 
 - **`astro-i18n-setup`** — turnkey multi-language: Astro i18n routing (clean default locale
   + prefixed others), self-referencing hreflang + `x-default`, sitemap alternates, a language

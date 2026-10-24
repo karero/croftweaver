@@ -12,7 +12,7 @@
        (a full interval) when the pointer leaves or the tab returns;
      - it starts stopped when the device asks for reduced motion.
    A slide is shown only when its image is complete: a late or failed image never leaves a
-   blank slide. The one exception is the first slide at the start: it is shown while its image is
+   blank slide, and the rotation passes over a slide whose image has failed. The one exception is the first slide at the start: it is shown while its image is
    still arriving (it is the first thing the visitor sees); if that image fails, the first other slide
    whose image is there takes its place, now or when it arrives, and the rotation goes on from there
    unless it is stopped. Choosing a dot shows that photo (when its image has arrived) and, with pause
@@ -41,6 +41,12 @@
   function image(i) { return slides[i].querySelector('img'); }
   function loaded(i) { var el = image(i); return !!el && el.complete && el.naturalWidth > 0; }
   function running() { return !paused && !hovering && !away; }
+  function failed(i) { var el = image(i); return !!el && el.complete && el.naturalWidth === 0; }
+  // the slide after i whose image has not failed (i itself when every other one has)
+  function after(i) {
+    for (var j = 1; j < slides.length; j++) { var n = (i + j) % slides.length; if (!failed(n)) return n; }
+    return i;
+  }
 
   function show(i) {
     current = i;
@@ -83,14 +89,14 @@
     el.addEventListener('load', function () {
       if (chosen) {
         if (wanted === idx) { show(idx); schedule(); }
-      } else if (g === gen && running() && (current + 1) % slides.length === idx) {
+      } else if (g === gen && running() && after(current) === idx) {
         show(idx); schedule();
       }
     }, { once: true });
   }
   function tick() {
     timer = null;
-    var next = (current + 1) % slides.length;
+    var next = after(current);
     if (loaded(next)) show(next);
     schedule();
     if (!loaded(next)) whenLoaded(next, false);
@@ -138,7 +144,6 @@
 
   // The slide on show has failed (its image is complete and has no width): show the first other slide whose
   // image is there, now, or, if none is yet, as soon as one arrives. Never swaps away from a photo that is fine.
-  function failed(i) { var el = image(i); return !!el && el.complete && el.naturalWidth === 0; }
   function recover() {
     if (!failed(current)) return;
     for (var j = 1; j < slides.length; j++) {

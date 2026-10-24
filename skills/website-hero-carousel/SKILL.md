@@ -46,8 +46,8 @@ And the honest weak spots, so the owner hears them from you first:
 2. **How many photos, and are they the same shape?** Two to five. Any shape works (each is cropped to
    the carousel's shape), but a photo with its subject at the edge loses it in the crop: look at each
    one at the carousel's shape (16 / 9 by default) and at a phone's.
-3. **Do the photos link anywhere?** Each slide may link to a page (a project, say). Then every photo
-   has a link; mixing linked and unlinked slides is allowed and tested.
+3. **Do the photos link anywhere?** Any slide may link to a page (a project, say); mixing linked and
+   unlinked slides is fine (the CI page does).
 4. **Which pause mode?** Read "Pause" below to the owner and let them choose. Default: the button.
 
 ## 1. What it adds to the site
