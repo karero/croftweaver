@@ -31,3 +31,14 @@ Fresh-eyes (Sonnet, on the plan with F1–F3 fixed): 248s, 192,223 tokens.
 | F12 | fresh-eyes | NIT | No plan + `--evidence` run, so placement against the guards paragraph is unchecked. | Fixed: Tests add it. |
 
 Round 2 is earned by F1 and F4 (substantive BUGs).
+
+## Round 2 (verification, plan at b9464469)
+
+reviewers: codex OK (effort medium), melious FAILED (balance 0), ollama-cloud FAILED (quota).
+timings: codex 94s (64,510 tokens). Codex confirmed F1–F12 as fixed in the plan.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F13 | codex | BUG | The new Guards note said diff lines "never count" for the quota classifier; a CR inside a diff line can bring error-shaped text to column 0 after `readable_tail.pl`. | Fixed: wording ("ordinary diff lines … do not count", the CR case named). Prose about today's behaviour, no design change: not substantive, so it earns no round; it goes to the wording pass. |
+
+The rounds end here (no substantive BUG or earning RISK in round 2).

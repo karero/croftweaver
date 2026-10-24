@@ -152,8 +152,9 @@ first live run with `--evidence` is that check; its trail says what the seats di
   such record, which needs none.
 
 - A failed seat's quota classifier reads column-0 error lines in the stderr a CLI echoes,
-  which can include the prompt. Diff lines are prefixed, so they never count; evidence, like a
-  plan, is not. An evidence log line such as `ERROR: 429 Too Many Requests`, with a seat that
+  which can include the prompt. Ordinary diff lines are prefixed, so they do not count (a CR
+  inside a line can still bring error-shaped text to column 0); evidence, like a plan, is not
+  prefixed at all. An evidence log line such as `ERROR: 429 Too Many Requests`, with a seat that
   failed for another reason, can be labelled a quota failure. This is today's behaviour for any
   plan; the FAILED section already says to treat the line as a setup failure if it is text from
   the reviewed material. Not changed here.
