@@ -7,7 +7,7 @@
 # Read as raw bytes, so a malformed byte beside a tag cannot hide it. A newline between the
 # bracket and the name does not count, and neither does an entity spelling of the bracket.
 # A name that goes on with a dash or a dot (think-mode) does count, on purpose: a wrong refusal
-# sends the round to Codex, a miss skips text without a word.
+# costs a rerun on another seat, while a miss may let text go unreviewed with the seat saying OK.
 # The pattern spells the word with a bracket class, so that nothing written near it can make this
 # file hold a tag: a review of it by the light model would be refused. Plain spelling would pass
 # today too; the class is kept as a guard against a later edit.
