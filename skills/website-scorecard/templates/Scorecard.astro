@@ -87,15 +87,17 @@ const rerun = lh ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(
       {state === 'current' && <span data-scorecard-current> {t.current}</span>}
       {state === 'edited' && <strong data-scorecard-edited> {t.edited}</strong>}
     </p>
-    <table>
-      <caption>{t.caption}</caption>
-      <thead><tr><th scope="col">{t.area}</th><th scope="col">{t.passed}</th></tr></thead>
-      <tbody>
-        {card.checks.map((c: { area: string; passed: number }) => (
-          <tr data-area={c.area}><th scope="row">{t.areas[c.area] ?? c.area}</th><td>{c.passed}</td></tr>
-        ))}
-      </tbody>
-    </table>
+    <div class="table-wrap figures" role="region" aria-label={t.caption} tabindex="0">
+      <table>
+        <caption>{t.caption}</caption>
+        <thead><tr><th scope="col">{t.area}</th><th scope="col" class="num">{t.passed}</th></tr></thead>
+        <tbody>
+          {card.checks.map((c: { area: string; passed: number }) => (
+            <tr data-area={c.area}><th scope="row">{t.areas[c.area] ?? c.area}</th><td class="num">{c.passed}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
     {lh && (
       <p data-scorecard-lighthouse>
         {t.lighthouse(lh.date, lh.strategy)}{' '}
@@ -107,10 +109,7 @@ const rerun = lh ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(
 )}
 
 <style>
-  .scorecard table { border-collapse: collapse; margin: 1rem 0; }
+  /* The table takes the shared table style (src/styles/tables.css). */
   .scorecard caption { text-align: left; color: var(--muted); padding-bottom: 0.25rem; }
-  .scorecard th, .scorecard td { text-align: left; padding: 0.35rem 1.5rem 0.35rem 0; border-bottom: 1px solid var(--line); }
-  .scorecard tbody th { font-weight: 400; }
-  .scorecard td { font-variant-numeric: tabular-nums; }
   .scorecard-meta { color: var(--muted); }
 </style>

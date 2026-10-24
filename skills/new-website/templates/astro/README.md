@@ -14,6 +14,7 @@ package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
 src/config.ts                 # single source of truth (URL, name, analytics, EEAT)
 src/layouts/Base.astro        # title/OG/Twitter/canonical/JSON-LD/no-FOUC theme spine
 src/styles/global.css         # light/dark theme tokens (mirror BRAND.md)
+src/styles/tables.css         # the table style (website-design-system, "Tables")
 src/pages/index.astro         # minimal home so the suite is green from commit 1
 src/pages/privacy.astro       # GDPR privacy draft (fill [BRACKET] slots before launch)
 public/{robots.txt,llms.txt,_headers,manifest.webmanifest}

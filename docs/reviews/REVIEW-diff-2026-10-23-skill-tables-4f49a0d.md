@@ -49,4 +49,6 @@ Notes:
 - The review script ran from the worktree; the skill's script has `SECOND_SEAT` (16 matches).
 - POST AUTHORITY, BRANCH-COMMIT AUTHORITY: this session created branch `skill/tables` and its worktree; the owner's go covers the push and the pull request.
 
+After the push, CI failed three checks on head `0eb3188` (the scorecard job, its aggregate, and the brand-kit tests). Causes, both real and both mine: (1) the scorecard skill's component renders a `<table>` outside `.table-wrap`, which the new scan rejects: the component now uses the shared style (`figures`, `num` cells); (2) the brand-kit tests hard-code line numbers that assume the starter's `global.css` is 88 lines (`Line 90`, `line 90`, ...): the table CSS moved out of `global.css` into `src/styles/tables.css`, imported by `Base.astro`, so `global.css` is byte-identical to main again. Replicated locally: the scorecard job's steps in a scratch copy (111 passed) and the brand-kit palette tests (67 + 175 passed). The move and the component change are structural, so a verification round on that delta follows (Round 5).
+
 Tokens logged for the gate: Codex 73,793 + 49,526 + 38,810 + 27,134 + 21,571 (wording pass) = 210,834; the fresh-eyes pass 142,036; 352,870 in all. Rounds 1 to 4; round 4 earned by `markup-guard-shape` and run on a cut. The earlier PLAN gate: 146,370.

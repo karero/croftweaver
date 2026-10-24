@@ -1,0 +1,67 @@
+/* Tables: the style of every table (website-design-system, "Tables"; tests/tables.spec.ts checks it). Kept in a
+   file of its own, next to global.css and imported after it by src/layouts/Base.astro. */
+
+/* Tables. One style for every table, so a page carries no layout CSS for a table. A page may still
+   style its own rows (a status bar, a bold total). Markup: a .table-wrap with role="region", an
+   aria-label and tabindex="0" around the table, a <th scope="col"> for each column and a
+   <th scope="row"> for each row. Every .table-wrap says which kind it is (tests/tables.spec.ts checks it):
+   - "stack": the table holds sentences. Above 40rem it is a table. Below it each row stacks: the row header
+     as a title, then each cell under its own label, which comes from data-label and must equal the column
+     header's text (the test reads both). Four columns of prose cannot share 320px.
+   - "figures": the table holds short numbers (a "num" cell is right-aligned). It is narrower and its row
+     header is a plain label. Alone, it stays a table on a phone and must fit in 320px without scrolling;
+     the test fails if it does not, and the fix is then "stack", not a scroll bar. "stack figures" together
+     is the figures look with the stacked layout, the numbers on the line of their label.
+   - "long-head" (with "stack"): the row headers are long, so the first column is wider.
+   - Two cell classes: "nowrap" keeps a short value on one line, "tap" (on a link that stands alone in a
+     cell) makes it a 44px tap target on a phone.
+   A stacked table is no longer display: table. The roles (role="table", "rowgroup", "row", "columnheader",
+   "rowheader", "cell") are a fallback for a browser that drops the table when the layout changes; that they
+   work there is not checked. Measured once, in Chromium, on a real table: its accessibility tree kept the
+   table, rows, headers and cells without the roles too, and only the tbody rowgroup dropped out.
+   - "avg" on a <tr>: a total or average row, bold with a rule above it.
+   Words are not hyphenated in cells: the body's hyphens: auto squeezes a narrow first column down to
+   fragments such as "An-thropic". */
+.table-wrap { overflow-x: auto; margin: 1.2rem 0; max-width: 60rem; }
+.table-wrap.figures { max-width: 46rem; }
+.table-wrap table { width: 100%; border-collapse: collapse; }
+.table-wrap th, .table-wrap td {
+  text-align: left; vertical-align: top; padding: 0.7rem 1rem 0.7rem 0;
+  border-bottom: 1px solid var(--line); line-height: 1.5; -webkit-hyphens: manual; hyphens: manual;
+}
+.table-wrap th:last-child, .table-wrap td:last-child { padding-right: 0; }
+.table-wrap thead th { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.table-wrap tbody th { font-weight: 600; }
+/* In a table of figures the row header is a plain label, so the figures carry the weight. */
+.table-wrap.figures tbody th { font-weight: 400; }
+/* The row header of a text table gets a share of the width, or the long cells squeeze it to its longest word. */
+.table-wrap.stack tbody th { width: 28%; }
+/* A table whose row headers run to a sentence (the FAQ's) gives them more. */
+.table-wrap.stack.long-head tbody th { width: 38%; }
+.table-wrap .nowrap { white-space: nowrap; }
+.table-wrap .num { text-align: right; font-variant-numeric: tabular-nums; }
+.table-wrap th.num, .table-wrap td.num { padding-right: 0.2rem; padding-left: 1rem; }
+.table-wrap a:focus-visible { outline-offset: -2px; }  /* the region clips an outline drawn outside the first column */
+.table-wrap tr.avg th, .table-wrap tr.avg td { font-weight: 700; border-top: 2px solid var(--line); }
+@media (max-width: 40rem) {
+  /* A table of figures stays a table on a phone, so it gives its row header the room. */
+  .table-wrap.figures th, .table-wrap.figures td { padding-right: 0.6rem; }
+  .table-wrap.figures th.num, .table-wrap.figures td.num { padding-left: 0.6rem; padding-right: 0.2rem; }
+  .table-wrap.stack table, .table-wrap.stack tbody, .table-wrap.stack tr,
+  .table-wrap.stack th, .table-wrap.stack td { display: block; }
+  /* The header row stays in the page for screen readers. */
+  .table-wrap.stack thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .table-wrap.stack tbody tr { padding: 1rem 0; border-bottom: 1px solid var(--line); }
+  .table-wrap.stack tbody th, .table-wrap.stack.long-head tbody th { width: auto; padding: 0 0 0.35rem; border: 0; font-size: 1.05rem; font-weight: 600; }
+  .table-wrap.stack td, .table-wrap.stack td:last-child { padding: 0.35rem 0; border: 0; }
+  .table-wrap.stack td::before {
+    content: attr(data-label); display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted);
+  }
+  /* A number sits on the line of its label, so a row of three figures is four lines, not seven. */
+  .table-wrap.stack td.num { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; white-space: nowrap; }
+  .table-wrap.stack td.num::before { white-space: normal; text-align: left; }
+  /* A link that stands alone in a cell is a tap target (BRAND.md): 44px tall. */
+  .table-wrap a.tap { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
+}

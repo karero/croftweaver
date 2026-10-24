@@ -77,8 +77,9 @@ enforces them. For generating image assets, use the `image` skill.
 ## Tables
 
 One style for every table; a page carries no layout CSS for a table. It lives in the starter's
-`src/styles/global.css` ("Tables") and `tests/tables.spec.ts` checks it. A site made before this
-section copies the block in, and removes each page's own table CSS first.
+`src/styles/tables.css` (imported after `global.css` by `Base.astro`) and `tests/tables.spec.ts` checks
+it. A site made before this section copies `tables.css` in, adds the import line to its layout, and
+removes each page's own table CSS first.
 
 Two kinds, told apart by what the cells hold:
 

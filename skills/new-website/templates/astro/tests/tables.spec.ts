@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { PAGES, THEMES } from './_helpers';
 
-// Tables (website-design-system, "Tables"; the CSS is in src/styles/global.css). Two kinds: "stack"
+// Tables (website-design-system, "Tables"; the CSS is in src/styles/tables.css). Two kinds: "stack"
 // (sentences: a table above 40rem, labelled stacked rows below it) and "figures" (short numbers: stays a table
 // and must fit in 320px). Two layers. The contract layer puts one table of each kind into the home page, so a
 // site with no table still proves the CSS. The scan layer reads the real tables of every page in PAGES.
