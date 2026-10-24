@@ -143,8 +143,8 @@
     if (!failed(current)) return;
     for (var j = 1; j < slides.length; j++) {
       var n = (current + j) % slides.length;
-      // schedule() starts the timer only if the rotation is running: a stop (reduced motion, a dot, focus) stays in force
-      if (loaded(n)) { show(n); schedule(); return; }
+      // the timer is left as it is: a running rotation goes on, a stopped one (reduced motion, a dot, focus) stays stopped
+      if (loaded(n)) { show(n); return; }
     }
     slides.forEach(function (slide, k) {
       var img = image(k);
