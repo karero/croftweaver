@@ -108,3 +108,9 @@ D4/D17 (the listing, checked after the first release once listed) and D21's bran
 (the maintainer's setting, BUGLOG). Reviewer tokens about 846,000 (the cost log's 766,647
 for rounds 1-6 with fresh-eyes and the full read, plus round 1's first Codex run, 79,882,
 logged under an earlier gate id). Degraded pair throughout: no GLM 5.3 (melious balance 0).
+
+## Wording pass (Codex alone, the prose changed since round 4: trail, README, workflow header, plan)
+
+timings: codex 141s (57,175 tokens). Two contradictions, both in the plan, both fixed: its
+opening still said "Nothing here is built" (now: built, in review), and "at 0.34" for a
+measurement taken at a1775b95 (plugin.json 0.33.0). A confirmation over that fix follows.

@@ -1,6 +1,7 @@
 # Plan: list Croftweaver in Anthropic's plugin directory from a slim branch
 
-Nothing here is built. The plan waits for the plan review gate and then the maintainer's go.
+The plan passed its review gate; the trial (step 3) passed Validate, and the build (step 4) is
+in review as its own PR. The status table says where each step stands.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
@@ -77,7 +78,7 @@ are images (a JPEG and two PNGs, the icon among them: types the checklist allows
 - `scripts/build_directory_tree.sh <commit>` prints a tree id: in a temporary index
   (`read-tree --empty`), it puts `git ls-tree -r <commit>`'s entries for the kept paths, minus
   the four folders and `skills/independent-review/`, through `update-index --index-info`, then `write-tree`. The blobs are the
-  commit's own, so nothing is converted. (Tried on v0.33 before the later decisions: 255 entries; at 0.34 with them: 224.) `--out <dir>` also
+  commit's own, so nothing is converted. (Tried on v0.33 before the later decisions: 255 entries; at a1775b95 with them: 224.) `--out <dir>` also
   unpacks it with `git archive <tree>`, for the trial and the test.
 - In `release-tag.yml`, a new last step. The "Move stable" step gains `id: move`, and the new
   step's `if:` is `steps.release.outputs.tag != '' && (steps.move.outcome == 'success' ||
