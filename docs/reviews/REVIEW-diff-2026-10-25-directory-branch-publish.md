@@ -52,8 +52,7 @@ Round 3 is earned by D11 and D12.
 
 ## Round 3 (verification, diff 836cfdb2..51ed074c)
 
-timings: codex 310s (72,231 tokens), fresh-eyes 205s (about 100,000 tokens; not reported
-exactly). D11, D14, D15 confirmed by both; fresh-eyes confirmed D12, Codex did not (D16).
+timings: codex 310s (72,231 tokens), fresh-eyes 333s (100,581 tokens). D11, D14, D15 confirmed by both; fresh-eyes confirmed D12, Codex did not (D16).
 Fresh-eyes ran against 51ed074c while the D16 fix below was being written in the same
 checkout; its D12 confirmation is of the earlier wording, which D16 replaced.
 
