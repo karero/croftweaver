@@ -114,3 +114,20 @@ BUG; no earning RISK left after the fixes below, so the rounds end here.
 | F46 | codex | RISK | Exact-text exceptions do not see structure: moving the unchanged `--stamp-tests` line below `fi` keeps every text but calls the missing script. | Fixed: the plan calls both checks literal-reference inventories, and adds one case that runs the stamp block from SKILL.md with no `whats-new.sh` and expects `suite_commit: unknown`. Not re-verified by a round; the final full read and wording pass read it. |
 | F47 | melious | NIT | "that commit" could mean `directory`'s tip, which is never on main. | Fixed: "the commit the `Source:` line names". |
 | F48 | melious | NIT | The F43 rewrite tangled the commit-tree clause. | Fixed: re-ordered. |
+
+## Final full read (plan at a430fe7b)
+
+Kimi K3 on ollama was meant to read it: refused, weekly quota used up (429). Stand-in, as the
+skill allows: a fresh pass on the host's model (Opus 5.5, a new instance that had not seen the
+plan), 227s, 126,682 tokens. No BUG.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F49 | full read | RISK | Skills name toolkit `make` targets; the branch has no Makefile; no check sees it. | Fixed as wording: accepted under "What stays as it is" and named in what the checks do not catch. No design change. |
+| F50 | full read | RISK | Where the step gets the tag is unsaid; on the branch run `github.ref_name` is `stable`. | Fixed as wording: the step reads `steps.release.outputs.tag`. |
+| F51 | full read | NIT | Launcher grep narrower than the checklist's list. | Fixed: grep widened (`pnpm dlx`, `yarn dlx`, `pipx run`, `uv run`); still 35. |
+| F52 | full read | NIT | The workflow's header comment describes only `stable`. | Fixed: updated too. |
+| F53 | full read | NIT | Status row 2 and the cost line stale. | Fixed. |
+| F54 | full read | NIT | A fragment quoted as "exact full text". | Fixed: "the line beginning …"; the test holds the whole line. |
+
+Neither RISK changes the design, so no verification round; the wording pass reads them.

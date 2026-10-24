@@ -5,7 +5,7 @@ Nothing here is built. The plan waits for the plan review gate and then the main
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-24 | this file |
-| 2 | Plan review gate (High: a workflow that pushes what users install) | ⏳ | trail in `docs/reviews/` |
+| 2 | Plan review gate (High: a workflow that pushes what users install) | ✅ 5 rounds, 48 findings, no BUG open; final full read; wording pass | `docs/reviews/REVIEW-plan-2026-10-24-directory-plugin-folder.md` |
 | 3 | Trial: one slim branch pushed by hand, Validate run on it | ⬜ waits for the go | — |
 | 4 | Build: script, test, workflow step (one PR) | ⬜ only if step 3 gets a report | — |
 | 5 | Fix what step 3's report marks Blocking (likely the `npx` lines), and the README section on what the skills contact, each its own PR | ⬜ | — |
@@ -73,7 +73,8 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   changes nothing and succeeds), or the run on a hand-moved `stable`, so the README's hand
   recovery for `stable` also brings `directory` along. "Move stable" refuses a tag not on main
   (`release-tag.yml:73-77`), but it does not run on the branch run, so the new step checks it
-  again itself: `git fetch origin main`, and refuse unless the tag's commit is an ancestor of
+  again itself, reading the tag from `steps.release.outputs.tag` (on the branch run
+  `github.ref_name` is `stable`): `git fetch origin main`, and refuse unless the tag's commit is an ancestor of
   it. Then: `git ls-remote --exit-code origin refs/heads/directory` decides whether `directory`
   exists (exit 2: the first run); if it does, `git fetch origin
   +refs/heads/directory:refs/remotes/origin/directory`, and every check below reads
@@ -88,7 +89,7 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   A `concurrency` group on the job keeps two release runs from overlapping. A refused push
   turns the run red; the README's release steps gain the hand commands (the script and the
   same `commit-tree` line). The permissions comment (`contents: write`, "nothing else is
-  written") is updated.
+  written") and the header comment, which describes only `stable`, are updated.
 - The `main checks` ruleset covers the default branch only, and `stable` has no protection
   either. The same rule for `directory` (no deletion, no force push) is the maintainer's
   setting to add, at step 4: it is the guard against a force push, which the test below can
@@ -101,12 +102,15 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   (`.agents/plugins/marketplace.json`) keep installing the whole repo from `stable`. Moving them
   to `directory` would shrink every install, but it changes what two working routes deliver:
   a BUGLOG row, not this plan.
+- Skills name toolkit `make` targets (`make whats-new`, `make test-cloudflare-check`,
+  `make test-wordpress-inventory`), and the branch has no Makefile. These are for someone
+  working in the toolkit's own folder; accepted, like the README's links.
 - An install from `directory` has no `scripts/whats-new.sh`, so `new-website`'s stamp step
   takes its existing fallback (`suite_commit: unknown`, `new-website/SKILL.md:622`), as a zip
   install does. Whether a plugin install from `stable` keeps `.git` and so ever stamps is not
   known.
 - The checklist marks an `npx` without an exact version as Blocking. The kept skills carry 35
-  such lines (`git ls-files skills | grep -vE '^skills/(facts-check|new-website|search-console-insights|website-brand-kit)/scripts/tests/' | xargs grep -nE '\b(npx|bunx|uvx) ' | grep -vE '\b(npx|bunx|uvx) (-[a-z-]+ )*[a-z@/._-]+(@|==)[0-9]'`),
+  such lines (`git ls-files skills | grep -vE '^skills/(facts-check|new-website|search-console-insights|website-brand-kit)/scripts/tests/' | xargs grep -nE '\b(npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run|uv run) ' | grep -vE '\b(npx|bunx|uvx) (-[a-z-]+ )*[a-z@/._-]+(@|==)[0-9]'`),
   17 of them `npx wrangler`, which no starter pins. Most run in a site that installs the tool
   itself; whether the validator tells the two apart is not known. Step 3's report lists the
   lines it flags, and step 5 fixes those in its own PR.
@@ -135,16 +139,16 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
     one naming `docs/BUGLOG.md` (a comment);
   - none names one of the four folders, either as `<skill>/scripts/tests` or, inside that skill,
     as `scripts/tests`, except three lines, each matched by file and its exact full text: in `new-website/SKILL.md`,
-    "The brand kit's scripts/tests is the toolkit's own test suite" and
+    the line beginning "# The brand kit's scripts/tests is the toolkit's own test suite" and
     `rm -rf "$PROJECT_SKILLS_DIR"/website-brand-kit/scripts/tests` (they remove it from sites);
-    in `search-console-insights/references/geo-check.md`, "Tests: `scripts/tests/test_geo_check.py`"
-    (describes one).
+    in `search-console-insights/references/geo-check.md`, the line beginning "Tests:
+    `scripts/tests/test_geo_check.py`" (describes one). The test holds each whole line.
   Both are inventories of literal references: they do not see where a line sits. So one more
   case runs `new-website`'s stamp block, taken from SKILL.md, with no `scripts/whats-new.sh`
   beside it, and expects `suite_commit: unknown` and exit 0.
   As a warning in its output only: the file count and any non-image file over 256 KiB (the
   reviewer-hold limits, not blocks). What the checks do not catch: a path built from pieces,
-  or a script that finds a tests folder by itself.
+  a script that finds a tests folder by itself, and `make` targets (accepted above).
 - The workflow tests in `scripts/plugin.test.mjs` already run `release-tag.yml`'s `run:`
   blocks on a scratch repo; they do not run its `if:` lines. New cases: read from the YAML, the
   step is last and its `if:` is the condition above; run on a scratch repo, the first run
@@ -174,6 +178,7 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   published. Not yet seen for this plugin.
 - Why the repo root times out. The trial says only whether this tree gets a report.
 
-Expected cost: the plan gate at High (Codex at its configured effort, GLM 5.3 on melious, and a
-fresh-eyes pass on the host's model in rounds 1 to 3), likely 3 to 5 rounds. No red team: the
+Cost of the plan gate at High: 5 rounds (Codex at its configured effort and GLM 5.3 on melious
+every round, fresh-eyes on the host's model in rounds 1 to 3), 48 findings, about 1.3 million
+tokens; the trail has the figures. No red team: the
 plan touches no user data, logins, money or schema, and deletes nothing without his go.
