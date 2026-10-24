@@ -328,7 +328,7 @@ test('hero carousel — a first image that fails after the script has started, w
   const gateRest = new Promise<void>((r) => { releaseRest = r; });
   await page.route(re(0), async (route) => { await gateFirst; await route.fulfill({ status: 404, body: 'gone' }); });
   await page.route(re(1), async (route) => { await gateSecond; await route.continue(); });
-  // one route per file: a later slide that repeats the first or second file must not take over its route
+  // a later slide that repeats the first or second file must not take over that file's route
   for (let i = 2; i < slides.length; i++) if (stem(i) !== stem(0) && stem(i) !== stem(1)) await page.route(re(i), async (route) => { await gateRest; await route.continue(); });
   await freeze(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
