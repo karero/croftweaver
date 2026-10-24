@@ -130,11 +130,14 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
    - **A prose-only re-gate is scoped narrow, never skipped** — and needs only ONE cross-model
      seat (SKILL.md step 6, the wording pass); the stamp then relies on that seat's chain, and the
      other seats' chains end at the head before it. When everything since the last seen head is
-     prose, tell the seat so, and to flag ONLY a factual contradiction or misleading claim against
-     the code or behaviour described — not style or phrasing; the scope is prepended to the
-     unchanged strict prompt and the ranking still applies. Send the delta since that seat's last
-     seen head, as any chain link, with `--base <that head>` (without an unbroken chain it gets
-     the full pair). A clean
+     prose, run the seat with `--wording-pass`: the script's own prompt then asks it to flag ONLY
+     a factual contradiction or misleading claim against the code or behaviour described — not
+     style or phrasing — after the unchanged strict prompt, and the ranking still applies. Never
+     put that scope in the artifact or a `--verify` file, which the seat reads as untrusted data.
+     Send the delta since that seat's last seen head, as any chain link, with `--base <that head>`
+     (without an unbroken chain it gets the full pair, without `--wording-pass`: its diff can hold
+     code gated earlier, which the narrow scope would report as a BUG). A delta that holds a
+     non-prose line is re-gated whole at full scope, also without the flag. A clean
      narrow pass IS the re-gate. A fix the wording pass asked for is re-gated the same way, as
      its confirmation (SKILL.md step 6) — not a second wording pass.
      **Prose-only** is decided from a changed-file/hunk inventory, never by eye: every hunk is
@@ -142,7 +145,8 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      command, generated file or mixed commit is not prose. **Unsure means code** — prose treated as
      code costs one round; code treated as prose stamps a review that never happened. State the
      classification and the carry-over (every code hunk was gated when it entered and hasn't moved
-     since) in the scope, and ask the seats to challenge it if they see code.
+     since) in the trail, not the scope; the `--wording-pass` prompt asks the seat to report any
+     changed line that is not prose as a BUG, which is how it challenges the classification.
 3. **Trail** (permanent): the gate's one trail file per (a) — committed on the branch when
    WORKTREE-WRITE and BRANCH-COMMIT both permit; the table has the fallback. It carries the
    authority used, dispositions, refuted findings with reasons, pending waivers, deferred BUGs with
