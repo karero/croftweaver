@@ -88,6 +88,7 @@ REQUIRED=(
   skills/independent-review/scripts/perl/ollama_filter.pl
   skills/independent-review/scripts/perl/ollama_request.pl
   skills/independent-review/scripts/perl/ollama_stream.pl
+  skills/independent-review/scripts/perl/think_tag.pl
   skills/independent-review/scripts/perl/readable_tail.pl
   skills/independent-review/scripts/perl/diff_headers.pl
   skills/independent-review/scripts/perl/run_limited.pl
