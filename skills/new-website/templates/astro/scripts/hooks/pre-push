@@ -1,0 +1,117 @@
+#!/bin/sh
+# Quality gate — blocks a push if the site's tests fail, so a broken build
+# never reaches the deploy branch. This is the local enforcement of the
+# test-driven contract (CI in .github/workflows/ runs the same checks).
+#
+# Wired automatically by the "prepare" script in package.json (npm install runs
+# scripts/wire-hooks.mjs, which sets core.hooksPath to scripts/hooks when the site is
+# the root of its git repo). The `check_seo.py` step runs only if that file exists, so
+# this same hook works whether SEO is a Python gate or seo.spec.ts.
+#
+# The "prepare" line this hook expects in package.json:
+#   node scripts/wire-hooks.mjs
+# It needs scripts/wire-hooks.mjs, which comes from the kit like this hook
+# (templates/astro/scripts/wire-hooks.mjs); with the line but not the file, npm install
+# fails. An older line calls `git config` itself. That is sh syntax, and nothing shows
+# it works where npm runs scripts through cmd.exe (Windows). And such a line without
+# `--show-prefix` also rewired a BIGGER repo that the site is a subfolder of, to a
+# scripts/hooks that repo does not have; git then runs none of that repo's hooks. To
+# repair: copy the script into this site's scripts/ and put the line above into its
+# package.json, and in the bigger repo run `git config --unset core.hooksPath` (or set
+# it back to that repo's own hooks folder).
+#
+# Relax for ONE push:   git push --no-verify
+# Disable entirely:     git config --unset core.hooksPath
+#
+set -e
+
+# The repository variables git hands a hook (git's own list of them). Pushed from a linked
+# worktree, they include GIT_DIR, and a `git -c …` push hands its settings down as well. A step
+# that runs git in a scratch repo, or from a subfolder, would then find the wrong repository
+# or the wrong top folder. Cleared, git finds the repository from the folder a step runs in.
+unset $(git rev-parse --local-env-vars)
+
+# git writes one line per ref being pushed to this hook's stdin:
+#   <local ref> <local sha> <remote ref> <remote sha>
+# stdin can be read only once and two steps below want it, so read it here into
+# $push_lines and hand the same lines back as stdin: the optional PR-only block reads
+# them from there, the deletion check reads $push_lines. Skip the read only for a
+# terminal (a hand-run, nothing to read) or a closed stdin (`cat` would hang under bash
+# and fail under dash); read anything else, so the PR-only block always sees git's refs.
+# `true`, not `:` — dash treats a failed redirect on `:` as fatal. Run by hand, a pipe
+# that never closes waits here, and a write-only stdin stops the hook (it fails closed).
+# git always gives a readable pipe it closes.
+if [ -t 0 ] || ! true 2>/dev/null 3<&0; then push_lines=""; else push_lines=$(cat); fi
+exec <<PUSH_LINES
+$push_lines
+PUSH_LINES
+
+# OPTIONAL: PR-only main flow. If this repo's convention is that new commits
+# reach main only via reviewed PRs (typical when several people or parallel AI
+# agents share the checkout), uncomment the block below to reject direct
+# pushes to main. Ship flows pushing main:production are unaffected; GitHub
+# PR merges happen server-side, so they're unaffected too. Deliberate exception:
+# ALLOW_MAIN_PUSH=1 git push ...
+# (Must stay ABOVE the deletion check and the build/test steps: it reads the hook's
+# stdin, and a push that only deletes main must still be refused.)
+#
+# while read -r _lref _lsha remote_ref _rsha; do
+#   if [ "$remote_ref" = "refs/heads/main" ] && [ "${ALLOW_MAIN_PUSH:-0}" != "1" ]; then
+#     echo "✗ Direct push to 'main' blocked — open a PR instead (ALLOW_MAIN_PUSH=1 to override)." >&2
+#     exit 1
+#   fi
+# done
+
+# A push that only deletes refs (`git push origin --delete <branch>`, say to tidy up a
+# merged branch) sends no commits, so there is nothing to build or test. The gate would
+# only be slow there, and it fails where the Playwright browsers are not installed.
+# git marks a deletion with the local ref "(delete)" and an all-zero local sha. Skip the
+# gate only if EVERY ref in the push is one: a mixed push still gets the full gate.
+# Stays below the PR-only block, so deleting main is still refused there.
+saw_ref=0
+pushes_commits=0
+while read -r local_ref local_sha _remote_ref _remote_sha; do
+  [ -n "$local_ref" ] || continue   # the blank line an empty $push_lines leaves behind
+  saw_ref=1
+  [ "$local_ref" = "(delete)" ] || pushes_commits=1
+  case "$local_sha" in ''|*[!0]*) pushes_commits=1 ;; esac
+done <<PUSH_LINES
+$push_lines
+PUSH_LINES
+if [ "$saw_ref" = 1 ] && [ "$pushes_commits" = 0 ]; then
+  # Never give this line the "▶ pre-push gate" prefix: scripts/ship.sh reads that
+  # prefix as a gate that ran, and without "✓ pre-push gate passed" as one that failed.
+  echo "pre-push gate: skipped — this push only deletes a branch or tag, so there is nothing to build or test."
+  exit 0
+fi
+
+# First, because it needs neither the build nor a browser nor the network: it drives
+# scripts/ship.sh against a stubbed git, and against throwaway repos on this computer, and
+# checks that a failed publish is diagnosed correctly. Nothing else exercises that script —
+# its only other workout is an actual publish, when a wrong message is most expensive.
+if [ -f tests/check_ship_push.sh ]; then
+  echo "▶ pre-push gate: publish classifier…"
+  bash tests/check_ship_push.sh
+fi
+
+# CI's install, check, build and test steps, in one run with short output: scripts/verify.mjs
+# reinstalls the packages only when package.json or package-lock.json changed, runs
+# `npm run check`, and runs the tests, which build the site once (its header lists how it
+# differs from CI). A site from before that script: the old build and tests.
+if [ -f scripts/verify.mjs ]; then
+  echo "▶ pre-push gate: check, build and tests (scripts/verify.mjs)…"
+  node scripts/verify.mjs
+else
+  echo "▶ pre-push gate: building…"
+  npm run build
+  echo "▶ pre-push gate: tests…"
+  npm test
+fi
+
+# After the tests, which leave the built site in dist/ for it.
+if [ -f tests/check_seo.py ]; then
+  echo "▶ pre-push gate: SEO checks…"
+  python3 tests/check_seo.py
+fi
+
+echo "✓ pre-push gate passed — pushing."

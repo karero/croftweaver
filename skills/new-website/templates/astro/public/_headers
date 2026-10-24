@@ -1,0 +1,14 @@
+# Cloudflare Pages security headers. CSP allows the inlined stylesheet
+# (astro.config `inlineStylesheets: 'always'`) via style-src 'unsafe-inline' and
+# the inline theme script and analytics stub. The starter ships with analytics off
+# (USE_ANALYTICS = false in src/config.ts), so script-src and connect-src name no analytics
+# host. To switch Plausible on, add its host (ANALYTICS.scriptHost) to both as a whole
+# token; script-src already lets the stub run with 'unsafe-inline' (the stub's own sha256
+# hash works too). Then run the analytics gate test by hand: it checks all of it against
+# config.ts and the built stub, either way. Widen script-src/connect-src only as needed.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), camera=(), microphone=()
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

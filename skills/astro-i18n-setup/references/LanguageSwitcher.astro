@@ -1,0 +1,60 @@
+---
+// Language switcher for the astro-i18n-setup heavy path (locale-prefix
+// routing). Copy to src/components/LanguageSwitcher.astro and render it in
+// the site's nav/header on every page.
+//
+// Links the CURRENT page in each locale the route actually exists in —
+// routeLocales(), NOT the full LOCALES list, so a sparse route (a German-only
+// blog post on a DE+EN site) never gets a link to a never-built variant.
+// The active locale is marked aria-current="true" and rendered as text, not
+// a self-link. Labels come from LOCALE_LABELS in src/config.ts.
+//
+// tests/i18n.spec.ts asserts every page carries a switcher whose links match
+// exactly the page's real locale siblings.
+import { getRelativeLocaleUrl } from 'astro:i18n';
+import { DEFAULT_LOCALE, LOCALE_LABELS, routeLocales, neutralPath } from '../config';
+
+interface Props {
+  // Localize per site language ("Sprache"); give a SECOND switcher on the same
+  // page a distinct label (axe landmark-unique).
+  ariaLabel?: string;
+}
+const { ariaLabel = 'Language' } = Astro.props;
+
+const currentLocale = Astro.currentLocale ?? DEFAULT_LOCALE;
+let cleanPath = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+if (cleanPath !== '/' && cleanPath.endsWith('/')) cleanPath = cleanPath.slice(0, -1);
+const neutral = neutralPath(cleanPath, currentLocale);
+const localePath = neutral === '/' ? undefined : neutral.replace(/^\//, '');
+const pageLocales = routeLocales(neutral);
+---
+{pageLocales.length > 1 && (
+  <nav class="lang-switcher" aria-label={ariaLabel}>
+    <ul>
+      {pageLocales.map((loc) => (
+        <li>
+          {loc === currentLocale ? (
+            <span aria-current="true">{LOCALE_LABELS[loc] ?? loc}</span>
+          ) : (
+            <a href={getRelativeLocaleUrl(loc, localePath)} lang={loc} hreflang={loc}>
+              {LOCALE_LABELS[loc] ?? loc}
+            </a>
+          )}
+        </li>
+      ))}
+    </ul>
+  </nav>
+)}
+
+<style>
+  .lang-switcher ul {
+    display: flex;
+    gap: 0.75rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .lang-switcher [aria-current='true'] {
+    font-weight: 600;
+  }
+</style>

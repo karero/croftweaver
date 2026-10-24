@@ -1,0 +1,19 @@
+# What each review seat may be sent, by model, as probe P2 measured it (independent_review.sh,
+# "SEAT LIMITS"). One line per seat and model: <seat> <model> <rule> <date> <evidence>.
+#   refuses        past the model's window the provider refuses, with an error naming the limit:
+#                  no cap here, a longer prompt fails loud by itself.
+#   takes:<bytes>  the seat took a prompt of that many bytes whole: a cap on the whole prompt sent.
+#                  A prompt that is not valid UTF-8 counts three bytes for each of its bytes, and so
+#                  does every prompt when perl is missing.
+# Seats: codex, melious, ollama-cli, ollama-api. agy, which still takes its prompt in one argv
+# argument, has no line: a line for it, or for any other seat, is one the script cannot read. A
+# seat and model with no line keeps the 120,000-byte limit, and so does every seat if this file is
+# missing or holds a line the script cannot read. The probes used one letter and a space per token
+# (2 bytes a token, checked on each seat), denser than typical code or prose. Codex's probe passed
+# its 500,000-token default window and was still taken whole. Not tested: text denser than the
+# probe near a takes: limit, such as a diff full of base64 hashes; below about 1.2 bytes a token,
+# 1,040,000 bytes would pass Codex's 872,000-token maximum window, and what it does there is not
+# known. Plan: docs/reviews/SKILL-PLAN-review-input-base-and-size.md.
+codex gpt-6.1-sol takes:1040000 2026-10-22 took a 1,040,130-byte prompt whole (522,639 tokens used); its CLI refuses over 1,048,576 characters (input_too_large)
+melious glm-5.3 refuses 2026-10-22 HTTP 400 context_length_exceeded: 1,152,340 tokens over the model's 1,000,000-token window
+ollama-cli glm-5.3:cloud refuses 2026-10-22 400 Bad Request: The prompt is too long: 1152362, model maximum context length: 1048576

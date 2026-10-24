@@ -1,0 +1,111 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm ci)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm exec:*)",
+      "Bash(npx astro:*)",
+      "Bash(npx keystatic:*)",
+      "Bash(npx playwright:*)",
+      "Bash(npx wrangler pages dev:*)",
+      "Bash(npx wrangler whoami:*)",
+      "Bash(wrangler pages dev:*)",
+      "Bash(wrangler whoami:*)",
+      "Bash(astro:*)",
+      "Bash(playwright:*)",
+      "Bash(bash scripts/check_external_links.sh:*)",
+      "Bash(node:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git init:*)",
+      "Bash(git merge:*)",
+      "Bash(git restore:*)",
+      "Bash(git stash:*)",
+      "Bash(git remote:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git push:*)",
+      "Bash(gh auth status:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh repo create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(cwebp:*)",
+      "Bash(dwebp:*)",
+      "Bash(avifenc:*)",
+      "Bash(magick:*)",
+      "Bash(convert:*)",
+      "Bash(oxipng:*)",
+      "Bash(jpegoptim:*)",
+      "Bash(svgo:*)",
+      "Bash(exiftool:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(touch:*)",
+      "Bash(echo:*)",
+      "Bash(open:*)",
+      "WebFetch(domain:docs.astro.build)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "WebFetch(domain:keystatic.com)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push *--force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * +*)",
+      "Bash(git reset --hard:*)",
+      "Bash(gh repo delete:*)",
+      "Bash(npx wrangler pages delete:*)",
+      "Bash(npx wrangler delete:*)",
+      "Bash(wrangler pages delete:*)",
+      "Bash(wrangler delete:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-stand.mjs\" start",
+            "timeout": 60,
+            "statusMessage": "Syncing with GitHub…"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-stand.mjs\" prompt",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

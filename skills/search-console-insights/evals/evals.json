@@ -1,0 +1,193 @@
+{
+  "skill_name": "search-console-insights",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to connect my Google Search Console so I can see how my site does in search. I'm not technical.",
+      "expected_output": "Should run the onboarding wizard, not dump commands. Must explain the BENEFIT first (real queries, positions, free, read-only) and ask 'want to connect now?' before any setup. Must check what's already done (token/creds/venv) and only ask for what's missing. Must clearly flag the human-only Google-console steps (enable API, Google Auth Platform → Audience → Test user and Publish app (unless it already reads In production or Internal), create Desktop OAuth client, download JSON) as 'you do this', one at a time, and the agent-side steps (move JSON, build venv, first run) as 'I do this'. Must use a venv (not bare pip) and confirm the connection in plain words once done, then teach how to use it.",
+      "assertions": [
+        "Explains the benefit BEFORE asking for setup steps",
+        "Asks for confirmation before starting setup",
+        "Checks existing token/creds/venv and skips already-done steps (except the Publish check when only the credentials exist)",
+        "Flags the human-only Google-console clicks separately from agent steps",
+        "References Google Auth Platform → Audience → Test users (not the old 'OAuth consent screen' path)",
+        "Has the owner publish the app (In production) when it is still in Testing, so the weekly sign-in does not end after 7 days; leaves an app that already reads In production or Internal alone",
+        "Uses a virtualenv, not a bare 'pip install'",
+        "Confirms connection in plain language and then explains how to use it"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Where do I rank for 'AI events in Munich'? And what are my quickest SEO wins?",
+      "expected_output": "Should run gsc_query.py (via the venv) for the verified property with the keyword, and report the keyword's current average position plus the striking-distance queries (avg position ~8-20) as the fastest Top-10 wins. Should also surface high-impression/low-CTR pages as snippet/SERP investigation targets (title/meta rewrites only after the live-SERP check). Should honestly state if the property is too new / near-empty rather than inventing data.",
+      "assertions": [
+        "Runs gsc_query.py through the venv python",
+        "Reports the target keyword's average position",
+        "Surfaces striking-distance queries (pos ~8-20) as quick wins",
+        "Flags high-impression / low-CTR pages as snippet/SERP investigation targets, not automatic title/meta rewrites",
+        "Honestly reports a near-empty property instead of fabricating data"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "How do I rank on Bing, and is my site visible to Copilot/ChatGPT?",
+      "expected_output": "Should run bing_query.py (which uses the simple BING_API_KEY, not OAuth) and report Bing positions for the target keywords, framing Bing as a proxy for Copilot/ChatGPT visibility. Should note Bing volume is much smaller than Google. If no BING_API_KEY is set, should explain the ~2-minute API-key setup (Bing Webmaster Tools → Settings → API Access) and that one key covers all sites, without blocking the Google data.",
+      "assertions": [
+        "Runs bing_query.py (API key, not OAuth)",
+        "Reports Bing keyword positions",
+        "Frames Bing as a Copilot/ChatGPT visibility proxy",
+        "Notes Bing volume is smaller than Google",
+        "If no key: explains the API-key setup and that it's account-wide, without blocking GSC"
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "My site gets very little traffic. How should I actually use this data to improve?",
+      "expected_output": "Should apply the low-volume playbook: track POSITION and impressions rather than clicks (clicks are noisy at low volume); convert striking-distance queries one at a time; fix titles for queries that rank but don't get clicked (after the live-SERP check confirms a controllable snippet problem); mine the unexpected queries the site already appears for; and use the SERP + Bing layers to find weak-competition / long-tail / other-language terms. Should recommend re-measuring every 1-2 weeks, not daily, and comparing windows.",
+      "assertions": [
+        "Says to track position/impressions, not clicks, at low volume",
+        "Recommends converting striking-distance queries one at a time",
+        "Recommends the live-SERP check before fixing titles for ranked-but-unclicked queries",
+        "Suggests mining unexpected/long-tail queries the site already appears for",
+        "Recommends a weekly/biweekly cadence rather than daily"
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Is my position for these keywords improving over time? Set me up to watch it.",
+      "expected_output": "Should use track.sh (or any of gsc_query.py/bing_query.py/insights.py, which now append to the history CSV by default whenever --keywords is given -- no --csv flag needed) to append the run to the history CSV and print the week-over-week position trend via _history.py, explaining that lower position is better and a drop in the number is an improvement (shown as ▲). On the first run it should say there's no prior data yet and to re-run in 1-2 weeks. Should NOT claim a trend exists from a single data point.",
+      "assertions": [
+        "Uses track.sh or an ordinary query-script run (history records by default) to record history",
+        "Prints/explains a week-over-week position trend",
+        "Explains lower position = better (improvement is a drop in the number)",
+        "On first run, states there is no prior data yet rather than inventing a trend"
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "My GSC report shows 123 impressions for one query and a query-level total of 384 impressions site-wide, but the page-level table's rows actually sum to 1,071. Which total should I use, and is 'this query is 32% of site-wide traffic' a correct claim? Also, one of my pages ranks position 4 with 0% CTR at 150 impressions, and a --query drill-down confirms the 123-impression query lands only on that page — what does that mean, and what should I check before rewriting its title?",
+      "expected_output": "Should explain that NEITHER sum is the true site-wide figure: the query-level total (384) undercounts (anonymization drops rare queries) and the page-level sum (1,071) overcounts (each page is counted separately when several share one results page, e.g. brand sitelinks) — the correct denominator is the property-level (no-dimension) total, which the report prints. Best answer reframes the claim page-relative (123 of the page's own 150 impressions, ~82%) instead of any site-wide percentage. Should read position ~4 with ~0% CTR as a snippet OR SERP-context problem (a knowledge panel or Wikipedia can absorb clicks on an entity query), decided by the mandatory live-SERP check (serp_check.py) against the page's actual shipped meta description before any title/description rewrite.",
+      "assertions": [
+        "Does NOT bless the page-level sum (1,071) as the true site-wide figure — explains it can overcount (pages counted separately per results page)",
+        "Flags the query-level total as an anonymized undercount, not a valid denominator",
+        "Names the property-level (no-dimension) total as the correct site-wide denominator, or reframes the claim page-relative (123/150, using the attribution the drill-down established)",
+        "Reads position ~4 + ~0% CTR as snippet-or-SERP-context, not automatically a snippet defect and not a ranking problem",
+        "States the live-SERP-snippet check (serp_check.py) is mandatory before recommending a title/description rewrite"
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Great news I think? My tracker shows 'ai tools' improved ▲ +2.1 this week (4 impressions), my top query jumped to 210 impressions (it's my company's name), and impressions are up 40% versus the report I saved last month — I changed my homepage title two weeks ago, so it clearly worked. Should I roll the same title pattern out to every page?",
+      "expected_output": "Should decline the causal leap and check each number's meaning first: a ▲ on ~4 impressions is noise (and the tracker may have matched a different query — check the ≠/~ markers); the brand-name query says nothing about SEO progress and must be separated from non-brand rows before quoting growth; the 40% comparison mixes a fresh pull against a stale saved report — re-pull both windows from the same source with equal lengths and name them. Before crediting the title change, compare equal windows and look at pages that were NOT changed as a control, and say 'consistent with' rather than 'it worked'. No rollout recommendation until non-brand, equal-window, controlled evidence supports it.",
+      "assertions": [
+        "Treats a position move on ~4 impressions as noise, not a win (and mentions the changed-query/thin-data markers)",
+        "Separates the brand-name query from non-brand before any growth claim",
+        "Rejects comparing a fresh pull against a stale saved report — demands equal, named windows from the same source",
+        "Requires a control (unchanged pages, equal windows) before attributing anything to the title change",
+        "Does not recommend the site-wide rollout on this evidence"
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Can you check my rankings for example.com again? Keywords: 'AI Events Munich, AI Meetups Munich'. I connected this a couple months back but I don't think I've ever set up any kind of recurring check.",
+      "expected_output": "Should run the check as asked (history now builds automatically on every run, no separate 'seed it' step needed). Should check whether example.com already has a schedule (schedule_tracking.sh status example.com on macOS -- an exact per-domain check, not the sanitized 'list' output) rather than inferring from trend output -- the user's own statement that nothing recurring exists yet is a reasonable shortcut but the deterministic check is what actually decides it, since a site can have plenty of history and still have no schedule. Finding it unscheduled, should actually ask whether to schedule weekly auto-tracking for example.com specifically -- not just mention the option in passing, and not skip the ask just because onboarding happened long ago or because history already exists. Should not auto-install; only proceed to schedule_tracking.sh on an explicit yes, and should treat a no as a complete answer.",
+      "assertions": [
+        "Runs the requested rankings check without requiring a separate manual 'seed the history' step",
+        "Checks whether the site is already scheduled (e.g. via schedule_tracking.sh status <site>) rather than assuming from trend output alone",
+        "Actually asks whether to schedule weekly auto-tracking for this specific site, not just a passing mention",
+        "Does not skip the ask on the reasoning that onboarding already happened previously or that history already exists",
+        "Does not auto-install the scheduled job without an explicit yes",
+        "Before the yes, asks the owner to read the Google app's Audience tab: In production or Internal is fine, Testing means publish it and sign in again",
+        "Names the site specifically (not a vague 'your sites') when asking"
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Does ChatGPT or any AI mention my bakery when people ask for sourdough in Schwabing? Can you check that regularly? I only want free stuff for now.",
+      "expected_output": "Should explain the weekly AI check in plain words (benefit first) and ask before setting anything up. Should draft broad and narrow buyer questions in the site's language that name the place but NOT the business, plus a branded question, and ask the owner to confirm the wording. Must be honest about the free path: a free Gemini key gives only 'Knows you' (no web search, because Google's terms forbid analysing search-grounded answers), and 'Finds you' needs a paid route: recommend one OpenRouter key, prepaid once (5 or 10 USD/EUR lasts weeks for one site), which asks ChatGPT, Claude, Gemini and Perplexity with their own web search. If the owner is in the EU, mention turning on billing for the Gemini key. Must have the owner put the key into ~/.config/gsc-insights/.env themselves, never paste it into chat. Must save questions via geo_check.py (--init, --set-question with stdin/file, --check-drift, then --confirm --expect <page code>), not by hand-editing the config, and must never answer the questions itself.",
+      "assertions": [
+        "Explains the benefit before asking to set it up",
+        "Drafts questions that name the place but not the business, and asks the owner to confirm them",
+        "States that free Gemini covers 'Knows you' only and that 'Finds you' needs a paid key",
+        "Recommends one OpenRouter key (prepaid once) as the simple paid route, not four separate provider accounts",
+        "Tells the owner to add the key to the .env file themselves, not paste it into chat",
+        "Uses geo_check.py --init / --set-question / --check-drift then --confirm --expect <page code>, rather than editing the config file",
+        "Does not answer the buyer questions itself"
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Show me how my AI results are doing this week for example.com.",
+      "expected_output": "Should first run geo_check.py example.com --check-drift. If it reports the homepage changed since the questions were confirmed, should read the homepage (and POSITIONING.md if present), show each saved question next to a proposed replacement, and ASK before changing anything; first check the new text really is the homepage (a cookie or bot page also shows as changed); on switch use --set-question then --confirm --expect <page code>, on keep use --confirm --expect <page code> only; if the homepage couldn't be read, say so and not confirm. Then run --trend and explain named/cited counts, 'searched only', ‡ markers (question/model/settings changed = not directly comparable) and failed latest attempts in plain words, quoting from the saved answer files when useful.",
+      "assertions": [
+        "Runs --check-drift before interpreting results",
+        "On a changed homepage, proposes replacement questions and asks before changing them",
+        "Checks that the 'now' homepage text is the real page before treating it as a change",
+        "Does not --confirm against an unreadable homepage",
+        "Explains named/cited as counts out of answers, and ‡ as not directly comparable",
+        "Mentions a failed latest attempt instead of presenting old numbers as current"
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "/search-console-insights work 'fahrrad reparatur leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur",
+      "expected_output": "Should follow references/fix-proposal.md: read the proposal with `fix_proposal.py show radwerk-plagwitz.example` before editing; work in the site's repository on a new content/ branch from the newest main per AGENTS.md; read POSITIONING.md before editing; change only the title, H1 and first paragraph of the page the address leads to, never the meta description; run the site's full test suite (pre-push hook or npm run verify); read the built page's whole <title> from dist/; open a pull request showing old and new wording; record it with `fix_proposal.py acted … --pr … --new-title …`; and say nothing goes live until the owner merges. Must not merge, publish, or touch tests.",
+      "assertions": [
+        "Reads the proposal with fix_proposal.py show before editing",
+        "Reads POSITIONING.md before making the edit",
+        "Changes only the title, H1 and first paragraph, not the meta description",
+        "Runs the site's full test suite before opening the pull request",
+        "Records the pull request with fix_proposal.py acted, passing the built page's whole <title>",
+        "Does not merge, publish, or change any test"
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "/search-console-insights work 'fahrrad günstig reparieren leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur\n\n(Context: the site's POSITIONING.md says: 'We are not the cheapest workshop in Leipzig; we repair bikes so they last.')",
+      "expected_output": "Should read the proposal from the file (the same search the owner named), notice the search pulls against the positioning (price), make no edit, quote the POSITIONING.md line, say that competing on price is a positioning change the owner can make with website-positioning, and record it with `fix_proposal.py decline radwerk-plagwitz.example --reason positioning`.",
+      "assertions": [
+        "Makes no edit to the page",
+        "Quotes the POSITIONING.md line it conflicts with",
+        "Points to website-positioning for a change of course",
+        "Records the decline with --reason positioning"
+      ],
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "/search-console-insights work 'fahrrad reparatur leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur\n\n(Context: you made the edit and pushed; the pre-push hook refused it: tests/seo.spec.ts says the page title is 63 characters, over the limit of 60.)",
+      "expected_output": "Should shorten the wording within the same three places, the title, H1 and first paragraph (title first; never the meta description), keep every word of the search or a compound that carries it, and push again so the full suite runs. Must not change seo.spec.ts or any test, must not push with --no-verify, and must not move the words into other places of the page. The pull request should say the first draft was too long.",
+      "assertions": [
+        "Shortens the title rather than changing the test",
+        "Does not use --no-verify",
+        "Keeps the change within the title, H1 and first paragraph, not the meta description",
+        "Runs the suite again before opening the pull request",
+        "Records the pull request with fix_proposal.py acted, passing the shortened title"
+      ],
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "/search-console-insights work 'fahrrad reparatur leipzig' into the title, heading and first paragraph of https://radwerk-plagwitz.example/reparatur\n\n(Context: `gh repo view --json visibility` says PUBLIC, and `fix_proposal.py show` prints 'Search figures in pull requests: unasked'.)",
+      "expected_output": "Before opening the pull request, should ask the owner once whether search figures may appear in pull requests, explaining that anyone can read a public repository's pull requests, and record the answer with `fix_proposal.py set radwerk-plagwitz.example pr_figures yes|no`. On no, the pull request shows the old and new wording and the reason without impressions or positions and points to the report page; on yes, each figure comes with its four-week window.",
+      "assertions": [
+        "Asks before putting search figures into the pull request",
+        "Explains that the repository is public",
+        "Records the answer with fix_proposal.py set … pr_figures",
+        "On no, leaves impressions and positions out of the pull request"
+      ],
+      "files": []
+    }
+  ]
+}

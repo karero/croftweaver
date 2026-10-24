@@ -1,0 +1,19 @@
+---
+// Minimal home page so the test harness is green the moment you copy the overlay.
+// Replace the copy with the real positioning from CONTENT_GUIDE.md; keep one <h1>,
+// the description 120–160 chars, and the copy within the tone rules.
+import Base from '../layouts/Base.astro';
+import EmailLink from '../components/EmailLink.astro';
+import { SITE } from '../config';
+---
+<Base title={SITE.name}>
+  <section class="wrap">
+    <h1>{SITE.name}</h1>
+    <p>
+      This starter page exists so the accessibility, SEO, navigation, image, tone
+      and email checks pass from the first commit. Replace it with your real home
+      page, then build the rest of the site test first.
+    </p>
+    <p>Contact: <EmailLink address="hello@example.com" subject="Questions" /></p>
+  </section>
+</Base>

@@ -1,0 +1,88 @@
+/* Theme tokens — the source of truth for colour. Mirror these into BRAND.md.
+   Light is the :root default; dark applies via [data-theme="dark"] (set by the
+   no-FOUC script in Base.astro) and, for no-JS visitors, the system preference.
+   Every text/background pair MUST pass WCAG AA in BOTH blocks — tests/a11y.spec.ts
+   runs the full light+dark matrix. astro.config inlines this into <head>. */
+
+:root {
+  --brand: #000000;
+  --accent: #2b50e0;            /* links/highlights — must pass AA on --bg */
+  --heading: #16162a;
+  --ink: #16162a;             /* body text */
+  --muted: #5a5a72;          /* secondary text — keep ≥ 4.5:1 on --bg */
+  --link: var(--accent);
+  --line: #e3e7f2;
+  --bg: #ffffff;
+  --bg-soft: #f5f7fb;
+  --surface: #ffffff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --radius: 12px;
+  --maxw: 72rem;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --accent: #8aa0ff;          /* lighter on dark — keeps links ≥ AA on --bg */
+  --link: #9fb0ff;
+  --heading: #e7e9fb;
+  --ink: #dce0f5;
+  --muted: #a6abce;
+  --line: #272c4d;
+  --bg: #0a0b1e;
+  --bg-soft: #11132c;
+  --surface: #161836;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --accent: #8aa0ff;
+    --link: #9fb0ff;
+    --heading: #e7e9fb;
+    --ink: #dce0f5;
+    --muted: #a6abce;
+    --line: #272c4d;
+    --bg: #0a0b1e;
+    --bg-soft: #11132c;
+    --surface: #161836;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.5);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.65;
+  /* Long compounds (German: "Datenschutzerklärung") must never force a
+     horizontal scroll in a narrow column. hyphens honors the page's lang
+     attribute (Base.astro sets it), so German gets German hyphenation. */
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto; /* Safari < 17 */
+  hyphens: auto;
+}
+img, picture, svg, video { max-width: 100%; height: auto; }  /* responsive media */
+a { color: var(--link); }
+
+/* Keyboard accessibility: visible focus + skip link. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  background: var(--surface); color: var(--ink); padding: 0.5rem 1rem;
+}
+.skip-link:focus { left: 0; }
+
+.wrap { max-width: var(--maxw); margin-inline: auto; padding: 2rem 1.25rem; }
+
+/* Section anchors — scripts/anchor-ids.mjs gives every h2/h3 a slug id at build
+   time (see README). scroll-margin keeps a deep-linked heading clear of the
+   viewport top; raise it if you add a sticky header (then mirror it onto h3). */
+h2, h3 { scroll-margin-top: 1.5rem; }
+
+.site-footer {
+  max-width: var(--maxw); margin-inline: auto; padding: 1.5rem 1.25rem;
+  border-top: 1px solid var(--line); font-size: 0.9rem;
+  display: flex; flex-wrap: wrap; gap: 1rem;
+}

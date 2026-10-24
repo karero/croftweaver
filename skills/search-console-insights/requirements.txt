@@ -1,0 +1,10 @@
+# search-console-insights — local-only, one-time install (not a site runtime dep).
+#   pip install -r requirements.txt
+#
+# Phase 1 (gsc_query.py) — Google Search Console API + OAuth desktop flow:
+google-api-python-client>=2.0
+google-auth-oauthlib>=1.0
+# Phase 2 (serp_check.py) + Bing (bing_query.py) — Serper / SerpApi / Bing HTTP calls:
+# Floors skip known advisories. 2.33+ needs Python 3.10, so macOS's stock 3.9 gets 2.32.4.
+requests>=2.33.0; python_version >= "3.10"
+requests>=2.32.4; python_version < "3.10"

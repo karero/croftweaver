@@ -1,0 +1,9 @@
+# Python bytecode caches from running the scripts locally
+__pycache__/
+*.pyc
+# Local secrets / data must never be committed (these live in ~/.config/gsc-insights/
+# by convention, but guard against a stray copy inside the skill dir)
+.env
+client_secret.json
+token.json
+*history*.csv

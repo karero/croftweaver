@@ -1,0 +1,129 @@
+---
+// Impressum (provider identification) — REQUIRED under § 5 DDG (Digitale-
+// Dienste-Gesetz, formerly § 5 TMG) and § 18 Abs. 2 MStV for providers
+// ESTABLISHED in Germany (regardless of the site's audience or language) and
+// for sites targeting the German market. The statute requires it "leicht
+// erkennbar, unmittelbar erreichbar und ständig verfügbar" — in practice:
+// linked from EVERY page (the Base.astro footer does this).
+// Before launch:
+//   1. Fill every [BRACKET] slot. Each section's comment says who needs it —
+//      delete sections that do not apply, never ship an empty bracket. Then
+//      delete '/impressum' from UNFILLED_UNTIL_LAUNCH in
+//      tests/placeholders.spec.ts (the test turns red until you do).
+//   2. Provider NOT established in Germany and NOT targeting the German
+//      market? Delete all six pieces: this page, the footer link in
+//      src/layouts/Base.astro, the tests/_helpers.ts PAGES entry, the
+//      public/llms.txt line, the OWN_CARD_EXEMPT entry in
+//      tests/seo.spec.ts, and the UNFILLED_UNTIL_LAUNCH entry in
+//      tests/placeholders.spec.ts. Austrian providers: adapt to § 5 ECG + § 25
+//      MedienG (Firmenbuch, WKO membership); Swiss providers: Art. 3 Abs. 1
+//      lit. s UWG — the German statute headings below are not theirs.
+//   3. A solid baseline, not legal advice. When in doubt, have it reviewed.
+// NOTE: no link to the EU ODR platform (ec.europa.eu/consumers/odr) — the
+// platform was discontinued in July 2025 (Regulation (EU) 2024/3228);
+// copying the link from older Impressum templates now points users at a
+// dead service and should be removed, not preserved.
+// NOTE: the email ships obfuscated (EmailLink). German commentary is divided
+// on [at]-style obfuscation in an Impressum ("usable address", § 5 Nr. 2) —
+// the no-JS hint stays human-readable and JS renders a real mailto:, which
+// is the defensible middle ground; swap for a plaintext address if your
+// counsel prefers the conservative reading.
+// The copy below already passes the a11y / seo / tone / email suites: keep one
+// <h1>, the description in the 120-160 char window (SITE.name up to ~35 chars),
+// no em dashes, and every email address behind <EmailLink lang="de"> (the
+// lang keeps the no-JS hint German on an English site).
+import Base from '../layouts/Base.astro';
+import EmailLink from '../components/EmailLink.astro';
+import { SITE } from '../config';
+---
+<Base
+  lang="de"
+  title="Impressum"
+  description={`Impressum von ${SITE.name}: Anbieterkennzeichnung nach § 5 DDG mit Anschrift, Kontaktwegen, Vertretungsberechtigten und Registerangaben.`}>
+  <section class="wrap">
+    <h1>Impressum</h1>
+
+    <h2>Angaben gemäß § 5 DDG</h2>
+    <!-- Sole proprietors: your own full name goes here (no legal form), and the
+         "Vertreten durch" line below gets deleted. -->
+    <p>
+      [LEGAL NAME INCL. FORM, e.g. Beispiel GmbH]<br />
+      [STREET AND NUMBER, ladungsfähige Anschrift, no PO box]<br />
+      [POSTCODE, CITY]<br />
+      [COUNTRY]
+    </p>
+    <!-- Legal entities (GmbH, UG, AG, e.V., PartG, eG, ...) name their
+         authorized representatives here. -->
+    <p>
+      Vertreten durch: [MANAGING DIRECTOR(S) / AUTHORIZED REPRESENTATIVE(S)]
+    </p>
+
+    <h2>Kontakt</h2>
+    <!-- § 5 DDG requires an email address PLUS a second channel for fast,
+         direct contact — a phone number is the safe choice. -->
+    <p>
+      Telefon: [PHONE NUMBER]<br />
+      E-Mail: <EmailLink address="hello@example.com" subject="Anfrage" lang="de" />
+    </p>
+
+    <!-- Only for businesses with a register entry — Handelsregister,
+         Vereinsregister, Partnerschaftsregister or Genossenschaftsregister
+         (GmbH, UG, AG, e.V., PartG mbB, eG, eingetragener Kaufmann).
+         No entry? Delete this section. -->
+    <h2>Registereintrag</h2>
+    <p>
+      Eintragung im [Handelsregister / Vereinsregister / Partnerschaftsregister / Genossenschaftsregister]:<br />
+      Registergericht: [AMTSGERICHT]<br />
+      Registernummer: [HRB / VR / PR / GnR NUMBER]
+    </p>
+
+    <!-- § 5 Abs. 1 Nr. 6 DDG: state the USt-IdNr. (§ 27a UStG) OR the
+         Wirtschafts-Identifikationsnummer (§ 139c AO) — whichever exists.
+         The W-IdNr. has been auto-assigned to German businesses since late
+         2024, so most businesses without a VAT ID still have one to state.
+         Keep the line that applies, delete the other; only delete the whole
+         section if you truly hold neither. -->
+    <h2>Umsatzsteuer-ID / Wirtschafts-Identifikationsnummer</h2>
+    <p>
+      Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz:
+      [USt-IdNr., e.g. DE123456789]<br />
+      Wirtschafts-Identifikationsnummer gemäß § 139c Abgabenordnung:
+      [W-IdNr., e.g. DE123456789-00001]
+    </p>
+
+    <!-- TWO distinct duties share this section — check both:
+         (a) § 5 Abs. 1 Nr. 3 DDG: ANY activity requiring official approval or
+             licence (§ 34c/34d GewO real-estate or insurance brokers, financial
+             services, security services, ...) must name the competent
+             supervisory authority — chamber membership is NOT the trigger.
+         (b) § 5 Abs. 1 Nr. 5 DDG, regulated professions (lawyers, tax
+             advisors, doctors, architects, ...): chamber, legal professional
+             title + awarding state, AND the professional rules with where to
+             find them (lit. c).
+         Neither applies? Delete this section. -->
+    <h2>Aufsichtsbehörde / Berufsrecht</h2>
+    <p>
+      Zuständige Aufsichtsbehörde: [AUTHORITY OR CHAMBER, ADDRESS, URL]<br />
+      Berufsbezeichnung: [PROFESSIONAL TITLE, AWARDING STATE]<br />
+      Berufsrechtliche Regelungen: [RULES, e.g. BRAO/BORA or StBerG], einsehbar
+      unter [URL WHERE THE RULES ARE ACCESSIBLE]
+    </p>
+
+    <!-- Only for sites with editorial/journalistic content (blog with opinion
+         pieces, news). Pure product/company pages can delete this section. -->
+    <h2>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</h2>
+    <p>
+      [NAME]<br />
+      [ADDRESS, a natural person with residence in Germany]
+    </p>
+
+    <h2>Verbraucherstreitbeilegung</h2>
+    <!-- § 36 VSBG declaration — mandatory for businesses with more than 10
+         employees, customary for everyone. Willing to participate instead?
+         Name the competent Verbraucherschlichtungsstelle here. -->
+    <p>
+      Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren
+      vor einer Verbraucherschlichtungsstelle teilzunehmen.
+    </p>
+  </section>
+</Base>

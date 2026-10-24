@@ -1,0 +1,78 @@
+---
+// Crawler-resistant email link. The plaintext address NEVER appears in the HTML
+// source: it is reversed + base64-encoded at build time and reassembled in the
+// browser. No-JS visitors see a "name [at] domain [dot] com" hint that still reads.
+// The hint speaks the site's language (SITE.locale); a page in another language
+// passes its own, e.g. lang="de" on the German Impressum ("[punkt]").
+//
+//   <EmailLink address="hello@example.com" />
+//   <EmailLink address="hello@example.com" subject="Project enquiry" text="Email us" />
+//   <EmailLink address="hello@example.com" subject="Anfrage" lang="de" />
+//
+// Analytics in server mode (src/config.ts), live build only: the link goes to /go/email,
+// where functions/go/email.ts counts the "Email Tap" and answers with the mailto: link.
+// The address stays encoded in that link, and the link works without JavaScript too.
+// Elsewhere (previews, `astro dev`, `astro preview`, where no Function runs) it stays
+// the plain mailto: link set below.
+import { encodeEmail, emailHint } from '../lib/obfuscate';
+import { SITE, ANALYTICS, USE_ANALYTICS } from '../config';
+
+interface Props {
+  address: string;
+  subject?: string;
+  text?: string;
+  lang?: string;
+  class?: string;
+}
+const { address, subject, text, lang = SITE.locale, class: className } = Astro.props;
+const data = encodeEmail(address);
+const subj = subject ? encodeURIComponent(subject) : '';
+const label = text ?? emailHint(address, lang);
+const viaServer = ANALYTICS.enabled && ANALYTICS.mode === 'server';
+// functions/go/email.ts refuses a longer subject (MAX_SUBJECT, in lockstep): fail every
+// build in server mode, previews, local builds and a site whose variables are not set yet
+// included, rather than the visitor's click on the live site.
+if (USE_ANALYTICS && ANALYTICS.mode === 'server' && subject && subject.length > 200) {
+  throw new Error(`EmailLink: the subject "${subject.slice(0, 40)}…" is ${subject.length} characters; server mode allows 200.`);
+}
+// URLSearchParams escapes the base64 (+, /, =) and the subject for the query string.
+const goHref = `/go/email?${new URLSearchParams({ e: data, ...(subject ? { s: subject } : {}), l: lang })}`;
+---
+{viaServer ? (
+  <a class:list={['email-link', className]} href={goHref} rel="nofollow" data-email={data} data-via="server">{label}</a>
+) : (
+  <a class:list={['email-link', className]} href="#" data-email={data} data-subject={subj}>{label}</a>
+)}
+
+<script>
+  // Reassemble on the client; the address is not in the served HTML.
+  for (const a of document.querySelectorAll<HTMLAnchorElement>('a.email-link[data-email]')) {
+    try {
+      const addr = atob(a.dataset.email!).split('').reverse().join('');
+      if (a.textContent && a.textContent.includes('[at]')) a.textContent = addr;
+      a.removeAttribute('data-email');
+      // Server mode: the link already goes to /go/email, which counts the tap on the server.
+      if (a.dataset.via === 'server') continue;
+      const q = a.dataset.subject ? `?subject=${a.dataset.subject}` : '';
+      // encodeEmail allows a % in the address, which a mailto: link must escape.
+      a.href = `mailto:${addr.replace(/%/g, '%25')}${q}`;
+      a.removeAttribute('data-subject');
+    } catch {
+      /* leave the no-JS hint in place; a link that opens nothing counts nothing */
+      continue;
+    }
+    // Count the click as an "Email Tap" event, the site's one conversion: the visitor asked
+    // to write an email (whether a mail program opened, the site never learns).
+    // window.plausible exists only on the live build with analytics on (Base.astro), so
+    // elsewhere nothing happens. The address is not part of it; Plausible adds the page and
+    // the referrer, as to every event. The privacy page says so. A goal of the same name must
+    // exist in Plausible before launch, or the taps are not shown.
+    a.addEventListener('click', () => {
+      try {
+        (window as unknown as { plausible?: (name: string) => void }).plausible?.('Email Tap');
+      } catch {
+        /* counting must never get in the way of opening the mail program */
+      }
+    });
+  }
+</script>

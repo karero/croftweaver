@@ -1,0 +1,134 @@
+name: CI
+# Runs astro check (strict TS) + the full quality harness (a11y / seo / navigation /
+# images / tone / positioning / placeholders / email / links) against a production build. A red check blocks the
+# merge — the point. Needs a committed package-lock.json (npm ci).
+# node-version 24: keep in sync with .nvmrc. The Node floor is in package.json's engines.
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+  workflow_dispatch:
+
+# The token these jobs get can read the repository and nothing else. They check out the code and run
+# the tests; nothing here writes to GitHub, so nothing more is granted, whatever the repository's own
+# default for the workflow token is. A step that needs more (a comment on a pull request, a release)
+# must ask for it here, by name.
+permissions:
+  contents: read
+
+# One run per branch at a time: a newer push to the same branch cancels the run it
+# supersedes. Saves Actions minutes (a private repo has 2 000 free per month; the Actions
+# tab shows what a run here takes; past that see website-team-setup §3b) and means the green tick always belongs to the latest
+# commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Whether this change is more than documentation. A change that touches only `docs/`,
+  # `.claude/` or a Markdown file in the repo root skips the `test` job below and saves
+  # its 4-5 minutes. Not a `paths-ignore:` filter: a workflow left out by one never
+  # reports, and a required check that never reports blocks every merge, while a job
+  # skipped by its `if:` counts as passed. Markdown deeper in the tree (src/content/...)
+  # is site content, so it still runs the tests. Anything this step cannot work out (a
+  # failed diff, a new branch, a manual start) runs them: a failed `changes` job would
+  # skip `test` and let the required check pass with nothing tested.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          # --no-renames: a moved file counts at both its old and its new path.
+          # core.quotePath=false: an accented name is listed as written; a name git
+          # still quotes (a quote mark or control character) runs the tests.
+          all=false files=
+          case "$EVENT" in
+            pull_request) files="$(git -c core.quotePath=false diff --no-renames --name-only "$PR_BASE...$PR_HEAD")" || all=true ;;
+            push)
+              # A push with no commit before it (a new branch) has nothing to compare with.
+              if [ -z "${PUSH_BEFORE//0/}" ]; then all=true
+              else files="$(git -c core.quotePath=false diff --no-renames --name-only "$PUSH_BEFORE" "$PUSH_AFTER")" || all=true; fi ;;
+            *) all=true ;;
+          esac
+          run=$all n=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            n=$((n + 1))
+            case "$f" in
+              docs/*|.claude/*) ;;
+              */*|\"*) run=true ;;
+              *.md) ;;
+              *) run=true ;;
+            esac
+          done <<EOF
+          $files
+          EOF
+          # An empty change list (no files) tests nothing, so it runs the tests too.
+          [ "$n" -gt 0 ] || run=true
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+          echo "$EVENT: $n changed path(s); tests run: $run"
+          printf '%s\n' "$files"
+
+  # The job id `test` is the check name a branch ruleset requires (website-team-setup
+  # §5-A: required_status_checks context "test"). Renaming or splitting this job
+  # without updating the ruleset blocks every merge — a check that never reports
+  # never passes.
+  test:
+    needs: changes
+    # Skipped only when `changes` succeeded and said docs-only. If `changes` itself fails
+    # (a checkout error), `test` still runs: a skipped job counts as passed.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.run == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Content placeholders must never merge (AGENTS.md §2/§4): a missing fact is
+      # written as "[MISSING: …]" so it can be found, and this is where it is found.
+      # Runs before the build so it fails in ~1s. Template [BRACKET] slots (privacy
+      # page, manifest) are checked on the rendered site by
+      # tests/placeholders.spec.ts, not here.
+      # Own token for non-English content (AGENTS.md §4 names e.g. "[FEHLT: …]")? Put it in the
+      # pattern below and in DRAFT_TOKEN in tests/placeholders.spec.ts, or the gate
+      # greps for a word nobody writes.
+      # Two guards, two jobs: the folder loop names a missing folder in plain words;
+      # the `case` reads grep's tri-state exit (0 found, 1 nothing, >=2 error such as
+      # an unreadable file) so an error cannot pass as "nothing found" — grep may have
+      # printed matches before erroring. `-I` skips binaries (a PDF or font in public/
+      # that happens to contain the bytes would otherwise fail the gate with nothing
+      # to fill). The run step is `bash -e`, hence `|| rc=$?`.
+      - name: No unfilled "[MISSING:" placeholders
+        run: |
+          for d in src public; do
+            [ -d "$d" ] || { echo "::error::$d/ not found — the placeholder gate cannot run"; exit 1; }
+          done
+          rc=0
+          grep -rnI '\[MISSING:' src public || rc=$?
+          case "$rc" in
+            1) echo "no placeholders" ;;
+            0) echo '::error::unfilled "[MISSING: …]" placeholder(s) listed above — fill them before merging'; exit 1 ;;
+            *) echo "::error::grep failed (exit $rc) — the placeholder gate did not run"; exit 1 ;;
+          esac
+      # Needs no build, no browser and no network, so it runs first and fails within a
+      # minute or so.
+      # The pre-push hook runs it too, but a hook is bypassable with --no-verify and
+      # is absent in a clone that has not run `npm install` yet.
+      - name: Publish classifier (scripts/ship.sh)
+        run: bash tests/check_ship_push.sh
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm test

@@ -1,0 +1,31 @@
+# Dependabot version updates, monthly and grouped. Whoever owns this site merges the monthly pull request (name them in
+# the site's own README, the one new-website writes); if nobody will, delete this file: security updates stay on without it.
+# The `ignore` rules below also apply to Dependabot's security pull requests (GitHub's options reference marks `ignore` as
+# affecting both), so a flaw fixed only in a held major shows in `npm audit` but may not arrive as a pull request.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    # The ignore section below is the Croftweaver starter's own (the toolkit keeps the same two holds in its own
+    # .github/dependabot.yml; the group names differ). When the starter lifts one, `make whats-new PROJECT=<this folder>`,
+    # run in the toolkit clone, lists this file as changed.
+    ignore:
+      # Tracks the Node major in .nvmrc and ci.yml; bump them together by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # @astrojs/check 0.9.x peers typescript ^5 || ^6; lift this once it accepts 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+# /go/ holds redirects, such as the email link's in analytics server mode; nothing to index.
+Disallow: /go/
+
+# Set to the real production domain before launch.
+Sitemap: https://example.com/sitemap-index.xml

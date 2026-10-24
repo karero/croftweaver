@@ -1,0 +1,52 @@
+{
+  "skill_name": "website-team-setup",
+  "_note": "Test prompts in the skill-creator format. Iteration 1 ran PLAN-ONLY on 2026-09-27 (each prompt with and without the skill, scenario facts supplied, graded on the plan: with skill 21/22, without 9/22). A live run needs a throwaway private repo and a Cloudflare account, since every step acts on them; the acceptance criteria are the B-scenarios in docs/reviews/SKILL-PLAN-website-team-setup.md.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "My business partner is going to help with the website from next week, she'll use Codex in the browser. The site is the Astro one we built with new-website, it's in a private repo on my personal GitHub account and Cloudflare Pages is already connected via git. Can you set everything up so we don't overwrite each other?",
+      "expected_output": "Triggers the skill without the word 'team'. Asks the five §1 questions one at a time (username, rights level, merge rule, who publishes if two-stage, browser vs local) before changing anything. Invites the collaborator (write access is the only level on a personal repo) and says the invitation must be accepted. Sets allow_update_branch and delete_branch_on_merge, reads back the §3b settings. Checks that ci.yml has ever run on a pull_request event and, if not, does the manual start + throwaway pull request, then closes it and deletes the branch. Tries the ruleset, recognises the free-plan refusal on a private repo, enables the pre-push hook block after checking it is not already on, and verifies with a dry-run push, not a no-op push. Skips the Cloudflare connection because it exists, but checks the throwaway pull request shows only CI and Cloudflare Pages checks. Rewrites AGENTS.md §5 and adds TEAM-GUIDE.md with only the browser option. Tells the owner the website is theirs and recommends that the collaborator turn on two-factor sign-in with a passkey, giving the github.com/settings/security link, as a recommendation, never a condition. Opens the setup pull request and lets the owner merge.",
+      "assertions": [
+        "Asks the §1 questions before any command that changes the repository or GitHub",
+        "Invites the collaborator and says the invitation must be accepted",
+        "Sets both pull-request settings and reads them back",
+        "Proves a pull_request-triggered CI run exists, or performs the two-step fix",
+        "Falls back to the pre-push hook on the free-plan refusal and names the bypasses from the hook's comments",
+        "Verifies the push block with a dry run of a real ref update",
+        "Rewrites AGENTS.md §5 with the answers; no [BRACKET] slot remains",
+        "Writes TEAM-GUIDE.md into the repo with only the browser option and no email address",
+        "Recommends two-factor sign-in with a passkey for the collaborator (github.com/settings/security) without making it a condition",
+        "Does not merge the setup pull request itself"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "CI never runs on our pull requests. The workflow file is there, it's the one from the website kit, but the Actions tab is empty. Two people push to this repo. What's wrong?",
+      "expected_output": "Triggers on the CI symptom alone. Runs §4 in order: Actions permissions, workflow listed and not disabled, run history. Performs one manual start and a throwaway pull request, waits for the first check before watching it, and only calls CI working once a pull_request-event run exists. Says the root cause of a silent workflow is not pinned down rather than inventing one. Notes a red first run is a real finding to fix in its own pull request. Because two people already push, offers the rest of the skill (push block, settings) rather than stopping at CI.",
+      "assertions": [
+        "Checks Actions permissions and workflow state before anything else",
+        "Uses the manual start followed by a throwaway pull request",
+        "Waits before gh pr checks --watch and passes the branch selector",
+        "Closes the throwaway pull request with the branch selector and deletes the branch",
+        "Does not claim to know the root cause",
+        "Offers the push block and settings because the repo already has two people"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "We have a two-stage site (main = preview, production = live). I want my two colleagues to merge their own pull requests but only I should ever run npm run ship. Also please connect the repo to Cloudflare, it isn't yet.",
+      "expected_output": "Records merge rule = own pull requests and ship rights = owner only, and writes both into AGENTS.md §5 and the TEAM-GUIDE merge row. Says plainly whether GitHub enforces the ship rule on this repo: a free private repo gets no ruleset at all, so the rule is written in AGENTS.md; where rulesets exist, production is protected against deletion and force-push only, and the documented Restrict updates option is named as untested. Walks the owner through Cloudflare Pages (not Workers), warns about the global project name, sets the production branch to production, checks PROD_BRANCH matches, and opens a throwaway pull request after connecting to confirm only CI and Cloudflare Pages checks appear. Updates the preview URL in AGENTS.md, PUBLISHING.md and the README if Cloudflare forced another project name.",
+      "assertions": [
+        "Ship rights recorded as owner only, and says plainly whether GitHub enforces that on this repo or it is a written rule",
+        "Describes the production ruleset as deletion and non_fast_forward only, and says a free private repo refuses it",
+        "Steers to the Pages tab, not the Workers form",
+        "Warns that the project name is global and updates the preview URL everywhere if it changes",
+        "Production branch set to production and PROD_BRANCH checked",
+        "A pull request opened after connecting is checked to show only CI and Cloudflare Pages"
+      ],
+      "files": []
+    }
+  ]
+}

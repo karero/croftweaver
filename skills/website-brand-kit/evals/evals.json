@@ -1,0 +1,86 @@
+{
+  "skill_name": "website-brand-kit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have neither a logo nor colours yet. Yes, please help me with the colours first. I like warm, earthy colours, the brown of a good crust, and I do not want any green. I love the colours of the old tiled stove in my grandmother's kitchen.",
+      "expected_output": "Reads POSITIONING.md before writing anything. Does not ask again what colours she likes (she has said). Writes the palette prompt from templates/palette-prompt.md, in the owner's language, giving her only the prompt text: it carries what the bakery does, who it is for and what makes it different (from POSITIONING.md: sourdough, Leipzig, traceable flour from two mills), her likes (warm, earthy, crust brown), her dislike (no green) and the place she admires (the tiled stove); it asks for THREE different palettes, each as the Brand, Light theme and Dark theme tables with the row names unchanged; it names no tool. Tells her to pick one and paste its tables back, and that every text colour will be checked on every background. Does not write the logo prompt yet (the logo prompt needs the chosen colours). Writes nothing into a site.",
+      "assertions": [
+        "POSITIONING.md is read and its facts appear in the prompt (sourdough, Leipzig, the traceable flour or the two mills)",
+        "The prompt carries her likes, her dislike (no green) and the place whose colours she admires",
+        "The prompt asks for exactly three palettes",
+        "The prompt holds the three tables with the row names Primary, Heading, Body (ink), Muted, Accent, Link, Hairline, Background, Soft background, Surface (cards)",
+        "The prompt names no design tool and no AI product",
+        "The owner is not asked again which colours she likes",
+        "No logo prompt is written in this reply",
+        "No colour value is invented for her in place of the tool's answer, unless the reply offers to propose the three palettes itself and shows them as the same tables",
+        "Nothing is written into a site folder",
+        "The reply tells her to pick one palette and paste its tables back, and that it will be checked"
+      ],
+      "files": [
+        "evals/files/POSITIONING.md"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Here is the palette I picked, pasted from the tool. Is it good to use? (see pasted-palette.md)",
+      "expected_output": "Runs scripts/brand_intake.py palette on the pasted file (read-only) instead of judging the colours by eye. Reports the failing pairs exactly as the check names them: in the dark theme, Muted #7d6a58 on Background #1a120d, on Soft background #231912 and on Surface (cards) #2a1f17, each with its ratio as the check prints it (3.58, 3.34 and 3.11 to 1) and the 4.5 it needs. Says that the other pairs pass. Does not change the value, does not suggest a 'fixed' hex as if it were decided, and does not write anything: tells her to ask the tool for a lighter muted colour for the dark theme, or to pick another palette, and to paste the result back for another check.",
+      "assertions": [
+        "The contrast check is run with the script, not estimated",
+        "The failing pair or pairs are named with both hex values, the ratio and the 4.5 needed",
+        "Only the dark theme's Muted colour is reported as failing",
+        "No value in the palette is changed by the assistant to make it pass",
+        "Nothing is written to BRAND.md, global.css or any site file",
+        "The owner is told what to do next (ask the tool for a fix or pick another palette, then check again)"
+      ],
+      "files": [
+        "evals/files/pasted-palette.md"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "These are our colours, from the sign above the shop door. I have no dark version and I do not want to design one. Can you use them? (see own-colours.md)",
+      "expected_output": "Runs the palette check on the file. Reports that the light theme's rows Link and Soft background and the whole dark theme are not filled in. Proposes values for the missing rows, writes each into the table marked '(proposed)', and runs the check again so that each proposal is listed, a proposed text colour with its ratio on each background. Asks her to confirm or change each proposed value, and says plainly that nothing is used or written until she has confirmed. Does not remove the '(proposed)' marks on its own and does not run the install.",
+      "assertions": [
+        "The missing rows are named (Link and Soft background in the light theme, and the dark theme)",
+        "Each missing value is proposed and marked (proposed)",
+        "The check is run on the proposals; the proposals, and the ratios the check prints for the proposed text colours, are shown to the owner",
+        "The owner is asked to confirm or change the proposed values",
+        "The (proposed) marks are not removed before she confirms",
+        "The install command is not run"
+      ],
+      "files": [
+        "evals/files/own-colours.md"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "My nephew made our logo last year. I only have it as logo.png, 800 by 800 pixels. Please put it into the site as the favicon and the app icons.",
+      "expected_output": "Says plainly that this version reads only an SVG and cannot use a PNG, JPG or PDF, and that it will not trace or convert the picture itself. Gives her the two ways on: ask the nephew for the SVG of the logo, or let the skill help her get a new mark (the logo prompt, then the download package). Writes nothing into the site and does not run an image generator or a converter.",
+      "assertions": [
+        "The reply says a PNG cannot be used and only an SVG is read",
+        "Both ways out are offered: ask whoever made it for an SVG, or make a new mark with the skill",
+        "The PNG is not converted, traced or resized into icons",
+        "Nothing is written into the site",
+        "The tone is plain and kind, with no jargon left unexplained"
+      ],
+      "files": [
+        "evals/files/logo.png"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "We are at pipeline step 3 of new-website, the content guide. Nobody mentioned a logo or colours so far. Go on with the content guide.",
+      "expected_output": "Does not start the brand kit on its own: no palette prompt, no logo prompt, no install. Because the question about a logo and brand colours was never asked in this build, it asks it now, once, in the plain form the skill gives (which of the two she already has, and whether she wants help with what she lacks), without pitching the skill, and then goes on with the content guide as she asked; if she does not answer it, the content guide still goes on.",
+      "assertions": [
+        "No palette prompt, logo prompt or handover prompt is written unasked",
+        "The intake is not run",
+        "The brand question is asked exactly once, as a plain question about what she already has, not as a pitch",
+        "The content guide work the owner asked for is not blocked or replaced"
+      ],
+      "files": [
+        "evals/files/POSITIONING.md"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+---
+// Publishes scorecard.json (written by `npm run scorecard`): what this site's own test
+// gate checked, when, and on which version. It also says whether the site has been
+// edited since that run, so an old card cannot pass for a current one.
+// Place it on one page: <Scorecard />. No scorecard.json, or one that cannot be read →
+// it renders nothing (tests/scorecard.spec.ts reports a file that cannot be read).
+//
+// Language: `lang` if the page passes one, else the page's locale on a site with
+// several languages (Astro.currentLocale), else the site's one language (SITE.locale).
+import { SITE } from '../config';
+import { loadCard, stateOf } from '../../scripts/scorecard.mjs';
+
+interface Props { lang?: string }
+const { card } = loadCard();
+// 'current' → the tested paths are as tested. 'edited' → something changed since.
+// 'unknown' → git is not available in this build, so the page claims neither.
+const state = card ? stateOf(card) : 'unknown';
+
+// The tone rules apply to these texts too: no long dash, no contraction. They say
+// what the figures are and nothing about how the site is run: whether every change
+// passes the tests first is the owner's practice, not something this file can know.
+const TEXT = {
+  en: {
+    heading: 'Quality checks',
+    intro: 'The figures below come from a run of the tests built into this site.',
+    summary: (passed: number, pages: number) => `${passed} checks passed on ${pages} ${pages === 1 ? 'page' : 'pages'}.`,
+    skipped: (n: number) => `${n} not applicable yet.`,
+    tested: (date: string, version: string) => `Tested on ${date}, version ${version}.`,
+    current: 'The site has not been edited since.',
+    edited: 'The site has been edited since. A new test run is due.',
+    caption: 'Checks by area',
+    area: 'Area',
+    passed: 'Passed',
+    lighthouse: (date: string, strategy: string) => `Google Lighthouse (${strategy}), measured on ${date}:`,
+    scores: ['Performance', 'Accessibility', 'Best Practices', 'SEO'],
+    rerun: 'Run the test yourself',
+    areas: {
+      a11y: 'Accessibility', seo: 'Search and sharing data', navigation: 'Links between pages',
+      anchors: 'Links to sections', orphans: 'Every page reachable', images: 'Images',
+      tone: 'Wording', positioning: 'Positioning', placeholders: 'No leftover placeholders',
+      email: 'Email addresses protected', links: 'Retired links', 'llms-coverage': 'Page index for AI assistants',
+      middleware: 'Preview and domain rules', story: 'Home page story', i18n: 'Languages', motion: 'Motion',
+    } as Record<string, string>,
+  },
+  de: {
+    heading: 'Qualitätsprüfungen',
+    intro: 'Die Zahlen unten stammen aus einem Lauf der Tests, die zu dieser Website gehören.',
+    summary: (passed: number, pages: number) => `${passed} Prüfungen bestanden auf ${pages} ${pages === 1 ? 'Seite' : 'Seiten'}.`,
+    skipped: (n: number) => `${n} noch nicht anwendbar.`,
+    tested: (date: string, version: string) => `Getestet am ${date}, Version ${version}.`,
+    current: 'Die Website wurde seitdem nicht geändert.',
+    edited: 'Die Website wurde seitdem geändert. Ein neuer Testlauf steht an.',
+    caption: 'Prüfungen nach Bereich',
+    area: 'Bereich',
+    passed: 'Bestanden',
+    lighthouse: (date: string, strategy: string) => `Google Lighthouse (${strategy}), gemessen am ${date}:`,
+    scores: ['Performance', 'Barrierefreiheit', 'Best Practices', 'SEO'],
+    rerun: 'Den Test selbst ausführen',
+    areas: {
+      a11y: 'Barrierefreiheit', seo: 'Daten für Suche und Teilen', navigation: 'Links zwischen den Seiten',
+      anchors: 'Links zu Abschnitten', orphans: 'Jede Seite ist erreichbar', images: 'Bilder',
+      tone: 'Sprache', positioning: 'Positionierung', placeholders: 'Keine vergessenen Platzhalter',
+      email: 'E-Mail-Adressen sind geschützt', links: 'Stillgelegte Links', 'llms-coverage': 'Seitenindex für KI-Assistenten',
+      middleware: 'Regeln für Vorschau und Domain', story: 'Geschichte der Startseite', i18n: 'Sprachen', motion: 'Bewegung',
+    } as Record<string, string>,
+  },
+};
+const language = (Astro.props.lang ?? Astro.currentLocale ?? (SITE as { locale?: string }).locale ?? 'en').toLowerCase().split('-')[0];
+const t = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
+const lh = card?.lighthouse;
+const lhScores = lh ? [lh.performance, lh.accessibility, lh.bestPractices, lh.seo] : [];
+// The same test, for this site's own address and the same device class. Observed on
+// 2026-10-04: this address starts a PageSpeed run for `url` with the Mobile or the
+// Desktop tab selected as `form_factor` says.
+const rerun = lh ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(SITE.url + '/')}&form_factor=${lh.strategy}` : '';
+---
+{card && (
+  <section class="scorecard" data-scorecard data-state={state}>
+    <h2>{t.heading}</h2>
+    <p>{t.intro}</p>
+    <p>
+      <strong data-scorecard-summary data-passed={card.passed} data-pages={card.pages}>{t.summary(card.passed, card.pages)}</strong>
+      {card.skipped > 0 && <span data-scorecard-skipped={card.skipped}> {t.skipped(card.skipped)}</span>}
+    </p>
+    <p class="scorecard-meta">
+      <span data-scorecard-tested>{t.tested(card.generated, String(card.commit).slice(0, 7))}</span>
+      {state === 'current' && <span data-scorecard-current> {t.current}</span>}
+      {state === 'edited' && <strong data-scorecard-edited> {t.edited}</strong>}
+    </p>
+    {/* The shared table markup (website-design-system, "Tables"): tests/tables.spec.ts needs it on every table.
+        The look stays this component's own, so the skill works on a site without src/styles/tables.css. */}
+    <div class="table-wrap figures" role="region" aria-label={t.caption} tabindex="0">
+      <table>
+        <caption>{t.caption}</caption>
+        <thead><tr><th scope="col">{t.area}</th><th scope="col" class="num">{t.passed}</th></tr></thead>
+        <tbody>
+          {card.checks.map((c: { area: string; passed: number }) => (
+            <tr data-area={c.area}><th scope="row">{t.areas[c.area] ?? c.area}</th><td class="num">{c.passed}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    {lh && (
+      <p data-scorecard-lighthouse>
+        {t.lighthouse(lh.date, lh.strategy)}{' '}
+        {t.scores.map((label: string, i: number) => `${label} ${lhScores[i]}`).join(', ')}.{' '}
+        <a href={rerun} rel="noopener">{t.rerun}</a>
+      </p>
+    )}
+  </section>
+)}
+
+<style>
+  .scorecard table { border-collapse: collapse; margin: 1rem 0; }
+  .scorecard caption { text-align: left; color: var(--muted); padding-bottom: 0.25rem; }
+  .scorecard th, .scorecard td { text-align: left; padding: 0.35rem 1.5rem 0.35rem 0; border-bottom: 1px solid var(--line); }
+  .scorecard tbody th { font-weight: 400; }
+  .scorecard td { font-variant-numeric: tabular-nums; }
+  .scorecard-meta { color: var(--muted); }
+</style>

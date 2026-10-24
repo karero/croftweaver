@@ -1,0 +1,24 @@
+# The models the Melious seat may run. independent_review.sh reads this file and refuses any
+# other MELIOUS_MODEL with exit 2, before any reviewer starts and in every mode.
+#
+# One model id per line, as Melious's /v1/models lists it. The word "light" after an id means
+# that model runs only in a Light review: the run must say --depth light, and with any other
+# depth, or none, it is refused. Blank lines and lines that start with # are skipped. A line
+# of any other shape (a misspelt "light", a third word, a comment after an id) stops every run
+# that sets MELIOUS_MODEL, so a slip in the second word cannot read as "any depth". If an id
+# stands on two lines, the first decides.
+#
+# A model marked light is also refused, with nothing sent, when the prompt holds a think tag
+# (scripts/perl/think_tag.pl; R-MELIOUS-THINK, the owner's decision of 2026-10-22).
+# The owner's rule, 2026-10-12: GLM 5.3 and no other model, and GLM 5.3 Flash for a Light
+# review. Added 2026-10-24 at the owner's word: deepseek-v4.1-flash-1017, for a Light review only
+# (one graded trial on website-builder#179: no BUG, two reproduced RISKs, no false ones).
+# Kimi and every other model run on ollama (OLLAMA_MODEL), never here. Change the list
+# by a reviewed change to this file. With the setup guide and seat_limits.txt, it is one of the
+# files of this skill that scripts/check_model_agnostic.sh does not scan, so the others need no
+# model's name.
+# If Melious retires or renames an id, the seat fails with the API's own error: compare this
+# list with GET https://api.melious.ai/v1/models then.
+glm-5.3
+glm-5.3-flash light
+deepseek-v4.1-flash-1017 light

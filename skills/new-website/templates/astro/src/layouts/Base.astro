@@ -1,0 +1,197 @@
+---
+// Base layout — the SEO + theme spine. One (title, description) pair drives
+// <title>, OG, Twitter, canonical AND the WebPage schema, so they can never
+// drift (tests/seo.spec.ts enforces it).
+//
+//   <Base title="…" description="…"> … </Base>
+//   - title: keyword-tuned; the layout appends " | {SITE.name}" (keep total ≤ 60).
+//   - description: 120–160 chars.
+//   - image: per-page OG image (1200×630, ≤300 KB; defaults to /images/og/default.jpg).
+//     Generate cards with `npm run og` (scripts/generate_og_cards.py); see the og-images skill.
+//   - schemas: extra JSON-LD objects (FAQPage, Article, …).
+//   - <slot name="head" /> lets a page add its own <head> tags.
+import '../styles/global.css';
+import '../styles/tables.css';
+import { SITE, COMPANY, ANALYTICS, SAME_AS, KNOWS_ABOUT, ogLocaleFor } from '../config';
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+  lang?: string;
+  noindex?: boolean;
+  schemas?: Record<string, unknown>[];
+  // hreflang alternates for a translated "twin pages" cluster — the LIGHT i18n
+  // path for a handful of translated pages with their own slugs (e.g.
+  // /ai-events-munich ↔ /ai-treffen-muenchen), no locale-prefix routing needed.
+  // Pass the FULL cluster incl. a self-referencing entry and 'x-default'; hrefs
+  // may be site-relative paths. Both twins must declare the cluster —
+  // tests/seo.spec.ts enforces reciprocity. Full multi-locale routing instead?
+  // Use the astro-i18n-setup skill (heavy path), not this prop.
+  alternates?: { hreflang: string; href: string }[];
+}
+
+const {
+  title,
+  description = SITE.description,
+  image = '/images/og/default.jpg',
+  lang = SITE.locale,
+  noindex = false,
+  schemas = [],
+  alternates = [],
+} = Astro.props;
+// The page's language, for components inside it that speak to the visitor in it (the
+// website-contact-form skill's MailForm), so a German page gets a German form by itself.
+Astro.locals.lang = lang;
+
+const site = Astro.site ?? new URL(SITE.url);
+// `build.format: 'file'` makes build-time pathnames end in .html (/privacy.html),
+// but Cloudflare serves the clean URL (/privacy) — canonicalize to the clean form.
+const cleanPath = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+const canonical = new URL(cleanPath, site).href;
+// Resolve an `alternates` href with the SAME normalization as `canonical`, so a
+// correctly-written self-referencing entry is byte-identical to the canonical —
+// tests/seo.spec.ts's twin-page check relies on that equality.
+const altHref = (href: string) => {
+  const u = new URL(href, site);
+  const p = u.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+  // Rebase onto u (not site): a cross-domain alternate keeps its own origin.
+  return new URL(p, u).href;
+};
+const ogImage = new URL(image, site).href;
+const fullTitle = title === SITE.name ? SITE.titleHome : `${title} | ${SITE.name}`;
+const orgId = `${site.origin}/#organization`;
+
+const orgSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  '@id': orgId,
+  name: COMPANY.legalName,
+  alternateName: SITE.name,
+  url: site.origin,
+  logo: new URL(COMPANY.logo, site).href,
+  description: SITE.description,
+  ...(KNOWS_ABOUT.length ? { knowsAbout: KNOWS_ABOUT } : {}),
+  ...(SAME_AS.length ? { sameAs: SAME_AS } : {}),
+};
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  '@id': `${site.origin}/#website`,
+  url: `${site.origin}/`,
+  name: SITE.name,
+  publisher: { '@id': orgId },
+  inLanguage: lang,
+};
+const webPageSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  '@id': `${canonical}#webpage`,
+  url: canonical,
+  name: fullTitle,
+  description,
+  isPartOf: { '@id': `${site.origin}/#website` },
+  inLanguage: lang,
+};
+const allSchemas = [orgSchema, websiteSchema, webPageSchema, ...schemas].filter(Boolean);
+// noindex pages: ALSO exclude the route from the sitemap (filter in astro.config.mjs)
+// and from tests/_helpers.ts PAGES — a sitemap listing a noindex URL sends crawlers
+// contradictory signals, and the drift test in seo.spec.ts compares the two.
+const robots = noindex
+  ? 'noindex, follow'
+  : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+// og:locale from lang — derivation shared with the seo.spec assertion via
+// config.ogLocaleFor (unmapped bases omit the tag; a wrong en_US would
+// contradict inLanguage).
+const ogLocale = ogLocaleFor(lang);
+// Chrome strings that must not silently ship in the wrong language on a
+// German-language site: the skip link and the footer's privacy link. Keyed
+// on SITE.locale — the SITE's language, deliberately NOT the page's `lang`
+// prop: chrome (nav/footer) speaks the site's language even on a page whose
+// CONTENT is another language (the German Impressum on an English-market
+// site keeps the English footer, and its /privacy link keeps resolving).
+// SETTING SITE.locale to 'de' FLIPS THE FOOTER to /datenschutz — do the
+// privacy→datenschutz swap IN THE SAME STEP (rename the in-repo draft
+// src/pages/_datenschutz.astro per its header, which lists every gate-file
+// change) or every navigation test fails on the footer link.
+// Unmapped languages fall back to English — extend as you translate.
+// Multilingual sites: astro-i18n-setup §3 rewires this lookup (SITE.locale
+// is removed there — rekey on Astro.currentLocale, see that skill).
+// The Impressum label stays the German word in both languages by convention.
+const CHROME: Record<string, { skip: string; privacyLabel: string; privacyHref: string }> = {
+  en: { skip: 'Skip to content', privacyLabel: 'Privacy Policy', privacyHref: '/privacy' },
+  de: { skip: 'Zum Inhalt springen', privacyLabel: 'Datenschutz', privacyHref: '/datenschutz' },
+};
+const chrome = CHROME[SITE.locale.toLowerCase().split('-')[0]] ?? CHROME.en;
+---
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Set theme before first paint (no flash of the wrong theme). -->
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var theme = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {}
+      })();
+    </script>
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content={robots} />
+    <link rel="canonical" href={canonical} />
+    {alternates.map((a) => <link rel="alternate" hreflang={a.hreflang} href={altHref(a.href)} />)}
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content={SITE.themeColor} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    {ogLocale && <meta property="og:locale" content={ogLocale} />}
+    <!-- Twitter inherits OG: same strings, summary_large_image. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    {allSchemas.map((schema) => (
+      <script type="application/ld+json" is:inline set:html={JSON.stringify(schema)} />
+    ))}
+
+    {/* Server mode (src/config.ts) counts from the Pages Function: no tag in the page. */}
+    {ANALYTICS.enabled && ANALYTICS.mode === 'script' && (
+      <Fragment>
+        <script is:inline async src={`${ANALYTICS.scriptHost}/js/${ANALYTICS.scriptId}.js`} />
+        <script is:inline set:html={'window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()'} />
+      </Fragment>
+    )}
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">{chrome.skip}</a>
+    <main id="main"><slot /></main>
+    <!-- Every page links the privacy policy (GDPR: reachable from anywhere). -->
+    <!-- Providers established in Germany or targeting the German market:
+         § 5 DDG requires the Impressum reachable from every page too. Neither
+         applies? Delete all six pieces: this link, src/pages/impressum.astro,
+         its tests/_helpers.ts PAGES entry, its public/llms.txt line, its
+         OWN_CARD_EXEMPT entry in tests/seo.spec.ts, and its
+         UNFILLED_UNTIL_LAUNCH entry in tests/placeholders.spec.ts. -->
+    <footer class="site-footer">
+      <a href={chrome.privacyHref}>{chrome.privacyLabel}</a>
+      <a href="/impressum">Impressum</a>
+    </footer>
+  </body>
+</html>

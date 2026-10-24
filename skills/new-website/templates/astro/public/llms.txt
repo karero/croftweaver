@@ -1,0 +1,21 @@
+# Example
+
+> One-sentence description of what this site/company is and who it serves. Served
+> at https://example.com/llms.txt — a curated index for AI answer engines (GEO).
+> Keep it accurate, in sync with the site, and in the site's CONTENT LANGUAGE
+> (German site → German descriptions; see website-seo-geo).
+
+## Key pages
+- [Home](https://example.com/): positioning, primary action.
+- [Privacy](https://example.com/privacy): privacy policy (GDPR).
+- [Impressum](https://example.com/impressum): provider identification (§ 5 DDG, German-market sites).
+
+## Facts
+- Legal entity: Example GmbH
+- Location: [city, country]
+- Founded: [year]
+- Contact: [email / page]
+
+## Authoritative on
+- [topic 1]
+- [topic 2]

@@ -1,0 +1,11 @@
+# Every text file keeps LF line endings in every checkout. Git for Windows checks text out
+# with CRLF by default (core.autocrlf=true). Its own bash copes, but any other sh reading that
+# working copy (WSL, a Linux container, a Mac on a shared drive) takes each CR as part of a
+# command, so `make check` fails in its first script. Scripts are not the only casualty: the
+# checks read Markdown and JSON as data, and a trailing CR there reads as drift
+# (check_prompt_sync.sh) or empties a sed match (test_pre_push_hook.sh). Nothing here needs
+# CRLF; binary files are detected and left alone. scripts/check_lf_checkout.sh guards this.
+#
+# A clone made before this file existed keeps its CRLF copies, and `git status` shows nothing.
+# Commit or stash any work, then rewrite them once: git rm -r -q --cached . && git reset --hard
+* text=auto eol=lf

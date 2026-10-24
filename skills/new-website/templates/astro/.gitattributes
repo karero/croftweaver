@@ -1,0 +1,7 @@
+# Shell scripts and the git hook keep LF line endings on every checkout, Windows
+# included. Git for Windows checks text files out with CRLF by default
+# (core.autocrlf=true). Its own bash runs such a script anyway; any other sh reading
+# the same working copy (WSL, a Linux container, a Mac on a shared drive) takes each
+# CR as part of a command and stops at the hook's `set -e` ("set: Illegal option -").
+*.sh            text eol=lf
+scripts/hooks/* text eol=lf

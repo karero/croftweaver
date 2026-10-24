@@ -1,0 +1,23 @@
+---
+// Branded 404 — without this file, a mistyped or stale URL lands on
+// Cloudflare's default English error page, whatever the site's language.
+// noindex + out of tests/_helpers.ts PAGES; @astrojs/sitemap excludes
+// status-code pages by itself, so the drift alarm stays green with no
+// config needed. The suites' per-page checks (own OG card, positioning
+// term, ...) don't apply to an error page — but keep its copy inside the
+// house tone rules anyway (no em dashes): it IS user-facing.
+// German-content site (Q4a)? Translate the three strings, e.g.:
+//   Seite nicht gefunden. Diese Adresse gibt es hier nicht (mehr).
+//   Zur Startseite
+import Base from '../layouts/Base.astro';
+---
+<Base
+  noindex
+  title="Page not found"
+  description="This address does not exist (anymore) on this site. The link may be outdated or the address mistyped. The home page lists everything this site offers.">
+  <section class="wrap">
+    <h1>Page not found</h1>
+    <p>This address does not exist here (anymore). The link may be outdated, or the address was mistyped.</p>
+    <p><a href="/">Back to the home page</a></p>
+  </section>
+</Base>
