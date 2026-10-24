@@ -35,8 +35,10 @@ changed here.
    "one evidence file per run: put the evidence in one file". Several sources go in one file
    with their own headings; one block is simpler to bound, count and record than several.
    A file that cannot be read, or holds nothing but whitespace, is refused, exit 2, as an empty
-   `--verify` file is today. So is a file with a line that is exactly `--- END EVIDENCE ---`:
-   text after it would sit outside the block, in the place the script's own instructions sit.
+   `--verify` file is today. So is a file with a line that reads `--- END EVIDENCE ---` once
+   trailing spaces, tabs and a CR are removed (a CRLF transcript): text after it would sit
+   outside the block, in the place the script's own instructions sit. A variant with leading
+   space, or any other near-copy, gets past this check: it catches an accident, not an attacker.
    Every refusal comes before the base check and before anything leaves the machine.
 2. **Data, never instructions.** The evidence goes in PROMPT_EVIDENCE, empty without the option:
    a short lead paragraph, then the file between `--- BEGIN EVIDENCE ---` and
@@ -53,9 +55,9 @@ changed here.
    unaffected. PROMPT_EVIDENCE joins the `readonly` line.
 3. **Placement.** Every tier prompt (tooled, text-only, agy, portable) carries it last before the
    artifact: `${PROMPT_PLAN}${PROMPT_WORDING}${PROMPT_VERIFY}${PROMPT_EVIDENCE}` then
-   `--- BEGIN ${TYPE} ---`. So the script's own scope paragraphs come first and the three data
-   blocks (prior findings, evidence, artifact) follow, and the closing "(End of untrusted content
-   above …)" line covers all of them. Codex gets the block too: the file may live outside the
+   `--- BEGIN ${TYPE} ---`. So the order is: the script's scope paragraphs, the prior-findings
+   block, the evidence lead and block, the artifact; the closing "(End of untrusted content
+   above …)" line covers all three data blocks. Codex gets the block too: the file may live outside the
    project, where its sandbox cannot read it.
 4. **Base check.** Unchanged: it checks the artifact alone, which now stays the diff git made.
    `--evidence` never implies `--base none`.
@@ -63,8 +65,12 @@ changed here.
    `seat_limits.txt` already caps the whole prompt file, so it counts the evidence with no
    change; the 120,000-byte limit for agy and unmeasured seats, and the paste prompt's 120,000
    cut-off, use CONTENT_BYTES and so count it too. A seat over its limit FAILS before sending,
-   as today, and its FAILED reason names the evidence's bytes when there is evidence, so the
-   host knows what to trim.
+   as today. The two size messages ("artifact and prior findings of N bytes" in `seat_fits`,
+   "the artifact and prior findings are N bytes" at the paste cut-off) stay byte for byte when
+   there is no evidence, which the existing T11 and T13 cases grep; with evidence they read
+   "artifact, prior findings and evidence", so the host knows what to trim. The evidence's
+   bytes are counted as read into the script (`$(cat)`, trailing newlines dropped), the same
+   way as the artifact and the prior findings.
 6. **`--verify`.** Allowed: a verification round can need the evidence for a fix. The evidence
    block follows the prior-findings block.
 7. **`--wording-pass`.** Allowed: a wording pass checks prose against what it describes, and
@@ -74,7 +80,8 @@ changed here.
 9. **`--local-only`, `--seat`, `--first-success`.** Unchanged; the evidence goes wherever the
    artifact goes.
 10. **Record.** The run ends with one more line beside `base:`, on stdout and stderr like it:
-    `evidence: <path as given> (<bytes> bytes)`; without the option there is no line. The prompt
+    `evidence: <path as given> (<bytes> bytes)`, the bytes counted as in How 5; without the
+    option there is no line. It prints for a plan too, where there is no `base:` line. The prompt
     files in the raw folder hold the block as sent. The cost log is unchanged: a new column would
     change `review_log.sh` and every reader of an append-only file for a fact the closing lines
     and the trail already give.
@@ -84,10 +91,12 @@ changed here.
 - SKILL.md step 1: the data check covers the evidence file too; it leaves the machine with the
   artifact.
 - SKILL.md step 2: the usage line names `[--evidence <file>]`, and one sentence: evidence goes
-  with `--evidence`, never appended to the artifact, and is no reason for `--base none`.
-- The script's header (usage example, a short EVIDENCE paragraph under BASE CHECK, SEAT LIMITS'
-  "artifact plus prior findings" gains "plus evidence"), the `USAGE` string, and a two-line
-  comment above PROMPT_EVIDENCE.
+  with `--evidence`, never appended to the artifact, and is no reason for `--base none`. Its
+  Output sentence and step 8's list of what to tell the owner add the `evidence:` line.
+- The script's header (usage example, a short EVIDENCE paragraph under BASE CHECK), every
+  comment that says "artifact plus prior findings" for the 120,000 limit (the header's SEAT
+  LIMITS paragraph and the comments above CONTENT_BYTES and `seat_fits`) gains the evidence, the
+  `USAGE` string, and a two-line comment above PROMPT_EVIDENCE.
 - `seat_limits.txt`'s header says the same 120,000 counts the evidence.
 
 ## Tests
@@ -95,22 +104,29 @@ changed here.
 `test_failed_tier_report.sh`, which runs the script the way users do, with stub CLIs that record
 the prompt they were sent. New case 25d:
 
+- The lead's six lines are written out in the test, with `@TYPE@` for the type, never read
+  from the script, and checked as one block, as case 25c does: a cut or reworded data sentence
+  fails.
 - Diff with `--evidence --wording-pass`: in the codex, ollama and agy prompts and the paste
-  prompt, the wording paragraph's first line, then the evidence lead's first line,
-  `--- BEGIN EVIDENCE ---`, a line of the evidence file, `--- END EVIDENCE ---`, then
-  `--- BEGIN diff ---`, in that order. Three runs as in 25b and 25c (default, agy, all failed for
+  prompt, the wording paragraph's first line, then the whole lead, `--- BEGIN EVIDENCE ---`, a
+  line of the evidence file, `--- END EVIDENCE ---`, then `--- BEGIN diff ---`, in that order. Three runs as in 25b and 25c (default, agy, all failed for
   the paste prompt), so every tier shows the trusted scope before the evidence.
-- Diff with `--evidence` alone (codex and ollama): the same order without the wording line.
+- Diff with `--evidence` alone, and plan with `--evidence` alone (codex and ollama): the same
+  order without the wording line; on the plan, the guards paragraph comes before the lead.
 - With `--verify` (diff and plan, codex and ollama, with `--wording-pass`): the wording
   paragraph, the verification scope, the prior findings, the evidence, the artifact.
-- The closing `evidence:` line on stdout and stderr names the file and its byte count; no line
+- The closing `evidence:` line on stdout and stderr names the file and its exact byte count,
+  from a file that ends in a newline (so a count that kept it would be one too many); no line
   and no EVIDENCE block without the option (case 25's `noverify` run, case 5's paste output).
 - Refusals, each exit 2 with its message and an empty stub-marks folder: a second `--evidence`,
-  a missing file, a whitespace-only file, a file holding an `--- END EVIDENCE ---` line.
-- Size: a 1 KB diff with 130,000 bytes of evidence. With agy on: agy FAILS before sending, its
-  reason naming the evidence's bytes, and codex (its `takes:` line) runs. With every seat
-  failing: exit 4 and the "paste prompt is not printed" line, which a cut-off counting the
-  artifact alone would not print.
+  a missing file, a whitespace-only file, a file holding an `--- END EVIDENCE ---` line, and one
+  holding that line with a trailing CR.
+- Size, through case 38's `limitcase` helper (the stub codex's model is `stub-codex`, which the
+  shipped `seat_limits.txt` does not list): a 1 KB diff with 130,000 bytes of evidence. With a
+  list holding `codex stub-codex takes:1040000` and agy on: agy FAILS before sending, its reason
+  naming "artifact, prior findings and evidence", and codex runs. With no list: every seat has
+  no line, so each FAILS on size, exit 4, and the "paste prompt is not printed" line prints,
+  which a cut-off counting the artifact alone would not print.
 
 `test_base_check.sh`, in its throwaway repo with a real base: a diff that passes the check
 still passes with `--evidence`, the stub codex runs and the `base:` line prints with no "not
@@ -134,6 +150,13 @@ first live run with `--evidence` is that check; its trail says what the seats di
 - The base-check case fails if `--evidence` ever reaches the checked text, because its
   evidence holds a diff record the check refuses. It cannot see an evidence file that holds no
   such record, which needs none.
+
+- A failed seat's quota classifier reads column-0 error lines in the stderr a CLI echoes,
+  which can include the prompt. Diff lines are prefixed, so they never count; evidence, like a
+  plan, is not. An evidence log line such as `ERROR: 429 Too Many Requests`, with a seat that
+  failed for another reason, can be labelled a quota failure. This is today's behaviour for any
+  plan; the FAILED section already says to treat the line as a setup failure if it is text from
+  the reviewed material. Not changed here.
 
 ## Review
 
