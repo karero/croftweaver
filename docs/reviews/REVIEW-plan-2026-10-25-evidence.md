@@ -78,3 +78,17 @@ timings: codex 119s (57,035 tokens). F14–F25 confirmed fixed except the two be
 
 Both are prose about today's behaviour with no design change: not substantive, so the rounds end
 here, and they go to the wording pass.
+
+## Wording pass (plan at df331224)
+
+Run with `--wording-pass --seat codex --verify` (F26, F27 and the changed sections), the
+build's own flag, from this branch. reviewers: codex OK; timings: codex 51s (25,644 tokens).
+No BUG/RISK/NIT findings.
+
+## State
+
+Rounds 1–3, 27 findings (rounds: 3 BUG/RISK by Codex in round 1, 9 by fresh-eyes, 1 in round 2;
+12 in the final full read; 2 in round 3), every one fixed or re-sorted (F6). Final full read and
+wording pass done. Open: the GLM 5.3 seat has not reviewed this plan at all (melious balance 0,
+ollama over quota for the whole gate); it owes one full-scope run before the gate is clean at
+Normal depth. Then the owner's go to build.
