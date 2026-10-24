@@ -38,7 +38,9 @@ can do that.
    label. PROMPT_CORE is unchanged, so SKILL.md's quoted copy and `check_prompt_sync.sh` (which
    compares only PROMPT_CORE and checks that each tier prompt begins with it) are unaffected.
    PROMPT_WORDING is assigned after TYPE is known and before the tier prompts, and joins the
-   `readonly` line.
+   `readonly` line. In each tier prompt it sits after PROMPT_CORE and the tier's own text, where
+   `${PROMPT_PLAN}${PROMPT_VERIFY}` sits today: `${PROMPT_PLAN}${PROMPT_WORDING}${PROMPT_VERIFY}`.
+   Nothing goes before PROMPT_CORE.
 2. **Plans and diffs.** Both. Under `--wording-pass` PROMPT_PLAN (the questions on guards a plan
    proposes) is left out: those questions reopen the design, which a wording pass does not.
 3. **`--round`.** Refused, exit 2, right after option parsing, before anything is read or sent:
@@ -97,8 +99,10 @@ they were sent. New case 25c:
   covers its text.
 - Plan with `--wording-pass`: every line of the paragraph, rendered ("this plan"), before
   `--- BEGIN plan ---`; the guards paragraph absent.
-- `--wording-pass --verify`: every line of the paragraph before `--- BEGIN PRIOR FINDINGS ---`,
-  and "VERIFICATION ROUND." after it.
+- `--wording-pass --verify` on a diff: in the codex and ollama prompts, the order is every
+  rendered line of the paragraph ("this diff"), then "VERIFICATION ROUND.", then
+  `--- BEGIN PRIOR FINDINGS ---`, then `--- BEGIN diff ---`. The same on a plan ("this plan"),
+  with the guards paragraph absent.
 - No flag: no "WORDING PASS." in the codex, ollama and paste prompts the existing cases record
   (case 25's `noverify` run, case 5's paste output).
 - `--wording-pass --round 2`: exit 2, the message, and no stub ran.
@@ -117,8 +121,10 @@ wording pass after merge is it, and the trail records whether the seat kept to t
 - The BUG sentence on non-prose lines catches only what the reviewer notices, and a text-only seat
   sees only the delta. The host still decides prose-only from the hunk inventory (closeout); this
   sentence is a second look, not a substitute.
-- Case 25c's line-by-line order check fails if any tier loses the paragraph, cuts it, or places it
-  after the artifact marker. It says nothing about what a reviewer does with it.
+- Case 25c's line-by-line order check fails if the codex, ollama, agy or paste prompt loses the
+  paragraph, cuts it, or places it after the artifact marker. Melious is covered only because it
+  sends the same PROMPT_TEXTONLY as ollama; a melious-only change to that path would get past it.
+  It says nothing about what a reviewer does with the paragraph.
 
 ## Review
 

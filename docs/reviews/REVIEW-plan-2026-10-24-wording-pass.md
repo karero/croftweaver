@@ -26,3 +26,21 @@ Docs, Tests, Guards this adds.
 | F12 | fresh-eyes | NIT | "empty without the flag, like PROMPT_PLAN": PROMPT_PLAN is empty for a diff, not a missing flag. | Fixed: wording. |
 
 Round 2 is earned by F1 (a substantive BUG).
+
+## Round 2 (verification, plan at d340e3b2)
+
+timings: codex 119s (66,290 tokens, effort medium), melious 106s (15,537 tokens). Every round 1
+disposition confirmed by both seats.
+
+Sections changed since round 2: How 1 (placement sentence), Tests (`--verify` bullet), Guards
+this adds (bullet 3).
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F13 | codex | BUG | The `--verify` test put "VERIFICATION ROUND." after the prior-findings marker; PROMPT_VERIFY puts it before (script:810, 823), so the test would reject a correct build. | Fixed: the bullet now states the order paragraph → "VERIFICATION ROUND." → prior-findings marker → artifact marker. |
+| F14 | melious | RISK | F3 half-landed: the `--verify` bullet does not check the rendered `${TYPE}`. | Fixed: the bullet names "this diff" / "this plan". |
+| F15 | melious | RISK | Placement relative to PROMPT_CORE unstated; prepending (closeout's old word) would break check_prompt_sync's begins-with check. | Fixed: How 1 gives the exact splice, after PROMPT_CORE, and says nothing goes before it. |
+| F16 | melious | RISK | Guard bullet 3 claims "any tier"; melious's prompt is not recorded. | Fixed: narrowed to the four recorded prompts, naming the melious gap. |
+| F17 | melious | NIT | Guards-absent not checked under `--verify` on a plan. | Fixed: the `--verify` bullet adds a plan run with the guards paragraph absent. |
+
+Round 3 is earned by F13 (a BUG: the test spec contradicted the code).
