@@ -69,7 +69,7 @@ Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OP
 Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction;
 the owner's grant for each round past 8, quoted.
 Follow-ups: one line each. Notes: at most five lines, plus one per round past 3 (degraded seats, rounds past 3 with the BUG
-and the `--earned-by` kind that earned each, and each `--cut`, final full read, wording pass, stops).
+or RISK and the `--earned-by` kind that earned each, and each `--cut`, final full read, wording pass, stops).
 ```
 
 **(b) The PR/MR comment — ONE per gate, edited each round, posted before merging** (with POST
