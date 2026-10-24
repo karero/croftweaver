@@ -33,7 +33,8 @@ changed here.
 
 1. **Option.** `--evidence <file>`, once per run. An empty value, or one starting with `-`
    (`-` included: stdin is the artifact's, and a missing value would take the next flag), is
-   refused, exit 2, as `--verify` and `--base` refuse theirs. A second `--evidence` is refused, exit 2:
+   refused, exit 2, as `--base` refuses a value starting with `-` (`--verify` refuses only an
+   empty one). A second `--evidence` is refused, exit 2:
    "one evidence file per run: put the evidence in one file". Several sources go in one file
    with their own headings; one block is simpler to bound, count and record than several.
    A file that cannot be read, or holds nothing but whitespace, is refused, exit 2, as an empty
@@ -171,13 +172,11 @@ first live run with `--evidence` is that check; its trail says what the seats di
 
 ## Known limit, not changed
 
-A failed seat's quota classifier reads error-shaped lines in the stderr a CLI echoes, which can
-include the prompt. A diff's context lines (a leading space) never count; an added or removed
-line can, when its second word is error or fatal, and so can any line of a plan or of evidence.
-An evidence log line such as `ERROR: 429 Too Many Requests`, with a seat that failed for
-another reason, can be labelled a quota failure. That is today's behaviour for any plan and many
-diffs; the FAILED reason's caveat (How 11) tells the host to treat such a line as a setup
-failure.
+A failed seat's quota classifier reads error-shaped lines in the stderr a CLI echoes, and that
+echo can hold the prompt. Evidence can carry such lines, as a plan or a diff already can, so a
+seat that failed for another reason may be labelled a quota failure. How 11's caveat tells the
+host to treat a quoted line from the reviewed material as a setup failure. Which lines count is
+not restated here.
 
 ## Review
 

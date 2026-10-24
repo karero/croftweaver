@@ -65,3 +65,16 @@ tokens.
 | F25 | full read | NIT | "line references below" but the plan has none. | Fixed: clause dropped. |
 
 Round 3 is earned by F14 (an earning RISK) and F15 (a BUG that changed the Docs list).
+
+## Round 3 (verification, plan at d67657c3)
+
+reviewers: codex OK (effort medium), melious FAILED (balance 0), ollama-cloud FAILED (quota).
+timings: codex 119s (57,035 tokens). F14–F25 confirmed fixed except the two below.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F26 | codex | BUG | The known-limit note still says context lines "never count"; a CR inside one brings error text to column 0 after `readable_tail.pl`. | Cut: third finding on this note (F13, F16, F26). It describes today's code and decides nothing in the plan, so it no longer says which lines count; it keeps the limit and points at How 11's caveat. |
+| F27 | codex | BUG | "as `--verify` and `--base` refuse theirs": `--verify` accepts a value starting with `-`. | Fixed: compared with `--base` only; `--verify` refuses only an empty value. |
+
+Both are prose about today's behaviour with no design change: not substantive, so the rounds end
+here, and they go to the wording pass.
