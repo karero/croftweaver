@@ -97,3 +97,14 @@ timings: codex 213s (64,634 tokens). D22, D24, D25 confirmed.
 
 After the fix: `make check` exit 0; `make test-plugin` 31 tests, 30 pass, 1 skipped.
 Round 6 is earned by D27 (a test that could not fire).
+
+## Round 6 (verification, Codex alone, diff 4370b4eb..a1775b95)
+
+timings: codex 197s (46,884 tokens). "No BUG/RISK/NIT findings." The rounds end here.
+Checks at a1775b95: `make check` exit 0; `make test-plugin` 31 tests, 30 pass, 1 skipped.
+
+Gate total: 6 rounds and a final full read, 27 findings (D1-D27), every BUG fixed; open:
+D4/D17 (the listing, checked after the first release once listed) and D21's branch rule
+(the maintainer's setting, BUGLOG). Reviewer tokens about 846,000 (the cost log's 766,647
+for rounds 1-6 with fresh-eyes and the full read, plus round 1's first Codex run, 79,882,
+logged under an earlier gate id). Degraded pair throughout: no GLM 5.3 (melious balance 0).
