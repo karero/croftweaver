@@ -6,7 +6,7 @@ Nothing here is built. The plan waits for the plan review gate and then the main
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-24 | this file |
 | 2 | Plan review gate (High: a workflow that pushes what users install) | ✅ 5 rounds, 48 findings, no BUG open; final full read (6 more); wording pass and its confirmation | `docs/reviews/REVIEW-plan-2026-10-24-directory-plugin-folder.md` |
-| 3 | Trial: one slim branch pushed by hand, Validate run on it | ⏳ branch pushed 2026-10-24 on the maintainer's go; Validate not yet run | `directory` at `c88e1ef5` (parent `9bae3ea0`, the tree as planned); `c88e1ef5` leaves out `independent-review` (223 files) |
+| 3 | Trial: one slim branch pushed by hand, Validate run on it | ✅ 2026-10-24: **Validation passed** in about 20 s (`ValidatePlugin` 200): 7 checks, 0 Blocking, 9 warnings (8 download-and-run, mostly docs; no icon), 26 policy holds (16 "uses a credential from the user's machine", 10 for `og/default.jpg` named by code). Unpinned `npx` did not block. Draft cleared, nothing submitted | `directory` at `c88e1ef5` (parent `9bae3ea0`, the tree as planned); `c88e1ef5` leaves out `independent-review` (223 files) |
 | 4 | Build: script, test, workflow step (one PR) | ⬜ only if step 3 gets a report | — |
 | 5 | Fix what step 3's report marks Blocking (likely the `npx` lines), and the README section on what the skills contact, each its own PR | ⬜ | — |
 | 6 | Directory form steps 2 to 5, then submit | ⬜ the maintainer's | — |
