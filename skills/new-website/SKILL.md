@@ -107,7 +107,8 @@ non-expert can answer, and record the answers in the project `README.md`.
    - Visitors only read; contact is an email link, or a contact form that
      opens the visitor's own mail program → **Tier 1 static** (~90% of sites).
      A contact form: run **`website-contact-form`**, our suggestion (no server,
-     no account, no setting).
+     no account, no setting). Photos that rotate by themselves, with dots: run
+     **`website-hero-carousel`** (optional, on request; one strong photo is often better).
    - Exactly one small server task — site search, hiding a third-party API
      key, one live widget (e.g. a next-event box fed by an API), a form that
      must send through a server → **Tier 2** (one Pages Function or server
@@ -584,6 +585,8 @@ full path (the output of `pwd` inside it):
    cp -RL "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
    # If Q2 = a contact form:
    cp -RL "$SKILLS_ROOT"/website-contact-form "$PROJECT_SKILLS_DIR"/
+   # If the owner wants photos that rotate by themselves (not an interview question: on request):
+   cp -RL "$SKILLS_ROOT"/website-hero-carousel "$PROJECT_SKILLS_DIR"/
    ```
 
    **Sanity check** (always, once all copying above — the primary batch AND

@@ -1,0 +1,125 @@
+---
+// A photo place whose photos take turns by themselves, with one dot per photo (the
+// website-hero-carousel skill). What the server sends is every slide, one under the other,
+// and controls that are `hidden`; public/js/hero-carousel.js, a file of the site's own
+// (so a strict Content-Security-Policy, script-src 'self', lets it run), puts the slides in
+// one place, shows the controls and sets data-ready. With no JavaScript, or with that script
+// failing, the visitor keeps the plain list of photos and meets no dead button.
+//
+//   <HeroCarousel label="Photos of our work" slides={[
+//     { image: photo1, alt: 'What the photo shows', label: 'The old mill', href: '/projects/mill' },
+//     { image: photo2, alt: '…', label: '…' },
+//   ]} />
+//
+// `slides`:   two or more. `image` an imported photo (ImageMetadata), `alt` what it shows (a
+//             sentence, not a file name), `label` a short name for its dot ("The old mill"),
+//             `href` optional: the photo then links there. No caption, no credit: a caption
+//             on one slide only makes the page jump when the photo changes; credits belong on
+//             the site's image-credit page.
+// `label`:    what the whole carousel is, for a screen reader. Required.
+// `pause`:    "button" (default) shows a Pause / Resume button beside the dots. "dots" shows no
+//             button: choosing a dot stops the rotation until the visitor reloads, which is
+//             likely a mechanism in the sense of WCAG 2.2.2 but is not discoverable (SKILL.md, "Pause").
+// `swap`:     "instant" (default) or "fade" (about one second; none for visitors who ask for
+//             less motion).
+// `intervalMs`: how long a photo stays (default 6000).
+// `ratio`:    the shape of the photo place, CSS aspect-ratio (default "16 / 9"). Every photo is
+//             cropped to it (object-fit: cover), so none can change the height.
+// `lang`:     overrides the language. Default: the page's own (Base.astro hands it down).
+//
+// Once per page: its ids and the script's selectors are fixed.
+import { Picture } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import { TEXT, hasText } from './hero-carousel-text';
+
+interface Slide { image: ImageMetadata; alt: string; label: string; href?: string }
+interface Props {
+  slides: Slide[]; label: string; pause?: 'button' | 'dots'; swap?: 'instant' | 'fade';
+  intervalMs?: number; ratio?: string; lang?: string;
+}
+const { slides, label, pause = 'button', swap = 'instant', intervalMs = 6000, ratio = '16 / 9' } = Astro.props;
+if (!Array.isArray(slides) || slides.length < 2) {
+  throw new Error('HeroCarousel: pass slides={[…]} with two or more slides (the website-hero-carousel skill, §2). One photo needs no carousel.');
+}
+if (!label) throw new Error('HeroCarousel: pass label="…", what the carousel is, for a screen reader (the website-hero-carousel skill, §2).');
+if (pause !== 'button' && pause !== 'dots') throw new Error(`HeroCarousel: pause is "button" or "dots", not "${pause}".`);
+if (swap !== 'instant' && swap !== 'fade') throw new Error(`HeroCarousel: swap is "instant" or "fade", not "${swap}".`);
+if (!(intervalMs >= 2000)) throw new Error('HeroCarousel: intervalMs below 2000 is too fast to read a photo (the default is 6000).');
+for (const [i, s] of slides.entries()) {
+  if (!s.alt || s.alt.trim().length < 10) throw new Error(`HeroCarousel: slide ${i + 1} has no alt text of its own: say what the photo shows.`);
+  if (!s.label) throw new Error(`HeroCarousel: slide ${i + 1} has no label, the short name of its dot.`);
+}
+const pageLang = Astro.props.lang ?? Astro.locals.lang ?? Astro.currentLocale;
+if (!pageLang) {
+  throw new Error('HeroCarousel: no language for this page. Add `Astro.locals.lang = lang;` after the props in src/layouts/Base.astro, or pass lang="…" (the website-hero-carousel skill, §2).');
+}
+const language = pageLang.toLowerCase().split('-')[0];
+if (!hasText(language)) {
+  throw new Error(`HeroCarousel: no texts for the language "${language}". Add it to src/components/hero-carousel-text.ts (the website-hero-carousel skill, "Add a language").`);
+}
+const t = TEXT[language];
+const n = slides.length;
+---
+<section class="hc" id="hero-carousel" lang={language} aria-roledescription="carousel" aria-label={label}
+  data-hero-carousel data-interval={intervalMs} data-pause={pause} data-swap={swap} style={`--hc-ratio: ${ratio};`}>
+  <div class="hc-slides" aria-live="off">
+    {slides.map((slide, i) => (
+      <div class="hc-slide" role="group" aria-roledescription="slide" aria-label={t.slide(i + 1, n)} data-hc-slide={i}>
+        {slide.href ? (
+          <a href={slide.href}>
+            <Picture src={slide.image} alt={slide.alt} formats={['avif']} fallbackFormat="webp" widths={[800, 1200, 1600, 2400]}
+              sizes="100vw" loading="eager" fetchpriority={i === 0 ? 'high' : 'low'} />
+          </a>
+        ) : (
+          <Picture src={slide.image} alt={slide.alt} formats={['avif']} fallbackFormat="webp" widths={[800, 1200, 1600, 2400]}
+            sizes="100vw" loading="eager" fetchpriority={i === 0 ? 'high' : 'low'} />
+        )}
+      </div>
+    ))}
+  </div>
+  {/* The controls are not inside a link: a tap on a dot cannot open a project, a tap beside them does. */}
+  <div class="hc-controls" hidden>
+    {pause === 'button' && (
+      <button type="button" class="hc-toggle" data-hc-toggle data-pause-text={t.pause} data-resume-text={t.resume}>{t.pause}</button>
+    )}
+    {slides.map((slide, i) => (
+      <button type="button" class="hc-dot" data-hc-pick={i} aria-label={t.photo(i + 1, n, slide.label)}></button>
+    ))}
+  </div>
+</section>
+<script is:inline src="/js/hero-carousel.js" defer></script>
+
+<style>
+  .hc { position: relative; background: var(--bg-soft, #f5f7fb); }
+  .hc-slide :global(img) { display: block; width: 100%; height: auto; aspect-ratio: var(--hc-ratio, 16 / 9); object-fit: cover; }
+  .hc-slide a { display: block; }
+  .hc-controls[hidden] { display: none; }
+  /* ready: all slides in one cell, so the place is as tall as its tallest slide and cannot jump; the one not on show keeps its space but is not seen, reached or announced */
+  .hc[data-ready] .hc-slides { display: grid; }
+  .hc[data-ready] .hc-slide { grid-area: 1 / 1; opacity: 0; visibility: hidden; }
+  .hc[data-ready] .hc-slide[data-active] { opacity: 1; visibility: visible; }
+  /* a slide that is fading out must not take a click meant for the one on show (it would open the wrong link) */
+  .hc[data-ready] .hc-slide { pointer-events: none; }
+  .hc[data-ready] .hc-slide[data-active] { pointer-events: auto; }
+  .hc[data-live][data-swap='fade'] .hc-slide { transition: opacity 1s ease, visibility 0s linear 1s; }
+  .hc[data-live][data-swap='fade'] .hc-slide[data-active] { transition: opacity 1s ease, visibility 0s; }
+  @media (prefers-reduced-motion: reduce) { .hc[data-live][data-swap='fade'] .hc-slide, .hc[data-live][data-swap='fade'] .hc-slide[data-active] { transition: none; } }
+  /* On a pale part of a photo white dots vanish, so the controls sit on a dark pill: even over pure white it gives the white Pause text 5:1 (4.5:1 is the bar for text this small). */
+  .hc-controls {
+    position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 1;
+    display: flex; align-items: center; border-radius: 999px; background: rgba(18, 33, 40, 0.65); color: #fff;
+  }
+  .hc-toggle { min-height: 2rem; padding: 0 0.9rem 0 1rem; font: inherit; font-size: 0.875rem; color: #fff; background: transparent; border: 0; cursor: pointer; }
+  .hc-toggle:focus-visible { outline: 2px solid #fff; outline-offset: -4px; border-radius: 999px; }
+  /* a 32 px target (44 px on touch screens) around a 10 px white dot */
+  .hc-dot { position: relative; width: 2rem; height: 2rem; padding: 0; background: transparent; border: 0; cursor: pointer; }
+  @media (pointer: coarse) { .hc-dot { width: 2.75rem; height: 2.75rem; } .hc-toggle { min-height: 2.75rem; } .hc-controls { bottom: 0.75rem; } }
+  .hc-dot::before {
+    content: ''; position: absolute; top: 50%; left: 50%; width: 0.625rem; height: 0.625rem; transform: translate(-50%, -50%);
+    box-sizing: border-box; border-radius: 50%; border: 1px solid #fff; background: rgba(255, 255, 255, 0.35);
+  }
+  /* the photo on show: solid white, and a thick border as well, so it still differs where forced colours remove the fill */
+  .hc-dot[aria-current='true']::before { background: #fff; border-width: 5px; }
+  .hc-dot:focus-visible { outline: none; }
+  .hc-dot:focus-visible::before { outline: 2px solid #fff; outline-offset: 3px; }
+</style>
