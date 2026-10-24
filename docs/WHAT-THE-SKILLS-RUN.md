@@ -119,7 +119,7 @@ Two more name a few commands:
 ### Skills that run the site's own build and tests
 
 `website-content-guide`, `website-positioning`, `website-story`, `website-tagline`,
-`website-testimonials`, `astro-i18n-setup`, `website-positioning-check`, `website-qa`,
+`website-testimonials`, `website-launch-check`, `astro-i18n-setup`, `website-positioning-check`, `website-qa`,
 `website-review`, `internal-link-audit`, `og-images`, `website-seo-geo`, `double-knuth`,
 `website-contact-form`, `website-hero-carousel`, `website-scorecard` and `website-brand-kit` run commands such as
 `npm run build`, `npm test`, `npm run verify`, `npm run og`, `git status`, `git log` and
@@ -160,7 +160,7 @@ an "Email Tap" event there, as a click on an email address does.
 ### Skills that run scripts
 
 - **`new-website`** creates the site folder (in the folder you confirm), runs `git init`,
-  `npm create astro@latest`, copies the templates and 27 skills into the site, and runs the
+  `npm create astro@latest`, copies the templates and 28 skills into the site, and runs the
   build and tests. For Cloudflare it uses `npx wrangler pages project create` and
   `npx wrangler pages deploy` with a token you make, or `npx wrangler login`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
@@ -191,6 +191,12 @@ an "Email Tap" event there, as a click on an email address does.
   separate question for each; deleting a branch rule needs your go-ahead.
 - **`keystatic-setup`** (only if you chose a content editor) installs `@keystatic/core` and
   `@keystatic/astro` with npm and runs `npx astro add react markdoc`.
+- **`website-launch-check`** runs the site's build and tests, then `report_html.py`, which turns
+  each launch report's Markdown in `docs/launch/` into an HTML page beside it. That script reads
+  and writes only those files and makes no network call. For a site that replaces an older one,
+  the assistant reads the old site's public `sitemap.xml`; at the optional live re-check it reads
+  the new site's live pages, only once its production build is Active. PageSpeed numbers come
+  from your own runs, which you paste in.
 - **`facts-check`** runs `facts_check.py`, which reads your site's public pages and its
   sitemap and compares facts across them. It changes none of your pages; where the site has
   an `analytics/` folder, its report is saved there.
@@ -284,7 +290,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | ollama.com | `independent-review` | your `OLLAMA_API_KEY` or `ollama signin` | sends the plan or code change |
 | melious.ai | `independent-review`, only when a model is named for it | your `MELIOUS_API_KEY` | sends the plan or code change |
 | Google Antigravity | `independent-review`, only when you ask for it | your Antigravity sign-in | sends the plan or code change |
-| Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs` | none | reads only |
+| Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs`, `website-launch-check` (the old site's sitemap in a relaunch, the live site at the re-check) | none | reads only |
 | docs.astro.build, developers.cloudflare.com, keystatic.com | the assistant, when it looks up documentation (allowed without asking in Claude Code) | none | reads only |
 | Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured. In server mode the site's Cloudflare Function sends instead, from Cloudflare: per page view the page address, the referrer, the visitor's user agent and IP; per email tap the event name and the page (measured in a trial, 2026-10-15), plus the visitor's user agent and IP (read from the code). The contact form's button is not counted then |
 

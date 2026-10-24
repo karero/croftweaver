@@ -453,6 +453,11 @@ skills/            the suite skills (canonical)
                    the owner six to eight lines, the owner picks one: TAGLINE.md +
                    SITE.tagline, and an opt-in tagline.spec.ts for a site that shows
                    the line; the skill is copied to every site, never runs unasked)
+  website-launch-check (the launch check: runs the site's tests first, checks only what
+                   they cannot, and writes a dated report with a verdict to docs/launch/,
+                   Markdown plus a self-contained HTML page; for a site that replaces an
+                   older one also the current-vs-new comparison with its redirect map;
+                   run at new-website's steps 5a, 10c and 12a, copied to every site)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)

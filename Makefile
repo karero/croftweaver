@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test test-facts test-agy-release test-brand-kit test-wordpress-inventory test-cloudflare-check test-create test-plugin test-codex-plugin smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts test-agy-release test-brand-kit test-wordpress-inventory test-launch-check test-cloudflare-check test-create test-plugin test-codex-plugin smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -58,6 +58,9 @@ test-brand-kit: ## run the website-brand-kit tests (standard library only). The 
 
 test-wordpress-inventory: ## run the wordpress-inspector tests, the count and the move check (standard library only; stub sites on 127.0.0.1, no real requests)
 	@$(PYTHON) -m unittest discover -s skills/wordpress-inspector/scripts/tests
+
+test-launch-check: ## run the website-launch-check tests, the report-page script (standard library only; no network)
+	@$(PYTHON) -m unittest discover -s skills/website-launch-check/scripts/tests
 
 NODE ?= node
 test-cloudflare-check: ## run the tests of the Cloudflare check and of the Cloudflare setup script (Node 18+ and git, standard library only; stub sites, a stub of Cloudflare's API and a stub nameserver on 127.0.0.1, no real requests; one test waits out the setup script's 55-second deadline)
