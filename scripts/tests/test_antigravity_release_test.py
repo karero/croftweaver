@@ -18,6 +18,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+import importlib.util
 import zipfile
 
 TOOL = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "antigravity_release_test.py")
@@ -36,7 +37,8 @@ SKILL_MD = '''# New website (fixture)
 PACKAGE = {"name": "site", "private": True, "scripts": {
     "build": "node -e \"0\"",
     "test": "node -e \"process.exit(require('fs').existsSync('FAIL') ? 1 : 0)\""}}
-HELPERS = "export const PAGES = [\n  '/',\n];\nexport const THEMES = ['light', 'dark'];\n"
+HELPERS = ("export const PAGES = [\n  '/',\n  '/impressum',  // non-DE/AT/CH sites delete it\n"
+           "  // '/about',\n] as const;\nexport const THEMES = ['light', 'dark'];\n")
 
 STUB = r'''#!/usr/bin/env python3
 import json, os, shutil, sys
@@ -71,7 +73,8 @@ def result(status, response="", error=None):
 emit({"event": "init", "conversation_id": "c1"})
 if scenario == "not_run":
     result("ERROR", error="Your AI credits balance is too low to continue."); sys.exit(3)
-tool("view_file", {"AbsolutePath": skill})
+if scenario != "reply_only":
+    tool("view_file", {"AbsolutePath": skill})
 if scenario == "global_read":
     tool("view_file", {"AbsolutePath": os.path.join(os.environ["HOME"], ".gemini", "config", "skills", "new-website", "SKILL.md")})
 if scenario == "error_after_tool":
@@ -81,13 +84,17 @@ reply = ("I loaded %s. Is this your websites folder? 1. Pages: what does the sit
          "5. Analytics? 6. Domain and publish model?" % skill)
 if scenario == "secret":
     reply += " token ghp_" + "a" * 30
+if scenario == "one_question":
+    reply = "Is %s your websites folder? First question: what pages should the site have?" % ws
 result("SUCCESS", reply)
 if len(turns) == 1:
-    sys.exit(0)
+    sys.exit(7 if scenario == "exit7" else 0)
 # full run: scaffold the site as new-website section 3 does
 site = os.path.join(ws, "linden-bakery")
 tpl = os.path.join(ws, ".agents", "skills", "new-website", "templates")
 os.makedirs(os.path.join(site, ".agents", "skills"))
+import subprocess
+subprocess.run(["git", "init", "-q", site], check=True)
 for f in (".gitignore", "SETUP.md", "PUBLISHING.md", "AGENTS.md", "CLAUDE.md"):
     shutil.copy(os.path.join(tpl, f), site)
 names = ["website-a", "website-brand-kit"]
@@ -101,6 +108,8 @@ for f in ("package.json", "playwright.config.ts"):
 shutil.copytree(os.path.join(tpl, "astro", "tests"), os.path.join(site, "tests"))
 with open(os.path.join(site, "tests", "_helpers.ts")) as f:
     helpers = f.read().replace("  '/',\n", "  '/',\n  '/about',\n")
+if scenario == "drop_impressum":
+    helpers = "\n".join(l for l in helpers.split("\n") if "/impressum" not in l)
 with open(os.path.join(site, "tests", "_helpers.ts"), "w") as f:
     f.write(helpers)
 if scenario == "tamper":
@@ -132,7 +141,33 @@ def write(path, text):
         f.write(text)
 
 
-@unittest.skipUnless(shutil.which("git") and shutil.which("npm") and shutil.which("node"), "needs git, node and npm")
+HAVE_TOOLS = bool(shutil.which("git") and shutil.which("npm") and shutil.which("node"))
+if not HAVE_TOOLS and os.environ.get("REQUIRE_AGY_TEST_TOOLS"):
+    raise SystemExit("git, node and npm are required here (REQUIRE_AGY_TEST_TOOLS is set)")
+
+
+class RealTranscript(unittest.TestCase):
+    """The checks read events in the shape agy 1.4.2 really wrote: an excerpt of the 0.32 trial."""
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("agytest", TOOL)
+        self.t = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.t)
+        here = os.path.dirname(os.path.abspath(__file__))
+        self.results, self.tools = self.t.parse(os.path.join(here, "fixtures", "agy-1.4.2-excerpt.ndjson"))
+
+    def test_the_trial_reads_as_it_happened(self):
+        self.assertEqual([r.get("status") for r in self.results], ["SUCCESS"] * 3)
+        ok, _ = self.t.check_discovery(self.results, self.tools, "/W/websites/.agents/skills/new-website/SKILL.md")
+        self.assertTrue(ok, "agy read the workspace copy")
+        self.assertTrue(self.t.check_interview(self.results)[0])
+        ok, detail = self.t.first_npm_test(self.tools)
+        self.assertFalse(ok, "the trial's first npm test failed on robots.txt")
+        self.assertIn("1 failed", detail)
+        self.assertEqual(self.t.workarounds(self.tools), [], "a deny-rule refusal is not a workaround")
+
+
+@unittest.skipUnless(HAVE_TOOLS, "needs git, node and npm")
 class ReleaseTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -270,6 +305,17 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(self.credited("short", "global_read"), 1, self.stdout)
         self.assertIn("2. Discovery (sees new-website):   FAIL", self.report())
 
+    def test_a_path_only_named_in_the_reply_is_not_a_read(self):
+        self.assertEqual(self.credited("short", "reply_only"), 1, self.stdout)
+        self.assertIn("no successful read of the workspace copy", self.report())
+
+    def test_an_interview_that_starts_with_one_question_passes(self):
+        self.assertEqual(self.credited("short", "one_question"), 0, self.stdout)
+
+    def test_agy_failing_after_its_turns_is_a_failure(self):
+        self.assertEqual(self.credited("short", "exit7"), 1, self.stdout)
+        self.assertIn("exit 7", self.report())
+
     def test_no_turn_and_no_tool_is_not_run(self):
         self.assertEqual(self.credited("short", "not_run"), 3, self.stdout)
         self.assertIn("credits balance is too low", self.report())
@@ -293,7 +339,7 @@ class ReleaseTest(unittest.TestCase):
         self.assertIn("not tested (deny rule: git commit)", rep)
         self.assertNotIn("git commit -m init", rep, "a deny-rule refusal is not a failed command")
         run = [c for c in self.calls() if "stream-json" in c][0]
-        self.assertNotIn("--sandbox", run, "the full test needs npm's network")
+        self.assertNotIn("--sandbox", run, "the full test runs unsandboxed: a real site's npm install needs the network")
 
     def test_a_first_npm_test_that_failed_fails_even_when_repaired(self):
         self.assertEqual(self.credited("full", "first_fail"), 1, self.stdout)
@@ -313,6 +359,9 @@ class ReleaseTest(unittest.TestCase):
     def test_files_written_beside_the_site_fail_the_scaffold(self):
         self.assertEqual(self.credited("full", "stray"), 1, self.stdout)
         self.assertIn("not one new folder", self.report())
+
+    def test_dropping_a_page_the_template_marks_deletable_is_allowed(self):
+        self.assertEqual(self.credited("full", "drop_impressum"), 0, self.stdout)
 
     def test_a_skill_left_out_of_the_copy_fails_the_scaffold(self):
         self.assertEqual(self.credited("full", "missing_skill"), 1, self.stdout)

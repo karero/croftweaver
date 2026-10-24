@@ -421,6 +421,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Run the Antigravity release-test tests (stub agy, fixture release)
+        env:
+          REQUIRE_AGY_TEST_TOOLS: "1"  # missing git, node or npm fails here instead of skipping
         run: make test-agy-release PYTHON=python
   cloudflare-check-tests:
     # Node's standard library only, so nothing is installed. 18 is the oldest Node the scripts

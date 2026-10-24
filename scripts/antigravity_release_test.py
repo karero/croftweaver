@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run docs/ANTIGRAVITY-TEST.md through the agy CLI, unattended, against a release zip.
+"""A scripted run of the docs/ANTIGRAVITY-TEST.md checklist through the agy CLI, unattended, against a release zip.
 
 Maintainer tool for the release runbook; not shipped in the zip. Standard library only.
 
@@ -207,7 +207,10 @@ def run_group(cmd, cwd, stdin_path, stdout_path, stderr_path, deadline):
         try:
             return p.wait(timeout=deadline)
         except subprocess.TimeoutExpired:
-            os.killpg(p.pid, signal.SIGKILL)
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
             p.wait()
             return None
 
@@ -221,7 +224,7 @@ def usage_text(agy, cwd):
 
 
 def parse(transcript):
-    """Results in order, and the last state of every tool step."""
+    """Results in order, and every tool step in the order first seen, with its last state."""
     results, tools = [], {}
     with open(transcript, errors="replace") as f:
         for line in f:
@@ -235,8 +238,7 @@ def parse(transcript):
             if ev.get("event") == "step_update" and isinstance(su, dict) and su.get("step_type") == "tool":
                 key = (su.get("conversation_id"), su.get("step_index"))
                 tools[key] = su
-    ordered = [tools[k] for k in sorted(tools, key=lambda k: (str(k[0]), k[1] if isinstance(k[1], int) else -1))]
-    return results, ordered
+    return results, list(tools.values())  # first-seen order; each step holds its last state
 
 
 def tool_param(step, name):
@@ -246,7 +248,7 @@ def tool_param(step, name):
 
 def tool_output(step):
     info = step.get("tool_info") or {}
-    return str(info.get("output", "")) + json.dumps(info.get("error", ""))
+    return str(info.get("output", "")) + (json.dumps(info["error"]) if info.get("error") else "")
 
 
 # ---------------------------------------------------------------- checks
@@ -265,10 +267,14 @@ def check_discovery(results, tools, ws_skill):
              if s.get("tool_name") == "run_command" and ".gemini/config/skills" in tool_param(s, "CommandLine")]
     real = os.path.realpath(ws_skill)
     other = sorted(p for p in seen if os.path.realpath(p) != real)
-    ok = bool(seen) and not other and not shell
+    read = any(s.get("tool_name") == "view_file" and s.get("state") == "DONE"
+               and os.path.realpath(tool_param(s, "AbsolutePath")) == real for s in tools)
+    ok = read and not other and not shell
     detail = "read %s" % (", ".join(sorted(seen)) or "no new-website/SKILL.md")
     if shell:
         detail += "; a shell command named .gemini/config/skills"
+    if not read:
+        detail += "; no successful read of the workspace copy"
     return ok, detail
 
 
@@ -278,11 +284,13 @@ TOPICS = {"pages": r"page|sitemap", "server": r"tier|server|backend|static|dynam
 
 
 def check_interview(results):
+    """The interview has started: turn 1 succeeded and asks a question on an interview topic."""
     if not results or results[0].get("status") != "SUCCESS":
         return False, "turn 1 did not succeed"
     reply = (results[0].get("response") or "").lower()
     found = [k for k, rx in TOPICS.items() if re.search(rx, reply)]
-    return len(found) >= 5, "%d of 6 question topics named (%s)" % (len(found), ", ".join(found))
+    ok = bool(found) and "?" in reply
+    return ok, "%d of 6 question topics named (%s)%s" % (len(found), ", ".join(found), "" if "?" in reply else "; no question asked")
 
 
 def check_scaffold(websites, release, since):
@@ -325,9 +333,16 @@ def check_scaffold(websites, release, since):
     return not problems, detail + ("; " + "; ".join(problems) if problems else ""), site, deviations
 
 
-def pages(text):
+def pages(text, required_only=False):
+    """The routes in tests/_helpers.ts PAGES; with required_only, not those marked to delete."""
     m = re.search(r"export const PAGES\s*=\s*\[(.*?)\]", text, re.S)
-    return {a or b for a, b in re.findall(r"'([^']*)'|\"([^\"]*)\"", m.group(1))} if m else set()
+    out = set()
+    for line in (m.group(1).splitlines() if m else []):
+        code, _, comment = line.partition("//")
+        if required_only and "delete" in comment:
+            continue
+        out |= {a or b for a, b in re.findall(r"'([^']*)'|\"([^\"]*)\"", code)}
+    return out
 
 
 def check_untouched(site, release):
@@ -358,7 +373,7 @@ def check_untouched(site, release):
         strip = lambda t: re.sub(r"export const PAGES\s*=\s*\[.*?\]", "", t, count=1, flags=re.S)
         if strip(sh) != strip(th):
             changes.append("tests/_helpers.ts outside PAGES")
-        if not pages(th) <= pages(sh):
+        if not pages(th, required_only=True) <= pages(sh):
             changes.append("tests/_helpers.ts PAGES lacks template pages")
     except OSError:
         changes.append("tests/_helpers.ts missing")
@@ -366,13 +381,19 @@ def check_untouched(site, release):
 
 
 def first_npm_test(tools):
+    """agy's first finished npm test: it passed when it reports passes and no failures."""
     for s in tools:
-        if s.get("tool_name") == "run_command" and re.search(r"\bnpm (run )?test\b|playwright test", tool_param(s, "CommandLine")):
-            out = tool_output(s)
-            failed = re.search(r"(\d+) failed", out)
-            if s.get("state") == "ERROR" or failed:
-                return False, "agy's first npm test failed (%s)" % (failed.group(0) if failed else "error")
+        cmd = tool_param(s, "CommandLine")
+        if s.get("tool_name") != "run_command" or s.get("state") not in ("DONE", "ERROR"):
+            continue
+        if not re.search(r"(?:^|&&|;|\|\|)\s*(?:npm (?:run )?test|npx playwright test)\b", cmd):
+            continue
+        out = tool_output(s)
+        failed = sum(int(n) for n in re.findall(r"\b(\d+) failed\b", out))
+        passed = re.search(r"\b\d+ passed\b", out)
+        if s.get("state") == "DONE" and not failed and passed:
             return True, "agy's first npm test passed"
+        return False, "agy's first npm test failed (%s)" % ("%d failed" % failed if failed else "no passing summary")
     return False, "agy never ran npm test"
 
 
@@ -403,8 +424,10 @@ def leftovers(root):
     for line in r.stdout.decode(errors="replace").splitlines():
         if line.startswith("p"):
             pid = int(line[1:])
-        elif line.startswith("n") and pid and pid != os.getpid() and line[1:].startswith(os.path.realpath(root)):
-            found.append(pid)
+        elif line.startswith("n") and pid and pid != os.getpid():
+            base, cwd = os.path.realpath(root), os.path.realpath(line[1:])
+            if os.path.commonpath([base, cwd]) == base:
+                found.append(pid)
     for p in found:
         try:
             os.kill(p, signal.SIGKILL)
@@ -541,6 +564,8 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
             else:
                 ok_n, d_n, tail = npm_runs(site, staging)
                 lines.append("6. Generated site build + tests:   %s — %s" % ("PASS" if ok_n else "FAIL", d_n))
+                if tail:
+                    lines += ["   | " + t for t in tail.strip().splitlines()[-8:]]
                 fails += [] if ok_n else ["build/tests"]
             ok_f, d_f = first_npm_test(tools)
             lines.append("   Green from the first try:       %s — %s" % ("PASS" if ok_f else "FAIL", d_f))
@@ -549,8 +574,17 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
             lines.append("   Permissions sanity:             %s — .claude/settings.json %s; website-permissions not tested"
                          % ("PASS" if perm else "FAIL", "not copied" if perm else "copied"))
             fails += [] if perm else ["permissions"]
-            n = subprocess.run(["git", "-C", site or root, "rev-list", "--count", "HEAD"], capture_output=True).stdout.decode().strip() or "0"
-            lines.append("   Commit:                         %s" % ("not tested (deny rule: git commit)" if n == "0" and deny["git commit"] else "%s commit(s)" % n))
+            g = subprocess.run(["git", "-C", site or root, "rev-parse", "--show-toplevel"], capture_output=True)
+            n = subprocess.run(["git", "-C", site or root, "rev-list", "--count", "HEAD"], capture_output=True)
+            count = n.stdout.decode().strip() if n.returncode == 0 else "0"
+            if not site or g.returncode != 0 or os.path.realpath(g.stdout.decode().strip()) != os.path.realpath(site):
+                commit = "FAIL — the site is not a git repository"
+                fails.append("git")
+            elif count == "0" and deny["git commit"]:
+                commit = "not tested (deny rule: git commit)"
+            else:
+                commit = "%s commit(s)" % count
+            lines.append("   Commit:                         %s" % commit)
             for dv in deviations:
                 lines.append("   Deviation:                      %s" % dv)
         else:
@@ -560,9 +594,9 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         lines.append("7. Subagents (async research/seo): %s" % ("YES" if sub else "NO"))
         for w in workarounds(tools):
             lines.append("   Command that failed:            %s" % w)
-        if succeeded < len(sent):
+        if succeeded < len(sent) or rc != 0:
             fails.append("agy stopped after %d of %d turns" % (succeeded, len(sent)))
-            lines.append("   agy stopped after %d of %d turns (exit %s)" % (succeeded, len(sent), rc))
+            lines.append("   agy stopped after %d of %d turns (%s)" % (succeeded, len(sent), "timed out" if rc is None else "exit %s" % rc))
         if code == 0 and fails:
             code = 1
 
