@@ -284,13 +284,13 @@ TOPICS = {"pages": r"page|sitemap", "server": r"tier|server|backend|static|dynam
 
 
 def check_interview(results):
-    """The interview has started: turn 1 succeeded and asks a question on an interview topic."""
+    """The interview has started: turn 1 succeeded and one of its questions is on an interview topic."""
     if not results or results[0].get("status") != "SUCCESS":
         return False, "turn 1 did not succeed"
     reply = (results[0].get("response") or "").lower()
-    found = [k for k, rx in TOPICS.items() if re.search(rx, reply)]
-    ok = bool(found) and "?" in reply
-    return ok, "%d of 6 question topics named (%s)%s" % (len(found), ", ".join(found), "" if "?" in reply else "; no question asked")
+    questions = re.findall(r"[^?.!\n]*\?", reply)
+    found = [k for k, rx in TOPICS.items() if any(re.search(rx, q) for q in questions)]
+    return bool(found), "%d of 6 interview topics asked about (%s)" % (len(found), ", ".join(found) or "none")
 
 
 def check_scaffold(websites, release, since):
@@ -333,16 +333,15 @@ def check_scaffold(websites, release, since):
     return not problems, detail + ("; " + "; ".join(problems) if problems else ""), site, deviations
 
 
-def pages(text, required_only=False):
-    """The routes in tests/_helpers.ts PAGES; with required_only, not those marked to delete."""
+def pages_lines(text):
+    """The stripped lines inside tests/_helpers.ts's PAGES array (None when there is none)."""
     m = re.search(r"export const PAGES\s*=\s*\[(.*?)\]", text, re.S)
-    out = set()
-    for line in (m.group(1).splitlines() if m else []):
-        code, _, comment = line.partition("//")
-        if required_only and "delete" in comment:
-            continue
-        out |= {a or b for a, b in re.findall(r"'([^']*)'|\"([^\"]*)\"", code)}
-    return out
+    return [l.strip() for l in m.group(1).splitlines() if l.strip()] if m else None
+
+
+def required_pages(text):
+    """Template PAGES lines a site must keep unchanged: not comments, not marked to delete."""
+    return [l for l in pages_lines(text) or [] if not l.startswith("//") and "delete" not in l]
 
 
 def check_untouched(site, release):
@@ -373,8 +372,10 @@ def check_untouched(site, release):
         strip = lambda t: re.sub(r"export const PAGES\s*=\s*\[.*?\]", "", t, count=1, flags=re.S)
         if strip(sh) != strip(th):
             changes.append("tests/_helpers.ts outside PAGES")
-        if not pages(th, required_only=True) <= pages(sh):
-            changes.append("tests/_helpers.ts PAGES lacks template pages")
+        site_lines = pages_lines(sh) or []
+        missing = [l for l in required_pages(th) if l not in site_lines]
+        if pages_lines(sh) is None or missing:
+            changes.append("tests/_helpers.ts PAGES lacks or changed: %s" % (", ".join(missing) or "the whole list"))
     except OSError:
         changes.append("tests/_helpers.ts missing")
     return changes
@@ -384,13 +385,15 @@ def first_npm_test(tools):
     """agy's first finished npm test: it passed when it reports passes and no failures."""
     for s in tools:
         cmd = tool_param(s, "CommandLine")
-        if s.get("tool_name") != "run_command" or s.get("state") not in ("DONE", "ERROR"):
+        if s.get("tool_name") != "run_command" or "deny rule" in tool_output(s):
             continue
-        if not re.search(r"(?:^|&&|;|\|\|)\s*(?:npm (?:run )?test|npx playwright test)\b", cmd):
+        if not re.search(r"(?:^|&&|;|\|\||\n)\s*(?:npm (?:run )?test|npx playwright test)\b", cmd):
             continue
+        if s.get("state") not in ("DONE", "ERROR"):
+            return False, "agy's first npm test did not finish (%s)" % s.get("state")
         out = tool_output(s)
         failed = sum(int(n) for n in re.findall(r"\b(\d+) failed\b", out))
-        passed = re.search(r"\b\d+ passed\b", out)
+        passed = sum(int(n) for n in re.findall(r"\b(\d+) passed\b", out))
         if s.get("state") == "DONE" and not failed and passed:
             return True, "agy's first npm test passed"
         return False, "agy's first npm test failed (%s)" % ("%d failed" % failed if failed else "no passing summary")
@@ -424,7 +427,7 @@ def leftovers(root):
     for line in r.stdout.decode(errors="replace").splitlines():
         if line.startswith("p"):
             pid = int(line[1:])
-        elif line.startswith("n") and pid and pid != os.getpid():
+        elif line.startswith("n") and len(line) > 1 and pid and pid != os.getpid():
             base, cwd = os.path.realpath(root), os.path.realpath(line[1:])
             if os.path.commonpath([base, cwd]) == base:
                 found.append(pid)
@@ -576,9 +579,13 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
             fails += [] if perm else ["permissions"]
             g = subprocess.run(["git", "-C", site or root, "rev-parse", "--show-toplevel"], capture_output=True)
             n = subprocess.run(["git", "-C", site or root, "rev-list", "--count", "HEAD"], capture_output=True)
+            unborn = n.returncode != 0 and re.search(r"ambiguous argument 'HEAD'|unknown revision", n.stderr.decode())
             count = n.stdout.decode().strip() if n.returncode == 0 else "0"
             if not site or g.returncode != 0 or os.path.realpath(g.stdout.decode().strip()) != os.path.realpath(site):
                 commit = "FAIL — the site is not a git repository"
+                fails.append("git")
+            elif n.returncode != 0 and not unborn:
+                commit = "FAIL — could not count commits (%s)" % n.stderr.decode().strip()[:120]
                 fails.append("git")
             elif count == "0" and deny["git commit"]:
                 commit = "not tested (deny rule: git commit)"
@@ -595,8 +602,12 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         for w in workarounds(tools):
             lines.append("   Command that failed:            %s" % w)
         if succeeded < len(sent) or rc != 0:
-            fails.append("agy stopped after %d of %d turns" % (succeeded, len(sent)))
-            lines.append("   agy stopped after %d of %d turns (%s)" % (succeeded, len(sent), "timed out" if rc is None else "exit %s" % rc))
+            fails.append("agy %d of %d turns, %s" % (succeeded, len(sent), "timed out" if rc is None else "exit %s" % rc))
+            how = "timed out" if rc is None else "exit %s" % rc
+            if succeeded < len(sent):
+                lines.append("   agy stopped after %d of %d turns (%s)" % (succeeded, len(sent), how))
+            else:
+                lines.append("   agy finished all %d turns but ended with %s" % (len(sent), how))
         if code == 0 and fails:
             code = 1
 

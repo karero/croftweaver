@@ -167,6 +167,47 @@ class RealTranscript(unittest.TestCase):
         self.assertEqual(self.t.workarounds(self.tools), [], "a deny-rule refusal is not a workaround")
 
 
+class Checks(unittest.TestCase):
+    """The checks on their own, for the cases a stubbed run makes awkward."""
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("agytest", TOOL)
+        self.t = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.t)
+
+    @staticmethod
+    def cmd(line, state="DONE", output="", error=None):
+        info = {"parameters": {"CommandLine": line}, "output": output}
+        if error:
+            info["error"] = {"message": error}
+        return {"tool_name": "run_command", "state": state, "tool_info": info}
+
+    def test_first_npm_test_skips_a_deny_refusal(self):
+        refused = self.cmd("cd site && npm test", "ERROR", error="Matches user-configured deny rule.")
+        self.assertTrue(self.t.first_npm_test([refused, self.cmd("npm test", output="3 passed")])[0])
+
+    def test_first_npm_test_sees_a_command_on_its_own_line(self):
+        ok, detail = self.t.first_npm_test([self.cmd("cd site\nnpm test", output="1 failed\n2 passed")])
+        self.assertFalse(ok)
+        self.assertIn("1 failed", detail)
+
+    def test_an_unfinished_first_npm_test_is_not_green(self):
+        self.assertFalse(self.t.first_npm_test([self.cmd("npm test", "RUNNING"), self.cmd("npm test", output="3 passed")])[0])
+
+    def test_no_passes_is_not_green(self):
+        self.assertFalse(self.t.first_npm_test([self.cmd("npm test", output="0 passed")])[0])
+
+    def test_a_folder_question_alone_does_not_start_the_interview(self):
+        r = [{"status": "SUCCESS", "response": "I loaded the skill and can build static pages. Is this your websites folder?"}]
+        self.assertFalse(self.t.check_interview(r)[0])
+
+    def test_pages_entries_must_stay_as_written(self):
+        tpl = "export const PAGES = [\n  '/',\n  '/impressum',  // delete it outside DE\n  // '/about',\n] as const;"
+        self.assertEqual(self.t.required_pages(tpl), ["'/',"])
+        for site in ("export const PAGES = [\n  '/' + 'x',\n] as const;", "export const PAGES = [\n  /* '/', */\n] as const;"):
+            self.assertNotIn("'/',", self.t.pages_lines(site))
+
+
 @unittest.skipUnless(HAVE_TOOLS, "needs git, node and npm")
 class ReleaseTest(unittest.TestCase):
     @classmethod
