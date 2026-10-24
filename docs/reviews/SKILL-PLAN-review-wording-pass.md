@@ -46,8 +46,8 @@ can do that.
 3. **`--round`.** Refused, exit 2, right after option parsing, before anything is read or sent:
    "a wording pass is not a round (SKILL.md step 6): drop --round". On a gate past round 3, the
    notice printed for a run without `--round` is replaced under the flag by one line, "note:
-   wording pass, not a round of gate <id>, which is at round <N>.", so a redirected run still
-   shows what it was. Without the flag the notice still prints; its last sentence changes from
+   wording pass, not a round of gate <id>, which is at round <N>.", on stderr like the notice, so
+   the run's output still shows what it was. Without the flag the notice still prints; its last sentence changes from
    "Right for the final full read and the wording pass; a review round is --round <N+1>." to
    "Right for the final full read; a wording pass passes --wording-pass; a review round is
    --round <N+1>."
@@ -64,9 +64,9 @@ can do that.
    delta starts from. Where closeout sends the full pair instead (no unbroken chain), that run is
    a full-scope review without the flag: its diff can hold code gated earlier, which the
    paragraph would wrongly report as a BUG. The same holds when the delta since the last round
-   holds a non-prose line (a NIT fixed in code after the last round, say): that delta is
-   re-gated full-scope without the flag, not counted as a round, and the wording pass then runs
-   on the prose alone. A BUG the seat raises on a non-prose line means this: it is neither fixed
+   holds a non-prose line (a NIT fixed in code after the last round, say): that whole delta,
+   prose included, is re-gated full-scope without the flag, not counted as a round, and that
+   re-gate stands in for the wording pass on it. A BUG the seat raises on a non-prose line means this: it is neither fixed
    as a contradiction nor carried as a follow-up, but sends that delta to the full-scope
    re-gate.
 6. **`--seat`, `--depth`, `--local-only`.** Unchanged. The skill asks for one cross-model seat;
@@ -88,8 +88,9 @@ can do that.
   line, so a BUG on one has a disposition. Step 2's usage line names the flag.
 - `references/closeout.md`, clerk item 2: the narrow prose-only re-gate runs with
   `--wording-pass`, replacing "prepended to the unchanged strict prompt"; the full-pair fallback
-  runs without it, and so does a delta holding a non-prose line (How 5). The classification and carry-over go in the trail, not the scope; the
-  paragraph's last sentence is what asks the seat to challenge it.
+  runs without it, and so does a delta holding a non-prose line (How 5). The classification and carry-over go in the trail, not the scope;
+  PROMPT_WORDING's last sentence (a non-prose line is a BUG) is what asks the seat to challenge
+  it.
 - The script's header usage, the `USAGE` string, and a comment above PROMPT_WORDING (two lines).
   The header comments that call the wording pass a run with no `--round` (lines 104, 122, 215)
   stay true and are not changed; the comment at line 295, above the notice, gains a clause
@@ -100,7 +101,8 @@ can do that.
 All in `test_failed_tier_report.sh`, which enters the way users call the script (`bash
 independent_review.sh <file> …`) with stub `codex`, `ollama` and `agy` CLIs that record the prompt
 they were sent. New case 25c. Its six expected lines are literal in the test (as case 25b holds
-`GUARDS=`), never read back from the script, so a cut paragraph fails it. Like 25b, it takes
+`GUARDS=`), never read back from the script, and must appear as one contiguous block in order,
+so a cut or scrambled paragraph fails it. Like 25b, it takes
 three runs for the plain diff: the default run (codex, ollama), one with `WITH_ANTIGRAVITY=1`
 (agy), and one where every seat fails and the run exits 4 (the paste prompt, as in case 5).
 
@@ -121,7 +123,7 @@ three runs for the plain diff: the default run (codex, ollama), one with `WITH_A
 
 `test_round_checks.sh`: line 127's expected notice takes the new last sentence; a new case on a
 logged gate past round 3 runs `--wording-pass` with no `--round` and checks that the one-line
-note prints and the notice does not, beside line 370's case, which still checks the notice without the flag (it matches only
+note prints, exactly, with the logged gate's id and round, and the notice does not, beside line 370's case, which still checks the notice without the flag (it matches only
 the notice's opening, which does not change).
 
 What the tests cannot show: whether a reviewer honours the scope. That is a live run; the first

@@ -75,3 +75,19 @@ Sections changed since: How 3, How 5, Docs, Tests (case 25c intro, test_round_ch
 | F24 | fable | NIT | Case 25c needs three runs (agy only with WITH_ANTIGRAVITY=1, paste only when all seats fail). | Fixed: Tests say so, as in case 25b. |
 | F25 | fable | NIT | The cut-paragraph claim holds only if the test holds the lines literally. | Fixed: Tests say the six lines are literal. |
 | F26 | fable | NIT | Comment at script line 295 would describe pre-change code. | Fixed: Docs add a clause there. |
+
+## Round 4 (verification, plan at 0fd0bddd, `--earned-by nonprose-disposition`)
+
+timings: codex 115s (63,550 tokens, effort medium), melious 200s (30,132 tokens). Codex: no
+BUG/RISK/NIT findings, F1-F26 confirmed. Melious: F21-F26 confirmed; NITs only.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F27 | melious | NIT | The new test_round_checks case checks the note's presence, not its text. | Fixed: exact string, with the logged gate's id and round. |
+| F28 | melious | NIT | Per-line checks pass a scrambled paragraph; "order" overstated. | Fixed: the six lines must appear as one contiguous block, in order. |
+| F29 | melious | NIT | How 5: does the full-scope re-gate cover the prose too, or does a wording pass still follow? | Fixed: the re-gate covers the whole delta, prose included, and stands in for the wording pass on it. |
+| F30 | melious | NIT (outside scope) | "the paragraph's last sentence" has an unclear referent. | Fixed: names PROMPT_WORDING's last sentence. |
+| — | melious | UNVERIFIABLE | Which stream the note goes to. | Checked: the notice prints to stderr (script line 298, `>&2`); How 3 now says the note does too. |
+
+No BUG and no earning RISK in round 4: the rounds end; NITs fixed without another round (step 6
+(a2)). Next: the wording pass over the delta since round 4.
