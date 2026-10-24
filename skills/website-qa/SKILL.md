@@ -85,6 +85,11 @@ cosmetics; red → green → commit.
   there passes (`placeholders.spec.ts` reports it), and so does a page without the mark.
 - `email.spec.ts` — no plaintext (harvestable) email address in the served HTML
   (addresses go through `<EmailLink>`, which obfuscates; the `website-design-system` rule).
+- `tables.spec.ts` — every table is in a `.table-wrap` of one kind (`stack` or
+  `figures`) with its region, label and `tabindex`; stacked tables carry their roles and a label
+  equal to each column header; no page or table scrolls sideways at 360/320px; a stacked table is
+  a table again from 641px; no cell sets `hyphens: auto`. Tests the CSS on a fixture too, so a site
+  with no table still proves it. See `website-design-system`, "Tables".
 - `links.spec.ts` — offline outgoing-link guard: no `STALE_DOMAINS` (domains you've
   retired) reappear in an anchor href. Hermetic — makes no network calls. The
   *liveness* of the links you keep is the network-dependent `outgoing-link-audit`

@@ -87,15 +87,19 @@ const rerun = lh ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(
       {state === 'current' && <span data-scorecard-current> {t.current}</span>}
       {state === 'edited' && <strong data-scorecard-edited> {t.edited}</strong>}
     </p>
-    <table>
-      <caption>{t.caption}</caption>
-      <thead><tr><th scope="col">{t.area}</th><th scope="col">{t.passed}</th></tr></thead>
-      <tbody>
-        {card.checks.map((c: { area: string; passed: number }) => (
-          <tr data-area={c.area}><th scope="row">{t.areas[c.area] ?? c.area}</th><td>{c.passed}</td></tr>
-        ))}
-      </tbody>
-    </table>
+    {/* The shared table markup (website-design-system, "Tables"): tests/tables.spec.ts needs it on every table.
+        The look stays this component's own, so the skill works on a site without src/styles/tables.css. */}
+    <div class="table-wrap figures" role="region" aria-label={t.caption} tabindex="0">
+      <table>
+        <caption>{t.caption}</caption>
+        <thead><tr><th scope="col">{t.area}</th><th scope="col" class="num">{t.passed}</th></tr></thead>
+        <tbody>
+          {card.checks.map((c: { area: string; passed: number }) => (
+            <tr data-area={c.area}><th scope="row">{t.areas[c.area] ?? c.area}</th><td class="num">{c.passed}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
     {lh && (
       <p data-scorecard-lighthouse>
         {t.lighthouse(lh.date, lh.strategy)}{' '}
