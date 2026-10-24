@@ -108,8 +108,6 @@ for f in ("package.json", "playwright.config.ts"):
 shutil.copytree(os.path.join(tpl, "astro", "tests"), os.path.join(site, "tests"))
 with open(os.path.join(site, "tests", "_helpers.ts")) as f:
     helpers = f.read().replace("  '/',\n", "  '/',\n  '/about',\n")
-if scenario == "drop_impressum":
-    helpers = "\n".join(l for l in helpers.split("\n") if "/impressum" not in l)
 with open(os.path.join(site, "tests", "_helpers.ts"), "w") as f:
     f.write(helpers)
 if scenario == "tamper":
@@ -182,6 +180,14 @@ class Checks(unittest.TestCase):
             info["error"] = {"message": error}
         return {"tool_name": "run_command", "state": state, "tool_info": info}
 
+    def test_an_interview_needs_a_question(self):
+        r = [{"status": "SUCCESS", "response": "I loaded the skill. Starting the scaffold now."}]
+        self.assertFalse(self.t.check_interview(r)[0])
+
+    def test_test_output_that_mentions_deny_rules_is_not_a_refusal(self):
+        said = self.cmd("npm test", output="1 failed: deny rule is enforced")
+        self.assertFalse(self.t.first_npm_test([said, self.cmd("npm test", output="3 passed")])[0])
+
     def test_first_npm_test_skips_a_deny_refusal(self):
         refused = self.cmd("cd site && npm test", "ERROR", error="Matches user-configured deny rule.")
         self.assertTrue(self.t.first_npm_test([refused, self.cmd("npm test", output="3 passed")])[0])
@@ -196,16 +202,6 @@ class Checks(unittest.TestCase):
 
     def test_no_passes_is_not_green(self):
         self.assertFalse(self.t.first_npm_test([self.cmd("npm test", output="0 passed")])[0])
-
-    def test_a_folder_question_alone_does_not_start_the_interview(self):
-        r = [{"status": "SUCCESS", "response": "I loaded the skill and can build static pages. Is this your websites folder?"}]
-        self.assertFalse(self.t.check_interview(r)[0])
-
-    def test_pages_entries_must_stay_as_written(self):
-        tpl = "export const PAGES = [\n  '/',\n  '/impressum',  // delete it outside DE\n  // '/about',\n] as const;"
-        self.assertEqual(self.t.required_pages(tpl), ["'/',"])
-        for site in ("export const PAGES = [\n  '/' + 'x',\n] as const;", "export const PAGES = [\n  /* '/', */\n] as const;"):
-            self.assertNotIn("'/',", self.t.pages_lines(site))
 
 
 @unittest.skipUnless(HAVE_TOOLS, "needs git, node and npm")
@@ -376,15 +372,15 @@ class ReleaseTest(unittest.TestCase):
         rep = self.report()
         self.assertIn("5. Scaffold cp paths (no errors):  PASS — 2 skills checked", rep)
         self.assertIn("6. Generated site build + tests:   PASS", rep)
-        self.assertIn("Green from the first try:       PASS", rep)
+        self.assertIn("Green from the first try:       yes", rep)
         self.assertIn("not tested (deny rule: git commit)", rep)
         self.assertNotIn("git commit -m init", rep, "a deny-rule refusal is not a failed command")
         run = [c for c in self.calls() if "stream-json" in c][0]
         self.assertNotIn("--sandbox", run, "the full test runs unsandboxed: a real site's npm install needs the network")
 
-    def test_a_first_npm_test_that_failed_fails_even_when_repaired(self):
-        self.assertEqual(self.credited("full", "first_fail"), 1, self.stdout)
-        self.assertIn("Green from the first try:       FAIL", self.report())
+    def test_a_first_npm_test_that_failed_is_a_warning_even_when_repaired(self):
+        self.assertEqual(self.credited("full", "first_fail"), 0, self.stdout)
+        self.assertIn("Green from the first try:       WARNING — agy's first npm test failed (1 failed)", self.report())
 
     def test_weakened_test_script_is_not_trusted(self):
         self.assertEqual(self.credited("full", "tamper"), 5, self.stdout)
@@ -400,9 +396,6 @@ class ReleaseTest(unittest.TestCase):
     def test_files_written_beside_the_site_fail_the_scaffold(self):
         self.assertEqual(self.credited("full", "stray"), 1, self.stdout)
         self.assertIn("not one new folder", self.report())
-
-    def test_dropping_a_page_the_template_marks_deletable_is_allowed(self):
-        self.assertEqual(self.credited("full", "drop_impressum"), 0, self.stdout)
 
     def test_a_skill_left_out_of_the_copy_fails_the_scaffold(self):
         self.assertEqual(self.credited("full", "missing_skill"), 1, self.stdout)

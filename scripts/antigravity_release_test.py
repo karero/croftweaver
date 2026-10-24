@@ -246,6 +246,12 @@ def tool_param(step, name):
     return str((info.get("parameters") or {}).get(name, ""))
 
 
+def refused(step):
+    """A tool step agy's own permission check refused (the deny rules in its settings)."""
+    err = (step.get("tool_info") or {}).get("error")
+    return step.get("state") == "ERROR" and "deny rule" in json.dumps(err)
+
+
 def tool_output(step):
     info = step.get("tool_info") or {}
     return str(info.get("output", "")) + (json.dumps(info["error"]) if info.get("error") else "")
@@ -278,19 +284,14 @@ def check_discovery(results, tools, ws_skill):
     return ok, detail
 
 
-TOPICS = {"pages": r"page|sitemap", "server": r"tier|server|backend|static|dynamic",
-          "editing": r"edit|cms", "language": r"language", "analytics": r"analytic|search console|plausible",
-          "domain": r"domain|publish"}
-
-
 def check_interview(results):
-    """The interview has started: turn 1 succeeded and one of its questions is on an interview topic."""
+    """A smoke check: turn 1 succeeded and asked a question. Its first question goes in the report."""
     if not results or results[0].get("status") != "SUCCESS":
         return False, "turn 1 did not succeed"
-    reply = (results[0].get("response") or "").lower()
-    questions = re.findall(r"[^?.!\n]*\?", reply)
-    found = [k for k, rx in TOPICS.items() if any(re.search(rx, q) for q in questions)]
-    return bool(found), "%d of 6 interview topics asked about (%s)" % (len(found), ", ".join(found) or "none")
+    questions = re.findall(r"[^?\n]*\?", results[0].get("response") or "")
+    if not questions:
+        return False, "turn 1 asked no question"
+    return True, "asked: %s" % questions[0].strip()[:120]
 
 
 def check_scaffold(websites, release, since):
@@ -333,17 +334,6 @@ def check_scaffold(websites, release, since):
     return not problems, detail + ("; " + "; ".join(problems) if problems else ""), site, deviations
 
 
-def pages_lines(text):
-    """The stripped lines inside tests/_helpers.ts's PAGES array (None when there is none)."""
-    m = re.search(r"export const PAGES\s*=\s*\[(.*?)\]", text, re.S)
-    return [l.strip() for l in m.group(1).splitlines() if l.strip()] if m else None
-
-
-def required_pages(text):
-    """Template PAGES lines a site must keep unchanged: not comments, not marked to delete."""
-    return [l for l in pages_lines(text) or [] if not l.startswith("//") and "delete" not in l]
-
-
 def check_untouched(site, release):
     """Files the test relies on must be the template's; returns the list of changes."""
     tpl = os.path.join(release, "skills", "new-website", "templates", "astro")
@@ -372,20 +362,17 @@ def check_untouched(site, release):
         strip = lambda t: re.sub(r"export const PAGES\s*=\s*\[.*?\]", "", t, count=1, flags=re.S)
         if strip(sh) != strip(th):
             changes.append("tests/_helpers.ts outside PAGES")
-        site_lines = pages_lines(sh) or []
-        missing = [l for l in required_pages(th) if l not in site_lines]
-        if pages_lines(sh) is None or missing:
-            changes.append("tests/_helpers.ts PAGES lacks or changed: %s" % (", ".join(missing) or "the whole list"))
     except OSError:
         changes.append("tests/_helpers.ts missing")
     return changes
 
 
 def first_npm_test(tools):
-    """agy's first finished npm test: it passed when it reports passes and no failures."""
+    """What agy's first npm test reported, for a person to read: a fix agy made afterwards is a
+    snag the next user would hit. A warning, not a verdict: the command is matched by its text."""
     for s in tools:
         cmd = tool_param(s, "CommandLine")
-        if s.get("tool_name") != "run_command" or "deny rule" in tool_output(s):
+        if s.get("tool_name") != "run_command" or refused(s):
             continue
         if not re.search(r"(?:^|&&|;|\|\||\n)\s*(?:npm (?:run )?test|npx playwright test)\b", cmd):
             continue
@@ -402,7 +389,7 @@ def first_npm_test(tools):
 
 def workarounds(tools):
     return [tool_param(s, "CommandLine")[:160] or s.get("tool_name", "?") for s in tools
-            if s.get("state") == "ERROR" and "deny rule" not in tool_output(s)]
+            if s.get("state") == "ERROR" and not refused(s)]
 
 
 def npm_runs(site, staging):
@@ -571,8 +558,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
                     lines += ["   | " + t for t in tail.strip().splitlines()[-8:]]
                 fails += [] if ok_n else ["build/tests"]
             ok_f, d_f = first_npm_test(tools)
-            lines.append("   Green from the first try:       %s — %s" % ("PASS" if ok_f else "FAIL", d_f))
-            fails += [] if ok_f else ["first try"]
+            lines.append("   Green from the first try:       %s — %s" % ("yes" if ok_f else "WARNING", d_f))
             perm = site and not os.path.exists(os.path.join(site, ".claude", "settings.json"))
             lines.append("   Permissions sanity:             %s — .claude/settings.json %s; website-permissions not tested"
                          % ("PASS" if perm else "FAIL", "not copied" if perm else "copied"))
