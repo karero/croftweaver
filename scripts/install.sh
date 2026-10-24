@@ -20,6 +20,9 @@ esac
 REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 DEST="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 mkdir -p "$DEST"
+# Absolute from here on, as the Node installer resolves it: a relative DEST would let an
+# exported CDPATH send the link checks below elsewhere and clobber a pin.
+DEST="$(CDPATH= cd -- "$DEST" && pwd)"
 
 # A pin is a link into a LINKED worktree of this repo, at the same skill. Every test
 # below has to hold, because none of them alone means "pinned": worktrees of one repo

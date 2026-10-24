@@ -174,12 +174,29 @@ no_git() {
   check "no git: names git's absence" grep -q "git was not found" <<<"$out"
 }
 
+# A relative skills dir under an exported CDPATH: the pin must survive, and nothing may resolve
+# through the decoy. The Node installer resolves a relative dir; the shell ones must agree.
+relative_dest() {
+  local script="$1" var="$2" label="$3" R PIN C D first out rc
+  R="$T/rel-$label/repo"; PIN="$T/rel-$label/pin"; C="$T/rel-$label/cwd"; D="$T/rel-$label/decoy"
+  mkdir -p "$C/rel/skills" "$D/rel/skills/alpha"
+  first="$(build_repo "$R" "$script")"
+  $git -C "$R" worktree add -q --detach "$PIN" "$first"
+  ln -s "$PIN/skills/alpha" "$C/rel/skills/alpha"
+  out="$(cd "$C" && env "$var=rel/skills" CDPATH="$D" bash "$R/scripts/$script" 2>&1)"; rc=$?
+  check "$label: a relative $var installs" [ "$rc" = 0 ]
+  check "$label: ...and keeps the pin under an exported CDPATH" same_dir "$C/rel/skills/alpha" "$PIN/skills/alpha"
+  check "$label: ...and nothing resolved through CDPATH" eval '! grep -qF "$D" <<<"$out"'
+}
+
 one_installer install.sh CLAUDE_SKILLS_DIR claude
 one_installer install-codex.sh CODEX_SKILLS_DIR codex
 old_git install.sh CLAUDE_SKILLS_DIR fails
 old_git install.sh CLAUDE_SKILLS_DIR echoes
 old_git install-codex.sh CODEX_SKILLS_DIR fails
 old_git install-codex.sh CODEX_SKILLS_DIR echoes
+relative_dest install.sh CLAUDE_SKILLS_DIR claude
+relative_dest install-codex.sh CODEX_SKILLS_DIR codex
 no_git
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
