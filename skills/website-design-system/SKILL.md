@@ -64,7 +64,7 @@ enforces them. For generating image assets, use the `image` skill.
   (`Datenschutzerklärung`) from bursting a narrow column — that needs
   `hyphens: auto` (correct per-language via the `lang` attribute Base.astro already
   sets) plus `overflow-wrap: break-word` as the fallback; the starter's `global.css`
-  ships both on `body`.
+  ships both on `body`. Table cells turn hyphenation off (see Tables).
 - **Don't rely on `white-space: nowrap` + `text-overflow: ellipsis` alone** as the
   handling for nav links or button labels — truncating a nav link is usually not
   acceptable UX (the visitor can no longer tell where it goes). Fine for content
@@ -73,6 +73,59 @@ enforces them. For generating image assets, use the `image` skill.
   `astro-i18n-setup`'s `LanguageSwitcher.astro` or any bilingual/multilingual nav,
   check layout at 360/768/1280 (preview_resize) using the actual shipped copy in
   every language — not just the English placeholder.
+
+## Tables
+
+One style for every table; a page carries no layout CSS for a table. It lives in the starter's
+`src/styles/tables.css` (imported after `global.css` by `Base.astro`) and `tests/tables.spec.ts` checks
+it. A site made before this section copies `tables.css` in, adds the import line to its layout, and
+removes each page's own table CSS first.
+
+Two kinds, told apart by what the cells hold:
+
+- **`stack`** (sentences): a table above 40rem; below it each row stacks, the row header as a title and
+  each cell under its column's name. Four columns of prose cannot share 320px.
+- **`figures`** (short numbers, `class="num"` on a number cell): stays a table on a phone and must fit in
+  320px. If it no longer fits, make it `stack`; a scroll bar is not the fix. `stack figures` together is
+  the figures look with the stacked layout.
+
+Markup, every table:
+
+```astro
+<div class="table-wrap stack" role="region" aria-label="What the table shows" tabindex="0">
+  <table role="table">
+    <thead role="rowgroup"><tr role="row">
+      <th scope="col" role="columnheader">{cols[0]}</th><th scope="col" role="columnheader">{cols[1]}</th>
+    </tr></thead>
+    <tbody role="rowgroup">{rows.map((r) => (
+      <tr role="row"><th scope="row" role="rowheader">{r.item}</th><td role="cell" data-label={cols[1]}>{r.text}</td></tr>
+    ))}</tbody>
+  </table>
+</div>
+```
+
+- Write the column names once, in a list, and use it for the header and for every `data-label`: the label
+  of a stacked cell must equal its column header, and the test compares the two. A `figures` table needs no
+  per-cell roles and no `data-label`.
+- A stacked table is no longer `display: table`. The roles are a fallback for a browser that drops the
+  table when the layout changes; that they work there is not checked. In Chromium, measured once on a real
+  table, the accessibility tree kept the table without them.
+- `class="tap"` on a link that stands alone in a cell makes it a 44px tap target on a phone. `nowrap` keeps a
+  short value (`1, 3, 6`) on one line. `long-head` (with `stack`) widens the first column when the row
+  headers are sentences.
+- Words are not hyphenated in cells. The body's `hyphens: auto` squeezes a narrow first column to
+  fragments ("An-thropic"), so the block sets `hyphens: manual` there.
+- A page whose tables come from outside and cannot carry the markup goes into `TABLE_EXEMPT` in the spec,
+  with the reason. `PAGES` stays whole: the sitemap and `llms.txt` checks need every live route in it.
+
+What `tables.spec.ts` checks: every table is in a `.table-wrap` of one kind with its region, label and
+`tabindex`, `scope="col"` on every header cell and a `<th scope="row">` as the first cell of every row, with `<td>` for the rest; a stacked table has its roles and a label equal to the header on each cell; at 360 and 320px no
+page and no table scrolls sideways; at 641px and above a stacked table is a table again with its header row
+showing and no word broken (this catches rules such as `overflow-wrap: anywhere` that let a column squeeze a
+word); no cell has `hyphens: auto`. It also tests the CSS on a fixture it adds to the
+home page, with axe in both themes, so a site with no table still proves the block. Headless Chromium does
+not hyphenate, so the hyphen guard reads the computed style, not the layout. Safari and VoiceOver are not
+checked.
 
 ## Email obfuscation (hide addresses from crawlers)
 
@@ -104,6 +157,6 @@ change all three blocks together.
 
 `BRAND.md` filled and consistent with the token block; images are WebP, sized,
 lazy/eager-correct, with alt; the a11y test (light+dark) is green; layout holds
-at 360/768/1280 with no shift. Perf numbers (FCP/LCP) are verified in `website-qa`.
+at 360/768/1280 with no shift; every table is `stack` or `figures` and `tables.spec.ts` is green. Perf numbers (FCP/LCP) are verified in `website-qa`.
 Layout also holds at 360/768/1280 with **real** (not placeholder) copy in every
 shipped language, not just the default locale.
