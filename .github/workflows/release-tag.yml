@@ -7,8 +7,8 @@ name: release-tag
 # pushed while `stable` stayed where it was: plugin users would stay on the release before.
 # So, on a release tag (v0.32), this compares the number with the tag and then moves
 # `stable` to the tag itself, if the tag is on main and `stable` can move forward to it.
-# A red run means the release has not reached plugin users: put right what the failed step
-# names, then push `stable` by hand (README.md, "Releases & versioning").
+# If a step before the last fails, the release has not reached plugin users: put right what
+# it names, then push `stable` by hand (README.md, "Releases & versioning").
 #
 # A push made by a workflow starts no other workflow, so the run on `stable` only happens
 # when a person moved the branch. It then checks that the commit is a release and carries
@@ -16,7 +16,8 @@ name: release-tag
 #
 # Last, both runs publish the release to the branch `directory`, which Anthropic's plugin
 # directory follows: the plugin without the toolkit's own tests and review files
-# (scripts/publish_directory.sh, which a person runs by hand when this step failed).
+# (scripts/publish_directory.sh). When only this step fails, `stable` is right and only the
+# directory is behind; a person runs the script by hand.
 on:
   push:
     tags: ['v*']

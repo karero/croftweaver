@@ -582,6 +582,19 @@ test('the workflow publishes to directory last, after stable moved or on a hand-
   assert.match(text, /\n {4}concurrency:\n {6}group: plugin-release\n {6}cancel-in-progress: false\n/);
 });
 
+test('the tree is the same from any folder of the clone, and a commit without the plugin is refused', () => {
+  // A person runs the publish script by hand from wherever their shell is.
+  const fromSub = execFileSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD'], { cwd: path.join(REPO, 'skills'), encoding: 'utf8' }).trim();
+  directoryTree();
+  assert.equal(fromSub, builtTree);
+  const { git, release } = directoryRepo();
+  release('v0.1', { 'README.md': 'no plugin here' });
+  const work = git('rev-parse', '--show-toplevel');
+  const run = spawnSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'v0.1'], { cwd: work, encoding: 'utf8' });
+  assert.equal(run.status, 1);
+  assert.match(run.stderr, /has no \.claude-plugin\/plugin\.json/);
+});
+
 test('the publish script pushes without force', () => {
   const pushes = read('scripts', 'publish_directory.sh').split('\n').filter((line) => /\bgit\s+push\b/.test(line));
   assert.equal(pushes.length, 1);
@@ -642,7 +655,7 @@ test('a release reaches directory as one commit naming its source; a re-run adds
 
 test('directory refuses an older release, a tag not on main, and a last commit that names no source', () => {
   const { git, release, publish, directory } = directoryRepo();
-  release('v0.1', { 'skills/a/SKILL.md': 'a' });
+  release('v0.1', { '.claude-plugin/plugin.json': '{}', 'skills/a/SKILL.md': 'a' });
   release('v0.2', { 'skills/a/SKILL.md': 'b' });
   git('push', '-q', 'origin', 'main', '--tags');
   assert.equal(publish('v0.2').status, 0);

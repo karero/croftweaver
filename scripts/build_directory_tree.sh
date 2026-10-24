@@ -24,6 +24,12 @@ if [ $# -eq 3 ]; then
   out=$3
 fi
 git rev-parse -q --verify "$commit^{commit}" >/dev/null || { echo "$0: no commit named $commit" >&2; exit 1; }
+# ls-tree reads paths from the current folder: work from the top, wherever this was started.
+top=$(git rev-parse --show-toplevel)
+cd "$top"
+for need in .claude-plugin/plugin.json skills; do
+  [ -n "$(git ls-tree "$commit" -- "$need")" ] || { echo "$0: $commit has no $need" >&2; exit 1; }
+done
 
 work=$(mktemp -d) || { echo "$0: could not make a temporary folder" >&2; exit 1; }
 trap 'rm -rf "$work"' EXIT
