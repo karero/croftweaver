@@ -25,7 +25,7 @@ if [ $# -eq 3 ]; then
 fi
 git rev-parse -q --verify "$commit^{commit}" >/dev/null || { echo "$0: no commit named $commit" >&2; exit 1; }
 
-work=$(mktemp -d)
+work=$(mktemp -d) || { echo "$0: could not make a temporary folder" >&2; exit 1; }
 trap 'rm -rf "$work"' EXIT
 export GIT_INDEX_FILE="$work/index"
 git read-tree --empty

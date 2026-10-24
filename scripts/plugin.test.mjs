@@ -526,7 +526,7 @@ function keptLinesNaming(test) {
   return hits;
 }
 
-test('the kept skills name no toolkit docs or scripts file the directory leaves out, except six known lines', () => {
+test('the kept skills name no toolkit docs or scripts file the directory leaves out, except five known lines', () => {
   const inTree = new Set(directoryTree().map(({ file }) => file));
   const rootFiles = lsTree('HEAD').map(({ file }) => file)
     .filter((f) => (/^docs\/[^/]+\.md$/.test(f) || f.startsWith('scripts/')) && !inTree.has(f));
@@ -534,13 +534,12 @@ test('the kept skills name no toolkit docs or scripts file the directory leaves 
   // Each checked by hand: the whats-new lines run only behind an [ -f ] check (the next test
   // runs them without the script), the other two are comments.
   assert.deepEqual(found, [
-    ['skills/independent-review/scripts/melious_models.txt', '# files of this skill that scripts/check_model_agnostic.sh does not scan, so the others need no'],
     ['skills/new-website/SKILL.md', '   # The suite\'s scripts/whats-new.sh is the ONLY writer of the stamp format. Resolve'],
     ['skills/new-website/SKILL.md', '   if [ -n "$SUITE_REPO" ] && [ -f "$SUITE_REPO/scripts/whats-new.sh" ] \\'],
     ['skills/new-website/SKILL.md', '     bash "$SUITE_REPO/scripts/whats-new.sh" --stamp "$PROJECT_SKILLS_DIR"'],
     ['skills/new-website/SKILL.md', '     bash "$SUITE_REPO/scripts/whats-new.sh" --stamp-tests tests'],
     ['skills/website-contact-form/templates/mail-form-text.ts', '// not measured (docs/BUGLOG.md), so this cap is not tied to any program\'s limit. The'],
-  ].filter(([file]) => inTree.has(file)));
+  ]);
 });
 
 test('the kept skills name none of the left-out test folders, except three known lines', () => {

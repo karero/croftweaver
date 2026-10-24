@@ -13,7 +13,7 @@ set -euo pipefail
 fail() { echo "::error::$*" >&2; exit 1; }
 [ $# -eq 1 ] || { echo "usage: $0 <release tag>" >&2; exit 2; }
 tag=$1
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 commit=$(git rev-parse -q --verify "$tag^{commit}") || fail "no tag named $tag here"
 
 git fetch -q origin main
