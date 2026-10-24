@@ -150,3 +150,33 @@ plan now says "about 1.07 million". Not re-read by a reviewer: this section and 
 
 Gate closed: no BUG open; RISK F37 re-sorted as rare; F42/F45 a follow-up (the README's hand
 `commit-tree` recovery repeats none of the step's refusals) for the build PR.
+
+## Trial result (2026-10-24), as the portal reported it
+
+Branch `directory` at `c88e1ef5` (v0.33 without `independent-review`), Validate in the
+maintainer's signed-in Chrome: "Validation passed: 9 warnings, 26 policy holds", "directory @
+c88e1ef · 7 checks"; `ValidatePlugin` POST 200 in about 20 s. Checks: repository fetched; "326
+files, 3.4MB, within the size limits"; plugin.json found and valid (warnings); 37 skills
+(warnings); no MCP servers; directory lints (warnings); name and publisher checks passed.
+- Policy hold, "Uses a credential from the user's machine", 16: `new-website/SKILL.md`,
+  `search-console-insights/SKILL.md`, `README.md`, `new-website/scripts/cloudflare-check.mjs`,
+  `cloudflare-setup.mjs`, `templates/astro/functions/_middleware.ts`,
+  `templates/astro/tests/check_analytics_gate.sh`, `check_ship_push.sh`, and in
+  `search-console-insights/scripts/` `bing_query.py`, `fix_proposal.py`, `geo_check.py`,
+  `gsc_query.py`, `insights.py`, `serp_check.py`, `track.sh`; plus one across surfaces on
+  `plugin.json`.
+- Policy hold, "Image or font file that the plugin's code could run", 10: all name
+  `templates/astro/public/images/og/default.jpg`.
+- Warning, "Contains a download-and-run command", 8: `new-website/SKILL.md`,
+  `search-console-insights/SKILL.md`, `README.md`, `docs/WHAT-THE-SKILLS-RUN.md`,
+  `templates/astro/scripts/ship.sh`, `tests/check_ship_push.sh`, `geo_check.py`,
+  `website-team-setup/templates/TEAM-GUIDE.md`. Warning, "No icon".
+- No finding was Blocking; unpinned `npx` did not block.
+
+## Re-gate of the record commits (Codex alone, diff 1981c032..bbda7305)
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F57 | codex | BUG | The `independent-review` exclusion was in the file list only; the recipe and the test line still left out four folders. | Fixed: both name `skills/independent-review/`; totals updated (224 files with the icon). |
+| F58 | codex | RISK | `website-review` tells users to copy the skill "from the suite", which a directory install lacks. | Fixed as wording: the plan says the GitHub repository still holds it. |
+| F59 | codex | RISK | The Validate result had no retained record. | Fixed: the section above. |

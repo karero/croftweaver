@@ -37,6 +37,8 @@ holds more for a subfolder plugin ("keep the plugin at the root of its own repos
 
 ## What the branch holds (measured at v0.33; main at 11a13e2d differs in one file)
 
+- `.claude-plugin/icon.png`, the listing icon (the site's moss-green mark, 512 px; the
+  maintainer's choice, 2026-10-25). The portal fixes the icon at the first save or submission.
 - `.claude-plugin/plugin.json`, copied as it is (same name and version). It declares no
   components today (only name, displayName, version, description, author, homepage, repository, license); the test holds that.
 - `skills/`, except four folders of the toolkit's own tests, which no skill runs:
@@ -61,18 +63,20 @@ holds more for a subfolder plugin ("keep the plugin at the root of its own repos
   scanner flagged it three times. In the kept files it is named only as an optional escalation
   the owner opts into (`website-review/SKILL.md` checks the folder exists before offering it;
   `seo-reposition/SKILL.md`), and in the README and `docs/WHAT-THE-SKILLS-RUN.md`, which are
-  prose. `new-website` does not copy it. With it out: 223 files, 3.4 MB. The script's list and
+  prose. `new-website` does not copy it; `website-review` says to copy it from the suite,
+  which the GitHub repository still holds. With it out: 223 files, 3.4 MB. The script's list and
   the test's expected list leave it out too, and the `${CLAUDE_SKILL_DIR}` and name checks run
   on what is left.
 
-That is 255 files and 4.0 MB; the largest is the starter's `package-lock.json`, 174 KB. Two
+Before the icon and the `independent-review` decision, that was 255 files and 4.0 MB; with both,
+224 files and 3.4 MB; the largest is the starter's `package-lock.json`, 174 KB. Two
 are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodule.
 
 ## How it is made
 
 - `scripts/build_directory_tree.sh <commit>` prints a tree id: in a temporary index
   (`read-tree --empty`), it puts `git ls-tree -r <commit>`'s entries for the kept paths, minus
-  the four folders, through `update-index --index-info`, then `write-tree`. The blobs are the
+  the four folders and `skills/independent-review/`, through `update-index --index-info`, then `write-tree`. The blobs are the
   commit's own, so nothing is converted. (Tried on v0.33: 255 entries.) `--out <dir>` also
   unpacks it with `git archive <tree>`, for the trial and the test.
 - In `release-tag.yml`, a new last step. The "Move stable" step gains `id: move`, and the new
@@ -129,7 +133,8 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
 
 - `plugin-tests` (a required check) gains one test that runs the real script on `HEAD` into a
   temporary folder. Its expected list is written in the test, not read from the script:
-  everything tracked under `skills/` except the four folders, plus the nine files above. It
+  everything tracked under `skills/` except the four folders and `skills/independent-review/`,
+  plus the icon and the nine files above. It
   checks the tree's entries against that list and each blob against the commit's; that every
   path the existing `${CLAUDE_SKILL_DIR}` test resolves exists in the tree; that `plugin.json`
   declares no component paths (or each resolves in the tree); that `.gitattributes` holds no
