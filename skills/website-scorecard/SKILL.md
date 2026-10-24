@@ -69,17 +69,13 @@ or `.agents/skills/…`).
    An existing page (About, or the foot of the home page) needs nothing else. A **new**
    page for it is a new page: work through `AGENTS.md` §6 (`PAGES`, `llms.txt`, share
    card, a link to it).
-4. The component's table uses the site's shared table style. A site made before the Tables section of
-   `website-design-system` has no `src/styles/tables.css`: copy it from the starter
-   (`new-website/templates/astro/src/styles/`) and add `import '../styles/tables.css';` after the
-   `global.css` import in the layout. Without it the scorecard table is unstyled, and the spec says so.
-5. In `tests/scorecard.spec.ts` set `PAGE` to that page's address (`'/about'`).
-6. Language. The section speaks the site's one language (`SITE.locale`), or on a site
+4. In `tests/scorecard.spec.ts` set `PAGE` to that page's address (`'/about'`).
+5. Language. The section speaks the site's one language (`SITE.locale`), or on a site
    with several languages (`astro-i18n-setup`) the language of the page it is on
    (`Astro.currentLocale`); `<Scorecard lang="de" />` overrides both. English and German
    are built in. Any other language: add its texts to `TEXT` in the component, next to
    `en` and `de`. The tone rules apply to them (`tests/tone.spec.ts`).
-7. Commit. The working tree has to be clean for the next step.
+6. Commit. The working tree has to be clean for the next step.
 
 ## 3. Generate the card
 

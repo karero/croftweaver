@@ -87,6 +87,8 @@ const rerun = lh ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(
       {state === 'current' && <span data-scorecard-current> {t.current}</span>}
       {state === 'edited' && <strong data-scorecard-edited> {t.edited}</strong>}
     </p>
+    {/* The shared table markup (website-design-system, "Tables"): tests/tables.spec.ts needs it on every table.
+        The look stays this component's own, so the skill works on a site without src/styles/tables.css. */}
     <div class="table-wrap figures" role="region" aria-label={t.caption} tabindex="0">
       <table>
         <caption>{t.caption}</caption>
@@ -109,7 +111,10 @@ const rerun = lh ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(
 )}
 
 <style>
-  /* The table takes the shared table style (src/styles/tables.css). */
+  .scorecard table { border-collapse: collapse; margin: 1rem 0; }
   .scorecard caption { text-align: left; color: var(--muted); padding-bottom: 0.25rem; }
+  .scorecard th, .scorecard td { text-align: left; padding: 0.35rem 1.5rem 0.35rem 0; border-bottom: 1px solid var(--line); }
+  .scorecard tbody th { font-weight: 400; }
+  .scorecard td { font-variant-numeric: tabular-nums; }
   .scorecard-meta { color: var(--muted); }
 </style>

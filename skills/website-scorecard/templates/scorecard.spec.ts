@@ -81,8 +81,6 @@ test('scorecard — the page shows the numbers in the file', async ({ page }) =>
   await page.goto(PAGE);
   const section = page.locator('[data-scorecard]');
   await expect(section, `${PAGE} must render the scorecard`).toHaveCount(1);
-  // The site's table style (src/styles/tables.css) makes the wrapper a scroll region; without the file it is a plain div.
-  await expect(section.locator('.table-wrap'), 'the scorecard table has no table style: copy src/styles/tables.css from the starter and import it in the layout (install step 4)').toHaveCSS('overflow-x', 'auto', { timeout: 2000 });
 
   // Every figure on the page against the file: the totals, each area, the date, the version.
   const whole = (n: number) => new RegExp(`(^|\\D)${n}(\\D|$)`);

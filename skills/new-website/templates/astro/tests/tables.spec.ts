@@ -143,6 +143,11 @@ function layoutProblems(root: string): { broken: string[]; tall: string[]; hyphe
 
 // ---- contract layer: the CSS promises, on one table of each kind -------------------------------------
 
+test('tables — the table style is on the site', async ({ page }) => {
+  await openFixture(page, 1280);
+  await expect(page.locator('#table-fixture .stack'), 'no table style: copy src/styles/tables.css from the starter and import it in the layout after global.css').toHaveCSS('overflow-x', 'auto', { timeout: 2000 });
+});
+
 for (const width of PHONES) {
   test(`tables — fixture at ${width} px: rows stack, each cell has its column's label, nothing scrolls sideways`, async ({ page }) => {
     await openFixture(page, width);
