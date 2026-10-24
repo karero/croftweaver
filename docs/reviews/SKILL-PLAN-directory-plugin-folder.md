@@ -7,7 +7,7 @@ Nothing here is built. The plan waits for the plan review gate and then the main
 | 1 | This plan | ✅ written 2026-10-24 | this file |
 | 2 | Plan review gate (High: a workflow that pushes what users install) | ✅ 5 rounds, 48 findings, no BUG open; final full read (6 more); wording pass and its confirmation | `docs/reviews/REVIEW-plan-2026-10-24-directory-plugin-folder.md` |
 | 3 | Trial: one slim branch pushed by hand, Validate run on it | ✅ 2026-10-24: **Validation passed** in about 20 s (`ValidatePlugin` 200): 7 checks, 0 Blocking, 9 warnings (8 download-and-run, mostly docs; no icon), 26 policy holds (16 "uses a credential from the user's machine", 10 for `og/default.jpg` named by code). Unpinned `npx` did not block. Draft cleared, nothing submitted | `directory` at `c88e1ef5` (parent `9bae3ea0`, the tree as planned); `c88e1ef5` leaves out `independent-review` (223 files) |
-| 4 | Build: script, test, workflow step (one PR) | ⬜ only if step 3 gets a report | — |
+| 4 | Build: script, test, workflow step (one PR) | ✅ built 2026-10-25 on the maintainer's go ("yes, build the automation"); DIFF gate High, see the PR | `feat/directory-branch-publish`; trail `REVIEW-diff-2026-10-25-directory-branch-publish.md` |
 | 5 | Fix what step 3's report marks Blocking (likely the `npx` lines), and the README section on what the skills contact, each its own PR | ⬜ | — |
 | 6 | Directory form steps 2 to 5, then submit | ⬜ the maintainer's | — |
 
@@ -77,7 +77,7 @@ are images (a JPEG and two PNGs, the icon among them: types the checklist allows
 - `scripts/build_directory_tree.sh <commit>` prints a tree id: in a temporary index
   (`read-tree --empty`), it puts `git ls-tree -r <commit>`'s entries for the kept paths, minus
   the four folders and `skills/independent-review/`, through `update-index --index-info`, then `write-tree`. The blobs are the
-  commit's own, so nothing is converted. (Tried on v0.33: 255 entries.) `--out <dir>` also
+  commit's own, so nothing is converted. (Tried on v0.33 before the later decisions: 255 entries; at 0.34 with them: 224.) `--out <dir>` also
   unpacks it with `git archive <tree>`, for the trial and the test.
 - In `release-tag.yml`, a new last step. The "Move stable" step gains `id: move`, and the new
   step's `if:` is `steps.release.outputs.tag != '' && (steps.move.outcome == 'success' ||
@@ -99,8 +99,8 @@ are images (a JPEG and two PNGs, the icon among them: types the checklist allows
   so `Source:` always names the newest release published; push it to `refs/heads/directory` without force; then `git ls-remote origin
   refs/heads/directory` must name that commit. The job already checks out with `fetch-depth: 0`.
   A `concurrency` group on the job keeps two release runs from overlapping. A refused push
-  turns the run red; the README's release steps gain the hand commands (the script and the
-  same `commit-tree` line). The permissions comment (`contents: write`, "nothing else is
+  turns the run red; the README's release steps gain the hand command (the script, which
+  holds the `commit-tree` line and the step's refusals). The permissions comment (`contents: write`, "nothing else is
   written") and the header comment, which describes only `stable`, are updated.
 - The `main checks` ruleset covers the default branch only, and `stable` has no protection
   either. The same rule for `directory` (no deletion, no force push) is the maintainer's

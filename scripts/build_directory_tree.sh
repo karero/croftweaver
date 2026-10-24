@@ -33,9 +33,10 @@ work=$(mktemp -d) || { echo "$0: could not make a temporary folder" >&2; exit 1;
 trap 'rm -rf "$work"' EXIT
 export GIT_INDEX_FILE="$work/index"
 git read-tree --empty
-git ls-tree --full-tree -r -z "$commit" -- "${KEEP[@]}" | { grep -zvE "$DROP" || true; } | git update-index -z --index-info
+git ls-tree --full-tree -r -z "$commit" -- "${KEEP[@]}" | { grep -zvE "$DROP" || [ $? -eq 1 ]; } | git update-index -z --index-info
 tree=$(git write-tree)
 unset GIT_INDEX_FILE
+[ -n "$(git ls-tree --full-tree "$tree" -- .claude-plugin/plugin.json)" ] || { echo "$0: the tree came out without the plugin" >&2; exit 1; }
 
 if [ -n "$out" ]; then
   mkdir -p "$out"

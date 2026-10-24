@@ -598,6 +598,13 @@ test('the tree is the same from any folder of the clone, and a commit without th
   const run = spawnSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'v0.1'], { cwd: work, encoding: 'utf8' });
   assert.equal(run.status, 1);
   assert.match(run.stderr, /has no \.claude-plugin\/plugin\.json/);
+  // A grep that fails (not one that finds nothing) stops the build instead of leaving an empty tree.
+  const stubs = tmp();
+  fs.writeFileSync(path.join(stubs, 'grep'), '#!/bin/sh\necho stub grep failed >&2\nexit 2\n', { mode: 0o755 });
+  const broken = spawnSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD'], { cwd: REPO, encoding: 'utf8',
+    env: { ...process.env, PATH: `${stubs}:${process.env.PATH}` } });
+  assert.notEqual(broken.status, 0);
+  assert.equal(broken.stdout, '');
 });
 
 test('the publish script pushes without force', () => {

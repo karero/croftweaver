@@ -69,3 +69,20 @@ timings: codex 224s (65,262 tokens). "No BUG/RISK/NIT findings." It confirmed D1
 D15/D18, D2/D14, D8 and D10. Still unverifiable, as before: D4/D17 (the listing), D9 (three
 overlapping runs), whether `directory` gets a no-force rule (the maintainer's setting). The
 rounds end here.
+
+## Final full read (whole change 11a13e2d..a40b8be2)
+
+Kimi on ollama could not run (weekly quota used up), so a fresh host-model pass that had not
+seen the change (Opus 5.5), 343s, 117,675 tokens. No BUG.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| D20 | full read | RISK | `grep … \|\| true` hid a grep error (exit 2): the build printed the empty tree and exited 0, so publishing would push it. Reproduced with a stub grep. | Fixed: `\|\| [ $? -eq 1 ]` lets only "nothing matched" through; the build also refuses a tree without `.claude-plugin/plugin.json` (with `--full-tree`: written without it at first, the subfolder test caught that). A test with a failing stub grep; it fails with both guards removed. Counted though rare: a silent wrong result. |
+| D21 | full read | RISK | Nothing on GitHub stops a force push to or deletion of `directory`, and no file carried that to-do. | Fixed as a record: a BUGLOG row; the setting is the maintainer's. |
+| D22 | full read | NIT | The plan lists an "A, B, then late C" case; the test covers an older tag run late, the same check. | Accepted: the same ancestor check; the test names it. |
+| D23 | full read | NIT | The plan said the README gains the `commit-tree` line too. | Fixed in the plan: the script holds that line and its refusals. |
+| D24 | full read | NIT | A hand rollback of `stable` turns the branch run red, unmentioned in the README. | Re-sorted: rare (D5); the error says why. |
+| D25 | full read | NIT | The plugin.json test refuses any new key, stricter than "no component paths". | Intended: a new key gets a look before it ships. |
+| D26 | full read | NIT | Plan status row 4 and the "255 entries" note were stale. | Fixed. |
+
+Round 5 (pair seat Codex alone) is earned by D20.
