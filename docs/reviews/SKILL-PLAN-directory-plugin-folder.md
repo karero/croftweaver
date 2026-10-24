@@ -6,7 +6,7 @@ Nothing here is built. The plan waits for the plan review gate and then the main
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-24 | this file |
 | 2 | Plan review gate (High: a workflow that pushes what users install) | ✅ 5 rounds, 48 findings, no BUG open; final full read (6 more); wording pass and its confirmation | `docs/reviews/REVIEW-plan-2026-10-24-directory-plugin-folder.md` |
-| 3 | Trial: one slim branch pushed by hand, Validate run on it | ⬜ waits for the go | — |
+| 3 | Trial: one slim branch pushed by hand, Validate run on it | ⏳ branch pushed 2026-10-24 on the maintainer's go; Validate not yet run | `directory` at `c88e1ef5` (parent `9bae3ea0`, the tree as planned); `c88e1ef5` leaves out `independent-review` (223 files) |
 | 4 | Build: script, test, workflow step (one PR) | ⬜ only if step 3 gets a report | — |
 | 5 | Fix what step 3's report marks Blocking (likely the `npx` lines), and the README section on what the skills contact, each its own PR | ⬜ | — |
 | 6 | Directory form steps 2 to 5, then submit | ⬜ the maintainer's | — |
@@ -56,6 +56,14 @@ holds more for a subfolder plugin ("keep the plugin at the root of its own repos
   says why). It holds only `text` and `eol`, none of the attributes the checklist refuses
   (`export-ignore`, `export-subst`, `filter`).
 - Not `marketplace.json` (the directory is the marketplace) and not `.agents/`.
+- Not `skills/independent-review/` (the maintainer's decision, 2026-10-24, "go for the trial,
+  without independent-review"): it is a review tool, not one that builds sites, and OpenAI's
+  scanner flagged it three times. In the kept files it is named only as an optional escalation
+  the owner opts into (`website-review/SKILL.md` checks the folder exists before offering it;
+  `seo-reposition/SKILL.md`), and in the README and `docs/WHAT-THE-SKILLS-RUN.md`, which are
+  prose. `new-website` does not copy it. With it out: 223 files, 3.4 MB. The script's list and
+  the test's expected list leave it out too, and the `${CLAUDE_SKILL_DIR}` and name checks run
+  on what is left.
 
 That is 255 files and 4.0 MB; the largest is the starter's `package-lock.json`, 174 KB. Two
 are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodule.
