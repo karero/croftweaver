@@ -70,7 +70,7 @@ holds more for a subfolder plugin ("keep the plugin at the root of its own repos
 
 Before the icon and the `independent-review` decision, that was 255 files and 4.0 MB; with both,
 224 files and 3.4 MB; the largest is the starter's `package-lock.json`, 174 KB. Three
-are images (a JPEG and two PNGs, the icon among them; all allowed). No `.DS_Store`, symlink or submodule.
+are images (a JPEG and two PNGs, the icon among them: types the checklist allows; the icon has not yet been through Validate). No `.DS_Store`, symlink or submodule.
 
 ## How it is made
 
