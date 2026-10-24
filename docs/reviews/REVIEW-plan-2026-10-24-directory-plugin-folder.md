@@ -180,3 +180,11 @@ files, 3.4MB, within the size limits"; plugin.json found and valid (warnings); 3
 | F57 | codex | BUG | The `independent-review` exclusion was in the file list only; the recipe and the test line still left out four folders. | Fixed: both name `skills/independent-review/`; totals updated (224 files with the icon). |
 | F58 | codex | RISK | `website-review` tells users to copy the skill "from the suite", which a directory install lacks. | Fixed as wording: the plan says the GitHub repository still holds it. |
 | F59 | codex | RISK | The Validate result had no retained record. | Fixed: the section above. |
+
+Confirmation of F57-F59 (Codex alone, diff bbda7305..7c33d78b), 235 s, 56,030 tokens:
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F60 | codex | BUG | "Two images" after adding the icon: three. | Fixed. |
+| F61 | codex | NIT | The `melious_models.txt` exception left with `independent-review`. | Fixed: five lines in two files; the build's test drops it too. |
+| F62 | codex | RISK | `website-review/SKILL.md` still tells a directory user to copy the skill "from the suite". | Follow-up: a BUGLOG row in the build PR (name the GitHub repository there); not this plan's change. |

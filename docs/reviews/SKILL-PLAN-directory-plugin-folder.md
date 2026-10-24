@@ -69,8 +69,8 @@ holds more for a subfolder plugin ("keep the plugin at the root of its own repos
   on what is left.
 
 Before the icon and the `independent-review` decision, that was 255 files and 4.0 MB; with both,
-224 files and 3.4 MB; the largest is the starter's `package-lock.json`, 174 KB. Two
-are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodule.
+224 files and 3.4 MB; the largest is the starter's `package-lock.json`, 174 KB. Three
+are images (a JPEG and two PNGs, the icon among them; all allowed). No `.DS_Store`, symlink or submodule.
 
 ## How it is made
 
@@ -143,12 +143,12 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   - every tracked toolkit `docs/*.md` or root `scripts/` file they name, as the literal path, is
     in the tree. `docs/reviews/` is left out: skills name it for the site's own review folder
     (independent-review writes its trails there) or for design history ("in the Croftweaver
-    repo"), which no skill needs to run and which stays readable on GitHub. Six lines in three
-    files are allowed, each matched by file and its exact full text, written in the test (a
-    changed or new line fails until someone checks it): `new-website/SKILL.md`'s four lines
-    naming `scripts/whats-new.sh` (606, 612, 614, 618 at v0.33: called behind an `[ -f ]`
-    check, with the fallback above); `independent-review/scripts/melious_models.txt`'s one
-    naming `scripts/check_model_agnostic.sh` (a comment); `website-contact-form/templates/mail-form-text.ts`'s
+    repo"), which no skill needs to run and which stays readable on GitHub. Five lines in two
+    files are allowed (a sixth, in `independent-review`, left with that skill), each matched
+    by file and its exact full text, written in the test (a changed or new line fails until
+    someone checks it): `new-website/SKILL.md`'s four lines naming `scripts/whats-new.sh`
+    (606, 612, 614, 618 at v0.33: called behind an `[ -f ]` check, with the fallback above);
+    `website-contact-form/templates/mail-form-text.ts`'s
     one naming `docs/BUGLOG.md` (a comment);
   - none names one of the four folders, either as `<skill>/scripts/tests` or, inside that skill,
     as `scripts/tests`, except three lines, each matched by file and its exact full text: in `new-website/SKILL.md`,
