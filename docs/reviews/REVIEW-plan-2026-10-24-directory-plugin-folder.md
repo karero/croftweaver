@@ -131,3 +131,14 @@ plan), 227s, 126,682 tokens. No BUG.
 | F54 | full read | NIT | A fragment quoted as "exact full text". | Fixed: "the line beginning …"; the test holds the whole line. |
 
 Neither RISK changes the design, so no verification round; the wording pass reads them.
+
+## Wording pass (Codex alone, diff 9ef903b0..81b3c111)
+
+timings: codex 294s (73,810 tokens).
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F55 | codex | BUG | "About 1.3 million tokens" contradicts the trail: its figures total 959,955. | Fixed: the trail's figures (rounds 1-5 with fresh-eyes 833,273, the full read 126,682, this pass 73,810) total 1,033,765; the plan says "about 1.03 million reviewer tokens", not counting the host's own work. (The cost log holds 110,000 for the full read, an estimate typed before its figure came; this table has the real one.) |
+| F56 | codex | RISK | Status row 2 claims a wording pass whose result is not in the trail. | Fixed: this section; the row now names the confirmation too. |
+
+The confirmation (Codex, the fix's delta alone) follows.

@@ -5,7 +5,7 @@ Nothing here is built. The plan waits for the plan review gate and then the main
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-24 | this file |
-| 2 | Plan review gate (High: a workflow that pushes what users install) | ✅ 5 rounds, 48 findings, no BUG open; final full read; wording pass | `docs/reviews/REVIEW-plan-2026-10-24-directory-plugin-folder.md` |
+| 2 | Plan review gate (High: a workflow that pushes what users install) | ✅ 5 rounds, 48 findings, no BUG open; final full read (6 more); wording pass and its confirmation | `docs/reviews/REVIEW-plan-2026-10-24-directory-plugin-folder.md` |
 | 3 | Trial: one slim branch pushed by hand, Validate run on it | ⬜ waits for the go | — |
 | 4 | Build: script, test, workflow step (one PR) | ⬜ only if step 3 gets a report | — |
 | 5 | Fix what step 3's report marks Blocking (likely the `npx` lines), and the README section on what the skills contact, each its own PR | ⬜ | — |
@@ -179,6 +179,6 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
 - Why the repo root times out. The trial says only whether this tree gets a report.
 
 Cost of the plan gate at High: 5 rounds (Codex at its configured effort and GLM 5.3 on melious
-every round, fresh-eyes on the host's model in rounds 1 to 3), 48 findings, about 1.3 million
-tokens; the trail has the figures. No red team: the
+every round, fresh-eyes on the host's model in rounds 1 to 3), 54 findings with the final full read, about 1.03 million
+reviewer tokens (the trail's figures); the host's own work is not counted. No red team: the
 plan touches no user data, logins, money or schema, and deletes nothing without his go.
