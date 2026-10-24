@@ -141,4 +141,12 @@ timings: codex 294s (73,810 tokens).
 | F55 | codex | BUG | "About 1.3 million tokens" contradicts the trail: its figures total 959,955. | Fixed: the trail's figures (rounds 1-5 with fresh-eyes 833,273, the full read 126,682, this pass 73,810) total 1,033,765; the plan says "about 1.03 million reviewer tokens", not counting the host's own work. (The cost log holds 110,000 for the full read, an estimate typed before its figure came; this table has the real one.) |
 | F56 | codex | RISK | Status row 2 claims a wording pass whose result is not in the trail. | Fixed: this section; the row now names the confirmation too. |
 
-The confirmation (Codex, the fix's delta alone) follows.
+## Confirmation (Codex alone, diff 81b3c111..74544d67)
+
+timings: codex 68s (39,657 tokens). It recomputed F55's sums (833,273; 959,955; 1,033,765) and
+confirmed F56's record. Its one finding: status row 2 named this confirmation before the trail
+recorded it; this section records it. With it the reviewer total is 1,073,422 tokens, so the
+plan now says "about 1.07 million". Not re-read by a reviewer: this section and that number.
+
+Gate closed: no BUG open; RISK F37 re-sorted as rare; F42/F45 a follow-up (the README's hand
+`commit-tree` recovery repeats none of the step's refusals) for the build PR.

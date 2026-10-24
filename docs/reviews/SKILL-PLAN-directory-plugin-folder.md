@@ -179,6 +179,6 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
 - Why the repo root times out. The trial says only whether this tree gets a report.
 
 Cost of the plan gate at High: 5 rounds (Codex at its configured effort and GLM 5.3 on melious
-every round, fresh-eyes on the host's model in rounds 1 to 3), 54 findings with the final full read, about 1.03 million
+every round, fresh-eyes on the host's model in rounds 1 to 3), 54 findings with the final full read, about 1.07 million
 reviewer tokens (the trail's figures); the host's own work is not counted. No red team: the
 plan touches no user data, logins, money or schema, and deletes nothing without his go.
