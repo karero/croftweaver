@@ -42,3 +42,26 @@ timings: codex 94s (64,510 tokens). Codex confirmed F1–F12 as fixed in the pla
 | F13 | codex | BUG | The new Guards note said diff lines "never count" for the quota classifier; a CR inside a diff line can bring error-shaped text to column 0 after `readable_tail.pl`. | Fixed: wording ("ordinary diff lines … do not count", the CR case named). Prose about today's behaviour, no design change: not substantive, so it earns no round; it goes to the wording pass. |
 
 The rounds end here (no substantive BUG or earning RISK in round 2).
+
+## Final full read (plan at d23b5561)
+
+GLM 5.3 and Kimi had no seat (melious balance 0, ollama quota), so the read was a stronger
+host-family pass: a fresh Opus sub-agent that had not seen the plan or the trail. 383s, 223,288
+tokens.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F14 | full read | RISK | The host's own seats (fresh-eyes, a host final read) do not go through the script, so they would never see the evidence; before, the hand-made appendix reached them. | Fixed: Docs adds SKILL.md steps 3 and 6: give them the same file under the same lead. Earning: it changes what the host does. |
+| F15 | full read | BUG | "a fact the closing lines and the trail already give": closeout's round row has no place for evidence, and closeout deletes the raw folder. | Fixed: Docs adds closeout's round row (Artifact column records the `evidence:` line); How 10 reworded. |
+| F16 | full read | BUG | The quota-classifier note still overstated diff immunity: an added or removed line counts when its second word is error or fatal (grep probe). | Fixed: moved to "Known limit, not changed" with the classifier's real reach. Second time this sentence was wrong; this time taken from the agent's probe of the regex. |
+| F17 | full read | BUG | "T11 and T13 grep" both size messages: only the `seat_fits` one is grepped. | Fixed: How 5 says which; T13 gains a grep of the paste message's no-evidence wording. |
+| F18 | full read | NIT | "Every refusal comes before the base check" is untested. | Fixed: narrowed to "before any seat runs and before anything of the artifact or evidence leaves the machine". |
+| F19 | full read | NIT | The FAILED caveat names only "the reviewed artifact". | Fixed: How 11 adds "or evidence". |
+| F20 | full read | NIT | `--evidence -` and an empty value unspecified. | Fixed: refused, as `--verify` and `--base` refuse theirs; tests added. |
+| F21 | full read | NIT | The closing line says "material to review"; the lead says not under review. | Fixed: the lead says "material to read, not the text under review". |
+| F22 | full read | NIT | Size remedies still say only "split the artifact". | Fixed: "or trim the evidence" with evidence. |
+| F23 | full read | NIT | The bracketed list of "artifact plus prior findings" comments missed one. | Fixed: list dropped; "every comment" stands. |
+| F24 | full read | NIT | The lead's second line holds `${TYPE}` twice; a copied 25c helper replaces once. | Fixed: Tests say replace every place. |
+| F25 | full read | NIT | "line references below" but the plan has none. | Fixed: clause dropped. |
+
+Round 3 is earned by F14 (an earning RISK) and F15 (a BUG that changed the Docs list).
