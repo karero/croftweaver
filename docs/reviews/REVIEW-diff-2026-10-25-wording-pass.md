@@ -29,3 +29,15 @@ paragraph dropped from the agy and paste prompts only): exactly those two checks
 
 No BUG or RISK in round 1, so the rounds end. The fixes are prose (a comment and a BUGLOG row):
 they go through closeout's prose-only re-gate, run with `--wording-pass` itself.
+
+## Prose-only re-gate (head 43b3dbdd, delta from df6555a4)
+
+Run with the new `--wording-pass --seat codex --base df6555a4`: the flag's first live use.
+reviewers: codex OK; timings: codex 81s (36,102 tokens). No BUG/RISK/NIT findings. Codex
+checked each prose claim against the code, said the delta was prose only (no executable line),
+and raised nothing outside the scope: it kept to the paragraph.
+
+## State
+
+Codex and fresh-eyes clean at 43b3dbdd. Open: the GLM 5.3 seat has not reviewed this diff (melious
+balance 0, ollama over quota); it owes one full-scope run before the gate is clean at Normal.
