@@ -86,3 +86,14 @@ seen the change (Opus 5.5), 343s, 117,675 tokens. No BUG.
 | D26 | full read | NIT | Plan status row 4 and the "255 entries" note were stale. | Fixed. |
 
 Round 5 (pair seat Codex alone) is earned by D20.
+
+## Round 5 (verification, Codex alone, diff 73337223..4370b4eb)
+
+timings: codex 213s (64,634 tokens). D22, D24, D25 confirmed.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| D27 | codex | BUG | D20's test could pass with both guards removed: the stub grep closed its input, so `git ls-tree` died of SIGPIPE (141) with empty output. Reproduced six times. My own mutation run had failed the test by luck of timing. | Fixed: the stub reads all its input first; the test asserts exit 1 and the stub's message. Three runs pass; three runs with both guards removed fail. |
+
+After the fix: `make check` exit 0; `make test-plugin` 31 tests, 30 pass, 1 skipped.
+Round 6 is earned by D27 (a test that could not fire).
