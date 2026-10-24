@@ -44,3 +44,17 @@ this adds (bullet 3).
 | F17 | melious | NIT | Guards-absent not checked under `--verify` on a plan. | Fixed: the `--verify` bullet adds a plan run with the guards paragraph absent. |
 
 Round 3 is earned by F13 (a BUG: the test spec contradicted the code).
+
+## Round 3 (verification, plan at f49ab5a0)
+
+timings: codex 69s (59,786 tokens, effort medium), melious 235s (30,805 tokens). Codex: no
+BUG/RISK/NIT findings, every disposition F1-F17 confirmed. Melious: F13-F17 confirmed.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F18 | melious | RISK | Guard bullet 3 credits all four prompts, but the plan and `--verify` runs check codex and ollama only. | Fixed (wording, claim narrowed): bullet 3 says which run checks which prompts. |
+| F19 | melious | RISK | Line 370's case may assert the notice's full text and break when its last sentence changes. | Refuted: test_round_checks.sh:370 matches only the opening ("note: no --round, so this run is not a round of gate $id, which is at round 5"), which does not change; Codex read it the same way in round 2. Tests now say so. |
+| F20 | melious | NIT (outside scope) | No-flag absence check does not cover agy. | Follow-up, not taken: PROMPT_WORDING is one variable, empty without the flag. |
+
+No substantive BUG and no earning RISK in round 3: the rounds end (SKILL.md step 6). Totals:
+3 rounds, 20 findings (2 BUG, 13 RISK, 5 NIT; 2 refuted, 1 follow-up).

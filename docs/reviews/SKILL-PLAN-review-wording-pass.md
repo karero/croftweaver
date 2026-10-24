@@ -109,7 +109,8 @@ they were sent. New case 25c:
 
 `test_round_checks.sh`: line 127's expected notice takes the new last sentence; a new case on a
 logged gate past round 3 runs `--wording-pass` with no `--round` and checks that no notice
-prints, beside line 370's case, which still checks the notice without the flag.
+prints, beside line 370's case, which still checks the notice without the flag (it matches only
+the notice's opening, which does not change).
 
 What the tests cannot show: whether a reviewer honours the scope. That is a live run; the first
 wording pass after merge is it, and the trail records whether the seat kept to the scope.
@@ -121,8 +122,9 @@ wording pass after merge is it, and the trail records whether the seat kept to t
 - The BUG sentence on non-prose lines catches only what the reviewer notices, and a text-only seat
   sees only the delta. The host still decides prose-only from the hunk inventory (closeout); this
   sentence is a second look, not a substitute.
-- Case 25c's line-by-line order check fails if the codex, ollama, agy or paste prompt loses the
-  paragraph, cuts it, or places it after the artifact marker. Melious is covered only because it
+- Case 25c's line-by-line order check fails if, on a plain diff, the codex, ollama, agy or paste
+  prompt loses the paragraph, cuts it, or places it after the artifact marker; its plan and
+  `--verify` runs check the codex and ollama prompts only. Melious is covered only because it
   sends the same PROMPT_TEXTONLY as ollama; a melious-only change to that path would get past it.
   It says nothing about what a reviewer does with the paragraph.
 
