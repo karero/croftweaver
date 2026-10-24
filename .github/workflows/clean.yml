@@ -46,7 +46,8 @@ name: clean
 # the facts-check tests (`make test-facts`), which need nothing beyond python3, the
 # website-brand-kit tests (`make test-brand-kit`), which borrow `sharp` from an install of the
 # starter and need Pillow, the wordpress-inspector tests (`make test-wordpress-inventory`), which
-# need nothing beyond python3, and the
+# need nothing beyond python3, the tests of the Antigravity release test (`make
+# test-agy-release`), which need python3, git, node and npm, and the
 # tests of the Cloudflare check and setup scripts (`make test-cloudflare-check`), which need
 # nothing beyond Node and git. And it
 # runs the tests of the `npm create croftweaver` installer (`make test-create`), on Linux,
@@ -407,6 +408,20 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run the wordpress-inspector tests (stub sites on 127.0.0.1, no real requests)
         run: make test-wordpress-inventory PYTHON=python
+  agy-release-tests:
+    # The maintainer's Antigravity release test, run against a stub agy: no credits, no network.
+    # Standard library only, as for the facts check; npm runs a fixture site with no dependencies.
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run the Antigravity release-test tests (stub agy, fixture release)
+        run: make test-agy-release PYTHON=python
   cloudflare-check-tests:
     # Node's standard library only, so nothing is installed. 18 is the oldest Node the scripts
     # promise, 24 is the one the template pins and a site is built with; Windows runs the same
