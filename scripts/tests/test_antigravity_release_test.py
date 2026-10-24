@@ -158,10 +158,10 @@ class RealTranscript(unittest.TestCase):
         self.assertEqual([r.get("status") for r in self.results], ["SUCCESS"] * 3)
         ok, _ = self.t.check_discovery(self.results, self.tools, "/W/websites/.agents/skills/new-website/SKILL.md")
         self.assertTrue(ok, "agy read the workspace copy")
-        self.assertTrue(self.t.check_interview(self.results)[0])
-        ok, detail = self.t.first_npm_test(self.tools)
-        self.assertFalse(ok, "the trial's first npm test failed on robots.txt")
-        self.assertIn("1 failed", detail)
+        ok, detail = self.t.check_interview(self.results)
+        self.assertIsNone(ok, "a question was asked; a person judges it")
+        self.assertIn("?", detail)
+        self.assertIn("1 failed", self.t.first_npm_test(self.tools), "the trial's first npm test failed on robots.txt")
         self.assertEqual(self.t.workarounds(self.tools), [], "a deny-rule refusal is not a workaround")
 
 
@@ -186,22 +186,20 @@ class Checks(unittest.TestCase):
 
     def test_test_output_that_mentions_deny_rules_is_not_a_refusal(self):
         said = self.cmd("npm test", output="1 failed: deny rule is enforced")
-        self.assertFalse(self.t.first_npm_test([said, self.cmd("npm test", output="3 passed")])[0])
+        self.assertIn("1 failed", self.t.first_npm_test([said, self.cmd("npm test", output="3 passed")]))
 
     def test_first_npm_test_skips_a_deny_refusal(self):
         refused = self.cmd("cd site && npm test", "ERROR", error="Matches user-configured deny rule.")
-        self.assertTrue(self.t.first_npm_test([refused, self.cmd("npm test", output="3 passed")])[0])
+        self.assertEqual(self.t.first_npm_test([refused, self.cmd("npm test", output="3 passed")]), "`npm test` (DONE): 3 passed")
 
     def test_first_npm_test_sees_a_command_on_its_own_line(self):
-        ok, detail = self.t.first_npm_test([self.cmd("cd site\nnpm test", output="1 failed\n2 passed")])
-        self.assertFalse(ok)
-        self.assertIn("1 failed", detail)
+        self.assertIn("1 failed, 2 passed", self.t.first_npm_test([self.cmd("cd site\nnpm test", output="1 failed\n2 passed")]))
 
-    def test_an_unfinished_first_npm_test_is_not_green(self):
-        self.assertFalse(self.t.first_npm_test([self.cmd("npm test", "RUNNING"), self.cmd("npm test", output="3 passed")])[0])
+    def test_an_unfinished_first_npm_test_is_the_one_reported(self):
+        self.assertIn("(RUNNING)", self.t.first_npm_test([self.cmd("npm test", "RUNNING"), self.cmd("npm test", output="3 passed")]))
 
-    def test_no_passes_is_not_green(self):
-        self.assertFalse(self.t.first_npm_test([self.cmd("npm test", output="0 passed")])[0])
+    def test_no_command_is_said_plainly(self):
+        self.assertEqual(self.t.first_npm_test([self.cmd("ls")]), "agy ran no npm test")
 
 
 @unittest.skipUnless(HAVE_TOOLS, "needs git, node and npm")
@@ -372,15 +370,16 @@ class ReleaseTest(unittest.TestCase):
         rep = self.report()
         self.assertIn("5. Scaffold cp paths (no errors):  PASS — 2 skills checked", rep)
         self.assertIn("6. Generated site build + tests:   PASS", rep)
-        self.assertIn("Green from the first try:       yes", rep)
+        self.assertIn("agy's first npm test:           `npm test` (DONE): 3 passed", rep)
+        self.assertIn("starts interview: SEE NOTE — for a person to judge", rep)
         self.assertIn("not tested (deny rule: git commit)", rep)
         self.assertNotIn("git commit -m init", rep, "a deny-rule refusal is not a failed command")
         run = [c for c in self.calls() if "stream-json" in c][0]
         self.assertNotIn("--sandbox", run, "the full test runs unsandboxed: a real site's npm install needs the network")
 
-    def test_a_first_npm_test_that_failed_is_a_warning_even_when_repaired(self):
+    def test_a_first_npm_test_that_failed_is_quoted_even_when_repaired(self):
         self.assertEqual(self.credited("full", "first_fail"), 0, self.stdout)
-        self.assertIn("Green from the first try:       WARNING — agy's first npm test failed (1 failed)", self.report())
+        self.assertIn("agy's first npm test:           `npm test` (DONE): 1 failed, 2 passed", self.report())
 
     def test_weakened_test_script_is_not_trusted(self):
         self.assertEqual(self.credited("full", "tamper"), 5, self.stdout)

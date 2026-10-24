@@ -249,7 +249,7 @@ def tool_param(step, name):
 def refused(step):
     """A tool step agy's own permission check refused (the deny rules in its settings)."""
     err = (step.get("tool_info") or {}).get("error")
-    return step.get("state") == "ERROR" and "deny rule" in json.dumps(err)
+    return step.get("state") == "ERROR" and isinstance(err, dict) and "deny rule" in str(err.get("message", ""))
 
 
 def tool_output(step):
@@ -285,13 +285,14 @@ def check_discovery(results, tools, ws_skill):
 
 
 def check_interview(results):
-    """A smoke check: turn 1 succeeded and asked a question. Its first question goes in the report."""
+    """FAIL when turn 1 failed or asked nothing; otherwise its questions are quoted for a person,
+    who judges whether they are the interview (no PASS is claimed)."""
     if not results or results[0].get("status") != "SUCCESS":
         return False, "turn 1 did not succeed"
-    questions = re.findall(r"[^?\n]*\?", results[0].get("response") or "")
+    questions = [q.strip() for q in re.findall(r"[^?\n]*\?", results[0].get("response") or "")]
     if not questions:
         return False, "turn 1 asked no question"
-    return True, "asked: %s" % questions[0].strip()[:120]
+    return None, "for a person to judge; turn 1 asked: %s" % " | ".join(q[:100] for q in questions[:3])
 
 
 def check_scaffold(websites, release, since):
@@ -335,7 +336,8 @@ def check_scaffold(websites, release, since):
 
 
 def check_untouched(site, release):
-    """Files the test relies on must be the template's; returns the list of changes."""
+    """Files the test relies on must be the template's (tests/_helpers.ts apart from its PAGES
+    list, whose entries are not checked); returns the list of changes."""
     tpl = os.path.join(release, "skills", "new-website", "templates", "astro")
     changes = []
     try:
@@ -368,23 +370,17 @@ def check_untouched(site, release):
 
 
 def first_npm_test(tools):
-    """What agy's first npm test reported, for a person to read: a fix agy made afterwards is a
-    snag the next user would hit. A warning, not a verdict: the command is matched by its text."""
+    """agy's first npm test as its transcript shows it, quoted for a person: a fix agy made after a
+    failed first try is a snag the next user would hit. No verdict: the command is matched by text."""
     for s in tools:
         cmd = tool_param(s, "CommandLine")
         if s.get("tool_name") != "run_command" or refused(s):
             continue
         if not re.search(r"(?:^|&&|;|\|\||\n)\s*(?:npm (?:run )?test|npx playwright test)\b", cmd):
             continue
-        if s.get("state") not in ("DONE", "ERROR"):
-            return False, "agy's first npm test did not finish (%s)" % s.get("state")
-        out = tool_output(s)
-        failed = sum(int(n) for n in re.findall(r"\b(\d+) failed\b", out))
-        passed = sum(int(n) for n in re.findall(r"\b(\d+) passed\b", out))
-        if s.get("state") == "DONE" and not failed and passed:
-            return True, "agy's first npm test passed"
-        return False, "agy's first npm test failed (%s)" % ("%d failed" % failed if failed else "no passing summary")
-    return False, "agy never ran npm test"
+        summary = ", ".join(re.findall(r"\b\d+ (?:passed|failed|skipped|flaky)\b", tool_output(s))) or "no test summary"
+        return "`%s` (%s): %s" % (cmd.strip().replace("\n", " ; ")[:100], s.get("state"), summary)
+    return "agy ran no npm test"
 
 
 def workarounds(tools):
@@ -539,8 +535,8 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         else:
             lines.append("3. $SKILLS_ROOT resolved to:       not run (short check)")
         ok, d = check_interview(results)
-        lines.append("4. \"new website\" starts interview: %s — %s" % ("PASS" if ok else "FAIL", d))
-        fails += [] if ok else ["interview"]
+        lines.append("4. \"new website\" starts interview: %s — %s" % ("SEE NOTE" if ok is None else "FAIL", d))
+        fails += [] if ok is None else ["interview"]
         if level == "full":
             lines.append("5. Scaffold cp paths (no errors):  %s — %s" % ("PASS" if ok_s else "FAIL", d_s))
             fails += [] if ok_s else ["scaffold"]
@@ -557,8 +553,8 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
                 if tail:
                     lines += ["   | " + t for t in tail.strip().splitlines()[-8:]]
                 fails += [] if ok_n else ["build/tests"]
-            ok_f, d_f = first_npm_test(tools)
-            lines.append("   Green from the first try:       %s — %s" % ("yes" if ok_f else "WARNING", d_f))
+            lines.append("   agy's first npm test:           %s" % first_npm_test(tools))
+            lines.append("   tests/_helpers.ts PAGES:        entries not checked")
             perm = site and not os.path.exists(os.path.join(site, ".claude", "settings.json"))
             lines.append("   Permissions sanity:             %s — .claude/settings.json %s; website-permissions not tested"
                          % ("PASS" if perm else "FAIL", "not copied" if perm else "copied"))
