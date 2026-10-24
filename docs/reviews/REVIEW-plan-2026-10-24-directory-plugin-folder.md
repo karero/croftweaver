@@ -71,3 +71,22 @@ UNVERIFIABLE (codex, melious): Anthropic's page contents (the host fetched both 
 quotes in the plan), GitHub Actions engine behaviour (concurrency, `if:` gating), Windows checkout.
 
 Round 3 is earned by F18 (BUG).
+
+## Round 3 (verification, plan at f347a826)
+
+timings: codex 487s (79,294 tokens), melious 293s (31,334 tokens), fresh-eyes 122s (102,987 tokens).
+F18 to F33 confirmed except as below. Last round with fresh-eyes (High: rounds 1 to 3).
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F34 | codex (BUG), fresh-eyes (RISK) | BUG | The hand-moved `stable` run (F22) skips "Move stable", so its main-ancestry check never runs there; an off-main tag could reach `directory`. | Fixed: the new step fetches `main` and refuses a tag not on it, on both runs; a scratch case on the branch run. |
+| F35 | codex (BUG), melious, fresh-eyes (NIT) | BUG | "Four lines" for six. | Fixed: six lines in three files, each by file and the path it names. |
+| F36 | melious | RISK | `git fetch origin directory` fails when the branch is absent (checked: "couldn't find remote ref"); how existence is decided is unsaid; no first-run case. | Fixed: `ls-remote --exit-code` decides; fetch with an explicit refspec into `refs/remotes/origin/directory`, which every check reads; a first-run scratch case. |
+| F37 | codex | RISK | A computed `+` refspec gets past a literal-text force check. | Re-sorted: rare (no ordinary edit writes one). The plan now calls it a literal-text check and names the branch rule as the guard. |
+| F38 | melious | NIT | The three folder exceptions were pinned by line number. | Fixed: matched by file and literal text. |
+| F39 | melious | NIT | `docs/reviews/` exempted silently. | Fixed: the plan says why (the site's own review folder, or design history on GitHub); checked by grep on v0.33 (both kinds occur). |
+| F40 | fresh-eyes | NIT | plugin.json also holds `displayName`. | Fixed: the full key list. |
+| F41 | fresh-eyes | NIT | "Move stable succeeded" needs a step id. | Fixed: `id: move`, and the `if:` written out. |
+| F42 | melious | NIT (outside scope) | The README hand path for `directory` does not repeat the step's refusals. | Follow-up: with F22 the hand recovery is pushing `stable`, which reruns the step; the hand `commit-tree` line is only for a refused `directory` push. |
+
+Round 4 (pair only) is earned by F34 and F35.

@@ -38,7 +38,7 @@ holds more for a subfolder plugin ("keep the plugin at the root of its own repos
 ## What the branch holds (measured at v0.33; main at 11a13e2d differs in one file)
 
 - `.claude-plugin/plugin.json`, copied as it is (same name and version). It declares no
-  components today (only name, version, description, author, links, license); the test holds that.
+  components today (only name, displayName, version, description, author, homepage, repository, license); the test holds that.
 - `skills/`, except four folders of the toolkit's own tests, which no skill runs:
   `facts-check/scripts/tests`, `new-website/scripts/tests`, `search-console-insights/scripts/tests`,
   `website-brand-kit/scripts/tests` (158 files, 2.8 MB). `new-website` already leaves the
@@ -67,25 +67,31 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   the four folders, through `update-index --index-info`, then `write-tree`. The blobs are the
   commit's own, so nothing is converted. (Tried on v0.33: 255 entries.) `--out <dir>` also
   unpacks it with `git archive <tree>`, for the trial and the test.
-- In `release-tag.yml`, a new last step. It runs when the run found a release tag, and either
-  the "Move stable" step succeeded (a tag run; on a re-run that push changes nothing and
-  succeeds) or the run is the one on a hand-moved `stable`, so the README's hand recovery for
-  `stable` also brings `directory` along. That step already refuses a tag that is not on main
-  (`release-tag.yml:73-77`). The new step: `git fetch origin directory` (absent on the first
-  run); build the tree from the tag; if `directory` exists, read the `Source:` line of its last
-  commit's message, refuse when there is none, and refuse unless that commit is an ancestor of
-  the tag's; if the built tree equals `directory`'s tree, stop green; else make one commit with
-  `git commit-tree`, parent `directory` (none on the first run), author and committer
-  `github-actions[bot]`, message "Croftweaver v0.NN" plus `Source: <tag's commit>`; push it to
-  `refs/heads/directory` without force; then `git ls-remote origin refs/heads/directory` must
-  name that commit. The job already checks out with `fetch-depth: 0`.
+- In `release-tag.yml`, a new last step. The "Move stable" step gains `id: move`, and the new
+  step's `if:` is `steps.release.outputs.tag != '' && (steps.move.outcome == 'success' ||
+  github.ref_type == 'branch')`: a tag run whose `stable` push succeeded (on a re-run that push
+  changes nothing and succeeds), or the run on a hand-moved `stable`, so the README's hand
+  recovery for `stable` also brings `directory` along. "Move stable" refuses a tag not on main
+  (`release-tag.yml:73-77`), but it does not run on the branch run, so the new step checks it
+  again itself: `git fetch origin main`, and refuse unless the tag's commit is an ancestor of
+  it. Then: `git ls-remote --exit-code origin refs/heads/directory` decides whether `directory`
+  exists (exit 2: the first run); if it does, `git fetch origin
+  +refs/heads/directory:refs/remotes/origin/directory`, and every check below reads
+  `refs/remotes/origin/directory`. Build the tree from the tag; if `directory` exists, read the
+  `Source:` line of its last commit's message, refuse when there is none, and refuse unless
+  that commit is an ancestor of the tag's; if the built tree equals `directory`'s tree, stop
+  green; else make one commit with `git commit-tree`, parent `directory` (none on the first
+  run), author and committer `github-actions[bot]`, message "Croftweaver v0.NN" plus `Source:
+  <tag's commit>`; push it to `refs/heads/directory` without force; then `git ls-remote origin
+  refs/heads/directory` must name that commit. The job already checks out with `fetch-depth: 0`.
   A `concurrency` group on the job keeps two release runs from overlapping. A refused push
   turns the run red; the README's release steps gain the hand commands (the script and the
   same `commit-tree` line). The permissions comment (`contents: write`, "nothing else is
   written") is updated.
 - The `main checks` ruleset covers the default branch only, and `stable` has no protection
   either. The same rule for `directory` (no deletion, no force push) is the maintainer's
-  setting to add, at step 4.
+  setting to add, at step 4: it is the guard against a force push, which the test below can
+  check only in the step's literal text.
 - Not a committed folder on main: that would hold every skill twice and drift between releases.
 
 ## What stays as it is
@@ -116,24 +122,31 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   declares no component paths (or each resolves in the tree); that `.gitattributes` holds no
   `export-ignore`, `export-subst` or `filter`. Two name checks read the kept files under
   `skills/` only (what an assistant follows; the root files are prose for people):
-  - every tracked toolkit `docs/*.md` (not `docs/reviews/`) or root `scripts/` file they name,
-    as the literal path, is in the tree, except four lines matched by file and text:
-    `new-website/SKILL.md`'s whats-new lines (606 to 618: called behind an `[ -f ]` check, with
-    the fallback above), `independent-review/scripts/melious_models.txt`'s mention of
-    `check_model_agnostic.sh`, and `website-contact-form/templates/mail-form-text.ts`'s mention
-    of `docs/BUGLOG.md` (a comment);
+  - every tracked toolkit `docs/*.md` or root `scripts/` file they name, as the literal path, is
+    in the tree. `docs/reviews/` is left out: skills name it for the site's own review folder
+    (independent-review writes its trails there) or for design history ("in the Croftweaver
+    repo"), which no skill needs to run and which stays readable on GitHub. Six lines in three
+    files are allowed, matched by file and the path they name: `new-website/SKILL.md`'s four
+    lines naming `scripts/whats-new.sh` (606, 612, 614, 618 at v0.33: called behind an `[ -f ]`
+    check, with the fallback above); `independent-review/scripts/melious_models.txt`'s one
+    naming `scripts/check_model_agnostic.sh` (a comment); `website-contact-form/templates/mail-form-text.ts`'s
+    one naming `docs/BUGLOG.md` (a comment);
   - none names one of the four folders, either as `<skill>/scripts/tests` or, inside that skill,
-    as `scripts/tests`, except three lines matched by text: `new-website/SKILL.md` 566 and 568
-    (they remove the brand kit's from sites) and `geo-check.md:448` (describes one).
+    as `scripts/tests`, except three lines matched by file and text: in `new-website/SKILL.md`,
+    "The brand kit's scripts/tests is the toolkit's own test suite" and
+    `rm -rf "$PROJECT_SKILLS_DIR"/website-brand-kit/scripts/tests` (they remove it from sites);
+    in `search-console-insights/references/geo-check.md`, "Tests: `scripts/tests/test_geo_check.py`"
+    (describes one).
   As a warning in its output only: the file count and any non-image file over 256 KiB (the
   reviewer-hold limits, not blocks). What the checks do not catch: a path built from pieces,
   or a script that finds a tests folder by itself.
 - The workflow tests in `scripts/plugin.test.mjs` already run `release-tag.yml`'s `run:`
   blocks on a scratch repo; they do not run its `if:` lines. New cases: read from the YAML, the
-  step is last and its `if:` is the condition above; run on a scratch repo, a re-run pushes
-  nothing, an older tag than `directory`'s source is refused, a `directory` tip with no
-  `Source:` line is refused; no `git push` in the step carries `-f`, `--force` in any form, or
-  a `+` refspec.
+  step is last and its `if:` is the condition above; run on a scratch repo, the first run
+  (no `directory`) makes a parentless commit, a re-run pushes nothing, an older tag than
+  `directory`'s source is refused, a `directory` tip with no `Source:` line is refused, a tag
+  not on main is refused on the branch run; and no `git push` in the step's text carries
+  `-f`, `--force` in any form, or a `+` refspec (a literal-text check only).
 - Step 3 is the trial:
   1. With the maintainer's go, push one branch `directory` by hand: the tree from the steps
      the script will use, from the v0.33 tag, in one commit made with the same `commit-tree`
