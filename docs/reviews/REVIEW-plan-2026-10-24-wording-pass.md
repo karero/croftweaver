@@ -58,3 +58,20 @@ BUG/RISK/NIT findings, every disposition F1-F17 confirmed. Melious: F13-F17 conf
 
 No substantive BUG and no earning RISK in round 3: the rounds end (SKILL.md step 6). Totals:
 3 rounds, 20 findings (2 BUG, 13 RISK, 5 NIT; 2 refuted, 1 follow-up).
+
+## Final full read (whole plan at b8143e96)
+
+Kimi K3 on ollama FAILED: weekly usage limit (429), so no Kimi today. Melious already reviewed this
+plan, so it could not take this pass. Taken instead by a stronger host-family pass, Fable 5.1
+(367s, 190,515 tokens), which had not seen the plan and did not read this trail.
+
+Sections changed since: How 3, How 5, Docs, Tests (case 25c intro, test_round_checks bullet).
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F21 | fable | RISK | Ordinary use: NITs fixed in code after the last round put non-prose lines in the wording pass's delta; the flag makes that a BUG, and neither step 6 nor the plan says what the host does with it, so a head with unseen code could be stamped. | Fixed: How 5 sends such a delta to a full-scope re-gate without the flag (not a round), and says what the BUG means; Docs add the sentence to SKILL.md step 6 and closeout. Earning RISK (changes what the host does): earns round 4, kind `nonprose-disposition`. |
+| F22 | fable | NIT | Suppressing the notice leaves no trace that a run on a gate past round 3 was a wording pass. | Fixed: How 3 prints a one-line note instead; test_round_checks bullet checks it. |
+| F23 | fable | NIT | How 3 quoted the new notice sentence as a fragment; line 127 needs the exact string. | Fixed: both sentences quoted whole. |
+| F24 | fable | NIT | Case 25c needs three runs (agy only with WITH_ANTIGRAVITY=1, paste only when all seats fail). | Fixed: Tests say so, as in case 25b. |
+| F25 | fable | NIT | The cut-paragraph claim holds only if the test holds the lines literally. | Fixed: Tests say the six lines are literal. |
+| F26 | fable | NIT | Comment at script line 295 would describe pre-change code. | Fixed: Docs add a clause there. |
