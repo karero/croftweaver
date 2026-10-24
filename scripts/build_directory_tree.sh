@@ -24,24 +24,23 @@ if [ $# -eq 3 ]; then
   out=$3
 fi
 git rev-parse -q --verify "$commit^{commit}" >/dev/null || { echo "$0: no commit named $commit" >&2; exit 1; }
-# ls-tree reads paths from the current folder: work from the top, wherever this was started.
-top=$(git rev-parse --show-toplevel)
-cd "$top"
+# --full-tree: paths count from the top of the clone, wherever this was started.
 for need in .claude-plugin/plugin.json skills; do
-  [ -n "$(git ls-tree "$commit" -- "$need")" ] || { echo "$0: $commit has no $need" >&2; exit 1; }
+  [ -n "$(git ls-tree --full-tree "$commit" -- "$need")" ] || { echo "$0: $commit has no $need" >&2; exit 1; }
 done
 
 work=$(mktemp -d) || { echo "$0: could not make a temporary folder" >&2; exit 1; }
 trap 'rm -rf "$work"' EXIT
 export GIT_INDEX_FILE="$work/index"
 git read-tree --empty
-git ls-tree -r -z "$commit" -- "${KEEP[@]}" | { grep -zvE "$DROP" || true; } | git update-index -z --index-info
+git ls-tree --full-tree -r -z "$commit" -- "${KEEP[@]}" | { grep -zvE "$DROP" || true; } | git update-index -z --index-info
 tree=$(git write-tree)
 unset GIT_INDEX_FILE
 
 if [ -n "$out" ]; then
   mkdir -p "$out"
   [ -z "$(ls -A "$out")" ] || { echo "$0: $out is not empty" >&2; exit 1; }
-  git archive "$tree" | tar -x -C "$out"
+  # Run from the top: from a subfolder, git archive would write only that folder's part.
+  git -C "$(git rev-parse --show-toplevel)" archive --format=tar "$tree" | tar -x -C "$out"
 fi
 echo "$tree"

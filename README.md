@@ -327,8 +327,9 @@ gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --l
 #   git push origin "$v^{commit}:refs/heads/stable"
 # The same run then publishes the release to the branch `directory`, which Anthropic's
 # plugin directory follows (your push of `stable` above starts that too). If only that last
-# step failed, `stable` is right and only the directory listing is behind: put right what
-# the step names and run, from the toolkit's folder:  scripts/publish_directory.sh "$v"
+# step failed, `stable` is where it should be. Put right what the step names and run the
+# script from the toolkit's folder; it says so when `directory` already holds the release:
+#   scripts/publish_directory.sh "$v"
 # If the check of the number failed, the tag was not made as above: leave `stable` where
 # it is, and plugin users get the next release.
 

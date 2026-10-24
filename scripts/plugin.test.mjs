@@ -587,6 +587,11 @@ test('the tree is the same from any folder of the clone, and a commit without th
   const fromSub = execFileSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD'], { cwd: path.join(REPO, 'skills'), encoding: 'utf8' }).trim();
   directoryTree();
   assert.equal(fromSub, builtTree);
+  // --out, given relative to that folder, gets the whole tree there.
+  const rel = path.relative(path.join(REPO, 'skills'), path.join(tmp(), 'out'));
+  execFileSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD', '--out', rel], { cwd: path.join(REPO, 'skills') });
+  const unpacked = execFileSync('find', [path.join(REPO, 'skills', rel), '-type', 'f'], { encoding: 'utf8' }).trim().split('\n').length;
+  assert.equal(unpacked, directoryTree().length);
   const { git, release } = directoryRepo();
   release('v0.1', { 'README.md': 'no plugin here' });
   const work = git('rev-parse', '--show-toplevel');
