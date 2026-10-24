@@ -613,8 +613,11 @@ test('hero carousel — swap "fade": in the middle of a fade (confirmed by the o
   }
   const tree = await page.locator(`${root} .hc-slides`).ariaSnapshot();
   await untilMidFade(page); // still part-way: everything above was read inside the fade
-  expect(landed.filter((k) => k === 0), 'mid-fade: focus never lands on the link of the photo that is going').toEqual([]);
-  if (slides[1].href) expect(landed, 'mid-fade: focus does land on the link of the photo coming in').toContain(1);
+  // the focus check means something only when both photos link: then Shift+Tab must reach the one coming in and never the one going
+  if (slides[0].href && slides[1].href) {
+    expect(landed, 'mid-fade: focus does land on the link of the photo coming in').toContain(1);
+    expect(landed.filter((k) => k >= 0 && k !== 1), 'mid-fade: focus never lands on the link of the photo that is going, or of any other not coming in').toEqual([]);
+  }
   expect(tree, 'mid-fade: the photo coming in is in the tree').toContain(alts[1]);
   expect(tree, 'mid-fade: the photo that is going is not').not.toContain(alts[0]);
   // keyboard focus entered the carousel: the rotation stopped, the photo on show stays
