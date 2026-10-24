@@ -24,45 +24,65 @@ can do that.
 ## How
 
 1. **Flag.** `--wording-pass` takes no value. It sets a fixed paragraph, PROMPT_WORDING (empty
-   without the flag, like PROMPT_PLAN), which every tier prompt (tooled, text-only, agy, portable)
-   carries before the `--- BEGIN` marker:
+   when the flag is absent), which every tier prompt (tooled, text-only, agy, portable) carries
+   before the `--- BEGIN` marker:
 
-   > WORDING PASS. This ${TYPE} should change only prose: docs, comments, the review record.
-   > Report only a statement that contradicts the code or behaviour it describes, the rest of the
-   > repository, or another statement in this ${TYPE}, or that would mislead a reader about them.
-   > Do not report style, phrasing or missing requirements. In a diff, a changed line that is
-   > code, config or a command is a BUG: this pass cannot cover it.
+   > WORDING PASS. This pass covers prose only: docs, comments, the review record. Report only a
+   > statement that contradicts the code or behaviour it describes, the rest of the repository,
+   > or another statement in this ${TYPE} (a BUG), or that would mislead a reader about them
+   > (a RISK). Do not report style, phrasing or missing requirements. In a diff, a changed line
+   > that is not prose (code, config, a command, a fenced snippet, a generated file) is a BUG:
+   > this pass cannot cover it.
 
-   Five lines. PROMPT_CORE is unchanged, so SKILL.md's quoted copy and `check_prompt_sync.sh` are
-   unaffected. PROMPT_WORDING joins the `readonly` line.
+   Six lines. It names the severities, so a contradiction is not filed as a follow-up by its
+   label. PROMPT_CORE is unchanged, so SKILL.md's quoted copy and `check_prompt_sync.sh` (which
+   compares only PROMPT_CORE and checks that each tier prompt begins with it) are unaffected.
+   PROMPT_WORDING is assigned after TYPE is known and before the tier prompts, and joins the
+   `readonly` line.
 2. **Plans and diffs.** Both. Under `--wording-pass` PROMPT_PLAN (the questions on guards a plan
    proposes) is left out: those questions reopen the design, which a wording pass does not.
-3. **`--round`.** Refused, exit 2, before anything is read or sent: "a wording pass is not a round
-   (SKILL.md step 6): drop --round". The notice that a run without `--round` on a gate past
-   round 3 was not counted as a round is not printed for a wording pass: the flag says what the
-   run is.
+3. **`--round`.** Refused, exit 2, right after option parsing, before anything is read or sent:
+   "a wording pass is not a round (SKILL.md step 6): drop --round". The notice printed for a run
+   without `--round` on a gate past round 3 is not printed under the flag, since the flag says
+   what the run is. Without the flag it still prints, and its last sentence changes from "Right
+   for the final full read and the wording pass" to "Right for the final full read; a wording
+   pass passes --wording-pass".
 4. **`--verify`.** Allowed, for the wording pass's confirmation (SKILL.md step 6): the prior-findings
    file holds the contradiction found and its fix, and the delta is the fix. PROMPT_WORDING comes
-   before the verification scope, so "new problems" in the changed text are read as contradictions
-   only. A diff still needs `--base`, as every `--verify` diff does. Refusing the pair instead would
-   push the confirmation's scope back into the artifact, which is the problem this plan fixes.
-5. **`--seat`, `--depth`, `--local-only`.** Unchanged. The skill asks for one cross-model seat;
+   before the verification scope. PROMPT_VERIFY is unchanged, including its OUTSIDE SCOPE heading:
+   an outside-scope RISK or NIT is a follow-up and an outside-scope BUG is triaged, which matches
+   step 6 (a confirmation's other findings are follow-ups; only a substantive BUG reopens the
+   rounds). Whether a reviewer reads the round's "new problems" as contradictions only is model
+   behaviour, not shown by any test here. A diff still needs `--base`, as every `--verify` diff
+   does. Refusing the pair instead would push the confirmation's scope back into the artifact,
+   which is the problem this plan fixes.
+5. **Only the narrow pass.** The flag is for a seat whose chain is unbroken up to the head the
+   delta starts from. Where closeout sends the full pair instead (no unbroken chain), that run is
+   a full-scope review without the flag: its diff can hold code gated earlier, which the
+   paragraph would wrongly report as a BUG.
+6. **`--seat`, `--depth`, `--local-only`.** Unchanged. The skill asks for one cross-model seat;
    running the pair costs more but is not wrong, so the script does not require `--seat`. The
-   existing one-reviewer note already names the wording pass.
-6. **Cost log.** Unchanged. A wording pass is logged as a run with no round, as today, and the gate
+   existing one-reviewer note already names the wording pass. A text-only seat (ollama, melious)
+   sees only what it is sent, so it can check the prose against itself and the delta, not against
+   the code: the docs recommend `--seat codex`.
+7. **Cost log.** Unchanged. A wording pass is logged as a run with no round, as today, and the gate
    line already counts those. A new column would change `review_log.sh` and every reader of an
    append-only file for a label the trail already gives.
-7. **Codex effort.** Unchanged: `--verify` still drops to medium, a plain wording pass uses
+8. **Codex effort.** Unchanged: `--verify` still drops to medium, a plain wording pass uses
    config.toml's. Not part of this change.
 
 ## Docs
 
 - SKILL.md step 6, the wording pass: run it with `--wording-pass` (its confirmation with
-  `--wording-pass --verify`), and never put the scope in the artifact or the `--verify` file.
-  Step 2's usage line names the flag.
-- `references/closeout.md`, clerk item 2: the prose-only re-gate runs with `--wording-pass`;
-  replace "prepended to the unchanged strict prompt" with that.
+  `--wording-pass --verify`), `--seat codex` preferred for the reason in How 6, and never put the
+  scope in the artifact or the `--verify` file. Step 2's usage line names the flag.
+- `references/closeout.md`, clerk item 2: the narrow prose-only re-gate runs with
+  `--wording-pass`, replacing "prepended to the unchanged strict prompt"; the full-pair fallback
+  runs without it (How 5). The classification and carry-over go in the trail, not the scope; the
+  paragraph's last sentence is what asks the seat to challenge it.
 - The script's header usage, the `USAGE` string, and a comment above PROMPT_WORDING (two lines).
+  The header comments that call the wording pass a run with no `--round` (lines 104, 122, 215,
+  295) stay true and are not changed.
 
 ## Tests
 
@@ -70,16 +90,22 @@ All in `test_failed_tier_report.sh`, which enters the way users call the script 
 independent_review.sh <file> …`) with stub `codex`, `ollama` and `agy` CLIs that record the prompt
 they were sent. New case 25c:
 
-- Diff with `--wording-pass`: the codex, ollama and agy prompts and the paste prompt carry
-  "WORDING PASS.", and in each it comes before `--- BEGIN diff ---`. That order is the property
-  the change exists for: the same paragraph inside the artifact block is the failure we saw.
-- Plan with `--wording-pass`: the paragraph is there, the guards paragraph is not.
-- `--wording-pass --verify`: both paragraphs, wording first.
-- No flag: no "WORDING PASS." in the prompts the existing cases record.
+- Diff with `--wording-pass`: in the codex, ollama and agy prompts and the paste prompt, every
+  line of the paragraph, rendered ("this diff"), comes before `--- BEGIN diff ---`. Checking each
+  line, not a marker, catches a paragraph cut short or moved inside the artifact block, which is
+  the failure we saw. Melious sends the same PROMPT_TEXTONLY as ollama, so the ollama check
+  covers its text.
+- Plan with `--wording-pass`: every line of the paragraph, rendered ("this plan"), before
+  `--- BEGIN plan ---`; the guards paragraph absent.
+- `--wording-pass --verify`: every line of the paragraph before `--- BEGIN PRIOR FINDINGS ---`,
+  and "VERIFICATION ROUND." after it.
+- No flag: no "WORDING PASS." in the codex, ollama and paste prompts the existing cases record
+  (case 25's `noverify` run, case 5's paste output).
 - `--wording-pass --round 2`: exit 2, the message, and no stub ran.
 
-`test_round_checks.sh`: on a logged gate past round 3, `--wording-pass` with no `--round` prints
-no "no --round" notice.
+`test_round_checks.sh`: line 127's expected notice takes the new last sentence; a new case on a
+logged gate past round 3 runs `--wording-pass` with no `--round` and checks that no notice
+prints, beside line 370's case, which still checks the notice without the flag.
 
 What the tests cannot show: whether a reviewer honours the scope. That is a live run; the first
 wording pass after merge is it, and the trail records whether the seat kept to the scope.
@@ -88,11 +114,15 @@ wording pass after merge is it, and the trail records whether the seat kept to t
 
 - The `--round` refusal catches only a host that passes both flags. A host that runs a wording
   pass without the flag gets today's behaviour.
-- The BUG sentence on code in a diff catches only what the reviewer notices. The host still decides
-  prose-only from the hunk inventory (closeout); this sentence is a second look, not a substitute.
+- The BUG sentence on non-prose lines catches only what the reviewer notices, and a text-only seat
+  sees only the delta. The host still decides prose-only from the hunk inventory (closeout); this
+  sentence is a second look, not a substitute.
+- Case 25c's line-by-line order check fails if any tier loses the paragraph, cuts it, or places it
+  after the artifact marker. It says nothing about what a reviewer does with it.
 
 ## Review
 
 Plan: PLAN gate, Normal (Codex + GLM 5.3 on melious), until no BUG is open, then the final full
 read. No red team: the change touches no box, user data, login, money, deletion or schema.
 Diff: Normal at least (the skill ships in croftweaver.zip), `make check` before each round.
+Trail: `docs/reviews/REVIEW-plan-2026-10-24-wording-pass.md`.
