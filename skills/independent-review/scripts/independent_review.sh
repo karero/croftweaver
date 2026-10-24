@@ -842,8 +842,8 @@ fi
 # tripwire it proposed in several rounds, and each finding asked for a longer or more exact check;
 # the change's DIFF gate then spent four rounds on that tripwire (rationale.md, "Guards a plan
 # proposes"). The question belongs before the build, and its answer should be a cut. Empty for a
-# diff, so a diff's prompt is unchanged byte for byte; in a verification round it comes before the
-# round's scope.
+# diff, so a diff's prompt is unchanged byte for byte, and under --wording-pass, which does not
+# reopen the design; in a verification round it comes before the round's scope.
 PROMPT_PLAN=""
 if [ "$TYPE" = plan ] && [ "$WORDING_PASS" != 1 ]; then
   PROMPT_PLAN="
