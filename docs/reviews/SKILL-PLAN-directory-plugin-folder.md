@@ -79,8 +79,9 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
   +refs/heads/directory:refs/remotes/origin/directory`, and every check below reads
   `refs/remotes/origin/directory`. Build the tree from the tag; if `directory` exists, read the
   `Source:` line of its last commit's message, refuse when there is none, and refuse unless
-  that commit is an ancestor of the tag's; if the built tree equals `directory`'s tree, stop
-  green; else make one commit with `git commit-tree`, parent `directory` (none on the first
+  that commit is an ancestor of the tag's; if `Source:` already names the tag's commit (a
+  re-run), stop green; else make one commit, even when the tree is unchanged, so `Source:`
+  always names the newest release published with `git commit-tree`, parent `directory` (none on the first
   run), author and committer `github-actions[bot]`, message "Croftweaver v0.NN" plus `Source:
   <tag's commit>`; push it to `refs/heads/directory` without force; then `git ls-remote origin
   refs/heads/directory` must name that commit. The job already checks out with `fetch-depth: 0`.
@@ -126,13 +127,14 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
     in the tree. `docs/reviews/` is left out: skills name it for the site's own review folder
     (independent-review writes its trails there) or for design history ("in the Croftweaver
     repo"), which no skill needs to run and which stays readable on GitHub. Six lines in three
-    files are allowed, matched by file and the path they name: `new-website/SKILL.md`'s four
-    lines naming `scripts/whats-new.sh` (606, 612, 614, 618 at v0.33: called behind an `[ -f ]`
+    files are allowed, each matched by file and its exact full text, written in the test (a
+    changed or new line fails until someone checks it): `new-website/SKILL.md`'s four lines
+    naming `scripts/whats-new.sh` (606, 612, 614, 618 at v0.33: called behind an `[ -f ]`
     check, with the fallback above); `independent-review/scripts/melious_models.txt`'s one
     naming `scripts/check_model_agnostic.sh` (a comment); `website-contact-form/templates/mail-form-text.ts`'s
     one naming `docs/BUGLOG.md` (a comment);
   - none names one of the four folders, either as `<skill>/scripts/tests` or, inside that skill,
-    as `scripts/tests`, except three lines matched by file and text: in `new-website/SKILL.md`,
+    as `scripts/tests`, except three lines, each matched by file and its exact full text: in `new-website/SKILL.md`,
     "The brand kit's scripts/tests is the toolkit's own test suite" and
     `rm -rf "$PROJECT_SKILLS_DIR"/website-brand-kit/scripts/tests` (they remove it from sites);
     in `search-console-insights/references/geo-check.md`, "Tests: `scripts/tests/test_geo_check.py`"
@@ -143,7 +145,8 @@ are images (a JPEG and a PNG, both allowed). No `.DS_Store`, symlink or submodul
 - The workflow tests in `scripts/plugin.test.mjs` already run `release-tag.yml`'s `run:`
   blocks on a scratch repo; they do not run its `if:` lines. New cases: read from the YAML, the
   step is last and its `if:` is the condition above; run on a scratch repo, the first run
-  (no `directory`) makes a parentless commit, a re-run pushes nothing, an older tag than
+  (no `directory`) makes a parentless commit, a re-run pushes nothing, a newer release with an unchanged tree still advances `Source:`,
+  releases A, B and then a late run for C (between them) is refused, an older tag than
   `directory`'s source is refused, a `directory` tip with no `Source:` line is refused, a tag
   not on main is refused on the branch run; and no `git push` in the step's text carries
   `-f`, `--force` in any form, or a `+` refspec (a literal-text check only).

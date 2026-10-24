@@ -90,3 +90,16 @@ F18 to F33 confirmed except as below. Last round with fresh-eyes (High: rounds 1
 | F42 | melious | NIT (outside scope) | The README hand path for `directory` does not repeat the step's refusals. | Follow-up: with F22 the hand recovery is pushing `stable`, which reruns the step; the hand `commit-tree` line is only for a refused `directory` push. |
 
 Round 4 (pair only) is earned by F34 and F35.
+
+## Round 4 (verification, pair only, plan at b02008ae)
+
+timings: codex 355s (83,740 tokens), melious 175s (24,292 tokens). F34 to F42 confirmed by
+both seats. No BUG.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F43 | codex | RISK | Release order A, C, B with trees X, Y, X: publishing B stops green on the equal tree and leaves `Source: A`, so a late run for C passes both checks and publishes Y (older contents, silently). | Fixed: stop green only when `Source:` already names the tag's commit; otherwise commit even with an unchanged tree, so `Source:` always names the newest release; two scratch cases. Counted though rare: a silent wrong result. |
+| F44 | melious | RISK | The six root-file exceptions matched by file and named path let a future unguarded line through. | Fixed (the cut for kind exception-inventory, which earned rounds 3 and 4): every exception, root-file and folder alike, matches by file and its exact full text, written in the test. |
+| F45 | codex, melious | NIT (outside scope) | The README's hand `commit-tree` recovery repeats none of the step's refusals. | Follow-up, as F42. |
+
+Round 5 is earned by F43 (kind source-order) and F44 (kind exception-inventory, cut above).
