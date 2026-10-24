@@ -86,6 +86,9 @@ async function slideLinksInTabOrder(page: Page): Promise<number[]> {
   }
   return [...seen];
 }
+// How many photos with this alt text the accessibility tree of the slides holds (aria-hidden ones are not in it), matched by accessible name, not by text.
+const inTree = (page: Page, alt: string) => page.locator(`${root} .hc-slides`).getByRole('img', { name: alt, exact: true }).count();
+const same = (a: string, b: string) => a.replace(/\s+/g, ' ') === b.replace(/\s+/g, ' ');
 
 test('hero carousel — the install is complete: the page and both settings are named', () => {
   expect(PAGE, 'set PAGE in tests/hero-carousel.spec.ts to the page with the carousel').not.toBe('');
@@ -331,7 +334,11 @@ test('hero carousel — a first image that fails after the script has started, w
   expect(await active(page), 'nothing else is there yet: it stays').toEqual([0]);
   releaseOthers();
   await expect.poll(() => active(page), { timeout: 15000 }).not.toContain(0);
-  expect((await active(page)).length, 'one photo on show').toBe(1);
+  const now = await active(page);
+  expect(now.length, 'one photo on show').toBe(1);
+  // reduced motion started it stopped: the swap to the photo that arrived does not start the rotation
+  const ms = await interval(page);
+  for (let i = 0; i < 2; i++) { await page.clock.runFor(ms); expect(await active(page), 'still stopped after the recovery').toEqual(now); }
 });
 
 test('hero carousel — a second image that fails: it stays on the first photo', async ({ page }) => {
@@ -385,16 +392,15 @@ test('hero carousel — a slide not on show cannot be reached: not by the Tab ke
   const slides = await slidesOf(page);
   test.skip(!slides.some((s) => s.href), 'no slide has an href: the page links no photo');
   const alts = slides.map((s) => (s.img.getAttribute('alt') ?? '').trim());
-  test.skip(alts.some((a, i) => !a || alts.some((b, j) => i !== j && b.includes(a))), 'an alt text is empty or contained in another: the tree cannot tell the photos apart');
+  test.skip(alts.some((a) => !a) || [0, 1].some((i) => alts.some((b, j) => i !== j && same(alts[i], b))), 'an alt text is empty, or the first or second is the same as another: the tree cannot tell the photos apart');
   // before and after a swap: tabbing through the page reaches the link of the slide on show, and of no other
   for (const on of [0, 1]) {
     if (on === 1) { await press(page, 1); expect(await active(page)).toEqual([1]); } // (the Tab key above stopped the rotation: a dot moves it on)
     const reached = await slideLinksInTabOrder(page);
     expect(reached, `slide ${on + 1} on show: the slide links reached by Tab`).toEqual(slides[on].href ? [on] : []);
     // the accessibility tree lists the alt text of the slide on show only
-    const tree = await page.locator(`${root} .hc-slides`).ariaSnapshot();
-    expect(tree, 'the slide on show is in the tree').toContain(alts[on]);
-    for (const [k, alt] of alts.entries()) if (k !== on) expect(tree, `slide ${k + 1}, not on show, is not`).not.toContain(alt);
+    expect(await inTree(page, alts[on]), 'the slide on show is in the tree').toBe(1);
+    for (const [k, alt] of alts.entries()) if (k !== on) expect(await inTree(page, alt), `slide ${k + 1}, not on show, is not`).toBe(0);
   }
 });
 
@@ -596,7 +602,7 @@ test('hero carousel — swap "fade": in the middle of a fade (confirmed by the o
   test.skip(SWAP !== 'fade', 'this page uses swap "instant"');
   const slides = await slidesOf(page);
   const alts = slides.map((s) => (s.img.getAttribute('alt') ?? '').trim());
-  test.skip(!alts[0] || !alts[1] || alts[0].includes(alts[1]) || alts[1].includes(alts[0]), 'the first two alt texts are empty or contain one another: the tree cannot tell the two photos apart');
+  test.skip(!alts[0] || !alts[1] || same(alts[0], alts[1]), 'the first two alt texts are empty or the same: the tree cannot tell the two photos apart');
   await open(page, { reduced: false });
   // a fade of ten seconds, so that everything below happens inside it, on a machine of any speed
   await page.addStyleTag({ content: `${root} .hc-slide { transition-duration: 10s !important; }` });
@@ -611,18 +617,20 @@ test('hero carousel — swap "fade": in the middle of a fade (confirmed by the o
     await page.keyboard.press('Shift+Tab');
     landed.push(await page.evaluate(() => { const a = document.activeElement?.closest('[data-hc-slide] a'); return a ? Number((a.closest('[data-hc-slide]') as HTMLElement).dataset.hcSlide) : -1; }));
   }
-  const tree = await page.locator(`${root} .hc-slides`).ariaSnapshot();
+  const coming = await inTree(page, alts[1]);
+  const going = await inTree(page, alts[0]);
   await untilMidFade(page); // still part-way: everything above was read inside the fade
   // the focus check means something only when both photos link: then Shift+Tab must reach the one coming in and never the one going
   if (slides[0].href && slides[1].href) {
     expect(landed, 'mid-fade: focus does land on the link of the photo coming in').toContain(1);
     expect(landed.filter((k) => k >= 0 && k !== 1), 'mid-fade: focus never lands on the link of the photo that is going, or of any other not coming in').toEqual([]);
   }
-  expect(tree, 'mid-fade: the photo coming in is in the tree').toContain(alts[1]);
-  expect(tree, 'mid-fade: the photo that is going is not').not.toContain(alts[0]);
-  // keyboard focus entered the carousel: the rotation stopped, the photo on show stays
-  await page.clock.runFor(3 * ms);
+  expect(coming, 'mid-fade: the photo coming in is in the tree').toBe(1);
+  expect(going, 'mid-fade: the photo that is going is not').toBe(0);
+  // keyboard focus entered the carousel: the rotation stopped (one interval, not a whole lap), and it says so
+  await page.clock.runFor(ms);
   expect(await active(page), 'focus stopped the rotation').toEqual([1]);
+  await expect(page.locator(`${root} .hc-slides`), 'stopped: the photo area is a polite live region').toHaveAttribute('aria-live', 'polite');
 });
 
 test('hero carousel — swap "fade" with reduced motion: no transition at all', async ({ page }) => {
