@@ -133,10 +133,11 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   starts, whatever else `GET https://api.melious.ai/v1/models` lists; Kimi and every other model
   run on ollama. The script takes the run's word for its depth: it cannot tell whether the change
   under review is one a Light review fits. A light model is also never sent text that holds a
-  think tag (the angle-bracket tag named think, opening or closing, in any case): it was measured
-  skipping the text between the tags with the seat reporting OK, so the seat refuses it with
-  nothing sent and the FAILED section points to Codex (R-MELIOUS-THINK). The model allowed at
-  any depth is not affected. To change what the seat may run, change that file.
+  think tag (an angle bracket, an optional slash and the word think or thinking, in any case,
+  with spaces or tabs allowed between them; the exact pattern is in `perl/think_tag.pl`): it
+  was measured skipping the text between the tags with the seat reporting OK, so the seat
+  refuses it with nothing sent and the FAILED section points to Codex (R-MELIOUS-THINK). The
+  model allowed at any depth is not affected. To change what the seat may run, change that file.
   The seat names no default: unset, it makes no call.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
   27 KB diff, and finished at 96000 in 296-1624 s; `MELIOUS_API_TIMEOUT` defaults to 3600 s). A
