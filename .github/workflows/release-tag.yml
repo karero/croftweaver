@@ -13,6 +13,10 @@ name: release-tag
 # A push made by a workflow starts no other workflow, so the run on `stable` only happens
 # when a person moved the branch. It then checks that the commit is a release and carries
 # its number.
+#
+# Last, both runs publish the release to the branch `directory`, which Anthropic's plugin
+# directory follows: the plugin without the toolkit's own tests and review files
+# (scripts/publish_directory.sh, which a person runs by hand when this step failed).
 on:
   push:
     tags: ['v*']
@@ -21,8 +25,12 @@ on:
 jobs:
   plugin-release:
     runs-on: ubuntu-latest
+    # One release at a time: two runs publishing to `directory` at once could interleave.
+    concurrency:
+      group: plugin-release
+      cancel-in-progress: false
     permissions:
-      contents: write   # the last step pushes the branch `stable`; nothing else is written
+      contents: write   # pushes the branches `stable` and `directory`; nothing else is written
     steps:
       - uses: actions/checkout@v7
         with:
@@ -66,6 +74,7 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: make test-plugin
       - name: Move stable to the release
+        id: move
         if: github.ref_type == 'tag' && steps.release.outputs.tag != ''
         env:
           NAME: ${{ github.ref_name }}
@@ -77,3 +86,10 @@ jobs:
           fi
           # No force: a tag older than the release stable is on is refused by the push.
           git push origin HEAD:refs/heads/stable
+      - name: Publish the release to the directory branch
+        # A tag run whose `stable` push went through (a re-run's changes nothing and passes),
+        # or the run on a `stable` moved by hand, so that recovery brings `directory` along.
+        if: steps.release.outputs.tag != '' && (steps.move.outcome == 'success' || github.ref_type == 'branch')
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: scripts/publish_directory.sh "$TAG"

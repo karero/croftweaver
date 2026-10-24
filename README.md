@@ -325,6 +325,9 @@ gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --l
 # the tag, checks the number against it and moves `stable` to the release. A red run means
 # plugin users are still on the release before. If the step that moves the branch failed,
 # move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
+# The same run then publishes the release to the branch `directory`, which Anthropic's
+# plugin directory follows (your push of `stable` above starts that too). If only that
+# step failed, put right what it names and run:  scripts/publish_directory.sh "$v"
 # If the check of the number failed, the tag was not made as above: leave `stable` where
 # it is, and plugin users get the next release.
 

@@ -458,3 +458,217 @@ test('the workflow moves stable to a release that is on main, forward only', () 
   assert.notEqual(move('v0.32').status, 0);
   assert.equal(stable(), second);
 });
+
+// --- The branch `directory`, which Anthropic's plugin directory follows ---------------------
+// docs/reviews/SKILL-PLAN-directory-plugin-folder.md. The lists below are written here, not
+// read from scripts/build_directory_tree.sh, so a wrong list in the script fails.
+const DIRECTORY_FILES = ['.claude-plugin/icon.png', '.claude-plugin/plugin.json', '.gitattributes', 'LICENSE', 'README.md', 'SECURITY.md',
+  'THIRD-PARTY-LICENSES.md', 'docs/CLOUDFLARE-CHECKLIST.md', 'docs/PAGES-OR-WORKERS.md', 'docs/WHAT-THE-SKILLS-RUN.md'];
+const DIRECTORY_DROPS = ['skills/independent-review/', 'skills/facts-check/scripts/tests/', 'skills/new-website/scripts/tests/',
+  'skills/search-console-insights/scripts/tests/', 'skills/website-brand-kit/scripts/tests/'];
+const TEST_FOLDERS = DIRECTORY_DROPS.filter((d) => d.endsWith('/scripts/tests/')).map((d) => d.split('/')[1]);
+
+const lsTree = (treeish) => execFileSync('git', ['ls-tree', '-r', '-z', treeish], { cwd: REPO, encoding: 'utf8' })
+  .split('\0').filter(Boolean).map((entry) => { const [meta, file] = entry.split('\t'); return { meta, file }; });
+
+let builtTree;
+function directoryTree() {
+  builtTree ??= execFileSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim();
+  return lsTree(builtTree);
+}
+const blobText = (meta) => execFileSync('git', ['cat-file', 'blob', meta.split(' ')[2]], { cwd: REPO, encoding: 'utf8', maxBuffer: 1 << 26 });
+
+test('the directory tree is the plugin, its icon, the nine root files and nothing else, with the commit\'s own blobs', (t) => {
+  const keep = ({ file }) => DIRECTORY_FILES.includes(file) || (file.startsWith('skills/') && !DIRECTORY_DROPS.some((d) => file.startsWith(d)));
+  const expected = lsTree('HEAD').filter(keep).map(({ meta, file }) => `${meta}\t${file}`);
+  const built = directoryTree().map(({ meta, file }) => `${meta}\t${file}`);
+  assert.deepEqual(built, expected);
+  for (const file of DIRECTORY_FILES) assert.ok(built.some((e) => e.endsWith(`\t${file}`)), `${file} is missing from HEAD`);
+  // The checklist's reviewer-hold limits: a warning here, not a failure.
+  const big = directoryTree().filter(({ meta, file }) => !/\.(png|jpe?g|gif|webp|woff2?|ttf|otf)$/i.test(file)
+    && Number(execFileSync('git', ['cat-file', '-s', meta.split(' ')[2]], { cwd: REPO, encoding: 'utf8' })) > 256 * 1024);
+  t.diagnostic(`directory: ${built.length} files (held for review above 512); non-image files over 256 KiB: ${big.map((b) => b.file).join(', ') || 'none'}`);
+});
+
+test('every path a kept SKILL.md builds on the name Claude Code fills in is in the directory tree', () => {
+  const files = directoryTree().map(({ file }) => file);
+  const has = (p) => files.includes(p) || files.some((f) => f.startsWith(`${p}/`));
+  const missing = [];
+  for (const { meta, file } of directoryTree()) {
+    if (!/^skills\/[^/]+\/SKILL\.md$/.test(file)) continue;
+    for (const [, rest] of blobText(meta).matchAll(/\$\{CLAUDE_SKILL_DIR\}([^\s"'`)]*)/g)) {
+      const target = path.posix.normalize(`${path.posix.dirname(file)}/${rest}`).replace(/\/$/, '');
+      if (!has(target)) missing.push(`${file}: ${VAR}${rest}`);
+    }
+  }
+  assert.deepEqual(missing, []);
+});
+
+test('the directory\'s plugin.json declares no components, and no kept .gitattributes holds an attribute the checklist refuses', () => {
+  const entry = directoryTree().find(({ file }) => file === '.claude-plugin/plugin.json');
+  // Metadata only: a component path (commands, hooks, agents…) could point at a file the branch leaves out.
+  const keys = Object.keys(JSON.parse(blobText(entry.meta)));
+  assert.deepEqual(keys.filter((k) => !['name', 'displayName', 'version', 'description', 'author', 'homepage', 'repository', 'license'].includes(k)), []);
+  for (const { meta, file } of directoryTree().filter(({ file }) => path.posix.basename(file) === '.gitattributes')) {
+    assert.doesNotMatch(blobText(meta), /export-ignore|export-subst|filter/, file);
+  }
+});
+
+// Lines of the kept files under skills/ (what an assistant follows) that name `needle`, as [file, line].
+function keptLinesNaming(test) {
+  const hits = [];
+  for (const { meta, file } of directoryTree()) {
+    if (!file.startsWith('skills/')) continue;
+    const text = blobText(meta);
+    if (text.includes('\0')) continue;
+    for (const line of text.split('\n')) if (test(file, line)) hits.push([file, line]);
+  }
+  return hits;
+}
+
+test('the kept skills name no toolkit docs or scripts file the directory leaves out, except six known lines', () => {
+  const inTree = new Set(directoryTree().map(({ file }) => file));
+  const rootFiles = lsTree('HEAD').map(({ file }) => file)
+    .filter((f) => (/^docs\/[^/]+\.md$/.test(f) || f.startsWith('scripts/')) && !inTree.has(f));
+  const found = keptLinesNaming((file, line) => rootFiles.some((f) => line.includes(f)));
+  // Each checked by hand: the whats-new lines run only behind an [ -f ] check (the next test
+  // runs them without the script), the other two are comments.
+  assert.deepEqual(found, [
+    ['skills/independent-review/scripts/melious_models.txt', '# files of this skill that scripts/check_model_agnostic.sh does not scan, so the others need no'],
+    ['skills/new-website/SKILL.md', '   # The suite\'s scripts/whats-new.sh is the ONLY writer of the stamp format. Resolve'],
+    ['skills/new-website/SKILL.md', '   if [ -n "$SUITE_REPO" ] && [ -f "$SUITE_REPO/scripts/whats-new.sh" ] \\'],
+    ['skills/new-website/SKILL.md', '     bash "$SUITE_REPO/scripts/whats-new.sh" --stamp "$PROJECT_SKILLS_DIR"'],
+    ['skills/new-website/SKILL.md', '     bash "$SUITE_REPO/scripts/whats-new.sh" --stamp-tests tests'],
+    ['skills/website-contact-form/templates/mail-form-text.ts', '// not measured (docs/BUGLOG.md), so this cap is not tied to any program\'s limit. The'],
+  ].filter(([file]) => inTree.has(file)));
+});
+
+test('the kept skills name none of the left-out test folders, except three known lines', () => {
+  const found = keptLinesNaming((file, line) => TEST_FOLDERS.some((skill) =>
+    line.includes(`${skill}/scripts/tests`) || (file.startsWith(`skills/${skill}/`) && line.includes('scripts/tests'))));
+  assert.deepEqual(found, [
+    ['skills/new-website/SKILL.md', '   # The brand kit\'s scripts/tests is the toolkit\'s own test suite (about 1.7 MB). No site'],
+    ['skills/new-website/SKILL.md', '   rm -rf "$PROJECT_SKILLS_DIR"/website-brand-kit/scripts/tests'],
+    ['skills/search-console-insights/references/geo-check.md', 'Tests: `scripts/tests/test_geo_check.py` (the pieces) and `test_track_entry.py` (the weekly'],
+  ]);
+});
+
+test('without scripts/whats-new.sh beside it, new-website\'s stamp step records an unknown baseline and succeeds', () => {
+  const stamp = block(['skills', 'new-website', 'SKILL.md'], 'SUITE_SRC="$(readlink', '4. **Docs** — copy')
+    .split('\n').filter((line) => !line.trim().startsWith('```')).join('\n');
+  // A plugin folder that is not a git clone, and one that is a clone without the toolkit's scripts.
+  for (const asClone of [false, true]) {
+    const root = tmp();
+    fs.mkdirSync(path.join(root, 'skills', 'new-website'), { recursive: true });
+    if (asClone) execFileSync('git', ['init', '-q', root]);
+    const project = tmp();
+    const run = spawnSync('bash', ['-c', stamp], { cwd: tmp(), encoding: 'utf8',
+      env: { PATH: process.env.PATH, HOME: tmp(), SKILLS_ROOT: path.join(root, 'skills'), PROJECT_SKILLS_DIR: project } });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(fs.readFileSync(path.join(project, 'SUITE-VERSION'), 'utf8'), /^suite_commit: unknown\ncopied: \d{4}-\d{2}-\d{2}\n$/);
+  }
+});
+
+test('the workflow publishes to directory last, after stable moved or on a hand-moved stable, one run at a time', () => {
+  const text = read('.github', 'workflows', 'release-tag.yml');
+  const lines = text.split('\n');
+  const names = lines.filter((line) => /^ {6}- name: /.test(line)).map((line) => line.trim());
+  assert.equal(names.at(-1), '- name: Publish the release to the directory branch');
+  const publish = lines.slice(lines.findIndex((line) => line.trim() === names.at(-1))).map((line) => line.trim());
+  assert.ok(publish.includes("if: steps.release.outputs.tag != '' && (steps.move.outcome == 'success' || github.ref_type == 'branch')"));
+  assert.ok(publish.includes('TAG: ${{ steps.release.outputs.tag }}'));
+  assert.ok(publish.includes('run: scripts/publish_directory.sh "$TAG"'));
+  const move = lines.findIndex((line) => line.trim() === '- name: Move stable to the release');
+  assert.equal(lines[move + 1].trim(), 'id: move');
+  assert.match(text, /\n {4}concurrency:\n {6}group: plugin-release\n {6}cancel-in-progress: false\n/);
+});
+
+test('the publish script pushes without force', () => {
+  const pushes = read('scripts', 'publish_directory.sh').split('\n').filter((line) => /\bgit\s+push\b/.test(line));
+  assert.equal(pushes.length, 1);
+  // A literal-text check: the real guard against a force push is the branch rule on GitHub.
+  for (const line of pushes) assert.doesNotMatch(line, /(\s-f\b|--force|\s["']?\+)/, line);
+});
+
+// A throwaway repository with an `origin`, holding a few files the tree keeps and one it drops.
+function directoryRepo() {
+  const { git, commit: _empty, step: _step, ...rest } = releaseRepo();
+  const work = git('rev-parse', '--show-toplevel');
+  const origin = path.join(path.dirname(work), 'origin.git');
+  const write = (file, text) => { fs.mkdirSync(path.dirname(path.join(work, file)), { recursive: true }); fs.writeFileSync(path.join(work, file), text); };
+  const release = (tag, files) => {
+    for (const [file, text] of Object.entries(files)) write(file, text);
+    git('add', '-A');
+    git('commit', '-q', '-m', tag);
+    git('tag', tag);
+    return git('rev-parse', 'HEAD');
+  };
+  const publish = (tag) => {
+    const run = spawnSync('bash', [path.join(REPO, 'scripts', 'publish_directory.sh'), tag], { cwd: work, encoding: 'utf8',
+      env: { PATH: process.env.PATH, HOME: path.dirname(work), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } });
+    return { status: run.status, log: run.stdout + run.stderr };
+  };
+  const remote = (...args) => execFileSync('git', ['--git-dir', origin, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  const directory = () => { try { return remote('rev-parse', '-q', '--verify', 'refs/heads/directory'); } catch { return ''; } };
+  return { git, release, publish, remote, directory, ...rest };
+}
+
+test('a release reaches directory as one commit naming its source; a re-run adds nothing', () => {
+  const { git, release, publish, remote, directory } = directoryRepo();
+  const c1 = release('v0.1', { '.claude-plugin/plugin.json': '{"name":"x"}', 'README.md': 'r', 'skills/a/SKILL.md': 'a',
+    'skills/new-website/scripts/tests/t.sh': 't', 'skills/independent-review/SKILL.md': 'i', 'Makefile': 'm' });
+  git('push', '-q', 'origin', 'main', 'v0.1');
+  // The first run: no `directory` yet, so a commit with no parent.
+  const first = publish('v0.1');
+  assert.equal(first.status, 0, first.log);
+  const d1 = directory();
+  assert.equal(remote('rev-list', '--parents', '-n', '1', d1), d1);
+  assert.equal(remote('log', '-1', '--format=%an%n%B', d1), `github-actions[bot]\nCroftweaver v0.1\n\nSource: ${c1}`);
+  assert.deepEqual(remote('ls-tree', '-r', '--name-only', d1).split('\n'), ['.claude-plugin/plugin.json', 'README.md', 'skills/a/SKILL.md']);
+  // A re-run of the same release: nothing to push.
+  const again = publish('v0.1');
+  assert.equal(again.status, 0, again.log);
+  assert.match(again.log, /already holds v0\.1/);
+  assert.equal(directory(), d1);
+  // A newer release whose kept files did not change still advances the source, so an older
+  // release run late cannot pass as newer.
+  const c2 = release('v0.2', { 'skills/new-website/scripts/tests/t.sh': 't2' });
+  git('push', '-q', 'origin', 'main', 'v0.2');
+  assert.equal(publish('v0.2').status, 0);
+  const d2 = directory();
+  assert.equal(remote('rev-parse', `${d2}^`), d1);
+  assert.equal(remote('rev-parse', `${d2}^{tree}`), remote('rev-parse', `${d1}^{tree}`));
+  assert.match(remote('log', '-1', '--format=%B', d2), new RegExp(`Source: ${c2}$`));
+});
+
+test('directory refuses an older release, a tag not on main, and a last commit that names no source', () => {
+  const { git, release, publish, directory } = directoryRepo();
+  release('v0.1', { 'skills/a/SKILL.md': 'a' });
+  release('v0.2', { 'skills/a/SKILL.md': 'b' });
+  git('push', '-q', 'origin', 'main', '--tags');
+  assert.equal(publish('v0.2').status, 0);
+  const d2 = directory();
+  // v0.1 run late, after v0.2 was published.
+  const late = publish('v0.1');
+  assert.equal(late.status, 1);
+  assert.match(late.log, /::error::directory already holds a later release/);
+  assert.equal(directory(), d2);
+  // A tag cut from a side branch, on either kind of run.
+  git('checkout', '-q', '-b', 'side');
+  release('v0.3', { 'skills/a/SKILL.md': 'side' });
+  git('push', '-q', 'origin', 'v0.3');
+  const side = publish('v0.3');
+  assert.equal(side.status, 1);
+  assert.match(side.log, /::error::v0\.3 is not on main: directory stays where it is/);
+  assert.equal(directory(), d2);
+  // Someone pushed a commit with no `Source:` line.
+  git('checkout', '-q', 'main');
+  const bare = git('commit-tree', `${d2}^{tree}`, '-p', d2, '-m', 'by hand');
+  git('push', '-q', 'origin', `${bare}:refs/heads/directory`);
+  release('v0.4', { 'skills/a/SKILL.md': 'c' });
+  git('push', '-q', 'origin', 'main', 'v0.4');
+  const nosource = publish('v0.4');
+  assert.equal(nosource.status, 1);
+  assert.match(nosource.log, /::error::directory's last commit names no source/);
+  assert.equal(directory(), bare);
+});
