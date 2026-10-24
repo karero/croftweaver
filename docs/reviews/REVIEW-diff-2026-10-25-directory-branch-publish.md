@@ -62,3 +62,10 @@ checkout; its D12 confirmation is of the earlier wording, which D16 replaced.
 | D17 | codex | RISK | D4 restated: the listing's behaviour after release is unseen. | Open until the listing exists; checked then (first release after listing: the version Anthropic serves names the new commit). |
 | D18 | fresh-eyes | NIT | `--out` in a bare repo prints a stray git error while succeeding. | Fixed: `--show-toplevel` quiet, falling back to `.`. |
 | D19 | fresh-eyes | NIT | The header promised the README covers "each step". | Fixed: "see README.md". |
+
+## Round 4 (verification, Codex alone, diff 51ed074c..d12bd0c8)
+
+timings: codex 224s (65,262 tokens). "No BUG/RISK/NIT findings." It confirmed D16's cut, D11,
+D15/D18, D2/D14, D8 and D10. Still unverifiable, as before: D4/D17 (the listing), D9 (three
+overlapping runs), whether `directory` gets a no-force rule (the maintainer's setting). The
+rounds end here.
