@@ -77,3 +77,14 @@ Substantive BUGs: C8, C9, C10. Round 3 owed. Fixes in `f691d9ff`.
 | G15 | NIT | melious | fixed | "the warning below" in a table cell; now points at "Warnings in the output" |
 
 Round 4 earned by C15 (test-filter, cut). Fixes in `571ace8e`.
+
+## Round 4 — verification of `5e92ed22`, earned by C15 (`--earned-by test-filter`, cut as above)
+`reviewers: codex OK, melious OK` · `timings: codex 102s (35600 tokens), melious 88s (10597 tokens)` · no BUG.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C18 | RISK | codex | fixed | A `test.only` left in a spec narrows the run outside CI (`forbidOnly` is on only when `CI` is set). The run is now `npx playwright test --forbid-only` (the flag is in Playwright 1.64.1's `--help`: "Fail if test.only is called"), so focus fails the run, a 🔴 blocker. A refusal of the input, not another required title |
+| G16 | RISK | melious | fixed | "The starter's config filters nothing" had no guard; the coupling test now asserts `testDir: './tests'` and no `grep`, `grepInvert`, `testIgnore` or `testMatch` in the starter's config (mutation: adding `grep` fails it) |
+| G17 | NIT | melious | fixed | The row count matched `<page>` anywhere in a row; now only in the title column |
+
+Round 5 earned by C18 (test-filter: the fix refuses the input). Fixes in `c66f7e3c`.
