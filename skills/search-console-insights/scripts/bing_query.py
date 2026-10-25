@@ -17,7 +17,8 @@ Endpoint: GetQueryStats returns ONE aggregate row per query over Bing's last
 Usage:
   export BING_API_KEY=...
   python bing_query.py --site https://example.com \
-     --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" --out bing.md
+     --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
+     --out "<site folder>/analytics/<today>_bing/bing.md"   # make that folder first
 
 Dependencies: requests (see ../requirements.txt)
 """
