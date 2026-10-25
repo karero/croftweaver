@@ -229,7 +229,7 @@ Each line is something to look at, not an outcome to expect:
    failed or did not answer 200:
 
    ```bash
-   for i in $(seq 21); do curl -s -o /dev/null -w '%{http_code} %{time_appconnect} %{time_starttransfer}\n' https://<host>/privacy; done | awk '{printf "%s %.4f\n", $1, $3-$2}' | sort -n -k2 | awk '$1 != 200 {bad=1} NR == 11 {m=$2} END {if (bad || NR != 21) {print "not 21 runs with status 200: measure again"; exit 1} print m}'
+   for i in $(seq 21); do curl -s -o /dev/null -w '%{http_code} %{exitcode} %{time_appconnect} %{time_starttransfer}\n' https://<host>/privacy; done | awk '{printf "%s %s %.4f\n", $1, $2, $4-$3}' | sort -n -k3 | awk '$1 != 200 || $2 != 0 {bad=1} NR == 11 {m=$3} END {if (bad || NR != 21) {print "not 21 complete runs with status 200: measure again"; exit 1} print m}'
    ```
 
    It measures from one place only; it says nothing about visitors elsewhere.
