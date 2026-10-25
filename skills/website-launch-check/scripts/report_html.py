@@ -7,9 +7,8 @@
 The Markdown is the source; the page is rebuilt from it, never edited by hand. The page uses a
 fixed set of elements and attributes and one constant <style>, so it loads and runs nothing.
 It reads the Markdown the report templates use: headings, paragraphs, lists, task lists,
-tables, quotes, fenced code, **bold**, *emphasis*, `code` and [links](target). What it does not
-read (an image, raw HTML, other syntax) is shown as escaped text; emphasis does not reach across a
-link. Standard library only.
+tables, quotes, fenced code, **bold**, *emphasis*, `code` and [links](target). It writes no
+image and no raw HTML: such Markdown is shown escaped, as text. Standard library only.
 """
 import argparse
 import html
@@ -211,7 +210,8 @@ def render(md, lang="en", title=None):
     return (
         "<!doctype html>\n"
         '<html lang="' + esc(lang) + '">\n<head>\n<meta charset="utf-8">\n'
-        # The browser enforces it too: nothing may load but this page's own inline style.
+        # Asks the browser to refuse any load but this page's own inline style (Content Security
+        # Policy); the tests check that the tag is there, not a browser's behaviour.
         '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<title>" + esc(re.sub(r"[*`]", "", title)) + "</title>\n"

@@ -15,8 +15,8 @@ name.
    that page's test, by the title below, as passed. A page whose test was skipped, filtered out
    (a narrowed test command, a `grep` in the config), failed or is missing is the check's, for
    that category, on that page. A filtered-out test leaves no line and no count, so check by
-   name: for each page in `PAGES`, look for a line whose title is the one below with that page
-   at its end (`seo — head contract on /` is not the line for `/privacy`). Also
+   name: for each page in `PAGES`, put the page in place of `<page>` in the title below and look
+   for a line with exactly that title (`seo — head contract on /` is not the line for `/privacy`). Also
    check that every `tests/*.spec.ts` file shows at least one line: a spec with none was
    filtered out by the config, which is a 🟡 finding, and a 🔴 blocker when it is
    `placeholders.spec.ts`, whose warnings the check needs.
@@ -37,6 +37,7 @@ name.
 | Images: alt text present, width and height set, modern formats | `images.spec.ts` | `images — <page> uses optimised, dimensioned, described images` | every `<img>` has an `alt` attribute (an empty one is allowed, for a decorative image), `width` and `height`, a `loading` choice and no stretched ratio, and no JPEG/PNG/GIF is served where WebP/AVIF is expected. Not whether the alt text describes the image: that stays a read by eye |
 | Exactly one H1 | `seo.spec.ts` | `seo — head contract on <page>` | `h1` count is 1 |
 | Title and description length | `seo.spec.ts` | `seo — head contract on <page>` | title not empty and at most 60 characters; description 120 to 160 characters |
+| The placeholder warnings the check reads | `placeholders.spec.ts` | `placeholders — no leftover on <page>` | each page's leftovers: a failure, or the `⚠ placeholders:` warning below. A page whose line is missing has unread warnings: a 🔴 blocker, and the check reads that page for leftovers itself |
 
 Not covered by any test, so always the check's: titles or descriptions shared by two pages,
 whether a title or description says what the page is, the starter's example values (the name

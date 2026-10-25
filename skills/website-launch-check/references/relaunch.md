@@ -31,7 +31,8 @@ writes `public/_redirects` from the decisions.
 Then check each decision against the new site:
 
 - a move: a line for it in `public/_redirects` (it may have several, for `/old`, `/old/` and the
-  escaped forms) whose target is the decided new address, and, for a path on the new site, that
+  escaped forms) whose target is where the decisions lead, counted as in §1 (`make_redirects.py`
+  follows chains: `/a → /b` and `/b → /c` write `/a /c`), and, for a path on the new site, that
   path in the new build (`dist/`); a missing line, another target or a missing page is a
   before-launch item;
 - `keep`: the path exists in the new build (`dist/`); missing is a before-launch item;

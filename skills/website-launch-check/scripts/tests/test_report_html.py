@@ -30,7 +30,7 @@ ALLOWED = {
     "strong": set(), "em": set(), "a": {"href"},
 }
 SAFE = re.compile(
-    r"(?:(?:https://|http://|mailto:|#)[^\s\x00-\x1f\x7f\"'<>\\]*|(?!//)[A-Za-z0-9/._~%-]+)\Z")
+    r"(?:(?:https://|http://|mailto:|#)[^\s\x00-\x1f\x7f\"'<>\\]*|(?!//)[A-Za-z0-9/._~%-]+(?:#[A-Za-z0-9._~%-]*)?)\Z")
 
 
 class Page(HTMLParser):
@@ -227,15 +227,17 @@ class StarterTitles(unittest.TestCase):
 
     def test_the_titles_and_warnings_the_mapping_names_exist(self):
         coverage = (HERE.parent.parent / "references" / "test-coverage.md").read_text(encoding="utf-8")
-        specs = {name: (STARTER_TESTS / name).read_text(encoding="utf-8")
-                 for name in ("images.spec.ts", "seo.spec.ts", "placeholders.spec.ts", "positioning.spec.ts")}
-        for title, spec in (("images — ${path} uses optimised, dimensioned, described images", "images.spec.ts"),
-                            ("seo — head contract on ${path}", "seo.spec.ts")):
-            self.assertIn(title, specs[spec])
-            self.assertIn(title.replace("${path}", "<page>"), coverage)
-        self.assertIn("'⚠ placeholders: '", specs["placeholders.spec.ts"])
-        self.assertIn("'⚠ positioning coverage: '", specs["positioning.spec.ts"])
-        self.assertIn("is not ready to launch", specs["placeholders.spec.ts"])
+        specs = "\n".join(p.read_text(encoding="utf-8") for p in sorted(STARTER_TESTS.glob("*.spec.ts")))
+        # Every per-page title and every warning prefix the mapping names, read from the mapping.
+        titles = set(re.findall(r"`([a-z]+ — [^`]*<page>[^`]*)`", coverage))
+        warnings = set(re.findall(r"`(⚠ [a-z ]+:)`", coverage))
+        self.assertGreaterEqual(len(titles), 3, titles)
+        self.assertGreaterEqual(len(warnings), 2, warnings)
+        for title in titles:
+            self.assertIn(title.replace("<page>", "${path}"), specs, title)
+        for warning in warnings:
+            self.assertIn("'" + warning + " '", specs, warning)
+        self.assertIn("is not ready to launch", specs)
         self.assertIn("reporter: 'list'", (STARTER_TESTS.parent / "playwright.config.ts").read_text(encoding="utf-8"))
 
 
