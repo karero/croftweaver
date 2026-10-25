@@ -121,6 +121,36 @@ comes.
 > site is built and published on, so everything just works. Your assistant can help you set
 > it up; just ask. (Native Windows works too — see [SETUP.md](skills/new-website/templates/SETUP.md).)
 
+## What leaves your computer
+
+Croftweaver has no server of its own and sends nothing to its makers. When a skill talks to
+a service on the internet, it is one you chose, with your own account or key:
+
+- **GitHub**, where your site's code is kept.
+- **Cloudflare**, if you publish there: your finished site, and the settings you agree to.
+- **Google Search Console and Bing**, if you connect them: read only, to show how people
+  find your site.
+- **A search-results service** (Serper or SerpApi), if you ask who ranks for a phrase: that
+  phrase.
+- **The AI services you pick** for the weekly check whether AI answers name your business
+  (OpenRouter, or Gemini, OpenAI, Anthropic and Perplexity directly, and SerpApi for
+  Google's AI answers if you switch that on): your questions.
+- **An image service** you choose, if you ask for images: your image requests.
+- **Outside AI reviewers** (Codex, Ollama, melious.ai, Antigravity), only if you ask for a
+  second opinion: the plan or change being reviewed. Codex works inside your project folder
+  and can read other files there too.
+- **croftweaver.com**, only if you say yes to a small "Built with Croftweaver" credit in
+  your footer: the credit's files.
+- **Your visitor counting** (Plausible), if you switch it on: for each page view, the page's
+  address, where the visitor came from, their browser and their network address, and a
+  count when someone taps your email link.
+- **Public pages and downloads** your assistant reads while it works, such as programs it
+  installs or your own live site.
+
+Two tools your site is built with, Astro and Cloudflare's Wrangler, send anonymous usage
+data to their own makers unless you switch that off. The full list, with every script and
+setting, is in [What the skills run on your computer](docs/WHAT-THE-SKILLS-RUN.md).
+
 ## What happens next
 
 Once you run `new website`, the assistant will:
