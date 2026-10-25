@@ -94,3 +94,20 @@ Checks after the fixes: the job's steps run locally as written (whole suite 112 
 | 43 | glm | NIT | the "added late" case expects the same text as the lazy one | Refuted with #40: each case runs alone on a clean page |
 
 Checks after the fixes: the job's steps run locally as written (10 judged, whole suite 112 passed and 1 skipped, 9 red cases red); site A unchanged, no "did not settle" on any of its 50 pages.
+
+## Round 6 — 92c47cb2 (verification; earned by #38, `--earned-by end-settle`, cut named)
+
+`reviewers: codex OK, melious OK`; `timings: codex 493s (52273 tokens), melious 154s (19460 tokens)`. 4 findings, all RISK, no BUG.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 44 | codex | RISK | a page that takes over 40 s to load leaves too little time for the budget's own message | Re-sorted: rare (a 40 s load from a local preview), and the test still fails, by timeout. BUGLOG row 2026-10-25 |
+| 45 | codex | RISK | pending requests count every frame; an embedded frame's endless image fails the page | Re-sorted: rare, and loud ("did not settle"), not silent. BUGLOG row 2026-10-25 |
+| 46 | glm | RISK | a preloaded file shown by an `<img>`, or a redirect, may leave a request unpaired | Refuted with evidence: the green page preloads and shows `swap.webp` and settles; site A's 50 pages (preloads included) settle; Playwright's own docs (`types.d.ts`): "If request gets a 'redirect' response, the request is successfully finished with the `requestfinished` event, and a new request is issued" |
+| 47 | glm | RISK | `expect.poll` may not take `message` | Refuted with evidence: the installed types give `{ message?: string, timeout?: number, intervals?: number[] }`, and a failing poll printed `Error: MY-POLL-MESSAGE` |
+
+No BUG and no RISK whose fix changes what runs: the rounds end (stop condition a2).
+
+## Close
+
+6 rounds; 47 findings: 9 BUG, 24 RISK, 14 NIT (rows 1–47). Every BUG fixed; two RISKs re-sorted as rare with BUGLOG rows; the refuted ones carry their evidence above. Rounds 3 to 6 cut rather than patched where a kind came back (the size rule, the end settle).
