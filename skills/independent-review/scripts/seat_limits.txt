@@ -7,7 +7,8 @@
 #                  does every prompt when perl is missing.
 # Seats: codex, melious, ollama-cli, ollama-api. agy, which still takes its prompt in one argv
 # argument, has no line: a line for it, or for any other seat, is one the script cannot read. A
-# seat and model with no line keeps the 120,000-byte limit, and so does every seat if this file is
+# seat and model with no line keeps the 120,000-byte limit (artifact, prior findings and any
+# --evidence file together), and so does every seat if this file is
 # missing or holds a line the script cannot read. The probes used one letter and a space per token
 # (2 bytes a token, checked on each seat), denser than typical code or prose. Codex's probe passed
 # its 500,000-token default window and was still taken whole. Not tested: text denser than the

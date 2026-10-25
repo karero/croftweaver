@@ -1,8 +1,7 @@
 # Plan: an `--evidence <file>` option for independent-review
 
-Status: plan, not built. Owner go needed before building. It builds on `--wording-pass`
-(PROMPT_WORDING; plan `SKILL-PLAN-review-wording-pass.md`), built on branch
-`feat/review-wording-pass-build` and not yet merged.
+Status: built on branch `feat/review-evidence` (owner go 2026-10-25; departures at the end).
+It builds on `--wording-pass` (#405, merged).
 
 ## What
 
@@ -190,3 +189,13 @@ Diff: Normal at least (the skill ships in croftweaver.zip), `make check` before 
 this plan is approved before the `--wording-pass` build merges, both are built in one PR;
 otherwise `--wording-pass` ships first and this builds on it.
 Trail: `docs/reviews/REVIEW-plan-2026-10-25-evidence.md`.
+
+## Departures in the build
+
+- The size cases are T14, after case 38's T13 in `test_failed_tier_report.sh`, not inside 25d:
+  they need the `limitcase` helper, which case 38 defines. The T13 grep of the paste message's
+  no-evidence wording sits beside them.
+- `test_base_check.sh` T3e adds a control: the same evidence appended to the diff is refused by
+  the base check. It shows the tripwire can fire in this repo, rather than citing the probe.
+- SKILL.md step 3 tells the host where to get the block for its own seats: `codex.prompt` in the
+  run's raw folder.
