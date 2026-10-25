@@ -59,3 +59,18 @@ ce84378c, which settles #13.
 |---|------|------|---------|-------------|
 | 14 | codex | RISK | the probe's rect is skewed by a transform on an ancestor; a site `!important` rule still reaches it | Fixed for transforms: the probe's computed width/height is read, not its rect. `!important` on every div: re-sorted, rare (one seat) |
 | 15 | codex | RISK | `%` sizes resolved against the border box, not the positioning area (re-raise of #2, which two seats raised in round 1, so it counts) | Fixed: each layer's area comes from its `background-origin` / `mask-origin` (border, padding or content box); a pseudo-element's border box is built from its used size. Red case: a 20px border on a 200px border-box box gives `calc(100% - 10px)` = 150px. Mutation (area = border box) caught: it reads 190px |
+
+## Round 3 — verify, delta ce84378c..1797dc83
+
+`reviewers: codex OK, melious FAILED, ollama-cloud FAILED` (the same balance and weekly limit as
+round 2). Codex alone (113 s / 49,081 tokens) confirmed #14 and #15 landed and raised 2 RISKs,
+both re-raises of rare cases with no new evidence of ordinary use.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 16 | codex | RISK | a site `!important` rule still reaches the probe (re-raise of #14) | Re-sorted: rare (one seat); BUGLOG row |
+| 17 | codex | RISK | on a transformed element, the rect is scaled while borders and padding are not | Re-sorted: rare (a transform, borders and a `%` background size on one element); BUGLOG row |
+
+Gate state: 3 rounds, 17 findings (0 BUG, 10 RISK, 7 NIT), no BUG open. Rounds 2 and 3 are
+degraded: Codex only, because melious had no credit and ollama had hit its weekly limit. Round 1
+had the full pair and fresh-eyes.
