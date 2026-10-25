@@ -53,3 +53,18 @@ Site A again with the revised spec, on a quiet machine (50 pages in about 21 s):
 | 30 | glm | NIT | the new proof greps had no error message | Fixed: one `edit` helper makes each change and names the edit that did not land |
 
 Checks after the fixes: the job's steps run locally as written (10 judged on the green page, `calc.webp` and `hidden.webp` listed with their reasons, whole suite 112 passed and 1 skipped, 8 red cases red); site A as before (red on the old hero, the same 8 blog photos on `main`, nothing else).
+
+## Round 3 — 9aa0979a (verification)
+
+`reviewers: codex OK, melious OK`. 6 findings: 1 BUG, 3 RISK, 2 NIT.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 31 | codex, glm | BUG | #26 partly fixed: a file with one size not worked out and one that is, is judged on the second alone | Cut, not patched: one strict rule, a file with any use whose size is not worked out is listed with every such size and never judged; green case (`calc.webp` also shown by a 50px `<img>`). Mutation (judge on the worked-out uses) caught |
+| 32 | codex | RISK | #28: `object-fit: none` / `scale-down` widths ignore srcset density | Cut by the same rule: only cover, contain, fill, plain px or % and auto are worked out; none and scale-down are listed, not judged |
+| 33 | glm | RISK | the full settle on every end reach makes the screen limit unreachable within the test's time | Cut: the full settle runs once; later ends pause 500 ms; the limit drops from 200 screens to 60 |
+| 34 | glm | NIT | only the first unworked size named | Fixed with #31: every distinct one |
+| 35 | glm | NIT | a hidden `cursor`/`content` use made a hidden file "used by a CSS property" | Fixed: only a shown one counts |
+| — | glm, codex | note | (the two 50px/`calc()` reports are one finding, counted once) | — |
+
+Checks after the fixes: the job's steps run locally as written (10 judged, both listed files with their reasons, whole suite 112 passed and 1 skipped, 8 red cases red); site A unchanged (red on its old hero; on `main`, only the 8 blog photos).

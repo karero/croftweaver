@@ -868,6 +868,7 @@ jobs:
               <div class="fx-paren"></div>
               <div class="fx-set"></div>
               <div class="fx-calc"></div>
+              <img src="/fx/calc.webp" alt="" width="600" height="400" loading="eager" style="width: 50px; height: auto" />
               <img id="fx-vis" src="/fx/vis.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" />
               <div class="fx-tile"></div>
               <div class="fx-pb"></div>

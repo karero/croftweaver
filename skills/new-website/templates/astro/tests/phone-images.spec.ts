@@ -10,7 +10,7 @@ const VIEW = { width: 412, height: 823 };
 const RATIO = 1.75;
 const MOST = 3 * 1.1;      // a 3x phone, with room for one up to 453 CSS px wide
 const FLOOR = 4096;        // bytes; Lighthouse's own floor for an image saving
-const MAX_SCREENS = 200;   // a page still growing after this many screens is refused
+const MAX_SCREENS = 60;    // a page still growing after this many screens is refused
 
 // A user of an image: the box it shows in, and how it is fitted there (`size` is the
 // background-size or object-fit value, worked out once the file's own size is known).
@@ -70,15 +70,14 @@ function usersNow(): User[] {
   return out;
 }
 
-// The width a file is drawn at, from its box, its fit and its own aspect (fw / fh). NaN for a
-// size this does not work out (a calc()); the caller lists that file instead of judging it.
+// The width a file is drawn at, from its box, its fit and its own aspect (fw / fh). Only
+// cover, contain, fill, plain px or % and auto are worked out; anything else (a calc(),
+// object-fit none or scale-down) is NaN, and the caller lists the file instead of judging it.
 function drawnWidth(u: User, fw: number, fh: number): number {
   const aspect = fw / fh;
   if (u.size === 'cover') return Math.max(u.w, u.h * aspect);
   if (u.size === 'contain') return Math.min(u.w, u.h * aspect);
-  if (u.size === 'none') return fw;
-  if (u.size === 'scale-down') return Math.min(fw, u.w, u.h * aspect);
-  if (u.kind !== 'bg') return u.w;   // object-fit fill: the box
+  if (u.kind !== 'bg') return u.size === 'fill' ? u.w : NaN;
   const [x, y = 'auto'] = u.size.split(/\s+/);
   const length = (v: string, of: number) => (/^[\d.]+%$/.test(v) ? (parseFloat(v) / 100) * of : /^[\d.]+px$/.test(v) ? parseFloat(v) : NaN);
   if (x !== 'auto') return length(x, u.w);
@@ -111,16 +110,21 @@ for (const path of PAGES) {
       // height is read again each time, as a page may grow, even while it settles.
       const seen: User[] = [];
       const atEnd = () => page.evaluate(() => scrollY + innerHeight >= document.documentElement.scrollHeight - 1);
-      let quiet = true;
+      let quiet = true, settled = false;
       for (let screen = 0; ; screen++) {
         expect(screen, `${path} was still growing after ${MAX_SCREENS} screens`).toBeLessThan(MAX_SCREENS);
         await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), screen * VIEW.height);
         await page.waitForTimeout(150);
         seen.push(...await page.evaluate(usersNow));
         if (!await atEnd()) continue;
-        // Only images that started loading: a hidden lazy one (a dark-theme copy) never starts.
-        await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete || !i.currentSrc));
-        quiet = await page.waitForLoadState('networkidle', { timeout: 5000 }).then(() => true, () => false);
+        // At the first end, let images and the network settle; a page that grows again
+        // later gets a short pause, so the screen limit stays within the test's time.
+        if (!settled) {
+          // Only images that started loading: a hidden lazy one (a dark-theme copy) never starts.
+          await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete || !i.currentSrc));
+          quiet = await page.waitForLoadState('networkidle', { timeout: 5000 }).then(() => true, () => false);
+          settled = true;
+        }
         await page.waitForTimeout(500);
         seen.push(...await page.evaluate(usersNow));
         if (await atEnd()) break;
@@ -151,13 +155,14 @@ for (const path of PAGES) {
         if (Number.isNaN(bytes) || !fw || !fh) { problems.push(`${name}: could not read its size or decode it`); continue; }
         const sized = users.filter((u) => u.kind !== 'other' && !u.hidden && u.w > 0 && u.h > 0);
         if (!sized.length) {
-          if (users.some((u) => u.kind === 'other')) listed.push(`${name} (used by a CSS property not judged by width)`);
+          if (users.some((u) => u.kind === 'other' && !u.hidden)) listed.push(`${name} (used by a CSS property not judged by width)`);
           else if (bytes >= FLOOR) problems.push(`${name} is downloaded but hidden at 412px (${Math.round(bytes / 1024)} KB): lazy-load it, or serve it only where it shows`);
           else listed.push(`${name} (hidden at 412px, under 4 KiB)`);
           continue;
         }
-        const widths = sized.map((u) => drawnWidth(u, fw, fh)).filter(Number.isFinite);
-        if (!widths.length) { listed.push(`${name} (size not worked out: ${sized[0].size})`); continue; }
+        const widths = sized.map((u) => drawnWidth(u, fw, fh));
+        const unknown = [...new Set(sized.filter((u, i) => !Number.isFinite(widths[i])).map((u) => u.size))];
+        if (unknown.length) { listed.push(`${name} (size not worked out: ${unknown.join('; ')})`); continue; }
         judged++;
         const shown = Math.max(...widths);
         const limit = shown * MOST;
