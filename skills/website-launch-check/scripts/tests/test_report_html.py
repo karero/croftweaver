@@ -231,9 +231,8 @@ class StarterTitles(unittest.TestCase):
         # Each mapping row names its spec and a per-page title: the title must be in that spec.
         rows = re.findall(r"^\| [^|]+ \| `([a-z]+\.spec\.ts)` \| `([^`]*<page>[^`]*)` \|", coverage, re.M)
         self.assertGreaterEqual(len(rows), 3, rows)
-        third_cells = re.findall(r"^\|[^|\n]*\|[^|\n]*\|([^|\n]*)\|", coverage, re.M)
-        self.assertEqual(len(rows), sum("<page>" in c for c in third_cells),
-                         "a mapping row whose spec or title this test cannot read")
+        self.assertEqual(len(rows), len(re.findall(r"^\|[^\n]*`[^`\n]*<page>[^`\n]*`", coverage, re.M)),
+                         "a table line quoting <page> that is not a mapping row this test can read")
         for spec, title in rows:
             self.assertIn(spec, specs, spec)
             self.assertIn(title.replace("<page>", "${path}"), specs[spec], title)
@@ -248,7 +247,7 @@ class StarterTitles(unittest.TestCase):
         # test-coverage.md says the starter's config filters nothing, and a site's filter is a blocker.
         self.assertIn("testDir: './tests'", config)
         for option in ("grep", "grepInvert", "testIgnore", "testMatch"):
-            self.assertNotRegex(config, r"\b%s\s*:" % option, option)
+            self.assertNotRegex(config, r"""\b%s['"]?\s*:""" % option, option)
 
 
 class Cli(unittest.TestCase):
