@@ -120,11 +120,12 @@ Codex's effort for any run.
    advisory). Set Codex's
    effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
    verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
-   [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
+   [--verify <prior-findings>] [--wording-pass] --depth <light|normal|high> --round <N>` (relative to this skill's
    directory; depth and round feed the cost log, and a run with no `--depth` says so; the notice
    past round 8 needs `--round` on every round, a redesign restarts at 1; a wording pass, final
    full read or re-gate is not a round: leave `--round` off, the cost log still attaches it to
-   the gate). Type is
+   the gate; a wording pass also passes `--wording-pass`, which the script refuses beside
+   `--round`). Type is
    auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
@@ -313,13 +314,22 @@ Codex's effort for any run.
 
    **The wording pass.** In a gate where a round found a substantive BUG, after the rounds end
    (and the final full read, where one runs), whatever changed since the last round — wording,
-   comments, docs prose, the review record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex`, or `--seat ollama`
-   with a `:cloud` tag — a local model never counts), with closeout clerk item 2's prose-only
-   scope; a delta sent as a diff names its start with `--base <head>`. Its RISK/NIT are
+   comments, docs prose, the review record — gets ONE narrow pass by ONE cross-model reviewer,
+   run with `--wording-pass`, which puts closeout clerk item 2's prose-only scope in the script's
+   own prompt. Prefer `--seat codex`: a text-only seat (`--seat ollama` with a `:cloud` tag, or
+   `--seat melious`) sees only the delta, so it can check the prose against itself but not against
+   the code; a local model never counts. Never put the scope in the artifact or the `--verify`
+   file: the reviewer reads both as untrusted data and rightly sets a scope note there aside. A
+   delta sent as a diff names its start with `--base <head>`. A delta holding a non-prose line
+   (code, config, a command, a fenced snippet) is re-gated whole, prose included, at full scope
+   without the flag, not counted as a round, and that re-gate stands in for the wording pass on
+   it; a BUG the seat raises on a non-prose line sends its delta there too, and is neither fixed
+   as a contradiction nor carried as a follow-up. Its RISK/NIT are
    follow-ups; a contradiction with the code it describes is fixed. The
    fix moves the head, and the stamp needs a seen head (closeout, clerk item 2), so the same seat
-   gets ONE **confirmation** over that fix's delta alone, scoped to whether it removed the
-   contradiction without adding one. A confirmation is a re-gate, not a round and not a second
+   gets ONE **confirmation** over that fix's delta alone (`--wording-pass --verify <the
+   contradiction and its fix>`), scoped to whether it removed the contradiction without adding
+   one. A confirmation is a re-gate, not a round and not a second
    wording pass: its other findings are follow-ups. If it finds the fix wrong, fix it and confirm
    that fix the same way, once; still wrong, it goes to the owner. Only a substantive BUG reopens
    the rounds. There is no second wording pass.

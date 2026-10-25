@@ -29,7 +29,7 @@ Usage:
       --site sc-domain:example.com \
       --days 90 \
       --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
-      --out report.md
+      --out "<site folder>/analytics/<today>_gsc/report.md"   # make that folder first
 
 Dependencies: see ../requirements.txt
 """
