@@ -1,7 +1,8 @@
 # Pages or Workers? What moving the kit would change
 
 For the kit's maintainer. An assessment, not a plan: nothing below has been built or tried on a
-real Workers project. Vendor pages read 2026-10-11; kit code read at `35e9b42`. The short
+real Workers project. Vendor pages read 2026-10-11 and checked again 2026-10-25; kit code
+read at `35e9b42`. The short
 version lives in `skills/new-website/references/WEBSITE_ARCHITECTURE.md`, Part 1.
 
 **Owner decision, 2026-10-11: stay on Pages for now.** "When to look again", below, lists
@@ -160,9 +161,9 @@ deadline.
 
 ## What is checked and what is judgment
 
-**Checked in Cloudflare's docs (2026-10-11):** every quoted sentence above, the address
-shapes, the build variable names, the limits, the DNS rule. The blog post was read on
-2026-10-12.
+**Checked in Cloudflare's docs (2026-10-11, again 2026-10-25):** every quoted sentence
+above, the address shapes, the build variable names, the limits, the DNS rule. The blog post
+was read on 2026-10-12 and again on 2026-10-25. On 2026-10-25 every claim still matched.
 
 **Checked in the kit (`35e9b42`):** what the middleware does, which files read `CF_PAGES_*`,
 which files name `pages.dev` or a `wrangler pages` command.
@@ -220,13 +221,24 @@ Each line is something to look at, not an outcome to expect:
    it carry?
 8. After a day with traffic, which requests does the dashboard count against the daily
    limit?
+9. Speed: how long does the first byte take (TTFB) for the same build on the Pages site, with
+   its middleware, and on the Worker, with no script? From the same machine and in the same
+   hour, time `/`, `/privacy` and one image on each, 20 runs apiece, and compare the medians.
+   This counts only the wait after the connection is up, so connection setup does not hide a
+   gap of a few milliseconds:
+
+   ```bash
+   for i in $(seq 20); do curl -s -o /dev/null -w '%{time_appconnect} %{time_starttransfer}\n' https://<host>/privacy; done | awk '{printf "%.4f\n", $2-$1}' | sort -n | sed -n '10p'
+   ```
+
+   It measures from one place only; it says nothing about visitors elsewhere.
 
 ## Sources
 
-Cloudflare, read 2026-10-11:
+Cloudflare, read 2026-10-11 and again 2026-10-25:
 [Pages overview](https://developers.cloudflare.com/pages/),
 [Migrate from Pages to Workers](https://developers.cloudflare.com/workers/static-assets/migration-guides/migrate-from-pages/)
-(last updated 2026-10-10),
+(last updated 2026-10-12),
 [static assets billing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/),
 [`run_worker_first`](https://developers.cloudflare.com/workers/static-assets/binding/#run_worker_first),
 [Previews](https://developers.cloudflare.com/workers/previews/),
@@ -241,6 +253,6 @@ Cloudflare, read 2026-10-11:
 [Pages preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/),
 [Pages limits](https://developers.cloudflare.com/pages/platform/limits/).
 
-Cloudflare's blog, read 2026-10-12:
+Cloudflare's blog, read 2026-10-12 and again 2026-10-25:
 [Your frontend, backend, and database — now in one Cloudflare Worker](https://blog.cloudflare.com/full-stack-development-on-cloudflare-workers/)
 (2025-04-08).
