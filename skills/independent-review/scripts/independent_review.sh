@@ -375,7 +375,7 @@ if [ -n "$EVIDENCE_FILE" ]; then
   [ -n "$(printf '%s' "$EVIDENCE" | tr -d '[:space:]')" ] || { echo "the evidence file is empty: $EVIDENCE_FILE" >&2; exit 2; }
   # A line that closes the block early would put the rest where the script's own text sits.
   # Trailing blanks and a CR (a CRLF transcript) count; a near-copy does not: this catches accidents.
-  if printf '%s\n' "$EVIDENCE" | grep -qE -- '^--- END EVIDENCE ---[[:space:]]*$'; then
+  if grep -qE -- '^--- END EVIDENCE ---[[:space:]]*$' <<<"$EVIDENCE"; then
     echo "the evidence file holds a line \"--- END EVIDENCE ---\", which would end its block early: $EVIDENCE_FILE" >&2; exit 2
   fi
 fi
