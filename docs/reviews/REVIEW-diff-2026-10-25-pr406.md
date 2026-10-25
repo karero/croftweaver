@@ -66,9 +66,13 @@ chain covers that segment. One codex pass over the whole change, `origin/main...
 tokens), melious 22s (3345 tokens)` · both: "No BUG/RISK/NIT findings."
 
 ## Verdict: CLEAN
-4 rounds and a closing re-gate; findings 1 BUG, 13 RISK, 9 NIT (round 1: 1/9/6; round 2: 0/2/3;
+4 rounds and a closing re-gate; findings 1 BUG, 12 RISK, 9 NIT (round 1: 1/9/6; round 2: 0/2/3;
 round 3: none; re-gate: 0/1/0; round 4: none). Refuted: G2, G3, G4, G9, each with its evidence
 above. The stamp's chain is codex's: the full pair `8ec4cb88...11c9da00` (the re-gate), then the
 delta to `3a638bc5` (round 4); later commits touch `docs/reviews/` only. Reviewer tokens by the
 timings lines: 339,761 (codex 296,834, melious 42,927), plus fresh-eyes 109,856. `make check` exit 0 at `b339e32f`; the later
 changes are prose in skill files.
+
+## Wording pass (not a round)
+One codex pass over the trail, scoped to factual contradictions · `timings: codex 142s (51875
+tokens)`. One finding: the verdict line said 13 RISK where the tables add up to 12; fixed.
