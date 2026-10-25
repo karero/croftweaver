@@ -31,3 +31,18 @@ fresh-eyes pass in round 1": "Yes, for both PRs (Recommended)".
 
 Substantive BUG: C2. Round 2 owed. `make check` exit 0 after the fixes (`b339e32f`); `origin/main`
 merged in (`9d8b42f6`), touching none of this PR's files.
+
+## Round 2 — verification of `b339e32f` against `5d2df9f0`
+`reviewers: codex OK, melious OK` · `timings: codex 128s (57016 tokens), melious 149s (19444 tokens)`
+· gate so far 301,386 tokens logged plus fresh-eyes 109,856. Both seats confirmed every round-1
+row; codex also confirmed the three refutations (G2, G3, G4). No BUG.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C8 | RISK | codex | fixed | The scripts' usage text left the `--out` path unquoted; a site folder with a space splits it (reproduced in zsh). Now quoted, as in SKILL.md |
+| G8 | RISK | melious | fixed | `seo-findings-template.md`'s query table still invited the full export; it now says only the queries the verdicts rest on, the full export stays in `analytics/` |
+| G9 | NIT | melious | refuted | "The scripts' usage text did not change": it did (`b339e32f`, `gsc_query.py:32`, `bing_query.py:20–21`); round 2's artifact left those two files out by mistake, and codex, which reads the files, verified the change |
+| G10 | NIT | melious | fixed | The BUGLOG row named `~/.config/gsc-insights/` where geo-check.md names `~/.config/gsc-insights/geo/` |
+| G11 | NIT | melious | fixed | The kept-report paragraph read as part of the format list; it now starts **Keeping the report:** (no extra line: the file stays at 500) |
+
+Round 3 checks round 2's fixes, with the scripts and the template in its artifact.
