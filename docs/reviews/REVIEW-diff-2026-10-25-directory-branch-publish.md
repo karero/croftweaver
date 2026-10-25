@@ -118,3 +118,14 @@ measurement taken at a1775b95 (plugin.json 0.33.0). A confirmation over that fix
 Confirmation (Codex alone, that fix's delta), 110s, 51,134 tokens: the plan fix holds; it found
 the heading above claimed the README and header changed after round 4 (they did not). Heading
 corrected; not re-read by a reviewer.
+
+## CI fix after opening the PR (re-gate, Codex alone, the commit "Package: ship the two directory scripts")
+
+CI's `macos-stock-tools` job runs `make check` inside the unpacked zip; the CDPATH guard there
+failed because the two new scripts are listed in it but were not in the zip. Every other shell
+script in `scripts/` ships, so they now do too (`scripts/package.sh`). Checked in an unpacked
+zip: the CDPATH and mktemp guards pass. Re-gate: 83s, 51,589 tokens.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| D28 | codex | RISK | Neither script is in the zip's REQUIRED list, so a zip without them would pass packaging. | Refuted as a gap: the `macos-stock-tools` job fails on exactly that zip (the CDPATH guard lists both), as this PR's first CI run showed. |
