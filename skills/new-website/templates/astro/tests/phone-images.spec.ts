@@ -10,7 +10,7 @@ const VIEW = { width: 412, height: 823 };
 const RATIO = 1.75;
 const MOST = 3 * 1.1;      // a 3x phone, with room for one up to 453 CSS px wide
 const FLOOR = 4096;        // bytes; Lighthouse's own floor for an image saving
-const BUDGET = 20_000;     // ms for scrolling and settling; a page still busy after it fails
+const BUDGET = 20_000;     // ms for scrolling and settling; the test's own timeout is set above it
 
 // A user of an image: the box it shows in, and how it is fitted there (`size` is the
 // background-size or object-fit value, worked out once the file's own size is known).
@@ -87,6 +87,7 @@ function drawnWidth(u: User, fw: number, fh: number): number {
 
 for (const path of PAGES) {
   test(`phone images — ${path} downloads no image far bigger than a phone shows`, async ({ browser, baseURL }) => {
+    test.setTimeout(BUDGET + 40_000);   // room for loading the page and judging after the budget
     // hasTouch gives a phone's media queries (pointer: coarse, hover: none). Not isMobile: its
     // 980px starting viewport lets a desktop-only preload (`media="(min-width: 720px)"`) fetch.
     const context = await browser.newContext({ baseURL, viewport: VIEW, deviceScaleFactor: RATIO, hasTouch: true });
@@ -94,6 +95,12 @@ for (const path of PAGES) {
       const page = await context.newPage();
       const sizes = new Map<string, number>();
       const reads: Promise<void>[] = [];
+      // Image requests started and not yet finished, of any kind (img, CSS, preload).
+      let pending = 0;
+      const done = (r: { resourceType(): string }) => { if (r.resourceType() === 'image') pending--; };
+      page.on('request', (r) => { if (r.resourceType() === 'image') pending++; });
+      page.on('requestfinished', done);
+      page.on('requestfailed', done);
       page.on('response', (r) => {
         const type = (r.headers()['content-type'] ?? '').split(';')[0].trim();
         // Rasters from this page's own document; SVG is not a raster, iframes are not the site's.
@@ -106,28 +113,21 @@ for (const path of PAGES) {
         'the browser does not match a phone\'s media queries').toBe(true);
 
       // A screen at a time, users noted at each stop (a carousel may swap a file out), until
-      // the bottom is reached and stays there once started images have loaded: the height is
-      // read again each time, as a page may grow. Every wait counts against one time budget.
+      // the bottom is reached and stays there once no image request is left pending: the
+      // height is read again each time, as a page may grow. Every wait counts against BUDGET.
       const seen: User[] = [];
       const deadline = Date.now() + BUDGET;
       const left = () => Math.max(1, deadline - Date.now());
+      const busy = `${path} did not settle at its end within ${BUDGET / 1000} s (still growing, very long, or images still loading)`;
       const atEnd = () => page.evaluate(() => scrollY + innerHeight >= document.documentElement.scrollHeight - 1);
-      let quiet = true, settled = false;
       for (let screen = 0; ; screen++) {
-        expect(Date.now() < deadline, `${path} was still growing after ${BUDGET / 1000} s of scrolling`).toBe(true);
+        expect(Date.now() < deadline, busy).toBe(true);
         await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), screen * VIEW.height);
         await page.waitForTimeout(150);
         seen.push(...await page.evaluate(usersNow));
         if (!await atEnd()) continue;
-        // Only images that started loading: a hidden lazy one (a dark-theme copy) never starts.
-        const loaded = await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete || !i.currentSrc),
-          undefined, { timeout: left() }).then(() => true, () => false);
-        expect(loaded, `${path}: images were still loading after ${BUDGET / 1000} s`).toBe(true);
-        if (!settled) {
-          quiet = await page.waitForLoadState('networkidle', { timeout: Math.min(5000, left()) }).then(() => true, () => false);
-          settled = true;
-        }
         await page.waitForTimeout(Math.min(500, left()));
+        await expect.poll(() => pending, { message: busy, timeout: left() }).toBe(0);
         seen.push(...await page.evaluate(usersNow));
         if (await atEnd()) break;
       }
@@ -173,7 +173,7 @@ for (const path of PAGES) {
           problems.push(`${name} is ${fw}px wide, shown at ${Math.round(shown)}px: a 3x phone uses at most ${Math.round(limit)}px; a copy that wide saves about ${Math.round(saving / 1024)} KB`);
         }
       }
-      console.log(`phone images — ${path}: ${judged} judged${listed.length ? `; not judged: ${listed.join(', ')}` : ''}${quiet ? '' : '; the network never went quiet for 500 ms'}`);
+      console.log(`phone images — ${path}: ${judged} judged${listed.length ? `; not judged: ${listed.join(', ')}` : ''}`);
       expect(problems, 'make a smaller copy (and a srcset) or fix the preload; website-qa "Performance" has the fixes').toEqual([]);
     } finally {
       await context.close();

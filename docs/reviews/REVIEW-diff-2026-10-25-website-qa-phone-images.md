@@ -79,3 +79,18 @@ Checks after the fixes: the job's steps run locally as written (10 judged, both 
 | 37 | codex | RISK | the 60-screen limit can outlast the test timeout, so its message never shows | Cut: the screen limit is replaced by a 20 s budget that every wait counts against; red case, a page that grows at every end, fails with "was still growing after 20 s of scrolling" |
 
 Checks after the fixes: the job's steps run locally as written (whole suite 112 passed and 1 skipped, 9 red cases red); site A unchanged.
+
+## Round 5 — 16b6313c (verification; earned by #36–#37, `--earned-by end-settle`, cut named)
+
+`reviewers: codex OK, melious OK`; `timings: codex 208s (40421 tokens), melious 257s (29213 tokens)`. 7 findings: 1 BUG, 3 RISK, 3 NIT.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 38 | codex | BUG | an image request that starts during the last pause is not waited for | Cut: the end now waits until no image request of any kind is pending, counted from the network (request started, finished or failed), replacing both the `<img>` check and `networkidle`. Not covered by a fixture: `astro preview` cannot slow a response; named here |
+| 39 | codex, glm | RISK | the budget's message can be masked by the test's own timeout | Fixed: the test sets its timeout to the budget plus 40 s |
+| 40 | glm | RISK | the edits of the red cases pile up, so later cases prove nothing | Refuted: `red()` copies the clean page back after every case (`cp "$RUNNER_TEMP/index.good"`) |
+| 41 | glm | NIT | "still growing" is wrong for a page that is only very long | Fixed: "did not settle at its end within 20 s (still growing, very long, or images still loading)" |
+| 42 | glm | NIT | a late first end shortens the networkidle wait | Gone with #38 |
+| 43 | glm | NIT | the "added late" case expects the same text as the lazy one | Refuted with #40: each case runs alone on a clean page |
+
+Checks after the fixes: the job's steps run locally as written (10 judged, whole suite 112 passed and 1 skipped, 9 red cases red); site A unchanged, no "did not settle" on any of its 50 pages.
