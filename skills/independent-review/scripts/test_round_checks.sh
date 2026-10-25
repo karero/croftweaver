@@ -124,8 +124,13 @@ else fail "checks only: exit $c_rc, stdout [$c_out], stderr [$(cat "$T/c.err")]"
 
 # 2. No --round: the wording pass and the final full read need neither option. On a gate past
 #    round 3 they get one notice, since a real round run this way would skip the checks.
-NOROUND="note: no --round, so this run is not a round of gate G1, which is at round 4: the round checks did not run, and the gate line counts it as a run with no round. Right for the final full read and the wording pass; a review round is --round 5."
+NOROUND="note: no --round, so this run is not a round of gate G1, which is at round 4: the round checks did not run, and the gate line counts it as a run with no round. Right for the final full read; a wording pass passes --wording-pass; a review round is --round 5."
 run;                                    check "no --round on a gate past round 3: runs, with the notice" $P "$NOROUND" "$WARN"
+# A wording pass says what it was in one line, instead of the notice a forgotten --round needs.
+WPNOTE="note: wording pass, not a round of gate G1, which is at round 4."
+run --wording-pass;                     check "--wording-pass on a gate past round 3: the one-line note, not the notice" $P "$WPNOTE" "note: no --round"
+[ "$(printf '%s\n' "$out" | grep -cxF -- "$WPNOTE")" = 1 ] && ok "--wording-pass: the note is that line exactly, once" \
+  || fail "--wording-pass note not found as one exact line. Output: $out"
 run --earned-by config-advice;          check "no --round, --earned-by an earlier kind: no cut check" $P "" "Kind config-advice"
 use_gate G4
 run;                                    check "no --round, gate G4 at round 4: the notice names it" $P "which is at round 4"

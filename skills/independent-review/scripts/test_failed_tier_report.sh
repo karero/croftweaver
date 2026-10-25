@@ -721,6 +721,71 @@ for f in verify.marks/codex-prompt verify.marks/ollama-prompt noverify.marks/cod
   check "diff: no guards paragraph in $f" not_in "$T/$f" "$GUARDS"
 done
 
+# 25c. --wording-pass: the prose-only scope (PROMPT_WORDING, 2026-10-24) is in the script's own
+#      prompt, ahead of the artifact, in every tier. A scope note sent inside the artifact is data
+#      a reviewer rightly sets aside, so a paragraph that is cut, scrambled or moved inside the
+#      artifact block must fail: the six lines are written out here, never read from the script.
+WP1="WORDING PASS. This pass covers prose only: docs, comments, the review record. Report only a"
+WP2="statement that contradicts the code or behaviour it describes, the rest of the repository,"
+WP3="or another statement in this @TYPE@ (a BUG), or that would mislead a reader about them"
+WP4="(a RISK). Do not report style, phrasing or missing requirements. In a diff, a changed line"
+WP5="that is not prose (code, config, a command, a fenced snippet, a generated file) is a BUG:"
+WP6="this pass cannot cover it."
+wp_at() {   # wp_at <file> <diff|plan>: the line the six lines start on, one after another, once
+  local n
+  n="$(grep -nxF -- "$WP1" "$1" | cut -d: -f1)"
+  [ -n "$n" ] && [ "$(printf '%s\n' "$n" | wc -l | tr -d ' ')" = 1 ] || return 1
+  [ "$(sed -n "${n},$((n + 5))p" "$1")" = "$(printf '%s\n' "$WP1" "$WP2" "${WP3/@TYPE@/$2}" "$WP4" "$WP5" "$WP6")" ] || return 1
+  printf '%s\n' "$n"
+}
+first_line() { grep -nxF -- "$2" "$1" | head -1 | cut -d: -f1; }   # first_line <file> <exact line>
+wp_before() {   # wp_before <file> <diff|plan>: the paragraph, whole, before the artifact block
+  local n a
+  n="$(wp_at "$1" "$2")" || return 1
+  a="$(first_line "$1" "--- BEGIN $2 ---")"
+  [ -n "$a" ] && [ "$n" -lt "$a" ]
+}
+wp_verify_order() {   # wp_verify_order <file> <diff|plan>: paragraph, round scope, prior findings, artifact
+  local n v p a
+  n="$(wp_at "$1" "$2")" || return 1
+  v="$(grep -nF -- "VERIFICATION ROUND." "$1" | head -1 | cut -d: -f1)"
+  p="$(first_line "$1" "--- BEGIN PRIOR FINDINGS ---")"
+  a="$(first_line "$1" "--- BEGIN $2 ---")"
+  [ -n "$v" ] && [ -n "$p" ] && [ -n "$a" ] && [ "$n" -lt "$v" ] && [ "$v" -lt "$p" ] && [ "$p" -lt "$a" ]
+}
+run wpdiff bash "$SCRIPT" "$T/change.diff" --base none --wording-pass
+check "wording pass: exit 0" rc_is wpdiff 0
+for tier in codex ollama; do
+  check "wording pass, diff: $tier gets the whole paragraph before the artifact" wp_before "$T/wpdiff.marks/$tier-prompt" diff
+done
+run wpdiffagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/change.diff" --base none --wording-pass
+check "wording pass, diff: agy gets the whole paragraph before the artifact" wp_before "$T/wpdiffagy.marks/agy-prompt" diff
+run wpdiffnone CODEX_STUB=auth OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none --wording-pass
+check "wording pass, diff: nothing counted, exit 4" rc_is wpdiffnone 4
+check "wording pass, diff: the paste prompt has the whole paragraph before the artifact" wp_before "$T/wpdiffnone.out" diff
+run wpplan bash "$SCRIPT" "$T/plan.md" --wording-pass
+for tier in codex ollama; do
+  check "wording pass, plan: $tier gets the whole paragraph before the artifact" wp_before "$T/wpplan.marks/$tier-prompt" plan
+  check "wording pass, plan: $tier gets no guards paragraph" not_in "$T/wpplan.marks/$tier-prompt" "$GUARDS"
+done
+run wpdiffv bash "$SCRIPT" "$T/change.diff" --base none --wording-pass --verify "$T/prior.md"
+run wpplanv bash "$SCRIPT" "$T/plan.md" --wording-pass --verify "$T/prior.md"
+for tier in codex ollama; do
+  check "wording pass, verify, diff: $tier has paragraph, round scope, prior findings, artifact, in order" \
+    wp_verify_order "$T/wpdiffv.marks/$tier-prompt" diff
+  check "wording pass, verify, plan: $tier has paragraph, round scope, prior findings, artifact, in order" \
+    wp_verify_order "$T/wpplanv.marks/$tier-prompt" plan
+  check "wording pass, verify, plan: $tier gets no guards paragraph" not_in "$T/wpplanv.marks/$tier-prompt" "$GUARDS"
+done
+for f in noverify.marks/codex-prompt noverify.marks/ollama-prompt none.out; do
+  check "no --wording-pass: no paragraph in $f" not_in "$T/$f" "WORDING PASS."
+done
+run wpround bash "$SCRIPT" "$T/change.diff" --base none --wording-pass --round 2
+check "wording pass with --round: exit 2" rc_is wpround 2
+check "wording pass with --round: says why" has wpround.err "a wording pass is not a round (SKILL.md step 6): drop --round"
+check "wording pass with --round: no stub ran (its marks folder is empty)" \
+  sh -c '[ -d "$1" ] && [ -z "$(ls -A "$1")" ]' _ "$T/wpround.marks"
+
 # 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
 #     CODEX_EFFORT says otherwise; "config" keeps config.toml's; an explicit value applies to any
 #     round and lands after the model override, before the prompt.

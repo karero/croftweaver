@@ -1,6 +1,6 @@
 # Plan: a `--wording-pass` flag for independent-review
 
-Status: plan, not built. Owner go needed before building.
+Status: built on branch `feat/review-wording-pass-build` (owner go given; departures below).
 
 ## What
 
@@ -148,3 +148,13 @@ Plan: PLAN gate, Normal (Codex + GLM 5.3 on melious), until no BUG is open, then
 read. No red team: the change touches no box, user data, login, money, deletion or schema.
 Diff: Normal at least (the skill ships in croftweaver.zip), `make check` before each round.
 Trail: `docs/reviews/REVIEW-plan-2026-10-24-wording-pass.md`.
+
+## Departures in the build
+
+- `test_round_checks.sh`: the `--wording-pass` note case runs in section 2, with the checks only
+  (`run --wording-pass` on gate G1 at round 4), not beside the whole-run case at line 370. A
+  whole run there would log one more run with no round and change the totals the later cases in
+  that section check. The note is printed before the checks-only exit, so the same code is
+  covered.
+- Case 25c's "no stub ran" check for `--wording-pass --round 2` checks that the run's stub-marks
+  folder is empty, which covers every stub, not each stub's mark by name.

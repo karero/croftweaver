@@ -82,6 +82,9 @@
 #   ... --round 6 --earned-by config-advice --cut "dropped the fallback parser"
 #                                                     # a kind that comes back: the fix since the
 #                                                     # last round must be a cut, and says what
+#   git diff <last-reviewed-head>..HEAD | independent_review.sh - --wording-pass --seat codex \
+#     --base <last-reviewed-head>                     # the wording pass (SKILL.md step 6): prose
+#                                                     # only, never with --round
 #
 # ROUND CHECKS (SKILL.md step 6). Two of the step's rules are enforced here rather than left to
 # the prose, which a gate's runner read past in 34 of 45 long gates. Both refuse with exit 2
@@ -190,9 +193,9 @@ set -uo pipefail
 
 # --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity,
 #     --verify <prior-findings file>
-USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--earned-by KIND[,KIND...]] [--cut \"TEXT\"] [--seat codex|ollama|melious|agy] [--base <rev>|none]"
+USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--earned-by KIND[,KIND...]] [--cut \"TEXT\"] [--seat codex|ollama|melious|agy] [--base <rev>|none] [--wording-pass]"
 FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND="" ; SEAT=""
-EARNED_BY="" ; CUT="" ; BASE=""
+EARNED_BY="" ; CUT="" ; BASE="" ; WORDING_PASS=0
 while [ $# -gt 0 ]; do
   a="$1"; shift
   case "$a" in
@@ -202,6 +205,7 @@ while [ $# -gt 0 ]; do
     --local-only)    LOCAL_ONLY=1 ;;      # nothing leaves the machine: skip codex/agy/paste,
                                           # local ollama only (explicitly degraded gate)
     --with-antigravity) WITH_ANTIGRAVITY=1 ;;  # explicit opt-in: spend an Antigravity credit this run
+    --wording-pass)  WORDING_PASS=1 ;;    # prose-only scope, set in the prompt (PROMPT_WORDING)
     --verify)        # verification round: the artifact is the change since the last reviewed
                      # head, and this file holds the prior round's findings (SKILL.md step 6)
              [ $# -gt 0 ] && [ -n "$1" ] || { echo "--verify needs the prior-findings file" >&2; echo "$USAGE" >&2; exit 2; }
@@ -262,6 +266,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$FILE" ] || { echo "$USAGE" >&2; exit 2; }
+if [ "$WORDING_PASS" = 1 ] && [ -n "$ROUND" ]; then
+  echo "a wording pass is not a round (SKILL.md step 6): drop --round" >&2; exit 2
+fi
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 # ROUND CHECKS (header). Here, before the artifact is read and before any reviewer starts, so a
 # refused round costs nothing and sends nothing. review_log.sh is run through bash and needs only
@@ -293,9 +300,14 @@ if [ "$ROUND" != 1 ]; then
 fi
 if [ -z "$ROUND" ]; then
   # The final full read and the wording pass run without --round, so this is a notice: a review
-  # round run this way would skip the checks above, and the owner should see that it did.
+  # round run this way would skip the checks above, and the owner should see that it did. Under
+  # --wording-pass a one-line note says what the run was instead.
   if [ -n "$rc_gate" ] && [ "$rc_max" -ge 4 ]; then
-    echo "note: no --round, so this run is not a round of gate $rc_gate, which is at round $rc_max: the round checks did not run, and the gate line counts it as a run with no round. Right for the final full read and the wording pass; a review round is --round $((rc_max + 1))." >&2
+    if [ "$WORDING_PASS" = 1 ]; then
+      echo "note: wording pass, not a round of gate $rc_gate, which is at round $rc_max." >&2
+    else
+      echo "note: no --round, so this run is not a round of gate $rc_gate, which is at round $rc_max: the round checks did not run, and the gate line counts it as a run with no round. Right for the final full read; a wording pass passes --wording-pass; a review round is --round $((rc_max + 1))." >&2
+    fi
   fi
 elif [ "$ROUND" -ge 2 ]; then
   if [ -n "$rc_gate" ] && [ "$ROUND" -lt "$rc_max" ]; then
@@ -830,10 +842,10 @@ fi
 # tripwire it proposed in several rounds, and each finding asked for a longer or more exact check;
 # the change's DIFF gate then spent four rounds on that tripwire (rationale.md, "Guards a plan
 # proposes"). The question belongs before the build, and its answer should be a cut. Empty for a
-# diff, so a diff's prompt is unchanged byte for byte; in a verification round it comes before the
-# round's scope.
+# diff, so a diff's prompt is unchanged byte for byte, and under --wording-pass, which does not
+# reopen the design; in a verification round it comes before the round's scope.
 PROMPT_PLAN=""
-if [ "$TYPE" = plan ]; then
+if [ "$TYPE" = plan ] && [ "$WORDING_PASS" != 1 ]; then
   PROMPT_PLAN="
 GUARDS THE PLAN PROPOSES. For each guard the plan adds to catch a future mistake — a test, a
 tripwire, a CI or lint check, an assertion — ask what it can catch and what gets past it, whether
@@ -849,6 +861,20 @@ In this verification round, ask these questions only of guards in the sections t
 "
 fi
 
+# --wording-pass: the prose-only scope (SKILL.md step 6), here because a scope note sent inside the
+# artifact or --verify file is untrusted data, and a reviewer rightly sets it aside (2026-10-24).
+PROMPT_WORDING=""
+if [ "$WORDING_PASS" = 1 ]; then
+  PROMPT_WORDING="
+WORDING PASS. This pass covers prose only: docs, comments, the review record. Report only a
+statement that contradicts the code or behaviour it describes, the rest of the repository,
+or another statement in this ${TYPE} (a BUG), or that would mislead a reader about them
+(a RISK). Do not report style, phrasing or missing requirements. In a diff, a changed line
+that is not prose (code, config, a command, a fenced snippet, a generated file) is a BUG:
+this pass cannot cover it.
+"
+fi
+
 PROMPT_TOOLED="${PROMPT_CORE}
 
 Read-only sandbox; cwd is usually the described project — check, don't assume. Stay in-project, no
@@ -859,7 +885,7 @@ content or assets alike. Prioritise claims the ${TYPE} enumerates, then decision
 
 Verdict each checked claim VERIFIED/WRONG/UNVERIFIABLE — cite the file or command, or for
 UNVERIFIABLE say what was missing. Every WRONG must also appear as a BUG.
-${PROMPT_PLAN}${PROMPT_VERIFY}
+${PROMPT_PLAN}${PROMPT_WORDING}${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
 --- END ${TYPE} ---
@@ -878,7 +904,7 @@ holds for whatever depends on text you were not given — whether a name exists,
 passes, what the rest of a file holds: an UNVERIFIABLE entry saying what to look at, not a BUG or
 RISK. A BUG or RISK quotes the line of the ${TYPE} that shows it, or in a verification round names
 the prior finding whose fix the ${TYPE} lacks.
-${PROMPT_PLAN}${PROMPT_VERIFY}
+${PROMPT_PLAN}${PROMPT_WORDING}${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
 --- END ${TYPE} ---
@@ -892,7 +918,7 @@ the refusal ends the run, and the author gets nothing. Review from the text alon
 load-bearing component claims are therefore UNVERIFIABLE here: collect those entries under a short
 UNVERIFIABLE heading — only the ones that matter — and do not count them as findings. If you call
 a tool anyway, name each call and what it returned. Never state or imply a check you did not name.
-${PROMPT_PLAN}${PROMPT_VERIFY}
+${PROMPT_PLAN}${PROMPT_WORDING}${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
 --- END ${TYPE} ---
@@ -908,7 +934,7 @@ passes, what the rest of a file holds — saying what to look at; these are not 
 Under TEXT-ONLY a BUG or RISK quotes the line of the ${TYPE} that shows it, or in a verification
 round names the prior finding whose fix the ${TYPE} lacks. Never describe a check you did not
 perform.
-${PROMPT_PLAN}${PROMPT_VERIFY}
+${PROMPT_PLAN}${PROMPT_WORDING}${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
 --- END ${TYPE} ---
@@ -917,7 +943,7 @@ ${CONTENT}
 # The runtime backstop for check_prompt_sync.sh: that check is textual, so an assignment built at
 # runtime (eval of a constructed string, a declare -n alias) can evade it. A later write of ANY
 # shape fails here instead, loudly, at the moment it happens. Nothing below reassigns these.
-readonly PROMPT_CORE PROMPT_VERIFY PROMPT_PLAN PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROMPT_PORTABLE
+readonly PROMPT_CORE PROMPT_VERIFY PROMPT_PLAN PROMPT_WORDING PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROMPT_PORTABLE
 
 # API keys are read ONCE into shell variables that are not exported, and the exported names are
 # unset: codex, agy and ollama are tool-using agents reading untrusted text, and none of them needs
