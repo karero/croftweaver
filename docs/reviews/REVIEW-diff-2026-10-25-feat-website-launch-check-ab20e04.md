@@ -63,3 +63,17 @@ passed and 1 skipped (the release-tag test, run only at a release).
 | G12 | NIT | melious, outside scope | refuted | "A link inside an inline code span becomes a link": `inline()` splits code spans first and escapes them, so links inside stay literal (`test_code_keeps_markdown_and_links_literal`) |
 
 Substantive BUGs: C8, C9, C10. Round 3 owed. Fixes in `f691d9ff`.
+
+## Round 3 — verification of `61b36e2c` against `56f1c789`
+`reviewers: codex OK, melious OK` · `timings: codex 191s (70402 tokens), melious 140s (18182 tokens)` · no BUG.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C15 | RISK | codex | fixed by a cut | G10 again: the per-file test `placeholders — no leftover in /manifest.webmanifest` was not required, so a filter could still hide warnings. The test-filter kind came back (round 1 C4, round 2 G10), so it is cut, not patched: the starter's `playwright.config.ts` filters nothing, and a site whose config sets `grep`, `grepInvert`, `testIgnore` or `testMatch`, or moves `testDir`, gets a 🔴 blocker and nothing left to the tests. With `npx playwright test` and that rule, every test runs. Earning |
+| C16 | RISK | codex | refuted | C11 re-raised with no new evidence (same source, `make_redirects.py`'s header) |
+| C17 | RISK | codex | refuted | C13 re-raised; the build listing is the evidence: the trial's `dist/` holds `404.html`, `datenschutz.html`, `impressum.html`, `index.html`, `intern.html`, `leistungen.html` (and `ueber-uns.html`) |
+| G13 | NIT | melious | fixed | The coupling test matched a title in any spec; it now pairs each mapping row's title with that row's spec (mutation: moving the image title's spec to `seo.spec.ts` fails it) |
+| G14 | NIT | melious | fixed | The title and warning patterns were narrower than what they guard; every `<page>` row must parse, and every `⚠…:` span is checked |
+| G15 | NIT | melious | fixed | "the warning below" in a table cell; now points at "Warnings in the output" |
+
+Round 4 earned by C15 (test-filter, cut). Fixes in `571ace8e`.
