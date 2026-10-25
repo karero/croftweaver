@@ -74,3 +74,11 @@ both re-raises of rare cases with no new evidence of ordinary use.
 Gate state: 3 rounds, 17 findings (0 BUG, 10 RISK, 7 NIT), no BUG open. Rounds 2 and 3 are
 degraded: Codex only, because melious had no credit and ollama had hit its weekly limit. Round 1
 had the full pair and fresh-eyes.
+
+## Wording pass — Codex, the prose in website-qa and BUGLOG (88 s / 46,472 tokens)
+
+Two wording errors, both fixed: "every raster it downloads" now reads "every raster the page
+itself downloads (not those inside an iframe)" (the spec reads only the main frame); and a file
+used only as a border image, cursor or shape-outside is "not judged by width" rather than "not
+judged", since it still fails when hidden at 4 KiB or more, or when it cannot be decoded. Same
+wording in the spec's header.

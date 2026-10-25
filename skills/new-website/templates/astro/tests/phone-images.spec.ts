@@ -3,11 +3,11 @@ import { PAGES } from './_helpers';
 
 // Phones must not download images far bigger than they can show (website-qa, "Performance").
 // Each page loads as Lighthouse's phone (412px, 1.75x) and is scrolled to the end, so lazy
-// images load; every raster it downloads is judged, CSS backgrounds and masks included
-// (Lighthouse does not size those). A file fails when it is wider than a 3x phone could use and
+// images load; every raster the page itself downloads is judged, CSS backgrounds and masks
+// included (Lighthouse does not size those). A file fails when it is wider than a 3x phone could use and
 // a copy that wide saves an estimated 4 KiB, when it is downloaded but not shown (hidden ones
 // under 4 KiB pass), and when the test cannot work out how wide it is drawn. A file used only
-// as a border image, cursor or shape-outside is named in the log, not judged.
+// as a border image, cursor or shape-outside is not judged by width; the log names it.
 const VIEW = { width: 412, height: 823 };
 const RATIO = 1.75;
 const MOST = 3 * 1.1;      // a 3x phone, with room for one up to 453 CSS px wide

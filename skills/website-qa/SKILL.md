@@ -56,15 +56,16 @@ cosmetics; red → green → commit.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).
-- `phone-images.spec.ts` — loads each page as Lighthouse's phone (412px, 1.75x), scrolled to
-  the end, and judges every raster it downloads, CSS backgrounds and masks included (Lighthouse
-  does not size those). Fails a file wider than a 3x phone could use (1.1 × the width it is drawn
-  at × 3) when a copy that wide saves an estimated 4 KiB or more (estimated by pixel area, which
-  can run high); a downloaded file nothing on the page shows (often a preload whose `media`
-  drifted from the CSS breakpoint); one of 4 KiB or more that is downloaded but hidden at phone
-  width; and one whose drawn width it cannot work out. A file used only as a border image, cursor
-  or `shape-outside` is named, not judged. Prints how many files it judged by width and names the
-  hidden ones under 4 KiB. The fixes are in section 2.
+- `phone-images.spec.ts` — loads each page as Lighthouse's phone (412px, 1.75x), scrolled to the
+  end, and judges every raster the page itself downloads (not those inside an iframe), CSS
+  backgrounds and masks included (Lighthouse does not size those). Fails a file wider than a 3x
+  phone could use (1.1 × the width it is drawn at × 3) when a copy that wide saves an estimated
+  4 KiB or more (estimated by pixel area, which can run high); a downloaded file nothing on the
+  page shows (often a preload whose `media` drifted from the CSS breakpoint); one of 4 KiB or
+  more that is downloaded but hidden at phone width; and one whose drawn width it cannot work
+  out. A file used only as a border image, cursor or `shape-outside` is not judged by width, and
+  the log names it. Prints how many files it judged by width and names the hidden ones under 4
+  KiB. The fixes are in section 2.
 - `tone.spec.ts` — no em dashes / contractions / buzzwords in copy or metadata.
   Language-aware: the contraction/buzzword rules apply only to `<html lang>` en*
   pages; the em-dash ban is universal (the `website-content-guide` rules).
