@@ -94,14 +94,20 @@ Round 5 earned by C18 (test-filter: the fix refuses the input). Fixes in `c66f7e
 
 | id | sev | seat | status | why |
 |---|---|---|---|---|
-| C19, G19 | RISK (G: NIT) | codex, melious | fixed | The config guard missed a quoted key (`"grep": /seo/`, reproduced by codex); it now reads `grep`, `"grep"` and `'grep'` (mutation: a quoted `grep` in the starter's config fails it). Tightens a test that already failed on the unquoted form: no further round |
+| C19, G19 | RISK (G: NIT) | codex, melious | fixed | The config guard missed a quoted key (`"grep": /seo/`, reproduced by codex); it now reads `grep`, `"grep"` and `'grep'` (mutation: a quoted `grep` in the starter's config fails it). New coverage the round-5 head lacked, re-gated in the link below |
 | C20, G18 | RISK | codex, melious | refuted | "`--forbid-only` may not fail a focused run": measured on the trial site (Playwright 1.64.1, `CI` unset): a spec with `test.only` run as `npx playwright test --forbid-only` exits 1 with "item focused with '.only' is not allowed due to the '--forbid-only' CLI flag" |
 | G20 | NIT | melious | fixed | The row counter missed a `<page>` shifted out of the title column; it now counts every table line that quotes `<page>`, so a shifted or extra one fails loudly |
 
-Rounds end here: round 5 found no BUG, and its fixes tighten tests that already fail on the
-broken form. The fixes (`2614dae3`) are code, so one re-gate link follows with both seats.
+Rounds end here: round 5 found no BUG. Its fixes (`2614dae3`) add coverage to the guard test
+(quoted keys, shifted titles), so they are code: one re-gate link follows with both seats.
 
 ## Re-gate link — `2614dae3` against `68c5240b` (not a round)
 `reviewers: codex OK, melious FAILED (error mid-stream (HTTP 200)), ollama-cloud FAILED (quota)` ·
 `timings: codex 74s (26264 tokens)` · codex: "No BUG/RISK/NIT findings." The stamp rests on
 codex's chain: round 1's full pair, rounds 2–5 and this link, each delta from the previous head.
+
+## Wording pass (not a round)
+One codex pass over the trail, scoped to factual contradictions · `timings: codex 147s (69971
+tokens)`. One finding: round 5's rows said its fixes tightened tests that already failed; they
+added coverage the head lacked (its in-memory mutations: `68c5240b` passes a quoted `grep` and a
+shifted title, `2614dae3` fails both). Fixed; the code was already re-gated in the link.
