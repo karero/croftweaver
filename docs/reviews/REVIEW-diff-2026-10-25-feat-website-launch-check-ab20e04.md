@@ -88,3 +88,15 @@ Round 4 earned by C15 (test-filter, cut). Fixes in `571ace8e`.
 | G17 | NIT | melious | fixed | The row count matched `<page>` anywhere in a row; now only in the title column |
 
 Round 5 earned by C18 (test-filter: the fix refuses the input). Fixes in `c66f7e3c`.
+
+## Round 5 — verification of `68c5240b`, earned by C18 (`--earned-by test-filter`)
+`reviewers: codex OK, melious OK` · `timings: codex 112s (40441 tokens), melious 137s (15587 tokens)` · no BUG.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C19, G19 | RISK (G: NIT) | codex, melious | fixed | The config guard missed a quoted key (`"grep": /seo/`, reproduced by codex); it now reads `grep`, `"grep"` and `'grep'` (mutation: a quoted `grep` in the starter's config fails it). Tightens a test that already failed on the unquoted form: no further round |
+| C20, G18 | RISK | codex, melious | refuted | "`--forbid-only` may not fail a focused run": measured on the trial site (Playwright 1.64.1, `CI` unset): a spec with `test.only` run as `npx playwright test --forbid-only` exits 1 with "item focused with '.only' is not allowed due to the '--forbid-only' CLI flag" |
+| G20 | NIT | melious | fixed | The row counter missed a `<page>` shifted out of the title column; it now counts every table line that quotes `<page>`, so a shifted or extra one fails loudly |
+
+Rounds end here: round 5 found no BUG, and its fixes tighten tests that already fail on the
+broken form. The fixes (`2614dae3`) are code, so one re-gate link follows with both seats.
