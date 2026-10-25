@@ -46,3 +46,16 @@ fresh-eyes (Sonnet) about 111k tokens. 0 BUG, 6 RISK, 9 NIT (some overlap, each 
 
 Checks after the fixes: the job's steps run locally again (16 judged; whole suite 112 passed; 16
 red cases red), three mutations caught, `make check` green.
+
+## Round 2 — verify, delta 0decf01a..ce84378c
+
+`reviewers: codex OK, melious FAILED, ollama-cloud FAILED`: melious said "Insufficient balance
+for request ... Available: 0"; the ollama stand-in hit its weekly usage limit. A degraded round:
+Codex alone (217 s / 54,373 tokens). It confirmed fixes #1, #5–7, #9, #10 and #12 and raised 2
+RISKs, both re-raises of #2. The PR's `phone-images-test` job passed on CI's Linux Chromium at
+ce84378c, which settles #13.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 14 | codex | RISK | the probe's rect is skewed by a transform on an ancestor; a site `!important` rule still reaches it | Fixed for transforms: the probe's computed width/height is read, not its rect. `!important` on every div: re-sorted, rare (one seat) |
+| 15 | codex | RISK | `%` sizes resolved against the border box, not the positioning area (re-raise of #2, which two seats raised in round 1, so it counts) | Fixed: each layer's area comes from its `background-origin` / `mask-origin` (border, padding or content box); a pseudo-element's border box is built from its used size. Red case: a 20px border on a 200px border-box box gives `calc(100% - 10px)` = 150px. Mutation (area = border box) caught: it reads 190px |

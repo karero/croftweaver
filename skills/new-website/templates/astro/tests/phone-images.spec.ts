@@ -41,10 +41,10 @@ function usersNow(): User[] {
     parts.push(v.slice(start).trim());
     return parts.filter(Boolean);
   };
-  // A background-size layer in px: a hidden probe box of the element's border-box size works
-  // out each % or calc() as width (first word) or height (second); a word it cannot take is left
-  // as is. Backgrounds size % against the padding box, so a bordered box comes out a little wide.
-  // `all: initial` keeps the site's own CSS (a padding or max-width on every div) off the probe.
+  // A background-size layer in px: a hidden probe box the size of the layer's positioning area
+  // works out each % or calc() as width (first word) or height (second); a word it cannot take
+  // is left as is. `all: initial` keeps the site's own CSS (a padding or max-width on every div)
+  // off the probe, and its computed size, unlike its rect, ignores transforms.
   const PLAIN = 'all: initial; display: block; box-sizing: content-box';
   let probe: HTMLElement | undefined;
   const inPx = (layer: string, w: number, h: number) => {
@@ -63,7 +63,7 @@ function usersNow(): User[] {
       const side = i ? 'height' : 'width';
       child.style.cssText = PLAIN;
       child.style[side] = v;
-      return child.style[side] ? `${child.getBoundingClientRect()[side]}px` : v;
+      return child.style[side] ? getComputedStyle(child)[side] : v;
     }).join(' ');
   };
   const els = Array.from(document.querySelectorAll('*'));   // taken before the probe joins the page
@@ -83,16 +83,25 @@ function usersNow(): User[] {
       const cs = getComputedStyle(el, pseudo);
       if (pseudo && (cs.content === 'none' || cs.content === 'normal')) continue;
       const host = el.getBoundingClientRect();
-      // A pseudo-element has no rect of its own; its used width/height are in the style.
-      const w = pseudo && cs.width.endsWith('px') ? parseFloat(cs.width) : host.width;
-      const h = pseudo && cs.height.endsWith('px') ? parseFloat(cs.height) : host.height;
+      const sum = (...props: string[]) => props.reduce((t, p) => t + (parseFloat(cs.getPropertyValue(p)) || 0), 0);
+      const bx = sum('border-left-width', 'border-right-width'), by = sum('border-top-width', 'border-bottom-width');
+      const padX = sum('padding-left', 'padding-right'), padY = sum('padding-top', 'padding-bottom');
+      // The border box. A pseudo-element has no rect of its own; its used width/height are in the style.
+      const grow = pseudo && cs.boxSizing === 'content-box';
+      const w = pseudo && cs.width.endsWith('px') ? parseFloat(cs.width) + (grow ? bx + padX : 0) : host.width;
+      const h = pseudo && cs.height.endsWith('px') ? parseFloat(cs.height) + (grow ? by + padY : 0) : host.height;
       const hidden = cs.visibility !== 'visible';
-      // Sizes line up with every layer, gradients included, and repeat from the start when
-      // the list is shorter (as CSS does). An image-set() layer names several files: all count.
-      for (const [images, size] of [['background-image', 'background-size'], ['mask-image', 'mask-size']]) {
+      // The box a layer's % sizes refer to, from its background-origin or mask-origin.
+      const area = (origin: string) => origin === 'border-box' ? [w, h]
+        : origin === 'content-box' ? [w - bx - padX, h - by - padY] : [w - bx, h - by];
+      // Sizes and origins line up with every layer, gradients included, and repeat from the start
+      // when the list is shorter (as CSS does). An image-set() layer names several files: all count.
+      for (const [images, size, origin] of [['background-image', 'background-size', 'background-origin'], ['mask-image', 'mask-size', 'mask-origin']]) {
         const sizes = split(cs.getPropertyValue(size), ',');
+        const origins = split(cs.getPropertyValue(origin), ',');
         split(cs.getPropertyValue(images), ',').forEach((layer, i) => {
-          for (const url of urls(layer)) out.push({ url, kind: 'bg', w, h, size: inPx(sizes[i % sizes.length] ?? '', w, h), hidden });
+          const [aw, ah] = area(origins[i % origins.length] ?? '');
+          for (const url of urls(layer)) out.push({ url, kind: 'bg', w: aw, h: ah, size: inPx(sizes[i % sizes.length] ?? '', aw, ah), hidden });
         });
       }
       // A list marker and a pseudo-element's content image are drawn at the file's own size; an

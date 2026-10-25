@@ -957,6 +957,8 @@ jobs:
           red "an oversized background sized by calc()" "/fx/big.webp is 2000px wide, shown at 190px"
           edit 's|url\(/fx/calc.webp\) center / calc|url(/fx/big.webp) center / calc|; s|(\.fx-spacer \{)|:global(body > div:last-of-type > div) { max-width: 60px; padding: 0 30px; }\n              $1|' ':global(body > div:last-of-type > div) { max-width: 60px'
           red "the same, with site CSS that would squeeze the sizing probe" "/fx/big.webp is 2000px wide, shown at 190px"
+          edit 's|url\(/fx/calc.webp\) center / calc|url(/fx/big.webp) center / calc|; s|\.fx-calc \{ width: 200px;|.fx-calc { width: 200px; border: 20px solid;|' '.fx-calc { width: 200px; border: 20px solid; height: 133px; background: url(/fx/big.webp)'
+          red "the same on a bordered box: % sizes refer to the padding box" "/fx/big.webp is 2000px wide, shown at 150px"
           edit 's|mask: url\(/fx/mask.webp\)|mask: url(/fx/big.webp)|' 'mask: url(/fx/big.webp)'
           red "an oversized mask image" "/fx/big.webp is 2000px wide, shown at 200px"
           edit 's|<img src="/fx/none.webp"|<img src="/fx/big.webp"|' '<img src="/fx/big.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 133px; object-fit: none"'
