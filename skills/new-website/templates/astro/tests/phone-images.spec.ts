@@ -6,7 +6,8 @@ import { PAGES } from './_helpers';
 // images load; every raster it downloads is judged, CSS backgrounds and masks included
 // (Lighthouse does not size those). A file fails when it is wider than a 3x phone could use and
 // a copy that wide saves an estimated 4 KiB, when it is downloaded but not shown (hidden ones
-// under 4 KiB pass), and when the test cannot work out how wide it is drawn.
+// under 4 KiB pass), and when the test cannot work out how wide it is drawn. A file used only
+// as a border image, cursor or shape-outside is named in the log, not judged.
 const VIEW = { width: 412, height: 823 };
 const RATIO = 1.75;
 const MOST = 3 * 1.1;      // a 3x phone, with room for one up to 453 CSS px wide
@@ -14,8 +15,9 @@ const FLOOR = 4096;        // bytes; Lighthouse's own floor for an image saving
 const BUDGET = 20_000;     // ms for scrolling and settling; the test's own timeout is set above it
 
 // A user of an image: the box it shows in, and how it is fitted there. For `fit`, `size` is an
-// object-fit value; for `bg`, a background-size or mask-size layer with its lengths in px.
-type User = { url: string; kind: 'fit' | 'bg'; w: number; h: number; size: string; hidden: boolean };
+// object-fit value or `own` (drawn at the file's own size); for `bg`, a background-size or
+// mask-size layer with its lengths in px; for `named`, the CSS property.
+type User = { url: string; kind: 'fit' | 'bg' | 'named'; w: number; h: number; size: string; hidden: boolean };
 
 // Runs in the page: every element using an image URL right now.
 function usersNow(): User[] {
@@ -39,14 +41,17 @@ function usersNow(): User[] {
     parts.push(v.slice(start).trim());
     return parts.filter(Boolean);
   };
-  // A background-size layer in px: a hidden probe box of the element's size works out each %
-  // or calc() as width (first word) or height (second). A word it cannot take is left as is.
+  // A background-size layer in px: a hidden probe box of the element's border-box size works
+  // out each % or calc() as width (first word) or height (second); a word it cannot take is left
+  // as is. Backgrounds size % against the padding box, so a bordered box comes out a little wide.
+  // `all: initial` keeps the site's own CSS (a padding or max-width on every div) off the probe.
+  const PLAIN = 'all: initial; display: block; box-sizing: content-box';
   let probe: HTMLElement | undefined;
   const inPx = (layer: string, w: number, h: number) => {
     if (layer === 'cover' || layer === 'contain') return layer;
     if (!probe) {
       probe = document.createElement('div');
-      probe.style.cssText = 'position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none';
+      probe.style.cssText = `${PLAIN}; position: absolute; left: 0; top: 0; visibility: hidden`;
       probe.append(document.createElement('div'));
       document.body.append(probe);
     }
@@ -56,7 +61,7 @@ function usersNow(): User[] {
     return split(layer, ' ').map((v, i) => {
       if (v === 'auto' || /^[\d.]+px$/.test(v)) return v;
       const side = i ? 'height' : 'width';
-      child.style.cssText = '';
+      child.style.cssText = PLAIN;
       child.style[side] = v;
       return child.style[side] ? `${child.getBoundingClientRect()[side]}px` : v;
     }).join(' ');
@@ -90,10 +95,13 @@ function usersNow(): User[] {
           for (const url of urls(layer)) out.push({ url, kind: 'bg', w, h, size: inPx(sizes[i % sizes.length] ?? '', w, h), hidden });
         });
       }
-      // A border image is stretched across its box; a list marker, a cursor and a
-      // pseudo-element's content image are drawn at the file's own size.
-      for (const [prop, size] of [['border-image-source', 'fill'], ['list-style-image', 'none'], ['cursor', 'none'], ['content', pseudo ? 'none' : 'fill']]) {
+      // A list marker and a pseudo-element's content image are drawn at the file's own size; an
+      // element's own content image fills its box like an <img>.
+      for (const [prop, size] of [['list-style-image', 'own'], ['content', pseudo ? 'own' : 'fill']]) {
         for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'fit', w, h, size, hidden });
+      }
+      for (const prop of ['border-image-source', 'cursor', 'shape-outside']) {
+        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'named', w, h, size: prop, hidden });
       }
     }
   }
@@ -101,15 +109,15 @@ function usersNow(): User[] {
   return out;
 }
 
-// The width a file is drawn at, from its box, its fit and its own size (fw x fh). `none` and
-// an auto background draw it at its own size (what a box crops away is not counted, as with
-// cover). NaN is a size the test cannot read; the caller fails the file.
+// The width a file is shown at, from its box, its fit and its own size (fw x fh): for `none`,
+// the part its box shows; for `own` and an auto background, the whole file. NaN is a size the
+// test cannot read; the caller fails the file.
 function drawnWidth(u: User, fw: number, fh: number): number {
   const aspect = fw / fh;
   const contain = Math.min(u.w, u.h * aspect);
   if (u.size === 'cover') return Math.max(u.w, u.h * aspect);
   if (u.size === 'contain') return contain;
-  if (u.kind === 'fit') return ({ fill: u.w, none: fw, 'scale-down': Math.min(fw, contain) } as Record<string, number>)[u.size] ?? NaN;
+  if (u.kind === 'fit') return ({ fill: u.w, none: Math.min(fw, u.w), 'scale-down': Math.min(fw, contain), own: fw } as Record<string, number>)[u.size] ?? NaN;
   const [x, y = 'auto'] = u.size.split(' ');
   const px = (v: string) => (/^[\d.]+px$/.test(v) ? parseFloat(v) : NaN);
   if (x !== 'auto') return px(x);
@@ -178,6 +186,7 @@ for (const path of PAGES) {
 
       const problems: string[] = [];
       const small: string[] = [];
+      const named: string[] = [];
       let judged = 0;
       for (const [url, bytes] of sizes) {
         const name = new URL(url).pathname;
@@ -190,16 +199,18 @@ for (const path of PAGES) {
           continue;
         }
         if (Number.isNaN(bytes) || !fw || !fh) { problems.push(`${name}: could not read its size or decode it`); continue; }
-        const sized = users.filter((u) => !u.hidden && u.w > 0 && u.h > 0);
+        const sized = users.filter((u) => u.kind !== 'named' && !u.hidden && u.w > 0 && u.h > 0);
         if (!sized.length) {
-          if (bytes >= FLOOR) problems.push(`${name} is downloaded but hidden at 412px (${Math.round(bytes / 1024)} KB): lazy-load it, or serve it only where it shows`);
+          const as = users.filter((u) => u.kind === 'named' && !u.hidden).map((u) => u.size);
+          if (as.length) named.push(`${name} (${[...new Set(as)].join(', ')})`);
+          else if (bytes >= FLOOR) problems.push(`${name} is downloaded but hidden at 412px (${Math.round(bytes / 1024)} KB): lazy-load it, or serve it only where it shows`);
           else small.push(name);
           continue;
         }
         const widths = sized.map((u) => drawnWidth(u, fw, fh));
         const unknown = [...new Set(sized.filter((u, i) => !Number.isFinite(widths[i])).map((u) => u.size || '(none)'))];
         if (unknown.length) {
-          problems.push(`${name}: the test cannot work out how wide it is drawn (size ${unknown.join('; ')}); give it a size in px, %, auto, cover or contain`);
+          problems.push(`${name}: the test cannot work out how wide it is drawn (size ${unknown.join('; ')}); give it a size in px, %, calc(), auto, cover or contain`);
           continue;
         }
         judged++;
@@ -212,7 +223,7 @@ for (const path of PAGES) {
           problems.push(`${name} is ${fw}px wide, shown at ${Math.round(shown)}px: a 3x phone uses at most ${Math.round(limit)}px; a copy that wide saves an estimated ${Math.round(saving / 1024)} KB`);
         }
       }
-      console.log(`phone images — ${path}: ${judged} judged by width${small.length ? `; hidden and under 4 KiB: ${small.join(', ')}` : ''}`);
+      console.log(`phone images — ${path}: ${judged} judged by width${small.length ? `; hidden and under 4 KiB: ${small.join(', ')}` : ''}${named.length ? `; not judged: ${named.join(', ')}` : ''}`);
       expect(problems, 'make a smaller copy (and a srcset) or fix the preload; website-qa "Performance" has the fixes').toEqual([]);
     } finally {
       await context.close();

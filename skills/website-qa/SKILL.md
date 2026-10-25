@@ -62,8 +62,9 @@ cosmetics; red → green → commit.
   at × 3) when a copy that wide saves an estimated 4 KiB or more (estimated by pixel area, which
   can run high); a downloaded file nothing on the page shows (often a preload whose `media`
   drifted from the CSS breakpoint); one of 4 KiB or more that is downloaded but hidden at phone
-  width; and one whose drawn width it cannot work out. Prints how many files it judged by width
-  and names the hidden ones under 4 KiB. The fixes are in section 2.
+  width; and one whose drawn width it cannot work out. A file used only as a border image, cursor
+  or `shape-outside` is named, not judged. Prints how many files it judged by width and names the
+  hidden ones under 4 KiB. The fixes are in section 2.
 - `tone.spec.ts` — no em dashes / contractions / buzzwords in copy or metadata.
   Language-aware: the contraction/buzzword rules apply only to `<html lang>` en*
   pages; the em-dash ban is universal (the `website-content-guide` rules).
