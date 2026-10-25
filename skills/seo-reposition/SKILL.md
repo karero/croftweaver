@@ -35,8 +35,9 @@ defaults (a US default is wrong for a DACH-market site and vice versa).
   place. The raw SERP snapshots (public search results) go beside them in `docs/seo/`.
 - A site that already has one of them in its root or in `docs/`: create the folder
   (`mkdir -p docs/seo`) and move the file there once, with `git mv` when git tracks it and `mv`
-  when not, and say so. If more than one of the root, `docs/` and `docs/seo/` has a copy, move
-  nothing and ask the owner which to keep.
+  when not, and say so. Then fix the relative links in the moved file, and the links to it from
+  other files, so each still reaches its target. If more than one of the root, `docs/` and
+  `docs/seo/` has a copy, move nothing and ask the owner which to keep.
 - `WORDING-GUIDE.md` stays beside `POSITIONING.md` (the root, or `docs/` where the site keeps
   `POSITIONING.md` there): it is a rule document the assistant reads, not a report.
 - The full Search Console export behind the diagnosis stays in the site's git-ignored
