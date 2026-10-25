@@ -108,7 +108,7 @@ Codex's effort for any run.
 
 ## Procedure
 
-1. **Data check before anything leaves the machine.** Grep the artifact for secrets (keys, tokens,
+1. **Data check before anything leaves the machine.** Grep the artifact, and any `--evidence` file, for secrets (keys, tokens,
    passwords, customer data). Get the owner's OK the first time a repo's content goes to each
    destination SERVICE — Codex, ollama-cloud, melious.ai, Antigravity, Antigravity routed to a
    Claude tag, and whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
@@ -120,7 +120,7 @@ Codex's effort for any run.
    advisory). Set Codex's
    effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
    verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
-   [--verify <prior-findings>] [--wording-pass] --depth <light|normal|high> --round <N>` (relative to this skill's
+   [--verify <prior-findings>] [--wording-pass] [--evidence <file>] --depth <light|normal|high> --round <N>` (relative to this skill's
    directory; depth and round feed the cost log, and a run with no `--depth` says so; the notice
    past round 8 needs `--round` on every round, a redesign restarts at 1; a wording pass, final
    full read or re-gate is not a round: leave `--round` off, the cost log still attaches it to
@@ -138,17 +138,22 @@ Codex's effort for any run.
    refused, naming each file and the command that makes a correct one. Any other diff (a delta,
    a merge link, the wording pass) passes `--base <the commit it starts from>`; so does a change
    whose PR targets a branch other than the default one (`--base <its merge base with that
-   branch>`). A diff not made by `git diff` in this repository passes `--base none`. For a DIFF
+   branch>`). A diff not made by `git diff` in this repository passes `--base none`. Evidence for
+   the reviewers (command output, logs, measurements) goes in one file with `--evidence <file>`,
+   which sends it as labelled data beside the artifact; never append it to a diff, and it is no
+   reason for `--base none`. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
    tracker's status row — after the last round: in a round its sentences draw findings that
    cost rounds. It is then read once, by the wording pass (step 6) or, where no round had a
    substantive BUG, by the prose-only re-gate the stamp needs (closeout, clerk item 2). An entry
    carrying commands or config is not prose: it goes in with the change.
    Size: each seat has its own limit (SEAT LIMITS in the script's header, `scripts/seat_limits.txt`);
-   a seat over it FAILS before sending and the others run, so split only an artifact the pair
-   cannot both take. Output: one section per attempted
+   the limit counts the artifact, prior findings and any `--evidence` file together; a seat
+   over it FAILS before sending and the others run, so split the artifact, or trim
+   the evidence, only when the pair cannot both take them. Output: one section per attempted
    reviewer (its review, or a `— FAILED` section with the error and remedy), then a `reviewers:`
-   and a `timings:` line, for a diff a `base:` line (past round 8, also a ⚠ notice). Exit 0
+   and a `timings:` line, for a diff a `base:` line, with `--evidence` an `evidence:` line (past
+   round 8, also a ⚠ notice). Exit 0
    means at least one reviewer counted, not the pair — read the
    reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
    TOP (the list is ranked); never through `tail`.
@@ -159,7 +164,13 @@ Codex's effort for any run.
    `references/claims-sweep.md` says.
 3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
    round 1 only at Normal, rounds 1 to 3 at High, never at Light — started in the background
-   BEFORE the script so every seat runs at once.
+   BEFORE the script so every seat runs at once. A round sent with `--evidence` gives this pass
+   the same file under the script's EVIDENCE lead, between its `--- BEGIN EVIDENCE ---` and
+   `--- END EVIDENCE ---` markers, after the strict prompt and before the artifact. Build it
+   from the evidence file itself, with the lead from PROMPT_EVIDENCE in
+   `scripts/independent_review.sh` (`${TYPE}` filled in): this pass starts before the script
+   writes any prompt. A host seat does not go through the script, and would otherwise go
+   without it.
 
    **Cost log.** The script logs its own seats. Log each seat the host runs — fresh-eyes, a Light
    gate's `/code-review` or `double-knuth`, an owner round — with `scripts/review_log.sh add --seat
@@ -308,7 +319,8 @@ Codex's effort for any run.
    requirements document, or any High-depth change: ONE pass over the WHOLE current artifact, not a
    delta, by a reviewer that has not yet reviewed this artifact — preferably another model: another
    ollama cloud model (`OLLAMA_MODEL=<other>:cloud` with `--seat ollama`), Antigravity with the
-   owner's OK, or a stronger host-family pass. Delta rounds never look at untouched text again;
+   owner's OK, or a stronger host-family pass (given the evidence as step 3 says, where the gate
+   sends `--evidence`). Delta rounds never look at untouched text again;
    this pass does. Triage its findings like a round's; a substantive BUG or an earning RISK earns a
    verification round (past round 8, with the owner's OK).
 
@@ -347,7 +359,8 @@ Codex's effort for any run.
    `references/rationale.md`.
 8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,
    fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost (and, from round 4, the script's running-total line)
-   (the `timings:` line; the host seats' duration and tokens), a diff round's `base:` line, and
+   (the `timings:` line; the host seats' duration and tokens), a diff round's `base:` line, any
+   `evidence:` line, and
    any follow-ups.
    The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. The update is a

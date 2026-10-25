@@ -64,7 +64,7 @@ narrative — raw reviewer text lives in the PR comment:
 ```
 # <GATE> review — <PR/MR or branch> — <the change, one line>
 Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OPEN · authority used: <property — atom>
-| Round | Head | Artifact (full / delta since <sha>, as the run's `base:` line says) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
+| Round | Head | Artifact (full / delta since <sha>, as the run's `base:` line says; the `evidence:` line, when the round sent one) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 | id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote (a parser or validator fix: the invariant and the variants or comparison, step 5) |
 Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction;
 the owner's grant for each round past 8, quoted.
