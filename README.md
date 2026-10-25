@@ -133,13 +133,17 @@ a service on the internet, it is one you chose, with your own account or key:
 - **A search-results service** (Serper or SerpApi), if you ask who ranks for a phrase: that
   phrase.
 - **The AI services you pick** for the weekly check whether AI answers name your business
-  (OpenRouter, or Gemini, OpenAI, Anthropic and Perplexity directly): your questions.
+  (OpenRouter, or Gemini, OpenAI, Anthropic and Perplexity directly, and SerpApi for
+  Google's AI answers if you switch that on): your questions.
 - **An image service** you choose, if you ask for images: your image requests.
 - **Outside AI reviewers** (Codex, Ollama, melious.ai, Antigravity), only if you ask for a
-  second opinion: the plan or change being reviewed.
+  second opinion: the plan or change being reviewed. Codex works inside your project folder
+  and can read other files there too.
 - **croftweaver.com**, only if you say yes to a small "Built with Croftweaver" credit in
   your footer: the credit's files.
-- **Your visitor counting** (Plausible), if you switch it on: your visitors' page views.
+- **Your visitor counting** (Plausible), if you switch it on: for each page view, the page's
+  address, where the visitor came from, their browser and their network address, and a
+  count when someone taps your email link.
 - **Public pages and downloads** your assistant reads while it works, such as programs it
   installs or your own live site.
 
