@@ -2,7 +2,7 @@
 
 <!-- The relaunch comparison, written beside the pre-launch report when the settings name
 the old site ("replaces"). Write it in the owner's language and keep the order. File:
-docs/launch/launch-comparison-<YYYY-MM-DD>.md. It holds the old site's paths and the owner's
+docs/launch/launch-comparison-<YYYY-MM-DD>.md (a second one that day: -2). It holds the old site's paths and the owner's
 decisions, nothing else from an inventory. In a public site repo, ask before committing it. -->
 
 **Date:** [YYYY-MM-DD] · **Old site:** [https://www.example.com] · **New site:** [the preview address, or "not deployed yet"]

@@ -34,7 +34,9 @@ It also runs on its own, on any site built with this toolkit, whenever the owner
 
 Read `docs/launch/config.json`. If the site has an older `.launch-check-config.json` in its
 root, move it there first: `git mv` when git tracks it, `mv` when not, and say so. If both
-exist, move nothing and ask which to keep. Older reports in `docs/` stay where they are.
+exist, move nothing and ask which to keep. Older reports in `docs/` stay where they are. The
+old file's keys `storybrand` and `contact_forms` become `story_layer` and `contact_form`; fill a
+missing key as below. A moved file counts as saved settings (the last paragraph of this section).
 
 Without a settings file, fill one from what the site already says, and ask only what is
 still open:
@@ -74,14 +76,16 @@ owner gets everything in German, headings included. This file stays English.
 
 ## 2. The site's tests first
 
-Run, in the site's folder, `npm run build`, then `npm test`, keeping the whole output. Then
-follow `references/test-coverage.md`:
+Run, in the site's folder, `npm run build`, then the whole suite with `npx playwright test`,
+keeping the whole output. Use `npx playwright test`, not `npm test`, so a narrowed `test` script
+cannot hide a failure; if `package.json`'s `test` script is anything but `playwright test`, that is
+a 🟡 finding. Then follow `references/test-coverage.md`:
 
 - A failing test is a 🔴 blocker that names the test and quotes its message. No look by eye
   stands in for a test.
 - Every `⚠ placeholders:` line is a blocker (a page still listed in `UNFILLED_UNTIL_LAUNCH`,
   or a `[MISSING: …]` placeholder, which only warns outside CI). `⚠ positioning coverage:` is a
-  🟡 finding. A skipped test is a finding.
+  🟡 finding. A skipped test is a 🟡 finding.
 - A category the mapping gives to a test is left to that test, **per page**, only where the
   output shows that page's test passed. The report lists those under "Left to the site's tests,
   as they stand in this site, for the pages in `PAGES`", and the check does not look at them
@@ -94,11 +98,12 @@ Only what the tests cannot. Skip what the settings rule out, and list it under "
 settings".
 
 **Always:**
-- Titles and descriptions: no two pages share one, and each says what its page is.
-- What no test reads: the starter's example values (the name `Example`,
-  `hello@example.com`) on the home page and both legal pages, `public/llms.txt`'s own
+- Titles and descriptions: no two pages share one, and each says what its page is (🟡).
+- What no test reads (🔴, since a visitor would read it): the starter's example values (the name
+  `Example`, `hello@example.com`) on the home page and both legal pages, `public/llms.txt`'s own
   `[bracket]` slots, the 404 page's text.
-- Console errors on the local preview the tests use (`npm run preview`). Errors that come from
+- Console errors on the local preview (`npm run preview`). Run it after the tests, and stop it
+  when done: the tests start a preview of their own, and fail while another one runs. Errors that come from
   the `_headers` rules, HTTPS and the 404 status show only on a deployed site: at the
   baseline and pre-launch runs they read "not checked yet: not deployed", and the live run
   checks them.
@@ -106,8 +111,8 @@ settings".
 **Business in Germany:**
 - **Impressum** per § 5 DDG (the Digitale-Dienste-Gesetz replaced the TMG in May 2024): name,
   address, a fast electronic contact, register entry, VAT ID if any; for a regulated
-  profession (architects, lawyers, doctors) also the chamber, the professional title and the
-  state that granted it.
+  profession (architects, lawyers, doctors, and a trade that must register with a chamber such
+  as the Handwerkskammer) also the chamber, the professional title and the state that granted it.
 - **Datenschutz:** hosting, analytics, forms, any embeds, the contact for data questions.
   Whether the text fits what the site really does; the slots and the analytics settings are
   `new-website` §4's own item.
@@ -128,7 +133,7 @@ generic list.
 **Blog:** an index page, at least one post (or drafts ready), a feed, a named author.
 
 **Testimonials** (`src/data/testimonials.ts`): real names and roles where the owner chose names, and **consent on file for
-each named person**: ask the owner, quote by quote. "Yes" goes in the report as "owner confirmed
+each named person**: at each pre-launch run, ask the owner, quote by quote. "Yes" goes in the report as "owner confirmed
 consent on file, <date>". "No" or "don't know" for a quote is a blocker that points at
 `website-testimonials`' consent rule (keep it off the live site until consent lands). Keep no
 consent record and no contact details.
@@ -162,8 +167,10 @@ line from what the owner tells you), and run the tests again after a fix.
 ## 5. The report
 
 Write `docs/launch/launch-check-<YYYY-MM-DD>-<baseline|prelaunch|live>.md` from
-`references/report-template.md`, in the owner's language, without the template's comment.
-A second report of the same kind on one day gets `-2` (then `-3`): never overwrite a report.
+`references/report-template.md`, in the owner's language, without the template's comment. Each
+run starts from the template and this run's findings, never from an earlier report.
+A second report of the same kind on one day gets `-2` (then `-3`), and so does a second
+comparison: never overwrite a report.
 
 - **Verdict:** 🔴 when any blocker is open; 🟡 when only soon-after items are; 🟢 when nothing
   is. The baseline's verdict line is "Baseline, not a launch verdict".

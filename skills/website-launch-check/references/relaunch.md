@@ -22,7 +22,7 @@ Count `/page` and `/page/` as one address, and a %-escaped spelling as the same 
 
 The decision comes from the owner's `moves.csv`, which `wordpress-inspector`'s
 `make_redirects.py` reads: a new path, a full address on another host, `keep` (same address on
-the new site) or `let go`. Without a `moves.csv`, ask the owner per address and record the
+the new site) or `let go`. An empty `new_address` means no decision yet. Without a `moves.csv`, ask the owner per address and record the
 answer in the comparison. The launch check writes no redirects itself; `make_redirects.py`
 writes `public/_redirects` from the decisions.
 
@@ -38,8 +38,9 @@ Then check each decision against the new site:
 
 ## 3. PageSpeed
 
-The numbers are the owner's own runs on https://pagespeed.web.dev/ (as `website-qa` §2 asks):
-the old site's before the switch; the new site's only once it is live, at the live re-check
+The numbers are the owner's own runs on https://pagespeed.web.dev/ (as `website-qa` §2 asks).
+Ask the owner for the old site's numbers before the switch (PageSpeed can only test a public
+address; if the old site cannot be tested, the row says why); the new site's only once it is live, at the live re-check
 (12a). Never fill in a number. Until then the new site's row reads "not measured yet: run after
 the switch, at 12a".
 

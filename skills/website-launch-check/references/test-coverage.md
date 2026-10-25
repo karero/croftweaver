@@ -7,13 +7,15 @@ name.
 
 ## The rule
 
-1. Run, in the site's folder: `npm run build`, then `npm test 2>&1 | tee <scratch file>`. The
-   starter's Playwright config uses the `list` reporter: one line per test, with its title and
-   `✓` (passed), `✘` (failed) or `-` (skipped).
+1. Run, in the site's folder: `npm run build`, then `npx playwright test 2>&1 | tee <scratch file>`
+   (the whole suite, whatever the `test` script says). The starter's Playwright config uses the
+   `list` reporter: one line per test, with its title and `✓` (passed), `✘` (failed) or `-`
+   (skipped).
 2. A category below counts as **left to the site's tests on a page** only when the output shows
    that page's test, by the title below, as passed. A page whose test was skipped, filtered out
    (a narrowed test command, a `grep` in the config), failed or is missing is the check's, for
-   that category, on that page.
+   that category, on that page. A filtered-out test leaves no line and no count, so check by
+   name: for each page in `PAGES`, look for the test title below with that page in it.
 3. The tests read only the pages in `PAGES` (`tests/_helpers.ts`). List every built page
    (`dist/**/*.html`, as a path: `dist/about/index.html` is `/about`) that `PAGES` lacks, and
    check those pages yourself. `seo.spec.ts`'s sitemap test already fails for a sitemap page
@@ -44,7 +46,7 @@ The suite passes with some warnings. Read every line that starts with `⚠`:
   `UNFILLED_UNTIL_LAUNCH` ("… is not ready to launch"), or a `[MISSING: …]` content placeholder
   (only a warning outside CI). Quote the line in the report.
 - `⚠ positioning coverage:` is a 🟡 finding: a page has no positioning entry.
-- A skipped test (`-` in the list, or the summary's "skipped" count) is a finding, and its
+- A skipped test (`-` in the list, or the summary's "skipped" count) is a 🟡 finding, and its
   page's categories above are the check's.
 
 ## Keeping this file right

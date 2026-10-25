@@ -4,7 +4,7 @@
 (headings too), fill each section, drop a section that has nothing in it, and keep the order.
 The file is docs/launch/launch-check-<YYYY-MM-DD>-<baseline|prelaunch|live>.md. -->
 
-**Date:** [YYYY-MM-DD] · **Run:** [baseline | pre-launch | live] · **Settings:** `docs/launch/config.json` ([business in Germany: yes/no], [site languages], [story layer: yes/no])
+**Date:** [YYYY-MM-DD] · **Run:** [baseline | pre-launch | live] · **Settings:** `docs/launch/config.json` ([business in Germany: yes/no], [site languages], [story layer: yes/no], [replaces: the old site's address, or none])
 
 **Verdict:** [🟢 Ready to launch | 🟡 Ready with the items below | 🔴 Not ready | Baseline, not a launch verdict]
 
@@ -24,7 +24,7 @@ The file is docs/launch/launch-check-<YYYY-MM-DD>-<baseline|prelaunch|live>.md. 
 
 ## Left to the site's tests, as they stand in this site, for the pages in `PAGES`
 
-`npm run build` and `npm test` on [YYYY-MM-DD]: [N passed, N failed, N skipped]. These tests
+`npm run build` and `npx playwright test` on [YYYY-MM-DD]: [N passed, N failed, N skipped]. These tests
 are the site's own: they are read as they stand in this site, edits included.
 
 | Category | Test | Pages it passed on |
