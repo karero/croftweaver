@@ -10,7 +10,7 @@ in review as its own PR. The status table says where each step stands.
 | 3 | Trial: one slim branch pushed by hand, Validate run on it | ✅ 2026-10-24: **Validation passed** in about 20 s (`ValidatePlugin` 200): 7 checks, 0 Blocking, 9 warnings (8 download-and-run, mostly docs; no icon), 26 policy holds (16 "uses a credential from the user's machine", 10 for `og/default.jpg` named by code). Unpinned `npx` did not block. Draft cleared, nothing submitted | `directory` at `c88e1ef5` (parent `9bae3ea0`, the tree as planned); `c88e1ef5` leaves out `independent-review` (223 files) |
 | 4 | Build: script, test, workflow step (one PR) | ✅ built 2026-10-25 on the maintainer's go ("yes, build the automation"); DIFF gate High, see the PR | `feat/directory-branch-publish`; trail `REVIEW-diff-2026-10-25-directory-branch-publish.md` |
 | 5 | Fix what step 3's report marks Blocking (likely the `npx` lines), and the README section on what the skills contact, each its own PR | ⬜ | — |
-| 6 | Directory form steps 2 to 5, then submit | ⬜ the maintainer's | — |
+| 6 | Directory form steps 2 to 5, then submit | ✅ submitted 2026-10-25 by the maintainer, from `directory` at `3c9d675`; held for policy review (16 "uses a credential from the user's machine", 10 for `og/default.jpg`); auto-publish of later passing versions on | https://claude.ai/directory/manage/plugins/50246c32-f120-48b1-a773-824fce0c0847 |
 
 ## What and why
 

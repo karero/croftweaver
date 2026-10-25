@@ -1,0 +1,118 @@
+# DIFF review — branch plan/website-qa-phone-images: phone-images.spec.ts, its CI job, website-qa Performance
+
+Gate: Normal (a test that ships in every site, a CI job and a SKILL.md; none of it is Light).
+Seats: Codex, melious (glm-5.3), fresh-eyes (Claude Sonnet, round 1). Artifact: `git diff origin/main...HEAD -- . ':(exclude)docs/reviews/'`.
+
+Before round 1: `make check` green; the spec green on the starter (0 judged), the CI job's steps run locally as written (green page, whole suite 112 passed and 1 skipped, every red case red); mutations of the spec each caught by a fixture case; the spec run on site A before and after its hero fix (red on the 1900px hero, about 25 KB to save; green after).
+
+## Round 1 — 5fd0c36b
+
+`reviewers: codex OK, melious OK`; fresh-eyes about 110k tokens. 23 findings: 5 BUG, 11 RISK, 7 NIT (some overlap, each kept in its own row).
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 1 | fresh | BUG | smooth scrolling (the starter sets it) can stop the loop short of the end | Fixed: `behavior: 'instant'`, and the loop now ends only when the bottom is reached. Tested: smooth scrolling with the old loop still reached the end on the fixture (the final wait lets it finish), so this is a guard, not a seen failure |
+| 2 | fresh | BUG | "Done means" asks for a production number before launch | Fixed: the `main` preview before launch, production after; single-stage sites measure production after the first upload |
+| 3 | codex | BUG | `background-size` ignored: a file drawn at 50px is judged at the box width | Fixed: the drawn width from cover, contain, lengths, percentages and auto; red case (a 600px file drawn at 50px). Mutation (sizes ignored) caught |
+| 4 | codex | BUG | the URL parser cuts `url("/photo(1).webp")` at `)` | Fixed: computed styles always write `url("...")`, now parsed with escapes; the layer splitter skips quoted text; green case `paren(1).webp`. Mutation (old parser) caught |
+| 5 | codex | BUG | the page height is read once; a page that grows is not scrolled to its end | Fixed: the end is checked at every stop, at most 200 screens (more fails loudly); red case (an oversized image in content added at the end, 8000px down). Mutation (height read once) caught |
+| 6 | fresh | RISK | `background-repeat` defaults to `repeat`, so ordinary backgrounds were skipped as "repeating" | Fixed: repeat is no longer a reason to skip; a tile is judged at the width it is drawn |
+| 7 | fresh | RISK | `image-set()` names several files; only the first counted | Fixed: every URL of a layer counts; green case. Mutation (first URL only) caught |
+| 8 | fresh | RISK | an eager image hidden at phone width passes | Fixed: one of 4 KiB or more fails ("downloaded but hidden"), smaller ones are listed; red and green cases. Mutation caught |
+| 9 | fresh | RISK | `networkidle` hangs on pages that poll | Fixed: at most 5 s, and the output says when the network never went quiet |
+| 10 | fresh | RISK | `npm install` without `npm init` writes into the site; one command, no five-run loop or median; Node version | Fixed: `npm init -y`, a five-run loop and a median one-liner (run once as written, see below); Lighthouse 13.5 needs Node >= 22.19, the starter's floor is `^22.23.4 \|\| ^24.22.1 \|\| >=26.12.1` |
+| 11 | fresh | RISK | a single-stage site has no preview | Fixed with #2 |
+| 12 | fresh | RISK | `background-size` under or over 100% judged wrong | Fixed with #3 |
+| 13 | codex | RISK | the byte saving is estimated, not measured | Refuted: the same estimate Lighthouse uses (wasted pixel share × bytes, `ImageDelivery.js`, quoted in the evidence file); a rule of thumb by design, called "modelled on" in the plan |
+| 14 | glm | RISK | the job leans on the line reporter's format | Refuted with evidence: the job's steps ran locally as written and every check matched; the tagline job reads the same format |
+| 15 | glm | RISK | `sharp` is not installed explicitly | Refuted: the starter's install provides it (the fixtures were made with it here), as the hero-carousel job already relies on; a comment in the step says so |
+| 16 | glm | RISK | `hasTouch` giving phone media queries is assumed | Fixed: the test asserts `(pointer: coarse)` and `(hover: none)`; both matched here |
+| 17 | fresh | NIT | the new job sat between `template-tests-ok` and its comment | Fixed: moved above the comment |
+| 18 | fresh | NIT | relying on hoisted `sharp` | See #15 |
+| 19 | fresh | NIT | `printf … \| grep -q` under pipefail can exit 141 | Fixed: here-strings and `[[ … ]]` |
+| 20 | fresh | NIT | the context closes only on success | Fixed: `try`/`finally` |
+| 21 | fresh | NIT | a perl edit hits the first match only | Fixed: anchored to a line holding only `<script is:inline>`; the grep after it proves the edit landed |
+| 22 | glm | NIT | the fixed 150 ms settle and growing pages | Fixed with #5; a final snapshot follows the image and network waits |
+| 23 | glm | NIT | one grep had no error message | Fixed |
+
+Checks after the round 1 fixes: the regenerated job's three steps run locally as written under `bash -eo pipefail` (9 judged on the green page, whole suite 112 passed and 1 skipped, all seven red cases red); the skill's steps 1 and 2 run verbatim in a fresh scratch folder against https://croftweaver.com/ (five runs, median printed: `100 1.0 s 1.7 s`).
+Site A again with the revised spec, on a quiet machine (50 pages in about 21 s): before its hero fix, red on `/images/hero-bg.webp is 1900px wide, shown at 426px … saves about 23 KB`; on its `main`, the hero passes and the only failures are 8 blog photos (1280–1600px files shown at 372px), real findings for that site; no "hidden" or "nothing shows it" result on any of its 50 pages.
+
+## Round 2 — e579ca1e (verification, Codex at medium)
+
+`reviewers: codex OK, melious OK`. 7 findings: 2 BUG, 3 RISK, 2 NIT.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 24 | codex | BUG | `decodeURI` throws on a file named with `%` | Fixed: names are reported as served, undecoded |
+| 25 | codex | BUG | #5 partly fixed: a page that grows during the final waits is not scrolled again | Fixed: after the waits the end is checked again and scrolling goes on if the page grew; the grow fixture now adds its content 400 ms late. Mutation (stop at the first end) caught |
+| 26 | codex | RISK | a `calc()` background-size gives NaN and passes silently | Fixed: a size not worked out lists the file with the value ("size not worked out: calc(100% - 10px) auto", asserted on the green page); lengths are read only when they are plain px or % |
+| 27 | codex | RISK | `visibility: hidden` with a box escapes the hidden rule | Fixed: visibility is recorded and a hidden user counts as not shown; red case. Mutation (visibility ignored) caught |
+| 28 | glm | RISK | `object-fit: none` and `scale-down` judged at the box | Fixed: none at the file's width, scale-down at the smaller of it and contain. No fixture: both only make a file look larger or equal, never pass a wrong one; named here |
+| 29 | glm | NIT | `failed_test_is` still pipes into `grep -q` | Fixed: captured first, matched with `[[ … ]]` |
+| 30 | glm | NIT | the new proof greps had no error message | Fixed: one `edit` helper makes each change and names the edit that did not land |
+
+Checks after the fixes: the job's steps run locally as written (10 judged on the green page, `calc.webp` and `hidden.webp` listed with their reasons, whole suite 112 passed and 1 skipped, 8 red cases red); site A as before (red on the old hero, the same 8 blog photos on `main`, nothing else).
+
+## Round 3 — 9aa0979a (verification)
+
+`reviewers: codex OK, melious OK`. 6 findings: 1 BUG, 3 RISK, 2 NIT.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 31 | codex, glm | BUG | #26 partly fixed: a file with one size not worked out and one that is, is judged on the second alone | Cut, not patched: one strict rule, a file with any use whose size is not worked out is listed with every such size and never judged; green case (`calc.webp` also shown by a 50px `<img>`). Mutation (judge on the worked-out uses) caught |
+| 32 | codex | RISK | #28: `object-fit: none` / `scale-down` widths ignore srcset density | Cut by the same rule: only cover, contain, fill, plain px or % and auto are worked out; none and scale-down are listed, not judged |
+| 33 | glm | RISK | the full settle on every end reach makes the screen limit unreachable within the test's time | Cut: the full settle runs once; later ends pause 500 ms; the limit drops from 200 screens to 60 |
+| 34 | glm | NIT | only the first unworked size named | Fixed with #31: every distinct one |
+| 35 | glm | NIT | a hidden `cursor`/`content` use made a hidden file "used by a CSS property" | Fixed: only a shown one counts |
+| — | glm, codex | note | (the two 50px/`calc()` reports are one finding, counted once) | — |
+
+Checks after the fixes: the job's steps run locally as written (10 judged, both listed files with their reasons, whole suite 112 passed and 1 skipped, 8 red cases red); site A unchanged (red on its old hero; on `main`, only the 8 blog photos).
+
+## Round 4 — 33d04f19 (verification; earned by #31–#33, `--earned-by unworked-size,end-settle,object-fit`, cuts named)
+
+`reviewers: codex OK, melious OK`. melious: no findings (one note, refuted: the `auto <length>` branch already multiplies by the aspect). Codex: 2 findings, 1 BUG, 1 RISK.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 36 | codex | BUG | after a second growth, later ends skip the image wait, so a newly started image can escape | Cut: started images are waited for at every end, within one time budget |
+| 37 | codex | RISK | the 60-screen limit can outlast the test timeout, so its message never shows | Cut: the screen limit is replaced by a 20 s budget that every wait counts against; red case, a page that grows at every end, fails with "was still growing after 20 s of scrolling" |
+
+Checks after the fixes: the job's steps run locally as written (whole suite 112 passed and 1 skipped, 9 red cases red); site A unchanged.
+
+## Round 5 — 16b6313c (verification; earned by #36–#37, `--earned-by end-settle`, cut named)
+
+`reviewers: codex OK, melious OK`; `timings: codex 208s (40421 tokens), melious 257s (29213 tokens)`. 7 findings: 1 BUG, 3 RISK, 3 NIT.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 38 | codex | BUG | an image request that starts during the last pause is not waited for | Cut: the end now waits until no image request of any kind is pending, counted from the network (request started, finished or failed), replacing both the `<img>` check and `networkidle`. Not covered by a fixture: `astro preview` cannot slow a response; named here |
+| 39 | codex, glm | RISK | the budget's message can be masked by the test's own timeout | Fixed: the test sets its timeout to the budget plus 40 s |
+| 40 | glm | RISK | the edits of the red cases pile up, so later cases prove nothing | Refuted: `red()` copies the clean page back after every case (`cp "$RUNNER_TEMP/index.good"`) |
+| 41 | glm | NIT | "still growing" is wrong for a page that is only very long | Fixed: "did not settle at its end within 20 s (still growing, very long, or images still loading)" |
+| 42 | glm | NIT | a late first end shortens the networkidle wait | Gone with #38 |
+| 43 | glm | NIT | the "added late" case expects the same text as the lazy one | Refuted with #40: each case runs alone on a clean page |
+
+Checks after the fixes: the job's steps run locally as written (10 judged, whole suite 112 passed and 1 skipped, 9 red cases red); site A unchanged, no "did not settle" on any of its 50 pages.
+
+## Round 6 — 92c47cb2 (verification; earned by #38, `--earned-by end-settle`, cut named)
+
+`reviewers: codex OK, melious OK`; `timings: codex 493s (52273 tokens), melious 154s (19460 tokens)`. 4 findings, all RISK, no BUG.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 44 | codex | RISK | a page that takes over 40 s to load leaves too little time for the budget's own message | Re-sorted: rare (a 40 s load from a local preview), and the test still fails, by timeout. BUGLOG row 2026-10-25 |
+| 45 | codex | RISK | pending requests count every frame; an embedded frame's endless image fails the page | Re-sorted: rare, and loud ("did not settle"), not silent. BUGLOG row 2026-10-25 |
+| 46 | glm | RISK | a preloaded file shown by an `<img>`, or a redirect, may leave a request unpaired | Refuted with evidence: the green page preloads and shows `swap.webp` and settles; site A's 50 pages (preloads included) settle; Playwright's own docs (`types.d.ts`): "If request gets a 'redirect' response, the request is successfully finished with the `requestfinished` event, and a new request is issued" |
+| 47 | glm | RISK | `expect.poll` may not take `message` | Refuted with evidence: the installed types give `{ message?: string, timeout?: number, intervals?: number[] }`, and a failing poll printed `Error: MY-POLL-MESSAGE` |
+
+No BUG and no RISK whose fix changes what runs: the rounds end (stop condition a2).
+
+## Close
+
+6 rounds; 49 findings in 47 rows (two were raised by both seats and share a row): 10 BUG, 23 RISK, 14 NIT by row. Every BUG fixed; two RISKs re-sorted as rare with BUGLOG rows; the refuted ones carry their evidence above. Rounds 3 to 6 cut rather than patched where a kind came back (the size rule, the end settle).
+
+## Wording pass — the BUGLOG rows added after round 6 (Codex alone, `--seat codex`)
+
+`reviewers: codex OK`. 2 BUG (contradictions with the code), 1 RISK (a follow-up). The release-note row said existing sites get the test with their next suite copy (`whats-new.sh` does not refresh tests) and left out the 4 KiB floor and the sizes listed, not judged: both fixed. The RISK asks for probes of the two rare cases' timing; it stays with their BUGLOG rows.
+Confirmation (same seat, the fix's delta): one BUG, the rule stated loosely ("a 3x phone"); fixed to "wider than 1.1 × 3 × the width it is drawn at, when cutting it to that width would save an estimated 4 KiB or more". Second confirmation: no findings.
