@@ -100,3 +100,8 @@ Round 5 earned by C18 (test-filter: the fix refuses the input). Fixes in `c66f7e
 
 Rounds end here: round 5 found no BUG, and its fixes tighten tests that already fail on the
 broken form. The fixes (`2614dae3`) are code, so one re-gate link follows with both seats.
+
+## Re-gate link — `2614dae3` against `68c5240b` (not a round)
+`reviewers: codex OK, melious FAILED (error mid-stream (HTTP 200)), ollama-cloud FAILED (quota)` ·
+`timings: codex 74s (26264 tokens)` · codex: "No BUG/RISK/NIT findings." The stamp rests on
+codex's chain: round 1's full pair, rounds 2–5 and this link, each delta from the previous head.
