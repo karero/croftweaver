@@ -41,3 +41,18 @@ timings: codex 153s (90,187 tokens). F1–F7 confirmed except below.
 | F8 | codex | BUG | F2's fix claimed a padded block fails, but `$(...)` drops trailing newlines on both sides, so a blank line before END passed. | Fixed: both sides keep their trailing newlines (a sentinel inside each substitution); new cases: a block padded before END fails, the prompt as sent passes. |
 
 Round 3 is earned by F8 (a guard that could not fire on the input it named).
+
+## Round 3 (verification, delta dcbb46ef..b5f688d4)
+
+reviewers: codex OK (effort medium), melious FAILED ("Insufficient balance … Required: 72,
+Available: 0"), ollama-cloud FAILED (quota). timings: codex 73s (27,490 tokens).
+Codex: No BUG/RISK/NIT findings; F8 confirmed.
+
+The rounds end here. Nothing outside the trail changed after round 3, so no wording pass is due.
+
+## State
+
+3 rounds, 8 findings. Codex holds an unbroken chain to b5f688d4 and is clean. GLM 5.3 reviewed
+round 1 in full and then had no credit: its chain ends at acf69418, and the round 2–3 delta
+(acf69418..b5f688d4: SKILL.md steps 2–3, the BUGLOG row, the USAGE echo, the block test) has
+had one cross-model seat.
