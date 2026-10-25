@@ -15,7 +15,7 @@ Base `13b61bde` · depth: Normal (adds a command to steps a person follows, so n
 | F3 | RISK | codex, glm, fresh-eyes | 1 | "Every claim still matched" was wider than the evidence | fixed in evidence A2: raw-copy lines for every other Cloudflare fact (externally_reverified r2, glm) | address shapes, build variables, 404 setting, 307, limits, DNS, branch control, matrix rows |
 | F4 | NIT | glm | 1 | "(TTFB)" label did not match the post-handshake figure | fixed `13791fcd` (externally_reverified r2) | label removed |
 | F5 | NIT | glm | 1 | Re-check date implied the kit was re-read | fixed `13791fcd` (externally_reverified r2) | "(not read again on 2026-10-25)" |
-| F6 | NIT | fresh-eyes | 1 | A cold first run could skew the figure | refuted | one slow run moves the median of 21 by at most one rank; codex reproduced (r2, r3) |
+| F6 | NIT | fresh-eyes | 1 | A cold first run could skew the figure | refuted for ordinary runs | one slow run moves the median of 21 by at most one position (codex reproduced, r2, r3). In seconds that is the gap between neighbouring sorted runs: small when the runs are alike, large when they split into fast and very slow ones (codex, wording pass: 0.0020 became 1.0000), which the step does not guard against |
 | F7 | NIT | fresh-eyes | 1 | Awkward wrap in the header | fixed `13791fcd` (externally_reverified r2) | reflowed |
 | F8 | BUG | codex; glm NIT | 2 | curl's exit code was ignored: a 200 then a failed transfer counted | fixed `8ff118b0`: `%{exitcode}` as field 2, bad on non-zero (locally_verified, externally_reverified r3) | forced 200-then-abort (`--max-filesize`, "200 56") exits 1; stub with one exit-18 row exits 1; good URL exits 0 in zsh and bash |
 | F9 | RISK | codex | 2 | No evidence for "plain files are free and run no code" | fixed in evidence A3 (externally_reverified r3, glm) | binding, billing and Pages Functions pricing pages quoted |
@@ -27,4 +27,4 @@ Waivers and deferrals: none.
 
 Follow-ups: none.
 
-Notes: the evidence files (raw-copy greps of Cloudflare's pages fetched 2026-10-25, the command's test runs, the check logs) stayed local and were sent with each round. Round 3 was clean (a2); F10 was fixed without another round. `make check` passed on `7d89b3ee`; `scripts/check_clean.sh` passed on `8ff118b0`.
+Notes: the evidence files (raw-copy greps of Cloudflare's pages fetched 2026-10-25, the command's test runs, the check logs) stayed local and were sent with each round. Round 3 was clean (a2); F10 was fixed without another round. Wording pass (codex, `c90907bf`): one contradiction, F6's reason claimed a bound in seconds that only holds in ranks; reworded, then confirmed by the same seat. `make check` passed on `7d89b3ee`; `scripts/check_clean.sh` passed on `8ff118b0`.
