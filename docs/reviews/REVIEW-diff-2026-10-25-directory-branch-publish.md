@@ -109,8 +109,12 @@ D4/D17 (the listing, checked after the first release once listed) and D21's bran
 for rounds 1-6 with fresh-eyes and the full read, plus round 1's first Codex run, 79,882,
 logged under an earlier gate id). Degraded pair throughout: no GLM 5.3 (melious balance 0).
 
-## Wording pass (Codex alone, the prose changed since round 4: trail, README, workflow header, plan)
+## Wording pass (Codex alone: the trail since round 4, the plan since main's merge, and the README and workflow header as round 4 left them)
 
 timings: codex 141s (57,175 tokens). Two contradictions, both in the plan, both fixed: its
 opening still said "Nothing here is built" (now: built, in review), and "at 0.34" for a
 measurement taken at a1775b95 (plugin.json 0.33.0). A confirmation over that fix follows.
+
+Confirmation (Codex alone, that fix's delta), 110s, 51,134 tokens: the plan fix holds; it found
+the heading above claimed the README and header changed after round 4 (they did not). Heading
+corrected; not re-read by a reviewer.
