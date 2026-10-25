@@ -51,7 +51,10 @@ token from onboarding, the AI check's `geo/` folder (its settings, history and s
 once it is set up, and — only if you explicitly schedule it — a per-site log there, with its
 launchd plist in `~/Library/LaunchAgents/`.
 Only when you ask, files also go into the site's git-ignored `analytics/` folder: a saved
-report (`--out`), a kept download (`--keep-in`) and the snapshot (`analytics_snapshot.py`). Built for a **low-volume** site — see the
+report (`--out`), a kept download (`ai_reports.py --keep-in <site folder>`) and the snapshot
+(`analytics_snapshot.py --site-dir <site folder>`).
+
+Built for a **low-volume** site — see the
 "Low-volume playbook" below. On first use the agent runs a guided **onboarding** (next
 section), so a non-technical owner never touches the terminal.
 

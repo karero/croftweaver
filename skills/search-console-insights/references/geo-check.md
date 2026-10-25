@@ -397,10 +397,11 @@ pages working. Results kept earlier under `docs/geo/` stay where they are.
 - **Written conclusions can go in git.** When the owner wants the conclusions kept with the
   site, write `docs/geo/geo-check-<run date>.md` in the site: which questions named the site
   ("N of M"), which sources the run listed, in the report's own terms (a listed search result
-  is not a citation), and what to change. Quote no answer, and name the run's folder,
-  `analytics/<run date>_geo-run/`, as a path on the owner's computer, not as a link: git ignores
-  it. The questions and the sources are what the rule above keeps out of a public repo, so in a
-  public site repo ask the owner before committing the file.
+  is not a citation), and what to change. Quote no answer. Where the snapshot has copied the run
+  to `analytics/<run date>_geo-run/`, name that folder as a path on the owner's computer, not as
+  a link: git ignores it. The answers themselves stay in `~/.config/gsc-insights/geo/` and that
+  copy. The questions and the sources are what the rule above keeps out of a public repo, so in a
+  public site repo say what the file holds and ask the owner once before committing it.
 - **The "Also see" link breaks in a hand-made copy.** A report page links to the Google page by a
   relative path (`../../../reports/<domain>/google.html`); `analytics_snapshot.py` rewrites it, a
   copy made by hand does not. Tell the owner, rather than letting them find a dead link.
