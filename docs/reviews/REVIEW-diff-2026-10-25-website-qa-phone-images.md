@@ -110,4 +110,4 @@ No BUG and no RISK whose fix changes what runs: the rounds end (stop condition a
 
 ## Close
 
-6 rounds; 47 findings: 9 BUG, 24 RISK, 14 NIT (rows 1–47). Every BUG fixed; two RISKs re-sorted as rare with BUGLOG rows; the refuted ones carry their evidence above. Rounds 3 to 6 cut rather than patched where a kind came back (the size rule, the end settle).
+6 rounds; 49 findings in 47 rows (two were raised by both seats and share a row): 10 BUG, 23 RISK, 14 NIT by row. Every BUG fixed; two RISKs re-sorted as rare with BUGLOG rows; the refuted ones carry their evidence above. Rounds 3 to 6 cut rather than patched where a kind came back (the size rule, the end settle).
