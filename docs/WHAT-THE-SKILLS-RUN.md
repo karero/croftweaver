@@ -196,7 +196,8 @@ an "Email Tap" event there, as a click on an email address does.
   and writes only those files and makes no network call. For a site that replaces an older one,
   the assistant reads the old site's public `sitemap.xml`; at the optional live re-check it reads
   the new site's live pages, only once its production build is Active. PageSpeed numbers come
-  from your own runs, which you paste in.
+  from your own runs, which you paste in. It also starts the site's local preview to read the
+  console, and stops it again, and keeps the test output in a scratch file while it reads it.
 - **`facts-check`** runs `facts_check.py`, which reads your site's public pages and its
   sitemap and compares facts across them. It changes none of your pages; where the site has
   an `analytics/` folder, its report is saved there.

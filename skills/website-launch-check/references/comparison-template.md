@@ -29,7 +29,10 @@ Numbers from the owner's own runs on https://pagespeed.web.dev/, as pasted.
 | | Current | New | Why |
 |---|---|---|---|
 | Experience | | | |
+| Expertise | | | |
 | Authority | not checked: no outside data | not checked: no outside data | |
+| Trust | | | |
+| Local | | | |
 
 ## Open questions for the owner
 

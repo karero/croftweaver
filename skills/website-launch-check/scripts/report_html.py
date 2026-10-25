@@ -7,8 +7,9 @@
 The Markdown is the source; the page is rebuilt from it, never edited by hand. The page uses a
 fixed set of elements and attributes and one constant <style>, so it loads and runs nothing.
 It reads the Markdown the report templates use: headings, paragraphs, lists, task lists,
-tables, quotes, fenced code, **bold**, *emphasis*, `code` and [links](target). Anything else
-comes out as plain text. Standard library only.
+tables, quotes, fenced code, **bold**, *emphasis*, `code` and [links](target). What it does not
+read (an image, raw HTML, other syntax) is shown as escaped text; emphasis does not reach across a
+link. Standard library only.
 """
 import argparse
 import html
@@ -18,10 +19,10 @@ from pathlib import Path
 
 # A link keeps its target only if the whole target matches: http(s)/mailto/# with no space,
 # control character, quote, angle bracket or backslash after it, or a relative path of ASCII
-# letters, digits and / . - _ ~ % that does not start with //. Anything else is shown as text.
+# letters, digits and / . - _ ~ % that does not start with //, with an optional #fragment. Anything else is shown as text.
 SAFE_TARGET = re.compile(
     r"(?:(?:https://|http://|mailto:|#)[^\s\x00-\x1f\x7f\"'<>\\]*"
-    r"|(?!//)[A-Za-z0-9/._~%-]+)\Z"
+    r"|(?!//)[A-Za-z0-9/._~%-]+(?:#[A-Za-z0-9._~%-]*)?)\Z"
 )
 LANG = re.compile(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*\Z")
 
@@ -75,13 +76,13 @@ def inline(text):
 
 def _links(text):
     out, pos = [], 0
-    for m in re.finditer(r"\[([^\]\n]+)\]\(([^)\n]*)\)", text):
+    for m in LINK.finditer(text):
         out.append(_emphasis(esc(text[pos:m.start()])))
-        label, target = m.group(1), m.group(2)
-        if SAFE_TARGET.match(target):
-            out.append('<a href="' + esc(target) + '">' + _emphasis(esc(label)) + "</a>")
-        else:
+        label, target = m.group(2), m.group(3)
+        if m.group(1) or not SAFE_TARGET.match(target):  # an image, or an unsafe target: text
             out.append(esc(m.group(0)))
+        else:
+            out.append('<a href="' + esc(target) + '">' + _emphasis(esc(label)) + "</a>")
         pos = m.end()
     out.append(_emphasis(esc(text[pos:])))
     return "".join(out)
@@ -101,7 +102,11 @@ def _cells(line):
     return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", line)]
 
 
-TABLE_RULE = re.compile(r"\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*\Z")
+# A table's rule line holds at least one pipe, so a "---" under a line with a pipe stays text.
+TABLE_RULE = re.compile(r"\s*(?=[^|]*\|)\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*\Z")
+# [label](target), the target with at least one balanced pair of parentheses allowed; a leading
+# "!" makes it an image, which the page shows as text.
+LINK = re.compile(r"(!?)\[([^\]\n]+)\]\(((?:[^()\s\n]|\([^()\s\n]*\))*)\)")
 LIST_ITEM = re.compile(r"\s*(?:[-*]|\d+[.)])\s+(.*)\Z")
 TASK = re.compile(r"\[([ xX])\]\s+(.*)\Z", re.S)
 
@@ -123,7 +128,7 @@ def render_body(md):
             blocks.append("<pre><code>" + esc("\n".join(body)) + "</code></pre>")
             i += 1
             continue
-        m = re.match(r"(#{1,6})\s+(.*?)\s*#*\s*\Z", line)
+        m = re.match(r"(#{1,6})\s+(.*?)(?:\s+#+)?\s*\Z", line)
         if m:
             level = min(len(m.group(1)), 4)
             blocks.append("<h%d>%s</h%d>" % (level, inline(m.group(2)), level))
@@ -153,7 +158,7 @@ def render_body(md):
             continue
         m = LIST_ITEM.match(line)
         if m:
-            ordered = bool(re.match(r"\s*\d", line))
+            first = re.match(r"\s*(\d+)[.)]", line)
             items = []
             while i < len(lines) and lines[i].strip():
                 m = LIST_ITEM.match(lines[i])
@@ -164,8 +169,9 @@ def render_body(md):
                 else:
                     break
                 i += 1
-            tag = "ol" if ordered else "ul"
-            parts = ["<%s>" % tag]
+            tag = "ol" if first else "ul"
+            start = int(first.group(1)) if first else 1
+            parts = ['<ol start="%d">' % start if first and start != 1 else "<%s>" % tag]
             for item in items:
                 t = TASK.match(item)
                 if t:
@@ -200,11 +206,13 @@ def render(md, lang="en", title=None):
     if not LANG.match(lang):
         raise ValueError("not a language tag: %r" % lang)
     if title is None:
-        m = re.search(r"^#\s+(.*?)\s*#*\s*$", md, re.M)
+        m = re.search(r"^#\s+(.*?)(?:\s+#+)?\s*$", md, re.M)
         title = m.group(1) if m else "Report"
     return (
         "<!doctype html>\n"
         '<html lang="' + esc(lang) + '">\n<head>\n<meta charset="utf-8">\n'
+        # The browser enforces it too: nothing may load but this page's own inline style.
+        '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<title>" + esc(re.sub(r"[*`]", "", title)) + "</title>\n"
         "<style>" + STYLE + "</style>\n</head>\n<body>\n<main>\n"

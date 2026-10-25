@@ -34,7 +34,7 @@ It also runs on its own, on any site built with this toolkit, whenever the owner
 
 Read `docs/launch/config.json`. If the site has an older `.launch-check-config.json` in its
 root, move it there first: `git mv` when git tracks it, `mv` when not, and say so. If both
-exist, move nothing and ask which to keep. Older reports in `docs/` stay where they are. The
+exist, move nothing and ask which to keep. Make the folder first (`mkdir -p docs/launch`). Older reports in `docs/` stay where they are. The
 old file's keys `storybrand` and `contact_forms` become `story_layer` and `contact_form`; fill a
 missing key as below. A moved file counts as saved settings (the last paragraph of this section).
 
@@ -100,10 +100,13 @@ settings".
 **Always:**
 - Titles and descriptions: no two pages share one, and each says what its page is (🟡).
 - What no test reads (🔴, since a visitor would read it): the starter's example values (the name
-  `Example`, `hello@example.com`) on the home page and both legal pages, `public/llms.txt`'s own
+  `Example`, `hello@example.com`) on the home page and the legal pages (the imprint where the
+  site has one, the privacy or Datenschutz page), `public/llms.txt`'s own
   `[bracket]` slots, the 404 page's text.
-- Console errors on the local preview (`npm run preview`). Run it after the tests, and stop it
-  when done: the tests start a preview of their own, and fail while another one runs. Errors that come from
+- Console errors on the local preview (`npm run preview`), read with the site's own Playwright (a
+  short script that opens each built page and collects console errors). Run it after the tests,
+  and stop it when done: the tests start a preview of their own, and Astro refuses it while
+  another one runs. Errors that come from
   the `_headers` rules, HTTPS and the 404 status show only on a deployed site: at the
   baseline and pre-launch runs they read "not checked yet: not deployed", and the live run
   checks them.
@@ -118,8 +121,9 @@ settings".
   `new-website` §4's own item.
 - **Consent banner:** needed only if the site stores or reads non-essential data on the
   visitor's device (§ 25 TDDDG, formerly TTDSG), such as Google Analytics, YouTube or Google
-  Maps embeds. Analytics that set no cookie and store nothing on the device need none, but
-  check it on the deployed site (the browser's storage panel after a page view) rather than
+  Maps embeds. Analytics that store and read nothing on the device need no § 25 consent (the
+  privacy page still names their legal basis, which is the owner's to settle), but check it on
+  the deployed site (the browser's storage panel after a page view) rather than
   assume it from the product's name. If anything is stored or read, or you cannot tell, report
   the banner question as open for the owner, not as passed. A banner the site does not need
   is itself a finding.
@@ -179,15 +183,17 @@ comparison: never overwrite a report.
 
 Then make the HTML page and keep every page current. The name in braces stands for the folder
 this SKILL.md is in: Claude Code fills it in; with another assistant, put that folder's path in
-its place. Run the commands in the site's folder:
+its place. Run the commands in the site's folder (Claude Code asks before each, since the
+site's permission list does not include `python3`):
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/report_html.py" docs/launch/<report>.md --lang <report language>
 python3 "${CLAUDE_SKILL_DIR}/scripts/report_html.py" --rebuild docs/launch
 ```
 
-The first writes `<report>.html` beside the Markdown; the second rebuilds every page in
-`docs/launch/` from its Markdown, so a report someone edited since shows the edit. The
+The first writes `<report>.html` beside the Markdown; the second rebuilds every HTML page in
+`docs/launch/` that has its Markdown beside it, so a report someone edited since shows the edit
+(a Markdown with no page yet needs the first command). The
 Markdown is the source; never edit the HTML by hand. The page opens from disk in any browser
 and loads nothing.
 

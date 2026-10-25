@@ -16,7 +16,9 @@ Take the list from the first source that exists, and say in the comparison which
    addresses before the switch is fine.
 3. A list the owner gives.
 
-Count `/page` and `/page/` as one address, and a %-escaped spelling as the same address.
+Count addresses the way `wordpress-inspector`'s `check_move.py` does (`page_form`): the closing
+slash dropped (`/page` and `/page/` are one) and each escape's hex digits in upper case, nothing
+decoded, so `/a%2Fb` and `/a/b` stay two addresses.
 
 ## 2. A decision for each address
 
@@ -29,12 +31,15 @@ writes `public/_redirects` from the decisions.
 Then check each decision against the new site:
 
 - a move: a line for it in `public/_redirects` (it may have several, for `/old`, `/old/` and the
-  escaped forms); none is a before-launch item;
+  escaped forms) whose target is the decided new address, and, for a path on the new site, that
+  path in the new build (`dist/`); a missing line, another target or a missing page is a
+  before-launch item;
 - `keep`: the path exists in the new build (`dist/`); missing is a before-launch item;
 - `let go`: nothing to check;
 - no decision: a before-launch item, by address;
-- an address with a query (`/?p=12`): `_redirects` cannot match it, so `make_redirects.py` lists
-  it and writes no line; list it the same way, with the owner's decision.
+- an address with a query (`/?p=12`): `_redirects` cannot match it (`make_redirects.py`'s
+  header says so and lists such an address without a line); list it the same way, with the
+  owner's decision.
 
 ## 3. PageSpeed
 

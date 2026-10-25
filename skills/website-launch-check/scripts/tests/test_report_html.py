@@ -3,6 +3,7 @@ every block's text, and keep only safe link targets. Standard library only.
 
     python3 -m unittest discover -s skills/website-launch-check/scripts/tests
 """
+import os
 import re
 import subprocess
 import sys
@@ -20,10 +21,10 @@ import report_html  # noqa: E402
 # The allowed set lives here, not in the script, so widening the script's set fails this test
 # until the test is changed too.
 ALLOWED = {
-    "html": {"lang"}, "head": set(), "meta": {"charset", "name", "content"}, "title": set(),
+    "html": {"lang"}, "head": set(), "meta": {"charset", "name", "content", "http-equiv"}, "title": set(),
     "style": set(), "body": set(), "main": set(),
     "h1": set(), "h2": set(), "h3": set(), "h4": set(), "p": set(),
-    "ul": set(), "ol": set(), "li": {"class"}, "input": {"type", "disabled", "checked"},
+    "ul": set(), "ol": {"start"}, "li": {"class"}, "input": {"type", "disabled", "checked"},
     "div": {"class"}, "table": set(), "thead": set(), "tbody": set(), "tr": set(),
     "th": set(), "td": set(), "blockquote": set(), "pre": set(), "code": set(),
     "strong": set(), "em": set(), "a": {"href"},
@@ -105,6 +106,10 @@ class Structure(unittest.TestCase):
                 for block in block_texts(md):
                     self.assertIn(block, text)
 
+    def test_the_browser_is_told_to_load_nothing(self):
+        page_html = report_html.render("# T")
+        self.assertIn('<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">', page_html)
+
     def test_one_constant_style_that_loads_nothing(self):
         page_html = report_html.render("# T\n\nx")
         styles = re.findall(r"<style>(.*?)</style>", page_html, re.S)
@@ -122,10 +127,15 @@ class Links(unittest.TestCase):
 
     def test_ordinary_links_keep_their_target(self):
         for target in ("https://pagespeed.web.dev/", "#verdict", "launch-todos-2026-11-20.md", "%C3%BCber.md",
+                       "launch-comparison-2026-11-20.md#redirects",
                        "mailto:owner@example.com", "http://example.com/a?b=1"):
             with self.subTest(target=target):
                 hrefs, _ = self.links(target)
                 self.assertEqual(hrefs, [target])
+
+    def test_a_target_with_parentheses_is_kept_whole(self):
+        hrefs, _ = self.links("https://example.org/Guide_(launch)")
+        self.assertEqual(hrefs, ["https://example.org/Guide_(launch)"])
 
     def test_unsafe_targets_come_out_as_text(self):
         for target in ("//x", "\\/x", "\\\\x", "\t//x", "JaVaScRiPt:x", "jav\tascript:x", "javascript:alert(1)",
@@ -137,6 +147,17 @@ class Links(unittest.TestCase):
 
 
 class Escaping(unittest.TestCase):
+    def test_a_hostile_payload_is_text_in_every_construct(self):
+        bad = '</title><script>x()</script>"onerror=y'
+        md = ("# " + bad + "\n\n## " + bad + "\n\n" + bad + "\n\n- " + bad + "\n- [ ] " + bad + "\n\n1. " + bad +
+              "\n\n> " + bad + "\n\n```\n" + bad + "\n```\n\n| " + bad + " | b |\n|---|---|\n| " + bad + " | `" + bad + "` |\n\n" +
+              "[" + bad + "](javascript:z) and [ok " + bad + "](#a) and **" + bad + "**\n")
+        page_html = report_html.render(md)
+        Structure().assert_safe(page_html)
+        page = parse(page_html)
+        self.assertEqual([t for t, _ in page.elements if t in ("script", "title")], ["title"])
+        self.assertGreaterEqual(norm("".join(page.text)).count(norm(bad)), 12)
+
     def test_raw_html_is_text(self):
         md = "# T\n\n<script>alert(1)</script>\n\n<img src=\"https://x/x.png\">\n\n<meta http-equiv=\"refresh\" content=\"0\">\n\n<svg onload=\"alert(1)\"></svg>"
         page_html = report_html.render(md)
@@ -170,12 +191,52 @@ class Blocks(unittest.TestCase):
                      "<th>A</th>", "<td>2 | 3</td>"):
             self.assertIn(frag, page_html)
 
+    def test_list_start_tables_need_a_pipe_and_images_are_text(self):
+        page_html = report_html.render("# T\n\n3. three\n4. four\n\na | b\n---\n\n![shot](shot.png)\n")
+        self.assertIn('<ol start="3"><li>three</li>', page_html)
+        self.assertNotIn("<table>", page_html)
+        self.assertNotIn("<a ", page_html)
+        self.assertIn("![shot](shot.png)", page_html)
+
+    def test_a_heading_keeps_a_closing_hash_that_is_part_of_it(self):
+        page_html = report_html.render("# Using C#\n\n## Closed ##\n")
+        self.assertIn("<title>Using C#</title>", page_html)
+        self.assertIn("<h1>Using C#</h1>", page_html)
+        self.assertIn("<h2>Closed</h2>", page_html)
+
     def test_language_and_title(self):
         page_html = report_html.render("# Launch-Check: Schreinerei\n\nText", lang="de")
         self.assertIn('<html lang="de">', page_html)
         self.assertIn("<title>Launch-Check: Schreinerei</title>", page_html)
         with self.assertRaises(ValueError):
             report_html.render("# T", lang='de"><script>')
+
+
+STARTER_TESTS = HERE.parents[2] / "new-website" / "templates" / "astro" / "tests"
+# In the toolkit's repository (make test-launch-check sets this) the starter must be there; in a
+# site's copy of the skill it is not, and the check is skipped with this reason.
+REQUIRE_STARTER = os.environ.get("LAUNCH_CHECK_REQUIRE_STARTER") == "1"
+
+
+@unittest.skipUnless(STARTER_TESTS.is_dir() or REQUIRE_STARTER,
+                     "the starter's tests are not beside this skill (a copy in a site): "
+                     "this check runs in the toolkit's own repository")
+class StarterTitles(unittest.TestCase):
+    """references/test-coverage.md names the starter's test titles and warning lines; this fails
+    when a spec renames one, so the mapping is read again."""
+
+    def test_the_titles_and_warnings_the_mapping_names_exist(self):
+        coverage = (HERE.parent.parent / "references" / "test-coverage.md").read_text(encoding="utf-8")
+        specs = {name: (STARTER_TESTS / name).read_text(encoding="utf-8")
+                 for name in ("images.spec.ts", "seo.spec.ts", "placeholders.spec.ts", "positioning.spec.ts")}
+        for title, spec in (("images — ${path} uses optimised, dimensioned, described images", "images.spec.ts"),
+                            ("seo — head contract on ${path}", "seo.spec.ts")):
+            self.assertIn(title, specs[spec])
+            self.assertIn(title.replace("${path}", "<page>"), coverage)
+        self.assertIn("'⚠ placeholders: '", specs["placeholders.spec.ts"])
+        self.assertIn("'⚠ positioning coverage: '", specs["positioning.spec.ts"])
+        self.assertIn("is not ready to launch", specs["placeholders.spec.ts"])
+        self.assertIn("reporter: 'list'", (STARTER_TESTS.parent / "playwright.config.ts").read_text(encoding="utf-8"))
 
 
 class Cli(unittest.TestCase):

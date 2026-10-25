@@ -15,9 +15,14 @@ name.
    that page's test, by the title below, as passed. A page whose test was skipped, filtered out
    (a narrowed test command, a `grep` in the config), failed or is missing is the check's, for
    that category, on that page. A filtered-out test leaves no line and no count, so check by
-   name: for each page in `PAGES`, look for the test title below with that page in it.
+   name: for each page in `PAGES`, look for a line whose title is the one below with that page
+   at its end (`seo — head contract on /` is not the line for `/privacy`). Also
+   check that every `tests/*.spec.ts` file shows at least one line: a spec with none was
+   filtered out by the config, which is a 🟡 finding, and a 🔴 blocker when it is
+   `placeholders.spec.ts`, whose warnings the check needs.
 3. The tests read only the pages in `PAGES` (`tests/_helpers.ts`). List every built page
-   (`dist/**/*.html`, as a path: `dist/about/index.html` is `/about`) that `PAGES` lacks, and
+   (`dist/**/*.html`; the starter builds each page as a file, so `dist/about.html` is `/about`,
+   `dist/a/b.html` is `/a/b` and `dist/index.html` is `/`) that `PAGES` lacks, and
    check those pages yourself. `seo.spec.ts`'s sitemap test already fails for a sitemap page
    missing from `PAGES`, so these are mostly noindex pages and the 404 page.
 4. The site's tests are its contract **as they stand in this site**, edits included (a German
