@@ -833,9 +833,9 @@ for tier in codex ollama; do
   check "evidence + wording pass, diff: $tier has wording, lead, block, artifact, in order" ev_order "$T/evwp.marks/$tier-prompt" diff wording
 done
 grep -vxF "timings: codex 81s" "$T/evwp.marks/codex-prompt" >"$T/evcut.prompt"
-check "evidence: the block check fails on a block with a line cut from its middle" \
+check "evidence: the prompt with a line cut from the block's middle differs from the one sent" \
   sh -c '! cmp -s "$1" "$2"' _ "$T/evwp.marks/codex-prompt" "$T/evcut.prompt"
-check "evidence: ... ev_order rejects it" eval '! ev_order "$T/evcut.prompt" diff wording'
+check "evidence: ... and ev_order rejects it" eval '! ev_order "$T/evcut.prompt" diff wording'
 awk '$0 == "--- END EVIDENCE ---" { print "" } { print }' "$T/evwp.marks/codex-prompt" >"$T/evpad.prompt"
 check "evidence: ev_order rejects a block padded with a blank line before END" eval '! ev_order "$T/evpad.prompt" diff wording'
 check "evidence: ... and accepts the prompt as sent" ev_order "$T/evwp.marks/codex-prompt" diff wording

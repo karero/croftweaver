@@ -56,3 +56,15 @@ The rounds end here. Nothing outside the trail changed after round 3, so no word
 round 1 in full and then had no credit: its chain ends at acf69418, and the round 2–3 delta
 (acf69418..b5f688d4: SKILL.md steps 2–3, the BUGLOG row, the USAGE echo, the block test) has
 had one cross-model seat.
+
+## GLM 5.3 on the round 2–3 delta (acf69418..def265bc, after melious was topped up again)
+
+`--seat melious --verify` (F1–F8), MELIOUS_MODEL=glm-5.3, no `--round`: the seat's chain caught
+up. timings: melious 345s (41,151 tokens). F1–F8 confirmed landed. No BUG.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F9 | melious | RISK | The whole-block comparison holds only if the lead sits outside the markers. | Refuted: PROMPT_EVIDENCE puts the lead before `--- BEGIN EVIDENCE ---`; "accepts the prompt as sent" passes. |
+| F10 | melious | RISK | The cut case works only if "timings: codex 81s" is a line of the evidence. | Refuted: the fixture `ev.txt` holds that line, and nowhere else in the prompt does. |
+| F11 | melious | NIT | The first cut check only shows the files differ; its name claimed the block check fails. | Fixed: renamed to what it checks. |
+| F12 | melious | NIT | SKILL.md says `${TYPE}`, the test writes `@TYPE@`. | Refuted: `${TYPE}` is the script's token; `@TYPE@` is the test's placeholder for it. |
