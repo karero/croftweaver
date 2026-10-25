@@ -297,6 +297,8 @@ case "$url" in
       keepalive) printf ': PROCESSING\n\n: PROCESSING\n\n' >"$out"; printf 200 ;;   # comments only, then closed
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      nobalance) # the reply Melious sends when the balance is empty (raw file, 2026-10-25): its only chunk
+              printf '%s\n\n' 'data: {"type":"error","error":{"message":"Insufficient balance for request. Required: 771, Available: 0","type":"billing_error","param":null,"code":"billing_insufficient_balance"}}' >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
     esac
     if [ -f "$out" ] && grep -qF '@@MARK@@' "$out"; then   # a reply that needs the marker: never send it unfilled
@@ -1240,6 +1242,12 @@ check "mthink: an inline think block is cut, and the review counts" \
 run mmiderr OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff" --base none
 check "mmiderr: an error object mid-stream fails the tier and is quoted" \
   sh -c 'grep -qF "melious FAILED (error mid-stream (HTTP 200))" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
+# An empty balance is a quota failure (wait or add credits), not a broken stream: on 2026-10-24/25 all
+# 109 mid-stream failures were this reply, read as a CLI, sign-in or model problem.
+run mnobalance OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nobalance bash "$SCRIPT" "$T/change.diff" --base none
+check "mnobalance: an empty Melious balance is named as quota in the summary" \
+  has mnobalance.out "melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits)"
+check "mnobalance: and the provider's own message is quoted" has mnobalance.out "Insufficient balance for request"
 run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff" --base none
 check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
   sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
