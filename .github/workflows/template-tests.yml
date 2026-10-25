@@ -807,14 +807,11 @@ jobs:
           stops "an interval too short" 's|label="Photos" |label="Photos" intervalMs={500} |' 'intervalMs below 2000'
           stops "a language with no texts" 's|label="Photos" |label="Photos" lang="xx" |' 'no texts for the language "xx"'
 
-  # The one check main's ruleset requires from this workflow. It passes when every job
-  # above passed (the change touched their paths) or every job was skipped (it did not),
-  # and fails on anything else: a failure, a cancel, a skip where a run was due.
   # tests/phone-images.spec.ts ships in the starter, which renders no raster image, so the
-  # starter suite alone proves nothing about it. This job adds a page block of generated noise
-  # WebP images to the home page (noise, so an oversized file is well over the 4 KiB floor)
-  # holding every case the test must pass, runs the test and the whole suite, then makes one
-  # mistake at a time and checks that this test, and only this test, turns red and names the file.
+  # starter suite alone proves nothing about it. This job adds a block of generated noise WebP
+  # images to the home page (noise, so an oversized file is well over the 4 KiB floor) holding
+  # every case the test must pass, runs the test and the whole suite, then makes one mistake
+  # at a time and checks that this test, and only this test, turns red and says why.
   phone-images-test:
     needs: changes
     if: needs.changes.outputs.run == 'true'
@@ -830,43 +827,63 @@ jobs:
           cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
+          # sharp comes with Astro (the hero-carousel job makes its photos the same way)
           mkdir -p public/fx
           node --input-type=module -e "
           import sharp from 'sharp';
           const noise = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#808080', noise: { type: 'gaussian', mean: 128, sigma: 60 } } }).webp({ quality: 80 }).toFile('public/fx/' + name);
           const flat = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#4a6' } }).webp({ quality: 80 }).toFile('public/fx/' + name);
-          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost']) await noise(n + '.webp', 600, 400);
+          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2']) await noise(n + '.webp', 600, 400);
           await noise('big.webp', 2000, 1333);
           await noise('cover.webp', 1200, 800);
           await noise('tile.webp', 2000, 2000);
           await flat('flat.webp', 1000, 667);
+          await flat('hidden.webp', 600, 400);
           "
           ls -l public/fx
-          # flat.webp must stay under the floor, or the "just under 4 KiB" case proves nothing
-          [ "$(wc -c < public/fx/flat.webp)" -lt 4096 ] || { echo "::error::flat.webp is not small enough"; exit 1; }
+          # The two small files must stay under the floor, or the cases that use them prove nothing.
+          for f in flat hidden; do [ "$(wc -c < "public/fx/$f.webp")" -lt 4096 ] || { echo "::error::$f.webp is not under 4 KiB"; exit 1; }; done
+          [ "$(wc -c < public/fx/zero.webp)" -gt 4096 ] || { echo "::error::zero.webp is not over 4 KiB"; exit 1; }
           [ "$(wc -c < public/fx/big.webp)" -gt 100000 ] || { echo "::error::big.webp is too small to be over the floor"; exit 1; }
-          # The green page: every case the test must pass. One block before </Base>.
+          # The green page, one block before </Base>: every case the test must pass. The page is long
+          # (smooth scrolling must not leave the end unseen) and grows once its end is reached.
           perl -0pi -e 's|</Base>|  <link slot="head" rel="preload" as="image" href="/fx/swap.webp" />
             <link slot="head" rel="preload" as="image" href="/fx/desk.webp" media="(min-width: 720px)" />
             <style>
               .fx-cover { width: 200px; height: 400px; background: linear-gradient(#0003, #0003), url(/fx/cover.webp) center / cover no-repeat; }
               .fx-layers { width: 200px; height: 133px; background-image: url(/fx/layer1.webp), url(/fx/layer2.webp); background-size: 100% auto, 100% auto; background-repeat: no-repeat; }
+              .fx-paren { width: 200px; height: 133px; background: url("/fx/paren(1).webp") center / 100% auto no-repeat; }
+              .fx-set { width: 200px; height: 133px; background-image: image-set(url(/fx/set1.webp) 1x, url(/fx/set2.webp) 2x); background-size: 100% auto; background-repeat: no-repeat; }
               .fx-tile { width: 200px; height: 200px; background: url(/fx/tile.webp) repeat; }
-              .fx-spacer { height: 2000px; }
+              .fx-spacer { height: 8000px; }
               .fx-pb::before { content: ""; display: block; width: 100px; height: 100px; background: url(/fx/right.webp) center / 100% no-repeat; }
             </style>
-            <section class="wrap fx">
+            <section class="wrap fx" data-grow="/fx/right.webp">
               <img id="fx-swap" src="/fx/swap.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" />
-              <img src="/fx/zero.webp" alt="" width="600" height="400" loading="eager" style="width: 0; height: 0" />
+              <img id="fx-hidden" src="/fx/hidden.webp" alt="" width="600" height="400" loading="eager" style="width: 0; height: 0" />
               <img src="/fx/flat.webp" alt="" width="1000" height="667" loading="eager" style="width: 100px; height: auto" />
               <div class="fx-cover"></div>
               <div class="fx-layers"></div>
+              <div class="fx-paren"></div>
+              <div class="fx-set"></div>
               <div class="fx-tile"></div>
               <div class="fx-pb"></div>
               <div class="fx-spacer"></div>
               <img id="fx-low" src="/fx/right.webp" alt="" width="600" height="400" loading="lazy" style="width: 200px; height: auto" />
             </section>
-            <script is:inline>addEventListener("scroll", () => { document.getElementById("fx-swap").src = "/fx/right.webp"; }, { once: true });</script>
+            <script is:inline>
+              addEventListener("scroll", () => { document.getElementById("fx-swap").src = "/fx/right.webp"; }, { once: true });
+              const fxGrow = () => {
+                if (scrollY + innerHeight < document.documentElement.scrollHeight - 50) return;
+                removeEventListener("scroll", fxGrow);
+                const s = document.querySelector(".fx");
+                const gap = document.createElement("div"); gap.style.height = "8000px";
+                const img = Object.assign(document.createElement("img"), { src: s.dataset.grow, alt: "", width: 600, height: 400, loading: "lazy" });
+                img.style.width = "200px"; img.style.height = "auto";
+                s.append(gap, img);
+              };
+              addEventListener("scroll", fxGrow);
+            </script>
           </Base>|' src/pages/index.astro
           grep -q 'id="fx-low"' src/pages/index.astro
           cp src/pages/index.astro "$RUNNER_TEMP/index.good"
@@ -874,39 +891,52 @@ jobs:
         working-directory: ${{ runner.temp }}/site
         run: |
           out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the green page failed phone-images.spec.ts"; exit 1; }
-          printf '%s\n' "$out" | grep 'phone images — /:'
-          # Six files judged on /, and the two that are not judged, each with its reason.
-          printf '%s\n' "$out" | grep -Fq 'phone images — /: 6 judged; ' || { echo "::error::expected 6 judged on /"; exit 1; }
-          printf '%s\n' "$out" | grep -Fq '/fx/tile.webp (repeating background)' || { echo "::error::the repeating background is not listed with its reason"; exit 1; }
-          printf '%s\n' "$out" | grep -Fq '/fx/zero.webp (only zero-size users)' || { echo "::error::the zero-size image is not listed with its reason"; exit 1; }
+          line="$(grep -F 'phone images — /:' <<<"$out")" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the home page printed no count"; exit 1; }
+          printf '%s\n' "$line"
+          # Nine files judged on /, and the hidden one under the floor listed with its reason.
+          [[ $line == *'phone images — /: 9 judged; '* ]] || { echo "::error::expected 9 judged on /"; exit 1; }
+          [[ $line == *'/fx/hidden.webp (hidden at 412px, under 4 KiB)'* ]] || { echo "::error::the small hidden image is not listed with its reason"; exit 1; }
           npm test
       - name: Each mistake turns this test red
         working-directory: ${{ runner.temp }}/site
         run: |
-          failed_test_is() { printf '%s\n' "$1" | grep -E '^ +[0-9]+\) ' | grep -Fq "$2"; }
-          red() {   # red "<what was done>" "<the file the message must name>"
+          failed_test_is() { grep -E '^ +[0-9]+\) ' <<<"$1" | grep -Fq "$2"; }
+          red() {   # red "<what was done>" "<what the message must say>"
             if out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)"; then
               printf '%s\n' "$out" | tail -n 6; echo "::error::$1: the test stayed green"; exit 1
             fi
-            printf '%s\n' "$out" | grep -Eq '^ +1 failed' || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: not exactly one test failed"; exit 1; }
+            grep -Eq '^ +1 failed' <<<"$out" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: not exactly one test failed"; exit 1; }
             failed_test_is "$out" "phone images — / downloads" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the failing test is not the home page's"; exit 1; }
-            printf '%s\n' "$out" | grep -Fq "$2" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the failure does not name $2"; exit 1; }
+            grep -Fq "$2" <<<"$out" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the failure does not say $2"; exit 1; }
             echo "red as expected ($2): $1"
             cp "$RUNNER_TEMP/index.good" src/pages/index.astro
           }
+          # One change per case; the grep after each proves the change was made.
           perl -pi -e 's|id="fx-low" src="/fx/right.webp"|id="fx-low" src="/fx/big.webp"|' src/pages/index.astro
           grep -q 'id="fx-low" src="/fx/big.webp"' src/pages/index.astro
-          red "an oversized lazy image below the fold" "/fx/big.webp is 2000px wide"
+          red "an oversized lazy image at the end of a long page" "/fx/big.webp is 2000px wide, shown at 200px"
+          perl -pi -e 's|data-grow="/fx/right.webp"|data-grow="/fx/big.webp"|' src/pages/index.astro
+          grep -q 'data-grow="/fx/big.webp"' src/pages/index.astro
+          red "an oversized image in content added while scrolling" "/fx/big.webp is 2000px wide, shown at 200px"
           perl -pi -e 's|background: url\(/fx/right.webp\) center / 100% no-repeat|background: url(/fx/big.webp) center / 100% no-repeat|' src/pages/index.astro
           grep -q 'fx-pb::before { content: ""; display: block; width: 100px; height: 100px; background: url(/fx/big.webp)' src/pages/index.astro
           red "an oversized ::before background" "/fx/big.webp is 2000px wide, shown at 100px"
+          perl -pi -e 's|center / 100% auto no-repeat; \}|0 0 / 50px auto no-repeat; }|' src/pages/index.astro
+          grep -q 'url("/fx/paren(1).webp") 0 0 / 50px auto no-repeat' src/pages/index.astro
+          red "a background drawn at 50px by its background-size" "/fx/paren(1).webp is 600px wide, shown at 50px"
+          perl -pi -e 's|id="fx-hidden" src="/fx/hidden.webp"|id="fx-hidden" src="/fx/zero.webp"|' src/pages/index.astro
+          grep -q 'id="fx-hidden" src="/fx/zero.webp"' src/pages/index.astro
+          red "an image downloaded but hidden" "/fx/zero.webp is downloaded but hidden at 412px"
           perl -pi -e 's|(<link slot="head" rel="preload" as="image" href="/fx/swap.webp" />)|$1<link slot="head" rel="preload" as="image" href="/fx/orphan.webp" />|' src/pages/index.astro
           grep -q 'href="/fx/orphan.webp"' src/pages/index.astro
           red "an image preloaded and not shown" "/fx/orphan.webp is preloaded and downloaded"
-          perl -pi -e 's|(<script is:inline>)|<script is:inline>new Image().src = "/fx/ghost.webp";</script>$1|' src/pages/index.astro
-          grep -q '/fx/ghost.webp' src/pages/index.astro
+          perl -pi -e 's|^(\s*)(<script is:inline>)$|$1$2\n$1new Image().src = "/fx/ghost.webp";|' src/pages/index.astro
+          grep -q 'new Image().src = "/fx/ghost.webp";' src/pages/index.astro
           red "an image a script loads and never shows" "/fx/ghost.webp was downloaded, but nothing on the page shows it"
 
+  # The one check main's ruleset requires from this workflow. It passes when every job
+  # above passed (the change touched their paths) or every job was skipped (it did not),
+  # and fails on anything else: a failure, a cancel, a skip where a run was due.
   template-tests-ok:
     needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, hero-carousel-skill, brand-kit-skill, tagline-skill, phone-images-test]
     if: always()

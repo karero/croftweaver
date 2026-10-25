@@ -58,9 +58,10 @@ cosmetics; red → green → commit.
   in src, srcset and `<picture>` (the `website-design-system` rules).
 - `phone-images.spec.ts` — loads each page as Lighthouse's phone (412px, 1.75x), scrolled to
   the end, and judges every raster it downloads, CSS backgrounds included (Lighthouse does not
-  size those). Fails a file wider than a 3x phone could use (1.1 × shown width × 3) when a copy
-  that wide saves at least 4 KiB, and a downloaded file nothing on the page shows (often a
-  preload whose `media` drifted from the CSS breakpoint). Prints how many files it judged and
+  size those). Fails a file wider than a 3x phone could use (1.1 × the width it is drawn at × 3)
+  when a copy that wide saves at least 4 KiB; a downloaded file nothing on the page shows (often
+  a preload whose `media` drifted from the CSS breakpoint); and one of 4 KiB or more that is
+  downloaded but hidden at phone width. Prints how many files it judged and
   which it left out, with the reason. The fixes are in section 2.
 - `tone.spec.ts` — no em dashes / contractions / buzzwords in copy or metadata.
   Language-aware: the contraction/buzzword rules apply only to `<html lang>` en*
@@ -174,24 +175,29 @@ step errors — a fail-loud, fixable by setup, not a reason to drop the hook.)
 
 The agent runs Lighthouse itself; the user is asked only when it cannot.
 
-1. **Install it in a scratch folder**, never in the site, so `package.json` and the pre-push
-   hook stay untouched: `npm install lighthouse@13` there. Lighthouse needs Chrome; use
-   Playwright's, whose path this prints when run **in the site folder**:
+1. **Install it in a scratch folder outside the site**, so the site's `package.json` and its
+   pre-push hook stay untouched: `npm init -y && npm install lighthouse@13` there (without the
+   `npm init`, npm walks up to the nearest `package.json` and installs into it). Lighthouse
+   needs Chrome; use Playwright's, whose path this prints when run **in the site folder**:
    `node -e "import('@playwright/test').then(m=>console.log(m.chromium.executablePath()))"`.
-2. **Run it in the scratch folder** (there `npx` finds that install, not the latest version):
+2. **Run it in the scratch folder** (there `npx` finds that install, not the latest version),
+   five times, then print the median run's score, FCP and LCP:
 
    ```bash
-   CHROME_PATH="<the path above>" npx lighthouse <url> --only-categories=performance --output=json --output-path=run1.json --chrome-flags="--headless=new" --quiet
+   for i in 1 2 3 4 5; do CHROME_PATH="<the path above>" npx lighthouse <url> --only-categories=performance --output=json --output-path=run$i.json --chrome-flags="--headless=new" --quiet; done
+   node -e "const r=[1,2,3,4,5].map(i=>require('./run'+i+'.json')).sort((a,b)=>a.categories.performance.score-b.categories.performance.score)[2]; console.log(Math.round(r.categories.performance.score*100), r.audits['first-contentful-paint'].displayValue, r.audits['largest-contentful-paint'].displayValue)"
    ```
 
-   Without `--headless=new` it opens a window, and fails where there is no display.
+   Without `--headless=new` it opens a window, and fails where there is no display. Lighthouse
+   runs as a phone by default; add one run with `--preset=desktop` for the desktop numbers.
 3. **Measure a deployed URL, never a local server.** `python -m http.server` sends files
    uncompressed, which once inflated sizes and misled a decision; `astro preview` compresses,
-   but is still not Cloudflare. The `main` preview (PUBLISHING.md, step 3) is for comparing a
-   change before it goes live. It runs no analytics (they are on for production only), so the
-   number that counts for "done" is production's, measured after publishing.
-4. **5 mobile runs** (the default preset). Report the run whose performance score is the
-   median, with its FCP, LCP and the insights it raises. Add one run with `--preset=desktop`.
+   but is still not Cloudflare. Before launch, measure the `main` preview (PUBLISHING.md, step 3).
+   It runs no analytics (they are on for production only), so measure production again after
+   launch and report both. A single-stage site has no preview: its first measurement is
+   production, right after the first upload.
+4. **Report the median run** (the one the command prints) with its FCP, LCP and the insights it
+   raises.
 5. **When Lighthouse cannot run**, open https://pagespeed.web.dev/ in the built-in browser and
    read the result there. Do not lean on the keyless PageSpeed API: its quota runs out.
 6. **Judge image sizes by `phone-images.spec.ts`**, not by Lighthouse's image insight alone: that
@@ -230,7 +236,8 @@ existing **`seo-audit`** skill — do not duplicate it here.
 
 ## Done means
 
-All basic tests green; FCP/LCP within target on the agent's median production run, or on
-the user's PageSpeed run when the agent could not run one (or the remaining gaps explicitly
-listed, not hidden); launch checklist in `new-website`
+All basic tests green; FCP/LCP within target on the agent's median run of the `main` preview
+(production for a single-stage site), or on the user's PageSpeed run when the agent could not
+run one (or the remaining gaps explicitly listed, not hidden), with a production run after
+launch; launch checklist in `new-website`
 §4 satisfied.
