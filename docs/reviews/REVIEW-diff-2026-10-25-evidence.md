@@ -68,3 +68,12 @@ up. timings: melious 345s (41,151 tokens). F1–F8 confirmed landed. No BUG.
 | F10 | melious | RISK | The cut case works only if "timings: codex 81s" is a line of the evidence. | Refuted: the fixture `ev.txt` holds that line, and nowhere else in the prompt does. |
 | F11 | melious | NIT | The first cut check only shows the files differ; its name claimed the block check fails. | Fixed: renamed to what it checks. |
 | F12 | melious | NIT | SKILL.md says `${TYPE}`, the test writes `@TYPE@`. | Refuted: `${TYPE}` is the script's token; `@TYPE@` is the test's placeholder for it. |
+
+Re-gate of F11 (delta def265bc..c33a5557, test code, so full scope without `--wording-pass`,
+`--seat codex`): codex 190s (37,597 tokens), No BUG/RISK/NIT findings.
+
+## Closed
+
+Clean at Normal depth. 3 rounds, 12 findings: 3 BUG and 9 RISK/NIT, every one fixed, refuted or
+re-sorted above. Codex holds an unbroken chain to the last head; GLM 5.3 reviewed round 1 in
+full and the round 2–3 delta once it had credit; fresh-eyes ran in round 1.
