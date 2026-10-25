@@ -10,7 +10,9 @@ name.
 1. Run, in the site's folder: `npm run build`, then `npx playwright test 2>&1 | tee <scratch file>`
    (the whole suite, whatever the `test` script says). The starter's Playwright config uses the
    `list` reporter: one line per test, with its title and `✓` (passed), `✘` (failed) or `-`
-   (skipped).
+   (skipped). The starter's `playwright.config.ts` filters nothing. If the site's sets `grep`,
+   `grepInvert`, `testIgnore` or `testMatch`, or points `testDir` elsewhere, the suite does not
+   run in full: that is a 🔴 blocker, and nothing is left to the tests until the filter is gone.
 2. A category below counts as **left to the site's tests on a page** only when the output shows
    that page's test, by the title below, as passed. A page whose test was skipped, filtered out
    (a narrowed test command, a `grep` in the config), failed or is missing is the check's, for
@@ -37,7 +39,7 @@ name.
 | Images: alt text present, width and height set, modern formats | `images.spec.ts` | `images — <page> uses optimised, dimensioned, described images` | every `<img>` has an `alt` attribute (an empty one is allowed, for a decorative image), `width` and `height`, a `loading` choice and no stretched ratio, and no JPEG/PNG/GIF is served where WebP/AVIF is expected. Not whether the alt text describes the image: that stays a read by eye |
 | Exactly one H1 | `seo.spec.ts` | `seo — head contract on <page>` | `h1` count is 1 |
 | Title and description length | `seo.spec.ts` | `seo — head contract on <page>` | title not empty and at most 60 characters; description 120 to 160 characters |
-| The placeholder warnings the check reads | `placeholders.spec.ts` | `placeholders — no leftover on <page>` | each page's leftovers: a failure, or the `⚠ placeholders:` warning below. A page whose line is missing has unread warnings: a 🔴 blocker, and the check reads that page for leftovers itself |
+| The placeholder warnings the check reads | `placeholders.spec.ts` | `placeholders — no leftover on <page>` | each page's leftovers: a failure, or a `⚠ placeholders:` warning (see "Warnings in the output"). A page whose line is missing has unread warnings: a 🔴 blocker, and the check reads that page for leftovers itself |
 
 Not covered by any test, so always the check's: titles or descriptions shared by two pages,
 whether a title or description says what the page is, the starter's example values (the name

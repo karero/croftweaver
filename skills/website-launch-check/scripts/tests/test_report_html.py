@@ -227,17 +227,21 @@ class StarterTitles(unittest.TestCase):
 
     def test_the_titles_and_warnings_the_mapping_names_exist(self):
         coverage = (HERE.parent.parent / "references" / "test-coverage.md").read_text(encoding="utf-8")
-        specs = "\n".join(p.read_text(encoding="utf-8") for p in sorted(STARTER_TESTS.glob("*.spec.ts")))
-        # Every per-page title and every warning prefix the mapping names, read from the mapping.
-        titles = set(re.findall(r"`([a-z]+ — [^`]*<page>[^`]*)`", coverage))
-        warnings = set(re.findall(r"`(⚠ [a-z ]+:)`", coverage))
-        self.assertGreaterEqual(len(titles), 3, titles)
+        specs = {p.name: p.read_text(encoding="utf-8") for p in STARTER_TESTS.glob("*.spec.ts")}
+        # Each mapping row names its spec and a per-page title: the title must be in that spec.
+        rows = re.findall(r"^\| [^|]+ \| `([a-z]+\.spec\.ts)` \| `([^`]*<page>[^`]*)` \|", coverage, re.M)
+        self.assertGreaterEqual(len(rows), 3, rows)
+        self.assertEqual(len(rows), len(re.findall(r"^\|[^\n]*`[^`\n]*<page>[^`\n]*`", coverage, re.M)),
+                         "a mapping row whose spec or title this test cannot read")
+        for spec, title in rows:
+            self.assertIn(spec, specs, spec)
+            self.assertIn(title.replace("<page>", "${path}"), specs[spec], title)
+        # Every warning prefix the file names, in the spec that prints it.
+        warnings = set(re.findall(r"`(⚠[^`]+:)`", coverage))
         self.assertGreaterEqual(len(warnings), 2, warnings)
-        for title in titles:
-            self.assertIn(title.replace("<page>", "${path}"), specs, title)
         for warning in warnings:
-            self.assertIn("'" + warning + " '", specs, warning)
-        self.assertIn("is not ready to launch", specs)
+            self.assertTrue(any("'" + warning + " '" in t for t in specs.values()), warning)
+        self.assertIn("is not ready to launch", specs["placeholders.spec.ts"])
         self.assertIn("reporter: 'list'", (STARTER_TESTS.parent / "playwright.config.ts").read_text(encoding="utf-8"))
 
 
