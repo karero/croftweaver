@@ -92,3 +92,16 @@ Rounds 1–3, 27 findings (rounds: 3 BUG/RISK by Codex in round 1, 9 by fresh-ey
 wording pass done. Open: the GLM 5.3 seat has not reviewed this plan at all (melious balance 0,
 ollama over quota for the whole gate); it owes one full-scope run before the gate is clean at
 Normal depth. Then the owner's go to build.
+
+## GLM 5.3 seat (plan at e2e6202b, whole plan, after melious was topped up)
+
+`--seat melious`, MELIOUS_MODEL=glm-5.3, no `--round` (the owed second seat, full scope).
+timings: melious 181s (23,675 tokens). No BUG.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F28 | melious | RISK | The base-check tripwire (evidence opening with a `diff --git` record) is asserted, not probed; the parser ignores text after the last hunk. | Refuted with evidence: the final full read probed exactly that input, appended and prepended: refused, exit 1. The plan now cites the probe. |
+| F29 | melious | NIT | The evidence block is checked by one line, so a truncated block would pass. | Fixed: Tests check the file's first line right after BEGIN and its last right before END. |
+| F30 | melious | NIT | Trailing spaces and tabs on the END marker are never tested. | Fixed: a refusal case with trailing spaces and a tab. |
+
+No substantive BUG or earning RISK: no further round. The edits are prose, confirmed below.

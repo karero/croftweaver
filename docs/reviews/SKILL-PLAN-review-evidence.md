@@ -124,8 +124,9 @@ the prompt they were sent. New case 25d:
   every place: its second line holds it twice), never read from the script, and checked as one block, as case 25c does: a cut or reworded data sentence
   fails.
 - Diff with `--evidence --wording-pass`: in the codex, ollama and agy prompts and the paste
-  prompt, the wording paragraph's first line, then the whole lead, `--- BEGIN EVIDENCE ---`, a
-  line of the evidence file, `--- END EVIDENCE ---`, then `--- BEGIN diff ---`, in that order.
+  prompt, the wording paragraph's first line, then the whole lead, `--- BEGIN EVIDENCE ---`
+  followed at once by the evidence file's first line, its last line followed at once by
+  `--- END EVIDENCE ---`, then `--- BEGIN diff ---`, in that order.
   Three runs as in 25b and 25c (default, agy, all failed for the paste prompt), so every tier
   shows the trusted scope before the evidence.
 - Diff with `--evidence` alone, and plan with `--evidence` alone (codex and ollama): the same
@@ -136,8 +137,8 @@ the prompt they were sent. New case 25d:
   from a file that ends in a newline (so a count that kept it would be one too many); no line
   and no EVIDENCE block without the option (case 25's `noverify` run, case 5's paste output).
 - Refusals, each exit 2 with its message and an empty stub-marks folder: `--evidence -`,
-  `--evidence` with no value, a second `--evidence`, a missing file, a whitespace-only file, a file holding an `--- END EVIDENCE ---` line, and one
-  holding that line with a trailing CR.
+  `--evidence` with no value, a second `--evidence`, a missing file, a whitespace-only file, a file holding an `--- END EVIDENCE ---` line, one
+  holding that line with a trailing CR, and one with trailing spaces and a tab.
 - Size, through case 38's `limitcase` helper (the stub codex's model is `stub-codex`, which the
   shipped `seat_limits.txt` does not list): a 1 KB diff with 130,000 bytes of evidence. With a
   list holding `codex stub-codex takes:1040000` and agy on: agy FAILS before sending, its reason
@@ -149,7 +150,9 @@ the prompt they were sent. New case 25d:
 `test_base_check.sh`, in its throwaway repo with a real base: a diff that passes the check
 still passes with `--evidence`, the stub codex runs and the `base:` line prints with no "not
 checked". The evidence file there begins with a `diff --git` record for a file the repo does
-not have, so the check would refuse the run if the evidence ever reached the checked text.
+not have, so the check would refuse the run if the evidence ever reached the checked text
+(probed in the final full read: such a record, with an index line and a hunk, appended or
+prepended to a good diff, is refused with exit 1).
 
 What the tests cannot show: whether a reviewer treats the evidence as data, or uses it well. The
 first live run with `--evidence` is that check; its trail says what the seats did with it.
