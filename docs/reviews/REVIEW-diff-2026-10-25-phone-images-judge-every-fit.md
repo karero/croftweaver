@@ -10,15 +10,15 @@ site gets the fix.
 
 | # | From | Kind | Finding | Fix in this branch |
 |---|------|------|---------|--------------------|
-| 1 | codex | BUG | the header says every raster is judged, but `object-fit: scale-down`/`none`, a `calc()` background-size and a file used only by mask-image and similar were listed as "not judged" and passed | scale-down and none worked out from the file's size and the box; calc() and % resolved in the page by a probe box; mask-image judged by mask-size; border-image, list-style-image, cursor and content judged by their box or own size; shape-outside dropped (it paints nothing); anything still not worked out fails. Red cases: scale-down, calc(), mask |
+| 1 | codex | BUG | the header says every raster is judged, but `object-fit: scale-down`/`none`, a `calc()` background-size and a file used only by mask-image and similar were listed as "not judged" and passed | scale-down and none worked out from the file's size and the box; calc() and % resolved in the page by a probe box; mask-image judged by mask-size; list markers and content images by their box or own size; border images, cursors and shape-outside named, not judged (round 1, #5); anything still not worked out fails. Red cases: scale-down, calc(), mask |
 | 2 | codex | RISK | the saving estimate by pixel area can overstate the real saving | kept, called an estimate in the message, the comment and website-qa; at a 4 KiB floor it can only fail a file that would save a little less |
 | 3 | glm | NIT | the preload list misses `rel~=preload` and `imagesrcset` | `link[rel~="preload" i][as="image" i]`, href and every imagesrcset candidate; red case |
 | 4 | glm | NIT | a failed body read overwrites a size already read | a failed read marks the file only when no read worked |
 | 5 | glm | NIT | posters are judged as `contain` | the video's computed object-fit (Chromium's default for video is `contain`); green case with `cover` that the old code failed |
 
-## Round 1
+## Before round 1
 
-Before round 1: `make check` green; the CI job's steps run locally as written (green page 16
+ `make check` green; the CI job's steps run locally as written (green page 16
 judged, whole suite 112 passed, every red case red); main's spec run on the new fixture (it fails
 the cover poster and misses the scale-down, calc and mask cases). Evidence file:
 `docs/reviews/EVIDENCE-phone-images-judge-every-fit.md`.
