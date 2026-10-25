@@ -3,18 +3,19 @@ import { PAGES } from './_helpers';
 
 // Phones must not download images far bigger than they can show (website-qa, "Performance").
 // Each page loads as Lighthouse's phone (412px, 1.75x) and is scrolled to the end, so lazy
-// images load; every raster it downloads is judged, CSS backgrounds included (Lighthouse does
-// not size those). A file fails when it is wider than a 3x phone could use and a copy that
-// wide saves at least 4 KiB, and when it is downloaded but not shown.
+// images load; every raster it downloads is judged, CSS backgrounds and masks included
+// (Lighthouse does not size those). A file fails when it is wider than a 3x phone could use and
+// a copy that wide saves an estimated 4 KiB, when it is downloaded but not shown (hidden ones
+// under 4 KiB pass), and when the test cannot work out how wide it is drawn.
 const VIEW = { width: 412, height: 823 };
 const RATIO = 1.75;
 const MOST = 3 * 1.1;      // a 3x phone, with room for one up to 453 CSS px wide
 const FLOOR = 4096;        // bytes; Lighthouse's own floor for an image saving
 const BUDGET = 20_000;     // ms for scrolling and settling; the test's own timeout is set above it
 
-// A user of an image: the box it shows in, and how it is fitted there (`size` is the
-// background-size or object-fit value, worked out once the file's own size is known).
-type User = { url: string; kind: 'img' | 'bg' | 'poster' | 'other'; w: number; h: number; size: string; hidden: boolean };
+// A user of an image: the box it shows in, and how it is fitted there. For `fit`, `size` is an
+// object-fit value; for `bg`, a background-size or mask-size layer with its lengths in px.
+type User = { url: string; kind: 'fit' | 'bg'; w: number; h: number; size: string; hidden: boolean };
 
 // Runs in the page: every element using an image URL right now.
 function usersNow(): User[] {
@@ -22,8 +23,9 @@ function usersNow(): User[] {
   const abs = (u: string) => new URL(u, location.href).href;
   // Computed styles write each URL as url("..."), with " and \ escaped inside.
   const urls = (v: string) => [...v.matchAll(/url\(\s*"((?:[^"\\]|\\.)*)"\s*\)/g)].map((m) => abs(m[1].replace(/\\(.)/g, '$1')));
-  // A comma list split at its top level only: "linear-gradient(a, b), url(x)" is two layers.
-  const layers = (v: string) => {
+  // A list split at its top level only: "linear-gradient(a, b), url(x)" is two layers at ',',
+  // and "calc(100% - 10px) auto" two words at ' '.
+  const split = (v: string, sep: string) => {
     const parts: string[] = [];
     let depth = 0, start = 0, quoted = false;
     for (let i = 0; i < v.length; i++) {
@@ -32,22 +34,46 @@ function usersNow(): User[] {
       else if (c === '"') quoted = true;
       else if (c === '(') depth++;
       else if (c === ')') depth--;
-      else if (c === ',' && depth === 0) { parts.push(v.slice(start, i).trim()); start = i + 1; }
+      else if (c === sep && depth === 0) { parts.push(v.slice(start, i).trim()); start = i + 1; }
     }
     parts.push(v.slice(start).trim());
-    return parts;
+    return parts.filter(Boolean);
   };
+  // A background-size layer in px: a hidden probe box of the element's size works out each %
+  // or calc() as width (first word) or height (second). A word it cannot take is left as is.
+  let probe: HTMLElement | undefined;
+  const inPx = (layer: string, w: number, h: number) => {
+    if (layer === 'cover' || layer === 'contain') return layer;
+    if (!probe) {
+      probe = document.createElement('div');
+      probe.style.cssText = 'position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none';
+      probe.append(document.createElement('div'));
+      document.body.append(probe);
+    }
+    probe.style.width = `${w}px`;
+    probe.style.height = `${h}px`;
+    const child = probe.firstElementChild as HTMLElement;
+    return split(layer, ' ').map((v, i) => {
+      if (v === 'auto' || /^[\d.]+px$/.test(v)) return v;
+      const side = i ? 'height' : 'width';
+      child.style.cssText = '';
+      child.style[side] = v;
+      return child.style[side] ? `${child.getBoundingClientRect()[side]}px` : v;
+    }).join(' ');
+  };
+  const els = Array.from(document.querySelectorAll('*'));   // taken before the probe joins the page
   for (const img of Array.from(document.images)) {
     if (!img.currentSrc) continue;
     const r = img.getBoundingClientRect();
     const cs = getComputedStyle(img);
-    out.push({ url: abs(img.currentSrc), kind: 'img', w: r.width, h: r.height, size: cs.objectFit, hidden: cs.visibility !== 'visible' });
+    out.push({ url: abs(img.currentSrc), kind: 'fit', w: r.width, h: r.height, size: cs.objectFit, hidden: cs.visibility !== 'visible' });
   }
   for (const v of Array.from(document.querySelectorAll('video[poster]'))) {
     const r = v.getBoundingClientRect();
-    out.push({ url: abs(v.getAttribute('poster')!), kind: 'poster', w: r.width, h: r.height, size: 'contain', hidden: getComputedStyle(v).visibility !== 'visible' });
+    const cs = getComputedStyle(v);
+    out.push({ url: abs(v.getAttribute('poster')!), kind: 'fit', w: r.width, h: r.height, size: cs.objectFit, hidden: cs.visibility !== 'visible' });
   }
-  for (const el of Array.from(document.querySelectorAll('*'))) {
+  for (const el of els) {
     for (const pseudo of [null, '::before', '::after']) {
       const cs = getComputedStyle(el, pseudo);
       if (pseudo && (cs.content === 'none' || cs.content === 'normal')) continue;
@@ -58,31 +84,37 @@ function usersNow(): User[] {
       const hidden = cs.visibility !== 'visible';
       // Sizes line up with every layer, gradients included, and repeat from the start when
       // the list is shorter (as CSS does). An image-set() layer names several files: all count.
-      const sizes = layers(cs.backgroundSize);
-      layers(cs.backgroundImage).forEach((layer, i) => {
-        for (const url of urls(layer)) out.push({ url, kind: 'bg', w, h, size: sizes[i % sizes.length], hidden });
-      });
-      for (const prop of ['mask-image', 'border-image-source', 'list-style-image', 'content', 'cursor', 'shape-outside']) {
-        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'other', w, h, size: '', hidden });
+      for (const [images, size] of [['background-image', 'background-size'], ['mask-image', 'mask-size']]) {
+        const sizes = split(cs.getPropertyValue(size), ',');
+        split(cs.getPropertyValue(images), ',').forEach((layer, i) => {
+          for (const url of urls(layer)) out.push({ url, kind: 'bg', w, h, size: inPx(sizes[i % sizes.length] ?? '', w, h), hidden });
+        });
+      }
+      // A border image is stretched across its box; a list marker, a cursor and a
+      // pseudo-element's content image are drawn at the file's own size.
+      for (const [prop, size] of [['border-image-source', 'fill'], ['list-style-image', 'none'], ['cursor', 'none'], ['content', pseudo ? 'none' : 'fill']]) {
+        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'fit', w, h, size, hidden });
       }
     }
   }
+  probe?.remove();
   return out;
 }
 
-// The width a file is drawn at, from its box, its fit and its own aspect (fw / fh). Only
-// cover, contain, fill, plain px or % and auto are worked out; anything else (a calc(),
-// object-fit none or scale-down) is NaN, and the caller lists the file instead of judging it.
+// The width a file is drawn at, from its box, its fit and its own size (fw x fh). `none` and
+// an auto background draw it at its own size (what a box crops away is not counted, as with
+// cover). NaN is a size the test cannot read; the caller fails the file.
 function drawnWidth(u: User, fw: number, fh: number): number {
   const aspect = fw / fh;
+  const contain = Math.min(u.w, u.h * aspect);
   if (u.size === 'cover') return Math.max(u.w, u.h * aspect);
-  if (u.size === 'contain') return Math.min(u.w, u.h * aspect);
-  if (u.kind !== 'bg') return u.size === 'fill' ? u.w : NaN;
-  const [x, y = 'auto'] = u.size.split(/\s+/);
-  const length = (v: string, of: number) => (/^[\d.]+%$/.test(v) ? (parseFloat(v) / 100) * of : /^[\d.]+px$/.test(v) ? parseFloat(v) : NaN);
-  if (x !== 'auto') return length(x, u.w);
-  if (y !== 'auto') return length(y, u.h) * aspect;
-  return fw;                          // auto auto: drawn at the file's own size
+  if (u.size === 'contain') return contain;
+  if (u.kind === 'fit') return ({ fill: u.w, none: fw, 'scale-down': Math.min(fw, contain) } as Record<string, number>)[u.size] ?? NaN;
+  const [x, y = 'auto'] = u.size.split(' ');
+  const px = (v: string) => (/^[\d.]+px$/.test(v) ? parseFloat(v) : NaN);
+  if (x !== 'auto') return px(x);
+  if (y !== 'auto') return px(y) * aspect;
+  return fw;
 }
 
 for (const path of PAGES) {
@@ -105,8 +137,9 @@ for (const path of PAGES) {
         const type = (r.headers()['content-type'] ?? '').split(';')[0].trim();
         // Rasters from this page's own document; SVG is not a raster, iframes are not the site's.
         if (!type.startsWith('image/') || type === 'image/svg+xml' || r.frame() !== page.mainFrame()) return;
-        reads.push(r.body().then((b) => { sizes.set(r.url(), Math.max(sizes.get(r.url()) ?? 0, b.length)); },
-          () => { sizes.set(r.url(), NaN); }));
+        // A failed read marks the file only when no read of it worked.
+        reads.push(r.body().then((b) => { sizes.set(r.url(), Math.max(sizes.get(r.url()) || 0, b.length)); },
+          () => { if (!sizes.has(r.url())) sizes.set(r.url(), NaN); }));
       });
       await page.goto(path, { waitUntil: 'load' });
       expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches && matchMedia('(hover: none)').matches),
@@ -133,8 +166,10 @@ for (const path of PAGES) {
       }
       await Promise.all(reads);
 
-      const preloads = new Set(await page.locator('link[rel="preload"][as="image"][href]').evaluateAll(
-        (els) => els.map((e) => new URL(e.getAttribute('href')!, location.href).href)));
+      // Every file a preload names, in its href or its imagesrcset.
+      const preloads = new Set(await page.locator('link[rel~="preload" i][as="image" i]').evaluateAll((els) => els.flatMap((e) =>
+        [e.getAttribute('href'), ...(e.getAttribute('imagesrcset') ?? '').split(',').map((c) => c.trim().split(/\s+/)[0])]
+          .filter((u): u is string => !!u).map((u) => new URL(u, location.href).href))));
       // The file's own width: a srcset `w` descriptor scales img.naturalWidth, so decode it alone.
       const real = await page.evaluate(async (list) => Object.fromEntries(await Promise.all(list.map(async (u) => {
         const i = new Image(); i.src = u;
@@ -142,7 +177,7 @@ for (const path of PAGES) {
       }))), [...sizes.keys()]);
 
       const problems: string[] = [];
-      const listed: string[] = [];
+      const small: string[] = [];
       let judged = 0;
       for (const [url, bytes] of sizes) {
         const name = new URL(url).pathname;
@@ -155,25 +190,29 @@ for (const path of PAGES) {
           continue;
         }
         if (Number.isNaN(bytes) || !fw || !fh) { problems.push(`${name}: could not read its size or decode it`); continue; }
-        const sized = users.filter((u) => u.kind !== 'other' && !u.hidden && u.w > 0 && u.h > 0);
+        const sized = users.filter((u) => !u.hidden && u.w > 0 && u.h > 0);
         if (!sized.length) {
-          if (users.some((u) => u.kind === 'other' && !u.hidden)) listed.push(`${name} (used by a CSS property not judged by width)`);
-          else if (bytes >= FLOOR) problems.push(`${name} is downloaded but hidden at 412px (${Math.round(bytes / 1024)} KB): lazy-load it, or serve it only where it shows`);
-          else listed.push(`${name} (hidden at 412px, under 4 KiB)`);
+          if (bytes >= FLOOR) problems.push(`${name} is downloaded but hidden at 412px (${Math.round(bytes / 1024)} KB): lazy-load it, or serve it only where it shows`);
+          else small.push(name);
           continue;
         }
         const widths = sized.map((u) => drawnWidth(u, fw, fh));
-        const unknown = [...new Set(sized.filter((u, i) => !Number.isFinite(widths[i])).map((u) => u.size))];
-        if (unknown.length) { listed.push(`${name} (size not worked out: ${unknown.join('; ')})`); continue; }
+        const unknown = [...new Set(sized.filter((u, i) => !Number.isFinite(widths[i])).map((u) => u.size || '(none)'))];
+        if (unknown.length) {
+          problems.push(`${name}: the test cannot work out how wide it is drawn (size ${unknown.join('; ')}); give it a size in px, %, auto, cover or contain`);
+          continue;
+        }
         judged++;
         const shown = Math.max(...widths);
         const limit = shown * MOST;
+        // An estimate by pixel area; the real saving can be smaller, so a file near the floor
+        // may fail for a little less than 4 KiB.
         const saving = bytes * (1 - (limit / fw) ** 2);
         if (fw > limit && saving >= FLOOR) {
-          problems.push(`${name} is ${fw}px wide, shown at ${Math.round(shown)}px: a 3x phone uses at most ${Math.round(limit)}px; a copy that wide saves about ${Math.round(saving / 1024)} KB`);
+          problems.push(`${name} is ${fw}px wide, shown at ${Math.round(shown)}px: a 3x phone uses at most ${Math.round(limit)}px; a copy that wide saves an estimated ${Math.round(saving / 1024)} KB`);
         }
       }
-      console.log(`phone images — ${path}: ${judged} judged${listed.length ? `; not judged: ${listed.join(', ')}` : ''}`);
+      console.log(`phone images — ${path}: ${judged} judged by width${small.length ? `; hidden and under 4 KiB: ${small.join(', ')}` : ''}`);
       expect(problems, 'make a smaller copy (and a srcset) or fix the preload; website-qa "Performance" has the fixes').toEqual([]);
     } finally {
       await context.close();

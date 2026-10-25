@@ -57,12 +57,13 @@ cosmetics; red → green → commit.
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).
 - `phone-images.spec.ts` — loads each page as Lighthouse's phone (412px, 1.75x), scrolled to
-  the end, and judges every raster it downloads, CSS backgrounds included (Lighthouse does not
-  size those). Fails a file wider than a 3x phone could use (1.1 × the width it is drawn at × 3)
-  when a copy that wide saves at least 4 KiB; a downloaded file nothing on the page shows (often
-  a preload whose `media` drifted from the CSS breakpoint); and one of 4 KiB or more that is
-  downloaded but hidden at phone width. Prints how many files it judged and
-  which it left out, with the reason. The fixes are in section 2.
+  the end, and judges every raster it downloads, CSS backgrounds and masks included (Lighthouse
+  does not size those). Fails a file wider than a 3x phone could use (1.1 × the width it is drawn
+  at × 3) when a copy that wide saves an estimated 4 KiB or more (estimated by pixel area, which
+  can run high); a downloaded file nothing on the page shows (often a preload whose `media`
+  drifted from the CSS breakpoint); one of 4 KiB or more that is downloaded but hidden at phone
+  width; and one whose drawn width it cannot work out. Prints how many files it judged by width
+  and names the hidden ones under 4 KiB. The fixes are in section 2.
 - `tone.spec.ts` — no em dashes / contractions / buzzwords in copy or metadata.
   Language-aware: the contraction/buzzword rules apply only to `<html lang>` en*
   pages; the em-dash ban is universal (the `website-content-guide` rules).
