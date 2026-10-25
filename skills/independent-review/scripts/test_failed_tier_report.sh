@@ -813,7 +813,8 @@ ev_order() {   # ev_order <file> <diff|plan> [wording]: (wording paragraph,) lea
   b="$(first_line "$f" "--- BEGIN EVIDENCE ---")"; e="$(first_line "$f" "--- END EVIDENCE ---")"
   a="$(first_line "$f" "--- BEGIN $t ---")"
   [ -n "$b" ] && [ -n "$e" ] && [ -n "$a" ] && [ "$n" -lt "$b" ] && [ "$b" -lt "$e" ] && [ "$e" -lt "$a" ] || return 1
-  [ "$(sed -n "$((b + 1)),$((e - 1))p" "$f")" = "$(cat "$T/ev.txt")" ] || return 1
+  # The x keeps trailing newlines, which $(...) would drop: a blank line padded before END must fail.
+  [ "$(sed -n "$((b + 1)),$((e - 1))p" "$f"; echo x)" = "$(cat "$T/ev.txt"; echo x)" ] || return 1
   if [ "${3:-}" = wording ]; then w="$(wp_at "$f" "$t")" || return 1; [ "$w" -lt "$n" ] || return 1; fi
 }
 ev_after_prior() {   # ev_after_prior <file>: the prior-findings block ends before the lead starts
@@ -835,6 +836,9 @@ grep -vxF "timings: codex 81s" "$T/evwp.marks/codex-prompt" >"$T/evcut.prompt"
 check "evidence: the block check fails on a block with a line cut from its middle" \
   sh -c '! cmp -s "$1" "$2"' _ "$T/evwp.marks/codex-prompt" "$T/evcut.prompt"
 check "evidence: ... ev_order rejects it" eval '! ev_order "$T/evcut.prompt" diff wording'
+awk '$0 == "--- END EVIDENCE ---" { print "" } { print }' "$T/evwp.marks/codex-prompt" >"$T/evpad.prompt"
+check "evidence: ev_order rejects a block padded with a blank line before END" eval '! ev_order "$T/evpad.prompt" diff wording'
+check "evidence: ... and accepts the prompt as sent" ev_order "$T/evwp.marks/codex-prompt" diff wording
 run evwpagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/change.diff" --base none --wording-pass --evidence "$T/ev.txt"
 check "evidence + wording pass, diff: agy has wording, lead, block, artifact, in order" ev_order "$T/evwpagy.marks/agy-prompt" diff wording
 run evwpnone CODEX_STUB=auth OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none --wording-pass --evidence "$T/ev.txt"

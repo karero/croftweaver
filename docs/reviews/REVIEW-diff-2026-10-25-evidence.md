@@ -29,3 +29,15 @@ tokens); fresh-eyes 445s (143,128 tokens). base: dfcb2bbe (merge base with origi
 | F7 | fresh-eyes | NIT | SKILL.md's size sentence did not say the evidence counts, or "trim the evidence". | Fixed. |
 
 Round 2 is earned by F1 (it changes what the host does) and F2 (a guard credited with more than it caught).
+
+## Round 2 (verification, delta acf69418..dcbb46ef)
+
+reviewers: codex OK (effort medium), melious FAILED ("Insufficient balance for request.
+Required: 113, Available: 0": out of credit again after round 1), ollama-cloud FAILED (quota).
+timings: codex 153s (90,187 tokens). F1–F7 confirmed except below.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F8 | codex | BUG | F2's fix claimed a padded block fails, but `$(...)` drops trailing newlines on both sides, so a blank line before END passed. | Fixed: both sides keep their trailing newlines (a sentinel inside each substitution); new cases: a block padded before END fails, the prompt as sent passes. |
+
+Round 3 is earned by F8 (a guard that could not fire on the input it named).
