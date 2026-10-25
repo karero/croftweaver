@@ -70,5 +70,5 @@ tokens), melious 22s (3345 tokens)` · both: "No BUG/RISK/NIT findings."
 round 3: none; re-gate: 0/1/0; round 4: none). Refuted: G2, G3, G4, G9, each with its evidence
 above. The stamp's chain is codex's: the full pair `8ec4cb88...11c9da00` (the re-gate), then the
 delta to `3a638bc5` (round 4); later commits touch `docs/reviews/` only. Reviewer tokens by the
-timings lines: 345,535, plus fresh-eyes 109,856. `make check` exit 0 at `b339e32f`; the later
+timings lines: 339,761 (codex 296,834, melious 42,927), plus fresh-eyes 109,856. `make check` exit 0 at `b339e32f`; the later
 changes are prose in skill files.
