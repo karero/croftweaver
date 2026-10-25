@@ -27,4 +27,4 @@ Waivers and deferrals: none.
 
 Follow-ups: none.
 
-Notes: the evidence files (raw-copy greps of Cloudflare's pages fetched 2026-10-25, the command's test runs, the check logs) stayed local and were sent with each round. Round 3 was clean (a2); F10 was fixed without another round. Wording pass (codex, `c90907bf`): one contradiction, F6's reason claimed a bound in seconds that only holds in ranks; reworded, then confirmed by the same seat. `make check` passed on `7d89b3ee`; `scripts/check_clean.sh` passed on `8ff118b0`.
+Notes: the evidence files (raw-copy greps of Cloudflare's pages fetched 2026-10-25, the command's test runs, the check logs) stayed local and were sent with each round. Round 3 was clean (a2); F10 was fixed without another round. Wording pass (codex, `c90907bf`): one finding, F6's reason gave the one-rank bound without what it means in seconds; that was added (`5a61d7a4`). Its confirmation (codex) found this note misdescribed the change; reworded and confirmed once more. `make check` passed on `7d89b3ee`; `scripts/check_clean.sh` passed on `8ff118b0`.
