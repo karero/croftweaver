@@ -68,3 +68,14 @@ Checks after the fixes: the job's steps run locally as written (10 judged on the
 | — | glm, codex | note | (the two 50px/`calc()` reports are one finding, counted once) | — |
 
 Checks after the fixes: the job's steps run locally as written (10 judged, both listed files with their reasons, whole suite 112 passed and 1 skipped, 8 red cases red); site A unchanged (red on its old hero; on `main`, only the 8 blog photos).
+
+## Round 4 — 33d04f19 (verification; earned by #31–#33, `--earned-by unworked-size,end-settle,object-fit`, cuts named)
+
+`reviewers: codex OK, melious OK`. melious: no findings (one note, refuted: the `auto <length>` branch already multiplies by the aspect). Codex: 2 findings, 1 BUG, 1 RISK.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 36 | codex | BUG | after a second growth, later ends skip the image wait, so a newly started image can escape | Cut: started images are waited for at every end, within one time budget |
+| 37 | codex | RISK | the 60-screen limit can outlast the test timeout, so its message never shows | Cut: the screen limit is replaced by a 20 s budget that every wait counts against; red case, a page that grows at every end, fails with "was still growing after 20 s of scrolling" |
+
+Checks after the fixes: the job's steps run locally as written (whole suite 112 passed and 1 skipped, 9 red cases red); site A unchanged.

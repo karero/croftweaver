@@ -10,7 +10,7 @@ const VIEW = { width: 412, height: 823 };
 const RATIO = 1.75;
 const MOST = 3 * 1.1;      // a 3x phone, with room for one up to 453 CSS px wide
 const FLOOR = 4096;        // bytes; Lighthouse's own floor for an image saving
-const MAX_SCREENS = 60;    // a page still growing after this many screens is refused
+const BUDGET = 20_000;     // ms for scrolling and settling; a page still busy after it fails
 
 // A user of an image: the box it shows in, and how it is fitted there (`size` is the
 // background-size or object-fit value, worked out once the file's own size is known).
@@ -106,26 +106,28 @@ for (const path of PAGES) {
         'the browser does not match a phone\'s media queries').toBe(true);
 
       // A screen at a time, users noted at each stop (a carousel may swap a file out), until
-      // the bottom is reached and stays there once images and the network have settled: the
-      // height is read again each time, as a page may grow, even while it settles.
+      // the bottom is reached and stays there once started images have loaded: the height is
+      // read again each time, as a page may grow. Every wait counts against one time budget.
       const seen: User[] = [];
+      const deadline = Date.now() + BUDGET;
+      const left = () => Math.max(1, deadline - Date.now());
       const atEnd = () => page.evaluate(() => scrollY + innerHeight >= document.documentElement.scrollHeight - 1);
       let quiet = true, settled = false;
       for (let screen = 0; ; screen++) {
-        expect(screen, `${path} was still growing after ${MAX_SCREENS} screens`).toBeLessThan(MAX_SCREENS);
+        expect(Date.now() < deadline, `${path} was still growing after ${BUDGET / 1000} s of scrolling`).toBe(true);
         await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), screen * VIEW.height);
         await page.waitForTimeout(150);
         seen.push(...await page.evaluate(usersNow));
         if (!await atEnd()) continue;
-        // At the first end, let images and the network settle; a page that grows again
-        // later gets a short pause, so the screen limit stays within the test's time.
+        // Only images that started loading: a hidden lazy one (a dark-theme copy) never starts.
+        const loaded = await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete || !i.currentSrc),
+          undefined, { timeout: left() }).then(() => true, () => false);
+        expect(loaded, `${path}: images were still loading after ${BUDGET / 1000} s`).toBe(true);
         if (!settled) {
-          // Only images that started loading: a hidden lazy one (a dark-theme copy) never starts.
-          await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete || !i.currentSrc));
-          quiet = await page.waitForLoadState('networkidle', { timeout: 5000 }).then(() => true, () => false);
+          quiet = await page.waitForLoadState('networkidle', { timeout: Math.min(5000, left()) }).then(() => true, () => false);
           settled = true;
         }
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(Math.min(500, left()));
         seen.push(...await page.evaluate(usersNow));
         if (await atEnd()) break;
       }
