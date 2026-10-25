@@ -76,9 +76,10 @@ owner gets everything in German, headings included. This file stays English.
 
 ## 2. The site's tests first
 
-Run, in the site's folder, `npm run build`, then the whole suite with `npx playwright test`,
-keeping the whole output. Use `npx playwright test`, not `npm test`, so a narrowed `test` script
-cannot hide a failure; if `package.json`'s `test` script is anything but `playwright test`, that is
+Run, in the site's folder, `npm run build`, then the whole suite with
+`npx playwright test --forbid-only`, keeping the whole output. Use it, not `npm test`, so a
+narrowed `test` script cannot hide a failure, and `--forbid-only` so a `test.only` left in a spec
+fails the run instead of narrowing it; if `package.json`'s `test` script is anything but `playwright test`, that is
 a 🟡 finding. Then follow `references/test-coverage.md`:
 
 - A failing test is a 🔴 blocker that names the test and quotes its message. No look by eye

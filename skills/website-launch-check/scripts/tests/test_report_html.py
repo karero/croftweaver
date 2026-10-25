@@ -231,7 +231,8 @@ class StarterTitles(unittest.TestCase):
         # Each mapping row names its spec and a per-page title: the title must be in that spec.
         rows = re.findall(r"^\| [^|]+ \| `([a-z]+\.spec\.ts)` \| `([^`]*<page>[^`]*)` \|", coverage, re.M)
         self.assertGreaterEqual(len(rows), 3, rows)
-        self.assertEqual(len(rows), len(re.findall(r"^\|[^\n]*`[^`\n]*<page>[^`\n]*`", coverage, re.M)),
+        third_cells = re.findall(r"^\|[^|\n]*\|[^|\n]*\|([^|\n]*)\|", coverage, re.M)
+        self.assertEqual(len(rows), sum("<page>" in c for c in third_cells),
                          "a mapping row whose spec or title this test cannot read")
         for spec, title in rows:
             self.assertIn(spec, specs, spec)
@@ -242,7 +243,12 @@ class StarterTitles(unittest.TestCase):
         for warning in warnings:
             self.assertTrue(any("'" + warning + " '" in t for t in specs.values()), warning)
         self.assertIn("is not ready to launch", specs["placeholders.spec.ts"])
-        self.assertIn("reporter: 'list'", (STARTER_TESTS.parent / "playwright.config.ts").read_text(encoding="utf-8"))
+        config = (STARTER_TESTS.parent / "playwright.config.ts").read_text(encoding="utf-8")
+        self.assertIn("reporter: 'list'", config)
+        # test-coverage.md says the starter's config filters nothing, and a site's filter is a blocker.
+        self.assertIn("testDir: './tests'", config)
+        for option in ("grep", "grepInvert", "testIgnore", "testMatch"):
+            self.assertNotRegex(config, r"\b%s\s*:" % option, option)
 
 
 class Cli(unittest.TestCase):

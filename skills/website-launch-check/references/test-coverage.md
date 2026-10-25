@@ -7,8 +7,9 @@ name.
 
 ## The rule
 
-1. Run, in the site's folder: `npm run build`, then `npx playwright test 2>&1 | tee <scratch file>`
-   (the whole suite, whatever the `test` script says). The starter's Playwright config uses the
+1. Run, in the site's folder: `npm run build`, then
+   `npx playwright test --forbid-only 2>&1 | tee <scratch file>` (the whole suite, whatever the
+   `test` script says; a `test.only` left in a spec fails the run, a 🔴 blocker). The starter's Playwright config uses the
    `list` reporter: one line per test, with its title and `✓` (passed), `✘` (failed) or `-`
    (skipped). The starter's `playwright.config.ts` filters nothing. If the site's sets `grep`,
    `grepInvert`, `testIgnore` or `testMatch`, or points `testDir` elsewhere, the suite does not

@@ -24,7 +24,7 @@ The file is docs/launch/launch-check-<YYYY-MM-DD>-<baseline|prelaunch|live>.md. 
 
 ## Left to the site's tests, as they stand in this site, for the pages in `PAGES`
 
-`npm run build` and `npx playwright test` on [YYYY-MM-DD]: [N passed, N failed, N skipped]. These tests
+`npm run build` and `npx playwright test --forbid-only` on [YYYY-MM-DD]: [N passed, N failed, N skipped]. These tests
 are the site's own: they are read as they stand in this site, edits included.
 
 | Category | Test | Pages it passed on |
