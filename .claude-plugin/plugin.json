@@ -9,5 +9,6 @@
   },
   "homepage": "https://croftweaver.com",
   "repository": "https://github.com/karero/croftweaver",
-  "license": "MIT"
+  "license": "MIT",
+  "privacyPolicyUrl": "https://github.com/karero/croftweaver#what-leaves-your-computer"
 }
