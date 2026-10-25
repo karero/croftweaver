@@ -146,7 +146,7 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      code costs one round; code treated as prose stamps a review that never happened. State the
      classification and the carry-over (every code hunk was gated when it entered and hasn't moved
      since) in the trail, not the scope; the `--wording-pass` prompt asks the seat to report any
-     changed line that is not prose as a BUG, which is how it challenges the classification.
+     changed line of a diff that is not prose as a BUG, which is how it challenges the classification.
 3. **Trail** (permanent): the gate's one trail file per (a) — committed on the branch when
    WORKTREE-WRITE and BRANCH-COMMIT both permit; the table has the fallback. It carries the
    authority used, dispositions, refuted findings with reasons, pending waivers, deferred BUGs with

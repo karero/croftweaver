@@ -37,7 +37,17 @@ reviewers: codex OK; timings: codex 81s (36,102 tokens). No BUG/RISK/NIT finding
 checked each prose claim against the code, said the delta was prose only (no executable line),
 and raised nothing outside the scope: it kept to the paragraph.
 
-## State
+## GLM 5.3 seat (head 4ea6a4af, whole diff, after melious was topped up)
 
-Codex and fresh-eyes clean at 43b3dbdd. Open: the GLM 5.3 seat has not reviewed this diff (melious
-balance 0, ollama over quota); it owes one full-scope run before the gate is clean at Normal.
+`--seat melious`, MELIOUS_MODEL=glm-5.3, no `--round` (the owed second seat, full scope).
+timings: melious 164s (26,341 tokens). base: 11a13e2d (merge base with origin's HEAD 8ec4cb88,
+fetched; every changed tracked file present). No BUG.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F3 | melious | RISK | Case 25c's "no stub ran" check fails if the refused run leaves no marks folder. | Refuted: the test's `run` helper creates it first (`mkdir -p "$T/$name.marks"`), and the check passes. |
+| F4 | melious | NIT | closeout says the prompt asks for any non-prose changed line as a BUG; PROMPT_WORDING asks that only in a diff. | Fixed: "any changed line of a diff". |
+| F5 | melious | NIT | `--wording-pass` without `--seat` runs the pair, which step 6 does not ask for. | Refuted: the reviewed plan (How 6) chose not to require `--seat`; the pair costs more but is not wrong. |
+
+No substantive BUG or earning RISK. The fix is prose: confirmed by the re-gate below.
+
