@@ -111,3 +111,8 @@ No BUG and no RISK whose fix changes what runs: the rounds end (stop condition a
 ## Close
 
 6 rounds; 49 findings in 47 rows (two were raised by both seats and share a row): 10 BUG, 23 RISK, 14 NIT by row. Every BUG fixed; two RISKs re-sorted as rare with BUGLOG rows; the refuted ones carry their evidence above. Rounds 3 to 6 cut rather than patched where a kind came back (the size rule, the end settle).
+
+## Wording pass — the BUGLOG rows added after round 6 (Codex alone, `--seat codex`)
+
+`reviewers: codex OK`. 2 BUG (contradictions with the code), 1 RISK (a follow-up). The release-note row said existing sites get the test with their next suite copy (`whats-new.sh` does not refresh tests) and left out the 4 KiB floor and the sizes listed, not judged: both fixed. The RISK asks for probes of the two rare cases' timing; it stays with their BUGLOG rows.
+Confirmation (same seat, the fix's delta): one BUG, the rule stated loosely ("a 3x phone"); fixed to "wider than 1.1 × 3 × the width it is drawn at, when cutting it to that width would save an estimated 4 KiB or more". Second confirmation: no findings.

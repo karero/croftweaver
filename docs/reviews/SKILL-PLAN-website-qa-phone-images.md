@@ -8,7 +8,7 @@ plan, found in the build: `isMobile` is off (see "Run").
 | 1 | Step 0: do other sites have the problem? | ✅ 2026-10-25: yes, two of the four other sites | `docs/reviews/EVIDENCE-website-qa-phone-images.md` |
 | 2 | This plan | ✅ written 2026-10-25 | this file |
 | 3 | Plan review gate (Normal: a shipped test and a SKILL.md) | ✅ 2026-10-25: 5 rounds and a final full read, 47 findings (7 BUG), none open; wording pass clean | `docs/reviews/REVIEW-plan-2026-10-25-website-qa-phone-images.md` |
-| 4 | Build: the test, its CI step, the SKILL.md changes (one PR) | 🔨 in review | branch `plan/website-qa-phone-images` |
+| 4 | Build: the test, its CI step, the SKILL.md changes (one PR) | 🔨 DIFF review clean: 6 rounds, 49 findings, none open | branch `plan/website-qa-phone-images`; `docs/reviews/REVIEW-diff-2026-10-25-website-qa-phone-images.md` |
 | 5 | Each site picks up the test with its next suite copy, and fixes what it finds | ⬜ each site's own PR | — |
 
 ## Why
