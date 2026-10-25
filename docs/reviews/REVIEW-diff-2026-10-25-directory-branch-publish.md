@@ -129,3 +129,13 @@ zip: the CDPATH and mktemp guards pass. Re-gate: 83s, 51,589 tokens.
 | # | Seat | Sev | Finding | Disposition |
 |---|------|-----|---------|-------------|
 | D28 | codex | RISK | Neither script is in the zip's REQUIRED list, so a zip without them would pass packaging. | Refuted as a gap: the `macos-stock-tools` job fails on exactly that zip (the CDPATH guard lists both), as this PR's first CI run showed. |
+
+## privacyPolicyUrl (the maintainer's choice, 2026-10-25), re-gate Codex alone
+
+`plugin.json` gains `privacyPolicyUrl`, pointing at the README's "What leaves your computer"
+(#404). `claude plugin validate --strict .` (2.1.308): "Validation passed". 117s, 37,275 tokens.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| D29 | codex | BUG | The anchor names a README section this branch did not have. | Fixed: merged main (#404 holds the section); a test checks the anchor is a README heading (fails with a misspelt anchor, in a temporary commit). |
+| D30 | codex | RISK | Whether the directory reads `privacyPolicyUrl` is unshown. | The portal's own warning names the key ("Add privacyPolicyUrl to plugin.json"); re-validating shows whether the warning clears. |
