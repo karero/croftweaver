@@ -28,7 +28,24 @@ Serper key). Inputs to confirm up front: target **market, language, device** —
 always pass explicit `gl`/`hl` to the SERP fetch, never rely on the helper's
 defaults (a US default is wrong for a DACH-market site and vice versa).
 
-## Phase 1 — Diagnose → `SEO-FINDINGS.md`
+## Where the files go
+
+- `SEO-FINDINGS.md` and `SEO-CHANGELOG.md` live in the site's `docs/seo/` folder (search
+  engines; beside the site's other report folders in `docs/`). Both are living files, updated in
+  place. The raw SERP snapshots (public search results) go beside them in `docs/seo/`.
+- A site that already has one of them in its root or in `docs/`: create the folder
+  (`mkdir -p docs/seo`) and move the file there once, with `git mv` when git tracks it and `mv`
+  when not, and say so. Then fix the relative links in the moved file, and the links to it from
+  other files, so each still reaches its target. If more than one of the root, `docs/` and
+  `docs/seo/` has a copy, move nothing and ask the owner which to keep.
+- `WORDING-GUIDE.md` stays beside `POSITIONING.md` (the root, or `docs/` where the site keeps
+  `POSITIONING.md` there): it is a rule document the assistant reads, not a report.
+- The full Search Console export behind the diagnosis stays in the site's git-ignored
+  `analytics/` folder (`search-console-insights`, `references/analytics-folder.md`); the
+  findings carry only the rows their verdicts rest on. Those rows are the owner's data, so in a
+  public site repo ask before committing findings that hold Search Console figures.
+
+## Phase 1 — Diagnose → `docs/seo/SEO-FINDINGS.md`
 
 - **GSC pull**: brand vs non-brand demand, per-page impressions. The tell:
   brand queries dominate and category pages get ~0 non-brand impressions.
@@ -40,7 +57,7 @@ defaults (a US default is wrong for a DACH-market site and vice versa).
   snapshots with each verdict — graders re-check them later.
   The model assists the read; a human confirms each 🚫/🟠/✅ call.
 - ≥2 rounds: replacement candidates are themselves frequently traps.
-- Write `SEO-FINDINGS.md` from `references/seo-findings-template.md`.
+- Write `docs/seo/SEO-FINDINGS.md` from `references/seo-findings-template.md`.
 
 ## Phase 2 — Strategy → rewording plan + `WORDING-GUIDE.md`
 
@@ -57,7 +74,7 @@ defaults (a US default is wrong for a DACH-market site and vice versa).
   two-pass audit (or `/code-review` alone) is a legitimate, sufficient
   choice on its own. If the owner wants an external second opinion on top,
   run ONE reviewer, not independent-review's own default of two:
-  `independent_review.sh WORDING-GUIDE.md --plan --first-success`. State the
+  `independent_review.sh <path to WORDING-GUIDE.md> --plan --first-success`. State the
   tradeoff plainly (free+now vs. a few extra minutes / a credit) and let
   them pick — see `website-review`'s "Review depth" section for the full
   reasoning.
@@ -100,7 +117,7 @@ green as pages land and stay as regression guards forever:
 
 - Deploy via the repo's own deploy model; submit sitemap / IndexNow; request
   indexing for the top changed pages.
-- Fill `SEO-CHANGELOG.md` (`references/seo-changelog-template.md`): one row per
+- Fill `docs/seo/SEO-CHANGELOG.md` (`references/seo-changelog-template.md`): one row per
   change — page, old→new target, expected GSC query, outcome (blank). Flip
   `planned → deployed <date>`.
 - **Schedule the grading run** (~3–6 weeks out) with a concrete mechanism —
