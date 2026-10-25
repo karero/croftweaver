@@ -1,0 +1,33 @@
+# DIFF review — report folders (#406)
+
+Branch `feat/report-folders`. Depth: **Normal** (skill text that agents load). Seats: codex
+(gpt-6.1-sol, read-only) and melious (glm-5.3), and a fresh-eyes pass (Claude Sonnet, Agent tool)
+in round 1. The owner consented in chat, this session (2026-10-25), to "send the PR A and PR B
+diffs (public Croftweaver code, no secrets) to Codex and to GLM 5.3 on melious.ai, plus a Sonnet
+fresh-eyes pass in round 1": "Yes, for both PRs (Recommended)".
+
+## Round 1 — `5d2df9f0`, base `11a13e2d`
+`reviewers: codex OK, melious OK` · `timings: codex 293s (99571 tokens), melious 108s (15499 tokens)`
+· fresh-eyes 97 s, 109,856 tokens · gate `20261025T064326Z-57864`
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C2 | BUG | codex | fixed | Phase 2's `independent_review.sh WORDING-GUIDE.md` misses a guide kept in `docs/`; now `<path to WORDING-GUIDE.md>` |
+| C1 | RISK | codex | fixed | A copy in the root or `docs/` beside one already in `docs/seo/`: now "if more than one of the root, `docs/` and `docs/seo/` has a copy, move nothing and ask" |
+| E1 | RISK | fresh-eyes | fixed | `git mv`/`mv` into a missing `docs/seo/` fails (reproduced by the seat); `mkdir -p docs/seo` first |
+| E2 | RISK | fresh-eyes | fixed | `docs/launch/` named before any skill writes it; now "beside the site's other report folders in `docs/`" |
+| E3 | RISK | fresh-eyes | fixed | `seo-findings-template.md` carries a per-query Search Console table into git; the findings now carry only the rows their verdicts rest on, and in a public repo the assistant asks first |
+| G1 | RISK | melious | fixed | SKILL.md and geo-check.md named different homes for the answers; geo-check.md and the BUGLOG row now say both (`~/.config/gsc-insights/geo/` and the snapshot's `analytics/` copy) |
+| G2 | RISK | melious | refuted | The plist location: `schedule_tracking.sh:33–34` sets `LA_DIR=$HOME/Library/LaunchAgents` and `LOG_DIR=$HOME/.config/gsc-insights/logs`; codex and fresh-eyes verified it too |
+| G3 | RISK | melious | refuted | `--out` creates no folder and overwrites: `gsc_query.py:629–630`, `bing_query.py:353–354` call `Path(args.out).write_text(report)`; codex checked `write_text`'s mode `w` (no `mkdir`) |
+| G4 | RISK | melious | refuted, and E7 fixed | The run folder's name: `analytics_snapshot.py` writes `<run date>_geo-run/` (its lines 11–14, verified by fresh-eyes); the bullet now says "where the snapshot has copied the run" |
+| G5 | RISK | melious | fixed | The `--keep-in` and snapshot destinations: the sentence now gives their flags, `--keep-in <site folder>` and `--site-dir <site folder>` (`analytics-folder.md`) |
+| E4 | NIT | fresh-eyes | fixed | Where the raw SERP snapshots go: beside the findings in `docs/seo/` |
+| E5 | NIT | fresh-eyes | fixed | `seo-audit/SKILL.md` went over the 500-line soft budget; the paragraph is one line, 500 lines |
+| E6 | NIT | fresh-eyes | fixed | The scripts' usage text still showed `--out report.md` / `bing.md` |
+| E7 | NIT | fresh-eyes | fixed | The conclusions file names a folder that exists only after a snapshot; and "say what the file holds" before asking |
+| G6 | NIT | melious | fixed | The BUGLOG row overstated: it now says the documented `--out` paths changed |
+| G7 | NIT | melious | fixed | "Built for a low-volume site" ran on after the new sentence; now its own paragraph |
+
+Substantive BUG: C2. Round 2 owed. `make check` exit 0 after the fixes (`b339e32f`); `origin/main`
+merged in (`9d8b42f6`), touching none of this PR's files.
