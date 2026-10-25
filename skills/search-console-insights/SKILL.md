@@ -48,7 +48,8 @@ added keys for, on the owner's own account, and some of those cost money (see
 writes are under `~/.config/gsc-insights/`: the history CSV (plus a `.lock` sidecar) on
 by default whenever `--keywords` is given (`--no-csv` opts a single run out), the cached OAuth
 token from onboarding, the AI check's `geo/` folder (its settings, history and saved answers)
-once it is set up, and — only if you explicitly schedule it — a per-site launchd plist/log.
+once it is set up, and — only if you explicitly schedule it — a per-site log there, with its
+launchd plist in `~/Library/LaunchAgents/`.
 Only when you ask, files also go into the site's git-ignored `analytics/` folder: a saved
 report (`--out`), a kept download (`--keep-in`) and the snapshot (`analytics_snapshot.py`). Built for a **low-volume** site — see the
 "Low-volume playbook" below. On first use the agent runs a guided **onboarding** (next
