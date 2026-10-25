@@ -509,6 +509,11 @@ test('the directory\'s plugin.json declares no components, and no kept .gitattri
   // Metadata only: a component path (commands, hooks, agents…) could point at a file the branch leaves out.
   const keys = Object.keys(JSON.parse(blobText(entry.meta)));
   assert.deepEqual(keys.filter((k) => !['name', 'displayName', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'privacyPolicyUrl'].includes(k)), []);
+  // The privacy link points at a heading the README has (GitHub's anchor: lower case, spaces to hyphens).
+  const { privacyPolicyUrl } = JSON.parse(blobText(entry.meta));
+  const anchor = new URL(privacyPolicyUrl).hash.slice(1);
+  const headings = read('README.md').split('\n').filter((l) => l.startsWith('## ')).map((l) => l.slice(3).trim().toLowerCase().replace(/[^a-z0-9 -]/g, '').replace(/ /g, '-'));
+  assert.ok(headings.includes(anchor), `README has no heading for #${anchor}`);
   for (const { meta, file } of directoryTree().filter(({ file }) => path.posix.basename(file) === '.gitattributes')) {
     assert.doesNotMatch(blobText(meta), /export-ignore|export-subst|filter/, file);
   }
