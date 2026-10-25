@@ -45,3 +45,21 @@ Not changed: an `HTTPS://` (upper-case) link stays text, on purpose (the strict 
 a code span inside a table cell still splits the cell (rare in reports). Substantive BUGs: C2, C5,
 C6, C7, E1. Round 2 owed. Fixes in `56f1c789`; `make check` exit 0 there, `make test-plugin` 19
 passed and 1 skipped (the release-tag test, run only at a release).
+
+## Round 2 — verification of `56f1c789` against `ab20e044`
+`reviewers: codex OK, melious OK` · `timings: codex 257s (111862 tokens), melious 287s (35949 tokens)`
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C8 | BUG | codex | fixed | C2's fix compared a redirect line with the literal decision; `make_redirects.py` follows chains (its header: `/a -> /b -> /c` writes `/a -> /c`), so the target is now where the decisions lead, counted as in §1 (also G8's NIT) |
+| C9, G9 | BUG (G: NIT) | codex, melious | fixed | E6's "page at the title's end" cannot match the image test's title; now the page goes in place of `<page>` and the whole title is matched |
+| C10 | BUG | codex | fixed by a cut | E3's docstring still overclaimed (`![a `code`](i.png)` renders code inside the shown text); the claim is now only what is true: it writes no image and no raw HTML |
+| C11 | RISK | codex | refuted | Cloudflare's query matching: `relaunch.md` relays `make_redirects.py`'s own header, which states it from measurements on two live kit sites (October 2026); the launch check makes no claim of its own and writes no redirect |
+| C12 | RISK | codex | fixed by narrowing | Browser enforcement of the CSP meta is untested; the comment now says the tests check the tag, not a browser |
+| C13 | RISK | codex | refuted | Astro's file-per-page output: the trial's build has `dist/leistungen.html`, `dist/impressum.html`, `dist/index.html` (`build.format: 'file'` in the starter) |
+| C14 | RISK | codex | fixed | The test's own copy of the link pattern lacked the `#fragment` the script now allows |
+| G10 | RISK | melious | fixed | A config `grep` keeping part of `placeholders.spec.ts` could hide warnings while the spec still shows a line; the mapping now requires `placeholders — no leftover on <page>` per page, a missing one a 🔴 blocker |
+| G11 | RISK | melious | fixed | The coupling test hard-coded two titles; it now reads every per-page title and warning prefix from the mapping (mutation: renaming the placeholder title fails it) |
+| G12 | NIT | melious, outside scope | refuted | "A link inside an inline code span becomes a link": `inline()` splits code spans first and escapes them, so links inside stay literal (`test_code_keeps_markdown_and_links_literal`) |
+
+Substantive BUGs: C8, C9, C10. Round 3 owed. Fixes in `f691d9ff`.
