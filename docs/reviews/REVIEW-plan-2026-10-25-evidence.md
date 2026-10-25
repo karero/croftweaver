@@ -85,14 +85,6 @@ Run with `--wording-pass --seat codex --verify` (F26, F27 and the changed sectio
 build's own flag, from this branch. reviewers: codex OK; timings: codex 51s (25,644 tokens).
 No BUG/RISK/NIT findings.
 
-## State
-
-Rounds 1–3, 27 findings (rounds: 3 BUG/RISK by Codex in round 1, 9 by fresh-eyes, 1 in round 2;
-12 in the final full read; 2 in round 3), every one fixed or re-sorted (F6). Final full read and
-wording pass done. Open: the GLM 5.3 seat has not reviewed this plan at all (melious balance 0,
-ollama over quota for the whole gate); it owes one full-scope run before the gate is clean at
-Normal depth. Then the owner's go to build.
-
 ## GLM 5.3 seat (plan at e2e6202b, whole plan, after melious was topped up)
 
 `--seat melious`, MELIOUS_MODEL=glm-5.3, no `--round` (the owed second seat, full scope).
@@ -113,3 +105,13 @@ timings: codex 179s (68,371 tokens).
 | # | Seat | Sev | Finding | Disposition |
 |---|------|-----|---------|-------------|
 | F31 | codex | BUG | "refused with exit 1" mixes the parser's status with the run's: `independent_review.sh` turns `diff_headers.pl`'s 1 into a refusal with exit 2. | Fixed: the plan names both. A wording contradiction, not substantive; confirmed below. |
+
+Confirmation of F31 (delta 617fedab..df31f520, `--wording-pass --verify --seat codex`): codex
+44s (28,499 tokens), No BUG/RISK/NIT findings.
+
+## State
+
+Clean at Normal depth on df31f520. Rounds 1–3 (Codex; GLM 5.3 had no credit until after round
+3 and then reviewed the whole plan once), fresh-eyes in round 1, a final full read (Opus), a
+wording pass, the GLM seat, two prose re-gates: 31 findings, every one fixed, refuted with
+evidence or re-sorted (F6). Waiting for the owner's go to build.
