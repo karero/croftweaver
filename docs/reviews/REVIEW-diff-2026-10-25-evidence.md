@@ -77,3 +77,11 @@ Re-gate of F11 (delta def265bc..c33a5557, test code, so full scope without `--wo
 Clean at Normal depth. 3 rounds, 12 findings: 3 BUG and 9 RISK/NIT, every one fixed, refuted or
 re-sorted above. Codex holds an unbroken chain to the last head; GLM 5.3 reviewed round 1 in
 full and the round 2–3 delta once it had credit; fresh-eyes ran in round 1.
+
+## Merge link (origin/main 12617ee1 merged in at 4464b510)
+
+`merge_link.sh dfcb2bbe 87f6d5aa <new merge base>`: one added line, #406's own BUGLOG row
+(already reviewed there), next to this change's row after the conflict was resolved by keeping
+both. No file of this change moved; the files `--suggest-callees` listed (README.md, the
+search-console and seo SKILL.md files and scripts) match by name only, and the review script
+calls none of them. Not re-reviewed: nothing of this change is in it.
