@@ -55,3 +55,20 @@ both: "No BUG/RISK/NIT findings." Round 2's fixes confirmed.
 Round 2's artifact left out the two scripts (their round-1 usage-text hunk), so neither seat's
 chain covers that segment. One codex pass over the whole change, `origin/main...HEAD` without
 `docs/reviews/`, re-gates the head the stamp names.
+`reviewers: codex OK` · `timings: codex 316s (93058 tokens)` · base `8ec4cb88`, head `11c9da00`.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C9 | RISK | codex | fixed | Moving `SEO-FINDINGS.md` or `SEO-CHANGELOG.md` into `docs/seo/` breaks their relative links and the links to them; the move rule now says to fix both (`3a638bc5`) |
+
+## Round 4 — verification of `3a638bc5` against `11c9da00`, earned by C9
+`--earned-by moved-links` · `reviewers: codex OK, melious OK` · `timings: codex 48s (14117
+tokens), melious 22s (3345 tokens)` · both: "No BUG/RISK/NIT findings."
+
+## Verdict: CLEAN
+4 rounds and a closing re-gate; findings 1 BUG, 13 RISK, 9 NIT (round 1: 1/9/6; round 2: 0/2/3;
+round 3: none; re-gate: 0/1/0; round 4: none). Refuted: G2, G3, G4, G9, each with its evidence
+above. The stamp's chain is codex's: the full pair `8ec4cb88...11c9da00` (the re-gate), then the
+delta to `3a638bc5` (round 4); later commits touch `docs/reviews/` only. Reviewer tokens by the
+timings lines: 345,535, plus fresh-eyes 109,856. `make check` exit 0 at `b339e32f`; the later
+changes are prose in skill files.
