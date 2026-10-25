@@ -1565,7 +1565,8 @@ THINK_TAG_WHY="think-tag guard:"
 # every other failure (fix the CLI, sign-in or model name), so it is named apart.
 # No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
 # (round 2, ollama).
-QUOTA_RE='(^|[^0-9])429([^0-9]|$)|too many requests|usage limit|rate[ -]?limit|insufficient[ _](quota|credits)|exceeded your( current)? quota'
+# "Insufficient balance" is how Melious says an empty balance, as the first chunk of a 200 stream.
+QUOTA_RE='(^|[^0-9])429([^0-9]|$)|too many requests|usage limit|rate[ -]?limit|insufficient[ _](quota|credits|balance)|exceeded your( current)? quota'
 why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
   if [ "$1" -ne 0 ]; then WHY="exit $1"; else WHY="exit 0 but no output"; fi
 }
