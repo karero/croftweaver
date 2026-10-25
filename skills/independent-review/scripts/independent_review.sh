@@ -222,7 +222,7 @@ while [ $# -gt 0 ]; do
              case "$1" in
                -*) echo "bad value for --evidence: \"$1\" starts with '-': name a file (stdin, if used, is the artifact's)" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac
-             [ -z "$EVIDENCE_FILE" ] || { echo "one evidence file per run: put the evidence in one file" >&2; exit 2; }
+             [ -z "$EVIDENCE_FILE" ] || { echo "one evidence file per run: put the evidence in one file" >&2; echo "$USAGE" >&2; exit 2; }
              EVIDENCE_FILE="$1"; shift ;;
     --base)  # the commit a diff starts from, or none to skip the check (BASE CHECK above)
              [ $# -gt 0 ] && [ -n "$1" ] || { echo "--base needs a revision, or none" >&2; echo "$USAGE" >&2; exit 2; }

@@ -148,8 +148,9 @@ Codex's effort for any run.
    substantive BUG, by the prose-only re-gate the stamp needs (closeout, clerk item 2). An entry
    carrying commands or config is not prose: it goes in with the change.
    Size: each seat has its own limit (SEAT LIMITS in the script's header, `scripts/seat_limits.txt`);
-   a seat over it FAILS before sending and the others run, so split only an artifact the pair
-   cannot both take. Output: one section per attempted
+   the limit counts the artifact, prior findings and any `--evidence` file together; a seat
+   over it FAILS before sending and the others run, so split the artifact, or trim
+   the evidence, only when the pair cannot both take them. Output: one section per attempted
    reviewer (its review, or a `— FAILED` section with the error and remedy), then a `reviewers:`
    and a `timings:` line, for a diff a `base:` line, with `--evidence` an `evidence:` line (past
    round 8, also a ⚠ notice). Exit 0
@@ -165,9 +166,11 @@ Codex's effort for any run.
    round 1 only at Normal, rounds 1 to 3 at High, never at Light — started in the background
    BEFORE the script so every seat runs at once. A round sent with `--evidence` gives this pass
    the same file under the script's EVIDENCE lead, between its `--- BEGIN EVIDENCE ---` and
-   `--- END EVIDENCE ---` markers, after the strict prompt and before the artifact (copy the
-   block from `codex.prompt` in the run's raw folder); a host seat does not go through the
-   script, and would otherwise go without it.
+   `--- END EVIDENCE ---` markers, after the strict prompt and before the artifact. Build it
+   from the evidence file itself, with the lead from PROMPT_EVIDENCE in
+   `scripts/independent_review.sh` (`${TYPE}` filled in): this pass starts before the script
+   writes any prompt. A host seat does not go through the script, and would otherwise go
+   without it.
 
    **Cost log.** The script logs its own seats. Log each seat the host runs — fresh-eyes, a Light
    gate's `/code-review` or `double-knuth`, an owner round — with `scripts/review_log.sh add --seat
