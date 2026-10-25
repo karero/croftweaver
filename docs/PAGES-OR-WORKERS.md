@@ -2,8 +2,8 @@
 
 For the kit's maintainer. An assessment, not a plan: nothing below has been built or tried on a
 real Workers project. Vendor pages read 2026-10-11 and checked again 2026-10-25; kit code
-read at `35e9b42`. The short
-version lives in `skills/new-website/references/WEBSITE_ARCHITECTURE.md`, Part 1.
+read at `35e9b42` (not read again on 2026-10-25). The short version lives in
+`skills/new-website/references/WEBSITE_ARCHITECTURE.md`, Part 1.
 
 **Owner decision, 2026-10-11: stay on Pages for now.** "When to look again", below, lists
 what would reopen it.
@@ -221,14 +221,15 @@ Each line is something to look at, not an outcome to expect:
    it carry?
 8. After a day with traffic, which requests does the dashboard count against the daily
    limit?
-9. Speed: how long does the first byte take (TTFB) for the same build on the Pages site, with
-   its middleware, and on the Worker, with no script? From the same machine and in the same
-   hour, time `/`, `/privacy` and one image on each, 20 runs apiece, and compare the medians.
-   This counts only the wait after the connection is up, so connection setup does not hide a
-   gap of a few milliseconds:
+9. Speed: once the connection is up, how long does the first byte take for the same build on
+   the Pages site, with its middleware, and on the Worker, with no script? From the same
+   machine and in the same hour, time `/`, `/privacy` and one image on each, 21 runs apiece,
+   and compare the medians. Leaving out connection setup keeps it from hiding a gap of a few
+   milliseconds. The command prints the median in seconds, and stops with an error if any run
+   failed or did not answer 200:
 
    ```bash
-   for i in $(seq 20); do curl -s -o /dev/null -w '%{time_appconnect} %{time_starttransfer}\n' https://<host>/privacy; done | awk '{printf "%.4f\n", $2-$1}' | sort -n | sed -n '10p'
+   for i in $(seq 21); do curl -s -o /dev/null -w '%{http_code} %{time_appconnect} %{time_starttransfer}\n' https://<host>/privacy; done | awk '{printf "%s %.4f\n", $1, $3-$2}' | sort -n -k2 | awk '$1 != 200 {bad=1} NR == 11 {m=$2} END {if (bad || NR != 21) {print "not 21 runs with status 200: measure again"; exit 1} print m}'
    ```
 
    It measures from one place only; it says nothing about visitors elsewhere.
