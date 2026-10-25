@@ -833,7 +833,7 @@ jobs:
           import sharp from 'sharp';
           const noise = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#808080', noise: { type: 'gaussian', mean: 128, sigma: 60 } } }).webp({ quality: 80 }).toFile('public/fx/' + name);
           const flat = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#4a6' } }).webp({ quality: 80 }).toFile('public/fx/' + name);
-          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2']) await noise(n + '.webp', 600, 400);
+          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2', 'vis', 'calc']) await noise(n + '.webp', 600, 400);
           await noise('big.webp', 2000, 1333);
           await noise('cover.webp', 1200, 800);
           await noise('tile.webp', 2000, 2000);
@@ -846,7 +846,7 @@ jobs:
           [ "$(wc -c < public/fx/zero.webp)" -gt 4096 ] || { echo "::error::zero.webp is not over 4 KiB"; exit 1; }
           [ "$(wc -c < public/fx/big.webp)" -gt 100000 ] || { echo "::error::big.webp is too small to be over the floor"; exit 1; }
           # The green page, one block before </Base>: every case the test must pass. The page is long
-          # (smooth scrolling must not leave the end unseen) and grows once its end is reached.
+          # (smooth scrolling must not leave the end unseen) and grows 400 ms after its end is reached.
           perl -0pi -e 's|</Base>|  <link slot="head" rel="preload" as="image" href="/fx/swap.webp" />
             <link slot="head" rel="preload" as="image" href="/fx/desk.webp" media="(min-width: 720px)" />
             <style>
@@ -854,6 +854,7 @@ jobs:
               .fx-layers { width: 200px; height: 133px; background-image: url(/fx/layer1.webp), url(/fx/layer2.webp); background-size: 100% auto, 100% auto; background-repeat: no-repeat; }
               .fx-paren { width: 200px; height: 133px; background: url("/fx/paren(1).webp") center / 100% auto no-repeat; }
               .fx-set { width: 200px; height: 133px; background-image: image-set(url(/fx/set1.webp) 1x, url(/fx/set2.webp) 2x); background-size: 100% auto; background-repeat: no-repeat; }
+              .fx-calc { width: 200px; height: 133px; background: url(/fx/calc.webp) center / calc(100% - 10px) auto no-repeat; }
               .fx-tile { width: 200px; height: 200px; background: url(/fx/tile.webp) repeat; }
               .fx-spacer { height: 8000px; }
               .fx-pb::before { content: ""; display: block; width: 100px; height: 100px; background: url(/fx/right.webp) center / 100% no-repeat; }
@@ -866,6 +867,8 @@ jobs:
               <div class="fx-layers"></div>
               <div class="fx-paren"></div>
               <div class="fx-set"></div>
+              <div class="fx-calc"></div>
+              <img id="fx-vis" src="/fx/vis.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" />
               <div class="fx-tile"></div>
               <div class="fx-pb"></div>
               <div class="fx-spacer"></div>
@@ -876,11 +879,13 @@ jobs:
               const fxGrow = () => {
                 if (scrollY + innerHeight < document.documentElement.scrollHeight - 50) return;
                 removeEventListener("scroll", fxGrow);
+                setTimeout(() => {
                 const s = document.querySelector(".fx");
                 const gap = document.createElement("div"); gap.style.height = "8000px";
                 const img = Object.assign(document.createElement("img"), { src: s.dataset.grow, alt: "", width: 600, height: 400, loading: "lazy" });
                 img.style.width = "200px"; img.style.height = "auto";
                 s.append(gap, img);
+                }, 400);
               };
               addEventListener("scroll", fxGrow);
             </script>
@@ -893,14 +898,17 @@ jobs:
           out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the green page failed phone-images.spec.ts"; exit 1; }
           line="$(grep -F 'phone images — /:' <<<"$out")" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the home page printed no count"; exit 1; }
           printf '%s\n' "$line"
-          # Nine files judged on /, and the hidden one under the floor listed with its reason.
-          [[ $line == *'phone images — /: 9 judged; '* ]] || { echo "::error::expected 9 judged on /"; exit 1; }
+          # Ten files judged on /; the small hidden one and the calc() size listed with their reasons.
+          [[ $line == *'phone images — /: 10 judged; '* ]] || { echo "::error::expected 10 judged on /"; exit 1; }
+          [[ $line == *'/fx/calc.webp (size not worked out: calc('* ]] || { echo "::error::the calc() background is not listed with its reason"; exit 1; }
           [[ $line == *'/fx/hidden.webp (hidden at 412px, under 4 KiB)'* ]] || { echo "::error::the small hidden image is not listed with its reason"; exit 1; }
           npm test
       - name: Each mistake turns this test red
         working-directory: ${{ runner.temp }}/site
         run: |
-          failed_test_is() { grep -E '^ +[0-9]+\) ' <<<"$1" | grep -Fq "$2"; }
+          failed_test_is() { local m; m="$(grep -E '^ +[0-9]+\) ' <<<"$1")" || return 1; [[ $m == *"$2"* ]]; }
+          # edit "<perl>" "<text the page must then hold>": one change, proved to have landed.
+          edit() { perl -pi -e "$1" src/pages/index.astro; grep -Fq "$2" src/pages/index.astro || { echo "::error::the edit to '$2' did not land"; exit 1; }; }
           red() {   # red "<what was done>" "<what the message must say>"
             if out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)"; then
               printf '%s\n' "$out" | tail -n 6; echo "::error::$1: the test stayed green"; exit 1
@@ -911,27 +919,22 @@ jobs:
             echo "red as expected ($2): $1"
             cp "$RUNNER_TEMP/index.good" src/pages/index.astro
           }
-          # One change per case; the grep after each proves the change was made.
-          perl -pi -e 's|id="fx-low" src="/fx/right.webp"|id="fx-low" src="/fx/big.webp"|' src/pages/index.astro
-          grep -q 'id="fx-low" src="/fx/big.webp"' src/pages/index.astro
+          # One change per case.
+          edit 's|id="fx-low" src="/fx/right.webp"|id="fx-low" src="/fx/big.webp"|' 'id="fx-low" src="/fx/big.webp"'
           red "an oversized lazy image at the end of a long page" "/fx/big.webp is 2000px wide, shown at 200px"
-          perl -pi -e 's|data-grow="/fx/right.webp"|data-grow="/fx/big.webp"|' src/pages/index.astro
-          grep -q 'data-grow="/fx/big.webp"' src/pages/index.astro
-          red "an oversized image in content added while scrolling" "/fx/big.webp is 2000px wide, shown at 200px"
-          perl -pi -e 's|background: url\(/fx/right.webp\) center / 100% no-repeat|background: url(/fx/big.webp) center / 100% no-repeat|' src/pages/index.astro
-          grep -q 'fx-pb::before { content: ""; display: block; width: 100px; height: 100px; background: url(/fx/big.webp)' src/pages/index.astro
+          edit 's|data-grow="/fx/right.webp"|data-grow="/fx/big.webp"|' 'data-grow="/fx/big.webp"'
+          red "an oversized image in content added late, once the end is reached" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|background: url\(/fx/right.webp\) center / 100% no-repeat|background: url(/fx/big.webp) center / 100% no-repeat|' 'height: 100px; background: url(/fx/big.webp) center / 100% no-repeat'
           red "an oversized ::before background" "/fx/big.webp is 2000px wide, shown at 100px"
-          perl -pi -e 's|center / 100% auto no-repeat; \}|0 0 / 50px auto no-repeat; }|' src/pages/index.astro
-          grep -q 'url("/fx/paren(1).webp") 0 0 / 50px auto no-repeat' src/pages/index.astro
+          edit 's|center / 100% auto no-repeat; \}|0 0 / 50px auto no-repeat; }|' 'url("/fx/paren(1).webp") 0 0 / 50px auto no-repeat'
           red "a background drawn at 50px by its background-size" "/fx/paren(1).webp is 600px wide, shown at 50px"
-          perl -pi -e 's|id="fx-hidden" src="/fx/hidden.webp"|id="fx-hidden" src="/fx/zero.webp"|' src/pages/index.astro
-          grep -q 'id="fx-hidden" src="/fx/zero.webp"' src/pages/index.astro
-          red "an image downloaded but hidden" "/fx/zero.webp is downloaded but hidden at 412px"
-          perl -pi -e 's|(<link slot="head" rel="preload" as="image" href="/fx/swap.webp" />)|$1<link slot="head" rel="preload" as="image" href="/fx/orphan.webp" />|' src/pages/index.astro
-          grep -q 'href="/fx/orphan.webp"' src/pages/index.astro
+          edit 's|id="fx-hidden" src="/fx/hidden.webp"|id="fx-hidden" src="/fx/zero.webp"|' 'id="fx-hidden" src="/fx/zero.webp"'
+          red "an image downloaded but hidden by its size" "/fx/zero.webp is downloaded but hidden at 412px"
+          edit 's|(id="fx-vis" [^>]*style="width: 200px; height: auto)"|$1; visibility: hidden"|' 'height: auto; visibility: hidden"'
+          red "an image downloaded but hidden by visibility" "/fx/vis.webp is downloaded but hidden at 412px"
+          edit 's|(<link slot="head" rel="preload" as="image" href="/fx/swap.webp" />)|$1<link slot="head" rel="preload" as="image" href="/fx/orphan.webp" />|' 'href="/fx/orphan.webp"'
           red "an image preloaded and not shown" "/fx/orphan.webp is preloaded and downloaded"
-          perl -pi -e 's|^(\s*)(<script is:inline>)$|$1$2\n$1new Image().src = "/fx/ghost.webp";|' src/pages/index.astro
-          grep -q 'new Image().src = "/fx/ghost.webp";' src/pages/index.astro
+          edit 's|^(\s*)(<script is:inline>)$|$1$2\n$1new Image().src = "/fx/ghost.webp";|' 'new Image().src = "/fx/ghost.webp";'
           red "an image a script loads and never shows" "/fx/ghost.webp was downloaded, but nothing on the page shows it"
 
   # The one check main's ruleset requires from this workflow. It passes when every job

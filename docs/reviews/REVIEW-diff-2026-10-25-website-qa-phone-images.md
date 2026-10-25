@@ -37,3 +37,19 @@ Before round 1: `make check` green; the spec green on the starter (0 judged), th
 
 Checks after the round 1 fixes: the regenerated job's three steps run locally as written under `bash -eo pipefail` (9 judged on the green page, whole suite 112 passed and 1 skipped, all seven red cases red); the skill's steps 1 and 2 run verbatim in a fresh scratch folder against https://croftweaver.com/ (five runs, median printed: `100 1.0 s 1.7 s`).
 Site A again with the revised spec, on a quiet machine (50 pages in about 21 s): before its hero fix, red on `/images/hero-bg.webp is 1900px wide, shown at 426px … saves about 23 KB`; on its `main`, the hero passes and the only failures are 8 blog photos (1280–1600px files shown at 372px), real findings for that site; no "hidden" or "nothing shows it" result on any of its 50 pages.
+
+## Round 2 — e579ca1e (verification, Codex at medium)
+
+`reviewers: codex OK, melious OK`. 7 findings: 2 BUG, 3 RISK, 2 NIT.
+
+| # | Seat | Kind | Finding | Disposition |
+|---|------|------|---------|-------------|
+| 24 | codex | BUG | `decodeURI` throws on a file named with `%` | Fixed: names are reported as served, undecoded |
+| 25 | codex | BUG | #5 partly fixed: a page that grows during the final waits is not scrolled again | Fixed: after the waits the end is checked again and scrolling goes on if the page grew; the grow fixture now adds its content 400 ms late. Mutation (stop at the first end) caught |
+| 26 | codex | RISK | a `calc()` background-size gives NaN and passes silently | Fixed: a size not worked out lists the file with the value ("size not worked out: calc(100% - 10px) auto", asserted on the green page); lengths are read only when they are plain px or % |
+| 27 | codex | RISK | `visibility: hidden` with a box escapes the hidden rule | Fixed: visibility is recorded and a hidden user counts as not shown; red case. Mutation (visibility ignored) caught |
+| 28 | glm | RISK | `object-fit: none` and `scale-down` judged at the box | Fixed: none at the file's width, scale-down at the smaller of it and contain. No fixture: both only make a file look larger or equal, never pass a wrong one; named here |
+| 29 | glm | NIT | `failed_test_is` still pipes into `grep -q` | Fixed: captured first, matched with `[[ … ]]` |
+| 30 | glm | NIT | the new proof greps had no error message | Fixed: one `edit` helper makes each change and names the edit that did not land |
+
+Checks after the fixes: the job's steps run locally as written (10 judged on the green page, `calc.webp` and `hidden.webp` listed with their reasons, whole suite 112 passed and 1 skipped, 8 red cases red); site A as before (red on the old hero, the same 8 blog photos on `main`, nothing else).

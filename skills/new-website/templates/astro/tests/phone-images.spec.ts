@@ -14,7 +14,7 @@ const MAX_SCREENS = 200;   // a page still growing after this many screens is re
 
 // A user of an image: the box it shows in, and how it is fitted there (`size` is the
 // background-size or object-fit value, worked out once the file's own size is known).
-type User = { url: string; kind: 'img' | 'bg' | 'poster' | 'other'; w: number; h: number; size: string };
+type User = { url: string; kind: 'img' | 'bg' | 'poster' | 'other'; w: number; h: number; size: string; hidden: boolean };
 
 // Runs in the page: every element using an image URL right now.
 function usersNow(): User[] {
@@ -40,11 +40,12 @@ function usersNow(): User[] {
   for (const img of Array.from(document.images)) {
     if (!img.currentSrc) continue;
     const r = img.getBoundingClientRect();
-    out.push({ url: abs(img.currentSrc), kind: 'img', w: r.width, h: r.height, size: getComputedStyle(img).objectFit });
+    const cs = getComputedStyle(img);
+    out.push({ url: abs(img.currentSrc), kind: 'img', w: r.width, h: r.height, size: cs.objectFit, hidden: cs.visibility !== 'visible' });
   }
   for (const v of Array.from(document.querySelectorAll('video[poster]'))) {
     const r = v.getBoundingClientRect();
-    out.push({ url: abs(v.getAttribute('poster')!), kind: 'poster', w: r.width, h: r.height, size: 'contain' });
+    out.push({ url: abs(v.getAttribute('poster')!), kind: 'poster', w: r.width, h: r.height, size: 'contain', hidden: getComputedStyle(v).visibility !== 'visible' });
   }
   for (const el of Array.from(document.querySelectorAll('*'))) {
     for (const pseudo of [null, '::before', '::after']) {
@@ -54,28 +55,32 @@ function usersNow(): User[] {
       // A pseudo-element has no rect of its own; its used width/height are in the style.
       const w = pseudo && cs.width.endsWith('px') ? parseFloat(cs.width) : host.width;
       const h = pseudo && cs.height.endsWith('px') ? parseFloat(cs.height) : host.height;
+      const hidden = cs.visibility !== 'visible';
       // Sizes line up with every layer, gradients included, and repeat from the start when
       // the list is shorter (as CSS does). An image-set() layer names several files: all count.
       const sizes = layers(cs.backgroundSize);
       layers(cs.backgroundImage).forEach((layer, i) => {
-        for (const url of urls(layer)) out.push({ url, kind: 'bg', w, h, size: sizes[i % sizes.length] });
+        for (const url of urls(layer)) out.push({ url, kind: 'bg', w, h, size: sizes[i % sizes.length], hidden });
       });
       for (const prop of ['mask-image', 'border-image-source', 'list-style-image', 'content', 'cursor', 'shape-outside']) {
-        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'other', w, h, size: '' });
+        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'other', w, h, size: '', hidden });
       }
     }
   }
   return out;
 }
 
-// The width a file is drawn at, from its box, its fit and its own aspect (fw / fh).
+// The width a file is drawn at, from its box, its fit and its own aspect (fw / fh). NaN for a
+// size this does not work out (a calc()); the caller lists that file instead of judging it.
 function drawnWidth(u: User, fw: number, fh: number): number {
   const aspect = fw / fh;
   if (u.size === 'cover') return Math.max(u.w, u.h * aspect);
   if (u.size === 'contain') return Math.min(u.w, u.h * aspect);
-  if (u.kind !== 'bg') return u.w;   // object-fit fill, none, scale-down: the box
+  if (u.size === 'none') return fw;
+  if (u.size === 'scale-down') return Math.min(fw, u.w, u.h * aspect);
+  if (u.kind !== 'bg') return u.w;   // object-fit fill: the box
   const [x, y = 'auto'] = u.size.split(/\s+/);
-  const length = (v: string, of: number) => (v.endsWith('%') ? (parseFloat(v) / 100) * of : parseFloat(v));
+  const length = (v: string, of: number) => (/^[\d.]+%$/.test(v) ? (parseFloat(v) / 100) * of : /^[\d.]+px$/.test(v) ? parseFloat(v) : NaN);
   if (x !== 'auto') return length(x, u.w);
   if (y !== 'auto') return length(y, u.h) * aspect;
   return fw;                          // auto auto: drawn at the file's own size
@@ -102,20 +107,24 @@ for (const path of PAGES) {
         'the browser does not match a phone\'s media queries').toBe(true);
 
       // A screen at a time, users noted at each stop (a carousel may swap a file out), until
-      // the bottom is reached; the height is read again each time, as a page may grow.
+      // the bottom is reached and stays there once images and the network have settled: the
+      // height is read again each time, as a page may grow, even while it settles.
       const seen: User[] = [];
+      const atEnd = () => page.evaluate(() => scrollY + innerHeight >= document.documentElement.scrollHeight - 1);
+      let quiet = true;
       for (let screen = 0; ; screen++) {
         expect(screen, `${path} was still growing after ${MAX_SCREENS} screens`).toBeLessThan(MAX_SCREENS);
         await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), screen * VIEW.height);
         await page.waitForTimeout(150);
         seen.push(...await page.evaluate(usersNow));
-        const end = await page.evaluate(() => scrollY + innerHeight >= document.documentElement.scrollHeight - 1);
-        if (end) break;
+        if (!await atEnd()) continue;
+        // Only images that started loading: a hidden lazy one (a dark-theme copy) never starts.
+        await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete || !i.currentSrc));
+        quiet = await page.waitForLoadState('networkidle', { timeout: 5000 }).then(() => true, () => false);
+        await page.waitForTimeout(500);
+        seen.push(...await page.evaluate(usersNow));
+        if (await atEnd()) break;
       }
-      // Only images that started loading: a hidden lazy one (a dark-theme copy) never starts.
-      await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete || !i.currentSrc));
-      const quiet = await page.waitForLoadState('networkidle', { timeout: 5000 }).then(() => true, () => false);
-      seen.push(...await page.evaluate(usersNow));
       await Promise.all(reads);
 
       const preloads = new Set(await page.locator('link[rel="preload"][as="image"][href]').evaluateAll(
@@ -130,7 +139,7 @@ for (const path of PAGES) {
       const listed: string[] = [];
       let judged = 0;
       for (const [url, bytes] of sizes) {
-        const name = decodeURI(new URL(url).pathname);
+        const name = new URL(url).pathname;
         const [fw, fh] = real[url] as number[];
         const users = seen.filter((u) => u.url === url);
         if (!users.length) {
@@ -140,15 +149,17 @@ for (const path of PAGES) {
           continue;
         }
         if (Number.isNaN(bytes) || !fw || !fh) { problems.push(`${name}: could not read its size or decode it`); continue; }
-        const sized = users.filter((u) => u.kind !== 'other' && u.w > 0 && u.h > 0);
+        const sized = users.filter((u) => u.kind !== 'other' && !u.hidden && u.w > 0 && u.h > 0);
         if (!sized.length) {
           if (users.some((u) => u.kind === 'other')) listed.push(`${name} (used by a CSS property not judged by width)`);
           else if (bytes >= FLOOR) problems.push(`${name} is downloaded but hidden at 412px (${Math.round(bytes / 1024)} KB): lazy-load it, or serve it only where it shows`);
           else listed.push(`${name} (hidden at 412px, under 4 KiB)`);
           continue;
         }
+        const widths = sized.map((u) => drawnWidth(u, fw, fh)).filter(Number.isFinite);
+        if (!widths.length) { listed.push(`${name} (size not worked out: ${sized[0].size})`); continue; }
         judged++;
-        const shown = Math.max(...sized.map((u) => drawnWidth(u, fw, fh)));
+        const shown = Math.max(...widths);
         const limit = shown * MOST;
         const saving = bytes * (1 - (limit / fw) ** 2);
         if (fw > limit && saving >= FLOOR) {
