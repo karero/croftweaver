@@ -111,3 +111,12 @@ One codex pass over the trail, scoped to factual contradictions · `timings: cod
 tokens)`. One finding: round 5's rows said its fixes tightened tests that already failed; they
 added coverage the head lacked (its in-memory mutations: `68c5240b` passes a quoted `grep` and a
 shifted title, `2614dae3` fails both). Fixed; the code was already re-gated in the link.
+Confirmation of that fix · `timings: codex 48s (43010 tokens)` · "No BUG/RISK/NIT findings."
+
+## Verdict: CLEAN
+5 rounds and a re-gate link: 10 BUG, 22 RISK, 15 NIT (round 1: 7/9/9; round 2: 3/6/1; round 3:
+0/3/3; round 4: 0/2/1; round 5: 0/2/1). Refuted: E2, C3, E5, C11, C13, G12, C16, C17, C20/G18,
+each with its evidence above. Cuts: html-guard and test-coverage were settled in the PLAN gate;
+here test-filter (C15: a filter in the config is a blocker; C18: `--forbid-only`). Reviewer
+tokens by the timings lines, rounds 1–5 and the link: codex 396,719, melious 137,849; fresh-eyes
+203,833; the wording pass and its confirmation 112,981 (codex).
