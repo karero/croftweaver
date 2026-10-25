@@ -70,9 +70,13 @@ tokens), melious 22s (3345 tokens)` · both: "No BUG/RISK/NIT findings."
 round 3: none; re-gate: 0/1/0; round 4: none). Refuted: G2, G3, G4, G9, each with its evidence
 above. The stamp's chain is codex's: the full pair `8ec4cb88...11c9da00` (the re-gate), then the
 delta to `3a638bc5` (round 4); later commits touch `docs/reviews/` only. Reviewer tokens by the
-timings lines: 339,761 (codex 296,834, melious 42,927), plus fresh-eyes 109,856. `make check` exit 0 at `b339e32f`; the later
+timings lines, rounds 1–4 and the re-gate: 339,761 (codex 296,834, melious 42,927), plus
+fresh-eyes 109,856; the wording pass and its confirmation below add codex 73,770. `make check` exit 0 at `b339e32f`; the later
 changes are prose in skill files.
 
 ## Wording pass (not a round)
 One codex pass over the trail, scoped to factual contradictions · `timings: codex 142s (51875
 tokens)`. One finding: the verdict line said 13 RISK where the tables add up to 12; fixed.
+Confirmation of that fix · `timings: codex 48s (21895 tokens)`: it found the token total no longer
+matched the timings once the wording pass's line was added; the total is now labelled by what it
+covers, and the wording pass and confirmation are counted beside it.
