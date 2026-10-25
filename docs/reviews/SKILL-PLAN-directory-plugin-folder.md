@@ -41,7 +41,7 @@ holds more for a subfolder plugin ("keep the plugin at the root of its own repos
 - `.claude-plugin/icon.png`, the listing icon (the site's moss-green mark, 512 px; the
   maintainer's choice, 2026-10-25). The portal fixes the icon at the first save or submission.
 - `.claude-plugin/plugin.json`, copied as it is (same name and version). It declares no
-  components today (only name, displayName, version, description, author, homepage, repository, license); the test holds that.
+  components today (only name, displayName, version, description, author, homepage, repository, license, and since 2026-10-25 privacyPolicyUrl, which points at the README's list of outside services); the test holds that.
 - `skills/`, except four folders of the toolkit's own tests, which no skill runs:
   `facts-check/scripts/tests`, `new-website/scripts/tests`, `search-console-insights/scripts/tests`,
   `website-brand-kit/scripts/tests` (158 files, 2.8 MB). `new-website` already leaves the

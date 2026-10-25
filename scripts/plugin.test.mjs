@@ -508,7 +508,7 @@ test('the directory\'s plugin.json declares no components, and no kept .gitattri
   const entry = directoryTree().find(({ file }) => file === '.claude-plugin/plugin.json');
   // Metadata only: a component path (commands, hooks, agents…) could point at a file the branch leaves out.
   const keys = Object.keys(JSON.parse(blobText(entry.meta)));
-  assert.deepEqual(keys.filter((k) => !['name', 'displayName', 'version', 'description', 'author', 'homepage', 'repository', 'license'].includes(k)), []);
+  assert.deepEqual(keys.filter((k) => !['name', 'displayName', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'privacyPolicyUrl'].includes(k)), []);
   for (const { meta, file } of directoryTree().filter(({ file }) => path.posix.basename(file) === '.gitattributes')) {
     assert.doesNotMatch(blobText(meta), /export-ignore|export-subst|filter/, file);
   }
