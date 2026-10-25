@@ -46,3 +46,12 @@ row; codex also confirmed the three refutations (G2, G3, G4). No BUG.
 | G11 | NIT | melious | fixed | The kept-report paragraph read as part of the format list; it now starts **Keeping the report:** (no extra line: the file stays at 500) |
 
 Round 3 checks round 2's fixes, with the scripts and the template in its artifact.
+
+## Round 3 — verification of `c19ea9d5` against `b339e32f`
+`reviewers: codex OK, melious OK` · `timings: codex 60s (33072 tokens), melious 12s (4639 tokens)` ·
+both: "No BUG/RISK/NIT findings." Round 2's fixes confirmed.
+
+## Closing re-gate (not a round)
+Round 2's artifact left out the two scripts (their round-1 usage-text hunk), so neither seat's
+chain covers that segment. One codex pass over the whole change, `origin/main...HEAD` without
+`docs/reviews/`, re-gates the head the stamp names.
