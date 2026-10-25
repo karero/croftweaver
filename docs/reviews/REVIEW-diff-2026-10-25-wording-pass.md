@@ -51,3 +51,12 @@ fetched; every changed tracked file present). No BUG.
 
 No substantive BUG or earning RISK. The fix is prose: confirmed by the re-gate below.
 
+## Prose-only re-gate of F4 (delta 4ea6a4af..0b214894, `--wording-pass --seat codex`)
+
+timings: codex 32s (26,304 tokens). No BUG/RISK/NIT findings.
+
+## State
+
+Clean at Normal depth. Codex: round 1 clean, two prose re-gates clean. Fresh-eyes: 2 NITs,
+fixed. GLM 5.3 (once melious had credit): no BUG, 1 NIT fixed, 1 RISK and 1 NIT refuted. One
+round, 5 findings.
