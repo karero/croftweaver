@@ -18,7 +18,7 @@ Usage:
   export BING_API_KEY=...
   python bing_query.py --site https://example.com \
      --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
-     --out <site folder>/analytics/<today>_bing/bing.md   # make that folder first
+     --out "<site folder>/analytics/<today>_bing/bing.md"   # make that folder first
 
 Dependencies: requests (see ../requirements.txt)
 """

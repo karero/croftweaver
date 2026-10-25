@@ -448,7 +448,7 @@ Same format as above
 3. Quick wins (easy, immediate benefit)
 4. Long-term recommendations
 
-Kept with the site only at the owner's ask: `docs/seo/seo-audit-<YYYY-MM-DD>.md` (a second one that day gets `-2`; never overwrite one). It holds what was read from the site and public search results; Search Console or Bing figures stay in the git-ignored `analytics/` folder (`search-console-insights`), and the report names the figure it rests on.
+**Keeping the report:** only at the owner's ask, in `docs/seo/seo-audit-<YYYY-MM-DD>.md` (a second one that day gets `-2`; never overwrite one). It holds what was read from the site and public search results; Search Console or Bing figures stay in the git-ignored `analytics/` folder (`search-console-insights`), and the report names the figure it rests on.
 
 ---
 
