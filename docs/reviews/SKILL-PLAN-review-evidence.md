@@ -152,7 +152,8 @@ still passes with `--evidence`, the stub codex runs and the `base:` line prints 
 checked". The evidence file there begins with a `diff --git` record for a file the repo does
 not have, so the check would refuse the run if the evidence ever reached the checked text
 (probed in the final full read: such a record, with an index line and a hunk, appended or
-prepended to a good diff, is refused with exit 1).
+prepended to a good diff, makes `diff_headers.pl` return 1, and the review command refuses
+the run with exit 2).
 
 What the tests cannot show: whether a reviewer treats the evidence as data, or uses it well. The
 first live run with `--evidence` is that check; its trail says what the seats did with it.

@@ -105,3 +105,11 @@ timings: melious 181s (23,675 tokens). No BUG.
 | F30 | melious | NIT | Trailing spaces and tabs on the END marker are never tested. | Fixed: a refusal case with trailing spaces and a tab. |
 
 No substantive BUG or earning RISK: no further round. The edits are prose, confirmed below.
+
+## Prose-only re-gate of F28–F30 (delta e2e6202b..617fedab, `--wording-pass --seat codex`)
+
+timings: codex 179s (68,371 tokens).
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F31 | codex | BUG | "refused with exit 1" mixes the parser's status with the run's: `independent_review.sh` turns `diff_headers.pl`'s 1 into a refusal with exit 2. | Fixed: the plan names both. A wording contradiction, not substantive; confirmed below. |
