@@ -120,3 +120,19 @@ each with its evidence above. Cuts: html-guard and test-coverage were settled in
 here test-filter (C15: a filter in the config is a blocker; C18: `--forbid-only`). Reviewer
 tokens by the timings lines, rounds 1–5 and the link: codex 396,719, melious 137,849; fresh-eyes
 203,833; the wording pass and its confirmation 112,981 (codex).
+
+## Merge link — origin/main merged in (new merge base `ee7cecb7`), 2026-10-26 (not a round)
+Artifact: `merge_link.sh 8ec4cb88 2614dae3 ee7cecb7 -- skills/website-qa/SKILL.md` (the change's own
+files from `2614dae3`, merge effects included, plus website-qa, which the skill now relies on).
+The merge brought website-qa §2's new speed step (the assistant runs Lighthouse), so before the
+link the author changed the launch check to follow it (`30a20186`, `a6a89fd1`). `make check` exit 0.
+codex alone. melious FAILED (error mid-stream, quota) · `timings: codex 528s (92019 tokens)`
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C21 | BUG | codex | fixed | `relaunch.md` made the new site wait for 12a, but `website-qa` §2 measures the deployed `main` preview before launch; now the preview where one exists, else "not measured yet: no deployed address", and production at 12a |
+| C22 | RISK | codex | fixed | The comparison's Accessibility, Best practices, SEO and page-weight columns cannot come from website-qa's performance-only run; the table now has what it prints (performance, FCP, LCP) and where it was measured |
+
+## Re-gate link — the fixes (`ee676ee2`), not a round
+codex alone. melious FAILED (error mid-stream, quota) · `timings: codex 445s (42118 tokens)` · "No
+BUG/RISK/NIT findings." The stamp's chain stays codex's, now through the merge link and this link.
