@@ -10,6 +10,7 @@ commands with the same `--round`.
 | 1 | Codex, GLM 5.3 | 2 BUG, 6 RISK, 3 NIT (after dedup); 9 UNVERIFIABLE asked, all looked at | Codex 450 s, 105,659; GLM 371 s, 26,309 |
 | 2 | Codex, GLM 5.3 (`--verify`) | 0 BUG, 5 RISK, 4 NIT; 2 follow-ups; prior fixes confirmed by both, F10 questioned by GLM | Codex 748 s, 126,488; GLM 452 s, 36,643 |
 | 3 | Codex, GLM 5.3 (`--verify`) | 1 BUG, 4 RISK, 2 NIT (after dedup); every round-2 disposition confirmed by both | Codex 494 s, 111,004; GLM 571 s, 40,811 |
+| 4 | Codex, GLM 5.3 (`--verify`, `--earned-by test-pass-condition,ci-claim`, cut: test 1's second hash and test 2's exact-message condition) | 0 BUG, 3 RISK, 1 NIT, 1 follow-up; every round-3 disposition confirmed by both | Codex 872 s, 97,534; GLM 271 s, 27,320 |
 
 ## Round 1
 
@@ -59,3 +60,16 @@ directly instead of argued (a full run with two workers from `tests/`).
 | R3-3 | RISK | Codex | Test 3 requires "▶ pre-push gate: tests…", which only the site's hook prints; the template's prints "check, build and tests" | fixed: pass needs Playwright's "passed" summary and "✓ pre-push gate passed", printed by both hooks | template `pre-push:102`, `:117` |
 | R3-4 | RISK | Codex, GLM (NIT) | The worker-folder claim combined two separate probes; nothing retained checks it | fixed: one full run, two workers, started from `tests/` with `-c`: main and both workers print the config's folder; `served-build.spec.ts` fetches through the worker's `baseURL`, so it re-checks the port on every run | probe output in round 4's evidence |
 | R3-5 | NIT | GLM | A second, hand-written hash in test 1 can only fail spuriously | fixed: test 1 checks two listeners on two ports, in the two worktrees | plan, test 1 |
+
+## Round 4
+
+Both seats confirmed R3-1 to R3-5. Round 5 is owed by R4-1 (a changed test). Its fix is a cut:
+test 2's timing-dependent arm is gone, replaced by fixed setups.
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| R4-1 | RISK | Codex | With only the timing-dependent arm, a spec that checks for a missing id but never compares ids passes every test | fixed: test 2 now has a fixed wrong-id setup (A's `dist/` against B's server, A's `webServer` dropped by a scratch config) that must fail naming both ids, and passes with the compare removed; and a fixed missing-id setup | plan, test 2 |
+| R4-2 | RISK | GLM | A worker's `baseURL` may be the main process's serialised value, so the spec could not catch a worker on another port | refuted: with `baseURL` built from `process.pid`, each worker's tests saw the worker's own pid, both in the `baseURL` fixture and `info.project.use.baseURL` | probe in round 5's evidence (E11) |
+| R4-3 | RISK | GLM | Test 4's claim that the brand-kit stop test depends on the port it found is unsupported | refuted: it asserts nothing serves `port` first, waits `while not serving(port)`, then `assertTrue(serving(port), "the preview server never came up")`; a wrong port fails there | `test_e2e_site.py`, stop test (E11) |
+| R4-4 | NIT | GLM | `lsof -iTCP -sTCP:LISTEN` does not print working folders | fixed: test 1 names `lsof -p <pid> -a -d cwd` for that | plan, test 1 |
+| R4-5 | follow-up | GLM | `check_script` may depend on GitHub, not `origin` | closed: it compares `git rev-parse "$id:scripts/ship.sh"`, where `$id` is the fetched `origin/main`; a bare `origin` serves the same | `ship.sh:249–252` (E11) |

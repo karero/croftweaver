@@ -8,7 +8,7 @@ maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
-| 2 | Plan review gate | ⏳ round 1: 2 BUGs, 6 RISKs, 3 NITs; round 2: no BUG, 5 RISKs, 4 NITs; round 3: 1 BUG, 4 RISKs, 2 NITs; all taken into this text | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
+| 2 | Plan review gate | ⏳ 4 rounds so far, 3 BUGs and 20 RISKs in all, each fixed or refuted in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ⬜ | — |
 | 4 | croftweaver-site copy (one pull request) | ⬜ | — |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone | ⬜ the maintainer's step | — |
@@ -61,7 +61,8 @@ fresh random id (`crypto.randomUUID()`); when it is not set, it deletes that fil
 so a production build never carries one, whether or not `astro build` cleared `dist/`. The
 config sets the variable in `webServer.env` only. New spec `tests/served-build.spec.ts`: fetch
 `/test-build-id.txt` from the test server and compare it with this checkout's
-`dist/test-build-id.txt` on disk. Another checkout's server serves another id, whatever its
+`dist/test-build-id.txt` on disk, found from the spec file's own location, not the working
+folder. Another checkout's server serves another id, whatever its
 commit or pages. When either side is missing, the message names both causes: this build skipped
 the marker step, or the server answering is not this run's (another checkout's preview, or an
 `astro dev`). Checked 2026-10-26: `astro preview` serves `dist/` files byte for byte.
@@ -110,16 +111,22 @@ their next update.
 1. **The production entry point, two real checkouts at once (rule 9).** Two worktrees of
    croftweaver-site. Run `npm test` (what the pre-push gate runs) in both at the same moment.
    Pass: both exit 0, neither log has "already used" or "already in use", and while they run
-   `lsof` shows two `astro preview` listeners on two different ports, whose working folders are
-   the two worktrees. `served-build.spec.ts` runs in a worker and fetches through that worker's
-   `baseURL`, so its pass also shows the workers worked out the same port as the main process.
-2. **Case 1, made on purpose, to show B can fail.** Force one port: in worktree A, start
-   `npm test`; during its build, start `astro preview` of worktree B's `dist/` on A's port.
-   Without the new spec: A's tests run against B's server and A's preview logs "already in
-   use", which reproduces case 1 (prerequisite, checked with `lsof`: B listens before A's
-   build ends). With it: `served-build.spec.ts` fails, naming a wrong id or a missing one.
-   Which of the two depends on whether A's build has written its id when B answers; both are
-   red, and both messages name this run's server as a possible cause.
+   `lsof -nP -iTCP -sTCP:LISTEN` shows two `astro preview` listeners on two different ports,
+   and `lsof -p <pid> -a -d cwd` gives each one's working folder: the two worktrees.
+   `served-build.spec.ts` runs in a worker and fetches through that worker's `baseURL`, so its
+   pass also shows the workers worked out the same port as the main process.
+2. **Case 1, and B's two failure messages.** Three fixed setups, none depending on timing:
+   - *Case 1 reproduced, without the new spec:* in worktree A, start `npm test`; during its
+     build, start `astro preview` of worktree B's `dist/` on A's port (checked with `lsof`: B
+     listens before A's build ends). A's tests run against B's server and A's preview logs
+     "already in use".
+   - *A wrong id:* A and B each built with the marker branch (two different ids on disk). B's
+     preview on A's port; then, in A, `served-build.spec.ts` alone, through a scratch config
+     outside both worktrees that imports A's config, sets `testDir` to A's `tests/` and drops
+     `webServer`, so nothing is rebuilt. Pass: the spec fails, and its message names both ids. With the compare removed
+     from the spec, this setup passes, which shows it can catch that break.
+   - *A missing id:* the same, with A's `dist/test-build-id.txt` deleted. Pass: the spec fails,
+     naming both causes.
 3. **A real push.** In a throwaway clone whose `origin` is a bare copy on this Mac (with `main`
    and `production`), after `npm ci` (whose `prepare` wires the hook; pass only if
    `git config core.hooksPath` then prints `scripts/hooks`), one `git push origin
@@ -167,7 +174,8 @@ Rollback: revert either pull request; `git config --unset ship.fromGitHub` undoe
   byte-identical serving, the JSON port, the push command, the hook ignoring its arguments.
   Each of these is a probe run once on this Mac; tests 1 and 4 run the two that the build
   depends on (the workers' port, the brand-kit lookup) again on the built change, and
-  `served-build.spec.ts` re-checks the workers' port on every run after that.
+  `served-build.spec.ts` re-checks the workers' port on every run after that (a probe shows a
+  worker's `baseURL` comes from its own reading of the config, not the main process's).
 - **Judgment:** a test that fails (B) instead of making Playwright wait for its own server's
   "Local http://localhost:…" line (`webServer.wait.stdout`). Playwright starts the tests when
   either the URL answers or that line appears (`Promise.race`, E6), so the line only helps with
