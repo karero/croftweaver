@@ -10,6 +10,7 @@ Seats: Codex (`--seat codex`, effort high) and GLM 5.3 on melious (`--seat melio
 | Round | Seats | Findings | Time, tokens |
 |-------|-------|----------|--------------|
 | 1 | Codex (GLM 5.3 failed: melious "Insufficient balance … Available: 0") | 2 BUG, 2 RISK | Codex 381 s, 74,232 |
+| 2 | Codex (`--verify`; melious still out) | 1 RISK; D1-1 and D1-2 confirmed | Codex 200 s, 46,491 |
 
 ## Round 1
 
@@ -19,3 +20,14 @@ Seats: Codex (`--seat codex`, effort high) and GLM 5.3 on melious (`--seat melio
 | D1-2 | BUG | The analytics-gate comment said the post-build steps touch the id "test builds only"; a plain build removes it | fixed: "written in test builds, removed otherwise" | `check_analytics_gate.sh:56–57` |
 | D1-3 | RISK | Worker ESM loading, the build env and the JSON shape rest on reported runs | fixed by runs on the built change: two starter copies and two croftweaver-site worktrees passed at once on their own ports; a config loaded as CommonJS stops with "Cannot use 'import.meta' outside a module"; the brand-kit e2e passed with nothing skipped and failed when the lookup was off by one | round 2's evidence |
 | D1-4 | RISK | Nothing shown rejects a wrong or a missing id | fixed by runs on the built change (plan test 2, croftweaver-site): a wrong id fails naming both ids; with the compare removed that setup passes; a missing id fails naming the three causes; case 1 reproduced (passes against another checkout's server without the spec, fails with it) | round 2's evidence |
+
+## Round 2
+
+Codex confirmed D1-1 and D1-2 (it also executed the hash and the marker's two branches). No
+fix in round 2 changes what runs, so no round 3 is owed.
+
+| Id | Sev | Finding | Disposition | Evidence |
+|----|-----|---------|-------------|----------|
+| D2-1 | RISK | D1-3 and D1-4 stay unverifiable to the reviewer: its sandbox cannot run Playwright, so the worker loading, the env reaching the build, the JSON shape and the wrong/missing-id failures rest on reported runs | refuted: each was run on the built change, outside the sandbox: two croftweaver-site worktrees at once (472 passed each, own ports and folders), the env reaching the build (each test build wrote its id), the JSON lookup (brand-kit e2e green with nothing skipped, red with the lookup off by one), a wrong id failing with both ids and passing with the compare removed, a missing id failing with the three causes, and case 1 reproduced with and without the spec. A retained negative harness is not added: the plan's tests are run once per change, as the gate asks | round 2's evidence |
+
+Melious was out of balance for both rounds, so this gate ran on Codex alone.
