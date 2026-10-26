@@ -833,7 +833,8 @@ jobs:
           import sharp from 'sharp';
           const noise = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#808080', noise: { type: 'gaussian', mean: 128, sigma: 60 } } }).webp({ quality: 80 }).toFile('public/fx/' + name);
           const flat = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#4a6' } }).webp({ quality: 80 }).toFile('public/fx/' + name);
-          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2', 'vis', 'calc']) await noise(n + '.webp', 600, 400);
+          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2', 'vis', 'calc', 'sd', 'none', 'mask', 'poster', 'border']) await noise(n + '.webp', 600, 400);
+          await noise('list.webp', 40, 40);
           await noise('big.webp', 2000, 1333);
           await noise('cover.webp', 1200, 800);
           await noise('tile.webp', 2000, 2000);
@@ -849,6 +850,7 @@ jobs:
           # (smooth scrolling must not leave the end unseen) and grows 400 ms after its end is reached.
           perl -0pi -e 's|</Base>|  <link slot="head" rel="preload" as="image" href="/fx/swap.webp" />
             <link slot="head" rel="preload" as="image" href="/fx/desk.webp" media="(min-width: 720px)" />
+            <link slot="head" rel="preload" as="image" imagesrcset="/fx/desk.webp 600w" imagesizes="200px" media="(min-width: 720px)" />
             <style>
               .fx-cover { width: 200px; height: 400px; background: linear-gradient(#0003, #0003), url(/fx/cover.webp) center / cover no-repeat; }
               .fx-layers { width: 200px; height: 133px; background-image: url(/fx/layer1.webp), url(/fx/layer2.webp); background-size: 100% auto, 100% auto; background-repeat: no-repeat; }
@@ -856,6 +858,9 @@ jobs:
               .fx-set { width: 200px; height: 133px; background-image: image-set(url(/fx/set1.webp) 1x, url(/fx/set2.webp) 2x); background-size: 100% auto; background-repeat: no-repeat; }
               .fx-calc { width: 200px; height: 133px; background: url(/fx/calc.webp) center / calc(100% - 10px) auto no-repeat; }
               .fx-tile { width: 200px; height: 200px; background: url(/fx/tile.webp) repeat; }
+              .fx-mask { width: 200px; height: 133px; background: #4a6; mask: url(/fx/mask.webp) center / 100% auto no-repeat; }
+              .fx-list { list-style-image: url(/fx/list.webp); }
+              .fx-border { width: 200px; height: 50px; border: 10px solid; border-image: url(/fx/border.webp) 30; }
               .fx-spacer { height: 8000px; }
               .fx-pb::before { content: ""; display: block; width: 100px; height: 100px; background: url(/fx/right.webp) center / 100% no-repeat; }
             </style>
@@ -870,6 +875,12 @@ jobs:
               <div class="fx-calc"></div>
               <img src="/fx/calc.webp" alt="" width="600" height="400" loading="eager" style="width: 50px; height: auto" />
               <img id="fx-vis" src="/fx/vis.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" />
+              <img id="fx-sd" src="/fx/sd.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 133px; object-fit: scale-down" />
+              <img src="/fx/none.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 133px; object-fit: none" />
+              <video poster="/fx/poster.webp" style="width: 100px; height: 400px; object-fit: cover"></video>
+              <div class="fx-mask"></div>
+              <ul class="fx-list"><li>A list item</li></ul>
+              <div class="fx-border"></div>
               <div class="fx-tile"></div>
               <div class="fx-pb"></div>
               <div class="fx-spacer"></div>
@@ -899,10 +910,9 @@ jobs:
           out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the green page failed phone-images.spec.ts"; exit 1; }
           line="$(grep -F 'phone images — /:' <<<"$out")" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the home page printed no count"; exit 1; }
           printf '%s\n' "$line"
-          # Ten files judged on /; the small hidden one and the calc() size listed with their reasons.
-          [[ $line == *'phone images — /: 10 judged; '* ]] || { echo "::error::expected 10 judged on /"; exit 1; }
-          [[ $line == *'/fx/calc.webp (size not worked out: calc('* ]] || { echo "::error::the calc() background is not listed with its reason"; exit 1; }
-          [[ $line == *'/fx/hidden.webp (hidden at 412px, under 4 KiB)'* ]] || { echo "::error::the small hidden image is not listed with its reason"; exit 1; }
+          # Sixteen files judged by width on / (calc, scale-down, none, mask, list marker and poster
+          # among them); the small hidden one and the border image named, and nothing else.
+          [[ $line == *'phone images — /: 16 judged by width; hidden and under 4 KiB: /fx/hidden.webp; not judged: /fx/border.webp (border-image-source)' ]] || { echo "::error::expected 16 judged by width on /, hidden.webp under 4 KiB and border.webp not judged, nothing else"; exit 1; }
           npm test
       - name: Each mistake turns this test red
         working-directory: ${{ runner.temp }}/site
@@ -939,6 +949,22 @@ jobs:
           red "an image preloaded and not shown" "/fx/orphan.webp is preloaded and downloaded"
           edit 's|^(\s*)(<script is:inline>)$|$1$2\n$1new Image().src = "/fx/ghost.webp";|' 'new Image().src = "/fx/ghost.webp";'
           red "an image a script loads and never shows" "/fx/ghost.webp was downloaded, but nothing on the page shows it"
+          edit 's|(<link slot="head" rel="preload" as="image" href="/fx/swap.webp" />)|$1<link slot="head" rel="preload" as="image" imagesrcset="/fx/orphan.webp 600w" imagesizes="200px" />|' 'imagesrcset="/fx/orphan.webp 600w" imagesizes="200px" />'
+          red "an image preloaded by imagesrcset and not shown" "/fx/orphan.webp is preloaded and downloaded"
+          edit 's|id="fx-sd" src="/fx/sd.webp"|id="fx-sd" src="/fx/big.webp"|' 'id="fx-sd" src="/fx/big.webp"'
+          red "an oversized image fitted by object-fit: scale-down" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|url\(/fx/calc.webp\) center / calc|url(/fx/big.webp) center / calc|' 'url(/fx/big.webp) center / calc(100% - 10px)'
+          red "an oversized background sized by calc()" "/fx/big.webp is 2000px wide, shown at 190px"
+          edit 's|url\(/fx/calc.webp\) center / calc|url(/fx/big.webp) center / calc|; s|(\.fx-spacer \{)|:global(body > div:last-of-type > div) { max-width: 60px; padding: 0 30px; }\n              $1|' ':global(body > div:last-of-type > div) { max-width: 60px'
+          red "the same, with site CSS that would squeeze the sizing probe" "/fx/big.webp is 2000px wide, shown at 190px"
+          edit 's|url\(/fx/calc.webp\) center / calc|url(/fx/big.webp) center / calc|; s|\.fx-calc \{ width: 200px;|.fx-calc { width: 200px; border: 20px solid;|' '.fx-calc { width: 200px; border: 20px solid; height: 133px; background: url(/fx/big.webp)'
+          red "the same on a bordered box: % sizes refer to the padding box" "/fx/big.webp is 2000px wide, shown at 150px"
+          edit 's|mask: url\(/fx/mask.webp\)|mask: url(/fx/big.webp)|' 'mask: url(/fx/big.webp)'
+          red "an oversized mask image" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|<img src="/fx/none.webp"|<img src="/fx/big.webp"|' '<img src="/fx/big.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 133px; object-fit: none"'
+          red "an oversized image cropped by object-fit: none" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|; object-fit: cover"></video>|"></video>|' 'style="width: 100px; height: 400px"></video>'
+          red "a poster drawn smaller once its video is not object-fit: cover" "/fx/poster.webp is 600px wide, shown at 100px"
 
   # The one check main's ruleset requires from this workflow. It passes when every job
   # above passed (the change touched their paths) or every job was skipped (it did not),

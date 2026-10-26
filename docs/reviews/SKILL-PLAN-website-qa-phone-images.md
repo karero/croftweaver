@@ -8,8 +8,8 @@ plan, found in the build: `isMobile` is off (see "Run").
 | 1 | Step 0: do other sites have the problem? | ✅ 2026-10-25: yes, two of the four other sites | `docs/reviews/EVIDENCE-website-qa-phone-images.md` |
 | 2 | This plan | ✅ written 2026-10-25 | this file |
 | 3 | Plan review gate (Normal: a shipped test and a SKILL.md) | ✅ 2026-10-25: 5 rounds and a final full read, 47 findings (7 BUG), none open; wording pass clean | `docs/reviews/REVIEW-plan-2026-10-25-website-qa-phone-images.md` |
-| 4 | Build: the test, its CI step, the SKILL.md changes (one PR) | 🔨 DIFF review clean: 6 rounds, 49 findings, none open | branch `plan/website-qa-phone-images`; `docs/reviews/REVIEW-diff-2026-10-25-website-qa-phone-images.md` |
-| 5 | Each site picks up the test with its next suite copy, and fixes what it finds | ⬜ each site's own PR | — |
+| 4 | Build: the test, its CI step, the SKILL.md changes (one PR) | ✅ merged 2026-10-25: DIFF review 6 rounds, 49 findings, no BUG open (two rare RISKs are BUGLOG follow-ups); CI green (55 checks) | karero/croftweaver#409, merge `1db96a6b` |
+| 5 | Each site gets the test when its owner copies `tests/phone-images.spec.ts` in (`whats-new.sh` lists a new test but never copies one), and fixes what it finds | ⬜ each site's own PR | `scripts/whats-new.sh:74–76` (tests are frozen copies, "never auto-refreshed") and `:374–379` (it lists each changed test; "--refresh deliberately never touches them") |
 
 ## Why
 
