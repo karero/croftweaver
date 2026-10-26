@@ -46,3 +46,7 @@ are unchecked. It also found no top navigation in the starter's `Base.astro` or 
 Gate: 2 rounds, 6 findings (1 BUG, 1 RISK, 4 NIT), all fixed or kept with a reason; Codex alone
 counted in both rounds because melious had no balance. Script cost log: 150,146 tokens over the
 seat runs (2 runs gave no figure); fresh-eyes 96,544 tokens.
+
+Checked after the pass: in this session's local-marketplace install (a `git archive` of the
+branch), the plugin cache held `docs/reviews/` with 375 files. The real marketplace installs
+from the repo at `stable`, which carries the same folder; that install was not inspected.
