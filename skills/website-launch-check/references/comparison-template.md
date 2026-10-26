@@ -17,7 +17,7 @@ decisions, nothing else from an inventory. In a public site repo, ask before com
 
 ## PageSpeed: current and new
 
-Numbers from the owner's own runs on https://pagespeed.web.dev/, as pasted.
+Measured as `website-qa` §2 does (Lighthouse, or PageSpeed Insights as its fallback); say which.
 
 | Page | Site | Performance | Accessibility | Best practices | SEO | LCP | Page weight |
 |---|---|---|---|---|---|---|---|

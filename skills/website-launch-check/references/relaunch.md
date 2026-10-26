@@ -44,11 +44,11 @@ Then check each decision against the new site:
 
 ## 3. PageSpeed
 
-The numbers are the owner's own runs on https://pagespeed.web.dev/ (as `website-qa` §2 asks).
-Ask the owner for the old site's numbers before the switch (PageSpeed can only test a public
-address; if the old site cannot be tested, the row says why); the new site's only once it is live, at the live re-check
-(12a). Never fill in a number. Until then the new site's row reads "not measured yet: run after
-the switch, at 12a".
+Measure as `website-qa` §2 does: the assistant runs Lighthouse; PageSpeed Insights in the
+built-in browser, and then the owner, are its fallbacks. The table names the tool. The old site:
+its public pages, before the switch; if they cannot be measured, the row says why. The new site:
+only at a deployed address (`website-qa` §2, step 3), so at the pre-launch run, before §4's first
+deploy, its row reads "not measured yet: run after the switch, at 12a". Never fill in a number.
 
 ## 4. The rest of the comparison
 

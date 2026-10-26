@@ -219,8 +219,9 @@ Only once the new site's production build is Active on the live domain: never re
 of the new site on the live domain before that (`PUBLISHING.md`, "Never request a page on the
 live domain before its build is Active": a first request caches a 404). Reading the old site's
 existing addresses before the switch is fine. Then check HTTPS, the 404 status, console errors
-on the live pages and the consent question, ask the owner for PageSpeed on the live domain
-(`website-qa` §2), and fill the comparison's new-site PageSpeed row. For a WordPress move,
+on the live pages and the consent question, measure the live domain's speed as `website-qa` §2
+does (the assistant runs Lighthouse; its fallbacks are PageSpeed Insights, then the owner), and
+fill the comparison's new-site row. For a WordPress move,
 point at `wordpress-inspector`'s `scripts/check_move.py --moves` where that skill is installed;
 a site's bundled skills do not include it, so otherwise say it comes from Croftweaver.
 
@@ -233,7 +234,8 @@ addresses) or todos that name people.
 
 ## Related skills
 
-- `website-qa`: the site's test suite, which this check runs first, and the PageSpeed step.
+- `website-qa`: the site's test suite, which this check runs first, and the speed measurement
+  (§2).
 - `website-review`: the two-pass review at the end of a build.
 - `website-testimonials`: the consent rule for named quotes.
 - `wordpress-inspector`: the inventory, the redirects and the move check for a WordPress
