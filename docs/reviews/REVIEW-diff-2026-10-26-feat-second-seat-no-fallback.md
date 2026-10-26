@@ -10,8 +10,8 @@ check, sent with `--evidence`.
 | Round | Artifact | Seats | Findings | Disposition |
 |-------|----------|-------|----------|-------------|
 | 1 | 7c7d4073...a49bd775 | codex OK (239 s, 66,505 tokens), melious OK (229 s, 30,302 tokens), fresh-eyes OK (~112k tokens) | 3 BUG, 3 NIT (D1-D6) | all fixed |
-
 | 2 | a49bd775..f5656e54, `--verify` D1-D6 | codex OK (103 s, 47,777 tokens), melious OK (99 s, 10,070 tokens; no findings) | 1 BUG (E1) | fixed |
+
 Round 1 findings:
 
 - D1 BUG (Codex): a round-1 rerun with `--round 1` starts a new cost-log gate. Fixed: the gate line and setup guide say to leave `--round` off at round 1; `sfall` checks the text.
