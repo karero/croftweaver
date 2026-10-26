@@ -87,15 +87,17 @@ error walk-throughs) — in the language the user writes in.** A German owner ge
 the whole journey in German; the skill files themselves stay English. The
 verbatim message templates below are content specs, not required English wording.
 
-**The folder check, this interview and the §2a and §2b questions: read and list, run no
-shell commands.** None of them needs a terminal; a command this interview names, such as
-the analytics check, runs once the site exists. To see what a folder holds, list it with
-your file tools; to read a section of another skill, open that skill's `SKILL.md` and read
-the section. A shell command can show the owner a red error for an ordinary answer: `ls
-astro.config.*` fails in an empty folder because nothing matches, and `grep` fails when it
-finds nothing. Ask these questions as plain chat messages too, not in a pick-list box,
-which a new owner may not see. The owner's first minutes should show no red and no frozen
-screen.
+**The folder check, this interview and the §2a and §2b questions: read and list, don't
+run commands of your own.** A command this interview names, such as the analytics check,
+runs once the site exists. To see what a folder holds, list it with your file tools; to
+read a section of another skill, open that skill's `SKILL.md` and read it. A shell command
+can show the owner a red error for an ordinary answer: `ls astro.config.*` fails in an
+empty folder because nothing matches, and `grep` or `awk` can end with a failure when they
+find nothing. Where reading a file or listing a folder is possible only through a shell
+command, use one that succeeds on every ordinary answer: `ls -A` for the folder (never a
+pattern such as `astro.config.*`), and `cat` on the whole `SKILL.md`. Ask your questions
+as plain chat messages, not in a pick-list box, which a new owner may not see. The
+owner's first minutes should show no red and no frozen screen.
 
 Default house stack: **Astro (static) → GitHub → Cloudflare Pages**. Six questions
 decide everything downstream — ask them in order, offer the examples so a
@@ -355,8 +357,8 @@ first time tests run.
 before asking. Once `POSITIONING.md` is filled (step 2) and before the content guide
 (step 3):
 
-1. Open `website-story/SKILL.md` (in the folder next to this skill's own) with your
-   file tools, not a shell command (§1), read **"The offer"** and say it in the language the
+1. Open `website-story/SKILL.md` (in the folder next to this skill's folder) with your
+   file tools (§1), read **"The offer"** and say it in the language the
    owner writes in (it explains the idea in plain words: the visitor as the hero, the
    brand as the guide, a one-liner, a three-step plan, one repeated call to action,
    positioning unchanged). Do not paraphrase it into jargon.
@@ -380,8 +382,8 @@ Ask exactly once per build. Never run it unasked.
 `website-brand-kit` is optional. It is a plain question, not a pitch. Once
 `POSITIONING.md` is filled (and §2a is answered) and before the content guide (step 3):
 
-1. Open `website-brand-kit/SKILL.md` (next to this skill's folder) with your file tools,
-   not a shell command (§1), read **"The question"** and ask it, as it stands
+1. Open `website-brand-kit/SKILL.md` (in the folder next to this skill's folder) with your file tools
+   (§1), read **"The question"** and ask it, as it stands
    there, in the language the owner writes in, as a plain message in the chat (not a
    pick-list box, as in §2a), and wait for the reply.
 2. **She has a part and wants it used** → note the path of her logo file, which must
@@ -423,8 +425,7 @@ folder inside the owner's websites folder, which is the folder this session was 
 session, say which folder you are in and ask whether it is their websites folder. If it is
 not, or it already holds a site (an `astro.config.*` or `index.html` file) or is the toolkit
 folder (it has `skills/new-website/SKILL.md`), ask which folder is their websites folder
-instead. Find this out by listing the folder with your file tools, not with a shell command
-(§1). Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
+instead. Find this out by listing the folder with your file tools (§1). Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
 full path (the output of `pwd` inside it):
 
 0. **Git first, before any code:**
@@ -676,9 +677,8 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 
 - **`EXT` is 0** → the site links only to itself. Say so and **skip silently** — do
   not ask.
-- **`EXT` ≥ 1** → ask whether to run the liveness sweep now — use a structured
-  user-input tool if the platform offers one (Claude Code's **`AskUserQuestion`**),
-  otherwise just ask in chat — e.g. *"The site has N outgoing links. Run the `outgoing-link-audit` liveness
+- **`EXT` ≥ 1** → ask whether to run the liveness sweep now, as a plain message in
+  the chat (not a pick-list box, §1), e.g. *"The site has N outgoing links. Run the `outgoing-link-audit` liveness
   sweep before launch? (fetches each third-party URL; ~a few seconds each)"* — options
   **Run it now (recommended)** / **Skip — I'll run it monthly**. If they say run it,
   invoke the `outgoing-link-audit` skill; otherwise note it as a monthly follow-up.
@@ -867,8 +867,7 @@ Ask only when all three hold; otherwise do not ask:
   starter keeps it in `src/layouts/Base.astro`). If it does, record "credit:
   already in the footer" in the README and stop.
 
-Then ask once, in one message — a structured user-input tool if the platform offers
-one (Claude Code's **`AskUserQuestion`**), otherwise in chat:
+Then ask once, in one plain message in the chat (not a pick-list box, §1):
 
 > Your site is live. I hope you enjoyed building it.
 >
