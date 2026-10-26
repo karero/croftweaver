@@ -1,8 +1,9 @@
 # Pages or Workers? What moving the kit would change
 
 For the kit's maintainer. An assessment, not a plan: nothing below has been built or tried on a
-real Workers project. Vendor pages read 2026-10-11; kit code read at `35e9b42`. The short
-version lives in `skills/new-website/references/WEBSITE_ARCHITECTURE.md`, Part 1.
+real Workers project. Vendor pages read 2026-10-11 and checked again 2026-10-25; kit code
+read at `35e9b42` (not read again on 2026-10-25). The short version lives in
+`skills/new-website/references/WEBSITE_ARCHITECTURE.md`, Part 1.
 
 **Owner decision, 2026-10-11: stay on Pages for now.** "When to look again", below, lists
 what would reopen it.
@@ -160,9 +161,9 @@ deadline.
 
 ## What is checked and what is judgment
 
-**Checked in Cloudflare's docs (2026-10-11):** every quoted sentence above, the address
-shapes, the build variable names, the limits, the DNS rule. The blog post was read on
-2026-10-12.
+**Checked in Cloudflare's docs (2026-10-11, again 2026-10-25):** every quoted sentence
+above, the address shapes, the build variable names, the limits, the DNS rule. The blog post
+was read on 2026-10-12 and again on 2026-10-25. On 2026-10-25 every claim still matched.
 
 **Checked in the kit (`35e9b42`):** what the middleware does, which files read `CF_PAGES_*`,
 which files name `pages.dev` or a `wrangler pages` command.
@@ -220,13 +221,26 @@ Each line is something to look at, not an outcome to expect:
    it carry?
 8. After a day with traffic, which requests does the dashboard count against the daily
    limit?
+9. Speed: once the connection is up, how long does the first byte take for the same build on
+   the Pages site, with its middleware, and on the Worker, with no script? From the same
+   machine and in the same hour, time `/`, `/privacy` and one image on each, 21 runs apiece,
+   and compare the medians. Leaving out connection setup keeps it from hiding a gap of a few
+   milliseconds. The command prints the median in seconds, and stops with an error if any run
+   failed or did not answer 200:
+
+   ```bash
+   for i in $(seq 21); do curl -s -o /dev/null -w '%{http_code} %{exitcode} %{time_appconnect} %{time_starttransfer}\n' https://<host>/privacy; done | awk '{printf "%s %s %.4f\n", $1, $2, $4-$3}' | sort -n -k3 | awk '$1 != 200 || $2 != 0 {bad=1} NR == 11 {m=$3} END {if (bad || NR != 21) {print "not 21 complete runs with status 200: measure again"; exit 1} print m}'
+   ```
+
+   It needs curl 7.75.0 or later (`curl --version`). It measures from one place only; it says
+   nothing about visitors elsewhere.
 
 ## Sources
 
-Cloudflare, read 2026-10-11:
+Cloudflare, read 2026-10-11 and again 2026-10-25:
 [Pages overview](https://developers.cloudflare.com/pages/),
 [Migrate from Pages to Workers](https://developers.cloudflare.com/workers/static-assets/migration-guides/migrate-from-pages/)
-(last updated 2026-10-10),
+(last updated 2026-10-12),
 [static assets billing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/),
 [`run_worker_first`](https://developers.cloudflare.com/workers/static-assets/binding/#run_worker_first),
 [Previews](https://developers.cloudflare.com/workers/previews/),
@@ -241,6 +255,6 @@ Cloudflare, read 2026-10-11:
 [Pages preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/),
 [Pages limits](https://developers.cloudflare.com/pages/platform/limits/).
 
-Cloudflare's blog, read 2026-10-12:
+Cloudflare's blog, read 2026-10-12 and again 2026-10-25:
 [Your frontend, backend, and database — now in one Cloudflare Worker](https://blog.cloudflare.com/full-stack-development-on-cloudflare-workers/)
 (2025-04-08).
