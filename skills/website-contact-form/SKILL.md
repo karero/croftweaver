@@ -167,8 +167,10 @@ English, all of it in one go.
    read the form once.
 3. **The address hint** a visitor without JavaScript reads ("name [at] example [dot]
    com") takes its word for "dot" from `DOT_WORD` in `src/lib/obfuscate.ts` (English and
-   German there); add the language's word, or the hint says "dot".
-4. The page and its test, as in §2 steps 3 and 4.
+   German there); add the language's word. The spec fails while the hint says "dot".
+4. **The privacy page.** The starter has it in English and German only. A site in this
+   language needs its own, with the section on contact by email (§4).
+5. The page and its test, as in §2 steps 3 and 4.
 
 ## 3. Try it once (the owner)
 
