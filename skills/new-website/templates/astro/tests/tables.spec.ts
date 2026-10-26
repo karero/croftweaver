@@ -177,20 +177,56 @@ test('tables — fixture on a phone: a link that stands alone in a cell is a 44p
   expect(box!.width, 'the link is narrower than the 44px tap target').toBeGreaterThanOrEqual(44);
 });
 
-// The region clips what is drawn outside it, and the first column starts at its edge.
-test('tables — fixture: the focus ring of a link in the first column is not clipped by the region', async ({ page }) => {
-  await openFixture(page, 360);
-  const link = page.locator('#table-fixture a.tap');
-  await link.focus();
-  const ring = await link.evaluate((a) => {
-    const s = getComputedStyle(a);
-    return { style: s.outlineStyle, reach: parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset) };
+// The region clips what is drawn outside it, and the first column starts at its edge. The ring must also be
+// visible, in both themes: at least 2px wide (the starter's own ring) and 3:1 against the background it is
+// drawn on (WCAG 1.4.11). Background images and gradients are not read.
+for (const theme of THEMES) {
+  test(`tables — fixture [${theme}]: the focus ring of a link in the first column is visible and not clipped by the region`, async ({ page }) => {
+    await openFixture(page, 360, theme);
+    const link = page.locator('#table-fixture a.tap');
+    await link.focus();
+    const ring = await link.evaluate((a) => {
+      // A computed CSS colour to sRGB 0-255 plus alpha 0-1, by painting it on a canvas.
+      const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+      const rgba = (c: string) => {
+        ctx.clearRect(0, 0, 1, 1);
+        // A colour the canvas refuses leaves the fill as it was; a colour it reads differs from one sentinel at least.
+        const read = ['#010203', '#040506'].some((sentinel) => { ctx.fillStyle = sentinel; ctx.fillStyle = c; return ctx.fillStyle !== sentinel; });
+        if (!read) throw new Error(`the canvas cannot read the colour "${c}"`);
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, b, al] = ctx.getImageData(0, 0, 1, 1).data;
+        return { rgb: [r, g, b], a: al / 255 };
+      };
+      const over = (top: { rgb: number[]; a: number }, under: number[]) => top.rgb.map((v, i) => v * top.a + under[i] * (1 - top.a));
+      // The background the ring is drawn on, stacked over white: from the link itself when a negative offset draws
+      // the ring inside it, else from its parent.
+      const s = getComputedStyle(a);
+      const layers: { rgb: number[]; a: number }[] = [];
+      for (let el: Element | null = parseFloat(s.outlineOffset) < 0 ? a : a.parentElement; el; el = el.parentElement) {
+        const c = rgba(getComputedStyle(el).backgroundColor);
+        if (c.a > 0) layers.push(c);
+        if (c.a === 1) break;
+      }
+      const bg = layers.reverse().reduce((under, top) => over(top, under), [255, 255, 255]);
+      const fg = over(rgba(s.outlineColor), bg);
+      const lum = (rgb: number[]) => {
+        const [r, g, b] = rgb.map((v) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const [hi, lo] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+      return {
+        style: s.outlineStyle, width: parseFloat(s.outlineWidth), contrast: (hi + 0.05) / (lo + 0.05),
+        reach: parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset),
+      };
+    });
+    expect(ring.style, 'a focused link shows no outline').not.toBe('none');
+    expect(ring.width, 'the focus ring is thinner than 2px').toBeGreaterThanOrEqual(2);
+    expect(ring.contrast, `the focus ring is ${ring.contrast.toFixed(2)}:1 against its background, under 3:1`).toBeGreaterThanOrEqual(3);
+    const box = (await link.boundingBox())!;
+    const wrapBox = (await page.locator('#table-fixture .stack').boundingBox())!;
+    expect(box.x - ring.reach, 'the focus ring reaches outside the region, which clips it').toBeGreaterThanOrEqual(wrapBox.x);
   });
-  expect(ring.style, 'a focused link shows no outline').not.toBe('none');
-  const box = (await link.boundingBox())!;
-  const wrapBox = (await page.locator('#table-fixture .stack').boundingBox())!;
-  expect(box.x - ring.reach, 'the focus ring reaches outside the region, which clips it').toBeGreaterThanOrEqual(wrapBox.x);
-});
+}
 
 for (const width of [641, 1280]) {
   test(`tables — fixture at ${width} px: a table again, the header row shows, no word is broken, row headers take few lines`, async ({ page }) => {
