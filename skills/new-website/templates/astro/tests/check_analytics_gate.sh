@@ -53,7 +53,8 @@
 #
 # It runs `astro build`, the step of `npm run build` that renders the pages and so decides
 # the tag, into a temporary folder: the site's own dist/ is left alone. The two post-build
-# steps after it touch heading ids, dist/build.txt and (test builds only) dist/test-build-id.txt.
+# steps after it touch heading ids, dist/build.txt and dist/test-build-id.txt (written in test
+# builds, removed otherwise).
 #
 # Needs `npm ci` first, and Node (which the build needs anyway). Each build takes a few seconds.
 set -euo pipefail

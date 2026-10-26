@@ -3,10 +3,10 @@ import { realpathSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// One preview port per site folder: each checkout, worktree or clone of a site gets its own,
-// so parallel test runs never share a server. Keyed on this file's resolved folder, which the
-// main process and every worker work out the same way, from wherever Playwright starts.
-// Stable per folder, so the port is the same in baseURL and in error messages.
+// One stable preview port per site folder, so each checkout, worktree or clone of a site tests
+// on its own server. Keyed on this file's resolved folder, which the main process and every
+// worker work out the same way, from wherever Playwright starts. Two folders can, rarely, land
+// on the same port; reuseExistingServer below and tests/served-build.spec.ts make that loud.
 // Range 4330–4999, which leaves out 4321 (`astro dev`'s default). FNV-1a, 32-bit.
 function portFor(key: string): number {
   let h = 2166136261;
