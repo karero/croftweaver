@@ -1736,7 +1736,7 @@ report_round() {
     elif [ "$SECOND_SEAT" = melious ] && [ "$SUCCESS_COUNT" -eq 1 ] && [ "$CODEX_OUTCOME" = OK ] \
          && [ -n "$MELIOUS_OUTCOME" ] && [ "$MELIOUS_OUTCOME" != OK ]; then
       # Melious beside Codex has no fallback, so the trail must say this round had Codex alone.
-      note="⚠ $gate round landed with 1 reviewer(s) counted toward the gate: codex alone. melious $MELIOUS_OUTCOME; SECOND_SEAT=melious has no fallback. Record this round as Codex alone, with that reason, in the trail. Each FAILED or SKIPPED section above names its remedy; once melious can run, rerun with --seat melious and the same --round (at round 1, no --round: --round 1 starts a new gate in the cost log)."
+      note="⚠ $gate round landed with 1 reviewer(s) counted toward the gate: codex alone. melious $MELIOUS_OUTCOME; SECOND_SEAT=melious has no fallback. Record this round as Codex alone, with that reason, in the trail. Each FAILED section above names its remedy, and a SKIPPED seat's reason is in the reviewers line; once melious can run, rerun with --seat melious and the same --round (at round 1, no --round: --round 1 starts a new gate in the cost log)."
     else
       case "$SUMMARY" in
         *FAILED*) note="$note. Treat it as degraded, not as a clean pair: each FAILED section above names its remedy; or consider --with-antigravity or a manual paste round." ;;
