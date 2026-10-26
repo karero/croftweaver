@@ -7,11 +7,11 @@ merge=union in .gitattributes, plus a make check guard that fails on a duplicate
 
 | Step | State | Evidence |
 |---|---|---|
-| Plan, PLAN gate | done: clean at round 7 (Codex); GLM reviewed rounds 1–4 only (no quota for 5–7) | `docs/reviews/REVIEW-plan-2026-10-26-buglog-union.md` |
+| Plan, PLAN gate | closed: clean at round 7 (Codex). GLM reviewed rounds 1–4 only; its seat for rounds 5–7 never ran (no quota), and the owner gave the go knowing that | `docs/reviews/REVIEW-plan-2026-10-26-buglog-union.md` |
 | Owner's go | given 2026-10-26, in chat | — |
 | Build: attribute, guard, test, duplicate removed, intro sentence | done | 20ea6973, e2640881; review fixes f7405ae3, c3a77850, 173253a2, 6a5e2076 |
-| DIFF gate, PR, merge | done: DIFF gate clean (3 rounds and a full read); karero/croftweaver#416 merged at 6a5e2076, merge commit 4b5b927c | `docs/reviews/REVIEW-diff-2026-10-26-buglog-union.md` |
-| Owner: `buglog-rows` added to the ruleset's required checks | done 2026-10-26 (ruleset 24584953 updated 13:28 +01:00, read back with `gh api`: 38 required checks) | — |
+| DIFF gate, PR, merge | done: DIFF gate clean (3 rounds and a full read); karero/croftweaver#416 merged by merge commit 4b5b927c (branch head 6a5e2076) | `docs/reviews/REVIEW-diff-2026-10-26-buglog-union.md` |
+| Owner: `buglog-rows` added to the ruleset's required checks | done 2026-10-26: `gh api repos/karero/croftweaver/rulesets/24584953` read back enforcement `active`, target the default branch, `buglog-rows` among 38 required checks (updated 13:28 +01:00) | — |
 
 ## What
 
