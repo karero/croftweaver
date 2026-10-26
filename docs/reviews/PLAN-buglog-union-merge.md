@@ -10,7 +10,7 @@ merge=union in .gitattributes, plus a make check guard that fails on a duplicate
 | Plan, PLAN gate | clean at round 7 (Codex); second seat owed for rounds 5–7 | `docs/reviews/REVIEW-plan-2026-10-26-buglog-union.md` |
 | Owner's go | waiting | — |
 | Build: attribute, guard, test, duplicate removed, intro sentence | done | 20ea6973, e2640881 |
-| DIFF gate, PR, merge | in review | `docs/reviews/REVIEW-diff-2026-10-26-buglog-union.md` |
+| DIFF gate, PR, merge | DIFF gate clean (3 rounds and a full read); PR open | `docs/reviews/REVIEW-diff-2026-10-26-buglog-union.md` |
 | Owner: `buglog-rows` added to the ruleset's required checks | not started | — |
 
 ## What

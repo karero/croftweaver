@@ -87,6 +87,10 @@ fresh
   row 2026-10-09 "\`two.sh\`" "$(words 12 s)" open; } >"$c/docs/BUGLOG.md"
 guard "$c"; check "5 the same short What (12 words) twice: fails" is "$rc" 1
 
+fresh
+{ head6; row 2026-10-01 "\`one.sh\`" "" open; row 2026-10-09 "\`two.sh\`" "" open; } >"$c/docs/BUGLOG.md"
+guard "$c"; check "5 two rows with an empty What are not a pair" is "$rc" 0
+
 # 6. The SCAN_BASE shape, Where worded apart: two rows, one day, What agreeing for 8 words.
 fresh
 { head6; row 2026-10-12 "\`check_clean.sh\`, \`SCAN_BASE\`" "$(words 8 n) packages $(words 10 x)" open

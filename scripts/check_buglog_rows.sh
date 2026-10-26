@@ -34,7 +34,7 @@ report="$(awk '
     a = substr(c[1], 3) SUBSEP c[2]
     hit = ""
     if (a in byA) hit = byA[a]; else byA[a] = NR
-    if (k in byB) { if (hit == "") hit = byB[k] } else byB[k] = NR
+    if (k != "") { if (k in byB) { if (hit == "") hit = byB[k] } else byB[k] = NR }
     if (hit != "") pairs = pairs sprintf("  line %d: %s\n  line %d: %s\n\n", hit, show(hit), NR, show(NR))
   }
   END {

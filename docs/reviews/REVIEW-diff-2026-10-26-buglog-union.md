@@ -44,3 +44,21 @@ Codex: No BUG/RISK/NIT findings. GLM: no BUG.
 
 No round 4 earned: no BUG, no in-scope RISK whose fix changed what runs. GLM has seen only the
 round 3 delta, so a full read of the whole diff by GLM follows.
+
+## Full read by GLM (whole diff, origin/main...7a2eb2f0, 2026-10-26)
+
+GLM had seen only round 3's delta, so it read the whole diff once (no round number).
+reviewers: melious OK (glm-5.3). timings: melious 326s (32,235 tokens).
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| D14 | glm | BUG | An open row is deleted outright instead of closed. | Refuted: it is the stale copy of a row kept twice by merge 1641021d; the edited copy stays (plan, Why and step 4). |
+| D15 | glm | RISK | In the zip the replay cases would hard-exit if `.gitattributes` were missing. | Refuted: `package.sh` zips `.gitattributes` (line 33) and lists it in REQUIRED (line 59). |
+| D16 | glm | NIT | Two rows with an empty What share rule (b)'s key "" and are reported as a pair. | Fixed: rule (b) skips an empty What; a case pins it (fails on the previous guard, checked). |
+| D17 | glm | UNVERIFIABLE | The BUGLOG row's "303 versions" claim. | Narrowed to "on main", which is what was scanned. |
+
+## Gate state
+
+No BUG open. Codex: rounds 1–3, clean in round 3. GLM 5.3 on melious: round 3 and a full read of
+the whole diff, no BUG accepted. 17 findings (D1–D17) in 3 rounds and a full read.
+Cost: Codex 122,858 tokens over 1,339 s; GLM 58,370 tokens over 685 s.
