@@ -194,6 +194,12 @@ test('mail form — without JavaScript the form stays hidden and the address is 
   const [user, domain] = TO.split('@');
   await expect(page.locator('.mail-form-direct')).toBeVisible();
   await expect(page.locator('.mail-form-direct')).toContainText(`${user} [at] ${domain.split('.')[0]}`);
+  // The hint's word for "dot" comes from DOT_WORD in src/lib/obfuscate.ts, which quietly
+  // falls back to English for a language it lacks.
+  const lang = (await page.locator('.mail-form-direct').getAttribute('lang')) ?? '';
+  if (lang !== 'en') {
+    await expect(page.locator('.mail-form-direct'), `the address hint says "[dot]" under a "${lang}" form: add the language's word to DOT_WORD in src/lib/obfuscate.ts`).not.toContainText('[dot]');
+  }
   await context.close();
 });
 

@@ -107,7 +107,8 @@ EOF
 cat >"$T/bin/ollama" <<'EOF'
 #!/bin/sh
 case "$1" in
-  list) if [ "${OLLAMA_STUB:-ok}" = listfail ]; then
+  list) : >"$STUB_MARKS/ollama-listed"   # every `ollama list` call: auto-detect, or run_ollama's preflight
+        if [ "${OLLAMA_STUB:-ok}" = listfail ]; then
           echo "Error: could not connect to ollama app, is it running?" >&2; exit 1
         fi
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
@@ -299,7 +300,7 @@ case "$url" in
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       nobalance) # the reply Melious sends when the balance is empty (raw file, 2026-10-25): its only chunk
               printf '%s\n\n' 'data: {"type":"error","error":{"message":"Insufficient balance for request. Required: 771, Available: 0","type":"billing_error","param":null,"code":"billing_insufficient_balance"}}' >"$out"; printf 200 ;;
-      stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
+      stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30; : >"$STUB_MARKS/melious-finished" ;;
     esac
     if [ -f "$out" ] && grep -qF '@@MARK@@' "$out"; then   # a reply that needs the marker: never send it unfilled
       [ -n "$M" ] || { echo 'curl stub: no final-review marker in the request' >&2; exit 7; }
@@ -1298,6 +1299,7 @@ check "mstop: the key reached curl, and no copy of it is left in RAW_DIR (final 
   sh -c 'grep -qxF "Authorization: Bearer stub-stopkey" "$1/mstop.marks/melious-hdr" && ! grep -rqF stub-stopkey "$1/mstop.raw"' _ "$T"
 check "mstop: the TERM-ignoring fallback is gone" \
   sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/mstop.marks/melious-pid"
+check "mstop: it was killed, not left to finish" [ ! -e "$T/mstop.marks/melious-finished" ]
 run mseat MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mseat: only Melious ran" \
   sh -c 'grep -qF "reviewers: melious OK" "$1/mseat.out" && [ ! -e "$1/mseat.marks/codex-ran" ] && [ ! -e "$1/mseat.marks/ollama-ran" ]' _ "$T"
@@ -1314,23 +1316,35 @@ run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT
 check "mlocalseat: --local-only refuses --seat melious, exit 2" \
   sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
 
-# 32b. SECOND_SEAT=melious (2026-10-06): Melious holds the second seat and ollama is its fallback,
-#      the other way round from section 32. A refused Melious seat must still hand over, or the
-#      round lands with one reviewer.
+# 32b. SECOND_SEAT=melious: Melious holds the second seat beside Codex, with no fallback (the owner's
+#      rule, 2026-10-26: ollama no longer stands in). A refused Melious seat is not replaced: the
+#      round reports Codex alone and says so. Runs that check a hand-over is gone set OLLAMA_MODEL to
+#      the stub's tag: with none, run_ollama returns before the stub and the check could not fail.
+GATE_ALONE="counted toward the gate: codex alone. melious"
 run sfirst SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none
 check "sfirst: Melious runs with Codex and counts" has sfirst.out "reviewers: codex OK, melious OK"
 check "sfirst: ollama is not run while Melious counts" [ ! -e "$T/sfirst.marks/ollama-ran" ]
 check "sfirst: two counted, so no fewer-than-2 note" lacks sfirst.out "fewer than the 2"
-run sfall SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
-check "sfall: Melious out of credits, ollama stands in and counts" \
-  has sfall.out "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud OK"
-check "sfall: ollama ran" [ -e "$T/sfall.marks/ollama-ran" ]
+run sfall SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nobalance OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff" --base none
+check "sfall: an empty Melious balance is not replaced: the line names Codex and Melious only" \
+  grep -qxF "reviewers: codex OK, melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits)" "$T/sfall.out"
+check "sfall: ollama never ran" [ ! -e "$T/sfall.marks/ollama-ran" ]
+check "sfall: the gate line says Codex alone, with Melious's reason" \
+  has sfall.out "$GATE_ALONE FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback."
+check "sfall: ...in place of the generic note" lacks sfall.out "fewer than the 2"
+check "sfall: ...and its rerun advice keeps round 1 in this gate (--round 1 would start a new one)" \
+  has sfall.out "rerun with --seat melious and the same --round (at round 1, no --round: --round 1 starts a new gate in the cost log)."
+check "sfall: exit 0 while Codex counts" rc_is sfall 0
 run sparallel CODEX_STUB=waitmelious SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff" --base none
 check "sparallel: Melious started while codex was still running" \
   sh -c 'grep -qF "melious OK" "$1/sparallel.out" && [ -e "$1/sparallel.marks/codex-done" ] && [ ! -e "$1/sparallel.marks/melious-after-codex" ]' _ "$T"
-run sfirstsucc CODEX_STUB=auth SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none --first-success
-check "sfirstsucc: --first-success tries Melious before ollama" \
-  has sfirstsucc.out "reviewers: codex FAILED (exit 1), melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud OK"
+run sfirstsucc CODEX_STUB=auth SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff" --base none --first-success
+check "sfirstsucc: --first-success stops after Melious, with no ollama step" \
+  sh -c 'grep -qxF "reviewers: codex FAILED (exit 1), melious FAILED (HTTP 429; quota/rate limit: wait or add credits)" "$1/sfirstsucc.out" && [ ! -e "$1/sfirstsucc.marks/ollama-ran" ]' _ "$T"
+check "sfirstsucc: nothing counted, exit 4" rc_is sfirstsucc 4
+run sfirstcodex SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --first-success
+check "sfirstcodex: Codex counts and --first-success stops there: no Melious call, no gate line" \
+  sh -c 'grep -qxF "reviewers: codex OK" "$1/sfirstcodex.out" && [ ! -e "$1/sfirstcodex.marks/melious-url" ] && ! grep -qF "codex alone" "$1/sfirstcodex.out"' _ "$T"
 run snomodel SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --base none
 check "snomodel: SECOND_SEAT=melious without a model stops before any call, exit 2" \
   sh -c '[ "$(cat "$1/snomodel.rc")" = 2 ] && grep -qF "needs MELIOUS_MODEL" "$1/snomodel.err" && [ ! -e "$1/snomodel.marks/codex-ran" ]' _ "$T"
@@ -1340,33 +1354,34 @@ check "sbad: an unknown SECOND_SEAT is refused, exit 2" \
 run sseat SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --base none --seat codex
 check "sseat: --seat runs without SECOND_SEAT's model" \
   sh -c 'grep -qF "reviewers: codex OK" "$1/sseat.out" && [ "$(cat "$1/sseat.rc")" = 0 ]' _ "$T"
+check "sseat: the undispatched Melious seat is not read as a failed one: no gate line" lacks sseat.out "codex alone"
 run sbadseat SECOND_SEAT=gpt bash "$SCRIPT" "$T/change.diff" --base none --seat codex
 check "sbadseat: a typo is refused under --seat too, exit 2" \
   sh -c '[ "$(cat "$1/sbadseat.rc")" = 2 ] && [ ! -e "$1/sbadseat.marks/codex-ran" ]' _ "$T"
 run sbadlocal SECOND_SEAT=gpt OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base none --local-only
 check "sbadlocal: a typo is refused under --local-only too, exit 2" \
   sh -c '[ "$(cat "$1/sbadlocal.rc")" = 2 ] && grep -qF "expected ollama or melious" "$1/sbadlocal.err" && [ ! -e "$1/sbadlocal.marks/ollama-ran" ]' _ "$T"
-run sboth SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
-check "sboth: both seats refused, so the round is marked short" \
-  sh -c 'grep -qF "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud FAILED" "$1" && grep -qF "fewer than the 2" "$1"' _ "$T/sboth.out"
-# A reused raw dir: run 1's Melious OK must not stop run 2's fallback.
-run sreuse1 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" REVIEW_RAW_DIR="$T/sreuse.raw" bash "$SCRIPT" "$T/change.diff" --base none
-run sreuse2 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 REVIEW_RAW_DIR="$T/sreuse.raw" bash "$SCRIPT" "$T/change.diff" --base none
-check "sreuse: a stale Melious OK in a reused raw dir does not hold ollama back" \
-  sh -c 'grep -qF "reviewers: codex OK, melious OK" "$1/sreuse1.out" && grep -qF "melious FAILED (HTTP 429" "$1/sreuse2.out" && [ -e "$1/sreuse2.marks/ollama-ran" ]' _ "$T"
-# Stopping the script stops an ollama fallback started after Melious failed.
-mkdir -p "$T/sstop.marks"
-env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
-  PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/sstop.raw" STUB_MARKS="$T/sstop.marks" STUB_TAG="$STUB_TAG" \
-  CODEX_STUB=slow SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_STUB=stubborn \
-  bash "$SCRIPT" "$T/change.diff" --base none >"$T/sstop.out" 2>"$T/sstop.err" &
-spid=$!
-i=0; while [ ! -s "$T/sstop.marks/ollama-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
-kill -TERM "$spid"; wait "$spid"; echo $? >"$T/sstop.rc"
-check "sstop: the script exits 130" rc_is sstop 130
-check "sstop: the TERM-ignoring ollama fallback is gone" \
-  sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/sstop.marks/ollama-pid"
-check "sstop: it was killed, not left to finish (a foreground fallback would finish)" [ ! -e "$T/sstop.marks/ollama-slept" ]
+run sboth SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_STUB=429 OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff" --base none
+check "sboth: Melious refused and no stand-in: the gate line, not the generic note" \
+  sh -c 'grep -qxF "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits)" "$1/sboth.out" && grep -qF "codex alone" "$1/sboth.out" && ! grep -qF "fewer than the 2" "$1/sboth.out" && [ ! -e "$1/sboth.marks/ollama-ran" ]' _ "$T"
+# Auto-detect reads `ollama list` only when the run can call ollama.
+run snodetect SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
+check "snodetect: SECOND_SEAT=melious never reads ollama list or names a model" \
+  sh -c '[ ! -e "$1/snodetect.marks/ollama-listed" ] && ! grep -qE "auto-detected|auto-using" "$1/snodetect.err"' _ "$T"
+run sseatnodetect SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --base none --seat codex
+run sseatnodetect2 bash "$SCRIPT" "$T/change.diff" --base none --seat codex
+check "sseatnodetect: --seat codex never reads ollama list, whatever SECOND_SEAT says" \
+  sh -c '[ ! -e "$1/sseatnodetect.marks/ollama-listed" ] && [ ! -e "$1/sseatnodetect2.marks/ollama-listed" ] && grep -qF "reviewers: codex OK" "$1/sseatnodetect2.out"' _ "$T"
+run sseatollama SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --base none --seat ollama
+check "sseatollama: --seat ollama still finds the model, whatever SECOND_SEAT says" \
+  sh -c '[ -e "$1/sseatollama.marks/ollama-listed" ] && grep -qxF "reviewers: ollama-cloud OK" "$1/sseatollama.out"' _ "$T"
+# Antigravity counts too: the gate line is for Codex alone, and only then.
+run sagy WITH_ANTIGRAVITY=1 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff" --base none
+check "sagy: Codex and Antigravity count, Melious not replaced: no gate line, exit 0" \
+  sh -c 'grep -qxF "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), antigravity OK" "$1/sagy.out" && ! grep -qF "codex alone" "$1/sagy.out" && [ ! -e "$1/sagy.marks/ollama-ran" ] && [ "$(cat "$1/sagy.rc")" = 0 ]' _ "$T"
+run sagy2 CODEX_STUB=auth WITH_ANTIGRAVITY=1 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff" --base none
+check "sagy2: Antigravity alone counts: the generic note, exit 0" \
+  sh -c 'grep -qF "fewer than the 2" "$1/sagy2.out" && ! grep -qF "codex alone" "$1/sagy2.out" && [ "$(cat "$1/sagy2.rc")" = 0 ]' _ "$T"
 run slocal SECOND_SEAT=melious OLLAMA_MODEL=stub-local MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --local-only
 check "slocal: --local-only never calls Melious, whatever SECOND_SEAT says" \
   sh -c '! grep -qF melious "$1/slocal.out" && [ ! -e "$1/slocal.marks/melious-url" ]' _ "$T"
@@ -1546,17 +1561,15 @@ check "ttany: the any-depth model runs and counts on the same diff" \
   sh -c '[ "$(cat "$1/ttany.rc")" = 0 ] && grep -qF "reviewers: melious OK" "$1/ttany.out"' _ "$T"
 check "ttany: ...and its request holds the tag unchanged" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(index(decode_json(<$f>)->{messages}[0]{content}, $ARGV[1]) >= 0)' "$T/ttany.marks/melious-body" "$TTO"
-# Beside Codex: ollama stands in for the refused seat; the exit stays 0 while a seat counts.
-run ttpair SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
-check "ttpair: Codex OK, Melious refused, ollama stands in and counts, exit 0" \
-  sh -c '[ "$(cat "$1/ttpair.rc")" = 0 ] && grep -qF "reviewers: codex OK, melious FAILED (think-tag guard:" "$1/ttpair.out" && grep -qF ", ollama-cloud OK" "$1/ttpair.out" && [ ! -e "$1/ttpair.marks/melious-body" ]' _ "$T"
-run ttpair2 SECOND_SEAT=melious OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
-check "ttpair2: ollama also refused: both FAILED in the line, Codex still counts, exit 0" \
-  sh -c '[ "$(cat "$1/ttpair2.rc")" = 0 ] && grep -qF "codex OK, melious FAILED (think-tag guard:" "$1/ttpair2.out" && grep -qF "ollama-cloud FAILED" "$1/ttpair2.out"' _ "$T"
-check "ttpair2: ollama's quota wording stays in ollama's section; the melious section has none" \
-  sh -c 'grep -qiF "quota" "$1/ttpair2.out" && ! { awk "/^## /{p = (\$0 ~ /Independent review — melious/)} p" "$1/ttpair2.out" | grep -qi quota; }' _ "$T"
-run ttpair3 SECOND_SEAT=melious CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
-check "ttpair3: no seat counts: exit 4" rc_is ttpair3 4
+# Beside Codex: the refused seat is not replaced; the exit stays 0 while a seat counts.
+run ttpair SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_LIGHT" OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
+check "ttpair: Codex OK, Melious refused, no stand-in, the gate line, exit 0" \
+  sh -c '[ "$(cat "$1/ttpair.rc")" = 0 ] && grep -qF "reviewers: codex OK, melious FAILED (think-tag guard:" "$1/ttpair.out" && ! grep -qF "ollama-cloud" "$1/ttpair.out" && grep -qF "codex alone. melious FAILED (think-tag guard:" "$1/ttpair.out" && [ ! -e "$1/ttpair.marks/melious-body" ] && [ ! -e "$1/ttpair.marks/ollama-ran" ]' _ "$T"
+run ttpair2 SECOND_SEAT=melious OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
+check "ttpair2: the think-tag refusal is never read as quota, gate line included" \
+  sh -c 'grep -qF "codex alone. melious FAILED (think-tag guard:" "$1/ttpair2.out" && ! grep -qi quota "$1/ttpair2.out" && [ ! -e "$1/ttpair2.marks/ollama-ran" ]' _ "$T"
+run ttpair3 SECOND_SEAT=melious CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
+check "ttpair3: no seat counts: exit 4, and no stand-in" sh -c '[ "$(cat "$1/ttpair3.rc")" = 4 ] && [ ! -e "$1/ttpair3.marks/ollama-ran" ]' _ "$T"
 # The fallback path: ollama refused, Melious (the light model) asked in its place.
 run ttfall OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_LIGHT" bash "$SCRIPT" "$T/tt.diff" --base none --depth light
 check "ttfall: as ollama's fallback the light model is refused too; both reasons show" \
@@ -1889,9 +1902,10 @@ check "T11: the ollama API transport with no line FAILS before sending" has t11e
 check "T11: ... curl never ran for it" [ ! -e "$T/t11e.marks/curl-body" ]
 limitcase t11f "codex stub-codex refuses$REF
 ollama-cli $STUB_TAG refuses$REF
-" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" OLLAMA_MODEL="$STUB_TAG" --
 check "T11: Melious with no line FAILS before sending" has t11f.out "melious FAILED (artifact and prior findings of"
-check "T11: ... its request never left, and ollama stood in" sh -c '[ ! -e "$1/melious-body" ] && grep -qF "ollama-cloud OK" "$2"' _ "$T/t11f.marks" "$T/t11f.out"
+check "T11: ... its request never left, no stand-in, and the gate line names the size reason" \
+  sh -c '[ ! -e "$1/melious-body" ] && [ ! -e "$1/ollama-ran" ] && grep -qF "codex alone. melious FAILED (artifact and prior findings of" "$2"' _ "$T/t11f.marks" "$T/t11f.out"
 # Melious's limit is held against all it sends, its output-format line included: at a takes: limit
 # one byte short of that it FAILS, at the exact size it runs.
 limitcase t11g0 "codex stub-codex refuses$REF
@@ -1971,10 +1985,11 @@ check "T11: so does a quoted key (\"profile\" is the same key)" has t11j.out "co
 limitcase t12 "codex stub-codex refuses$REF
 melious $MELIOUS_OK refuses$REF
 ollama-cli $STUB_TAG refuses$REF
-" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=ctx400 --
+" "$T/big200.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=ctx400 OLLAMA_MODEL="$STUB_TAG" --
 check "T12: Melious FAILS on the length refusal" has t12.out "melious FAILED (HTTP 400"
 check "T12: ... quoting the provider's words" has t12.out "exceeds the context window"
-check "T12: ... and ollama stands in, as for any failed Melious seat" has t12.out "ollama-cloud OK"
+check "T12: ... no stand-in, as for any failed Melious seat; the gate line names the refusal" \
+  sh -c '[ ! -e "$1/ollama-ran" ] && grep -qF "codex alone. melious FAILED (HTTP 400" "$2"' _ "$T/t12.marks" "$T/t12.out"
 # T13: a list this script cannot read, or none, leaves every seat at 120,000 bytes.
 limitcase t13 "codex stub-codex refuses-ish$REF
 ollama-cli $STUB_TAG refuses$REF
