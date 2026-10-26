@@ -11,8 +11,8 @@ built before the maintainer's go.
 | 1 | This plan | ✅ written and revised through the gate | this file |
 | 2 | PLAN gate (Normal: a plan for a review script's logic) | ✅ clean: 4 rounds, final full read, wording pass, full-scope re-check; 11 BUG, 8 RISK, 26 NIT, all fixed but one NIT refuted; none open | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
 | 3 | The maintainer's go | ✅ 2026-10-26: "go, build it", then "make sure it makes sense, evaluate carefully" (the measured table above is that check) | — |
-| 4 | Build, `make check` green, live check, DIFF gate, PR | ▶ building on `feat/second-seat-no-fallback` | — |
-| 5 | Release-note row in `docs/BUGLOG.md` | ⏸ | — |
+| 4 | Build, `make check` green, live check, DIFF gate, PR | ▶ built and DIFF-reviewed (2 rounds, then a full-scope re-check) on `feat/second-seat-no-fallback`; suite 649 ok; 8 of 8 mutations caught; live check as planned; PR next | trail `REVIEW-diff-2026-10-26-feat-second-seat-no-fallback.md` |
+| 5 | Release-note row in `docs/BUGLOG.md` | ✅ row added on the build branch | `docs/BUGLOG.md`, row of 2026-10-26 |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked. Updating a row is part of finishing
 its step.
