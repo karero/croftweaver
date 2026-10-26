@@ -38,6 +38,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Find the release this run is about
         id: release
         env:

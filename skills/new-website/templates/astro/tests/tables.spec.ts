@@ -178,32 +178,36 @@ test('tables — fixture on a phone: a link that stands alone in a cell is a 44p
 });
 
 // The region clips what is drawn outside it, and the first column starts at its edge. The ring must also be
-// visible: at least 2px wide, and 3:1 against the background it is drawn on (WCAG 1.4.11), in both themes.
+// visible, in both themes: at least 2px wide (the starter's ring; WCAG 2.4.13 asks the same) and 3:1 against
+// the background it is drawn on (WCAG 1.4.11). Background images and gradients are not read.
 for (const theme of THEMES) {
   test(`tables — fixture [${theme}]: the focus ring of a link in the first column is visible and not clipped by the region`, async ({ page }) => {
     await openFixture(page, 360, theme);
     const link = page.locator('#table-fixture a.tap');
     await link.focus();
     const ring = await link.evaluate((a) => {
-      // Any CSS colour to sRGB 0-255 plus alpha 0-1, by painting it on a canvas.
+      // A computed CSS colour to sRGB 0-255 plus alpha 0-1, by painting it on a canvas.
       const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
       const rgba = (c: string) => {
         ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = '#010203';
         ctx.fillStyle = c;
+        if (ctx.fillStyle === '#010203' && c !== '#010203') throw new Error(`the canvas cannot read the colour "${c}"`);
         ctx.fillRect(0, 0, 1, 1);
         const [r, g, b, al] = ctx.getImageData(0, 0, 1, 1).data;
         return { rgb: [r, g, b], a: al / 255 };
       };
       const over = (top: { rgb: number[]; a: number }, under: number[]) => top.rgb.map((v, i) => v * top.a + under[i] * (1 - top.a));
-      // The background the ring is drawn on: the link's and its ancestors' backgrounds, stacked over white.
+      // The background the ring is drawn on, stacked over white: from the link itself when a negative offset draws
+      // the ring inside it, else from its parent.
+      const s = getComputedStyle(a);
       const layers: { rgb: number[]; a: number }[] = [];
-      for (let el: Element | null = a; el; el = el.parentElement) {
+      for (let el: Element | null = parseFloat(s.outlineOffset) < 0 ? a : a.parentElement; el; el = el.parentElement) {
         const c = rgba(getComputedStyle(el).backgroundColor);
         if (c.a > 0) layers.push(c);
         if (c.a === 1) break;
       }
       const bg = layers.reverse().reduce((under, top) => over(top, under), [255, 255, 255]);
-      const s = getComputedStyle(a);
       const fg = over(rgba(s.outlineColor), bg);
       const lum = (rgb: number[]) => {
         const [r, g, b] = rgb.map((v) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });

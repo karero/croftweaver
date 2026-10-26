@@ -296,6 +296,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, at the root of its own repo, with a bare origin
         shell: bash
         run: |
@@ -419,6 +420,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, with the skill installed
         working-directory: ${{ runner.temp }}
         run: |
@@ -507,6 +509,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, with the skill installed
         working-directory: ${{ runner.temp }}
         run: |
@@ -579,6 +582,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -620,6 +624,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, with the test copied in and not configured
         working-directory: ${{ runner.temp }}
         run: |
@@ -740,6 +745,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter
         working-directory: ${{ runner.temp }}
         run: |
@@ -823,6 +829,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, with images for every case the test must pass
         working-directory: ${{ runner.temp }}
         run: |

@@ -23,9 +23,9 @@
 #       its line with a caret (so ">=24.22.1" in the middle, which would admit 25, is red), and as many
 #       alternatives as the SETUP.md and SKILL.md phrases list versions (LINE_COUNT). Adding "|| ^25.9.0"
 #       or dropping the 24 alternative is red until the phrase table is changed on purpose.
-#   G6  every actions/setup-node step in the starter's ci.yml says check-latest: true. ci.yml names a
-#       bare major, and without it the runner may use a cached older release of that major, one engines
-#       refuses (CI ran on 24.21.0 when engines needed 24.22.1).
+#   G6  every actions/setup-node step in the starter's ci.yml has check-latest: true under its with:.
+#       ci.yml names a bare major, and without it the runner may use a cached older release of that
+#       major, one engines does not admit (npm only warns); a site's CI ran 24.21.0 under ^24.22.1.
 #
 # Ranges it reads: alternatives joined by "||", each ">=X[.Y[.Z]]" or "^X[.Y[.Z]]" (X at least 1), with
 # optional spaces after the operator and around "||". Anything else ("22", "22.x", "~22.23") is refused
@@ -239,22 +239,32 @@ function checkMajor(file, label, value) {
     });
     if (vals.length === 0) fail(FILES.ci + ': no node-version line (G4)');
     vals.forEach(function (v) { checkMajor(FILES.ci, 'node-version', v); });
-    // G6: a step is its "uses:" line and the lines indented deeper than its "-".
+    // G6: the step is its "- " line and every line indented deeper; check-latest must be a direct child of its with:.
     const lines = ci.split('\n');
+    const ind = function (l) { return l.search(/\S/); };
+    const skip = function (l) { return l.trim() === '' || /^\s*#/.test(l); };
     let steps = 0;
-    lines.forEach(function (line, i) {
-      const m = /^(\s*)(?:-\s*)?uses:\s*actions\/setup-node@/.exec(line);
-      if (!m) return;
+    lines.forEach(function (line, u) {
+      if (!/^\s*(?:-\s*)?uses:\s*actions\/setup-node@/.test(line)) return;
       steps++;
-      const dash = /^\s*-/.test(line) ? line.indexOf('-') : m[1].length - 2; // "- uses:", or "uses:" under "- name:"
+      let s = u;
+      while (s >= 0 && !(/^\s*-/.test(lines[s]) && (s === u || ind(lines[s]) < ind(lines[u])))) s--;
+      if (s < 0) { fail(FILES.ci + ':' + (u + 1) + ': cannot find the step this setup-node line belongs to (G6)'); return; }
+      const d = ind(lines[s]);
+      let e = s + 1;
+      while (e < lines.length && (skip(lines[e]) || ind(lines[e]) > d)) e++;
       let ok = false;
-      for (let j = i + 1; j < lines.length; j++) {
-        const l = lines[j];
-        if (l.trim() === '' || /^\s*#/.test(l)) continue;
-        if (l.search(/\S/) <= dash) break;
-        if (/^\s*check-latest:\s*true\s*(?:#.*)?$/.test(l)) ok = true;
+      for (let j = s; j < e; j++) {
+        if (!/^\s*(?:-\s*)?with:\s*(?:#.*)?$/.test(lines[j]) || (j !== s && ind(lines[j]) !== d + 2)) continue;
+        const k = j === s ? d + 2 : ind(lines[j]);
+        let child = -1;
+        for (let i = j + 1; i < e && (skip(lines[i]) || ind(lines[i]) > k); i++) {
+          if (skip(lines[i])) continue;
+          if (child < 0) child = ind(lines[i]);
+          if (ind(lines[i]) === child && /^\s*check-latest:\s*(["']?)(?:true|True|TRUE)\1\s*(?:#.*)?$/.test(lines[i])) ok = true;
+        }
       }
-      if (!ok) fail(FILES.ci + ':' + (i + 1) + ': this setup-node step has no "check-latest: true" (G6), so CI may run a cached Node older than engines allows');
+      if (!ok) fail(FILES.ci + ':' + (u + 1) + ': this setup-node step has no "check-latest: true" under its with: (G6), so CI may run a cached Node older than engines allows');
     });
     if (steps === 0) fail(FILES.ci + ': no actions/setup-node step (G6)');
   }

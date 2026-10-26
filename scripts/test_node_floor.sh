@@ -220,7 +220,7 @@ expect "ci.yml node-version quoted '24' is read" "$c" pass "Node floor holds"
 # -- G6: setup-node must ask for the latest release of the major (CI once ran 24.21.0 under ^24.22.1) ----
 CL='          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release'
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "$CL"$'\n' ""
-expect "G6 ci.yml without check-latest: red, names the line" "$c" fail 'ci.yml:127: this setup-node step has no "check-latest: true"'
+expect "G6 ci.yml without check-latest: red, names the step" "$c" fail 'this setup-node step has no "check-latest: true"' 'workflows/ci.yml:'
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: false "
 expect "G6 ci.yml check-latest: false: red" "$c" fail 'has no "check-latest: true"'
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "$CL"$'\n' ""
@@ -228,6 +228,15 @@ printf '      - run: echo later\n        env:\n          check-latest: true\n' >
 expect "G6 check-latest in a later step does not count for the setup-node step" "$c" fail 'has no "check-latest: true"'
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7" "      - name: Node"$'\n'"        uses: actions/setup-node@v7"
 expect "G6 a named setup-node step with check-latest: green" "$c" pass "asks setup-node for the latest release"
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "$CL"$'\n' ""
+tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n' "      - uses: actions/setup-node@v7"$'\n'"        env:"$'\n'"          check-latest: true"$'\n'
+expect "G6 check-latest under the same step's env:, not with: red" "$c" fail 'has no "check-latest: true" under its with:'
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n' ""
+tsub "$c/$ASTRO/.github/workflows/ci.yml" "          cache: npm"$'\n' "          cache: npm"$'\n'"        uses: actions/setup-node@v7"$'\n'
+tsub "$c/$ASTRO/.github/workflows/ci.yml" "        with:"$'\n'"          node-version: 24" "      - with:"$'\n'"          node-version: 24"
+expect "G6 with: written before uses: in the step: green" "$c" pass "asks setup-node for the latest release"
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: \"True\" "
+expect "G6 check-latest: \"True\" (setup-node reads it as true): green" "$c" pass "asks setup-node for the latest release"
 
 # -- scenario 14: an unlisted place is a known limit -------------------------------------------------
 fresh; printf 'Node 22.12 or newer.\n' >"$c/docs/NEWDOC.md"

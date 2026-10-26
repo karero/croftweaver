@@ -163,6 +163,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Check the starter's Node floor (engines inside Astro's, the lockfile and the docs agree)
         run: bash scripts/check_node_floor.sh
       - name: Check the guard fails on each way the floor can drift
@@ -233,6 +234,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Check the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax
         run: |
           command -v node >/dev/null || { echo "::error::no node here: the test would skip its prepare cases"; exit 1; }
@@ -252,6 +254,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Check the site's Claude Code sync hook reports news, failures and retries correctly
         run: |
           command -v node >/dev/null || { echo "::error::no node here: the test would skip"; exit 1; }
@@ -301,6 +304,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: The canary's script came out CRLF, so this checkout converts
         shell: bash
         run: |
@@ -472,6 +476,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Run the create-croftweaver tests (stub of the release download on 127.0.0.1, no real requests)
         working-directory: packages/create-croftweaver
         run: node --test
@@ -486,6 +491,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Run the plugin tests
         run: make test-plugin
   macos-stock-tools:
@@ -507,6 +513,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Put macOS's own bash, awk, sed, tr and grep first on PATH
         run: |
           stock="$RUNNER_TEMP/stock-tools"; mkdir -p "$stock"
