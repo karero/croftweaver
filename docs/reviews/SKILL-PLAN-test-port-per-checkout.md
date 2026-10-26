@@ -8,7 +8,7 @@ maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
-| 2 | Plan review gate | ⏳ 4 rounds so far, 3 BUGs and 20 RISKs in all, each fixed or refuted in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
+| 2 | Plan review gate | ⏳ 5 rounds: 5 BUGs, 17 RISKs, 9 NITs in all, each fixed or refuted in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ⬜ | — |
 | 4 | croftweaver-site copy (one pull request) | ⬜ | — |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone | ⬜ the maintainer's step | — |
@@ -115,7 +115,8 @@ their next update.
    and `lsof -p <pid> -a -d cwd` gives each one's working folder: the two worktrees.
    `served-build.spec.ts` runs in a worker and fetches through that worker's `baseURL`, so its
    pass also shows the workers worked out the same port as the main process.
-2. **Case 1, and B's two failure messages.** Three fixed setups, none depending on timing:
+2. **Case 1, and B's two failure messages.** One reproduction that depends on timing, then two
+   fixed setups that do not:
    - *Case 1 reproduced, without the new spec:* in worktree A, start `npm test`; during its
      build, start `astro preview` of worktree B's `dist/` on A's port (checked with `lsof`: B
      listens before A's build ends). A's tests run against B's server and A's preview logs

@@ -9,8 +9,11 @@ commands with the same `--round`.
 |-------|-------|----------|--------------|
 | 1 | Codex, GLM 5.3 | 2 BUG, 6 RISK, 3 NIT (after dedup); 9 UNVERIFIABLE asked, all looked at | Codex 450 s, 105,659; GLM 371 s, 26,309 |
 | 2 | Codex, GLM 5.3 (`--verify`) | 0 BUG, 5 RISK, 4 NIT; 2 follow-ups; prior fixes confirmed by both, F10 questioned by GLM | Codex 748 s, 126,488; GLM 452 s, 36,643 |
-| 3 | Codex, GLM 5.3 (`--verify`) | 1 BUG, 4 RISK, 2 NIT (after dedup); every round-2 disposition confirmed by both | Codex 494 s, 111,004; GLM 571 s, 40,811 |
+| 3 | Codex, GLM 5.3 (`--verify`) | 1 BUG, 3 RISK, 1 NIT (after dedup; GLM's two NITs merged into R3-2 and R3-4); every round-2 disposition confirmed by both | Codex 494 s, 111,004; GLM 571 s, 40,811 |
 | 4 | Codex, GLM 5.3 (`--verify`, `--earned-by test-pass-condition,ci-claim`, cut: test 1's second hash and test 2's exact-message condition) | 0 BUG, 3 RISK, 1 NIT, 1 follow-up; every round-3 disposition confirmed by both | Codex 872 s, 97,534; GLM 271 s, 27,320 |
+| 5 | Codex (GLM 5.3 failed: melious "Settlement failed"); `--earned-by test-pass-condition`, cut: test 2's timing-dependent arm | 2 BUG, both wording; every round-4 disposition confirmed | Codex 398 s, 62,217; GLM 332 s, no figure |
+
+Total, rounds 1–5: 5 BUG, 17 RISK, 9 NIT.
 
 ## Round 1
 
@@ -73,3 +76,14 @@ test 2's timing-dependent arm is gone, replaced by fixed setups.
 | R4-3 | RISK | GLM | Test 4's claim that the brand-kit stop test depends on the port it found is unsupported | refuted: it asserts nothing serves `port` first, waits `while not serving(port)`, then `assertTrue(serving(port), "the preview server never came up")`; a wrong port fails there | `test_e2e_site.py`, stop test (E11) |
 | R4-4 | NIT | GLM | `lsof -iTCP -sTCP:LISTEN` does not print working folders | fixed: test 1 names `lsof -p <pid> -a -d cwd` for that | plan, test 1 |
 | R4-5 | follow-up | GLM | `check_script` may depend on GitHub, not `origin` | closed: it compares `git rev-parse "$id:scripts/ship.sh"`, where `$id` is the fetched `origin/main`; a bare `origin` serves the same | `ship.sh:249–252` (E11) |
+
+## Round 5
+
+Codex confirmed R4-1 to R4-5. GLM 5.3's run failed on melious's side ("HTTP 200: Settlement
+failed"), so round 5 had one seat. Both findings are wording: the fixes change no step, test or
+decision, so no round 6 is owed (stop condition a2).
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| R5-1 | BUG | Codex | Test 2 said "none depending on timing", but its case-1 reproduction does | fixed: "one reproduction that depends on timing, then two fixed setups that do not" | plan, test 2 |
+| R5-2 | BUG | Codex | The plan's "20 RISKs" disagreed with the trail | fixed: the trail's round-3 summary miscounted (3 RISKs and 1 NIT after dedup, not 4 and 2); totals recounted from the rows: 5 BUG, 17 RISK, 9 NIT | this file's tables |
