@@ -9,3 +9,13 @@ check, sent with `--evidence`.
 
 | Round | Artifact | Seats | Findings | Disposition |
 |-------|----------|-------|----------|-------------|
+| 1 | 7c7d4073...a49bd775 | codex OK (239 s, 66,505 tokens), melious OK (229 s, 30,302 tokens), fresh-eyes OK (~112k tokens) | 3 BUG, 3 NIT (D1-D6) | all fixed |
+
+Round 1 findings:
+
+- D1 BUG (Codex): a round-1 rerun with `--round 1` starts a new cost-log gate. Fixed: the gate line and setup guide say to leave `--round` off at round 1; `sfall` checks the text.
+- D2 BUG (Codex): SKILL.md overstated when "Codex alone" prints. Fixed.
+- D3 BUG (Codex): the stub's `ollama-listed` mark came after the `listfail` exit. Fixed: written first.
+- D4 NIT (Melious): the gate line dropped Antigravity's remedy when it failed too. Fixed: "Each FAILED or SKIPPED section above names its remedy".
+- D5 NIT (Melious): "ollama is never called" overbroad. Fixed: "the pair never calls ollama".
+- D6 NIT (fresh-eyes): long line in SKILL.md. Fixed.
