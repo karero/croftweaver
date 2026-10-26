@@ -94,7 +94,7 @@ maintainer (judgment, not checked).
    it is always dispatched), and Codex is the only seat that counted, it prints on stdout and stderr, in place of the generic note:
 
    ```
-   ⚠ PLAN round landed with 1 reviewer(s) counted toward the gate: codex alone. melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback. Record this round as Codex alone, with that reason, in the trail; to add the second seat, apply the remedy in the melious FAILED section, then rerun with --seat melious and the same --round.
+   ⚠ PLAN round landed with 1 reviewer(s) counted toward the gate: codex alone. melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback. Record this round as Codex alone, with that reason, in the trail; to add the second seat, fix what the melious section above names (its remedy, or the tool a skipped seat lacks), then rerun with --seat melious and the same --round.
    ```
 
    The Melious part is the text `report_tier` built for that seat, FAILED or SKIPPED with its
@@ -196,8 +196,8 @@ should catch it, and the PR records which checks failed for each:
 
 Live check after `make check`: one real run from the branch, with a Melious URL nothing listens
 on (`MELIOUS_BASE_URL=http://127.0.0.1:9`), `SECOND_SEAT=melious MELIOUS_MODEL=<the listed
-any-depth model>`, a small diff, real Codex, and `REVIEW_LOG=<a scratch file>` so the run stays out of the real cost
-log and its gates. Record the Melious FAILED reason, the exit status,
+any-depth model>`, a small diff, real Codex, and `REVIEW_LOG=<a scratch file>` and no `--round`, so the run neither
+writes to the real cost log nor starts a new gate in this worktree's gate record. Record the Melious FAILED reason, the exit status,
 the gate line, and the rows in that scratch log (expected: codex and melious, no ollama). It
 costs one small Codex run.
 
@@ -213,6 +213,6 @@ costs one small Codex run.
 
 ## Cost
 
-PLAN gate at Normal: four rounds on Codex plus Melious, fresh-eyes in round 1, a final full read and a wording pass (spent). Build: about an hour of work, then a
+PLAN gate at Normal: four rounds on Codex plus Melious, fresh-eyes in round 1, and a final full read (spent); a wording pass and a full-scope re-check of its delta (pending at the time of writing). Build: about an hour of work, then a
 Normal DIFF gate (it changes a review script's logic), likely 2-4 rounds. One small live Codex
 run. No red team: it touches no server, user data, money or deletion.

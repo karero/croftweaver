@@ -12,6 +12,7 @@ money or deletion).
 | 3 | plan at e3bceb6c, `--verify` G1-G6 | codex OK (289 s, 89,571 tokens), melious OK (354 s, 44,539 tokens) | 1 BUG, 1 RISK (both seats), 5 NIT (H1-H7) | H3 refuted (line 404 normalizes `SECOND_SEAT`); rest fixed. H2 changed the build's test plan, so round 4 is earned (`--earned-by mutation-coverage`); H1 is wording, for the wording pass |
 | 4 | plan at a1d091d1, `--verify` H1-H7, `--earned-by mutation-coverage` | codex OK (396 s, 64,641 tokens), melious OK (477 s, 53,159 tokens) | 1 BUG, 3 NIT (I1-I4) | all fixed; I1 is wording; no RISK and no substantive BUG, so no round 5 is earned |
 | final full read | plan at aa5de2c4, whole | fresh Opus pass (host family, stronger than round 1's fresh-eyes; no ollama model, by the maintainer's rule) (~166k tokens) | 1 BUG (low impact), 7 NIT (J1-J8) | all fixed; J1 leaves the conclusion unchanged, so wording |
+| wording pass | delta a1d091d1..12011801, `--wording-pass` | codex OK (530 s, 77,936 tokens) | 4 BUG (K1-K4) | all fixed; K4 (a fenced snippet changed) sends the delta to a full-scope re-check |
 
 Round 1 findings, one line each:
 
@@ -56,3 +57,10 @@ Final full read findings:
 - J6 NIT: Cost said 2-3 rounds. Fixed: actual spend.
 - J7 NIT: the new default-detect test was redundant. Fixed: dropped; the mutation row names `listfailauto`, `pair`, `t10a`.
 - J8 NIT: `--seat codex` with `SECOND_SEAT` unset was untested. Fixed: `sseatnodetect` runs both ways.
+
+Wording pass findings:
+
+- K1 BUG: a scratch `REVIEW_LOG` with `--round 1` still starts a new gate. Fixed: the live check runs with no `--round`.
+- K2 BUG: the gate line pointed to a FAILED section that a SKIPPED seat does not have. Fixed: "fix what the melious section above names".
+- K3 BUG: Cost said the wording pass was spent. Fixed.
+- K4 BUG: the delta changed a fenced snippet, outside a prose-only pass. Done: the delta is re-checked at full scope (SKILL.md step 6).
