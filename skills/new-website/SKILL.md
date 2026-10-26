@@ -87,6 +87,16 @@ error walk-throughs) — in the language the user writes in.** A German owner ge
 the whole journey in German; the skill files themselves stay English. The
 verbatim message templates below are content specs, not required English wording.
 
+**Until §3 step 0, read and list; run no shell commands.** Nothing before the scaffold
+(the folder check, this interview, the §2a and §2b questions) needs a terminal; a command
+this interview names, such as the analytics check, runs once the site exists. To see
+what a folder holds, list it with your file tools; to read a section of another skill,
+open that skill's `SKILL.md` and read the section. A shell command shows the owner a red
+error for an ordinary answer: `ls astro.config.*` fails in an empty folder because nothing
+matches, and a search that finds nothing fails the same way. Ask your questions in this
+stretch as plain chat messages too, not in a pick-list box, which a new owner may not see.
+The owner's first minutes should show no red and no frozen screen.
+
 Default house stack: **Astro (static) → GitHub → Cloudflare Pages**. Six questions
 decide everything downstream — ask them in order, offer the examples so a
 non-expert can answer, and record the answers in the project `README.md`.
@@ -345,13 +355,15 @@ first time tests run.
 before asking. Once `POSITIONING.md` is filled (step 2) and before the content guide
 (step 3):
 
-1. Read **"The offer"** in `website-story/SKILL.md` and say it in the language the
+1. Open `website-story/SKILL.md` (in the folder next to this skill's own) with your
+   file tools, not a shell command (§1), read **"The offer"** and say it in the language the
    owner writes in (it explains the idea in plain words: the visitor as the hero, the
    brand as the guide, a one-liner, a three-step plan, one repeated call to action,
    positioning unchanged). Do not paraphrase it into jargon.
-2. Ask once — a structured user-input tool if the platform offers one (Claude Code's
-   **`AskUserQuestion`**), otherwise in chat — with two options: **Yes, build the home
-   page as a story** / **No, standard home page (default)**.
+2. Ask once, as a plain message in the chat (not a pick-list box: on a first run the owner
+   may not see one and think you have stopped), with the two answers written out: **Yes,
+   build the home page as a story** / **No, standard home page (default)**. Wait for the
+   reply.
 3. **Yes** → run `website-story` now, before step 3, so `CONTENT_GUIDE.md`'s home row
    and `copywriting` read `STORY.md`.
 4. **No, or no answer** → say nothing more about it. The skill still travels with the
@@ -368,8 +380,10 @@ Ask exactly once per build. Never run it unasked.
 `website-brand-kit` is optional. It is a plain question, not a pitch. Once
 `POSITIONING.md` is filled (and §2a is answered) and before the content guide (step 3):
 
-1. Read **"The question"** in `website-brand-kit/SKILL.md` and ask it, as it stands
-   there, in the language the owner writes in.
+1. Open `website-brand-kit/SKILL.md` (next to this skill's folder) with your file tools,
+   not a shell command (§1), read **"The question"** and ask it, as it stands
+   there, in the language the owner writes in, as a plain message in the chat (not a
+   pick-list box, as in §2a), and wait for the reply.
 2. **She has a part and wants it used** → note the path of her logo file, which must
    be an SVG, or her colours as hex values. No prompt is written for that part. Her own
    colours still go through the skill's check (its §3 step 3) now.
@@ -409,7 +423,8 @@ folder inside the owner's websites folder, which is the folder this session was 
 session, say which folder you are in and ask whether it is their websites folder. If it is
 not, or it already holds a site (an `astro.config.*` or `index.html` file) or is the toolkit
 folder (it has `skills/new-website/SKILL.md`), ask which folder is their websites folder
-instead. Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
+instead. Find this out by listing the folder with your file tools, not with a shell command
+(§1). Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
 full path (the output of `pwd` inside it):
 
 0. **Git first, before any code:**
