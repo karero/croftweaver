@@ -12,13 +12,14 @@ every change by default. After launch, your Search Console data and a weekly che
 assistants name your site point to the next edit for SEO and GEO (how your site shows up in AI
 answers).
 
-[![The home page of croftweaver.com, a site built with Croftweaver: the heading "Build a complete website with AI." above two buttons, "Get Croftweaver on GitHub" and "See a finished website".](docs/images/croftweaver-home.webp)](https://croftweaver.com/case-study)
+[![The home page of croftweaver.com, a site built with Croftweaver: the heading "Build a complete website with AI." above two buttons, "Get Croftweaver on GitHub" and "See a finished website".](https://raw.githubusercontent.com/karero/croftweaver/main/docs/images/croftweaver-home.webp)](https://croftweaver.com/)
 
 **[See a finished website](https://croftweaver.com/case-study):** croftweaver.com is built
 with Croftweaver. Its case study follows the site week by week, with links to its public code.
 
 **Quick install.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
-skills, in any terminal:
+skills, in any terminal (building a site needs a newer Node; the
+[setup guide](skills/new-website/templates/SETUP.md) says which):
 
 ```bash
 npm create croftweaver
