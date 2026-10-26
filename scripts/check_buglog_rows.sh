@@ -4,7 +4,7 @@
 # next to rows the other branch changed or added. Two rows count as versions of one row when
 # they share the Found date and the Where cell, or the first 20 words of What (any date).
 # A table line that is neither the header, its rule line nor a row these rules can read fails
-# too, so no row is skipped unseen. The handoff zip leaves the file out: there it skips.
+# too, so no line starting with | (after any indent) is skipped unseen. The handoff zip leaves the file out: there it skips.
 set -uo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 
@@ -20,7 +20,7 @@ fi
 
 report="$(awk '
   function show(n) { return length(text[n]) > 100 ? substr(text[n], 1, 100) " …" : text[n] }
-  /^\|/ {
+  /^[ \t]*\|/ {
     l = $0; sub(/[ \t\r]+$/, "", l)
     text[NR] = l
     if (l == "| Found | Where | What | Category | Impact | Effort | Status |" || l ~ /^\|(-+\|)+$/) next
@@ -38,12 +38,12 @@ report="$(awk '
     if (hit != "") pairs = pairs sprintf("  line %d: %s\n  line %d: %s\n\n", hit, show(hit), NR, show(NR))
   }
   END {
-    if (rows == 0) { print "FAIL — no rows found in docs/BUGLOG.md (a row starts \"| YYYY-MM-DD |\")."; exit 1 }
     if (bad != "") {
       printf "FAIL — these table lines of docs/BUGLOG.md are not rows the guard can read:\n%s", bad
       print "A row starts \"| YYYY-MM-DD | \" and splits on \" | \" into the table'"'"'s 7 cells. A bare \" | \""
       print "inside a cell splits it, here and on GitHub: write it as \\|."
     }
+    if (rows == 0) print "FAIL — no rows found in docs/BUGLOG.md (a row starts \"| YYYY-MM-DD |\")."
     if (pairs != "") {
       print "FAIL — docs/BUGLOG.md holds two rows that look like two versions of one row"
       print "       (same Found date and Where, or the same first 20 words of What):"
@@ -55,7 +55,7 @@ report="$(awk '
       print "If they really are two different rows, give them different Where cells and a different start"
       print "to What."
     }
-    if (bad != "" || pairs != "") exit 1
+    if (bad != "" || pairs != "" || rows == 0) exit 1
     printf "ok   docs/BUGLOG.md: %d rows, none twice\n", rows
   }
 ' "$F")"

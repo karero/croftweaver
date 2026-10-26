@@ -116,6 +116,14 @@ check "8 a row written without spaces fails"   has "$out" "line 8: |2026-10-12|"
 check "8 a row with a mistyped date fails"     has "$out" "line 9: | 2026-1-12 |"
 check "8   …and the exit is 1"                 is "$rc" 1
 fresh
+{ head6; row 2026-10-12 "\`a.sh\`" "$(words 25 a)" open; printf ' '; row 2026-10-12 "\`a.sh\`" "$(words 25 a)" fixed; } >"$c/docs/BUGLOG.md"
+guard "$c"; check "8 an indented row fails, naming its line" has "$out" "line 8:  | 2026-10-12"
+fresh
+{ head6; printf '|2026-10-12|`a.sh`|%s|bug|low|small|open|\n' "$(words 25 a)"; } >"$c/docs/BUGLOG.md"
+guard "$c"
+check "8 a file of unreadable rows only fails"  is "$rc" 1
+check "8   …naming the line, not just no rows"  has "$out" "line 7: |2026-10-12|"
+fresh
 { head6; printf '| 2026-10-12 | `a.sh` | %s | bug | low | small | open |  \n' "$(words 25 a)"; } >"$c/docs/BUGLOG.md"
 guard "$c"; check "8 trailing blanks after a row's last bar pass" is "$rc" 0
 fresh; head6 >"$c/docs/BUGLOG.md"; guard "$c"

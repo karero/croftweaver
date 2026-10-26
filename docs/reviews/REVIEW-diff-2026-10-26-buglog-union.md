@@ -15,3 +15,13 @@ Only Codex counted: the second seat is owed. timings: codex 789s (60,991 tokens)
 | D2 | codex | RISK | A trailing blank after a row's last bar makes it fail, though it renders the same. | Fixed: trailing blanks are stripped first; a case pins it. |
 | D3 | codex | BUG | The BUGLOG intro says `make check` "names any row a merge kept in two versions"; the rules miss some. | Fixed: the intro states the two rules and says that is how such a row "usually shows". |
 | D4 | codex | BUG | The test's comment calls `head6` the real file's head; the real first row is on line 10. | Fixed: "a short head with the real header line". |
+
+## Round 2 (delta e2640881..f7405ae3, 2026-10-26)
+
+reviewers: codex OK, melious FAILED (out of credit), ollama-cloud FAILED (session limit).
+Only Codex counted. timings: codex 317s (36,363 tokens). D1–D4 landed except as below.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| D5 | codex | BUG | "No row is skipped unseen" is false: a duplicate indented by one space passes. | Fixed: indented `\|` lines are read and refused; a case pins it. The comment now claims only lines starting with `\|` after any indent. |
+| D6 | codex | NIT | With every row unreadable, only "no rows found" printed. | Fixed: unreadable lines print first; a case pins it. |
