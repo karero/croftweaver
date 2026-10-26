@@ -23,12 +23,12 @@
 #       its line with a caret (so ">=24.22.1" in the middle, which would admit 25, is red), and as many
 #       alternatives as the SETUP.md and SKILL.md phrases list versions (LINE_COUNT). Adding "|| ^25.9.0"
 #       or dropping the 24 alternative is red until the phrase table is changed on purpose.
-#   G6  the starter's ci.yml holds the setup-node step EXPECTED_SETUP_NODE (below) byte for byte, as a
-#       whole step, and names setup-node nowhere else. The step's check-latest: true is the point:
-#       ci.yml names a bare major, and without it the runner may use a cached older release of that
-#       major, one engines does not admit (npm only warns); a site's CI ran 24.21.0 under ^24.22.1.
-#       The comparison is literal so that no YAML has to be parsed: change the step and this constant
-#       together.
+#   G6  the starter's ci.yml holds the setup-node step EXPECTED_SETUP_NODE (below) byte for byte,
+#       starting a line and followed by the next step or the end, and names setup-node nowhere else.
+#       The step's check-latest: true is the point: ci.yml names a bare major, and without it the
+#       runner may use a cached older release of that major, one engines does not admit (npm only
+#       warns); a site's CI ran 24.21.0 under ^24.22.1. The comparison is literal so that no YAML has
+#       to be parsed: change the step and this constant together.
 #
 # Ranges it reads: alternatives joined by "||", each ">=X[.Y[.Z]]" or "^X[.Y[.Z]]" (X at least 1), with
 # optional spaces after the operator and around "||". Anything else ("22", "22.x", "~22.23") is refused
@@ -256,7 +256,7 @@ function checkMajor(file, label, value) {
     const whole = at >= 0 && (at === 0 || ci[at - 1] === '\n') && (after === '' || after.startsWith('      - '));
     const mentions = ci.split('setup-node').length - 1;
     if (!whole || mentions !== 1 || ci.indexOf(EXPECTED_SETUP_NODE, at + 1) >= 0) {
-      fail(FILES.ci + ': its setup-node step is not EXPECTED_SETUP_NODE byte for byte, as a whole step and the only "setup-node" in the file (G6). The step must keep "check-latest: true"; if you changed the step on purpose, change EXPECTED_SETUP_NODE in scripts/check_node_floor.sh with it');
+      fail(FILES.ci + ': its setup-node step is not EXPECTED_SETUP_NODE byte for byte, starting a line and followed directly by the next step or the end, or "setup-node" appears elsewhere in the file (G6). The step must keep "check-latest: true"; if you changed the step on purpose, change EXPECTED_SETUP_NODE in scripts/check_node_floor.sh with it');
     }
   }
 }

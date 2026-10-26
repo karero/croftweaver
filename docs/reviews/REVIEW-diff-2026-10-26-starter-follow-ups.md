@@ -84,3 +84,17 @@ Codex verified M11, M12 and the M13 assertion. GLM 5.3 timed out at 900 s and di
 | M14 | NIT | melious | moot | "says so" overclaimed for a `with:` styled otherwise; that code is gone |
 
 The cut, on the maintainer's decision relayed from the "Croftweaver feature-planning" session ("Make G6 a literal check: compare the starter's setup-node step byte for byte with the expected block, red with a clear message otherwise. One more review round on that, then push, PR and merge once clean."): G6 parses no YAML. `EXPECTED_SETUP_NODE` in `check_node_floor.sh` holds the step's text; ci.yml must hold it once, starting a line, followed by the next step or the end, and name `setup-node` nowhere else. The red says to change the constant together with the step. The layout cases are replaced by: the shipped starter passes, and eleven changed texts are red (both cases above among them, and a v8 bump without the constant). The G4 case that quotes `node-version: '24'` now expects G4 quiet and G6 red.
+
+## Round 6 — `c285f657`, delta from `91ba6fc3` (`--verify` round 5), `--earned-by yaml-step-layout --cut "G6 parses no YAML…"`
+`reviewers: codex OK` · `timings: codex 180s (38550 tokens)` — "No BUG/RISK/NIT findings."
+`reviewers: melious OK` · `timings: melious 229s (22039 tokens)` · gate `20261026T111928Z-99804`
+
+No BUG, no RISK. The gate is clean at `c285f657`.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| M15 | NIT | melious | left | `ci.indexOf(EXPECTED_SETUP_NODE, at + 1)` can never decide the result (a second copy also fails the one-mention check); harmless, left to avoid a code change after the last round |
+| M16 | NIT | melious | fixed (wording) | A blank or comment line after the step is a red whose message said only "not byte for byte"; the message now also says "followed directly by the next step or the end" |
+| M17 | NIT | melious | fixed (wording) | "as a whole step" claimed more than the check does; the header now says "starting a line and followed by the next step or the end" |
+
+Totals, rounds 1–6: 6 rounds, 44 distinct findings (6 BUG, 9 RISK, 23 NIT, 6 UNVERIFIABLE notes); seat tokens logged 437,553 (codex 300,230, melious 197,881 counting round 4's timed-out run as 0) plus fresh-eyes 120,040.
