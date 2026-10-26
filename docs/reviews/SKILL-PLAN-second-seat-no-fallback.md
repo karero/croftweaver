@@ -9,7 +9,7 @@ built before the maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ▶ written | this file |
-| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ rounds 1-2 done: 3 BUG, 7 RISK, 11 NIT, all fixed in this revision | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
+| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ rounds 1-3 done: 4 BUG, 8 RISK, 16 NIT; all fixed in this revision but one NIT refuted | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
 | 3 | The maintainer's go | ⏸ | — |
 | 4 | Build, `make check` green, live check, DIFF gate, PR | ⏸ | — |
 | 5 | Release-note row in `docs/BUGLOG.md` | ⏸ | — |
@@ -59,8 +59,9 @@ leads with ollama for the second seat, so changing the default would cost a revi
 who followed it (judgment: the toolkit collects no usage data). The maintainer's rule is his own
 setup, carried by his own instructions (see "Follow-ups"), not the public default.
 
-**Who loses what.** Anyone who set `SECOND_SEAT=melious` and relied on ollama behind it gets
-rounds short of the pair when Melious fails, each with the note below telling them why and what to do.
+**Who loses what.** Anyone who set `SECOND_SEAT=melious` and relied on ollama behind it no longer
+gets a stand-in when Melious fails: the round reports the seats that counted, and when Codex
+counted alone the gate line below says why and what to do.
 The release note says so. The seat arrived on 2026-10-06; we know of no user of it besides the
 maintainer (judgment, not checked).
 
@@ -69,14 +70,16 @@ maintainer (judgment, not checked).
 1. **Dispatch** (lines 1827-1862). In the default parallel branch, with `SECOND_SEAT=melious`,
    start Codex and Melious (and Antigravity when opted in), wait for all, report each. Drop the
    hand-over, and remove `OLLAMA_RAN` entirely (its only reader, line 1860, is in the removed
-   report branch) and `melious_counted` (line 1779; its only caller is the removed hand-over). In `--first-success` (line 1796), drop step 2b for this seat: Codex, then
+   report branch) `melious_counted` (line 1779; its only caller is the removed hand-over) and `melious_pid`
+   (line 1831; read only by that hand-over). In `--first-success` (line 1796), drop step 2b for this seat: Codex, then
    Melious, then Antigravity only if opted in. The default seat's own late start (Melious after
    ollama failed, lines 1847-1853) is unchanged.
 2. **No auto-detect where ollama cannot run.** Today the detection block (lines 480-506) runs
    whenever `LOCAL_ONLY != 1` and `OLLAMA_MODEL` is empty. It becomes: those two, and also
    `SEAT = ollama`, or `SEAT` empty with `SECOND_SEAT = ollama`. So `--local-only` keeps no
    auto-detect (with or without `--seat ollama`), and `SECOND_SEAT=melious` or
-   `--seat codex|melious|agy` never read `ollama list` or print its notes. The other readers of
+   `--seat codex|melious|agy` never read `ollama list` or print its notes. (`SECOND_SEAT` is
+   already set to `ollama` when unset, line 404, so the default keeps auto-detect.) The other readers of
    `OLLAMA_MODEL` are `run_ollama` and its transports (lines 1273-1420), which these runs never
    call; `OLLAMA_LABEL` (line 1764), which only names a seat that is reported; and the
    `--local-only` cloud-tag guard (line 513), unchanged. So an `OLLAMA_MODEL` left in the
@@ -95,7 +98,8 @@ maintainer (judgment, not checked).
    reason. Every other short round keeps today's notes: Codex failed and Melious counted, Antigravity the
    only one counted, nothing counted, and `--first-success` (which stops at Codex by design). The
    generic note names no ollama fallback ("Treat it as degraded … consider --with-antigravity or
-   a manual paste round"), so it stays right for this seat. The `reviewers:` line is unchanged
+   a manual paste round"), so it does not mislead about this seat; its Antigravity advice is
+   stale when Antigravity already ran, as today on every seat (left as is). The `reviewers:` line is unchanged
    (`reviewers: codex OK, melious FAILED (…)`). Exit stays as now: 0 when any seat counted
    (Antigravity included), 4 when none did.
 4. **Text in the script.** The header (lines 9-14), the `SECOND_SEAT` and `OLLAMA_MODEL` entries
@@ -120,14 +124,16 @@ All in `test_failed_tier_report.sh`, which runs the real script (`bash "$SCRIPT"
 parsing, the model list check, auto-detect, dispatch and `report_round`.
 
 **Every check that a hand-over is gone sets `OLLAMA_MODEL` to the stub's `:cloud` tag**
-(`sfall`, `sfirstsucc`, `sboth`, `ttpair*`, `t11f`, `t12`, `sagy`, `sfirstcodex`). The harness unsets it
+(`sfall`, `sfirstsucc`, `sboth`, `ttpair*`, `t11f`, `t12`, `sagy`). The harness unsets it
 (line 342), and with auto-detect off a restored hand-over would call `run_ollama`, which returns 3
 before touching the stub: the `ollama-ran` mark would never appear and the check could not fail.
 With the model set, a restored hand-over runs the stub, and each check asserts both "no
 `ollama-ran` mark" and the exact `reviewers:` line.
 
 Changed, because their expected output encodes the old fallback (found by grepping the suite for
-`stood in`, `stands in` and `ollama-cloud OK` under `SECOND_SEAT=melious`; the build greps again):
+`stood in`, `stands in`, `hand over`, `fallback` and `ollama-cloud OK` under `SECOND_SEAT=melious`; the
+build greps again). Comments that state the old behaviour are rewritten with their tests, such as
+section 32b's lead ("A refused Melious seat must still hand over", line 1318):
 
 - `sfall` (section 32b): Melious returns the real empty-balance reply (stub `nobalance`, from a
   raw file of 2026-10-25). Expect `reviewers: codex OK, melious FAILED (error mid-stream (HTTP
@@ -155,16 +161,31 @@ New:
   "auto-using" note. (It cannot test the hand-over: with no model, `run_ollama` returns before
   the stub. The checks above do that.)
 - `sseatnodetect`: the same with `--seat codex`: no `list` mark.
-- `sfirstcodex`: `--first-success`, Codex OK: no gate line, no Melious call, no `ollama-ran` mark.
+- `sseatollama`: `--seat ollama` with `OLLAMA_MODEL` unset (and `SECOND_SEAT=melious` in the
+  environment): the `list` mark, and `ollama-cloud OK`. Change 2 makes detection depend on
+  `--seat` for the first time, so this run must still find the model.
+- `sfirstcodex`: `--first-success`, Codex OK: no gate line and no Melious call. It checks that
+  the note stays out of a mode that stops early; it cannot catch a restored hand-over, which
+  never runs when Codex counts.
 - `sagy`: `WITH_ANTIGRAVITY=1`, Melious fails: with Codex and Antigravity both OK, no gate line
   (two counted) and exit 0; with Codex failing and Antigravity OK, the generic note and exit 0.
 - The default still auto-detects: `SECOND_SEAT` unset, `OLLAMA_MODEL` unset; expect the `list`
   mark, the "auto-detected" note and `ollama-cloud OK`. The mark makes it fail if detection
   breaks, even if the note's wording changes.
 
-Each new or changed check is broken on purpose once before the DIFF gate (restore the parallel
-hand-over; restore the `--first-success` step; restore detection for `SECOND_SEAT=melious`), and
-the PR records which checks failed for each.
+Before the DIFF gate, each group of checks is broken on purpose once, with the mutation that
+should catch it, and the PR records which checks failed for each:
+
+| Mutation | Checks it must fail |
+|----------|---------------------|
+| restore the parallel hand-over | `sfall`, `sboth`, `ttpair*`, `t11f`, `t12`, `sagy` (first case) |
+| restore the `--first-success` step 2b | `sfirstsucc` |
+| detect again under `SECOND_SEAT=melious` and `--seat codex` | `snodetect`, `sseatnodetect` |
+| detection keyed on `SECOND_SEAT` alone, ignoring `--seat` | `sseatollama` |
+| stop detecting in the default | the default auto-detect check |
+| drop the gate line | `sfall`, `sboth`, `t11f`, `t12` |
+| print the gate line whatever the mode or count | `sfirstcodex`, `sagy` |
+| remove the `kill -KILL` in `stop_tiers` | `sstop` |
 
 Live check after `make check`: one real run from the branch, with a Melious URL nothing listens
 on (`MELIOUS_BASE_URL=http://127.0.0.1:9`), `SECOND_SEAT=melious MELIOUS_MODEL=<the listed
