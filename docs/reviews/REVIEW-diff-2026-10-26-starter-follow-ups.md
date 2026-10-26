@@ -94,7 +94,16 @@ No BUG, no RISK. The gate is clean at `c285f657`.
 | id | sev | seat | status | why |
 |---|---|---|---|---|
 | M15 | NIT | melious | left | `ci.indexOf(EXPECTED_SETUP_NODE, at + 1)` can never decide the result (a second copy also fails the one-mention check); harmless, left to avoid a code change after the last round |
-| M16 | NIT | melious | fixed (wording) | A blank or comment line after the step is a red whose message said only "not byte for byte"; the message now also says "followed directly by the next step or the end" |
+| M16 | NIT | melious | left | A blank or comment line after the step is a red whose message says only "not byte for byte". The message is a string in the code, so changing it after the last round is not a wording fix (wording pass W2); the header now says what the check compares |
 | M17 | NIT | melious | fixed (wording) | "as a whole step" claimed more than the check does; the header now says "starting a line and followed by the next step or the end" |
 
 Totals, rounds 1–6: 6 rounds, 44 distinct findings (6 BUG, 9 RISK, 23 NIT, 6 UNVERIFIABLE notes); seat tokens logged 437,553 (codex 300,230, melious 197,881 counting round 4's timed-out run as 0) plus fresh-eyes 120,040.
+
+## Wording pass — `8f3ee2ef`, prose since `c285f657` plus the BUGLOG row, `--wording-pass --seat codex`
+`reviewers: codex OK` · `timings: codex 129s (35249 tokens)`
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| W1 | BUG | codex | fixed | The BUGLOG row said "against the background it is drawn on"; the test reads solid background colours only. Now "the solid background colour behind it … (background images and gradients are not read)", and "stays green" names the `--bg` colours too |
+| W2 | BUG | codex | fixed | The red message's text is a JavaScript string, not prose; reverted to the round 6 text. `check_node_floor.sh` now differs from `c285f657` in comment lines only |
+| W3 | RISK | codex | refuted, with a source | What `check-latest` does: setup-node's own documentation (https://github.com/actions/setup-node/blob/main/docs/advanced-usage.md, read 2026-10-26): with `check-latest: true` "the action first checks if the cached version is the latest one", and downloads the newest when it is not; with `false` it takes a cached semver match first |

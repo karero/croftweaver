@@ -256,7 +256,7 @@ function checkMajor(file, label, value) {
     const whole = at >= 0 && (at === 0 || ci[at - 1] === '\n') && (after === '' || after.startsWith('      - '));
     const mentions = ci.split('setup-node').length - 1;
     if (!whole || mentions !== 1 || ci.indexOf(EXPECTED_SETUP_NODE, at + 1) >= 0) {
-      fail(FILES.ci + ': its setup-node step is not EXPECTED_SETUP_NODE byte for byte, starting a line and followed directly by the next step or the end, or "setup-node" appears elsewhere in the file (G6). The step must keep "check-latest: true"; if you changed the step on purpose, change EXPECTED_SETUP_NODE in scripts/check_node_floor.sh with it');
+      fail(FILES.ci + ': its setup-node step is not EXPECTED_SETUP_NODE byte for byte, as a whole step and the only "setup-node" in the file (G6). The step must keep "check-latest: true"; if you changed the step on purpose, change EXPECTED_SETUP_NODE in scripts/check_node_floor.sh with it');
     }
   }
 }
