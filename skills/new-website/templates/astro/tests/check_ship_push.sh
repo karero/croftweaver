@@ -1357,9 +1357,10 @@ GATE
     want "... and it still is" eq "$(git -C "$C" config --get core.hooksPath)" "$D/another-session"
   fi
 
-  # --- P1–P4: the last line for a preview address and for a real domain, in both modes -----
-  # A *.pages.dev address shows only that Cloudflare's preview serves the build, so the line
-  # must not say LIVE; a real domain keeps it. P3 and P4 run with the setting off.
+  # --- P1–P5: the last line for a pages.dev address and for a real domain, in both modes ---
+  # A *.pages.dev address is Cloudflare's own address for the site: the build served there does
+  # not show the site is live on its own domain, so the line must not say LIVE; a real domain
+  # keeps it. P3 and P4 run with the setting off; P5 writes the host in capitals with a final dot.
   last_starts() { case "$(last_line)" in "$1"*) return 0 ;; esac; return 1; }
   site_case() { # <case> <github|folder> <the site's address>
     fixture "$1"
@@ -1377,28 +1378,31 @@ GATE
     want "production is GitHub's main" eq "$(gh production)" "$m"
     if [ "$2" = folder ]; then want "publishes this folder's main" first_has "Publishing main → production."; fi
   }
-  pv="✓ Published — verified on the preview address: https://ship-test.pages.dev is serving"
-  pv_note="That's not your own domain, and the site isn't live there until the domain is connected."
+  pv="✓ Published — verified on the pages.dev address: https://ship-test.pages.dev is serving"
+  pv_note="That's Cloudflare's address for the site, not your own domain: the site is live on your domain only once that's connected."
   site_case p1 github https://ship-test.pages.dev
-  want "the last line names the preview address" last_starts "$pv GitHub's main as of the fetch (${m:0:12})"
-  want "... and says the site isn't live on its own domain" last_has "$pv_note"
+  want "the last line names the pages.dev address" last_starts "$pv GitHub's main as of the fetch (${m:0:12})"
+  want "... and says it is not the site's own domain" last_has "$pv_note"
   want "never says LIVE" lacks "✓ LIVE"
   site_case p2 github https://ship-test.example.invalid
   want "a real domain keeps the LIVE line" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main as of the fetch (${m:0:12})"
-  want "... with no preview note" lacks "$pv_note"
+  want "... with no pages.dev note" lacks "$pv_note"
   site_case p3 folder https://ship-test.pages.dev
-  want "the last line names the preview address" last_starts "$pv build ${m:0:12} (after"
-  want "... and says the site isn't live on its own domain" last_has "$pv_note"
+  want "the last line names the pages.dev address" last_starts "$pv build ${m:0:12} (after"
+  want "... and says it is not the site's own domain" last_has "$pv_note"
   want "never says LIVE" lacks "✓ LIVE"
   site_case p4 folder https://ship-test.example.invalid
   want "a real domain keeps the LIVE line" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving build ${m:0:12} (after"
-  want "... with no preview note" lacks "$pv_note"
+  want "... with no pages.dev note" lacks "$pv_note"
+  site_case p5 github https://Ship-Test.PAGES.DEV.
+  want "a host in capitals with a final dot is a pages.dev address too" last_starts "✓ Published — verified on the pages.dev address: https://Ship-Test.PAGES.DEV. is serving"
+  want "never says LIVE" lacks "✓ LIVE"
   rg_done=1
 }
 
 real_git_cases
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks on real git (the mode that publishes GitHub's main, and the last line for a preview address in both modes)${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
+  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks on real git (the mode that publishes GitHub's main, and the last line for a pages.dev address in both modes)${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
 fi
 exit "$fail"

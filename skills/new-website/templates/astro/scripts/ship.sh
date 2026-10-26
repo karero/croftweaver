@@ -720,13 +720,14 @@ site="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" "${wt:-.}/astro.config
 # the normalization: same as the llms-coverage guard applies to SITE.url.
 site="${site%/}"
 build_txt="${site:-your live site}/build.txt"
-# A *.pages.dev address is Cloudflare's preview address: serving the build there does not make
-# the site live on its own domain, so the success line must not say LIVE.
+# A *.pages.dev address is Cloudflare's own address for the project: serving the build there
+# does not show the site is live on its own domain, so the success line must not say LIVE.
 site_host="${site#*://}"; site_host="${site_host%%/*}"; site_host="${site_host%%:*}"
+site_host="$(tr '[:upper:]' '[:lower:]' <<<"${site_host%.}")"
 case "$site_host" in
   *.pages.dev)
-    ok_line="✓ Published — verified on the preview address:"
-    ok_note=" That's not your own domain, and the site isn't live there until the domain is connected." ;;
+    ok_line="✓ Published — verified on the pages.dev address:"
+    ok_note=" That's Cloudflare's address for the site, not your own domain: the site is live on your domain only once that's connected." ;;
   *) ok_line="✓ LIVE — verified:"; ok_note="" ;;
 esac
 
