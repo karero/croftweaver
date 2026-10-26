@@ -10,15 +10,16 @@ BRAND_KIT_E2E_SITE names a throwaway copy:
   BRAND_KIT_E2E_SITE=/tmp/site python3 -m unittest discover -s skills/website-brand-kit/scripts/tests -p 'test_e2e_site.py'
 """
 
+import functools
 import json
 import os
-import re
 import signal
 import socket
 import subprocess
 import sys
 import time
 import unittest
+import urllib.parse
 
 import _testutil as T
 import _install
@@ -30,13 +31,24 @@ SEVEN = ("public/favicon.svg", "public/favicon.ico", "public/apple-touch-icon.pn
          "public/icon-512.png", "public/icon-maskable-512.png", "public/images/logo.png")
 
 
+def port_from_list_json(text):
+    """The port in `playwright test --list --reporter=json` output: its config.webServer.url."""
+    url = json.loads(text)["config"]["webServer"]["url"]
+    port = urllib.parse.urlsplit(url).port
+    if port is None:
+        raise ValueError("config.webServer.url names no port: %r" % url)
+    return port
+
+
+@functools.lru_cache(maxsize=None)
 def preview_port(site):
-    """The port the site's tests serve its build on: playwright.config.ts works it out from SITE.url (FNV-1a, 32 bit)."""
-    url = re.search(r"(?m)^\s*url:\s*'([^']*)'", T.read(os.path.join(site, "src", "config.ts"))).group(1)
-    h = 2166136261
-    for ch in url:
-        h = ((h ^ ord(ch)) * 16777619) & 0xFFFFFFFF
-    return 4330 + h % 670
+    """The port the site's tests serve its build on, as the site's own playwright.config.ts works it
+    out (it depends on the site's folder). Asked of Playwright once per site: each ask loads every spec."""
+    r = subprocess.run(["npx", "playwright", "test", "--list", "--reporter=json"], cwd=site,
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError("playwright test --list failed in %s:\n%s" % (site, r.stderr[-2000:]))
+    return port_from_list_json(r.stdout)
 
 
 def serving(port):
@@ -52,6 +64,18 @@ def previews():
     """The preview servers running on this computer, as `ps` shows them: [(process id, command)]."""
     listing = subprocess.run(["ps", "-Ao", "pid=,command="], capture_output=True, text=True, errors="replace").stdout
     return [(int(l.split()[0]), l.split(None, 1)[1]) for l in listing.splitlines() if "astro" in l and " preview" in l and "--port %d" % preview_port(SITE) in l]
+
+
+class ThePortLookup(unittest.TestCase):
+    """The port is read from Playwright's own list output, not worked out again here."""
+
+    def test_reads_the_web_server_port_from_a_real_capture(self):
+        text = T.read(os.path.join(T.FIXTURES, "playwright-1.64.1-test-list-reporter-json.json"))
+        self.assertEqual(port_from_list_json(text), 4725)
+
+    def test_refuses_a_web_server_url_with_no_port(self):
+        with self.assertRaises(ValueError):
+            port_from_list_json('{"config": {"webServer": {"url": "http://localhost/"}}}')
 
 
 @unittest.skipUnless(SITE, "set BRAND_KIT_E2E_SITE to a throwaway, installed copy of the starter (this test changes it)")

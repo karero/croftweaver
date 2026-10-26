@@ -78,7 +78,7 @@ mode refuses a `scripts/ship.sh` that differs from `origin/main`, and step 4 cha
 maintainer switches the existing mode on,
 
 ```bash
-cd /Users/matt/Devel/croftweaver-site && git config ship.fromGitHub true
+cd ~/Devel/croftweaver-site && git config ship.fromGitHub true
 ```
 
 after which a second publish from that clone stops at once ("another publish holds this
@@ -116,7 +116,7 @@ together: `whats-new` lists them one by one, and a site that takes only the spec
 missing id every run.
 
 **Repos and order.** karero/croftweaver first (A, B, D in one pull request), then
-karero/croftweaver-site (the same `playwright.config.ts`, `build-marker.mjs` branch and spec,
+the croftweaver-site repository (the same `playwright.config.ts`, `build-marker.mjs` branch and spec,
 whose current copies are identical to the template's; its own `ship.sh` comment, keeping its
 0.22 marker, as Site C did with a comment-only edit; a note in its README's template-sync row).
 Each pull request gets the DIFF gate. Then C. Other sites take A and B through `whats-new` at

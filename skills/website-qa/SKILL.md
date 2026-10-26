@@ -104,6 +104,9 @@ cosmetics; red → green → commit.
   retired) reappear in an anchor href. Hermetic — makes no network calls. The
   *liveness* of the links you keep is the network-dependent `outgoing-link-audit`
   skill (pre-launch / monthly, **not** in CI).
+- `served-build.spec.ts` — the server answering on the test port serves this checkout's own
+  build (a random id per test build, from `scripts/build-marker.mjs`), not another checkout's
+  preview that took the port during the build.
 
 First fill `tests/_helpers.ts` `PAGES` with the real routes. A failure is a real
 defect — fix the page, do not loosen the test (Rule 12: never silently skip). For
