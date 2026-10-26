@@ -240,7 +240,7 @@ function checkMajor(file, label, value) {
     if (vals.length === 0) fail(FILES.ci + ': no node-version line (G4)');
     vals.forEach(function (v) { checkMajor(FILES.ci, 'node-version', v); });
     // G6: the step is its "- " line and every line indented deeper; check-latest must be a direct child of its with:.
-    // Block style only: an inline "with: { ... }" is not read, and so is a red.
+    // Block style and a bare true only: an inline "with: { ... }", "True" or a quoted "true" is not read, and so is a red.
     const lines = ci.split('\n');
     const ind = function (l) { return l.search(/\S/); };
     const skip = function (l) { return l.trim() === '' || /^\s*#/.test(l); };
@@ -252,9 +252,11 @@ function checkMajor(file, label, value) {
       while (s >= 0 && !(/^\s*-/.test(lines[s]) && (s === u || ind(lines[s]) < ind(lines[u])))) s--;
       if (s < 0) { fail(FILES.ci + ':' + (u + 1) + ': cannot find the step this setup-node line belongs to (G6)'); return; }
       const d = ind(lines[s]);
-      const key = /^\s*-\s*/.exec(lines[s])[0].length; // the column of the step's keys: its first key's, after "- "
       let e = s + 1;
       while (e < lines.length && (skip(lines[e]) || ind(lines[e]) > d)) e++;
+      // The column of the step's keys: its first key's, on the dash line or, after a bare "-", on the next line.
+      let key = /^\s*-\s*/.exec(lines[s])[0].length;
+      if (lines[s].trim() === '-') { let f = s + 1; while (f < e && skip(lines[f])) f++; if (f < e) key = ind(lines[f]); }
       let ok = false;
       for (let j = s; j < e; j++) {
         if (!/^\s*(?:-\s*)?with:\s*(?:#.*)?$/.test(lines[j]) || (j !== s && ind(lines[j]) !== key)) continue;
@@ -263,7 +265,7 @@ function checkMajor(file, label, value) {
         for (let i = j + 1; i < e && (skip(lines[i]) || ind(lines[i]) > k); i++) {
           if (skip(lines[i])) continue;
           if (child < 0) child = ind(lines[i]);
-          if (ind(lines[i]) === child && /^\s*check-latest:\s*(["']?)true\1\s*(?:#.*)?$/.test(lines[i])) ok = true;
+          if (ind(lines[i]) === child && /^\s*check-latest:\s+true\s*(?:#.*)?$/.test(lines[i])) ok = true;
         }
       }
       if (!ok) fail(FILES.ci + ':' + (u + 1) + ': this setup-node step has no "check-latest: true" under its with: (G6), so CI may run a cached Node older than engines allows');

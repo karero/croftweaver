@@ -47,3 +47,17 @@ Both seats verified every round 1 fix landed.
 | C6 | — | codex | UNVERIFIABLE, left | setup-node's `check-latest` picks the newest release of the major over a cached one: the action's documented input, not traced in its code here. If false, CI keeps today's behaviour; nothing turns green that was red |
 | C7/M8 | — | both | fixed | "WCAG 2.4.13 asks the same" for 2px: not checked. Dropped; the 2px rests on the starter's own ring |
 | M9 | NIT | melious | left, outside the diff | `clean.yml`'s 22.12.0 matrix step sets both `node-version` and `node-version-file`; untouched here apart from the added line |
+
+## Round 3 — `32cef515`, delta from `b4cd1901` (`--verify` round 2)
+`reviewers: codex OK` · `timings: codex 356s (54253 tokens)`
+`reviewers: melious OK` · `timings: melious 441s (41640 tokens)` · gate `20261026T111928Z-99804`
+
+Both seats verified C4 for its own shape, M5, C5/M6, M7 and C7/M8.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C8/M10 | BUG | both | fixed | C4's key column came from the dash line only, so a bare `-` with the keys on the lines below was a false red. The column is now the first key's, on the dash line or the next one; case "a bare \"-\" with the step's keys on the lines below" fails on the round 3 guard, passes now |
+| M11 | RISK | melious | fixed | A quoted `"true"` was green on an unchecked claim about how the runner and setup-node read it. Only a bare `true` is read now; quoted is a red. Case "quoted: red" |
+| M12 | NIT | melious | fixed | `check-latest:true` (no space) matched; it is not that key in YAML. The match now needs a space; case added |
+| M13 | NIT | melious | left | The "none" focus record is the baseline (no CSS appended, see proofs.sh); an explicit `outline: none` was already caught by the old spec's style check, which is unchanged |
+| C9 | — | both | UNVERIFIABLE, left | Same as C6: setup-node's `check-latest` resolution not traced in its code. If false, CI behaves as it does today |

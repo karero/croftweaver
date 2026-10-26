@@ -236,7 +236,11 @@ tsub "$c/$ASTRO/.github/workflows/ci.yml" "          cache: npm"$'\n' "         
 tsub "$c/$ASTRO/.github/workflows/ci.yml" "        with:"$'\n'"          node-version: 24" "      - with:"$'\n'"          node-version: 24"
 expect "G6 with: written before uses: in the step: green" "$c" pass "asks setup-node for the latest release"
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: \"true\" "
-expect "G6 check-latest: \"true\", quoted: green" "$c" pass "asks setup-node for the latest release"
+expect "G6 check-latest: \"true\", quoted: red (only a bare true is read)" "$c" fail 'has no "check-latest: true" under its with:'
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest:true "
+expect "G6 check-latest:true with no space (not that key in YAML): red" "$c" fail 'has no "check-latest: true" under its with:'
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n' "      -"$'\n'"        uses: actions/setup-node@v7"$'\n'
+expect "G6 a bare \"-\" with the step's keys on the lines below: green" "$c" pass "asks setup-node for the latest release"
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: True "
 expect "G6 check-latest: True: red (only true is read, a red is loud)" "$c" fail 'has no "check-latest: true" under its with:'
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n'"        with:"$'\n'"          " "      -   uses: actions/setup-node@v7"$'\n'"          with:"$'\n'"            "
