@@ -215,38 +215,30 @@ done
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "node-version: 24" "node-version: 25"
 expect "13 ci.yml node-version 25: red" "$c" fail "node-version is Node 25"
 fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "node-version: 24" "node-version: '24'"
-expect "ci.yml node-version quoted '24' is read" "$c" pass "Node floor holds"
+out="$(bash "$c/scripts/check_node_floor.sh" 2>&1)"
+if ! grep -q "(G4)" <<<"$out" && grep -Fq "is not EXPECTED_SETUP_NODE" <<<"$out"; then
+  printf 'ok   ci.yml node-version quoted '"'"'24'"'"': G4 reads it, G6 is red (the step is compared literally)\n'
+else
+  printf 'FAIL ci.yml node-version quoted '"'"'24'"'"': want no G4 line and the G6 red, got:\n%s\n' "$out"; fails=$((fails+1))
+fi
 
-# -- G6: setup-node must ask for the latest release of the major (CI once ran 24.21.0 under ^24.22.1) ----
+# -- G6: ci.yml holds the expected setup-node step byte for byte (CI once ran 24.21.0 under ^24.22.1) ----
+# The shipped starter passes in every green case above. Each case below changes the step one way and must be red.
+CI="$ASTRO/.github/workflows/ci.yml"
 CL='          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release'
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "$CL"$'\n' ""
-expect "G6 ci.yml without check-latest: red, names the step" "$c" fail 'this setup-node step has no "check-latest: true"' 'workflows/ci.yml:'
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: false "
-expect "G6 ci.yml check-latest: false: red" "$c" fail 'has no "check-latest: true"'
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "$CL"$'\n' ""
-printf '      - run: echo later\n        env:\n          check-latest: true\n' >>"$c/$ASTRO/.github/workflows/ci.yml"
-expect "G6 check-latest in a later step does not count for the setup-node step" "$c" fail 'has no "check-latest: true"'
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7" "      - name: Node"$'\n'"        uses: actions/setup-node@v7"
-expect "G6 a named setup-node step: red, only the starter's layout is read" "$c" fail "G6 reads only the starter's layout"
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "$CL"$'\n' ""
-tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n' "      - uses: actions/setup-node@v7"$'\n'"        env:"$'\n'"          check-latest: true"$'\n'
-expect "G6 check-latest under the same step's env:, not with: red" "$c" fail 'has no "check-latest: true" under its with:'
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n' ""
-tsub "$c/$ASTRO/.github/workflows/ci.yml" "          cache: npm"$'\n' "          cache: npm"$'\n'"        uses: actions/setup-node@v7"$'\n'
-tsub "$c/$ASTRO/.github/workflows/ci.yml" "        with:"$'\n'"          node-version: 24" "      - with:"$'\n'"          node-version: 24"
-expect "G6 with: written before uses: red, only the starter's layout is read" "$c" fail "G6 reads only the starter's layout"
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: \"true\" "
-expect "G6 check-latest: \"true\", quoted: red (only a bare true is read)" "$c" fail 'has no "check-latest: true" under its with:'
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest:true "
-expect "G6 check-latest:true with no space (not that key in YAML): red" "$c" fail 'has no "check-latest: true" under its with:'
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n' "      -"$'\n'"        uses: actions/setup-node@v7"$'\n'
-expect "G6 a bare \"-\" with the keys below: red, only the starter's layout is read" "$c" fail "G6 reads only the starter's layout"
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: True "
-expect "G6 check-latest: True: red (only true is read, a red is loud)" "$c" fail 'has no "check-latest: true" under its with:'
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n'"        with:"$'\n'"          " "      -   uses: actions/setup-node@v7"$'\n'"          with:"$'\n'"            "
-tsub "$c/$ASTRO/.github/workflows/ci.yml" $'\n'"          check-latest: true" $'\n'"            check-latest: true"
-tsub "$c/$ASTRO/.github/workflows/ci.yml" $'\n'"          cache: npm" $'\n'"            cache: npm"
-expect "G6 \"-   uses:\" with the keys aligned after it: red, only the starter's layout is read" "$c" fail "G6 reads only the starter's layout"
+g6() { expect "G6 $1: red" "$c" fail "is not EXPECTED_SETUP_NODE byte for byte"; }
+fresh; tsub "$c/$CI" "$CL"$'\n' "";                                     g6 "check-latest removed"
+fresh; tsub "$c/$CI" "check-latest: true " "check-latest: false ";        g6 "check-latest: false"
+fresh; tsub "$c/$CI" "check-latest: true " "check-latest: True ";         g6 "check-latest: True"
+fresh; tsub "$c/$CI" "check-latest: true " "check-latest: \"true\" ";     g6 "check-latest quoted"
+fresh; tsub "$c/$CI" "$CL"$'\n' ""; tsub "$c/$CI" "        with:"$'\n' "        env:"$'\n'"          check-latest: true"$'\n'"        with:"$'\n'
+g6 "check-latest under env:, not with:"
+fresh; tsub "$c/$CI" "$CL" "         nested:"$'\n'"$CL"; g6 "check-latest at column 10 under a key at column 9 (YAML nests it)"
+fresh; tsub "$c/$CI" "          cache: npm"$'\n' "          cache: npm"$'\n'"          check-latest: false"$'\n'; g6 "a key added after the step's last line"
+fresh; tsub "$c/$CI" "      - uses: actions/setup-node@v7" "      - name: Node"$'\n'"        uses: actions/setup-node@v7"; g6 "the step given a name: line"
+fresh; tsub "$c/$CI" "@v7"$'\n'"        with:" "@v8"$'\n'"        with:";       g6 "setup-node bumped to v8 without the constant"
+fresh; printf '      - uses: "actions/setup-node@v7"\n' >>"$c/$CI";            g6 "a second, quoted setup-node step appended"
+fresh; printf '      # setup-node is pinned above\n' >>"$c/$CI";                g6 "setup-node named again, in a comment"
 
 # -- scenario 14: an unlisted place is a known limit -------------------------------------------------
 fresh; printf 'Node 22.12 or newer.\n' >"$c/docs/NEWDOC.md"

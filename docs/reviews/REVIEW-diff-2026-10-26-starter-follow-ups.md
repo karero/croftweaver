@@ -72,3 +72,15 @@ Codex verified M11, M12 and the M13 assertion. GLM 5.3 timed out at 900 s and di
 |---|---|---|---|---|
 | C10 | BUG | codex | fixed by a cut | A dash line holding only a comment took the comment's column as the key column: a false red, the third layout in three rounds. Cut: G6 no longer guesses layouts. It reads one, the starter's (`- uses: actions/setup-node@…`, keys two columns in, `check-latest: true` a direct child of `with:`); any other layout is a red that says "G6 reads only the starter's layout". The named-step, `with:`-first, bare-dash and aligned-key cases now expect that red |
 | C11 | — | codex | UNVERIFIABLE, left | `proofs.sh` is in round 1's evidence; C9 as before |
+
+## Round 5 — `91ba6fc3`, delta from `7d61b2e6` (`--verify` round 4), `--earned-by yaml-step-layout --cut "G6's layout guessing removed…"`
+`reviewers: codex OK` · `timings: codex 182s (45697 tokens)`
+`reviewers: melious OK` · `timings: melious 706s (50192 tokens)` · gate `20261026T111928Z-99804`
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C12 | BUG | codex | fixed by a cut | `with:` at column 8, a key at 9 and `check-latest: true` at 10 passed, though YAML nests it under that key. Case "check-latest at column 10 under a key at column 9" passes the round 5 guard, is red now |
+| C13 | BUG | codex | fixed by a cut | A second step `- uses: "actions/setup-node@v7"`, quoted, was never found, so it stayed green without check-latest. Case "a second, quoted setup-node step appended" passes the round 5 guard, is red now |
+| M14 | NIT | melious | moot | "says so" overclaimed for a `with:` styled otherwise; that code is gone |
+
+The cut, on the maintainer's decision relayed from the "Croftweaver feature-planning" session ("Make G6 a literal check: compare the starter's setup-node step byte for byte with the expected block, red with a clear message otherwise. One more review round on that, then push, PR and merge once clean."): G6 parses no YAML. `EXPECTED_SETUP_NODE` in `check_node_floor.sh` holds the step's text; ci.yml must hold it once, starting a line, followed by the next step or the end, and name `setup-node` nowhere else. The red says to change the constant together with the step. The layout cases are replaced by: the shipped starter passes, and eleven changed texts are red (both cases above among them, and a v8 bump without the constant). The G4 case that quotes `node-version: '24'` now expects G4 quiet and G6 red.
