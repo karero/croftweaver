@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.22
+# template-version: 0.23
 #   The website-builder release this revision ships in. Sites get their copy at
 #   scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -720,6 +720,16 @@ site="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" "${wt:-.}/astro.config
 # the normalization: same as the llms-coverage guard applies to SITE.url.
 site="${site%/}"
 build_txt="${site:-your live site}/build.txt"
+# A *.pages.dev address is Cloudflare's own address for the project: serving the build there
+# does not show the site is live on its own domain, so the success line must not say LIVE.
+site_host="${site#*://}"; site_host="${site_host%%/*}"; site_host="${site_host%%:*}"
+site_host="$(tr '[:upper:]' '[:lower:]' <<<"${site_host%.}")"
+case "$site_host" in
+  *.pages.dev)
+    ok_line="✓ Published — verified on the pages.dev address:"
+    ok_note=" That's Cloudflare's address for the site, not your own domain: the site is live on your domain only once that's connected." ;;
+  *) ok_line="✓ LIVE — verified:"; ok_note="" ;;
+esac
 
 # After a stop, the log may be cut short (its writer stops too), so a line found in it counts
 # and a line missing from it proves nothing. Only the arms that rest on git's own words stand:
@@ -868,9 +878,9 @@ for i in $(seq 1 24); do
         echo "  two builds the live site ends on depends on Cloudflare, which this script does"
         echo "  not check: $build_txt shows the commit it serves."
       fi
-      finish "✓ LIVE — verified: $site is serving GitHub's main as of the fetch ($short), after $((i*10))s."
+      finish "$ok_line $site is serving GitHub's main as of the fetch ($short), after $((i*10))s.$ok_note"
     else
-      finish "✓ LIVE — verified: $site is serving build ${id:0:12} (after $((i*10))s)."
+      finish "$ok_line $site is serving build ${id:0:12} (after $((i*10))s).$ok_note"
     fi
     exit 0
   fi
