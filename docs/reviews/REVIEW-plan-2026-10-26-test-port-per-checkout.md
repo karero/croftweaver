@@ -14,8 +14,9 @@ commands with the same `--round`.
 | 5 | Codex (GLM 5.3 failed: melious "Settlement failed"); `--earned-by test-pass-condition`, cut: test 2's timing-dependent arm | 2 BUG, both wording; every round-4 disposition confirmed | Codex 398 s, 62,217; GLM 332 s, no figure |
 | full read | Opus subagent, fresh to this plan (host-family pass: melious had just failed, ollama does not stand in) | 0 BUG, 2 RISK, 6 NIT | 607 s, 191,689 |
 | 6 | Codex (GLM 5.3 failed: melious "Insufficient balance … Available: 0"); `--earned-by message-cause,doc-sweep` | 1 BUG, 1 RISK; every full-read disposition confirmed | Codex 641 s, 110,442 |
+| 7 | Codex (melious still out of balance); `--earned-by test-pass-condition` | none; R6-1 and R6-2 confirmed | Codex 179 s, 73,919 |
 
-Total, rounds 1–6 and the full read: 6 BUG, 20 RISK, 15 NIT.
+Total, rounds 1–7 and the full read: 6 BUG, 20 RISK, 15 NIT.
 
 ## Round 1
 
@@ -117,3 +118,12 @@ builder checks; round 7 checks them.
 |----|-----|---------|-------------|----------|
 | R6-1 | BUG | Test 2's missing-id arm still said "both causes"; §B now has three | fixed: "naming all three causes" | plan, test 2 |
 | R6-2 | RISK | "No skipped note" does not prove S9 ran: an old git skips every real-git case as "not run" and exits 0 (Codex reproduced zero real-git checks, exit 0) | fixed: pass needs the last line's real-git count above 0 and neither "not run" nor "skipped" in it | `check_ship_push.sh:755`, `:1089`, `:1406` |
+
+## Round 7, then a cut
+
+Codex found nothing and confirmed R6-1 and R6-2. The last three BUGs (R5-1, R5-2, R6-1) were the
+plan disagreeing with itself: a total, and a cause list restated after it grew. So the plan was
+cut rather than reworded: no finding counts in the plan (this trail holds them); §B's cause list
+is named once, and test 2 and the known limits refer to "the missing-id message of §B"; the
+repeated folder count and the "two handover notes" count are gone. The cut adds no claim, so it
+earns no round; the wording pass reads it.

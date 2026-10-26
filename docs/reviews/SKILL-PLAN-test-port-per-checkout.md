@@ -8,7 +8,7 @@ maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
-| 2 | Plan review gate | ⏳ 6 rounds and a final full read: 6 BUGs, 20 RISKs, 15 NITs in all, each fixed or refuted in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
+| 2 | Plan review gate | ✅ clean 2026-10-26: round 7 found nothing, then a cut and a wording pass; details in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ⬜ | — |
 | 4 | croftweaver-site copy (one pull request) | ⬜ | — |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone, after step 4 merges and the clone is pulled | ⬜ the maintainer's step | — |
@@ -63,11 +63,10 @@ so a production build never carries one, whether or not `astro build` cleared `d
 config sets the variable in `webServer.env` only. New spec `tests/served-build.spec.ts`: fetch
 `/test-build-id.txt` from the test server and compare it with this checkout's
 `dist/test-build-id.txt` on disk, found from the spec file's own location, not the working
-folder. Another checkout's server serves another id, whatever its
-commit or pages. A non-200 answer, or no file on disk, counts as missing, and the message then
-names three causes: this build skipped the marker step; the server answering is not this run's
-(another checkout's preview, or an `astro dev`); or another build in this folder replaced
-`dist/` during the run. Checked 2026-10-26: `astro preview` serves `dist/` files byte for byte.
+folder. Another checkout's server serves another id, whatever its commit or pages. A non-200
+answer, or no file on disk, counts as missing, and the message then names these causes: this
+build skipped the marker step; the server answering is not this run's (another checkout's
+preview, or an `astro dev`); another build in this folder replaced `dist/` during the run. Checked 2026-10-26: `astro preview` serves `dist/` files byte for byte.
 
 **C. Two publishes at once.** `scripts/ship.sh` already takes a lock, `ship.lock` in the clone's
 shared git folder (`git rev-parse --git-common-dir`), so it covers every worktree of a clone,
@@ -132,7 +131,7 @@ their next update.
    and `lsof -p <pid> -a -d cwd` gives each one's working folder: the two worktrees.
    `served-build.spec.ts` runs in a worker and fetches through that worker's `baseURL`, so its
    pass also shows the workers worked out the same port as the main process.
-2. **Case 1, and B's two failure messages.** One reproduction that depends on timing, then two
+2. **Case 1, and B's failure messages.** A reproduction of case 1 that depends on timing, then
    fixed setups that do not:
    - *Case 1 reproduced, without the new spec:* in worktree A, start `npm test`; during its
      build, start `astro preview` of worktree B's `dist/` on A's port (checked with `lsof`: B
@@ -141,10 +140,11 @@ their next update.
    - *A wrong id:* A and B each built with the marker branch (two different ids on disk). B's
      preview on A's port; then, in A, `served-build.spec.ts` alone, through a scratch config
      outside both worktrees that imports A's config, sets `testDir` to A's `tests/` and drops
-     `webServer`, so nothing is rebuilt. Pass: the spec fails, and its message names both ids. With the compare removed
-     from the spec, this setup passes, which shows it can catch that break.
+     `webServer`, so nothing is rebuilt. Pass: the spec fails, and its message shows A's id and
+     B's. With the compare removed from the spec, this setup passes, which shows it can catch
+     that break.
    - *A missing id:* the same, with A's `dist/test-build-id.txt` deleted. Pass: the spec fails,
-     naming all three causes.
+     and its message is the missing-id message of §B.
 3. **A real push.** In a throwaway clone whose `origin` is a bare copy on this Mac (with `main`
    and `production`), after `npm ci` (whose `prepare` wires the hook; pass only if
    `git config core.hooksPath` then prints `scripts/hooks`), one `git push origin
@@ -181,15 +181,14 @@ Rollback: revert either pull request; `git config --unset ship.fromGitHub` undoe
 
 - **Two runs in one folder** still share a port and a `dist/`, so one run's build can change
   the files under the other's server. B cannot see another *test* build there (both runs read
-  the same new id); a plain `npm run build` there deletes the id, and B fails with the third
-  cause in its message. Step 5
-  moves publishes out of the folder; other runs in one folder stay a matter of working in
-  separate worktrees.
+  the same new id); a plain `npm run build` there deletes the id, and B fails with its
+  missing-id message. Step 5 moves publishes out of the folder; other runs in one folder stay
+  a matter of working in separate worktrees.
 - **Hash clash.** 670 ports. With n folders, the chance that some pair shares a port is about
-  n(n−1)/1340 (16 folders: about one in six). It matters only when both run at once, and then
+  n(n−1)/1340. It matters only when both run at once, and then
   it is loud: Playwright's "already used" before the build, or B's spec during it.
-- A port is now per folder, so docs and logs can no longer name one port for a site (two
-  croftweaver-site handover notes in `input/` say "4725"; they are dated notes and stay).
+- A port is now per folder, so docs and logs can no longer name one port for a site
+  (croftweaver-site's handover notes in `input/` say "4725"; they are dated notes and stay).
 
 ## Judgment calls
 
