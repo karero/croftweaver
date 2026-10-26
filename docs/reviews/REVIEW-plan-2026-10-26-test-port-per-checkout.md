@@ -13,8 +13,9 @@ commands with the same `--round`.
 | 4 | Codex, GLM 5.3 (`--verify`, `--earned-by test-pass-condition,ci-claim`, cut: test 1's second hash and test 2's exact-message condition) | 0 BUG, 3 RISK, 1 NIT, 1 follow-up; every round-3 disposition confirmed by both | Codex 872 s, 97,534; GLM 271 s, 27,320 |
 | 5 | Codex (GLM 5.3 failed: melious "Settlement failed"); `--earned-by test-pass-condition`, cut: test 2's timing-dependent arm | 2 BUG, both wording; every round-4 disposition confirmed | Codex 398 s, 62,217; GLM 332 s, no figure |
 | full read | Opus subagent, fresh to this plan (host-family pass: melious had just failed, ollama does not stand in) | 0 BUG, 2 RISK, 6 NIT | 607 s, 191,689 |
+| 6 | Codex (GLM 5.3 failed: melious "Insufficient balance … Available: 0"); `--earned-by message-cause,doc-sweep` | 1 BUG, 1 RISK; every full-read disposition confirmed | Codex 641 s, 110,442 |
 
-Total, rounds 1–5 and the full read: 5 BUG, 19 RISK, 15 NIT.
+Total, rounds 1–6 and the full read: 6 BUG, 20 RISK, 15 NIT.
 
 ## Round 1
 
@@ -105,3 +106,14 @@ they earn round 6.
 | FR-6 | NIT | A bump to 0.24 would sit beside the open 0.23 release-notes row | fixed: while 0.23 is unreleased the comment rides in 0.23 with no bump; 0.24 only if 0.23 shipped first. Row 194 is left to its owner | `docs/BUGLOG.md:194` |
 | FR-7 | NIT | "A CommonJS config would stop with a syntax error" was not checked | fixed: marked "not checked", loud either way; noted as the answer to Site C's reason | plan §A |
 | FR-8 | NIT | "Missing" should cover a non-200 answer, or a builder may compare a 404 page's body | fixed: a non-200 answer or no file on disk counts as missing | plan §B |
+
+## Round 6
+
+Codex alone: melious had no balance left, and ollama does not stand in. Codex confirmed FR-1 to
+FR-8 and the totals. Both findings change only a pass condition of a test, which states what the
+builder checks; round 7 checks them.
+
+| Id | Sev | Finding | Disposition | Evidence |
+|----|-----|---------|-------------|----------|
+| R6-1 | BUG | Test 2's missing-id arm still said "both causes"; §B now has three | fixed: "naming all three causes" | plan, test 2 |
+| R6-2 | RISK | "No skipped note" does not prove S9 ran: an old git skips every real-git case as "not run" and exits 0 (Codex reproduced zero real-git checks, exit 0) | fixed: pass needs the last line's real-git count above 0 and neither "not run" nor "skipped" in it | `check_ship_push.sh:755`, `:1089`, `:1406` |

@@ -8,7 +8,7 @@ maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
-| 2 | Plan review gate | ⏳ 5 rounds and a final full read: 5 BUGs, 19 RISKs, 15 NITs in all, each fixed or refuted in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
+| 2 | Plan review gate | ⏳ 6 rounds and a final full read: 6 BUGs, 20 RISKs, 15 NITs in all, each fixed or refuted in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ⬜ | — |
 | 4 | croftweaver-site copy (one pull request) | ⬜ | — |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone, after step 4 merges and the clone is pulled | ⬜ the maintainer's step | — |
@@ -144,7 +144,7 @@ their next update.
      `webServer`, so nothing is rebuilt. Pass: the spec fails, and its message names both ids. With the compare removed
      from the spec, this setup passes, which shows it can catch that break.
    - *A missing id:* the same, with A's `dist/test-build-id.txt` deleted. Pass: the spec fails,
-     naming both causes.
+     naming all three causes.
 3. **A real push.** In a throwaway clone whose `origin` is a bare copy on this Mac (with `main`
    and `production`), after `npm ci` (whose `prepare` wires the hook; pass only if
    `git config core.hooksPath` then prints `scripts/hooks`), one `git push origin
@@ -161,8 +161,11 @@ their next update.
    the template or the brand-kit skill (`template-tests.yml` line 70, the path list, and line 573, the job's condition), which the toolkit
    change does.
 5. **Repo checks.** Toolkit `make check`; site `npm run check`, its full suite, and
-   `tests/check_ship_push.sh` (S9 and marker agreement). Pass only with no "skipped" note in
-   its output: without perl, S9 skips itself and says only "S9 skipped: no perl here".
+   `tests/check_ship_push.sh` (S9 and marker agreement). Pass only when its last line, "✓ ship
+   push gate: … and N checks on real git …", has N above 0 and neither "not run" nor
+   "skipped" in it: an old git skips every real-git case ("not run"), and without perl S9 skips
+   itself ("S9 skipped: no perl here"), and both still exit 0 (`check_ship_push.sh` lines 755,
+   1089, 1406).
 6. **The publish mode in croftweaver-site.** In the throwaway clone of test 3, with
    `ship.fromGitHub` on: start `npm run ship`, and during its gate start a second one. Pass: the
    second exits 1 at once, printing "another publish holds this clone's lock" and "a publish is
