@@ -8,10 +8,10 @@ maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
-| 2 | Plan review gate | ⏳ 5 rounds: 5 BUGs, 17 RISKs, 9 NITs in all, each fixed or refuted in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
+| 2 | Plan review gate | ⏳ 5 rounds and a final full read: 5 BUGs, 19 RISKs, 15 NITs in all, each fixed or refuted in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ⬜ | — |
 | 4 | croftweaver-site copy (one pull request) | ⬜ | — |
-| 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone | ⬜ the maintainer's step | — |
+| 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone, after step 4 merges and the clone is pulled | ⬜ the maintainer's step | — |
 
 ## What and why
 
@@ -47,7 +47,8 @@ each clone is its own folder, and so is each site when one repository holds seve
 2026-10-26 with Playwright 1.64.1 and `"type": "module"` (the starter's), in a full run with two
 workers started from `tests/` with `-c ../playwright.config.ts`: the main process and both
 workers printed the same folder, while `process.cwd()` was `tests/`. A config loaded as CommonJS would
-stop at `import.meta` with a syntax error, which is loud. Site C (GenAI-Wednesday) keys on
+fail as it loads, at `import.meta` (not checked); that is loud either way, and it answers Site C's
+stated reason for avoiding `import.meta`. Site C (GenAI-Wednesday) keys on
 `git rev-parse --show-toplevel` instead; that gives two sites in one repository one key, so it
 is not taken, nor its SHA-256 hash, 4400–4899 range or `PW_PORT` override. The config's
 comments ("One preview port per site, derived from SITE.url", "same site → same port") are
@@ -63,16 +64,19 @@ config sets the variable in `webServer.env` only. New spec `tests/served-build.s
 `/test-build-id.txt` from the test server and compare it with this checkout's
 `dist/test-build-id.txt` on disk, found from the spec file's own location, not the working
 folder. Another checkout's server serves another id, whatever its
-commit or pages. When either side is missing, the message names both causes: this build skipped
-the marker step, or the server answering is not this run's (another checkout's preview, or an
-`astro dev`). Checked 2026-10-26: `astro preview` serves `dist/` files byte for byte.
+commit or pages. A non-200 answer, or no file on disk, counts as missing, and the message then
+names three causes: this build skipped the marker step; the server answering is not this run's
+(another checkout's preview, or an `astro dev`); or another build in this folder replaced
+`dist/` during the run. Checked 2026-10-26: `astro preview` serves `dist/` files byte for byte.
 
 **C. Two publishes at once.** `scripts/ship.sh` already takes a lock, `ship.lock` in the clone's
 shared git folder (`git rev-parse --git-common-dir`), so it covers every worktree of a clone,
 and `check_ship_push.sh` case S9 tests a second publish against a held lock. But only the
 `ship.fromGitHub` mode takes it; the default mode, publishing the folder itself, takes none.
 croftweaver-site runs the default mode (`git config --local ship.fromGitHub` is empty), which
-is why case 2 could happen. No new guard: the maintainer switches the existing mode on,
+is why case 2 could happen. No new guard: once step 4 has merged and the clone is pulled (the
+mode refuses a `scripts/ship.sh` that differs from `origin/main`, and step 4 changes it), the
+maintainer switches the existing mode on,
 
 ```bash
 cd /Users/matt/Devel/croftweaver-site && git config ship.fromGitHub true
@@ -89,15 +93,28 @@ check names a newer publish ("A newer publish followed"). That stays as it is.
 
 **D. Words that become wrong.** `scripts/ship.sh`'s comment above the "test port was taken"
 message says the port "comes from the site's address, so it is the same in every copy"; it now
-comes from the site's folder. Comment only, but the file's own rule bumps `template-version`
-to 0.24, with `tests/check_ship_push.sh`'s marker in step. The message itself stays true.
+comes from the site's folder. Comment only. Its `template-version` is 0.23 on `main`, not yet
+released, with an open release-notes row (`docs/BUGLOG.md` line 194); while that holds, the
+comment rides in 0.23 with no bump, and this change's own row names it. If 0.23 has been
+released first, the marker goes to 0.24 with `tests/check_ship_push.sh`'s in step. The message
+itself stays true. Other words that become wrong, fixed in the same pull request:
+`tests/check_ship_push.sh` line 661 ("the known limit of one test port per site");
+`tests/check_analytics_gate.sh` lines 55–56 ("touch heading ids and dist/build.txt only");
+`scripts/build-marker.mjs`'s header; `test_e2e_site.py` line 34's docstring ("works it out
+from SITE.url"); and `skills/website-qa/SKILL.md` §1, the list of always-on specs agents read,
+which gains `served-build.spec.ts`.
 `skills/website-brand-kit/scripts/tests/test_e2e_site.py` re-computes the old hash from
 `SITE.url` to find the port; it instead reads `config.webServer.url` from
 `npx playwright test --list --reporter=json`, run in the site (checked: that output carries
-`http://localhost:4725/` today), so it no longer copies the formula. `PUBLISHING.md` line 229
+`http://localhost:4725/` today), so it no longer copies the formula. It runs that once per test
+and keeps the result: `previews()` calls the lookup on every poll (line 54), and a lookup loads
+every spec. `PUBLISHING.md` line 229
 ("Another test run, or a preview of the site … is using the port the checks need") and the
 brand-kit `SKILL.md` line 290 ("the killed run's tests may still hold the site's preview port")
-stay true. One `docs/BUGLOG.md` row carries the release-notes line.
+stay true. One `docs/BUGLOG.md` row carries the release-notes line, and says that
+`playwright.config.ts`, `scripts/build-marker.mjs` and `tests/served-build.spec.ts` go
+together: `whats-new` lists them one by one, and a site that takes only the spec fails on the
+missing id every run.
 
 **Repos and order.** karero/croftweaver first (A, B, D in one pull request), then
 karero/croftweaver-site (the same `playwright.config.ts`, `build-marker.mjs` branch and spec,
@@ -144,7 +161,8 @@ their next update.
    the template or the brand-kit skill (`template-tests.yml` line 70, the path list, and line 573, the job's condition), which the toolkit
    change does.
 5. **Repo checks.** Toolkit `make check`; site `npm run check`, its full suite, and
-   `tests/check_ship_push.sh` (S9 and marker agreement).
+   `tests/check_ship_push.sh` (S9 and marker agreement). Pass only with no "skipped" note in
+   its output: without perl, S9 skips itself and says only "S9 skipped: no perl here".
 6. **The publish mode in croftweaver-site.** In the throwaway clone of test 3, with
    `ship.fromGitHub` on: start `npm run ship`, and during its gate start a second one. Pass: the
    second exits 1 at once, printing "another publish holds this clone's lock" and "a publish is
@@ -159,7 +177,9 @@ Rollback: revert either pull request; `git config --unset ship.fromGitHub` undoe
 ## Known limits
 
 - **Two runs in one folder** still share a port and a `dist/`, so one run's build can change
-  the files under the other's server, and B cannot see it (both read the same `dist/`). Step 5
+  the files under the other's server. B cannot see another *test* build there (both runs read
+  the same new id); a plain `npm run build` there deletes the id, and B fails with the third
+  cause in its message. Step 5
   moves publishes out of the folder; other runs in one folder stay a matter of working in
   separate worktrees.
 - **Hash clash.** 670 ports. With n folders, the chance that some pair shares a port is about

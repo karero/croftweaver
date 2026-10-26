@@ -12,8 +12,9 @@ commands with the same `--round`.
 | 3 | Codex, GLM 5.3 (`--verify`) | 1 BUG, 3 RISK, 1 NIT (after dedup; GLM's two NITs merged into R3-2 and R3-4); every round-2 disposition confirmed by both | Codex 494 s, 111,004; GLM 571 s, 40,811 |
 | 4 | Codex, GLM 5.3 (`--verify`, `--earned-by test-pass-condition,ci-claim`, cut: test 1's second hash and test 2's exact-message condition) | 0 BUG, 3 RISK, 1 NIT, 1 follow-up; every round-3 disposition confirmed by both | Codex 872 s, 97,534; GLM 271 s, 27,320 |
 | 5 | Codex (GLM 5.3 failed: melious "Settlement failed"); `--earned-by test-pass-condition`, cut: test 2's timing-dependent arm | 2 BUG, both wording; every round-4 disposition confirmed | Codex 398 s, 62,217; GLM 332 s, no figure |
+| full read | Opus subagent, fresh to this plan (host-family pass: melious had just failed, ollama does not stand in) | 0 BUG, 2 RISK, 6 NIT | 607 s, 191,689 |
 
-Total, rounds 1–5: 5 BUG, 17 RISK, 9 NIT.
+Total, rounds 1–5 and the full read: 5 BUG, 19 RISK, 15 NIT.
 
 ## Round 1
 
@@ -87,3 +88,20 @@ decision, so no round 6 is owed (stop condition a2).
 |----|-----|------|---------|-------------|----------|
 | R5-1 | BUG | Codex | Test 2 said "none depending on timing", but its case-1 reproduction does | fixed: "one reproduction that depends on timing, then two fixed setups that do not" | plan, test 2 |
 | R5-2 | BUG | Codex | The plan's "20 RISKs" disagreed with the trail | fixed: the trail's round-3 summary miscounted (3 RISKs and 1 NIT after dedup, not 4 and 2); totals recounted from the rows: 5 BUG, 17 RISK, 9 NIT | this file's tables |
+
+## Final full read
+
+One pass over the whole plan by a reviewer that had not seen it, with round 5's evidence. Every
+file and line it cited was checked here before acting. FR-1 and FR-2 change what is built, so
+they earn round 6.
+
+| Id | Sev | Finding | Disposition | Evidence |
+|----|-----|---------|-------------|----------|
+| FR-1 | RISK | A plain `npm run build` in the same folder deletes the id under a running test server; B then fails and blames two wrong causes, and the known limit says B cannot see same-folder builds | fixed: the message names a third cause (another build in this folder replaced `dist/`); the known limit says which same-folder build B sees and which it does not | site `pre-push:71–72` builds before `npm test` (`:86`) |
+| FR-2 | RISK | §D misses five more places whose words become wrong, and a site taking only the spec fails every run | fixed: §D lists `check_ship_push.sh:661`, `check_analytics_gate.sh:55–56`, `build-marker.mjs`'s header, `test_e2e_site.py:34`, `website-qa/SKILL.md` §1; the release-notes row says the three files go together | each line read |
+| FR-3 | NIT | `previews()` runs the port lookup on every poll, and the lookup loads every spec | fixed: looked up once per test and kept | `test_e2e_site.py:54` |
+| FR-4 | NIT | Step 5 before step 4 is merged and pulled would be refused by `check_script` | fixed: step 5 waits for step 4's merge and a pull | `ship.sh:249–270` |
+| FR-5 | NIT | Test 5 passes even when S9 skips itself without perl | fixed: pass only with no "skipped" note | `check_ship_push.sh:1089` |
+| FR-6 | NIT | A bump to 0.24 would sit beside the open 0.23 release-notes row | fixed: while 0.23 is unreleased the comment rides in 0.23 with no bump; 0.24 only if 0.23 shipped first. Row 194 is left to its owner | `docs/BUGLOG.md:194` |
+| FR-7 | NIT | "A CommonJS config would stop with a syntax error" was not checked | fixed: marked "not checked", loud either way; noted as the answer to Site C's reason | plan §A |
+| FR-8 | NIT | "Missing" should cover a non-200 answer, or a builder may compare a 404 page's body | fixed: a non-200 answer or no file on disk counts as missing | plan §B |
