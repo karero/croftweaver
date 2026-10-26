@@ -136,3 +136,14 @@ codex alone. melious FAILED (error mid-stream, quota) · `timings: codex 528s (9
 ## Re-gate link — the fixes (`ee676ee2`), not a round
 codex alone. melious FAILED (error mid-stream, quota) · `timings: codex 445s (42118 tokens)` · "No
 BUG/RISK/NIT findings." The stamp's chain stays codex's, now through the merge link and this link.
+
+## Merge link — origin/main merged again (#421, #422, #423), PR #426 opened, 2026-10-26 (not a round)
+Artifact: `merge_link.sh ee7cecb7 f86ed366 <new merge base>`: merge effects only, in
+`.github/workflows/clean.yml` and `docs/BUGLOG.md` (`check_buglog_rows.sh`: 189 rows, none twice).
+codex alone. melious FAILED (error mid-stream, quota) · `timings: codex 134s (87338 tokens)` · "No
+BUG/RISK/NIT findings." The maintainer chose in chat (2026-10-26) to push before the private-name
+list gets the two names ("Push now (Recommended)"); the diff holds neither (`grep -ic`: 0).
+
+**Verdict still CLEAN.** The stamp's chain is codex's: round 1's full pair, rounds 2–5, the
+re-gate link, and the three merge and re-gate links since. Reviewer tokens since the verdict
+above: codex 221,475 (the three links of 2026-10-26).
