@@ -381,6 +381,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: An install of the starter, to borrow its sharp from
         run: |
           cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"

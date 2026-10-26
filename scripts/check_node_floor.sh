@@ -23,6 +23,9 @@
 #       its line with a caret (so ">=24.22.1" in the middle, which would admit 25, is red), and as many
 #       alternatives as the SETUP.md and SKILL.md phrases list versions (LINE_COUNT). Adding "|| ^25.9.0"
 #       or dropping the 24 alternative is red until the phrase table is changed on purpose.
+#   G6  every actions/setup-node step in the starter's ci.yml says check-latest: true. ci.yml names a
+#       bare major, and without it the runner may use a cached older release of that major, one engines
+#       refuses (CI ran on 24.21.0 when engines needed 24.22.1).
 #
 # Ranges it reads: alternatives joined by "||", each ">=X[.Y[.Z]]" or "^X[.Y[.Z]]" (X at least 1), with
 # optional spaces after the operator and around "||". Anything else ("22", "22.x", "~22.23") is refused
@@ -236,6 +239,24 @@ function checkMajor(file, label, value) {
     });
     if (vals.length === 0) fail(FILES.ci + ': no node-version line (G4)');
     vals.forEach(function (v) { checkMajor(FILES.ci, 'node-version', v); });
+    // G6: a step is its "uses:" line and the lines indented deeper than its "-".
+    const lines = ci.split('\n');
+    let steps = 0;
+    lines.forEach(function (line, i) {
+      const m = /^(\s*)(?:-\s*)?uses:\s*actions\/setup-node@/.exec(line);
+      if (!m) return;
+      steps++;
+      const dash = /^\s*-/.test(line) ? line.indexOf('-') : m[1].length - 2; // "- uses:", or "uses:" under "- name:"
+      let ok = false;
+      for (let j = i + 1; j < lines.length; j++) {
+        const l = lines[j];
+        if (l.trim() === '' || /^\s*#/.test(l)) continue;
+        if (l.search(/\S/) <= dash) break;
+        if (/^\s*check-latest:\s*true\s*(?:#.*)?$/.test(l)) ok = true;
+      }
+      if (!ok) fail(FILES.ci + ':' + (i + 1) + ': this setup-node step has no "check-latest: true" (G6), so CI may run a cached Node older than engines allows');
+    });
+    if (steps === 0) fail(FILES.ci + ': no actions/setup-node step (G6)');
   }
 }
 // G3
@@ -280,5 +301,5 @@ if (fails.length) {
   fails.forEach(function (f) { console.log('FAIL — ' + f); });
   process.exit(1);
 }
-console.log('OK — the starter\'s Node floor holds: engines "' + starterText + '" is inside Astro ' + astroVersion + '\'s "' + astroText + '", the lockfile root agrees, .nvmrc and ci.yml name an admitted major, and ' + phrasesOk + ' phrases in ' + Object.keys(textOf).length + ' files carry the same versions.');
+console.log('OK — the starter\'s Node floor holds: engines "' + starterText + '" is inside Astro ' + astroVersion + '\'s "' + astroText + '", the lockfile root agrees, .nvmrc and ci.yml name an admitted major, ci.yml asks setup-node for the latest release, and ' + phrasesOk + ' phrases in ' + Object.keys(textOf).length + ' files carry the same versions.');
 JS
