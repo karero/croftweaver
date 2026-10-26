@@ -1,6 +1,6 @@
 # Plan: one test port per checkout, not per site
 
-Nothing is built yet. The plan goes through the plan review gate (Normal depth: test setup, a
+Built 2026-10-26 after the maintainer's go. The plan went through the plan review gate (Normal depth: test setup, a
 test-only branch in the build-marker script, one comment in the publish script; no red team,
 since it touches no server, user data, login, money, deletion or schema), then waits for the
 maintainer's go.
@@ -9,8 +9,8 @@ maintainer's go.
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
 | 2 | Plan review gate | ✅ closed 2026-10-26: round 7 found nothing; a cut and a wording pass (one prose fix) followed; details in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
-| 3 | Toolkit change (one pull request) | ⬜ | — |
-| 4 | croftweaver-site copy (one pull request) | ⬜ | — |
+| 3 | Toolkit change (one pull request) | ⏳ PR open; DIFF gate closed (2 rounds and a wording pass, Codex alone); CI running | karero/croftweaver#424; trail `REVIEW-diff-2026-10-26-test-port-per-checkout.md` |
+| 4 | croftweaver-site copy (one pull request) | ⏳ built and tested on branch `feat/test-port-per-checkout` (tests 1, 2, 3, 5, 6 passed); its review is under way; waits for step 3's merge commit | site repository, not linked here |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone, after step 4 merges and the clone is pulled | ⬜ the maintainer's step | — |
 
 ## What and why
