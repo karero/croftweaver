@@ -1,16 +1,16 @@
 # Plan: one test port per checkout, not per site
 
-Built 2026-10-26 after the maintainer's go. The plan went through the plan review gate (Normal depth: test setup, a
-test-only branch in the build-marker script, one comment in the publish script; no red team,
-since it touches no server, user data, login, money, deletion or schema), then waits for the
-maintainer's go.
+Built and merged 2026-10-26, after the plan review gate (Normal depth: test setup, a test-only
+branch in the build-marker script, one comment in the publish script; no red team, since it
+touches no server, user data, login, money, deletion or schema) and the maintainer's go. Step 5
+is the maintainer's own command.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
 | 2 | Plan review gate | ✅ closed 2026-10-26: round 7 found nothing; a cut and a wording pass (one prose fix) followed; details in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
-| 3 | Toolkit change (one pull request) | ⏳ PR open; DIFF gate closed (2 rounds and a wording pass, Codex alone); CI running | karero/croftweaver#424; trail `REVIEW-diff-2026-10-26-test-port-per-checkout.md` |
-| 4 | croftweaver-site copy (one pull request) | ⏳ built and tested on branch `feat/test-port-per-checkout` (tests 1, 2, 3, 5, 6 passed); its review is under way; waits for step 3's merge commit | site repository, not linked here |
+| 3 | Toolkit change (one pull request) | ✅ merged 2026-10-26; DIFF gate closed (2 rounds and a wording pass, Codex alone) | karero/croftweaver#424, merge commit `cddef189`; trail `REVIEW-diff-2026-10-26-test-port-per-checkout.md` |
+| 4 | croftweaver-site copy (one pull request) | ✅ merged 2026-10-26; tests 1, 2, 3, 5 and 6 passed on its branch; DIFF gate closed (3 rounds, Codex alone) | the site repository's pull request 150 (not linked here), merge commit `df70d0f` |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone, after step 4 merges and the clone is pulled | ⬜ the maintainer's step | — |
 
 ## What and why
