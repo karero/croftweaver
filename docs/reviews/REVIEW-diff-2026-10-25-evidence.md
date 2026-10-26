@@ -1,0 +1,87 @@
+# Review trail: `--evidence` build (DIFF gate, Normal)
+
+Change: the build of `docs/reviews/SKILL-PLAN-review-evidence.md` on `feat/review-evidence`,
+with the owner's go of 2026-10-25 ("Go on the --evidence plan. Merge #405 once CI is green, then
+build --evidence as its own PR on top."). Depth Normal (the skill ships in croftweaver.zip):
+Codex (gpt-6.1-sol) + GLM 5.3 on melious, fresh-eyes (Sonnet) in round 1. Artifact:
+`git diff origin/main...HEAD -- . ':(exclude)docs/reviews/'`.
+
+Before review: `make check` green (after one fix: the END-marker check piped into `grep -q`,
+which `check_pipefail_pipes.sh` refuses; it reads a here-string now). The new tests were
+mutation-checked in four copies of the scripts, each with one break: agy's prompt without the
+block (1 check failed), the text-only prompt with the evidence before the wording paragraph (5),
+CONTENT_BYTES without the evidence (5), the END-marker check without trailing blanks (6).
+
+## Round 1 (head acf69418)
+
+reviewers: codex OK, melious OK. timings: codex 395s (103,874 tokens), melious 243s (35,924
+tokens); fresh-eyes 445s (143,128 tokens). base: dfcb2bbe (merge base with origin's HEAD
+6439b81c, fetched; every changed tracked file present).
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F1 | codex | BUG | SKILL.md step 3 told fresh-eyes to copy the block from `codex.prompt`, but that pass starts before the script writes it, and the file is missing when Codex does not run. | Fixed: the host builds the block from the evidence file and PROMPT_EVIDENCE's lead. Also fresh-eyes' NIT on the same sentence. |
+| F2 | codex | BUG | The test comment said "a cut block fails", but only the block's edges were checked; a middle line could go. | Fixed: the whole text between the markers must equal the file as read; a new case cuts a middle line and expects the check to fail. |
+| F3 | melious | RISK | BUGLOG's "ignores text after the last hunk" vs T3e's control, where an appended record is refused. | Fixed: the row says non-diff text, and that an appended record is still refused (T3e control). Fresh-eyes reproduced both behaviours on `diff_headers.pl`. |
+| F4 | melious | NIT | Only the END marker is refused; a stray BEGIN line would nest. | Refuted: a BEGIN line inside the block cannot move text out of it; END can, which is why the plan refuses it alone. |
+| F5 | melious | NIT | `$(cat)` drops NUL bytes, so binary evidence changes silently. | Re-sorted: rare; the artifact and prior findings are read the same way, and evidence is text (output, logs, measurements). |
+| F6 | melious | NIT | The second-`--evidence` refusal does not print USAGE like its siblings. | Fixed. |
+| F7 | fresh-eyes | NIT | SKILL.md's size sentence did not say the evidence counts, or "trim the evidence". | Fixed. |
+
+Round 2 is earned by F1 (it changes what the host does) and F2 (a guard credited with more than it caught).
+
+## Round 2 (verification, delta acf69418..dcbb46ef)
+
+reviewers: codex OK (effort medium), melious FAILED ("Insufficient balance for request.
+Required: 113, Available: 0": out of credit again after round 1), ollama-cloud FAILED (quota).
+timings: codex 153s (90,187 tokens). F1–F7 confirmed except below.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F8 | codex | BUG | F2's fix claimed a padded block fails, but `$(...)` drops trailing newlines on both sides, so a blank line before END passed. | Fixed: both sides keep their trailing newlines (a sentinel inside each substitution); new cases: a block padded before END fails, the prompt as sent passes. |
+
+Round 3 is earned by F8 (a guard that could not fire on the input it named).
+
+## Round 3 (verification, delta dcbb46ef..b5f688d4)
+
+reviewers: codex OK (effort medium), melious FAILED ("Insufficient balance … Required: 72,
+Available: 0"), ollama-cloud FAILED (quota). timings: codex 73s (27,490 tokens).
+Codex: No BUG/RISK/NIT findings; F8 confirmed.
+
+The rounds end here. Nothing outside the trail changed after round 3, so no wording pass is due.
+
+## State
+
+3 rounds, 8 findings. Codex holds an unbroken chain to b5f688d4 and is clean. GLM 5.3 reviewed
+round 1 in full and then had no credit: its chain ends at acf69418, and the round 2–3 delta
+(acf69418..b5f688d4: SKILL.md steps 2–3, the BUGLOG row, the USAGE echo, the block test) has
+had one cross-model seat.
+
+## GLM 5.3 on the round 2–3 delta (acf69418..def265bc, after melious was topped up again)
+
+`--seat melious --verify` (F1–F8), MELIOUS_MODEL=glm-5.3, no `--round`: the seat's chain caught
+up. timings: melious 345s (41,151 tokens). F1–F8 confirmed landed. No BUG.
+
+| # | Seat | Sev | Finding | Disposition |
+|---|------|-----|---------|-------------|
+| F9 | melious | RISK | The whole-block comparison holds only if the lead sits outside the markers. | Refuted: PROMPT_EVIDENCE puts the lead before `--- BEGIN EVIDENCE ---`; "accepts the prompt as sent" passes. |
+| F10 | melious | RISK | The cut case works only if "timings: codex 81s" is a line of the evidence. | Refuted: the fixture `ev.txt` holds that line, and nowhere else in the prompt does. |
+| F11 | melious | NIT | The first cut check only shows the files differ; its name claimed the block check fails. | Fixed: renamed to what it checks. |
+| F12 | melious | NIT | SKILL.md says `${TYPE}`, the test writes `@TYPE@`. | Refuted: `${TYPE}` is the script's token; `@TYPE@` is the test's placeholder for it. |
+
+Re-gate of F11 (delta def265bc..c33a5557, test code, so full scope without `--wording-pass`,
+`--seat codex`): codex 190s (37,597 tokens), No BUG/RISK/NIT findings.
+
+## Closed
+
+Clean at Normal depth. 3 rounds, 12 findings: 3 BUG and 9 RISK/NIT, every one fixed, refuted or
+re-sorted above. Codex holds an unbroken chain to the last head; GLM 5.3 reviewed round 1 in
+full and the round 2–3 delta once it had credit; fresh-eyes ran in round 1.
+
+## Merge link (origin/main 12617ee1 merged in at 4464b510)
+
+`merge_link.sh dfcb2bbe 87f6d5aa <new merge base>`: one added line, #406's own BUGLOG row
+(already reviewed there), next to this change's row after the conflict was resolved by keeping
+both. No file of this change moved; the files `--suggest-callees` listed (README.md, the
+search-console and seo SKILL.md files and scripts) match by name only, and the review script
+calls none of them. Not re-reviewed: nothing of this change is in it.

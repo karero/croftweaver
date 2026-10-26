@@ -47,6 +47,7 @@ SCRIPTS=(
   scripts/test_node_floor.sh
   scripts/test_template_coverage.sh
   scripts/test_whats_new_removed_skill.sh
+  scripts/test_buglog_rows.sh
   skills/independent-review/scripts/check_prompt_sync.sh
   skills/independent-review/scripts/test_base_check.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
@@ -58,6 +59,7 @@ EXEMPT=(
   "scripts/check_clean.sh|checks mktemp itself, and test_clean_denylist.sh pins it"
   "scripts/check_lf_checkout.sh|checks mktemp itself"
   "scripts/check_pipefail_pipes.sh|checks mktemp itself"
+  "scripts/build_directory_tree.sh|checks mktemp itself, before anything uses the folder"
   "scripts/check_skill_budgets.sh|checks mktemp itself"
   "scripts/test_mktemp_guard.sh|this file: with its own guard broken it would run itself without end"
   "skills/independent-review/scripts/check_perl_minimum.sh|checks mktemp itself"

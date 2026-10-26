@@ -31,6 +31,7 @@ SUBJECTS=(
   scripts/check_model_agnostic.sh
   scripts/check_template_coverage.sh
   scripts/test_template_coverage.sh
+  scripts/check_buglog_rows.sh
   scripts/check_node_floor.sh
   scripts/check_skill_budgets.sh
   scripts/check_pipefail_pipes.sh
@@ -58,7 +59,10 @@ NOT_RUN=(
   scripts/test_whats_new.sh                                     # builds a throwaway suite repo and site; needs git
   scripts/test_mktemp_guard.sh                                  # runs other scripts with mktemp stubbed to fail
   scripts/test_node_floor.sh                                    # builds throwaway copies and runs npm; needs node
+  scripts/test_buglog_rows.sh                                   # builds throwaway repos; needs git
   scripts/check_cdpath_safe.sh                                  # this file
+  scripts/build_directory_tree.sh                               # reads git history; needs a clone (the plugin tests run it)
+  scripts/publish_directory.sh                                  # pushes the branch directory to origin
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself
   skills/independent-review/scripts/merge_link.sh               # needs a repo and three revisions; never locates itself

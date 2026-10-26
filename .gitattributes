@@ -9,3 +9,9 @@
 # A clone made before this file existed keeps its CRLF copies, and `git status` shows nothing.
 # Commit or stash any work, then rewrite them once: git rm -r -q --cached . && git reset --hard
 * text=auto eol=lf
+
+# docs/BUGLOG.md: many branches append rows at its end, so a plain merge conflicts on most of
+# them. Git's union driver keeps both sides' lines instead; scripts/check_buglog_rows.sh fails
+# when that keeps two versions of one edited row. Merge origin/main locally (git merge, or a
+# git pull that merges): that is where this line is known to apply.
+docs/BUGLOG.md merge=union

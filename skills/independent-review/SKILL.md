@@ -56,7 +56,8 @@ skip silently. With a config diff, send the code that reads the config too.
    and effort from `~/.codex/config.toml` (`CODEX_MODEL`, `CODEX_EFFORT` override them).
 2. **The second seat** — an ollama `:cloud` model (auto-detected; `OLLAMA_MODEL` overrides; text
    only), or Melious (`MELIOUS_MODEL`, an id from `scripts/melious_models.txt`; `SECOND_SEAT=melious`
-   runs it beside Codex, ollama standing in when it fails). Transports, auth, fallbacks and the
+   runs it beside Codex with no fallback, and when Codex is the only reviewer that counted, the
+   round says so and why). Transports, auth, fallbacks and the
    model list's rules: `references/setup-guide.md`, "The two script seats in detail".
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
@@ -108,7 +109,7 @@ Codex's effort for any run.
 
 ## Procedure
 
-1. **Data check before anything leaves the machine.** Grep the artifact for secrets (keys, tokens,
+1. **Data check before anything leaves the machine.** Grep the artifact, and any `--evidence` file, for secrets (keys, tokens,
    passwords, customer data). Get the owner's OK the first time a repo's content goes to each
    destination SERVICE — Codex, ollama-cloud, melious.ai, Antigravity, Antigravity routed to a
    Claude tag, and whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
@@ -120,11 +121,12 @@ Codex's effort for any run.
    advisory). Set Codex's
    effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
    verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
-   [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
+   [--verify <prior-findings>] [--wording-pass] [--evidence <file>] --depth <light|normal|high> --round <N>` (relative to this skill's
    directory; depth and round feed the cost log, and a run with no `--depth` says so; the notice
    past round 8 needs `--round` on every round, a redesign restarts at 1; a wording pass, final
    full read or re-gate is not a round: leave `--round` off, the cost log still attaches it to
-   the gate). Type is
+   the gate; a wording pass also passes `--wording-pass`, which the script refuses beside
+   `--round`). Type is
    auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
@@ -137,17 +139,22 @@ Codex's effort for any run.
    refused, naming each file and the command that makes a correct one. Any other diff (a delta,
    a merge link, the wording pass) passes `--base <the commit it starts from>`; so does a change
    whose PR targets a branch other than the default one (`--base <its merge base with that
-   branch>`). A diff not made by `git diff` in this repository passes `--base none`. For a DIFF
+   branch>`). A diff not made by `git diff` in this repository passes `--base none`. Evidence for
+   the reviewers (command output, logs, measurements) goes in one file with `--evidence <file>`,
+   which sends it as labelled data beside the artifact; never append it to a diff, and it is no
+   reason for `--base none`. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
    tracker's status row — after the last round: in a round its sentences draw findings that
    cost rounds. It is then read once, by the wording pass (step 6) or, where no round had a
    substantive BUG, by the prose-only re-gate the stamp needs (closeout, clerk item 2). An entry
    carrying commands or config is not prose: it goes in with the change.
    Size: each seat has its own limit (SEAT LIMITS in the script's header, `scripts/seat_limits.txt`);
-   a seat over it FAILS before sending and the others run, so split only an artifact the pair
-   cannot both take. Output: one section per attempted
+   the limit counts the artifact, prior findings and any `--evidence` file together; a seat
+   over it FAILS before sending and the others run, so split the artifact, or trim
+   the evidence, only when the pair cannot both take them. Output: one section per attempted
    reviewer (its review, or a `— FAILED` section with the error and remedy), then a `reviewers:`
-   and a `timings:` line, for a diff a `base:` line (past round 8, also a ⚠ notice). Exit 0
+   and a `timings:` line, for a diff a `base:` line, with `--evidence` an `evidence:` line (past
+   round 8, also a ⚠ notice). Exit 0
    means at least one reviewer counted, not the pair — read the
    reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
    TOP (the list is ranked); never through `tail`.
@@ -158,7 +165,13 @@ Codex's effort for any run.
    `references/claims-sweep.md` says.
 3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
    round 1 only at Normal, rounds 1 to 3 at High, never at Light — started in the background
-   BEFORE the script so every seat runs at once.
+   BEFORE the script so every seat runs at once. A round sent with `--evidence` gives this pass
+   the same file under the script's EVIDENCE lead, between its `--- BEGIN EVIDENCE ---` and
+   `--- END EVIDENCE ---` markers, after the strict prompt and before the artifact. Build it
+   from the evidence file itself, with the lead from PROMPT_EVIDENCE in
+   `scripts/independent_review.sh` (`${TYPE}` filled in): this pass starts before the script
+   writes any prompt. A host seat does not go through the script, and would otherwise go
+   without it.
 
    **Cost log.** The script logs its own seats. Log each seat the host runs — fresh-eyes, a Light
    gate's `/code-review` or `double-knuth`, an owner round — with `scripts/review_log.sh add --seat
@@ -307,19 +320,29 @@ Codex's effort for any run.
    requirements document, or any High-depth change: ONE pass over the WHOLE current artifact, not a
    delta, by a reviewer that has not yet reviewed this artifact — preferably another model: another
    ollama cloud model (`OLLAMA_MODEL=<other>:cloud` with `--seat ollama`), Antigravity with the
-   owner's OK, or a stronger host-family pass. Delta rounds never look at untouched text again;
+   owner's OK, or a stronger host-family pass (given the evidence as step 3 says, where the gate
+   sends `--evidence`). Delta rounds never look at untouched text again;
    this pass does. Triage its findings like a round's; a substantive BUG or an earning RISK earns a
    verification round (past round 8, with the owner's OK).
 
    **The wording pass.** In a gate where a round found a substantive BUG, after the rounds end
    (and the final full read, where one runs), whatever changed since the last round — wording,
-   comments, docs prose, the review record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex`, or `--seat ollama`
-   with a `:cloud` tag — a local model never counts), with closeout clerk item 2's prose-only
-   scope; a delta sent as a diff names its start with `--base <head>`. Its RISK/NIT are
+   comments, docs prose, the review record — gets ONE narrow pass by ONE cross-model reviewer,
+   run with `--wording-pass`, which puts closeout clerk item 2's prose-only scope in the script's
+   own prompt. Prefer `--seat codex`: a text-only seat (`--seat ollama` with a `:cloud` tag, or
+   `--seat melious`) sees only the delta, so it can check the prose against itself but not against
+   the code; a local model never counts. Never put the scope in the artifact or the `--verify`
+   file: the reviewer reads both as untrusted data and rightly sets a scope note there aside. A
+   delta sent as a diff names its start with `--base <head>`. A delta holding a non-prose line
+   (code, config, a command, a fenced snippet) is re-gated whole, prose included, at full scope
+   without the flag, not counted as a round, and that re-gate stands in for the wording pass on
+   it; a BUG the seat raises on a non-prose line sends its delta there too, and is neither fixed
+   as a contradiction nor carried as a follow-up. Its RISK/NIT are
    follow-ups; a contradiction with the code it describes is fixed. The
    fix moves the head, and the stamp needs a seen head (closeout, clerk item 2), so the same seat
-   gets ONE **confirmation** over that fix's delta alone, scoped to whether it removed the
-   contradiction without adding one. A confirmation is a re-gate, not a round and not a second
+   gets ONE **confirmation** over that fix's delta alone (`--wording-pass --verify <the
+   contradiction and its fix>`), scoped to whether it removed the contradiction without adding
+   one. A confirmation is a re-gate, not a round and not a second
    wording pass: its other findings are follow-ups. If it finds the fix wrong, fix it and confirm
    that fix the same way, once; still wrong, it goes to the owner. Only a substantive BUG reopens
    the rounds. There is no second wording pass.
@@ -337,7 +360,8 @@ Codex's effort for any run.
    `references/rationale.md`.
 8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,
    fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost (and, from round 4, the script's running-total line)
-   (the `timings:` line; the host seats' duration and tokens), a diff round's `base:` line, and
+   (the `timings:` line; the host seats' duration and tokens), a diff round's `base:` line, any
+   `evidence:` line, and
    any follow-ups.
    The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. The update is a

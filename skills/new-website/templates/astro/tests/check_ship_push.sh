@@ -26,13 +26,14 @@
 # as `origin`, a clone of it as the shared folder, and a tiny committed pre-push gate. Only
 # npm, curl, sleep and (for two cases) mktemp are stubbed, so it needs no network either. Its
 # case names (S2, S3, …) are the scenarios of the toolkit's plan for that mode
-# (docs/reviews/SKILL-PLAN-ship-from-worktree.md in the website-builder repo).
+# (docs/reviews/SKILL-PLAN-ship-from-worktree.md in the website-builder repo). Its P cases check
+# the last line for a *.pages.dev address and for a real domain, in both modes.
 #
 # A failing case prints the nested run's output behind "  | ": this file runs inside the
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.22   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.23   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -1355,12 +1356,53 @@ GATE
     want "during the push the setting was the other session's" eq "$(cat "$M/recorded")" "$D/another-session"
     want "... and it still is" eq "$(git -C "$C" config --get core.hooksPath)" "$D/another-session"
   fi
+
+  # --- P1–P5: the last line for a pages.dev address and for a real domain, in both modes ---
+  # A *.pages.dev address is Cloudflare's own address for the site: the build served there does
+  # not show the site is live on its own domain, so the line must not say LIVE; a real domain
+  # keeps it. P3 and P4 run with the setting off; P5 writes the host in capitals with a final dot.
+  last_starts() { case "$(last_line)" in "$1"*) return 0 ;; esac; return 1; }
+  site_case() { # <case> <github|folder> <the site's address>
+    fixture "$1"
+    printf "export default { site: '%s' };\n" "$3" > "$S/astro.config.mjs"
+    git -C "$S" commit -q --allow-empty -am "site address"; git -C "$S" push -q origin main
+    git -C "$C" pull -q --ff-only
+    if [ "$2" = folder ]; then
+      git -C "$C" config --unset ship.fromGitHub
+      # Files dated in the past, so ship.sh's own git status finds nothing to rewrite in the index.
+      find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+      git -C "$C" update-index -q --refresh
+    fi
+    m="$(gh main)"
+    run_ship "$1"; exits 0
+    want "production is GitHub's main" eq "$(gh production)" "$m"
+    if [ "$2" = folder ]; then want "publishes this folder's main" first_has "Publishing main → production."; fi
+  }
+  pv="✓ Published — verified on the pages.dev address: https://ship-test.pages.dev is serving"
+  pv_note="That's Cloudflare's address for the site, not your own domain: the site is live on your domain only once that's connected."
+  site_case p1 github https://ship-test.pages.dev
+  want "the last line names the pages.dev address" last_starts "$pv GitHub's main as of the fetch (${m:0:12})"
+  want "... and says it is not the site's own domain" last_has "$pv_note"
+  want "never says LIVE" lacks "✓ LIVE"
+  site_case p2 github https://ship-test.example.invalid
+  want "a real domain keeps the LIVE line" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main as of the fetch (${m:0:12})"
+  want "... with no pages.dev note" lacks "$pv_note"
+  site_case p3 folder https://ship-test.pages.dev
+  want "the last line names the pages.dev address" last_starts "$pv build ${m:0:12} (after"
+  want "... and says it is not the site's own domain" last_has "$pv_note"
+  want "never says LIVE" lacks "✓ LIVE"
+  site_case p4 folder https://ship-test.example.invalid
+  want "a real domain keeps the LIVE line" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving build ${m:0:12} (after"
+  want "... with no pages.dev note" lacks "$pv_note"
+  site_case p5 github https://Ship-Test.PAGES.DEV.
+  want "a host in capitals with a final dot is a pages.dev address too" last_starts "✓ Published — verified on the pages.dev address: https://Ship-Test.PAGES.DEV. is serving"
+  want "never says LIVE" lacks "✓ LIVE"
   rg_done=1
 }
 
 real_git_cases
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks of the mode that publishes GitHub's main, on real git${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
+  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks on real git (the mode that publishes GitHub's main, and the last line for a pages.dev address in both modes)${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
 fi
 exit "$fail"

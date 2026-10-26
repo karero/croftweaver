@@ -69,8 +69,8 @@ the reading code in the artifact, or expect to spend the round refuting.
    OpenAI-compatible API instead, so the pair keeps its second reviewer. It
    stands in for the seat and is never a third counted reviewer; `--seat
    melious` runs it alone, and `--seat ollama` never falls back to it.
-   `SECOND_SEAT=melious` swaps the two: Melious runs with Codex, and ollama
-   is its fallback.
+   `SECOND_SEAT=melious` puts Melious beside Codex with no fallback: the
+   pair never calls ollama, and a failed Melious seat is not replaced.
 3. **Fresh-eyes host-agent pass** — a read-only sub-agent (or the vendored
    `double-knuth` skill) with NO shared context: give it only the artifact and
    the strict prompt below. Never reuse the authoring conversation. If the host

@@ -5,31 +5,32 @@
 **Build for search and AI.**
 
 Croftweaver is a free, open-source suite of website skills: instructions your AI coding
-assistant follows to build and test a site you own. Build or rebuild your site with your
-assistant, so people can find it on Google and in AI answers. From a short brief it makes a
-complete website — content, mobile-first responsive design, SEO, accessibility checks, schema
-markup, tests, and launch support — on Astro → GitHub → Cloudflare Pages, and its test suites
-check every change by default. After launch, your Search Console data and a weekly check of
-which AI assistants name your site point to the next edit for SEO and GEO (how your site shows
-up in AI answers). Developed and used with **Claude Code**; the install guides also cover
-**OpenAI Codex** and **Google Antigravity**, and both have been tested from start to finish on
-one site.
+assistant follows to build and test a site you own. From a short brief it makes a complete
+website — content, mobile-first responsive design, SEO, accessibility checks, schema markup,
+tests, and launch support — on Astro → GitHub → Cloudflare Pages, and its test suites check
+every change by default. After launch, your Search Console data and a weekly check of which AI
+assistants name your site point to the next edit for SEO and GEO (how your site shows up in AI
+answers).
 
-**Already have a website?** Part of Croftweaver works on a site that is already live, on any
-stack, without a rebuild: the checks and measurements. They are Search Console insights, the
-weekly AI check, the SEO audit, the positioning check, and the facts check. Three limits:
-the ready-made test suite and the two link audits need the Croftweaver starter, the facts
-check does not run a page's JavaScript, and there is no automatic import of an existing site
-yet. See [Croftweaver for established sites](https://croftweaver.com/established-sites).
+[![The home page of croftweaver.com, a site built with Croftweaver: the heading "Build a complete website with AI." above two buttons, "Get Croftweaver on GitHub" and "See a finished website".](https://raw.githubusercontent.com/karero/croftweaver/main/docs/images/croftweaver-home.webp)](https://croftweaver.com/)
 
-**Who maintains it.** Croftweaver is maintained by Daniel Melter (Munich). It grew out of
-GenAI Wednesday Munich. The [LICENSE](LICENSE) file names the same person as copyright
-holder, and the [imprint](https://croftweaver.com/imprint) names the company that operates
-the website croftweaver.com.
+**[See a finished website](https://croftweaver.com/case-study):** croftweaver.com is built
+with Croftweaver. Its case study follows the site week by week, with links to its public code.
 
-> **Formerly website-builder.** Same project, new name. GitHub redirects old repository links
-> and existing clones here. To point a clone at the new address, run
-> `git remote set-url origin https://github.com/karero/croftweaver.git`.
+**Quick install.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
+skills, in any terminal (building a site needs a newer Node; the
+[setup guide](skills/new-website/templates/SETUP.md) says which):
+
+```bash
+npm create croftweaver
+```
+
+It tells you the next step. For Codex add `-- --codex`, for Antigravity `-- --antigravity`.
+Plugins and other routes: [Manual install](#manual-install--technical-reference).
+
+**Before you choose:** [How it compares](https://croftweaver.com/compare) ·
+[Moving from WordPress](https://croftweaver.com/from-wordpress) ·
+[What a static site changes for security](https://croftweaver.com/security)
 
 You can use it even if you're not deeply technical. Whether you're a founder, a community
 organiser, a solo builder, a small team, or a developer, **the easiest way to start is to
@@ -58,6 +59,24 @@ It's **not** a hosted no-code website builder. You own the code, the repository,
 domain — there's no platform you're locked into, and no hosted-builder subscription required
 to keep a basic static site online. (Your domain registration and your AI tool may still have
 their own costs.)
+
+**Already have a website?** Part of Croftweaver works on a site that is already live, on any
+stack, without a rebuild: the checks and measurements. They are Search Console insights, the
+weekly AI check, the SEO audit, the positioning check, and the facts check. Three limits:
+the ready-made test suite and the two link audits need the Croftweaver starter, the facts
+check does not run a page's JavaScript, and there is no automatic import of an existing site
+yet. See [Croftweaver for established sites](https://croftweaver.com/established-sites).
+
+## Who maintains it
+
+Croftweaver is maintained by Daniel Melter (Munich). It grew out of GenAI Wednesday Munich.
+The [LICENSE](LICENSE) file names the same person as copyright holder, and the
+[imprint](https://croftweaver.com/imprint) names the company that operates the website
+croftweaver.com.
+
+> **Formerly website-builder.** Same project, new name. GitHub redirects old repository links
+> and existing clones here. To point a clone at the new address, run
+> `git remote set-url origin https://github.com/karero/croftweaver.git`.
 
 ## You don't do this alone
 
@@ -120,6 +139,36 @@ comes.
 > **On Windows?** The smoothest path is **WSL2** (Ubuntu) — it matches the Linux setup your
 > site is built and published on, so everything just works. Your assistant can help you set
 > it up; just ask. (Native Windows works too — see [SETUP.md](skills/new-website/templates/SETUP.md).)
+
+## What leaves your computer
+
+Croftweaver has no server of its own and sends nothing to its makers. When a skill talks to
+a service on the internet, it is one you chose, with your own account or key:
+
+- **GitHub**, where your site's code is kept.
+- **Cloudflare**, if you publish there: your finished site, and the settings you agree to.
+- **Google Search Console and Bing**, if you connect them: read only, to show how people
+  find your site.
+- **A search-results service** (Serper or SerpApi), if you ask who ranks for a phrase: that
+  phrase.
+- **The AI services you pick** for the weekly check whether AI answers name your business
+  (OpenRouter, or Gemini, OpenAI, Anthropic and Perplexity directly, and SerpApi for
+  Google's AI answers if you switch that on): your questions.
+- **An image service** you choose, if you ask for images: your image requests.
+- **Outside AI reviewers** (Codex, Ollama, melious.ai, Antigravity), only if you ask for a
+  second opinion: the plan or change being reviewed. Codex works inside your project folder
+  and can read other files there too.
+- **croftweaver.com**, only if you say yes to a small "Built with Croftweaver" credit in
+  your footer: the credit's files.
+- **Your visitor counting** (Plausible), if you switch it on: for each page view, the page's
+  address, where the visitor came from, their browser and their network address, and a
+  count when someone taps your email link.
+- **Public pages and downloads** your assistant reads while it works, such as programs it
+  installs or your own live site.
+
+Two tools your site is built with, Astro and Cloudflare's Wrangler, send anonymous usage
+data to their own makers unless you switch that off. The full list, with every script and
+setting, is in [What the skills run on your computer](docs/WHAT-THE-SKILLS-RUN.md).
 
 ## What happens next
 
@@ -322,9 +371,15 @@ gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --l
   --generate-notes                # or write the notes by hand
 # Both files go up in this one command: a release marked immutable takes no files later.
 # The plugin is installed from the branch `stable`. The release-tag workflow, started by
-# the tag, checks the number against it and moves `stable` to the release. A red run means
-# plugin users are still on the release before. If the step that moves the branch failed,
-# move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
+# the tag, checks the number against it and moves `stable` to the release, then publishes the
+# release to the branch `directory`, which Anthropic's plugin directory follows. After a red
+# run, look first where both point:  git ls-remote origin stable directory
+# If the step that moves `stable` failed and `stable` is not on the release, move it yourself
+# (that push runs the workflow again, `directory` included):
+#   git push origin "$v^{commit}:refs/heads/stable"
+# If the step that publishes to `directory` failed, put right what it names and run, from the
+# toolkit's folder (it says so when `directory` already holds the release):
+#   scripts/publish_directory.sh "$v"
 # If the check of the number failed, the tag was not made as above: leave `stable` where
 # it is, and plugin users get the next release.
 

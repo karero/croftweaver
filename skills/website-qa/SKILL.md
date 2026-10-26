@@ -2,9 +2,9 @@
 name: website-qa
 description: >
   The pre-launch QA gate for a new site: run the basic tests (a11y light+dark +
-  seo + navigation + anchors + orphans + images + tone + positioning + placeholders + email + links), fix to green, then handle technical SEO /
-  performance — ask the user to run a
-  Lighthouse / PageSpeed Insights test and act on First Contentful Paint (FCP)
+  seo + navigation + anchors + orphans + images + phone images + tone + positioning + placeholders + email + links), fix to green, then handle technical SEO /
+  performance — run Lighthouse on the deployed site (PageSpeed Insights as the
+  fallback) and act on First Contentful Paint (FCP)
   and Largest Contentful Paint (LCP). Use before launch (steps 7–8 of the
   new-website pipeline) and after any code/copy change. Delegates Core Web
   Vitals / crawl depth to seo-audit. Trigger phrases: "run the tests", "QA the
@@ -16,7 +16,7 @@ description: >
 # Website QA
 
 The gate every page passes before launch, and the check re-run after any edit.
-Two parts: the **automated basic tests**, then the **performance handoff**.
+Two parts: the **automated basic tests**, then the **performance check**.
 
 ## 1. Basic tests (fix to green)
 
@@ -56,6 +56,16 @@ cosmetics; red → green → commit.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).
+- `phone-images.spec.ts` — loads each page as Lighthouse's phone (412px, 1.75x), scrolled to the
+  end, and judges every raster the page itself downloads (not those inside an iframe), CSS
+  backgrounds and masks included (Lighthouse does not size those). Fails a file wider than a 3x
+  phone could use (1.1 × the width it is drawn at × 3) when a copy that wide saves an estimated
+  4 KiB or more (estimated by pixel area, which can run high); a downloaded file nothing on the
+  page shows (often a preload whose `media` drifted from the CSS breakpoint); one of 4 KiB or
+  more that is downloaded but hidden at phone width; and one whose drawn width it cannot work
+  out. A file used only as a border image, cursor or `shape-outside` is not judged by width, and
+  the log names it. Prints how many files it judged by width and names the hidden ones under 4
+  KiB. The fixes are in section 2.
 - `tone.spec.ts` — no em dashes / contractions / buzzwords in copy or metadata.
   Language-aware: the contraction/buzzword rules apply only to `<html lang>` en*
   pages; the em-dash ban is universal (the `website-content-guide` rules).
@@ -166,14 +176,39 @@ step errors — a fail-loud, fixable by setup, not a reason to drop the hook.)
 
 ## 2. Performance — Lighthouse / PageSpeed (FCP & LCP)
 
-Performance numbers need a real run; this is a **handoff to the user** (the agent
-cannot run Lighthouse against a deployed URL reliably). Ask the user to run one:
+The agent runs Lighthouse itself; the user is asked only when it cannot.
 
-> Please run a **PageSpeed Insights** test ( https://pagespeed.web.dev/ ) on the
-> page URL — or Chrome DevTools → Lighthouse — and paste the **First Contentful
-> Paint (FCP)** and **Largest Contentful Paint (LCP)** for mobile and desktop.
+1. **Install it in a scratch folder outside the site**, so the site's `package.json` and its
+   pre-push hook stay untouched: `npm init -y && npm install lighthouse@13` there (without the
+   `npm init`, npm walks up to the nearest `package.json` and installs into it). Lighthouse
+   needs Chrome; use Playwright's, whose path this prints when run **in the site folder**:
+   `node -e "import('@playwright/test').then(m=>console.log(m.chromium.executablePath()))"`.
+2. **Run it in the scratch folder** (there `npx` finds that install, not the latest version),
+   five times, then print the median run's score, FCP and LCP:
 
-Targets (Core Web Vitals "good"): **FCP ≤ 1.8s**, **LCP ≤ 2.5s** (mobile, field
+   ```bash
+   for i in 1 2 3 4 5; do CHROME_PATH="<the path above>" npx lighthouse <url> --only-categories=performance --output=json --output-path=run$i.json --chrome-flags="--headless=new" --quiet; done
+   node -e "const r=[1,2,3,4,5].map(i=>require('./run'+i+'.json')).sort((a,b)=>a.categories.performance.score-b.categories.performance.score)[2]; console.log(Math.round(r.categories.performance.score*100), r.audits['first-contentful-paint'].displayValue, r.audits['largest-contentful-paint'].displayValue)"
+   ```
+
+   Without `--headless=new` it opens a window, and fails where there is no display. Lighthouse
+   runs as a phone by default; add one run with `--preset=desktop` for the desktop numbers.
+3. **Measure a deployed URL, never a local server.** `python -m http.server` sends files
+   uncompressed, which once inflated sizes and misled a decision; `astro preview` compresses,
+   but is still not Cloudflare. Before launch, measure the `main` preview (PUBLISHING.md, step 3).
+   It runs no analytics (they are on for production only), so measure production again after
+   launch and report both. A single-stage site has no preview: its first measurement is
+   production, right after the first upload.
+4. **Report the median run** (the one the command prints) with its FCP, LCP and the insights it
+   raises.
+5. **When Lighthouse cannot run**, open https://pagespeed.web.dev/ in the built-in browser and
+   read the result there. Do not lean on the keyless PageSpeed API: its quota runs out.
+6. **Judge image sizes by `phone-images.spec.ts`**, not by Lighthouse's image insight alone: that
+   insight judges one device and skips CSS images.
+7. If neither 1–4 nor 5 works, ask the user to run PageSpeed Insights on the page and paste
+   the mobile and desktop FCP and LCP.
+
+Targets (Core Web Vitals "good"): **FCP ≤ 1.8s**, **LCP ≤ 2.5s**, judged on mobile (field
 data preferred). Then act on what the report flags. Common fixes already baked
 into the starters / `website-design-system`:
 - LCP image: eager-load + `fetchpriority="high"`, correct format/size, no lazy.
@@ -183,11 +218,29 @@ into the starters / `website-design-system`:
 - Defer non-critical JS (analytics is `async` plus a short inline stub, production-only; none
   in analytics server mode).
 
+Fixes that worked on a live site built with this toolkit (mobile 98–99 to 100, LCP about 2.0s
+to 1.5s):
+- **Analytics, when Lighthouse flags its script:** defer both the init and the library, and
+  place the library after the site's own deferred script. The starter keeps its `async` tag;
+  this is for a site that needs it. A test that reads the built page and checks the two
+  scripts' order keeps it from drifting back.
+- **A CSS background hero:** a phone-sized copy (1200px wide worked), with
+  `<link rel="preload" as="image" media>` pairs whose queries match the CSS breakpoint exactly
+  (for a 720px breakpoint, `(max-width: 719px)` and `(min-width: 720px)`), and a test on each
+  side of the breakpoint that only that side's file downloads. `phone-images.spec.ts` runs at 412px only,
+  so it cannot see drift near the breakpoint.
+- **srcset and sizes:** `sizes` mirrors the CSS, as `min()` of the real column widths. Test it
+  with a width sweep: a fixed list of width/ratio pairs, a fresh browser context for each, and
+  the file expected at each. On the site above, at ten such pairs, Chromium picked the
+  smallest file at least shown width × ratio wide. A site's own sweep lists its own pairs.
+
 For deeper technical SEO (crawl, indexability, Core Web Vitals strategy), run the
 existing **`seo-audit`** skill — do not duplicate it here.
 
 ## Done means
 
-All basic tests green; FCP/LCP within target on the user's PageSpeed run (or the
-remaining gaps explicitly listed, not hidden); launch checklist in `new-website`
+All basic tests green; FCP/LCP within target on the agent's median run of the `main` preview
+(production for a single-stage site), or on the user's PageSpeed run when the agent could not
+run one (or the remaining gaps explicitly listed, not hidden), with a production run after
+launch; launch checklist in `new-website`
 §4 satisfied.

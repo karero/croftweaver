@@ -807,11 +807,170 @@ jobs:
           stops "an interval too short" 's|label="Photos" |label="Photos" intervalMs={500} |' 'intervalMs below 2000'
           stops "a language with no texts" 's|label="Photos" |label="Photos" lang="xx" |' 'no texts for the language "xx"'
 
+  # tests/phone-images.spec.ts ships in the starter, which renders no raster image, so the
+  # starter suite alone proves nothing about it. This job adds a block of generated noise WebP
+  # images to the home page (noise, so an oversized file is well over the 4 KiB floor) holding
+  # every case the test must pass, runs the test and the whole suite, then makes one mistake
+  # at a time and checks that this test, and only this test, turns red and says why.
+  phone-images-test:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, with images for every case the test must pass
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          # sharp comes with Astro (the hero-carousel job makes its photos the same way)
+          mkdir -p public/fx
+          node --input-type=module -e "
+          import sharp from 'sharp';
+          const noise = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#808080', noise: { type: 'gaussian', mean: 128, sigma: 60 } } }).webp({ quality: 80 }).toFile('public/fx/' + name);
+          const flat = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#4a6' } }).webp({ quality: 80 }).toFile('public/fx/' + name);
+          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2', 'vis', 'calc', 'sd', 'none', 'mask', 'poster', 'border']) await noise(n + '.webp', 600, 400);
+          await noise('list.webp', 40, 40);
+          await noise('big.webp', 2000, 1333);
+          await noise('cover.webp', 1200, 800);
+          await noise('tile.webp', 2000, 2000);
+          await flat('flat.webp', 1000, 667);
+          await flat('hidden.webp', 600, 400);
+          "
+          ls -l public/fx
+          # The two small files must stay under the floor, or the cases that use them prove nothing.
+          for f in flat hidden; do [ "$(wc -c < "public/fx/$f.webp")" -lt 4096 ] || { echo "::error::$f.webp is not under 4 KiB"; exit 1; }; done
+          [ "$(wc -c < public/fx/zero.webp)" -gt 4096 ] || { echo "::error::zero.webp is not over 4 KiB"; exit 1; }
+          [ "$(wc -c < public/fx/big.webp)" -gt 100000 ] || { echo "::error::big.webp is too small to be over the floor"; exit 1; }
+          # The green page, one block before </Base>: every case the test must pass. The page is long
+          # (smooth scrolling must not leave the end unseen) and grows 400 ms after its end is reached.
+          perl -0pi -e 's|</Base>|  <link slot="head" rel="preload" as="image" href="/fx/swap.webp" />
+            <link slot="head" rel="preload" as="image" href="/fx/desk.webp" media="(min-width: 720px)" />
+            <link slot="head" rel="preload" as="image" imagesrcset="/fx/desk.webp 600w" imagesizes="200px" media="(min-width: 720px)" />
+            <style>
+              .fx-cover { width: 200px; height: 400px; background: linear-gradient(#0003, #0003), url(/fx/cover.webp) center / cover no-repeat; }
+              .fx-layers { width: 200px; height: 133px; background-image: url(/fx/layer1.webp), url(/fx/layer2.webp); background-size: 100% auto, 100% auto; background-repeat: no-repeat; }
+              .fx-paren { width: 200px; height: 133px; background: url("/fx/paren(1).webp") center / 100% auto no-repeat; }
+              .fx-set { width: 200px; height: 133px; background-image: image-set(url(/fx/set1.webp) 1x, url(/fx/set2.webp) 2x); background-size: 100% auto; background-repeat: no-repeat; }
+              .fx-calc { width: 200px; height: 133px; background: url(/fx/calc.webp) center / calc(100% - 10px) auto no-repeat; }
+              .fx-tile { width: 200px; height: 200px; background: url(/fx/tile.webp) repeat; }
+              .fx-mask { width: 200px; height: 133px; background: #4a6; mask: url(/fx/mask.webp) center / 100% auto no-repeat; }
+              .fx-list { list-style-image: url(/fx/list.webp); }
+              .fx-border { width: 200px; height: 50px; border: 10px solid; border-image: url(/fx/border.webp) 30; }
+              .fx-spacer { height: 8000px; }
+              .fx-pb::before { content: ""; display: block; width: 100px; height: 100px; background: url(/fx/right.webp) center / 100% no-repeat; }
+            </style>
+            <section class="wrap fx" data-grow="/fx/right.webp">
+              <img id="fx-swap" src="/fx/swap.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" />
+              <img id="fx-hidden" src="/fx/hidden.webp" alt="" width="600" height="400" loading="eager" style="width: 0; height: 0" />
+              <img src="/fx/flat.webp" alt="" width="1000" height="667" loading="eager" style="width: 100px; height: auto" />
+              <div class="fx-cover"></div>
+              <div class="fx-layers"></div>
+              <div class="fx-paren"></div>
+              <div class="fx-set"></div>
+              <div class="fx-calc"></div>
+              <img src="/fx/calc.webp" alt="" width="600" height="400" loading="eager" style="width: 50px; height: auto" />
+              <img id="fx-vis" src="/fx/vis.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" />
+              <img id="fx-sd" src="/fx/sd.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 133px; object-fit: scale-down" />
+              <img src="/fx/none.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 133px; object-fit: none" />
+              <video poster="/fx/poster.webp" style="width: 100px; height: 400px; object-fit: cover"></video>
+              <div class="fx-mask"></div>
+              <ul class="fx-list"><li>A list item</li></ul>
+              <div class="fx-border"></div>
+              <div class="fx-tile"></div>
+              <div class="fx-pb"></div>
+              <div class="fx-spacer"></div>
+              <img id="fx-low" src="/fx/right.webp" alt="" width="600" height="400" loading="lazy" style="width: 200px; height: auto" />
+            </section>
+            <script is:inline>
+              addEventListener("scroll", () => { document.getElementById("fx-swap").src = "/fx/right.webp"; }, { once: true });
+              const fxGrow = () => {
+                if (scrollY + innerHeight < document.documentElement.scrollHeight - 50) return;
+                removeEventListener("scroll", fxGrow);
+                setTimeout(() => {
+                const s = document.querySelector(".fx");
+                const gap = document.createElement("div"); gap.style.height = "8000px";
+                const img = Object.assign(document.createElement("img"), { src: s.dataset.grow, alt: "", width: 600, height: 400, loading: "lazy" });
+                img.style.width = "200px"; img.style.height = "auto";
+                s.append(gap, img);
+                }, 400);
+              };
+              addEventListener("scroll", fxGrow);
+            </script>
+          </Base>|' src/pages/index.astro
+          grep -q 'id="fx-low"' src/pages/index.astro
+          cp src/pages/index.astro "$RUNNER_TEMP/index.good"
+      - name: Green, the test alone and then the whole suite
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the green page failed phone-images.spec.ts"; exit 1; }
+          line="$(grep -F 'phone images — /:' <<<"$out")" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the home page printed no count"; exit 1; }
+          printf '%s\n' "$line"
+          # Sixteen files judged by width on / (calc, scale-down, none, mask, list marker and poster
+          # among them); the small hidden one and the border image named, and nothing else.
+          [[ $line == *'phone images — /: 16 judged by width; hidden and under 4 KiB: /fx/hidden.webp; not judged: /fx/border.webp (border-image-source)' ]] || { echo "::error::expected 16 judged by width on /, hidden.webp under 4 KiB and border.webp not judged, nothing else"; exit 1; }
+          npm test
+      - name: Each mistake turns this test red
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          failed_test_is() { local m; m="$(grep -E '^ +[0-9]+\) ' <<<"$1")" || return 1; [[ $m == *"$2"* ]]; }
+          # edit "<perl>" "<text the page must then hold>": one change, proved to have landed.
+          edit() { perl -pi -e "$1" src/pages/index.astro; grep -Fq "$2" src/pages/index.astro || { echo "::error::the edit to '$2' did not land"; exit 1; }; }
+          red() {   # red "<what was done>" "<what the message must say>"
+            if out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)"; then
+              printf '%s\n' "$out" | tail -n 6; echo "::error::$1: the test stayed green"; exit 1
+            fi
+            grep -Eq '^ +1 failed' <<<"$out" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: not exactly one test failed"; exit 1; }
+            failed_test_is "$out" "phone images — / downloads" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the failing test is not the home page's"; exit 1; }
+            grep -Fq "$2" <<<"$out" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the failure does not say $2"; exit 1; }
+            echo "red as expected ($2): $1"
+            cp "$RUNNER_TEMP/index.good" src/pages/index.astro
+          }
+          # One change per case.
+          edit 's|id="fx-low" src="/fx/right.webp"|id="fx-low" src="/fx/big.webp"|' 'id="fx-low" src="/fx/big.webp"'
+          red "an oversized lazy image at the end of a long page" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|data-grow="/fx/right.webp"|data-grow="/fx/big.webp"|' 'data-grow="/fx/big.webp"'
+          red "an oversized image in content added late, once the end is reached" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|removeEventListener\("scroll", fxGrow\);|/* grows at every end */|' '/* grows at every end */'
+          red "a page that never stops growing" "/ did not settle at its end within 20 s"
+          edit 's|background: url\(/fx/right.webp\) center / 100% no-repeat|background: url(/fx/big.webp) center / 100% no-repeat|' 'height: 100px; background: url(/fx/big.webp) center / 100% no-repeat'
+          red "an oversized ::before background" "/fx/big.webp is 2000px wide, shown at 100px"
+          edit 's|center / 100% auto no-repeat; \}|0 0 / 50px auto no-repeat; }|' 'url("/fx/paren(1).webp") 0 0 / 50px auto no-repeat'
+          red "a background drawn at 50px by its background-size" "/fx/paren(1).webp is 600px wide, shown at 50px"
+          edit 's|id="fx-hidden" src="/fx/hidden.webp"|id="fx-hidden" src="/fx/zero.webp"|' 'id="fx-hidden" src="/fx/zero.webp"'
+          red "an image downloaded but hidden by its size" "/fx/zero.webp is downloaded but hidden at 412px"
+          edit 's|(id="fx-vis" [^>]*style="width: 200px; height: auto)"|$1; visibility: hidden"|' 'height: auto; visibility: hidden"'
+          red "an image downloaded but hidden by visibility" "/fx/vis.webp is downloaded but hidden at 412px"
+          edit 's|(<link slot="head" rel="preload" as="image" href="/fx/swap.webp" />)|$1<link slot="head" rel="preload" as="image" href="/fx/orphan.webp" />|' 'href="/fx/orphan.webp"'
+          red "an image preloaded and not shown" "/fx/orphan.webp is preloaded and downloaded"
+          edit 's|^(\s*)(<script is:inline>)$|$1$2\n$1new Image().src = "/fx/ghost.webp";|' 'new Image().src = "/fx/ghost.webp";'
+          red "an image a script loads and never shows" "/fx/ghost.webp was downloaded, but nothing on the page shows it"
+          edit 's|(<link slot="head" rel="preload" as="image" href="/fx/swap.webp" />)|$1<link slot="head" rel="preload" as="image" imagesrcset="/fx/orphan.webp 600w" imagesizes="200px" />|' 'imagesrcset="/fx/orphan.webp 600w" imagesizes="200px" />'
+          red "an image preloaded by imagesrcset and not shown" "/fx/orphan.webp is preloaded and downloaded"
+          edit 's|id="fx-sd" src="/fx/sd.webp"|id="fx-sd" src="/fx/big.webp"|' 'id="fx-sd" src="/fx/big.webp"'
+          red "an oversized image fitted by object-fit: scale-down" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|url\(/fx/calc.webp\) center / calc|url(/fx/big.webp) center / calc|' 'url(/fx/big.webp) center / calc(100% - 10px)'
+          red "an oversized background sized by calc()" "/fx/big.webp is 2000px wide, shown at 190px"
+          edit 's|url\(/fx/calc.webp\) center / calc|url(/fx/big.webp) center / calc|; s|(\.fx-spacer \{)|:global(body > div:last-of-type > div) { max-width: 60px; padding: 0 30px; }\n              $1|' ':global(body > div:last-of-type > div) { max-width: 60px'
+          red "the same, with site CSS that would squeeze the sizing probe" "/fx/big.webp is 2000px wide, shown at 190px"
+          edit 's|url\(/fx/calc.webp\) center / calc|url(/fx/big.webp) center / calc|; s|\.fx-calc \{ width: 200px;|.fx-calc { width: 200px; border: 20px solid;|' '.fx-calc { width: 200px; border: 20px solid; height: 133px; background: url(/fx/big.webp)'
+          red "the same on a bordered box: % sizes refer to the padding box" "/fx/big.webp is 2000px wide, shown at 150px"
+          edit 's|mask: url\(/fx/mask.webp\)|mask: url(/fx/big.webp)|' 'mask: url(/fx/big.webp)'
+          red "an oversized mask image" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|<img src="/fx/none.webp"|<img src="/fx/big.webp"|' '<img src="/fx/big.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 133px; object-fit: none"'
+          red "an oversized image cropped by object-fit: none" "/fx/big.webp is 2000px wide, shown at 200px"
+          edit 's|; object-fit: cover"></video>|"></video>|' 'style="width: 100px; height: 400px"></video>'
+          red "a poster drawn smaller once its video is not object-fit: cover" "/fx/poster.webp is 600px wide, shown at 100px"
+
   # The one check main's ruleset requires from this workflow. It passes when every job
   # above passed (the change touched their paths) or every job was skipped (it did not),
   # and fails on anything else: a failure, a cancel, a skip where a run was due.
   template-tests-ok:
-    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, hero-carousel-skill, brand-kit-skill, tagline-skill]
+    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, hero-carousel-skill, brand-kit-skill, tagline-skill, phone-images-test]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -819,18 +978,18 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           RUN: ${{ needs.changes.outputs.run }}
-          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }} ${{ needs.hero-carousel-skill.result }} ${{ needs.brand-kit-skill.result }} ${{ needs.tagline-skill.result }}
+          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }} ${{ needs.hero-carousel-skill.result }} ${{ needs.brand-kit-skill.result }} ${{ needs.tagline-skill.result }} ${{ needs.phone-images-test.result }}
         run: |
-          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, hero-carousel-skill, brand-kit-skill, tagline-skill: $RESULTS"
+          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill, hero-carousel-skill, brand-kit-skill, tagline-skill, phone-images-test: $RESULTS"
           [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
           case "$RUN" in
             true) want=success ;;
             false) want=skipped ;;
             *) echo "::error::the changes job gave run='$RUN', neither true nor false"; exit 1 ;;
           esac
-          # one word per job named in RESULTS above (eight): a loop over the words would pass over an empty one unseen
+          # one word per job named in RESULTS above (nine): a loop over the words would pass over an empty one unseen
           set -- $RESULTS
-          [ "$#" -eq 8 ] || { echo "::error::expected 8 job results, got $#: '$RESULTS'"; exit 1; }
+          [ "$#" -eq 9 ] || { echo "::error::expected 9 job results, got $#: '$RESULTS'"; exit 1; }
           for r in "$@"; do
             [ "$r" = "$want" ] || { echo "::error::a job ended '$r' where '$want' was due"; exit 1; }
           done

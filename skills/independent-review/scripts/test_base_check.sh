@@ -106,6 +106,19 @@ g "$R/w" diff "$G"..HEAD >"$T/t3.diff"
 run t3a "$R/w" "$T/t3.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
 check "T3 delta with --verify and --base: runs" rc_is t3a 0
 check "T3: the base: line names the given base" has t3a.out "base: $G (--base $G)"
+# T3e: --evidence leaves the checked text alone. The evidence opens with a diff record for a file
+# the repo does not have, which the check refuses wherever it sits in a diff (the control below):
+# if the evidence ever reached the checked text, this run would be refused too.
+printf '%s\n' 'diff --git a/nosuch b/nosuch' 'index 1111111..2222222 100644' '--- a/nosuch' '+++ b/nosuch' \
+  '@@ -1 +1 @@' '-old' '+new' 'make check: all checks passed' >"$T/ev-diff.txt"
+run t3e "$R/w" "$T/t3.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2 --evidence "$T/ev-diff.txt"
+check "T3e delta with --evidence: runs, the base check passed" rc_is t3e 0
+check "T3e: the base: line names the given base, checked" has t3e.out "base: $G (--base $G)"
+check "T3e: the reviewer ran" ran t3e
+cat "$T/t3.diff" "$T/ev-diff.txt" >"$T/t3ev.diff"
+run t3ev "$R/w" "$T/t3ev.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
+check "T3e control: the same evidence appended to the diff is refused" rc_is t3ev 2
+check "T3e control: ... by the base check" has t3ev.err "Base check:"
 run t3b "$R/w" "$T/t3.diff" --seat codex --verify "$T/prior.md" --depth normal --round 2
 check "T3 --verify with no --base: refused" rc_is t3b 2
 check "T3 --verify with no --base: names --base" has t3b.err "Pass --base <last-reviewed-head>."
