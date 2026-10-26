@@ -235,8 +235,14 @@ fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-no
 tsub "$c/$ASTRO/.github/workflows/ci.yml" "          cache: npm"$'\n' "          cache: npm"$'\n'"        uses: actions/setup-node@v7"$'\n'
 tsub "$c/$ASTRO/.github/workflows/ci.yml" "        with:"$'\n'"          node-version: 24" "      - with:"$'\n'"          node-version: 24"
 expect "G6 with: written before uses: in the step: green" "$c" pass "asks setup-node for the latest release"
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: \"True\" "
-expect "G6 check-latest: \"True\" (setup-node reads it as true): green" "$c" pass "asks setup-node for the latest release"
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: \"true\" "
+expect "G6 check-latest: \"true\", quoted: green" "$c" pass "asks setup-node for the latest release"
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "check-latest: true " "check-latest: True "
+expect "G6 check-latest: True: red (only true is read, a red is loud)" "$c" fail 'has no "check-latest: true" under its with:'
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "      - uses: actions/setup-node@v7"$'\n'"        with:"$'\n'"          " "      -   uses: actions/setup-node@v7"$'\n'"          with:"$'\n'"            "
+tsub "$c/$ASTRO/.github/workflows/ci.yml" $'\n'"          check-latest: true" $'\n'"            check-latest: true"
+tsub "$c/$ASTRO/.github/workflows/ci.yml" $'\n'"          cache: npm" $'\n'"            cache: npm"
+expect "G6 \"-   uses:\" with the step's keys aligned after it: green" "$c" pass "asks setup-node for the latest release"
 
 # -- scenario 14: an unlisted place is a known limit -------------------------------------------------
 fresh; printf 'Node 22.12 or newer.\n' >"$c/docs/NEWDOC.md"

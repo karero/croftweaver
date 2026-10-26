@@ -178,8 +178,8 @@ test('tables — fixture on a phone: a link that stands alone in a cell is a 44p
 });
 
 // The region clips what is drawn outside it, and the first column starts at its edge. The ring must also be
-// visible, in both themes: at least 2px wide (the starter's ring; WCAG 2.4.13 asks the same) and 3:1 against
-// the background it is drawn on (WCAG 1.4.11). Background images and gradients are not read.
+// visible, in both themes: at least 2px wide (the starter's own ring) and 3:1 against the background it is
+// drawn on (WCAG 1.4.11). Background images and gradients are not read.
 for (const theme of THEMES) {
   test(`tables — fixture [${theme}]: the focus ring of a link in the first column is visible and not clipped by the region`, async ({ page }) => {
     await openFixture(page, 360, theme);
@@ -190,9 +190,9 @@ for (const theme of THEMES) {
       const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
       const rgba = (c: string) => {
         ctx.clearRect(0, 0, 1, 1);
-        ctx.fillStyle = '#010203';
-        ctx.fillStyle = c;
-        if (ctx.fillStyle === '#010203' && c !== '#010203') throw new Error(`the canvas cannot read the colour "${c}"`);
+        // A colour the canvas refuses leaves the fill as it was; a colour it reads differs from one sentinel at least.
+        const read = ['#010203', '#040506'].some((sentinel) => { ctx.fillStyle = sentinel; ctx.fillStyle = c; return ctx.fillStyle !== sentinel; });
+        if (!read) throw new Error(`the canvas cannot read the colour "${c}"`);
         ctx.fillRect(0, 0, 1, 1);
         const [r, g, b, al] = ctx.getImageData(0, 0, 1, 1).data;
         return { rgb: [r, g, b], a: al / 255 };
