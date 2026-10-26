@@ -170,9 +170,11 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   not count. `--seat melious` runs it alone (the wording pass, a re-gate); `--seat ollama` never
   falls back to it, and `--local-only` never calls it. The cost log records the seat as `melious` with
   the model in its own column. To make Melious the second seat, add `SECOND_SEAT=melious`: it runs beside Codex with no
-  fallback, and ollama is not called or auto-detected. When Melious does not count, nothing
-  replaces it; if Codex counted alone, the round ends with a line saying so and why. Write that in
-  the trail, and rerun `--seat melious` with the same `--round` once the seat can run.
+  fallback, and the pair neither calls nor auto-detects ollama (`--seat ollama` still runs it
+  when asked). When Melious does not count, nothing replaces it; if Codex counted alone, the
+  round ends with a line saying so and why. Write that in the trail, and once the seat can run,
+  rerun `--seat melious` with the same `--round` (at round 1, leave `--round` off: `--round 1`
+  starts a new gate in the cost log).
 - **First use per repo:** ask the owner before a repo's content goes to melious.ai the first time
   (SKILL.md, Procedure step 1).
 
@@ -328,4 +330,4 @@ Moved here from SKILL.md's Reviewer stack, word for word.
    the final-review marker it asks for (this guide). `--seat melious` runs it
    alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
    tokens too. **`SECOND_SEAT=melious`** (with `MELIOUS_MODEL`) puts Melious beside Codex with
-   no fallback: ollama is never called, and a Melious seat that did not count is not replaced.
+   no fallback: the pair never calls ollama, and a Melious seat that did not count is not replaced.

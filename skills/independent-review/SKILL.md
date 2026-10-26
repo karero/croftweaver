@@ -56,7 +56,8 @@ skip silently. With a config diff, send the code that reads the config too.
    and effort from `~/.codex/config.toml` (`CODEX_MODEL`, `CODEX_EFFORT` override them).
 2. **The second seat** — an ollama `:cloud` model (auto-detected; `OLLAMA_MODEL` overrides; text
    only), or Melious (`MELIOUS_MODEL`, an id from `scripts/melious_models.txt`; `SECOND_SEAT=melious`
-   runs it beside Codex with no fallback: when it fails, the round says Codex counted alone). Transports, auth, fallbacks and the
+   runs it beside Codex with no fallback, and when Codex is the only reviewer that counted, the
+   round says so and why). Transports, auth, fallbacks and the
    model list's rules: `references/setup-guide.md`, "The two script seats in detail".
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent

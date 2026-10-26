@@ -107,10 +107,10 @@ EOF
 cat >"$T/bin/ollama" <<'EOF'
 #!/bin/sh
 case "$1" in
-  list) if [ "${OLLAMA_STUB:-ok}" = listfail ]; then
+  list) : >"$STUB_MARKS/ollama-listed"   # every `ollama list` call: auto-detect, or run_ollama's preflight
+        if [ "${OLLAMA_STUB:-ok}" = listfail ]; then
           echo "Error: could not connect to ollama app, is it running?" >&2; exit 1
         fi
-        : >"$STUB_MARKS/ollama-listed"   # every `ollama list` call: auto-detect, or run_ollama's preflight
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
   run)  shift
         if [ "$1" = --help ]; then   # STUB_OLDCLI: 1 = too old to know --hidethinking; failhelp =
@@ -1332,6 +1332,8 @@ check "sfall: ollama never ran" [ ! -e "$T/sfall.marks/ollama-ran" ]
 check "sfall: the gate line says Codex alone, with Melious's reason" \
   has sfall.out "$GATE_ALONE FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback."
 check "sfall: ...in place of the generic note" lacks sfall.out "fewer than the 2"
+check "sfall: ...and its rerun advice keeps round 1 in this gate (--round 1 would start a new one)" \
+  has sfall.out "rerun with --seat melious and the same --round (at round 1, no --round: --round 1 starts a new gate in the cost log)."
 check "sfall: exit 0 while Codex counts" rc_is sfall 0
 run sparallel CODEX_STUB=waitmelious SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff" --base none
 check "sparallel: Melious started while codex was still running" \
