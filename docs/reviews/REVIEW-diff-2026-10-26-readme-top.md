@@ -25,3 +25,19 @@ fresh-eyes 67s (104,856 tokens)
 | F3 | NIT | fresh-eyes | fixed | Image and the next line both linked to /case-study; the image (of the home page) now links to the home page |
 | M2 | NIT | melious | refuted | `npm create croftweaver` appears twice. The brief asked for the quick install near the top and allowed repeating it; the top block sends readers to the full section |
 | F4 | NIT | fresh-eyes | no change | The reviewer's own note: the anchor and claim hold |
+
+## Round 2 — `cd705afa`, delta from `8ab12d98` (`--verify` round 1)
+`codex OK` 95s (20,723 tokens) · `melious OK` 58s (4,334 tokens)
+
+Both seats verified C1, F1, F3 fixed and accepted M2's reason. Codex: no findings.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| M4 | RISK | melious | refuted | "The setup-guide link may be dead in the plugin-directory copy": `scripts/build_directory_tree.sh HEAD` gives tree `1dc5be27`, whose listing holds `skills/new-website/templates/SETUP.md` (the script keeps `skills/` whole, less test folders and independent-review) |
+| M5 | NIT | melious | refuted | The raw URL follows `main`: that is the intent (the README shows the current home page); a tag pin would show nothing until a release holds the file. The 404 before the merge is transient; checked after the merge |
+
+Stop: round 2 has no BUG and no RISK left to fix (SKILL.md step 6, (a2)). Round 1's C1 was a
+BUG, so the record since round 2 gets one wording pass.
+
+Totals: 2 rounds, 10 distinct findings (1 BUG, 4 RISK, 5 NIT); 3 merged into others. Seat
+tokens 180,149 logged (codex 61,970, melious 13,323, fresh-eyes 104,856).
