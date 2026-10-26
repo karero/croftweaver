@@ -23,6 +23,12 @@
 #       its line with a caret (so ">=24.22.1" in the middle, which would admit 25, is red), and as many
 #       alternatives as the SETUP.md and SKILL.md phrases list versions (LINE_COUNT). Adding "|| ^25.9.0"
 #       or dropping the 24 alternative is red until the phrase table is changed on purpose.
+#   G6  the starter's ci.yml holds the setup-node step EXPECTED_SETUP_NODE (below) byte for byte,
+#       starting a line and followed by the next step or the end, and names setup-node nowhere else.
+#       The step's check-latest: true is the point: ci.yml names a bare major, and without it the
+#       runner may use a cached older release of that major, one engines does not admit (npm only
+#       warns); a site's CI ran 24.21.0 under ^24.22.1. The comparison is literal so that no YAML has
+#       to be parsed: change the step and this constant together.
 #
 # Ranges it reads: alternatives joined by "||", each ">=X[.Y[.Z]]" or "^X[.Y[.Z]]" (X at least 1), with
 # optional spaces after the operator and around "||". Anything else ("22", "22.x", "~22.23") is refused
@@ -79,6 +85,14 @@ const PHRASES = [
   { file: 'docs/UPGRADING.md', rx: /must be ([0-9.]+) or newer on Node 22, ([0-9.]+) or newer on Node 24, or ([0-9.]+) or newer/, use: 'lines' },
 ];
 const LINE_COUNT = 3; // the versions the SETUP.md, SKILL.md and UPGRADING.md phrases list: the 22, 24 and 26 lines
+// G6: the starter's setup-node step, byte for byte. Change it together with the step in ci.yml.
+const EXPECTED_SETUP_NODE = [
+  '      - uses: actions/setup-node@v7',
+  '        with:',
+  '          node-version: 24',
+  '          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release',
+  '          cache: npm',
+].join('\n') + '\n';
 
 function cmp(a, b) {
   for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
@@ -236,6 +250,14 @@ function checkMajor(file, label, value) {
     });
     if (vals.length === 0) fail(FILES.ci + ': no node-version line (G4)');
     vals.forEach(function (v) { checkMajor(FILES.ci, 'node-version', v); });
+    // G6: the expected step once, starting a line, followed by the next step or the end; no other setup-node.
+    const at = ci.indexOf(EXPECTED_SETUP_NODE);
+    const after = at < 0 ? '' : ci.slice(at + EXPECTED_SETUP_NODE.length);
+    const whole = at >= 0 && (at === 0 || ci[at - 1] === '\n') && (after === '' || after.startsWith('      - '));
+    const mentions = ci.split('setup-node').length - 1;
+    if (!whole || mentions !== 1 || ci.indexOf(EXPECTED_SETUP_NODE, at + 1) >= 0) {
+      fail(FILES.ci + ': its setup-node step is not EXPECTED_SETUP_NODE byte for byte, as a whole step and the only "setup-node" in the file (G6). The step must keep "check-latest: true"; if you changed the step on purpose, change EXPECTED_SETUP_NODE in scripts/check_node_floor.sh with it');
+    }
   }
 }
 // G3
@@ -280,5 +302,5 @@ if (fails.length) {
   fails.forEach(function (f) { console.log('FAIL — ' + f); });
   process.exit(1);
 }
-console.log('OK — the starter\'s Node floor holds: engines "' + starterText + '" is inside Astro ' + astroVersion + '\'s "' + astroText + '", the lockfile root agrees, .nvmrc and ci.yml name an admitted major, and ' + phrasesOk + ' phrases in ' + Object.keys(textOf).length + ' files carry the same versions.');
+console.log('OK — the starter\'s Node floor holds: engines "' + starterText + '" is inside Astro ' + astroVersion + '\'s "' + astroText + '", the lockfile root agrees, .nvmrc and ci.yml name an admitted major, ci.yml asks setup-node for the latest release, and ' + phrasesOk + ' phrases in ' + Object.keys(textOf).length + ' files carry the same versions.');
 JS
