@@ -23,7 +23,8 @@
 #       its line with a caret (so ">=24.22.1" in the middle, which would admit 25, is red), and as many
 #       alternatives as the SETUP.md and SKILL.md phrases list versions (LINE_COUNT). Adding "|| ^25.9.0"
 #       or dropping the 24 alternative is red until the phrase table is changed on purpose.
-#   G6  every actions/setup-node step in the starter's ci.yml has check-latest: true under its with:.
+#   G6  every actions/setup-node step in the starter's ci.yml has check-latest: true under its with:,
+#       in the layout the starter ships (any other layout is a red).
 #       ci.yml names a bare major, and without it the runner may use a cached older release of that
 #       major, one engines does not admit (npm only warns); a site's CI ran 24.21.0 under ^24.22.1.
 #
@@ -239,8 +240,8 @@ function checkMajor(file, label, value) {
     });
     if (vals.length === 0) fail(FILES.ci + ': no node-version line (G4)');
     vals.forEach(function (v) { checkMajor(FILES.ci, 'node-version', v); });
-    // G6: the step is its "- " line and every line indented deeper; check-latest must be a direct child of its with:.
-    // Block style and a bare true only: an inline "with: { ... }", "True" or a quoted "true" is not read, and so is a red.
+    // G6 reads one layout, the starter's: "- uses: actions/setup-node@..." with its keys two columns in, and
+    // "check-latest: true" (bare true) a direct child of its "with:". Any other layout is a red that says so.
     const lines = ci.split('\n');
     const ind = function (l) { return l.search(/\S/); };
     const skip = function (l) { return l.trim() === '' || /^\s*#/.test(l); };
@@ -248,24 +249,16 @@ function checkMajor(file, label, value) {
     lines.forEach(function (line, u) {
       if (!/^\s*(?:-\s*)?uses:\s*actions\/setup-node@/.test(line)) return;
       steps++;
-      let s = u;
-      while (s >= 0 && !(/^\s*-/.test(lines[s]) && (s === u || ind(lines[s]) < ind(lines[u])))) s--;
-      if (s < 0) { fail(FILES.ci + ':' + (u + 1) + ': cannot find the step this setup-node line belongs to (G6)'); return; }
-      const d = ind(lines[s]);
-      let e = s + 1;
-      while (e < lines.length && (skip(lines[e]) || ind(lines[e]) > d)) e++;
-      // The column of the step's keys: its first key's, on the dash line or, after a bare "-", on the next line.
-      let key = /^\s*-\s*/.exec(lines[s])[0].length;
-      if (lines[s].trim() === '-') { let f = s + 1; while (f < e && skip(lines[f])) f++; if (f < e) key = ind(lines[f]); }
+      const m = /^(\s*)- uses: actions\/setup-node@\S+\s*(?:#.*)?$/.exec(line);
+      if (!m) { fail(FILES.ci + ':' + (u + 1) + ': G6 reads only the starter\'s layout, "- uses: actions/setup-node@..." with its keys two columns in; write the step that way'); return; }
+      const key = m[1].length + 2;
+      let e = u + 1;
+      while (e < lines.length && (skip(lines[e]) || ind(lines[e]) >= key)) e++;
       let ok = false;
-      for (let j = s; j < e; j++) {
-        if (!/^\s*(?:-\s*)?with:\s*(?:#.*)?$/.test(lines[j]) || (j !== s && ind(lines[j]) !== key)) continue;
-        const k = key;
-        let child = -1;
-        for (let i = j + 1; i < e && (skip(lines[i]) || ind(lines[i]) > k); i++) {
-          if (skip(lines[i])) continue;
-          if (child < 0) child = ind(lines[i]);
-          if (ind(lines[i]) === child && /^\s*check-latest:\s+true\s*(?:#.*)?$/.test(lines[i])) ok = true;
+      for (let j = u + 1; j < e; j++) {
+        if (ind(lines[j]) !== key || !/^\s*with:\s*(?:#.*)?$/.test(lines[j])) continue;
+        for (let i = j + 1; i < e && (skip(lines[i]) || ind(lines[i]) > key); i++) {
+          if (ind(lines[i]) === key + 2 && /^\s*check-latest:\s+true\s*(?:#.*)?$/.test(lines[i])) ok = true;
         }
       }
       if (!ok) fail(FILES.ci + ':' + (u + 1) + ': this setup-node step has no "check-latest: true" under its with: (G6), so CI may run a cached Node older than engines allows');

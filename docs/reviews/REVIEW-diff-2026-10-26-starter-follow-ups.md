@@ -61,3 +61,14 @@ Both seats verified C4 for its own shape, M5, C5/M6, M7 and C7/M8.
 | M12 | NIT | melious | fixed | `check-latest:true` (no space) matched; it is not that key in YAML. The match now needs a space; case added |
 | M13 | NIT | melious | left | The "none" focus record is the baseline (no CSS appended, see proofs.sh); an explicit `outline: none` was already caught by the old spec's style check, which is unchanged |
 | C9 | — | both | UNVERIFIABLE, left | Same as C6: setup-node's `check-latest` resolution not traced in its code. If false, CI behaves as it does today |
+
+## Round 4 — `7d61b2e6`, delta from `32cef515` (`--verify` round 3), `--earned-by yaml-step-layout,setup-node-input`
+`reviewers: codex OK` · `timings: codex 372s (38070 tokens)`
+`reviewers: melious FAILED (curl exit 28, reply cut off)` · `timings: melious 900s` · gate `20261026T111928Z-99804`
+
+Codex verified M11, M12 and the M13 assertion. GLM 5.3 timed out at 900 s and did not count.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C10 | BUG | codex | fixed by a cut | A dash line holding only a comment took the comment's column as the key column: a false red, the third layout in three rounds. Cut: G6 no longer guesses layouts. It reads one, the starter's (`- uses: actions/setup-node@…`, keys two columns in, `check-latest: true` a direct child of `with:`); any other layout is a red that says "G6 reads only the starter's layout". The named-step, `with:`-first, bare-dash and aligned-key cases now expect that red |
+| C11 | — | codex | UNVERIFIABLE, left | `proofs.sh` is in round 1's evidence; C9 as before |
