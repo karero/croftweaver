@@ -10,6 +10,7 @@ money or deletion).
 | 1 | plan at 550a1cd8, evidence = script/test/doc excerpts | codex OK (362 s, 74,213 tokens), melious OK (318 s, 33,377 tokens), fresh-eyes OK (~123k tokens) | 2 BUG, 5 RISK, 8 NIT (F1-F15) | all fixed in the next revision |
 | 2 | plan at 7bcd8c2f, `--verify` F1-F15 | codex OK (435 s, 69,762 tokens), melious OK (559 s, 50,719 tokens) | 1 BUG, 2 RISK, 3 NIT (G1-G6) | all fixed in the next revision |
 | 3 | plan at e3bceb6c, `--verify` G1-G6 | codex OK (289 s, 89,571 tokens), melious OK (354 s, 44,539 tokens) | 1 BUG, 1 RISK (both seats), 5 NIT (H1-H7) | H3 refuted (line 404 normalizes `SECOND_SEAT`); rest fixed. H2 changed the build's test plan, so round 4 is earned (`--earned-by mutation-coverage`); H1 is wording, for the wording pass |
+| 4 | plan at a1d091d1, `--verify` H1-H7, `--earned-by mutation-coverage` | codex OK (396 s, 64,641 tokens), melious OK (477 s, 53,159 tokens) | 1 BUG, 3 NIT (I1-I4) | all fixed; I1 is wording; no RISK and no substantive BUG, so no round 5 is earned |
 
 Round 1 findings, one line each:
 
@@ -36,3 +37,10 @@ Round 3 findings, one line each (G1-G6 confirmed fixed by both seats, except G1'
 - H2 RISK (Codex and Melious): the mutation claim credited checks the named mutations cannot break. Fixed: one mutation per check group, in a table.
 - H3 NIT (Melious): default `SECOND_SEAT` not normalized. REFUTED: `independent_review.sh:403-404` sets it to `ollama` when unset.
 - H4-H7 NIT (Melious): `--seat ollama` detect test added; `melious_pid` removed; grep terms widened; generic note claim narrowed.
+
+Round 4 findings (H1-H7 confirmed fixed by both seats; H3's refutation upheld by both):
+
+- I1 BUG (Codex): Change 2's summary said `SECOND_SEAT=melious` never reads `ollama list`, against `sseatollama`. Fixed: wording names `--seat ollama` as the exception (the predicate was already right).
+- I2 NIT (Codex): moved `sstop` duplicated `mstop` (test line 1288). Fixed: `sstop` dropped, `mstop` gains the finished mark.
+- I3 NIT (Melious): grep terms missed `ollama-cloud FAILED`. Fixed: bare `ollama-cloud`, and the sweep is called best-effort.
+- I4 NIT (Melious): nothing pinned the gate line's absence under `--seat`. Fixed: `sseat` gains that check, in the mutation table.

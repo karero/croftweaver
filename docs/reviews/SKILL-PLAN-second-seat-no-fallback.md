@@ -9,7 +9,7 @@ built before the maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ▶ written | this file |
-| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ rounds 1-3 done: 4 BUG, 8 RISK, 16 NIT; all fixed in this revision but one NIT refuted | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
+| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ rounds 1-4 done: 5 BUG, 8 RISK, 19 NIT; all fixed but one NIT refuted; no round 5 earned; wording pass and final full read next | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
 | 3 | The maintainer's go | ⏸ | — |
 | 4 | Build, `make check` green, live check, DIFF gate, PR | ⏸ | — |
 | 5 | Release-note row in `docs/BUGLOG.md` | ⏸ | — |
@@ -77,8 +77,9 @@ maintainer (judgment, not checked).
 2. **No auto-detect where ollama cannot run.** Today the detection block (lines 480-506) runs
    whenever `LOCAL_ONLY != 1` and `OLLAMA_MODEL` is empty. It becomes: those two, and also
    `SEAT = ollama`, or `SEAT` empty with `SECOND_SEAT = ollama`. So `--local-only` keeps no
-   auto-detect (with or without `--seat ollama`), and `SECOND_SEAT=melious` or
-   `--seat codex|melious|agy` never read `ollama list` or print its notes. (`SECOND_SEAT` is
+   auto-detect (with or without `--seat ollama`), `--seat ollama` auto-detects whatever
+   `SECOND_SEAT` says, and `SECOND_SEAT=melious` with no `--seat`, or `--seat codex|melious|agy`,
+   never reads `ollama list` or prints its notes. (`SECOND_SEAT` is
    already set to `ollama` when unset, line 404, so the default keeps auto-detect.) The other readers of
    `OLLAMA_MODEL` are `run_ollama` and its transports (lines 1273-1420), which these runs never
    call; `OLLAMA_LABEL` (line 1764), which only names a seat that is reported; and the
@@ -131,8 +132,9 @@ With the model set, a restored hand-over runs the stub, and each check asserts b
 `ollama-ran` mark" and the exact `reviewers:` line.
 
 Changed, because their expected output encodes the old fallback (found by grepping the suite for
-`stood in`, `stands in`, `hand over`, `fallback` and `ollama-cloud OK` under `SECOND_SEAT=melious`; the
-build greps again). Comments that state the old behaviour are rewritten with their tests, such as
+`stood in`, `stands in`, `hand over`, `fallback` and `ollama-cloud` under `SECOND_SEAT=melious`; the
+build greps again; a best-effort sweep for stale text, while the checks below guard the
+behaviour). Comments that state the old behaviour are rewritten with their tests, such as
 section 32b's lead ("A refused Melious seat must still hand over", line 1318):
 
 - `sfall` (section 32b): Melious returns the real empty-balance reply (stub `nobalance`, from a
@@ -148,11 +150,13 @@ section 32b's lead ("A refused Melious seat must still hand over", line 1318):
   `t12` (line 1977) in the size-limit block: rewritten to expect no ollama seat and Codex alone
   where Codex counts; `ttpair3` still exits 4. `t11f` and `t12` keep their own point (the Melious
   refusal and its reason) and show the gate line with a setup reason, not a quota one.
-- `sstop` tested stopping a fallback that starts late. That path stays on the default seat
-  (Melious starting after ollama failed), so `sstop` moves there: `SECOND_SEAT` unset,
-  `OLLAMA_STUB=429`, a Melious stub that ignores TERM (`stubborn`), which gains a "finished" mark
-  written after its sleep. Stopping the script must exit 130, leave its pid dead, and leave no
-  "finished" mark: a seat that ran to the end would write it.
+- `sstop` tested stopping a fallback that starts late. That path stays only on the default seat
+  (Melious starting after ollama failed), which `mstop` (line 1288) already tests, so `sstop` is
+  dropped. `mstop` gains a "finished" mark that the Melious `stubborn` stub writes after its
+  sleep: stopping the script must exit 130, leave its pid dead, and leave no "finished" mark (a
+  seat that ran to the end would write it).
+- `sseat` (`SECOND_SEAT=melious --seat codex`, line 1340) gains a check that the gate line is
+  absent: a condition that read the undispatched Melious seat as "did not count" would print it.
 
 New:
 
@@ -184,8 +188,8 @@ should catch it, and the PR records which checks failed for each:
 | detection keyed on `SECOND_SEAT` alone, ignoring `--seat` | `sseatollama` |
 | stop detecting in the default | the default auto-detect check |
 | drop the gate line | `sfall`, `sboth`, `t11f`, `t12` |
-| print the gate line whatever the mode or count | `sfirstcodex`, `sagy` |
-| remove the `kill -KILL` in `stop_tiers` | `sstop` |
+| print the gate line whatever the mode or count | `sfirstcodex`, `sseat`, `sagy` |
+| remove the `kill -KILL` in `stop_tiers` | `mstop` |
 
 Live check after `make check`: one real run from the branch, with a Melious URL nothing listens
 on (`MELIOUS_BASE_URL=http://127.0.0.1:9`), `SECOND_SEAT=melious MELIOUS_MODEL=<the listed
