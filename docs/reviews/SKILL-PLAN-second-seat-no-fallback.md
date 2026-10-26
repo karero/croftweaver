@@ -9,7 +9,7 @@ built before the maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ▶ written | this file |
-| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ round 1 done: 2 BUG, 5 RISK, 8 NIT, all fixed in this revision | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
+| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ rounds 1-2 done: 3 BUG, 7 RISK, 11 NIT, all fixed in this revision | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
 | 3 | The maintainer's go | ⏸ | — |
 | 4 | Build, `make check` green, live check, DIFF gate, PR | ⏸ | — |
 | 5 | Release-note row in `docs/BUGLOG.md` | ⏸ | — |
@@ -60,7 +60,7 @@ who followed it (judgment: the toolkit collects no usage data). The maintainer's
 setup, carried by his own instructions (see "Follow-ups"), not the public default.
 
 **Who loses what.** Anyone who set `SECOND_SEAT=melious` and relied on ollama behind it gets
-one-reviewer rounds when Melious fails, each with the note below telling them why and what to do.
+rounds short of the pair when Melious fails, each with the note below telling them why and what to do.
 The release note says so. The seat arrived on 2026-10-06; we know of no user of it besides the
 maintainer (judgment, not checked).
 
@@ -68,8 +68,8 @@ maintainer (judgment, not checked).
 
 1. **Dispatch** (lines 1827-1862). In the default parallel branch, with `SECOND_SEAT=melious`,
    start Codex and Melious (and Antigravity when opted in), wait for all, report each. Drop the
-   hand-over, and remove `OLLAMA_RAN` entirely: its only reader (line 1860) is in the removed
-   report branch. In `--first-success` (line 1796), drop step 2b for this seat: Codex, then
+   hand-over, and remove `OLLAMA_RAN` entirely (its only reader, line 1860, is in the removed
+   report branch) and `melious_counted` (line 1779; its only caller is the removed hand-over). In `--first-success` (line 1796), drop step 2b for this seat: Codex, then
    Melious, then Antigravity only if opted in. The default seat's own late start (Melious after
    ollama failed, lines 1847-1853) is unchanged.
 2. **No auto-detect where ollama cannot run.** Today the detection block (lines 480-506) runs
@@ -84,14 +84,15 @@ maintainer (judgment, not checked).
 3. **The gate line.** `report_tier` keeps the Melious outcome in its own variable as it builds it
    (the same text it appends to `SUMMARY`), so nothing parses `SUMMARY`. In `report_round`,
    checked before the generic fewer-than-2 branch: when `SECOND_SEAT=melious`, no `--seat`, no
-   `--first-success`, no `--local-only`, Melious was attempted and did not count, and Codex is
-   the only seat that counted, it prints on stdout and stderr, in place of the generic note:
+   `--first-success`, no `--local-only`, Melious did not count (FAILED or SKIPPED; in this mode
+   it is always dispatched), and Codex is the only seat that counted, it prints on stdout and stderr, in place of the generic note:
 
    ```
    ⚠ PLAN round landed with 1 reviewer(s) counted toward the gate: codex alone. melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback. Record this round as Codex alone, with that reason, in the trail; to add the second seat, rerun with --seat melious and the same --round once it can run.
    ```
 
-   Every other short round keeps today's notes: Codex failed and Melious counted, Antigravity the
+   The Melious part is the text `report_tier` built for that seat, FAILED or SKIPPED with its
+   reason. Every other short round keeps today's notes: Codex failed and Melious counted, Antigravity the
    only one counted, nothing counted, and `--first-success` (which stops at Codex by design). The
    generic note names no ollama fallback ("Treat it as degraded … consider --with-antigravity or
    a manual paste round"), so it stays right for this seat. The `reviewers:` line is unchanged
@@ -104,8 +105,8 @@ maintainer (judgment, not checked).
    `SECOND_SEAT=melious`: `SKILL.md` line 59 ("ollama standing in when it fails"),
    `references/setup-guide.md` lines 172-173 (including "an `OLLAMA_MODEL` for the fallback, or
    the first `:cloud` tag is used") and 328-329, `references/rationale.md` lines 72-73. Each
-   becomes: Melious beside Codex, no fallback; a failed seat means a Codex-only round, named in
-   the trail. Melious as the default seat's fallback (setup-guide lines 112 and 169-170, 315)
+   becomes: Melious beside Codex, no fallback; a failed seat is not replaced, and the round reports
+   whichever seats counted, named in the trail. Melious as the default seat's fallback (setup-guide lines 112 and 169-170, 315)
    stays as written. The skill names no model and still won't (`check_model_agnostic.sh`). The
    final-full-read advice ("another ollama cloud model") stays: it is public advice, and which
    models the maintainer runs is his own rule.
@@ -118,7 +119,8 @@ All in `test_failed_tier_report.sh`, which runs the real script (`bash "$SCRIPT"
 `codex`, `ollama` and `curl` on `PATH`: the same entry point a session uses, through option
 parsing, the model list check, auto-detect, dispatch and `report_round`.
 
-**Every no-fallback check sets `OLLAMA_MODEL` to the stub's `:cloud` tag.** The harness unsets it
+**Every check that a hand-over is gone sets `OLLAMA_MODEL` to the stub's `:cloud` tag**
+(`sfall`, `sfirstsucc`, `sboth`, `ttpair*`, `t11f`, `t12`, `sagy`, `sfirstcodex`). The harness unsets it
 (line 342), and with auto-detect off a restored hand-over would call `run_ollama`, which returns 3
 before touching the stub: the `ollama-ran` mark would never appear and the check could not fail.
 With the model set, a restored hand-over runs the stub, and each check asserts both "no
@@ -133,20 +135,25 @@ Changed, because their expected output encodes the old fallback (found by greppi
   `ollama-ran` mark.
 - `sfirstsucc`: Codex fails, Melious returns 429: `reviewers: codex FAILED (exit 1), melious
   FAILED (HTTP 429; quota/rate limit: wait or add credits)`, exit 4, no `ollama-ran` mark.
-- `sboth`, `sreuse`, `ttpair`, `ttpair2`, `ttpair3` (think-tag block), and `t11f` (line 1894) and
+- `sboth`: Codex OK, Melious returns 429: now the gate line, not "fewer than the 2".
+- `sreuse` is dropped: it guarded a stale Melious OK holding the fallback back, and the fallback
+  is gone.
+- `ttpair`, `ttpair2`, `ttpair3` (think-tag block), and `t11f` (line 1894) and
   `t12` (line 1977) in the size-limit block: rewritten to expect no ollama seat and Codex alone
   where Codex counts; `ttpair3` still exits 4. `t11f` and `t12` keep their own point (the Melious
   refusal and its reason) and show the gate line with a setup reason, not a quota one.
 - `sstop` tested stopping a fallback that starts late. That path stays on the default seat
   (Melious starting after ollama failed), so `sstop` moves there: `SECOND_SEAT` unset,
-  `OLLAMA_STUB=429`, a Melious stub that ignores TERM (`stubborn`), and stopping the script must
-  kill it.
+  `OLLAMA_STUB=429`, a Melious stub that ignores TERM (`stubborn`), which gains a "finished" mark
+  written after its sleep. Stopping the script must exit 130, leave its pid dead, and leave no
+  "finished" mark: a seat that ran to the end would write it.
 
 New:
 
 - `snodetect`: `SECOND_SEAT=melious` with `OLLAMA_MODEL` unset; the `ollama` stub gains one line
-  that marks each `list` call. Melious fails. Expect no `list` mark, no "auto-detected" or
-  "auto-using" note, no `ollama-ran` mark.
+  that marks each `list` call. Melious fails. Expect no `list` mark and no "auto-detected" or
+  "auto-using" note. (It cannot test the hand-over: with no model, `run_ollama` returns before
+  the stub. The checks above do that.)
 - `sseatnodetect`: the same with `--seat codex`: no `list` mark.
 - `sfirstcodex`: `--first-success`, Codex OK: no gate line, no Melious call, no `ollama-ran` mark.
 - `sagy`: `WITH_ANTIGRAVITY=1`, Melious fails: with Codex and Antigravity both OK, no gate line
