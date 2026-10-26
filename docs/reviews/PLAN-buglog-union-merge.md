@@ -11,7 +11,7 @@ merge=union in .gitattributes, plus a make check guard that fails on a duplicate
 | Owner's go | given 2026-10-26, in chat | — |
 | Build: attribute, guard, test, duplicate removed, intro sentence | done | 20ea6973, e2640881; review fixes f7405ae3, c3a77850, 173253a2, 6a5e2076 |
 | DIFF gate, PR, merge | done: DIFF gate clean (3 rounds and a full read); karero/croftweaver#416 merged by merge commit 4b5b927c (branch head 6a5e2076) | `docs/reviews/REVIEW-diff-2026-10-26-buglog-union.md` |
-| Owner: `buglog-rows` added to the ruleset's required checks | done 2026-10-26: `gh api repos/karero/croftweaver/rulesets/24584953` read back enforcement `active`, target the default branch, `buglog-rows` among 38 required checks (updated 13:28 +01:00) | — |
+| Owner: `buglog-rows` added to the ruleset's required checks | done 2026-10-26: `gh api repos/karero/croftweaver/rulesets/24584953` read back enforcement `active`, target the default branch, `buglog-rows` among 38 required checks (updated 13:28 +01:00). Not yet seen to block a merge | — |
 
 ## What
 
