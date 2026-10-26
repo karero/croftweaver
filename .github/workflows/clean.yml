@@ -46,6 +46,7 @@ name: clean
 # the facts-check tests (`make test-facts`), which need nothing beyond python3, the
 # website-brand-kit tests (`make test-brand-kit`), which borrow `sharp` from an install of the
 # starter and need Pillow, the wordpress-inspector tests (`make test-wordpress-inventory`), which
+# need nothing beyond python3, the website-launch-check tests (`make test-launch-check`), which
 # need nothing beyond python3, the tests of the Antigravity release test (`make
 # test-agy-release`), which need python3, git, node and npm, and the
 # tests of the Cloudflare check and setup scripts (`make test-cloudflare-check`), which need
@@ -421,6 +422,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run the wordpress-inspector tests (stub sites on 127.0.0.1, no real requests)
         run: make test-wordpress-inventory PYTHON=python
+  launch-check-tests:
+    # Standard library only, as for the facts check; 3.9 is the oldest Python the scripts promise.
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run the website-launch-check tests (the report-page script, no network)
+        run: make test-launch-check PYTHON=python
   agy-release-tests:
     # The maintainer's Antigravity release test, run against a stub agy: no credits, no network.
     # Standard library only, as for the facts check; npm runs a fixture site with no dependencies.
