@@ -122,8 +122,25 @@ builder checks; round 7 checks them.
 ## Round 7, then a cut
 
 Codex found nothing and confirmed R6-1 and R6-2. The last three BUGs (R5-1, R5-2, R6-1) were the
-plan disagreeing with itself: a total, and a cause list restated after it grew. So the plan was
+plan disagreeing with itself: a heading that called a timing-dependent setup timing-free, a
+total, and a cause list restated after it grew. So the plan was
 cut rather than reworded: no finding counts in the plan (this trail holds them); §B's cause list
 is named once, and test 2 and the known limits refer to "the missing-id message of §B"; the
 repeated folder count and the "two handover notes" count are gone. The cut adds no claim, so it
 earns no round; the wording pass reads it.
+
+## Wording pass
+
+Codex, `--wording-pass --seat codex --base 59ba0c1f`, over the plan and trail changes since round
+7 (523 s, 57,628 tokens). It recounted the trail (6 BUG, 20 RISK, 15 NIT) and confirmed the cut
+kept the meaning.
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| WP-1 | BUG | The cut's summary called all three BUGs counts or lists; R5-1 was a timing claim | fixed: the summary names all three kinds |
+| WP-2 | RISK | The plan's status said "then a wording pass" before any result was recorded | fixed: this section records it, and the status row names it |
+| WP-3 | RISK | Worker config, the JSON port and readiness rest on probes, not a retained trace | follow-up: the same claims R2-4, R3-4 and R4-2 settled with probes; tests 1 and 4 re-run them on the built change |
+| WP-4 | RISK | "Serves `dist/` byte for byte" rests on a probe | follow-up: test 2's wrong-id and missing-id setups compare served and disk ids on the built change |
+
+Gate closed: no open BUG, no RISK left unfixed except the two follow-ups above, which the build's
+own tests settle. Waiting for the maintainer's go.

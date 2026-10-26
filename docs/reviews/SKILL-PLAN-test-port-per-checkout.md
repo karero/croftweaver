@@ -8,7 +8,7 @@ maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
-| 2 | Plan review gate | ✅ clean 2026-10-26: round 7 found nothing, then a cut and a wording pass; details in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
+| 2 | Plan review gate | ✅ closed 2026-10-26: round 7 found nothing; a cut and a wording pass (one prose fix) followed; details in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ⬜ | — |
 | 4 | croftweaver-site copy (one pull request) | ⬜ | — |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone, after step 4 merges and the clone is pulled | ⬜ the maintainer's step | — |
