@@ -10,8 +10,8 @@ built before the maintainer's go.
 |---|------|-------|----------|
 | 1 | This plan | ✅ written and revised through the gate | this file |
 | 2 | PLAN gate (Normal: a plan for a review script's logic) | ✅ clean: 4 rounds, final full read, wording pass, full-scope re-check; 11 BUG, 8 RISK, 26 NIT, all fixed but one NIT refuted; none open | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
-| 3 | The maintainer's go | ⏸ | — |
-| 4 | Build, `make check` green, live check, DIFF gate, PR | ⏸ | — |
+| 3 | The maintainer's go | ✅ 2026-10-26: "go, build it", then "make sure it makes sense, evaluate carefully" (the measured table above is that check) | — |
+| 4 | Build, `make check` green, live check, DIFF gate, PR | ▶ building on `feat/second-seat-no-fallback` | — |
 | 5 | Release-note row in `docs/BUGLOG.md` | ⏸ | — |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked. Updating a row is part of finishing
@@ -29,11 +29,32 @@ today:
 2. With no `OLLAMA_MODEL`, the script picks the first `:cloud` tag itself (lines 480-506), for
    every mode except `--local-only`, even a run where ollama is only a fallback.
 
-The cost, as counted from the cost log for the week to 2026-10-26 (counted in the session that
-asked for this plan; not checked again here): 160 of 279 ollama stand-in runs failed, and Melious
-failed 214 of 1230 runs, all for an empty balance. Until the script changes, sessions run
-`--seat codex` and `--seat melious` as two commands with the same `--round`: it works, but it
-doubles the commands, loses the shared summary line, and leans on every session remembering.
+Measured before the build (cost log, 2026-10-19 to 2026-10-26, 298 ollama rows; each row
+classed by the rows logged beside it in the same gate and round):
+
+| Where the ollama run came from | Runs | Models |
+|---|---|---|
+| Stand-in after a failed Melious seat (`SECOND_SEAT=melious`) | 210 | all the same GLM tag, named in `OLLAMA_MODEL` |
+| Alone (`--seat ollama`: final reads, red teams, asked-for opinions) | 82 | 57 Kimi, 14 another model, 11 GLM |
+| Default seat beside Codex | 6 | 3 Kimi, 2 GLM, 1 other |
+
+Of the 210 stand-ins, 144 failed as well (the ollama quota), and 66 rescued a round. So:
+
+- **Change 1 is the fix that matters**: it removes about 210 ollama calls a week. The price is
+  about 66 rounds a week that will now land with Codex alone; the maintainer chose that trade.
+- **Change 2 saves no quota today**: no stand-in ran an auto-picked model, because sessions named
+  `OLLAMA_MODEL`. Once Change 1 lands, a Melious-seat run never calls ollama, so Change 2 only
+  stops a needless `ollama list` and an "auto-detected" note naming a model nobody will run.
+  It is kept because it is three lines and the brief asked for it (judgment).
+- **Kimi spend came from runs that named it** (`--seat ollama`, and three default runs), not from
+  auto-pick. The script cannot tell a run the maintainer asked for from one he did not; that
+  stays a rule in his own instructions, not a guard here.
+
+Until the script changes, sessions run `--seat codex` and `--seat melious` as two commands with
+the same `--round`: it works, but it doubles the commands, loses the shared summary line, and
+leans on every session remembering. And a session that follows the new rule by dropping
+`OLLAMA_MODEL` from the old one-command recipe would today get the auto-picked model as its
+stand-in: Change 1 closes that.
 
 ## Decision: `SECOND_SEAT=melious` stops falling back
 
