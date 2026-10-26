@@ -30,3 +30,20 @@ fresh-eyes (Sonnet subagent): 120,040 tokens, 75 s
 | F4 | NIT | fresh-eyes | fixed | The G6 case pinned `ci.yml:127`; it now checks the message and the file name |
 | F6 | NIT | fresh-eyes | fixed | Background images and gradients are not read: said in the test's comment |
 | C3 | — | codex | fixed | UNVERIFIABLE: WCAG 1.4.11 sets no width. The comment now cites the starter's own 2px ring and 2.4.13 for the width, 1.4.11 for 3:1 |
+
+## Round 2 — `b4cd1901`, delta from `4248e626` (`--verify` round 1)
+`reviewers: codex OK` · `timings: codex 224s (62001 tokens)`
+`reviewers: melious OK` · `timings: melious 406s (49832 tokens)` · gate `20261026T111928Z-99804`
+
+Both seats verified every round 1 fix landed.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C4 | BUG | codex | fixed | G6 put the step's keys at dash + 2, so `-   uses:` with its keys aligned after it was a false red. The column now comes from the step's first key; case "\"-   uses:\" with the step's keys aligned after it" fails on the round 2 guard, passes now |
+| M5 | RISK | melious | fixed | Accepting `True`/`TRUE` rested on how GitHub and setup-node read booleans, which no one checked; a wrong guess is a false green. G6 now reads only `true`, quoted or not; `True` is a red, which is loud. Case "check-latest: True: red" |
+| C5 | RISK | codex | fixed | One sentinel: a real colour equal to it would throw. Now two, readable if either changed (M6 is the same). Chromium probe of the reader, copied verbatim from the spec: `rgb(1, 2, 3)`, `rgb(4, 5, 6)`, transparent, `oklch(…)`, `color(srgb …)` all read; `not-a-colour` throws (round 3 evidence) |
+| M6 | NIT | melious | fixed | Same as C5 |
+| M7 | NIT | melious | fixed | An inline `with: { … }` is not read: said in G6's comment (a red, not a false green) |
+| C6 | — | codex | UNVERIFIABLE, left | setup-node's `check-latest` picks the newest release of the major over a cached one: the action's documented input, not traced in its code here. If false, CI keeps today's behaviour; nothing turns green that was red |
+| C7/M8 | — | both | fixed | "WCAG 2.4.13 asks the same" for 2px: not checked. Dropped; the 2px rests on the starter's own ring |
+| M9 | NIT | melious | left, outside the diff | `clean.yml`'s 22.12.0 matrix step sets both `node-version` and `node-version-file`; untouched here apart from the added line |
