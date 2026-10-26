@@ -43,7 +43,7 @@ report="$(awk '
       print "A row starts \"| YYYY-MM-DD | \" and splits on \" | \" into the table'"'"'s 7 cells. A bare \" | \""
       print "inside a cell splits it, here and on GitHub: write it as \\|."
     }
-    if (rows == 0) print "FAIL — no rows found in docs/BUGLOG.md (a row starts \"| YYYY-MM-DD |\")."
+    if (rows == 0 && bad == "") print "FAIL — no rows found in docs/BUGLOG.md (a row starts \"| YYYY-MM-DD |\")."
     if (pairs != "") {
       print "FAIL — docs/BUGLOG.md holds two rows that look like two versions of one row"
       print "       (same Found date and Where, or the same first 20 words of What):"
