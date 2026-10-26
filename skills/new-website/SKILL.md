@@ -332,7 +332,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 10c | Launch check: the verdict before launch (🟢 / 🟡 / 🔴), and for a site that replaces an older one the current-vs-new comparison with its redirect map; §4 starts after 🟢, or a 🟡 the owner accepts | **`website-launch-check`** |
 | 11 | Launch & handoff: schema/sitemap/robots, deploy, hand over | **this skill** §4 |
 | 12 | Post-launch: register with Google Search Console + Bing, submit sitemap, enable IndexNow | **`search-console-setup`** |
-| 12a | Optional, once the production build is Active: the live re-check (HTTPS, the 404 status, PageSpeed on the live domain, the new site's row of the comparison) | **`website-launch-check`** |
+| 12a | Optional, once the production build is Active: the live re-check (HTTPS, the 404 status, speed on the live domain as `website-qa` §2 measures it, the new site's row of the comparison) | **`website-launch-check`** |
 | 13 | Post-launch: claim Google Business Profile + Bing Places, verify `sameAs` profiles resolve — **only if the site is a claimable entity** (see §4a) | **`business-listings-setup`** |
 | 14 | Post-launch: ask once for a "Built with Croftweaver" credit in the footer — a request, never a condition (see §4b) | **this skill** §4b |
 

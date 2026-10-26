@@ -15,14 +15,14 @@ decisions, nothing else from an inventory. In a public site repo, ask before com
 
 - [ ] [Item, with the page or file.]
 
-## PageSpeed: current and new
+## Speed: current and new
 
 Measured as `website-qa` §2 does (Lighthouse, or PageSpeed Insights as its fallback); say which.
 
-| Page | Site | Performance | Accessibility | Best practices | SEO | LCP | Page weight |
-|---|---|---|---|---|---|---|---|
-| Home, mobile | current | [not measured] | | | | | |
-| | new | not measured yet: run after the switch, at 12a | | | | | |
+| Page | Site | Measured at | Performance | FCP | LCP |
+|---|---|---|---|---|---|
+| Home, mobile | current | [the old site's address] | [not measured: why] | | |
+| | new | [the preview, or production at 12a] | [not measured yet: no deployed address] | | |
 
 ## E-E-A-T and local signals (an assessment, not a measurement)
 

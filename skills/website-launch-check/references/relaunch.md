@@ -42,13 +42,14 @@ Then check each decision against the new site:
   header says so and lists such an address without a line); list it the same way, with the
   owner's decision.
 
-## 3. PageSpeed
+## 3. Speed
 
 Measure as `website-qa` §2 does: the assistant runs Lighthouse; PageSpeed Insights in the
 built-in browser, and then the owner, are its fallbacks. The table names the tool. The old site:
 its public pages, before the switch; if they cannot be measured, the row says why. The new site:
-only at a deployed address (`website-qa` §2, step 3), so at the pre-launch run, before §4's first
-deploy, its row reads "not measured yet: run after the switch, at 12a". Never fill in a number.
+only at a deployed address (`website-qa` §2, step 3): its `main` preview where one exists, and
+production after the switch (12a). With no deployed address yet (a pre-launch run before §4's
+first deploy), its row reads "not measured yet: no deployed address". Never fill in a number.
 
 ## 4. The rest of the comparison
 

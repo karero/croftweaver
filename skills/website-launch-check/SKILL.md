@@ -209,7 +209,7 @@ task tracker, offer to create the tickets there too.
 
 When the settings name `replaces`, the pre-launch run also writes
 `docs/launch/launch-comparison-<YYYY-MM-DD>.md` and its HTML, following `references/relaunch.md`
-and `references/comparison-template.md`: a verdict, before-launch items, PageSpeed old and new,
+and `references/comparison-template.md`: a verdict, before-launch items, speed old and new,
 E-E-A-T for both, open questions, a redirect map for every old address, a side by side, what
 the old site gets wrong, what the new one adds and what it does not have yet.
 
