@@ -9,7 +9,7 @@ built before the maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ▶ written | this file |
-| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ rounds 1-4 done: 5 BUG, 8 RISK, 19 NIT; all fixed but one NIT refuted; no round 5 earned; wording pass and final full read next | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
+| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ rounds 1-4 and final full read done: 6 BUG, 8 RISK, 26 NIT; all fixed but one NIT refuted; wording pass next | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
 | 3 | The maintainer's go | ⏸ | — |
 | 4 | Build, `make check` green, live check, DIFF gate, PR | ⏸ | — |
 | 5 | Release-note row in `docs/BUGLOG.md` | ⏸ | — |
@@ -25,7 +25,7 @@ stands in when the Melious seat fails, and the ollama model the script picks by 
 today:
 
 1. With `SECOND_SEAT=melious`, a Melious seat that did not count hands its seat to ollama (header
-   lines 13-14; dispatch lines 1843-1846, and line 1796 for `--first-success`).
+   lines 13-14; dispatch lines 1844-1846, and line 1796 for `--first-success`).
 2. With no `OLLAMA_MODEL`, the script picks the first `:cloud` tag itself (lines 480-506), for
    every mode except `--local-only`, even a run where ollama is only a fallback.
 
@@ -70,7 +70,7 @@ maintainer (judgment, not checked).
 1. **Dispatch** (lines 1827-1862). In the default parallel branch, with `SECOND_SEAT=melious`,
    start Codex and Melious (and Antigravity when opted in), wait for all, report each. Drop the
    hand-over, and remove `OLLAMA_RAN` entirely (its only reader, line 1860, is in the removed
-   report branch) `melious_counted` (line 1779; its only caller is the removed hand-over) and `melious_pid`
+   report branch), `melious_counted` (line 1779; its only caller is the removed hand-over) and `melious_pid`
    (line 1831; read only by that hand-over). In `--first-success` (line 1796), drop step 2b for this seat: Codex, then
    Melious, then Antigravity only if opted in. The default seat's own late start (Melious after
    ollama failed, lines 1847-1853) is unchanged.
@@ -81,8 +81,10 @@ maintainer (judgment, not checked).
    `SECOND_SEAT` says, and `SECOND_SEAT=melious` with no `--seat`, or `--seat codex|melious|agy`,
    never reads `ollama list` or prints its notes. (`SECOND_SEAT` is
    already set to `ollama` when unset, line 404, so the default keeps auto-detect.) The other readers of
-   `OLLAMA_MODEL` are `run_ollama` and its transports (lines 1273-1420), which these runs never
-   call; `OLLAMA_LABEL` (line 1764), which only names a seat that is reported; and the
+   `OLLAMA_MODEL` are `run_ollama` and its transports (lines 1273-1421), which these runs never
+   call; `report_tier`'s Model line (1657) and `log_seat`'s model column (1703), both only for the
+   ollama seat, which these runs never report; `OLLAMA_LABEL` (line 1764), which only names that
+   seat; the default seat's Melious late start (1848), which needs `SECOND_SEAT=ollama`; and the
    `--local-only` cloud-tag guard (line 513), unchanged. So an `OLLAMA_MODEL` left in the
    environment does nothing in those runs.
 3. **The gate line.** `report_tier` keeps the Melious outcome in its own variable as it builds it
@@ -92,7 +94,7 @@ maintainer (judgment, not checked).
    it is always dispatched), and Codex is the only seat that counted, it prints on stdout and stderr, in place of the generic note:
 
    ```
-   ⚠ PLAN round landed with 1 reviewer(s) counted toward the gate: codex alone. melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback. Record this round as Codex alone, with that reason, in the trail; to add the second seat, rerun with --seat melious and the same --round once it can run.
+   ⚠ PLAN round landed with 1 reviewer(s) counted toward the gate: codex alone. melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback. Record this round as Codex alone, with that reason, in the trail; to add the second seat, apply the remedy in the melious FAILED section, then rerun with --seat melious and the same --round.
    ```
 
    The Melious part is the text `report_tier` built for that seat, FAILED or SKIPPED with its
@@ -149,7 +151,7 @@ section 32b's lead ("A refused Melious seat must still hand over", line 1318):
 - `ttpair`, `ttpair2`, `ttpair3` (think-tag block), and `t11f` (line 1894) and
   `t12` (line 1977) in the size-limit block: rewritten to expect no ollama seat and Codex alone
   where Codex counts; `ttpair3` still exits 4. `t11f` and `t12` keep their own point (the Melious
-  refusal and its reason) and show the gate line with a setup reason, not a quota one.
+  refusal and its reason) and show the gate line with their non-quota reason (size limit; a length refusal).
 - `sstop` tested stopping a fallback that starts late. That path stays only on the default seat
   (Melious starting after ollama failed), which `mstop` (line 1288) already tests, so `sstop` is
   dropped. `mstop` gains a "finished" mark that the Melious `stubborn` stub writes after its
@@ -164,7 +166,8 @@ New:
   that marks each `list` call. Melious fails. Expect no `list` mark and no "auto-detected" or
   "auto-using" note. (It cannot test the hand-over: with no model, `run_ollama` returns before
   the stub. The checks above do that.)
-- `sseatnodetect`: the same with `--seat codex`: no `list` mark.
+- `sseatnodetect`: the same with `--seat codex`, once with `SECOND_SEAT=melious` and once with it
+  unset: no `list` mark either time.
 - `sseatollama`: `--seat ollama` with `OLLAMA_MODEL` unset (and `SECOND_SEAT=melious` in the
   environment): the `list` mark, and `ollama-cloud OK`. Change 2 makes detection depend on
   `--seat` for the first time, so this run must still find the model.
@@ -173,9 +176,9 @@ New:
   never runs when Codex counts.
 - `sagy`: `WITH_ANTIGRAVITY=1`, Melious fails: with Codex and Antigravity both OK, no gate line
   (two counted) and exit 0; with Codex failing and Antigravity OK, the generic note and exit 0.
-- The default still auto-detects: `SECOND_SEAT` unset, `OLLAMA_MODEL` unset; expect the `list`
-  mark, the "auto-detected" note and `ollama-cloud OK`. The mark makes it fail if detection
-  breaks, even if the note's wording changes.
+- The default still auto-detects: no new test. `listfailauto` asserts the detection note, and
+  `pair`, `t10a` and others expect `ollama-cloud OK` with `OLLAMA_MODEL` unset, which needs the
+  tag read from the stub's `ollama list`.
 
 Before the DIFF gate, each group of checks is broken on purpose once, with the mutation that
 should catch it, and the PR records which checks failed for each:
@@ -186,15 +189,16 @@ should catch it, and the PR records which checks failed for each:
 | restore the `--first-success` step 2b | `sfirstsucc` |
 | detect again under `SECOND_SEAT=melious` and `--seat codex` | `snodetect`, `sseatnodetect` |
 | detection keyed on `SECOND_SEAT` alone, ignoring `--seat` | `sseatollama` |
-| stop detecting in the default | the default auto-detect check |
+| stop detecting in the default | `listfailauto`, `pair`, `t10a` |
 | drop the gate line | `sfall`, `sboth`, `t11f`, `t12` |
 | print the gate line whatever the mode or count | `sfirstcodex`, `sseat`, `sagy` |
 | remove the `kill -KILL` in `stop_tiers` | `mstop` |
 
 Live check after `make check`: one real run from the branch, with a Melious URL nothing listens
 on (`MELIOUS_BASE_URL=http://127.0.0.1:9`), `SECOND_SEAT=melious MELIOUS_MODEL=<the listed
-any-depth model>`, a small diff, real Codex. Record the Melious FAILED reason, the exit status,
-the gate line, and the cost-log rows the run added (expected: codex and melious, no ollama). It
+any-depth model>`, a small diff, real Codex, and `REVIEW_LOG=<a scratch file>` so the run stays out of the real cost
+log and its gates. Record the Melious FAILED reason, the exit status,
+the gate line, and the rows in that scratch log (expected: codex and melious, no ollama). It
 costs one small Codex run.
 
 ## Follow-ups (not in this change)
@@ -209,6 +213,6 @@ costs one small Codex run.
 
 ## Cost
 
-PLAN gate at Normal: about 2-3 rounds on Codex plus Melious. Build: about an hour of work, then a
+PLAN gate at Normal: four rounds on Codex plus Melious, fresh-eyes in round 1, a final full read and a wording pass (spent). Build: about an hour of work, then a
 Normal DIFF gate (it changes a review script's logic), likely 2-4 rounds. One small live Codex
 run. No red team: it touches no server, user data, money or deletion.

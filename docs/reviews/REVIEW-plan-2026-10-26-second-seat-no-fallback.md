@@ -11,6 +11,7 @@ money or deletion).
 | 2 | plan at 7bcd8c2f, `--verify` F1-F15 | codex OK (435 s, 69,762 tokens), melious OK (559 s, 50,719 tokens) | 1 BUG, 2 RISK, 3 NIT (G1-G6) | all fixed in the next revision |
 | 3 | plan at e3bceb6c, `--verify` G1-G6 | codex OK (289 s, 89,571 tokens), melious OK (354 s, 44,539 tokens) | 1 BUG, 1 RISK (both seats), 5 NIT (H1-H7) | H3 refuted (line 404 normalizes `SECOND_SEAT`); rest fixed. H2 changed the build's test plan, so round 4 is earned (`--earned-by mutation-coverage`); H1 is wording, for the wording pass |
 | 4 | plan at a1d091d1, `--verify` H1-H7, `--earned-by mutation-coverage` | codex OK (396 s, 64,641 tokens), melious OK (477 s, 53,159 tokens) | 1 BUG, 3 NIT (I1-I4) | all fixed; I1 is wording; no RISK and no substantive BUG, so no round 5 is earned |
+| final full read | plan at aa5de2c4, whole | fresh Opus pass (host family, stronger than round 1's fresh-eyes; no ollama model, by the maintainer's rule) (~166k tokens) | 1 BUG (low impact), 7 NIT (J1-J8) | all fixed; J1 leaves the conclusion unchanged, so wording |
 
 Round 1 findings, one line each:
 
@@ -44,3 +45,14 @@ Round 4 findings (H1-H7 confirmed fixed by both seats; H3's refutation upheld by
 - I2 NIT (Codex): moved `sstop` duplicated `mstop` (test line 1288). Fixed: `sstop` dropped, `mstop` gains the finished mark.
 - I3 NIT (Melious): grep terms missed `ollama-cloud FAILED`. Fixed: bare `ollama-cloud`, and the sweep is called best-effort.
 - I4 NIT (Melious): nothing pinned the gate line's absence under `--seat`. Fixed: `sseat` gains that check, in the mutation table.
+
+Final full read findings:
+
+- J1 BUG (low impact): the `OLLAMA_MODEL` readers list missed lines 1657, 1703 and 1848. Fixed: listed, each with why it does not fire; the conclusion was already right.
+- J2 NIT: the live check would write to the real cost log. Fixed: `REVIEW_LOG=<scratch file>`.
+- J3 NIT: `t11f`/`t12` reasons are size and length, not "setup". Fixed.
+- J4 NIT: the gate line's rerun advice ignored the seat's own remedy. Fixed: points to the FAILED section first.
+- J5 NIT: garbled sentence in Change 1. Fixed.
+- J6 NIT: Cost said 2-3 rounds. Fixed: actual spend.
+- J7 NIT: the new default-detect test was redundant. Fixed: dropped; the mutation row names `listfailauto`, `pair`, `t10a`.
+- J8 NIT: `--seat codex` with `SECOND_SEAT` unset was untested. Fixed: `sseatnodetect` runs both ways.
