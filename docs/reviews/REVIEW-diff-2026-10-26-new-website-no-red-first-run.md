@@ -50,3 +50,8 @@ seat runs (2 runs gave no figure); fresh-eyes 96,544 tokens.
 Checked after the pass: in this session's local-marketplace install (a `git archive` of the
 branch), the plugin cache held `docs/reviews/` with 375 files. The real marketplace installs
 from the repo at `stable`, which carries the same folder; that install was not inspected.
+
+`make check`: exit 0, "all checks passed". It started on the first commit's tree; the later
+commits change only prose in `SKILL.md`, `docs/BUGLOG.md` and this trail, and
+`scripts/check_clean.sh` and `scripts/check_buglog_rows.sh` were rerun on them (both pass). CI
+runs the full set on the head.
