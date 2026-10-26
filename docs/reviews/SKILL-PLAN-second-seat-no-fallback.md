@@ -8,8 +8,8 @@ built before the maintainer's go.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | This plan | ▶ written | this file |
-| 2 | PLAN gate (Normal: a plan for a review script's logic) | ▶ rounds 1-4 and final full read done: 6 BUG, 8 RISK, 26 NIT; all fixed but one NIT refuted; wording pass next | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
+| 1 | This plan | ✅ written and revised through the gate | this file |
+| 2 | PLAN gate (Normal: a plan for a review script's logic) | ✅ clean: 4 rounds, final full read, wording pass, full-scope re-check; 11 BUG, 8 RISK, 26 NIT, all fixed but one NIT refuted; none open | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
 | 3 | The maintainer's go | ⏸ | — |
 | 4 | Build, `make check` green, live check, DIFF gate, PR | ⏸ | — |
 | 5 | Release-note row in `docs/BUGLOG.md` | ⏸ | — |
@@ -213,6 +213,6 @@ costs one small Codex run.
 
 ## Cost
 
-PLAN gate at Normal: four rounds on Codex plus Melious, fresh-eyes in round 1, and a final full read (spent); a wording pass and a full-scope re-check of its delta (pending at the time of writing). Build: about an hour of work, then a
+PLAN gate at Normal: four rounds on Codex plus Melious, fresh-eyes in round 1, and a final full read (spent); a wording pass and a full-scope re-check of its delta (spent). Build: about an hour of work, then a
 Normal DIFF gate (it changes a review script's logic), likely 2-4 rounds. One small live Codex
 run. No red team: it touches no server, user data, money or deletion.

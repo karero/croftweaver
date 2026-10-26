@@ -13,6 +13,7 @@ money or deletion).
 | 4 | plan at a1d091d1, `--verify` H1-H7, `--earned-by mutation-coverage` | codex OK (396 s, 64,641 tokens), melious OK (477 s, 53,159 tokens) | 1 BUG, 3 NIT (I1-I4) | all fixed; I1 is wording; no RISK and no substantive BUG, so no round 5 is earned |
 | final full read | plan at aa5de2c4, whole | fresh Opus pass (host family, stronger than round 1's fresh-eyes; no ollama model, by the maintainer's rule) (~166k tokens) | 1 BUG (low impact), 7 NIT (J1-J8) | all fixed; J1 leaves the conclusion unchanged, so wording |
 | wording pass | delta a1d091d1..12011801, `--wording-pass` | codex OK (530 s, 77,936 tokens) | 4 BUG (K1-K4) | all fixed; K4 (a fenced snippet changed) sends the delta to a full-scope re-check |
+| full-scope re-check (not a round) | delta a1d091d1..67b25d42 | codex OK (625 s, 77,894 tokens) | 1 BUG (L1): the Status row still said "wording pass next" | fixed (status row) |
 
 Round 1 findings, one line each:
 
@@ -64,3 +65,11 @@ Wording pass findings:
 - K2 BUG: the gate line pointed to a FAILED section that a SKIPPED seat does not have. Fixed: "fix what the melious section above names".
 - K3 BUG: Cost said the wording pass was spent. Fixed.
 - K4 BUG: the delta changed a fenced snippet, outside a prose-only pass. Done: the delta is re-checked at full scope (SKILL.md step 6).
+
+Re-check finding: L1 BUG (low impact), stale Status row. Fixed.
+
+**Verdict: CLEAN.** No BUG or RISK open. Totals: 11 BUG, 8 RISK, 26 NIT over 4 rounds, a final full
+read, a wording pass and a re-check; one NIT (H3) refuted with evidence (`independent_review.sh:403-404`).
+Cost logged by the script for this gate: 635,811 tokens over 10 seat runs; plus fresh-eyes (~123k)
+and the final full read (~166k), not in the log. Melious ran in every round; no seat fell back to
+ollama, and no Kimi ran.
