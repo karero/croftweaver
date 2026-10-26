@@ -352,9 +352,15 @@ gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --l
   --generate-notes                # or write the notes by hand
 # Both files go up in this one command: a release marked immutable takes no files later.
 # The plugin is installed from the branch `stable`. The release-tag workflow, started by
-# the tag, checks the number against it and moves `stable` to the release. A red run means
-# plugin users are still on the release before. If the step that moves the branch failed,
-# move it yourself:  git push origin "$v^{commit}:refs/heads/stable"
+# the tag, checks the number against it and moves `stable` to the release, then publishes the
+# release to the branch `directory`, which Anthropic's plugin directory follows. After a red
+# run, look first where both point:  git ls-remote origin stable directory
+# If the step that moves `stable` failed and `stable` is not on the release, move it yourself
+# (that push runs the workflow again, `directory` included):
+#   git push origin "$v^{commit}:refs/heads/stable"
+# If the step that publishes to `directory` failed, put right what it names and run, from the
+# toolkit's folder (it says so when `directory` already holds the release):
+#   scripts/publish_directory.sh "$v"
 # If the check of the number failed, the tag was not made as above: leave `stable` where
 # it is, and plugin users get the next release.
 

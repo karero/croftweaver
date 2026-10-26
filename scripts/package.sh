@@ -37,6 +37,7 @@ zip -r -X "$OUT/croftweaver.zip" \
   scripts/test_package_leak.sh scripts/check_pipefail_pipes.sh \
   scripts/test_pre_push_hook.sh scripts/test_verify.sh scripts/test_clean_denylist.sh scripts/test_git_stand_hook.sh scripts/test_whats_new.sh \
   scripts/test_mktemp_guard.sh scripts/check_lf_checkout.sh scripts/list_shell_scripts.sh \
+  scripts/build_directory_tree.sh scripts/publish_directory.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
      'docs/BUGLOG.md' 'docs/DECISIONS_PENDING.md' \
      '*/.astro/*' '*/__pycache__/*' '*/test-results/*' >/dev/null

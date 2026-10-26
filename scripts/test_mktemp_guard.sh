@@ -58,6 +58,7 @@ EXEMPT=(
   "scripts/check_clean.sh|checks mktemp itself, and test_clean_denylist.sh pins it"
   "scripts/check_lf_checkout.sh|checks mktemp itself"
   "scripts/check_pipefail_pipes.sh|checks mktemp itself"
+  "scripts/build_directory_tree.sh|checks mktemp itself, before anything uses the folder"
   "scripts/check_skill_budgets.sh|checks mktemp itself"
   "scripts/test_mktemp_guard.sh|this file: with its own guard broken it would run itself without end"
   "skills/independent-review/scripts/check_perl_minimum.sh|checks mktemp itself"
