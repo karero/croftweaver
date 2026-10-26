@@ -3,7 +3,8 @@
 Small bugs and follow-ups found while other work was in flight, kept for a later sweep
 instead of fixed on the spot. Close a row by fixing it and setting Status to the fixing
 commit or PR. This file merges with git's union driver (`.gitattributes`): merge `origin/main`
-locally, then run `make check`, which names any row a merge kept in two versions.
+locally, then run `make check`. It names two rows with the same date and Where, or the same
+start of What, which is how a row a merge kept in two versions usually shows.
 
 | Found | Where | What | Category | Impact | Effort | Status |
 |---|---|---|---|---|---|---|

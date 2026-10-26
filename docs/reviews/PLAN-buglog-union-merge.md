@@ -9,8 +9,8 @@ merge=union in .gitattributes, plus a make check guard that fails on a duplicate
 |---|---|---|
 | Plan, PLAN gate | clean at round 7 (Codex); second seat owed for rounds 5–7 | `docs/reviews/REVIEW-plan-2026-10-26-buglog-union.md` |
 | Owner's go | waiting | — |
-| Build: attribute, guard, test, duplicate removed, intro sentence | not started | — |
-| DIFF gate, PR, merge | not started | — |
+| Build: attribute, guard, test, duplicate removed, intro sentence | done | 20ea6973, e2640881 |
+| DIFF gate, PR, merge | in review | `docs/reviews/REVIEW-diff-2026-10-26-buglog-union.md` |
 | Owner: `buglog-rows` added to the ruleset's required checks | not started | — |
 
 ## What
@@ -131,6 +131,9 @@ branches edited the row neither version is the merge base's (Codex, round 5). So
 no version to delete, and no search for the row (a branch may have renamed its Where; Codex,
 round 6): it says what the one row must hold and how to see the file before either change. Each row is shown cut to 100 characters. All pairs are listed, not just the first. Also:
 - No rows found: FAIL, so a reformatted file cannot pass by matching nothing.
+- Built (DIFF round 1, Codex): any other line starting `|` that is not the header or its `|---|`
+  line is a FAIL too (a row written without spaces, a mistyped date), and trailing blanks after a
+  row's last bar are ignored.
 - No `docs/BUGLOG.md` and nothing named `.git` (folder, or a worktree's file) at the repo root:
   the handoff zip. `package.sh` zips named paths only, none of them `.git`, and excludes
   `docs/BUGLOG.md`. Print `skip — no docs/BUGLOG.md (the handoff zip leaves it out)` and exit 0.
@@ -197,7 +200,6 @@ reads on its own.
   edits since 2026-10-12 changed Where and the opening of What together (7ab51d43, 63b16c41); a
   missed row needs such an edit while the other branch changes the same row or a row next to it.
   None of the 10 stale-version merges above had that shape.
-- A row whose date is mistyped (say `| 2026-1-25 |`) is not a row to the guard and is never read.
 - Two other things union does that the guard cannot see: a row one side deleted comes back if the
   other side changed a row next to it (rows are closed by Status, so deletions are rare; 836cfdb2
   is one), and an intro paragraph edited on both sides is kept twice. Follow-ups if they occur.

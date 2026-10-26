@@ -3,8 +3,8 @@
 # union driver (.gitattributes), which keeps both sides when one branch edits a row that sits
 # next to rows the other branch changed or added. Two rows count as versions of one row when
 # they share the Found date and the Where cell, or the first 20 words of What (any date).
-# A row that does not split into the table's 7 cells fails too, so a stray " | " cannot shift
-# the cells these rules read. The handoff zip leaves the file out: there it skips.
+# A table line that is neither the header, its rule line nor a row these rules can read fails
+# too, so no row is skipped unseen. The handoff zip leaves the file out: there it skips.
 set -uo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 
@@ -20,10 +20,14 @@ fi
 
 report="$(awk '
   function show(n) { return length(text[n]) > 100 ? substr(text[n], 1, 100) " …" : text[n] }
-  /^\| [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] \| / {
+  /^\|/ {
+    l = $0; sub(/[ \t\r]+$/, "", l)
+    text[NR] = l
+    if (l == "| Found | Where | What | Category | Impact | Effort | Status |" || l ~ /^\|(-+\|)+$/) next
+    if (l !~ /^\| [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] \| / || split(l, c, " \\| ") != 7) {
+      bad = bad sprintf("  line %d: %s\n", NR, show(NR)); next
+    }
     rows++
-    text[NR] = $0
-    if (split($0, c, " \\| ") != 7) { bad = bad sprintf("  line %d: %s\n", NR, show(NR)); next }
     m = split(c[3], w, " ")
     k = w[1]
     for (i = 2; i <= m && i <= 20; i++) k = k " " w[i]
@@ -36,8 +40,9 @@ report="$(awk '
   END {
     if (rows == 0) { print "FAIL — no rows found in docs/BUGLOG.md (a row starts \"| YYYY-MM-DD |\")."; exit 1 }
     if (bad != "") {
-      printf "FAIL — these rows of docs/BUGLOG.md do not split into the table'"'"'s 7 cells:\n%s", bad
-      print "A bare \" | \" inside a cell splits it, here and on GitHub: write it as \\|."
+      printf "FAIL — these table lines of docs/BUGLOG.md are not rows the guard can read:\n%s", bad
+      print "A row starts \"| YYYY-MM-DD | \" and splits on \" | \" into the table'"'"'s 7 cells. A bare \" | \""
+      print "inside a cell splits it, here and on GitHub: write it as \\|."
     }
     if (pairs != "") {
       print "FAIL — docs/BUGLOG.md holds two rows that look like two versions of one row"

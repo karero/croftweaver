@@ -25,7 +25,7 @@ has() { grep -Fq -- "$2" <<<"$1"; }
 lacks() { ! grep -Fq -- "$2" <<<"$1"; }
 is() { [ "$1" = "$2" ]; }
 
-# The file's head as the real one has it: six lines, so the first row is line 7.
+# A short head with the real header line: six lines, so the first row is line 7.
 head6() { printf '# Bug log\n\nIntro.\n\n| Found | Where | What | Category | Impact | Effort | Status |\n|---|---|---|---|---|---|---|\n'; }
 row() { printf '| %s | %s | %s | bug | low | small | %s |\n' "$1" "$2" "$3" "$4"; }
 # words <n> <stem> — n words: <stem>1 <stem>2 …
@@ -108,6 +108,16 @@ guard "$c"
 check "8 a bare | in a cell fails"           is "$rc" 1
 check "8   …naming its line"                 has "$out" "line 7: | 2026-10-12"
 check "8   …and not the escaped one"         lacks "$out" "line 8:"
+fresh
+{ head6; row 2026-10-12 "\`a.sh\`" "$(words 25 a)" open; printf '|2026-10-12|`a.sh`|%s|bug|low|small|fixed|\n' "$(words 25 a)"
+  printf '| 2026-1-12 | `b.sh` | %s | bug | low | small | open |\n' "$(words 25 b)"; } >"$c/docs/BUGLOG.md"
+guard "$c"
+check "8 a row written without spaces fails"   has "$out" "line 8: |2026-10-12|"
+check "8 a row with a mistyped date fails"     has "$out" "line 9: | 2026-1-12 |"
+check "8   …and the exit is 1"                 is "$rc" 1
+fresh
+{ head6; printf '| 2026-10-12 | `a.sh` | %s | bug | low | small | open |  \n' "$(words 25 a)"; } >"$c/docs/BUGLOG.md"
+guard "$c"; check "8 trailing blanks after a row's last bar pass" is "$rc" 0
 fresh; head6 >"$c/docs/BUGLOG.md"; guard "$c"
 check "8 a file with no rows fails"          is "$rc" 1
 fresh; mkdir "$c/.git"; guard "$c"
