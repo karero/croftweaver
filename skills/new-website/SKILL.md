@@ -87,15 +87,15 @@ error walk-throughs) — in the language the user writes in.** A German owner ge
 the whole journey in German; the skill files themselves stay English. The
 verbatim message templates below are content specs, not required English wording.
 
-**Until §3 step 0, read and list; run no shell commands.** Nothing before the scaffold
-(the folder check, this interview, the §2a and §2b questions) needs a terminal; a command
-this interview names, such as the analytics check, runs once the site exists. To see
-what a folder holds, list it with your file tools; to read a section of another skill,
-open that skill's `SKILL.md` and read the section. A shell command shows the owner a red
-error for an ordinary answer: `ls astro.config.*` fails in an empty folder because nothing
-matches, and a search that finds nothing fails the same way. Ask your questions in this
-stretch as plain chat messages too, not in a pick-list box, which a new owner may not see.
-The owner's first minutes should show no red and no frozen screen.
+**The folder check, this interview and the §2a and §2b questions: read and list, run no
+shell commands.** None of them needs a terminal; a command this interview names, such as
+the analytics check, runs once the site exists. To see what a folder holds, list it with
+your file tools; to read a section of another skill, open that skill's `SKILL.md` and read
+the section. A shell command can show the owner a red error for an ordinary answer: `ls
+astro.config.*` fails in an empty folder because nothing matches, and `grep` fails when it
+finds nothing. Ask these questions as plain chat messages too, not in a pick-list box,
+which a new owner may not see. The owner's first minutes should show no red and no frozen
+screen.
 
 Default house stack: **Astro (static) → GitHub → Cloudflare Pages**. Six questions
 decide everything downstream — ask them in order, offer the examples so a
