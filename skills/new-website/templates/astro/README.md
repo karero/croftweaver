@@ -27,13 +27,13 @@ scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin 
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
-scripts/build-marker.mjs         # post-build: the commit SHA into dist/build.txt, so `npm run ship` can check the live site has it
+scripts/build-marker.mjs         # post-build: the commit SHA into dist/build.txt, so `npm run ship` can check the live site has it; in test builds also dist/test-build-id.txt
 scripts/set_pdf_title.py         # sets a hosted PDF's title (Info dict and XMP), the fix when the SEO test flags one (needs pypdf)
 scripts/ship.sh                  # `npm run ship`: two-stage sites only, promotes `main` (preview) to `production` (live)
 scripts/hooks/pre-push           # blocks a push when the site's checks fail
 scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, which fails without it: wires the pre-push hook
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server,tables}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server,tables,served-build}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis, and its ship.fromGitHub mode on throwaway local repos (pre-push hook + CI)
 tests/check_analytics_gate.sh # counter self-test, CSP check, four builds: off in all four with USE_ANALYTICS = false (as shipped), or on only when CF_PAGES_BRANCH is PROD_BRANCH; in server mode no script and email links to /go/email on the live build only (the suite's own CI)
 ```

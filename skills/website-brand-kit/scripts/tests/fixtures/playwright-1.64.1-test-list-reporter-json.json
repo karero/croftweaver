@@ -1,0 +1,57 @@
+{
+  "config": {
+    "configFile": "/srv/site/playwright.config.ts",
+    "rootDir": "/srv/site/tests",
+    "version": "1.64.1",
+    "workers": 5,
+    "webServer": {
+      "command": "npm run build && npm run preview -- --port 4725",
+      "url": "http://localhost:4725/",
+      "timeout": 120000,
+      "reuseExistingServer": false,
+      "env": {
+        "ASTRO_PREVIEW_BACKGROUND": "1"
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "a11y.spec.ts",
+      "file": "a11y.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a11y \u2014 / [light]",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "aa3ad05f8c0e05077efb-fb5ff47db552be790835",
+          "file": "a11y.spec.ts",
+          "line": 15,
+          "column": 5
+        }
+      ],
+      "suites": []
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-26T17:29:02.665Z",
+    "duration": 146.426,
+    "expected": 0,
+    "skipped": 471,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

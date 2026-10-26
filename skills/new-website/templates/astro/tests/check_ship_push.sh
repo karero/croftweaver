@@ -658,7 +658,7 @@ if grep -qE "test port was taken|moved while" "$work/nested.log"; then
   grep -E "test port was taken|moved while" "$work/nested.log" | sed 's/^/  | /'; fail=1
 fi
 
-# --- ...while the gate's OWN port line is named: the known limit of one test port per site
+# --- ...while the gate's OWN port line is named: a test port that another run already holds
 attempt portused 1 1 <<'EOF'
 ▶ pre-push gate: check, build and tests (scripts/verify.mjs)…
 Error: http://localhost:4387 is already used, make sure that nothing is running on the port/url or set reuseExistingServer:true in config.webServer.
