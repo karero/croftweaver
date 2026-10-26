@@ -8,7 +8,7 @@ maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
-| 2 | Plan review gate | ⏳ round 1: 2 BUGs, 6 RISKs, 3 NITs; round 2: no BUG, 5 RISKs, 4 NITs; all taken into this text | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
+| 2 | Plan review gate | ⏳ round 1: 2 BUGs, 6 RISKs, 3 NITs; round 2: no BUG, 5 RISKs, 4 NITs; round 3: 1 BUG, 4 RISKs, 2 NITs; all taken into this text | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ⬜ | — |
 | 4 | croftweaver-site copy (one pull request) | ⬜ | — |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone | ⬜ the maintainer's step | — |
@@ -44,9 +44,9 @@ key `portFor` on the resolved folder that holds the config file:
 `realpathSync(dirname(fileURLToPath(import.meta.url)))`. Same hash, same range, same
 `strictPort` and `reuseExistingServer: false`; `SITE.url` leaves the key. Each worktree and
 each clone is its own folder, and so is each site when one repository holds several. Checked
-2026-10-26 with Playwright 1.64.1 and `"type": "module"` (the starter's): the main process and
-its workers print the same folder, also when Playwright is started from `tests/` with
-`-c ../playwright.config.ts`, where `process.cwd()` differs. A config loaded as CommonJS would
+2026-10-26 with Playwright 1.64.1 and `"type": "module"` (the starter's), in a full run with two
+workers started from `tests/` with `-c ../playwright.config.ts`: the main process and both
+workers printed the same folder, while `process.cwd()` was `tests/`. A config loaded as CommonJS would
 stop at `import.meta` with a syntax error, which is loud. Site C (GenAI-Wednesday) keys on
 `git rev-parse --show-toplevel` instead; that gives two sites in one repository one key, so it
 is not taken, nor its SHA-256 hash, 4400–4899 range or `PW_PORT` override. The config's
@@ -110,26 +110,31 @@ their next update.
 1. **The production entry point, two real checkouts at once (rule 9).** Two worktrees of
    croftweaver-site. Run `npm test` (what the pre-push gate runs) in both at the same moment.
    Pass: both exit 0, neither log has "already used" or "already in use", and while they run
-   `lsof` shows two `astro preview` listeners whose working folders are the two worktrees, on
-   the ports a hand-written FNV-1a in Python gives for each folder.
+   `lsof` shows two `astro preview` listeners on two different ports, whose working folders are
+   the two worktrees. `served-build.spec.ts` runs in a worker and fetches through that worker's
+   `baseURL`, so its pass also shows the workers worked out the same port as the main process.
 2. **Case 1, made on purpose, to show B can fail.** Force one port: in worktree A, start
    `npm test`; during its build, start `astro preview` of worktree B's `dist/` on A's port.
    Without the new spec: A's tests run against B's server and A's preview logs "already in
-   use", which reproduces case 1. With it, and B built with the marker branch:
-   `served-build.spec.ts` fails, and its message names the two ids. With it, and B built
-   without the branch: the spec fails on the missing id, naming both causes.
+   use", which reproduces case 1 (prerequisite, checked with `lsof`: B listens before A's
+   build ends). With it: `served-build.spec.ts` fails, naming a wrong id or a missing one.
+   Which of the two depends on whether A's build has written its id when B answers; both are
+   red, and both messages name this run's server as a possible cause.
 3. **A real push.** In a throwaway clone whose `origin` is a bare copy on this Mac (with `main`
    and `production`), after `npm ci` (whose `prepare` wires the hook; pass only if
    `git config core.hooksPath` then prints `scripts/hooks`), one `git push origin
    <commit>:refs/heads/production` while a worktree runs `npm test`. Pass: the push log shows
-   "▶ pre-push gate: tests…" and "✓ pre-push gate passed", and both exit 0. The hook takes no
+   Playwright's "passed" summary and "✓ pre-push gate passed" (the line both the site's hook
+   and the template's print), and both exit 0. The hook takes no
    notice of the remote's name or address (it uses neither argument).
 4. **The starter.** Two copies of the template starter as two subfolders of one git repository,
    `npm ci`, `npm test` in both at once: green, two ports, which also shows two sites in one
    repository no longer share a key. Then the brand-kit end-to-end test on one copy, with CI's
    recipe (`template-tests.yml` line 596: `BRAND_KIT_E2E_SITE`, `BRAND_KIT_NODE_MODULES` at its
-   `node_modules`, `REQUIRE_SHARP=1`). Pass: no test skipped, which proves its port lookup; CI
-   runs the same job on every pull request.
+   `node_modules`, `REQUIRE_SHARP=1`). Pass: no test skipped, which proves its port lookup (its
+   stop test waits on the port it found). CI runs that job when a push or pull request touches
+   the template or the brand-kit skill (`template-tests.yml` line 70, the path list, and line 573, the job's condition), which the toolkit
+   change does.
 5. **Repo checks.** Toolkit `make check`; site `npm run check`, its full suite, and
    `tests/check_ship_push.sh` (S9 and marker agreement).
 6. **The publish mode in croftweaver-site.** In the throwaway clone of test 3, with
@@ -161,7 +166,8 @@ Rollback: revert either pull request; `git config --unset ship.fromGitHub` undoe
   Playwright's code, the lock's location and mode, S9, `import.meta.url` in main and workers,
   byte-identical serving, the JSON port, the push command, the hook ignoring its arguments.
   Each of these is a probe run once on this Mac; tests 1 and 4 run the two that the build
-  depends on (workers on their own port, the brand-kit lookup) again on the built change.
+  depends on (the workers' port, the brand-kit lookup) again on the built change, and
+  `served-build.spec.ts` re-checks the workers' port on every run after that.
 - **Judgment:** a test that fails (B) instead of making Playwright wait for its own server's
   "Local http://localhost:…" line (`webServer.wait.stdout`). Playwright starts the tests when
   either the URL answers or that line appears (`Promise.race`, E6), so the line only helps with

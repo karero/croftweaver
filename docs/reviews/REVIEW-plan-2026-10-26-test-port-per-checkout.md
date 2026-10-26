@@ -9,6 +9,7 @@ commands with the same `--round`.
 |-------|-------|----------|--------------|
 | 1 | Codex, GLM 5.3 | 2 BUG, 6 RISK, 3 NIT (after dedup); 9 UNVERIFIABLE asked, all looked at | Codex 450 s, 105,659; GLM 371 s, 26,309 |
 | 2 | Codex, GLM 5.3 (`--verify`) | 0 BUG, 5 RISK, 4 NIT; 2 follow-ups; prior fixes confirmed by both, F10 questioned by GLM | Codex 748 s, 126,488; GLM 452 s, 36,643 |
+| 3 | Codex, GLM 5.3 (`--verify`) | 1 BUG, 4 RISK, 2 NIT (after dedup); every round-2 disposition confirmed by both | Codex 494 s, 111,004; GLM 571 s, 40,811 |
 
 ## Round 1
 
@@ -44,3 +45,17 @@ R2-4 changed tests and the build-marker design.
 | R2-9 | NIT | GLM | A missing id blames only the build-marker step | fixed: the message names both causes | plan §B |
 | R2-10 | follow-up | GLM | The config's existing comment on Astro ≥7.2 daemonizing (`ASTRO_PREVIEW_BACKGROUND`) has no evidence here | follow-up: older comment, not touched by this plan | — |
 | R2-11 | follow-up | GLM | Round 1's evidence said no held-lock case exists | follow-up: evidence only; corrected in round 3's evidence | E7 |
+
+## Round 3
+
+Both seats confirmed every round-2 disposition, R2-5's refutation included. Round 4 is owed:
+R3-1 to R3-3 changed tests' pass conditions. R3-4 came back a second time, so it was tested
+directly instead of argued (a full run with two workers from `tests/`).
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| R3-1 | BUG | Codex | "CI runs the same job on every pull request" is wrong: the brand-kit job runs only when watched paths change | fixed: the plan says when it runs, and that the toolkit change touches those paths | `template-tests.yml:70`, `:573` |
+| R3-2 | RISK | Codex, GLM | Test 2's "names the two ids" depends on timing: B can answer before A has written its id | fixed: pass is "fails, naming a wrong or a missing id"; B listening before A's build ends is checked with `lsof` | plan, test 2 |
+| R3-3 | RISK | Codex | Test 3 requires "▶ pre-push gate: tests…", which only the site's hook prints; the template's prints "check, build and tests" | fixed: pass needs Playwright's "passed" summary and "✓ pre-push gate passed", printed by both hooks | template `pre-push:102`, `:117` |
+| R3-4 | RISK | Codex, GLM (NIT) | The worker-folder claim combined two separate probes; nothing retained checks it | fixed: one full run, two workers, started from `tests/` with `-c`: main and both workers print the config's folder; `served-build.spec.ts` fetches through the worker's `baseURL`, so it re-checks the port on every run | probe output in round 4's evidence |
+| R3-5 | NIT | GLM | A second, hand-written hash in test 1 can only fail spuriously | fixed: test 1 checks two listeners on two ports, in the two worktrees | plan, test 1 |
