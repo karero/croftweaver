@@ -10,8 +10,8 @@ built before the maintainer's go.
 |---|------|-------|----------|
 | 1 | This plan | ✅ written and revised through the gate | this file |
 | 2 | PLAN gate (Normal: a plan for a review script's logic) | ✅ clean: 4 rounds, final full read, wording pass, full-scope re-check; 11 BUG, 8 RISK, 26 NIT, all fixed but one NIT refuted; none open | trail `REVIEW-plan-2026-10-26-second-seat-no-fallback.md` |
-| 3 | The maintainer's go | ✅ 2026-10-26: "go, build it", then "make sure it makes sense, evaluate carefully" (the measured table above is that check) | — |
-| 4 | Build, `make check` green, live check, DIFF gate, PR | ▶ built and DIFF-reviewed (2 rounds, then a full-scope re-check) on `feat/second-seat-no-fallback`; suite 649 ok; 8 of 8 mutations caught; live check as planned; PR next | trail `REVIEW-diff-2026-10-26-feat-second-seat-no-fallback.md` |
+| 3 | The maintainer's go | ✅ 2026-10-26: "go, build it", then "make sure it makes sense, evaluate carefully" (the measured table below is that check) | — |
+| 4 | Build, `make check` green, live check, DIFF gate, PR | ▶ built; DIFF gate clean (2 rounds, a full-scope re-check and a wording pass); suite 649 ok; 8 of 8 mutations caught; live check as planned; PR next | trail `REVIEW-diff-2026-10-26-feat-second-seat-no-fallback.md` |
 | 5 | Release-note row in `docs/BUGLOG.md` | ✅ row added on the build branch | `docs/BUGLOG.md`, row of 2026-10-26 |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked. Updating a row is part of finishing
@@ -29,8 +29,12 @@ today:
 2. With no `OLLAMA_MODEL`, the script picks the first `:cloud` tag itself (lines 480-506), for
    every mode except `--local-only`, even a run where ollama is only a fallback.
 
-Measured before the build (cost log, 2026-10-19 to 2026-10-26, 298 ollama rows; each row
-classed by the rows logged beside it in the same gate and round):
+Measured before the build (cost log, 2026-10-19 to 2026-10-26, 298 ollama rows). The log records
+no invocation options, so each row is classed by its neighbours in the same gate and round: a
+Melious row just before it means a stand-in (the script reports Melious first in that mode); a
+Codex row and no Melious row means the default seat; anything else is counted as a lone
+`--seat ollama` run. A tag that is not the first `:cloud` tag in `ollama list` (here, every Kimi
+K3 row) was named by the session, since auto-detect picks only the first:
 
 | Where the ollama run came from | Runs | Models |
 |---|---|---|
@@ -43,7 +47,7 @@ Of the 210 stand-ins, 144 failed as well (the ollama quota), and 66 rescued a ro
 - **Change 1 is the fix that matters**: it removes about 210 ollama calls a week. The price is
   about 66 rounds a week that will now land with Codex alone; the maintainer chose that trade.
 - **Change 2 saves no quota today**: no stand-in ran an auto-picked model, because sessions named
-  `OLLAMA_MODEL`. Once Change 1 lands, a Melious-seat run never calls ollama, so Change 2 only
+  `OLLAMA_MODEL`. Once Change 1 lands, the Codex-plus-Melious pair never calls ollama, so Change 2 only
   stops a needless `ollama list` and an "auto-detected" note naming a model nobody will run.
   It is kept because it is three lines and the brief asked for it (judgment).
 - **Kimi spend came from runs that named it** (`--seat ollama`, and three default runs), not from
