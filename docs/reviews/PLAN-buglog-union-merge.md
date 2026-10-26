@@ -1,17 +1,17 @@
 # PLAN — docs/BUGLOG.md merges with git's union driver, and a guard catches a row kept twice
 
-Status: draft for the PLAN gate. No code yet. Owner's words (2026-10-26): "docs/BUGLOG.md
+Status: done. Built and merged in karero/croftweaver#416 (2026-10-26). Owner's words (2026-10-26): "docs/BUGLOG.md
 merge=union in .gitattributes, plus a make check guard that fails on a duplicated row. Plan first."
 
 ## Status
 
 | Step | State | Evidence |
 |---|---|---|
-| Plan, PLAN gate | clean at round 7 (Codex); second seat owed for rounds 5–7 | `docs/reviews/REVIEW-plan-2026-10-26-buglog-union.md` |
-| Owner's go | waiting | — |
-| Build: attribute, guard, test, duplicate removed, intro sentence | done | 20ea6973, e2640881 |
-| DIFF gate, PR, merge | DIFF gate clean (3 rounds and a full read); PR open | `docs/reviews/REVIEW-diff-2026-10-26-buglog-union.md` |
-| Owner: `buglog-rows` added to the ruleset's required checks | not started | — |
+| Plan, PLAN gate | done: clean at round 7 (Codex); GLM reviewed rounds 1–4 only (no quota for 5–7) | `docs/reviews/REVIEW-plan-2026-10-26-buglog-union.md` |
+| Owner's go | given 2026-10-26, in chat | — |
+| Build: attribute, guard, test, duplicate removed, intro sentence | done | 20ea6973, e2640881; review fixes f7405ae3, c3a77850, 173253a2, 6a5e2076 |
+| DIFF gate, PR, merge | done: DIFF gate clean (3 rounds and a full read); karero/croftweaver#416 merged at 6a5e2076, merge commit 4b5b927c | `docs/reviews/REVIEW-diff-2026-10-26-buglog-union.md` |
+| Owner: `buglog-rows` added to the ruleset's required checks | done 2026-10-26 (ruleset 24584953 updated 13:28 +01:00, read back with `gh api`: 38 required checks) | — |
 
 ## What
 
