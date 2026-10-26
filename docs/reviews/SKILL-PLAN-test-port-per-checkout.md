@@ -8,7 +8,7 @@ maintainer's go.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-26 | this file |
-| 2 | Plan review gate | ⏳ round 1 done: 2 BUGs, 6 RISKs, 3 NITs, all taken into this text | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
+| 2 | Plan review gate | ⏳ round 1: 2 BUGs, 6 RISKs, 3 NITs; round 2: no BUG, 5 RISKs, 4 NITs; all taken into this text | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ⬜ | — |
 | 4 | croftweaver-site copy (one pull request) | ⬜ | — |
 | 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone | ⬜ the maintainer's step | — |
@@ -51,19 +51,20 @@ stop at `import.meta` with a syntax error, which is loud. Site C (GenAI-Wednesda
 `git rev-parse --show-toplevel` instead; that gives two sites in one repository one key, so it
 is not taken, nor its SHA-256 hash, 4400–4899 range or `PW_PORT` override. The config's
 comments ("One preview port per site, derived from SITE.url", "same site → same port") are
-rewritten to match. For the record: with the folder as the key, the 15 checkouts in `~/Devel`
-that have a `playwright.config.ts` get 15 different ports; the primary croftweaver-site
-checkout gets 4827.
+rewritten to match. For the record, computed 2026-10-26 with this key: the 16 folders in
+`~/Devel` (and their `.claude/worktrees/`) that hold a `playwright.config.ts` get 16 different
+ports; the primary croftweaver-site checkout gets 4827.
 
 **B. A test that the server answering is this run's own build.** `scripts/build-marker.mjs`
-gets one branch: when `CROFTWEAVER_TEST_BUILD` is set, it also writes `dist/test-build-id.txt`
-with a fresh random id (`crypto.randomUUID()`). The config sets that variable in `webServer.env`
-only, so a Cloudflare build never writes the file, and `astro build` empties `dist/` first, so
-no old id survives. New spec `tests/served-build.spec.ts`: fetch `/test-build-id.txt` from the
-test server and compare it with this checkout's `dist/test-build-id.txt` on disk. Another
-checkout's server serves another id, whatever its commit or pages; a missing file fails with a
-message naming the build-marker step. Checked 2026-10-26: `astro preview` serves `dist/` files
-byte for byte.
+gets one branch: when `SITE_TEST_BUILD` is set, it writes `dist/test-build-id.txt` with a
+fresh random id (`crypto.randomUUID()`); when it is not set, it deletes that file if present,
+so a production build never carries one, whether or not `astro build` cleared `dist/`. The
+config sets the variable in `webServer.env` only. New spec `tests/served-build.spec.ts`: fetch
+`/test-build-id.txt` from the test server and compare it with this checkout's
+`dist/test-build-id.txt` on disk. Another checkout's server serves another id, whatever its
+commit or pages. When either side is missing, the message names both causes: this build skipped
+the marker step, or the server answering is not this run's (another checkout's preview, or an
+`astro dev`). Checked 2026-10-26: `astro preview` serves `dist/` files byte for byte.
 
 **C. Two publishes at once.** `scripts/ship.sh` already takes a lock, `ship.lock` in the clone's
 shared git folder (`git rev-parse --git-common-dir`), so it covers every worktree of a clone,
@@ -113,23 +114,30 @@ their next update.
    the ports a hand-written FNV-1a in Python gives for each folder.
 2. **Case 1, made on purpose, to show B can fail.** Force one port: in worktree A, start
    `npm test`; during its build, start `astro preview` of worktree B's `dist/` on A's port.
-   Without the new spec (or with B's build-marker branch reverted): A's tests run against B's
-   server and A's preview logs "already in use", which reproduces case 1. With it:
-   `served-build.spec.ts` fails, and its message names the two ids.
+   Without the new spec: A's tests run against B's server and A's preview logs "already in
+   use", which reproduces case 1. With it, and B built with the marker branch:
+   `served-build.spec.ts` fails, and its message names the two ids. With it, and B built
+   without the branch: the spec fails on the missing id, naming both causes.
 3. **A real push.** In a throwaway clone whose `origin` is a bare copy on this Mac (with `main`
-   and `production`), one `git push origin <commit>:refs/heads/production`, so the real pre-push
-   hook runs the whole gate, while a worktree runs `npm test`. The hook takes no notice of the
-   remote's name or address (it uses neither argument).
+   and `production`), after `npm ci` (whose `prepare` wires the hook; pass only if
+   `git config core.hooksPath` then prints `scripts/hooks`), one `git push origin
+   <commit>:refs/heads/production` while a worktree runs `npm test`. Pass: the push log shows
+   "▶ pre-push gate: tests…" and "✓ pre-push gate passed", and both exit 0. The hook takes no
+   notice of the remote's name or address (it uses neither argument).
 4. **The starter.** Two copies of the template starter as two subfolders of one git repository,
    `npm ci`, `npm test` in both at once: green, two ports, which also shows two sites in one
-   repository no longer share a key. Then the brand-kit end-to-end test (`BRAND_KIT_E2E_SITE`)
-   on one copy, green, which proves its port lookup.
+   repository no longer share a key. Then the brand-kit end-to-end test on one copy, with CI's
+   recipe (`template-tests.yml` line 596: `BRAND_KIT_E2E_SITE`, `BRAND_KIT_NODE_MODULES` at its
+   `node_modules`, `REQUIRE_SHARP=1`). Pass: no test skipped, which proves its port lookup; CI
+   runs the same job on every pull request.
 5. **Repo checks.** Toolkit `make check`; site `npm run check`, its full suite, and
    `tests/check_ship_push.sh` (S9 and marker agreement).
 6. **The publish mode in croftweaver-site.** In the throwaway clone of test 3, with
    `ship.fromGitHub` on: start `npm run ship`, and during its gate start a second one. Pass: the
-   second stops with "another publish holds this clone's lock"; the first's gate runs on its
-   temporary worktree's own port. The first is stopped after its push, since the live site will
+   second exits 1 at once, printing "another publish holds this clone's lock" and "a publish is
+   under way" (both lines print for a live holder, `ship.sh` lines 153 and 163; it asks
+   nothing), and the lock still names the first; the first's gate runs on its temporary
+   worktree's own port. The first is stopped after its push, since the live site will
    never serve that commit. This adds to S9: it runs croftweaver-site's own copy and checks its
    prerequisites.
 
@@ -142,7 +150,7 @@ Rollback: revert either pull request; `git config --unset ship.fromGitHub` undoe
   moves publishes out of the folder; other runs in one folder stay a matter of working in
   separate worktrees.
 - **Hash clash.** 670 ports. With n folders, the chance that some pair shares a port is about
-  n(n−1)/1340 (15 folders: about one in six). It matters only when both run at once, and then
+  n(n−1)/1340 (16 folders: about one in six). It matters only when both run at once, and then
   it is loud: Playwright's "already used" before the build, or B's spec during it.
 - A port is now per folder, so docs and logs can no longer name one port for a site (two
   croftweaver-site handover notes in `input/` say "4725"; they are dated notes and stay).
@@ -152,6 +160,8 @@ Rollback: revert either pull request; `git config --unset ship.fromGitHub` undoe
 - **Verified:** the port formula and case 2's cause (log, `lsof`, process list), the race in
   Playwright's code, the lock's location and mode, S9, `import.meta.url` in main and workers,
   byte-identical serving, the JSON port, the push command, the hook ignoring its arguments.
+  Each of these is a probe run once on this Mac; tests 1 and 4 run the two that the build
+  depends on (workers on their own port, the brand-kit lookup) again on the built change.
 - **Judgment:** a test that fails (B) instead of making Playwright wait for its own server's
   "Local http://localhost:…" line (`webServer.wait.stdout`). Playwright starts the tests when
   either the URL answers or that line appears (`Promise.race`, E6), so the line only helps with

@@ -8,6 +8,7 @@ commands with the same `--round`.
 | Round | Seats | Findings | Time, tokens |
 |-------|-------|----------|--------------|
 | 1 | Codex, GLM 5.3 | 2 BUG, 6 RISK, 3 NIT (after dedup); 9 UNVERIFIABLE asked, all looked at | Codex 450 s, 105,659; GLM 371 s, 26,309 |
+| 2 | Codex, GLM 5.3 (`--verify`) | 0 BUG, 5 RISK, 4 NIT; 2 follow-ups; prior fixes confirmed by both, F10 questioned by GLM | Codex 748 s, 126,488; GLM 452 s, 36,643 |
 
 ## Round 1
 
@@ -24,3 +25,22 @@ commands with the same `--round`.
 | F9 | NIT | GLM | The config's own comments ("per site, derived from SITE.url") become false | fixed: §A rewrites them | plan §A |
 | F10 | NIT | GLM | Test 6's message string may not match the script | refuted: `ship.sh:153` in both template and site prints "another publish holds this clone's lock" | grep |
 | F11 | NIT | GLM | Why `wait.stdout` needs `url` removed is unsupported | fixed: the plan cites `Promise.race` in Playwright's wait code | E6 |
+
+## Round 2
+
+Both seats confirmed F1–F9 and F11 as fixed; Codex also confirmed F10. Round 3 is owed: R2-1 to
+R2-4 changed tests and the build-marker design.
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| R2-1 | RISK | Codex | Test 3 can pass with the hook not wired | fixed: test 3 checks `core.hooksPath` after `npm ci` and requires the gate's "✓ pre-push gate passed" line | plan, test 3; `pre-push:93` |
+| R2-2 | RISK | Codex | Test 4's brand-kit run can be green with both tests skipped (Codex reproduced `OK (skipped=2)`) | fixed: CI's recipe (`template-tests.yml:596`, `REQUIRE_SHARP=1`), pass only with no skip | plan, test 4 |
+| R2-3 | RISK | Codex | "`astro build` empties `dist/`" is unsupported, and a production build could keep the id | fixed: build-marker deletes the file when the variable is absent, so the claim is no longer relied on | plan §B |
+| R2-4 | RISK | Codex | `import.meta.url` in workers and the JSON reporter's shape rest on probes the reviewer cannot repeat | fixed: raw captures in round 3's evidence; tests 1 and 4 re-check both on the built change | evidence E8–E9; plan, Judgment |
+| R2-5 | RISK | GLM | The second publish may print "a publish is under way" and ask, not "another publish holds this clone's lock" | refuted: for a live holder `take_lock` prints line 153 ("another publish holds this clone's lock") and then line 163 ("a publish is under way"), asks nothing, exits 1. Test 6 now asserts both lines and the lock's owner | `ship.sh:153`, `:163`, `:178` |
+| R2-6 | NIT | GLM | The 15-port inventory was computed with the rejected git-root key | fixed: recomputed with the folder key, now 16 folders, 16 ports, 4827 | node one-off over `~/Devel` |
+| R2-7 | NIT | GLM | `CROFTWEAVER_TEST_BUILD` is a brand name in a generic starter | fixed: `SITE_TEST_BUILD` | plan §B |
+| R2-8 | NIT | GLM | Test 2 mixed two arms with different outcomes | fixed: three arms, each with its outcome | plan, test 2 |
+| R2-9 | NIT | GLM | A missing id blames only the build-marker step | fixed: the message names both causes | plan §B |
+| R2-10 | follow-up | GLM | The config's existing comment on Astro ≥7.2 daemonizing (`ASTRO_PREVIEW_BACKGROUND`) has no evidence here | follow-up: older comment, not touched by this plan | — |
+| R2-11 | follow-up | GLM | Round 1's evidence said no held-lock case exists | follow-up: evidence only; corrected in round 3's evidence | E7 |
