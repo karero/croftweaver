@@ -107,3 +107,13 @@ Totals, rounds 1–6: 6 rounds, 44 distinct findings (6 BUG, 9 RISK, 23 NIT, 6 U
 | W1 | BUG | codex | fixed | The BUGLOG row said "against the background it is drawn on"; the test reads solid background colours only. Now "the solid background colour behind it … (background images and gradients are not read)", and "stays green" names the `--bg` colours too |
 | W2 | BUG | codex | fixed | The red message's text is a JavaScript string, not prose; reverted to the round 6 text. `check_node_floor.sh` now differs from `c285f657` in comment lines only |
 | W3 | RISK | codex | refuted, with a source | What `check-latest` does: setup-node's own documentation (https://github.com/actions/setup-node/blob/main/docs/advanced-usage.md, read 2026-10-26): with `check-latest: true` "the action first checks if the cached version is the latest one", and downloads the newest when it is not; with `false` it takes a cached semver match first |
+
+## Wording pass, second read — `0a352836`, delta from `8f3ee2ef`
+`reviewers: codex OK` · `timings: codex 354s (46572 tokens)`
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| W4 | BUG | codex | refuted | The hunk is W2's revert back to the code round 6 reviewed: `git diff c285f657..HEAD -- scripts/check_node_floor.sh` changes 0 lines outside comments |
+| W5 | RISK | codex | refuted | W3 again; the action's own documentation, cited above, is the support. If it were wrong, CI would behave as it does today, not worse |
+
+Since `c285f657`, the last head both seats reviewed clean, only comments, the BUGLOG row and this trail changed.
