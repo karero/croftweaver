@@ -1,9 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
-import { SITE } from './src/config';
+import { realpathSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// One preview port per site, derived from SITE.url, so two sites on the same machine
-// never test against each other's server. Deliberately stable (same site → same
-// port) rather than random: the port appears in baseURL and in error messages.
+// One stable preview port per site folder, so each checkout, worktree or clone of a site tests
+// on its own server. Keyed on this file's resolved folder, which the main process and every
+// worker work out the same way, from wherever Playwright starts. Two folders can, rarely, land
+// on the same port; reuseExistingServer below and tests/served-build.spec.ts make that loud.
 // Range 4330–4999, which leaves out 4321 (`astro dev`'s default). FNV-1a, 32-bit.
 function portFor(key: string): number {
   let h = 2166136261;
@@ -13,7 +16,7 @@ function portFor(key: string): number {
   }
   return 4330 + (h % 670);
 }
-const PORT = portFor(SITE.url);
+const PORT = portFor(realpathSync(dirname(fileURLToPath(import.meta.url))));
 const BASE = `http://localhost:${PORT}`;
 
 // Tests run against a PRODUCTION build served by `astro preview` — the same static
@@ -49,6 +52,8 @@ export default defineConfig({
     // short-circuits the check — use '1', not 'false': the string 'false' is
     // truthy too and "works", but reads as an off-switch and invites a future
     // edit that silently reintroduces this bug.
-    env: { ASTRO_PREVIEW_BACKGROUND: '1' },
+    // SITE_TEST_BUILD makes scripts/build-marker.mjs write dist/test-build-id.txt, which
+    // tests/served-build.spec.ts compares with what the server answers.
+    env: { ASTRO_PREVIEW_BACKGROUND: '1', SITE_TEST_BUILD: '1' },
   },
 });

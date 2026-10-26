@@ -816,7 +816,7 @@ if [ "$kind" != ok ]; then
       echo "  gate (the build or the tests) lands here too and prints its failure above."
       echo "  Nothing was published and $here."
       # Playwright's own words when the test server's port is taken. The port comes from the
-      # site's address, so it is the same in every copy of the site on this computer.
+      # site's folder (playwright.config.ts), so another run in this same folder can hold it.
       if grep -q 'is already used' <<<"$view"; then
         echo "  The site's test port was taken (\"is already used\" above): another test run, a"
         echo "  preview of the site (npm run dev or npm run preview), or a test server left"

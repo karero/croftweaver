@@ -48,7 +48,10 @@ Sibling skills (run in order, each usable on its own):
 `website-design-system` · `website-testimonials` · `website-qa` ·
 `website-review`. `website-positioning-check` is an optional, read-only one-screen
 diagnostic for a site that already has pages — run it after the build, or whenever the
-offer starts to feel blurred; it is not a pipeline gate. Plus `outgoing-link-audit` — the
+offer starts to feel blurred; it is not a pipeline gate. `website-launch-check` is the launch
+readiness check: it runs the site's tests first, checks only what they cannot, and writes a
+dated report with a verdict to `docs/launch/` (a baseline at step 5a, the verdict at 10c, an
+optional live re-check at 12a). Plus `outgoing-link-audit` — the
 pre-launch / monthly external-link
 liveness sweep (only relevant once the site links out); `internal-link-audit` — the
 internal-linking sweep that finds orphaned + thin pages and suggests where to cross-link
@@ -328,6 +331,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` (its palette and logo come from step 2b, where the owner brought or chose them) | **`website-content-guide`** |
 | 4 | Pages, clean URLs, nav, internal links | `site-architecture` |
 | 5 | Decision interview + scaffold the repo | **this skill** §1, §3 |
+| 5a | Baseline launch check on the green scaffold (after the brand-kit intake, where there is one): the settings in `docs/launch/config.json` and the first punch list, "Baseline, not a launch verdict" | **`website-launch-check`** |
 | 6 | Build: mobile graphics, dark mode, theme tokens | **`website-design-system`** |
 | 6 | Build: head metadata within limits, schema, llms.txt | **`website-seo-geo`** (+ `schema-markup`, `ai-seo`) |
 | 6 | Build: per-page OG share cards (`npm run og` → 1200×630 ≤300 KB, tested) | **`og-images`** |
@@ -337,8 +341,10 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 9 | **Double-Knuth review** (correctness + cross-file consistency) | **`website-review`** |
 | 10 | Outgoing-link liveness sweep — **only if the site links out** (see §3a) | **`outgoing-link-audit`** |
 | 10b | Internal-link sweep — orphaned + thin pages (run if the site grew past a handful of pages) | **`internal-link-audit`** |
+| 10c | Launch check: the verdict before launch (🟢 / 🟡 / 🔴), and for a site that replaces an older one the current-vs-new comparison with its redirect map; §4 starts after 🟢, or a 🟡 the owner accepts | **`website-launch-check`** |
 | 11 | Launch & handoff: schema/sitemap/robots, deploy, hand over | **this skill** §4 |
 | 12 | Post-launch: register with Google Search Console + Bing, submit sitemap, enable IndexNow | **`search-console-setup`** |
+| 12a | Optional, once the production build is Active: the live re-check (HTTPS, the 404 status, speed on the live domain as `website-qa` §2 measures it, the new site's row of the comparison) | **`website-launch-check`** |
 | 13 | Post-launch: claim Google Business Profile + Bing Places, verify `sameAs` profiles resolve — **only if the site is a claimable entity** (see §4a) | **`business-listings-setup`** |
 | 14 | Post-launch: ask once for a "Built with Croftweaver" credit in the footer — a request, never a condition (see §4b) | **this skill** §4b |
 
@@ -522,7 +528,7 @@ full path (the output of `pwd` inside it):
    rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
    skills: agents read it, and its Language rule has them reply in the person's
    language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
-3. **Skills travel with the repo** — copy the twenty-seven always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-eight always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -543,7 +549,8 @@ full path (the output of `pwd` inside it):
    `website-scorecard` (optional public scorecard — same rule: copied, never runs
    unasked), `website-brand-kit` (optional colours and logo — same rule: copied, never
    runs unasked; asked about once at §2b), `website-tagline` (optional line under the logo — same rule: copied,
-   never runs unasked), and `website-team-setup` (copied so the day a second person joins, the session that
+   never runs unasked), `website-launch-check` (the launch check: run at steps 5a, 10c and 12a, and
+   whenever the owner asks), and `website-team-setup` (copied so the day a second person joins, the session that
    sets up the team finds it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
    symlinks each skill from this suite repo) — use `cp -RL` to dereference
@@ -577,6 +584,7 @@ full path (the output of `pwd` inside it):
          "$SKILLS_ROOT"/website-scorecard \
          "$SKILLS_ROOT"/website-brand-kit \
          "$SKILLS_ROOT"/website-tagline \
+         "$SKILLS_ROOT"/website-launch-check \
          "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
    # The brand kit's scripts/tests is the toolkit's own test suite (about 1.7 MB). No site
@@ -716,6 +724,10 @@ hold Search Console Request Indexing until then.
       via `/build.txt` — push alone is not proof of live).
 - [ ] **Double-Knuth review clean** (`website-review`): both passes — run it as the final
       gate AND after adding the last page.
+- [ ] **Launch check verdict** (`website-launch-check`, step 10c): 🟢, or 🟡 with the owner's
+      yes in chat; the report is `docs/launch/launch-check-<date>-prelaunch.md` (+ `.html`), and
+      for a relaunch `docs/launch/launch-comparison-<date>.md`. Its "not checked yet: not
+      deployed" rows wait for the live re-check (12a).
 - [ ] Lighthouse / PageSpeed run; FCP & LCP within target (see `website-qa`).
 - [ ] **Outgoing links healthy** (`outgoing-link-audit`) — only if the site links out
       (§3a). No DEAD/REBRAND left unhandled; any retired domain added to
