@@ -45,11 +45,13 @@ with a small plan making two claims the read shows and two it does not. The file
 `docs/reviews/probe-readback-evidence/`: `artifact.md`, `evidence.txt` (as sent), Codex's answer
 `codex-old-lead-2026-10-27.md`, and `read-command.txt`, the full command, since `evidence.txt`
 shortens its filter (rerun 2026-10-27: same output). Codex caught both unsupported claims from
-the read and marked the shown ones "VERIFIED, within the supplied snapshot". Its one
-UNVERIFIABLE entry asked for what the read did not hold: the second ruleset's rules, bypasses,
-and "an attempted failing update". So it did not ask again for anything the read showed. One
-run, one seat: a sign, not a measurement. It points at placement, not wording: the cases above
-failed because the read never reached a seat.
+the read and marked the shown ones "VERIFIED, within the supplied snapshot". Of its two
+UNVERIFIABLE entries, the GitHub one asked for what the read did not hold: the second ruleset's
+rules, bypasses, and "an attempted failing update"; the other was about the local hook, not a
+remote system. So it did not ask again for anything the read showed. One run, one seat: a sign,
+not a measurement. It points at placement, not wording. That the cases above failed because the
+read never reached a seat is a hypothesis (pr285's round-2 input was not kept); the step-4
+sentence and the ten-round check below test it.
 
 ## How
 
