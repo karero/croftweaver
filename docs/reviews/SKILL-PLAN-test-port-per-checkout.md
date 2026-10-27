@@ -2,8 +2,8 @@
 
 Built and merged 2026-10-26, after the plan review gate (Normal depth: test setup, a test-only
 branch in the build-marker script, one comment in the publish script; no red team, since it
-touches no server, user data, login, money, deletion or schema) and the maintainer's go. Step 5
-is the maintainer's own command.
+touches no server, user data, login, money, deletion or schema) and the maintainer's go. Step 5,
+the maintainer's own command, was run 2026-10-27; every step is done.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
@@ -11,7 +11,7 @@ is the maintainer's own command.
 | 2 | Plan review gate | ✅ closed 2026-10-26: round 7 found nothing; a cut and a wording pass (one prose fix) followed; details in the trail | `REVIEW-plan-2026-10-26-test-port-per-checkout.md` |
 | 3 | Toolkit change (one pull request) | ✅ merged 2026-10-26; DIFF gate closed (2 rounds and a wording pass, Codex alone) | karero/croftweaver#424, merge commit `cddef189`; trail `REVIEW-diff-2026-10-26-test-port-per-checkout.md` |
 | 4 | croftweaver-site copy (one pull request) | ✅ merged 2026-10-26; tests 1, 2, 3, 5 and 6 passed on its branch; DIFF gate closed (3 rounds, Codex alone) | the site repository's pull request 150 (not linked here), merge commit `df70d0f` |
-| 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone, after step 4 merges and the clone is pulled | ⬜ the maintainer's step | — |
+| 5 | `ship.fromGitHub` switched on in the maintainer's croftweaver-site clone, after step 4 merges and the clone is pulled | ✅ done by the maintainer 2026-10-27 | the clone pulled to `df70d0f`; `git config --local ship.fromGitHub` prints `true` |
 
 ## What and why
 
@@ -72,8 +72,8 @@ preview, or an `astro dev`); another build in this folder replaced `dist/` durin
 shared git folder (`git rev-parse --git-common-dir`), so it covers every worktree of a clone,
 and `check_ship_push.sh` case S9 tests a second publish against a held lock. But only the
 `ship.fromGitHub` mode takes it; the default mode, publishing the folder itself, takes none.
-croftweaver-site runs the default mode (`git config --local ship.fromGitHub` is empty), which
-is why case 2 could happen. No new guard: once step 4 has merged and the clone is pulled (the
+On 2026-10-26 croftweaver-site ran the default mode (`git config --local ship.fromGitHub` was
+empty), which is why case 2 could happen. No new guard: once step 4 has merged and the clone is pulled (the
 mode refuses a `scripts/ship.sh` that differs from `origin/main`, and step 4 changes it), the
 maintainer switches the existing mode on,
 
