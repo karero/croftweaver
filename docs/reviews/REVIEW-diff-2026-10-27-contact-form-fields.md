@@ -35,6 +35,7 @@ Mutations, each applied to the installed site, the named spec run, then put back
 |-------|-------|----------|--------------|
 | 1 | Codex alone (melious out of balance) | 1 RISK; 5 UNVERIFIABLE groups, all looked at | Codex 189 s, 61,195 |
 | 2 | Codex alone (`--verify`, raw run lines as evidence) | 1 RISK; D1, U1, U2 confirmed | Codex 99 s, 41,833 |
+| 3 | Codex alone (`--verify`) | 1 RISK (D2 only partly fixed); D1, U6 confirmed | Codex 106 s, 39,565 |
 
 ## Round 1
 
@@ -53,3 +54,10 @@ Mutations, each applied to the installed site, the named spec run, then put back
 |----|-----|------|---------|-------------|----------|
 | D2 | RISK | Codex | "which screen readers announce with it" still promises speech the tests do not show | fixed: SKILL.md says only that the hint becomes the box's accessible description | SKILL.md "Adding fields" |
 | U6 | — | Codex | "a list always has an entry chosen" is too broad (`multiple`) | fixed: narrowed to a single-choice list | the same |
+
+## Round 3
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| D3 | RISK | Codex | D2 partly fixed: "read out" stays in SKILL.md (twice), a `MailForm.astro` comment and two test titles | fixed: every one now says accessible description; `git grep "read out with"` finds none (the status line's own comment, about `role="status"`, is unchanged) | the sweep |
+| U7 | — | Codex | "a single-choice list always has an entry chosen" fails for `size>1` | fixed: narrowed to a drop-down list | SKILL.md |

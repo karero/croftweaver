@@ -580,7 +580,7 @@ jobs:
             expect(await send(page)).toBe('Eine kurze Frage.');
           });
 
-          test('kontakt — the hint follows the choice and is read out with the message box', async ({ page }) => {
+          test('kontakt — the hint follows the choice and is the message box's description', async ({ page }) => {
             await page.goto('/impressum');
             const box = form(page).getByLabel(t.message, { exact: true });
             await expect(box).toHaveAccessibleDescription('Zum Beispiel: was geplant ist und wie weit.');

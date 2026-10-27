@@ -66,7 +66,7 @@ setup, or a count of them), this is the wrong tool: see §0.
 | `src/components/MailForm.astro` | `MailForm.astro` | the form, and the address line under it |
 | `src/components/mail-form-text.ts` | `mail-form-text.ts` | everything the form says, in English and German, and the longest message it takes |
 | `public/js/mail-form.js` | `mail-form.js` | the script: shows the form, builds the `mailto:` link, opens it |
-| `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order through any added fields, a hint read out with the message box, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
+| `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order through any added fields, a hint as the message box's description, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
 
 The templates are in this skill's `templates/` folder, beside this SKILL.md; the bundled
 copy of the skill on a handed-off repo has them too. Install all four.
@@ -181,8 +181,8 @@ behind it, each from a source read on 2026-10-27:
   https://www.w3.org/WAI/tutorials/forms/grouping/). The mail carries the ticked option's
   label alone, not the legend, so write each option to read on its own ("A new project",
   not "New").
-- **Every added field starts empty.** No list (`select`): a single-choice list always has an
-  entry chosen, so an untouched list sends an answer the visitor never gave, a "Please choose"
+- **Every added field starts empty.** No list (`select`): a drop-down list always has an entry
+  chosen, so an untouched list sends an answer the visitor never gave, a "Please choose"
   entry included. No box ticked and no text filled in advance. The script sends whatever a
   field holds, and the spec expects the message alone when the visitor adds nothing.
 - **None ticked in advance.** "Do not pre-select radio options" (GOV.UK Design System,
@@ -225,7 +225,7 @@ own, such as a hint that changes.
 **The spec.** Set `ADDED` in `tests/mail-form.spec.ts` to the fields' labels, one per Tab
 stop in order: a radio group by its first option (`['A new project', 'Town']`). The spec
 then checks that every control has a label, that Tab goes through them to the message and
-the button, and, when there is a hint, that the box is read out with it.
+the button, and, when there is a hint, that it is the box's accessible description.
 
 **The page's own test.** Only the page knows its fields, so add a short spec next to it
 (`tests/contact.spec.ts`) that enters as a visitor does, through the button, and checks the
