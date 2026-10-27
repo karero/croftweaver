@@ -19,7 +19,7 @@ and changes with the choice. Building it needed three things the skill does not 
    field as "Label: value" and a ticked radio button or checkbox as its label alone, so for the
    fields this plan recommends the script needs no change. A list (`select`) sends its chosen
    option's text, so an empty "Please choose" entry would arrive as an answer (round 1 BUG):
-   SKILL.md says to ask a choice with radio buttons, and to give a list no empty entry.
+   SKILL.md says to ask a choice with radio buttons and to use no list at all (DIFF round 1: a list always has an entry chosen, so an untouched one sends an answer).
 2. **Guidance on asking for more.** §2 step 5 says where a field goes, not how to ask. The site
    followed a short research pass (below); the skill should carry it so the next site does not
    redo it.

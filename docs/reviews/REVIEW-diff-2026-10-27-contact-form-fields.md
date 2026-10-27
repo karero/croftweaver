@@ -30,3 +30,18 @@ Mutations, each applied to the installed site, the named spec run, then put back
 | the form's field rules back to scoped (no `:global`) | KILLED | `kontakt.de.spec.ts` look test |
 | `mail-form.js` stops sending a ticked radio's label | KILLED | `kontakt.de.spec.ts` body test |
 | none (control) | passed | both specs |
+
+| Round | Seats | Findings | Time, tokens |
+|-------|-------|----------|--------------|
+| 1 | Codex alone (melious out of balance) | 1 RISK; 5 UNVERIFIABLE groups, all looked at | Codex 189 s, 61,195 |
+
+## Round 1
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| D1 | RISK | Codex | A list (`select`) always has an entry chosen, so an untouched one adds a line and the template's message-alone tests fail; `ADDED` cannot fix that | fixed: SKILL.md says every added field starts empty and drops the list (a list sends an answer the visitor never gave) | SKILL.md "Every added field starts empty" |
+| U1 | — | Codex | Astro scope and `:global` reach unverified | answered: the look test and its mutation, raw output sent as round-2 evidence | evidence file, round 2 |
+| U2 | — | Codex | Browser behaviour and mutations: no raw output | answered: the job log and mutation log lines sent as round-2 evidence | the same |
+| U3 | — | Codex | Screen-reader speech not shown | narrowed: SKILL.md now claims the accessible description, which the tests check, not speech | SKILL.md "Adding fields" |
+| U4 | — | Codex | Cited quotes not checked (no network) | answered: each read on its page 2026-10-27 (plan trail U3) | plan trail |
+| U5 | — | Codex | Run provenance | answered: raw lines with the commit they ran on, round-2 evidence | the same |

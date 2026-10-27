@@ -154,7 +154,8 @@ brings both. Each field is one more reason to leave; two or three is plenty.
 
 Fields go between `<MailForm>` and `</MailForm>`, and come before the message. A hint goes
 in the slot `hint`: the form shows it between the message's label and its box, and ties it
-to the box (`aria-describedby`), so a screen reader reads it out with the box. An example,
+to the box (`aria-describedby`): it becomes the box's description, which screen readers
+announce with it. An example,
 for a building firm:
 
 ```astro
@@ -179,8 +180,11 @@ behind it, each from a source read on 2026-10-27:
   groups should always be grouped using `<fieldset>`" (W3C WAI,
   https://www.w3.org/WAI/tutorials/forms/grouping/). The mail carries the ticked option's
   label alone, not the legend, so write each option to read on its own ("A new project",
-  not "New"). Not a list (`select`) with a "Please choose" entry: the script sends a list's
-  chosen text, so that entry would arrive as an answer.
+  not "New").
+- **Every added field starts empty.** No list (`select`): a list always has an entry
+  chosen, so an untouched list sends an answer the visitor never gave, a "Please choose"
+  entry included. No box ticked and no text filled in advance. The script sends whatever a
+  field holds, and the spec expects the message alone when the visitor adds nothing.
 - **None ticked in advance.** "Do not pre-select radio options" (GOV.UK Design System,
   https://design-system.service.gov.uk/components/radios/). Once ticked, a radio cannot be
   unticked; for an optional choice that costs one line the visitor can delete in their mail
@@ -207,12 +211,12 @@ behind it, each from a source read on 2026-10-27:
   :global(.mail-form):has(#kind-new:checked) .hint-new { display: inline; }
   :global(.mail-form):has(#kind-running:checked) .hint-running { display: inline; }
   ```
-  A hidden `span` is left out of what a screen reader reads, so it hears the hint on
-  screen.
+  A hidden `span` is left out of the box's description, so the description is the hint
+  on screen (the page test below checks it).
 - **No promise the owner has not made.** Not "we answer within a day", not "the first talk
   is free", unless the owner says so.
 
-**Looks.** The form styles what goes in the slot: a text field, a list, a radio group and
+**Looks.** The form styles what goes in the slot: a text field, a radio group and
 the `mail-form-optional` note look like the message field, with no CSS of the page's own.
 Astro gives fields in a slot the page's style scope, not the form's, so the form's rules
 reach them through `:global`, inside the form only. A page adds style only for what is its
