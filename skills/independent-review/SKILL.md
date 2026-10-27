@@ -72,6 +72,8 @@ skip silently. With a config diff, send the code that reads the config too.
 The standard pair (1 + 2) is the default for both gates and runs in parallel. `--first-success`
 stops at the first reviewer that counts — a conscious choice, honored for a plan too. The script
 flags any round with fewer than 2 counted reviewers: degraded unless that was the choice; say which.
+An empty Melious balance is the owner's standing choice (2026-10-27): with Melious as the second
+seat, that round counts on Codex alone, and no rerun is owed; the script says so.
 
 **Independence rule.** The tier of the HOST's own model family is the fresh-eyes seat, never
 cross-model. The gate needs at least one successful cross-model reviewer; same-family only is
