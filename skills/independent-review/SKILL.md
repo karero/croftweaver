@@ -144,7 +144,11 @@ Codex's effort for any run.
    branch>`). A diff not made by `git diff` in this repository passes `--base none`. Evidence for
    the reviewers (command output, logs, measurements) goes in one file with `--evidence <file>`,
    which sends it as labelled data beside the artifact; never append it to a diff, and it is no
-   reason for `--base none`. For a DIFF
+   reason for `--base none`. A read of a system no seat can reach (a GitHub setting, a dashboard,
+   a docs page) goes in that file as a READ: the exact command or URL, the time it ran, and its
+   output verbatim, with entries cut but none edited, never a field a claim rests on, and secrets
+   replaced with made-up values. Send the same file every round its claims are under review; a
+   quote in the PR text reaches no seat. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
    tracker's status row — after the last round: in a round its sentences draw findings that
    cost rounds. It is then read once, by the wording pass (step 6) or, where no round had a
@@ -198,7 +202,11 @@ Codex's effort for any run.
 
    UNVERIFIABLE entries are questions, not findings, whichever seat lists them: look where an
    entry points, and make it a finding only if the look confirms it. They take no disposition;
-   the round's row in the trail gives how many were asked and how many confirmed.
+   the round's row in the trail gives how many were asked and how many confirmed. One about a
+   system the host can read is answered by reading it and adding the READ to the next round's
+   `--evidence` file, not by an argument in the trail; one the host cannot read stays open, as
+   step 5 says. Where a seat asks for what a READ it was sent already shows, the round's row says
+   so.
 5. **Enforce the verdict** — the skill's job, never the exit code. Every confirmed BUG is fixed
    (one exception below); every RISK/NIT is fixed, refuted, waived or follow-up. No blanket waivers.
    - **Evidence.** Fixed and refuted both need evidence that fits the claim: run, reproduce or
