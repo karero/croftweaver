@@ -74,7 +74,8 @@ stamp is a commit and a date), and a version would go stale when the site is not
   (`import * as config from '../src/config'`, then `'GENERATOR_TAG' in config &&
   config.GENERATOR_TAG === true`), so a site whose `config.ts` has no switch counts as off,
   and neither the test run nor the type check (`npm run check`) fails on it. Both are run once
-  with the switch removed from `config.ts`, and the output is quoted in the PR. Then read every
+  the way an existing site would meet them: the new `seo.spec.ts` with `Base.astro` and
+  `config.ts` as they are on `main` today (no switch, no tag). The output is quoted in the PR. Then read every
   `.html` file in the built `dist/` folder, 404 and noindex pages included, not only the
   `PAGES` list. If the switch is on, each file has exactly one generator tag, with content
   `Croftweaver`. If it is off or missing, none has one.
