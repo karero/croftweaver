@@ -9,6 +9,7 @@ Sonnet (host family, one size down) in round 1. No red team (no box, data, money
 | 1 | plan at b6324240, evidence = script/test/SKILL.md/trail excerpts | codex OK (147 s, 51,833 tokens); melious FAILED (balance: "Available: 0"); fresh-eyes OK (~98k tokens) | 2 BUG, 4 RISK, 4 NIT (F1-F10; F3 and F4 from both) | all fixed in the next revision; F5 led to a probe (below) |
 | 2 | plan at 1c015575, `--verify` F1-F10 | codex OK (157 s, 52,705 tokens); melious FAILED (balance, "Available: 0") | 1 BUG, 3 RISK (G1-G4) | G1 fixed; G3 accepted, which cut the scope: the lead change became a follow-up, so G2 and the lead half of G4 lapse; the rest of G4 fixed |
 | 3 | plan at 9f52eb15, `--verify` G1-G4 | codex OK (97 s, 54,889 tokens); melious FAILED (balance, "Available: 0") | 1 BUG, 1 RISK (H1-H2) | both fixed; both are claim wording, not design, so no round 4 is owed; wording pass next |
+| wording pass | plan at addfdc0c, `--wording-pass` | codex OK (109 s, 51,997 tokens) | 2 BUG, 1 RISK (K1-K3), all prose | all fixed; no code, config or command changed, so no re-check |
 | probe (not a round) | `docs/reviews/probe-readback-evidence/artifact.md` + `evidence.txt` (a real `gh api` read of the "main checks" ruleset) under today's lead | codex OK (60 s, 31,043 tokens) | see the plan's Why | baseline for the build's rerun |
 
 Round 1 counts as codex alone. melious FAILED (balance, "Insufficient balance … Available: 0");
@@ -47,3 +48,16 @@ UNVERIFIABLE, round 3: codex 1 (the rerun's time and byte match have no kept cap
 rerun is in this session's record; not a finding.
 
 Melious ran in no round (balance "Available: 0" each time): rounds 1 to 3 count as codex alone.
+
+Wording pass findings:
+
+- K1 BUG (codex): "they show reads not reaching seats" contradicts the plan's own "pr285's round-2 input was not kept". Fixed: "repeated questions, with read delivery not established".
+- K2 BUG (codex): "which no read settles" for pr227 F21/F22; that trail's follow-up names paired captures that would. Fixed: "a settings or docs read alone would not settle".
+- K3 RISK (codex): the stop-loss counted all remote-state questions, legitimate ones included. Fixed: it counts only asks for information a READ already sent holds, in more than one of ten rounds.
+
+Gate result: no open BUG or RISK. Melious did not count in any round (balance, "Available: 0"):
+the gate is codex alone, plus fresh-eyes in round 1.
+
+Cost: codex 4 runs (rounds 1-3 and the wording pass) 211,424 tokens plus the probe 31,043; the
+script's gate total 242,467 tokens logged; fresh-eyes ~98k tokens; melious 0 (failed before
+sending). The host's own work is not counted.

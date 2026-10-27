@@ -1,6 +1,7 @@
 # Plan: send read-backs of remote systems as `--evidence`
 
-Status: plan, under the PLAN gate. Nothing built. Builds on `--evidence`
+Status: plan; PLAN gate passed 2026-10-27 (codex alone, melious out of balance; trail below).
+Nothing built: waiting for the owner's go. Builds on `--evidence`
 (`SKILL-PLAN-review-evidence.md`, built 2026-10-25).
 
 ## What
@@ -28,30 +29,30 @@ Checked in this repo's trails on 2026-10-27:
   F11, "no new evidence". The trail's F10/F11 rows quote the pages; whether the record sent in
   round 2 did is not checked (it is not kept). Either way a quote reached Codex only as the
   author's word, or not at all. (`--evidence` did not exist yet.)
-- `REVIEW-diff-2026-10-09-pr227.md` F23: asked by both seats "every round" (the review ran nine rounds), and
-  settled only by the host reading two OpenRouter docs pages. F21 and F22 (rounds 5 to 9, owner
-  waivers) are a different kind: they ask what a field *means*, which no read settles. This change
-  would not have saved them.
+- `REVIEW-diff-2026-10-09-pr227.md` F23: asked by both seats "every round" (the review ran nine
+  rounds), and settled only by the host reading two OpenRouter docs pages. F21 and F22 (rounds 5
+  to 9, owner waivers) are a different kind: they ask what a field *means*, which a settings or
+  docs read alone would not settle. This change would not have saved them.
 - `REVIEW-diff-2026-10-09-pr228.md`: the ruleset question was settled by measurement in round 1,
   and the result "went to the PR text".
 - 222 `REVIEW-*` trails are dated 2026-09-27 to 2026-10-27 (counted, not including this plan's own trail). The intake session counted
   28 of them recording UNVERIFIABLE questions about such systems (not re-counted here; nothing
   below rests on it).
 
-All three cases predate `--evidence`: they show reads not reaching seats, not a seat ignoring a
-read it was sent. A probe on 2026-10-27 tested the second. It sent Codex a real read of this
-repo's "main checks" ruleset (`gh api`, timed, verbatim, some fields cut) under today's lead,
-with a small plan making two claims the read shows and two it does not. The files are in
-`docs/reviews/probe-readback-evidence/`: `artifact.md`, `evidence.txt` (as sent), Codex's answer
-`codex-old-lead-2026-10-27.md`, and `read-command.txt`, the full command, since `evidence.txt`
-shortens its filter (rerun 2026-10-27: same output). Codex caught both unsupported claims from
-the read and marked the shown ones "VERIFIED, within the supplied snapshot". Of its two
-UNVERIFIABLE entries, the GitHub one asked for what the read did not hold: the second ruleset's
-rules, bypasses, and "an attempted failing update"; the other was about the local hook, not a
-remote system. So it did not ask again for anything the read showed. One run, one seat: a sign,
-not a measurement. It points at placement, not wording. That the cases above failed because the
-read never reached a seat is a hypothesis (pr285's round-2 input was not kept); the step-4
-sentence and the ten-round check below test it.
+All three cases predate `--evidence`: they show repeated questions, with read delivery not
+established, not a seat ignoring a read it was sent. A probe on 2026-10-27 tested the second. It
+sent Codex a real read of this repo's "main checks" ruleset (`gh api`, timed, verbatim, some
+fields cut) under today's lead, with a small plan making two claims the read shows and two it
+does not. The files are in `docs/reviews/probe-readback-evidence/`: `artifact.md`,
+`evidence.txt` (as sent), Codex's answer `codex-old-lead-2026-10-27.md`, and `read-command.txt`,
+the full command, since `evidence.txt` shortens its filter (rerun 2026-10-27: same output).
+Codex caught both unsupported claims from the read and marked the shown ones "VERIFIED, within
+the supplied snapshot". Of its two UNVERIFIABLE entries, the GitHub one asked for what the read
+did not hold: the second ruleset's rules, bypasses, and "an attempted failing update"; the other
+was about the local hook, not a remote system. So it did not ask again for anything the read
+showed. One run, one seat: a sign, not a measurement. It points at placement, not wording. That
+the cases above failed because the read never reached a seat is a hypothesis (pr285's round-2
+input was not kept); the step-4 sentence and the ten-round check below test it.
 
 ## How
 
@@ -85,8 +86,11 @@ Saves: a re-raised question per affected round (pr285: two RISKs re-raised in ro
 UNVERIFIABLE per round; pr227 F23: asked every round of nine), the host's triage of those lines,
 and owner waivers when they become RISKs. Adds: two sentences and three greps.
 
-Not worth keeping if, in the first ten rounds after the build that send a READ, seats ask for
-remote state about as often as in the cited trails. That would mean placement was not the cause.
+Not worth keeping if, in the first ten rounds after the build that send a READ, seats still ask
+for information a READ they were sent already holds (the step-4 sentence makes each such case a
+note in the round's row) in more than one round. Questions about state no READ held are
+legitimate and do not count. That would mean placement was not the cause, and the lead follow-up
+below applies.
 
 ## Follow-up, not built: the lead
 
