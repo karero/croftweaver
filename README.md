@@ -17,9 +17,11 @@ answers).
 **[See a finished website](https://croftweaver.com/case-study):** croftweaver.com is built
 with Croftweaver. Its case study follows the site week by week, with links to its public code.
 
-**Quick install.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
-skills, in any terminal (building a site needs a newer Node; the
-[setup guide](skills/new-website/templates/SETUP.md) says which):
+**Quick install.** One command installs the skills, in any terminal. Installing and
+building have different Node minimums: the command needs [Node](https://nodejs.org) 22.12
+or newer, and building a site needs a recent security release of Node, which the
+[setup guide](skills/new-website/templates/SETUP.md) names. One Node that meets the second
+covers both, and your assistant tells you if yours is too old.
 
 ```bash
 npm create croftweaver
@@ -132,7 +134,8 @@ below.)
 - a **computer** where you can run basic commands (macOS, Linux, or Windows)
 - *optionally*, a **Cloudflare account** (free) when you're ready to publish
 
-You **don't** need to install Node, git, the GitHub CLI, image tools, or anything else
+Unless you use the one-command install, which needs Node, you **don't** need to install
+Node, git, the GitHub CLI, image tools, or anything else
 upfront — the assistant checks for those and helps you install them only when the moment
 comes.
 
@@ -208,8 +211,9 @@ from it.
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
 Console/API account).
 
-**The short way.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
-skills (building a site needs a newer Node; the setup guide says which). It runs in any
+**The short way.** One command installs the skills. It needs [Node](https://nodejs.org)
+22.12 or newer; building a site needs a recent security release of Node, which the
+[setup guide](skills/new-website/templates/SETUP.md) names. The command runs in any
 terminal, on Windows too:
 
 ```bash
