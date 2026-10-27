@@ -6,9 +6,9 @@ review script's logic and the docs that describe it; nothing in the High row) ·
 
 | Step | What | State | Evidence |
 |---|---|---|---|
-| 1 | Script names an empty balance and says: Codex alone, no rerun owed | planned | — |
+| 1 | Script names an empty balance (by the provider's error code) and says: Codex alone, no rerun owed | planned | — |
 | 2 | Tests read a real capture of the balance error | planned | — |
-| 3 | setup-guide, `~/.claude/CLAUDE.md`, `HARNESS-CHANGES.md` say the same | planned | — |
+| 3 | SKILL.md, setup-guide, `~/.claude/CLAUDE.md`, `HARNESS-CHANGES.md` say the same | planned | — |
 | 4 | `make check`, then the DIFF gate at Normal | planned | — |
 
 ## What and why
@@ -24,7 +24,9 @@ automated reviewer available/succeeded … paste the prompt below into any stron
 whole paste prompt (lines 1882–1903). `~/.claude/CLAUDE.md` (Review before merge) says "its energy
 refills within hours: rerun … --seat melious then", and `references/setup-guide.md` lines 174–177
 say "once the seat can run, rerun `--seat melious`". `SKILL.md` (lines 58–60) only says the round
-"says so and why"; it stays as is. `~/.claude/HARNESS.md` has no rerun advice; it stays as is.
+"says so and why"; that stays, and one sentence goes under "The standard pair (1 + 2)" (lines
+70–71): an empty Melious balance is the owner's standing choice, so that round counts on Codex
+alone and no rerun is owed (round 1, Codex: otherwise SKILL.md still calls it degraded). `~/.claude/HARNESS.md` has no rerun advice; it stays as is.
 
 ## The real error (checked 2026-10-27)
 
@@ -39,31 +41,42 @@ mid-stream (HTTP 200); quota/rate limit: wait or add credits)`.
 
 ## How
 
-1. **`report_tier`**: inside the existing quota branch, when the seat is melious and the
-   error-shaped lines match `insufficient[ _]balance` (case-insensitive), set
-   `MELIOUS_NO_BALANCE=1`, make the outcome `FAILED (<why>; out of balance)` and the reason "the
-   Melious balance is empty. By the owner's rule (2026-10-27) no rerun of this seat is owed: if
-   Codex counted in this round, the round stands on Codex alone; record that in the trail." Only
-   the error-shaped lines are read, as for quota today, so text in the reviewed artifact cannot set
-   it. A 429 or any other quota text keeps today's wording.
-2. **`report_round`, `SECOND_SEAT=melious` branch** (Codex OK, Melious not): when
+1. **`perl/melious_stream.pl`**: at the mid-stream error chunk (today exit 6), when `error` is an
+   object whose `code` is the string `billing_insufficient_balance`, print the same `Error:` line
+   and exit with a new status 10. The decision reads the provider's structured code field, never
+   the message text, so a reviewed artifact quoting "Insufficient balance" cannot set it (round 1,
+   Codex). Every other error chunk keeps exit 6, and the non-stream error paths (exit 2, 9) are
+   unchanged: no capture shows a balance error there.
+2. **`run_melious`**: exit 10 gives `WHY="out of balance (HTTP $code)"`.
+3. **`report_tier`**: a new branch, before the quota branch, for the melious seat whose WHY starts
+   `out of balance`: it sets `MELIOUS_NO_BALANCE=1` (initialised to 0 with `CODEX_OUTCOME`, since
+   the script runs under `set -u`; round 1, Codex) and the outcome `FAILED (out of balance (HTTP
+   200))`. Its reason depends on how Melious ran:
+   - with `SECOND_SEAT=melious` or `--seat melious`: "the Melious balance is empty. By the owner's
+     rule (2026-10-27) no rerun of this seat is owed: if Codex counted in this round, the round
+     stands on Codex alone; record that in the trail."
+   - as the ollama seat's fallback (`SECOND_SEAT=ollama`): "the Melious balance is empty: add
+     credits, or wait for the subscription to refill." That mode keeps today's degraded note: the
+     owner's rule is about Melious as the second seat, and ollama no longer stands in by his rule
+     of 2026-10-26 (round 1, Codex: the two must not contradict).
+4. **`report_round`, `SECOND_SEAT=melious` branch** (Codex OK, Melious not): when
    `MELIOUS_NO_BALANCE=1`, the note becomes "⚠ <GATE> round landed with 1 reviewer(s) counted
    toward the gate: codex alone. melious out of balance. By the owner's rule (2026-10-27) Codex
    alone is enough for this round: no rerun of melious is owed. Record it in the trail as Codex
    alone, melious out of balance." Any other Melious failure keeps today's note and rerun advice.
-3. **`--seat melious` run that fails for balance**: `report_round`'s `--seat` note becomes "melious
-   out of balance; no rerun owed (owner's rule, 2026-10-27). If Codex counted in this round, the
-   round stands on Codex alone: record that in the trail. If this run was the round's only seat
-   (a wording pass), run it with --seat codex." The no-success block then prints that it was a
+5. **A `--seat melious` run that fails for balance**: `report_round`'s `--seat` note becomes
+   "melious out of balance; no rerun owed (owner's rule, 2026-10-27). If Codex counted in this
+   round, the round stands on Codex alone: record that in the trail. If this run was the round's
+   only seat (a wording pass), run it with --seat codex." The no-success block then says it was a
    balance failure and skips the "paste the prompt below" text and the paste prompt. Exit stays 4:
    this run counted no reviewer, and callers read a non-zero exit as "no review here".
-4. **Not changed**: the cost log. Its "1 run gave no figure" is true (a failed seat reports no
+6. **Not changed**: the cost log. Its "1 run gave no figure" is true (a failed seat reports no
    tokens) and the outcome column still reads `FAILED`. The pair's `--first-success` mode never
-   runs Melious once Codex counts, so it needs nothing. The `SECOND_SEAT=ollama` fallback gets the
-   new outcome text from step 1 but keeps its own note.
+   runs Melious once Codex counts, so it needs nothing.
 
 Ordinary cases only (CLAUDE.md, Writing code rule 1): the one input added is the provider's own
-balance message, which real runs produce several times a day while the balance is empty.
+balance error, which real runs produced on 2026-10-25, 26 and 27 (raw folders kept in the
+maintainer's temp folder).
 
 ## How it is tested
 
@@ -74,16 +87,20 @@ stub), in `test_failed_tier_report.sh`:
   data) as `skills/independent-review/scripts/fixtures/melious-api_2026-10-27_insufficient-balance.sse`.
   The stub's `nobalance` case copies that file instead of its hand-typed copy of the 2026-10-25
   chunk. Expected strings are written by hand.
-- **sfall** (pair, balance): reviewers line ends `melious FAILED (error mid-stream (HTTP 200); out
-  of balance)`; the gate note holds "no rerun of melious is owed" and lacks "rerun with --seat
+- **sfall** (pair, balance): reviewers line ends `melious FAILED (out of balance (HTTP 200))`; the gate note holds "no rerun of melious is owed" and lacks "rerun with --seat
   melious"; exit 0.
 - **New, sfall429** (pair, Melious 429): keeps "quota/rate limit" and the rerun advice, so the new
   wording cannot spread to every quota failure.
 - **New, sseatbal** (`--seat melious`, balance): output holds "no rerun owed" and lacks "paste the
   prompt below" and the prompt's first line; exit 4.
-- **mnobalance** (the ollama-fallback path): expectation updated to the new outcome text.
-- **Mutation check** (`mutation-check` skill), before round 1: drop the `insufficient[ _]balance`
-  test from step 1, and separately drop step 3's skip of the paste text; each must fail a test.
+- **mnobalance** (the ollama-fallback path): expectation updated to the new outcome text; it
+  lacks "no rerun" and keeps the degraded note.
+- **New, mechoed** (pair, a mid-stream error chunk whose message reads "Insufficient balance" but
+  whose code is another value): stays `error mid-stream (HTTP 200); quota/rate limit` with the
+  rerun advice, so only the structured code grants the rule.
+- **Mutation check** (`mutation-check` skill), before the DIFF gate: (a) step 1 matches the
+  message text instead of the code, (b) step 3 ignores how Melious ran, (c) step 5 keeps the
+  paste text; each must fail a test.
 - `make check` green before each review round.
 
 ## Docs
