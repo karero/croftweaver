@@ -187,7 +187,7 @@ test('mail form — every field has a label, and Tab goes through the added fiel
   }
 });
 
-test('mail form — a hint above the message, if the page gives one, is the message box's description', async ({ page }) => {
+test('mail form — a hint above the message, if the page gives one, is the description of the message box', async ({ page }) => {
   await page.goto(PAGE);
   const lang = await formLanguage(page);
   const hint = form(page).locator('#mail-form-hint');
