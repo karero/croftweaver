@@ -98,8 +98,11 @@ stub), in `test_failed_tier_report.sh`:
 - **New, mechoed** (pair, a mid-stream error chunk whose message reads "Insufficient balance" but
   whose code is another value): stays `error mid-stream (HTTP 200); quota/rate limit` with the
   rerun advice, so only the structured code grants the rule.
+- **New, mcodeonly** (pair, the code `billing_insufficient_balance` with an unrelated message):
+  gives `out of balance (HTTP 200)` and the no-rerun note, so a change to the provider's wording
+  cannot bring the rerun advice back (round 2, Codex).
 - **Mutation check** (`mutation-check` skill), before the DIFF gate: (a) step 1 matches the
-  message text instead of the code, (b) step 3 ignores how Melious ran, (c) step 5 keeps the
+  message text instead of the code, (a2) step 1 requires the message text as well as the code, (b) step 3 ignores how Melious ran, (c) step 5 keeps the
   paste text; each must fail a test.
 - `make check` green before each review round.
 

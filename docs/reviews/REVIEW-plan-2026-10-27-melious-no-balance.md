@@ -6,6 +6,13 @@ Gate: PLAN, depth Normal (a plan for a review script's logic). Pair run as one c
 | Round | Artifact | Seats | Findings | Disposition |
 |-------|----------|-------|----------|-------------|
 | 1 | plan at 87d446ee, evidence = script/test/doc excerpts | codex OK (173 s, 57,596 tokens); melious FAILED, out of balance (`Required: 156, Available: 0`): Codex alone | 2 BUG, 2 RISK (F1-F4) | all fixed in the next revision |
+| 2 | plan at 9191a353, `--verify` F1-F4 | codex OK (140 s, 53,910 tokens) verified F1-F4; melious FAILED, out of balance: Codex alone | 1 RISK (G1) | fixed; no BUG, so the rounds end (SKILL.md step 6(b)) |
+
+**Result: CLEAN after 2 rounds, 5 findings (2 BUG, 3 RISK), Codex alone in both rounds (melious out of balance), 111,506 tokens logged.** No wording pass: the only change after round 2 adds one test case.
+
+## Round 2 findings (Codex)
+
+- G1 RISK: the tests would pass a classifier needing both the code and the message text. Fixed: new test `mcodeonly` (right code, unrelated message) and mutation (a2).
 
 ## Round 1 findings (Codex)
 
