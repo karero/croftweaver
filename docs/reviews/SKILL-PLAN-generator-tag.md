@@ -62,17 +62,23 @@ stamp is a commit and a date), and a version would go stale when the site is not
    - `docs/WHAT-THE-SKILLS-RUN.md`, "Telemetry": a bullet naming the tag, saying it sends
      nothing, and how to switch it off.
    - `README.md`, "License & credits": one sentence on the tag and its switch.
-5. **Existing sites** are not changed. A site that updates its starter files gets the tag only
-   if it takes the changed `Base.astro` and `config.ts` (`scripts/whats-new.sh` lists changed
-   starter files).
+5. **Existing sites** are not changed. `scripts/whats-new.sh` does not track `Base.astro` or
+   `config.ts`, so no update brings the tag in. An existing site gets it only if its owner
+   asks; the assistant then gives the same build-time message and records the same README
+   line. The changed `seo.spec.ts` is tracked, so it must pass on a site without the tag (see
+   Test).
 
 ## Test
 
-- `tests/seo.spec.ts` in the starter: for every page, read `GENERATOR_TAG` from `src/config.ts`.
-  If true, the page has exactly one `meta[name="generator"]`, with content `Croftweaver`. If
-  false, it has none. The test runs on the built site, the way a visitor's browser gets it.
-- It can fail: removing the tag from `Base.astro` fails it with the default setting; a layout
-  that ignores the switch fails it as soon as an owner sets `false`. Before the review of the
+- `tests/seo.spec.ts` in the starter, one new test: read the switch with a namespace import
+  (`import * as config from '../src/config'`, then `config.GENERATOR_TAG === true`), so a site
+  whose `config.ts` has no switch counts as off instead of failing to load. Then read every
+  `.html` file in the built `dist/` folder, 404 and noindex pages included, not only the
+  `PAGES` list. If the switch is on, each file has exactly one generator tag, with content
+  `Croftweaver`. If it is off or missing, none has one.
+- It can fail: removing the tag from `Base.astro` fails it with the default setting; a page
+  that does not use `Base` (such as a hand-made 404) fails it; a layout that ignores the switch
+  fails it as soon as an owner sets `false`. Before the review of the
   build, both are run by hand once (a mutation check) and their output is quoted in the PR.
 - The toolkit's template workflow (`.github/workflows/template-tests.yml`) runs `npm test` on
   the starter when its files change, so the new check runs in CI too.
