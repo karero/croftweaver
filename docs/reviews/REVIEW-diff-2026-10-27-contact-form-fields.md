@@ -36,6 +36,7 @@ Mutations, each applied to the installed site, the named spec run, then put back
 | 1 | Codex alone (melious out of balance) | 1 RISK; 5 UNVERIFIABLE groups, all looked at | Codex 189 s, 61,195 |
 | 2 | Codex alone (`--verify`, raw run lines as evidence) | 1 RISK; D1, U1, U2 confirmed | Codex 99 s, 41,833 |
 | 3 | Codex alone (`--verify`) | 1 RISK (D2 only partly fixed); D1, U6 confirmed | Codex 106 s, 39,565 |
+| 4 | Codex alone (`--verify`, `--earned-by claim-wording`) | 2 BUG (one cause); D3, U7 confirmed | not recorded |
 
 ## Round 1
 
@@ -61,3 +62,10 @@ Mutations, each applied to the installed site, the named spec run, then put back
 |----|-----|------|---------|-------------|----------|
 | D3 | RISK | Codex | D2 partly fixed: "read out" stays in SKILL.md (twice), a `MailForm.astro` comment and two test titles | fixed: every one now says accessible description; `git grep "read out with"` finds none (the status line's own comment, about `role="status"`, is unchanged) | the sweep |
 | U7 | — | Codex | "a single-choice list always has an entry chosen" fails for `size>1` | fixed: narrowed to a drop-down list | SKILL.md |
+
+## Round 4
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| D4 | BUG | Codex | Round 3's new title "the message box's description" puts an apostrophe inside a single-quoted string: the template spec does not parse | fixed: "the description of the message box" | container run at `29ecdafc`: 149 passed, 2 skipped (both expected) |
+| D5 | BUG | Codex | The same in the CI page spec | fixed: the same | the same run |
