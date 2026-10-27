@@ -10,9 +10,9 @@
 
 The maintainer, 2026-10-27, in chat: the form's mail should carry a greeting and a sign-off,
 and the skill should ask the owner for the greeting. His answers to three questions: the
-greeting is set by the owner, once per form ("Sehr geehrte Frau Wunder,"); the sign-off is
+greeting is set by the owner, once per form ("Sehr geehrte Frau Muster,"); the sign-off is
 the line alone, without a comma and without a name ("Freundliche Grüße"); in English "Dear
-Mr Melter," and "Kind regards". The visitor's name comes from their mail program and
+Mr Smith," and "Kind regards". The visitor's name comes from their mail program and
 signature, as today: no name field.
 
 This reverses a rule the skill states today (§1 and §2 step 5: "they greet and sign as they
@@ -37,8 +37,8 @@ The sign-off comes last, after the added fields, so the mail ends the way a lett
 (the maintainer chose this over the sign-off under the message, 2026-10-27).
 
 **`MailForm.astro`.** A new required prop `greeting`, the mail's first line, with its
-punctuation as the owner wants it ("Sehr geehrte Frau Wunder,", "Hallo Michaela,", "Dear Mr
-Melter,"). The build stops without it, with a message naming the skill's step, as it does
+punctuation as the owner wants it ("Sehr geehrte Frau Muster,", "Hallo Anna,", "Dear Mr
+Smith,"). The build stops without it, with a message naming the skill's step, as it does
 for `subject`. It goes into the HTML as `data-greeting`, like `data-subject`. A missing
 greeting is not defaulted: a generic line would go out unnoticed on every mail.
 
@@ -61,8 +61,8 @@ new behaviour; if its wording no longer fits, it changes in both languages.
 
 **`SKILL.md`.** §2 step 2 asks the owner for the greeting next to the subject: whom the
 visitor addresses, in the site's form of address (Sie or du), with the punctuation it wants.
-Propose one ("Sehr geehrte Frau Wunder," for a Sie site with one named owner; "Sehr geehrte
-Damen und Herren," for a firm with no one person; "Hallo Michaela," on a du site) and let the
+Propose one ("Sehr geehrte Frau Muster," for a Sie site with one named owner; "Sehr geehrte
+Damen und Herren," for a firm with no one person; "Hallo Anna," on a du site) and let the
 owner choose. §1's "how it works" and step 5's "they greet and sign as they like" are
 rewritten. Step 4 adds `GREETING` beside `PAGE`, `TO` and `SUBJECT`. Every example gets the
 prop: the install example in step 2 and the one in "Adding fields". The page spec in "Adding

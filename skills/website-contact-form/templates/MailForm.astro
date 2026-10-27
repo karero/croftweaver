@@ -14,7 +14,7 @@
 //            in their words ("Project enquiry", "Anfrage Bauvorhaben"). Also the
 //            subject of the plain address under the form. Required.
 // `greeting`: the mail's first line, as the owner wants it, punctuation included
-//            ("Sehr geehrte Frau Wunder,", "Hallo Michaela,"). The mail ends with the
+//            ("Sehr geehrte Frau Muster,", "Hallo Anna,"). The mail ends with the
 //            language's sign-off (`signoff` in mail-form-text.ts). Required.
 // `lang`:    overrides the language. Default: the page's own, which Base.astro hands
 //            down (a page built with <Base lang="de"> gets a German form by itself),
@@ -39,7 +39,7 @@ if (!subject) {
   throw new Error('MailForm: pass subject="…", the subject line of the visitor\'s mail: what they come for, in their words, e.g. "Project enquiry" (the website-contact-form skill, §2 step 2).');
 }
 if (!greeting?.trim()) {
-  throw new Error('MailForm: pass greeting="…", the first line of the visitor\'s mail, e.g. "Sehr geehrte Frau Wunder," (the website-contact-form skill, §2 step 2).');
+  throw new Error('MailForm: pass greeting="…", the first line of the visitor\'s mail, e.g. "Sehr geehrte Frau Muster," (the website-contact-form skill, §2 step 2).');
 }
 const pageLang = Astro.props.lang ?? Astro.locals.lang ?? Astro.currentLocale;
 if (!pageLang) {

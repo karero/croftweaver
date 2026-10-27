@@ -124,8 +124,8 @@ loses it.
    **The greeting** (`greeting`, required: the build stops without it). The first line
    of every mail, as the visitor would write it to the owner, punctuation included. Ask
    the owner whom visitors address, and propose one in the site's form of address:
-   "Sehr geehrte Frau Wunder," where one named person answers on a "Sie" site, "Sehr
-   geehrte Damen und Herren," for a firm with no one person, "Hallo Michaela," on a "du"
+   "Sehr geehrte Frau Muster," where one named person answers on a "Sie" site, "Sehr
+   geehrte Damen und Herren," for a firm with no one person, "Hallo Anna," on a "du"
    site, "Dear Ms Smith," in English. The mail ends with the language's sign-off
    (`signoff` in `mail-form-text.ts`: "Kind regards", "Freundliche Grüße", no comma). A
    site that wants another, such as "Viele Grüße", changes it there. The plain address
