@@ -1,8 +1,9 @@
 # Plan: send read-backs of remote systems as `--evidence`
 
-Status: plan; PLAN gate passed 2026-10-27 (codex alone, melious out of balance; trail below).
-Nothing built: waiting for the owner's go. Builds on `--evidence`
-(`SKILL-PLAN-review-evidence.md`, built 2026-10-25).
+Status: built in bc81006c on the owner's go (2026-10-27). PLAN gate and DIFF gate passed, codex
+alone (melious out of balance); trails `REVIEW-plan-2026-10-27-readback-evidence.md` and
+`REVIEW-diff-2026-10-27-readback-evidence.md`.
+Builds on `--evidence` (`SKILL-PLAN-review-evidence.md`, built 2026-10-25).
 
 ## What
 
