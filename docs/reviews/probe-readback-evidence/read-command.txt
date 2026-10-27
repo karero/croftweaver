@@ -1,0 +1,5 @@
+# READ 1 in evidence.txt shows its jq filter shortened to rules:[...]. This is the full command
+# that produced its output, run 2026-10-27T12:05Z. evidence.txt is kept as it was sent.
+gh api repos/karero/croftweaver/rulesets/24584953 --jq '{name,enforcement,conditions,rules:[.rules[]|{type,parameters:(.parameters|if .required_status_checks then {required_status_checks:[.required_status_checks[].context]} else . end)}]}'
+# READ 2:
+gh api repos/karero/croftweaver/rulesets --jq '.[]|{id,name,target,enforcement}'

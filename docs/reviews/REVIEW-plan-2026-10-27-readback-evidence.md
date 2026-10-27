@@ -7,6 +7,7 @@ Sonnet (host family, one size down) in round 1. No red team (no box, data, money
 | Round | Artifact | Seats | Findings | Disposition |
 |-------|----------|-------|----------|-------------|
 | 1 | plan at b6324240, evidence = script/test/SKILL.md/trail excerpts | codex OK (147 s, 51,833 tokens); melious FAILED (balance: "Available: 0"); fresh-eyes OK (~98k tokens) | 2 BUG, 4 RISK, 4 NIT (F1-F10; F3 and F4 from both) | all fixed in the next revision; F5 led to a probe (below) |
+| 2 | plan at 1c015575, `--verify` F1-F10 | codex OK (157 s, 52,705 tokens); melious FAILED (balance, "Available: 0") | 1 BUG, 3 RISK (G1-G4) | G1 fixed; G3 accepted, which cut the scope: the lead change became a follow-up, so G2 and the lead half of G4 lapse; the rest of G4 fixed |
 | probe (not a round) | `docs/reviews/probe-readback-evidence/artifact.md` + `evidence.txt` (a real `gh api` read of the "main checks" ruleset) under today's lead | codex OK (60 s, 31,043 tokens) | see the plan's Why | baseline for the build's rerun |
 
 Round 1 counts as codex alone. melious FAILED (balance, "Insufficient balance … Available: 0");
@@ -28,3 +29,12 @@ Round 1 findings, one line each:
 - F8 NIT (fresh-eyes): pr227 F23 "rounds 1 to 9" was inferred. Fixed: "every round (the review ran nine rounds)", checked in the trail's round table.
 - F9 NIT (fresh-eyes): no rule for secrets in a read. Fixed: "secrets replaced with made-up values".
 - F10 NIT (fresh-eyes): the step-4 sentence clashed with step 5's "stays OPEN". Fixed: "one the host cannot read stays open, as step 5 says".
+
+Round 2 findings, one line each (F1, F2, F7-F10 verified by codex; F3-F6 partly, see below):
+
+- G1 BUG (codex): the probe's READ 1 shows its jq filter shortened (`rules:[...]`), so its source cannot be rerun as written. Fixed: `read-command.txt` holds the full command; rerun on 2026-10-27 gave the same output byte for byte. `evidence.txt` stays as sent.
+- G2 RISK (codex, re-raise of F3): source, time and "verbatim" still promote the host's word to fact. Lapsed: the plan no longer changes the lead; the candidate text in its follow-up adds "doubtful provenance".
+- G3 RISK (codex): the probe shows no redundant question; Codex asked only for what the read lacked. Accepted: the plan now says so, drops the lead change to a follow-up with a trigger, and keeps the `SKILL.md` placement sentences.
+- G4 RISK (codex): the two grep anchors survive deleting other clauses. Fixed: three anchors, one per instruction kept, and the plan states the guarantee as "each phrase present, not the whole wording".
+
+Melious ran in neither round (balance). Round 3 retries it with codex.
