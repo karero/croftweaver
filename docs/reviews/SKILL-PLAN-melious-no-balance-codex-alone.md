@@ -6,10 +6,10 @@ review script's logic and the docs that describe it; nothing in the High row) ·
 
 | Step | What | State | Evidence |
 |---|---|---|---|
-| 1 | Script names an empty balance (by the provider's error code) and says: Codex alone, no rerun owed | planned | — |
-| 2 | Tests read a real capture of the balance error | planned | — |
-| 3 | SKILL.md, setup-guide, `~/.claude/CLAUDE.md`, `HARNESS-CHANGES.md` say the same | planned | — |
-| 4 | `make check`, then the DIFF gate at Normal | planned | — |
+| 1 | Script names an empty balance (by the provider's error code) and says: Codex alone, no rerun owed | built, after the owner's go (2026-10-27, "Yes, build it as planned") | `d55ad455` |
+| 2 | Tests read a real capture of the balance error | built; mutations (a), (a2), (b), (c) all killed | `d55ad455` |
+| 3 | SKILL.md, setup-guide, `~/.claude/CLAUDE.md`, `HARNESS-CHANGES.md` say the same | done (the last two outside the repo) | `d55ad455` |
+| 4 | `make check`, then the DIFF gate at Normal | done: `make check` green at `9d8e5dc0`; DIFF gate CLEAN (1 round, 1 RISK re-sorted as rare) | `docs/reviews/REVIEW-diff-2026-10-27-melious-no-balance.md` |
 
 ## What and why
 
