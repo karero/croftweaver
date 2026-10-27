@@ -103,7 +103,7 @@ prompt lines a run and invites over-trust, so it waits for a case.
 
 ## Strongest counter-argument
 
-Daniel's idea was that reviewers should *accept* a read, which is a wording change, and this plan
+The owner's idea was that reviewers should *accept* a read, which is a wording change, and this plan
 makes none. Answer: the probe's seat already accepted the read and asked only for what it did not
 hold, so the wording change would buy nothing seen yet, and it adds a way for a stale read to
 close a question. The trigger above brings it back the first time a case appears. Judgment, not
