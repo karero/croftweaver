@@ -66,7 +66,7 @@ setup, or a count of them), this is the wrong tool: see §0.
 | `src/components/MailForm.astro` | `MailForm.astro` | the form, and the address line under it |
 | `src/components/mail-form-text.ts` | `mail-form-text.ts` | everything the form says, in English and German, and the longest message it takes |
 | `public/js/mail-form.js` | `mail-form.js` | the script: shows the form, builds the `mailto:` link, opens it |
-| `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
+| `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order through any added fields, a hint read out with the message box, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
 
 The templates are in this skill's `templates/` folder, beside this SKILL.md; the bundled
 copy of the skill on a handed-off repo has them too. Install all four.
@@ -143,12 +143,124 @@ loses it.
    (`tests/mail-form.de.spec.ts`), each with its own `PAGE` and `SUBJECT`.
 5. **Fields.** The form asks for the message, nothing else: the visitor's name and
    email address come with their mail, and they greet and sign as they like. A field
-   the owner wants (a phone number, a date) goes inside the form with a `<label for>`
-   and a `name`, before the button. It reaches the mail under the message as "Label:
-   value", and the spec's label and keyboard test then needs that field in its `order`
-   list. A field that asks for more personal data than the message also goes into the
-   privacy page (§4).
+   the owner wants, or a hint above the message box: "Adding fields" below.
 6. `npm run check && npm test`.
+
+### Adding fields
+
+Ask only what the visitor's mail cannot carry and the owner needs to answer: a kind of
+request, a place, a phone number for a call back. Never a name or an email field: the mail
+brings both. Each field is one more reason to leave; two or three is plenty.
+
+Fields go between `<MailForm>` and `</MailForm>`, and come before the message. A hint goes
+in the slot `hint`: the form shows it between the message's label and its box, and ties it
+to the box (`aria-describedby`), so a screen reader reads it out with the box. An example,
+for a building firm:
+
+```astro
+<MailForm to="…" subject="Project enquiry">
+  <fieldset>
+    <legend>What is it about? <span class="mail-form-optional">(optional)</span></legend>
+    <label><input type="radio" name="kind" id="kind-new" value="new" /> A new project</label>
+    <label><input type="radio" name="kind" id="kind-running" value="running" /> A project under way</label>
+  </fieldset>
+  <p>
+    <label for="town">Town</label> <span class="mail-form-optional" id="town-optional">(optional)</span>
+    <input id="town" name="town" type="text" maxlength="80" aria-describedby="town-optional" />
+  </p>
+  <Fragment slot="hint">For example: what is planned, how far the planning is, when work should start.</Fragment>
+</MailForm>
+```
+
+The mail then reads, under the message: "A new project" and "Town: Bath". The rules
+behind it, each from a source read on 2026-10-27:
+
+- **A choice is radio buttons in a `fieldset`, named by its `legend`.** "Radio button
+  groups should always be grouped using `<fieldset>`" (W3C WAI,
+  https://www.w3.org/WAI/tutorials/forms/grouping/). The mail carries the ticked option's
+  label alone, not the legend, so write each option to read on its own ("A new project",
+  not "New"). Not a list (`select`) with a "Please choose" entry: the script sends a list's
+  chosen text, so that entry would arrive as an answer.
+- **None ticked in advance.** "Do not pre-select radio options" (GOV.UK Design System,
+  https://design-system.service.gov.uk/components/radios/). Once ticked, a radio cannot be
+  unticked; for an optional choice that costs one line the visitor can delete in their mail
+  program.
+- **Optional fields say "(optional)"; required ones get no asterisk.** "Never mark
+  mandatory fields with asterisks" (GOV.UK,
+  https://design-system.service.gov.uk/patterns/question-pages/). GOV.UK puts the word in
+  the label; here it goes beside it, in a `span` with class `mail-form-optional` tied to the
+  field with `aria-describedby`, because the mail uses the label's text: "Town: Bath", not
+  "Town (optional): Bath". In a radio group it goes in the `legend`, which the mail never
+  shows.
+- **A hint shows above the box, never as a placeholder.** Placeholder text disappears as
+  the visitor types; Nielsen Norman Group recommends "clear, visible labels that are placed
+  outside empty form fields"
+  (https://www.nngroup.com/articles/form-design-placeholders/).
+- **A hint can follow the choice, by CSS alone.** Put one `span` per case in the slot
+  (`<span class="hint-any">…</span><span class="hint-new">…</span><span
+  class="hint-running">…</span>`) and show the one that fits, in the page's `<style>`.
+  `.mail-form` is the form's own element, outside the page's style scope, hence
+  `:global`:
+  ```css
+  .hint-new, .hint-running { display: none; }
+  :global(.mail-form):has(#kind-new:checked, #kind-running:checked) .hint-any { display: none; }
+  :global(.mail-form):has(#kind-new:checked) .hint-new { display: inline; }
+  :global(.mail-form):has(#kind-running:checked) .hint-running { display: inline; }
+  ```
+  A hidden `span` is left out of what a screen reader reads, so it hears the hint on
+  screen.
+- **No promise the owner has not made.** Not "we answer within a day", not "the first talk
+  is free", unless the owner says so.
+
+**Looks.** The form styles what goes in the slot: a text field, a list, a radio group and
+the `mail-form-optional` note look like the message field, with no CSS of the page's own.
+Astro gives fields in a slot the page's style scope, not the form's, so the form's rules
+reach them through `:global`, inside the form only. A page adds style only for what is its
+own, such as a hint that changes.
+
+**The spec.** Set `ADDED` in `tests/mail-form.spec.ts` to the fields' labels, one per Tab
+stop in order: a radio group by its first option (`['A new project', 'Town']`). The spec
+then checks that every control has a label, that Tab goes through them to the message and
+the button, and, when there is a hint, that the box is read out with it.
+
+**The page's own test.** Only the page knows its fields, so add a short spec next to it
+(`tests/contact.spec.ts`) that enters as a visitor does, through the button, and checks the
+mail word for word:
+
+```ts
+import { test, expect, type Page } from '@playwright/test';
+import { TEXT } from '../src/components/mail-form-text';
+
+const t = TEXT.en; // the page's language
+const form = (page: Page) => page.locator('form[data-mail-form]');
+// The mail body the button hands to the mail program, decoded.
+async function send(page: Page) {
+  const asked = page.waitForRequest((r) => r.url().startsWith('mailto:'), { timeout: 5000 });
+  await form(page).getByRole('button', { name: t.send, exact: true }).click();
+  const body = (await asked).url().split('?')[1].split('&').find((p) => p.startsWith('body='))!;
+  return decodeURIComponent(body.slice('body='.length));
+}
+
+test('contact — the choice and the town arrive under the message', async ({ page }) => {
+  await page.goto('/contact');
+  await form(page).getByLabel('A new project', { exact: true }).check();
+  await form(page).getByLabel('Town', { exact: true }).fill('Bath');
+  await form(page).getByLabel(t.message, { exact: true }).fill('A kitchen extension.');
+  expect(await send(page)).toBe('A kitchen extension.\r\n\r\nA new project\r\nTown: Bath');
+});
+
+test('contact — with nothing chosen or added, the mail is the message alone', async ({ page }) => {
+  await page.goto('/contact');
+  await expect(form(page).locator('input[type=radio]:checked')).toHaveCount(0);
+  await form(page).getByLabel(t.message, { exact: true }).fill('A short question.');
+  expect(await send(page)).toBe('A short question.');
+});
+```
+
+A hint that follows the choice
+gets one more test: `toHaveAccessibleDescription` on the message box, before and after each
+choice. A field that asks for more personal data than the message also goes into the privacy
+page (§4).
 
 ### Add a language
 

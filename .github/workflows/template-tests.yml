@@ -498,8 +498,10 @@ jobs:
   # (the component, its words, the script, the test, the form on a page), and runs the
   # type check and the whole suite. A second form, in German, sits on the starter's
   # German page with its own copy of the spec, so the German texts go through the tone
-  # rules and the page checks too. No mail program opens: the spec reads the mailto:
-  # link the button asks the browser to open.
+  # rules and the page checks too. The German form carries fields of the page's own and
+  # a hint (the skill's "Adding fields"), with its own page spec, so a form with no slot
+  # used and one with all of them both run. No mail program opens: the spec reads the
+  # mailto: link the button asks the browser to open.
   contact-form-skill:
     needs: changes
     if: needs.changes.outputs.run == 'true'
@@ -521,9 +523,83 @@ jobs:
           # The German form: a German page on an English site, with no lang of its own: it
           # takes the page's, which Base.astro hands down (§2 step 3).
           cp "$K/mail-form.spec.ts" tests/mail-form.de.spec.ts
-          sed -i "s|^const PAGE = '';|const PAGE = '/impressum';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Anfrage Bauvorhaben';|" tests/mail-form.de.spec.ts
+          sed -i "s|^const PAGE = '';|const PAGE = '/impressum';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Anfrage Bauvorhaben';|; s|^const ADDED: string\[\] = \[\];|const ADDED: string[] = ['Ein neues Projekt', 'Ort'];|" tests/mail-form.de.spec.ts
           sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport MailForm from '../components/MailForm.astro';|" src/pages/impressum.astro src/pages/index.astro
-          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontakt</h2><MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" /></section>\n</Base>|' src/pages/impressum.astro
+          # The German form with the skill's example: a choice, an optional field, a hint
+          # that follows the choice (styled as the skill says, by the page).
+          cat > form.de.astro <<'EOF'
+            <section class="wrap"><h2>Kontakt</h2>
+              <MailForm to="hello@example.com" subject="Anfrage Bauvorhaben">
+                <fieldset>
+                  <legend>Worum geht es? <span class="mail-form-optional">(optional)</span></legend>
+                  <label><input type="radio" name="art" id="art-neu" value="neu" /> Ein neues Projekt</label>
+                  <label><input type="radio" name="art" id="art-laufend" value="laufend" /> Ein laufendes Projekt</label>
+                </fieldset>
+                <p>
+                  <label for="ort">Ort</label> <span class="mail-form-optional" id="ort-optional">(optional)</span>
+                  <input id="ort" name="ort" type="text" maxlength="80" aria-describedby="ort-optional" />
+                </p>
+                <Fragment slot="hint"><span class="hint-any">Zum Beispiel: was geplant ist und wie weit.</span><span class="hint-neu">Zum Beispiel: was geplant ist und wann es losgehen soll.</span><span class="hint-laufend">Zum Beispiel: Stand des Projekts und was gebraucht wird.</span></Fragment>
+              </MailForm>
+            </section>
+            <style>
+              .hint-neu, .hint-laufend { display: none; }
+              :global(.mail-form):has(#art-neu:checked, #art-laufend:checked) .hint-any { display: none; }
+              :global(.mail-form):has(#art-neu:checked) .hint-neu { display: inline; }
+              :global(.mail-form):has(#art-laufend:checked) .hint-laufend { display: inline; }
+            </style>
+          EOF
+          awk 'FNR==NR { form = form $0 "\n"; next } /^<\/Base>/ { printf "%s", form } { print }' form.de.astro src/pages/impressum.astro > impressum.astro.new
+          mv impressum.astro.new src/pages/impressum.astro && rm form.de.astro
+          # The page's own spec, as the skill's "Adding fields" shows it, in German.
+          cat > tests/kontakt.de.spec.ts <<'EOF'
+          import { test, expect, type Page } from '@playwright/test';
+          import { TEXT } from '../src/components/mail-form-text';
+
+          const t = TEXT.de;
+          const form = (page: Page) => page.locator('form[data-mail-form]');
+          async function send(page: Page) {
+            const asked = page.waitForRequest((r) => r.url().startsWith('mailto:'), { timeout: 5000 });
+            await form(page).getByRole('button', { name: t.send, exact: true }).click();
+            const body = (await asked).url().split('?')[1].split('&').find((p) => p.startsWith('body='))!;
+            return decodeURIComponent(body.slice('body='.length));
+          }
+
+          test('kontakt — the choice and the place arrive under the message', async ({ page }) => {
+            await page.goto('/impressum');
+            await form(page).getByLabel('Ein laufendes Projekt', { exact: true }).check();
+            await form(page).getByLabel('Ort', { exact: true }).fill('München');
+            await form(page).getByLabel(t.message, { exact: true }).fill('Eine Bauleitung ab März.');
+            expect(await send(page)).toBe('Eine Bauleitung ab März.\r\n\r\nEin laufendes Projekt\r\nOrt: München');
+          });
+
+          test('kontakt — with nothing chosen or added, the mail is the message alone', async ({ page }) => {
+            await page.goto('/impressum');
+            await expect(form(page).locator('input[type=radio]:checked')).toHaveCount(0);
+            await form(page).getByLabel(t.message, { exact: true }).fill('Eine kurze Frage.');
+            expect(await send(page)).toBe('Eine kurze Frage.');
+          });
+
+          test('kontakt — the hint follows the choice and is read out with the message box', async ({ page }) => {
+            await page.goto('/impressum');
+            const box = form(page).getByLabel(t.message, { exact: true });
+            await expect(box).toHaveAccessibleDescription('Zum Beispiel: was geplant ist und wie weit.');
+            await form(page).getByLabel('Ein neues Projekt', { exact: true }).check();
+            await expect(box).toHaveAccessibleDescription('Zum Beispiel: was geplant ist und wann es losgehen soll.');
+            await form(page).getByLabel('Ein laufendes Projekt', { exact: true }).check();
+            await expect(box).toHaveAccessibleDescription('Zum Beispiel: Stand des Projekts und was gebraucht wird.');
+          });
+
+          test('kontakt — a field in the slot takes the form\'s look', async ({ page }) => {
+            await page.goto('/impressum');
+            const place = form(page).getByLabel('Ort', { exact: true });
+            const message = form(page).getByLabel(t.message, { exact: true });
+            for (const property of ['border-top-style', 'border-radius', 'display']) {
+              expect(await place.evaluate((e, p) => getComputedStyle(e).getPropertyValue(p), property), property)
+                .toBe(await message.evaluate((e, p) => getComputedStyle(e).getPropertyValue(p), property));
+            }
+          });
+          EOF
           sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><MailForm to="hello@example.com" subject="Project enquiry" /></section>\n</Base>|' src/pages/index.astro
           # One check per line: in "a && b" a failing a does not stop the step.
           grep -q "const PAGE = '/';" tests/mail-form.spec.ts
@@ -532,9 +608,12 @@ jobs:
           grep -q "const PAGE = '/impressum';" tests/mail-form.de.spec.ts
           grep -q "const TO = 'hello@example.com';" tests/mail-form.de.spec.ts
           grep -q "const SUBJECT = 'Anfrage Bauvorhaben';" tests/mail-form.de.spec.ts
+          grep -qF "const ADDED: string[] = ['Ein neues Projekt', 'Ort'];" tests/mail-form.de.spec.ts
           grep -q '<MailForm to="hello@example.com" subject="Project enquiry" />' src/pages/index.astro
           grep -q 'import MailForm' src/pages/index.astro
-          grep -q '<MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" />' src/pages/impressum.astro
+          grep -q '<MailForm to="hello@example.com" subject="Anfrage Bauvorhaben">' src/pages/impressum.astro
+          grep -q 'id="ort" name="ort"' src/pages/impressum.astro
+          grep -q "import { TEXT } from '../src/components/mail-form-text';" tests/kontakt.de.spec.ts
           grep -q 'import MailForm' src/pages/impressum.astro
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
