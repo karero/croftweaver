@@ -113,6 +113,6 @@ stub), in `test_failed_tier_report.sh`:
   seat can run, rerun …" (the rest kept).
 - `~/.claude/CLAUDE.md`, Review before merge: replace "If it FAILED for balance, its energy refills
   within hours: rerun … or go on with Codex alone and say so." with "If it FAILED for balance,
-  Codex alone is enough for that round: say so in the trail; no rerun of melious is owed (Daniel,
+  Codex alone is enough for that round: say so in the trail; no rerun of melious is owed (the owner,
   2026-10-27)." Outside the repo; not part of the PR.
 - `~/.claude/HARNESS-CHANGES.md`: one entry naming the PR and the CLAUDE.md change.
