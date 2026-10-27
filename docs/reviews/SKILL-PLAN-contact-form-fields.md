@@ -5,7 +5,7 @@
 | 1 | This plan | ✅ written 2026-10-27 | this file |
 | 2 | Plan review gate (Normal: a SKILL.md, a shipped component and test) | ✅ 2026-10-27: 3 rounds, Codex alone (melious out of balance), 2 BUG and 5 RISK, none open | `docs/reviews/REVIEW-plan-2026-10-27-contact-form-fields.md` |
 | 3 | The maintainer's go | ✅ 2026-10-27, in chat: "Go: build the contact-form upgrade from the reviewed plan, Codex-alone review is fine." | — |
-| 4 | Build: component, spec, SKILL.md, CI job, BUGLOG row (one PR) | 🔄 building | branch `feat/contact-form-fields` |
+| 4 | Build: component, spec, SKILL.md, CI job, BUGLOG row (one PR) | ✅ built 2026-10-27: DIFF review 5 rounds, Codex alone, 2 BUG and 4 RISK, none open | branch `feat/contact-form-fields`, `docs/reviews/REVIEW-diff-2026-10-27-contact-form-fields.md` |
 
 ## What and why
 

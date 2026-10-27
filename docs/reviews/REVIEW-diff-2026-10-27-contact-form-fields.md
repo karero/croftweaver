@@ -36,7 +36,10 @@ Mutations, each applied to the installed site, the named spec run, then put back
 | 1 | Codex alone (melious out of balance) | 1 RISK; 5 UNVERIFIABLE groups, all looked at | Codex 189 s, 61,195 |
 | 2 | Codex alone (`--verify`, raw run lines as evidence) | 1 RISK; D1, U1, U2 confirmed | Codex 99 s, 41,833 |
 | 3 | Codex alone (`--verify`) | 1 RISK (D2 only partly fixed); D1, U6 confirmed | Codex 106 s, 39,565 |
-| 4 | Codex alone (`--verify`, `--earned-by claim-wording`) | 2 BUG (one cause); D3, U7 confirmed | not recorded |
+| 4 | Codex alone (`--verify`, `--earned-by claim-wording`) | 2 BUG (one cause); D3, U7 confirmed | Codex 78 s, 36,241 |
+| 5 | Codex alone (`--verify`, `--earned-by test-syntax`, container log at `29ecdafc` as evidence) | none; D1 to D5 confirmed, both specs parsed by Node | Codex 113 s, 35,444 |
+
+Total, rounds 1–5: 2 BUG, 4 RISK, none open. Codex alone throughout (melious out of balance; the maintainer approved Codex alone in chat). The mutation runs above were made at `776c04ff`; since then the component, script and the tests' logic are unchanged (only SKILL.md prose and two test titles), and the full job passed again at `29ecdafc`.
 
 ## Round 1
 
