@@ -889,6 +889,15 @@ for c in "evdash|bad value for --evidence|--evidence -" \
   check "evidence refusal $name: no stub ran (its marks folder is empty)" sh -c '[ -d "$1" ] && [ -z "$(ls -A "$1")" ]' _ "$T/$name.marks"
 done
 
+# 25e. READs (SKILL-PLAN-review-readback-evidence.md): SKILL.md tells the host to send a read of a
+#      system no seat can reach in the --evidence file, resend it, and answer such a question with
+#      one. The phrases are written out here; each check guards its phrase being present, not the
+#      whole wording.
+SKILL_MD="$HERE/../SKILL.md"
+for phrase in "goes in that file as a READ" "Send the same file every round" "adding the READ to the next round's"; do
+  check "SKILL.md says: $phrase" grep -qF -- "$phrase" "$SKILL_MD"
+done
+
 # 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
 #     CODEX_EFFORT says otherwise; "config" keeps config.toml's; an explicit value applies to any
 #     round and lands after the model override, before the prompt.
