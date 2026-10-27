@@ -72,8 +72,8 @@ preview, or an `astro dev`); another build in this folder replaced `dist/` durin
 shared git folder (`git rev-parse --git-common-dir`), so it covers every worktree of a clone,
 and `check_ship_push.sh` case S9 tests a second publish against a held lock. But only the
 `ship.fromGitHub` mode takes it; the default mode, publishing the folder itself, takes none.
-croftweaver-site runs the default mode (`git config --local ship.fromGitHub` is empty), which
-is why case 2 could happen. No new guard: once step 4 has merged and the clone is pulled (the
+On 2026-10-26 croftweaver-site ran the default mode (`git config --local ship.fromGitHub` was
+empty), which is why case 2 could happen. No new guard: once step 4 has merged and the clone is pulled (the
 mode refuses a `scripts/ship.sh` that differs from `origin/main`, and step 4 changes it), the
 maintainer switches the existing mode on,
 
