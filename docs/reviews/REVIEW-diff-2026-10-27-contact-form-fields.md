@@ -34,6 +34,7 @@ Mutations, each applied to the installed site, the named spec run, then put back
 | Round | Seats | Findings | Time, tokens |
 |-------|-------|----------|--------------|
 | 1 | Codex alone (melious out of balance) | 1 RISK; 5 UNVERIFIABLE groups, all looked at | Codex 189 s, 61,195 |
+| 2 | Codex alone (`--verify`, raw run lines as evidence) | 1 RISK; D1, U1, U2 confirmed | Codex 99 s, 41,833 |
 
 ## Round 1
 
@@ -45,3 +46,10 @@ Mutations, each applied to the installed site, the named spec run, then put back
 | U3 | — | Codex | Screen-reader speech not shown | narrowed: SKILL.md now claims the accessible description, which the tests check, not speech | SKILL.md "Adding fields" |
 | U4 | — | Codex | Cited quotes not checked (no network) | answered: each read on its page 2026-10-27 (plan trail U3) | plan trail |
 | U5 | — | Codex | Run provenance | answered: raw lines with the commit they ran on, round-2 evidence | the same |
+
+## Round 2
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| D2 | RISK | Codex | "which screen readers announce with it" still promises speech the tests do not show | fixed: SKILL.md says only that the hint becomes the box's accessible description | SKILL.md "Adding fields" |
+| U6 | — | Codex | "a list always has an entry chosen" is too broad (`multiple`) | fixed: narrowed to a single-choice list | the same |

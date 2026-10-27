@@ -154,8 +154,8 @@ brings both. Each field is one more reason to leave; two or three is plenty.
 
 Fields go between `<MailForm>` and `</MailForm>`, and come before the message. A hint goes
 in the slot `hint`: the form shows it between the message's label and its box, and ties it
-to the box (`aria-describedby`): it becomes the box's description, which screen readers
-announce with it. An example,
+to the box (`aria-describedby`), so it becomes the box's accessible description. An
+example,
 for a building firm:
 
 ```astro
@@ -181,8 +181,8 @@ behind it, each from a source read on 2026-10-27:
   https://www.w3.org/WAI/tutorials/forms/grouping/). The mail carries the ticked option's
   label alone, not the legend, so write each option to read on its own ("A new project",
   not "New").
-- **Every added field starts empty.** No list (`select`): a list always has an entry
-  chosen, so an untouched list sends an answer the visitor never gave, a "Please choose"
+- **Every added field starts empty.** No list (`select`): a single-choice list always has an
+  entry chosen, so an untouched list sends an answer the visitor never gave, a "Please choose"
   entry included. No box ticked and no text filled in advance. The script sends whatever a
   field holds, and the spec expects the message alone when the visitor adds nothing.
 - **None ticked in advance.** "Do not pre-select radio options" (GOV.UK Design System,
