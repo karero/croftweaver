@@ -439,8 +439,9 @@ test('seo — hosted PDFs carry a descriptive doc-title', () => {
 });
 
 // The generator tag (src/config.ts GENERATOR_TAG): every built page, 404 and noindex pages too,
-// carries exactly one when the switch is on, none when it is off. A config without the switch
-// (a site from before it existed) counts as off, so this test passes there unchanged.
+// carries exactly one Croftweaver generator tag when the switch is on, none when it is off. A
+// config without the switch (a site from before it existed) counts as off. Another generator
+// tag an owner adds is not ours and is not counted.
 function findHtml(dir: string): string[] {
   const out: string[] = [];
   let entries: import('node:fs').Dirent[];
@@ -454,16 +455,15 @@ function findHtml(dir: string): string[] {
 }
 
 test('seo — the generator tag follows its switch on every built page', () => {
-  const on = 'GENERATOR_TAG' in config && config.GENERATOR_TAG === true;
+  const on = 'GENERATOR_TAG' in config && Boolean(config.GENERATOR_TAG);
   const pages = findHtml(join(process.cwd(), 'dist'));
   expect(pages.length, 'no built pages in dist/: the test server builds the site first').toBeGreaterThan(0);
   for (const file of pages) {
-    const tags = readFileSync(file, 'utf8').match(/<meta\b[^>]*\bname=["']?generator["']?[^>]*>/gi) ?? [];
-    if (on) {
-      expect(tags.length, `${file}: needs exactly one generator tag (GENERATOR_TAG is true)`).toBe(1);
-      expect(tags[0], `${file}: the generator tag must say Croftweaver`).toMatch(/content=["']Croftweaver["']/);
-    } else {
-      expect(tags, `${file}: has a generator tag although GENERATOR_TAG is off`).toEqual([]);
-    }
+    const html = readFileSync(file, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+    const ours = (html.match(/<meta\b[^>]*>/gi) ?? []).filter(
+      (m) => /\sname=(["'])generator\1/i.test(m) && /\scontent=(["'])Croftweaver\1/.test(m),
+    );
+    if (on) expect(ours.length, `${file}: needs exactly one <meta name="generator" content="Croftweaver"> (GENERATOR_TAG is on)`).toBe(1);
+    else expect(ours, `${file}: has the Croftweaver generator tag although GENERATOR_TAG is off`).toEqual([]);
   }
 });
