@@ -1,12 +1,15 @@
 # Pages or Workers? What moving the kit would change
 
-For the kit's maintainer. An assessment, not a plan: nothing below has been built or tried on a
-real Workers project. Vendor pages read 2026-10-11 and checked again 2026-10-25; kit code
+For the kit's maintainer. An assessment, not a plan: nothing in the kit has changed. Route B
+was tried on one throwaway site on 2026-10-27 and 28 ("Trial results", at the end). Vendor
+pages read 2026-10-11 and checked again 2026-10-25; kit code
 read at `35e9b42` (not read again on 2026-10-25). The short version lives in
 `skills/new-website/references/WEBSITE_ARCHITECTURE.md`, Part 1.
 
 **Owner decision, 2026-10-11: stay on Pages for now.** "When to look again", below, lists
-what would reopen it.
+what would reopen it. On 2026-10-26 the owner asked to look again for new sites, before the
+kit is offered more widely (the last item on that list). The trial was run for that; no new
+decision has been made.
 
 ## The question
 
@@ -25,6 +28,10 @@ Stay on Pages for now. No site has to move. If the kit moves later, move it as a
 that drops the middleware (route B below), not as a straight port (route A), and try it on
 one throwaway site first. The reasons, and the best argument against them, are under
 "What is checked and what is judgment".
+
+Added 2026-10-28: on that throwaway site route B worked as the docs describe ("Trial
+results"). For new sites the next step is a written plan, which must settle what the trial
+left open; existing sites can stay on Pages.
 
 ## How a kit site runs on Pages today
 
@@ -95,15 +102,16 @@ step, no `middleware.spec.ts`.
 One gap is open before launch. With the live `workers.dev` address off and no domain
 attached yet, the live build has no address at all. The kit would have to pick: look at a
 Preview until the domain is attached, or leave the address on until then. Cloudflare's
-`workers.dev` page says nothing about noindex on that live address.
+`workers.dev` page says nothing about noindex on that live address, and on the trial it
+carried none: left on, it can be indexed.
 
-Route B is the only one worth doing, and it is the untested one. It rests on two sentences
-in Cloudflare's docs.
+Route B is the only one worth doing. It rested on two sentences in Cloudflare's docs until
+the trial; both held there.
 
 ## Pages and Workers side by side
 
-What Cloudflare's docs say about each product. The Workers column was not tried on a
-deployment; the trial list further down is for that. Of the Pages column, one thing was
+What Cloudflare's docs say about each product. The Workers column comes from the docs; the
+trial checked the rows that route B rests on ("Trial results"). Of the Pages column, one thing was
 seen on live sites: the middleware runs in front of plain files ("What is checked and what
 is judgment"). The last column is a judgment, for a content site built with the kit.
 
@@ -173,9 +181,13 @@ same place in `functions/`), a static file on the project address answered with 
 middleware's redirect. On one of them, an image on a preview host carried the middleware's
 header. So the middleware does run in front of plain files.
 
-**Not checked:** anything on a real Workers project. Route B in particular.
+**Tried on one throwaway Worker (2026-10-27 and 28):** trial steps 1 to 4 and 7 to 9
+("Trial results").
 
-**Judgment:** stay for now, because
+**Not checked:** trial steps 5 and 6 (Workers Builds from Git), and server-mode analytics and
+email-tap counting on Workers.
+
+**Judgment (2026-10-11):** stay for now, because
 
 1. nothing is broken on Pages, no end date is named, and Cloudflare says Pages stays
    supported;
@@ -234,6 +246,48 @@ Each line is something to look at, not an outcome to expect:
 
    It needs curl 7.75.0 or later (`curl --version`). It measures from one place only; it says
    nothing about visitors elsewhere.
+
+## Trial results, 2026-10-27 and 28
+
+One throwaway site: the starter at `58e95764` plus one `_redirects` line
+(`/old-page /privacy 301`), deployed with Wrangler 4.153.0 as a Worker with static assets and
+no script, at `trial.croftweaver.com`. For step 9 the same build, middleware included, also went
+to a Pages project at `trial-pages.croftweaver.com`, in the same zone. The Worker's config by
+the end of the trial (`workers_dev` was `true` until step 1):
+
+```jsonc
+{
+  "name": "croftweaver-trial",
+  "compatibility_date": "2026-10-20",
+  "workers_dev": false,
+  "preview_urls": true,
+  "previews": {},
+  "routes": [{ "pattern": "trial.croftweaver.com", "custom_domain": true }],
+  "assets": { "directory": "./dist", "not_found_handling": "404-page" }
+}
+```
+
+| Step | What came back |
+|---|---|
+| 1 | With `workers_dev` off: the old live `workers.dev` address answered 404 with Cloudflare's own not-found page, not the site. The Preview URL, the Deployment URL and a Version URL each answered 200 with `X-Robots-Tag: noindex`. `trial.croftweaver.com` answered 200 without it. Wrangler warned at that deploy that Preview URLs stay public; `preview_urls = false` turns them off |
+| 2 | Preview URL and Deployment URL: `X-Robots-Tag: noindex` on a page and on an image |
+| 3 | Every `public/_headers` rule arrived on the Preview URL, the Deployment URL, the live `workers.dev` address and the real domain. HSTS came from the zone |
+| 4 | The Preview and the live address answered alike: `/privacy` 200; `/privacy.html`, `/privacy/` and `/index.html` 307 to the clean address; the `_redirects` entry 301; a missing path 404. The live addresses served the site's `404.html`. The Preview URL and the Deployment URL sent a bare 9-byte "Not found" instead |
+| 5, 6 | Not tried: both need Workers Builds connected to a Git repo |
+| 7 | With `workers_dev` on and no domain yet, the live `workers.dev` address answered 200 with every `_headers` rule and no `X-Robots-Tag` |
+| 8 | Dashboard, "last 24 hours" as read on 2026-10-28, covering the timing runs: Pages counted 923 Functions requests, each against the daily limit. The Worker's page showed asset requests only (578) and no script runs |
+| 9 | Median in seconds, Worker then Pages, two passes: `/` 0.0852 / 0.1690 and 0.0827 / 0.1433; `/privacy` 0.0731 / 0.1281 and 0.0854 / 0.1064; image 0.0968 / 0.1054 and 0.0770 / 0.0768. Pages was slower on HTML in both passes and about equal on the image. One place, one hour, a Pages project minutes old: a measurement, not a verdict. Why the image shows no gap, though the middleware runs in front of it too, is not known |
+
+Also learned on the way:
+
+- `wrangler preview` (open beta) refused to run until the config had a `previews` block; an
+  empty one is enough.
+- The custom domain was attached by the `routes` entry above and `wrangler deploy`. The
+  dashboard path tried first led to the dialog that adds a new zone, not the Worker's domain
+  form.
+- Left for a plan: what a site shows before its domain is attached (step 7 says the live
+  `workers.dev` address can be indexed), the bare 404 on Previews (step 4), whether Preview
+  links stay on (step 1), and server-mode analytics, which needs code on every page.
 
 ## Sources
 
