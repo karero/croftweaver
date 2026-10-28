@@ -172,7 +172,9 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   the model in its own column. To make Melious the second seat, add `SECOND_SEAT=melious`: it runs beside Codex with no
   fallback, and the pair neither calls nor auto-detects ollama (`--seat ollama` still runs it
   when asked). When Melious does not count, nothing replaces it; if Codex counted alone, the
-  round ends with a line saying so and why. Write that in the trail, and once the seat can run,
+  round ends with a line saying so and why. Write that in the trail. When the Melious balance is
+  empty (its error code `billing_insufficient_balance`), Codex alone is enough for that round and
+  no rerun is owed (the owner's rule, 2026-10-27). For any other failure, once the seat can run,
   rerun `--seat melious` with the same `--round` (at round 1, leave `--round` off: `--round 1`
   starts a new gate in the cost log).
 - **First use per repo:** ask the owner before a repo's content goes to melious.ai the first time
