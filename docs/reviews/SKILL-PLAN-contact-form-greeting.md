@@ -4,7 +4,7 @@
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-27 | this file |
 | 2 | Plan review gate (Normal: a SKILL.md, a shipped component, script and spec) | ✅ 2026-10-27: 2 rounds, Codex alone (melious out of balance), 3 RISK, none open | `docs/reviews/REVIEW-plan-2026-10-27-contact-form-greeting.md` |
-| 3 | Build (one PR, on top of karero/croftweaver#431) | 🔄 the maintainer's go in chat: "Do this immediately after" (#431) | branch `feat/contact-form-greeting` |
+| 3 | Build (one PR, on top of karero/croftweaver#431) | ✅ built 2026-10-28 on the maintainer's go in chat ("Do this immediately after" #431): DIFF review 4 rounds, Codex and GLM 5.3, 2 BUG, 1 RISK, 5 NIT, none open | branch `feat/contact-form-greeting`, `docs/reviews/REVIEW-diff-2026-10-27-contact-form-greeting.md` |
 
 ## What and why
 

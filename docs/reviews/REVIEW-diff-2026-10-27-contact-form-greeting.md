@@ -26,6 +26,9 @@ now with a form without a greeting, passed.
 | 1 | Codex, GLM 5.3 (melious had balance again) | 1 BUG (evidence), 3 NIT | Codex 170 s, 62,229; GLM 396 s, 35,163 |
 | 2 | Codex, GLM 5.3 (`--verify`) | 1 BUG (Codex); GLM none | Codex 98 s, 36,333; GLM 78 s, 7,843 |
 | 3 | Codex, GLM 5.3 (`--verify`) | Codex none; GLM 1 RISK, 1 NIT (the round-2 entries missing from this file) | Codex 78 s, 30,249; GLM 182 s, 14,844 |
+| 4 | Codex, GLM 5.3 (`--verify`, `--earned-by trail-record`) | Codex none; GLM 1 NIT (G11) | Codex 78 s, 25,879; GLM 137 s, 10,975 |
+
+Total, rounds 1–4: 2 BUG, 1 RISK, 5 NIT, none open.
 
 ## Round 1
 
@@ -40,7 +43,7 @@ now with a form without a greeting, passed.
 
 | Id | Sev | Seat | Finding | Disposition | Evidence |
 |----|-----|------|---------|-------------|----------|
-| G8 | BUG | Codex | G5's fix claims "undefined"; `join()` makes absent values empty, so the mail starts and ends with blank lines | fixed: the BUGLOG row says blank lines | Codex ran the script in a Node VM: `"\r\n\r\nHello\r\n\r\n"`; rerun by hand on the script's own lines with no `data-greeting` or `data-signoff`: `node -e "const d={}; const lines=[d.greeting,'','Hello']; lines.push('', d.signoff); console.log(JSON.stringify(lines.join('\n').replace(/\r?\n/g,'\r\n')))"` printed `"\r\n\r\nHello\r\n\r\n"` |
+| G8 | BUG | Codex | G5's fix claims "undefined"; `join()` makes absent values empty, so the mail starts and ends with blank lines | fixed: the BUGLOG row says blank lines | Codex ran the script in a Node VM: `"\r\n\r\nHello\r\n\r\n"`; rerun by hand on the script's own lines with no `data-greeting` or `data-signoff`: `node -e "const d={}; const lines=[d.greeting,'','Hello']; lines.push('', d.signoff); console.log(JSON.stringify(lines.join('\n').replace(/\r?\n/g,'\r\n')))"` printed `"\r\n\r\nHello\r\n\r\n"`; it copies `mail-form.js:64–67` (`var lines = [form.dataset.greeting, '', message];` … `lines.push('', form.dataset.signoff);` … `lines.join('\n')`) |
 
 ## Round 3
 
@@ -48,3 +51,9 @@ now with a form without a greeting, passed.
 |----|-----|------|---------|-------------|----------|
 | G9 | RISK | GLM | The blank-lines claim has no evidence on record, and G8 is cited but missing | fixed: G8's row and the Node run above are on record (a half-applied edit had left them out) | round 2 above |
 | G10 | NIT | GLM | Dangling "round 2" and "G8" in G5 | fixed: the same | the same |
+
+## Round 4
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| G11 | NIT | GLM | G8's hand rerun is a model of the script's lines; the correspondence is not shown | fixed: the cell cites the script's lines; a NIT, no further round | G8 row |
