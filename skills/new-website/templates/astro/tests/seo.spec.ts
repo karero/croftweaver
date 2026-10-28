@@ -459,7 +459,7 @@ test('seo — the generator tag follows its switch on every built page', async (
   const pages = findHtml(join(process.cwd(), 'dist'));
   expect(pages.length, 'no built pages in dist/: the test server builds the site first').toBeGreaterThan(0);
   for (const file of pages) {
-    // A real HTML parser, so comments, script text and quoted examples are not counted as tags.
+    // A real HTML parser, so comments and script text are not counted as tags.
     const ours = await page.evaluate((html) => {
       const doc = new DOMParser().parseFromString(html, 'text/html');
       return [...doc.querySelectorAll('meta[name="generator" i]')].filter(
