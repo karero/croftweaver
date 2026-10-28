@@ -10,8 +10,9 @@
 # not count (no model or CLI, a failure such as a quota refusal, or a local sanity pass), the same
 # text-only prompt goes to Melious's OpenAI-compatible API instead, so the pair still has its second
 # reviewer. No MELIOUS_MODEL, no call: the script names no model. `--seat melious` runs it alone;
-# `--seat ollama` never falls back to it. SECOND_SEAT=melious swaps the two: Melious runs with
-# Codex, and ollama stands in only when Melious did not count.
+# `--seat ollama` never falls back to it. SECOND_SEAT=melious puts Melious beside Codex with no
+# fallback: a Melious seat that does not count is not replaced, and the pair never calls ollama
+# (`--seat ollama` still runs it when asked).
 # Melious runs only the models listed in melious_models.txt, beside this script (the owner's
 # rule, 2026-10-12). Any other MELIOUS_MODEL is refused with exit 2 before any reviewer starts,
 # in every mode: nothing is sent to Melious, and no other reviewer runs in its place. A model
@@ -154,7 +155,9 @@
 #                                    defaults to the first ':cloud' tag in `ollama list`
 #                                    (the owner's signed-in cloud model; this script
 #                                    prescribes no specific model). Override to point
-#                                    at a different cloud/local tag.
+#                                    at a different cloud/local tag. Auto-detected only
+#                                    when the run can call ollama: --seat ollama, or no
+#                                    --seat with SECOND_SEAT=ollama (never --local-only).
 #   OLLAMA_TRANSPORT (auto)          how the ollama tier is reached: cli (`ollama run`), api
 #                                    (ollama's HTTP API via curl), or auto = the CLI when it is
 #                                    installed, else the API. The API needs OLLAMA_MODEL set (no
@@ -169,7 +172,7 @@
 #                                    refused, exit 2, in every mode. Unset = no Melious call
 #                                    at all (and SECOND_SEAT=melious refuses to run).
 #   SECOND_SEAT    (ollama)          which host holds the second seat: ollama, with Melious as its
-#                                    fallback, or melious, with ollama as its fallback. melious
+#                                    fallback, or melious, with no fallback. melious
 #                                    needs MELIOUS_MODEL. --seat and --local-only do not use it;
 #                                    a value other than ollama or melious is refused in every mode.
 #   MELIOUS_API_KEY (unset)          sent as a Bearer token when set, else the MELIOUS_API_KEY=
@@ -477,7 +480,10 @@ case "${OLLAMA_TRANSPORT:-auto}" in
   cli|api) OLLAMA_VIA="$OLLAMA_TRANSPORT" ;;
   *) echo "OLLAMA_TRANSPORT=\"$OLLAMA_TRANSPORT\" — expected auto, cli or api" >&2; exit 2 ;;
 esac
-if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
+# Only when this run can call ollama: SECOND_SEAT=melious, and --seat codex|melious|agy, never do,
+# so they leave `ollama list` alone (the owner's rule, 2026-10-26: no ollama model unasked).
+if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ] \
+   && { [ "$SEAT" = ollama ] || { [ -z "$SEAT" ] && [ "$SECOND_SEAT" = ollama ]; }; }; then
   if [ "$OLLAMA_VIA" = api ]; then
     # Without the CLI there is no `ollama list` to read the signed-in model from, and this script
     # names no model itself: the caller names it.
@@ -1533,6 +1539,7 @@ run_melious() {
     7) WHY="not a stream (HTTP $code)"; return 1 ;;
     8) WHY="empty reply (HTTP $code)"; return 1 ;;
     9) WHY="error reply, not a stream (HTTP $code)"; return 1 ;;
+    10) WHY="$NO_BALANCE_WHY (HTTP $code)"; return 1 ;;
     *) WHY="HTTP $code"; return 1 ;;
   esac
   [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP $code but no review text"; return 1; }
@@ -1561,6 +1568,9 @@ NOT_A_REVIEW="output is not a review"
 # tags with the seat reporting OK. run_melious refuses it, before it sends anything, when the
 # prompt holds a tag; report_tier reads this prefix to give the refusal its own section.
 THINK_TAG_WHY="think-tag guard:"
+# Melious's error code for an empty balance (melious_stream.pl exit 10). The owner's rule,
+# 2026-10-27: with Melious as the second seat, Codex alone is enough for that round, no rerun owed.
+NO_BALANCE_WHY="out of balance"
 # A quota/rate-limit refusal needs a different remedy (wait, or add credits) from
 # every other failure (fix the CLI, sign-in or model name), so it is named apart.
 # No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
@@ -1599,6 +1609,8 @@ run_tier() {
 # (and its wall-clock time in TIMINGS). A tier that ran and failed prints a FAILED section
 # quoting its error.
 SUMMARY="" ; TIMINGS="" ; WHY="" ; TIER_PRINTED=0
+CODEX_OUTCOME="" ; MELIOUS_OUTCOME=""   # each seat's outcome as SUMMARY shows it, for report_round
+MELIOUS_NO_BALANCE=0                    # 1 when the Melious seat failed for an empty balance
 report_tier() {
   local label="$1" stem="$2" rc=1 secs="" err="" out="" error_lines="" model="" outcome reason sized=0 guarded=0
   WHY="tier did not report (killed or crashed?)" ; TIER_PRINTED=0
@@ -1637,6 +1649,13 @@ report_tier() {
     if case "$WHY" in "$THINK_TAG_WHY"*) true ;; *) false ;; esac; then
       outcome="FAILED ($WHY)" ; guarded=1
       reason="$WHY. Run this round on Codex (--seat codex) at the depth the depth rule gives this change, or on the model Melious runs at any depth (melious_models.txt)."
+    elif [ "$stem" = melious ] && case "$WHY" in "$NO_BALANCE_WHY"*) true ;; *) false ;; esac; then
+      outcome="FAILED ($WHY)" ; MELIOUS_NO_BALANCE=1
+      if [ "$SECOND_SEAT" = melious ] || [ "$SEAT" = melious ]; then
+        reason="$WHY: the Melious balance is empty. By the owner's rule (2026-10-27) no rerun of this seat is owed: if Codex counted in this round, the round stands on Codex alone; record that in the trail."
+      else
+        reason="$WHY: the Melious balance is empty: add credits, or wait for the subscription to refill."
+      fi
     elif [ "$WHY" = "$NOT_A_REVIEW" ]; then
       outcome="FAILED ($NOT_A_REVIEW)"
       reason="the reviewer answered, but its answer did not pass the review check (a refusal-shaped or finding-less reply). Not a quota or setup problem: read the quoted stdout, and if it is a real review, count it by hand from the raw file."
@@ -1680,6 +1699,7 @@ report_tier() {
     printf '\n'
   fi
   SUMMARY="${SUMMARY:+$SUMMARY, }$label $outcome"
+  case "$stem" in codex) CODEX_OUTCOME="$outcome" ;; melious) MELIOUS_OUTCOME="$outcome" ;; esac
   [ $rc -ne 3 ] && log_seat "$label" "$stem" "$secs" "$tokens" "$outcome"
   return $rc
 }
@@ -1721,10 +1741,20 @@ report_round() {
     note="⚠ $gate round landed with $SUCCESS_COUNT reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
     if [ "$LOCAL_ONLY" = "1" ]; then
       note="$note — --local-only, degraded by owner choice."
+    elif [ "$SEAT" = melious ] && [ "$MELIOUS_NO_BALANCE" = 1 ]; then
+      note="⚠ $gate run counted no reviewer: melious out of balance; no rerun owed (owner's rule, 2026-10-27). If Codex counted in this round, the round stands on Codex alone: record that in the trail. If this run was the round's only seat (a wording pass), run it with --seat codex."
     elif [ -n "$SEAT" ]; then
       note="$note — --seat $SEAT was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair."
     elif [ "$FIRST_SUCCESS" = "1" ]; then
       note="$note — --first-success was requested."
+    elif [ "$SECOND_SEAT" = melious ] && [ "$SUCCESS_COUNT" -eq 1 ] && [ "$CODEX_OUTCOME" = OK ] \
+         && [ -n "$MELIOUS_OUTCOME" ] && [ "$MELIOUS_OUTCOME" != OK ]; then
+      # Melious beside Codex has no fallback, so the trail must say this round had Codex alone.
+      if [ "$MELIOUS_NO_BALANCE" = 1 ]; then
+        note="⚠ $gate round landed with 1 reviewer(s) counted toward the gate: codex alone. melious out of balance. By the owner's rule (2026-10-27) Codex alone is enough for this round: no rerun of melious is owed. Record it in the trail as Codex alone, melious out of balance."
+      else
+        note="⚠ $gate round landed with 1 reviewer(s) counted toward the gate: codex alone. melious $MELIOUS_OUTCOME; SECOND_SEAT=melious has no fallback. Record this round as Codex alone, with that reason, in the trail. Each FAILED section above names its remedy, and a SKIPPED seat's reason is in the reviewers line; once melious can run, rerun with --seat melious and the same --round (at round 1, no --round: --round 1 starts a new gate in the cost log)."
+      fi
     else
       case "$SUMMARY" in
         *FAILED*) note="$note. Treat it as degraded, not as a clean pair: each FAILED section above names its remedy; or consider --with-antigravity or a manual paste round." ;;
@@ -1776,7 +1806,6 @@ OK=0 ; SUCCESS_COUNT=0
 # The Melious fallback stands in for the ollama seat whenever that seat did not count: its staged
 # status (run_tier) reads anything but 0 — skipped, failed, or a local sanity pass.
 ollama_counted() { [ "$(head -n 1 "$RAW_DIR/ollama.status" 2>/dev/null)" = 0 ]; }
-melious_counted() { [ "$(head -n 1 "$RAW_DIR/melious.status" 2>/dev/null)" = 0 ]; }   # SECOND_SEAT=melious
 if [ "$LOCAL_ONLY" = "1" ]; then
   # nothing leaves the machine: codex/agy/paste are all external. Local ollama only,
   # and the result is an explicitly DEGRADED gate (owner's privacy trade).
@@ -1792,8 +1821,7 @@ elif [ -n "$SEAT" ]; then
 elif [ "$FIRST_SUCCESS" = "1" ]; then
   attempt codex codex run_codex                                                  # 1. OpenAI Codex CLI
   if [ "$SECOND_SEAT" = melious ]; then
-    [ $OK -eq 1 ] || attempt melious melious run_melious                         # 2. Melious, by choice
-    [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                   # 2b. its fallback
+    [ $OK -eq 1 ] || attempt melious melious run_melious                         # 2. Melious, by choice, no fallback
   else
     [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                   # 2. ollama-cloud
     [ $OK -eq 1 ] || { [ -n "${MELIOUS_MODEL:-}" ] && attempt melious melious run_melious; }  # 2b. its fallback
@@ -1824,14 +1852,13 @@ else
     return 0
   }
   trap 'stop_tiers; exit 130' INT TERM
-  MELIOUS_RAN=0 ; OLLAMA_RAN=0
+  MELIOUS_RAN=0
   run_tier codex run_codex &                                                     # 1. OpenAI Codex CLI
   if [ "$SECOND_SEAT" = melious ]; then
-    run_tier melious run_melious &                                               # 2. Melious, by choice
-    melious_pid=$!
+    run_tier melious run_melious &                                               # 2. Melious, by choice, no fallback
   else
     run_tier ollama run_ollama &                                                 # 2. ollama cloud/local
-    ollama_pid=$! ; OLLAMA_RAN=1
+    ollama_pid=$!
   fi
   if [ "$WITH_ANTIGRAVITY" = "1" ]; then
     run_tier agy run_agy &                                                       # 3. agy, opt-in only
@@ -1839,12 +1866,8 @@ else
   # 2b. Melious, for the ollama seat. With no ollama model at all the seat is known to be out from
   # the start, so the fallback runs with the pair; otherwise it waits for ollama ALONE (not codex
   # or agy) and starts the moment ollama did not count. Always a job, so stop_tiers reaches it.
-  # With SECOND_SEAT=melious the roles swap: ollama waits for Melious alone, and runs only when
-  # Melious did not count.
-  if [ "$SECOND_SEAT" = melious ]; then
-    wait "$melious_pid"
-    if ! melious_counted; then run_tier ollama run_ollama & OLLAMA_RAN=1; fi
-  elif [ -n "${MELIOUS_MODEL:-}" ]; then
+  # SECOND_SEAT=melious has no fallback: ollama never runs (the owner's rule, 2026-10-26).
+  if [ "$SECOND_SEAT" = ollama ] && [ -n "${MELIOUS_MODEL:-}" ]; then
     if [ -z "${OLLAMA_MODEL:-}" ]; then
       run_tier melious run_melious & MELIOUS_RAN=1
     else
@@ -1857,7 +1880,6 @@ else
   report_tier codex codex
   if [ "$SECOND_SEAT" = melious ]; then
     report_tier melious melious
-    if [ $OLLAMA_RAN -eq 1 ]; then report_tier "$OLLAMA_LABEL" ollama; fi
   else
     report_tier "$OLLAMA_LABEL" ollama
     if [ $MELIOUS_RAN -eq 1 ]; then report_tier melious melious; fi
@@ -1872,6 +1894,11 @@ if [ "$LOCAL_ONLY" = "1" ]; then
   exit 4
 fi
 
+# A lone Melious run out of balance owes nothing more (owner's rule, 2026-10-27): no paste prompt.
+if [ "$SEAT" = melious ] && [ "$MELIOUS_NO_BALANCE" = 1 ]; then
+  echo "melious out of balance: no rerun and no paste round owed. Raw output: $RAW_DIR" >&2
+  exit 4
+fi
 # No automated reviewer succeeded — DO NOT exit 0. Emit the manual prompt + FAIL (tier 6).
 cat >&2 <<'EOF'
 ## No automated reviewer available/succeeded — the gate is NOT satisfied.
@@ -1880,7 +1907,7 @@ cat >&2 <<'EOF'
 #                   # already reads ~/.codex config (model + reasoning effort) + auth.json
 #   ollama          # local daemon + `ollama signin` — your first ':cloud' tag auto-serves as the default
 #   MELIOUS_MODEL=  # fallback for the ollama seat: Melious's OpenAI-compatible API (api.melious.ai)
-#   SECOND_SEAT=melious  # with MELIOUS_MODEL: Melious holds the seat, ollama is its fallback
+#   SECOND_SEAT=melious  # with MELIOUS_MODEL: Melious holds the seat, with no fallback
 # Antigravity is opt-in only (owner's credits are scarce) — add --with-antigravity
 # (or WITH_ANTIGRAVITY=1) to spend one this run:
 #   brew install antigravity-cli    # `agy` — Gemini-family models, free Antigravity login

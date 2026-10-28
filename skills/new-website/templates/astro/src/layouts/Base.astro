@@ -12,7 +12,7 @@
 //   - <slot name="head" /> lets a page add its own <head> tags.
 import '../styles/global.css';
 import '../styles/tables.css';
-import { SITE, COMPANY, ANALYTICS, SAME_AS, KNOWS_ABOUT, ogLocaleFor } from '../config';
+import { SITE, COMPANY, ANALYTICS, SAME_AS, KNOWS_ABOUT, GENERATOR_TAG, ogLocaleFor } from '../config';
 
 interface Props {
   title: string;
@@ -142,6 +142,7 @@ const chrome = CHROME[SITE.locale.toLowerCase().split('-')[0]] ?? CHROME.en;
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     <meta name="robots" content={robots} />
+    {GENERATOR_TAG && <meta name="generator" content="Croftweaver" />}
     <link rel="canonical" href={canonical} />
     {alternates.map((a) => <link rel="alternate" hreflang={a.hreflang} href={altHref(a.href)} />)}
 

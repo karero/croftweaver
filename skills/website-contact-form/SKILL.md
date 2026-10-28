@@ -66,7 +66,7 @@ setup, or a count of them), this is the wrong tool: see §0.
 | `src/components/MailForm.astro` | `MailForm.astro` | the form, and the address line under it |
 | `src/components/mail-form-text.ts` | `mail-form-text.ts` | everything the form says, in English and German, and the longest message it takes |
 | `public/js/mail-form.js` | `mail-form.js` | the script: shows the form, builds the `mailto:` link, opens it |
-| `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
+| `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order through any added fields, a hint as the message box's description, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
 
 The templates are in this skill's `templates/` folder, beside this SKILL.md; the bundled
 copy of the skill on a handed-off repo has them too. Install all four.
@@ -75,12 +75,13 @@ copy of the skill on a handed-off repo has them too. Install all four.
 way `EmailLink` encodes it (`src/lib/obfuscate.ts`), never as plain text. The script, a
 file of the site's own under `public/js/` rather than an inline script, so a strict
 `script-src 'self'` policy lets it run, shows the form, and when the button is pressed
-decodes the address and opens `mailto:<address>?subject=…&body=…`. The body is the
-visitor's message as typed, less any empty space (spaces, tabs, blank lines) at its very
-start and end: they write their own greeting and sign-off, and their mail program says
-who they are. Every other field the visitor filled in follows under it as "Label:
-value", so a field the owner adds later goes into the mail by its label with no change
-to the script. Without JavaScript the form stays hidden, since it could do nothing, and
+decodes the address and opens `mailto:<address>?subject=…&body=…`. The body starts
+with the greeting the owner chose (`greeting`), then the visitor's message as typed,
+less any empty space (spaces, tabs, blank lines) at its very start and end. Every other
+field the visitor filled in follows as "Label: value", so a field the owner adds later
+goes into the mail by its label with no change to the script. The language's sign-off
+("Kind regards", "Freundliche Grüße") ends it; the visitor's mail program says who they
+are. Without JavaScript the form stays hidden, since it could do nothing, and
 the address line under it is what the visitor sees.
 
 **The spec needs `toneViolations`** from the site's `tests/_helpers.ts`, the tone rules
@@ -101,7 +102,7 @@ loses it.
    ---
    import MailForm from '../components/MailForm.astro';
    ---
-   <MailForm to="<the address messages go to>" subject="<what the visitor comes for>" />
+   <MailForm to="<the address messages go to>" subject="<what the visitor comes for>" greeting="<the mail's first line>" />
    ```
    Ask the owner for the address. The starter's encoding takes only plain addresses:
    letters, digits and `. _ % + -` before the `@`, and the build stops with a clear
@@ -119,6 +120,16 @@ loses it.
    so a mail program's list shows all of it. A page for one offer can pass its own.
    Propose one or two and let the owner choose: these are their customers' first words
    to them. The plain address under the form carries the same subject.
+
+   **The greeting** (`greeting`, required: the build stops without it). The first line
+   of every mail, as the visitor would write it to the owner, punctuation included. Ask
+   the owner whom visitors address, and propose one in the site's form of address:
+   "Sehr geehrte Frau Muster," where one named person answers on a "Sie" site, "Sehr
+   geehrte Damen und Herren," for a firm with no one person, "Hallo Anna," on a "du"
+   site, "Dear Ms Smith," in English. The mail ends with the language's sign-off
+   (`signoff` in `mail-form-text.ts`: "Kind regards", "Freundliche Grüße", no comma). A
+   site that wants another, such as "Viele Grüße", changes it there. The plain address
+   under the form opens a blank mail, with no greeting.
 3. **Language.** The form speaks the language of the page it is on, by itself: a page
    built with `<Base lang="de">` on an English site gets a German form. `Base.astro`
    hands the page's language down (`Astro.locals.lang`); on a site with several
@@ -135,20 +146,140 @@ loses it.
    `declare namespace App { interface Locals { lang?: string } }` to `src/env.d.ts`:
    create the file from the starter's if the site has none, and keep what a site's own
    file already declares. Without the declaration, `npm run check` fails on the line.
-4. In `tests/mail-form.spec.ts` set `PAGE` (the page with the form), `TO` and
-   `SUBJECT` (the address and the subject from step 2). The spec fails while one is
-   empty, and holds the subject to the site's tone rules. `LANG` only if the page passes
+4. In `tests/mail-form.spec.ts` set `PAGE` (the page with the form), `TO`, `SUBJECT`
+   and `GREETING` (the address, the subject and the greeting from step 2). The spec
+   fails while one is empty, and holds the subject and the greeting to the site's tone
+   rules. `LANG` only if the page passes
    `lang`. One copy guards one form:
    with the form on pages in two languages, copy it once per language
-   (`tests/mail-form.de.spec.ts`), each with its own `PAGE` and `SUBJECT`.
+   (`tests/mail-form.de.spec.ts`), each with its own `PAGE`, `SUBJECT` and `GREETING`.
 5. **Fields.** The form asks for the message, nothing else: the visitor's name and
-   email address come with their mail, and they greet and sign as they like. A field
-   the owner wants (a phone number, a date) goes inside the form with a `<label for>`
-   and a `name`, before the button. It reaches the mail under the message as "Label:
-   value", and the spec's label and keyboard test then needs that field in its `order`
-   list. A field that asks for more personal data than the message also goes into the
-   privacy page (§4).
+   email address come with their mail, and the form adds the greeting and the sign-off.
+   A field
+   the owner wants, or a hint above the message box: "Adding fields" below.
 6. `npm run check && npm test`.
+
+### Adding fields
+
+Ask only what the visitor's mail cannot carry and the owner needs to answer: a kind of
+request, a place, a phone number for a call back. Never a name or an email field: the mail
+brings both. Each field is one more reason to leave; two or three is plenty.
+
+Fields go between `<MailForm>` and `</MailForm>`, and come before the message. A hint goes
+in the slot `hint`: the form shows it between the message's label and its box, and ties it
+to the box (`aria-describedby`), so it becomes the box's accessible description. An
+example,
+for a building firm:
+
+```astro
+<MailForm to="…" subject="Project enquiry" greeting="Dear Ms Smith,">
+  <fieldset>
+    <legend>What is it about? <span class="mail-form-optional">(optional)</span></legend>
+    <label><input type="radio" name="kind" id="kind-new" value="new" /> A new project</label>
+    <label><input type="radio" name="kind" id="kind-running" value="running" /> A project under way</label>
+  </fieldset>
+  <p>
+    <label for="town">Town</label> <span class="mail-form-optional" id="town-optional">(optional)</span>
+    <input id="town" name="town" type="text" maxlength="80" aria-describedby="town-optional" />
+  </p>
+  <Fragment slot="hint">For example: what is planned, how far the planning is, when work should start.</Fragment>
+</MailForm>
+```
+
+The mail then reads, between the message and the sign-off: "A new project" and "Town:
+Bath". The rules
+behind it, each from a source read on 2026-10-27:
+
+- **A choice is radio buttons in a `fieldset`, named by its `legend`.** "Radio button
+  groups should always be grouped using `<fieldset>`" (W3C WAI,
+  https://www.w3.org/WAI/tutorials/forms/grouping/). The mail carries the ticked option's
+  label alone, not the legend, so write each option to read on its own ("A new project",
+  not "New").
+- **Every added field starts empty.** No list (`select`): a drop-down list always has an entry
+  chosen, so an untouched list sends an answer the visitor never gave, a "Please choose"
+  entry included. No box ticked and no text filled in advance. The script sends whatever a
+  field holds, and the spec expects no field line when the visitor adds nothing.
+- **None ticked in advance.** "Do not pre-select radio options" (GOV.UK Design System,
+  https://design-system.service.gov.uk/components/radios/). Once ticked, a radio cannot be
+  unticked; for an optional choice that costs one line the visitor can delete in their mail
+  program.
+- **Optional fields say "(optional)"; required ones get no asterisk.** "Never mark
+  mandatory fields with asterisks" (GOV.UK,
+  https://design-system.service.gov.uk/patterns/question-pages/). GOV.UK puts the word in
+  the label; here it goes beside it, in a `span` with class `mail-form-optional` tied to the
+  field with `aria-describedby`, because the mail uses the label's text: "Town: Bath", not
+  "Town (optional): Bath". In a radio group it goes in the `legend`, which the mail never
+  shows.
+- **A hint shows above the box, never as a placeholder.** Placeholder text disappears as
+  the visitor types; Nielsen Norman Group recommends "clear, visible labels that are placed
+  outside empty form fields"
+  (https://www.nngroup.com/articles/form-design-placeholders/).
+- **A hint can follow the choice, by CSS alone.** Put one `span` per case in the slot
+  (`<span class="hint-any">…</span><span class="hint-new">…</span><span
+  class="hint-running">…</span>`) and show the one that fits, in the page's `<style>`.
+  `.mail-form` is the form's own element, outside the page's style scope, hence
+  `:global`:
+  ```css
+  .hint-new, .hint-running { display: none; }
+  :global(.mail-form):has(#kind-new:checked, #kind-running:checked) .hint-any { display: none; }
+  :global(.mail-form):has(#kind-new:checked) .hint-new { display: inline; }
+  :global(.mail-form):has(#kind-running:checked) .hint-running { display: inline; }
+  ```
+  A hidden `span` is left out of the box's description, so the description is the hint
+  on screen (the page test below checks it).
+- **No promise the owner has not made.** Not "we answer within a day", not "the first talk
+  is free", unless the owner says so.
+
+**Looks.** The form styles what goes in the slot: a text field, a radio group and
+the `mail-form-optional` note look like the message field, with no CSS of the page's own.
+Astro gives fields in a slot the page's style scope, not the form's, so the form's rules
+reach them through `:global`, inside the form only. A page adds style only for what is its
+own, such as a hint that changes.
+
+**The spec.** Set `ADDED` in `tests/mail-form.spec.ts` to the fields' labels, one per Tab
+stop in order: a radio group by its first option (`['A new project', 'Town']`). The spec
+then checks that every control has a label, that Tab goes through them to the message and
+the button, and, when there is a hint, that it is the box's accessible description.
+
+**The page's own test.** Only the page knows its fields, so add a short spec next to it
+(`tests/contact.spec.ts`) that enters as a visitor does, through the button, and checks the
+mail word for word:
+
+```ts
+import { test, expect, type Page } from '@playwright/test';
+import { TEXT } from '../src/components/mail-form-text';
+
+const t = TEXT.en; // the page's language
+const greeting = 'Dear Ms Smith,'; // the form's greeting
+const form = (page: Page) => page.locator('form[data-mail-form]');
+// The mail body the button hands to the mail program, decoded.
+async function send(page: Page) {
+  const asked = page.waitForRequest((r) => r.url().startsWith('mailto:'), { timeout: 5000 });
+  await form(page).getByRole('button', { name: t.send, exact: true }).click();
+  const body = (await asked).url().split('?')[1].split('&').find((p) => p.startsWith('body='))!;
+  return decodeURIComponent(body.slice('body='.length));
+}
+
+test('contact — the choice and the town arrive under the message', async ({ page }) => {
+  await page.goto('/contact');
+  await form(page).getByLabel('A new project', { exact: true }).check();
+  await form(page).getByLabel('Town', { exact: true }).fill('Bath');
+  await form(page).getByLabel(t.message, { exact: true }).fill('A kitchen extension.');
+  expect(await send(page)).toBe(`${greeting}\r\n\r\nA kitchen extension.\r\n\r\nA new project\r\nTown: Bath\r\n\r\n${t.signoff}`);
+});
+
+test('contact — with nothing chosen or added, the mail has no field line', async ({ page }) => {
+  await page.goto('/contact');
+  await expect(form(page).locator('input[type=radio]:checked')).toHaveCount(0);
+  await form(page).getByLabel(t.message, { exact: true }).fill('A short question.');
+  expect(await send(page)).toBe(`${greeting}\r\n\r\nA short question.\r\n\r\n${t.signoff}`);
+});
+```
+
+A hint that follows the choice
+gets one more test: `toHaveAccessibleDescription` on the message box, before and after each
+choice. A field that asks for more personal data than the message also goes into the privacy
+page (§4).
 
 ### Add a language
 
@@ -167,8 +298,10 @@ English, all of it in one go.
    read the form once.
 3. **The address hint** a visitor without JavaScript reads ("name [at] example [dot]
    com") takes its word for "dot" from `DOT_WORD` in `src/lib/obfuscate.ts` (English and
-   German there); add the language's word, or the hint says "dot".
-4. The page and its test, as in §2 steps 3 and 4.
+   German there); add the language's word. The spec fails while the hint says "dot".
+4. **The privacy page.** The starter has it in English and German only. A site in this
+   language needs its own, with the section on contact by email (§4).
+5. The page and its test, as in §2 steps 3 and 4.
 
 ## 3. Try it once (the owner)
 
@@ -226,8 +359,10 @@ already leave the button out.
 - **Very long messages.** The form stops at 2,000 typed characters (`LIMITS` in
   `mail-form-text.ts`). In the link they become more: about 2,800 for English prose,
   more with umlauts and line breaks. Some mail programs cut a very long link, and at
-  what length was not measured, so a long message may arrive cut in some of them. The
-  visitor sees it before pressing Send, and can write on in their mail program.
+  what length was not measured, so a long message may arrive cut in some of them, and
+  then the sign-off at its end is the first thing lost. The visitor sees the mail
+  before pressing Send, and can write on in their mail program. Whether a mail program
+  adds the visitor's own signature under it was not checked.
 - **The address line under a strict Content-Security-Policy.** The form works under
   `script-src 'self'` (the spec proves it). The address under it, the starter's
   `EmailLink`, decodes through an inline script, so under such a policy it stays as the
@@ -249,6 +384,7 @@ already leave the button out.
 ## Done means
 
 The owner chose the form knowing its weak spots; it is on its page in the site's
-language with the right address; `npm test` is green with `PAGE` and `TO` set; the
+language with the right address and the owner's greeting; `npm test` is green with
+`PAGE`, `TO`, `SUBJECT` and `GREETING` set; the
 privacy page's section on contact by email is in place; and the owner has opened one
 message from it in their own mail program and seen it arrive.

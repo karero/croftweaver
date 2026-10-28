@@ -96,6 +96,7 @@ jobs:
         with:
           # The template pins its Node version; build/test on the same one Cloudflare uses.
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Install dependencies
         # The template's own package-lock.json IS committed (since 2026-07-09) — npm ci
         # for a reproducible install against that lockfile. This exercises the same
@@ -215,6 +216,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Three folders from the starter (a repo's root, a subfolder of a bigger repo, no repo)
         shell: bash
         working-directory: ${{ runner.temp }}
@@ -294,6 +296,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, at the root of its own repo, with a bare origin
         shell: bash
         run: |
@@ -417,6 +420,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, with the skill installed
         working-directory: ${{ runner.temp }}
         run: |
@@ -494,8 +498,10 @@ jobs:
   # (the component, its words, the script, the test, the form on a page), and runs the
   # type check and the whole suite. A second form, in German, sits on the starter's
   # German page with its own copy of the spec, so the German texts go through the tone
-  # rules and the page checks too. No mail program opens: the spec reads the mailto:
-  # link the button asks the browser to open.
+  # rules and the page checks too. The German form carries fields of the page's own and
+  # a hint (the skill's "Adding fields"), with its own page spec, so a form with no slot
+  # used and one with all of them both run. No mail program opens: the spec reads the
+  # mailto: link the button asks the browser to open.
   contact-form-skill:
     needs: changes
     if: needs.changes.outputs.run == 'true'
@@ -505,6 +511,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, with the skill installed
         working-directory: ${{ runner.temp }}
         run: |
@@ -512,14 +519,89 @@ jobs:
           K="$GITHUB_WORKSPACE/skills/website-contact-form/templates"
           mkdir -p public/js
           cp "$K/mail-form.js" public/js/ && cp "$K/MailForm.astro" "$K/mail-form-text.ts" src/components/ && cp "$K/mail-form.spec.ts" tests/
-          sed -i "s|^const PAGE = '';|const PAGE = '/';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Project enquiry';|" tests/mail-form.spec.ts
+          sed -i "s|^const PAGE = '';|const PAGE = '/';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Project enquiry';|; s|^const GREETING = '';|const GREETING = 'Dear Ms Smith,';|" tests/mail-form.spec.ts
           # The German form: a German page on an English site, with no lang of its own: it
           # takes the page's, which Base.astro hands down (§2 step 3).
           cp "$K/mail-form.spec.ts" tests/mail-form.de.spec.ts
-          sed -i "s|^const PAGE = '';|const PAGE = '/impressum';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Anfrage Bauvorhaben';|" tests/mail-form.de.spec.ts
+          sed -i "s|^const PAGE = '';|const PAGE = '/impressum';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Anfrage Bauvorhaben';|; s|^const GREETING = '';|const GREETING = 'Sehr geehrte Frau Muster,';|; s|^const ADDED: string\[\] = \[\];|const ADDED: string[] = ['Ein neues Projekt', 'Ort'];|" tests/mail-form.de.spec.ts
           sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport MailForm from '../components/MailForm.astro';|" src/pages/impressum.astro src/pages/index.astro
-          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontakt</h2><MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" /></section>\n</Base>|' src/pages/impressum.astro
-          sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><MailForm to="hello@example.com" subject="Project enquiry" /></section>\n</Base>|' src/pages/index.astro
+          # The German form with the skill's example: a choice, an optional field, a hint
+          # that follows the choice (styled as the skill says, by the page).
+          cat > form.de.astro <<'EOF'
+            <section class="wrap"><h2>Kontakt</h2>
+              <MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" greeting="Sehr geehrte Frau Muster,">
+                <fieldset>
+                  <legend>Worum geht es? <span class="mail-form-optional">(optional)</span></legend>
+                  <label><input type="radio" name="art" id="art-neu" value="neu" /> Ein neues Projekt</label>
+                  <label><input type="radio" name="art" id="art-laufend" value="laufend" /> Ein laufendes Projekt</label>
+                </fieldset>
+                <p>
+                  <label for="ort">Ort</label> <span class="mail-form-optional" id="ort-optional">(optional)</span>
+                  <input id="ort" name="ort" type="text" maxlength="80" aria-describedby="ort-optional" />
+                </p>
+                <Fragment slot="hint"><span class="hint-any">Zum Beispiel: was geplant ist und wie weit.</span><span class="hint-neu">Zum Beispiel: was geplant ist und wann es losgehen soll.</span><span class="hint-laufend">Zum Beispiel: Stand des Projekts und was gebraucht wird.</span></Fragment>
+              </MailForm>
+            </section>
+            <style>
+              .hint-neu, .hint-laufend { display: none; }
+              :global(.mail-form):has(#art-neu:checked, #art-laufend:checked) .hint-any { display: none; }
+              :global(.mail-form):has(#art-neu:checked) .hint-neu { display: inline; }
+              :global(.mail-form):has(#art-laufend:checked) .hint-laufend { display: inline; }
+            </style>
+          EOF
+          awk 'FNR==NR { form = form $0 "\n"; next } /^<\/Base>/ { printf "%s", form } { print }' form.de.astro src/pages/impressum.astro > impressum.astro.new
+          mv impressum.astro.new src/pages/impressum.astro && rm form.de.astro
+          # The page's own spec, as the skill's "Adding fields" shows it, in German.
+          cat > tests/kontakt.de.spec.ts <<'EOF'
+          import { test, expect, type Page } from '@playwright/test';
+          import { TEXT } from '../src/components/mail-form-text';
+
+          const t = TEXT.de;
+          const greeting = 'Sehr geehrte Frau Muster,';
+          const form = (page: Page) => page.locator('form[data-mail-form]');
+          async function send(page: Page) {
+            const asked = page.waitForRequest((r) => r.url().startsWith('mailto:'), { timeout: 5000 });
+            await form(page).getByRole('button', { name: t.send, exact: true }).click();
+            const body = (await asked).url().split('?')[1].split('&').find((p) => p.startsWith('body='))!;
+            return decodeURIComponent(body.slice('body='.length));
+          }
+
+          test('kontakt — the choice and the place arrive under the message', async ({ page }) => {
+            await page.goto('/impressum');
+            await form(page).getByLabel('Ein laufendes Projekt', { exact: true }).check();
+            await form(page).getByLabel('Ort', { exact: true }).fill('München');
+            await form(page).getByLabel(t.message, { exact: true }).fill('Eine Bauleitung ab März.');
+            expect(await send(page)).toBe(`${greeting}\r\n\r\nEine Bauleitung ab März.\r\n\r\nEin laufendes Projekt\r\nOrt: München\r\n\r\n${t.signoff}`);
+          });
+
+          test('kontakt — with nothing chosen or added, the mail has no field line', async ({ page }) => {
+            await page.goto('/impressum');
+            await expect(form(page).locator('input[type=radio]:checked')).toHaveCount(0);
+            await form(page).getByLabel(t.message, { exact: true }).fill('Eine kurze Frage.');
+            expect(await send(page)).toBe(`${greeting}\r\n\r\nEine kurze Frage.\r\n\r\n${t.signoff}`);
+          });
+
+          test('kontakt — the hint follows the choice and is the description of the message box', async ({ page }) => {
+            await page.goto('/impressum');
+            const box = form(page).getByLabel(t.message, { exact: true });
+            await expect(box).toHaveAccessibleDescription('Zum Beispiel: was geplant ist und wie weit.');
+            await form(page).getByLabel('Ein neues Projekt', { exact: true }).check();
+            await expect(box).toHaveAccessibleDescription('Zum Beispiel: was geplant ist und wann es losgehen soll.');
+            await form(page).getByLabel('Ein laufendes Projekt', { exact: true }).check();
+            await expect(box).toHaveAccessibleDescription('Zum Beispiel: Stand des Projekts und was gebraucht wird.');
+          });
+
+          test('kontakt — a field in the slot takes the form\'s look', async ({ page }) => {
+            await page.goto('/impressum');
+            const place = form(page).getByLabel('Ort', { exact: true });
+            const message = form(page).getByLabel(t.message, { exact: true });
+            for (const property of ['border-top-style', 'border-radius', 'display']) {
+              expect(await place.evaluate((e, p) => getComputedStyle(e).getPropertyValue(p), property), property)
+                .toBe(await message.evaluate((e, p) => getComputedStyle(e).getPropertyValue(p), property));
+            }
+          });
+          EOF
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><MailForm to="hello@example.com" subject="Project enquiry" greeting="Dear Ms Smith," /></section>\n</Base>|' src/pages/index.astro
           # One check per line: in "a && b" a failing a does not stop the step.
           grep -q "const PAGE = '/';" tests/mail-form.spec.ts
           grep -q "const TO = 'hello@example.com';" tests/mail-form.spec.ts
@@ -527,9 +609,15 @@ jobs:
           grep -q "const PAGE = '/impressum';" tests/mail-form.de.spec.ts
           grep -q "const TO = 'hello@example.com';" tests/mail-form.de.spec.ts
           grep -q "const SUBJECT = 'Anfrage Bauvorhaben';" tests/mail-form.de.spec.ts
-          grep -q '<MailForm to="hello@example.com" subject="Project enquiry" />' src/pages/index.astro
+          grep -q "const GREETING = 'Dear Ms Smith,';" tests/mail-form.spec.ts
+          grep -q "const GREETING = 'Sehr geehrte Frau Muster,';" tests/mail-form.de.spec.ts
+          grep -q "const greeting = 'Sehr geehrte Frau Muster,';" tests/kontakt.de.spec.ts
+          grep -qF "const ADDED: string[] = ['Ein neues Projekt', 'Ort'];" tests/mail-form.de.spec.ts
+          grep -q '<MailForm to="hello@example.com" subject="Project enquiry" greeting="Dear Ms Smith," />' src/pages/index.astro
           grep -q 'import MailForm' src/pages/index.astro
-          grep -q '<MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" />' src/pages/impressum.astro
+          grep -q '<MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" greeting="Sehr geehrte Frau Muster,">' src/pages/impressum.astro
+          grep -q 'id="ort" name="ort"' src/pages/impressum.astro
+          grep -q "import { TEXT } from '../src/components/mail-form-text';" tests/kontakt.de.spec.ts
           grep -q 'import MailForm' src/pages/impressum.astro
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
@@ -538,17 +626,23 @@ jobs:
         run: |
           npm run check
           npm test
-      # A form without its subject, without a language, or in a language it has no
-      # words for, must stop the build, not go out with a generic subject or in
-      # English. Last step: it leaves the site broken on purpose.
-      - name: A form without a subject, without a language, or in a language with no texts, stops the build
+      # A form without its subject or its greeting, without a language, or in a
+      # language it has no words for, must stop the build, not go out with a generic
+      # subject or greeting, or in English. Last step: it leaves the site broken on purpose.
+      - name: A form without a subject, without a greeting, without a language, or in a language with no texts, stops the build
         working-directory: ${{ runner.temp }}/site
         run: |
           cp src/pages/index.astro index.astro.keep
-          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" />|<MailForm to="hello@example.com" />|' src/pages/index.astro
-          grep -q '<MailForm to="hello@example.com" />' src/pages/index.astro
+          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" greeting="Dear Ms Smith," />|<MailForm to="hello@example.com" greeting="Dear Ms Smith," />|' src/pages/index.astro
+          grep -q '<MailForm to="hello@example.com" greeting="Dear Ms Smith," />' src/pages/index.astro
           if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form without a subject was built'; exit 1; fi
           grep -qF 'MailForm: pass subject="…"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing subject'; exit 1; }
+          cp index.astro.keep src/pages/index.astro
+          # A form without its greeting.
+          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" greeting="Dear Ms Smith," />|<MailForm to="hello@example.com" subject="Project enquiry" />|' src/pages/index.astro
+          grep -q '<MailForm to="hello@example.com" subject="Project enquiry" />' src/pages/index.astro
+          if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form without a greeting was built'; exit 1; fi
+          grep -qF 'MailForm: pass greeting="…"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing greeting'; exit 1; }
           cp index.astro.keep src/pages/index.astro
           # A page whose language never reaches the form (a Base.astro from an older starter).
           cp src/layouts/Base.astro Base.astro.keep
@@ -557,7 +651,7 @@ jobs:
           if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form with no language was built'; exit 1; fi
           grep -qF 'MailForm: no language for this page' build.log || { cat build.log; echo '::error::the build failed, but not on the missing language'; exit 1; }
           cp Base.astro.keep src/layouts/Base.astro
-          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" />|<MailForm to="hello@example.com" subject="Project enquiry" lang="xx" />|' src/pages/index.astro
+          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" greeting="Dear Ms Smith," />|<MailForm to="hello@example.com" subject="Project enquiry" greeting="Dear Ms Smith," lang="xx" />|' src/pages/index.astro
           grep -q 'lang="xx"' src/pages/index.astro
           if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form in a language with no texts was built'; exit 1; fi
           grep -q 'MailForm: no texts for the language "xx"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing texts'; exit 1; }
@@ -577,6 +671,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -618,6 +713,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, with the test copied in and not configured
         working-directory: ${{ runner.temp }}
         run: |
@@ -738,6 +834,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter
         working-directory: ${{ runner.temp }}
         run: |
@@ -821,6 +918,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: A site from the starter, with images for every case the test must pass
         working-directory: ${{ runner.temp }}
         run: |

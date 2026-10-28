@@ -1,6 +1,6 @@
 // The mail-app contact form (the website-contact-form skill), installed as
-// tests/mail-form.spec.ts. Set PAGE, TO and SUBJECT below; the spec fails while one is
-// empty.
+// tests/mail-form.spec.ts. Set PAGE, TO, SUBJECT and GREETING below; the spec fails
+// while one is empty.
 // One copy guards one form: a site with the form on pages in two languages gets two
 // copies (tests/mail-form.de.spec.ts), each with its own PAGE.
 //
@@ -17,7 +17,11 @@ import { toneViolations } from './_helpers';
 const PAGE = '';    // the page with the form, e.g. '/contact'
 const TO = '';      // the address given to <MailForm to="…">
 const SUBJECT = ''; // the subject given to <MailForm subject="…">
+const GREETING = ''; // the greeting given to <MailForm greeting="…">
 const LANG = '';    // only if the page passes lang="…": that language; else the page's own
+// Fields the page puts inside <MailForm>, by label, one per Tab stop in order: a radio group
+// by its first option. Empty for a form with the message alone.
+const ADDED: string[] = [];
 
 // The mailto: link the button asks the browser to open. The browser hands it to the
 // mail program; Playwright sees it as a request.
@@ -40,6 +44,10 @@ function parse(mailto: string) {
   return { address, encodedAddress, query, params };
 }
 
+// The mail as the form builds it: the site's greeting, then each part given, then the
+// sign-off, with a blank line between them.
+const mail = (lang: keyof typeof TEXT, ...parts: string[]) => [GREETING, ...parts, TEXT[lang].signoff].join('\r\n\r\n');
+
 // Every lookup stays inside the form, so a second status line or a "Company name"
 // field elsewhere on the page cannot be taken for one of the form's.
 const form = (page: Page) => page.locator('form[data-mail-form]');
@@ -60,6 +68,7 @@ test('mail form — the install is complete: the form\'s page, its address and i
   expect(PAGE, 'set PAGE in tests/mail-form.spec.ts to the page with the form').not.toBe('');
   expect(TO, 'set TO in tests/mail-form.spec.ts to the address given to <MailForm to="…">').not.toBe('');
   expect(SUBJECT, 'set SUBJECT in tests/mail-form.spec.ts to the subject given to <MailForm subject="…">').not.toBe('');
+  expect(GREETING, 'set GREETING in tests/mail-form.spec.ts to the greeting given to <MailForm greeting="…">').not.toBe('');
 });
 
 test('mail form — the button opens a mail to the owner with everything the visitor wrote', async ({ page }) => {
@@ -82,9 +91,10 @@ test('mail form — the button opens a mail to the owner with everything the vis
   // nothing the visitor typed can end the subject early or start a new part.
   expect(query, 'the subject and body are URL-encoded').toMatch(/^subject=[A-Za-z0-9\-_.!~*'()%]*&body=[A-Za-z0-9\-_.!~*'()%]*$/);
   expect(query, 'a line break is %0D%0A (RFC 6068), never a bare %0A').not.toMatch(/(?<!%0D)%0A/);
-  // The message as typed, less the empty space around it: the visitor writes their own
-  // greeting and sign-off.
-  expect(params.body).toBe(message.replace(/\n/g, '\r\n'));
+  // The site's greeting, the message as typed less the empty space around it, and the
+  // sign-off.
+  expect(params.body).toBe(mail(lang, message.replace(/\n/g, '\r\n')));
+  expect(toneViolations(GREETING, lang), 'the greeting keeps to the site\'s tone rules').toEqual([]);
 
   // The site cannot know whether the mail program opened, so it says what to do next.
   await expect(form(page).getByRole('status')).toHaveText(TEXT[lang].opened);
@@ -111,8 +121,19 @@ test('mail form — fields the owner adds go into the mail by their labels; one 
   await form(page).getByLabel('Phone', { exact: true }).fill('+49 30 1234');
   await form(page).getByLabel('Days', { exact: true }).selectOption(['Monday', 'Friday']);
   const { params } = parse(await pressSend(page));
-  expect(params.body).toBe('Hello there\r\n\r\nPhone: +49 30 1234\r\nDays: Monday, Friday');
+  expect(params.body).toBe(mail(lang, 'Hello there', 'Phone: +49 30 1234\r\nDays: Monday, Friday'));
   expect(params.body).not.toContain('Company');
+});
+
+test('mail form — a greeting with characters a link must encode arrives as written', async ({ page }) => {
+  await page.goto(PAGE);
+  const lang = await formLanguage(page);
+  const greeting = 'Hallo Jörg & Ana, 100% #1?';
+  await form(page).evaluate((f: HTMLFormElement, g: string) => { f.dataset.greeting = g; }, greeting);
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('Hello');
+  const { query, params } = parse(await pressSend(page));
+  expect(query).toMatch(/^subject=[A-Za-z0-9\-_.!~*'()%]*&body=[A-Za-z0-9\-_.!~*'()%]*$/);
+  expect(params.body).toBe(`${greeting}\r\n\r\nHello\r\n\r\n${TEXT[lang].signoff}`);
 });
 
 test('mail form — a % in the address, which the starter allows, is escaped in the link', async ({ page }) => {
@@ -156,17 +177,42 @@ test('mail form — the message takes no more than the limit', async ({ page }) 
   await expect(form(page).getByLabel(TEXT[lang].message, { exact: true })).toHaveAttribute('maxlength', String(LIMITS.message));
 });
 
-test('mail form — every field has a label, and Tab goes from the message to the button', async ({ page }) => {
+test('mail form — every field has a label, and Tab goes through the added fields to the message and the button', async ({ page }) => {
   await page.goto(PAGE);
   const lang = await formLanguage(page);
-  const order = [form(page).getByLabel(TEXT[lang].message, { exact: true }), form(page).getByRole('button', { name: TEXT[lang].send, exact: true })];
-  // Every control in the form is one of these: none without a label slipped in.
-  await expect(page.locator('form[data-mail-form] :is(input, textarea, select, button)')).toHaveCount(order.length);
-  await order[0].focus();
-  for (const next of order.slice(1)) {
+  // No control without a label slipped in (a hidden input is no control a visitor meets).
+  const unlabelled = await form(page).evaluate((f: HTMLFormElement) =>
+    Array.from(f.querySelectorAll<HTMLInputElement>('input:not([type="hidden"]), textarea, select'))
+      .filter((c) => !c.labels || c.labels.length === 0)
+      .map((c) => c.outerHTML.slice(0, 80)));
+  expect(unlabelled, 'controls in the form without a <label>').toEqual([]);
+  const order = [
+    ...ADDED.map((label) => form(page).getByLabel(label, { exact: true })),
+    form(page).getByLabel(TEXT[lang].message, { exact: true }),
+    form(page).getByRole('button', { name: TEXT[lang].send, exact: true }),
+  ];
+  // Start just before the form, so the first Tab shows the form's first stop: a field
+  // missing from ADDED, first or anywhere, fails here.
+  await form(page).evaluate((f: HTMLFormElement) => {
+    const start = document.createElement('span');
+    start.tabIndex = -1;
+    f.before(start);
+    start.focus();
+  });
+  for (const next of order) {
     await page.keyboard.press('Tab');
     await expect(next).toBeFocused();
   }
+});
+
+test('mail form — a hint above the message, if the page gives one, is the description of the message box', async ({ page }) => {
+  await page.goto(PAGE);
+  const lang = await formLanguage(page);
+  const hint = form(page).locator('#mail-form-hint');
+  test.skip((await hint.count()) === 0, 'this form has no hint (the slot "hint" is empty)');
+  const shown = (await hint.innerText()).trim();
+  expect(shown, 'the hint shows text').not.toBe('');
+  await expect(form(page).getByLabel(TEXT[lang].message, { exact: true })).toHaveAccessibleDescription(shown);
 });
 
 test('mail form — the plain address shows under the form, ready to copy and to click', async ({ page }) => {
@@ -194,6 +240,12 @@ test('mail form — without JavaScript the form stays hidden and the address is 
   const [user, domain] = TO.split('@');
   await expect(page.locator('.mail-form-direct')).toBeVisible();
   await expect(page.locator('.mail-form-direct')).toContainText(`${user} [at] ${domain.split('.')[0]}`);
+  // The hint's word for "dot" comes from DOT_WORD in src/lib/obfuscate.ts, which quietly
+  // falls back to English for a language it lacks.
+  const lang = (await page.locator('.mail-form-direct').getAttribute('lang')) ?? '';
+  if (lang !== 'en') {
+    await expect(page.locator('.mail-form-direct'), `the address hint says "[dot]" under a "${lang}" form: add the language's word to DOT_WORD in src/lib/obfuscate.ts`).not.toContainText('[dot]');
+  }
   await context.close();
 });
 

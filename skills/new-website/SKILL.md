@@ -48,7 +48,10 @@ Sibling skills (run in order, each usable on its own):
 `website-design-system` · `website-testimonials` · `website-qa` ·
 `website-review`. `website-positioning-check` is an optional, read-only one-screen
 diagnostic for a site that already has pages — run it after the build, or whenever the
-offer starts to feel blurred; it is not a pipeline gate. Plus `outgoing-link-audit` — the
+offer starts to feel blurred; it is not a pipeline gate. `website-launch-check` is the launch
+readiness check: it runs the site's tests first, checks only what they cannot, and writes a
+dated report with a verdict to `docs/launch/` (a baseline at step 5a, the verdict at 10c, an
+optional live re-check at 12a). Plus `outgoing-link-audit` — the
 pre-launch / monthly external-link
 liveness sweep (only relevant once the site links out); `internal-link-audit` — the
 internal-linking sweep that finds orphaned + thin pages and suggests where to cross-link
@@ -86,6 +89,18 @@ the steps).
 error walk-throughs) — in the language the user writes in.** A German owner gets
 the whole journey in German; the skill files themselves stay English. The
 verbatim message templates below are content specs, not required English wording.
+
+**The folder check, this interview and the §2a and §2b questions: read and list, don't
+run commands of your own.** A command this interview names, such as the analytics check,
+runs once the site exists. To see what a folder holds, list it with your file tools; to
+read a section of another skill, open that skill's `SKILL.md` and read it. A shell command
+can show the owner a red error for an ordinary answer: `ls astro.config.*` fails in an
+empty folder because nothing matches, and `grep` or `awk` can end with a failure when they
+find nothing. Where reading a file or listing a folder is possible only through a shell
+command, use one that succeeds on every ordinary answer: `ls -A` for the folder (never a
+pattern such as `astro.config.*`), and `cat` on the whole `SKILL.md`. Ask your questions
+as plain chat messages, not in a pick-list box, which a new owner may not see. The
+owner's first minutes should show no red and no frozen screen.
 
 Default house stack: **Astro (static) → GitHub → Cloudflare Pages**. Six questions
 decide everything downstream — ask them in order, offer the examples so a
@@ -316,6 +331,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` (its palette and logo come from step 2b, where the owner brought or chose them) | **`website-content-guide`** |
 | 4 | Pages, clean URLs, nav, internal links | `site-architecture` |
 | 5 | Decision interview + scaffold the repo | **this skill** §1, §3 |
+| 5a | Baseline launch check on the green scaffold (after the brand-kit intake, where there is one): the settings in `docs/launch/config.json` and the first punch list, "Baseline, not a launch verdict" | **`website-launch-check`** |
 | 6 | Build: mobile graphics, dark mode, theme tokens | **`website-design-system`** |
 | 6 | Build: head metadata within limits, schema, llms.txt | **`website-seo-geo`** (+ `schema-markup`, `ai-seo`) |
 | 6 | Build: per-page OG share cards (`npm run og` → 1200×630 ≤300 KB, tested) | **`og-images`** |
@@ -325,8 +341,10 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 9 | **Double-Knuth review** (correctness + cross-file consistency) | **`website-review`** |
 | 10 | Outgoing-link liveness sweep — **only if the site links out** (see §3a) | **`outgoing-link-audit`** |
 | 10b | Internal-link sweep — orphaned + thin pages (run if the site grew past a handful of pages) | **`internal-link-audit`** |
+| 10c | Launch check: the verdict before launch (🟢 / 🟡 / 🔴), and for a site that replaces an older one the current-vs-new comparison with its redirect map; §4 starts after 🟢, or a 🟡 the owner accepts | **`website-launch-check`** |
 | 11 | Launch & handoff: schema/sitemap/robots, deploy, hand over | **this skill** §4 |
 | 12 | Post-launch: register with Google Search Console + Bing, submit sitemap, enable IndexNow | **`search-console-setup`** |
+| 12a | Optional, once the production build is Active: the live re-check (HTTPS, the 404 status, speed on the live domain as `website-qa` §2 measures it, the new site's row of the comparison) | **`website-launch-check`** |
 | 13 | Post-launch: claim Google Business Profile + Bing Places, verify `sameAs` profiles resolve — **only if the site is a claimable entity** (see §4a) | **`business-listings-setup`** |
 | 14 | Post-launch: ask once for a "Built with Croftweaver" credit in the footer — a request, never a condition (see §4b) | **this skill** §4b |
 
@@ -345,13 +363,15 @@ first time tests run.
 before asking. Once `POSITIONING.md` is filled (step 2) and before the content guide
 (step 3):
 
-1. Read **"The offer"** in `website-story/SKILL.md` and say it in the language the
+1. Open `website-story/SKILL.md` (in the folder next to this skill's folder) with your
+   file tools (§1), read **"The offer"** and say it in the language the
    owner writes in (it explains the idea in plain words: the visitor as the hero, the
    brand as the guide, a one-liner, a three-step plan, one repeated call to action,
    positioning unchanged). Do not paraphrase it into jargon.
-2. Ask once — a structured user-input tool if the platform offers one (Claude Code's
-   **`AskUserQuestion`**), otherwise in chat — with two options: **Yes, build the home
-   page as a story** / **No, standard home page (default)**.
+2. Ask once, as a plain message in the chat (not a pick-list box: on a first run the owner
+   may not see one and think you have stopped), with the two answers written out: **Yes,
+   build the home page as a story** / **No, standard home page (default)**. Wait for the
+   reply.
 3. **Yes** → run `website-story` now, before step 3, so `CONTENT_GUIDE.md`'s home row
    and `copywriting` read `STORY.md`.
 4. **No, or no answer** → say nothing more about it. The skill still travels with the
@@ -368,8 +388,10 @@ Ask exactly once per build. Never run it unasked.
 `website-brand-kit` is optional. It is a plain question, not a pitch. Once
 `POSITIONING.md` is filled (and §2a is answered) and before the content guide (step 3):
 
-1. Read **"The question"** in `website-brand-kit/SKILL.md` and ask it, as it stands
-   there, in the language the owner writes in.
+1. Open `website-brand-kit/SKILL.md` (in the folder next to this skill's folder) with your file tools
+   (§1), read **"The question"** and ask it, as it stands
+   there, in the language the owner writes in, as a plain message in the chat (not a
+   pick-list box, as in §2a), and wait for the reply.
 2. **She has a part and wants it used** → note the path of her logo file, which must
    be an SVG, or her colours as hex values. No prompt is written for that part. Her own
    colours still go through the skill's check (its §3 step 3) now.
@@ -406,11 +428,18 @@ enforces it for members.
 Assemble the project at `<site>/` so it travels without any global setup. `<site>` is a new
 folder inside the owner's websites folder, which is the folder this session was opened in
 (never that folder itself). Before step 0, unless the owner has already confirmed it in this
-session, say which folder you are in and ask whether it is their websites folder. If it is
-not, or it already holds a site (an `astro.config.*` or `index.html` file) or is the toolkit
-folder (it has `skills/new-website/SKILL.md`), ask which folder is their websites folder
-instead. Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
-full path (the output of `pwd` inside it):
+session, look at the folder you are in. If it is hidden (a part of its path starts with a
+dot, such as `~/.gemini/…`) or is a tool's own scratch or temp folder, don't ask about it:
+the owner could not find the site there. Ask them to make a folder they can see, for
+example `Websites` in their Documents folder, and to tell you its name. Otherwise say which
+folder you are in and ask whether it is their websites folder. If it is not, or it already
+holds a site (an `astro.config.*` or `index.html` file) or is the toolkit folder (it has
+`skills/new-website/SKILL.md`), ask which folder is their websites folder instead. A folder
+the owner names themselves counts as their websites folder; if it is hidden or a tool's
+scratch or temp folder, say they may not find the site there again, and ask once whether to
+use it anyway. Find this out
+by listing the folder with your file tools (§1). Start step 0 from the websites folder,
+and once `<site>` exists, tell the owner its full path (the output of `pwd` inside it):
 
 0. **Git first, before any code:**
    ```bash
@@ -456,11 +485,23 @@ full path (the output of `pwd` inside it):
    cp "$SKILLS_ROOT"/new-website/templates/.gitignore .
    git add .gitignore && git commit -m "chore: init repo with .gitignore"
    ```
-1. **Scaffold + overlay:** `npm create astro@latest .` (Empty, TS strict), then copy
+1. **Scaffold + overlay:** run the scaffold without questions, so it never waits for a key,
+   then put back step 0's `.gitignore`, which the scaffold replaces with its own (that one
+   lacks the lines keeping `.env.*`, `.dev.vars` and sign-in files out of git):
+   ```bash
+   npm create --yes astro@latest . -- --template minimal --no-install --no-git --yes --skip-houston
+   git checkout -- .gitignore
+   ```
+   (The first `--yes` answers npm's own "Ok to proceed?", the second create-astro's
+   questions; checked with npm 11.20.0 and create-astro 5.3.1, run fresh with no keyboard input. `minimal` is Empty, with TypeScript strict.
+   `git checkout` restores the file step 0 committed. Nothing is installed yet:
+   `templates/astro/README.md` step 3 runs `npm install` after the overlay.) Then copy
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
    `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, root configs — see `templates/astro/README.md`
-   for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`)
-   and `src/config.ts`. **Set `SITE.locale` in `src/config.ts` to match the interview's
+   for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`),
+   `src/config.ts` (`url`), `public/robots.txt` (the `Sitemap:` line) and `public/llms.txt`
+   (every `https://example.com` link); the first `npm test` fails while `robots.txt` or
+   `llms.txt` still names `example.com`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
    `astro-i18n-setup`). **`'de'` flips the footer's privacy link to `/datenschutz`** —
    do the privacy→datenschutz swap in the SAME step (rename the in-repo
@@ -506,7 +547,7 @@ full path (the output of `pwd` inside it):
    rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
    skills: agents read it, and its Language rule has them reply in the person's
    language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
-3. **Skills travel with the repo** — copy the twenty-seven always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-eight always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -527,7 +568,8 @@ full path (the output of `pwd` inside it):
    `website-scorecard` (optional public scorecard — same rule: copied, never runs
    unasked), `website-brand-kit` (optional colours and logo — same rule: copied, never
    runs unasked; asked about once at §2b), `website-tagline` (optional line under the logo — same rule: copied,
-   never runs unasked), and `website-team-setup` (copied so the day a second person joins, the session that
+   never runs unasked), `website-launch-check` (the launch check: run at steps 5a, 10c and 12a, and
+   whenever the owner asks), and `website-team-setup` (copied so the day a second person joins, the session that
    sets up the team finds it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
    symlinks each skill from this suite repo) — use `cp -RL` to dereference
@@ -561,6 +603,7 @@ full path (the output of `pwd` inside it):
          "$SKILLS_ROOT"/website-scorecard \
          "$SKILLS_ROOT"/website-brand-kit \
          "$SKILLS_ROOT"/website-tagline \
+         "$SKILLS_ROOT"/website-launch-check \
          "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
    # The brand kit's scripts/tests is the toolkit's own test suite (about 1.7 MB). No site
@@ -637,6 +680,20 @@ full path (the output of `pwd` inside it):
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
+   **Tell the owner about the generator tag, once,** after this first green run, unless the
+   project README already has a "generator tag:" line. The starter writes
+   `<meta name="generator" content="Croftweaver">` into every page (`GENERATOR_TAG` in
+   `src/config.ts`). Say it in one plain chat message, in these words:
+
+   > One small thing you can't see: your pages' code has a tiny name tag that says "made
+   > with Croftweaver". People who visit your site won't see it on the page. It doesn't
+   > send anything to anyone and doesn't link anywhere. If you'd rather not have it, just
+   > say "remove the Croftweaver tag" and I'll take it out.
+
+   Then record "generator tag: on" with the decision answers in the project README (told twice
+   after an interruption is harmless; never told is not). If the owner asks to remove it, now or
+   later: set `GENERATOR_TAG` to `false`, run `npm test`, and change
+   the line to "generator tag: off". It is not the credit of §4b, and it is told, not asked.
    **If the owner has a palette or a logo from §2b**, run `website-brand-kit` §6 (the
    intake) now, on the green baseline and before the first page: it checks the palette
    and the logo, writes them into the site, runs these same tests again and puts every
@@ -661,9 +718,8 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 
 - **`EXT` is 0** → the site links only to itself. Say so and **skip silently** — do
   not ask.
-- **`EXT` ≥ 1** → ask whether to run the liveness sweep now — use a structured
-  user-input tool if the platform offers one (Claude Code's **`AskUserQuestion`**),
-  otherwise just ask in chat — e.g. *"The site has N outgoing links. Run the `outgoing-link-audit` liveness
+- **`EXT` ≥ 1** → ask whether to run the liveness sweep now, as a plain message in
+  the chat (not a pick-list box, §1), e.g. *"The site has N outgoing links. Run the `outgoing-link-audit` liveness
   sweep before launch? (fetches each third-party URL; ~a few seconds each)"* — options
   **Run it now (recommended)** / **Skip — I'll run it monthly**. If they say run it,
   invoke the `outgoing-link-audit` skill; otherwise note it as a monthly follow-up.
@@ -701,6 +757,10 @@ hold Search Console Request Indexing until then.
       via `/build.txt` — push alone is not proof of live).
 - [ ] **Double-Knuth review clean** (`website-review`): both passes — run it as the final
       gate AND after adding the last page.
+- [ ] **Launch check verdict** (`website-launch-check`, step 10c): 🟢, or 🟡 with the owner's
+      yes in chat; the report is `docs/launch/launch-check-<date>-prelaunch.md` (+ `.html`), and
+      for a relaunch `docs/launch/launch-comparison-<date>.md`. Its "not checked yet: not
+      deployed" rows wait for the live re-check (12a).
 - [ ] Lighthouse / PageSpeed run; FCP & LCP within target (see `website-qa`).
 - [ ] **Outgoing links healthy** (`outgoing-link-audit`) — only if the site links out
       (§3a). No DEAD/REBRAND left unhandled; any retired domain added to
@@ -833,6 +893,8 @@ than assuming.
 Croftweaver is free and its license asks for no credit. The people who make it ask for
 one anyway: a small "Built with Croftweaver" link in the footer, and a star on GitHub.
 It is a request, never a condition, and this is the only place the pipeline raises it.
+The generator tag (§3, step 5) is not this credit: it is in the page's code, not on the page,
+links nowhere, and is told at the build as a default the owner can switch off, not asked for.
 
 This step belongs to the launch checklist (§4). Do not raise it in a later session
 that is doing other work on the site, with one exception, an unfinished yes: the
@@ -852,8 +914,7 @@ Ask only when all three hold; otherwise do not ask:
   starter keeps it in `src/layouts/Base.astro`). If it does, record "credit:
   already in the footer" in the README and stop.
 
-Then ask once, in one message — a structured user-input tool if the platform offers
-one (Claude Code's **`AskUserQuestion`**), otherwise in chat:
+Then ask once, in one plain message in the chat (not a pick-list box, §1):
 
 > Your site is live. I hope you enjoyed building it.
 >
@@ -886,7 +947,14 @@ Options: **Add the badge** / **Add a text link** / **No thanks**.
   objects to the pasted code, tell the user and do not change the test to make the
   credit fit. Then publish per the publish model (§1 Q6) with the usual
   preview-or-live announcement.
-- **No thanks** → say "No problem" and nothing more.
+- **No thanks** → say "No problem" and nothing more, except one reminder while the README says
+  "generator tag: on", in these words:
+
+  > No problem. The little "made with Croftweaver" tag in your pages' code is still there,
+  > where visitors can't see it. Say "remove the Croftweaver tag" any time if you'd like it
+  > gone.
+
+  That is a reminder of the owner's switch, not a second request.
 - **No answer** → say nothing more about it, and record it as declined.
 
 Never add the credit unasked, never ask a second time, and never give the star for

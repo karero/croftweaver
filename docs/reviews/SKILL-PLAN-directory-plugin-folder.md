@@ -1,15 +1,16 @@
 # Plan: list Croftweaver in Anthropic's plugin directory from a slim branch
 
-The plan passed its review gate; the trial (step 3) passed Validate, and the build (step 4) is
-in review as its own PR. The status table says where each step stands.
+Done up to the submission: the plan passed its review gate, the trial passed Validate, the
+build is merged, and the maintainer submitted the listing on 2026-10-25. What is left: the
+directory's review, and seeing release 0.34 reach `directory` through the workflow.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-24 | this file |
 | 2 | Plan review gate (High: a workflow that pushes what users install) | ✅ 5 rounds, 48 findings, no BUG open; final full read (6 more); wording pass and its confirmation | `docs/reviews/REVIEW-plan-2026-10-24-directory-plugin-folder.md` |
 | 3 | Trial: one slim branch pushed by hand, Validate run on it | ✅ 2026-10-24: **Validation passed** in about 20 s (`ValidatePlugin` 200): 7 checks, 0 Blocking, 9 warnings (8 download-and-run, mostly docs; no icon), 26 policy holds (16 "uses a credential from the user's machine", 10 for `og/default.jpg` named by code). Unpinned `npx` did not block. Draft cleared, nothing submitted | `directory` at `c88e1ef5` (parent `9bae3ea0`, the tree as planned); `c88e1ef5` leaves out `independent-review` (223 files) |
-| 4 | Build: script, test, workflow step (one PR) | ✅ built 2026-10-25 on the maintainer's go ("yes, build the automation"); DIFF gate High, see the PR | `feat/directory-branch-publish`; trail `REVIEW-diff-2026-10-25-directory-branch-publish.md` |
-| 5 | Fix what step 3's report marks Blocking (likely the `npx` lines), and the README section on what the skills contact, each its own PR | ⬜ | — |
+| 4 | Build: script, test, workflow step (one PR) | ✅ merged 2026-10-26 (built on the maintainer's go, "yes, build the automation"); DIFF gate High, degraded pair (Codex alone; GLM 5.3 could not run), 6 rounds, a final full read and re-gates | karero/croftweaver#403, merge `428b7ba1`; trail `REVIEW-diff-2026-10-25-directory-branch-publish.md` |
+| 5 | Fix what step 3's report marks Blocking, and the README section on what the skills contact | ✅ nothing was Blocking (unpinned `npx` came back as a warning); README section merged 2026-10-25; `privacyPolicyUrl` in #403 | karero/croftweaver#404 (`12617ee1`) |
 | 6 | Directory form steps 2 to 5, then submit | ✅ submitted 2026-10-25 by the maintainer, from `directory` at `3c9d675`; held for policy review (16 "uses a credential from the user's machine", 10 for `og/default.jpg`); auto-publish of later passing versions on | https://claude.ai/directory/manage/plugins/50246c32-f120-48b1-a773-824fce0c0847 |
 
 ## What and why

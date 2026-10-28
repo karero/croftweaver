@@ -5,31 +5,34 @@
 **Build for search and AI.**
 
 Croftweaver is a free, open-source suite of website skills: instructions your AI coding
-assistant follows to build and test a site you own. Build or rebuild your site with your
-assistant, so people can find it on Google and in AI answers. From a short brief it makes a
-complete website — content, mobile-first responsive design, SEO, accessibility checks, schema
-markup, tests, and launch support — on Astro → GitHub → Cloudflare Pages, and its test suites
-check every change by default. After launch, your Search Console data and a weekly check of
-which AI assistants name your site point to the next edit for SEO and GEO (how your site shows
-up in AI answers). Developed and used with **Claude Code**; the install guides also cover
-**OpenAI Codex** and **Google Antigravity**, and both have been tested from start to finish on
-one site.
+assistant follows to build and test a site you own. From a short brief it makes a complete
+website — content, mobile-first responsive design, SEO, accessibility checks, schema markup,
+tests, and launch support — on Astro → GitHub → Cloudflare Pages, and its test suites check
+every change by default. After launch, your Search Console data and a weekly check of which AI
+assistants name your site point to the next edit for SEO and GEO (how your site shows up in AI
+answers).
 
-**Already have a website?** Part of Croftweaver works on a site that is already live, on any
-stack, without a rebuild: the checks and measurements. They are Search Console insights, the
-weekly AI check, the SEO audit, the positioning check, and the facts check. Three limits:
-the ready-made test suite and the two link audits need the Croftweaver starter, the facts
-check does not run a page's JavaScript, and there is no automatic import of an existing site
-yet. See [Croftweaver for established sites](https://croftweaver.com/established-sites).
+[![The home page of croftweaver.com, a site built with Croftweaver: the heading "Build a complete website with AI." above two buttons, "Get Croftweaver on GitHub" and "See a finished website".](https://raw.githubusercontent.com/karero/croftweaver/main/docs/images/croftweaver-home.webp)](https://croftweaver.com/)
 
-**Who maintains it.** Croftweaver is maintained by Daniel Melter (Munich). It grew out of
-GenAI Wednesday Munich. The [LICENSE](LICENSE) file names the same person as copyright
-holder, and the [imprint](https://croftweaver.com/imprint) names the company that operates
-the website croftweaver.com.
+**[See a finished website](https://croftweaver.com/case-study):** croftweaver.com is built
+with Croftweaver. Its case study follows the site week by week, with links to its public code.
 
-> **Formerly website-builder.** Same project, new name. GitHub redirects old repository links
-> and existing clones here. To point a clone at the new address, run
-> `git remote set-url origin https://github.com/karero/croftweaver.git`.
+**Quick install.** One command installs the skills, in any terminal. Installing and
+building have different Node minimums: the command needs [Node](https://nodejs.org) 22.12
+or newer, and building a site needs a recent security release of Node, which the
+[setup guide](skills/new-website/templates/SETUP.md) names. One Node that meets the second
+covers both, and your assistant tells you if yours is too old.
+
+```bash
+npm create croftweaver
+```
+
+It tells you the next step. For Codex add `-- --codex`, for Antigravity `-- --antigravity`.
+Plugins and other routes: [Manual install](#manual-install--technical-reference).
+
+**Before you choose:** [How it compares](https://croftweaver.com/compare) ·
+[Moving from WordPress](https://croftweaver.com/from-wordpress) ·
+[What a static site changes for security](https://croftweaver.com/security)
 
 You can use it even if you're not deeply technical. Whether you're a founder, a community
 organiser, a solo builder, a small team, or a developer, **the easiest way to start is to
@@ -58,6 +61,24 @@ It's **not** a hosted no-code website builder. You own the code, the repository,
 domain — there's no platform you're locked into, and no hosted-builder subscription required
 to keep a basic static site online. (Your domain registration and your AI tool may still have
 their own costs.)
+
+**Already have a website?** Part of Croftweaver works on a site that is already live, on any
+stack, without a rebuild: the checks and measurements. They are Search Console insights, the
+weekly AI check, the SEO audit, the positioning check, and the facts check. Three limits:
+the ready-made test suite and the two link audits need the Croftweaver starter, the facts
+check does not run a page's JavaScript, and there is no automatic import of an existing site
+yet. See [Croftweaver for established sites](https://croftweaver.com/established-sites).
+
+## Who maintains it
+
+Croftweaver is maintained by Daniel Melter (Munich). It grew out of GenAI Wednesday Munich.
+The [LICENSE](LICENSE) file names the same person as copyright holder, and the
+[imprint](https://croftweaver.com/imprint) names the company that operates the website
+croftweaver.com.
+
+> **Formerly website-builder.** Same project, new name. GitHub redirects old repository links
+> and existing clones here. To point a clone at the new address, run
+> `git remote set-url origin https://github.com/karero/croftweaver.git`.
 
 ## You don't do this alone
 
@@ -113,7 +134,8 @@ below.)
 - a **computer** where you can run basic commands (macOS, Linux, or Windows)
 - *optionally*, a **Cloudflare account** (free) when you're ready to publish
 
-You **don't** need to install Node, git, the GitHub CLI, image tools, or anything else
+Unless you use the one-command install, which needs Node, you **don't** need to install
+Node, git, the GitHub CLI, image tools, or anything else
 upfront — the assistant checks for those and helps you install them only when the moment
 comes.
 
@@ -189,8 +211,9 @@ from it.
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
 Console/API account).
 
-**The short way.** With [Node](https://nodejs.org) 22.12 or newer, one command installs the
-skills (building a site needs a newer Node; the setup guide says which). It runs in any
+**The short way.** One command installs the skills. It needs [Node](https://nodejs.org)
+22.12 or newer; building a site needs a recent security release of Node, which the
+[setup guide](skills/new-website/templates/SETUP.md) names. The command runs in any
 terminal, on Windows too:
 
 ```bash
@@ -489,6 +512,11 @@ skills/            the suite skills (canonical)
                    the owner six to eight lines, the owner picks one: TAGLINE.md +
                    SITE.tagline, and an opt-in tagline.spec.ts for a site that shows
                    the line; the skill is copied to every site, never runs unasked)
+  website-launch-check (the launch check: runs the site's tests first, checks only what
+                   they cannot, and writes a dated report with a verdict to docs/launch/,
+                   Markdown plus a self-contained HTML page; for a site that replaces an
+                   older one also the current-vs-new comparison with its redirect map;
+                   run at new-website's steps 5a, 10c and 12a, copied to every site)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
@@ -698,6 +726,10 @@ third-party text: `website-positioning` uses April Dunford's positioning compone
 by Donald Miller's StoryBrand framework
 ([*Building a StoryBrand 2.0*](https://storybrand.com/building-a-storybrand-book-new/));
 StoryBrand is a trademark of its owner and neither author endorses this project.
+
+Sites made from the starter carry `<meta name="generator" content="Croftweaver">` in their
+pages' code, the way many site builders name themselves there. Visitors do not see it, it sends
+nothing, and `GENERATOR_TAG = false` in `src/config.ts` removes it.
 
 If you built a site with Croftweaver, we would be glad of a link back to
 [croftweaver.com/partner-assets](https://croftweaver.com/partner-assets), with the badge or as
