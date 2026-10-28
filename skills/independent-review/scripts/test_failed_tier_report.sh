@@ -298,8 +298,12 @@ case "$url" in
       keepalive) printf ': PROCESSING\n\n: PROCESSING\n\n' >"$out"; printf 200 ;;   # comments only, then closed
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
-      nobalance) # the reply Melious sends when the balance is empty (raw file, 2026-10-25): its only chunk
-              printf '%s\n\n' 'data: {"type":"error","error":{"message":"Insufficient balance for request. Required: 771, Available: 0","type":"billing_error","param":null,"code":"billing_insufficient_balance"}}' >"$out"; printf 200 ;;
+      nobalance) # the reply Melious sends when the balance is empty: a real capture, unedited
+              cp "$STUB_FIXTURES/melious-api_2026-10-27_insufficient-balance.sse" "$out"; printf 200 ;;
+      echoed) # the balance words in the message, but another code: not an empty balance
+              printf '%s\n\n' 'data: {"type":"error","error":{"message":"Invalid input near: Insufficient balance for request","type":"invalid_request_error","param":null,"code":"invalid_request"}}' >"$out"; printf 200 ;;
+      codeonly) # the balance code with other words: still an empty balance
+              printf '%s\n\n' 'data: {"type":"error","error":{"message":"Your plan has no energy left","type":"billing_error","param":null,"code":"billing_insufficient_balance"}}' >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30; : >"$STUB_MARKS/melious-finished" ;;
     esac
     if [ -f "$out" ] && grep -qF '@@MARK@@' "$out"; then   # a reply that needs the marker: never send it unfilled
@@ -342,7 +346,7 @@ run() {
   mkdir -p "$T/$name.marks"
   env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
-    REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
+    REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" STUB_FIXTURES="$HERE/fixtures" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
   echo $? >"$T/$name.rc"
 }
@@ -889,6 +893,15 @@ for c in "evdash|bad value for --evidence|--evidence -" \
   check "evidence refusal $name: no stub ran (its marks folder is empty)" sh -c '[ -d "$1" ] && [ -z "$(ls -A "$1")" ]' _ "$T/$name.marks"
 done
 
+# 25e. READs (SKILL-PLAN-review-readback-evidence.md): SKILL.md tells the host to send a read of a
+#      system no seat can reach in the --evidence file, resend it, and answer such a question with
+#      one. The phrases are written out here; each check guards its phrase being present, not the
+#      whole wording.
+SKILL_MD="$HERE/../SKILL.md"
+for phrase in "goes in that file as a READ" "Send the same file every round" "adding the READ to the next round's"; do
+  check "SKILL.md says: $phrase" grep -qF -- "$phrase" "$SKILL_MD"
+done
+
 # 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
 #     CODEX_EFFORT says otherwise; "config" keeps config.toml's; an explicit value applies to any
 #     round and lands after the model override, before the prompt.
@@ -1246,8 +1259,10 @@ check "mmiderr: an error object mid-stream fails the tier and is quoted" \
 # An empty balance is a quota failure (wait or add credits), not a broken stream: on 2026-10-24/25 all
 # 109 mid-stream failures were this reply, read as a CLI, sign-in or model problem.
 run mnobalance OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nobalance bash "$SCRIPT" "$T/change.diff" --base none
-check "mnobalance: an empty Melious balance is named as quota in the summary" \
-  has mnobalance.out "melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits)"
+check "mnobalance: an empty Melious balance is named in the summary" \
+  has mnobalance.out "melious FAILED (out of balance (HTTP 200))"
+check "mnobalance: as ollama's fallback it says add credits, not the second seat's rule" \
+  sh -c 'grep -qF "the Melious balance is empty: add credits" "$1" && ! grep -qF "no rerun" "$1"' _ "$T/mnobalance.out"
 check "mnobalance: and the provider's own message is quoted" has mnobalance.out "Insufficient balance for request"
 run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff" --base none
 check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
@@ -1327,14 +1342,31 @@ check "sfirst: ollama is not run while Melious counts" [ ! -e "$T/sfirst.marks/o
 check "sfirst: two counted, so no fewer-than-2 note" lacks sfirst.out "fewer than the 2"
 run sfall SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nobalance OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff" --base none
 check "sfall: an empty Melious balance is not replaced: the line names Codex and Melious only" \
-  grep -qxF "reviewers: codex OK, melious FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits)" "$T/sfall.out"
+  grep -qxF "reviewers: codex OK, melious FAILED (out of balance (HTTP 200))" "$T/sfall.out"
 check "sfall: ollama never ran" [ ! -e "$T/sfall.marks/ollama-ran" ]
-check "sfall: the gate line says Codex alone, with Melious's reason" \
-  has sfall.out "$GATE_ALONE FAILED (error mid-stream (HTTP 200); quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback."
+# The owner's rule, 2026-10-27: an empty balance leaves the round on Codex alone, with no rerun owed.
+check "sfall: the gate line says Codex alone is enough, no rerun owed" \
+  has sfall.out "$GATE_ALONE out of balance. By the owner's rule (2026-10-27) Codex alone is enough for this round: no rerun of melious is owed."
 check "sfall: ...in place of the generic note" lacks sfall.out "fewer than the 2"
-check "sfall: ...and its rerun advice keeps round 1 in this gate (--round 1 would start a new one)" \
-  has sfall.out "rerun with --seat melious and the same --round (at round 1, no --round: --round 1 starts a new gate in the cost log)."
+check "sfall: ...and with no rerun advice" lacks sfall.out "rerun with --seat melious"
 check "sfall: exit 0 while Codex counts" rc_is sfall 0
+run sfall429 SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none
+check "sfall429: a rate limit is not an empty balance: it keeps the rerun advice" \
+  sh -c 'grep -qF "melious FAILED (HTTP 429; quota/rate limit: wait or add credits); SECOND_SEAT=melious has no fallback." "$1" && grep -qF "rerun with --seat melious and the same --round (at round 1, no --round: --round 1 starts a new gate in the cost log)." "$1" && ! grep -qF "no rerun" "$1"' _ "$T/sfall429.out"
+run mechoed SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=echoed bash "$SCRIPT" "$T/change.diff" --base none
+check "mechoed: the balance words under another code are not an empty balance" \
+  sh -c 'grep -qF "melious FAILED (error mid-stream (HTTP 200)" "$1" && grep -qF "rerun with --seat melious" "$1" && ! grep -qF "out of balance" "$1"' _ "$T/mechoed.out"
+run mcodeonly SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=codeonly bash "$SCRIPT" "$T/change.diff" --base none
+check "mcodeonly: the balance code decides, whatever the message says" \
+  sh -c 'grep -qF "melious FAILED (out of balance (HTTP 200))" "$1" && grep -qF "no rerun of melious is owed" "$1"' _ "$T/mcodeonly.out"
+run sseatbal MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nobalance bash "$SCRIPT" "$T/change.diff" --base none --seat melious
+check "sseatbal: a lone Melious run out of balance says no rerun is owed" \
+  has sseatbal.out "melious out of balance; no rerun owed (owner's rule, 2026-10-27)."
+check "sseatbal: ...and its section gives the owner's rule" \
+  has sseatbal.out "no rerun of this seat is owed: if Codex counted in this round, the round stands on Codex alone"
+check "sseatbal: ...and offers no paste round" \
+  sh -c '! grep -qF "paste the prompt below" "$1/sseatbal.err" && ! grep -qF "Adversarial independent reviewer of the" "$1/sseatbal.out" && grep -qF "no paste round owed" "$1/sseatbal.err"' _ "$T"
+check "sseatbal: exit 4, no reviewer counted" rc_is sseatbal 4
 run sparallel CODEX_STUB=waitmelious SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff" --base none
 check "sparallel: Melious started while codex was still running" \
   sh -c 'grep -qF "melious OK" "$1/sparallel.out" && [ -e "$1/sparallel.marks/codex-done" ] && [ ! -e "$1/sparallel.marks/melious-after-codex" ]' _ "$T"

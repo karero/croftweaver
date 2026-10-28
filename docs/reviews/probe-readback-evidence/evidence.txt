@@ -1,0 +1,12 @@
+READ 1
+source: gh api repos/karero/croftweaver/rulesets/24584953 --jq '{name,enforcement,conditions,rules:[...]}'
+time: 2026-10-27T12:05Z
+output (verbatim):
+{"conditions":{"ref_name":{"exclude":[],"include":["~DEFAULT_BRANCH"]}},"enforcement":"active","name":"main checks","rules":[{"parameters":null,"type":"deletion"},{"parameters":null,"type":"non_fast_forward"},{"parameters":{"required_status_checks":["perl-minimum","no-pii-secrets","cdpath-safe","pipefail-pipes","model-defaults","template-coverage","skill-budgets","review-reporting","review-validator","claims-sweep","install-pin","package-leak","pre-push-hook","clean-denylist","git-stand-hook","lf-checkout","lf-checkout-windows","search-console-insights-tests (3.9)","search-console-insights-tests (3.12)","macos-stock-tools","template-tests-ok","whats-new","whats-new-removed-skill","mktemp-guard","create-croftweaver-tests (ubuntu-latest)","create-croftweaver-tests (macos-latest)","create-croftweaver-tests (windows-latest)","plugin-tests","wordpress-inventory-tests (3.9)","wordpress-inventory-tests (3.12)","facts-check-tests (3.9)","facts-check-tests (3.12)","cloudflare-check-tests (ubuntu-latest, 18)","cloudflare-check-tests (ubuntu-latest, 20)","cloudflare-check-tests (ubuntu-latest, 22)","cloudflare-check-tests (ubuntu-latest, 24)","cloudflare-check-tests (windows-latest, 24)","buglog-rows"]},"type":"required_status_checks"}]}
+
+READ 2
+source: gh api repos/karero/croftweaver/rulesets
+time: 2026-10-27T12:05Z
+output (verbatim, cut to names and enforcement):
+{"enforcement":"active","id":24584953,"name":"main checks","target":"branch"}
+{"enforcement":"active","id":25871897,"name":"published branches","target":"branch"}

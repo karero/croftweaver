@@ -3,7 +3,8 @@
 # errors go to stderr as "Error: HTTP <code>: ...". Exit 2: an error reply (not 200); 3: a stream chunk
 # that is not JSON; 4: a truncated review; 5: no review text; 6: an error mid-stream; 7: not a stream
 # (one JSON object, or a body that is not JSON); 8: an empty reply; 9: an error reply that is not a
-# stream (200); 1: the reader itself failed. run_melious names each in the summary line.
+# stream (200); 10: an error mid-stream whose code says the balance is empty; 1: the reader itself
+# failed. run_melious names each in the summary line.
 use 5.010;
 use JSON::PP;
 use Encode;
@@ -36,7 +37,12 @@ while (my $line = <$f>) {
   if ($d eq "[DONE]") { $done = 1; next }
   my $j = eval { $json->decode($d) };
   if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", quoted($d), "\n"; exit 3 }
-  if (defined $j->{error}) { print STDERR "Error: HTTP $code: ", errtext($j->{error}), "\n"; exit 6 }
+  if (defined $j->{error}) {
+    print STDERR "Error: HTTP $code: ", errtext($j->{error}), "\n";
+    # The provider's code field, not the message, so quoted artifact text cannot set it.
+    my $ec = ref $j->{error} eq "HASH" ? $j->{error}{code} : undef;
+    exit((defined $ec && !ref $ec && $ec eq "billing_insufficient_balance") ? 10 : 6);
+  }
   $n++;
   $usage = $j->{usage} if ref $j->{usage} eq "HASH";
   my $ch = ref $j->{choices} eq "ARRAY" ? $j->{choices}[0] : undef;
