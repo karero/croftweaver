@@ -428,11 +428,18 @@ enforces it for members.
 Assemble the project at `<site>/` so it travels without any global setup. `<site>` is a new
 folder inside the owner's websites folder, which is the folder this session was opened in
 (never that folder itself). Before step 0, unless the owner has already confirmed it in this
-session, say which folder you are in and ask whether it is their websites folder. If it is
-not, or it already holds a site (an `astro.config.*` or `index.html` file) or is the toolkit
-folder (it has `skills/new-website/SKILL.md`), ask which folder is their websites folder
-instead. Find this out by listing the folder with your file tools (§1). Start step 0 from the websites folder, and once `<site>` exists, tell the owner its
-full path (the output of `pwd` inside it):
+session, look at the folder you are in. If it is hidden (a part of its path starts with a
+dot, such as `~/.gemini/…`) or is a tool's own scratch or temp folder, don't ask about it:
+the owner could not find the site there. Ask them to make a folder they can see, for
+example `Websites` in their Documents folder, and to tell you its name. Otherwise say which
+folder you are in and ask whether it is their websites folder. If it is not, or it already
+holds a site (an `astro.config.*` or `index.html` file) or is the toolkit folder (it has
+`skills/new-website/SKILL.md`), ask which folder is their websites folder instead. A folder
+the owner names themselves counts as their websites folder; if it is hidden or a tool's
+scratch or temp folder, say they may not find the site there again, and ask once whether to
+use it anyway. Find this out
+by listing the folder with your file tools (§1). Start step 0 from the websites folder,
+and once `<site>` exists, tell the owner its full path (the output of `pwd` inside it):
 
 0. **Git first, before any code:**
    ```bash
@@ -478,11 +485,23 @@ full path (the output of `pwd` inside it):
    cp "$SKILLS_ROOT"/new-website/templates/.gitignore .
    git add .gitignore && git commit -m "chore: init repo with .gitignore"
    ```
-1. **Scaffold + overlay:** `npm create astro@latest .` (Empty, TS strict), then copy
+1. **Scaffold + overlay:** run the scaffold without questions, so it never waits for a key,
+   then put back step 0's `.gitignore`, which the scaffold replaces with its own (that one
+   lacks the lines keeping `.env.*`, `.dev.vars` and sign-in files out of git):
+   ```bash
+   npm create --yes astro@latest . -- --template minimal --no-install --no-git --yes --skip-houston
+   git checkout -- .gitignore
+   ```
+   (The first `--yes` answers npm's own "Ok to proceed?", the second create-astro's
+   questions; checked with npm 11.20.0 and create-astro 5.3.1, run fresh with no keyboard input. `minimal` is Empty, with TypeScript strict.
+   `git checkout` restores the file step 0 committed. Nothing is installed yet:
+   `templates/astro/README.md` step 3 runs `npm install` after the overlay.) Then copy
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
    `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, root configs — see `templates/astro/README.md`
-   for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`)
-   and `src/config.ts`. **Set `SITE.locale` in `src/config.ts` to match the interview's
+   for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`),
+   `src/config.ts` (`url`), `public/robots.txt` (the `Sitemap:` line) and `public/llms.txt`
+   (every `https://example.com` link); the first `npm test` fails while `robots.txt` or
+   `llms.txt` still names `example.com`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
    `astro-i18n-setup`). **`'de'` flips the footer's privacy link to `/datenschutz`** —
    do the privacy→datenschutz swap in the SAME step (rename the in-repo
