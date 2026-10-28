@@ -344,6 +344,10 @@ What touches the maintainer's own places:
   inline data (`img-src 'self' data:`), so a browser that applies it does not fetch a
   badge from croftweaver.com. (Read from the starter; not tested on a live site.) The credit is a link
   to croftweaver.com.
+- Every page of a site made from the starter carries `<meta name="generator"
+  content="Croftweaver">` in its code. Visitors do not see it on the page; it holds no link and
+  sends nothing. `new-website` tells you about it at the build. To remove it, set
+  `GENERATOR_TAG` to `false` in `src/config.ts`.
 - `croftweaver.com` and `github.com/karero/croftweaver` otherwise appear only as links.
 
 Two tools the site uses collect anonymous usage data by default, for their own makers and

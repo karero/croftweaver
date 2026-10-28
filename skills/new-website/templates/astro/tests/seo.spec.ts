@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { PAGES } from './_helpers';
 import { SITE, ogLocaleFor } from '../src/config';
+import * as config from '../src/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -433,6 +434,36 @@ test('seo — hosted PDFs carry a descriptive doc-title', () => {
     for (const t of titles) {
       expect(PDF_PLACEHOLDERS.has(t.toLowerCase()), `${file}: doc-title is an authoring placeholder ("${t}") — run scripts/set_pdf_title.py`).toBe(false);
       expect(t.length, `${file}: doc-title too short ("${t}", ${t.length} chars, need ≥${PDF_TITLE_MIN})`).toBeGreaterThanOrEqual(PDF_TITLE_MIN);
+    }
+  }
+});
+
+// The generator tag (src/config.ts GENERATOR_TAG): every built page, 404 and noindex pages too,
+// carries exactly one when the switch is on, none when it is off. A config without the switch
+// (a site from before it existed) counts as off, so this test passes there unchanged.
+function findHtml(dir: string): string[] {
+  const out: string[] = [];
+  let entries: import('node:fs').Dirent[];
+  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  for (const e of entries) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...findHtml(p));
+    else if (e.name.endsWith('.html')) out.push(p);
+  }
+  return out;
+}
+
+test('seo — the generator tag follows its switch on every built page', () => {
+  const on = 'GENERATOR_TAG' in config && config.GENERATOR_TAG === true;
+  const pages = findHtml(join(process.cwd(), 'dist'));
+  expect(pages.length, 'no built pages in dist/: the test server builds the site first').toBeGreaterThan(0);
+  for (const file of pages) {
+    const tags = readFileSync(file, 'utf8').match(/<meta\b[^>]*\bname=["']?generator["']?[^>]*>/gi) ?? [];
+    if (on) {
+      expect(tags.length, `${file}: needs exactly one generator tag (GENERATOR_TAG is true)`).toBe(1);
+      expect(tags[0], `${file}: the generator tag must say Croftweaver`).toMatch(/content=["']Croftweaver["']/);
+    } else {
+      expect(tags, `${file}: has a generator tag although GENERATOR_TAG is off`).toEqual([]);
     }
   }
 });

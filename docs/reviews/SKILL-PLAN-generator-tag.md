@@ -16,7 +16,7 @@ Every page of a site made from the `new-website` starter carries one line in its
 - It is in the page's code only. Visitors do not see it on the page.
 - It names the toolkit and nothing else: no link, no version, no script, no request to any
   server. It sends nothing to anyone.
-- On by default. One line in `src/config.ts` turns it off: `export const GENERATOR_TAG = true;`
+- On by default. One line in `src/config.ts` turns it off: `export const GENERATOR_TAG: boolean = true;`
   set to `false`.
 
 ## Why
