@@ -271,11 +271,11 @@ the end of the trial (`workers_dev` was `true` until step 1):
 |---|---|
 | 1 | With `workers_dev` off: the old live `workers.dev` address answered 404 with Cloudflare's own not-found page, not the site. The Preview URL, the Deployment URL and a Version URL each answered 200 with `X-Robots-Tag: noindex`. `trial.croftweaver.com` answered 200 without it. Wrangler warned at that deploy that Preview URLs stay public; `preview_urls = false` turns them off |
 | 2 | Preview URL and Deployment URL: `X-Robots-Tag: noindex` on a page and on an image |
-| 3 | Every `public/_headers` rule arrived on the Preview URL, the Deployment URL, the live `workers.dev` address and the real domain. HSTS came from the zone |
+| 3 | All five `public/_headers` rules arrived on a page and an image at the Preview URL, the Deployment URL, the live `workers.dev` address and the real domain. HSTS came from the zone |
 | 4 | The Preview and the live address answered alike: `/privacy` 200; `/privacy.html`, `/privacy/` and `/index.html` 307 to the clean address; the `_redirects` entry 301; a missing path 404. The live addresses served the site's `404.html`. The Preview URL and the Deployment URL sent a bare 9-byte "Not found" instead |
 | 5, 6 | Not tried: both need Workers Builds connected to a Git repo |
 | 7 | With `workers_dev` on and no domain yet, the live `workers.dev` address answered 200 with every `_headers` rule and no `X-Robots-Tag` |
-| 8 | Dashboard, "last 24 hours" as read on 2026-10-28, covering the timing runs: Pages counted 923 Functions requests, each against the daily limit. The Worker's page showed asset requests only (578) and no script runs |
+| 8 | Dashboard, "last 24 hours" as read on 2026-10-28, covering the timing runs: Pages counted 923 Functions requests, each against the daily limit. The Worker's page counted asset requests only (578) and had no count of script runs at all |
 | 9 | Median in seconds, Worker then Pages, two passes: `/` 0.0852 / 0.1690 and 0.0827 / 0.1433; `/privacy` 0.0731 / 0.1281 and 0.0854 / 0.1064; image 0.0968 / 0.1054 and 0.0770 / 0.0768. Pages was slower on HTML in both passes and about equal on the image. One place, one hour, a Pages project minutes old: a measurement, not a verdict. Why the image shows no gap, though the middleware runs in front of it too, is not known |
 
 Also learned on the way:
