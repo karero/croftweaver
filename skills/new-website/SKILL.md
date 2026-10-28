@@ -435,8 +435,9 @@ example `Websites` in their Documents folder, and to tell you its name. Otherwis
 folder you are in and ask whether it is their websites folder. If it is not, or it already
 holds a site (an `astro.config.*` or `index.html` file) or is the toolkit folder (it has
 `skills/new-website/SKILL.md`), ask which folder is their websites folder instead. A folder
-the owner names themselves counts as their websites folder; if it is hidden, say they may
-not see it in Finder or File Explorer, and ask once whether to use it anyway. Find this out
+the owner names themselves counts as their websites folder; if it is hidden or a tool's
+scratch or temp folder, say they may not find the site there again, and ask once whether to
+use it anyway. Find this out
 by listing the folder with your file tools (§1). Start step 0 from the websites folder,
 and once `<site>` exists, tell the owner its full path (the output of `pwd` inside it):
 
@@ -492,7 +493,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    git checkout -- .gitignore
    ```
    (The first `--yes` answers npm's own "Ok to proceed?", the second create-astro's
-   questions; checked with create-astro 5.3.1. `minimal` is Empty, with TypeScript strict.
+   questions; this exact command was checked with npm 11.20.0 and create-astro 5.3.1. `minimal` is Empty, with TypeScript strict.
    `git checkout` restores the file step 0 committed. Nothing is installed yet:
    `templates/astro/README.md` step 3 runs `npm install` after the overlay.) Then copy
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,

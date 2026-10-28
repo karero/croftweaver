@@ -28,3 +28,20 @@ exists" passed, and failed with only the two old files set.
 | F2 | NIT | fresh-eyes | fixed | The hidden-folder check came after "ask whether it is their websites folder", so the assistant could still offer the hidden folder and take a "yes" as the owner naming it. The check now comes first, and the long line is wrapped |
 | F3 | NIT | fresh-eyes | fixed | Step 1 says nothing is installed yet and README step 3 runs `npm install` |
 | F5 | NIT | fresh-eyes | fixed | The websites-folder row's closing says the rule is an instruction no assistant run has tested yet |
+
+## Round 2 — `2b1ad04e`, base `22b23b1d` (verification)
+`codex` 109s (53,579 tokens) · `melious` 246s (26,059 tokens). Both seats: every round-1 fix
+landed and covers its whole finding. Gate total so far: 4 seat runs, 135,701 tokens logged, plus
+fresh-eyes 114,163.
+
+| id | sev | seat | status | why |
+|---|---|---|---|---|
+| C5 | RISK | codex | fixed | Settled by a run: the exact final command with an empty npm cache under a terminal (npm 11.20.0, create-astro 5.3.1): exit 0, no question, `.gitignore` restored. Both files now name those two versions |
+| C6 / M9 | RISK | both, outside scope | fixed | Settled by a run: the starter's whole first `npm test` on a scaffold made by the new steps with all four domain files set: 114 passed, 1 skipped (the positioning test, which waits for the positioning step by design) |
+| M5 | NIT | melious | fixed | The owner-named warning now covers a tool's scratch or temp folder too |
+| M6 | NIT | melious | fixed | The release-notes row points at `templates/.gitignore` to compare with, naming `.env`, `.wrangler/` and the rest as examples |
+| M7 | NIT | melious | fixed | The version note is scoped: the exact command was checked with npm 11.20.0 and create-astro 5.3.1 |
+| M8 | NIT | melious | fixed | The robots row quotes both `llms.txt` errors |
+
+No BUG in round 2. The round-3 change is wording and evidence only; it gets a wording pass,
+not another round.
