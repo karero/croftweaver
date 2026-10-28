@@ -81,7 +81,9 @@ In a scaffolded site the skill isn't shipped at all: check that the
 `independent-review` folder actually exists before offering this escalation
 as ready-to-run. If it doesn't, either vendor it first (copy
 `skills/independent-review/` from the Croftweaver suite — the same kit
-this skill was copied from — into the site's `.claude/skills/`) or frame the
+this skill was copied from — into the site's `.claude/skills/`; a plugin
+installed from Anthropic's directory leaves that folder out, so then take it
+from https://github.com/karero/croftweaver) or frame the
 offer honestly as "available after a one-time setup step".
 
 **Explain the choice, then ask — don't decide silently.** Before reaching for

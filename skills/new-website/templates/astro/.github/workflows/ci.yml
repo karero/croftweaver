@@ -127,6 +127,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
           cache: npm
       - run: npm ci
       - run: npm run check

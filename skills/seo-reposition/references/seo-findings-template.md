@@ -12,6 +12,9 @@ One paragraph: what the data says is broken, and the one-line strategy.
 - Brand vs non-brand split — the mis-filing tell is brand-only demand.
 
 ## Queries — brand vs non-brand
+Only the queries the verdicts below rest on; the full export stays in the site's git-ignored
+`analytics/` folder.
+
 | Query | Clicks | Impr | Pos | Brand? | Note |
 |---|---|---|---|---|---|
 
