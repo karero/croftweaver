@@ -298,7 +298,7 @@ Structured data describes your content to machines. Google says there is no spec
 | Reviews | `Review`, `AggregateRating` | Trust signals |
 | Organization | `Organization` | Entity recognition |
 
-`FAQPage` describes your Q&A to machines, but since August 2023 Google shows FAQ rich results only for well-known, authoritative government and health sites, and since September 2023 it shows no HowTo rich results at all ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)). For most sites both kinds of markup are valid and harmless and give no rich result in Google.
+`FAQPage` describes your Q&A to machines, but Google has shown no FAQ rich results since 7 May 2026 ([Google](https://developers.google.com/search/updates#faq-deprecation)) and no HowTo rich results since September 2023 ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)). Both kinds of markup are valid and harmless and give no rich result in Google for any site.
 
 For implementation, use the **schema-markup** skill.
 

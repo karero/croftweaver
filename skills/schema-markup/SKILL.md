@@ -99,7 +99,7 @@ Recommended: sku, brand, aggregateRating, review
 
 ### FAQPage
 Required: mainEntity (array of Question/Answer pairs)
-Note: since August 2023 Google shows FAQ rich results only for well-known, authoritative government and health sites ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes), [FAQPage docs](https://developers.google.com/search/docs/appearance/structured-data/faqpage)). The markup still describes the Q&A to machines and does no harm, but for most sites it gives no rich result in Google. Don't promise one.
+Note: Google stopped showing FAQ rich results on 7 May 2026 and removed their documentation on 15 June 2026 ([Google](https://developers.google.com/search/updates#faq-deprecation)). `FAQPage` is still valid schema.org vocabulary: the markup still describes the Q&A to machines and does no harm, but it gives no rich result in Google for any site. Don't promise one.
 
 ### HowTo
 Required: name, step
