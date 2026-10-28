@@ -73,7 +73,7 @@ references/schema-examples.md shows the full shape (incl. `vatID`,
 | Article | Blog posts, news | headline, image, datePublished, author |
 | Product | Product pages | name, image, offers |
 | SoftwareApplication | SaaS/app pages | name, offers |
-| FAQPage | FAQ content (no Google rich result for most sites, see below) | mainEntity (Q&A array) |
+| FAQPage | FAQ content (no Google rich result since 7 May 2026, see below) | mainEntity (Q&A array) |
 | HowTo | Tutorials (no Google rich result since September 2023, see below) | name, step |
 | BreadcrumbList | Any page with breadcrumbs | itemListElement |
 | LocalBusiness | Local business pages | name, address |
@@ -99,7 +99,7 @@ Recommended: sku, brand, aggregateRating, review
 
 ### FAQPage
 Required: mainEntity (array of Question/Answer pairs)
-Note: Google stopped showing FAQ rich results on 7 May 2026 and removed their documentation on 15 June 2026 ([Google](https://developers.google.com/search/updates#faq-deprecation)). `FAQPage` is still valid schema.org vocabulary: the markup still describes the Q&A to machines and does no harm, but it gives no rich result in Google for any site. Don't promise one.
+Note: Google stopped showing FAQ rich results on 7 May 2026 and removed their documentation on 15 June 2026 ([Google](https://developers.google.com/search/updates#faq-deprecation), [removal](https://developers.google.com/search/updates#removing-faq-rich-result)). `FAQPage` is still valid schema.org vocabulary: the markup still describes the Q&A to machines and does no harm, but it gives no rich result in Google for any site. Don't promise one.
 
 ### HowTo
 Required: name, step

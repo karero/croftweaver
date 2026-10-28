@@ -101,7 +101,7 @@ write within that budget, not the budget itself.
   EEAT (see `website-content-guide`); keep `sameAs` URLs that actually resolve.
 - **`FAQPage` describes the Q&A to machines, not a Google rich result.** Google stopped
   showing FAQ rich results on 7 May 2026 and removed their documentation on 15 June
-  2026 ([Google](https://developers.google.com/search/updates#faq-deprecation)); no site gets one now. Don't promise one.
+  2026 ([Google](https://developers.google.com/search/updates#faq-deprecation), [removal](https://developers.google.com/search/updates#removing-faq-rich-result)); no site gets one now. Don't promise one.
 - **Datetimes in JSON-LD carry an explicit timezone.** `VideoObject.uploadDate`,
   `Event.startDate/endDate`, `Offer.validFrom`, `Article` dates etc. must be full
   ISO-8601 with an offset (`2026-03-11T00:00:00+00:00`, not a bare `2026-03-11`).
