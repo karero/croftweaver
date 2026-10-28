@@ -41,12 +41,11 @@
         return;
       }
 
-      // The message is the mail, as typed, less any empty space (spaces, tabs, blank
-      // lines) at its very start and end: the visitor writes their own greeting and
-      // sign-off, and their mail program adds who they are. Every other field the visitor
-      // filled in follows under it as "Label: value", so a field the owner adds later is
-      // sent too: a list gives every chosen entry, a ticked checkbox or radio button its
-      // label alone.
+      // The mail: the site's greeting, the message as typed less any empty space
+      // (spaces, tabs, blank lines) at its very start and end, every other field the
+      // visitor filled in as "Label: value" (a list gives every chosen entry, a ticked
+      // checkbox or radio button its label alone), and the sign-off last. The visitor's
+      // mail program adds who they are.
       var details = [];
       Array.prototype.forEach.call(form.elements, function (field) {
         // A named <fieldset> or <output> has no value of its own to send.
@@ -62,8 +61,9 @@
         if (value) details.push(label + ': ' + value);
       });
       var message = form.elements.message ? form.elements.message.value.trim() : '';
-      var lines = [message];
+      var lines = [form.dataset.greeting, '', message];
       if (details.length) lines.push('', details.join('\n'));
+      lines.push('', form.dataset.signoff);
       var body = lines.join('\n');
 
       // RFC 6068: a line break in a mailto: body is %0D%0A. A broken character pasted

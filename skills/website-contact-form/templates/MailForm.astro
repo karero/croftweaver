@@ -5,7 +5,7 @@
 // public/js/mail-form.js, a file of the site's own rather than an inline script, so a
 // strict Content-Security-Policy (script-src 'self') lets it run.
 //
-//   <MailForm to="hello@your-domain.example" subject="Project enquiry" />
+//   <MailForm to="hello@your-domain.example" subject="Project enquiry" greeting="Dear Ms Smith," />
 //
 // `to`:      the address the messages go to. Never in the HTML as plain text: it is
 //            encoded as EmailLink encodes it and decoded in the visitor's browser.
@@ -13,6 +13,9 @@
 // `subject`: the mail's subject line, chosen for this site: what the visitor comes for,
 //            in their words ("Project enquiry", "Anfrage Bauvorhaben"). Also the
 //            subject of the plain address under the form. Required.
+// `greeting`: the mail's first line, as the owner wants it, punctuation included
+//            ("Sehr geehrte Frau Muster,", "Hallo Anna,"). The mail ends with the
+//            language's sign-off (`signoff` in mail-form-text.ts). Required.
 // `lang`:    overrides the language. Default: the page's own, which Base.astro hands
 //            down (a page built with <Base lang="de"> gets a German form by itself),
 //            else the page's locale on a site with several languages.
@@ -27,13 +30,16 @@ import EmailLink from './EmailLink.astro';
 import { encodeEmail } from '../lib/obfuscate';
 import { LIMITS, TEXT, hasText } from './mail-form-text';
 
-interface Props { to: string; subject: string; lang?: string }
-const { to, subject } = Astro.props;
+interface Props { to: string; subject: string; greeting: string; lang?: string }
+const { to, subject, greeting } = Astro.props;
 if (!to) {
   throw new Error('MailForm: pass to="…", the address the messages go to (the website-contact-form skill, §2).');
 }
 if (!subject) {
   throw new Error('MailForm: pass subject="…", the subject line of the visitor\'s mail: what they come for, in their words, e.g. "Project enquiry" (the website-contact-form skill, §2 step 2).');
+}
+if (!greeting?.trim()) {
+  throw new Error('MailForm: pass greeting="…", the first line of the visitor\'s mail, e.g. "Sehr geehrte Frau Muster," (the website-contact-form skill, §2 step 2).');
 }
 const pageLang = Astro.props.lang ?? Astro.locals.lang ?? Astro.currentLocale;
 if (!pageLang) {
@@ -48,7 +54,7 @@ if (!hasText(language)) {
 const t = TEXT[language];
 const hasHint = Astro.slots.has('hint');
 ---
-<form id="mail-form" class="mail-form" lang={language} data-mail-form data-to={encodeEmail(to)} data-subject={subject} hidden>
+<form id="mail-form" class="mail-form" lang={language} data-mail-form data-to={encodeEmail(to)} data-subject={subject} data-greeting={greeting.trim()} data-signoff={t.signoff} hidden>
   <slot />
   <p>
     <label for="mail-form-message">{t.message}</label>
