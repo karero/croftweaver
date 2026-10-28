@@ -30,6 +30,6 @@ now with a form without a greeting, passed.
 | Id | Sev | Seat | Finding | Disposition | Evidence |
 |----|-----|------|---------|-------------|----------|
 | G4 | BUG | Codex | The evidence row for the removed greeting check is wrong as written: removing the check alone leaves `greeting.trim()`, which throws | fixed: the row says the mutation also made `.trim()` optional, and what the step does in the other case | trail, mutation table |
-| G5 | NIT | GLM | The new script with an old component writes "undefined" for greeting and sign-off | fixed: the BUGLOG release-notes row says the three files go together and why | BUGLOG row |
+| G5 | NIT | GLM | The new script with an old component writes "undefined" for greeting and sign-off | fixed: the BUGLOG release-notes row says the three files go together and why (corrected in round 2: blank lines, not "undefined", G8) | BUGLOG row |
 | G6 | NIT | GLM | `g` unannotated in the encoding test | fixed: `g: string` | spec |
 | G7 | NIT | GLM | CI greps every injected setting but the page spec's `greeting` | fixed: one grep line | workflow |
