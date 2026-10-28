@@ -45,3 +45,10 @@ fresh-eyes 114,163.
 
 No BUG in round 2. The round-3 change is wording and evidence only; it gets a wording pass,
 not another round.
+
+## Wording pass — `817cab81`, base `2b1ad04e`
+`codex` 79s (36,131 tokens): no findings · `melious` 128s (17,884 tokens): two NITs, both fixed:
+`.env.example` is named as the one `.env.*` file the starter keeps; "this exact command was
+checked" became "checked … run fresh with no keyboard input", since the run used an empty npm
+cache and closed input. Gate closed: 2 rounds and a wording pass, 0 BUG open, 19 findings in all
+(2 BUG, 6 RISK, 11 NIT), all fixed.
