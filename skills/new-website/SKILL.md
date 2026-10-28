@@ -683,16 +683,16 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    **Tell the owner about the generator tag, once,** after this first green run, unless the
    project README already has a "generator tag:" line. The starter writes
    `<meta name="generator" content="Croftweaver">` into every page (`GENERATOR_TAG` in
-   `src/config.ts`). First record "generator tag: on" with the decision answers in the project
-   README, so an interrupted session does not tell it twice; then say it in one plain chat
-   message, in these words:
+   `src/config.ts`). Say it in one plain chat message, in these words:
 
    > One small thing you can't see: your pages' code has a tiny name tag that says "made
    > with Croftweaver". People who visit your site won't see it on the page. It doesn't
    > send anything to anyone and doesn't link anywhere. If you'd rather not have it, just
    > say "remove the Croftweaver tag" and I'll take it out.
 
-   If the owner asks to remove it, now or later: set `GENERATOR_TAG` to `false`, run `npm test`, and change
+   Then record "generator tag: on" with the decision answers in the project README (told twice
+   after an interruption is harmless; never told is not). If the owner asks to remove it, now or
+   later: set `GENERATOR_TAG` to `false`, run `npm test`, and change
    the line to "generator tag: off". It is not the credit of §4b, and it is told, not asked.
    **If the owner has a palette or a logo from §2b**, run `website-brand-kit` §6 (the
    intake) now, on the green baseline and before the first page: it checks the palette

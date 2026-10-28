@@ -454,16 +454,19 @@ function findHtml(dir: string): string[] {
   return out;
 }
 
-test('seo — the generator tag follows its switch on every built page', () => {
+test('seo — the generator tag follows its switch on every built page', async ({ page }) => {
   const on = 'GENERATOR_TAG' in config && Boolean(config.GENERATOR_TAG);
   const pages = findHtml(join(process.cwd(), 'dist'));
   expect(pages.length, 'no built pages in dist/: the test server builds the site first').toBeGreaterThan(0);
   for (const file of pages) {
-    const html = readFileSync(file, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
-    const ours = (html.match(/<meta\b[^>]*>/gi) ?? []).filter(
-      (m) => /\sname=(["'])generator\1/i.test(m) && /\scontent=(["'])Croftweaver\1/.test(m),
-    );
-    if (on) expect(ours.length, `${file}: needs exactly one <meta name="generator" content="Croftweaver"> (GENERATOR_TAG is on)`).toBe(1);
-    else expect(ours, `${file}: has the Croftweaver generator tag although GENERATOR_TAG is off`).toEqual([]);
+    // A real HTML parser, so comments, script text and quoted examples are not counted as tags.
+    const ours = await page.evaluate((html) => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return [...doc.querySelectorAll('meta[name="generator" i]')].filter(
+        (m) => m.getAttribute('content') === 'Croftweaver',
+      ).length;
+    }, readFileSync(file, 'utf8'));
+    if (on) expect(ours, `${file}: needs exactly one <meta name="generator" content="Croftweaver"> (GENERATOR_TAG is on)`).toBe(1);
+    else expect(ours, `${file}: has the Croftweaver generator tag although GENERATOR_TAG is off`).toBe(0);
   }
 });
