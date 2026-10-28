@@ -1,7 +1,7 @@
 # DIFF review: a generator tag in every starter site
 
 Plan: `docs/reviews/SKILL-PLAN-generator-tag.md` (PLAN gate clean: 4 rounds, 5 findings;
-trail `REVIEW-plan-2026-10-27-generator-tag.md`). Daniel's go to build, 2026-10-27: "Yes, build the
+trail `REVIEW-plan-2026-10-27-generator-tag.md`). The maintainer's go to build, 2026-10-27: "Yes, build the
 generator tag as planned". Gate: independent-review DIFF, depth Normal (skill text and starter
 code that ship to users). Seats: Codex and GLM 5.3 on melious, both counted in every round.
 
