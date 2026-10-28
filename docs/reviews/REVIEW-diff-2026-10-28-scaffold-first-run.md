@@ -51,4 +51,4 @@ not another round.
 `.env.example` is named as the one `.env.*` file the starter keeps; "this exact command was
 checked" became "checked … run fresh with no keyboard input", since the run used an empty npm
 cache and closed input. Gate closed: 2 rounds and a wording pass, 0 BUG open, 19 findings in all
-(2 BUG, 6 RISK, 11 NIT), all fixed.
+(2 BUG, 5 RISK, 12 NIT; the two fresh-eyes points Codex also raised counted once), all fixed.
