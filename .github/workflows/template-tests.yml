@@ -611,6 +611,7 @@ jobs:
           grep -q "const SUBJECT = 'Anfrage Bauvorhaben';" tests/mail-form.de.spec.ts
           grep -q "const GREETING = 'Dear Ms Smith,';" tests/mail-form.spec.ts
           grep -q "const GREETING = 'Sehr geehrte Frau Muster,';" tests/mail-form.de.spec.ts
+          grep -q "const greeting = 'Sehr geehrte Frau Muster,';" tests/kontakt.de.spec.ts
           grep -qF "const ADDED: string[] = ['Ein neues Projekt', 'Ort'];" tests/mail-form.de.spec.ts
           grep -q '<MailForm to="hello@example.com" subject="Project enquiry" greeting="Dear Ms Smith," />' src/pages/index.astro
           grep -q 'import MailForm' src/pages/index.astro

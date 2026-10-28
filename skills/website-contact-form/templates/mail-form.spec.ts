@@ -129,7 +129,7 @@ test('mail form — a greeting with characters a link must encode arrives as wri
   await page.goto(PAGE);
   const lang = await formLanguage(page);
   const greeting = 'Hallo Jörg & Ana, 100% #1?';
-  await form(page).evaluate((f: HTMLFormElement, g) => { f.dataset.greeting = g; }, greeting);
+  await form(page).evaluate((f: HTMLFormElement, g: string) => { f.dataset.greeting = g; }, greeting);
   await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('Hello');
   const { query, params } = parse(await pressSend(page));
   expect(query).toMatch(/^subject=[A-Za-z0-9\-_.!~*'()%]*&body=[A-Za-z0-9\-_.!~*'()%]*$/);

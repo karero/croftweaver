@@ -17,6 +17,19 @@ now with a form without a greeting, passed.
 | greeting dropped from the body (`mail-form.js`) | KILLED | `mail-form.spec.ts` main body test; `kontakt.de.spec.ts` both body tests |
 | sign-off dropped | KILLED | the same |
 | sign-off placed before the fields | KILLED | `mail-form.spec.ts` added-fields test; `kontakt.de.spec.ts` body test |
-| `MailForm.astro`'s missing-greeting check removed | the build passes without a greeting, so the job's "a form without a greeting was built" error fires | the break-the-build step |
+| `MailForm.astro`'s missing-greeting check removed, and `greeting.trim()` made `greeting?.trim()` so nothing else stops the build | the build passes without a greeting, so the job's "a form without a greeting was built" error fires | the break-the-build step. With the check removed alone, the build fails on a `TypeError` instead, and the step's grep for `MailForm: pass greeting="…"` fires ("the build failed, but not on the missing greeting"): not run, read from the step (round 1, G4) |
 | `signoff` removed from `en` | `npm run check` fails: `ts(2339): Property 'signoff' does not exist` | the type check |
 | none (control) | passed | the three specs |
+
+| Round | Seats | Findings | Time, tokens |
+|-------|-------|----------|--------------|
+| 1 | Codex, GLM 5.3 (melious had balance again) | 1 BUG (evidence), 3 NIT | Codex 170 s, 62,229; GLM 396 s, 35,163 |
+
+## Round 1
+
+| Id | Sev | Seat | Finding | Disposition | Evidence |
+|----|-----|------|---------|-------------|----------|
+| G4 | BUG | Codex | The evidence row for the removed greeting check is wrong as written: removing the check alone leaves `greeting.trim()`, which throws | fixed: the row says the mutation also made `.trim()` optional, and what the step does in the other case | trail, mutation table |
+| G5 | NIT | GLM | The new script with an old component writes "undefined" for greeting and sign-off | fixed: the BUGLOG release-notes row says the three files go together and why | BUGLOG row |
+| G6 | NIT | GLM | `g` unannotated in the encoding test | fixed: `g: string` | spec |
+| G7 | NIT | GLM | CI greps every injected setting but the page spec's `greeting` | fixed: one grep line | workflow |
