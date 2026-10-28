@@ -18,6 +18,9 @@ const PAGE = '';    // the page with the form, e.g. '/contact'
 const TO = '';      // the address given to <MailForm to="…">
 const SUBJECT = ''; // the subject given to <MailForm subject="…">
 const LANG = '';    // only if the page passes lang="…": that language; else the page's own
+// Fields the page puts inside <MailForm>, by label, one per Tab stop in order: a radio group
+// by its first option. Empty for a form with the message alone.
+const ADDED: string[] = [];
 
 // The mailto: link the button asks the browser to open. The browser hands it to the
 // mail program; Playwright sees it as a request.
@@ -156,17 +159,42 @@ test('mail form — the message takes no more than the limit', async ({ page }) 
   await expect(form(page).getByLabel(TEXT[lang].message, { exact: true })).toHaveAttribute('maxlength', String(LIMITS.message));
 });
 
-test('mail form — every field has a label, and Tab goes from the message to the button', async ({ page }) => {
+test('mail form — every field has a label, and Tab goes through the added fields to the message and the button', async ({ page }) => {
   await page.goto(PAGE);
   const lang = await formLanguage(page);
-  const order = [form(page).getByLabel(TEXT[lang].message, { exact: true }), form(page).getByRole('button', { name: TEXT[lang].send, exact: true })];
-  // Every control in the form is one of these: none without a label slipped in.
-  await expect(page.locator('form[data-mail-form] :is(input, textarea, select, button)')).toHaveCount(order.length);
-  await order[0].focus();
-  for (const next of order.slice(1)) {
+  // No control without a label slipped in (a hidden input is no control a visitor meets).
+  const unlabelled = await form(page).evaluate((f: HTMLFormElement) =>
+    Array.from(f.querySelectorAll<HTMLInputElement>('input:not([type="hidden"]), textarea, select'))
+      .filter((c) => !c.labels || c.labels.length === 0)
+      .map((c) => c.outerHTML.slice(0, 80)));
+  expect(unlabelled, 'controls in the form without a <label>').toEqual([]);
+  const order = [
+    ...ADDED.map((label) => form(page).getByLabel(label, { exact: true })),
+    form(page).getByLabel(TEXT[lang].message, { exact: true }),
+    form(page).getByRole('button', { name: TEXT[lang].send, exact: true }),
+  ];
+  // Start just before the form, so the first Tab shows the form's first stop: a field
+  // missing from ADDED, first or anywhere, fails here.
+  await form(page).evaluate((f: HTMLFormElement) => {
+    const start = document.createElement('span');
+    start.tabIndex = -1;
+    f.before(start);
+    start.focus();
+  });
+  for (const next of order) {
     await page.keyboard.press('Tab');
     await expect(next).toBeFocused();
   }
+});
+
+test('mail form — a hint above the message, if the page gives one, is the description of the message box', async ({ page }) => {
+  await page.goto(PAGE);
+  const lang = await formLanguage(page);
+  const hint = form(page).locator('#mail-form-hint');
+  test.skip((await hint.count()) === 0, 'this form has no hint (the slot "hint" is empty)');
+  const shown = (await hint.innerText()).trim();
+  expect(shown, 'the hint shows text').not.toBe('');
+  await expect(form(page).getByLabel(TEXT[lang].message, { exact: true })).toHaveAccessibleDescription(shown);
 });
 
 test('mail form — the plain address shows under the form, ready to copy and to click', async ({ page }) => {

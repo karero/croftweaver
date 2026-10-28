@@ -17,6 +17,10 @@
 //            down (a page built with <Base lang="de"> gets a German form by itself),
 //            else the page's locale on a site with several languages.
 //
+// Fields of the page's own go between the tags, before the message; each reaches the mail
+// as "Label: value", a ticked radio button as its label. A hint for the message goes in
+// slot "hint": shown above the box and made its accessible description (the skill, "Adding fields").
+//
 // Without JavaScript the form stays hidden, since it could do nothing, and the line
 // under it with the address is what a visitor sees. Once per page: its ids are fixed.
 import EmailLink from './EmailLink.astro';
@@ -42,11 +46,14 @@ if (!hasText(language)) {
   throw new Error(`MailForm: no texts for the language "${language}". Add it to src/components/mail-form-text.ts (the website-contact-form skill, "Add a language").`);
 }
 const t = TEXT[language];
+const hasHint = Astro.slots.has('hint');
 ---
 <form id="mail-form" class="mail-form" lang={language} data-mail-form data-to={encodeEmail(to)} data-subject={subject} hidden>
+  <slot />
   <p>
     <label for="mail-form-message">{t.message}</label>
-    <textarea id="mail-form-message" name="message" rows="6" required maxlength={LIMITS.message}></textarea>
+    {hasHint && <span class="mail-form-hint" id="mail-form-hint"><slot name="hint" /></span>}
+    <textarea id="mail-form-message" name="message" rows="6" required maxlength={LIMITS.message} aria-describedby={hasHint ? 'mail-form-hint' : undefined}></textarea>
   </p>
   <p class="mail-form-note">{t.note}</p>
   <p><button type="submit">{t.send}</button></p>
@@ -59,11 +66,19 @@ const t = TEXT[language];
 <script is:inline src="/js/mail-form.js" defer></script>
 
 <style>
-  .mail-form label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
-  .mail-form input:not([type='checkbox']):not([type='radio']), .mail-form textarea {
-    width: 100%; max-width: 36rem; padding: 0.5rem; font: inherit; color: var(--ink);
+  /* Fields a page puts in the slot carry the page's style scope, not this one: the
+     :global rules below reach them, inside this form only. */
+  .mail-form label { display: block; margin-bottom: 0.25rem; }
+  .mail-form :global(label), .mail-form :global(legend) { font-weight: 600; }
+  .mail-form :global(input:not([type='checkbox']):not([type='radio'])), .mail-form :global(select), .mail-form textarea {
+    display: block; width: 100%; max-width: 36rem; margin-top: 0.25rem; padding: 0.5rem; font: inherit; color: var(--ink);
     background: var(--surface); border: 1px solid var(--muted); border-radius: 6px;
   }
+  .mail-form :global(fieldset) { border: 0; padding: 0; margin: 0 0 1rem; }
+  .mail-form :global(legend) { padding: 0; margin-bottom: 0.35rem; }
+  .mail-form :global(fieldset label) { display: block; font-weight: 400; margin: 0.25rem 0; }
+  .mail-form :global(.mail-form-optional) { color: var(--muted); font-weight: 400; }
+  .mail-form-hint { display: block; color: var(--muted); margin-bottom: 0.35rem; max-width: 36rem; }
   .mail-form button { font: inherit; padding: 0.6rem 1.2rem; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
   .mail-form-note { color: var(--muted); max-width: 36rem; }
 </style>
