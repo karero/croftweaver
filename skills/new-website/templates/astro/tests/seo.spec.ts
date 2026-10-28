@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { PAGES } from './_helpers';
 import { SITE, ogLocaleFor } from '../src/config';
+import * as config from '../src/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -434,5 +435,38 @@ test('seo — hosted PDFs carry a descriptive doc-title', () => {
       expect(PDF_PLACEHOLDERS.has(t.toLowerCase()), `${file}: doc-title is an authoring placeholder ("${t}") — run scripts/set_pdf_title.py`).toBe(false);
       expect(t.length, `${file}: doc-title too short ("${t}", ${t.length} chars, need ≥${PDF_TITLE_MIN})`).toBeGreaterThanOrEqual(PDF_TITLE_MIN);
     }
+  }
+});
+
+// The generator tag (src/config.ts GENERATOR_TAG): every built page, 404 and noindex pages too,
+// carries exactly one Croftweaver generator tag when the switch is on, none when it is off. A
+// config without the switch (a site from before it existed) counts as off. Another generator
+// tag an owner adds is not ours and is not counted.
+function findHtml(dir: string): string[] {
+  const out: string[] = [];
+  let entries: import('node:fs').Dirent[];
+  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  for (const e of entries) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...findHtml(p));
+    else if (e.name.endsWith('.html')) out.push(p);
+  }
+  return out;
+}
+
+test('seo — the generator tag follows its switch on every built page', async ({ page }) => {
+  const on = 'GENERATOR_TAG' in config && Boolean(config.GENERATOR_TAG);
+  const pages = findHtml(join(process.cwd(), 'dist'));
+  expect(pages.length, 'no built pages in dist/: the test server builds the site first').toBeGreaterThan(0);
+  for (const file of pages) {
+    // A real HTML parser, so comments and script text are not counted as tags.
+    const ours = await page.evaluate((html) => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return [...doc.querySelectorAll('meta[name="generator" i]')].filter(
+        (m) => m.getAttribute('content') === 'Croftweaver',
+      ).length;
+    }, readFileSync(file, 'utf8'));
+    if (on) expect(ours, `${file}: needs exactly one <meta name="generator" content="Croftweaver"> (GENERATOR_TAG is on)`).toBe(1);
+    else expect(ours, `${file}: has the Croftweaver generator tag although GENERATOR_TAG is off`).toBe(0);
   }
 });

@@ -680,6 +680,20 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
+   **Tell the owner about the generator tag, once,** after this first green run, unless the
+   project README already has a "generator tag:" line. The starter writes
+   `<meta name="generator" content="Croftweaver">` into every page (`GENERATOR_TAG` in
+   `src/config.ts`). Say it in one plain chat message, in these words:
+
+   > One small thing you can't see: your pages' code has a tiny name tag that says "made
+   > with Croftweaver". People who visit your site won't see it on the page. It doesn't
+   > send anything to anyone and doesn't link anywhere. If you'd rather not have it, just
+   > say "remove the Croftweaver tag" and I'll take it out.
+
+   Then record "generator tag: on" with the decision answers in the project README (told twice
+   after an interruption is harmless; never told is not). If the owner asks to remove it, now or
+   later: set `GENERATOR_TAG` to `false`, run `npm test`, and change
+   the line to "generator tag: off". It is not the credit of §4b, and it is told, not asked.
    **If the owner has a palette or a logo from §2b**, run `website-brand-kit` §6 (the
    intake) now, on the green baseline and before the first page: it checks the palette
    and the logo, writes them into the site, runs these same tests again and puts every
@@ -879,6 +893,8 @@ than assuming.
 Croftweaver is free and its license asks for no credit. The people who make it ask for
 one anyway: a small "Built with Croftweaver" link in the footer, and a star on GitHub.
 It is a request, never a condition, and this is the only place the pipeline raises it.
+The generator tag (§3, step 5) is not this credit: it is in the page's code, not on the page,
+links nowhere, and is told at the build as a default the owner can switch off, not asked for.
 
 This step belongs to the launch checklist (§4). Do not raise it in a later session
 that is doing other work on the site, with one exception, an unfinished yes: the
@@ -931,7 +947,14 @@ Options: **Add the badge** / **Add a text link** / **No thanks**.
   objects to the pasted code, tell the user and do not change the test to make the
   credit fit. Then publish per the publish model (§1 Q6) with the usual
   preview-or-live announcement.
-- **No thanks** → say "No problem" and nothing more.
+- **No thanks** → say "No problem" and nothing more, except one reminder while the README says
+  "generator tag: on", in these words:
+
+  > No problem. The little "made with Croftweaver" tag in your pages' code is still there,
+  > where visitors can't see it. Say "remove the Croftweaver tag" any time if you'd like it
+  > gone.
+
+  That is a reminder of the owner's switch, not a second request.
 - **No answer** → say nothing more about it, and record it as declined.
 
 Never add the credit unasked, never ask a second time, and never give the star for

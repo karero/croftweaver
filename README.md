@@ -727,6 +727,10 @@ by Donald Miller's StoryBrand framework
 ([*Building a StoryBrand 2.0*](https://storybrand.com/building-a-storybrand-book-new/));
 StoryBrand is a trademark of its owner and neither author endorses this project.
 
+Sites made from the starter carry `<meta name="generator" content="Croftweaver">` in their
+pages' code, the way many site builders name themselves there. Visitors do not see it, it sends
+nothing, and `GENERATOR_TAG = false` in `src/config.ts` removes it.
+
 If you built a site with Croftweaver, we would be glad of a link back to
 [croftweaver.com/partner-assets](https://croftweaver.com/partner-assets), with the badge or as
 plain text. It is a request, not a condition: the MIT license asks only that its notice stays
