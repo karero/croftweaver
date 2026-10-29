@@ -58,6 +58,11 @@ Bing's index fresh automatically.
 4. **Submit the sitemap:** GSC → **Sitemaps** → enter `sitemap-index.xml` → Submit.
    The kit's `@astrojs/sitemap` emits `/sitemap-index.xml` at the site root; confirm it
    loads in a browser first. Google discovers pages from it over the next days.
+5. **Leave "Search generative AI" alone** unless you want out of Google's AI answers.
+   It sits in the property's settings; opting out there keeps your content out of AI
+   Overviews, AI Mode and Discover's AI features, usually within a few days. Google says it "isn't used
+   as a ranking or inclusion signal affecting other parts of Search" and "doesn't affect
+   AI training"; that is Google-Extended ([Google](https://support.google.com/webmasters/answer/16908024)).
 
 ## 2. Bing Webmaster Tools (Bing + the IndexNow consumers)
 

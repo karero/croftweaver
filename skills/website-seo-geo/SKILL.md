@@ -4,7 +4,7 @@ description: >
   The on-page SEO + GEO contract for a new site: exact metadata limits (title
   50–60 chars, meta description 140–160 with a 120 floor), og:title/og:description == title/desc,
   twitter inherits OG, clean canonical == og:url, required JSON-LD schema, and
-  llms.txt for AI answer engines. Use when building or reviewing a page's head
+  an llms.txt index of the site. Use when building or reviewing a page's head
   / metadata (step 6 of the new-website pipeline), or when a title/description is
   too long or tags are out of sync. Enforced by the seo.spec.ts check in the
   new-website test suite. Delegates depth to ai-seo (GEO) and schema-markup.
@@ -112,7 +112,10 @@ write within that budget, not the budget itself.
 ## GEO (generative engine optimization)
 
 - Ship `/llms.txt` (template in the starters): a curated, accurate index of key
-  pages + facts for AI answer engines. **Write it in the site's primary content
+  pages + facts, for AI tools and people that read it. Ship it because it is cheap:
+  no crawler page of OpenAI, Perplexity or Anthropic says it reads the file, and Google
+  says Google Search doesn't use it but keeping one for other services is fine
+  ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)). **Write it in the site's primary content
   language** (German site → German descriptions; multilingual site → each
   entry's description in that page's language) — same precedent as the
   privacy page: an answer engine quoting your English blurb to a German

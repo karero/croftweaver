@@ -1,7 +1,7 @@
 # Example
 
 > One-sentence description of what this site/company is and who it serves. Served
-> at https://example.com/llms.txt — a curated index for AI answer engines (GEO).
+> at https://example.com/llms.txt — a curated index of the site, for AI tools and people.
 > Keep it accurate, in sync with the site, and in the site's CONTENT LANGUAGE
 > (German site → German descriptions; see website-seo-geo).
 
