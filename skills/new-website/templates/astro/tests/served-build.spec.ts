@@ -23,7 +23,8 @@ test("the server answering is this run's own build", async ({ request }) => {
   const served = res.status() === 200 ? (await res.text()).trim() : null;
   if (served === run) return;
 
-  // Read after the server's answer, so a rebuild between the two shows as one, not as a server.
+  // Read after the server's answer, so a finished rebuild between the two is less often taken
+  // for another server. The two reads are not one step, so each cause stays a likely one.
   let disk: string | null = null;
   try {
     disk = readFileSync(ON_DISK, 'utf8').trim();
