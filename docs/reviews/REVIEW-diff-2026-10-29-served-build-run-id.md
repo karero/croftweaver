@@ -10,8 +10,11 @@ Seats: Codex and GLM 5.3 on melious, one command; the diff sent leaves out `docs
 | 1 | Codex alone. melious out of balance; no rerun owed | 2 BUG, 2 RISK | Codex 152 s, 53,057 |
 | 2 | Codex alone (`--verify`, `--base 284d8f95`); melious still out of balance | 1 BUG (wording); D3, D4 confirmed; D1, D2 still marked unverifiable, no new evidence asked beyond the trail's | Codex 91 s, 35,939 |
 | 3 | Codex alone (`--verify`); melious still out of balance | none; D3–D5 confirmed | Codex 74 s, 29,366 |
+| merge, Light | Codex (`--seat codex --depth light`), on the script change after merging `main` | 1 BUG (comment) | Codex 57 s, 25,446 |
+| merge, Light extra | Codex, the same | 1 BUG (the fix's comment was wrong too): Light ends | Codex 62 s, 25,319 |
+| 4 | Codex alone at Normal (`--earned-by comment-claim`); melious out of balance | none | Codex 51 s, 22,400 |
 
-Total, rounds 1–3: 3 BUG, 2 RISK. Gate closed after round 3, clean. Codex kept marking D1 and D2
+Total: 5 BUG, 2 RISK over 3 rounds, 2 Light checks and round 4. Closed clean after round 4. Codex kept marking D1 and D2
 unverifiable from the diff alone (its sandbox had no installed packages); the evidence is in the
 plan trail, where Codex traced both in the installed code.
 
@@ -56,3 +59,16 @@ of the starter with the old files (before D3's rewording):
   Likely cause: another build in this folder replaced dist/ before this test ran." Under the
   old spec both sides of its compare would have been B's id, and A would have passed. Timing
   decides this outcome, so it is a record, not a gate.
+
+## After merging main
+
+`main` added a second test to `served-build.spec.ts` (the licence notice stays out of `dist/`).
+The script copies the whole spec, so it now runs only the build-id test (`-g`).
+
+| Id | Sev | Seat | Finding | Disposition |
+|----|-----|------|---------|-------------|
+| D6 | BUG | Codex (Light) | The comment said the other test needs a full build; it passes on a marker-only `dist/` | fixed, but the fix claimed cases with no disk id, and there are none (D7) |
+| D7 | BUG | Codex (Light extra) | No case leaves `dist/` empty | fixed: the comment says only that these cases are about the build-id test. Light ended; round 4 at Normal was clean |
+
+Checks after the merge: the script, 9 cases, all passed; both tests in the merged spec passed on
+the real path (`npx playwright test tests/served-build.spec.ts`: 2 passed); `make check` green.
