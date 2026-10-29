@@ -4,9 +4,10 @@ No plan: a wording change to a skill's instructions, which goes straight to the 
 Gate: independent-review DIFF, depth Normal (skill instruction text). Seats: Codex + GLM 5.3 on
 melious, plus a fresh-eyes pass (Sonnet) in round 1.
 
-Why: on #442, a Light review of a one-row prose change, Codex corrected two claims in rounds 1
-and 2. The claims sweep, run afterwards on that commit, lists both sentences; step 2, where the
-sweep lives, is headed "Normal and High", so nothing asked a Light review to run it. The sweep
+Why: on #442, a Light review of a one-row prose change, Codex corrected three claims in rounds 1
+and 2. The claims sweep, run afterwards on that commit, lists all three sentences. The sweep's
+own line named no depth, but it sat under step 2's heading, "Normal and High; Light runs its one
+seat instead", so a Light review could read it as not meant for Light. The sweep
 output and #442's review comment went to the seats as the evidence file each round.
 
 | Round | Findings | Disposition |
