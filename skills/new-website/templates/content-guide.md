@@ -59,14 +59,18 @@ lever is register, not contraction.
 
 ## EEAT signals (build in from the start)
 
-Search + AI answer engines reward Experience, Expertise, Authoritativeness,
-Trust. Ship these, not just claims:
+Google calls these E-E-A-T: Experience, Expertise, Authoritativeness, Trust. It
+says E-E-A-T "itself isn't a specific ranking factor" and that "trust is most
+important" ([Google](https://developers.google.com/search/docs/fundamentals/creating-helpful-content)). Ship these, not just claims:
 - **Experience / Expertise:** named authors with a real bio + `@id`; first-hand
   detail, specifics, dates; cite primary sources inline for claim-heavy copy.
 - **Authoritativeness:** real `sameAs` profiles (LinkedIn, GitHub, register
   entry) that resolve; corroborating external mentions; Organization schema.
 - **Trust:** legal entity / imprint page; clear contact; privacy page;
   last-updated timestamps on substantive pages; HTTPS; no broken links.
+- **Claims:** every figure carries its source, its date and what it counts; a
+  study by a company that sells what it measures says so; what the source found
+  stays apart from what the business concludes; each figure is in the facts list.
 
 ## Page inventory
 
@@ -96,4 +100,4 @@ For each repeated page type (service, post, case study), define:
 - [ ] Any linked PDF in `public/` has a descriptive doc-title set via
       `scripts/set_pdf_title.py` — not the authoring placeholder (see website-seo-geo)
 - [ ] In sitemap; internal links clean (no `.html`)
-- [ ] EEAT: author/date where relevant; sources cited
+- [ ] EEAT: author/date where relevant; sources cited; each figure has its source, date and what it counts

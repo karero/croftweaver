@@ -107,14 +107,28 @@ translation error.
 
 ## EEAT — build it in from the start
 
-Search and AI answer engines reward Experience, Expertise, Authoritativeness,
-Trust. Ship the signals, not just claims:
+Google calls these signals E-E-A-T: Experience, Expertise, Authoritativeness and
+Trust. It says E-E-A-T "itself isn't a specific ranking factor", but that "using a mix
+of factors that can identify content with good E-E-A-T is useful", and that of the four
+"trust is most important" ([Google](https://developers.google.com/search/docs/fundamentals/creating-helpful-content)). Ship the signals, not just claims:
 - **Experience/Expertise:** named authors with a real bio and a stable schema
-  `@id`; first-hand specifics and dates; inline citations on claim-heavy copy.
+  `@id`; first-hand specifics and dates; inline citations on claim-heavy copy
+  (what a citation holds: **Claims on the page**, below).
 - **Authoritativeness:** `sameAs` profiles that actually resolve (LinkedIn,
   GitHub, public register); Organization schema; corroborating external mentions.
 - **Trust:** imprint/legal entity page, clear contact, privacy page, last-updated
   timestamps, HTTPS, zero broken links.
+
+**Claims on the page.** Give every figure what a reader needs to check it:
+- **Every figure carries its source, its date and what it counts:** "120 clients since
+  2019", not "120+ happy clients"; a survey says who was asked and when.
+- **Name the seller.** A study by a company that sells what it measures says so.
+- **Keep the finding apart from your conclusion:** first what the source found, then
+  what the business takes from it.
+- **Put each figure in the `facts-check` list** (value, source, owner), so every page
+  says the same.
+
+Do this for the reader's trust; don't promise that it raises AI citations.
 
 The author/Organization/`sameAs` plumbing lives in `website-seo-geo` (schema) and
 `config.ts`/`SAME_AS`; this skill decides *what* those signals should be.
