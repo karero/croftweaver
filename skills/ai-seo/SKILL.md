@@ -128,7 +128,7 @@ Each AI company runs more than one bot, and each bot has a main job. Look at the
 - **OpenAI** — **OAI-SearchBot** is the bot for ChatGPT's search answers (a site opted out of it is not shown there, though it can still appear as a link), **GPTBot** gathers content for training, and **ChatGPT-User** fetches a page when a user asks (OpenAI says robots.txt rules may not apply to it) ([OpenAI](https://developers.openai.com/api/docs/bots))
 - **Anthropic** — **Claude-SearchBot** indexes pages for Claude's search results, **Claude-User** fetches a page when a user asks, and **ClaudeBot** gathers content for training. Anthropic's page names these three and no `anthropic-ai` ([Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler))
 - **Perplexity** — **PerplexityBot** shows your pages in its search results and is not used for training, and **Perplexity-User** fetches a page when a user asks (Perplexity says Perplexity-User generally ignores robots.txt) ([Perplexity](https://docs.perplexity.ai/guides/bots))
-- **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `data-nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers training of Gemini models and grounding (providing content from the Google Search index to the model at prompt time) in Gemini Apps and in Grounding with Google Search on Vertex AI, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers)). Search Console also has a **Search generative AI** control in each property's settings, rolled out to all sites by 31 August 2026. Opting out there keeps your content out of AI Overviews, AI Mode and the generative AI features in Google Discover. Google says it "isn't used as a ranking or inclusion signal affecting other parts of Search" and "doesn't affect AI training", which is Google-Extended's job ([Google](https://support.google.com/webmasters/answer/16908024)). Leave it alone unless you want out of Google's AI answers.
+- **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `data-nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers training of Gemini models and grounding (providing content from the Google Search index to the model at prompt time) in Gemini Apps and in Grounding with Google Search on Vertex AI, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers)). Search Console also has a **Search generative AI** control in each property's settings, rolled out to all sites by 31 August 2026. Opting out there keeps your content out of AI Overviews, AI Mode and the generative AI features in Google Discover. Google says it "isn't used as a ranking or inclusion signal affecting other parts of Search" and "doesn't affect AI training", which is Google-Extended's job ([Google](https://support.google.com/webmasters/answer/16908024)). Look at what it shows for your property (a property can inherit it from a parent one), and opt out only if you want out of Google's AI answers.
 - **Bingbot** — Bing's crawler. Bing's post on its AI Performance report says Bing respects robots.txt and counts citations in Copilot, Bing's AI summaries and some partner services; it does not say Copilot reads pages through Bingbot, so treat that as likely, not stated ([Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview))
 
 Check your robots.txt for `Disallow` rules aimed at any of these. Blocking a search bot can keep your pages out of that company's search answers: OpenAI says a site opted out of OAI-SearchBot is not shown in ChatGPT search answers, Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search, and Perplexity recommends allowing PerplexityBot so your site appears. Training is a separate choice. OpenAI says its OAI-SearchBot and GPTBot settings are independent, and Anthropic lists its three bots apart, so you can block GPTBot and ClaudeBot and still allow the search bots. Google-Extended covers grounding in Gemini apps as well as training, so decide it on its own. CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls; its page shows how to block CCBot to keep future crawls out, and mentions an Opt-out Registry ([Common Crawl](https://commoncrawl.org/ccbot)). OpenAI and Perplexity also recommend allowing their published IP ranges, so check that a firewall or CDN is not blocking a bot that robots.txt allows.
@@ -343,7 +343,7 @@ Google and Bing count how often your site appears in their AI answers, for free:
 
 | Metric | What It Measures | How to Check |
 |--------|-----------------|-------------|
-| AI Overview presence | Do AI Overviews appear for your queries? | Search Console's generative AI report; manual check or Semrush/Ahrefs |
+| AI Overview presence | Do AI Overviews appear for your queries? | Manual check or Semrush/Ahrefs; Search Console's generative AI report gives your site's impressions in AI Overviews and AI Mode, not which queries showed one |
 | Brand citation rate | How often you're cited in AI answers | AI visibility tools (see below) |
 | Share of AI voice | Your citations vs. competitors | Peec AI, Otterly, ZipTie |
 | Citation sentiment | How AI describes your brand | Manual review + monitoring tools |
@@ -368,7 +368,9 @@ visibility in AI search should be measured as a spread over repeated runs, not o
 
 How often:
 - **Weekly** if you are actively working on your AI visibility.
-- **Every 2 or 4 weeks** otherwise; that is enough to see a trend.
+- **Every 2 or 4 weeks** otherwise.
+
+Judge a trend over several runs, never from one.
 
 Each time:
 1. Pick your top 20 questions, asked the way a customer would, without your business name
@@ -377,8 +379,9 @@ Each time:
 4. Log it in a spreadsheet as "named in N of M answers", so a trend shows over time
 
 Automated alternative: `search-console-insights` has a weekly "does AI name you?" check
-(`references/geo-check.md`) that asks each of your buyer questions 3 times per run, counts
-mentions and citations in code, and trends them next to your Google rankings.
+(`references/geo-check.md`) that asks each of your buyer questions 3 times per run in the chat
+engines (Google's AI Mode and AI Overview get one answer each, as every ask is a paid search),
+counts mentions and citations in code, and trends them next to your Google rankings.
 
 ---
 
