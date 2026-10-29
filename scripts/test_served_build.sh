@@ -4,7 +4,7 @@
 # `playwright test` in fixed setups: which id the run expects, which id dist/ holds, which id
 # the server sends.
 #
-# Why it exists: the spec must fail when the server is not this run's build, and say why. A
+# Why it exists: the spec must fail when the server sends another build's id, and say why. A
 # normal `npm test` only ever shows it passing. Its old version compared the served id with the
 # one on disk, so a second build in the same folder changed both and passed; the second case
 # below is that build, and would pass again under that version.
@@ -72,6 +72,8 @@ case_ "another checkout's server (disk = run, served differs): fails" \
   run-a run-a other-c 1 "another server answers on this port"
 case_ "all three differ: fails, both causes" \
   run-a build-b other-c 1 "another server answers on this port, and another build"
+case_ "server sends the run's id, dist/ changed after: passes (dist/ only names the cause)" \
+  run-a build-b run-a 0
 case_ "the server sends no id: fails" run-a run-a - 1 "The server sent no test-build id (HTTP 404"
 case_ "no run id: fails" "" run-a run-a 1 "SITE_TEST_BUILD is not set"
 

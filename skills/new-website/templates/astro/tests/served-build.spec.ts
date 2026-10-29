@@ -19,15 +19,17 @@ test("the server answering is this run's own build", async ({ request }) => {
     'SITE_TEST_BUILD is not set: playwright.config.ts sets it for each run. Is this spec running under another config?',
   ).toBeTruthy();
 
+  const res = await request.get('/test-build-id.txt');
+  const served = res.status() === 200 ? (await res.text()).trim() : null;
+  if (served === run) return;
+
+  // Read after the server's answer, so a rebuild between the two shows as one, not as a server.
   let disk: string | null = null;
   try {
     disk = readFileSync(ON_DISK, 'utf8').trim();
   } catch {
     disk = null;
   }
-  const res = await request.get('/test-build-id.txt');
-  const served = res.status() === 200 ? (await res.text()).trim() : null;
-  if (served === run) return;
 
   let cause: string;
   if (served === null) {
@@ -38,16 +40,16 @@ test("the server answering is this run's own build", async ({ request }) => {
       'or a plain `npm run build` in this folder replaced dist/ before this test ran.';
   } else if (served === disk) {
     cause =
-      `This folder's dist/ holds another build's id (${served}), not this run's (${run}): ` +
-      'another build in this folder replaced dist/ before this test ran.';
+      `This folder's dist/ holds another build's id (${served}), not this run's (${run}). ` +
+      'Likely cause: another build in this folder replaced dist/ before this test ran.';
   } else if (disk === run) {
     cause =
-      `The server sent another build's id (${served}), while this run's build in dist/ has ${run}: ` +
-      "another server answers on this port (another checkout's preview, or an `astro dev`).";
+      `The server sent another build's id (${served}), while this run's build in dist/ has ${run}. ` +
+      "Likely cause: another server answers on this port (another checkout's preview, or an `astro dev`).";
   } else {
     cause =
-      `The server sent ${served}, dist/ has ${disk ?? 'no id'}, this run's id is ${run}: ` +
-      'another server answers on this port, and another build in this folder replaced dist/.';
+      `The server sent ${served}, dist/ has ${disk ?? 'no id'}, this run's id is ${run}. ` +
+      'Likely causes: another server answers on this port, and another build in this folder replaced dist/.';
   }
   expect(served, cause).toBe(run);
 });

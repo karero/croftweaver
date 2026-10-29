@@ -195,8 +195,8 @@ jobs:
           CF_PAGES_BRANCH="$prod" npx playwright test tests/email.spec.ts
       - name: Run template test suite
         run: npm test
-      # The served-build spec in fixed setups: it must fail when the server or dist/ holds
-      # another build's id, which a normal run never shows.
+      # The served-build spec in fixed setups: it must fail when the server sends another
+      # build's id (dist/ only names the cause), which a normal run never shows.
       - name: The served-build spec fails on another build's id (scripts/test_served_build.sh)
         run: bash ../../../../scripts/test_served_build.sh
 
