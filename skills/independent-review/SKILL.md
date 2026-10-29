@@ -168,7 +168,8 @@ Codex's effort for any run.
    **Prose change? Sweep its claims before round 1:** `scripts/sweep_claims.sh --base <base>` lists
    the sentences the change adds (or edits beside) that claim an absence or a universal; `--file
    <plan>` lists every such sentence in the file outside fenced code. Check each as
-   `references/claims-sweep.md` says.
+   `references/claims-sweep.md` says. This holds at every depth, Light included: Light's one
+   seat replaces this step's reviewers, not the sweep.
 3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
    round 1 only at Normal, rounds 1 to 3 at High, never at Light — started in the background
    BEFORE the script so every seat runs at once. A round sent with `--evidence` gives this pass
