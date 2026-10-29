@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // The server answering on this run's port must be serving this run's own build. Playwright
@@ -53,4 +53,13 @@ test("the server answering is this run's own build", async ({ request }) => {
       'Likely causes: another server answers on this port, and another build in this folder replaced dist/.';
   }
   expect(served, cause).toBe(run);
+});
+
+// CROFTWEAVER-LICENSE.md sits in the site's top folder, for whoever gets the source. It is not a
+// page: a build that puts it in dist/ (the file moved into public/, say) would publish it.
+test('the licence notice stays out of the built site', () => {
+  const dist = fileURLToPath(new URL('../dist/', import.meta.url));
+  const files = readdirSync(dist, { recursive: true }).map(String);
+  expect(files.length, `${dist} is empty: the test server builds the site first`).toBeGreaterThan(0);
+  expect(files.filter((f) => /(^|[\\/])CROFTWEAVER-LICENSE/i.test(f)), 'keep CROFTWEAVER-LICENSE.md in the top folder, out of public/').toEqual([]);
 });
