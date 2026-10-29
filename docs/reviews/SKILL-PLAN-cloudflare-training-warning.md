@@ -37,25 +37,28 @@ an AI crawler is refused, "If you chose to block Training that is expected"; non
 ## What is known, and what the capture must show
 
 Known from the second trial (14 October 2026,
-`skills/new-website/scripts/tests/fixtures/cloudflare-api/`): Allow is `"disabled"` in
-`ai_search`, `ai_user` and `ai_training` (T1-013, T2-040); the API accepts
+`skills/new-website/scripts/tests/fixtures/cloudflare-api/`): the kit's reads show
+`"disabled"` in `ai_search`, `ai_user` and `ai_training` (T1-013, T2-040), which the kit takes
+for Allow (C4 and C9 settle that it is the dashboard's Allow); the API accepts
 `ai_training: "disallow"` (T2-061, T2-062), also with Bot Preference Sync off (T2-063, T2-064).
 Sync was already on before that PUT (T2-040, T2-060), so whether choosing Disallow turns it on
 is not known. One zone read `ai_bots_protection: "block"` with `ai_training: "disallow"` and Sync
-off (T2-016). No capture shows any Block value: the existing test 13 uses a made-up `"block"`.
+off (T2-016). No read shows a Block value for `ai_training`, `ai_search` or `ai_user`; a PUT
+with `ai_training: "block"` was refused (T2-059), and the existing test 13 uses that made-up
+value.
 
 Not known, and the build waits for it (global rule 5): which values each dashboard choice
-gives, in which fields. On a **spare zone that serves no live site** and has one proxied host,
-the maintainer makes each change in the dashboard (Security → Settings → Bot traffic →
+gives, in which fields. On a **spare zone that serves no live site**, with one proxied host
+that serves a known robots.txt of its own (a throwaway Pages project with the starter's
+file), the maintainer makes each change in the dashboard (Security → Settings → Bot traffic →
 Configure AI bot policies), and after each one the trial helper (the one recorded in
 `trial-helper.txt`) reads `GET /zones/<id>/bot_management`, so the captures come out in the
 format `clean-captures.mjs` reads. Each capture is compared field by field with the one before.
 
 | Capture | Change | Also saved |
 |---|---|---|
-| 1 (Codex at High; melious out of balance, no rerun owed; fresh-eyes on the host's model) | Codex: 1 BUG (the fixture tooling takes two trials only), 2 RISK (the check script's refusal line; "leaves search" overstated). Fresh-eyes: 3 BUG (the confirmed run would warn about a value it had just changed; the asking list is not printed when nothing else changes; the T3 tooling, as Codex), 9 RISK (the older `ai_bots_protection`; Search and Agent not captured; values may sit in other fields; the Sync claim and C4's order; three more prose places; launch day; what Disallow writes into robots.txt; unnamed test baselines; a missing field), 6 NIT | all taken: notes keyed to the `ai` line's end state and printed in the ask and in the report (S1–S5); a Fixtures task list; C1–C9 with Sync off before Disallow, Search and Agent, robots.txt saved, whole objects compared; S8, S10; prose places added; launch day a BUGLOG row; baselines named; wording follows Cloudflare's "impacts search" |
 | C1 | none: the zone as it is | the dashboard's exact labels for every choice of Search, Agent and Training, and whether the older Block AI bots switch shows |
-| C2 | Training: Block | |
+| C2 | Training: Block | the robots.txt the host serves |
 | C3 | Training: Block on pages with ads | |
 | C4 | Training: Allow; Bot Preference Sync: off | the robots.txt the host serves |
 | C5 | Training: Disallow AI Training | whether Sync turned on by itself; the robots.txt the host serves |
@@ -72,47 +75,59 @@ Lena's bakery (`lenas-backstube`) is the made-up site the fixtures already use. 
 the run that prints the numbered list and a code; "the report" is the run that prints what is
 done, after `--confirm` or when there is nothing to change.
 
+**The fields watched** are `ai_training`, `ai_search`, `ai_user` (Agent) and
+`ai_bots_protection` (the older Block AI bots). No other field of the bot object gets a note
+(`cf_robots_variant`, `enable_js`, `crawler_protection`, `content_bots_protection`; Sync only as
+S7 says). **Which values:** in the ask and in a skipped, `hand` or `unread` line, the values
+read at the start; in the report of a `done` line, the values read before the PUT.
+
 | # | Given | When | Then |
 |---|---|---|---|
-| S1 | Training is Block (C2) | the ask, `ai` line in | after the list, a note: Training is set to Block; Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search; the yes sets it to Allow. To refuse training and stay in search, choose Disallow AI Training in the dashboard and run with `--skip ai` |
-| S2 | Training is Block on pages with ads (C3) | the ask, `ai` line in | the same note, for pages that show ads |
-| S3 | Training was Block or Block on pages with ads | the report after the yes (`ai` line done) | one past-tense line: Training was that value and is now Allow; to refuse training and stay in search, the same advice |
-| S4 | Training is Block or Block on pages with ads | `--skip ai`, with something else to change: the ask | the S1 note, with "the yes leaves it as it is" in place of "the yes sets it to Allow" |
-| S5 | the same | `--skip ai`, nothing else to change: the report | the same note after the report |
+| S1 | Training is Block (C2) | the ask, `ai` line in (state `change`) | a note: Training is set to Block; Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search; the yes sets it to Allow. To refuse training and stay in search, choose Disallow AI Training in the dashboard (and turn Bot Preference Sync on, unless C5 shows it turns on by itself) and run with `--skip ai` |
+| S2 | Training is Block on pages with ads (C3) | the same | the same note, for pages that show ads |
+| S3 | Training was Block, Block on pages with ads or Disallow AI Training | the report, `ai` line `done` | one past-tense line: Training was that value and is now Allow; to refuse training and stay in search, the S1 advice |
+| S4 | Training is Block or Block on pages with ads | `ai` line `skipped`, in the ask or the report | the S1 note, with "this run leaves it as it is" in place of "the yes sets it to Allow" |
+| S5 | the same | `ai` line `hand` (the PUT was refused or read back wrong) or `unread` with values (the records could not be read) | the S4 note: the value is still there and this run did not change it |
 | S6 | Training is Disallow AI Training (C5) | the ask, `ai` line in | a note: the yes sets Training to Allow and lets training crawlers in; `--skip ai` keeps the owner's choice |
-| S7 | Training is Disallow AI Training with Sync off (C6) | `--skip ai`, ask or report | a note: with Bot Preference Sync off the no-training preference is not written into robots.txt (training-only crawlers are still blocked) |
-| S8 | Search or Agent is not Allow (C7, C8), or the older `ai_bots_protection` is not `"disabled"` | `--skip ai`, ask or report | one note per field, naming its dashboard label and value and pointing to checklist section 4; with the `ai` line in, the list already shows the change |
-| S9 | everything is Allow (C9) | any run | no note: the output is the same as today's |
-| S10 | a field holds a value no capture showed, or `ai_training` is missing | any run | one note naming the field and value (or "missing") and saying the kit does not know it; never a guess, never silence |
+| S7 | Training is Disallow AI Training with Sync off (C6) | `ai` line `skipped`, ask or report | a note: with Bot Preference Sync off, the no-training preference is not written into robots.txt |
+| S8 | Search or Agent holds a captured non-Allow value (C7, C8), or `ai_bots_protection` is `"block"` | `ai` line `skipped`, `hand` or `unread` with values | one note per field: its dashboard label (for `ai_bots_protection`, "the older Block AI bots setting", or "no longer shown in the dashboard" if C1 says so), its value, and checklist section 4. With the `ai` line in, the list already shows the change, so no note |
+| S9 | every watched field is `"disabled"` (C9, T2-040) | any run | no note |
+| S10 | a watched field holds a value no capture showed, or is missing | any run with values | one note naming the field and value (or "missing") and saying the kit does not know it. It replaces S1–S8's note for that field: never a guess, never silence |
 
-When the bot read is refused, the script already prints its "by hand" line for `bot` and
-`ai`; it adds no note, since it has no values. Notes use the labels C1 records. They never call
-Googlebot or Bingbot training crawlers: Cloudflare's word is "mixed-use".
+When the bot read is refused there are no values and no note: the `ai` line then prints "by
+hand" when it is in, and "stays as it is (it could not be read)" when it is skipped, as today.
+Notes use the labels C1 records. They never call Googlebot or Bingbot training crawlers:
+Cloudflare's word is "mixed-use".
 
 ## Design
 
-- **Script:** one function in `cloudflare-setup.mjs` takes the bot object read and the `ai`
-  line's state, and returns the notes, comparing values literally against those the captures
-  showed. The ask prints them after the numbered list; the report prints them after its last
-  line (`reportQuiet(…, { done: true })`). They change no setting, no question code and no exit
-  code. Launch day reads no bot settings and gets no notes (a BUGLOG row).
+- **Script:** one exported function in `cloudflare-setup.mjs` takes the watched values and the
+  `ai` line's state, and returns the notes, comparing values literally against those the
+  captures showed. The ask prints them after `reportQuiet` and before the build-failed line;
+  the report prints them after `reportQuiet(…, { done: true })` and before the connection
+  lines. They change no setting, no question code and no exit code. Launch day reads no bot
+  settings and gets no notes (a BUGLOG row).
 - **Prose, the same facts everywhere:** checklist section 4 and its section 6 sentence on
   blocking Training on purpose; `skills/search-console-setup/SKILL.md` ("Also in the Cloudflare
-  dashboard"); `skills/ai-seo/SKILL.md` Step 4; `cloudflare-check.mjs`'s `lookFor`, `aiHand`
-  and refusal line (a refused crawler under Disallow AI Training is expected; under Block,
-  Google and Bing are out too); `skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`,
-  which also tells the assistant to pass the notes on in the report, not only in the ask. Each
-  names Googlebot and Bingbot, names Disallow AI Training as the setting that refuses training
-  and keeps search, says Bot Preference Sync is what writes the preference into robots.txt,
-  says what C5's robots.txt holds (for example whether it names `Google-Extended`, which
-  `ai-seo` says is the owner's separate choice), and says Bing does not read it yet
-  (`NOARCHIVE` is Bing's own tool). Allow stays the kit's default; training stays the owner's
-  call.
-- **Fixtures:** the tooling takes two trials today. The build adds a third: a third folder
-  argument and a T3 batch in `clean-captures.mjs`'s `SELECTION` (after the two, so no existing
-  made-up id moves) and a `T3` key in the private map; the file-name pattern in
-  `cloudflare-setup.test.mjs` widened to T1–T3; each new value added to `allowed-values.json`
-  after looking at it; a row in the fixtures README's claims table.
+  dashboard"); `skills/ai-seo/SKILL.md` Step 4 and its Common Mistakes line on blocking the
+  training bots; `skills/new-website/references/CLOUDFLARE_CHECK.md` ("blocking Training may be
+  your choice"); `cloudflare-check.mjs`'s `lookFor`, `aiHand` and refusal line, which says a
+  Training choice is one possible cause of a refused crawler, that under Block Google and Bing
+  are out too, and that any other refusal or server error still needs a look;
+  `skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, which also tells the assistant to
+  pass the notes on in the report, not only in the ask. Each names Googlebot and Bingbot, names
+  Disallow AI Training as the setting that refuses training and keeps search, says Bot
+  Preference Sync is what writes the preference into robots.txt, says what C5's robots.txt
+  holds (for example whether it names `Google-Extended`, which `ai-seo` says is the owner's
+  separate choice), and says Bing does not read it yet (`NOARCHIVE` is Bing's own tool). Allow
+  stays the kit's default; training stays the owner's call.
+- **Fixtures:** the tooling takes two trials today. The build adds a third, T3, in
+  `clean-captures.mjs`: its usage line and the folder list (`dirs`); a T3 batch in `SELECTION`,
+  after the two, so no existing made-up id moves; the loop over trials, which names T1 and T2;
+  the helper check, which looks for T1 and T2 names; a `T3` key in the private map. In
+  `cloudflare-setup.test.mjs`, both patterns widened to T1–T3: `MADE_UP` (the `capture` value)
+  and the file-name pattern. Each new value goes into `allowed-values.json` after looking at it.
+  The fixtures README and the stub say "three trials", and the README's claims table gets a row.
 - **Rows:** one "Next release notes" row; BUGLOG rows for launch day and for Cloudflare retiring
   Managed robots.txt (the script's `is_robots_txt_managed` handling).
 
@@ -123,15 +138,18 @@ run entry the suite already uses: one test per scenario S1–S10, each asserting
 and that the PUT body, the question code and the exit code are what they would be without the
 note. Baselines are named, not assumed:
 
-- S9: the output is identical to the same run against T2-040's bot object, which the suite's
-  `freshState` already uses.
+- S9: runs against C9's bot object and against T2-040's print no line holding any note's
+  opening words; the existing tests on T2-040 pass unchanged; the exported function returns no
+  notes for either object.
 - S4: the code equals the code of the same zone with `ai_training: "disabled"`, since a skipped
   line's value is not in the code.
 - One test swaps C2's Block value for C9's Allow and sees the note go, so the check cannot pass
   vacuously.
-- Test 13's made-up `ai_training: "block"` becomes C2's captured value.
+- Test 13's made-up `ai_training: "block"` becomes C2's captured value; its `enable_js` and
+  `crawler_protection` values stay, as they are not watched.
 
-The fixture test checks every new file for real names.
+In `tests/cloudflare-check.test.mjs`: the refusal line's new wording, for a refused training
+crawler and for a server error. The fixture test checks every new file for real names.
 
 ## Not covered
 
@@ -142,3 +160,5 @@ The fixture test checks every new file for real names.
 
 | Round | Findings | Disposition |
 |---|---|---|
+| 1 (Codex at High; melious out of balance, no rerun owed; fresh-eyes on the host's model) | Codex: 1 BUG (the fixture tooling takes two trials only), 2 RISK (the check script's refusal line; "leaves search" overstated). Fresh-eyes: 3 BUG (the confirmed run would warn about a value it had just changed; the ask's list is not printed when nothing else changes; the T3 tooling, as Codex), 9 RISK (the older `ai_bots_protection`; Search and Agent not captured; values may sit in other fields; the Sync claim and C4's order; three more prose places; launch day; what Disallow writes into robots.txt; unnamed test baselines; a missing field), 6 NIT | taken: notes keyed to the `ai` line's end state and printed in the ask and in the report; a Fixtures task list; C1–C9 with Sync off before Disallow, Search and Agent, robots.txt saved, whole objects compared; S8, S10; prose places added; launch day a BUGLOG row; baselines named; wording follows Cloudflare's "impacts search" |
+| 2 (as round 1) | Codex: 3 BUG (`MADE_UP` also names T1/T2; S9's baseline compared two different objects; a refused read with `--skip ai` prints another line), 1 RISK (the refusal line would excuse a server error). Fresh-eyes: 5 RISK (no rule for `hand` and `unread` with values, nor which read the report uses; the watched fields not named, S8 and S10 overlapping; S9's baseline; S7's unsupported "still blocked"; the T3 list short), 9 NIT (this table's row had landed in the capture table; two prose places; S6 in the report; where in each run the notes print; the capture host's own robots.txt; C2's robots.txt; S1's Sync advice; S8's label for the older switch; test 13's other values; "What is known" wording) | all taken: the watched fields and the values used named above the scenarios; S3 covers Disallow too; S5 for `hand` and `unread`; S10 wins over S1–S8; S7's parenthesis cut; S9's baseline rewritten; the full T3 list; the refused-read lines; the check script's tests; the two prose places; print positions fixed; capture host and C2 robots.txt |
