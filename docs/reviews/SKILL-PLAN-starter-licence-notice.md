@@ -75,8 +75,11 @@ This file is about the licence, not credit.
 
 ## Tests (what each one proves)
 
-- The byte-compare check: `test_template_coverage.sh` gets cases for the real files (pass), a
-  template copy with one byte changed, and a missing copy (both fail, naming the file). Proves S2
+- The byte-compare check: `test_template_coverage.sh` builds each case in a scratch repo
+  (`fresh()`, its line 29), which today copies no root `LICENSE`; it must, or the existing "the
+  templates as they are pass" case fails. Then cases for the real files (pass), a template copy
+  with one byte changed, a deleted template copy and a deleted root `LICENSE` (each fails, naming
+  the file). Proves S2
   and that it cannot pass silently. Run `scripts/package.sh` and `make check` inside the unzipped
   handoff once, to show the check runs there too.
 - `test_clean_denylist.sh`: a denylisted name in a sibling `.md` of the template copy (still
