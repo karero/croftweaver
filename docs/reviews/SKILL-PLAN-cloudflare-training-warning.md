@@ -3,7 +3,7 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-29 | this file |
-| 2 | PLAN gate (High: the setup script configures the owner's zone, the review skill's "deploy or infra" row) | ⬜ | — |
+| 2 | PLAN gate (High: the setup script configures the owner's zone, the review skill's "deploy or infra" row) | ✅ clean 2026-10-29: 9 rounds, the final full read and the wording pass | Review trail, below |
 | 3 | Capture: the bot settings a real zone returns for each choice (C1–C9 below), by the maintainer on a spare zone | ⬜ | — |
 | 4 | Build, one PR: the captures as fixtures (with the tooling changes under "Fixtures"), the script's notes and their tests, the prose, a release-note row, two BUGLOG rows | ⬜ | — |
 
@@ -191,3 +191,4 @@ read-back fails, and test 13b's read-back that differs. S9b gets a test with the
 | 7 (Codex at High, earned by round 6's RISKs; cut: the stop rule and S9b's fixture; melious out of balance) | 1 RISK (the stop rule missed a Block that reads like Allow) | cut: the stop rule compares every pair of choices whose notes differ, in all the note function takes |
 | 8 (Codex at High, earned by round 7's RISK; cut: the pairwise stop rule; melious out of balance) | 1 RISK (the pairwise rule still passes a Block that reads like Allow apart from Sync) | cut after the last round the owner's go covers: the separate rule is gone; each capture must give the result of the scenarios that cite it, checked before any code. Not re-reviewed: round 9 needs the owner's OK |
 | 9 (Codex at High, on the owner's OK past round 8, earned by round 8's RISK; cut: the separate stop rule; melious out of balance) | none | clean: each capture is checked by hand against the scenarios that cite it before any code |
+| wording pass (Codex, the delta since round 9: its trail row) | none | clean; the gate closes |
