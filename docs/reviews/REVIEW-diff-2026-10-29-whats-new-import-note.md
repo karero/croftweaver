@@ -11,7 +11,7 @@ Codex + GLM 5.3 on melious, fresh-eyes on Sonnet in round 1.
 | 2 (Codex alone; melious out of balance) | none; F1 to F4 confirmed | clean |
 | wording pass (Codex alone; melious out of balance) | RISK: the trail's "both checks fail on the round-1 command" read as if the tests pinned the spaced-path, subfolder and quote fixes | fixed: the round-1 row now says what each check pins and what no fixture covers |
 | merge link, not a round (Codex alone; melious out of balance) | none; F1 to F4 still hold after merging `origin/main` (`a7f0d202`, #444's licence notice, which edits the same two scripts and the BUGLOG tail) | clean. `merge_link.sh e6c90d12 4985b6d6 a7f0d202`, sent with `--verify` and `--base 4985b6d6`; `make check` exit 0 on the merged tree |
-| second merge of `origin/main` (`c03ecf85`, #447), not sent | none | its only effect on this change's files is #447's own release-notes row at the BUGLOG tail (`merge_link.sh e6c90d12 4985b6d6 c03ecf85` against the link above); `check_buglog_rows.sh` and `test_whats_new.sh` pass; CI ran the full suite |
+| second merge of `origin/main` (`c03ecf85`, #447), not sent | none | its only effect on this change's files is #447's own release-notes row at the BUGLOG tail (`merge_link.sh e6c90d12 4985b6d6 c03ecf85` against the link above); `check_buglog_rows.sh` and `test_whats_new.sh` pass; the full suite is left to CI on the PR |
 
 Checks: before round 1, `make check` exit 0. Before round 2, `bash scripts/test_whats_new.sh`
 ("all whats-new missing-file tests passed") and `scripts/check_clean.sh` OK; the printed
