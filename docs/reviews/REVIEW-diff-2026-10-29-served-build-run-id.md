@@ -9,6 +9,11 @@ Seats: Codex and GLM 5.3 on melious, one command; the diff sent leaves out `docs
 |-------|-------|----------|--------------|
 | 1 | Codex alone. melious out of balance; no rerun owed | 2 BUG, 2 RISK | Codex 152 s, 53,057 |
 | 2 | Codex alone (`--verify`, `--base 284d8f95`); melious still out of balance | 1 BUG (wording); D3, D4 confirmed; D1, D2 still marked unverifiable, no new evidence asked beyond the trail's | Codex 91 s, 35,939 |
+| 3 | Codex alone (`--verify`); melious still out of balance | none; D3–D5 confirmed | Codex 74 s, 29,366 |
+
+Total, rounds 1–3: 3 BUG, 2 RISK. Gate closed after round 3, clean. Codex kept marking D1 and D2
+unverifiable from the diff alone (its sandbox had no installed packages); the evidence is in the
+plan trail, where Codex traced both in the installed code.
 
 ## Round 1
 
