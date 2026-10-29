@@ -1,7 +1,8 @@
 # Plan: the starter carries Croftweaver's licence notice
 
-Status: plan, not built. Decision row of 2026-10-29 in `docs/DECISIONS_PENDING.md` (PR #442);
-the maintainer chose "build it, for 0.35" on 2026-10-29.
+Status: plan, not built. It answers the decision row of 2026-10-29 in `docs/DECISIONS_PENDING.md`
+(PR #442). The maintainer chose "yes, plan it for 0.35" in chat on 2026-10-29; this PR ticks that
+row and records the answer there.
 
 ## What and why
 
@@ -31,10 +32,16 @@ This file is about the licence, not credit.
    puts it in `dist/`. The starter's served-build test reads `dist/`; add one assertion there
    (or in `seo.spec.ts`) that no `CROFTWEAVER-LICENSE` file is in `dist/`, so a later move into
    `public/` fails.
-4. **Drift for existing sites.** Add the path to `TEMPLATE_TRACKED` in `scripts/whats-new.sh`.
-   `check_template_coverage.sh` then accounts for it, and for a site scaffolded before 0.35
-   `whats-new` lists it as MISSING ("copy it in, there is nothing to merge"). That is the
-   update route for every site scaffolded before 0.35.
+4. **Drift for existing sites.** Add the path to `TEMPLATE_TRACKED` in `scripts/whats-new.sh`,
+   and give it its own arm in `process_tests_stamp` (`scripts/whats-new.sh` line 345 on), which
+   shows the site path `CROFTWEAVER-LICENSE.md`: `check_template_coverage.sh` requires an arm for
+   every tracked file (its line 163), and `test_whats_new.sh` checks the arms agree with the list.
+   A site with a known baseline (scaffolded from a git clone) then sees the file as MISSING ("copy
+   it in, there is nothing to merge"). Two cases get no such report: a site scaffolded from the
+   zip or `npm create croftweaver` has `suite_commit: unknown`, which `whats-new` refuses, and a
+   site that stamps its tests past 0.35 without copying the file stops being told. So the 0.35
+   release notes also say it plainly, for every site: copy `CROFTWEAVER-LICENSE.md` from the
+   starter into the site's top folder.
 5. **Name check.** `scripts/check_clean.sh` leaves the root `LICENSE` out of the name denylist,
    and already drops the lines of one copy of it, `packages/create-croftweaver/LICENSE`, by
    exact path and only while `cmp -s` finds it byte-identical (lines 251–255 and 300–302).
@@ -43,13 +50,16 @@ This file is about the licence, not credit.
    has drifted is then scanned like any other file. `test_clean_denylist.sh` already has a case
    for the installer copy; add the same two cases for this path.
 6. **The guard.** That exemption fails only when a drifted copy contains a listed name, so a
-   drift elsewhere in the text would pass. A new check (in `make check`, beside the
-   template-coverage check) fails when either copy, the installer's or the template's, is not
-   byte-identical to `LICENSE`, names the file, and says how to fix it (`cp LICENSE <path>`). It
-   compares bytes with `cmp`, parses nothing, and fails loudly when any of the three files is
-   missing. The installer's copy has no such guard today; this one list covers both.
+   drift elsewhere in the text would pass. `scripts/check_template_coverage.sh` gets one more
+   check: the template copy must be byte-identical to `LICENSE` (`cmp`, nothing parsed), or it
+   fails, names the file and says how to fix it (`cp LICENSE <path>`); a missing file on either
+   side fails too. That script already runs in `make check` and already ships in the handoff zip
+   with `LICENSE` and `skills/`, so the check runs in both places with no new script and no change
+   to `scripts/package.sh`. The installer's copy keeps its own guard, `packages/create-croftweaver/
+   test/install.test.mjs` ("the LICENSE that ships to npm is the repo's", run by
+   `.github/workflows/clean.yml`); `packages/` is not in the zip, so this check leaves it alone.
 7. **Version.** No version bump of its own: it ships in 0.35 with the Workers work. The 0.35
-   release notes get one line (a BUGLOG release-notes row, as usual).
+   release notes get the copy-it-in line from step 4 (a BUGLOG release-notes row, as usual).
 
 ## Scenarios
 
@@ -65,20 +75,23 @@ This file is about the licence, not credit.
 
 ## Tests (what each one proves)
 
-- The byte-compare guard: run it on the real files (pass), then, for each copy, on one with a
-  byte changed and on a missing one (all fail). Proves S2 and that it cannot pass silently.
+- The byte-compare check: `test_template_coverage.sh` gets cases for the real files (pass), a
+  template copy with one byte changed, and a missing copy (both fail, naming the file). Proves S2
+  and that it cannot pass silently. Run `scripts/package.sh` and `make check` inside the unzipped
+  handoff once, to show the check runs there too.
 - `test_clean_denylist.sh`: a denylisted name in a sibling `.md` of the template copy (still
   caught), in the exempt copy while it equals `LICENSE` (allowed), and in a drifted exempt copy
   (caught). Proves S5.
 - The starter test from step 3, run in a `git archive` copy of the template (port 4979), once
   as is and once with the file copied into `public/` (fails). Proves S1's second half and S3.
-- `test_template_coverage.sh` passes with the new path tracked; `whats-new.sh` run on a scratch
-  site stamped at v0.34 lists it as MISSING. Proves S4.
+- `test_template_coverage.sh` passes with the new path tracked and its arm added, and
+  `test_whats_new.sh` gets a case: a scratch site stamped at v0.34 lists `CROFTWEAVER-LICENSE.md`
+  as MISSING. Proves S4.
 
 ## Not in this plan
 
-Adding the notice to existing sites (each takes it through `whats-new` at its next
-update); a NOTICE or SPDX header in each file; any change to the credit request.
+Copying the file into existing sites (each owner does it from the release-note line, or
+`whats-new` reports it); a NOTICE or SPDX header in each file; any change to the credit request.
 
 ## Open for the maintainer
 
