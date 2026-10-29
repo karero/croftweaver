@@ -12,6 +12,7 @@ arXiv 2604.07585.
 | Round | Findings | Disposition |
 |---|---|---|
 | 1 (Codex alone; melious out of balance, no rerun owed) | BUG: "each buyer question 3 times" is wrong for Google's AI Mode and AI Overview, which get one answer (`geo_check.py` `samples_for`). RISK: the generative AI report gives site impressions, not which queries showed an AI Overview. RISK: "leave the control alone" assumes it is not already set to opt out, possibly by inheritance. RISK: "every 2 or 4 weeks is enough to see a trend" has no support | fixed: Google's engines named as one answer each; the report labelled as site impressions; both control lines say look at what the property shows, inheritance included; the trend sentence is replaced by "judge a trend over several runs" |
+| 2 (Codex alone; melious out of balance) | BUG: the new BUGLOG row still said every 2 or 4 weeks "is enough", a claim the skill no longer makes. Unsupported: "every ask is a paid search" | fixed: the row says what the skill suggests; the line now says each Google answer costs a SerpApi search, as `geo_check.py` `samples_for` and `geo-check.md` count them |
 
 Checks before review: `make check` exit 0 ("all checks passed"; the usual local warning on
 `website-review`'s description length, which this diff does not touch). `scripts/check_clean.sh`

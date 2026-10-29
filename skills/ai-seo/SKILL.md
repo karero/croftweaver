@@ -380,7 +380,7 @@ Each time:
 
 Automated alternative: `search-console-insights` has a weekly "does AI name you?" check
 (`references/geo-check.md`) that asks each of your buyer questions 3 times per run in the chat
-engines (Google's AI Mode and AI Overview get one answer each, as every ask is a paid search),
+engines (Google's AI Mode and AI Overview get one answer each, as each costs a SerpApi search),
 counts mentions and citations in code, and trends them next to your Google rankings.
 
 ---
