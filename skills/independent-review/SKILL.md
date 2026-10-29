@@ -118,7 +118,8 @@ Codex's effort for any run.
    instruction written in the repo carries to a later session, which otherwise asks again. Content
    that must stay local: `--local-only` (local ollama only; the script refuses a cloud tag or a
    non-loopback `OLLAMA_HOST`) plus the fresh-eyes pass, no paste — a DEGRADED verdict; say so.
-2. **Run the external half** (Normal and High; Light runs its one seat instead). First read the
+2. **Run the external half** (Normal and High; Light runs its one seat instead, and still runs the
+   claims sweep below on a prose change). First read the
    gate's PR/MR comment for a round already running (`references/closeout.md`, "A round claim";
    advisory). Set Codex's
    effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
@@ -168,7 +169,8 @@ Codex's effort for any run.
    **Prose change? Sweep its claims before round 1:** `scripts/sweep_claims.sh --base <base>` lists
    the sentences the change adds (or edits beside) that claim an absence or a universal; `--file
    <plan>` lists every such sentence in the file outside fenced code. Check each as
-   `references/claims-sweep.md` says.
+   `references/claims-sweep.md` says. A prose change gets the sweep at every depth, Light
+   included: Light's one seat replaces this step's reviewers, not the sweep.
 3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
    round 1 only at Normal, rounds 1 to 3 at High, never at Light — started in the background
    BEFORE the script so every seat runs at once. A round sent with `--evidence` gives this pass
