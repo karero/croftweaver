@@ -56,6 +56,7 @@ $git -C "$S" rm -q "$A/scripts/set_pdf_title.py"    # deleted upstream, the site
 put "$S/$A/tests/a.spec.ts" v2                      # changed, the site has it
 put "$S/$A/tests/b.spec.ts" v1                      # added, the site lacks it
 put "$S/$C/hooks/git-stand.mjs" v1                  # added, the site lacks it
+put "$S/$A/CROFTWEAVER-LICENSE.md" v1               # added, the site lacks it (0.35)
 $git -C "$S" add -A && $git -C "$S" commit -qm later
 
 # The site, stamped at the baseline and holding only the files it had then.
@@ -70,6 +71,7 @@ report "$S" "$P" "a site missing files"
 has   "a file added upstream that the site lacks is MISSING" "    MISSING: the site has no scripts/verify.mjs"
 has   "a template test the site lacks maps to tests/"         "    MISSING: the site has no tests/b.spec.ts"
 has   "a claude template the site lacks maps to .claude/"     "    MISSING: the site has no .claude/hooks/git-stand.mjs"
+has   "the licence notice the site lacks is MISSING at its top" "    MISSING: the site has no CROFTWEAVER-LICENSE.md"
 has   "the closing summary lists the missing files"           "  scripts/verify.mjs"
 hasnt "a changed file the site has is not MISSING"            "no scripts/hooks/pre-push"
 hasnt "a changed test the site has is not MISSING"            "no tests/a.spec.ts"
@@ -86,6 +88,7 @@ stamp "$P/tests/TESTS-VERSION" "$BASE"
 # Once the site has every file, nothing is MISSING, though the drift report still runs.
 echo v1 > "$P/scripts/verify.mjs"; echo v1 > "$P/tests/b.spec.ts"
 mkdir -p "$P/.claude/hooks" && echo v1 > "$P/.claude/hooks/git-stand.mjs"
+echo v1 > "$P/CROFTWEAVER-LICENSE.md"
 report "$S" "$P" "a site with every file"
 has   "drift is still reported when nothing is missing"       "  templates/astro/scripts/verify.mjs (site copy: scripts/verify.mjs — the pre-push hook runs it once it is there; \`npm run verify\` also needs \"verify\": \"node scripts/verify.mjs\" in the site's package.json)"
 hasnt "a site with every file shows no MISSING line"          "MISSING: the site has no"

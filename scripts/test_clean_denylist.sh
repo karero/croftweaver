@@ -109,6 +109,21 @@ printf 'MIT License\n' | tee "$R/LICENSE" >"$R/packages/create-croftweaver/LICEN
 printf 'ran zorblequux\n' >"$R/packages/create-croftweaver/LICENSE:12"
 expect "a listed name in a file named like that copy plus a colon: fails" 1 "create-croftweaver/LICENSE:12:1:" "$R"
 rm -r "$R/packages"; : >"$R/LICENSE"
+# The starter's licence notice is the same kind of copy, for every new site: left out by exact
+# path while it equals LICENSE, and scanned like any other file once it has drifted.
+L="skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md"
+mkdir -p "$R/skills/new-website/templates/astro"
+printf 'Copyright (c) zorblequux\n' | tee "$R/LICENSE" >"$R/$L"
+expect "a listed name in the starter's copy of LICENSE: passes" 0 "OK — no private names in:" "$R"
+printf 'made by zorblequux\n' >"$R/skills/new-website/templates/astro/README.md"
+expect "a listed name in a file beside the starter's copy: fails" 1 "skills/new-website/templates/astro/README.md:1:" "$R"
+rm "$R/skills/new-website/templates/astro/README.md"
+printf 'Copyright (c) zorblequux\nall rights reserved\n' >"$R/$L"
+expect "a starter copy that differs from LICENSE: scanned, and fails" 1 "$L:1:" "$R"
+printf 'MIT License\n' | tee "$R/LICENSE" >"$R/$L"
+printf 'ran zorblequux\n' >"$R/$L:3"
+expect "a listed name in a file named like the starter copy plus a colon: fails" 1 "$L:3:1:" "$R"
+rm -r "$R/skills/new-website"; : >"$R/LICENSE"
 
 # The org name is split so this file, which the real check scans, holds no bare copy of it.
 org="kar""ero"

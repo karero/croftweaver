@@ -497,7 +497,8 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    `git checkout` restores the file step 0 committed. Nothing is installed yet:
    `templates/astro/README.md` step 3 runs `npm install` after the overlay.) Then copy
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
-   `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, root configs — see `templates/astro/README.md`
+   `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, `CROFTWEAVER-LICENSE.md` (the licence of
+   these copied files; it stays in the site's top folder), root configs — see `templates/astro/README.md`
    for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`),
    `src/config.ts` (`url`), `public/robots.txt` (the `Sitemap:` line) and `public/llms.txt`
    (every `https://example.com` link); the first `npm test` fails while `robots.txt` or

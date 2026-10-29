@@ -231,6 +231,22 @@ if [ "${#ambiguous[@]}" -gt 0 ]; then
   echo "Each file must be in exactly one of TEMPLATE_TRACKED, SITE_OWNED, SITE_SOURCE."
 fi
 
+# The starter's licence notice must be the toolkit's LICENSE, byte for byte: check_clean.sh
+# skips the copyright holder's name in it only while that holds, and a drifted copy would
+# give every new site a wrong notice. Compared, not parsed.
+LICENSE_COPY="$TEMPLATE_ASTRO_DIR/CROFTWEAVER-LICENSE.md"
+for need in LICENSE "$LICENSE_COPY"; do
+  if [ ! -f "$need" ]; then
+    fail=1
+    echo "FAIL — $need is missing; the starter's licence notice is a copy of LICENSE."
+  fi
+done
+if [ -f LICENSE ] && [ -f "$LICENSE_COPY" ] && ! cmp -s LICENSE "$LICENSE_COPY"; then
+  fail=1
+  echo "FAIL — $LICENSE_COPY differs from LICENSE. It must be an exact copy:"
+  echo "    cp LICENSE $LICENSE_COPY"
+fi
+
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
