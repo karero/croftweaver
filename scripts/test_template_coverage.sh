@@ -31,6 +31,7 @@ fresh() {
   mkdir -p "$c/scripts" "$c/skills/new-website" \
     && cp "$ROOT/scripts/whats-new.sh" "$ROOT/scripts/check_template_coverage.sh" "$c/scripts/" \
     && cp -R "$ROOT/skills/new-website/templates" "$c/skills/new-website/" \
+    && cp "$ROOT/LICENSE" "$c/" \
     || { echo "FAIL — could not copy the templates to $c."; exit 1; }
 }
 
@@ -63,6 +64,16 @@ TPL=skills/new-website/templates
 
 fresh
 expect "the templates as they are pass" "$c" pass "accounted for"
+
+LIC="$TPL/astro/CROFTWEAVER-LICENSE.md"
+fresh; printf 'x' >>"$c/$LIC"
+expect "a licence notice that differs from LICENSE by one byte fails" "$c" fail "$LIC differs from LICENSE"
+
+fresh; rm "$c/$LIC"
+expect "a missing licence notice fails" "$c" fail "$LIC"
+
+fresh; rm "$c/LICENSE"
+expect "a missing root LICENSE fails" "$c" fail "LICENSE is missing"
 
 fresh; drop "$c" TEMPLATE_TRACKED "$TPL/AGENTS.md"
 expect "a tracked root template dropped from TEMPLATE_TRACKED fails" "$c" fail "$TPL/AGENTS.md"
