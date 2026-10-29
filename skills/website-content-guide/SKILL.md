@@ -119,8 +119,7 @@ of factors that can identify content with good E-E-A-T is useful", and that of t
 - **Trust:** imprint/legal entity page, clear contact, privacy page, last-updated
   timestamps, HTTPS, zero broken links.
 
-**Claims on the page.** A figure that loses its source gets repeated without it, by
-readers and by AI answers alike. So:
+**Claims on the page.** Give every figure what a reader needs to check it:
 - **Every figure carries its source, its date and what it counts:** "120 clients since
   2019", not "120+ happy clients"; a survey says who was asked and when.
 - **Name the seller.** A study by a company that sells what it measures says so.
