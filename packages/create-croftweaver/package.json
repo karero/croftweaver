@@ -1,6 +1,6 @@
 {
   "name": "create-croftweaver",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Install the Croftweaver website skills for your AI coding assistant: npm create croftweaver",
   "type": "module",
   "bin": {
