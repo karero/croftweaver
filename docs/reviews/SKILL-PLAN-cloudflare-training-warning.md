@@ -55,9 +55,9 @@ file), the maintainer makes each change in the dashboard (Security → Settings 
 Configure AI bot policies), and after each one the trial helper (the one recorded in
 `trial-helper.txt`) reads `GET /zones/<id>/bot_management`, so the captures come out in the
 format `clean-captures.mjs` reads. Each capture is compared field by field with the one before.
-**If the captures do not fit this plan** (a choice changes a field outside the four watched
-ones, two choices read alike, or a value lands in another field), the build stops and the plan
-is amended and re-reviewed (a PLAN gate delta) before any code.
+**One stop rule:** if C2 (Block) and C3 (Block on pages with ads) read the same in all four
+watched fields, the two cannot be told apart, and the build stops for the plan to be amended
+and re-reviewed. Any other surprise shows up as an S10 note, since known values are per field.
 
 | Capture | Change | Also saved |
 |---|---|---|
@@ -66,6 +66,7 @@ is amended and re-reviewed (a PLAN gate delta) before any code.
 | C3 | Training: Block on pages with ads | |
 | C4 | Training: Allow; Bot Preference Sync: off | the robots.txt the host serves |
 | C5 | Training: Disallow AI Training | whether Sync turned on by itself; the robots.txt the host serves |
+| C5b | only if Sync is still off at C5: Bot Preference Sync on | the robots.txt the host serves |
 | C6 | Bot Preference Sync: off, Training left on Disallow | the robots.txt the host serves |
 | C7 | Training: Allow; Search: Block | |
 | C8 | Search: Allow; Agent: Block on pages with ads | |
@@ -98,7 +99,7 @@ showed it in that field; anything else is S10.
 | S7 | Training is Disallow AI Training with Sync off (C6) | `ai` line `skipped`, or `unread` with values, ask or report | a note: with Bot Preference Sync off, the no-training preference is not written into robots.txt |
 | S8 | Search or Agent holds a non-Allow value a capture showed for that field (C7, C8), or `ai_bots_protection` is `"block"` | `ai` line `skipped`, or `unread` with values | one note per field: its dashboard label (for `ai_bots_protection`, "the older Block AI bots setting", or "no longer shown in the dashboard" if C1 says so), its value, and checklist section 4. With the `ai` line `change` (the ask) or `done` (the report), the list or the report already shows the change, so no note |
 | S9 | every watched field is `"disabled"` (C9, T2-040) | any run | no note |
-| S9b | Training is Disallow AI Training with Sync on (C5), the state S1's advice leads to | `ai` line `skipped`, any run | no note |
+| S9b | Training is Disallow AI Training with Sync on (C5, or C5b if C5 left Sync off), the state S1's advice leads to | `ai` line `skipped`, any run | no note |
 | S10 | a watched field holds a value no capture showed, or is missing | any run with values | one note naming the field and value (or "missing") and saying the kit does not know it. It replaces S1–S8's note for that field: never a guess, never silence |
 
 When the bot read is refused there are no values and no note: the `ai` line then prints "by
@@ -165,8 +166,8 @@ and a user-agent match): a refused GPTBot and a 503 for OAI-SearchBot each print
 refusal line. In `tests/cloudflare-setup.test.mjs`, S5a gets a test with an unread record list; S5b gets
 four, each starting from C2's Block and asserting the line names the value read before the run
 and says Cloudflare did not confirm: a refused PUT, a 502 to the PUT, an accepted PUT whose
-read-back fails, and test 13b's read-back that differs. S9b gets a test with C5's object and
-the `ai` line skipped. The fixture test checks every new file for real names.
+read-back fails, and test 13b's read-back that differs. S9b gets a test with the capture that reads
+`ai_training: "disallow"` and Sync on (C5 or C5b), the `ai` line skipped. The fixture test checks every new file for real names.
 
 ## Not covered
 
@@ -183,3 +184,4 @@ the `ai` line skipped. The fixture test checks every new file for real names.
 | 4 (Codex at High, earned by round 3's BUG; melious out of balance) | Codex: 1 RISK (S5a's "refused PUT": the script counts any unsuccessful answer, a 502 after an applied write included, as refused, so "the value is still there" is unproven) | taken: a `hand` line with no read-back makes no claim about the value now (S5c), with tests for a refused PUT and a 502; S5a keeps only the case where nothing was written |
 | 5 (Codex at High, earned by round 4's RISK; melious out of balance) | none | clean |
 | final full read (a new reader on the host's model, whole plan) | 4 RISK (S5b's test could pass with no note code; S5b and S5c claimed values for Search, Agent and the older switch, and S5b had no wording; the state S1's advice leads to had no scenario; no rule for captures that do not fit), 9 NIT (the rule's name; which captures settle Allow; known values per field; S7 under `unread`; S5b against S3; Applebot in the prose; the open BUGLOG row C1 settles; new-domain defaults; the trial loop's missing T3 key) | taken. Cut, as the unconfirmed-write kind earned rounds 4 and 5 too: the read-back case is removed, and every `hand` line gets one strict line that names the values read before the run and claims nothing about now; S9b added; a stop rule for captures that do not fit; the NITs as named |
+| 6 (Codex at High, earned by the full read's RISKs; cut: the read-back case; melious out of balance) | 2 RISK (the stop rule also caught the Sync changes the captures study; S9b's fixture could be Disallow with Sync off) | cut again, as both kinds earned round 6: the stop rule is one strict condition (C2 and C3 must differ in a watched field), other surprises being S10 notes; C5b captures Sync on when C5 left it off, and S9b uses the capture that reads Disallow with Sync on |
