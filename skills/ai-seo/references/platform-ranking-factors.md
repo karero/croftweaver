@@ -27,7 +27,7 @@ Google says a page must be indexed and eligible to be shown in Google Search wit
 **Write clear, extractable answers on every page you want cited.**
 
 **What to focus on:**
-- Schema markup — Article, FAQPage, HowTo, and Product schemas describe your page to machines. We found no study that measures how much it lifts AI visibility, and Google says no special schema.org structured data is needed for AI Overviews or AI Mode, so treat it as good hygiene, not a guaranteed boost. Google no longer shows HowTo rich results at all, and FAQ rich results only for government and health sites ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes))
+- Schema markup — Article, FAQPage, HowTo, and Product schemas describe your page to machines. We found no study that measures how much it lifts AI visibility, and Google says no special schema.org structured data is needed for AI Overviews or AI Mode, so treat it as good hygiene, not a guaranteed boost. Google no longer shows HowTo rich results (since September 2023, [Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)) or FAQ rich results (since 7 May 2026, [Google](https://developers.google.com/search/updates#faq-deprecation)) for any site
 - Build topical authority through content clusters with strong internal linking
 - Include named, sourced citations in your content (not just claims)
 - Add author bios with real credentials
@@ -70,7 +70,7 @@ Perplexity says PerplexityBot is designed to surface and link websites in its se
 
 **What to focus on:**
 - Allow PerplexityBot in robots.txt
-- Implement FAQPage schema on any page with Q&A content (since August 2023 Google shows FAQ rich results only for well-known government and health sites — [Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes))
+- Implement FAQPage schema on any page with Q&A content (it describes the Q&A to machines; Google has shown no FAQ rich results since 7 May 2026 — [Google](https://developers.google.com/search/updates#faq-deprecation))
 - Host PDF resources publicly (whitepapers, guides, reports)
 - Add Article schema with publication and modification timestamps
 - Write in clear, self-contained paragraphs that work as standalone answers
