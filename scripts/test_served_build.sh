@@ -33,7 +33,8 @@ cp "$SITE/scripts/build-marker.mjs" "$T/site/scripts/"
 ln -s "$SITE/node_modules" "$T/site/node_modules"
 
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
-# Only the served-build test runs (-g below): the file's other tests need a full build.
+# Only the build-id test runs (-g below). The file's licence test fails on an empty dist/,
+# which the cases with no id on disk leave.
 # The site's own config, minus its web server, pointed at the static server. The run id is set
 # after the site's config has set its own, in the main process only, as the site's config does.
 cat >"$T/site/run.config.ts" <<EOF
