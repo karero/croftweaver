@@ -252,7 +252,8 @@ if [ -f "$DENYLIST_FILE" ]; then
   # owner's name. A scan of packages/ reads the copy, so its lines are dropped as well, by
   # exact path and under the same condition, and only while the copy is the root file byte
   # for byte: one that has drifted is scanned like any other file. Another package with a
-  # copy of its own needs its path here.
+  # copy of its own needs its path here. So does the starter's licence notice,
+  # skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md, the same copy for every new site.
   # README.md at the repo's root may say who maintains the suite: the copyright holder, as
   # LICENSE's own copyright line spells the name. (2026-10-13: an AI assistant with web
   # search read the README and answered that it names no maintainer.) That name is blanked
@@ -300,6 +301,9 @@ if [ -f "$DENYLIST_FILE" ]; then
     cmp -s LICENSE packages/create-croftweaver/LICENSE 2>/dev/null \
       && ! compgen -G 'packages/create-croftweaver/LICENSE:*' >/dev/null \
       && self="$self|^packages/create-croftweaver/LICENSE:[0-9]+:"
+    cmp -s LICENSE skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md 2>/dev/null \
+      && ! compgen -G 'skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md:*' >/dev/null \
+      && self="$self|^skills/new-website/templates/astro/CROFTWEAVER-LICENSE\.md:[0-9]+:"
     hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
