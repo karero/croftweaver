@@ -61,6 +61,7 @@ EXEMPT=(
   "scripts/check_pipefail_pipes.sh|checks mktemp itself"
   "scripts/build_directory_tree.sh|checks mktemp itself, before anything uses the folder"
   "scripts/check_skill_budgets.sh|checks mktemp itself"
+  "scripts/test_served_build.sh|checks mktemp itself; it needs the starter's packages, which this test does not install"
   "scripts/test_mktemp_guard.sh|this file: with its own guard broken it would run itself without end"
   "skills/independent-review/scripts/check_perl_minimum.sh|checks mktemp itself"
   "skills/independent-review/scripts/merge_link.sh|set -e ends it on a failed mktemp"
