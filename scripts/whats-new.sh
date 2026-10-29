@@ -465,7 +465,7 @@ CHANGED
   if grep -q 'templates/astro/tests/.*\.spec\.ts$' <<<"$changed"; then
     echo "NOTE: a spec may import site files (from '../…') this site lacks. Before taking a spec,"
     echo "check the site has each file it imports; this lists the imports of every template spec:"
-    echo "  grep -n \"from '\\.\\./\" $REPO_DIR/skills/new-website/templates/astro/tests/*.spec.ts"
+    echo "  grep -rn --include='*.spec.ts' \"from .\\.\\./\" \"$REPO_DIR/skills/new-website/templates/astro/tests\""
   fi
   echo "When the site's copies are current again, advance the baseline:"
   echo "  scripts/whats-new.sh --stamp-tests $tests_dir"

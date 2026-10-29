@@ -55,6 +55,7 @@ put "$S/$A/scripts/verify.mjs" v1                   # added, the site lacks it
 $git -C "$S" rm -q "$A/scripts/set_pdf_title.py"    # deleted upstream, the site lacks it
 put "$S/$A/tests/a.spec.ts" v2                      # changed, the site has it
 put "$S/$A/tests/b.spec.ts" v1                      # added, the site lacks it
+echo "import { y } from '../src/lib/y';" >> "$S/$A/tests/b.spec.ts"  # a site file it imports
 put "$S/$C/hooks/git-stand.mjs" v1                  # added, the site lacks it
 $git -C "$S" add -A && $git -C "$S" commit -qm later
 
@@ -75,6 +76,14 @@ hasnt "a changed file the site has is not MISSING"            "no scripts/hooks/
 hasnt "a changed test the site has is not MISSING"            "no tests/a.spec.ts"
 has   "a file deleted upstream is still listed as drift"      "  templates/astro/scripts/set_pdf_title.py (site copy: scripts/set_pdf_title.py)"
 hasnt "a file deleted upstream is not MISSING"                "no scripts/set_pdf_title.py"
+# A changed spec may import a site file the site lacks: the report prints a grep for those
+# imports, and the grep must run as printed and find one.
+has   "a changed spec prints the import grep"                 "  grep -rn --include='*.spec.ts' \"from .\\.\\./\" \"$S/$A/tests\""
+if bash -c "$(sed -n 's/^  grep -rn /grep -rn /p' "$T/out")" 2>&1 | grep -qF "b.spec.ts:2:import { y } from '../src/lib/y';"; then
+  echo "ok   the printed grep finds the spec's site import"
+else
+  echo "FAIL the printed grep does not find the spec's site import"; fails=$((fails+1))
+fi
 
 # A site older than TESTS-VERSION falls back to its SUITE-VERSION baseline: the sites this
 # check exists for, so the same file must be MISSING there too.
