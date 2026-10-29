@@ -33,6 +33,7 @@ cp "$SITE/scripts/build-marker.mjs" "$T/site/scripts/"
 ln -s "$SITE/node_modules" "$T/site/node_modules"
 
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+# Only the served-build test runs (-g below): the file's other tests need a full build.
 # The site's own config, minus its web server, pointed at the static server. The run id is set
 # after the site's config has set its own, in the main process only, as the site's config does.
 cat >"$T/site/run.config.ts" <<EOF
@@ -54,7 +55,7 @@ case_() {
   rm -f "$T/site/dist/test-build-id.txt" "$T/www/test-build-id.txt"
   [ "$disk" = - ] || printf '%s\n' "$disk" >"$T/site/dist/test-build-id.txt"
   [ "$served" = - ] || printf '%s\n' "$served" >"$T/www/test-build-id.txt"
-  out="$(cd "$T/site" && CASE_RUN_ID="$run" CI= "$PW" test -c run.config.ts --reporter=line 2>&1)"
+  out="$(cd "$T/site" && CASE_RUN_ID="$run" CI= "$PW" test -c run.config.ts --reporter=line -g "this run's own build" 2>&1)"
   code=$?
   if [ "$code" -ne "$want" ]; then
     printf 'FAIL %s (exit %s, expected %s)\n%s\n' "$name" "$code" "$want" "$(printf '%s\n' "$out" | tail -n 25)"; fails=$((fails+1))
