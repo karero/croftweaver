@@ -80,7 +80,7 @@ Perplexity says PerplexityBot is designed to surface and link websites in its se
 
 ## Microsoft Copilot
 
-Microsoft's own pages were not checked for this guide, so this section lists Bing basics, not Copilot-specific findings. The `Bingbot` line in the robots.txt section is unchecked for the same reason.
+Bing's post introducing its AI Performance report (10 February 2026, [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)) says the report counts citations in Copilot, Bing's AI summaries and some partner services, that Bing respects robots.txt, and that IndexNow keeps search and AI answers current. It does not say which crawler Copilot uses, so the `Bingbot` line in the robots.txt section is our guess.
 
 **What to focus on:**
 - Submit your site to Bing Webmaster Tools
@@ -106,7 +106,7 @@ Anthropic says Claude-SearchBot indexes pages for Claude's search results, and t
 
 ## Allowing AI Bots in robots.txt
 
-The companies' own pages (read on 2026-10-11, except the Bingbot line, which was not checked against Microsoft's pages; links in the Step 4 list of `SKILL.md`) split their bots by job, so allow the search and user bots by name:
+The companies' own pages (read on 2026-10-11; the Bingbot line is our guess, as Bing's post does not say which crawler Copilot uses; links in the Step 4 list of `SKILL.md`) split their bots by job, so allow the search and user bots by name:
 
 ```
 User-agent: OAI-SearchBot     # OpenAI: shows your pages in ChatGPT search
@@ -115,7 +115,7 @@ User-agent: Claude-SearchBot  # Anthropic: indexes pages for Claude's search
 User-agent: Claude-User       # Anthropic: fetches a page when a Claude user asks
 User-agent: PerplexityBot     # Perplexity: shows your pages in its search results
 User-agent: Perplexity-User   # Perplexity: fetches a page when a user asks (generally ignores robots.txt)
-User-agent: Bingbot           # Microsoft Copilot (via Bing)
+User-agent: Bingbot           # Bing search; likely Copilot too (Microsoft doesn't say)
 Allow: /
 ```
 
@@ -152,7 +152,7 @@ Order the platforms by where your own audience searches: ask your customers, or 
 
 **Then Perplexity** — Allow PerplexityBot. Add FAQ schema if you have Q&A to describe, publish PDFs where you have authoritative ones, and write in clear, self-contained paragraphs.
 
-**Then Copilot and Claude** — The same fundamentals (structured content, cited sources, schema markup), plus each one's search bot (Claude-SearchBot; Bingbot for Copilot, not checked against Microsoft's pages).
+**Then Copilot and Claude** — The same fundamentals (structured content, cited sources, schema markup), plus each one's search bot (Claude-SearchBot; Bingbot for Copilot, our guess).
 
 **Actions to start with:**
 1. Allow the search and user bots in robots.txt (the training bots are your call)

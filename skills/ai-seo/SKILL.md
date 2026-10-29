@@ -42,7 +42,7 @@ Gather this context (ask if not provided):
 
 ### The AI Search Landscape
 
-Each row with a link is what that company's page lets you act on; the Copilot row is unchecked. Step 4 of the audit has the bots in full.
+Each row with a link is what that company's page lets you act on; in the Copilot row, the link between Copilot and Bingbot is our guess. Step 4 of the audit has the bots in full.
 
 | Platform | What you can act on | The company's page |
 |----------|---------------------|--------------------|
@@ -50,7 +50,7 @@ Each row with a link is what that company's page lets you act on; the Copilot ro
 | **ChatGPT (with search)** | Allow OAI-SearchBot | [OpenAI](https://developers.openai.com/api/docs/bots) |
 | **Perplexity** | Allow PerplexityBot | [Perplexity](https://docs.perplexity.ai/guides/bots) |
 | **Gemini** | Decide Google-Extended on its own: it covers Gemini training and grounding (content from the Google Search index given to the model at prompt time), and Google says it does not affect Search (Step 4) | [Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) |
-| **Copilot** | Allow Bingbot (not checked against Microsoft's pages) | — |
+| **Copilot** | Allow Bingbot and use IndexNow. Bing says it respects robots.txt and recommends IndexNow; it does not say Copilot reads pages through Bingbot, so that part is our guess | [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview) |
 | **Claude** | Allow Claude-SearchBot | [Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) |
 
 For what each company's page says and what to do for each platform, see [references/platform-ranking-factors.md](references/platform-ranking-factors.md).
@@ -123,13 +123,13 @@ For each priority page, verify:
 
 ### Step 4: AI Bot Access Check
 
-Each AI company runs more than one bot, and each bot has a main job. Look at the job before you allow or block a bot. This is what the companies' own pages say (read on 2026-10-11, except the Bingbot line):
+Each AI company runs more than one bot, and each bot has a main job. Look at the job before you allow or block a bot. This is what the companies' own pages say (read on 2026-10-11; the Bing and Search Console lines on 2026-10-29):
 
 - **OpenAI** — **OAI-SearchBot** is the bot for ChatGPT's search answers (a site opted out of it is not shown there, though it can still appear as a link), **GPTBot** gathers content for training, and **ChatGPT-User** fetches a page when a user asks (OpenAI says robots.txt rules may not apply to it) ([OpenAI](https://developers.openai.com/api/docs/bots))
 - **Anthropic** — **Claude-SearchBot** indexes pages for Claude's search results, **Claude-User** fetches a page when a user asks, and **ClaudeBot** gathers content for training. Anthropic's page names these three and no `anthropic-ai` ([Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler))
 - **Perplexity** — **PerplexityBot** shows your pages in its search results and is not used for training, and **Perplexity-User** fetches a page when a user asks (Perplexity says Perplexity-User generally ignores robots.txt) ([Perplexity](https://docs.perplexity.ai/guides/bots))
-- **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `data-nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers training of Gemini models and grounding (providing content from the Google Search index to the model at prompt time) in Gemini Apps and in Grounding with Google Search on Vertex AI, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers))
-- **Bingbot** — Microsoft Copilot (via Bing); not checked against Microsoft's pages for this guide
+- **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `data-nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers training of Gemini models and grounding (providing content from the Google Search index to the model at prompt time) in Gemini Apps and in Grounding with Google Search on Vertex AI, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers)). Search Console also has a **Search generative AI** control in each property's settings, rolled out to all sites by 31 August 2026. Opting out there keeps your content out of AI Overviews, AI Mode and the generative AI features in Google Discover. Google says it "isn't used as a ranking or inclusion signal affecting other parts of Search" and "doesn't affect AI training", which is Google-Extended's job ([Google](https://support.google.com/webmasters/answer/16908024)). Look at what it shows for your property (a property can inherit it from a parent one), and opt out only if you want out of Google's AI answers.
+- **Bingbot** — Bing's crawler. Bing's post on its AI Performance report says Bing respects robots.txt and counts citations in Copilot, Bing's AI summaries and some partner services; it does not say Copilot reads pages through Bingbot, so treat that as likely, not stated ([Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview))
 
 Check your robots.txt for `Disallow` rules aimed at any of these. Blocking a search bot can keep your pages out of that company's search answers: OpenAI says a site opted out of OAI-SearchBot is not shown in ChatGPT search answers, Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search, and Perplexity recommends allowing PerplexityBot so your site appears. Training is a separate choice. OpenAI says its OAI-SearchBot and GPTBot settings are independent, and Anthropic lists its three bots apart, so you can block GPTBot and ClaudeBot and still allow the search bots. Google-Extended covers grounding in Gemini apps as well as training, so decide it on its own. CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls; its page shows how to block CCBot to keep future crawls out, and mentions an Opt-out Registry ([Common Crawl](https://commoncrawl.org/ccbot)). OpenAI and Perplexity also recommend allowing their published IP ranges, so check that a firewall or CDN is not blocking a bot that robots.txt allows.
 
@@ -282,7 +282,7 @@ Add these machine-readable files to your site root:
 
 **`/llms.txt`** — Context file for AI systems (see [llmstxt.org](https://llmstxt.org))
 
-If you don't have one yet, add an `llms.txt` that gives AI systems a quick overview of what your product does, who it's for, and links to key pages (including your pricing). None of the company pages linked in Step 4 says its assistant reads llms.txt, and Google says you don't need to create AI text files to appear in AI Overviews or AI Mode ([Google](https://developers.google.com/search/docs/appearance/ai-features)).
+If you don't have one yet, add an `llms.txt` that gives AI systems a quick overview of what your product does, who it's for, and links to key pages (including your pricing). Add it because it is cheap, not because an engine has said it rewards it. None of the crawler pages linked in Step 4 says its crawler reads llms.txt on your site (OpenAI's and Perplexity's docs sites publish an llms.txt of their own, as an index of their docs; that says nothing about their crawlers). Google says Google Search itself doesn't use llms.txt, and that keeping one "for other services or systems that use these files" is fine and neither helps nor harms your Google rankings ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)).
 
 ### Schema Markup for AI
 
@@ -335,19 +335,23 @@ Profound's April table and Peec's table have no row for definitive guides or ori
 
 ## Monitoring AI Visibility
 
+### Start with the free reports
+
+Google and Bing count how often your site appears in their AI answers, for free: Search Console's generative AI report counts impressions in AI Overviews and AI Mode, and Bing Webmaster Tools' AI Performance report counts citations in Copilot and Bing's AI summaries ([Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)). These are answers real people saw. `search-console-insights` reads both (`references/ai-reports.md`). We found no such free report from OpenAI, Perplexity or Anthropic; for those, ask the engines yourself (below).
+
 ### What to Track
 
 | Metric | What It Measures | How to Check |
 |--------|-----------------|-------------|
-| AI Overview presence | Do AI Overviews appear for your queries? | Manual check or Semrush/Ahrefs |
+| AI Overview presence | Do AI Overviews appear for your queries? | Manual check or Semrush/Ahrefs; Search Console's generative AI report gives your site's impressions in AI Overviews and AI Mode, not which queries showed one |
 | Brand citation rate | How often you're cited in AI answers | AI visibility tools (see below) |
 | Share of AI voice | Your citations vs. competitors | Peec AI, Otterly, ZipTie |
 | Citation sentiment | How AI describes your brand | Manual review + monitoring tools |
-| Source attribution | Which of your pages get cited | Track referral traffic from AI sources |
+| Source attribution | Which of your pages get cited | Bing's AI Performance report (Copilot); referral traffic from AI sources |
 
 ### AI Visibility Monitoring Tools
 
-This is a starting list; check each tool's own page for what it covers today.
+This is a starting list; check each tool's own page for what it covers today. Google says "No third-party tool has access to our internal ranking or AI systems" ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)), so weigh a tool's advice against Google's own guidance.
 
 | Tool | Coverage | Best For |
 |------|----------|----------|
@@ -358,15 +362,26 @@ This is a starting list; check each tool's own page for what it covers today.
 
 ### DIY Monitoring (No Tools)
 
-Monthly manual check:
-1. Pick your top 20 queries
-2. Run each through ChatGPT, Perplexity, and Google
-3. Record: Are you cited? Who is? What page?
-4. Log in a spreadsheet, track month-over-month
+AI answers change from one run to the next, so one ask proves little. A 2026 study argues that
+visibility in AI search should be measured as a spread over repeated runs, not one result
+([Schulte, Bleeker & Kaufmann](https://arxiv.org/abs/2604.07585)).
+
+How often:
+- **Weekly** if you are actively working on your AI visibility.
+- **Every 2 or 4 weeks** otherwise.
+
+Judge a trend over several runs, never from one.
+
+Each time:
+1. Pick your top 20 questions, asked the way a customer would, without your business name
+2. Ask each one in ChatGPT, Perplexity and Google several times (3 is a good start), and note the date
+3. Record: in how many answers are you named or cited? Who else is? Which page?
+4. Log it in a spreadsheet as "named in N of M answers", so a trend shows over time
 
 Automated alternative: `search-console-insights` has a weekly "does AI name you?" check
-(`references/geo-check.md`) that asks the AI engines your buyer questions, counts mentions and
-citations in code, and trends them next to your Google rankings.
+(`references/geo-check.md`) that asks each of your buyer questions 3 times per run in the chat
+engines (Google's AI Mode and AI Overview get one answer each),
+counts mentions and citations in code, and trends them next to your Google rankings.
 
 ---
 
