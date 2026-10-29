@@ -55,12 +55,12 @@ file), the maintainer makes each change in the dashboard (Security → Settings 
 Configure AI bot policies), and after each one the trial helper (the one recorded in
 `trial-helper.txt`) reads `GET /zones/<id>/bot_management`, so the captures come out in the
 format `clean-captures.mjs` reads. Each capture is compared field by field with the one before.
-**One stop rule:** the choices whose notes differ must read differently in what the note
-function takes (the four watched fields and Sync): Allow (C4, C9), Block (C2), Block on pages
-with ads (C3), Disallow with Sync on (C5 or C5b), Disallow with Sync off (C6), Search Block (C7)
-and Agent Block on pages with ads (C8), each pair compared. If any two read the same, the build
-stops for the plan to be amended and re-reviewed. Any other surprise shows up as an S10 note,
-since known values are per field.
+**One stop rule:** before any code is written, each capture is run, by hand, through the
+scenarios that cite it: Block (C2) must call for S1's note, Block on pages with ads (C3) for
+S2's, Disallow with Sync on (C5 or C5b) for none under S9b, Disallow with Sync off (C6) for
+S7's, Search and Agent (C7, C8) for S8's, and Allow (C4, C9) for none. If the values a capture
+holds cannot give its scenario's result without breaking another's, the build stops for the
+plan to be amended and re-reviewed. The scenario tests then hold the same facts in code.
 
 | Capture | Change | Also saved |
 |---|---|---|
@@ -189,3 +189,4 @@ read-back fails, and test 13b's read-back that differs. S9b gets a test with the
 | final full read (a new reader on the host's model, whole plan) | 4 RISK (S5b's test could pass with no note code; S5b and S5c claimed values for Search, Agent and the older switch, and S5b had no wording; the state S1's advice leads to had no scenario; no rule for captures that do not fit), 9 NIT (the rule's name; which captures settle Allow; known values per field; S7 under `unread`; S5b against S3; Applebot in the prose; the open BUGLOG row C1 settles; new-domain defaults; the trial loop's missing T3 key) | taken. Cut, as the unconfirmed-write kind earned rounds 4 and 5 too: the read-back case is removed, and every `hand` line gets one strict line that names the values read before the run and claims nothing about now; S9b added; a stop rule for captures that do not fit; the NITs as named |
 | 6 (Codex at High, earned by the full read's RISKs; cut: the read-back case; melious out of balance) | 2 RISK (the stop rule also caught the Sync changes the captures study; S9b's fixture could be Disallow with Sync off) | cut again, as both kinds earned round 6: the stop rule is one strict condition (C2 and C3 must differ in a watched field), other surprises being S10 notes; C5b captures Sync on when C5 left it off, and S9b uses the capture that reads Disallow with Sync on |
 | 7 (Codex at High, earned by round 6's RISKs; cut: the stop rule and S9b's fixture; melious out of balance) | 1 RISK (the stop rule missed a Block that reads like Allow) | cut: the stop rule compares every pair of choices whose notes differ, in all the note function takes |
+| 8 (Codex at High, earned by round 7's RISK; cut: the pairwise stop rule; melious out of balance) | 1 RISK (the pairwise rule still passes a Block that reads like Allow apart from Sync) | cut after the last round the owner's go covers: the separate rule is gone; each capture must give the result of the scenarios that cite it, checked before any code. Not re-reviewed: round 9 needs the owner's OK |
