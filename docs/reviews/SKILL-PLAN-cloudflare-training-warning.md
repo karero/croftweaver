@@ -5,7 +5,7 @@
 | 1 | This plan | ✅ written 2026-10-29 | this file |
 | 2 | PLAN gate (High: the setup script configures the owner's zone, the review skill's "deploy or infra" row) | ✅ clean 2026-10-29: 9 rounds, the final full read and the wording pass | Review trail, below |
 | 3 | Capture: the bot settings a real zone returns for each choice (C1–C9 below), by the maintainer on a spare zone | ✅ 2026-10-30: C1–C9 and C5b, plus C10–C12 (Search: Block on pages with ads; Agent: Block; back to Allow); the stop rule checked by hand, every capture fits its scenarios | captures outside every repository, 13 reads |
-| 4 | Build, one PR: the captures as fixtures (with the tooling changes under "Fixtures"), the script's notes and their tests, the prose, a release-note row, two BUGLOG rows | ⬜ | — |
+| 4 | Build, one PR: the captures as fixtures (with the tooling changes under "Fixtures"), the script's notes and their tests, the prose, a release-note row, two BUGLOG rows | ✅ built and DIFF-reviewed clean 2026-10-30 (High: 2 rounds, final full read, re-gates; 23 findings) | branch `feat/cloudflare-training-warning`; trail `docs/reviews/REVIEW-diff-2026-10-30-cloudflare-training-warning.md` |
 
 No red team: the change adds lines the script prints and words in the skills. It writes no new
 setting and touches no login, data, money or deletion.
