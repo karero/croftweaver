@@ -1,16 +1,26 @@
 # Plan: the starter carries Croftweaver's licence notice
 
-Status: plan, not built. It answers the decision row of 2026-10-29 in `docs/DECISIONS_PENDING.md`
+Status: built, merged for 0.35 (PR #444). It answers the decision row of 2026-10-29 in `docs/DECISIONS_PENDING.md`
 (PR #442). The maintainer chose "yes, plan it for 0.35" in chat on 2026-10-29; this PR ticks that
 row and records the answer there.
+
+## Status
+
+| Step | State | Evidence |
+|---|---|---|
+| Decision: build it for 0.35 | done | PR #442 (df69a8c4) |
+| Plan gate (Normal, Codex alone, 3 rounds, 6 findings, clean) | done | PR #443 (ce24975d); round 3 re-run on 2026-10-30 found only stale wording, fixed here |
+| Build, steps 1–6, S1–S5 | done | PR #444 (a7f0d202), commit 3a214d73 |
+| DIFF review (Normal, 1 round, 0 findings) | done | review record in the comments of PR #444, head 6bb14f76 |
+| BUGLOG release-notes row (step 7) | done, row open until the 0.35 notes are written | `docs/BUGLOG.md` row of 2026-10-29 |
 
 ## What and why
 
 Every site that `new-website` scaffolds gets Croftweaver's own files: test suites, scripts,
 hooks and workflow files. MIT asks that its copyright and permission notice stay with copies
-or substantial portions. Today the starter has no licence file, so a site whose owner hands the
-source on (to a client or another developer) or publishes it, for example in a public GitHub
-repository, carries Croftweaver's files without the notice. Whether a few test files count as
+or substantial portions. Before this plan the starter had no licence file, so a site whose owner handed the
+source on (to a client or another developer) or published it, for example in a public GitHub
+repository, carried Croftweaver's files without the notice. Whether a few test files count as
 a substantial portion is not settled; this plan does not decide it and is not legal advice. It
 makes the question moot at the cost of one small file.
 
@@ -76,7 +86,7 @@ This file is about the licence, not credit.
 ## Tests (what each one proves)
 
 - The byte-compare check: `test_template_coverage.sh` builds each case in a scratch repo
-  (`fresh()`, its line 29), which today copies no root `LICENSE`; it must, or the existing "the
+  (`fresh()`, its line 29), which then copied no root `LICENSE`; it must, or the existing "the
   templates as they are pass" case fails. Then cases for the real files (pass), a template copy
   with one byte changed, a deleted template copy and a deleted root `LICENSE` (each fails, naming
   the file). Proves S2
@@ -85,7 +95,7 @@ This file is about the licence, not credit.
 - `test_clean_denylist.sh`: a denylisted name in a sibling `.md` of the template copy (still
   caught), in the exempt copy while it equals `LICENSE` (allowed), and in a drifted exempt copy
   (caught). Proves S5.
-- The starter test from step 3, run in a `git archive` copy of the template (port 4979), once
+- The starter test from step 3, run in a `git archive` copy of the template (port from `playwright.config.ts`), once
   as is and once with the file copied into `public/` (fails). Proves S1's second half and S3.
 - `test_template_coverage.sh` passes with the new path tracked and its arm added, and
   `test_whats_new.sh` gets a case: a scratch site stamped at v0.34 lists `CROFTWEAVER-LICENSE.md`
