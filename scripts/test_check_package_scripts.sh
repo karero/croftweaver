@@ -7,7 +7,7 @@
 # package.sh. `make check` passed in the checkout; inside the unzipped zip the CDPATH guard
 # named a script the zip lacked, and only CI found it, after the push. These cases pin that the
 # guard fails on that, on a script in only one of package.sh's two lists, on a -x pattern that
-# drops a script (quoted or not), on either list naming a script that is gone, and on a
+# drops a script (quoted or not) or is written in a way it cannot read, on either list naming a script that is gone, and on a
 # package.sh it cannot read, and that it passes on the scripts as they are.
 #
 # It enters the way make check does: it runs the guard script, which finds its files from where
@@ -99,6 +99,12 @@ expect "a quoted -x pattern that drops a script fails" "$c" fail "scripts/test_s
 
 fresh; edit "$c" "s#-x '\*.DS_Store'#-x scripts/test_served_build.sh '*.DS_Store'#"
 expect "an unquoted -x pattern that drops a script fails" "$c" fail "scripts/test_served_build.sh (by -x"
+
+fresh; edit "$c" "s#-x '\*.DS_Store'#-x scripts/test_\\\\*.sh '*.DS_Store'#"
+expect "a -x pattern with a backslash fails" "$c" fail "cannot read"
+
+fresh; edit "$c" "s#-x '\*.DS_Store'#-x 'scripts/[ t]est_served_build.sh' '*.DS_Store'#"
+expect "a -x pattern with a space inside quotes fails" "$c" fail "cannot read"
 
 fresh; rm "$c/scripts/test_served_build.sh"; edit "$c" '/^  scripts\/test_served_build.sh$/d'
 expect "a zip -r line naming a script that is gone fails" "$c" fail "zip -r line names these"
