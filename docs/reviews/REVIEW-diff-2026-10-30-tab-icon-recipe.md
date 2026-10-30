@@ -27,7 +27,7 @@ run: icon drawing, CSS colour names, share cards).
 After main was merged in: `make check` exit 0 on `284e6c55` ("all checks passed"; the brand
 kit's `SKILL.md` now 549 lines).
 
-Totals: 3 rounds, 5 findings (3 BUG counted once each, 2 NIT), all fixed. Codex alone counted
+Totals: 3 rounds and a wording pass, 6 findings (4 BUG counted once each, 2 NIT), all fixed. Codex alone counted
 every round: the GLM 5.3 seat on melious failed with an empty balance, and by the maintainer's
-rule of 2026-10-27 each round stands on Codex. Tokens: Codex 134,320 (script log); fresh-eyes
-108,983.
+rule of 2026-10-27 each round stands on Codex. Tokens: Codex 134,320 in the rounds and
+77,187 in the wording pass and its first confirmation (script log); fresh-eyes 108,983.
