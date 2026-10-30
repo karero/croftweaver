@@ -599,6 +599,19 @@ test('an AI crawler name that is refused is a "look" that names it and its statu
     assert.equal(r.by.domain.state, 'ok', 'a browser-like request is not refused');
   }));
 
+test('a refused GPTBot, or a server error for OAI-SearchBot: one line that names Training as one possible cause, and Block\'s cost', async () => {
+  for (const [name, status] of [['GPTBot', 403], ['OAI-SearchBot', 503]]) {
+    await withSite((req, res, url) => {
+      if (isHome(url) && req.headers['user-agent'].includes(`${name}/`)) { send(res, status, 'text/html', '<p>No</p>'); return true; }
+      return false;
+    }, async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.ai.state, 'look', name);
+      assert.match(r.by.ai.detail, new RegExp(`^these crawler names were refused: ${name} \\(${status}\\)\\. A Training choice may be the cause: Cloudflare says Block and Disallow both keep training crawlers out, and Block keeps Googlebot, Bingbot and Applebot out too, which affects search, while Disallow keeps them in\\. Any other refusal or server error still needs a look`), name);
+    });
+  }
+});
+
 test('crawler requests that got no answer are not "none refused": a look, and exit 1', () =>
   withSite((req, res, url) => {
     if (isHome(url) && /PerplexityBot|CCBot/.test(req.headers['user-agent'])) { req.socket.destroy(); return true; }

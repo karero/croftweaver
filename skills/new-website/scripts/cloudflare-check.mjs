@@ -79,7 +79,7 @@ export const ITEMS = [
     lookFor: 'there is no outside check for this one' },
   { id: 'ai', section: 4, title: 'AI crawlers: allow',
     path: 'Your domain → Security → Settings → filter by Bot traffic → Configure AI bot policies',
-    lookFor: 'Search, Agent and Training each set to Allow (do not block); AI Labyrinth Off; Bot Preference Sync Off unless you block Training; the content-bot block Off, which may show only through the API' },
+    lookFor: 'Search, Agent and Training each set to Allow (do not block); AI Labyrinth Off; Bot Preference Sync Off, or On if you chose Disallow for Training; the content-bot block Off, which may show only through the API' },
   { id: 'robots', section: 5, title: 'Your own robots.txt' },
   { id: 'build', section: 5, title: 'The build that is live' },
   { id: 'scripts', section: 5, title: 'No scripts you didn\'t add' },
@@ -911,9 +911,9 @@ export function evaluate(obs, target, opts) {
   const silent = crawlers.filter((c) => c.error).map((c) => c.name);
   const named = [...(rb?.named ?? []), ...(rb?.signals ? ['(content-signal lines)'] : [])];
   const aiPath = ITEMS.find((i) => i.id === 'ai').path;
-  const aiHand = `The policies are in the dashboard (${aiPath}) and cannot be read from outside. Nor can the switches the checklist lists after the policies: AI Labyrinth, Bot Preference Sync (Off unless you block Training; what it adds shows in robots.txt) and the content-bot block.`;
+  const aiHand = `The policies are in the dashboard (${aiPath}) and cannot be read from outside. Nor can the switches the checklist lists after the policies: AI Labyrinth, Bot Preference Sync (Off, or On if you chose Disallow for Training; what it adds shows in robots.txt) and the content-bot block.`;
   if (!seen) skip('ai', notChecked);
-  else if (refused.length) put('ai', 'look', `these crawler names were refused: ${refused.join(', ')}. If you chose to block Training that is expected; otherwise set Search, Agent and Training to Allow.`, section(4));
+  else if (refused.length) put('ai', 'look', `these crawler names were refused: ${refused.join(', ')}. A Training choice may be the cause: Cloudflare says Block and Disallow both keep training crawlers out, and Block keeps Googlebot, Bingbot and Applebot out too, which affects search, while Disallow keeps them in. Any other refusal or server error still needs a look; the kit's setting is Allow (do not block) for Search, Agent and Training.`, section(4));
   else if (rb?.blocksAll) put('ai', 'look', 'robots.txt tells every crawler to stay out, AI crawlers included.', section(4));
   else if (silent.length === crawlers.length) skip('ai', 'not checked: no crawler request got an answer.');
   else if (silent.length) put('ai', 'look', `${silent.length} of ${crawlers.length} crawler requests got no answer (${silent.join(', ')}), so they were not all tried. ${aiHand}`, section(4));

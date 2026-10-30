@@ -71,6 +71,59 @@ export const BOT_LINES = [
     path: 'Your domain → Security → Settings → filter by Bot traffic → Configure AI bot policies',
     visitor: "AI crawlers, training ones included, are no longer blocked or led into AI Labyrinth, and Cloudflare adds no lines to robots.txt" },
 ];
+// The AI bot policies' values, per field, as the third trial read them for each choice in the
+// dashboard (fixtures T3-001 to T3-013); ai_bots_protection's "block" is T2-016's. A value not here
+// gets a note that the kit does not know it, never a guess.
+const AI_FIELDS = {
+  ai_training: { label: 'Training', values: { disabled: 'Allow (do not block)', block: 'Block', only_on_ad_pages: 'Block on pages with ads', disallow: 'Disallow' } },
+  ai_search: { label: 'Search', values: { disabled: 'Allow (do not block)', block: 'Block', only_on_ad_pages: 'Block on pages with ads' } },
+  ai_user: { label: 'Agent', values: { disabled: 'Allow (do not block)', block: 'Block', only_on_ad_pages: 'Block on pages with ads' } },
+  ai_bots_protection: { label: 'The older Block AI bots setting (no longer shown in the dashboard)', values: { disabled: 'disabled', block: 'block' } },
+};
+const STAY_IN_SEARCH = 'To refuse AI training and stay in search, choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too (choosing Disallow does not turn it on), and run this with --skip ai.';
+
+// The notes on what the AI bot policies mean for search, from the `ai` line's values read at the
+// start of the run (`now`) and its state at the point of printing. They change nothing.
+export function aiNotes(now, state) {
+  if (!now) return [];
+  const where = BOT_LINES.find((b) => b.id === 'ai').path;
+  const notes = [];
+  for (const [k, f] of Object.entries(AI_FIELDS)) {
+    const v = now[k];
+    if (typeof v !== 'string' || !Object.hasOwn(f.values, v)) {
+      notes.push(`${f.label} ${v === undefined ? 'was missing from what Cloudflare returned' : `reads ${show(v)}`} at the start of this run: a value this kit does not know, so it cannot say what it means for search. Look at it in the dashboard: ${where}.`);
+      continue;
+    }
+    if (v === 'disabled') continue;
+    const label = f.values[v];
+    if (state === 'hand') {
+      notes.push(`${f.label} read ${label} before this run; Cloudflare did not confirm the change, so look at it in the dashboard: ${where}.`);
+      if (k === 'ai_training' && v !== 'disallow') notes.push(STAY_IN_SEARCH);
+      continue;
+    }
+    if (k !== 'ai_training') {
+      if (state === 'skipped' || state === 'unread') notes.push(`${f.label} is set to ${label}, and this run leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.`);
+      continue;
+    }
+    if (state === 'done') { notes.push(`Training was ${label} and is now Allow (do not block). ${STAY_IN_SEARCH}`); continue; }
+    if (v === 'disallow') {
+      if (state === 'change') notes.push('Training is set to Disallow. If you say yes, it becomes Allow (do not block), and AI training crawlers are let in. To keep Disallow, run this with --skip ai.');
+      if (state === 'unread') notes.push('Training is set to Disallow. The zone\'s records could not be read, so nothing was written; to keep Disallow on a later run, run it with --skip ai.');
+      if (state === 'skipped' || state === 'unread') {
+        const sync = now.bot_preference_sync_enabled;
+        if (sync === false) notes.push(`Bot Preference Sync is off, so Disallow writes no no-training preference into robots.txt. To publish it there, turn Sync on in the dashboard: ${where}.`);
+        else if (sync !== true) notes.push(`Bot Preference Sync reads ${show(sync)} at the start of this run: a value this kit does not know, so it cannot say whether robots.txt carries the no-training preference. Look at it in the dashboard: ${where}.`);
+      }
+      continue;
+    }
+    const ads = v === 'only_on_ad_pages' ? ' on pages that show ads' : '';
+    const said = `Training is set to ${label}. Cloudflare says ${label} also keeps Googlebot, Bingbot and Applebot out${ads}, which affects search.`;
+    if (state === 'change') notes.push(`${said} If you say yes, it becomes Allow (do not block). ${STAY_IN_SEARCH}`);
+    else if (state === 'skipped') notes.push(`${said} This run leaves it as it is. ${STAY_IN_SEARCH}`);
+    else if (state === 'unread') notes.push(`${said} The zone's records could not be read, so nothing was written: it is still set that way. ${STAY_IN_SEARCH}`);
+  }
+  return notes;
+}
 const BOT_PUT_FIELDS = ['fight_mode', 'enable_js', 'ai_bots_protection', 'ai_search', 'ai_user', 'ai_training',
   'crawler_protection', 'content_bots_protection', 'cf_robots_variant'];
 export const SKIP_IDS = [...SETTINGS.map((s) => s.id), ...BOT_LINES.map((b) => b.id)];
@@ -730,6 +783,7 @@ async function setupStage(opts, io) {
       }
     }
     reportQuiet(say, lines, opts);
+    sayAiNotes(say, lines);
     if (build.kind === 'failed') say('', `Not on the list: the newest production build of ${short(prodSha)} failed (${describeDeployment(build.d)}). The yes starts no new build of it; look at its log first (Workers & Pages → ${name} → Deployments).`);
     say('', `Afterwards ${previewsOff ? `the production branch gets one push (${model === 'two-stage' ? 'npm run ship, on your word' : 'a merge to main'})` : 'the assistant pushes one commit to a pull request'}, so that a build Cloudflare starts from GitHub shows the connection works.`);
     say('Before you say yes: the token\'s Account Resources should name your one account.');
@@ -850,6 +904,7 @@ async function setupStage(opts, io) {
   // The report.
   for (const l of lines) reportLine(say, l, hostsSay);
   reportQuiet(say, lines, opts, { done: true });
+  sayAiNotes(say, lines);
   for (const l of lines) if (['hand', 'unread', 'clash'].includes(l.state)) results.failed.push(l.title);
 
   if (proof) {
@@ -956,6 +1011,12 @@ function reportQuiet(say, lines, opts, { done = false } = {}) {
   if (!done) {
     for (const l of [...unread, ...clash]) say(`By hand: ${l.title}. ${l.why}. ${l.path ? `Dashboard: ${l.path}.` : ''}`.trimEnd());
   }
+}
+
+function sayAiNotes(say, lines) {
+  const ai = lines.find((l) => l.id === 'ai');
+  const notes = aiNotes(ai.now, ai.state);
+  if (notes.length) say('', ...notes);
 }
 
 function reportLine(say, l, hostsSay) {

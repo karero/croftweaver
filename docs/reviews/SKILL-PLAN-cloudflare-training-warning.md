@@ -141,6 +141,11 @@ Cloudflare's word is "mixed-use".
   the helper check, which looks for T1 and T2 names; a `T3` key in the private map. In
   `cloudflare-setup.test.mjs`, both patterns widened to T1–T3: `MADE_UP` (the `capture` value)
   and the file-name pattern. Each new value goes into `allowed-values.json` after looking at it.
+  **As built (2026-10-30):** the first two trials' raw captures and their private map are no
+  longer kept, so the tool cannot be run over all three. On the maintainer's choice it gained
+  `--add <trial>`, which cleans one later trial's batch into the folder as it is, numbering
+  made-up ids after the highest one there and checking the trial's helper against
+  `trial-helper.txt`. T3 was added that way; no existing file changed.
   The fixtures README, the stub and `clean-captures.mjs`'s header comments say "three trials",
   and the README's claims table gets a row.
 - **Rows:** one "Next release notes" row; BUGLOG rows for launch day and for Cloudflare retiring

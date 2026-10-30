@@ -257,23 +257,37 @@ cookies, scripts or tracking you didn't choose.
   policies** → set **Search**, **Agent** and **Training** each to **Allow (do not block)**.
   Search and Agent let assistants find and read your pages. Training means crawlers that
   gather text to train AI models: Allow is the kit's default, and opting out is your
-  choice. Cloudflare's page says a block on Training also blocks crawlers that combine
-  Search and Training. Its defaults for new domains, from 15 September 2026, block
-  Training and Agent crawlers on pages that show ads. Look at what yours shows. If you
-  still see the older **Block AI bots** setting, make sure it is Off. Cloudflare is
-  retiring it. (`search-console-setup` still shows the older names, Security → Bots →
-  Control AI crawlers. This list is the newer one.)
+  choice. Choose how with care. Since 15 September 2026, Cloudflare says, **Block** and
+  **Block on pages with ads** on Training also apply to crawlers that serve both search and
+  training, Googlebot, Bingbot and Applebot among them, "so either setting impacts search
+  as well as training" ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)).
+  To refuse training and stay in search, choose **Disallow** for Training (Cloudflare's blog
+  calls it Disallow AI Training) and turn **Bot Preference Sync** on (below): Cloudflare then
+  keeps the other training crawlers out and publishes a no-training preference in
+  `robots.txt`. Bing does not read that preference yet: Microsoft's support is "targeted
+  for early 2027", Cloudflare says, and Bing's own `NOARCHIVE` tag works today. Google's
+  separate training switch, Google-Extended, is among the crawlers that file shuts out.
+  The setup script says all this when it finds Training on Block or Disallow.
+  For new domains, Cloudflare recommends Allow for all three with Bot Preference Sync on,
+  and, for a site with ads, Disallow for Training and Block on pages with ads for Agent.
+  On a spare domain on 30 October 2026 the dashboard marked Allow as Recommended for all
+  three and showed no older **Block AI bots** setting. Look at what yours shows; if it still
+  shows Block AI bots, make sure it is Off.
   Three more switches can keep AI crawlers out. Set each to off, with the one exception
   under Bot Preference Sync:
-  - **Bot Preference Sync: Off, unless you block Training.** Same place: Configure AI bot
-    policies → **Enable Bot Preference Sync**. This is Cloudflare's managed `robots.txt`:
-    when a policy is set to block or disallow, it puts Cloudflare's own lines for AI
-    crawlers, and a `Content-signal` line, in front of your file, or writes a file if you
-    have none. The file the kit made already says who may read your site. If you chose to
-    block or disallow Training, this switch is what writes that into `robots.txt`: then
-    leave it on. Cloudflare's settings page lists a setting called **Instruct AI bot
-    traffic with robots.txt** and links it to the documentation page for this switch.
-    Section 5 shows the file.
+  - **Bot Preference Sync: Off, unless you chose Disallow for Training.** Same place:
+    Configure AI bot policies → **Enable Bot Preference Sync**. This is Cloudflare's managed
+    `robots.txt`: it puts Cloudflare's own lines in front of your file, or writes a file if
+    you have none. The file the kit made already says who may read your site. Choosing
+    Disallow does not turn this switch on: on a spare domain (30 October 2026), Training on
+    Disallow with the switch off left `robots.txt` as it was. With it on, Cloudflare added
+    `Content-Signal: search=yes,ai-train=no,use=reference` for every crawler and
+    `Disallow: /` for about thirty training crawlers, among them GPTBot, ClaudeBot, CCBot,
+    Google-Extended and Applebot-Extended, and also Baiduspider and PetalBot, the crawlers
+    of Baidu's and Huawei's Petal search. Googlebot, Bingbot and Applebot were not named. So
+    if your customers search with Baidu or Petal, keep that in mind. Cloudflare's settings
+    page lists a setting called **Instruct AI bot traffic with robots.txt** and links it to
+    the documentation page for this switch. Section 5 shows the file.
   - **AI Labyrinth: Off.** Your domain → Security → Settings → filter by **Bot traffic** →
     **AI Labyrinth**. It adds invisible links to your pages that lead AI crawlers which
     ignore crawl rules and crawl without permission into an endless maze. Cloudflare says
@@ -415,8 +429,9 @@ with that line marked "by hand".
 | Content bots | Bot Management `content_bots_protection` | `"disabled"` |
 | Bot Preference Sync | Bot Management `bot_preference_sync_enabled` | `false` |
 
-If you block or disallow Training on purpose, tell your assistant: it then leaves the AI lines
-as they are.
+If you chose Block or Disallow for Training on purpose, tell your assistant: it then leaves the
+AI lines as they are (`--skip ai`). The setup script says what Block costs in search before
+it asks.
 
 Cloudflare documents these calls. We have run the Transform Rules call on live sites and
 the Bot Management call on one spare domain, and we have not run any of them often, so for every call the
