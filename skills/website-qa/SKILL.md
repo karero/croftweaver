@@ -62,7 +62,9 @@ cosmetics; red → green → commit.
   phone could use (1.1 × the width it is drawn at × 3) when a copy that wide saves an estimated
   4 KiB or more (estimated by pixel area, which can run high); a downloaded file nothing on the
   page shows (often a preload whose `media` drifted from the CSS breakpoint); one of 4 KiB or
-  more that is downloaded but hidden at phone width; and one whose drawn width it cannot work
+  more that is downloaded but hidden at phone width (by its size or `visibility`, by `opacity: 0`
+  on it or an ancestor, or clipped away by an ancestor's `overflow: hidden`, such as a carousel's
+  waiting slides); and one whose drawn width it cannot work
   out. A file used only as a border image, cursor or `shape-outside` is not judged by width, and
   the log names it. Prints how many files it judged by width and names the hidden ones under 4
   KiB. The fixes are in section 2.

@@ -910,8 +910,8 @@ jobs:
 
   # tests/phone-images.spec.ts ships in the starter, which renders no raster image, so the
   # starter suite alone proves nothing about it. This job adds a block of generated noise WebP
-  # images to the home page (noise, so an oversized file is well over the 4 KiB floor) holding
-  # every case the test must pass, runs the test and the whole suite, then makes one mistake
+  # images to the home page (noise, so an oversized file is well over the 4 KiB floor; flat ones
+  # stay under it) holding every case the test must pass, runs the test and the whole suite, then makes one mistake
   # at a time and checks that this test, and only this test, turns red and says why.
   phone-images-test:
     needs: changes
@@ -935,18 +935,22 @@ jobs:
           import sharp from 'sharp';
           const noise = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#808080', noise: { type: 'gaussian', mean: 128, sigma: 60 } } }).webp({ quality: 80 }).toFile('public/fx/' + name);
           const flat = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#4a6' } }).webp({ quality: 80 }).toFile('public/fx/' + name);
-          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2', 'vis', 'calc', 'sd', 'none', 'mask', 'poster', 'border']) await noise(n + '.webp', 600, 400);
+          for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2', 'vis', 'calc', 'sd', 'none', 'mask', 'poster', 'border', 'fade', 'track', 'scroll', 'esc', 'dc', 'inl', 'cb', 'thin', 'margin']) await noise(n + '.webp', 600, 400);
           await noise('list.webp', 40, 40);
+          await noise('pin.webp', 120, 80);
           await noise('big.webp', 2000, 1333);
           await noise('cover.webp', 1200, 800);
           await noise('tile.webp', 2000, 2000);
           await flat('flat.webp', 1000, 667);
           await flat('hidden.webp', 600, 400);
+          await flat('wait.webp', 600, 400);
+          await flat('off.webp', 600, 400);
           "
           ls -l public/fx
-          # The two small files must stay under the floor, or the cases that use them prove nothing.
-          for f in flat hidden; do [ "$(wc -c < "public/fx/$f.webp")" -lt 4096 ] || { echo "::error::$f.webp is not under 4 KiB"; exit 1; }; done
+          # The small files must stay under the floor, or the cases that use them prove nothing.
+          for f in flat hidden wait off; do [ "$(wc -c < "public/fx/$f.webp")" -lt 4096 ] || { echo "::error::$f.webp is not under 4 KiB"; exit 1; }; done
           [ "$(wc -c < public/fx/zero.webp)" -gt 4096 ] || { echo "::error::zero.webp is not over 4 KiB"; exit 1; }
+          [ "$(wc -c < public/fx/pin.webp)" -gt 4096 ] || { echo "::error::pin.webp is not over 4 KiB"; exit 1; }
           [ "$(wc -c < public/fx/big.webp)" -gt 100000 ] || { echo "::error::big.webp is too small to be over the floor"; exit 1; }
           # The green page, one block before </Base>: every case the test must pass. The page is long
           # (smooth scrolling must not leave the end unseen) and grows 400 ms after its end is reached.
@@ -965,6 +969,19 @@ jobs:
               .fx-border { width: 200px; height: 50px; border: 10px solid; border-image: url(/fx/border.webp) 30; }
               .fx-spacer { height: 8000px; }
               .fx-pb::before { content: ""; display: block; width: 100px; height: 100px; background: url(/fx/right.webp) center / 100% no-repeat; }
+              .fx-fade { display: grid; width: 200px; }
+              .fx-fade > div { grid-area: 1 / 1; opacity: 0; transition: opacity 1s; }
+              .fx-fade > div.on { opacity: 1; }
+              .fx-track { width: 200.3px; overflow-x: hidden; }
+              .fx-gallery { width: 200px; overflow-x: auto; }
+              .fx-track > div, .fx-gallery > div { display: flex; width: 400px; }
+              .fx-track img, .fx-gallery img, .fx-gallery span { flex: none; width: 200px; height: auto; }
+              .fx-shut, .fx-pin { overflow: hidden; height: 0; }
+              .fx-margin { overflow: clip; overflow-clip-margin: 20px; height: 0; }
+              .fx-dc { display: contents; }
+              .fx-dc::before { content: ""; display: block; width: 200px; height: 133px; background: url(/fx/dc.webp) center / 100% auto no-repeat; }
+              .fx-clipbox { width: 200px; overflow: clip; }
+              .fx-cb::before { content: ""; display: block; width: 200px; height: 133px; background: url(/fx/cb.webp) center / 100% auto no-repeat; }
             </style>
             <section class="wrap fx" data-grow="/fx/right.webp">
               <img id="fx-swap" src="/fx/swap.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" />
@@ -985,6 +1002,16 @@ jobs:
               <div class="fx-border"></div>
               <div class="fx-tile"></div>
               <div class="fx-pb"></div>
+              <div class="fx-fade"><div class="on"><img src="/fx/fade.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" /></div><div><img src="/fx/wait.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" /></div></div>
+              <div class="fx-track"><div><img src="/fx/track.webp" alt="" width="600" height="400" loading="eager" /><img src="/fx/off.webp" alt="" width="600" height="400" loading="eager" /></div></div>
+              <div class="fx-gallery" tabindex="0" role="region" aria-label="Gallery"><div><span></span><img src="/fx/scroll.webp" alt="" width="600" height="400" loading="eager" /></div></div>
+              <div style="position: relative"><div class="fx-shut"><img src="/fx/esc.webp" alt="" width="600" height="400" loading="eager" style="position: absolute; top: 0; left: 0; width: 200px; height: auto" /></div></div>
+              <div class="fx-dc"></div>
+              <p><span style="overflow: hidden; font-size: 0"><img src="/fx/inl.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" /></span></p>
+              <div class="fx-clipbox"><div class="fx-cb"></div></div>
+              <div style="overflow: hidden"><img src="/fx/thin.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 0.5px; object-fit: cover" /></div>
+              <div class="fx-margin"><img src="/fx/margin.webp" alt="" width="600" height="400" loading="eager" style="display: block; width: 200px; height: auto" /></div>
+              <div class="fx-pin"><img src="/fx/pin.webp" alt="" width="120" height="80" loading="eager" style="position: fixed; left: 0; bottom: 0; width: 40px; height: auto" /></div>
               <div class="fx-spacer"></div>
               <img id="fx-low" src="/fx/right.webp" alt="" width="600" height="400" loading="lazy" style="width: 200px; height: auto" />
             </section>
@@ -1012,9 +1039,14 @@ jobs:
           out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the green page failed phone-images.spec.ts"; exit 1; }
           line="$(grep -F 'phone images — /:' <<<"$out")" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the home page printed no count"; exit 1; }
           printf '%s\n' "$line"
-          # Sixteen files judged by width on / (calc, scale-down, none, mask, list marker and poster
-          # among them); the small hidden one and the border image named, and nothing else.
-          [[ $line == *'phone images — /: 16 judged by width; hidden and under 4 KiB: /fx/hidden.webp; not judged: /fx/border.webp (border-image-source)' ]] || { echo "::error::expected 16 judged by width on /, hidden.webp under 4 KiB and border.webp not judged, nothing else"; exit 1; }
+          # 26 files judged by width on / (calc, scale-down, none, mask, list marker, poster, a fade
+          # carousel's showing slide, a scroll gallery, an absolute and a fixed box escaping a clip, an
+          # image in a clip whose margin lets 20px show,
+          # pseudo-elements of a display: contents host and in a clip box, an image in an inline
+          # clipper, and an image 0.5px tall inside a clip box among them); the three small hidden ones (by
+          # size, a fade carousel's waiting slide, a slide clipped by its track) and the border image
+          # named, and nothing else.
+          [[ $line == *'phone images — /: 26 judged by width; hidden and under 4 KiB: /fx/hidden.webp, /fx/off.webp, /fx/wait.webp; not judged: /fx/border.webp (border-image-source)' ]] || { echo "::error::expected 26 judged by width on /, hidden.webp, off.webp and wait.webp under 4 KiB and border.webp not judged, nothing else"; exit 1; }
           npm test
       - name: Each mistake turns this test red
         working-directory: ${{ runner.temp }}/site
@@ -1047,6 +1079,24 @@ jobs:
           red "an image downloaded but hidden by its size" "/fx/zero.webp is downloaded but hidden at 412px"
           edit 's|(id="fx-vis" [^>]*style="width: 200px; height: auto)"|$1; visibility: hidden"|' 'height: auto; visibility: hidden"'
           red "an image downloaded but hidden by visibility" "/fx/vis.webp is downloaded but hidden at 412px"
+          edit 's|(id="fx-vis" [^>]*style="width: 200px; height: auto)"|$1; opacity: 0"|' 'height: auto; opacity: 0"'
+          red "an image downloaded but hidden by its own opacity" "/fx/vis.webp is downloaded but hidden at 412px"
+          edit 's|src="/fx/wait.webp"|src="/fx/zero.webp"|' '<div><img src="/fx/zero.webp"'
+          red "a fade carousel's waiting slide over the floor, hidden by its slide's opacity" "/fx/zero.webp is downloaded but hidden at 412px"
+          edit 's|src="/fx/off.webp"|src="/fx/zero.webp"|' '<img src="/fx/zero.webp" alt="" width="600" height="400" loading="eager" /></div></div>'
+          red "a slide over the floor, clipped out of sight by its track" "/fx/zero.webp is downloaded but hidden at 412px"
+          edit 's|\.fx-shut, \.fx-pin \{|.fx-shut { position: relative; }\n              .fx-shut, .fx-pin {|' '.fx-shut { position: relative; }'
+          red "an absolute image whose containing block is the clip box" "/fx/esc.webp is downloaded but hidden at 412px"
+          edit 's|\.fx-shut, \.fx-pin \{|.fx-shut { transform: translateX(0); }\n              .fx-shut, .fx-pin {|' '.fx-shut { transform: translateX(0); }'
+          red "an absolute image whose transformed clip box is its containing block" "/fx/esc.webp is downloaded but hidden at 412px"
+          edit 's|\.fx-shut, \.fx-pin \{|.fx-pin { translate: 0px; }\n              .fx-shut, .fx-pin {|' '.fx-pin { translate: 0px; }'
+          red "a fixed image whose translated clip box is its containing block" "/fx/pin.webp is downloaded but hidden at 412px"
+          edit 's|\.fx-dc::before \{ content|.fx-dc::before { opacity: 0; content|' '.fx-dc::before { opacity: 0; content'
+          red "a pseudo-element hidden by its own opacity" "/fx/dc.webp is downloaded but hidden at 412px"
+          edit 's|\.fx-clipbox \{ width: 200px; overflow: clip; \}|.fx-clipbox { width: 200px; height: 0; overflow: clip; }|' '.fx-clipbox { width: 200px; height: 0; overflow: clip; }'
+          red "a pseudo-element clipped away with its host" "/fx/cb.webp is downloaded but hidden at 412px"
+          edit 's|^(\s*)(<script is:inline>)$|$1$2\n$1const fxCv = Element.prototype.checkVisibility; Element.prototype.checkVisibility = function (o) { return fxCv.call(this, { visibilityProperty: !!o?.visibilityProperty }); };|' 'const fxCv = Element.prototype.checkVisibility;'
+          red "a browser whose checkVisibility ignores opacity" "does not read opacity; update Playwright"
           edit 's|(<link slot="head" rel="preload" as="image" href="/fx/swap.webp" />)|$1<link slot="head" rel="preload" as="image" href="/fx/orphan.webp" />|' 'href="/fx/orphan.webp"'
           red "an image preloaded and not shown" "/fx/orphan.webp is preloaded and downloaded"
           edit 's|^(\s*)(<script is:inline>)$|$1$2\n$1new Image().src = "/fx/ghost.webp";|' 'new Image().src = "/fx/ghost.webp";'
