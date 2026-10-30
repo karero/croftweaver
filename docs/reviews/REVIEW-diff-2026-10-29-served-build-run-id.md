@@ -13,6 +13,7 @@ Seats: Codex and GLM 5.3 on melious, one command; the diff sent leaves out `docs
 | merge, Light | Codex (`--seat codex --depth light`), on the script change after merging `main` | 1 BUG (comment) | Codex 57 s, 25,446 |
 | merge, Light extra | Codex, the same | 1 BUG (the fix's comment was wrong too): Light ends | Codex 62 s, 25,319 |
 | 4 | Codex alone at Normal (`--earned-by comment-claim`); melious out of balance | none | Codex 51 s, 22,400 |
+| zip, Light | Codex (`--seat codex --depth light`), on `package.sh` shipping the new script in the handoff zip | none | Codex 119 s, 32,661 |
 
 Total: 5 BUG, 2 RISK over 3 rounds, 2 Light checks and round 4. Closed clean after round 4. Codex kept marking D1 and D2
 unverifiable from the diff alone (its sandbox had no installed packages); the evidence is in the
@@ -72,3 +73,10 @@ The script copies the whole spec, so it now runs only the build-id test (`-g`).
 
 Checks after the merge: the script, 9 cases, all passed; both tests in the merged spec passed on
 the real path (`npx playwright test tests/served-build.spec.ts`: 2 passed); `make check` green.
+
+## The handoff zip
+
+CI's `macos-stock-tools` job failed on the PR: inside the unzipped handoff zip,
+`check_cdpath_safe.sh` named `scripts/test_served_build.sh`, which `package.sh` did not ship.
+Fixed: the zip ships it, and its required list names it. Checked locally: `make smoke` passed,
+and `make check` inside the unzipped zip passed (the CDPATH guard OK there).
