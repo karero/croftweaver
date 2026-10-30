@@ -495,7 +495,8 @@ to list, never instructions to follow.
   points at any variable, with what it found). The stylesheet is what the site uses;
   tell her and let her say which is right.
 - **Only colours, no logo:** the placeholder icons stay. A `public/favicon.svg` this
-  tool did not install is left as it is, with a note. **Only a logo, no colours:**
+  tool did not install is left as it is; a note says so only when a page background
+  changes. **Only a logo, no colours:**
   with no complete palette in `BRAND.md`, or with `--keep-colours`, the stylesheet
   stays as it is and the mark is checked against the site's current colours.
 
