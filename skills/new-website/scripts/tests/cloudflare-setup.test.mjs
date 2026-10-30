@@ -14,7 +14,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BOT_LINES, LAUNCH_FAIL, LAUNCH_SKIP_IDS, SETTINGS, SKIP_IDS, checkArgs, codeFits, defaultName, failed, fixedText, githubRepo, goodProductionBuild, launchVerdict, nameserverIps, notAsWanted, otherDifferences, running, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
+import { BOT_LINES, LAUNCH_FAIL, aiNotes, LAUNCH_SKIP_IDS, SETTINGS, SKIP_IDS, checkArgs, codeFits, defaultName, failed, fixedText, githubRepo, goodProductionBuild, launchVerdict, nameserverIps, notAsWanted, otherDifferences, running, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
 import { ITEMS as CHECK_ITEMS } from '../cloudflare-check.mjs';
 import { ACCOUNT, FIXTURES, OWNER, REPO, TOKEN, ZONE, allFixtures, attachedDomain, deployment, fixture, freshState, handle, project, servedBy, startApi, startDns, startSites, zone } from './cloudflare-stub.mjs';
 
@@ -247,7 +247,7 @@ test('the deployments the stub serves are the captured ones, and the script read
 // for looking harmless: a value not on the list fails, and is added only after a person has looked.
 const ALLOWED = JSON.parse(readFileSync(path.join(FIXTURES, 'allowed-values.json'), 'utf8'));
 const MADE_UP = [/^c0ffee0{16}\d{10}$/, /^ba5e0{26}\d{10}$/, /^f00d0{50}\d{10}$/, /^d\d{7}-0000-4000-8000-000000000000$/, /^d\d{7}$/,
-  /^100000\d$/, /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/, /^Made-up commit message \d+$/, /^T[12]-\d{3}$/];
+  /^100000\d$/, /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/, /^Made-up commit message \d+$/, /^T[1-3]-\d{3}$/];
 function notMadeUp(fixtures) {
   const strings = new Set(ALLOWED.strings);
   const tokens = new Set(ALLOWED.tokens);
@@ -283,7 +283,7 @@ test('every string, key and number in the fixtures is a made-up value or on the 
   assert.ok(fixtures.length > 50, 'the fixtures are there');
   // A file's name is the capture's number and the trial's own label for the call, nothing else.
   for (const { file } of fixtures) {
-    assert.match(file, /^T[12]-\d{3}-[a-z0-9_-]+\.json$/, file);
+    assert.match(file, /^T[1-3]-\d{3}-[a-z0-9_-]+\.json$/, file);
     assert.doesNotMatch(file, /[0-9a-f]{16}/i, `${file}: a run of hexadecimal digits in a file name`);
   }
   assert.deepEqual(notMadeUp(fixtures), []);
@@ -677,7 +677,7 @@ test('12: two proxied hosts: every setting line names both; --skip tls leaves TL
 
 test('13: Bot Fight Mode on and training blocked: one PUT sets the checklist\'s values; with --skip ai the AI fields go as read', async () => {
   // enable_js and cf_robots_variant are no line of the checklist: they go as read, whatever they are.
-  const blocked = () => Object.assign(freshState().bot, { fight_mode: true, enable_js: true, cf_robots_variant: 'off', ai_training: 'block', bot_preference_sync_enabled: true, crawler_protection: 'enabled' });
+  const blocked = () => Object.assign(freshState().bot, { fight_mode: true, enable_js: true, cf_robots_variant: 'off', ai_training: botOf(AI.block).ai_training, bot_preference_sync_enabled: true, crawler_protection: 'enabled' });
   await scenario(freshState({ bot: blocked() }), async ({ api, go }) => {
     await go(['--confirm', codeOf(await go())]);
     const put = api.writes().find((e) => e.method === 'PUT');
@@ -704,6 +704,160 @@ test('13b: a field the PUT did not mean to change that reads back otherwise make
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /by hand\s+Bot Fight Mode: Off: Cloudflare accepted the change, but is_robots_txt_managed reads true, not false/);
   }));
+
+// ---------------------------------------------------------------- the AI bot policies' notes
+// The plan's scenarios S1 to S10 (docs/reviews/SKILL-PLAN-cloudflare-training-warning.md). Each
+// zone's Bot Management is the third trial's read after one choice in the dashboard.
+const AI = {
+  allow: 'T3-010', block: 'T3-002', adsBlock: 'T3-003', disallowSyncOff: 'T3-007', disallowSyncOn: 'T3-006',
+  searchBlock: 'T3-008', agentAdsBlock: 'T3-009',
+};
+const botOf = (capture, over = {}) => Object.assign(fixture(capture).response.result, over);
+// Any line a note opens with; a run that prints none of these printed no note.
+const NOTE = /Training is set to|Training was |Training read |Search is set to|Agent is set to|Search read |Agent read |Block AI bots setting|Bot Preference Sync is off|Bot Preference Sync reads|a value this kit does not know|Cloudflare's way to refuse AI training/;
+// The ask, then the yes, for a zone holding `bot`: both outputs and the PUT, if any.
+const aiRun = (bot, args = [], { before } = {}) => scenario(freshState({ bot }), async ({ api, go, state }) => {
+  const ask = await go(args);
+  if (before) before(state);
+  const done = await go([...args, '--confirm', codeOf(ask)]);
+  return { ask, done, put: api.writes().find((e) => e.method === 'PUT'), state };
+});
+// The question code a zone holding `bot` gets, and the one it gets holding `other`, on the same site
+// (a code names the commit, so two sites never share one).
+const twoCodes = (bot, other, args = []) => scenario(freshState({ bot }), async ({ go, state }) => {
+  const first = codeOf(await go(args));
+  state.bot = other;
+  return [first, codeOf(await go(args))];
+});
+
+test('S9: Allow everywhere, as captured or as the kit leaves it, gives no note in any state', async () => {
+  for (const c of ['T3-001', 'T3-010', 'T3-013', 'T2-040']) {
+    for (const st of ['change', 'as-is', 'skipped', 'unread', 'done', 'hand']) assert.deepEqual(aiNotes(botOf(c), st), [], `${c} ${st}`);
+  }
+  // The same check sees Block, so it cannot pass with no note code: C2's value swapped for C9's.
+  assert.ok(aiNotes(botOf(AI.block), 'change').length > 0);
+  assert.deepEqual(aiNotes(botOf(AI.block, { ai_training: botOf(AI.allow).ai_training }), 'change'), []);
+  for (const c of [AI.allow, 'T2-040']) {
+    const r = await aiRun(botOf(c));
+    assert.doesNotMatch(r.ask.out + r.done.out, NOTE, c);
+  }
+});
+
+test('S1 and S3: Training on Block: the ask warns that Google, Bing and Apple go too; the report says it is now Allow; code, PUT and exit as without the note', async () => {
+  const blocked = await aiRun(botOf(AI.block));
+  const plain = await aiRun(botOf(AI.searchBlock)); // the same change to the ai line, with no note in the ask
+  assert.match(blocked.ask.out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. If you say yes, it becomes Allow \(do not block\)\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too \(choosing Disallow does not turn it on\), and run this with --skip ai\./);
+  assert.doesNotMatch(plain.ask.out, NOTE);
+  const [a, b] = await twoCodes(botOf(AI.block), botOf(AI.searchBlock));
+  assert.equal(a, b);
+  assert.equal(blocked.ask.code, plain.ask.code);
+  assert.equal(blocked.put.body.ai_training, 'disabled');
+  assert.deepEqual({ ...blocked.put.body, ai_training: 'x' }, { ...plain.put.body, ai_training: 'x' });
+  assert.match(blocked.done.out, /Training was Block and is now Allow \(do not block\)\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search/);
+  assert.doesNotMatch(blocked.done.out, /Training is set to/);
+  assert.equal(blocked.done.code, plain.done.code);
+});
+
+test('S2: Training on Block on pages with ads: the same warning, for pages that show ads', async () => {
+  const r = await aiRun(botOf(AI.adsBlock));
+  const plain = await aiRun(botOf(AI.searchBlock));
+  const [a, b] = await twoCodes(botOf(AI.adsBlock), botOf(AI.searchBlock));
+  assert.equal(a, b);
+  assert.equal(r.ask.code, plain.ask.code);
+  assert.equal(r.done.code, plain.done.code);
+  assert.deepEqual(r.put.body, plain.put.body);
+  assert.match(r.ask.out, /Training is set to Block on pages with ads\. Cloudflare says Block on pages with ads also keeps Googlebot, Bingbot and Applebot out on pages that show ads, which affects search\. If you say yes/);
+  assert.match(r.done.out, /Training was Block on pages with ads and is now Allow/);
+});
+
+test('S4: Training on Block with --skip ai: the warning says this run leaves it; the code is the one Allow gives', async () => {
+  const skip = ['--skip', 'ai'];
+  const blocked = await aiRun(botOf(AI.block), skip);
+  const allowed = await aiRun(botOf(AI.allow), skip);
+  for (const out of [blocked.ask.out, blocked.done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run leaves it as it is\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): .*and keep running this with --skip ai\./);
+  const [a, b] = await twoCodes(botOf(AI.block), botOf(AI.allow), skip);
+  assert.equal(a, b);
+  assert.equal(blocked.ask.code, allowed.ask.code);
+  assert.equal(blocked.done.code, allowed.done.code);
+  assert.ok(!blocked.put || blocked.put.body.ai_training === 'block', 'Training is not written');
+});
+
+test('S5a: the zone\'s records could not be read: Training is not written, and the warning says this run did not change it, in the ask and after the yes', async () => {
+  await scenario(freshState({ bot: botOf(AI.block), refuse: { 'GET dns': 403 } }), async ({ api, go }) => {
+    const ask = await go();
+    const done = await go(['--confirm', codeOf(ask)]);
+    for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. The zone's records could not be read, so this run did not change it\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): .*and run this with --skip ai\./);
+    assert.ok(!api.writes().some((e) => e.method === 'PUT'), 'Bot Management is not written');
+    assert.ok(api.writes().length > 0, 'the yes wrote something else, the case "nothing was written" got wrong');
+  });
+  // Disallow in the same state: the same claim, and S7's note when Sync is off.
+  const notes = aiNotes(botOf(AI.disallowSyncOff), 'unread');
+  assert.match(notes[0], /^Training is set to Disallow\. The zone's records could not be read, so this run did not change it/);
+  assert.match(notes[1], /^Bot Preference Sync is off, so Disallow writes no/);
+});
+
+test('S5b: a change Cloudflare did not confirm names what Training read before the run, and claims nothing about now', async () => {
+  const unconfirmed = /Training read Block before this run; Cloudflare did not confirm the change, so look at it in the dashboard: .*Configure AI bot policies\.\n.*Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search/;
+  const cases = {
+    'a refused PUT': (s) => { s.refuse['PUT bot'] = 403; },
+    'a 502 to the PUT': (s) => { s.refuse['PUT bot'] = 502; },
+    'a read-back that fails': (s) => { s.after = (e) => { if (e.method === 'PUT') s.refuse['GET bot'] = 503; }; },
+    'a read-back that differs (13b)': (s) => { s.after = (e) => { if (e.method === 'PUT') s.bot.is_robots_txt_managed = true; }; },
+  };
+  for (const [name, before] of Object.entries(cases)) {
+    const r = await aiRun(botOf(AI.block), [], { before });
+    assert.equal(r.done.code, 1, name);
+    assert.match(r.done.out, unconfirmed, name);
+    assert.doesNotMatch(r.done.out, /Training was Block and is now Allow|Training is set to Block/, name);
+  }
+});
+
+test('S6: Training on Disallow: the ask says the yes lets training crawlers in, and how to keep Disallow', async () => {
+  const r = await aiRun(botOf(AI.disallowSyncOff));
+  const plain = await aiRun(botOf(AI.searchBlock));
+  const [a, b] = await twoCodes(botOf(AI.disallowSyncOff), botOf(AI.searchBlock));
+  assert.equal(a, b);
+  assert.equal(r.ask.code, plain.ask.code);
+  assert.equal(r.done.code, plain.done.code);
+  assert.deepEqual(r.put.body, plain.put.body);
+  assert.match(r.ask.out, /Training is set to Disallow\. If you say yes, it becomes Allow \(do not block\), and AI training crawlers are let in\. To keep Disallow, run this with --skip ai\./);
+  assert.match(r.done.out, /Training was Disallow and is now Allow \(do not block\)\./);
+});
+
+test('S7 and S9b: Disallow kept with --skip ai: with Sync off robots.txt carries no preference, said; with Sync on, no note', async () => {
+  const off = await aiRun(botOf(AI.disallowSyncOff), ['--skip', 'ai']);
+  for (const out of [off.ask.out, off.done.out]) assert.match(out, /Bot Preference Sync is off, so Disallow writes no no-training preference into robots\.txt\. To publish it there, turn Sync on in the dashboard/);
+  const on = await aiRun(botOf(AI.disallowSyncOn), ['--skip', 'ai']);
+  assert.doesNotMatch(on.ask.out + on.done.out, NOTE);
+});
+
+test('S8: Search, Agent or the older switch left as they are: one note each; in the ask the list already shows them', async () => {
+  const search = await aiRun(botOf(AI.searchBlock), ['--skip', 'ai']);
+  assert.match(search.ask.out, /Search is set to Block, and this run leaves it as it is\. Section 4 of the Cloudflare checklist/);
+  const agent = await aiRun(botOf(AI.agentAdsBlock), ['--skip', 'ai']);
+  assert.match(agent.ask.out, /Agent is set to Block on pages with ads, and this run leaves it as it is/);
+  const older = await aiRun(fixture('T2-016').response.result, ['--skip', 'ai']);
+  assert.match(older.ask.out, /The older Block AI bots setting is set to block, and this run leaves it as it is/);
+  assert.match(older.ask.out, /Bot Preference Sync is off, so Disallow writes no/);
+  const listed = await aiRun(botOf(AI.searchBlock));
+  assert.match(listed.ask.out, /ai_search block → disabled/);
+  assert.doesNotMatch(listed.ask.out + listed.done.out, NOTE);
+});
+
+test('S10: a value no capture showed, or a missing field: a note that the kit does not know it, in place of a guess', async () => {
+  const odd = await aiRun(botOf(AI.block, { ai_training: 'block_everything' }));
+  assert.match(odd.ask.out, /Training reads block_everything at the start of this run: a value this kit does not know, so it cannot say what it means for search/);
+  assert.doesNotMatch(odd.ask.out, /Training is set to/);
+  const bot = botOf(AI.allow);
+  delete bot.ai_search;
+  assert.match(aiNotes(bot, 'skipped').join('\n'), /^Search was missing from what Cloudflare returned at the start of this run: a value this kit does not know/);
+  const noSync = botOf(AI.disallowSyncOff);
+  delete noSync.bot_preference_sync_enabled;
+  assert.deepEqual(aiNotes(noSync, 'skipped').map((n) => n.split(':')[0]), ['Bot Preference Sync was missing from what Cloudflare returned at the start of this run']);
+  // Agent's "Block" counts as known only because a capture showed it in that field (T3-012).
+  assert.deepEqual(aiNotes(botOf('T3-012'), 'skipped'), ['Agent is set to Block, and this run leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.']);
+  assert.match(aiNotes(botOf('T3-011'), 'skipped').join(), /^Search is set to Block on pages with ads/);
+});
 
 test('14: the token reads zone settings but may not change them: each refused one is "by hand" with its row; the rest ran; 1', () =>
   scenario(freshState({ refuse: { 'PATCH setting:always_use_https': 403, 'PATCH setting:min_tls_version': 403 } }), async ({ go, state }) => {

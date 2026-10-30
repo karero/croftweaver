@@ -1,8 +1,14 @@
-// How the fixtures in this folder are made: from the captures of the two trials of the Cloudflare
-// setup script (docs/reviews/SKILL-PLAN-cloudflare-setup.md, "What is known, and how"), which hold
-// real names and ids and stay outside every repository. Not a test (never run by `node --test`).
+// How the fixtures in this folder are made: from the captures of the three trials of the Cloudflare
+// setup script (docs/reviews/SKILL-PLAN-cloudflare-setup.md, "What is known, and how", and the third,
+// docs/reviews/SKILL-PLAN-cloudflare-training-warning.md), which hold real names and ids and stay
+// outside every repository. Not a test (never run by `node --test`).
 //
 //   node clean-captures.mjs <trial-1 captures> <trial-2 captures> <private map.json> <out folder>
+//   node clean-captures.mjs --add T3 <trial-3 captures> <private map.json> <out folder>
+//
+// The second form cleans one later trial's batch alone, into a folder that already holds the
+// others: its made-up ids are numbered after the highest one there. The first two trials' raw
+// captures are no longer kept, so T3 was added that way.
 //
 // The private map gives each real name its made-up one, per trial ("T1", "T2", "both"); it is
 // kept beside the captures. Everything else is replaced by rule, the same way every time: ids,
@@ -13,9 +19,9 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-// The captures committed, by trial and number, in two batches: those the setup stage's tests use,
+// The captures committed, by trial and number, in three batches: those the setup stage's tests use,
 // then those the launch stage's add (attaching a domain, its statuses, the host's record and its
-// comment). Made-up ids are given batch by batch, so a later batch leaves the earlier files as they
+// comment), then the third trial's, which only --add reads. Made-up ids are given batch by batch, so a later batch leaves the earlier files as they
 // were. `excerpt` keeps part of a long list.
 const SELECTION = [
   {
@@ -32,14 +38,23 @@ const SELECTION = [
     T1: ['085', '086', '104', '127', '129', '130', '131', '132', '141', '142'],
     T2: ['042', '043', '044', '045', '046', '047', '055', '056', '057', '058'],
   },
+  {
+    // The third trial: Bot Management read after each choice in the dashboard's AI bot policies.
+    T3: ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013'],
+  },
 ];
 const DROP = new Set(['owner', 'email', 'original_dnshost', 'original_name_servers', 'original_registrar',
   'vanity_name_servers', 'vanity_name_servers_ips', 'tenant', 'tenant_unit']);
 
-function main([t1, t2, mapFile, out]) {
-  if (!out) throw new Error('usage: node clean-captures.mjs <trial-1 captures> <trial-2 captures> <private map.json> <out folder>');
+function main(args) {
+  const usage = 'usage: node clean-captures.mjs <trial-1 captures> <trial-2 captures> <private map.json> <out folder>\n'
+    + '   or: node clean-captures.mjs --add <trial> <its captures> <private map.json> <out folder>';
+  const adding = args[0] === '--add';
+  const [t1, t2, mapFile, out] = adding ? [args[2], null, args[3], args[4]] : args;
+  const added = adding ? args[1] : null;
+  if (!out || (adding && !SELECTION.some((s) => s[added]))) throw new Error(usage);
   const map = JSON.parse(readFileSync(mapFile, 'utf8'));
-  const dirs = { T1: t1, T2: t2 };
+  const dirs = adding ? { [added]: t1 } : { T1: t1, T2: t2 };
   // The trial's own helper, which made every request: kept beside the captures, committed with its
   // two local paths replaced. The deployment call's empty form is read from it, not written here.
   // Its first line is made a comment, so the repository's checks do not take the record for a script.
@@ -51,9 +66,9 @@ function main([t1, t2, mapFile, out]) {
   if (!formLine) throw new Error('the helper has no empty-form line');
   const emptyForm = { contentType: formLine[1], bytes: formLine[2].replace(/\\r\\n/g, '\r\n') };
   const raw = [];
-  for (const [batch, selection] of SELECTION.entries()) for (const trial of ['T1', 'T2']) {
+  for (const [batch, selection] of SELECTION.entries()) for (const trial of Object.keys(dirs)) {
     const files = readdirSync(dirs[trial]);
-    for (const n of selection[trial]) {
+    for (const n of selection[trial] ?? []) {
       const base = files.find((f) => f.startsWith(`${n}-`) && f.endsWith('.request.txt')).replace(/\.request\.txt$/, '');
       const at = (ext) => path.join(dirs[trial], `${base}.${ext}`);
       const [line, ...bodyLines] = readFileSync(at('request.txt'), 'utf8').split('\n');
@@ -67,7 +82,7 @@ function main([t1, t2, mapFile, out]) {
       } else if (bodyText) { try { body = JSON.parse(bodyText); } catch { body = bodyText; } }
       const text = readFileSync(at('response.json'), 'utf8');
       raw.push({
-        trial, n, batch, label: base.slice(4),
+        trial, n, batch, label: base.slice(4).toLowerCase(),
         capture: `${trial}-${n}`,
         request: { method, path: p, body },
         status: Number(readFileSync(at('status.txt'), 'utf8').trim()),
@@ -76,6 +91,12 @@ function main([t1, t2, mapFile, out]) {
     }
   }
 
+  if (!adding) cleanFirstTrial(raw, t1);
+  writeFixtures(raw, { map, helper, out, adding });
+}
+
+// The first trial's two long answers, trimmed.
+function cleanFirstTrial(raw, t1) {
   // The account's list of projects (T1-019): each item as Cloudflare listed it, with its source,
   // domains and settings; its latest and canonical deployments, which hold another site's history,
   // are set to null.
@@ -109,10 +130,16 @@ function main([t1, t2, mapFile, out]) {
     }
   });
 
+}
+
+function writeFixtures(raw, { map, helper, out, adding }) {
   // Ids: one made-up value per real one, the same in every file. A made-up id is mostly zeros, so
-  // no real id can look like one.
+  // no real id can look like one. A batch added alone numbers on from the highest made-up id there.
+  const made = adding ? readdirSync(out).filter((f) => f.endsWith('.json'))
+    .flatMap((f) => [...readFileSync(path.join(out, f), 'utf8').matchAll(/\b(?:c0ffee|ba5e|f00d|d)0*(\d+)(?:-0000)?\b/g)].map((m) => Number(m[1]))) : [];
+  const offset = Math.max(0, ...made);
   const ids = new Map();
-  const fake = (real, make) => { if (!ids.has(real)) ids.set(real, make(ids.size + 1)); return ids.get(real); };
+  const fake = (real, make) => { if (!ids.has(real)) ids.set(real, make(offset + ids.size + 1)); return ids.get(real); };
   const pad = (n, width) => String(n).padStart(width, '0');
   const uuidsOf = (o) => JSON.stringify(o).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) ?? [];
   // A batch's uuids are given out, sorted, just before the batch is cleaned (below).
@@ -163,9 +190,12 @@ function main([t1, t2, mapFile, out]) {
   // The helper and the file names get the same check as the fixtures: no name from the map, no id.
   // Ids are found by their run of hexadecimal digits, so one beside an underscore or a letter counts.
   const real = (text, trial) => names(trial).some(([n]) => text.toLowerCase().includes(n.toLowerCase())) || /(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])/i.test(text);
-  if (real(helper, 'T1') || real(helper, 'T2')) throw new Error('trial-helper.txt: a real name or id is still there');
+  const trials = [...new Set(raw.map((r) => r.trial))];
+  if (trials.some((t) => real(helper, t))) throw new Error('trial-helper.txt: a real name or id is still there');
   mkdirSync(out, { recursive: true });
-  writeFileSync(path.join(out, 'trial-helper.txt'), helper);
+  // A later trial must have used the same helper: its record is compared, not written again.
+  if (adding && readFileSync(path.join(out, 'trial-helper.txt'), 'utf8') !== helper) throw new Error('the trial\'s helper differs from trial-helper.txt');
+  if (!adding) writeFileSync(path.join(out, 'trial-helper.txt'), helper);
   for (const r of raw) {
     if (r === raw.find((x) => x.batch === r.batch)) giveUuids(r.batch);
     const fixture = {

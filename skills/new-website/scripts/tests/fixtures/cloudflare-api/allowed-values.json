@@ -105,6 +105,7 @@
   "pages-worker--1000001-production",
   "pending",
   "plain_text",
+  "only_on_ad_pages",
   "policy_only",
   "preview",
   "preview_deployments_disabled",

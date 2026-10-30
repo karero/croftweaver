@@ -68,7 +68,7 @@ most five in one run, so the code stays quick to check).
 **A yes is a second run with a code.** A run with something to change prints the whole list
 (what is there now, what it becomes, and, for each Cloudflare setting, that it changes the
 whole domain and which hosts that touches), then a code, changes nothing, and ends with 3.
-Show the owner the list as printed. On their yes, run the same command again with
+Show the owner the list as printed. When the run also prints notes on the AI bot policies (Training on Block or Disallow, Search or Agent left blocked, a value the kit does not know), pass them on as printed, in the ask and again in the report: they say what Block costs in search and how to keep a training choice with `--skip ai`. On their yes, run the same command again with
 `--confirm <code>`. The printed question, confirmed with its code, is the owner's yes to the
 changes it lists and to nothing else (guardrail 4 below). The code is made from that list,
 the build with the commit it names, and from the end state: the project and its repository,

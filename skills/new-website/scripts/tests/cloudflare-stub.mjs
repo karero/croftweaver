@@ -1,8 +1,9 @@
 // A stand-in for Cloudflare's API, for the tests of cloudflare-setup.mjs, and a stand-in for a zone's
 // nameservers. Standard library only.
 //
-// Every answer is built from a fixture in fixtures/cloudflare-api/: the cleaned captures of the two
-// trials (docs/reviews/SKILL-PLAN-cloudflare-setup.md, "What is known, and how"), cited by their
+// Every answer is built from a fixture in fixtures/cloudflare-api/: the cleaned captures of the three
+// trials (docs/reviews/SKILL-PLAN-cloudflare-setup.md, "What is known, and how", and
+// SKILL-PLAN-cloudflare-training-warning.md for the third), cited by their
 // capture number. The stub copies a captured answer and puts its own state in it: the project it
 // holds, the settings it holds. Where the trials have no capture (a failed build, a refused token,
 // a slow answer, an unknown path), the answer is made from Cloudflare's API
