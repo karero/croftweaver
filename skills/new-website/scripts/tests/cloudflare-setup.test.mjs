@@ -761,9 +761,11 @@ test('S1 and S3: Training on Block: the ask warns that Google, Bing and Apple go
 test('S2: Training on Block on pages with ads: the same warning, for pages that show ads', async () => {
   const r = await aiRun(botOf(AI.adsBlock));
   const plain = await aiRun(botOf(AI.searchBlock));
+  const [a, b] = await twoCodes(botOf(AI.adsBlock), botOf(AI.searchBlock));
+  assert.equal(a, b);
   assert.equal(r.ask.code, plain.ask.code);
   assert.equal(r.done.code, plain.done.code);
-  assert.equal(r.put.body.ai_training, 'disabled');
+  assert.deepEqual(r.put.body, plain.put.body);
   assert.match(r.ask.out, /Training is set to Block on pages with ads\. Cloudflare says Block on pages with ads also keeps Googlebot, Bingbot and Applebot out on pages that show ads, which affects search\. If you say yes/);
   assert.match(r.done.out, /Training was Block on pages with ads and is now Allow/);
 });
@@ -786,6 +788,7 @@ test('S5a: the zone\'s records could not be read: Training is not written, and t
     const done = await go(['--confirm', codeOf(ask)]);
     for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. The zone's records could not be read, so this run did not change it\. To refuse AI training and stay in search, .*and run this with --skip ai\./);
     assert.ok(!api.writes().some((e) => e.method === 'PUT'), 'Bot Management is not written');
+    assert.ok(api.writes().length > 0, 'the yes wrote something else, the case "nothing was written" got wrong');
   });
   // Disallow in the same state: the same claim, and S7's note when Sync is off.
   const notes = aiNotes(botOf(AI.disallowSyncOff), 'unread');
@@ -812,9 +815,11 @@ test('S5b: a change Cloudflare did not confirm names what Training read before t
 test('S6: Training on Disallow: the ask says the yes lets training crawlers in, and how to keep Disallow', async () => {
   const r = await aiRun(botOf(AI.disallowSyncOff));
   const plain = await aiRun(botOf(AI.searchBlock));
+  const [a, b] = await twoCodes(botOf(AI.disallowSyncOff), botOf(AI.searchBlock));
+  assert.equal(a, b);
   assert.equal(r.ask.code, plain.ask.code);
   assert.equal(r.done.code, plain.done.code);
-  assert.equal(r.put.body.ai_training, 'disabled');
+  assert.deepEqual(r.put.body, plain.put.body);
   assert.match(r.ask.out, /Training is set to Disallow\. If you say yes, it becomes Allow \(do not block\), and AI training crawlers are let in\. To keep Disallow, run this with --skip ai\./);
   assert.match(r.done.out, /Training was Disallow and is now Allow \(do not block\)\./);
 });

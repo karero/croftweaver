@@ -267,8 +267,8 @@ cookies, scripts or tracking you didn't choose.
   `robots.txt`. Bing does not read that preference yet: Microsoft's support is "targeted
   for early 2027", Cloudflare says, and until then it points to Bing's `NOARCHIVE` meta tag
   for a training preference. Google's separate training switch, Google-Extended, is among
-  the crawlers that file shuts out. The setup script warns when it finds Training on Block,
-  and says how to keep Disallow.
+  the crawlers that file shuts out. The setup script warns when it finds Training on Block
+  or Block on pages with ads, and says how to keep Disallow and when Sync is off.
   For new domains, Cloudflare recommends Allow for all three with Bot Preference Sync on,
   and, for a site with ads, Disallow for Training and Block on pages with ads for Agent.
   On a spare domain on 30 October 2026 the dashboard marked Allow as Recommended for all
