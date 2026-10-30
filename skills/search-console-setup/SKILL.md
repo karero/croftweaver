@@ -103,30 +103,31 @@ Cloudflare-managed domain.
 
 ### Also in the Cloudflare dashboard — keep crawlers *allowed*
 
-Newer Cloudflare zones add a **Security → Bots → Control AI crawlers** panel. For the
-open, maximally-indexable posture this kit wants, confirm BOTH (the defaults can block).
-For the first bullet, `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder (section 4)
-has newer names, read from Cloudflare's own pages on 2026-10-12:
+The AI crawler settings are under your domain → Security → Settings → filter by **Bot
+traffic** → **Configure AI bot policies** (the names as a dashboard showed them on
+2026-10-30). For the open, indexable posture this kit wants, confirm these (the defaults can
+block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has the details:
 
-- **Block AI training bots → "Do not block (allow crawlers)"** — Cloudflare's page calls
-  the setting **Block AI bots**; the name in your dashboard may differ, and this section's
-  names were not re-checked there. The page (last updated 1 July 2026, read 2026-10-11)
-  says the setting blocks bots that crawl for AI training, and that from 15 September
-  2026 a training block would also cover crawlers that combine search and training
-  ([Cloudflare](https://developers.cloudflare.com/bots/additional-configurations/block-ai-bots/)).
-  So a block here can be more than the training choice `ai-seo` describes (Step 4): it
-  can shut out a crawler that is also used for search. This kit leaves them allowed. The
-  same page marks the setting as being retired. Where the dashboard shows **Configure AI
-  bot policies** instead, with one setting each for Search, Agent and Training, this kit
-  leaves all three on "Allow (do not block)". The page says new domains would start with
-  Training and Agent blocked on pages that show ads, so look at what yours shows.
-- **Manage your robots.txt → "Disable robots.txt configuration"** — leaves the repo's
-  own open `public/robots.txt` authoritative, instead of a Cloudflare-managed file that
-  can inject AI-bot `Disallow` rules behind your back.
+- **Search, Agent and Training → "Allow (do not block)".** Since 15 September 2026,
+  Cloudflare says, **Block** and **Block on pages with ads** on Training also keep out
+  Googlebot, Bingbot and Applebot, "so either setting impacts search as well as training"
+  ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)). Its way to
+  refuse AI training and stay in Google, Bing and Apple search is **Disallow** for Training,
+  with Bot Preference Sync on (next bullet); the kit has not tested how crawlers are treated,
+  and the file Sync writes also shuts out Baiduspider and PetalBot, the crawlers of Baidu's
+  and Huawei's Petal search. That is the training choice `ai-seo` describes (Step 4).
+  Bing does not read the no-training preference yet; Cloudflare says Microsoft's support is
+  "targeted for early 2027".
+- **Enable Bot Preference Sync → off**, unless you chose Disallow for Training. With it on,
+  Cloudflare puts its own lines in front of the repo's own `public/robots.txt`; with
+  Disallow, those lines are what publish the no-training preference. Choosing Disallow does
+  not turn it on by itself.
+- If your dashboard still shows the older **Block AI bots** setting, make sure it is off. A
+  dashboard on 2026-10-30 no longer showed it.
 
 > **Assistant: offer to do these Cloudflare dashboard clicks for the user** if your
-> runtime can drive a browser. The Crawler Hints toggle and the Control AI crawlers
-> panel above are dashboard actions, not repo edits — so offering to perform them beats
+> runtime can drive a browser. The Crawler Hints toggle and the AI bot policies
+> above are dashboard actions, not repo edits — so offering to perform them beats
 > just listing steps. Pick the path that matches your runtime:
 > - **Claude Code with Claude in Chrome** — offer that extension: ask the user to
 >   install it (it's what gives real click/navigate access; plain screen control can
@@ -138,8 +139,9 @@ has newer names, read from Cloudflare's own pages on 2026-10-12:
 > 1. The user **opens the browser and logs in to Cloudflare themselves** — never handle
 >    their credentials or 2FA.
 > 2. With their explicit go-ahead and the target zone, navigate to **Caching →
->    Configuration** (Crawler Hints) and **Security → Bots → Control AI crawlers**, read
->    the current values back, and only then set any that don't match the posture above.
+>    Configuration** (Crawler Hints) and **Security → Settings → Bot traffic → Configure
+>    AI bot policies**, read the current values back, and only then set any that don't
+>    match the posture above.
 >
 > If no browser automation is available or the user declines, fall back to walking them
 > through the clicks. Never attempt these dashboard changes through blind screen control.

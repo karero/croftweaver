@@ -544,6 +544,23 @@ test('rules for named crawlers in robots.txt make the AI item a "look"', () =>
     assert.match(r.by.ai.detail, /GPTBot/);
   }));
 
+test('Cloudflare\'s own lines in front of the starter\'s robots.txt (Bot Preference Sync on, capture T3-006): the file is ok, the AI item a look naming them', () => {
+  const managed = readFileSync(path.join(HERE, 'fixtures', 'cloudflare-api', 'T3-006-c5b-robots.txt'), 'utf8');
+  const starter = readFileSync(path.join(HERE, '..', '..', 'templates', 'astro', 'public', 'robots.txt'), 'utf8');
+  return withSite((req, res, url) => {
+    if (url.pathname === '/robots.txt') {
+      send(res, 200, 'text/plain', `${managed}\n${starter.replace('https://example.com', `https://${req.headers.host}`)}`);
+      return true;
+    }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.robots.state, 'ok', r.by.robots.detail);
+    assert.equal(r.by.ai.state, 'look');
+    assert.match(r.by.ai.detail, /robots\.txt has rules for .*GPTBot.*Baiduspider.*\(content-signal lines\)/);
+  });
+});
+
 test('robots.txt that is a web page fails; a comment that mentions html does not', async () => {
   await withSite(robotsWith('<!doctype html><title>Home</title>'), async (s) => {
     assert.equal((await check(s.origin)).by.robots.state, 'fail');
@@ -598,6 +615,19 @@ test('an AI crawler name that is refused is a "look" that names it and its statu
     assert.match(r.by.ai.detail, /ClaudeBot \(403\)/);
     assert.equal(r.by.domain.state, 'ok', 'a browser-like request is not refused');
   }));
+
+test('a refused GPTBot, or a server error for OAI-SearchBot: one line that names Training as one possible cause, and Block\'s cost', async () => {
+  for (const [name, status] of [['GPTBot', 403], ['OAI-SearchBot', 503]]) {
+    await withSite((req, res, url) => {
+      if (isHome(url) && req.headers['user-agent'].includes(`${name}/`)) { send(res, status, 'text/html', '<p>No</p>'); return true; }
+      return false;
+    }, async (s) => {
+      const r = await check(s.origin);
+      assert.equal(r.by.ai.state, 'look', name);
+      assert.match(r.by.ai.detail, new RegExp(`^these crawler names were refused: ${name} \\(${status}\\)\\. A Training choice may be the cause: Cloudflare says Block and Disallow both keep training crawlers out, and Block keeps Googlebot, Bingbot and Applebot out too, which affects search, while Disallow keeps them in\\. Any other refusal or server error still needs a look`), name);
+    });
+  }
+});
 
 test('crawler requests that got no answer are not "none refused": a look, and exit 1', () =>
   withSite((req, res, url) => {
