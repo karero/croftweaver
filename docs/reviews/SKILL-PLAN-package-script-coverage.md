@@ -117,3 +117,12 @@ PLAN gate, Normal. Codex alone each round (melious out of balance; owner's rule 
 - Round 2: 1 RISK. `'*/name.sh'` escaped a `scripts/`-substring check → glob match instead.
 - Round 3: 1 RISK. An unquoted `-x` token escaped a quoted-only parse → every token after
   `-x` is read. Fixed without a fourth round; the DIFF gate checks it.
+
+DIFF gate, Normal. Codex alone each round (melious out of balance).
+- Round 1: 1 BUG. A `-x` token with a backslash or a space inside quotes split into a pattern
+  that matched nothing → such tokens refused.
+- Round 2: 1 BUG. Concatenated quotes (`"a""b"`) still passed → a `-x` token is read only as
+  one word, or one word in one pair of matching quotes; anything else is refused.
+- Round 3: clean. The script's reply check rejected Codex's answer; counted by hand from the
+  raw output (no BUG, RISK or NIT). Its two UNVERIFIABLEs (full test run, stock /bin/bash)
+  were settled by running both here.
