@@ -106,6 +106,9 @@ expect "a -x pattern with a backslash fails" "$c" fail "cannot read"
 fresh; edit "$c" "s#-x '\*.DS_Store'#-x 'scripts/[ t]est_served_build.sh' '*.DS_Store'#"
 expect "a -x pattern with a space inside quotes fails" "$c" fail "cannot read"
 
+fresh; edit "$c" "s#-x '\*.DS_Store'#-x \"scripts/\"\"test_served_build.sh\" '*.DS_Store'#"
+expect "a -x pattern made of two quoted parts fails" "$c" fail "cannot read"
+
 fresh; rm "$c/scripts/test_served_build.sh"; edit "$c" '/^  scripts\/test_served_build.sh$/d'
 expect "a zip -r line naming a script that is gone fails" "$c" fail "zip -r line names these"
 

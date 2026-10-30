@@ -19,8 +19,8 @@ found="$(grep '^scripts/' <<<"$all")"
 
 # The zip command runs from its `zip -r` line to the one that ends in >/dev/null. Each token
 # starting scripts/ before -x is a file it ships; every token after -x is a pattern it drops.
-# Tokens are split on spaces, not parsed as shell, so a -x token with a backslash or a quote
-# that is not one whole pair around it (a space inside quotes) is refused, not misread.
+# Tokens are split on spaces, not parsed as shell. So a -x token is refused, not misread,
+# unless it is one plain word, or one word inside a single pair of matching quotes.
 parsed="$(awk '
   /^zip -r/ { z = 1 }
   z {
@@ -28,9 +28,14 @@ parsed="$(awk '
       t = $i
       if (t ~ /^>/) { z = 0; break }
       if (t == "-x") { x = 1; continue }
-      if (x && t != "\\" && (t ~ /\\/ || t ~ /^["\047].*[^"\047]$|^[^"\047].*["\047]|^["\047]$/)) { print "bad " t; continue }
-      gsub(/^["\047]|["\047]$/, "", t)
-      if (x && t != "\\") print "exc " t
+      if (x && t == "\\") continue
+      if (x) {
+        w = t
+        if (w ~ /^\047.+\047$/ || w ~ /^".+"$/) w = substr(w, 2, length(w) - 2)
+        if (w ~ /["\047\\]/) print "bad " t
+        else print "exc " w
+        continue
+      }
       else if (t ~ /^scripts\//) print "inc " t
     }
   }' "$PKG")" || { echo "FAIL — could not read $PKG."; exit 1; }
@@ -51,8 +56,8 @@ fi
 
 rc=0
 if [ -n "$bad" ]; then
-  echo "FAIL — $PKG's zip -r line has -x patterns this guard cannot read (a backslash, or a"
-  echo "    space inside quotes). Write each as one quoted word without them:"
+  echo "FAIL — $PKG's zip -r line has -x patterns this guard cannot read. Write each as one"
+  echo "    word in one pair of quotes, with no other quote, backslash or space:"
   printf '%s\n' "$bad" | sed 's/^/    /'
   rc=1
 fi
