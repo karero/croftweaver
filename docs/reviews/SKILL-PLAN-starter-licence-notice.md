@@ -18,9 +18,9 @@ row and records the answer there.
 
 Every site that `new-website` scaffolds gets Croftweaver's own files: test suites, scripts,
 hooks and workflow files. MIT asks that its copyright and permission notice stay with copies
-or substantial portions. Today the starter has no licence file, so a site whose owner hands the
-source on (to a client or another developer) or publishes it, for example in a public GitHub
-repository, carries Croftweaver's files without the notice. Whether a few test files count as
+or substantial portions. Before this plan the starter had no licence file, so a site whose owner handed the
+source on (to a client or another developer) or published it, for example in a public GitHub
+repository, carried Croftweaver's files without the notice. Whether a few test files count as
 a substantial portion is not settled; this plan does not decide it and is not legal advice. It
 makes the question moot at the cost of one small file.
 
@@ -86,7 +86,7 @@ This file is about the licence, not credit.
 ## Tests (what each one proves)
 
 - The byte-compare check: `test_template_coverage.sh` builds each case in a scratch repo
-  (`fresh()`, its line 29), which today copies no root `LICENSE`; it must, or the existing "the
+  (`fresh()`, its line 29), which then copied no root `LICENSE`; it must, or the existing "the
   templates as they are pass" case fails. Then cases for the real files (pass), a template copy
   with one byte changed, a deleted template copy and a deleted root `LICENSE` (each fails, naming
   the file). Proves S2
