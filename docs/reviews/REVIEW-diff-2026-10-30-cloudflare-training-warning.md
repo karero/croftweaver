@@ -11,6 +11,7 @@ dashboard labels the maintainer reported (C1), and Cloudflare's blog of 15 Septe
 
 | Round | Findings | Disposition |
 |---|---|---|
+| 1 (Codex at High; melious out of balance, no rerun owed; fresh-eyes on the host's model) | Codex: 2 BUG (S5a's "nothing was written" is false after the yes, when other changes were written; the checklist's "the setup script says all this" claims notes it does not print), 2 RISK (enforcement and search claims not attributed to Cloudflare; NOARCHIVE stated as fact). Fresh-eyes: 6 NIT (the same "says all this"; a robots.txt claim with no committed capture; a missing Sync value worded unlike S10; "run this with --skip ai" to an owner already doing so; S2, S6 and S7-unread tests check text only; the older switch's raw value) | fixed: "this run did not change it" in both unread notes, with a test of the run after the yes; the checklist names what the script prints; the enforcement and NOARCHIVE lines say "Cloudflare says" in the checklist and `ai-seo`; the README row says the Sync-off reads are not committed; missing Sync worded as S10; "keep running this with --skip ai" when skipped; S2 and S6 compare codes, exits and the PUT, S7 unread and missing Sync tested. Not taken: the older switch's value stays raw, since the dashboard no longer shows that setting and has no word for it |
 
 Checks before round 1: `make check` exit 0 ("all checks passed"; it runs `check_clean.sh`, not
 the Cloudflare suites); `node --test tests/cloudflare-check.test.mjs` 101 of 101;

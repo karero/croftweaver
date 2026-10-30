@@ -62,7 +62,7 @@ item's latest and canonical deployment set to null: they hold another site's his
 | A proxied CNAME to the `pages.dev` address turns the domain `active`; its verification turns active first | T1-104, T1-127, T1-141, T1-142, T2-055, T2-056 |
 | Attaching keeps the host's A record; one PATCH turns it into a proxied CNAME, with a comment, and keeps its id. Cloudflare's answer to that PATCH says changing a record's type is deprecated | T1-129, T1-132, T2-042, T2-045 to T2-047 |
 | A record comment holds 100 characters; 101 is refused, code 9313 | T2-057, T2-058 |
-| Each dashboard choice of the AI bot policies, as Bot Management reads it: Allow (do not block) is `"disabled"`, Block `"block"`, Block on pages with ads `"only_on_ad_pages"` in Training, Search and Agent; Disallow (Training only) `"disallow"`; choosing Disallow leaves Bot Preference Sync off; with Sync on, `robots.txt` gains Cloudflare's lines, and with it off loses them | T3-001 to T3-013, T3-006-c5b-robots.txt |
+| Each dashboard choice of the AI bot policies, as Bot Management reads it: Allow (do not block) is `"disabled"`, Block `"block"`, Block on pages with ads `"only_on_ad_pages"` in Training, Search and Agent; Disallow (Training only) `"disallow"`; choosing Disallow leaves Bot Preference Sync off; with Sync on, `robots.txt` gains Cloudflare's lines | T3-001 to T3-013, T3-006-c5b-robots.txt. With Sync off (C4, C5, C6) the site's own five lines were served unchanged; those reads held nothing but the site's file and are not committed |
 
 T1-102, the zone's list of records on launch day, is not here: it is the live zone's mail and
 other records. `clean-captures.mjs` takes the captures in two batches, the setup stage's and

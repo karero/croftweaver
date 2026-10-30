@@ -80,7 +80,8 @@ const AI_FIELDS = {
   ai_user: { label: 'Agent', values: { disabled: 'Allow (do not block)', block: 'Block', only_on_ad_pages: 'Block on pages with ads' } },
   ai_bots_protection: { label: 'The older Block AI bots setting (no longer shown in the dashboard)', values: { disabled: 'disabled', block: 'block' } },
 };
-const STAY_IN_SEARCH = 'To refuse AI training and stay in search, choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too (choosing Disallow does not turn it on), and run this with --skip ai.';
+const stayInSearch = (skipping) => `To refuse AI training and stay in search, choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too (choosing Disallow does not turn it on), and ${skipping ? 'keep running this with' : 'run this with'} --skip ai.`;
+const STAY_IN_SEARCH = stayInSearch(false);
 
 // The notes on what the AI bot policies mean for search, from the `ai` line's values read at the
 // start of the run (`now`) and its state at the point of printing. They change nothing.
@@ -108,19 +109,19 @@ export function aiNotes(now, state) {
     if (state === 'done') { notes.push(`Training was ${label} and is now Allow (do not block). ${STAY_IN_SEARCH}`); continue; }
     if (v === 'disallow') {
       if (state === 'change') notes.push('Training is set to Disallow. If you say yes, it becomes Allow (do not block), and AI training crawlers are let in. To keep Disallow, run this with --skip ai.');
-      if (state === 'unread') notes.push('Training is set to Disallow. The zone\'s records could not be read, so nothing was written; to keep Disallow on a later run, run it with --skip ai.');
+      if (state === 'unread') notes.push('Training is set to Disallow. The zone\'s records could not be read, so this run did not change it; to keep Disallow on a later run, run it with --skip ai.');
       if (state === 'skipped' || state === 'unread') {
         const sync = now.bot_preference_sync_enabled;
         if (sync === false) notes.push(`Bot Preference Sync is off, so Disallow writes no no-training preference into robots.txt. To publish it there, turn Sync on in the dashboard: ${where}.`);
-        else if (sync !== true) notes.push(`Bot Preference Sync reads ${show(sync)} at the start of this run: a value this kit does not know, so it cannot say whether robots.txt carries the no-training preference. Look at it in the dashboard: ${where}.`);
+        else if (sync !== true) notes.push(`Bot Preference Sync ${sync === undefined ? 'was missing from what Cloudflare returned' : `reads ${show(sync)}`} at the start of this run: a value this kit does not know, so it cannot say whether robots.txt carries the no-training preference. Look at it in the dashboard: ${where}.`);
       }
       continue;
     }
     const ads = v === 'only_on_ad_pages' ? ' on pages that show ads' : '';
     const said = `Training is set to ${label}. Cloudflare says ${label} also keeps Googlebot, Bingbot and Applebot out${ads}, which affects search.`;
     if (state === 'change') notes.push(`${said} If you say yes, it becomes Allow (do not block). ${STAY_IN_SEARCH}`);
-    else if (state === 'skipped') notes.push(`${said} This run leaves it as it is. ${STAY_IN_SEARCH}`);
-    else if (state === 'unread') notes.push(`${said} The zone's records could not be read, so nothing was written: it is still set that way. ${STAY_IN_SEARCH}`);
+    else if (state === 'skipped') notes.push(`${said} This run leaves it as it is. ${stayInSearch(true)}`);
+    else if (state === 'unread') notes.push(`${said} The zone's records could not be read, so this run did not change it. ${STAY_IN_SEARCH}`);
   }
   return notes;
 }

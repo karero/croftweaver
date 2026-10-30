@@ -262,12 +262,13 @@ cookies, scripts or tracking you didn't choose.
   training, Googlebot, Bingbot and Applebot among them, "so either setting impacts search
   as well as training" ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)).
   To refuse training and stay in search, choose **Disallow** for Training (Cloudflare's blog
-  calls it Disallow AI Training) and turn **Bot Preference Sync** on (below): Cloudflare then
-  keeps the other training crawlers out and publishes a no-training preference in
+  calls it Disallow AI Training) and turn **Bot Preference Sync** on (below): Cloudflare says
+  it then keeps the other training crawlers out and publishes a no-training preference in
   `robots.txt`. Bing does not read that preference yet: Microsoft's support is "targeted
-  for early 2027", Cloudflare says, and Bing's own `NOARCHIVE` tag works today. Google's
-  separate training switch, Google-Extended, is among the crawlers that file shuts out.
-  The setup script says all this when it finds Training on Block or Disallow.
+  for early 2027", Cloudflare says, and until then it points to Bing's `NOARCHIVE` meta tag
+  for a training preference. Google's separate training switch, Google-Extended, is among
+  the crawlers that file shuts out. The setup script warns when it finds Training on Block,
+  and says how to keep Disallow.
   For new domains, Cloudflare recommends Allow for all three with Bot Preference Sync on,
   and, for a site with ads, Disallow for Training and Block on pages with ads for Agent.
   On a spare domain on 30 October 2026 the dashboard marked Allow as Recommended for all
