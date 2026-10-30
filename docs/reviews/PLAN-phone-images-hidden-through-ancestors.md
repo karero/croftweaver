@@ -39,7 +39,7 @@ All new code lives inside `usersNow()`: `page.evaluate` sends the function's sou
    - **Why the border box, not the padding box.** `clientWidth` is 0 on boxes where overflow does not apply, and does not scale with a transform while the rect does (READ 1: `scale(2)` gives rect width 100, `clientWidth` 50). The border box comes from the same rect as the element's own box, so both are in the same, transformed, coordinates. It is a little larger than the true clip (by the border), which can only make an image count as shown.
    - **Why not `body` and `html`.** Their `overflow` usually passes to the viewport (`body { overflow-x: hidden }` is common), and the viewport is not a clip here: the test scrolls the page.
    - **What is not a clip:** `overflow: auto` and `scroll`. The user can scroll to that content, so a horizontal scroll gallery's later pictures count as shown, as today.
-   - **Containing blocks.** An absolutely positioned or fixed box is clipped only by ancestors from its containing block up. The walk finds that block itself (`offsetParent` passes over a transformed ancestor): for `absolute`, the nearest ancestor that is positioned or has a `transform`; for `fixed`, the nearest with a `transform`. Ancestors below it are skipped, and the same is done for each out-of-flow ancestor met. No such ancestor below the body: not clipped.
+   - **Containing blocks.** An absolutely positioned or fixed box is clipped only by ancestors from its containing block up. The walk finds that block itself (`offsetParent` passes over a transformed ancestor): for `absolute`, the nearest ancestor that is positioned or moved by `transform`, `translate`, `rotate` or `scale`; for `fixed`, the nearest so moved. Ancestors below it are skipped, and the same is done for each out-of-flow ancestor met. No such ancestor below the body: not clipped.
    - **Pseudo-elements:** their own box is not readable, and an absolutely positioned one can escape its host's ancestors. A static or relative `::before`/`::after` takes the host's clip result: the walk runs on the host's box, from the host's parent up, and only when the host's box has a size. An `absolute` or `fixed` one gets no clip test (today's result).
    - **The element's own overflow** does not clip its own background or `<img>`, so the walk starts at the parent.
 3. **Cost.** The judgment runs only for elements that use an image URL (today `hidden` is worked out for every element and pseudo-element on the page). One helper, `hiddenOf(el, pseudoStyle?)`, used at the three places: one native call plus one ancestor walk per image user per scroll stop.
@@ -69,9 +69,10 @@ Green page, added:
 | G6 inline clipper | an inline `<span style="overflow: hidden; font-size: 0">` around a 200px `<img>` `inl.webp` (noise); the span's rect then has no height, so the case fails if inline boxes are taken as clips | judged (overflow does not apply to an inline box) |
 | G7 pseudo-element in a clip box | a 200px box with `overflow: clip` (height auto) holding a static `div` whose `::before` has a 100px background `cb.webp` (noise) | judged |
 | G8 thin image | an `<img>` `thin.webp` (noise), 200px wide and 0.5px tall, `object-fit: cover` (the starter's images test fails a stretched image), inside an `overflow: hidden` box that leaves it whole | judged (the clip leaves its whole height) |
+| G10 clip with a margin | an `overflow: clip; overflow-clip-margin: 20px; height: 0` box holding a 200px `<img>` `margin.webp` (noise); 20px of it shows | judged (the case fails if the margin skip is dropped) |
 | G9 fixed box escaping a clip | an `overflow: hidden; height: 0` box holding a `position: fixed` 40px `<img>` `pin.webp` (noise, 120 × 80) at the viewport's bottom left | judged (a fixed box is clipped only from a transformed ancestor up) |
 
-The green step's exact line becomes: `25 judged by width; hidden and under 4 KiB: /fx/hidden.webp, /fx/off.webp, /fx/wait.webp; not judged: /fx/border.webp (border-image-source)`. With today's spec that line does not match (`wait.webp` and `off.webp` count as shown and are judged by width), so the green step fails before the fix.
+The green step's exact line becomes: `26 judged by width; hidden and under 4 KiB: /fx/hidden.webp, /fx/off.webp, /fx/wait.webp; not judged: /fx/border.webp (border-image-source)`. With today's spec that line does not match (`wait.webp` and `off.webp` count as shown and are judged by width), so the green step fails before the fix.
 
 Red cases, added, one change each, run through the job's existing `red` helper (exactly one test fails, it is the home page's, the message names the file):
 
@@ -84,7 +85,7 @@ Red cases, added, one change each, run through the job's existing `red` helper (
 | R5 pseudo-element's own opacity | `opacity: 0` added to G5's `::before` | `/fx/dc.webp is downloaded but hidden at 412px` |
 | R6 pseudo-element clipped | G7's box gets `height: 0` | `/fx/cb.webp is downloaded but hidden at 412px` |
 | R8 transformed containing block, absolute | G4's `height: 0` box gets `transform: translateX(0)` | `/fx/esc.webp is downloaded but hidden at 412px` |
-| R9 transformed containing block, fixed | G9's box gets `transform: translateX(0)` | `/fx/pin.webp is downloaded but hidden at 412px` |
+| R9 translated containing block, fixed | G9's box gets `translate: 0px` | `/fx/pin.webp is downloaded but hidden at 412px` |
 | R7 a browser that ignores the option | an inline page script wraps `Element.prototype.checkVisibility` so it drops `opacityProperty` | `does not read opacity; update Playwright` |
 
 R1 to R9 all stay green with today's spec. Every existing case and expected message stays as it is, apart from the green line's count and list.

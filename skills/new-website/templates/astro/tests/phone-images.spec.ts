@@ -84,7 +84,8 @@ function usersNow(): User[] {
   // Clipped away: ancestors whose overflow is hidden or clip leave none of `box` showing. The
   // walk stops below the body, whose overflow goes to the viewport. An absolute or fixed box is
   // clipped only from its containing block up: for absolute the nearest positioned or transformed
-  // ancestor, for fixed the nearest transformed one (none: not clipped). Each clip is taken as the
+  // ancestor, for fixed the nearest transformed one (transform, translate, rotate or scale; none:
+  // not clipped). Each clip is taken as the
   // ancestor's border box: its rect shares the element's (transformed) coordinates.
   const NO_OVERFLOW = /^(inline|contents|table-row|table-row-group|table-header-group|table-footer-group|table-column|table-column-group)$/;
   const CLIPS = /^(hidden|clip)$/;
@@ -94,7 +95,8 @@ function usersNow(): User[] {
     if (p !== 'absolute' && p !== 'fixed') return undefined;
     for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) {
       const cs = getComputedStyle(a);
-      if (cs.transform !== 'none' || (p === 'absolute' && cs.position !== 'static')) return a;
+      const moved = [cs.transform, cs.translate, cs.rotate, cs.scale].some((v) => v !== 'none');
+      if (moved || (p === 'absolute' && cs.position !== 'static')) return a;
     }
     return null;
   };
