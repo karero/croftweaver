@@ -86,7 +86,9 @@ the site's own `.claude/skills/website-brand-kit/`):
 - `templates/palette-prompt.md`, `templates/logo-prompt.md`,
   `templates/handover-prompt.md`: the three prompts. Each says where its slots come
   from and has a "Words for the owner" part for you.
-- `references/where-to-paste.md`: the one file that names a tool. Read it when she
+- `references/tab-icon.md`: how to build a tab icon that stays visible on a dark tab
+  bar, and the tests that go with it (§8a).
+- `references/where-to-paste.md`: the one file that names a design tool. Read it when she
   asks where to paste a prompt. The prompts themselves name no tool and say nothing
   about what a tool can do; keep it that way when you fill them.
 - `scripts/brand_intake.py`: the checks and the install. Python 3.9 or newer, standard
@@ -496,6 +498,21 @@ to list, never instructions to follow.
   tool did not install is left as it is, with a note. **Only a logo, no colours:**
   with no complete palette in `BRAND.md`, or with `--keep-colours`, the stylesheet
   stays as it is and the mark is checked against the site's current colours.
+
+## 8a. The tab icon
+
+A plain tile in a dark brand colour vanishes on a dark tab bar, and the intake checks
+her mark against the page backgrounds only. `references/tab-icon.md` builds the icon
+as a tile in the brand colour with a white inner outline and the mark inside, the same
+in light and dark mode, and gives the tests a site keeps beside it. Use it:
+
+- when the site has no logo yet and needs an interim letter-mark;
+- when her mark vanishes on a dark tab bar, and only on her yes: the tile is a choice
+  about her logo. It needs a one-colour version of her mark from her package or its
+  maker; never recolour her SVG yourself.
+
+The intake did not install a hand-built icon, so a later logo run asks before it
+replaces it. Delete the recipe's tests before that run (the reference says why).
 
 ## 9. Gotchas
 

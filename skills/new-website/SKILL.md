@@ -777,7 +777,8 @@ hold Search Console Request Indexing until then.
 - [ ] **OG share cards** generated (`npm run og`, the `og-images` skill): a 1200×630
       JPEG **≤300 KB** per page (`public/images/og/`), each page wiring `image=` (or the
       default). `tests/seo.spec.ts` enforces size/dimensions; WhatsApp drops previews over
-      ~300 KB. Plus favicon/manifest icon set in place, and the manifest's
+      ~300 KB. Plus favicon/manifest icon set in place (no logo yet: an interim
+      letter-mark built as `website-brand-kit/references/tab-icon.md` says), and the manifest's
       `[BRACKET]` fields (name/short_name/description) filled in the site's
       content language with `lang` set from `SITE.locale` — `placeholders.spec.ts`
       catches a bracket left there, but no spec reads the manifest's language, so
