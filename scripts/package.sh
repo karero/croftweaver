@@ -38,6 +38,7 @@ zip -r -X "$OUT/croftweaver.zip" \
   scripts/test_pre_push_hook.sh scripts/test_verify.sh scripts/test_clean_denylist.sh scripts/test_git_stand_hook.sh scripts/test_whats_new.sh \
   scripts/test_mktemp_guard.sh scripts/check_lf_checkout.sh scripts/list_shell_scripts.sh \
   scripts/check_buglog_rows.sh scripts/test_buglog_rows.sh scripts/test_served_build.sh \
+  scripts/check_package_scripts.sh scripts/test_check_package_scripts.sh \
   scripts/build_directory_tree.sh scripts/publish_directory.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
      'docs/BUGLOG.md' 'docs/DECISIONS_PENDING.md' \
@@ -84,6 +85,10 @@ REQUIRED=(
   scripts/check_buglog_rows.sh
   scripts/test_buglog_rows.sh
   scripts/test_served_build.sh
+  scripts/check_package_scripts.sh
+  scripts/test_check_package_scripts.sh
+  scripts/build_directory_tree.sh
+  scripts/publish_directory.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
   skills/independent-review/scripts/test_base_check.sh
   skills/independent-review/scripts/check_perl_minimum.sh

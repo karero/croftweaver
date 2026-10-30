@@ -533,6 +533,8 @@ scripts/
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
   check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
+  check_package_scripts.sh  every shell script under scripts/ ships in the handoff zip: in package.sh's zip -r line and REQUIRED (make check)
+  test_check_package_scripts.sh  the package-scripts check goes red for a script left out, dropped by -x, or gone (make check)
   check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree (make check)
   test_node_floor.sh        the Node-floor check goes red for each way the floor can drift (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
