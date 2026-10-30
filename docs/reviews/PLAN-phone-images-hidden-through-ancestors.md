@@ -1,6 +1,6 @@
 # PLAN — the phone-images test judges "hidden" through an image's ancestors
 
-Status: draft for the PLAN gate, revised after rounds 1 to 3 and the final full read. A draft of the code sits in the branch's working tree, unreviewed.
+Status: passed the PLAN gate (5 rounds and a final full read; trail `docs/reviews/REVIEW-plan-2026-10-30-phone-images-hidden-through-ancestors.md`). Being built.
 Branch: `fix/phone-images-hidden-through-ancestors`.
 
 ## What
@@ -68,7 +68,7 @@ Green page, added:
 | G5 `display: contents` host | a `display: contents` element whose `::before` has a 100px background `dc.webp` (noise) | judged |
 | G6 inline clipper | an inline `<span style="overflow: hidden">` around a 200px `<img>` `inl.webp` (noise) | judged (overflow does not apply to an inline box) |
 | G7 pseudo-element in a clip box | a 200px box with `overflow: clip` (height auto) holding a static `div` whose `::before` has a 100px background `cb.webp` (noise) | judged |
-| G8 thin image | an unclipped `<img>` `thin.webp` (noise), 200px wide and 0.5px tall | judged (no ancestor clips, so the 1px rule does not apply) |
+| G8 thin image | an unclipped `<img>` `thin.webp` (noise), 200px wide and 0.5px tall, `object-fit: cover` (the starter's images test fails a stretched image) | judged (no ancestor clips, so the 1px rule does not apply) |
 
 The green step's exact line becomes: `24 judged by width; hidden and under 4 KiB: /fx/hidden.webp, /fx/off.webp, /fx/wait.webp; not judged: /fx/border.webp (border-image-source)`. With today's spec that line does not match (`wait.webp` and `off.webp` count as shown and are judged by width), so the green step fails before the fix.
 
@@ -94,8 +94,8 @@ Review depth after build: Normal (the diff changes a test that ships into users'
 
 | Step | State | Evidence |
 |---|---|---|
-| Plan | revised after PLAN rounds 1 to 3 and the final full read | — |
-| PLAN gate | rounds 1 to 3 done (Codex alone each round, melious out of balance; fresh-eyes Sonnet in round 1) | trail to come |
-| Build: spec change, fixture cases, website-qa sentence, BUGLOG row | drafted, uncommitted | — |
-| Local before/after run | not started | — |
-| PR, DIFF gate (Normal), CI green | not started | — |
+| Plan | done | 0bc3d3cd |
+| PLAN gate | passed: 5 rounds (Codex alone each round, melious out of balance; fresh-eyes Sonnet in round 1) and a final full read (Opus) | `docs/reviews/REVIEW-plan-2026-10-30-phone-images-hidden-through-ancestors.md` |
+| Build: spec change, fixture cases, website-qa sentence, BUGLOG row | done | this branch's build commit |
+| Local before/after run | done: before, the green line fails and R1 to R7 stay green; after, all pass and turn red, and `npm test` passes | the PR description |
+| PR, DIFF gate (Normal), CI green | in progress | — |

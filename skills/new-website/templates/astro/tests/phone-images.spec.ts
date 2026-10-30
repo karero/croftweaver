@@ -6,7 +6,8 @@ import { PAGES } from './_helpers';
 // images load; every raster the page itself downloads is judged, CSS backgrounds and masks
 // included (Lighthouse does not size those). A file fails when it is wider than a 3x phone could use and
 // a copy that wide saves an estimated 4 KiB, when it is downloaded but not shown (hidden ones
-// under 4 KiB pass), and when the test cannot work out how wide it is drawn. A file used only
+// under 4 KiB pass; hidden counts opacity 0 and clipping by an ancestor too), and when the test
+// cannot work out how wide it is drawn. A file used only
 // as a border image, cursor or shape-outside is not judged by width; the log names it.
 const VIEW = { width: 412, height: 823 };
 const RATIO = 1.75;
@@ -67,16 +68,71 @@ function usersNow(): User[] {
     }).join(' ');
   };
   const els = Array.from(document.querySelectorAll('*'));   // taken before the probe joins the page
+  // An older browser ignores opacityProperty and calls everything visible: stop rather than pass.
+  // Inline styles reset the probe's own boxes; the body's CSS or an !important rule can still hide them.
+  const faded = document.createElement('div');
+  const child = document.createElement('div');
+  faded.style.cssText = child.style.cssText = `${PLAIN}; width: 1px; height: 1px`;
+  faded.append(child);
+  document.body.append(faded);
+  const shownAt1 = child.checkVisibility({ opacityProperty: true });
+  faded.style.opacity = '0';
+  const shownAt0 = child.checkVisibility({ opacityProperty: true });
+  faded.remove();
+  if (!shownAt1) throw new Error('the opacity probe is hidden at opacity 1: site CSS on the body, or an !important rule on a plain div');
+  if (shownAt0) throw new Error('this browser\'s checkVisibility does not read opacity; update Playwright');
+  // Clipped away: ancestors whose overflow is hidden or clip leave none of `box` showing. The
+  // walk stops below the body, whose overflow goes to the viewport; an absolute box is clipped
+  // only from its containing block (offsetParent) up, a fixed one not at all. Each clip is taken
+  // as the ancestor's border box: its rect shares the element's (transformed) coordinates.
+  const NO_OVERFLOW = /^(inline|contents|table-row|table-row-group|table-header-group|table-footer-group|table-column|table-column-group)$/;
+  const CLIPS = /^(hidden|clip)$/;
+  const clippedAway = (el: Element, box: DOMRect) => {
+    let left = -Infinity, right = Infinity, top = -Infinity, bottom = Infinity, clipX = false, clipY = false;
+    const outOfFlow = (e: Element) => {
+      const p = getComputedStyle(e).position;
+      return p === 'fixed' ? null : p === 'absolute' ? (e as HTMLElement).offsetParent ?? null : undefined;
+    };
+    let skipTo = outOfFlow(el);   // undefined: in flow; null: not clipped by any ancestor
+    for (let a = el.parentElement; skipTo !== null && a && a !== document.body; a = a.parentElement) {
+      if (skipTo) { if (a !== skipTo) continue; skipTo = undefined; }
+      const cs = getComputedStyle(a);
+      // overflow: clip with a margin can reach past the border box: skipped, so it errs toward shown.
+      const margin = (cs.overflowX === 'clip' || cs.overflowY === 'clip') && cs.getPropertyValue('overflow-clip-margin') !== '0px';
+      if (!NO_OVERFLOW.test(cs.display) && !margin) {
+        const r = a.getBoundingClientRect();
+        if (CLIPS.test(cs.overflowX)) { clipX = true; left = Math.max(left, r.left); right = Math.min(right, r.right); }
+        if (CLIPS.test(cs.overflowY)) { clipY = true; top = Math.max(top, r.top); bottom = Math.min(bottom, r.bottom); }
+      }
+      skipTo = outOfFlow(a);
+    }
+    // On a clipped axis, under 1px counts as none: fractional layout leaves a slide beside the clip
+    // a sliver inside it. An axis no ancestor clips is not judged, so a thin image stays shown.
+    return (clipX && Math.min(box.right, right) - Math.max(box.left, left) < 1)
+      || (clipY && Math.min(box.bottom, bottom) - Math.max(box.top, top) < 1);
+  };
+  // Hidden: by opacity 0 on it or an ancestor, an ancestor's content-visibility, its own
+  // visibility, or clipping. A pseudo-element is judged by its own style and its host: the nearest
+  // host with a box (a display: contents host has none, yet draws its pseudo-elements), and the
+  // host's clip result unless the pseudo-element is positioned out of the host's flow.
+  const hiddenOf = (el: Element, pseudo?: CSSStyleDeclaration) => {
+    if (!pseudo) return !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) || clippedAway(el, el.getBoundingClientRect());
+    let host: Element | null = el;
+    while (host && getComputedStyle(host).display === 'contents') host = host.parentElement;
+    if (pseudo.visibility !== 'visible' || parseFloat(pseudo.opacity) === 0 || !host?.checkVisibility({ opacityProperty: true })) return true;
+    const box = el.getBoundingClientRect();
+    return !/^(absolute|fixed)$/.test(pseudo.position) && box.width > 0 && box.height > 0 && clippedAway(el, box);
+  };
   for (const img of Array.from(document.images)) {
     if (!img.currentSrc) continue;
     const r = img.getBoundingClientRect();
     const cs = getComputedStyle(img);
-    out.push({ url: abs(img.currentSrc), kind: 'fit', w: r.width, h: r.height, size: cs.objectFit, hidden: cs.visibility !== 'visible' });
+    out.push({ url: abs(img.currentSrc), kind: 'fit', w: r.width, h: r.height, size: cs.objectFit, hidden: hiddenOf(img) });
   }
   for (const v of Array.from(document.querySelectorAll('video[poster]'))) {
     const r = v.getBoundingClientRect();
     const cs = getComputedStyle(v);
-    out.push({ url: abs(v.getAttribute('poster')!), kind: 'fit', w: r.width, h: r.height, size: cs.objectFit, hidden: cs.visibility !== 'visible' });
+    out.push({ url: abs(v.getAttribute('poster')!), kind: 'fit', w: r.width, h: r.height, size: cs.objectFit, hidden: hiddenOf(v) });
   }
   for (const el of els) {
     for (const pseudo of [null, '::before', '::after']) {
@@ -90,7 +146,9 @@ function usersNow(): User[] {
       const grow = pseudo && cs.boxSizing === 'content-box';
       const w = pseudo && cs.width.endsWith('px') ? parseFloat(cs.width) + (grow ? bx + padX : 0) : host.width;
       const h = pseudo && cs.height.endsWith('px') ? parseFloat(cs.height) + (grow ? by + padY : 0) : host.height;
-      const hidden = cs.visibility !== 'visible';
+      // Worked out once, and only for an element that uses an image.
+      let memo: boolean | undefined;
+      const hidden = () => (memo ??= hiddenOf(el, pseudo ? cs : undefined));
       // The box a layer's % sizes refer to, from its background-origin or mask-origin.
       const area = (origin: string) => origin === 'border-box' ? [w, h]
         : origin === 'content-box' ? [w - bx - padX, h - by - padY] : [w - bx, h - by];
@@ -101,16 +159,16 @@ function usersNow(): User[] {
         const origins = split(cs.getPropertyValue(origin), ',');
         split(cs.getPropertyValue(images), ',').forEach((layer, i) => {
           const [aw, ah] = area(origins[i % origins.length] ?? '');
-          for (const url of urls(layer)) out.push({ url, kind: 'bg', w: aw, h: ah, size: inPx(sizes[i % sizes.length] ?? '', aw, ah), hidden });
+          for (const url of urls(layer)) out.push({ url, kind: 'bg', w: aw, h: ah, size: inPx(sizes[i % sizes.length] ?? '', aw, ah), hidden: hidden() });
         });
       }
       // A list marker and a pseudo-element's content image are drawn at the file's own size; an
       // element's own content image fills its box like an <img>.
       for (const [prop, size] of [['list-style-image', 'own'], ['content', pseudo ? 'own' : 'fill']]) {
-        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'fit', w, h, size, hidden });
+        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'fit', w, h, size, hidden: hidden() });
       }
       for (const prop of ['border-image-source', 'cursor', 'shape-outside']) {
-        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'named', w, h, size: prop, hidden });
+        for (const url of urls(cs.getPropertyValue(prop))) out.push({ url, kind: 'named', w, h, size: prop, hidden: hidden() });
       }
     }
   }
@@ -232,7 +290,7 @@ for (const path of PAGES) {
           problems.push(`${name} is ${fw}px wide, shown at ${Math.round(shown)}px: a 3x phone uses at most ${Math.round(limit)}px; a copy that wide saves an estimated ${Math.round(saving / 1024)} KB`);
         }
       }
-      console.log(`phone images — ${path}: ${judged} judged by width${small.length ? `; hidden and under 4 KiB: ${small.join(', ')}` : ''}${named.length ? `; not judged: ${named.join(', ')}` : ''}`);
+      console.log(`phone images — ${path}: ${judged} judged by width${small.length ? `; hidden and under 4 KiB: ${small.sort().join(', ')}` : ''}${named.length ? `; not judged: ${named.sort().join(', ')}` : ''}`);
       expect(problems, 'make a smaller copy (and a srcset) or fix the preload; website-qa "Performance" has the fixes').toEqual([]);
     } finally {
       await context.close();
