@@ -32,6 +32,7 @@ SUBJECTS=(
   scripts/check_template_coverage.sh
   scripts/test_template_coverage.sh
   scripts/check_buglog_rows.sh
+  scripts/check_package_scripts.sh
   scripts/check_node_floor.sh
   scripts/check_skill_budgets.sh
   scripts/check_pipefail_pipes.sh
@@ -61,6 +62,7 @@ NOT_RUN=(
   scripts/test_served_build.sh                                  # needs the starter's packages and runs Playwright
   scripts/test_node_floor.sh                                    # builds throwaway copies and runs npm; needs node
   scripts/test_buglog_rows.sh                                   # builds throwaway repos; needs git
+  scripts/test_check_package_scripts.sh                         # builds throwaway copies of scripts/
   scripts/check_cdpath_safe.sh                                  # this file
   scripts/build_directory_tree.sh                               # reads git history; needs a clone (the plugin tests run it)
   scripts/publish_directory.sh                                  # pushes the branch directory to origin

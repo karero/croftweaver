@@ -10,7 +10,10 @@ name: clean
 # whats-new.sh's TEMPLATE_TRACKED/SITE_OWNED buckets or check_template_coverage.sh's own
 # SITE_SOURCE bucket (see scripts/check_template_coverage.sh) — landing in SITE_SOURCE is
 # a deliberate, reviewed "not drift-tracked" decision, not a pass-through for anything
-# unclassified — if the starter's Node floor drifts from Astro's (its engines inside Astro's range, the
+# unclassified — if a shell script under scripts/ is missing from package.sh's zip -r line or
+# REQUIRED, or dropped by one of its -x patterns, so the guards would name it inside the
+# unzipped zip but the zip would lack it (see scripts/check_package_scripts.sh and its test) —
+# if the starter's Node floor drifts from Astro's (its engines inside Astro's range, the
 # lockfile and the docs' phrases agreeing, the set of Node lines pinned: see scripts/check_node_floor.sh and
 # its test), or if a skill's frontmatter description exceeds the skill-spec hard
 # limit: limit values, the shrink-only allowlist for pre-existing overages, and the
@@ -154,6 +157,14 @@ jobs:
         run: bash scripts/check_template_coverage.sh
       - name: Check the guard fails on a template file left out of every bucket
         run: bash scripts/test_template_coverage.sh
+  package-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check every shell script under scripts/ ships in the handoff zip
+        run: bash scripts/check_package_scripts.sh
+      - name: Check the guard fails on a script left out of package.sh
+        run: bash scripts/test_check_package_scripts.sh
   node-floor:
     runs-on: ubuntu-latest
     env:
