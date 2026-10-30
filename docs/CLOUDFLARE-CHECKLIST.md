@@ -261,12 +261,15 @@ cookies, scripts or tracking you didn't choose.
   **Block on pages with ads** on Training also apply to crawlers that serve both search and
   training, Googlebot, Bingbot and Applebot among them, "so either setting impacts search
   as well as training" ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)).
-  To refuse training and stay in search, choose **Disallow** for Training (Cloudflare's blog
-  calls it Disallow AI Training) and turn **Bot Preference Sync** on (below): Cloudflare says
-  it then keeps the other training crawlers out and publishes a no-training preference in
-  `robots.txt`. Bing does not read that preference yet: Microsoft's support is "targeted
+  To refuse training and stay in Google, Bing and Apple search, choose **Disallow** for
+  Training (Cloudflare's blog calls it Disallow AI Training) and turn **Bot Preference Sync**
+  on (below). Cloudflare says Disallow keeps the other training crawlers out, and Sync
+  publishes a no-training preference in `robots.txt`; the kit has not tested how crawlers
+  are treated under either. That file also shuts out two smaller search engines, Baidu and
+  Petal (below). Bing does not read the preference yet: Microsoft's support is "targeted
   for early 2027", Cloudflare says, and until then it points to Bing's `NOARCHIVE` meta tag
-  for a training preference. Google's separate training switch, Google-Extended, is among
+  for a training preference (what Bing does with that tag is Microsoft's to say; we have not
+  checked Microsoft's pages). Google's separate training switch, Google-Extended, is among
   the crawlers that file shuts out. The setup script warns when it finds Training on Block
   or Block on pages with ads, and says how to keep Disallow and when Sync is off.
   For new domains, Cloudflare recommends Allow for all three with Bot Preference Sync on,
@@ -282,7 +285,7 @@ cookies, scripts or tracking you didn't choose.
     you have none. The file the kit made already says who may read your site. Choosing
     Disallow does not turn this switch on: on a spare domain (30 October 2026), Training on
     Disallow with the switch off left `robots.txt` as it was. With it on, Cloudflare added
-    `Content-Signal: search=yes,ai-train=no,use=reference` for every crawler and
+    `Content-Signal: search=yes,ai-train=no,use=reference` under `User-agent: *` and
     `Disallow: /` for about thirty training crawlers, among them GPTBot, ClaudeBot, CCBot,
     Google-Extended and Applebot-Extended, and also Baiduspider and PetalBot, the crawlers
     of Baidu's and Huawei's Petal search. Googlebot, Bingbot and Applebot were not named. So

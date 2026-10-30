@@ -112,8 +112,9 @@ block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has
   Cloudflare says, **Block** and **Block on pages with ads** on Training also keep out
   Googlebot, Bingbot and Applebot, "so either setting impacts search as well as training"
   ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)). To refuse
-  AI training and stay in search, choose **Disallow** for Training instead and turn Bot
-  Preference Sync on (next bullet). That is the training choice `ai-seo` describes (Step 4).
+  AI training and stay in Google, Bing and Apple search, choose **Disallow** for Training
+  instead and turn Bot Preference Sync on (next bullet); the file Sync writes also shuts out
+  Baiduspider and PetalBot, the crawlers of Baidu's and Huawei's Petal search. That is the training choice `ai-seo` describes (Step 4).
   Bing does not read the no-training preference yet; Cloudflare says Microsoft's support is
   "targeted for early 2027".
 - **Enable Bot Preference Sync → off**, unless you chose Disallow for Training. With it on,

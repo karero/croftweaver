@@ -78,9 +78,9 @@ const AI_FIELDS = {
   ai_training: { label: 'Training', values: { disabled: 'Allow (do not block)', block: 'Block', only_on_ad_pages: 'Block on pages with ads', disallow: 'Disallow' } },
   ai_search: { label: 'Search', values: { disabled: 'Allow (do not block)', block: 'Block', only_on_ad_pages: 'Block on pages with ads' } },
   ai_user: { label: 'Agent', values: { disabled: 'Allow (do not block)', block: 'Block', only_on_ad_pages: 'Block on pages with ads' } },
-  ai_bots_protection: { label: 'The older Block AI bots setting (no longer shown in the dashboard)', values: { disabled: 'disabled', block: 'block' } },
+  ai_bots_protection: { label: 'The older Block AI bots setting', values: { disabled: 'disabled', block: 'block' } },
 };
-const stayInSearch = (skipping) => `To refuse AI training and stay in search, choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too (choosing Disallow does not turn it on), and ${skipping ? 'keep running this with' : 'run this with'} --skip ai.`;
+const stayInSearch = (skipping) => `To refuse AI training and stay in Google, Bing and Apple search, choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too (choosing Disallow does not turn it on), and ${skipping ? 'keep running this with' : 'run this with'} --skip ai.`;
 const STAY_IN_SEARCH = stayInSearch(false);
 
 // The notes on what the AI bot policies mean for search, from the `ai` line's values read at the

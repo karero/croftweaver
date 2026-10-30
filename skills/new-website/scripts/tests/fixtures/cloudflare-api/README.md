@@ -65,6 +65,6 @@ item's latest and canonical deployment set to null: they hold another site's his
 | Each dashboard choice of the AI bot policies, as Bot Management reads it: Allow (do not block) is `"disabled"`, Block `"block"`, Block on pages with ads `"only_on_ad_pages"` in Training, Search and Agent; Disallow (Training only) `"disallow"`; choosing Disallow leaves Bot Preference Sync off; with Sync on, `robots.txt` gains Cloudflare's lines | T3-001 to T3-013, T3-006-c5b-robots.txt. With Sync off (C4, C5, C6) the site's own five lines were served unchanged; those reads held nothing but the site's file and are not committed |
 
 T1-102, the zone's list of records on launch day, is not here: it is the live zone's mail and
-other records. `clean-captures.mjs` takes the captures in two batches, the setup stage's and
-then the launch stage's, and gives the second its made-up ids after the first, so adding it left
-the first batch's files as they were.
+other records. `clean-captures.mjs` takes the captures in batches, the setup stage's, then the launch
+stage's, then the third trial's, and gives each its made-up ids after those before it, so
+adding one left the earlier files as they were.

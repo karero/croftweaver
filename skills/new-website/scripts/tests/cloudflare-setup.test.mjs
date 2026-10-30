@@ -746,14 +746,14 @@ test('S9: Allow everywhere, as captured or as the kit leaves it, gives no note i
 test('S1 and S3: Training on Block: the ask warns that Google, Bing and Apple go too; the report says it is now Allow; code, PUT and exit as without the note', async () => {
   const blocked = await aiRun(botOf(AI.block));
   const plain = await aiRun(botOf(AI.searchBlock)); // the same change to the ai line, with no note in the ask
-  assert.match(blocked.ask.out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. If you say yes, it becomes Allow \(do not block\)\. To refuse AI training and stay in search, choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too \(choosing Disallow does not turn it on\), and run this with --skip ai\./);
+  assert.match(blocked.ask.out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. If you say yes, it becomes Allow \(do not block\)\. To refuse AI training and stay in Google, Bing and Apple search, choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too \(choosing Disallow does not turn it on\), and run this with --skip ai\./);
   assert.doesNotMatch(plain.ask.out, NOTE);
   const [a, b] = await twoCodes(botOf(AI.block), botOf(AI.searchBlock));
   assert.equal(a, b);
   assert.equal(blocked.ask.code, plain.ask.code);
   assert.equal(blocked.put.body.ai_training, 'disabled');
   assert.deepEqual({ ...blocked.put.body, ai_training: 'x' }, { ...plain.put.body, ai_training: 'x' });
-  assert.match(blocked.done.out, /Training was Block and is now Allow \(do not block\)\. To refuse AI training and stay in search/);
+  assert.match(blocked.done.out, /Training was Block and is now Allow \(do not block\)\. To refuse AI training and stay in Google, Bing and Apple search/);
   assert.doesNotMatch(blocked.done.out, /Training is set to/);
   assert.equal(blocked.done.code, plain.done.code);
 });
@@ -774,7 +774,7 @@ test('S4: Training on Block with --skip ai: the warning says this run leaves it;
   const skip = ['--skip', 'ai'];
   const blocked = await aiRun(botOf(AI.block), skip);
   const allowed = await aiRun(botOf(AI.allow), skip);
-  for (const out of [blocked.ask.out, blocked.done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run leaves it as it is\. To refuse AI training and stay in search, .*and keep running this with --skip ai\./);
+  for (const out of [blocked.ask.out, blocked.done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run leaves it as it is\. To refuse AI training and stay in Google, Bing and Apple search, .*and keep running this with --skip ai\./);
   const [a, b] = await twoCodes(botOf(AI.block), botOf(AI.allow), skip);
   assert.equal(a, b);
   assert.equal(blocked.ask.code, allowed.ask.code);
@@ -786,7 +786,7 @@ test('S5a: the zone\'s records could not be read: Training is not written, and t
   await scenario(freshState({ bot: botOf(AI.block), refuse: { 'GET dns': 403 } }), async ({ api, go }) => {
     const ask = await go();
     const done = await go(['--confirm', codeOf(ask)]);
-    for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. The zone's records could not be read, so this run did not change it\. To refuse AI training and stay in search, .*and run this with --skip ai\./);
+    for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. The zone's records could not be read, so this run did not change it\. To refuse AI training and stay in Google, Bing and Apple search, .*and run this with --skip ai\./);
     assert.ok(!api.writes().some((e) => e.method === 'PUT'), 'Bot Management is not written');
     assert.ok(api.writes().length > 0, 'the yes wrote something else, the case "nothing was written" got wrong');
   });
@@ -797,7 +797,7 @@ test('S5a: the zone\'s records could not be read: Training is not written, and t
 });
 
 test('S5b: a change Cloudflare did not confirm names what Training read before the run, and claims nothing about now', async () => {
-  const unconfirmed = /Training read Block before this run; Cloudflare did not confirm the change, so look at it in the dashboard: .*Configure AI bot policies\.\n.*To refuse AI training and stay in search/;
+  const unconfirmed = /Training read Block before this run; Cloudflare did not confirm the change, so look at it in the dashboard: .*Configure AI bot policies\.\n.*To refuse AI training and stay in Google, Bing and Apple search/;
   const cases = {
     'a refused PUT': (s) => { s.refuse['PUT bot'] = 403; },
     'a 502 to the PUT': (s) => { s.refuse['PUT bot'] = 502; },
@@ -837,7 +837,7 @@ test('S8: Search, Agent or the older switch left as they are: one note each; in 
   const agent = await aiRun(botOf(AI.agentAdsBlock), ['--skip', 'ai']);
   assert.match(agent.ask.out, /Agent is set to Block on pages with ads, and this run leaves it as it is/);
   const older = await aiRun(fixture('T2-016').response.result, ['--skip', 'ai']);
-  assert.match(older.ask.out, /The older Block AI bots setting \(no longer shown in the dashboard\) is set to block, and this run leaves it as it is/);
+  assert.match(older.ask.out, /The older Block AI bots setting is set to block, and this run leaves it as it is/);
   assert.match(older.ask.out, /Bot Preference Sync is off, so Disallow writes no/);
   const listed = await aiRun(botOf(AI.searchBlock));
   assert.match(listed.ask.out, /ai_search block → disabled/);

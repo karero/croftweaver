@@ -19,9 +19,9 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-// The captures committed, by trial and number, in two batches: those the setup stage's tests use,
+// The captures committed, by trial and number, in three batches: those the setup stage's tests use,
 // then those the launch stage's add (attaching a domain, its statuses, the host's record and its
-// comment). Made-up ids are given batch by batch, so a later batch leaves the earlier files as they
+// comment), then the third trial's, which only --add reads. Made-up ids are given batch by batch, so a later batch leaves the earlier files as they
 // were. `excerpt` keeps part of a long list.
 const SELECTION = [
   {
