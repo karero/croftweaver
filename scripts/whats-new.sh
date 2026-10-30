@@ -463,6 +463,12 @@ CHANGED
     echo "multilingual sites, mail-form.spec.ts with a contact form), so merge the helpers together"
     echo "with any spec that uses the new exports, or the import breaks loudly."
   fi
+  # A spec can import site files the site never had (src/lib, functions/): say how to check first.
+  if grep -q 'templates/astro/tests/.*\.spec\.ts$' <<<"$changed"; then
+    echo "NOTE: a spec may import site files (from '../…') this site lacks. Before taking a spec,"
+    echo "check the site has each file it imports; this lists the imports of every template spec:"
+    echo "  grep -rn --include='*.spec.ts' \"from .\\.\\./\" \"$REPO_DIR/skills/new-website/templates/astro/tests\""
+  fi
   echo "When the site's copies are current again, advance the baseline:"
   echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
   return 2
