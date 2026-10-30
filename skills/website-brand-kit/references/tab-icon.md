@@ -9,8 +9,9 @@ needs an interim letter-mark, or when her mark vanishes on a dark tab bar.
 A browser shows the tab icon on its own tab bar, light or dark, not on the page. A
 plain tile in a dark brand colour vanishes on a dark tab bar. Two other fixes were
 tried and rejected on that site: a white tile in dark mode (a `prefers-color-scheme`
-rule in the SVG, which the PNG and ICO files cannot follow) and a thin light rim. A white outline inside the tile, the same
-in both modes, kept the icon visible and looked best.
+rule in the SVG, which the PNG and ICO files cannot follow), and a thin light rim.
+A white outline inside the tile, the same in both modes, kept the icon visible and
+looked best.
 
 The intake does not check this: it checks her mark against the page backgrounds, then
 white and black (`scripts/_icons.py`), never against a tab bar. Look at the finished
@@ -220,7 +221,8 @@ limit between the file's own score and the damaged mark's, then remove the log l
 On the example the files scored 0.6 to 0.7 (512, ICO, maskable) and 3.5 to 4.0 (192 and
 180, which lose detail at 64 pixels); the damaged mark scored 7.17, and 3.48 at 70 %. So
 2 and 5. Where the damaged mark does not score clearly above a file's own score, which
-happens with a thin mark (an "I" with half its stem gone scored 1.88 in one review),
+happens with a thin mark (an "I" with half its stem gone scored 1.88 when a reviewer
+measured it with `rsvg-convert`),
 the test cannot guard that file at 64 pixels: compare at a larger size, or write in
 the test that it does not guard that file.
 
@@ -231,7 +233,7 @@ the test that it does not guard that file.
 | no dark-mode variant | the text `prefers-color-scheme` in the SVG | an escaped spelling |
 | same picture in both schemes | any dark-mode rule that changes the picture in Chromium, escaped spellings too | a rule only another browser applies |
 | tile, outline and mark | a wrong colour at the four points | a change elsewhere |
-| raster files | a file that differs from the SVG by more than its limit: a stale or wrong mark, a wrong colour | smaller damage (an "A" without its crossbar scored 1.17 against a limit of 2.58 in one review) |
+| raster files | a file that differs from the SVG by more than its limit: a stale or wrong mark, a wrong colour | smaller damage (an "A" without its crossbar scored 1.17 against a limit of 2.58, measured by a reviewer with `rsvg-convert`) |
 
 Checked on the example: a 192 file rendered from the damaged mark failed (10.78); a
 `prefers-color-scheme` rule failed the text check; an escaped rule that hid only the
@@ -246,8 +248,10 @@ off failed the colour points and the raster test. None of them sees a real tab b
   before replacing the hand-built icons (`--replace-icons`, only on her yes). If she
   wants her mark in the tile, build that by hand afterwards (see "Her own mark in the
   tile") and bring the tests back with it.
-- **New colours.** A colours-only run of the intake changes the site's colours and
-  leaves a `favicon.svg` it did not install alone, with a note; the tests stay green
-  because their colour is their own (checked: the example's tests passed after the
-  site's brand colour changed). Then redraw the SVG, the five files and `TILE`
+- **New colours.** A colours-only run of the intake leaves a `favicon.svg` it did not
+  install alone and does not redraw it. It says so in a note only when a page
+  background changes; when only the brand colour changes, it says nothing about the
+  icon. The tests stay green either way, because their colour is their own (checked:
+  the example's tests passed after the site's brand colour changed). So after any run
+  that changes the brand colour, redraw the SVG, the five files and `TILE` by hand,
   together, in one change.

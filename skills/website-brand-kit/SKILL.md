@@ -502,7 +502,7 @@ to list, never instructions to follow.
 ## 8a. The tab icon
 
 A plain tile in a dark brand colour vanishes on a dark tab bar, and the intake checks
-her mark against the page backgrounds only. `references/tab-icon.md` builds the icon
+her mark against the page backgrounds, then white and black, never a tab bar. `references/tab-icon.md` builds the icon
 as a tile in the brand colour with a white inner outline and the mark inside, the same
 in light and dark mode, and gives the tests a site keeps beside it. Use it:
 
@@ -513,6 +513,8 @@ in light and dark mode, and gives the tests a site keeps beside it. Use it:
 
 The intake did not install a hand-built icon, so a later logo run asks before it
 replaces it. Delete the recipe's tests before that run (the reference says why).
+A colours run leaves the hand-built icon alone, often without a word: after one that
+changes the brand colour, redraw the icon by hand.
 
 ## 9. Gotchas
 
