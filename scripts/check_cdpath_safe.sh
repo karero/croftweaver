@@ -58,6 +58,7 @@ NOT_RUN=(
   scripts/test_git_stand_hook.sh                                # builds throwaway repos; needs git and node
   scripts/test_whats_new.sh                                     # builds a throwaway suite repo and site; needs git
   scripts/test_mktemp_guard.sh                                  # runs other scripts with mktemp stubbed to fail
+  scripts/test_served_build.sh                                  # needs the starter's packages and runs Playwright
   scripts/test_node_floor.sh                                    # builds throwaway copies and runs npm; needs node
   scripts/test_buglog_rows.sh                                   # builds throwaway repos; needs git
   scripts/check_cdpath_safe.sh                                  # this file
