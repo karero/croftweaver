@@ -911,8 +911,7 @@ jobs:
   # tests/phone-images.spec.ts ships in the starter, which renders no raster image, so the
   # starter suite alone proves nothing about it. This job adds a block of generated noise WebP
   # images to the home page (noise, so an oversized file is well over the 4 KiB floor; flat ones
-  # stay under it) holding
-  # every case the test must pass, runs the test and the whole suite, then makes one mistake
+  # stay under it) holding every case the test must pass, runs the test and the whole suite, then makes one mistake
   # at a time and checks that this test, and only this test, turns red and says why.
   phone-images-test:
     needs: changes
@@ -938,6 +937,7 @@ jobs:
           const flat = (name, w, h) => sharp({ create: { width: w, height: h, channels: 3, background: '#4a6' } }).webp({ quality: 80 }).toFile('public/fx/' + name);
           for (const n of ['right', 'swap', 'zero', 'layer1', 'layer2', 'desk', 'orphan', 'ghost', 'paren(1)', 'set1', 'set2', 'vis', 'calc', 'sd', 'none', 'mask', 'poster', 'border', 'fade', 'track', 'scroll', 'esc', 'dc', 'inl', 'cb', 'thin']) await noise(n + '.webp', 600, 400);
           await noise('list.webp', 40, 40);
+          await noise('pin.webp', 120, 80);
           await noise('big.webp', 2000, 1333);
           await noise('cover.webp', 1200, 800);
           await noise('tile.webp', 2000, 2000);
@@ -950,6 +950,7 @@ jobs:
           # The small files must stay under the floor, or the cases that use them prove nothing.
           for f in flat hidden wait off; do [ "$(wc -c < "public/fx/$f.webp")" -lt 4096 ] || { echo "::error::$f.webp is not under 4 KiB"; exit 1; }; done
           [ "$(wc -c < public/fx/zero.webp)" -gt 4096 ] || { echo "::error::zero.webp is not over 4 KiB"; exit 1; }
+          [ "$(wc -c < public/fx/pin.webp)" -gt 4096 ] || { echo "::error::pin.webp is not over 4 KiB"; exit 1; }
           [ "$(wc -c < public/fx/big.webp)" -gt 100000 ] || { echo "::error::big.webp is too small to be over the floor"; exit 1; }
           # The green page, one block before </Base>: every case the test must pass. The page is long
           # (smooth scrolling must not leave the end unseen) and grows 400 ms after its end is reached.
@@ -975,7 +976,7 @@ jobs:
               .fx-gallery { width: 200px; overflow-x: auto; }
               .fx-track > div, .fx-gallery > div { display: flex; width: 400px; }
               .fx-track img, .fx-gallery img, .fx-gallery span { flex: none; width: 200px; height: auto; }
-              .fx-shut { overflow: hidden; height: 0; }
+              .fx-shut, .fx-pin { overflow: hidden; height: 0; }
               .fx-dc { display: contents; }
               .fx-dc::before { content: ""; display: block; width: 200px; height: 133px; background: url(/fx/dc.webp) center / 100% auto no-repeat; }
               .fx-clipbox { width: 200px; overflow: clip; }
@@ -1005,9 +1006,10 @@ jobs:
               <div class="fx-gallery" tabindex="0" role="region" aria-label="Gallery"><div><span></span><img src="/fx/scroll.webp" alt="" width="600" height="400" loading="eager" /></div></div>
               <div style="position: relative"><div class="fx-shut"><img src="/fx/esc.webp" alt="" width="600" height="400" loading="eager" style="position: absolute; top: 0; left: 0; width: 200px; height: auto" /></div></div>
               <div class="fx-dc"></div>
-              <p><span style="overflow: hidden"><img src="/fx/inl.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" /></span></p>
+              <p><span style="overflow: hidden; font-size: 0"><img src="/fx/inl.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: auto" /></span></p>
               <div class="fx-clipbox"><div class="fx-cb"></div></div>
-              <img src="/fx/thin.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 0.5px; object-fit: cover" />
+              <div style="overflow: hidden"><img src="/fx/thin.webp" alt="" width="600" height="400" loading="eager" style="width: 200px; height: 0.5px; object-fit: cover" /></div>
+              <div class="fx-pin"><img src="/fx/pin.webp" alt="" width="120" height="80" loading="eager" style="position: fixed; left: 0; bottom: 0; width: 40px; height: auto" /></div>
               <div class="fx-spacer"></div>
               <img id="fx-low" src="/fx/right.webp" alt="" width="600" height="400" loading="lazy" style="width: 200px; height: auto" />
             </section>
@@ -1035,12 +1037,13 @@ jobs:
           out="$(CI= npx playwright test tests/phone-images.spec.ts --reporter=line 2>&1)" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the green page failed phone-images.spec.ts"; exit 1; }
           line="$(grep -F 'phone images — /:' <<<"$out")" || { printf '%s\n' "$out" | tail -n 40; echo "::error::the home page printed no count"; exit 1; }
           printf '%s\n' "$line"
-          # 24 files judged by width on / (calc, scale-down, none, mask, list marker, poster, a fade
-          # carousel's showing slide, a scroll gallery, a box escaping a clip, pseudo-elements of a
-          # display: contents host and in a clip box, and an unclipped image 0.5px tall among them); the three small hidden ones (by
+          # 25 files judged by width on / (calc, scale-down, none, mask, list marker, poster, a fade
+          # carousel's showing slide, a scroll gallery, an absolute and a fixed box escaping a clip,
+          # pseudo-elements of a display: contents host and in a clip box, an image in an inline
+          # clipper, and an image 0.5px tall inside a clip box among them); the three small hidden ones (by
           # size, a fade carousel's waiting slide, a slide clipped by its track) and the border image
           # named, and nothing else.
-          [[ $line == *'phone images — /: 24 judged by width; hidden and under 4 KiB: /fx/hidden.webp, /fx/off.webp, /fx/wait.webp; not judged: /fx/border.webp (border-image-source)' ]] || { echo "::error::expected 24 judged by width on /, hidden.webp, off.webp and wait.webp under 4 KiB and border.webp not judged, nothing else"; exit 1; }
+          [[ $line == *'phone images — /: 25 judged by width; hidden and under 4 KiB: /fx/hidden.webp, /fx/off.webp, /fx/wait.webp; not judged: /fx/border.webp (border-image-source)' ]] || { echo "::error::expected 25 judged by width on /, hidden.webp, off.webp and wait.webp under 4 KiB and border.webp not judged, nothing else"; exit 1; }
           npm test
       - name: Each mistake turns this test red
         working-directory: ${{ runner.temp }}/site
@@ -1079,8 +1082,12 @@ jobs:
           red "a fade carousel's waiting slide over the floor, hidden by its slide's opacity" "/fx/zero.webp is downloaded but hidden at 412px"
           edit 's|src="/fx/off.webp"|src="/fx/zero.webp"|' '<img src="/fx/zero.webp" alt="" width="600" height="400" loading="eager" /></div></div>'
           red "a slide over the floor, clipped out of sight by its track" "/fx/zero.webp is downloaded but hidden at 412px"
-          edit 's|\.fx-shut \{ overflow: hidden; height: 0; \}|.fx-shut { overflow: hidden; height: 0; position: relative; }|' '.fx-shut { overflow: hidden; height: 0; position: relative; }'
+          edit 's|\.fx-shut, \.fx-pin \{|.fx-shut { position: relative; }\n              .fx-shut, .fx-pin {|' '.fx-shut { position: relative; }'
           red "an absolute image whose containing block is the clip box" "/fx/esc.webp is downloaded but hidden at 412px"
+          edit 's|\.fx-shut, \.fx-pin \{|.fx-shut { transform: translateX(0); }\n              .fx-shut, .fx-pin {|' '.fx-shut { transform: translateX(0); }'
+          red "an absolute image whose transformed clip box is its containing block" "/fx/esc.webp is downloaded but hidden at 412px"
+          edit 's|\.fx-shut, \.fx-pin \{|.fx-pin { transform: translateX(0); }\n              .fx-shut, .fx-pin {|' '.fx-pin { transform: translateX(0); }'
+          red "a fixed image whose transformed clip box is its containing block" "/fx/pin.webp is downloaded but hidden at 412px"
           edit 's|\.fx-dc::before \{ content|.fx-dc::before { opacity: 0; content|' '.fx-dc::before { opacity: 0; content'
           red "a pseudo-element hidden by its own opacity" "/fx/dc.webp is downloaded but hidden at 412px"
           edit 's|\.fx-clipbox \{ width: 200px; overflow: clip; \}|.fx-clipbox { width: 200px; height: 0; overflow: clip; }|' '.fx-clipbox { width: 200px; height: 0; overflow: clip; }'

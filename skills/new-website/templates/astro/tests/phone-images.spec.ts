@@ -82,18 +82,25 @@ function usersNow(): User[] {
   if (!shownAt1) throw new Error('the opacity probe is hidden at opacity 1: site CSS on the body, or an !important rule on a plain div');
   if (shownAt0) throw new Error('this browser\'s checkVisibility does not read opacity; update Playwright');
   // Clipped away: ancestors whose overflow is hidden or clip leave none of `box` showing. The
-  // walk stops below the body, whose overflow goes to the viewport; an absolute box is clipped
-  // only from its containing block (offsetParent) up, a fixed one not at all. Each clip is taken
-  // as the ancestor's border box: its rect shares the element's (transformed) coordinates.
+  // walk stops below the body, whose overflow goes to the viewport. An absolute or fixed box is
+  // clipped only from its containing block up: for absolute the nearest positioned or transformed
+  // ancestor, for fixed the nearest transformed one (none: not clipped). Each clip is taken as the
+  // ancestor's border box: its rect shares the element's (transformed) coordinates.
   const NO_OVERFLOW = /^(inline|contents|table-row|table-row-group|table-header-group|table-footer-group|table-column|table-column-group)$/;
   const CLIPS = /^(hidden|clip)$/;
+  // undefined: in flow; null: no ancestor below the body contains it.
+  const blockOf = (e: Element) => {
+    const p = getComputedStyle(e).position;
+    if (p !== 'absolute' && p !== 'fixed') return undefined;
+    for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) {
+      const cs = getComputedStyle(a);
+      if (cs.transform !== 'none' || (p === 'absolute' && cs.position !== 'static')) return a;
+    }
+    return null;
+  };
   const clippedAway = (el: Element, box: DOMRect) => {
-    let left = -Infinity, right = Infinity, top = -Infinity, bottom = Infinity, clipX = false, clipY = false;
-    const outOfFlow = (e: Element) => {
-      const p = getComputedStyle(e).position;
-      return p === 'fixed' ? null : p === 'absolute' ? (e as HTMLElement).offsetParent ?? null : undefined;
-    };
-    let skipTo = outOfFlow(el);   // undefined: in flow; null: not clipped by any ancestor
+    let left = -Infinity, right = Infinity, top = -Infinity, bottom = Infinity;
+    let skipTo = blockOf(el);
     for (let a = el.parentElement; skipTo !== null && a && a !== document.body; a = a.parentElement) {
       if (skipTo) { if (a !== skipTo) continue; skipTo = undefined; }
       const cs = getComputedStyle(a);
@@ -101,15 +108,16 @@ function usersNow(): User[] {
       const margin = (cs.overflowX === 'clip' || cs.overflowY === 'clip') && cs.getPropertyValue('overflow-clip-margin') !== '0px';
       if (!NO_OVERFLOW.test(cs.display) && !margin) {
         const r = a.getBoundingClientRect();
-        if (CLIPS.test(cs.overflowX)) { clipX = true; left = Math.max(left, r.left); right = Math.min(right, r.right); }
-        if (CLIPS.test(cs.overflowY)) { clipY = true; top = Math.max(top, r.top); bottom = Math.min(bottom, r.bottom); }
+        if (CLIPS.test(cs.overflowX)) { left = Math.max(left, r.left); right = Math.min(right, r.right); }
+        if (CLIPS.test(cs.overflowY)) { top = Math.max(top, r.top); bottom = Math.min(bottom, r.bottom); }
       }
-      skipTo = outOfFlow(a);
+      skipTo = blockOf(a);
     }
-    // On a clipped axis, under 1px counts as none: fractional layout leaves a slide beside the clip
-    // a sliver inside it. An axis no ancestor clips is not judged, so a thin image stays shown.
-    return (clipX && Math.min(box.right, right) - Math.max(box.left, left) < 1)
-      || (clipY && Math.min(box.bottom, bottom) - Math.max(box.top, top) < 1);
+    // Hidden when the part left showing is under 1px, or under the box's own size where that is
+    // smaller: fractional layout leaves a slide beside the clip a sliver inside it, while an image
+    // under 1px tall that the clip leaves whole is still shown.
+    const shows = (from: number, to: number, lo: number, hi: number) => Math.min(to, hi) - Math.max(from, lo) >= Math.min(1, to - from);
+    return !shows(box.left, box.right, left, right) || !shows(box.top, box.bottom, top, bottom);
   };
   // Hidden: by opacity 0 on it or an ancestor, an ancestor's content-visibility, its own
   // visibility, or clipping. A pseudo-element is judged by its own style and its host: the nearest
