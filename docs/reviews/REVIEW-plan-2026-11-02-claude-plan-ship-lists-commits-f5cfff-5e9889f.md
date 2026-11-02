@@ -11,6 +11,7 @@ in rounds 1 to 3.
 |---|---|---|---|---|---|
 | 1 | `5e9889fb` | full plan; evidence `evidence-r1.md` (90,177 bytes: `ship.sh` whole, the test file's stub and harness, `whats-new.sh` line 80, three git READs) | Codex gpt-6.1-sol, config effort, read-only; melious FAILED (out of balance), so Codex alone by the owner's rule of 2026-10-27; fresh-eyes Opus 5.5 | Codex 205 s, 65,730 · fresh-eyes 319 s, 157,987 | 3 / 2 / 4 (Codex 2/1/1, fresh-eyes 2/3/3; A1 and A4 from both) |
 | 2 | `87e7f537` | full plan, verification of A1–A9; evidence `evidence-r2.md` (91,129 bytes: round 1's plus the pager and pull --no-rebase READs) | Codex gpt-6.1-sol, config effort; melious FAILED (out of balance), Codex alone; fresh-eyes Opus 5.5 | Codex 351 s, 89,937 · fresh-eyes 305 s, 150,832 | 1 / 3 / 5 (Codex 1/1/0, fresh-eyes 0/3/5 incl. 1 outside scope; B1 from both) |
+| 3 | `e01fe127` | full plan, verification of B1–B9; evidence `evidence-r2.md` | Codex gpt-6.1-sol, config effort; melious FAILED (out of balance), Codex alone; fresh-eyes Opus 5.5 | Codex 178 s, 69,058 · fresh-eyes 301 s, 144,124 | 3 / 2 / 2 (Codex 1/1/0, fresh-eyes 2/2/3; C1 and C2 from both) |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -34,5 +35,13 @@ in rounds 1 to 3.
 | B8 | NIT | fresh-eyes | 2 | "… and 4 more" is a bare number | fixed, locally_verified | `<live_n − 20>` |
 | B9 | NIT | fresh-eyes (outside scope) | 2 | "the merges above" may be cut off past 20 lines | fixed, locally_verified | "the merges in this range" |
 
+| C1 | BUG | Codex (BUG), fresh-eyes (NIT) | 3 | B5's reason is wrong: `push_once` names no expected value, so a production that moved forward inside `$id`'s history still fast-forwards | fixed, locally_verified | `ship.sh` 273–282 read; step 1 now says refused outside `$id`'s history, else goes through with the list naming the commits that went live meanwhile |
+| C2 | RISK | Codex, fresh-eyes | 3 | The stub's option loop (60–67) moves every `-c` into `$FAKE_DIR/settings`, so a `log` arm cannot see `-c log.showSignature=false` (B4 partly fixed) | fixed, locally_verified | the `log` arm refuses unless the last line of the settings file is `log.showSignature=false`; L4 stays the real-git check |
+| C3 | BUG | fresh-eyes | 3 | `prodfail` cannot catch its mutation: an empty `live_prod` makes the next read ask for `..$SHA`, the stub refuses it, and the run still ends with 0 pushes (B3 partly fixed) | fixed, locally_verified | fresh-eyes: `git rev-list --count "..$id"` printed 0, rc 0; `prodfail` now asserts no `rev-list` or `log` call |
+| C4 | BUG | fresh-eyes | 3 | `stopat-revlist` passes with the `stop_point` dropped: `on_exit` (302–305) prints the stop message on its own | fixed, locally_verified | `on_exit` read; the case also asserts no "couldn't list" line, as `stopverdict` does (check_ship_push.sh 555); mutation added |
+| C5 | RISK | fresh-eyes | 3 | L6's `git pull --no-rebase` opens an editor when the file runs in a terminal | fixed, locally_verified | fresh-eyes under `script`: "Waiting for your editor"; L6 uses `-q --no-rebase --no-edit` |
+| C6 | NIT | fresh-eyes | 3 | L4 names no mode; in worktree mode a decoration would show `refs/`, not `(HEAD` | fixed, locally_verified | L4 is worktree mode and also rejects `refs/` |
+| C7 | NIT | fresh-eyes | 3 | "List line" is undefined for L2's exact count and L4's checks | fixed, locally_verified | defined at the head of the real-git half: standard output, `^    [0-9a-f]{7} `, header to blank line |
+
 Follow-ups: UTF-8 C1 controls pass the `tr` (fresh-eyes, UNVERIFIABLE; listed under Not covered).
-Notes: rounds 1 and 2 melious out of balance; Codex alone counts by the owner's rule, no rerun owed.
+Notes: rounds 1 to 3 melious out of balance; one kind came back: a test guard that cannot fire (B1, B3 in round 2; C2, C3, C4 in round 3), so round 4 asks the seat to check every case against every mutation it is credited with; Codex alone counts by the owner's rule, no rerun owed.

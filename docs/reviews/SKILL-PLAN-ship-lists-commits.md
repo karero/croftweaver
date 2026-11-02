@@ -7,7 +7,7 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-02 | this file |
-| 2 | PLAN gate, High | rounds 1 and 2 done, all fixed; round 3 running | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
+| 2 | PLAN gate, High | rounds 1 to 3 done, all fixed; round 4 next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
 | 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | waits for the owner's go | — |
 | 4 | `PUBLISHING.md`: one sentence | waits for the owner's go | — |
 | 5 | `docs/BUGLOG.md`: the release-notes row | waits for the owner's go | — |
@@ -40,9 +40,11 @@ goes, then what stays.
    `ship` would hide that global from the functions it calls (round 1, both seats).
    - `live_prod="$(git rev-parse --verify 'origin/production^{commit}')"`: production read once,
      so the three reads below agree even if another session's fetch moves it meanwhile. The
-     divergence check at line 552 keeps its own read of the name, unchanged: if production moved
-     between the two, the push is refused as a race (the `raced` message), so only the list's
-     text could be off, for that one run.
+     divergence check at line 552 keeps its own read of the name, unchanged. If production moves
+     after these reads, the push (which names no expected value, `push_once`) is refused when the
+     new production is outside `$id`'s history, and otherwise still goes through as a fast-forward;
+     the list then also names the commits that went live meanwhile. Either way only that one run's
+     list text is off (round 3, both seats: an earlier draft said it is always refused).
    - `live_n="$(git rev-list --count --first-parent "$live_prod..$id")"`: how many lines.
    - `live_all="$(git rev-list --count "$live_prod..$id")"`: how many commits.
    - `live_lines="$(git -c log.showSignature=false log --first-parent --format='%h %s' -n 20 "$live_prod..$id")"`
@@ -117,18 +119,26 @@ values are written from each fixture's commit subjects and ids, never copied fro
   a swapped range is visible to the stub (round 2, both seats: with one id it was not).
 - new `rev-list` and `log` arms answer only the three exact invocations above, each on
   `$PROD..$SHA` (the two counts answer 0, the log nothing), and refuse anything else with exit 3,
-  as its `merge-base` arm does. So a swapped range, a dropped `--first-parent`, a range not
-  built from `live_prod`, or a dropped `-c log.showSignature=false` fails every case that reaches
-  them. Each call is logged.
+  as its `merge-base` arm does. The stub's option loop (lines 60–67) moves every `-c` into
+  `$FAKE_DIR/settings` before the arms see `$*`, so the `log` arm also refuses unless the last
+  line of that file is `log.showSignature=false` (round 3, both seats). So a swapped range, a
+  dropped `--first-parent`, a range not built from `live_prod`, or a dropped
+  `-c log.showSignature=false` fails every case that reaches them. Each call is logged.
 - every case that gets past the divergence check now prints "Nothing new goes live".
 - new `prodfail`, `countfail`, `allfail` and `logfail`: one read fails, the ones before it
   succeed; each exits 1 with 0 pushes and "couldn't list the commits" (rounds 1 and 2,
-  fresh-eyes: a read with no case of its own could fail unseen).
+  fresh-eyes: a read with no case of its own could fail unseen). `prodfail` also asserts that no
+  `rev-list` or `log` call was logged: with its failure let go, `live_prod` is empty, the next
+  read asks for `..$SHA`, the stub refuses it, and the run still ends with 0 pushes (round 3,
+  fresh-eyes).
 - new `stopat-revlist`: a terminate during the first count read; exit 1, 0 pushes, the stop
-  message.
+  message, and no "couldn't list the commits" line. Without the `stop_point` the EXIT trap still
+  prints the stop message (`on_exit`, `ship.sh` 302–304), so only that absent line tells the two
+  apart, as `stopverdict` does with its own text (round 3, fresh-eyes).
 - the existing diverged case also asserts 0 list calls.
 
-**Real-git half** (bare origin, clone, tiny gate, as today):
+**Real-git half** (bare origin, clone, tiny gate, as today). A list line is a line of standard
+output matching `^    [0-9a-f]{7} ` after the header, up to the next blank line:
 - S2 (worktree mode, main 2 ahead): the header `Going live, newest first (a merge is one line):`;
   `    <id7> change 2` on a line before `    <id7> change 1`; no "commits in all" line; the
   header before "Not published" and before "▶ pre-push gate".
@@ -142,25 +152,27 @@ values are written from each fixture's commit subjects and ids, never copied fro
   lines`; no "commits in all" line.
 - new L3: production already at main: "Nothing new goes live"; the gate still runs ("▶ pre-push
   gate" in the output); exits 0 on the LIVE line; production unchanged.
-- new L4: the clone sets `color.ui=always`, `log.decorate=full`, `format.pretty=fuller` and
+- new L4 (worktree mode): the clone sets `color.ui=always`, `log.decorate=full`, `format.pretty=fuller` and
   `log.showSignature=true`; one commit's subject holds `ESC[31m`, and another commit is signed
   with an ssh key the fixture makes with `ssh-keygen` (`-c gpg.format=ssh -c user.signingkey=…
   commit -S`). The ESC line is exactly `    <id7> evil [31mred[0m end`; no line of the list
-  holds an escape byte, `(HEAD` or `ignature`. Where `ssh-keygen` is missing or git is older than 2.34 (its first ssh signing), the signed commit
+  holds an escape byte, `(HEAD`, `refs/` or `ignature` (in worktree mode the clone's HEAD is
+  outside the range, so a decoration would show as `refs/…`, round 3). Where `ssh-keygen` is missing or git is older than 2.34 (its first ssh signing), the signed commit
   is left out and the run says so.
 - new L6 (folder mode, the sequence the script itself advises): GitHub's main gains a `--no-ff`
-  merge of a one-commit branch, the folder commits one change of its own, runs `git pull
-  --no-rebase` and `git push`, then, prepared for folder mode as P3 and P4 are (setting unset,
+  merge of a one-commit branch, the folder commits one change of its own, runs `git pull -q
+  --no-rebase --no-edit` (without `--no-edit` git waits for an editor when the file runs in a
+  terminal, round 3) and `git push`, then, prepared for folder mode as P3 and P4 are (setting unset,
   files back-dated, `update-index --refresh`), ships: the listed lines are the "Merge branch 'main' of …" merge and the local change, then
   `    4 commits in all: the merges in this range bring in the rest.`
 - the file's last line names the new checks.
 
 **Mutation check** (the `mutation-check` skill, on the built commit), each must fail a case: drop
 `--first-parent` from the log (L1); swap the range (S2, stub arms); use `origin/production`
-instead of `live_prod` in a read (stub arms); drop `-c log.showSignature=false` (L4, stub arms); drop `-n 20` (L2); drop the
+instead of `live_prod` in a read (stub arms); drop `-c log.showSignature=false` (L4, the stub `log` arm's settings check); drop `-n 20` (L2); drop the
 `tr` (L4); drop the "commits in all" line (L1, L6); name the lines `list` again (S2: the worktree
 list goes wrong); move the list after the push (S2's order check); for each of the four reads, let its failure go on
-(`prodfail`, `countfail`, `allfail`, `logfail`).
+(`prodfail`, `countfail`, `allfail`, `logfail`); drop the `stop_point` (`stopat-revlist`).
 
 Then `make check`, the template-tests jobs that run this file (Linux, and the Mac's bash 3.2), and
 the DIFF gate at High.
