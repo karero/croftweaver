@@ -121,7 +121,35 @@ check "T3e control: the same evidence appended to the diff is refused" rc_is t3e
 check "T3e control: ... by the base check" has t3ev.err "Base check:"
 run t3b "$R/w" "$T/t3.diff" --seat codex --verify "$T/prior.md" --depth normal --round 2
 check "T3 --verify with no --base: refused" rc_is t3b 2
-check "T3 --verify with no --base: names --base" has t3b.err "Pass --base <last-reviewed-head>."
+check "T3 --verify with no --base: names --base" has t3b.err "Pass --base <last-reviewed-head>"
+check "T3 ... and no reviewer ran" not_ran t3b
+check "T3 ... and pipes into this script with the same --verify file" \
+  has t3b.err "| $(printf '%q' "$SCRIPT") - --verify $(printf '%q' "$T/prior.md") --base <last-reviewed-head> <your other options>"
+check "T3 ... and names the merge link, by path, for after a merge or rebase" \
+  has t3b.err "  $(printf '%q' "$HERE/merge_link.sh") <old-merge-base> <last-reviewed-head> <new-merge-base>"
+# T3r: the printed delta command, run as printed from a subfolder under diff.noprefix, makes a
+# diff the check accepts. The control shows a plain `git diff <head>..HEAD -- .` is refused there.
+awk -v g="$G" 'index($0, "  git -C ") == 1 && !done { sub(/ \| .*/, ""); gsub(/<last-reviewed-head>/, g); print; done = 1 }' \
+  "$T/t3b.err" >"$T/t3r.cmd"
+mkdir -p "$R/w/sub"
+noprefix() { ( cd "$R/w/sub" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.noprefix GIT_CONFIG_VALUE_0=true "$@" ); }
+noprefix bash "$T/t3r.cmd" >"$T/t3r.diff"; echo $? >"$T/t3r-git.rc"
+check "T3r: the printed git command was found and exits 0" sh -c '[ -s "$1.cmd" ] && [ "$(cat "$1-git.rc")" = 0 ]' _ "$T/t3r"
+run t3r "$R/w" "$T/t3r.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
+check "T3r: its diff passes the base check and the reviewer runs" rc_is t3r 0
+check "T3r: the reviewer ran" ran t3r
+noprefix git diff "$G"..HEAD -- . ':(exclude)docs/reviews/' >"$T/t3n.diff"
+run t3n "$R/w" "$T/t3n.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
+check "T3r control: a plain git diff from that subfolder is refused" rc_is t3n 2
+# T3p: run by a bare relative name, the printed command still names the script by its full path.
+# It runs a copy inside a throwaway repository: in the unzipped handoff zip, $HERE is in none, and
+# the script would refuse for that before it reached this refusal.
+mkdir -p "$T/p" && cp -R "$HERE" "$T/p/scripts" && git init -q "$T/p" && commit "$T/p" P \
+  || { echo "FAIL — could not build the T3p copy."; exit 1; }
+SCRIPT=independent_review.sh run t3p "$T/p/scripts" "$T/t3.diff" --seat codex --verify "$T/prior.md" --depth normal
+check "T3p --verify with no --base, run as 'bash independent_review.sh': refused" rc_is t3p 2
+check "T3p ... and the printed command names the script by its full path" \
+  has t3p.err "| $(printf '%q' "$T/p/scripts/independent_review.sh") - --verify"
 run t3c "$R/w" "$T/t3.diff" --seat codex --depth normal
 check "T3 delta over a file the branch changed before, no --base: refused" rc_is t3c 2
 check "T3 ... with the delta line" has t3c.err "For a delta since a reviewed head, pass --base <that head>."
