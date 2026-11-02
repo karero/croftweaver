@@ -694,7 +694,8 @@ and others) copy the starter, install a skill into it and run the site's tests; 
 runs none of them. So before the first push of a change to the starter's shared files
 (`global.css`, `Base.astro`, a spec that scans every page), run `make check`,
 `make test-brand-kit`, and, in a scratch copy of the starter, the steps of the job whose skill
-reads the file you changed. Where a step uses GNU `sed -i`, write `sed -i ''` on macOS.
+reads the file you changed. The steps are written for GNU `sed` (one uses its `0,/…/`
+address), so on macOS run them with GNU sed: Homebrew's `gnu-sed`, as `gsed`.
 
 ### Merging stacked PRs
 
