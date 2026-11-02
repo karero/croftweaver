@@ -258,8 +258,34 @@ For everyone, the owner included:
 - Tests may be **extended** (e.g. a new page in `PAGES`). Never weaken, delete or
   disable a test just to get green. If a test fails: fix the cause or report it.
 - Deleting a page's entry from `UNFILLED_UNTIL_LAUNCH` in
-  `tests/placeholders.spec.ts` once that page is filled belongs to filling it, at
-  every rights level. The test asks for it.
+  `tests/placeholders.spec.ts` once that page is filled and its draft notice is
+  cleared (next bullet) belongs to filling it, at every rights level. The test asks
+  for it.
+- The draft notice under the heading of the imprint and privacy pages (`[DRAFT
+  NOTICE, …]`, in German `[ENTWURFSHINWEIS, …]`) is the owner's to clear, at every
+  rights level. Do not delete it to turn a test green: `tests/placeholders.spec.ts`
+  fails while it is gone and no answer is recorded. To clear it:
+  - Once the slots of those pages are filled, ask the owner once. The answer is the
+    owner's alone: when this section lists collaborators, ask the person whether they
+    are the owner. If they are not, leave the notices and tell them the answer is the
+    owner's. Ask (`AskUserQuestion` or in the chat): "Before you publish: the imprint
+    and the privacy page are first drafts, not legal advice. They cannot know your
+    whole situation, and what the law asks of you depends on your country and on what
+    your site does." Options: **A lawyer has reviewed them** / **I use my own texts** /
+    **Publish the drafts as they are**.
+  - Record the answer first, as a line of its own in the `README.md` in the folder
+    that holds `package.json`: the form below and nothing else on that line, the date
+    as YYYY-MM-DD. Then delete the notices.
+    - `legal pages: reviewed by a lawyer (<date>)`
+    - `legal pages: own texts (<date>)`
+    - `legal pages: published as drafted (owner's decision, <date>)`
+  - **I use my own texts:** put the owner's texts on the pages first. Until they are
+    there, record nothing and leave the notices.
+  - No answer: the notices stay, the pages stay listed in `UNFILLED_UNTIL_LAUNCH`,
+    and the site does not launch.
+  - A line in one of those forms already in the `README.md` means: do not ask again,
+    except for a legal page added after its date (a new locale, the `/datenschutz`
+    swap). Ask again for that page and add a new dated line.
 - Changes to `.github/`, `scripts/`, `functions/`, `public/_headers`,
   `astro.config.mjs`, `package.json` or `AGENTS.md` affect tests, the server or
   publishing. Say so explicitly in the pull request.

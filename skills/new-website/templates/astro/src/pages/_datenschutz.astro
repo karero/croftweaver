@@ -36,7 +36,9 @@
 //      on an email address ("Außerdem zählt es jeden Klick") describes the "Email
 //      Tap" event (src/components/EmailLink.astro, and the button of the
 //      website-contact-form skill's form); it goes with the paragraph, and stays
-//      as long as that counting does. Then delete '/datenschutz' from
+//      as long as that counting does. Clear the draft notice under the <h1> as
+//      AGENTS.md section 5 says: ask the owner, record the answer, then delete it.
+//      Only then delete '/datenschutz' from
 //      UNFILLED_UNTIL_LAUNCH (the test turns red until you do). The clause "nur ein
 //      Besuch ... wird als derselbe Besuch fortgeführt" describes Plausible's own
 //      session lookup (self-hosted Community Edition, checked for v3.2.1: on_event
@@ -124,6 +126,9 @@ import { SITE } from '../config';
   description={`So geht ${SITE.name} mit personenbezogenen Daten um: cookielose Analyse, Hosting bei Cloudflare, Kontaktdaten und Ihre Rechte nach der DSGVO.`}>
   <section class="wrap">
     <h1>Datenschutzerklärung</h1>
+    <p>
+      [ENTWURFSHINWEIS, VOR DEM START LÖSCHEN: Diese Seite ist ein erster Entwurf und keine Rechtsberatung. Sie kennt Ihre Lage nicht im Ganzen, und was das Gesetz von Ihnen verlangt, hängt von Ihrem Land und von Ihrer Website ab. Lassen Sie den Text vor der Veröffentlichung von einer Anwältin oder einem Anwalt prüfen, oder ersetzen Sie ihn durch Ihren eigenen.]
+    </p>
     <p>
       Stand: [DATUM]. Diese Seite erklärt, welche personenbezogenen Daten diese
       Website verarbeitet, auf welcher Rechtsgrundlage nach der DSGVO

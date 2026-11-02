@@ -128,6 +128,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    - The variable rows in Cloudflare's dashboard cannot be edited: a Wrangler config file in the project defines them, and Cloudflare's documentation says the dashboard then shows those fields but does not let you change them. Change the file and deploy again with `CF_PAGES_BRANCH=<PROD_BRANCH> npm run build && npx wrangler pages deploy dist --project-name <project> --branch <PROD_BRANCH>` (the build needs the branch name, or the page is written without the `/go/email` links), or delete the file and deploy again the same way; Cloudflare says the values of the last deployment then stay in effect and become editable in the dashboard, but check that both `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` are still listed, and enter them again if not.
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
+   The privacy page and the imprint also carry a draft notice, which counts as a
+   leftover and leaves only as `AGENTS.md` §5 says, before the entry comes out.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware/analytics-server out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
@@ -165,7 +167,9 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > source-side half; this is the half that reads what a page serves. The starter's
 > privacy page, imprint and manifest are listed in its `UNFILLED_UNTIL_LAUNCH`, so
 > they are reported on every run instead of failing. That list empties itself (a
-> filled page fails until its entry is deleted) and must be empty at launch. A
+> filled page fails until its entry is deleted) and must be empty at launch. The two
+> legal pages also carry a draft notice, which counts as a leftover and leaves only as
+> `AGENTS.md` §5 says. A
 > `"[MISSING: …]"` on a page only warns on your own machine, so a draft branch can be
 > pushed, and fails in CI. Not read, so still a human check: the 404 page, `llms.txt`
 > (it has slots of its own), and the starter's example values (the name `Example`,
