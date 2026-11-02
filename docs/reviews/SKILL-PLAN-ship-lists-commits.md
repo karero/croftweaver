@@ -7,7 +7,7 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-02 | this file |
-| 2 | PLAN gate, High | rounds 1 and 2 done, all fixed; round 3 next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
+| 2 | PLAN gate, High | rounds 1 and 2 done, all fixed; round 3 running | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
 | 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | waits for the owner's go | — |
 | 4 | `PUBLISHING.md`: one sentence | waits for the owner's go | — |
 | 5 | `docs/BUGLOG.md`: the release-notes row | waits for the owner's go | — |
@@ -136,8 +136,8 @@ values are written from each fixture's commit subjects and ids, never copied fro
   the output.
 - P4 (folder mode, real domain): one listed line, `    <id7> site address`.
 - new L1 (worktree mode): GitHub's main gains a `--no-ff` merge of a 3-commit branch: one listed
-  line, the merge; none of the branch's three subjects; `    4 commits in all: the merges above
-  bring in the rest.`
+  line, the merge; none of the branch's three subjects; `    4 commits in all: the merges in this
+  range bring in the rest.`
 - new L2: 23 commits: exactly 20 listed lines, the first `change 23`, then `    … and 3 more
   lines`; no "commits in all" line.
 - new L3: production already at main: "Nothing new goes live"; the gate still runs ("▶ pre-push
@@ -152,7 +152,7 @@ values are written from each fixture's commit subjects and ids, never copied fro
   merge of a one-commit branch, the folder commits one change of its own, runs `git pull
   --no-rebase` and `git push`, then, prepared for folder mode as P3 and P4 are (setting unset,
   files back-dated, `update-index --refresh`), ships: the listed lines are the "Merge branch 'main' of …" merge and the local change, then
-  `    4 commits in all: the merges above bring in the rest.`
+  `    4 commits in all: the merges in this range bring in the rest.`
 - the file's last line names the new checks.
 
 **Mutation check** (the `mutation-check` skill, on the built commit), each must fail a case: drop
