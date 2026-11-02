@@ -13,6 +13,7 @@ in rounds 1 to 3.
 | 2 | `87e7f537` | full plan, verification of A1–A9; evidence `evidence-r2.md` (91,129 bytes: round 1's plus the pager and pull --no-rebase READs) | Codex gpt-6.1-sol, config effort; melious FAILED (out of balance), Codex alone; fresh-eyes Opus 5.5 | Codex 351 s, 89,937 · fresh-eyes 305 s, 150,832 | 1 / 3 / 5 (Codex 1/1/0, fresh-eyes 0/3/5 incl. 1 outside scope; B1 from both) |
 | 3 | `e01fe127` | full plan, verification of B1–B9; evidence `evidence-r2.md` | Codex gpt-6.1-sol, config effort; melious FAILED (out of balance), Codex alone; fresh-eyes Opus 5.5 | Codex 178 s, 69,058 · fresh-eyes 301 s, 144,124 | 3 / 2 / 2 (Codex 1/1/0, fresh-eyes 2/2/3; C1 and C2 from both) |
 | 4 | `4f5f1bb9` | full plan, verification of C1–C7 and a trace of every mutation; earned by C1, C3, C4 (`--earned-by test-guard-blind,race-claim`) | Codex gpt-6.1-sol, config effort; melious FAILED (out of balance), Codex alone; no fresh-eyes (rounds 1–3 only) | Codex 190 s, 78,295 | 0 / 2 / 0 |
+| final read | `0f2bea34` | whole plan, fresh, no trail; evidence `evidence-r2.md` | fresh Opus 5.5 subagent that had not reviewed this plan (melious out of balance; ollama does not stand in; Kimi only on the owner's ask) | 493 s, 176,867 | 0 / 0 / 7 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -47,5 +48,13 @@ in rounds 1 to 3.
 | D1 | RISK | Codex | 4 | L4's `ignature` check reads only list lines, so a stray `No signature` line (no id) would pass it | fixed, locally_verified, closing edit not externally re-verified | not earning: the stub `log` arm's settings check already fails that mutation; L4 now holds the whole block to the expected lines |
 | D2 | RISK | Codex | 4 | C1's new claim (an ancestor move still fast-forwards) is not measured for a move during the gate | fixed, locally_verified, closing edit not externally re-verified | not earning: nothing built changes; cut, the plan now claims nothing about the push after a move |
 
-Follow-ups: UTF-8 C1 controls pass the `tr` (fresh-eyes, UNVERIFIABLE; listed under Not covered).
+| E1 | NIT | final read | final | `prodfail`'s "no call logged" works only if refused calls are logged | fixed, locally_verified, closing edits not externally re-verified | the arms log on entry, before the exact match |
+| E2 | NIT | final read | final | L6: branch and folder change on one file would make the pull stop on a conflict | fixed, locally_verified | two different files |
+| E3 | NIT | final read | final | No case pins `LC_ALL=C` | fixed, locally_verified | final read measured macOS `tr` "Illegal byte sequence", exit 1; L4 gains a raw `\xff` subject; mutation "drop `LC_ALL=C`" (Mac job only) |
+| E4 | NIT | final read | final | Where the `tr` runs is unsaid; outside the guard it would end the run without the plan's message | fixed, locally_verified | the `tr` is the guard's fifth step |
+| E5 | NIT | final read | final | In folder mode no blank line follows the list | fixed, locally_verified | a blank line after the list and its notes |
+| E6 | NIT | final read | final | With nothing new the run still ends "✓ Pushed. Cloudflare is building the live site now." | follow-up | `ship.sh` 835; listed under Not covered |
+| E7 | NIT | final read | final | New wording checks would turn a translated site's stub tests red | fixed, locally_verified | they go through `expect`'s marker or honour `SHIP_GATE_SKIP_WORDING` (check_ship_push.sh 230–240) |
+
+Follow-ups: E6, the last line of a run with nothing new (`ship.sh` 835). UTF-8 C1 controls pass the `tr` (fresh-eyes, UNVERIFIABLE; listed under Not covered).
 Notes: rounds 1 to 3 melious out of balance; one kind came back: a test guard that cannot fire (B1, B3 in round 2; C2, C3, C4 in round 3), so round 4 asked the seat to check every case against every mutation it is credited with (it traced all 13, each caught); round 4 had no BUG and no earning RISK, so the rounds end there (stop condition a2); Codex alone counts by the owner's rule, no rerun owed.

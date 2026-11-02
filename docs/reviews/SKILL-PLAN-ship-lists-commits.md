@@ -7,7 +7,7 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-02 | this file |
-| 2 | PLAN gate, High | rounds 1 to 4 done, all fixed; final full read next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
+| 2 | PLAN gate, High | rounds 1 to 4 and the final full read done, all fixed; wording pass next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
 | 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | waits for the owner's go | — |
 | 4 | `PUBLISHING.md`: one sentence | waits for the owner's go | — |
 | 5 | `docs/BUGLOG.md`: the release-notes row | waits for the owner's go | — |
@@ -60,12 +60,13 @@ goes, then what stays.
    whatever `live_lines` holds.
 2. **A Ctrl-C** during any of the reads: `stop_point "Nothing was published and $here."`, as
    after every other git call before the push.
-3. **Any read fails** (both commits are known to exist, so this means a broken clone): all four
-   reads sit in one `if … && … && …; then` guard, and the run stops before anything else, "✗ Publish stopped — couldn't list the commits that would go live (git's
+3. **Any read fails** (both commits are known to exist, so this means a broken clone): the four
+   reads and step 4's `tr` sit in one `if … && … && …; then` guard, and the run stops before anything else, "✗ Publish stopped — couldn't list the commits that would go live (git's
    error is above). Nothing was published and $here." It refuses rather than publishing unlisted,
    as the script's other checks before the push do.
 4. **Control bytes are removed** from the lines before they are printed:
-   `live_lines="$(LC_ALL=C tr -d '\001-\010\013-\037\177' <<<"$live_lines")"`, which keeps tab and
+   `live_lines="$(LC_ALL=C tr -d '\001-\010\013-\037\177' <<<"$live_lines")"`, as the fifth step of
+   step 3's guard, so a failing `tr` stops the run with that step's message too. It keeps tab and
    newline and removes the other C0 bytes and DEL. A commit subject is written by whoever
    committed it, and git prints it raw (checked: a subject holding `ESC[31m` comes out with the
    escape byte), so a subject could otherwise recolour or rewrite the owner's terminal.
@@ -85,6 +86,8 @@ goes, then what stays.
      the script's own advice `git pull --no-rebase`, other people's merged pull requests sit
      behind one "Merge branch 'main' of …" line (checked 2026-11-02, git 2.54: a merged pull
      request and a local commit gave 2 first-parent lines, 4 commits).
+   - After the list and its notes: a blank line, so the list ends before the gate's own output
+     in both modes (final read: in folder mode the gate's output came straight after it).
    - `live_n` 0 (production already has this commit): `Nothing new goes live: 'production'
      already has this commit. The checks and the live-site check run as usual.` The run then
      goes on as today. (Checked 2026-11-02, git 2.54: a push with nothing new still runs the
@@ -122,8 +125,13 @@ values are written from each fixture's commit subjects and ids, never copied fro
   `$FAKE_DIR/settings` before the arms see `$*`, so the `log` arm also refuses unless the last
   line of that file is `log.showSignature=false` (round 3, both seats). So a swapped range, a
   dropped `--first-parent`, a range not built from `live_prod`, or a dropped
-  `-c log.showSignature=false` fails every case that reaches them. Each call is logged.
+  `-c log.showSignature=false` fails every case that reaches them. Each `rev-list` and `log`
+  call is logged as its arm is entered, before the exact match, so a refused call is logged too
+  (`prodfail` depends on it).
 - every case that gets past the divergence check now prints "Nothing new goes live".
+- every new text check here ("Nothing new goes live", "couldn't list the commits") goes through
+  `expect`'s marker or honours `SHIP_GATE_SKIP_WORDING`, as the existing ones do (lines 230–240),
+  so a translated site's stub tests stay green. The real-git half is English-only already.
 - new `prodfail`, `countfail`, `allfail` and `logfail`: one read fails, the ones before it
   succeed; each exits 1 with 0 pushes and "couldn't list the commits" (rounds 1 and 2,
   fresh-eyes: a read with no case of its own could fail unseen). `prodfail` also asserts that no
@@ -155,13 +163,16 @@ standard output from the header to the next blank line; a list line is a block l
 - new L4 (worktree mode): the clone sets `color.ui=always`, `log.decorate=full`, `format.pretty=fuller` and
   `log.showSignature=true`; one commit's subject holds `ESC[31m`, and another commit is signed
   with an ssh key the fixture makes with `ssh-keygen` (`-c gpg.format=ssh -c user.signingkey=…
-  commit -S`). The ESC line is exactly `    <id7> evil [31mred[0m end`; the block holds
+  commit -S`); a third commit's subject holds a raw `\xff` byte, which is not UTF-8. The `\xff`
+  line keeps its byte (on the Mac job only, this fails without `LC_ALL=C`: macOS `tr` stops with
+  "Illegal byte sequence", GNU `tr` does not). The ESC line is exactly `    <id7> evil [31mred[0m end`; the block holds
   the header and the expected list lines and nothing else, so a stray line such as `No signature`,
   which is no list line, still fails it (round 4); no line of the block holds an escape byte, `(HEAD`, `refs/` or `ignature` (in worktree mode the clone's HEAD is
   outside the range, so a decoration would show as `refs/…`, round 3). Where `ssh-keygen` is missing or git is older than 2.34 (its first ssh signing), the signed commit
   is left out and the run says so.
 - new L6 (folder mode, the sequence the script itself advises): GitHub's main gains a `--no-ff`
-  merge of a one-commit branch, the folder commits one change of its own, runs `git pull -q
+  merge of a one-commit branch, the folder commits one change of its own to a different file
+  (the same file would make the pull stop on a conflict), runs `git pull -q
   --no-rebase --no-edit` (without `--no-edit` git waits for an editor when the file runs in a
   terminal, round 3) and `git push`, then, prepared for folder mode as P3 and P4 are (setting unset,
   files back-dated, `update-index --refresh`), ships: the listed lines are the "Merge branch 'main' of …" merge and the local change, then
@@ -171,7 +182,7 @@ standard output from the header to the next blank line; a list line is a block l
 **Mutation check** (the `mutation-check` skill, on the built commit), each must fail a case: drop
 `--first-parent` from the log (L1); swap the range (S2, stub arms); use `origin/production`
 instead of `live_prod` in a read (stub arms); drop `-c log.showSignature=false` (L4, the stub `log` arm's settings check); drop `-n 20` (L2); drop the
-`tr` (L4); drop the "commits in all" line (L1, L6); name the lines `list` again (S2: the worktree
+`tr` (L4); drop `LC_ALL=C` (L4, the Mac job); drop the "commits in all" line (L1, L6); name the lines `list` again (S2: the worktree
 list goes wrong); move the list after the push (S2's order check); for each of the four reads, let its failure go on
 (`prodfail`, `countfail`, `allfail`, `logfail`); drop the `stop_point` (`stopat-revlist`).
 
@@ -189,3 +200,6 @@ the DIFF gate at High.
   them.
 - C1 control characters (0x80 to 0x9F, as raw bytes or written as UTF-8) pass the `tr`. Whether common
   terminals act on them in UTF-8 mode was not checked.
+- With nothing new, the run still ends "✓ Pushed. Cloudflare is building the live site now."
+  (`ship.sh` 835), unchanged here. The "Nothing new goes live" line before it says what is true;
+  rewording the last line for that case is a follow-up (final read).
