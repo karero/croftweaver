@@ -7,7 +7,7 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-02 | this file |
-| 2 | PLAN gate, High | rounds 1 to 4, final full read and wording pass done; open: the confirmation | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
+| 2 | PLAN gate, High | CLEAN: rounds 1 to 4, final full read, wording pass and confirmation done; no BUG open | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
 | 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | waits for the owner's go | — |
 | 4 | `PUBLISHING.md`: one sentence | waits for the owner's go | — |
 | 5 | `docs/BUGLOG.md`: the release-notes row | waits for the owner's go | — |
@@ -167,8 +167,8 @@ standard output from the header to the next blank line; a list line is a block l
   commit -S`); a third commit's subject holds a raw `\xff` byte, which is not UTF-8. L4 runs
   `ship.sh` with `LC_ALL=en_US.UTF-8` (`run_ship` takes settings, as `s9-second` does), so the
   Mac job's `tr` meets a UTF-8 locale whatever the runner inherits. The `\xff` line keeps its byte
-  (on the Mac job only, this fails without `LC_ALL=C`: macOS `tr` stops with
-  "Illegal byte sequence", GNU `tr` does not). The ESC line is exactly `    <id7> evil [31mred[0m end`; the block holds
+  (on the Mac job this fails without `LC_ALL=C`: macOS `tr` stops with "Illegal byte
+  sequence", measured; the Linux job is not relied on for it, GNU `tr` was not measured). The ESC line is exactly `    <id7> evil [31mred[0m end`; the block holds
   the header and the expected list lines and nothing else, so a stray line such as `No signature`,
   which is no list line, still fails it (round 4); no line of the block holds an escape byte, `(HEAD`, `refs/` or `ignature` (in worktree mode the clone's HEAD is
   outside the range, so a decoration would show as `refs/…`, round 3). Where `ssh-keygen` is missing or git is older than 2.34 (its first ssh signing), the signed commit
@@ -185,7 +185,7 @@ standard output from the header to the next blank line; a list line is a block l
 **Mutation check** (the `mutation-check` skill, on the built commit), each must fail a case: drop
 `--first-parent` from the log (L1); swap the range (S2, stub arms); use `origin/production`
 instead of `live_prod` in a read (stub arms); drop `-c log.showSignature=false` (L4, the stub `log` arm's settings check); drop `-n 20` (L2); drop the
-`tr` (L4); drop `LC_ALL=C` (L4, the Mac job); drop the "commits in all" line (L1, L6); name the lines `list` again (S2: the worktree
+`tr` (L4); drop `LC_ALL=C` (L4 on the Mac job); drop the "commits in all" line (L1, L6); name the lines `list` again (S2: the worktree
 list goes wrong); move the list after the push (S2's order check); for each of the four reads, let its failure go on
 (`prodfail`, `countfail`, `allfail`, `logfail`); drop the `stop_point` (`stopat-revlist`).
 
@@ -205,4 +205,4 @@ the DIFF gate at High.
   terminals act on them in UTF-8 mode was not checked.
 - With nothing new, the run still prints "✓ Pushed. Cloudflare is building the live site now."
   (`ship.sh` 835) before it checks the live site, unchanged here. The "Nothing new goes live" line
-  before it says what is true; rewording that line for this case is a follow-up (final read).
+  before it says what is true; rewording the "✓ Pushed" line for this case is a follow-up (final read).
