@@ -13,6 +13,8 @@ Seats: Codex (`gpt-6.1-sol`, read-only, effort from config), GLM 5.3 on melious.
 | 3 | `cf25f4fc` | delta since `b4cc3c56` | Codex; melious out of balance; fresh-eyes | Codex 165 s, 62,704; fresh-eyes 175 s, 133,653 | none, both clean |
 | final full read | `cf25f4fc` | whole change | fresh-eyes (a new Opus pass; Codex had seen the change, melious had no balance, ollama never stands in) | 485 s, 212,052 | 0/1/4 |
 | 4 | `0aa690c4` | delta since `cf25f4fc` | Codex; melious out of balance | Codex 103 s, 40,547 | none, clean |
+| wording pass | `a76558b9` | the coverage row only (prose, no executable line) | Codex alone (`--wording-pass`, no round) | 83 s, 25,606 | 0/1/0 (J1) |
+| wording pass confirm | `bc39629c` | delta since `a76558b9` | Codex alone | 41 s, 22,377 | none; one claim marked unverifiable, then run (J1) |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -36,6 +38,7 @@ Seats: Codex (`gpt-6.1-sol`, read-only, effort from config), GLM 5.3 on melious.
 | H3 | NIT | fresh-eyes | full read | "The new `placeholders.spec.ts`" will go stale | fixed, externally_reverified | |
 | H4 | NIT | fresh-eyes | full read | The Cloudflare regex copies `LEGAL_LAST_SEGMENTS` with no link | fixed, externally_reverified | a comment at each place |
 | H5 | NIT | fresh-eyes | full read | The plan's old-site scenario was not run | run | scratch copy: no notice, not listed, no record: red with the legal-page message; with a record line: green |
+| J1 | RISK | Codex (wording pass) | wording | The new coverage row said the notice is "shown", which reads as visible to a visitor; the test counts a text match that Playwright calls visible | fixed, externally_reverified | the row now says "counted visible by Playwright" and that readability is not checked; run on a real page: `opacity:0` true, off-screen `left:-9999px` true, `visibility:hidden` false, `display:none` false |
 
 Waivers and deferrals: none by the owner. F5 and G6 are deferred as a follow-up, not as a BUG. The maintainer answered the open question (does the one launch-check table row join this PR?) on 2026-11-02: "Yes, in 457". So the one row goes into this PR, a deviation from plan decision 4 made on his word, because `skills/website-launch-check/references/test-coverage.md` requires a table change in the same pull request as a spec change. Its section 3 and the launch check's behaviour stay the separate follow-up.
 
@@ -44,5 +47,5 @@ Follow-ups: the launch check's section 3, which does not report the README answe
 Notes:
 - Melious (GLM 5.3) failed in every round with an empty balance. By the owner's rule of 2026-10-27 each round stands on Codex alone; no rerun was owed. Codex's chain is unbroken: round 1 saw the whole change, rounds 2 to 4 each saw the delta from the previous head.
 - Round 4 is past round 3 and was earned by H1 (kind `record-line-form`), a RISK from the final full read whose fix changed what an assistant is told and what the test prints. The final full read is logged under round 4 in the cost log; it is not a round.
-- Totals: 4 rounds and a final full read, 20 findings (1 BUG, 6 RISK, 13 NIT; a finding two seats raised is counted once); 2 deferred (F5, G6), 2 refuted (F8, F9), the rest fixed.
+- Totals: 4 rounds, a final full read and a wording pass on the coverage row, 21 findings (1 BUG, 7 RISK, 13 NIT; a finding two seats raised is counted once); 2 deferred (F5, G6), 2 refuted (F8, F9), the rest fixed. The wording pass ran on a prose-only delta (the coverage row), so it is not a round: it adds no round to the cost log, which shows two runs with no round.
 - Tests: spec 11 passed; full suite on the starter 120 passed, 1 skipped (an older positioning skip); mutation check 14 of 14 killed; `make check` exit 0; cloudflare tests 212 pass, 0 skipped. Not run: the new `template-tests.yml` step on GitHub's runner (this PR's CI runs it); `/de/privacy`.
