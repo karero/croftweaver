@@ -572,16 +572,19 @@ elif [ "$BASE" = none ]; then
   BASE_LINE="base: not checked (--base none)"
 else
   none_hint="For a diff that did not come from git diff in this repository, pass --base none."
-  [ -n "$BASE" ] || [ -z "$VERIFY_FILE" ] \
-    || base_refuse "a verification round reviews the change since the last reviewed head, so it must name that head." "Pass --base <last-reviewed-head>, with the diff made from that head:" \
-         "  git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$0") - --verify $(printf '%q' "$VERIFY_FILE") --base <last-reviewed-head> ..." \
-         "After a merge of the base or a rebase, send the merge link instead (merge_link.sh, SKILL.md step 6)."
   command -v git >/dev/null 2>&1 || base_refuse "git not found, so the diff cannot be checked." "$none_hint"
   command -v perl >/dev/null 2>&1 || { WHY="perl not found, so the diff cannot be checked."; base_refuse "$WHY" "$none_hint"; }
   top="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -n "$top" ] \
     || base_refuse "not inside a git work tree, so the diff's paths mean nothing here." "Run from the repository the diff came from. $none_hint"
   head_id="$(git -C "$top" rev-parse --verify --quiet 'HEAD^{commit}')" \
     || base_refuse "the repository has no commit at HEAD." "$none_hint"
+  # After top is known, so the printed command makes the delta from the repository root, the way
+  # the mismatch refusal's remedy below does, whatever folder or diff config the caller has.
+  [ -n "$BASE" ] || [ -z "$VERIFY_FILE" ] \
+    || base_refuse "a verification round reviews the change since the last reviewed head, so it must name that head." "Pass --base <last-reviewed-head>, with the diff made from that head:" \
+         "  git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ <last-reviewed-head> HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$SCRIPT_DIR/${0##*/}") - --verify $(printf '%q' "$VERIFY_FILE") --base <last-reviewed-head> <your other options>" \
+         "After a merge of the base or a rebase, send the merge link instead, with the same --base (SKILL.md step 6):" \
+         "  $(printf '%q' "$SCRIPT_DIR/merge_link.sh") <old-merge-base> <last-reviewed-head> <new-merge-base>"
   coverage=0
   if [ -n "$BASE" ]; then
     base_id="$(git -C "$top" rev-parse --verify --quiet "$BASE^{commit}")" \
