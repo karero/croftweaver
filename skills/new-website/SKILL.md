@@ -746,8 +746,10 @@ hold Search Console Request Indexing until then.
       `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts` is empty. The starter
       lists the privacy page, the imprint and the manifest there until their
       `[BRACKET]` slots are filled; each entry comes out when its target is filled
-      (the test turns red until it does). An entry still listed at launch ships
-      that placeholder: the test only warns about a listed target. And an empty
+      and, for the two legal pages, once the owner has answered the question below and
+      the draft notice is cleared (the test turns red until it does). An entry still
+      listed at launch ships that placeholder: the test only warns about a listed
+      target. And an empty
       list is not the whole check: the spec has no rule for the starter's example
       values, so read the home page and both legal pages once for the name
       `Example` and the address `hello@example.com`, and `public/llms.txt` for its
@@ -806,6 +808,9 @@ hold Search Console Request Indexing until then.
       per its header and section comments, which also cover Austrian/Swiss
       adaptation and the six-piece removal for providers with no German
       nexus).
+      **Ask the owner about the drafts, once, before the deploy item below**, as
+      `AGENTS.md` §5 says (the site carries it; the text is not repeated here). The
+      imprint and the privacy page carry a draft notice until the owner has answered.
 - [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
