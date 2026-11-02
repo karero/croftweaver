@@ -68,6 +68,8 @@ jobs:
             case "$f" in
               docs/*|.claude/*) ;;
               */*|\"*) run=true ;;
+              # README.md holds the owner's legal-pages answer, which tests/placeholders.spec.ts reads.
+              README.md) run=true ;;
               *.md) ;;
               *) run=true ;;
             esac

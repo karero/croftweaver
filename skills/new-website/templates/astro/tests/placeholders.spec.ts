@@ -668,8 +668,8 @@ test('placeholders — the draft notice is read as a visitor sees it', async ({ 
   expect(await seen(`<p>\n  ${en.replace(' It cannot', '\n   It cannot')}\n</p>`), 'line breaks in the source do not matter').toBe(true);
   expect(await seen(`<p>${en.replace('first draft', 'rough sketch')}</p>`), 'a reworded note').toBe(false);
   expect(await seen(`<p>${en.replace(' Ask a lawyer to review it before you publish, or replace it with your own text.', '')}</p>`), 'a cut note').toBe(false);
-  expect(await seen('<p>[BROUILLON, A SUPPRIMER AVANT LE LANCEMENT : Cette page est un premier brouillon et ne constitue pas un conseil juridique.]</p>', '', 'fr'),
-    'a translated note is not seen until it is added to LEGAL_NOTES').toBe(false);
+  expect(await seen('<p>[A NOTE OF OTHER WORDS THAN ANY IN LEGAL_NOTES, DELETE BEFORE LAUNCH.]</p>'),
+    'a note whose text is not in LEGAL_NOTES is not seen').toBe(false);
   expect(await seen('<p>Nothing here.</p>'), 'no note').toBe(false);
   expect(await seen(`<!-- ${en} -->`), 'in a comment').toBe(false);
   expect(await seen(`<p>${en}</p>`.replace('<p>', '<p style="display:none">')), 'display: none').toBe(false);
