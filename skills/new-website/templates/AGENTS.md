@@ -261,8 +261,9 @@ For everyone, the owner included:
   `tests/placeholders.spec.ts` once that page is filled and its draft notice is
   cleared (next bullet) belongs to filling it, at every rights level. The test asks
   for it.
-- The draft notice under the heading of the imprint and privacy pages (`[DRAFT
-  NOTICE, …]`, in German `[ENTWURFSHINWEIS, …]`) is the owner's to clear, at every
+- The draft notice under the heading of the legal pages (the privacy page, and the
+  imprint where the site has one; `[DRAFT NOTICE, …]`, in German
+  `[ENTWURFSHINWEIS, …]`) is the owner's to clear, at every
   rights level. Do not delete it to turn a test green: `tests/placeholders.spec.ts`
   fails for a legal page in `PAGES` whose notice is gone while no answer is recorded.
   To clear it:
@@ -272,11 +273,13 @@ For everyone, the owner included:
     owner's. Ask (`AskUserQuestion` or in the chat): "Before you publish: the imprint
     and the privacy page are first drafts, not legal advice. They cannot know your
     whole situation, and what the law asks of you depends on your country and on what
-    your site does." Options: **A lawyer has reviewed them** / **I use my own texts** /
+    your site does." (On a site with no imprint, word it for the privacy page alone.)
+    Options: **A lawyer has reviewed them** / **I use my own texts** /
     **Publish the drafts as they are**.
   - Record the answer first, as a line of its own in the `README.md` in the folder
-    that holds `package.json`: the form below and nothing else on that line, the date
-    as YYYY-MM-DD. Then delete the notices.
+    that holds `package.json`: one of the forms below, written bare (no list marker, no
+    backticks) and nothing else on that line, the date as YYYY-MM-DD. Then delete the
+    notices.
     - `legal pages: reviewed by a lawyer (<date>)`
     - `legal pages: own texts (<date>)`
     - `legal pages: published as drafted (owner's decision, <date>)`

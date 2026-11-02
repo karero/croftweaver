@@ -132,6 +132,7 @@ async function noteIsVisible(page: Page): Promise<boolean> {
   }
   return false;
 }
+// Also listed in skills/new-website/scripts/cloudflare-setup.mjs (its launch stop); change both.
 const LEGAL_LAST_SEGMENTS = ['privacy', 'datenschutz', 'impressum'];
 const isLegalPage = (path: string) => LEGAL_LAST_SEGMENTS.includes(path.split('/').filter(Boolean).pop() ?? '');
 const hasLegalRecord = (readme: string) => LEGAL_RECORDS.some((re) => re.test(readme));
@@ -144,7 +145,7 @@ function legalVerdict(path: string, { listed, noteVisible, recorded }: { listed:
   return (
     `${path} is a legal page with no recorded answer, and ${listed ? 'is listed in UNFILLED_UNTIL_LAUNCH' : 'is not listed in UNFILLED_UNTIL_LAUNCH'} ` +
     `and ${noteVisible ? 'shows' : 'does not show'} its draft notice. Do not delete the notice or the entry to turn this green. ` +
-    `Ask the owner as AGENTS.md section 5 says, record the answer as one line of its own in README.md ` +
+    `Ask the owner as AGENTS.md section 5 says, record the answer as one line of its own in README.md, written bare (no list marker, no backticks) ` +
     `("legal pages: reviewed by a lawyer (YYYY-MM-DD)", "legal pages: own texts (YYYY-MM-DD)" or ` +
     `"legal pages: published as drafted (owner's decision, YYYY-MM-DD)"), then delete the notices.`
   );
@@ -624,6 +625,8 @@ test('placeholders — the draft notice rules pick the legal pages and read the 
     'legal pages: published as drafted (2026-11-02)',
     'Legal pages: own texts (2026-11-02)',
     'we said legal pages: own texts (2026-11-02)',
+    '- legal pages: own texts (2026-11-02)',
+    '`legal pages: own texts (2026-11-02)`',
     'legal pages: own texts (2026-11-02) and more',
     'legal pages: own texts\n(2026-11-02)',
   ];

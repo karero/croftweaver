@@ -1321,6 +1321,7 @@ async function launchStage(opts, io) {
       else if (!cloudflareBuilt(newest)) stops.push(`The newest production deployment of ${short(prodSha)} was uploaded, not built by Cloudflare from GitHub.`);
       else stops.push(`The newest production deployment of ${short(prodSha)} was built while ${newest.production_branch} was the production branch: a build of ${prodBranch} is needed.`);
     }
+    // The legal segments below are LEGAL_LAST_SEGMENTS in the starter's tests/placeholders.spec.ts; change both.
     const drafts = await draftsAt(git, prodSha);
     if (drafts.cannot) stops.push(`At ${short(prodSha)}, ${drafts.cannot}. So the script cannot tell whether the site is finished. The domain can be attached by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md).`);
     else {
