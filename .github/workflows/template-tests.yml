@@ -203,20 +203,21 @@ jobs:
       - name: The draft notice guard turns red without a recorded answer
         run: |
           t='privacy keeps its draft notice until the owner'
-          red() {   # red "<what was done>": the legal-page test must fail with its own message
+          red() {   # red "<what was done>" "<part of the failure's wording>": the legal-page test must fail with its own message
             if out="$(CI= npx playwright test tests/placeholders.spec.ts -g "$t" --reporter=line 2>&1)"; then
               printf '%s\n' "$out" | tail -n 6; echo "::error::$1: the test stayed green"; exit 1
             fi
             printf '%s\n' "$out" | grep -Fq 'is a legal page with no recorded answer' || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the test failed, but not with the legal-page message"; exit 1; }
+            printf '%s\n' "$out" | grep -Fq "$2" || { printf '%s\n' "$out" | tail -n 30; echo "::error::$1: the failure does not say \"$2\""; exit 1; }
           }
           # Notice kept, page taken off the list: nothing now allows it to stay.
-          perl -pi -e "s|'/privacy', ||" tests/placeholders.spec.ts
-          ! grep -q "'/privacy', '/impressum'" tests/placeholders.spec.ts
-          red "the notice kept on a page no longer listed"
+          perl -pi -e "s|'/privacy', || if /^const UNFILLED_UNTIL_LAUNCH/" tests/placeholders.spec.ts
+          if grep -q "^const UNFILLED_UNTIL_LAUNCH.*'/privacy'" tests/placeholders.spec.ts; then echo "::error::the edit of UNFILLED_UNTIL_LAUNCH did not apply"; exit 1; fi
+          red "the notice kept on a page no longer listed" 'is not listed in UNFILLED_UNTIL_LAUNCH and shows its draft notice'
           git checkout -- tests/placeholders.spec.ts
           perl -0pi -e 's|\s*<p>\s*\[DRAFT NOTICE.*?</p>||s' src/pages/privacy.astro
-          ! grep -q 'DRAFT NOTICE' src/pages/privacy.astro
-          red "the notice taken off with no answer recorded"
+          if grep -q 'DRAFT NOTICE' src/pages/privacy.astro; then echo "::error::the edit of privacy.astro did not apply"; exit 1; fi
+          red "the notice taken off with no answer recorded" 'is listed in UNFILLED_UNTIL_LAUNCH and does not show its draft notice'
           printf '\nlegal pages: own texts (2026-11-02)\n' >> README.md
           CI= npx playwright test tests/placeholders.spec.ts -g "$t" --reporter=line || { echo "::error::a recorded answer did not turn the test green"; exit 1; }
           git checkout -- src/pages/privacy.astro README.md
