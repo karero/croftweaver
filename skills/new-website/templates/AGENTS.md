@@ -264,7 +264,8 @@ For everyone, the owner included:
 - The draft notice under the heading of the imprint and privacy pages (`[DRAFT
   NOTICE, …]`, in German `[ENTWURFSHINWEIS, …]`) is the owner's to clear, at every
   rights level. Do not delete it to turn a test green: `tests/placeholders.spec.ts`
-  fails while it is gone and no answer is recorded. To clear it:
+  fails for a legal page in `PAGES` whose notice is gone while no answer is recorded.
+  To clear it:
   - Once the slots of those pages are filled, ask the owner once. The answer is the
     owner's alone: when this section lists collaborators, ask the person whether they
     are the owner. If they are not, leave the notices and tell them the answer is the
