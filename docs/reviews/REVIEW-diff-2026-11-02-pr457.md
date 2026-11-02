@@ -2,7 +2,7 @@
 
 Plan: `docs/reviews/PLAN-legal-notice-on-generated-sites.md` (PR 390, PLAN gate clean). Base `9fcce2cc` · depth: High (the build changes what a generated site does and what an assistant is told to do) · verdict: CLEAN at `0aa690c4` · authority used: POST AUTHORITY, WORKTREE-WRITE and BRANCH-COMMIT, each by atom A (this session opened PR 457 and created the worktree and branch).
 
-Sending the diff to Codex and melious.ai: Daniel's words, 2026-11-02, "Yes, send it" in this session, and "Yes, both" to the manager session's question. Scope: this change, every round, those two services.
+Sending the diff to Codex and melious.ai: the maintainer's words, 2026-11-02, "Yes, send it" in this session, and "Yes, both" to the manager session's question. Scope: this change, every round, those two services.
 
 Seats: Codex (`gpt-6.1-sol`, read-only, effort from config), GLM 5.3 on melious.ai, fresh-eyes (Claude Opus, no shared context, rounds 1 to 3 as High depth asks, and the final full read). "Code that reads another program's output" (rule 5) does not apply: the new code reads the site's own README and its rendered page.
 
@@ -20,7 +20,7 @@ Seats: Codex (`gpt-6.1-sol`, read-only, effort from config), GLM 5.3 on melious.
 | F2 | RISK | Codex | 1 | The browser test said a French note is never seen, against the rule to add translations to `LEGAL_NOTES` | fixed, externally_reverified | the case uses a text in no list |
 | F3 | RISK | fresh-eyes | 1 | The per-page test's call site could be switched off with every test green | fixed, externally_reverified (rounds 2, 3, full read) | `template-tests.yml` step; three call-site mutations each turn it red |
 | F4 | NIT | fresh-eyes | 1 | The Cloudflare stop named the notice even when only the manifest was listed | fixed, externally_reverified | the clause is conditional; tests 19 and 19b; 19b fails with the condition removed |
-| F5 | RISK | fresh-eyes | 1 | `skills/website-launch-check` is in the toolkit (the plan said it is not) and wants a coverage row when a spec changes | deferred, not in this PR | plan decision 4; sent to the manager, who has it in hand; the owner is asked whether the one row joins this PR |
+| F5 | RISK | fresh-eyes | 1 | `skills/website-launch-check` is in the toolkit (the plan said it is not) and wants a coverage row when a spec changes | row fixed in this PR on the maintainer's word ("Yes, in 457"); section 3 and behaviour deferred | one table row in `test-coverage.md`; `make test-launch-check` (it reads the title from the spec) 17 tests OK |
 | F6 | NIT | fresh-eyes | 1 | The plan's Status table was "not started" | fixed after the last round | rows filled with this PR |
 | F7 | NIT | fresh-eyes | 1 | Evidence lacked `npm run check`, the old-site run and `/de/privacy` | fixed except `/de/privacy` | `npm run check` 0 errors; old-site run red, then green (H5); `/de/privacy` not run |
 | F8 | NIT | fresh-eyes | 1 | Em dash in the new test titles | refuted | the file's own title convention, which the launch-check mapping parses |
@@ -37,9 +37,9 @@ Seats: Codex (`gpt-6.1-sol`, read-only, effort from config), GLM 5.3 on melious.
 | H4 | NIT | fresh-eyes | full read | The Cloudflare regex copies `LEGAL_LAST_SEGMENTS` with no link | fixed, externally_reverified | a comment at each place |
 | H5 | NIT | fresh-eyes | full read | The plan's old-site scenario was not run | run | scratch copy: no notice, not listed, no record: red with the legal-page message; with a record line: green |
 
-Waivers and deferrals: none by the owner. F5 and G6 are deferred as a follow-up, not as a BUG. Their open question (does the one launch-check table row join this PR?) is Daniel's, put to him by the manager session.
+Waivers and deferrals: none by the owner. F5 and G6 are deferred as a follow-up, not as a BUG. The maintainer answered the open question (does the one launch-check table row join this PR?) on 2026-11-02: "Yes, in 457". So the one row goes into this PR, a deviation from plan decision 4 made on his word, because `skills/website-launch-check/references/test-coverage.md` requires a table change in the same pull request as a spec change. Its section 3 and the launch check's behaviour stay the separate follow-up.
 
-Follow-ups: the launch-check row and its section 3 (F5, G6); the plan's own "not in the toolkit" lines; `/de/privacy` end to end.
+Follow-ups: the launch check's section 3, which does not report the README answer (F5, G6); the plan's own "not in the toolkit" lines; `/de/privacy` end to end.
 
 Notes:
 - Melious (GLM 5.3) failed in every round with an empty balance. By the owner's rule of 2026-10-27 each round stands on Codex alone; no rerun was owed. Codex's chain is unbroken: round 1 saw the whole change, rounds 2 to 4 each saw the delta from the previous head.
