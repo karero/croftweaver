@@ -304,6 +304,9 @@ change. One edit, before launch only: a second locale's legal page built from on
 (`/de/privacy` from `_datenschutz.astro`) carries `[BRACKET]` slots until the owner
 fills them, so add its route to `UNFILLED_UNTIL_LAUNCH` next to `/privacy`. That is
 the one case in which the list may grow; on a launched site, fill the slots instead.
+That page also carries the draft notice, cleared as `AGENTS.md` §5 says. A notice you
+translate for a page in another language must be added to the list of notice texts in
+`tests/placeholders.spec.ts`, or the test does not see it.
 
 ## Regional German (DACH)
 

@@ -1,8 +1,10 @@
 ---
 // GDPR (EU 2016/679) privacy page draft. Before launch:
 //   1. Fill every [BRACKET] slot. The controller is whoever legally runs the site.
-//      Then delete '/privacy' from UNFILLED_UNTIL_LAUNCH in
-//      tests/placeholders.spec.ts (the test turns red until you do).
+//      Clear the draft notice under the <h1> as AGENTS.md section 5 says: ask the
+//      owner, record the answer, then delete it. Only then delete '/privacy' from
+//      UNFILLED_UNTIL_LAUNCH in tests/placeholders.spec.ts (the test turns red
+//      until you do).
 //   2. Make section 3 match reality. The starter ships with analytics off
 //      (USE_ANALYTICS = false in src/config.ts), but this page still ships the
 //      Plausible paragraphs. A site without analytics deletes them (then also
@@ -114,6 +116,9 @@ import { SITE } from '../config';
   description={`How ${SITE.name} handles personal data: cookieless analytics, hosting on Cloudflare Pages, contact data handling, and your rights under the GDPR.`}>
   <section class="wrap">
     <h1>Privacy Policy</h1>
+    <p>
+      [DRAFT NOTICE, DELETE BEFORE LAUNCH: This page is a first draft, not legal advice. It cannot know your whole situation, and what the law asks of you depends on your country and on what your site does. Ask a lawyer to review it before you publish, or replace it with your own text.]
+    </p>
     <p>
       Last updated: [DATE]. This page explains which personal data this website
       processes, on what legal basis under the GDPR (EU 2016/679), and which

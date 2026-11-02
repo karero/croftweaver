@@ -55,11 +55,11 @@ Update a row when its step is done; the evidence is a commit SHA or a repo-quali
 
 | Step | State | Evidence |
 |---|---|---|
-| 1. Notice on the three pages, and the "Before launch" lines | not started | — |
-| 2. `templates/AGENTS.md` §5 clearing steps | not started | — |
-| 3. `SKILL.md` §4 question | not started | — |
-| 4. `templates/astro/README.md` sentence | not started | — |
-| 5. Test in `tests/placeholders.spec.ts` | not started | — |
+| 1. Notice on the three pages, and the "Before launch" lines | done | karero/croftweaver#457 (98cf798f) |
+| 2. `templates/AGENTS.md` §5 clearing steps | done | karero/croftweaver#457 (98cf798f) |
+| 3. `SKILL.md` §4 question | done | karero/croftweaver#457 (98cf798f) |
+| 4. `templates/astro/README.md` sentence | done | karero/croftweaver#457 (98cf798f) |
+| 5. Test in `tests/placeholders.spec.ts` | done | karero/croftweaver#457 (98cf798f) |
 
 ## How it is tested
 

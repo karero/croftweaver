@@ -1,4 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PAGES, UNFILLED_SLOT, PLACEHOLDER_ALLOWLIST, PLACEHOLDER_EXEMPT, placeholderAllowed } from './_helpers';
 
 // Leftover guardrail on the RENDERED site: a placeholder, or a note the author wrote
@@ -106,6 +109,58 @@ const SHOWN_AS_TEXT = ['text', 'search', 'email', 'tel', 'url', 'submit', 'butto
 // that is weakening the test (AGENTS.md §5). Fill the slot, or use the content
 // placeholder and keep the pull request a draft.
 const UNFILLED_UNTIL_LAUNCH = new Set<string>(['/privacy', '/impressum', '/manifest.webmanifest']);
+
+// The draft notice under the heading of the legal pages (AGENTS.md §5). It is slot-shaped,
+// so a listed page reports it as "not ready to launch". It leaves with the owner's answer,
+// not with the last filled slot. These are the texts the starter ships; a notice translated
+// for another language is added here, or this spec does not see it.
+const LEGAL_NOTES = [
+  '[DRAFT NOTICE, DELETE BEFORE LAUNCH: This page is a first draft, not legal advice. It cannot know your whole situation, and what the law asks of you depends on your country and on what your site does. Ask a lawyer to review it before you publish, or replace it with your own text.]',
+  '[ENTWURFSHINWEIS, VOR DEM START LÖSCHEN: Diese Seite ist ein erster Entwurf und keine Rechtsberatung. Sie kennt Ihre Lage nicht im Ganzen, und was das Gesetz von Ihnen verlangt, hängt von Ihrem Land und von Ihrer Website ab. Lassen Sie den Text vor der Veröffentlichung von einer Anwältin oder einem Anwalt prüfen, oder ersetzen Sie ihn durch Ihren eigenen.]',
+];
+// The three recorded answers, each a line of its own in README.md. The date is checked
+// for its shape only.
+const LEGAL_RECORDS = [
+  /^legal pages: reviewed by a lawyer \(\d{4}-\d{2}-\d{2}\)\r?$/m,
+  /^legal pages: own texts \(\d{4}-\d{2}-\d{2}\)\r?$/m,
+  /^legal pages: published as drafted \(owner's decision, \d{4}-\d{2}-\d{2}\)\r?$/m,
+];
+// Whether a note is on the page for a visitor: a known text, visible in full.
+async function noteIsVisible(page: Page): Promise<boolean> {
+  for (const note of LEGAL_NOTES) {
+    for (const el of await page.getByText(note).all()) if (await el.isVisible()) return true;
+  }
+  return false;
+}
+// Also listed in skills/new-website/scripts/cloudflare-setup.mjs (its launch stop); change both.
+const LEGAL_LAST_SEGMENTS = ['privacy', 'datenschutz', 'impressum'];
+const isLegalPage = (path: string) => LEGAL_LAST_SEGMENTS.includes(path.split('/').filter(Boolean).pop() ?? '');
+const hasLegalRecord = (readme: string) => LEGAL_RECORDS.some((re) => re.test(readme));
+
+// null = fine. A legal page passes while it is listed and shows a note, or once an answer
+// is recorded. Anything else (note dropped, or page delisted with the note still on, and
+// no answer) fails.
+function legalVerdict(path: string, { listed, noteVisible, recorded }: { listed: boolean; noteVisible: boolean; recorded: boolean }): string | null {
+  if (recorded || (listed && noteVisible)) return null;
+  return (
+    `${path} is a legal page with no recorded answer, and ${listed ? 'is listed in UNFILLED_UNTIL_LAUNCH' : 'is not listed in UNFILLED_UNTIL_LAUNCH'} ` +
+    `and ${noteVisible ? 'shows' : 'does not show'} its draft notice. Do not delete the notice or the entry to turn this green. ` +
+    `Ask the owner as AGENTS.md section 5 says, record the answer as one line of its own in README.md, written bare (no list marker, no backticks) ` +
+    `("legal pages: reviewed by a lawyer (YYYY-MM-DD)", "legal pages: own texts (YYYY-MM-DD)" or ` +
+    `"legal pages: published as drafted (owner's decision, YYYY-MM-DD)"), then delete the notices.`
+  );
+}
+
+// The README.md in the folder that holds package.json (tests run from there). Missing
+// counts as no record; any other read error is not hidden.
+function readme(dir = process.cwd()): string {
+  try {
+    return readFileSync(join(dir, 'README.md'), 'utf8');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return '';
+    throw e;
+  }
+}
 
 // A leftover is the same leftover however it is spaced. The page copy is read three
 // times (see readPage), and markup inside a slot puts spaces into some of the readings:
@@ -539,6 +594,108 @@ for (const path of PAGES) {
     await page.goto(path);
     const { text, lang } = await readPage(page);
     judge(path, text, lang);
+  });
+}
+
+// The legal pages' draft notice, pinned by example (AGENTS.md §5).
+test('placeholders — the draft notice rules pick the legal pages and read the answer', () => {
+  for (const p of ['/privacy', '/impressum', '/datenschutz', '/de/privacy', '/fr/privacy', '/de/impressum']) {
+    expect(isLegalPage(p), `${p} is a legal page`).toBe(true);
+  }
+  for (const p of ['/', '/about', '/legal', '/privacy-policy', '/privacy/team', '/blog/privacy-tips']) {
+    expect(isLegalPage(p), `${p} is not selected: only the last segment decides`).toBe(false);
+  }
+  // Each note is a slot, so a listed page reports it as "not ready to launch".
+  for (const note of LEGAL_NOTES) {
+    expect(scan(note).map((f) => f.label), 'a note must match the slot rule once').toEqual(['unfilled [SLOT]']);
+  }
+  // The recorded answer: exactly the three forms, a date of the right shape, a line of its own.
+  const accepted = [
+    'legal pages: reviewed by a lawyer (2026-11-02)',
+    'legal pages: own texts (2026-11-02)',
+    "legal pages: published as drafted (owner's decision, 2026-11-02)",
+    '# Site\n\nlegal pages: own texts (2026-11-02)\r\nmore\n',
+  ];
+  const refused = [
+    '',
+    'legal pages: reviewed by a lawyer (soon)',
+    'legal pages: reviewed by a lawyer (2026-1-2)',
+    'legal pages: reviewed by a lawyer 2026-11-02',
+    'legal pages: checked (2026-11-02)',
+    'legal pages: published as drafted (2026-11-02)',
+    'Legal pages: own texts (2026-11-02)',
+    'we said legal pages: own texts (2026-11-02)',
+    '- legal pages: own texts (2026-11-02)',
+    '`legal pages: own texts (2026-11-02)`',
+    'legal pages: own texts (2026-11-02) and more',
+    'legal pages: own texts\n(2026-11-02)',
+  ];
+  expect(accepted.filter((r) => !hasLegalRecord(r)), 'recorded forms the test no longer accepts').toEqual([]);
+  expect(refused.filter(hasLegalRecord), 'near misses the test now accepts').toEqual([]);
+  // A missing README.md is no record; a README.md that cannot be read is an error.
+  const empty = mkdtempSync(join(tmpdir(), 'legal-readme-'));
+  try {
+    expect(readme(empty), 'a missing README.md counts as no record').toBe('');
+    writeFileSync(join(empty, 'README.md'), '# Site\n\nlegal pages: own texts (2026-11-02)\n');
+    expect(hasLegalRecord(readme(empty)), 'the answer is read from README.md in the given folder').toBe(true);
+    rmSync(join(empty, 'README.md'));
+    mkdirSync(join(empty, 'README.md'));
+    expect(() => readme(empty), 'a README.md that cannot be read must not pass as empty').toThrow();
+  } finally {
+    rmSync(empty, { recursive: true, force: true });
+  }
+  expect(existsSync(join(process.cwd(), 'package.json')), 'the tests must run from the folder that holds package.json, where the answer is read').toBe(true);
+  // The verdict: a note on a listed page, or a record. Nothing else.
+  const fine = (listed: boolean, noteVisible: boolean, recorded: boolean) => legalVerdict('/privacy', { listed, noteVisible, recorded });
+  expect(fine(true, true, false), 'listed with its note is fine').toBeNull();
+  expect(fine(true, false, true), 'a recorded answer clears the note').toBeNull();
+  expect(fine(false, false, true), 'a recorded answer clears the note and the entry').toBeNull();
+  expect(fine(false, true, true), 'a recorded answer with the note still on is not this test\'s business').toBeNull();
+  expect(fine(true, false, false), 'the note gone with no answer fails').toContain('AGENTS.md section 5');
+  expect(fine(false, true, false), 'the page delisted with the note on and no answer fails').toContain('is not listed in UNFILLED_UNTIL_LAUNCH and shows its draft notice');
+  expect(fine(false, false, false), 'neither the note nor an answer fails').not.toBeNull();
+  expect(fine(true, false, false)).toContain('legal pages: published as drafted (owner\'s decision, YYYY-MM-DD)');
+});
+
+// The notice reading, pinned in a real browser: the note planted where it counts and
+// where it must not, as the notes are told apart from a page that only looks like one.
+test('placeholders — the draft notice is read as a visitor sees it', async ({ page }) => {
+  const [en, de] = LEGAL_NOTES;
+  const seen = async (body: string, head = '', lang = 'en') => {
+    await page.setContent(`<!doctype html><html lang="${lang}"><head><title>Privacy</title>${head}</head><body><h1>Privacy</h1>${body}</body></html>`);
+    return noteIsVisible(page);
+  };
+  expect(await seen(`<p>${en}</p>`), 'the English note shows').toBe(true);
+  expect(await seen(`<p>${de}</p>`, '', 'de'), 'the German note shows').toBe(true);
+  expect(await seen(`<p>${en}</p>`, '', 'fr'), 'a note counts on a page of any language').toBe(true);
+  expect(await seen(`<p>\n  ${en.replace(' It cannot', '\n   It cannot')}\n</p>`), 'line breaks in the source do not matter').toBe(true);
+  expect(await seen(`<p>${en.replace('first draft', 'rough sketch')}</p>`), 'a reworded note').toBe(false);
+  expect(await seen(`<p>${en.replace(' Ask a lawyer to review it before you publish, or replace it with your own text.', '')}</p>`), 'a cut note').toBe(false);
+  expect(await seen('<p>[A NOTE OF OTHER WORDS THAN ANY IN LEGAL_NOTES, DELETE BEFORE LAUNCH.]</p>'),
+    'a note whose text is not in LEGAL_NOTES is not seen').toBe(false);
+  expect(await seen('<p>Nothing here.</p>'), 'no note').toBe(false);
+  expect(await seen(`<!-- ${en} -->`), 'in a comment').toBe(false);
+  expect(await seen(`<p>${en}</p>`.replace('<p>', '<p style="display:none">')), 'display: none').toBe(false);
+  expect(await seen(`<p style="visibility:hidden">${en}</p>`), 'visibility: hidden').toBe(false);
+  expect(await seen(`<p hidden>${en}</p>`), 'the hidden attribute').toBe(false);
+  expect(await seen('<p>x</p>', `<meta name="description" content="${en}">`), 'in a meta tag').toBe(false);
+  expect(await seen('<p>x</p>', `<script type="application/ld+json">{"description":"${en}"}</script>`), 'in a script').toBe(false);
+  expect(await seen(`<p data-note="${en}">x</p>`), 'in an attribute').toBe(false);
+});
+
+// Enters the way an owner's run does: the rendered page and the README.md in this folder.
+// Catches, with no answer recorded, a note that was dropped, reworded, put in a comment, the
+// frontmatter or a meta tag, or hidden (display: none, visibility: hidden, hidden), and a
+// page taken out of UNFILLED_UNTIL_LAUNCH while its note is on. It cannot catch a recorded
+// answer that is not true; a note made unreadable another way (opacity: 0, off-screen, text
+// in a hidden child); a legal page added after the answer; a page at another address
+// (/legal); or a note in another language than its page. In the toolkit the folder is
+// templates/astro, whose README.md has no answer, so /privacy and /impressum hold their notes.
+for (const path of PAGES.filter(isLegalPage)) {
+  test(`placeholders — ${path} keeps its draft notice until the owner's answer is recorded`, async ({ page }) => {
+    await page.goto(path);
+    const fail = legalVerdict(path, { listed: UNFILLED_UNTIL_LAUNCH.has(path), noteVisible: await noteIsVisible(page), recorded: hasLegalRecord(readme()) });
+    expect(fail === null, fail ?? '').toBe(true);
   });
 }
 

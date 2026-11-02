@@ -1011,10 +1011,19 @@ test('19: the commit that goes live still lists unfilled pages: refused, the ent
     const r = await launch();
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /UNFILLED_UNTIL_LAUNCH in tests\/placeholders\.spec\.ts still lists \/privacy, \/impressum, \/manifest\.webmanifest/);
+    assert.match(r.out, /clear the draft notice on a legal page as AGENTS\.md section 5 says/);
     assert.doesNotMatch(r.out, /--confirm/);
     assert.deepEqual(domainsCalls(api), [], 'no call to the domains API');
     assert.deepEqual(sites.asked.site, []);
   }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC } }));
+
+test('19b: only the manifest is still listed: the stop does not talk about a draft notice', () =>
+  launchScenario((h) => launchState(h), async ({ launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /still lists \/manifest\.webmanifest: fill that page, and empty the list first/);
+    assert.doesNotMatch(r.out, /draft notice/);
+  }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC.replace("'/privacy', '/impressum', ", '') } }));
 
 test('20: a draft token in src/, a German site\'s own token, two tokens that differ, no placeholder test: refused, and said which', async () => {
   const german = (spec) => {

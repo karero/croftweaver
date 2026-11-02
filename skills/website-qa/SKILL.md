@@ -86,8 +86,9 @@ cosmetics; red → green → commit.
   template expression or a dummy name. The CI grep for `[MISSING:` is the fast
   source-side half; this is the half that reads what a page serves. The starter's
   privacy page, imprint and manifest sit in `UNFILLED_UNTIL_LAUNCH` and are
-  **reported, not failed**, until filled; a filled target fails until its entry is
-  deleted, so the list empties itself and must be empty at launch (`new-website` §4).
+  **reported, not failed**, until filled and, for the two legal pages, until their
+  draft notice is cleared as `AGENTS.md` §5 says; a filled target fails until its
+  entry is deleted, so the list empties itself and must be empty at launch (`new-website` §4).
   A `"[MISSING: …]"` on a page only warns on your own machine, so a draft branch can
   be pushed, and fails in CI. Not read: the 404 page, `llms.txt`, and the starter's
   example values (the name `Example`, `hello@example.com`); those stay a
