@@ -8,7 +8,7 @@ Seats: Codex (`gpt-6.1-sol`, read-only, effort from config), GLM 5.3 on melious.
 
 | Round | Head | Artifact | Reviewers | Seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
-| 1 | `aea86671` | full, `9fcce2cc` to head, with evidence | Codex; melious out of balance; fresh-eyes | Codex 170 s, 61,685; fresh-eyes 348 s, 191,147 | Codex 0/2/0; fresh-eyes 0/2/4 (one RISK is F5) |
+| 1 | `aea86671` | full, `9fcce2cc` to head, with evidence | Codex; melious out of balance; fresh-eyes | Codex 170 s, 61,685; fresh-eyes 348 s, 191,147 | Codex 0/2/0; fresh-eyes 0/2/5 (the RISKs are F3 and F5) |
 | 2 | `b4cc3c56` | delta since `aea86671` | Codex; melious out of balance; fresh-eyes | Codex 211 s, 42,784; fresh-eyes 302 s, 145,978 | Codex 1/1/0; fresh-eyes 0/1/4 (RISK and BUG are the same two findings) |
 | 3 | `cf25f4fc` | delta since `b4cc3c56` | Codex; melious out of balance; fresh-eyes | Codex 165 s, 62,704; fresh-eyes 175 s, 133,653 | none, both clean |
 | final full read | `cf25f4fc` | whole change | fresh-eyes (a new Opus pass; Codex had seen the change, melious had no balance, ollama never stands in) | 485 s, 212,052 | 0/1/4 |
@@ -44,5 +44,5 @@ Follow-ups: the launch-check row and its section 3 (F5, G6); the plan's own "not
 Notes:
 - Melious (GLM 5.3) failed in every round with an empty balance. By the owner's rule of 2026-10-27 each round stands on Codex alone; no rerun was owed. Codex's chain is unbroken: round 1 saw the whole change, rounds 2 to 4 each saw the delta from the previous head.
 - Round 4 is past round 3 and was earned by H1 (kind `record-line-form`), a RISK from the final full read whose fix changed what an assistant is told and what the test prints. The final full read is logged under round 4 in the cost log; it is not a round.
-- Totals: 4 rounds and a final full read, 23 findings (1 BUG, 6 RISK counting F5, 16 NIT); 2 deferred (F5, G6), 2 refuted (F8, F9), the rest fixed.
+- Totals: 4 rounds and a final full read, 20 findings (1 BUG, 6 RISK, 13 NIT; a finding two seats raised is counted once); 2 deferred (F5, G6), 2 refuted (F8, F9), the rest fixed.
 - Tests: spec 11 passed; full suite on the starter 120 passed, 1 skipped (an older positioning skip); mutation check 14 of 14 killed; `make check` exit 0; cloudflare tests 212 pass, 0 skipped. Not run: the new `template-tests.yml` step on GitHub's runner (this PR's CI runs it); `/de/privacy`.
