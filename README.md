@@ -687,6 +687,15 @@ script — never by loosening it. The same `make check` (and the same CI workflo
 the Melious seat may run and its list of measured seat limits, and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 
+### Changing the starter
+
+Several jobs in `.github/workflows/template-tests.yml` (`scorecard-skill`, `brand-kit-skill`
+and others) copy the starter, install a skill into it and run the site's tests; `make check`
+runs none of them. So before the first push of a change to the starter's shared files
+(`global.css`, `Base.astro`, a spec that scans every page), run `make check`,
+`make test-brand-kit`, and, in a scratch copy of the starter, the steps of the job whose skill
+reads the file you changed. Where a step uses GNU `sed -i`, write `sed -i ''` on macOS.
+
 ### Merging stacked PRs
 
 A PR whose base is **another feature branch** (not `main`) is *stacked* — e.g. a docs PR
