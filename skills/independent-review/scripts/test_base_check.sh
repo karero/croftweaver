@@ -142,7 +142,7 @@ noprefix git diff "$G"..HEAD -- . ':(exclude)docs/reviews/' >"$T/t3n.diff"
 run t3n "$R/w" "$T/t3n.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
 check "T3r control: a plain git diff from that subfolder is refused" rc_is t3n 2
 # T3p: run by a bare relative name, the printed command still names the script by its full path.
-SCRIPT=independent_review.sh run t3p "$HERE" "$T/t3.diff" --seat codex --verify "$T/prior.md"
+SCRIPT=independent_review.sh run t3p "$HERE" "$T/t3.diff" --seat codex --verify "$T/prior.md" --depth normal
 check "T3p --verify with no --base, run as 'bash independent_review.sh': refused" rc_is t3p 2
 check "T3p ... and the printed command names the script by its full path" \
   has t3p.err "| $(printf '%q' "$HERE/independent_review.sh") - --verify"

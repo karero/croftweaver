@@ -578,8 +578,8 @@ else
     || base_refuse "not inside a git work tree, so the diff's paths mean nothing here." "Run from the repository the diff came from. $none_hint"
   head_id="$(git -C "$top" rev-parse --verify --quiet 'HEAD^{commit}')" \
     || base_refuse "the repository has no commit at HEAD." "$none_hint"
-  # After top is known, so the printed command makes the delta from the repository root, the way
-  # the mismatch refusal's remedy below does, whatever folder or diff config the caller has.
+  # After top is known, so the printed command makes the delta from the repository root with the
+  # flags of the mismatch refusal's remedy below, which override the diff config the check refuses.
   [ -n "$BASE" ] || [ -z "$VERIFY_FILE" ] \
     || base_refuse "a verification round reviews the change since the last reviewed head, so it must name that head." "Pass --base <last-reviewed-head>, with the diff made from that head:" \
          "  git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ <last-reviewed-head> HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$SCRIPT_DIR/${0##*/}") - --verify $(printf '%q' "$VERIFY_FILE") --base <last-reviewed-head> <your other options>" \
