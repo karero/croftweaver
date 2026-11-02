@@ -121,7 +121,10 @@ check "T3e control: the same evidence appended to the diff is refused" rc_is t3e
 check "T3e control: ... by the base check" has t3ev.err "Base check:"
 run t3b "$R/w" "$T/t3.diff" --seat codex --verify "$T/prior.md" --depth normal --round 2
 check "T3 --verify with no --base: refused" rc_is t3b 2
-check "T3 --verify with no --base: names --base" has t3b.err "Pass --base <last-reviewed-head>."
+check "T3 --verify with no --base: names --base" has t3b.err "Pass --base <last-reviewed-head>"
+check "T3 ... and prints the delta command, so the retry is not refused again for a full diff" \
+  has t3b.err "  git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$SCRIPT") - --verify $(printf '%q' "$T/prior.md") --base <last-reviewed-head> ..."
+check "T3 ... and no reviewer ran" not_ran t3b
 run t3c "$R/w" "$T/t3.diff" --seat codex --depth normal
 check "T3 delta over a file the branch changed before, no --base: refused" rc_is t3c 2
 check "T3 ... with the delta line" has t3c.err "For a delta since a reviewed head, pass --base <that head>."
