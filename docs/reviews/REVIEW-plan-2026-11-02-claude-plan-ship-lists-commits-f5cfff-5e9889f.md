@@ -12,6 +12,7 @@ in rounds 1 to 3.
 | 1 | `5e9889fb` | full plan; evidence `evidence-r1.md` (90,177 bytes: `ship.sh` whole, the test file's stub and harness, `whats-new.sh` line 80, three git READs) | Codex gpt-6.1-sol, config effort, read-only; melious FAILED (out of balance), so Codex alone by the owner's rule of 2026-10-27; fresh-eyes Opus 5.5 | Codex 205 s, 65,730 · fresh-eyes 319 s, 157,987 | 3 / 2 / 4 (Codex 2/1/1, fresh-eyes 2/3/3; A1 and A4 from both) |
 | 2 | `87e7f537` | full plan, verification of A1–A9; evidence `evidence-r2.md` (91,129 bytes: round 1's plus the pager and pull --no-rebase READs) | Codex gpt-6.1-sol, config effort; melious FAILED (out of balance), Codex alone; fresh-eyes Opus 5.5 | Codex 351 s, 89,937 · fresh-eyes 305 s, 150,832 | 1 / 3 / 5 (Codex 1/1/0, fresh-eyes 0/3/5 incl. 1 outside scope; B1 from both) |
 | 3 | `e01fe127` | full plan, verification of B1–B9; evidence `evidence-r2.md` | Codex gpt-6.1-sol, config effort; melious FAILED (out of balance), Codex alone; fresh-eyes Opus 5.5 | Codex 178 s, 69,058 · fresh-eyes 301 s, 144,124 | 3 / 2 / 2 (Codex 1/1/0, fresh-eyes 2/2/3; C1 and C2 from both) |
+| 4 | `4f5f1bb9` | full plan, verification of C1–C7 and a trace of every mutation; earned by C1, C3, C4 (`--earned-by test-guard-blind,race-claim`) | Codex gpt-6.1-sol, config effort; melious FAILED (out of balance), Codex alone; no fresh-eyes (rounds 1–3 only) | Codex 190 s, 78,295 | 0 / 2 / 0 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -43,5 +44,8 @@ in rounds 1 to 3.
 | C6 | NIT | fresh-eyes | 3 | L4 names no mode; in worktree mode a decoration would show `refs/`, not `(HEAD` | fixed, locally_verified | L4 is worktree mode and also rejects `refs/` |
 | C7 | NIT | fresh-eyes | 3 | "List line" is undefined for L2's exact count and L4's checks | fixed, locally_verified | defined at the head of the real-git half: standard output, `^    [0-9a-f]{7} `, header to blank line |
 
+| D1 | RISK | Codex | 4 | L4's `ignature` check reads only list lines, so a stray `No signature` line (no id) would pass it | fixed, locally_verified, closing edit not externally re-verified | not earning: the stub `log` arm's settings check already fails that mutation; L4 now holds the whole block to the expected lines |
+| D2 | RISK | Codex | 4 | C1's new claim (an ancestor move still fast-forwards) is not measured for a move during the gate | fixed, locally_verified, closing edit not externally re-verified | not earning: nothing built changes; cut, the plan now claims nothing about the push after a move |
+
 Follow-ups: UTF-8 C1 controls pass the `tr` (fresh-eyes, UNVERIFIABLE; listed under Not covered).
-Notes: rounds 1 to 3 melious out of balance; one kind came back: a test guard that cannot fire (B1, B3 in round 2; C2, C3, C4 in round 3), so round 4 asks the seat to check every case against every mutation it is credited with; Codex alone counts by the owner's rule, no rerun owed.
+Notes: rounds 1 to 3 melious out of balance; one kind came back: a test guard that cannot fire (B1, B3 in round 2; C2, C3, C4 in round 3), so round 4 asked the seat to check every case against every mutation it is credited with (it traced all 13, each caught); round 4 had no BUG and no earning RISK, so the rounds end there (stop condition a2); Codex alone counts by the owner's rule, no rerun owed.

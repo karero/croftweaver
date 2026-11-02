@@ -7,7 +7,7 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-02 | this file |
-| 2 | PLAN gate, High | rounds 1 to 3 done, all fixed; round 4 next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
+| 2 | PLAN gate, High | rounds 1 to 4 done, all fixed; final full read next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
 | 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | waits for the owner's go | — |
 | 4 | `PUBLISHING.md`: one sentence | waits for the owner's go | — |
 | 5 | `docs/BUGLOG.md`: the release-notes row | waits for the owner's go | — |
@@ -41,10 +41,9 @@ goes, then what stays.
    - `live_prod="$(git rev-parse --verify 'origin/production^{commit}')"`: production read once,
      so the three reads below agree even if another session's fetch moves it meanwhile. The
      divergence check at line 552 keeps its own read of the name, unchanged. If production moves
-     after these reads, the push (which names no expected value, `push_once`) is refused when the
-     new production is outside `$id`'s history, and otherwise still goes through as a fast-forward;
-     the list then also names the commits that went live meanwhile. Either way only that one run's
-     list text is off (round 3, both seats: an earlier draft said it is always refused).
+     after these reads, that one run's list may be off. What the push then does is unchanged by
+     this plan, and the plan claims nothing about it (rounds 3 and 4: two earlier wordings went
+     beyond what was measured).
    - `live_n="$(git rev-list --count --first-parent "$live_prod..$id")"`: how many lines.
    - `live_all="$(git rev-list --count "$live_prod..$id")"`: how many commits.
    - `live_lines="$(git -c log.showSignature=false log --first-parent --format='%h %s' -n 20 "$live_prod..$id")"`
@@ -137,8 +136,9 @@ values are written from each fixture's commit subjects and ids, never copied fro
   apart, as `stopverdict` does with its own text (round 3, fresh-eyes).
 - the existing diverged case also asserts 0 list calls.
 
-**Real-git half** (bare origin, clone, tiny gate, as today). A list line is a line of standard
-output matching `^    [0-9a-f]{7} ` after the header, up to the next blank line:
+**Real-git half** (bare origin, clone, tiny gate, as today). The list block is every line of
+standard output from the header to the next blank line; a list line is a block line matching
+`^    [0-9a-f]{7} `:
 - S2 (worktree mode, main 2 ahead): the header `Going live, newest first (a merge is one line):`;
   `    <id7> change 2` on a line before `    <id7> change 1`; no "commits in all" line; the
   header before "Not published" and before "▶ pre-push gate".
@@ -155,8 +155,9 @@ output matching `^    [0-9a-f]{7} ` after the header, up to the next blank line:
 - new L4 (worktree mode): the clone sets `color.ui=always`, `log.decorate=full`, `format.pretty=fuller` and
   `log.showSignature=true`; one commit's subject holds `ESC[31m`, and another commit is signed
   with an ssh key the fixture makes with `ssh-keygen` (`-c gpg.format=ssh -c user.signingkey=…
-  commit -S`). The ESC line is exactly `    <id7> evil [31mred[0m end`; no line of the list
-  holds an escape byte, `(HEAD`, `refs/` or `ignature` (in worktree mode the clone's HEAD is
+  commit -S`). The ESC line is exactly `    <id7> evil [31mred[0m end`; the block holds
+  the header and the expected list lines and nothing else, so a stray line such as `No signature`,
+  which is no list line, still fails it (round 4); no line of the block holds an escape byte, `(HEAD`, `refs/` or `ignature` (in worktree mode the clone's HEAD is
   outside the range, so a decoration would show as `refs/…`, round 3). Where `ssh-keygen` is missing or git is older than 2.34 (its first ssh signing), the signed commit
   is left out and the run says so.
 - new L6 (folder mode, the sequence the script itself advises): GitHub's main gains a `--no-ff`
