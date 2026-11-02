@@ -7,7 +7,7 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-02 | this file |
-| 2 | PLAN gate, High | not started | trail `REVIEW-plan-2026-11-02-ship-lists-commits.md` |
+| 2 | PLAN gate, High | round 1 done (3 BUG, 2 RISK, 4 NIT, all fixed); round 2 next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
 | 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | waits for the owner's go | — |
 | 4 | `PUBLISHING.md`: one sentence | waits for the owner's go | — |
 | 5 | `docs/BUGLOG.md`: the release-notes row | waits for the owner's go | — |
@@ -35,38 +35,51 @@ passes, before worktree mode makes its temporary copy. So the list is printed on
 publish can go ahead, and in worktree mode it comes before the "Not published" lists: first what
 goes, then what stays.
 
-1. **Two reads, no pipe** (the repo's pipefail guard bans `| head`):
-   - `count="$(git rev-list --count --first-parent "origin/production..$id")"`
-   - `list="$(git --no-pager -c log.showSignature=false log --first-parent --format='%h %s' -n 20 "origin/production..$id")"`
+1. **Four reads, no pipe** (the repo's pipefail guard flags `| head`). New names only: `list`
+   is taken (the path of the worktree list, `ship.sh` lines 381, 405, 572), and a `local` in
+   `ship` would hide that global from the functions it calls (round 1, both seats).
+   - `live_prod="$(git rev-parse --verify 'origin/production^{commit}')"`: production read once,
+     so the three reads below agree even if another session's fetch moves it meanwhile.
+   - `live_n="$(git rev-list --count --first-parent "$live_prod..$id")"`: how many lines.
+   - `live_all="$(git rev-list --count "$live_prod..$id")"`: how many commits.
+   - `live_lines="$(git -c log.showSignature=false log --first-parent --format='%h %s' -n 20 "$live_prod..$id")"`
 
-   `$id` is the commit the run already reads once and pushes. `origin/production` is spelled as the
-   divergence check spells it, so both answer about the same ref, fresh from this run's fetch.
-   `--first-parent` makes a merged pull request one line ("Merge pull request #12 from …"), not
-   every commit on its branch. `--format` instead of `--oneline`: a format ignores the owner's
-   `log.decorate` and colour settings (checked 2026-11-02, git 2.54, with `color.ui=always` and
-   `log.decorate=full`: plain `e0020ea c3` lines). `--no-pager` is load-bearing: in a terminal
-   `git log` would otherwise open a pager and the publish would wait for a key.
-2. **A Ctrl-C** during either read: `stop_point "Nothing was published and $here."`, as after
-   every other git call before the push.
-3. **Either read fails** (both commits are known to exist, so this means a broken clone): stop
+   `$id` is the commit the run already reads once and pushes. `--first-parent` makes a merged
+   pull request one line ("Merge pull request #12 from …"), not every commit on its branch.
+   `--format` instead of `--oneline`: a format ignores the owner's `log.decorate` and colour
+   settings (checked 2026-11-02, git 2.54, with `color.ui=always` and `log.decorate=full`: plain
+   `e0020ea c3` lines). No pager can start: git starts one only when its output is a terminal,
+   and `$( )` captures it (checked 2026-11-02 under `script`, git 2.54: a captured `git log`
+   left no pager mark, a direct one did). `-n 20` is the only cap: the printing loops over
+   whatever `live_lines` holds.
+2. **A Ctrl-C** during any of the reads: `stop_point "Nothing was published and $here."`, as
+   after every other git call before the push.
+3. **Any read fails** (both commits are known to exist, so this means a broken clone): stop
    before anything else, "✗ Publish stopped — couldn't list the commits that would go live (git's
    error is above). Nothing was published and $here." It refuses rather than publishing unlisted,
    as the script's other checks before the push do.
-4. **Control characters are removed** from the list before it is printed:
-   `list="$(tr -d '\001-\010\013-\037\177' <<<"$list")"`. A commit subject is written by whoever
+4. **Control bytes are removed** from the lines before they are printed:
+   `live_lines="$(LC_ALL=C tr -d '\001-\010\013-\037\177' <<<"$live_lines")"`, which keeps tab and
+   newline and removes the other C0 bytes and DEL. A commit subject is written by whoever
    committed it, and git prints it raw (checked: a subject holding `ESC[31m` comes out with the
    escape byte), so a subject could otherwise recolour or rewrite the owner's terminal.
+   `LC_ALL=C`: macOS's `tr` in a UTF-8 locale stops with "Illegal byte sequence" on a byte that
+   is not UTF-8 (round 1, fresh-eyes, tested).
 5. **What it prints:**
-   - one or more: a blank line, then `Going live: 3 commits that 'production' doesn't have yet,
-     newest first:` (`1 commit` for one), then each line indented four spaces, as the "Not
-     published" list is.
-   - more than 20: the first 20, then `    … and 4 more (git log --first-parent
-     origin/production..<id, 12 characters> lists them all)`. 20 is the cap the "Not published"
-     list already uses.
-   - none (`count` is 0: production already has this commit): `Nothing new goes live:
-     'production' already has this commit. The checks and the live-site check run as usual.`
-     The run then goes on as today. (Checked 2026-11-02, git 2.54: a push with nothing new still
-     runs the pre-push hook, then prints "Everything up-to-date" and exits 0.)
+   - `live_n` 1 or more: a blank line, then `Going live, newest first (a merge is one line):`,
+     then each line indented four spaces, as the "Not published" list is.
+   - `live_n` over 20: after the 20, `    … and 4 more lines (git log --first-parent
+     origin/production..<id, 12 characters> lists them all)`.
+   - `live_all` differs from `live_n`: last, `    <live_all> commits in all: the merges above
+     bring in the rest.` The number in the header would be wrong for every merged pull request,
+     so the header has none (round 1, fresh-eyes). This line also matters in folder mode: after
+     the script's own advice `git pull --no-rebase`, other people's merged pull requests sit
+     behind one "Merge branch 'main' of …" line (checked 2026-11-02, git 2.54: a merged pull
+     request and a local commit gave 2 first-parent lines, 4 commits).
+   - `live_n` 0 (production already has this commit): `Nothing new goes live: 'production'
+     already has this commit. The checks and the live-site check run as usual.` The run then
+     goes on as today. (Checked 2026-11-02, git 2.54: a push with nothing new still runs the
+     pre-push hook, then prints "Everything up-to-date" and exits 0.)
 6. **Unchanged:** no `production` branch on GitHub still stops at line 489 with its own message,
    before this point; a diverged `production` still stops at line 552, also before. The first and
    last lines of a run stay as they are.
@@ -89,39 +102,46 @@ Also, at build:
 In `tests/check_ship_push.sh`, through the real `ship.sh` as `npm run ship` runs it. Expected
 values are written from each fixture's commit subjects and ids, never copied from a run's output.
 
-**Stub half** (stubbed `git`; there `origin/production` and `$id` are the same commit):
-- the stub's option loop learns `--no-pager`; new `rev-list` and `log` arms answer only the exact
-  two invocations above and refuse anything else with exit 3, as its `merge-base` arm does, so a
-  swapped range or a dropped `--first-parent` fails every case that reaches them. Each call is
-  logged.
-- every case that gets past the divergence check now prints "Nothing new goes live" (count 0).
-- new `listfail`: the count read fails; exit 1, 0 pushes, "couldn't list the commits".
-- new `stopat-revlist`: a terminate during the count read; exit 1, 0 pushes, the stop message.
+**Stub half** (stubbed `git`; there `origin/production`, `live_prod` and `$id` are the same
+commit, so every range is `$SHA..$SHA`):
+- new `rev-list` and `log` arms answer only the three exact invocations above (the two counts,
+  the log) and refuse anything else with exit 3, as its `merge-base` arm does, so a swapped range
+  or a dropped `--first-parent` fails every case that reaches them. Each call is logged.
+- every case that gets past the divergence check now prints "Nothing new goes live".
+- new `countfail` and `logfail`: the first count read fails, or the log read fails while the
+  counts succeed; each exits 1 with 0 pushes and "couldn't list the commits" (round 1,
+  fresh-eyes: one case would let the other read's failure go on unseen).
+- new `stopat-revlist`: a terminate during the first count read; exit 1, 0 pushes, the stop
+  message.
 - the existing diverged case also asserts 0 list calls.
 
 **Real-git half** (bare origin, clone, tiny gate, as today):
-- S2 (worktree mode, main 2 ahead): "Going live: 2 commits"; `    <id7> change 2` on a line before
-  `    <id7> change 1`; the list before "Not published" and before "▶ pre-push gate".
-- S3 (this computer's main 1 commit ahead): "Going live: 1 commit", and the local commit's id is
-  not in the output.
-- P4 (folder mode, real domain): "Going live: 1 commit" and `    <id7> site address`.
-- new L1: GitHub's main gains a `--no-ff` merge of a 3-commit branch: one listed line, the merge;
-  none of the branch's three subjects.
-- new L2: 23 commits: "23 commits", exactly 20 listed lines starting with `change 23`, then
-  "… and 3 more".
+- S2 (worktree mode, main 2 ahead): the header `Going live, newest first (a merge is one line):`;
+  `    <id7> change 2` on a line before `    <id7> change 1`; no "commits in all" line; the
+  header before "Not published" and before "▶ pre-push gate".
+- S3 (this computer's main 1 commit ahead): one listed line, and the local commit's id is not in
+  the output.
+- P4 (folder mode, real domain): one listed line, `    <id7> site address`.
+- new L1 (worktree mode): GitHub's main gains a `--no-ff` merge of a 3-commit branch: one listed
+  line, the merge; none of the branch's three subjects; `    4 commits in all: the merges above
+  bring in the rest.`
+- new L2: 23 commits: exactly 20 listed lines, the first `change 23`, then `    … and 3 more
+  lines`; no "commits in all" line.
 - new L3: production already at main: "Nothing new goes live"; exits 0; production unchanged.
 - new L4: the clone sets `color.ui=always`, `log.decorate=full`, `format.pretty=fuller` and
   `log.showSignature=true`, and a commit subject holds `ESC[31m`: the listed line is exactly
   `    <id7> evil [31mred[0m end`, and no listed line holds an escape byte or `(HEAD`.
-- new L5 (pager): folder mode run under `script`, so git sees a terminal, with `GIT_PAGER` set to
-  a stub that passes its input through and writes a mark: no mark. Where `script` is missing or of
-  an unknown kind, L5 is skipped and the run says so, as the file's other skips do.
+- new L6 (folder mode, the sequence the script itself advises): GitHub's main gains a merged pull
+  request, the folder commits one change of its own, runs `git pull --no-rebase` and `git push`,
+  then ships: the listed lines are the "Merge branch 'main' of …" merge and the local change, then
+  `    4 commits in all: the merges above bring in the rest.`
 - the file's last line names the new checks.
 
 **Mutation check** (the `mutation-check` skill, on the built commit), each must fail a case: drop
-`--first-parent` (L1); swap the range (S2, stub arms); drop `-n 20` (L2); drop `--no-pager` (L5);
-drop the `tr` (L4); move the list after the push (S2's order check); let a failed read go on
-(`listfail`).
+`--first-parent` from the log (L1); swap the range (S2, stub arms); drop `-n 20` (L2); drop the
+`tr` (L4); drop the "commits in all" line (L1, L6); name the lines `list` again (S2: the worktree
+list goes wrong); move the list after the push (S2's order check); let a failed count read go on
+(`countfail`); let a failed log read go on (`logfail`).
 
 Then `make check`, the template-tests jobs that run this file (Linux, and the Mac's bash 3.2), and
 the DIFF gate at High.
@@ -132,6 +152,8 @@ the DIFF gate at High.
   the stub cases run.
 - Whether `%h` stays 7 characters: git lengthens it in a large repo. The tests use tiny repos,
   where it is 7.
-- A local `main` made with `git pull --no-rebase` in folder mode puts GitHub's commits on the
-  second-parent side of a merge: the list then shows that merge as one line. That is the
-  first-parent view, and it is what the header says ("newest first", one line per merge).
+- Behind a "Merge branch 'main' of …" line (L6), the list names no commit it brings in; the
+  "commits in all" line says only that there are more. `git log origin/production..main` shows
+  them.
+- C1 control characters written as UTF-8 (U+0080 to U+009F) pass the `tr`. Whether common
+  terminals act on them in UTF-8 mode was not checked.
