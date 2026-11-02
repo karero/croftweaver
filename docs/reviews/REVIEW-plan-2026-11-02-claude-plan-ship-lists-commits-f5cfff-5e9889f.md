@@ -71,9 +71,9 @@ confirmations: `--seat codex`.
 Follow-ups: E6, the last line of a run with nothing new (`ship.sh` 835). UTF-8 C1 controls pass the `tr` (fresh-eyes, UNVERIFIABLE; listed under Not covered).
 Notes: rounds 1 to 3 melious out of balance; one kind came back: a test guard that cannot fire (B1, B3 in round 2; C2, C3, C4 in round 3), so round 4 asked the seat to check every case against every mutation it is credited with (it traced all 13, each caught); round 4 had no BUG and no earning RISK, so the rounds end there (stop condition a2); Codex alone counts by the owner's rule, no rerun owed.
 Gate total: rounds 1–4 plus the final read, wording pass and two confirmations. Logged by the script:
-734,098 tokens over 13 seat runs (melious runs gave no figure); fresh-eyes and final read, logged
-here: 157,987 + 150,832 + 144,124 + 176,867 = 629,810. About 1.36M in all; the host's own work is
-not counted.
+734,098 tokens over 13 seat runs, which includes fresh-eyes rounds 1 and 2 (melious runs gave no
+figure); not in that log: fresh-eyes round 3 (144,124) and the final read (176,867). 1,055,089 in
+all; the host's own work is not counted.
 
 ## Raw reviewer output
 
