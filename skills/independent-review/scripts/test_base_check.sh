@@ -142,10 +142,14 @@ noprefix git diff "$G"..HEAD -- . ':(exclude)docs/reviews/' >"$T/t3n.diff"
 run t3n "$R/w" "$T/t3n.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
 check "T3r control: a plain git diff from that subfolder is refused" rc_is t3n 2
 # T3p: run by a bare relative name, the printed command still names the script by its full path.
-SCRIPT=independent_review.sh run t3p "$HERE" "$T/t3.diff" --seat codex --verify "$T/prior.md" --depth normal
+# It runs a copy inside a throwaway repository: in the unzipped handoff zip, $HERE is in none, and
+# the script would refuse for that before it reached this refusal.
+mkdir -p "$T/p" && cp -R "$HERE" "$T/p/scripts" && git init -q "$T/p" && commit "$T/p" P \
+  || { echo "FAIL — could not build the T3p copy."; exit 1; }
+SCRIPT=independent_review.sh run t3p "$T/p/scripts" "$T/t3.diff" --seat codex --verify "$T/prior.md" --depth normal
 check "T3p --verify with no --base, run as 'bash independent_review.sh': refused" rc_is t3p 2
 check "T3p ... and the printed command names the script by its full path" \
-  has t3p.err "| $(printf '%q' "$HERE/independent_review.sh") - --verify"
+  has t3p.err "| $(printf '%q' "$T/p/scripts/independent_review.sh") - --verify"
 run t3c "$R/w" "$T/t3.diff" --seat codex --depth normal
 check "T3 delta over a file the branch changed before, no --base: refused" rc_is t3c 2
 check "T3 ... with the delta line" has t3c.err "For a delta since a reviewed head, pass --base <that head>."
