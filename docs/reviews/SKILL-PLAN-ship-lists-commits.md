@@ -7,7 +7,7 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-02 | this file |
-| 2 | PLAN gate, High | round 1 done (3 BUG, 2 RISK, 4 NIT, all fixed); round 2 next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
+| 2 | PLAN gate, High | rounds 1 and 2 done, all fixed; round 3 next | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
 | 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | waits for the owner's go | — |
 | 4 | `PUBLISHING.md`: one sentence | waits for the owner's go | — |
 | 5 | `docs/BUGLOG.md`: the release-notes row | waits for the owner's go | — |
@@ -39,7 +39,10 @@ goes, then what stays.
    is taken (the path of the worktree list, `ship.sh` lines 381, 405, 572), and a `local` in
    `ship` would hide that global from the functions it calls (round 1, both seats).
    - `live_prod="$(git rev-parse --verify 'origin/production^{commit}')"`: production read once,
-     so the three reads below agree even if another session's fetch moves it meanwhile.
+     so the three reads below agree even if another session's fetch moves it meanwhile. The
+     divergence check at line 552 keeps its own read of the name, unchanged: if production moved
+     between the two, the push is refused as a race (the `raced` message), so only the list's
+     text could be off, for that one run.
    - `live_n="$(git rev-list --count --first-parent "$live_prod..$id")"`: how many lines.
    - `live_all="$(git rev-list --count "$live_prod..$id")"`: how many commits.
    - `live_lines="$(git -c log.showSignature=false log --first-parent --format='%h %s' -n 20 "$live_prod..$id")"`
@@ -48,14 +51,16 @@ goes, then what stays.
    pull request one line ("Merge pull request #12 from …"), not every commit on its branch.
    `--format` instead of `--oneline`: a format ignores the owner's `log.decorate` and colour
    settings (checked 2026-11-02, git 2.54, with `color.ui=always` and `log.decorate=full`: plain
-   `e0020ea c3` lines). No pager can start: git starts one only when its output is a terminal,
+   `e0020ea c3` lines). `-c log.showSignature=false`: with that setting on, git adds lines of
+   its own for a signed commit (round 2, fresh-eyes, tested with an ssh-signed commit: a "No
+   signature" line). No pager can start: git starts one only when its output is a terminal,
    and `$( )` captures it (checked 2026-11-02 under `script`, git 2.54: a captured `git log`
    left no pager mark, a direct one did). `-n 20` is the only cap: the printing loops over
    whatever `live_lines` holds.
 2. **A Ctrl-C** during any of the reads: `stop_point "Nothing was published and $here."`, as
    after every other git call before the push.
-3. **Any read fails** (both commits are known to exist, so this means a broken clone): stop
-   before anything else, "✗ Publish stopped — couldn't list the commits that would go live (git's
+3. **Any read fails** (both commits are known to exist, so this means a broken clone): all four
+   reads sit in one `if … && … && …; then` guard, and the run stops before anything else, "✗ Publish stopped — couldn't list the commits that would go live (git's
    error is above). Nothing was published and $here." It refuses rather than publishing unlisted,
    as the script's other checks before the push do.
 4. **Control bytes are removed** from the lines before they are printed:
@@ -68,10 +73,13 @@ goes, then what stays.
 5. **What it prints:**
    - `live_n` 1 or more: a blank line, then `Going live, newest first (a merge is one line):`,
      then each line indented four spaces, as the "Not published" list is.
-   - `live_n` over 20: after the 20, `    … and 4 more lines (git log --first-parent
-     origin/production..<id, 12 characters> lists them all)`.
-   - `live_all` differs from `live_n`: last, `    <live_all> commits in all: the merges above
-     bring in the rest.` The number in the header would be wrong for every merged pull request,
+   - `live_n` over 20: after the 20, `    … and <live_n − 20> more lines (git log
+     --first-parent <live_prod, 12 characters>..<id, 12 characters> lists them all)`. Fixed ids,
+     not `origin/production`: once the publish lands, the name points at `$id` and the command
+     would list nothing (round 2, Codex).
+   - `live_all` differs from `live_n`: last, `    <live_all> commits in all: the merges in this
+     range bring in the rest.` ("in this range", not "above": past 20 lines the merges may be among
+     those cut.) The number in the header would be wrong for every merged pull request,
      so the header has none (round 1, fresh-eyes). This line also matters in folder mode: after
      the script's own advice `git pull --no-rebase`, other people's merged pull requests sit
      behind one "Merge branch 'main' of …" line (checked 2026-11-02, git 2.54: a merged pull
@@ -102,15 +110,20 @@ Also, at build:
 In `tests/check_ship_push.sh`, through the real `ship.sh` as `npm run ship` runs it. Expected
 values are written from each fixture's commit subjects and ids, never copied from a run's output.
 
-**Stub half** (stubbed `git`; there `origin/production`, `live_prod` and `$id` are the same
-commit, so every range is `$SHA..$SHA`):
-- new `rev-list` and `log` arms answer only the three exact invocations above (the two counts,
-  the log) and refuse anything else with exit 3, as its `merge-base` arm does, so a swapped range
-  or a dropped `--first-parent` fails every case that reaches them. Each call is logged.
+**Stub half** (stubbed `git`):
+- the stub's `rev-parse` learns one exact arm: `--verify origin/production^{commit}` answers a
+  production id of its own, `PROD=3333…`, distinct from `$SHA`; the divergence check's
+  `merge-base` arm matches the literal name `origin/production` and is unaffected. With two ids,
+  a swapped range is visible to the stub (round 2, both seats: with one id it was not).
+- new `rev-list` and `log` arms answer only the three exact invocations above, each on
+  `$PROD..$SHA` (the two counts answer 0, the log nothing), and refuse anything else with exit 3,
+  as its `merge-base` arm does. So a swapped range, a dropped `--first-parent`, a range not
+  built from `live_prod`, or a dropped `-c log.showSignature=false` fails every case that reaches
+  them. Each call is logged.
 - every case that gets past the divergence check now prints "Nothing new goes live".
-- new `countfail` and `logfail`: the first count read fails, or the log read fails while the
-  counts succeed; each exits 1 with 0 pushes and "couldn't list the commits" (round 1,
-  fresh-eyes: one case would let the other read's failure go on unseen).
+- new `prodfail`, `countfail`, `allfail` and `logfail`: one read fails, the ones before it
+  succeed; each exits 1 with 0 pushes and "couldn't list the commits" (rounds 1 and 2,
+  fresh-eyes: a read with no case of its own could fail unseen).
 - new `stopat-revlist`: a terminate during the first count read; exit 1, 0 pushes, the stop
   message.
 - the existing diverged case also asserts 0 list calls.
@@ -127,21 +140,27 @@ commit, so every range is `$SHA..$SHA`):
   bring in the rest.`
 - new L2: 23 commits: exactly 20 listed lines, the first `change 23`, then `    … and 3 more
   lines`; no "commits in all" line.
-- new L3: production already at main: "Nothing new goes live"; exits 0; production unchanged.
+- new L3: production already at main: "Nothing new goes live"; the gate still runs ("▶ pre-push
+  gate" in the output); exits 0 on the LIVE line; production unchanged.
 - new L4: the clone sets `color.ui=always`, `log.decorate=full`, `format.pretty=fuller` and
-  `log.showSignature=true`, and a commit subject holds `ESC[31m`: the listed line is exactly
-  `    <id7> evil [31mred[0m end`, and no listed line holds an escape byte or `(HEAD`.
-- new L6 (folder mode, the sequence the script itself advises): GitHub's main gains a merged pull
-  request, the folder commits one change of its own, runs `git pull --no-rebase` and `git push`,
-  then ships: the listed lines are the "Merge branch 'main' of …" merge and the local change, then
+  `log.showSignature=true`; one commit's subject holds `ESC[31m`, and another commit is signed
+  with an ssh key the fixture makes with `ssh-keygen` (`-c gpg.format=ssh -c user.signingkey=…
+  commit -S`). The ESC line is exactly `    <id7> evil [31mred[0m end`; no line of the list
+  holds an escape byte, `(HEAD` or `ignature`. Where `ssh-keygen` is missing or git is older than 2.34 (its first ssh signing), the signed commit
+  is left out and the run says so.
+- new L6 (folder mode, the sequence the script itself advises): GitHub's main gains a `--no-ff`
+  merge of a one-commit branch, the folder commits one change of its own, runs `git pull
+  --no-rebase` and `git push`, then, prepared for folder mode as P3 and P4 are (setting unset,
+  files back-dated, `update-index --refresh`), ships: the listed lines are the "Merge branch 'main' of …" merge and the local change, then
   `    4 commits in all: the merges above bring in the rest.`
 - the file's last line names the new checks.
 
 **Mutation check** (the `mutation-check` skill, on the built commit), each must fail a case: drop
-`--first-parent` from the log (L1); swap the range (S2, stub arms); drop `-n 20` (L2); drop the
+`--first-parent` from the log (L1); swap the range (S2, stub arms); use `origin/production`
+instead of `live_prod` in a read (stub arms); drop `-c log.showSignature=false` (L4, stub arms); drop `-n 20` (L2); drop the
 `tr` (L4); drop the "commits in all" line (L1, L6); name the lines `list` again (S2: the worktree
-list goes wrong); move the list after the push (S2's order check); let a failed count read go on
-(`countfail`); let a failed log read go on (`logfail`).
+list goes wrong); move the list after the push (S2's order check); for each of the four reads, let its failure go on
+(`prodfail`, `countfail`, `allfail`, `logfail`).
 
 Then `make check`, the template-tests jobs that run this file (Linux, and the Mac's bash 3.2), and
 the DIFF gate at High.
@@ -155,5 +174,5 @@ the DIFF gate at High.
 - Behind a "Merge branch 'main' of …" line (L6), the list names no commit it brings in; the
   "commits in all" line says only that there are more. `git log origin/production..main` shows
   them.
-- C1 control characters written as UTF-8 (U+0080 to U+009F) pass the `tr`. Whether common
+- C1 control characters (0x80 to 0x9F, as raw bytes or written as UTF-8) pass the `tr`. Whether common
   terminals act on them in UTF-8 mode was not checked.
