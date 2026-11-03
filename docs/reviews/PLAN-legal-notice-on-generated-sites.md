@@ -11,7 +11,7 @@ The imprint and privacy pages that `new-website` scaffolds say "A solid baseline
 | Place | Reaches the owner? | Verdict |
 |---|---|---|
 | (a) Closing summary of `new-website` | There is none: no such section in `SKILL.md` (grep). The nearest owner-facing script is §4b's quoted ask. | Not a place today. |
-| (b) `website-launch-check` | Not in the toolkit: no such folder under `skills/`, and no trace in git history before this plan. It is the maintainer's personal skill. The toolkit's own gate is the §4 item "Imprint/legal + privacy pages present" (`SKILL.md:721`). | Use the §4 item, as the step that clears the notice. |
+| (b) `website-launch-check` | Not in the toolkit when this plan was written: no such folder under `skills/`, and no trace in git history. It was merged into the toolkit on 2026-10-26 (PR 426), so it is now `skills/website-launch-check`. The toolkit's own gate is the §4 item "Imprint/legal + privacy pages present" (`SKILL.md:721`). | Use the §4 item, as the step that clears the notice. Whether the launch check reports the README answer is a BUGLOG follow-up. |
 | (c) Note on the draft pages | Yes, wherever the owner reads the preview. Survives the session, reaches a second reader (partner, lawyer). | **Primary.** |
 | (d) Starter README | `templates/astro/README.md` is the agent's assembly manual and is never copied into a site (`SKILL.md:27`, `check_template_coverage.sh`). The site's README is written by the agent. | No. |
 | (e) `PUBLISHING.md` | Owner-facing, but about publishing, re-read on every publish. | No. |
@@ -83,7 +83,7 @@ The note blocks launch the way an unfilled slot does: §4's first checklist item
 1. The §4 question offers all three options, "Publish the drafts as they are" included.
 2. The chat question does not link to croftweaver.com/terms.
 3. Existing live sites learn only through `AGENTS.md` drift; their pages are not touched. (The tests drift too, and the new test is how a live site meets the question: see Handoff.)
-4. The maintainer's personal `website-launch-check` skill is out of scope for this plan.
+4. The `website-launch-check` skill is out of scope for this plan (it was merged into the toolkit on 2026-10-26, PR 426; a BUGLOG row holds the follow-up).
 
 ## Cost of the PLAN gate
 
