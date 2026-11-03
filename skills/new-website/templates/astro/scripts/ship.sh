@@ -565,9 +565,9 @@ fi
 
 # What goes live, listed before the worktree is made or anything is pushed. production is read
 # once, so the three reads agree. --first-parent shows a merged pull request as one line; the
-# 7-bit control bytes other than tab go, because a commit's subject is its author's and git prints it raw
-# (LC_ALL=C: macOS's tr refuses a byte that is not UTF-8). A failed read stops the run, as the
-# other checks do.
+# 7-bit control bytes other than tab and newline go, because a commit's subject is its author's
+# and git prints it raw (LC_ALL=C: macOS's tr refuses a byte that is not UTF-8). A failed read
+# stops the run, as the other checks do.
 if live_prod="$(git rev-parse --verify 'origin/production^{commit}')" \
    && live_n="$(git rev-list --count --first-parent "$live_prod..$id")" \
    && live_all="$(git rev-list --count "$live_prod..$id")" \

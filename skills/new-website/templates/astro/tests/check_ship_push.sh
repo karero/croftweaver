@@ -28,7 +28,7 @@
 # case names (S2, S3, …) are the scenarios of the toolkit's plan for that mode
 # (docs/reviews/SKILL-PLAN-ship-from-worktree.md in the website-builder repo). Its P cases check
 # the last line for a *.pages.dev address and for a real domain, in both modes. Its L cases check
-# the list of commits that go live.
+# what the run says about the commits that go live: the list, and the lines after the push.
 #
 # A failing case prints the nested run's output behind "  | ": this file runs inside the
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
