@@ -100,7 +100,8 @@ goes, then what stays.
 7. **The closing line with nothing new** (step 3b): when `live_n` is 0 the run ends its push with
    `✓ Nothing to push: 'production' already has this commit.` instead of `✓ Pushed. Cloudflare is
    building the live site now.`, and the live-site check runs as before. With news the line is
-   unchanged.
+   unchanged. The four-minute stall warning follows the same count: "Nothing was pushed" instead
+   of "Pushed OK" (build gate, final read; cases L2c, L3b).
 8. **Markers:** `template-version: 0.24` in `ship.sh` and in `tests/check_ship_push.sh` (the test
    asserts they agree). If `ship.sh` has moved on `main` by build time (the Workers starter, BUGLOG
    row of 2026-10-30, may touch it), rebase first and take the next version.

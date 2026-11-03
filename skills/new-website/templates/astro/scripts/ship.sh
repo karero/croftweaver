@@ -565,7 +565,7 @@ fi
 
 # What goes live, listed before the worktree is made or anything is pushed. production is read
 # once, so the three reads agree. --first-parent shows a merged pull request as one line; the
-# 7-bit control bytes go, because a commit's subject is its author's and git prints it raw
+# 7-bit control bytes other than tab go, because a commit's subject is its author's and git prints it raw
 # (LC_ALL=C: macOS's tr refuses a byte that is not UTF-8). A failed read stops the run, as the
 # other checks do.
 if live_prod="$(git rev-parse --verify 'origin/production^{commit}')" \
@@ -927,7 +927,12 @@ for i in $(seq 1 24); do
   fi
 done
 echo ""
-echo "⚠ Pushed OK, but after 4 minutes the live site still serves an OLD build."
+if [ "$live_n" = 0 ]; then
+  echo "⚠ Nothing was pushed ('production' already had this commit), and after 4 minutes the"
+  echo "  live site still serves an OLD build."
+else
+  echo "⚠ Pushed OK, but after 4 minutes the live site still serves an OLD build."
+fi
 echo "  This usually means Cloudflare didn't build (it can stop silently). Check:"
 echo "  Cloudflare dashboard → Workers & Pages → your project → Deployments."
 echo "    • A failed deployment for ${id:0:12} → open its log, then 'Retry deployment'."

@@ -28,7 +28,7 @@
 # case names (S2, S3, …) are the scenarios of the toolkit's plan for that mode
 # (docs/reviews/SKILL-PLAN-ship-from-worktree.md in the website-builder repo). Its P cases check
 # the last line for a *.pages.dev address and for a real domain, in both modes. Its L cases check
-# the list of commits that go live, before the push.
+# the list of commits that go live.
 #
 # A failing case prints the nested run's output behind "  | ": this file runs inside the
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
@@ -774,7 +774,8 @@ fi
 
 # --- the list of commits that go live ---------------------------------------------------
 # okpush has news: the list comes before the push, and the push is announced as one.
-if [ -z "${SHIP_GATE_SKIP_WORDING:-}" ]; then
+case "${SHIP_GATE_SKIP_WORDING:-}" in ''|0|false|no) list_wording=1 ;; *) list_wording=0 ;; esac
+if [ "$list_wording" = 1 ]; then
   if ! grep -qxF "    aaaaaaa a change that is new" "$work/okpush.log"; then
     echo "✗ ship push gate [okpush]: the commit that goes live was not listed."; fail=1
   fi
@@ -1493,6 +1494,11 @@ GATE
   want "the one left over is counted in the singular" \
     has "    … and 1 more line (git log --first-parent ${p0:0:12}..${m:0:12} lists them all)"
 
+  # --- L2c: the live site never shows the new build: the stall message says what was done --
+  fixture l2c; advance 1
+  run_ship l2c SHIP_T_STALE=1; exits 1
+  want "a push with news says it pushed" has "⚠ Pushed OK, but after 4 minutes"
+
   # --- L3: production already has this commit ----------------------------------------------
   fixture l3; p0="$(gh production)"
   run_ship l3; exits 0
@@ -1503,6 +1509,12 @@ GATE
   want "... nor a build started" lacks "Cloudflare is building"
   want "the live check passes" last_has "✓ LIVE"
   want "production is unchanged" eq "$(gh production)" "$p0"
+
+  # --- L3b: nothing new, and the live site still shows an old build (a re-run after a stall) --
+  fixture l3b
+  run_ship l3b SHIP_T_STALE=1; exits 1
+  want "the stall message does not say a push happened" lacks "Pushed OK"
+  want "... it says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), and after 4 minutes the"
 
   # --- L4: the owner's git settings and odd bytes in a subject do not reach the list --------
   # The clone asks for colour, decorations, the long format and signature lines; one subject holds
