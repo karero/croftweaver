@@ -65,8 +65,8 @@ never gives it to a program it starts (the build, `git`).
 |---|---|---|
 | 1 | `check` | Reads only. Says what the move would touch and what is there now, and refuses a site that is not ready (below). |
 | 2 | `record` | Freezes the live branch's tip and builds it apart from your working folder, then records what the live site serves. |
-| 3 | `move` | Asks. Prints the end state in plain words and a code. Changes nothing. |
-| 4 | `move --confirm <code>` | After the User says yes to that question. Writes the route commit, then moves each host: off Pages, its Pages DNS record deleted, onto the Worker. |
+| 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. |
+| 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote: it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
 | 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). If the Worker has no Workers Builds, deploy it as well. |
 | 6 | `after` | Compares the live site with the recording and reports what differs. |
 
@@ -74,8 +74,10 @@ never gives it to a program it starts (the build, `git`).
 none found for this repository; a Worker that already has a domain; more than one Workers
 config; a `functions/` folder holding anything but `_middleware.ts`, or a `public/_worker.js`;
 and a site in analytics server mode. These checks are for a first move; while a move is open
-they are lifted. On a two-stage site (a Pages `wrangler.toml` beside `workers.jsonc`) `check`
-also shows whether `main` is on the live branch's commit, and `record` refuses until it is.
+they are lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
+GitHub has a branch `production`; `check` then also shows whether `main` is on the live branch's
+commit, and `record` refuses until it is. `check` names a private repository (or a missing `gh`)
+first, and while a move is open it says which commit `after` waits for.
 
 **`record` takes minutes.** The build runs apart from the command. While it runs, `record`
 exits 4: run the same command again until it finishes.
@@ -92,32 +94,53 @@ question will not fit a later one: a wrong code asks again and changes nothing.
 | 1 | Something failed or was refused. | Read the report. It says what, and where each host is now. |
 | 2 | The command was wrong. | Fix the command. |
 | 3 | Waiting for a yes. | Ask the User the question in the report. Run `--confirm <code>` only after her yes. |
-| 4 | Not finished. | Run the same command again at once. |
+| 4 | Not finished. | Run the same command again. At once after a switch that stopped part way; after a minute if the report names a build or GitHub's 30-second pause. |
 
 A run lasts at most about a minute. The switch is built for that: if a host's changes cannot
-finish in the time left, the run stops cleanly and the next run carries on. If a change fails,
-the run stops at once, reads the host back and says whether it is on Pages, on the Worker or on
-neither; **run the same command again at once**, because a host on neither is down.
+finish in the time left, the run stops cleanly, says which hosts have already left their platform,
+and the next run carries on. If a change fails, the run stops at once, reads the host back and says
+whether it is on Pages, on the Worker or on neither; **run the same command again at once**,
+because a host on neither is down. Each host is down from the moment it leaves its platform until
+the other serves it: about a minute. 15 minutes is the target, not a promise; past it the report
+says to go back.
 
 ## After the push
 
-`after` reads the tips of the branches on GitHub. They must equal the route commit, and no build
-of Pages or Workers Builds may be unfinished. The Worker then has to serve the host with the
-route commit, twice in a row. After 15 minutes without that, the report says to undo. `after`
-then compares the live site with the recording. Differences the platforms are known to make are
+`after` reads the tips of the branches on GitHub. They must equal the commit the last plain `move`
+or `undo` wrote (that commit says which way the hosts should be: the route commit means on the
+Worker, the undo commit means back on Pages), and no build of Pages or Workers Builds may be
+unfinished. Where Workers Builds is connected, a pushed branch tip it has not reported on yet
+counts as unfinished too. `after` then reads where Cloudflare puts each host and which platform
+answers it (`/build.txt`); a host that Cloudflare lists on the Worker but Pages still answers
+fails. The serving wait (two good answers in a row) belongs to `move` and `undo`, not to `after`.
+`after` compares the live site with the recording. Differences the platforms are known to make are
 listed as known; everything else is listed as unexpected, and a `noindex` on the domain is a
-failure. It also checks that `http://` goes to `https://`.
+failure. It also checks that `http://` redirects to `https://`, on the host the recording went to.
+It keeps its answers in the state file, so a large site is finished over several runs.
+
+A host that a zone Redirect Rule answers on every address (usually `www`, sent to the apex) is
+recorded as that redirect. It is compared only with itself, never with the Worker's version URL.
+It counts as serving when it answers its recorded status and Location, and Cloudflare's lists say
+which platform has it.
 
 ## Going back
 
-`undo` is the same shape as `move`: `undo` asks, `undo --confirm <code>` gives each host back to
-the Pages project and writes a commit that removes the routes. Push it, then run `after`; it
-closes the move when the hosts serve from Pages again. If an undo stops part way, `move` goes
-forward again from where it stopped.
+`undo` is the same shape as `move`: `undo` writes the undo commit on your branch (local, not
+pushed) and asks; `undo --confirm <code>` changes only Cloudflare and refuses unless HEAD holds
+that commit: each host leaves the Worker and goes back to the Pages project with its CNAME. Push
+the commit, then run `after`; it closes the move when the hosts serve from Pages again. A move that
+stopped can be undone the same way, by hand if need be: `after` follows the commit, so it closes
+either. If an undo stops part way, `move` goes forward again from where it stopped.
+
+Once an undo has started, never deploy the route commit: a Workers build of it attaches the hosts
+to the Worker again. One exception: if an undo failed with a host on neither platform, going
+forward is the way out, and that deploys the route commit.
 
 ## The status page
 
-After every run the script writes `move-run/status.html` in the site's folder. Open it in a
+After every run that gets as far as the site's folder (a folder without git, or without a GitHub
+`origin`, gets none) the script writes `move-run/status.html` in it. A run that stops before it has
+read the state file (a token, zone or GitHub problem) writes the page too, but marks no stage. Open it in a
 browser for the stages, the hosts, what the run checked, the differences nobody expected, what
 to do next and how to go back. It is a local file from a template. It loads nothing from the
 network, and `move-run/` is ignored by git. Tell the User where it is.

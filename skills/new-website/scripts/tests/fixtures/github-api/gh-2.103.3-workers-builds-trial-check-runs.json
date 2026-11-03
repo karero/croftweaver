@@ -1,0 +1,43 @@
+{
+ "tool": "gh 2.103.3 (gh api repos/<owner>/<repo>/commits/<sha>/check-runs), read 2026-11-03",
+ "trimmed": "fields the script does not read are cut (details_url, external_id, head_sha, output, and the rest); nothing else is changed; the commit 68569edd6ac8d239f50f7cb77051da58873b829d of a public repository that has a Worker built by Workers Builds (owner and name left out)",
+ "total_count": 3,
+ "check_runs": [
+  {
+   "app": {
+    "name": "Cloudflare Workers and Pages",
+    "slug": "cloudflare-workers-and-pages"
+   },
+   "completed_at": "2026-10-30T14:13:02Z",
+   "conclusion": "success",
+   "id": 124110903999,
+   "name": "Cloudflare Pages: croftweaver-rehearsal-b",
+   "started_at": "2026-10-30T14:13:02Z",
+   "status": "completed"
+  },
+  {
+   "app": {
+    "name": "Cloudflare Workers and Pages",
+    "slug": "cloudflare-workers-and-pages"
+   },
+   "completed_at": "2026-10-30T14:12:42Z",
+   "conclusion": "success",
+   "id": 124110744777,
+   "name": "Workers Builds: croftweaver-trial",
+   "started_at": "2026-10-30T14:12:42Z",
+   "status": "completed"
+  },
+  {
+   "app": {
+    "name": "Cloudflare Workers and Pages",
+    "slug": "cloudflare-workers-and-pages"
+   },
+   "completed_at": "2026-10-30T14:12:25Z",
+   "conclusion": "success",
+   "id": 124110601651,
+   "name": "Cloudflare Pages: croftweaver-rehearsal-a",
+   "started_at": "2026-10-30T14:12:25Z",
+   "status": "completed"
+  }
+ ]
+}

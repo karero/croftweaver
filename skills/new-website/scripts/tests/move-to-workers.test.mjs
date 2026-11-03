@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Stop, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
-import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, makeFetch, makeWorld, unfinishedWorkersRun } from './move-stub.mjs';
+import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPTS = path.join(HERE, '..');
@@ -262,12 +262,13 @@ describe('2: real captures, expected values written by hand', () => {
   });
 
   test('a captured GitHub answer: three runs, only the Workers Builds one counts, and it is finished', async () => {
-    // The capture (gh 2.103.3) holds one "Workers Builds: lenas-backstube-site" and two Pages runs, all
-    // completed. By hand: nothing is unfinished, so the move is not held back.
+    // The capture (gh 2.103.3, the public trial repository) holds one "Workers Builds: croftweaver-trial"
+    // (the stub renames it to the site's Worker) and two Pages runs, all completed. By hand: nothing is
+    // unfinished, so the move is not held back.
     const s = await recorded();
     const r = await s.go(['move']);
     assert.equal(r.code, 3, r.text);
-    assert.ok(s.w.siteCalls.some((u) => /\/check-runs$/.test(u)));
+    assert.ok(s.w.siteCalls.some((u) => /\/check-runs\?per_page=100&page=1$/.test(u)));
   });
 
   test('a captured list of one zone and a captured list of eight', async () => {
@@ -287,7 +288,7 @@ describe('2: real captures, expected values written by hand', () => {
     // By hand from SITE: the home page, /index.html, the about page in three forms, the script, the
     // image, the redirect's source and the address that does not exist.
     assert.deepEqual(pathList(dist), ['/', '/about', '/about/', '/about/index.html', '/app.js', '/croftweaver-move-check-no-such-page', '/index.html', '/old', '/photo.avif']);
-    assert.deepEqual(headerNames('/*\n  X-Frame-Options: DENY\n  Content-Security-Policy: x\n'), ['content-security-policy', 'nel', 'report-to', 'strict-transport-security', 'x-frame-options', 'x-robots-tag']);
+    assert.deepEqual(headerNames('/*\n  X-Frame-Options: DENY\n  Content-Security-Policy: x\n'), ['access-control-allow-origin', 'content-security-policy', 'nel', 'report-to', 'strict-transport-security', 'x-frame-options', 'x-robots-tag']);
   });
 });
 
@@ -395,7 +396,7 @@ describe('3: move, after and undo', () => {
     assert.equal(go.code, 0, go.text);
     assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS);
     assert.deepEqual(s.w.project.domains, [SUBDOMAIN], 'the hosts left the Pages project');
-    assert.equal(s.w.dns.filter((r) => HOSTS.includes(r.name)).length, 0, 'their CNAMEs are gone');
+    assert.equal(s.w.dns.filter((r) => r.type === 'CNAME' && HOSTS.includes(r.name)).length, 0, 'their CNAMEs are gone');
     assert.ok(s.w.calls.filter((c) => c.method !== 'GET').every((c) => ['DELETE', 'PUT'].includes(c.method)));
     assert.equal(s.dirty(), '');
 
@@ -422,7 +423,8 @@ describe('3: move, after and undo', () => {
     assert.equal(ug.code, 0, ug.text);
     assert.equal(s.w.workerDomains.length, 0);
     assert.deepEqual(s.w.project.domains.filter((d) => HOSTS.includes(d)).sort(), HOSTS);
-    assert.deepEqual(s.w.dns.filter((r) => HOSTS.includes(r.name)).map((r) => [r.type, r.content, r.proxied]), [['CNAME', SUBDOMAIN, true], ['CNAME', SUBDOMAIN, true]]);
+    assert.deepEqual(s.w.dns.filter((r) => r.type === 'CNAME' && HOSTS.includes(r.name)).map((r) => [r.type, r.content, r.proxied]), [['CNAME', SUBDOMAIN, true], ['CNAME', SUBDOMAIN, true]]);
+    assert.deepEqual(s.w.dns.filter((r) => ['MX', 'TXT'].includes(r.type)).map((r) => r.type), ['MX', 'TXT'], 'the apex mail and text records were not touched');
     s.push();
     s.w.pagesCommit = s.w.workerCommit = undoCommit;
     const closed = await s.go(['after']);
@@ -506,7 +508,7 @@ describe('3: move, after and undo', () => {
         const ok = await s.go(['move', '--confirm', codeOf(q)]);
         assert.equal(ok.code, 0, ok.text);
         assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS);
-        assert.equal(s.w.dns.filter((r) => HOSTS.includes(r.name)).length, 0);
+        assert.equal(s.w.dns.filter((r) => r.type === 'CNAME' && HOSTS.includes(r.name)).length, 0);
       });
     }
   }
@@ -520,7 +522,7 @@ describe('3: move, after and undo', () => {
     assert.equal(r.code, 4, r.text);
     assert.match(r.text, /Run the same command again/);
     const st = s.state();
-    st.track[HOSTS[0]].leftAt = new Date(Date.now() - 16 * 60_000).toISOString();
+    st.track.move[HOSTS[0]].leftAt = new Date(Date.now() - 16 * 60_000).toISOString();
     writeFileSync(s.stateFile(), JSON.stringify(st));
     const late = await s.go(['move', '--confirm', codeOf(q)], slow);
     assert.equal(late.code, 1);
@@ -604,7 +606,7 @@ describe('3: the state file, the lock and a second checkout', () => {
     assert.equal(readFileSync(lock, 'utf8'), '999999\nsomeone-else\n');
   });
 
-  test('the route commit: written once, written again in a fresh clone, and undo there writes nothing', async () => {
+  test('the route commit is written once, and a plain undo in a clone with no routes writes nothing', async () => {
     const s = await recorded();
     const q = await s.go(['move']);
     const head = git(s.site.work, 'rev-parse', 'HEAD');
@@ -761,5 +763,421 @@ describe('4: the status page', () => {
     assert.match(html, /you are here/);
     assert.ok(!html.includes('<script>alert'));
     assert.match(html, /neither/);
+  });
+});
+
+// ---------------------------------------------------------------- the DIFF review's findings (ids B1-B15, R1-R6, N1-N7)
+
+const SRC = readFileSync(path.join(SCRIPTS, 'move-to-workers.mjs'), 'utf8');
+const entry = (over = {}) => ({ s: 200, t: 'text/plain', l: null, h: 'aaaa', hd: { 'x-frame-options': 'DENY' }, c: 'abc', ...over });
+const statusPage = (s) => readFileSync(path.join(s.site.work, 'move-run', 'status.html'), 'utf8');
+const nowStage = (s) => /<li class="now"><strong>(\d)\./.exec(statusPage(s))?.[1];
+
+// move, then --confirm; the commit the move wrote
+async function moveAll(s) {
+  const q = await s.go(['move']);
+  const g = await s.go(['move', '--confirm', codeOf(q)]);
+  assert.equal(g.code, 0, g.text);
+  return git(s.site.work, 'rev-parse', 'HEAD');
+}
+// push the commit, let both platforms serve it, run after
+async function pushAndAfter(s, commit) {
+  s.push();
+  s.w.pagesCommit = s.w.workerCommit = commit;
+  return s.go(['after']);
+}
+// A move that stops after the first host, because the run has too little time left for the second.
+async function halfMoved() {
+  const s = await recorded();
+  const q = await s.go(['move']);
+  s.w.delay = { 'PUT /accounts/:id/workers/domains': 2000 };
+  const r = await s.go(['move', '--confirm', codeOf(q)], { runMs: 5000, reserveMs: 3500 });
+  delete s.w.delay;
+  return { s, r };
+}
+const cloneOf = (s, name) => {
+  const clone = path.join(s.site.dir, name);
+  git(s.site.dir, 'clone', '-q', slash(s.site.origin), clone);
+  git(clone, 'remote', 'set-url', 'origin', REMOTE);
+  git(clone, 'config', `url.${slash(s.site.origin)}.insteadOf`, REMOTE);
+  git(clone, 'checkout', '-q', 'production');
+  return clone;
+};
+
+describe('review: records, state and the lock', () => {
+  test('B3: a recording that ended unknown, or was made against another Worker version, starts again', async () => {
+    const stale = scenario();
+    stale.w.pagesCommit = 'a'.repeat(40); // the domain serves a commit that is not the frozen one
+    const bad = await recordDone(stale);
+    assert.equal(bad.code, 1, bad.text);
+    stale.w.pagesCommit = stale.site.frozen;
+    const good = await recordDone(stale);
+    assert.equal(good.code, 0, good.text);
+
+    const other = scenario();
+    other.w.workerCommit = 'b'.repeat(40); // the Worker was built from the wrong commit
+    assert.equal((await recordDone(other)).code, 1);
+    other.w.versionId = 'bbbbbbbb-0000-4000-8000-000000000000'; // the right build is deployed: a new version
+    other.w.workerCommit = other.site.frozen;
+    const fixed = await recordDone(other);
+    assert.equal(fixed.code, 0, fixed.text);
+    assert.equal(other.state().recording.workerVersion, other.w.versionId);
+  });
+
+  test('B4: the lock comes before the state file is read', async () => {
+    for (const cmd of ['move', 'record']) {
+      const s = await recorded();
+      writeFileSync(s.stateFile(), 'not json');
+      const lock = path.join(path.dirname(s.stateFile()), 'lock');
+      writeFileSync(lock, `${process.pid}\nabc\n`);
+      const r = await s.go([cmd]);
+      assert.equal(r.code, 1, cmd);
+      assert.match(r.text, /Another run \(process \d+\) holds/, cmd);
+      assert.ok(!/not readable JSON/.test(r.text), `${cmd} read the state before it took the lock`);
+    }
+  });
+
+  test('N2: the hosts of an open move are checked against the zone again', async () => {
+    const s = await recorded();
+    const st = s.state();
+    st.open = true;
+    st.hosts = [...st.hosts, 'evil.example.org'];
+    writeFileSync(s.stateFile(), JSON.stringify(st));
+    const r = await s.go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /not in the zone/);
+  });
+
+  test('B11: the GitHub pause survives into the next run', async () => {
+    const s = await recorded();
+    const T = Date.now();
+    const first = await s.go(['move'], { pollMs: 60_000, now: () => T });
+    assert.equal(first.code, 3, first.text);
+    const second = await s.go(['move'], { pollMs: 60_000, now: () => T + 1_000 });
+    assert.equal(second.code, 4, second.text);
+    assert.match(second.text, /no more than every/);
+    assert.equal((await s.go(['move'], { pollMs: 60_000, now: () => T + 61_000 })).code, 3);
+  });
+});
+
+describe('review: builds on GitHub and Cloudflare', () => {
+  test('B5: a Pages build on the second page of deployments holds move back', async () => {
+    const s = await recorded();
+    s.w.pagesDeployments = [...Array.from({ length: 25 }, () => deployment('built', { commit: s.site.frozen })), deployment('building', { commit: s.site.frozen })];
+    const r = await s.go(['move']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /Pages is building/);
+  });
+
+  test('B5: a Workers Builds run on the second page of check runs holds move back', async () => {
+    const s = await recorded();
+    s.w.checkRuns[s.site.frozen] = [...fillerRuns(s.site.frozen, 110), ...unfinishedWorkersRun(s.site.frozen).filter((c) => c.name.startsWith('Workers Builds'))];
+    const r = await s.go(['move']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /Workers Builds is building/);
+  });
+
+  test('R5: where Workers Builds is connected, a pushed commit it has not reported on is unfinished', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = route;
+    s.w.checkRuns[route] = withoutWorkersRun(route);
+    const r = await s.go(['after']);
+    assert.equal(r.code, 4, r.text);
+    assert.match(r.text, /has not reported/);
+    delete s.w.checkRuns[route];
+    assert.equal((await s.go(['after'])).code, 0);
+
+    const by_hand = await recorded();
+    by_hand.w.checkRuns[by_hand.site.frozen] = withoutWorkersRun(by_hand.site.frozen); // the Worker is deployed by hand
+    const route2 = await moveAll(by_hand);
+    by_hand.w.checkRuns[route2] = withoutWorkersRun(route2);
+    const ok = await pushAndAfter(by_hand, route2);
+    assert.equal(ok.code, 0, ok.text);
+  });
+
+  test('R2: undo works after a passed move and many commits of ordinary shipping', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    for (let i = 0; i < 25; i++) git(s.site.work, 'commit', '-q', '--allow-empty', '-m', `ship ${i}`);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = git(s.site.work, 'rev-parse', 'HEAD');
+    s.w.siteCalls = [];
+    const u = await s.go(['undo']);
+    assert.equal(u.code, 3, u.text);
+    assert.ok(s.w.siteCalls.filter((x) => x.includes('/check-runs')).length <= 21, 'it asked GitHub about every commit');
+  });
+});
+
+describe('review: the route commit and the question', () => {
+  test('B6: a route commit that changes anything but the routes is refused, for move and for undo', async () => {
+    const s = await recorded();
+    const file = path.join(s.site.work, 'workers.jsonc');
+    writeFileSync(file, setRoutes(readFileSync(file, 'utf8'), HOSTS).replace('2026-01-01', '2026-02-02'));
+    git(s.site.work, 'commit', '-q', '-am', 'routes and a compatibility date');
+    const r = await s.go(['move']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /HEAD is not the frozen commit/);
+
+    const u = await recorded();
+    await moveAll(u);
+    const f = path.join(u.site.work, 'workers.jsonc');
+    writeFileSync(f, setRoutes(readFileSync(f, 'utf8'), []).replace('2026-01-01', '2026-02-02'));
+    git(u.site.work, 'commit', '-q', '-am', 'no routes and a compatibility date');
+    const q = await u.go(['undo']);
+    assert.equal(q.code, 1, q.text);
+    assert.match(q.text, /not the commit this script wrote/);
+  });
+
+  test('B12 and B14: the question says Cloudflare is unchanged, and calls 15 minutes a target', async () => {
+    const s = await recorded();
+    const q = await s.go(['move']);
+    assert.equal(q.code, 3);
+    assert.match(q.text, /Cloudflare has not been changed yet/);
+    assert.match(q.text, /Wrote the route commit/);
+    assert.match(q.text, /nothing on Cloudflare has changed/);
+    assert.ok(!/Nothing has been changed yet/.test(q.text));
+    assert.match(q.text, /target/);
+    assert.ok(!/15 minutes at most/.test(q.text));
+  });
+});
+
+describe('review: partial moves and undo', () => {
+  test('R3: a run that stops between hosts says which host has already left its platform', async () => {
+    const { s, r } = await halfMoved();
+    assert.equal(r.code, 4, r.text);
+    assert.ok(r.text.includes(`${HOSTS[0]} has left Pages`), r.text);
+    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname), [HOSTS[0]]);
+  });
+
+  test('B2: undo after only one host moved finishes, with a track of its own', async () => {
+    const { s } = await halfMoved();
+    const q = await s.go(['undo']);
+    assert.equal(q.code, 3, q.text);
+    const u = await s.go(['undo', '--confirm', codeOf(q)]);
+    assert.equal(u.code, 0, u.text);
+    assert.equal(s.w.workerDomains.length, 0);
+    const st = s.state();
+    assert.ok(st.track.undo[HOSTS[0]].leftAt && st.track.move[HOSTS[0]].leftAt, 'each direction keeps its own times');
+    assert.equal(st.track.undo[HOSTS[1]]?.leftAt, undefined, 'the host that never left has no time');
+  });
+
+  test('R6: an undo that stopped before any host moved back still refuses a token with under an hour left', async () => {
+    const s = await recorded();
+    await moveAll(s);
+    const uq = await s.go(['undo']);
+    const stopped = await s.go(['undo', '--confirm', codeOf(uq)], { reserveMs: 10 * 60_000 });
+    assert.equal(stopped.code, 4, stopped.text);
+    s.w.token.expires_on = new Date(Date.now() + 30 * 60_000).toISOString().replace(/\.\d+Z$/, 'Z');
+    const again = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.equal(again.code, 1, again.text);
+    assert.match(again.text, /less than an hour/);
+  });
+
+  test('N7: a plain move in a fresh clone writes the route commit there', async () => {
+    const s = await recorded();
+    const clone = cloneOf(s, 'clone3');
+    const q = await s.go(['move'], { cwd: clone });
+    assert.equal(q.code, 3, q.text);
+    assert.notEqual(git(clone, 'rev-parse', 'HEAD'), s.site.frozen);
+    assert.deepEqual(routesOf(parseJsonc(git(clone, 'show', 'HEAD:workers.jsonc')), 'workers.jsonc'), HOSTS);
+    assert.equal(s.state().route.commit, git(clone, 'rev-parse', 'HEAD'));
+  });
+});
+
+describe('review: undo and the way a host is counted', () => {
+  test('B15: a www that the zone redirects is recorded and checked against itself, never against the version URL', async () => {
+    const s = scenario({ world: { wwwRedirect: { from: HOSTS[1], to: HOSTS[0] } } });
+    const rec = await recordDone(s);
+    assert.equal(rec.code, 0, rec.text);
+    assert.equal(s.state().recording.entries[HOSTS[1]]['/build.txt'].s, 301);
+    const route = await moveAll(s);
+    const a = await pushAndAfter(s, route);
+    assert.equal(a.code, 0, a.text);
+    s.w.httpTo = { [HOSTS[1]]: HOSTS[1] }; // B8: plain http on www no longer goes where the recording went
+    const h = await s.go(['after']);
+    assert.equal(h.code, 1, h.text);
+    assert.match(h.text, /redirect to https/);
+    s.w.httpTo = null;
+    assert.equal((await s.go(['after'])).code, 0, 'the recorded zone redirect of http is accepted');
+    s.w.wwwRedirect = null; // the redirect stops: www now serves the site, which the recording did not
+    const b = await s.go(['after']);
+    assert.equal(b.code, 1, b.text);
+  });
+
+  test('B13: a host the Workers API puts on the Worker but that Pages still answers fails after', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = route;
+    s.w.stale = { [HOSTS[0]]: 'pages' };
+    const r = await s.go(['after']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /answered by Pages/);
+  });
+
+  test('B8: after fails when plain http answers 200 as it did when recorded, or goes to another host', async () => {
+    const plain = scenario({ world: { httpPlain: true } });
+    assert.equal((await recordDone(plain)).code, 0);
+    const route = await moveAll(plain);
+    const r = await pushAndAfter(plain, route);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /redirect to https/);
+
+    const elsewhere = await recorded();
+    const route2 = await moveAll(elsewhere);
+    elsewhere.w.httpElsewhere = true;
+    assert.equal((await pushAndAfter(elsewhere, route2)).code, 1);
+  });
+
+  test('R1: after keeps its answers across runs that end at the time limit', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = route;
+    s.w.siteCalls = [];
+    s.w.stallAfter = 14;
+    const a = await s.go(['after'], { runMs: 1500, requestMs: 5000 });
+    assert.equal(a.code, 4, a.text);
+    const kept = Object.values(s.state().after.entries).reduce((n, e) => n + Object.keys(e).length, 0);
+    assert.ok(kept >= 1, 'nothing was kept');
+    s.w.stallAfter = null;
+    s.w.siteCalls = [];
+    const b = await s.go(['after']);
+    assert.equal(b.code, 0, b.text);
+    const paths = s.state().recording.paths;
+    const fetched = s.w.siteCalls.filter((x) => { const u = new URL(x); return u.protocol === 'https:' && HOSTS.includes(u.hostname) && paths.includes(u.pathname + u.search); }).length;
+    assert.equal(fetched + kept, paths.length * HOSTS.length, 'a kept answer was fetched again');
+    assert.equal(s.state().after, undefined, 'a finished comparison leaves nothing behind');
+  });
+});
+
+describe('review: which way after checks, and what it waits for', () => {
+  test('B16: a move that stopped, then undone with plain undo and hand steps, closes', async () => {
+    const { s } = await halfMoved();
+    const q = await s.go(['undo']); // the question: writes the undo commit, changes nothing on Cloudflare
+    assert.equal(q.code, 3, q.text);
+    s.w.workerDomains = []; // by hand: the host back on Pages, with its CNAME
+    s.w.project.domains.push(HOSTS[0]);
+    s.w.dns.push({ id: 'd'.padEnd(32, '4'), type: 'CNAME', name: HOSTS[0], content: SUBDOMAIN, proxied: true, ttl: 1 });
+    const done = await pushAndAfter(s, git(s.site.work, 'rev-parse', 'HEAD'));
+    assert.equal(done.code, 0, done.text);
+    assert.ok(readdirSync(path.dirname(s.stateFile())).some((f) => f.startsWith('state-closed-')), 'the move was closed');
+  });
+
+  test('B16: an undo that stopped, then a plain move, ends with after checking the Worker', async () => {
+    const s = await recorded();
+    await moveAll(s);
+    const uq = await s.go(['undo']);
+    const stopped = await s.go(['undo', '--confirm', codeOf(uq)], { reserveMs: 10 * 60_000 });
+    assert.equal(stopped.code, 4, stopped.text);
+    const fwd = await s.go(['move']); // go forward: every host is still on the Worker
+    assert.equal(fwd.code, 3, fwd.text);
+    const done = await pushAndAfter(s, git(s.site.work, 'rev-parse', 'HEAD'));
+    assert.equal(done.code, 0, done.text);
+    assert.ok(s.state().open && s.state().passed, 'the move stays open and passed');
+  });
+
+  test('R5: an undo commit pushed over a route commit that was never pushed is not held for the route commit', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    const uq = await s.go(['undo']);
+    assert.equal((await s.go(['undo', '--confirm', codeOf(uq)])).code, 0);
+    s.w.checkRuns[route] = withoutWorkersRun(route); // the route commit was never built: it was never pushed alone
+    const r = await pushAndAfter(s, git(s.site.work, 'rev-parse', 'HEAD'));
+    assert.equal(r.code, 0, r.text);
+  });
+});
+
+describe('review: the status page and check', () => {
+  test('B10: the status page shows where the hosts are now, not where they were last tracked', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = route;
+    s.w.workerDomains = s.w.workerDomains.filter((d) => d.hostname !== HOSTS[0]); // someone put the host back on Pages
+    s.w.project.domains.push(HOSTS[0]);
+    s.w.dns.push({ id: 'd'.padEnd(32, '3'), type: 'CNAME', name: HOSTS[0], content: SUBDOMAIN, proxied: true, ttl: 1 });
+    const r = await s.go(['after']);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(statusPage(s).includes(`<td>${HOSTS[0]}</td><td>on Pages</td>`), 'the page shows the old tracking');
+  });
+
+  test('N3: the stage the page marks follows the move', async () => {
+    const s = await recorded();
+    await s.go(['move']);
+    assert.equal(nowStage(s), '2', 'a question changes nothing yet');
+    const route = await moveAll(s);
+    assert.equal(nowStage(s), '3');
+    await s.go(['after']);
+    assert.equal(nowStage(s), '4', 'after was run and failed');
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    assert.equal(nowStage(s), '5', 'a passed move leaves clean-up');
+  });
+
+  test('N4: check names a private repository first, and in an open move points to after', async () => {
+    const s = scenario({ world: { githubPrivate: true, workerDomains: [{ id: '00000001-0000-4000-8000-000000000000', hostname: 'x.lenas-backstube.example', service: WORKER, zone_id: ZONE.id }] } });
+    const c = await s.go(['check']);
+    assert.equal(c.code, 1);
+    assert.match(c.text, /private/);
+    assert.ok(!/already has a domain/.test(c.text), 'the private repository came second');
+
+    const o = await recorded();
+    await moveAll(o);
+    const open = await o.go(['check']);
+    assert.equal(open.code, 0);
+    assert.match(open.text, /expects the route commit [0-9a-f]{7}/, 'B17: check names the commit the open move waits for');
+    assert.ok(statusPage(o).includes('node move-to-workers.mjs after'), 'the next step of an open move is after');
+  });
+
+  test('N5: a run that stops before the state was read marks no stage on the page', async () => {
+    const s = await recorded();
+    await moveAll(s);
+    s.w.token.expires_on = new Date(Date.now() + 10 * 86_400_000).toISOString().replace(/\.\d+Z$/, 'Z');
+    const r = await s.go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(!statusPage(s).includes('class="now"'), 'the page says "you are here" for a move it never read');
+  });
+
+  test('B8: the status page links an http difference to its http address', () => {
+    const template = readFileSync(path.join(SCRIPTS, 'move-status.html'), 'utf8');
+    const html = renderStatus(template, {
+      stages: [['Prepare', 'a']], stage: 1, site: 'x', updated: 'y', command: 'z', result: 'r', hosts: [], checks: [], next: 'n', undo: 'u',
+      differences: [{ host: HOSTS[0], path: 'http://', field: 'redirect to https', expected: '301', got: '200' }],
+    });
+    assert.ok(html.includes(`href="http://${HOSTS[0]}/"`), html);
+    assert.ok(!html.includes(`https://${HOSTS[0]}http://`));
+  });
+});
+
+describe('review: comparing', () => {
+  const OPTS = { change: false, onVersion: false, expect: 'abc' };
+
+  test('B7: the build files differ in their body only; everything else is compared', () => {
+    const was = { '/build.txt': entry() };
+    assert.deepEqual(compare(was, { '/build.txt': entry({ h: 'bbbb' }) }, OPTS), [], 'the body of a build file differs by design');
+    for (const [what, over, field] of [['media type', { t: 'text/html' }, 'media type'], ['Location', { l: '/x' }, 'Location'], ['a header', { hd: { 'x-frame-options': null } }, 'header x-frame-options'], ['status', { s: 404 }, 'status'], ['commit line', { c: 'zzz' }, 'commit line']]) {
+      const d = compare(was, { '/build.txt': entry(over) }, OPTS);
+      assert.ok(d.some((x) => x.field === field && !x.known), what);
+    }
+  });
+
+  test('B9: access-control-allow-origin is a known difference when the platform changed, and nowhere else', () => {
+    assert.ok(headerNames('').includes('access-control-allow-origin'));
+    const pages = { '/a': entry({ hd: { 'access-control-allow-origin': '*' } }) };
+    const worker = { '/a': entry({ hd: { 'access-control-allow-origin': null } }) };
+    const moved = compare(pages, worker, { ...OPTS, change: true });
+    assert.equal(moved.length, 1);
+    assert.ok(moved[0].known);
+    const same = compare(pages, worker, OPTS);
+    assert.ok(same.length === 1 && !same[0].known, 'the platform did not change');
+    const more = compare(pages, { '/a': entry({ t: 'text/html', hd: { 'access-control-allow-origin': null } }) }, { ...OPTS, change: true });
+    assert.ok(more.some((d) => d.field === 'media type' && !d.known), 'only that field is excused');
+  });
+
+  test('N1: no regular expression is built from a variable', () => {
+    assert.ok(!/new RegExp\(/.test(SRC));
   });
 });
