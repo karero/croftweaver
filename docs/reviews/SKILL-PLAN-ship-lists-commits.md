@@ -12,7 +12,7 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 | 3b | The closing line with nothing new (owner, 2026-11-02: "fold the Pushed message into the build") | built with step 3 | same branch |
 | 4 | `PUBLISHING.md`: one sentence | built 2026-11-02 | same branch |
 | 5 | `docs/BUGLOG.md`: the release-notes row | built 2026-11-02 | same branch |
-| 6 | `make check`, mutation check, DIFF gate at High, then PR | in progress | — |
+| 6 | `make check`, mutation check, DIFF gate at High, then PR | `make check` and mutation check done; DIFF gate CLEAN (High, Codex + GLM 5.3, fresh-eyes, final read, wording pass); PR next | trail `REVIEW-diff-2026-11-03-claude-ship-lists-commits-d2c413-f17eb2a.md`; head `34f84033` |
 
 ## What and why
 
