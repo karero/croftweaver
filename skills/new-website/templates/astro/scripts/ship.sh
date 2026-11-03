@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.23
+# template-version: 0.24
 #   The website-builder release this revision ships in. Sites get their copy at
 #   scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -563,6 +563,41 @@ if ! git merge-base --is-ancestor origin/production "$id"; then
   exit 1
 fi
 
+# What goes live, listed before anything is made or pushed. production is read once, so the
+# three reads agree. --first-parent shows a merged pull request as one line; the control bytes
+# go, because a commit's subject is its author's and git prints it raw (LC_ALL=C: macOS's tr
+# refuses a byte that is not UTF-8). A failed read stops the run, as the other checks do.
+if live_prod="$(git rev-parse --verify 'origin/production^{commit}')" \
+   && live_n="$(git rev-list --count --first-parent "$live_prod..$id")" \
+   && live_all="$(git rev-list --count "$live_prod..$id")" \
+   && live_lines="$(git -c log.showSignature=false log --first-parent --format='%h %s' -n 20 "$live_prod..$id")" \
+   && live_lines="$(LC_ALL=C tr -d '\001-\010\013-\037\177' <<<"$live_lines")"; then
+  live_ok=1
+else
+  live_ok=0
+fi
+stop_point "Nothing was published and $here."
+if [ "$live_ok" = 0 ]; then
+  echo ""
+  echo "✗ Publish stopped — couldn't list the commits that would go live (git's"
+  echo "  error is above). Nothing was published and $here."
+  exit 1
+fi
+echo ""
+if [ "$live_n" = 0 ]; then
+  echo "Nothing new goes live: 'production' already has this commit. The checks and the live-site check run as usual."
+else
+  echo "Going live, newest first (a merge is one line):"
+  while IFS= read -r live_line; do printf '    %s\n' "$live_line"; done <<<"$live_lines"
+  if [ "$live_n" -gt 20 ]; then
+    echo "    … and $((live_n - 20)) more lines (git log --first-parent ${live_prod:0:12}..${id:0:12} lists them all)"
+  fi
+  if [ "$live_all" != "$live_n" ]; then
+    echo "    $live_all commits in all: the merges in this range bring in the rest."
+  fi
+  echo ""
+fi
+
 if [ "$from_github" = 1 ]; then
   # The worktree: detached at the commit, so it can exist while another worktree has `main`
   # checked out. Its line goes on ship's list before git makes the worktree in its folder, so a
@@ -832,7 +867,11 @@ if [ "$stop_asked" = 1 ]; then
   echo "  it yet. In a few minutes, $build_txt should show $id."
   exit 1
 fi
-echo "✓ Pushed. Cloudflare is building the live site now."
+if [ "$live_n" = 0 ]; then
+  echo "✓ Nothing to push: 'production' already has this commit."
+else
+  echo "✓ Pushed. Cloudflare is building the live site now."
+fi
 
 # Push ≠ live: Cloudflare can silently stop building (webhook auth lapse — seen in
 # production 2026-07-02: two green pushes, no deploy for 40+ min). So VERIFY: the

@@ -33,7 +33,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.23   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.24   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -54,6 +54,8 @@ export TMPDIR="$work/tmp"
 cat > "$work/bin/git" <<'STUB'
 #!/bin/bash
 SHA=1111111111111111111111111111111111111111
+# production, as the list of commits reads it: a commit of its own, so a swapped range shows.
+PROD=3333333333333333333333333333333333333333
 UP="$(cat "$FAKE_DIR/upstream" 2>/dev/null || echo "$SHA")"
 # git's own options before the subcommand. `-c` settings are logged, so a scenario can assert
 # that every fetch runs with git's housekeeping off.
@@ -89,6 +91,10 @@ case "$1" in
         if [ -f "$FAKE_DIR/stopat-upstream" ]; then kill -TERM "$(cat "$FAKE_DIR/shippid")"; exit 130; fi
         [ -f "$FAKE_DIR/noupstream" ] && exit 1; echo "$UP" ;;
       *"--verify -q origin/production"*) [ -f "$FAKE_DIR/noprod" ] && exit 1; echo "$SHA" ;;
+      # production, read once for the list of commits that go live.
+      "rev-parse --verify origin/production^{commit}")
+        if [ -f "$FAKE_DIR/prodfail" ]; then echo "fatal: stub: production could not be read" >&2; exit 1; fi
+        echo "$PROD" ;;
       *) echo "$SHA" ;;
     esac ;;
   status) [ -f "$FAKE_DIR/dirty" ] && echo " M src/pages/index.astro"; exit 0 ;;
@@ -113,6 +119,28 @@ case "$1" in
       fi
       exit 1
     fi ;;
+  # The three reads of the list of commits that go live, each exactly as ship.sh makes them and on
+  # `$PROD..$SHA`: anything else is refused. The call is logged first, so a refused one shows.
+  # Nothing new by default; a `news` marker makes one commit new.
+  rev-list|log)
+    echo "$*" >> "$FAKE_DIR/listcalls"
+    case "$*" in
+      "rev-list --count --first-parent $PROD..$SHA")
+        if [ -f "$FAKE_DIR/stopat-revlist" ]; then kill -TERM "$(cat "$FAKE_DIR/shippid")"; exit 130; fi
+        if [ -f "$FAKE_DIR/countfail" ]; then echo "fatal: stub: the count failed" >&2; exit 1; fi
+        if [ -f "$FAKE_DIR/news" ]; then echo 1; else echo 0; fi ;;
+      "rev-list --count $PROD..$SHA")
+        if [ -f "$FAKE_DIR/allfail" ]; then echo "fatal: stub: the count of all failed" >&2; exit 1; fi
+        if [ -f "$FAKE_DIR/news" ]; then echo 1; else echo 0; fi ;;
+      "log --first-parent --format=%h %s -n 20 $PROD..$SHA")
+        # `-c` settings were moved to the settings file by the loop above: the last one is this call's.
+        if [ "$(tail -1 "$FAKE_DIR/settings" 2>/dev/null)" != "log.showSignature=false" ]; then
+          echo "STUB: log must run with -c log.showSignature=false: git $*" >&2; exit 3
+        fi
+        if [ -f "$FAKE_DIR/logfail" ]; then echo "fatal: stub: the log failed" >&2; exit 1; fi
+        if [ -f "$FAKE_DIR/news" ]; then echo "aaaaaaa a change that is new"; fi ;;
+      *) echo "STUB: unexpected list invocation: git $*" >&2; exit 3 ;;
+    esac ;;
   merge-base)
     # The argument ORDER carries the meaning here: reversing the two refs inverts the
     # check and would let a diverged production be published. A stub that answers any
@@ -201,7 +229,7 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   local name="$1" want_exit="$2" want_pushes="$3" marker="$4" extra="${5:-}"
   local dir="$work/cases/$name" log="$work/$name.log" path="$work/bin:$PATH" got_exit pushes
   [ -n "$extra" ] && path="$extra:$path"
-  mkdir -p "$dir"; rm -f "$dir/pushes" "$dir/fetches" "$dir/settings" "$dir/fetchargs"; : > "$dir/pushes"
+  mkdir -p "$dir"; rm -f "$dir/pushes" "$dir/fetches" "$dir/settings" "$dir/fetchargs" "$dir/listcalls"; : > "$dir/pushes"
   # The wrapper writes down its pid, then becomes ship.sh, so the pid is ship.sh's (the stub's
   # stop cases signal it).
   ( cd "$work/cwd" && FAKE_DIR="$dir" PATH="$path" bash -c 'echo "$$" > "$FAKE_DIR/shippid"; exec bash "$0"' "$ship" > "$log" 2>&1 ) && got_exit=0 || got_exit=$?
@@ -245,6 +273,14 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
     echo "   counts are asserted either way.)"
     fail=1
   fi
+  # Every case that gets as far as the push has printed the list: news if the case has some,
+  # else the line that nothing is new.
+  if [ "$pushes" != 0 ] && [ "$skip_wording" = 0 ]; then
+    local listed="Nothing new goes live"; [ -f "$dir/news" ] && listed="Going live, newest first"
+    if ! grep -qF "$listed" "$log"; then
+      echo "✗ ship push gate [$name]: the owner was not told \"$listed\" before the push."; fail=1
+    fi
+  fi
   # Whatever the verdict, git's own words must reach the owner — they are the one
   # part of the output that is never a guess.
   for fixture in "$dir/1.out" "$dir/fetcherr"; do
@@ -271,6 +307,7 @@ expect fetchfail 1 0 "couldn't fetch from GitHub"
 
 # ...and a fetch that only blipped must NOT stop it: that is what the retry is for.
 mark fetchblip fetchfail 1
+mark fetchblip news
 attempt fetchblip 1 0 <<'EOF'
 To github.com:you/your-site.git
    1111111..2222222  main -> production
@@ -384,6 +421,10 @@ expect gatequoteshint 1 1 "can't name"
 # mistaken for it. Zero push attempts is the assertion that matters here.
 mkdir -p "$work/cases/diverged"; : > "$work/cases/diverged/diverged"
 expect diverged 1 0 "Publish blocked"
+if [ -s "$work/cases/diverged/listcalls" ]; then
+  echo "✗ ship push gate [diverged]: the list of commits was read for a publish that is blocked:"
+  sed 's/^/  | /' "$work/cases/diverged/listcalls"; fail=1
+fi
 
 # --- production moves DURING the publish: the race the local check can't cover ---
 attempt raced 1 1 <<'EOF'
@@ -402,6 +443,7 @@ EOF
 expect sshtimeout 1 2 "not a branch problem"
 
 # --- a blip that clears: the retry is the whole point of classifying it ---------
+mark sshthenok news
 attempt sshthenok 1 1 <<'EOF'
 ssh: connect to host github.com port 22: Operation timed out
 fatal: Could not read from remote repository.
@@ -705,6 +747,7 @@ EOF
 expect stopnet 1 1 "not a branch problem"
 
 # --- a clean publish -----------------------------------------------------------
+mark okpush news
 attempt okpush 1 0 <<'EOF'
 To github.com:you/your-site.git
    16bf04a..5e78e56  main -> production
@@ -728,6 +771,44 @@ if [ "$(cat "$work/cases/okpush/pushes")" != "$okpush_want" ]; then
   fail=1
 fi
 
+# --- the list of commits that go live ---------------------------------------------------
+# okpush has news: the list comes before the push, and the push is announced as one.
+if [ -z "${SHIP_GATE_SKIP_WORDING:-}" ]; then
+  if ! grep -qxF "    aaaaaaa a change that is new" "$work/okpush.log"; then
+    echo "✗ ship push gate [okpush]: the commit that goes live was not listed."; fail=1
+  fi
+  if ! awk '/^Going live, newest first/ { a = NR } /^✓ Pushed/ { b = NR } END { exit !(a && b && a < b) }' "$work/okpush.log"; then
+    echo "✗ ship push gate [okpush]: the list did not come before the push."; fail=1
+  fi
+  if grep -qF "Nothing to push" "$work/okpush.log"; then
+    echo "✗ ship push gate [okpush]: a push with news was announced as having nothing to push."; fail=1
+  fi
+fi
+# ...and with nothing new, the push is not announced as starting a build.
+attempt nonews 1 0 <<'EOF'
+Everything up-to-date
+EOF
+expect nonews 0 1 "✓ Nothing to push"
+if grep -qF "Cloudflare is building" "$work/nonews.log"; then
+  echo "✗ ship push gate [nonews]: a push with nothing new was announced as starting a build."; fail=1
+fi
+# Each read that fails stops the run before anything is pushed. A read let go would be followed by
+# one the stub refuses, so the pushes alone would not tell: the message does.
+for read in prodfail countfail allfail logfail; do
+  mark "$read" "$read"
+  expect "$read" 1 0 "couldn't list the commits"
+done
+if [ -s "$work/cases/prodfail/listcalls" ]; then
+  echo "✗ ship push gate [prodfail]: a count or log was read after production could not be:"
+  sed 's/^/  | /' "$work/cases/prodfail/listcalls"; fail=1
+fi
+# A terminate during the first count is a stop, not a failed list.
+mark stopat-revlist stopat-revlist
+expect stopat-revlist 1 0 "a stop was asked for"
+if grep -q "couldn't list the commits" "$work/stopat-revlist.log"; then
+  echo "✗ ship push gate [stopat-revlist]: a git call ended by a stop was read as a failed list."; fail=1
+fi
+
 # --- no line in ship.sh may replace its shell --------------------------------------
 # Its EXIT trap removes the worktree and the lock, and a shell replaced by another program never
 # runs it. Banned outright, comments included, though a redirect-only use would keep the trap:
@@ -748,7 +829,7 @@ fi
 # that leaves them).
 real_git_cases() {
   rg_n=0 rg_skipped=""
-  local gv REAL_SLEEP NODE PERL ps_starts G
+  local gv REAL_SLEEP NODE PERL ps_starts G git_major git_minor
   # skip_all <why>: none of these cases can run here. Said out loud, and a failure where CI
   # requires the bash 3.2 case.
   skip_all() {
@@ -769,6 +850,7 @@ real_git_cases() {
   if [ "$#" != 2 ] || [ "$1" -lt 2 ] || { [ "$1" = 2 ] && [ "$2" -lt 17 ]; }; then
     skip_all "it needs git 2.17 or newer ($(git version 2>/dev/null))"; return 0
   fi
+  git_major="$1" git_minor="$2"
   REAL_SLEEP="$(command -v sleep)"; NODE="$(command -v node || true)"; PERL="$(command -v perl || true)"
   # Whether ps here gives start times: without them a lock's owner cannot be told apart from a
   # process that reused its id, so ship.sh says it cannot tell, and S8 and S9 expect that.
@@ -895,6 +977,18 @@ GATE
   last_line() { awk 'NF { l = $0 } END { print l }' "$L"; }
   first_has() { case "$(first_line)" in *"$1"*) return 0 ;; esac; return 1; }
   last_has() { case "$(last_line)" in *"$1"*) return 0 ;; esac; return 1; }
+  # The list of commits that go live: every line of standard output from its header to the next
+  # blank line. A list line starts with four spaces and a 7-character id. (LC_ALL=C: L4's log holds
+  # a byte that is not UTF-8, which awk and grep here refuse in a UTF-8 locale.)
+  live_header="Going live, newest first (a merge is one line):"
+  live_block() { LC_ALL=C awk '/^Going live, newest first/ { f = 1 } f { if ($0 == "") exit; print }' "$L"; }
+  listed() { live_block | LC_ALL=C grep -E '^    [0-9a-f]{7} ' || true; }
+  listed_count() { listed | LC_ALL=C grep -c '' || true; }
+  listed_starts() { # <n> <text>: the n-th listed line starts with the text
+    case "$(listed | LC_ALL=C awk -v n="$1" 'NR == n')" in "$2"*) return 0 ;; esac; return 1
+  }
+  line_of() { LC_ALL=C awk -v p="$1" 'index($0, p) { print NR; exit }' "$L"; }
+  before() { [ -n "$1" ] && [ -n "$2" ] && [ "$1" -lt "$2" ]; }
   leaves_nothing() { # no lock, no worktree and no line of its own left, unless the case expects one
     if [ "$LOCK_LEFT" = 0 ]; then [ ! -e "$C/.git/ship.lock" ] || return 1; fi
     [ "$(list_now)" = "$LIST_WANT" ] && [ "$(worktrees)" = "$WT_COUNT" ] && [ "$(tmp_worktrees)" = "$TMP_WT" ]
@@ -962,6 +1056,8 @@ GATE
   # the index, so the index check below can fail.
   touch -t 202001010000 "$C/astro.config.mjs"
   m="$(gh main)"
+  local c1 c2 lc
+  c2="$(git -C "$S" rev-parse --short=7 HEAD)"; c1="$(git -C "$S" rev-parse --short=7 HEAD~1)"
   run_ship s2; exits 0
   want "production is GitHub's main" eq "$(gh production)" "$m"
   want "the first line names the mode and the commit" first_has "Publishing GitHub's main as of the fetch (${m:0:12})"
@@ -971,15 +1067,26 @@ GATE
   want "... and starts with ✓ LIVE" eval 'case "$(last_line)" in "✓ LIVE"*) true ;; *) false ;; esac'
   want "no message claims this folder is on main" lacks "safely on 'main'"
   want "the folder is still on its branch" eq "$(git -C "$C" rev-parse --abbrev-ref HEAD)" feat
+  want "the newest change is listed first" listed_starts 1 "    $c2 change 2"
+  want "... the older one next" listed_starts 2 "    $c1 change 1"
+  want "... and nothing else" eq "$(listed_count)" 2
+  want "no 'commits in all' line for a straight run of commits" lacks "commits in all"
+  want "the list comes before the 'Not published' lists" before "$(line_of "$live_header")" "$(line_of 'Not published')"
+  want "... and before the gate" before "$(line_of "$live_header")" "$(line_of '▶ pre-push gate')"
+  want "the push is announced" has "✓ Pushed. Cloudflare is building the live site now."
 
   # --- S3: this computer's main one commit ahead of GitHub's ------------------------------
   fixture s3; advance 1
   git -C "$C" pull -q --ff-only
   echo "local" >> "$C/page.txt"; git -C "$C" commit -qam "not on GitHub"
   m="$(gh main)"
+  lc="$(git -C "$C" rev-parse HEAD)"; c1="$(git -C "$S" rev-parse --short=7 HEAD)"
   run_ship s3; exits 0
   want "production is GitHub's main, not this computer's" eq "$(gh production)" "$m"
   want "says the commit was not published" has "this computer's 'main' has 1 commit that GitHub's main doesn't"
+  want "only GitHub's commit is listed" listed_starts 1 "    $c1 change 1"
+  want "... one line" eq "$(listed_count)" 1
+  want "this computer's commit is not named" lacks "${lc:0:7}"
 
   # --- S4: GitHub's main has a broken page ------------------------------------------------
   fixture s4
@@ -1357,6 +1464,93 @@ GATE
     want "... and it still is" eq "$(git -C "$C" config --get core.hooksPath)" "$D/another-session"
   fi
 
+  # --- L1: a merged pull request is one line, and the count says there are more ----------
+  fixture l1
+  git -C "$S" checkout -q -b br
+  for i in 1 2 3; do echo "branch $i" > "$S/b$i.txt"; git -C "$S" add "b$i.txt"; git -C "$S" commit -qm "branch commit $i"; done
+  git -C "$S" checkout -q main
+  git -C "$S" merge -q --no-ff -m "Merge pull request #12 from you/br" br
+  git -C "$S" push -q origin main
+  m="$(gh main)"
+  run_ship l1; exits 0
+  want "the merge is the one listed line" eq "$(listed)" "    ${m:0:7} Merge pull request #12 from you/br"
+  want "none of the branch's commits is listed" lacks "branch commit"
+  want "the number of all commits is said" has "    4 commits in all: the merges in this range bring in the rest."
+
+  # --- L2: more than twenty lines: twenty are listed, the rest counted ----------------------
+  fixture l2; p0="$(gh production)"; advance 23; m="$(gh main)"
+  run_ship l2; exits 0
+  want "twenty lines are listed" eq "$(listed_count)" 20
+  want "the newest first" listed_starts 1 "    ${m:0:7} change 23"
+  want "the rest are counted, with the command that lists them" \
+    has "    … and 3 more lines (git log --first-parent ${p0:0:12}..${m:0:12} lists them all)"
+  want "no 'commits in all' line for a straight run" lacks "commits in all"
+
+  # --- L3: production already has this commit ----------------------------------------------
+  fixture l3; p0="$(gh production)"
+  run_ship l3; exits 0
+  want "says nothing new goes live" has "Nothing new goes live: 'production' already has this commit."
+  want "lists no commit" eq "$(listed_count)" 0
+  want "the gate still runs" has "▶ pre-push gate"
+  want "the push is not announced as one" has "✓ Nothing to push: 'production' already has this commit."
+  want "... nor a build started" lacks "Cloudflare is building"
+  want "the live check passes" last_has "✓ LIVE"
+  want "production is unchanged" eq "$(gh production)" "$p0"
+
+  # --- L4: the owner's git settings and odd bytes in a subject do not reach the list --------
+  # The clone asks for colour, decorations, the long format and signature lines; one subject holds
+  # an escape sequence, one commit is ssh-signed, one subject holds a byte that is not UTF-8. The
+  # list is exactly the header and the three lines (the escape byte gone, the other byte kept).
+  fixture l4
+  git -C "$C" config color.ui always; git -C "$C" config log.decorate full
+  git -C "$C" config format.pretty fuller; git -C "$C" config log.showSignature true
+  local e1 e2="" e3 signed=0
+  echo "evil" >> "$S/page.txt"; git -C "$S" commit -qam "$(printf 'evil \033[31mred\033[0m end')"
+  e1="$(git -C "$S" rev-parse --short=7 HEAD)"
+  if command -v ssh-keygen >/dev/null 2>&1 && { [ "$git_major" -gt 2 ] || [ "$git_minor" -ge 34 ]; } \
+     && ssh-keygen -q -t ed25519 -N '' -f "$D/key" >/dev/null 2>&1; then
+    echo "signed" >> "$S/page.txt"
+    if git -C "$S" -c gpg.format=ssh -c user.signingkey="$D/key.pub" commit -q -S -am "signed change" 2>/dev/null; then
+      signed=1; e2="$(git -C "$S" rev-parse --short=7 HEAD)"
+    fi
+  fi
+  [ "$signed" = 1 ] || echo "  note: L4 runs without its signed commit: it needs ssh-keygen, git 2.34 or newer and a working ssh signature."
+  # `git commit` would turn the byte into UTF-8, so the commit object is written by hand.
+  echo "raw" >> "$S/page.txt"; git -C "$S" add -A
+  e3="$(printf 'tree %s\nparent %s\nauthor ship-test <ship-test@example.invalid> 1700000000 +0000\ncommitter ship-test <ship-test@example.invalid> 1700000000 +0000\n\nraw \377 byte\n' \
+    "$(git -C "$S" write-tree)" "$(git -C "$S" rev-parse HEAD)" | git -C "$S" hash-object -t commit -w --stdin)"
+  git -C "$S" update-ref refs/heads/main "$e3"; e3="${e3:0:7}"; git -C "$S" push -q origin main
+  { echo "$live_header"
+    printf '    %s raw \377 byte\n' "$e3"
+    if [ "$signed" = 1 ]; then printf '    %s signed change\n' "$e2"; fi
+    printf '    %s evil [31mred[0m end\n' "$e1"
+  } > "$D/l4-want"
+  run_ship l4 LC_ALL=en_US.UTF-8; exits 0
+  live_block > "$D/l4-got"
+  want "the list is the header and the commits' subjects, plain, and nothing else" cmp -s "$D/l4-want" "$D/l4-got"
+
+  # --- L6: folder mode, after the pull the script itself advises --------------------------
+  # GitHub's main gains a merged pull request, the folder a commit of its own; `git pull
+  # --no-rebase` joins them. The merge hides the pull request's commits behind one line.
+  fixture l6
+  git -C "$S" checkout -q -b pr
+  echo "pr" > "$S/pr.txt"; git -C "$S" add pr.txt; git -C "$S" commit -qm "pull request change"
+  git -C "$S" checkout -q main
+  git -C "$S" merge -q --no-ff -m "Merge pull request #7 from you/pr" pr
+  git -C "$S" push -q origin main
+  echo "local" > "$C/local.txt"; git -C "$C" add local.txt; git -C "$C" commit -qm "local change"
+  git -C "$C" pull -q --no-rebase --no-edit
+  git -C "$C" push -q >/dev/null 2>&1
+  m="$(git -C "$C" rev-parse --short=7 HEAD)"; lc="$(git -C "$C" rev-parse --short=7 HEAD^)"
+  git -C "$C" config --unset ship.fromGitHub
+  find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+  git -C "$C" update-index -q --refresh
+  run_ship l6; exits 0
+  want "the merge joining the two is the newest line" listed_starts 1 "    $m Merge branch 'main' of "
+  want "this folder's own commit is next" listed_starts 2 "    $lc local change"
+  want "... and nothing else" eq "$(listed_count)" 2
+  want "the other commits are counted" has "    4 commits in all: the merges in this range bring in the rest."
+
   # --- P1–P5: the last line for a pages.dev address and for a real domain, in both modes ---
   # A *.pages.dev address is Cloudflare's own address for the site: the build served there does
   # not show the site is live on its own domain, so the line must not say LIVE; a real domain
@@ -1392,6 +1586,7 @@ GATE
   want "... and says it is not the site's own domain" last_has "$pv_note"
   want "never says LIVE" lacks "✓ LIVE"
   site_case p4 folder https://ship-test.example.invalid
+  want "folder mode lists the one commit" eq "$(listed)" "    ${m:0:7} site address"
   want "a real domain keeps the LIVE line" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving build ${m:0:12} (after"
   want "... with no pages.dev note" lacks "$pv_note"
   site_case p5 github https://Ship-Test.PAGES.DEV.
@@ -1403,6 +1598,6 @@ GATE
 real_git_cases
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks on real git (the mode that publishes GitHub's main, and the last line for a pages.dev address in both modes)${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
+  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks on real git (the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, and the list of commits that go live)${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
 fi
 exit "$fail"

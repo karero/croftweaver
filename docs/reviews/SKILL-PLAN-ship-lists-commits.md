@@ -8,10 +8,11 @@ only reads git and prints; it deletes, logs in to and moves nothing).
 |---|---|---|---|
 | 1 | This plan | written 2026-11-02 | this file |
 | 2 | PLAN gate, High | CLEAN: rounds 1 to 4, final full read, wording pass and confirmation done; no BUG open | trail `REVIEW-plan-2026-11-02-claude-plan-ship-lists-commits-f5cfff-5e9889f.md` |
-| 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | waits for the owner's go | — |
-| 4 | `PUBLISHING.md`: one sentence | waits for the owner's go | — |
-| 5 | `docs/BUGLOG.md`: the release-notes row | waits for the owner's go | — |
-| 6 | `make check`, mutation check, DIFF gate at High, then PR | waits for the owner's go | — |
+| 3 | `ship.sh` prints the list; `check_ship_push.sh` cases; both markers 0.24 | built 2026-11-02, on the owner's go | branch `claude/ship-lists-commits-d2c413` |
+| 3b | The closing line with nothing new (owner, 2026-11-02: "fold the Pushed message into the build") | built with step 3 | same branch |
+| 4 | `PUBLISHING.md`: one sentence | built 2026-11-02 | same branch |
+| 5 | `docs/BUGLOG.md`: the release-notes row | built 2026-11-02 | same branch |
+| 6 | `make check`, mutation check, DIFF gate at High, then PR | in progress | — |
 
 ## What and why
 
@@ -95,7 +96,11 @@ goes, then what stays.
 6. **Unchanged:** no `production` branch on GitHub still stops at line 489 with its own message,
    before this point; a diverged `production` still stops at line 552, also before. The first and
    last lines of a run stay as they are.
-7. **Markers:** `template-version: 0.24` in `ship.sh` and in `tests/check_ship_push.sh` (the test
+7. **The closing line with nothing new** (step 3b): when `live_n` is 0 the run ends its push with
+   `✓ Nothing to push: 'production' already has this commit.` instead of `✓ Pushed. Cloudflare is
+   building the live site now.`, and the live-site check runs as before. With news the line is
+   unchanged.
+8. **Markers:** `template-version: 0.24` in `ship.sh` and in `tests/check_ship_push.sh` (the test
    asserts they agree). If `ship.sh` has moved on `main` by build time (the Workers starter, BUGLOG
    row of 2026-10-30, may touch it), rebase first and take the next version.
 
@@ -144,6 +149,11 @@ values are written from each fixture's commit subjects and ids, never copied fro
   prints the stop message (`on_exit`, `ship.sh` 302–304), so only that absent line tells the two
   apart, as `stopverdict` does with its own text (round 3, fresh-eyes).
 - the existing diverged case also asserts 0 list calls.
+- step 3b: the stub answers "nothing new" unless a case holds a `news` marker, which makes it
+  answer one commit; `okpush`, `fetchblip` and `sshthenok`, which assert `✓ Pushed`, hold it. New
+  `nonews` asserts `✓ Nothing to push` and no "Cloudflare is building"; `okpush` asserts the
+  list line, the list before `✓ Pushed`, and no "Nothing to push". `expect` checks that every
+  case which got as far as the push printed "Going live" (news) or "Nothing new goes live".
 
 **Real-git half** (bare origin, clone, tiny gate, as today). The list block is every line of
 standard output from the header to the next blank line; a list line is a block line matching
@@ -160,7 +170,8 @@ standard output from the header to the next blank line; a list line is a block l
 - new L2: 23 commits: exactly 20 listed lines, the first `change 23`, then `    … and 3 more
   lines`; no "commits in all" line.
 - new L3: production already at main: "Nothing new goes live"; the gate still runs ("▶ pre-push
-  gate" in the output); exits 0 on the LIVE line; production unchanged.
+  gate" in the output); `✓ Nothing to push`, no "Cloudflare is building"; exits 0 on the LIVE
+  line; production unchanged. S2 asserts `✓ Pushed. Cloudflare is building` for a run with news.
 - new L4 (worktree mode): the clone sets `color.ui=always`, `log.decorate=full`, `format.pretty=fuller` and
   `log.showSignature=true`; one commit's subject holds `ESC[31m`, and another commit is signed
   with an ssh key the fixture makes with `ssh-keygen` (`-c gpg.format=ssh -c user.signingkey=…
@@ -203,6 +214,5 @@ the DIFF gate at High.
   them.
 - C1 control characters (0x80 to 0x9F, as raw bytes or written as UTF-8) pass the `tr`. Whether common
   terminals act on them in UTF-8 mode was not checked.
-- With nothing new, the run still prints "✓ Pushed. Cloudflare is building the live site now."
-  (`ship.sh` 835) before it checks the live site, unchanged here. The "Nothing new goes live" line
-  before it says what is true; rewording the "✓ Pushed" line for this case is a follow-up (final read).
+- Production moving between the list's reads and the push: the closing line follows the list's
+  count, not the push's own answer.
