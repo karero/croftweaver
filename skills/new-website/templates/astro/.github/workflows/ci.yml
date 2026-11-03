@@ -26,7 +26,8 @@ concurrency:
 
 jobs:
   # Whether this change is more than documentation. A change that touches only `docs/`,
-  # `.claude/` or a Markdown file in the repo root skips the `test` job below and saves
+  # `.claude/` or a Markdown file in the repo root (README.md excepted: it holds the
+  # legal-pages answer, which the tests read) skips the `test` job below and saves
   # its 4-5 minutes. Not a `paths-ignore:` filter: a workflow left out by one never
   # reports, and a required check that never reports blocks every merge, while a job
   # skipped by its `if:` counts as passed. Markdown deeper in the tree (src/content/...)
@@ -68,6 +69,8 @@ jobs:
             case "$f" in
               docs/*|.claude/*) ;;
               */*|\"*) run=true ;;
+              # README.md holds the owner's legal-pages answer, which tests/placeholders.spec.ts reads.
+              README.md) run=true ;;
               *.md) ;;
               *) run=true ;;
             esac
