@@ -624,7 +624,8 @@ describe('3: the state file, the lock and a second checkout', () => {
     assert.equal(u.code, 3, u.text);
     assert.equal(git(clone, 'rev-parse', 'HEAD'), s.site.frozen, 'plain undo wrote a commit where HEAD had no routes');
     assert.match(u.text, /already has the right routes/);
-    assert.equal(s.state().route.commit, s.site.frozen, 'after must expect HEAD');
+    assert.equal(s.state().asked.commit, s.site.frozen, 'the run records the commit it points at as asked, not confirmed');
+    assert.equal(s.state().route.kind, 'route', 'after still goes by the last confirmed direction');
   });
 
   test('deleting move-run/ changes nothing: after still works', async () => {
@@ -775,8 +776,9 @@ const nowStage = (s) => /<li class="now"><strong>(\d)\./.exec(statusPage(s))?.[1
 
 // move, then --confirm; the commit the move wrote
 async function moveAll(s) {
-  const q = await s.go(['move']);
-  const g = await s.go(['move', '--confirm', codeOf(q)]);
+  const T = Date.now(); // a clock that stands still: a slow machine cannot use up the run's time
+  const q = await s.go(['move'], { now: () => T });
+  const g = await s.go(['move', '--confirm', codeOf(q)], { now: () => T });
   assert.equal(g.code, 0, g.text);
   return git(s.site.work, 'rev-parse', 'HEAD');
 }
@@ -789,10 +791,11 @@ async function pushAndAfter(s, commit) {
 // A move that stops after the first host, because the run has too little time left for the second.
 async function halfMoved() {
   const s = await recorded();
-  const q = await s.go(['move']);
-  s.w.delay = { 'PUT /accounts/:id/workers/domains': 2000 };
-  const r = await s.go(['move', '--confirm', codeOf(q)], { runMs: 5000, reserveMs: 3500 });
-  delete s.w.delay;
+  let T = Date.now();
+  const q = await s.go(['move'], { now: () => T });
+  s.w.onCall = (key) => { if (key === 'PUT /accounts/:id/workers/domains') T += 3000; }; // the first host's last change takes 3 seconds
+  const r = await s.go(['move', '--confirm', codeOf(q)], { runMs: 5000, reserveMs: 3500, now: () => T });
+  delete s.w.onCall;
   return { s, r };
 }
 const cloneOf = (s, name) => {
@@ -912,14 +915,14 @@ describe('review: builds on GitHub and Cloudflare', () => {
 });
 
 describe('review: the route commit and the question', () => {
-  test('B6: a route commit that changes anything but the routes is refused, for move and for undo', async () => {
+  test('B6/B25: a route or undo commit that changes anything but the routes (against its parent) is refused', async () => {
     const s = await recorded();
     const file = path.join(s.site.work, 'workers.jsonc');
     writeFileSync(file, setRoutes(readFileSync(file, 'utf8'), HOSTS).replace('2026-01-01', '2026-02-02'));
     git(s.site.work, 'commit', '-q', '-am', 'routes and a compatibility date');
     const r = await s.go(['move']);
     assert.equal(r.code, 1, r.text);
-    assert.match(r.text, /HEAD is not the frozen commit/);
+    assert.match(r.text, /changes more in workers\.jsonc than the custom-domain routes/);
 
     const u = await recorded();
     await moveAll(u);
@@ -928,7 +931,7 @@ describe('review: the route commit and the question', () => {
     git(u.site.work, 'commit', '-q', '-am', 'no routes and a compatibility date');
     const q = await u.go(['undo']);
     assert.equal(q.code, 1, q.text);
-    assert.match(q.text, /not the commit this script wrote/);
+    assert.match(q.text, /changes more in workers\.jsonc than the custom-domain routes/);
   });
 
   test('B12 and B14: the question says Cloudflare is unchanged, and calls 15 minutes a target', async () => {
@@ -983,7 +986,7 @@ describe('review: partial moves and undo', () => {
     assert.equal(q.code, 3, q.text);
     assert.notEqual(git(clone, 'rev-parse', 'HEAD'), s.site.frozen);
     assert.deepEqual(routesOf(parseJsonc(git(clone, 'show', 'HEAD:workers.jsonc')), 'workers.jsonc'), HOSTS);
-    assert.equal(s.state().route.commit, git(clone, 'rev-parse', 'HEAD'));
+    assert.equal(s.state().asked.commit, git(clone, 'rev-parse', 'HEAD'));
   });
 });
 
@@ -1179,5 +1182,281 @@ describe('review: comparing', () => {
 
   test('N1: no regular expression is built from a variable', () => {
     assert.ok(!/new RegExp\(/.test(SRC));
+  });
+});
+
+// ---------------------------------------------------------------- round 2 of the DIFF review
+
+// A clock the test moves: `sleep` advances it, and nothing else does.
+const mockClock = () => { const c = { t: Date.now(), now: () => c.t, sleep: async (ms) => { c.t += ms; } }; return c; };
+// A run that ends in a few seconds of that clock when a host does not serve.
+const shortRun = (c) => ({ now: c.now, sleep: c.sleep, runMs: 4000, goodGapMs: 1000, reserveMs: 100 });
+const frozenClock = () => { const T = Date.now(); return { now: () => T }; };
+// push HEAD and let both platforms serve it
+function shipHead(s) {
+  s.push();
+  const tip = git(s.site.work, 'rev-parse', 'HEAD');
+  s.w.pagesCommit = s.w.workerCommit = tip;
+  return tip;
+}
+function ship(s, n) {
+  for (let i = 0; i < n; i++) git(s.site.work, 'commit', '-q', '--allow-empty', '-m', `ship ${i}`);
+  return shipHead(s);
+}
+const dotted = (h) => h.replace(/\./g, '\\.');
+
+describe('review round 2: time', () => {
+  test('B19: a --confirm run that would wait for GitHub and then lack the time for a host stops at once and asks for 30 seconds', async () => {
+    const s = await recorded();
+    const c = mockClock();
+    const io = { pollMs: 30_000, now: c.now, sleep: c.sleep };
+    const q = await s.go(['move'], io);
+    assert.equal(q.code, 3, q.text);
+    c.t += 1_000; // a quick yes
+    const t0 = c.t;
+    const quick = await s.go(['move', '--confirm', codeOf(q)], io);
+    assert.equal(quick.code, 4, quick.text);
+    assert.match(quick.text, /again in 30 seconds/);
+    assert.equal(c.t, t0, 'it did not sit through the pause');
+    assert.ok(!s.w.calls.some((x) => x.method !== 'GET'), 'nothing on Cloudflare changed');
+    c.t += 24_000; // 25 seconds after the last read: a pause of 5 seconds still leaves the host its time
+    const fits = await s.go(['move', '--confirm', codeOf(q)], io);
+    assert.equal(fits.code, 0, fits.text);
+    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS);
+    assert.ok(c.t - t0 >= 29_000, 'it waited out the rest of the pause');
+  });
+
+  test('B19: a run begun 30 seconds after the last GitHub read has its whole time for a fresh host', async () => {
+    const s = await recorded();
+    const c = mockClock();
+    const io = { pollMs: 30_000, now: c.now, sleep: c.sleep };
+    const q = await s.go(['move'], io);
+    c.t += 30_000;
+    const go = await s.go(['move', '--confirm', codeOf(q)], io);
+    assert.equal(go.code, 0, go.text);
+  });
+
+  test('R13: a host starts only if its five requests at their longest and some slack fit in the time left', async () => {
+    const s = await recorded();
+    const c = mockClock();
+    const q = await s.go(['move'], { now: c.now });
+    const tight = await s.go(['move', '--confirm', codeOf(q)], { now: c.now, runMs: 44_000 });
+    assert.equal(tight.code, 4, tight.text);
+    assert.match(tight.text, /needs 45 seconds/);
+    assert.equal(s.w.workerDomains.length, 0, 'no host was started');
+    const roomy = await s.go(['move', '--confirm', codeOf(q)], { now: c.now, runMs: 46_000 });
+    assert.equal(roomy.code, 0, roomy.text);
+  });
+});
+
+describe('review round 2: serving, the way a host is counted, the tracks', () => {
+  test('B20: after ordinary shipping, undo counts Pages serving a shipped commit as served', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    ship(s, 2); // Pages builds what is shipped, so it now serves a commit the script never wrote
+    const q = await s.go(['undo']);
+    assert.equal(q.code, 3, q.text);
+    const c = mockClock();
+    const u = await s.go(['undo', '--confirm', codeOf(q)], shortRun(c));
+    assert.equal(u.code, 0, u.text);
+  });
+
+  test('B21: a first change that fails leaves no leftAt, so the token rule for a first undo still holds', async () => {
+    const s = await recorded();
+    await moveAll(s);
+    const uq = await s.go(['undo']);
+    s.w.refuse['DELETE /accounts/:id/workers/domains/:x'] = 500;
+    const bad = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.equal(bad.code, 1, bad.text);
+    assert.equal(s.state().track.undo[HOSTS[0]]?.leftAt, undefined, 'nothing had left the Worker');
+    delete s.w.refuse['DELETE /accounts/:id/workers/domains/:x'];
+    s.w.token.expires_on = new Date(Date.now() + 30 * 60_000).toISOString().replace(/\.\d+Z$/, 'Z');
+    const again = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.equal(again.code, 1, again.text);
+    assert.match(again.text, /less than an hour/);
+  });
+
+  test('B22: a www redirect that adds its own parameter and keeps the request\'s is still counted as served', async () => {
+    const s = scenario({ world: { wwwRedirect: { from: HOSTS[1], to: HOSTS[0], query: 'source=www', keepQuery: true } } });
+    const rec = await recordDone(s);
+    assert.equal(rec.code, 0, rec.text);
+    assert.equal(s.state().recording.entries[HOSTS[1]]['/build.txt'].l, `https://${HOSTS[0]}/build.txt?source=www`);
+    const c = mockClock();
+    const q = await s.go(['move'], { now: c.now });
+    const g = await s.go(['move', '--confirm', codeOf(q)], shortRun(c));
+    assert.equal(g.code, 0, g.text);
+    const commit = git(s.site.work, 'rev-parse', 'HEAD');
+    const a = await pushAndAfter(s, commit);
+    assert.equal(a.code, 0, a.text);
+  });
+
+  test('B24: a resumed run that stops before the switch still names a host that has left its platform', async () => {
+    const s = await recorded();
+    const q = await s.go(['move']);
+    s.w.refuse['PUT /accounts/:id/workers/domains'] = 500;
+    const bad = await s.go(['move', '--confirm', codeOf(q)]);
+    assert.equal(bad.code, 1, bad.text);
+    delete s.w.refuse['PUT /accounts/:id/workers/domains'];
+    s.w.checkRuns[s.site.frozen] = unfinishedWorkersRun(s.site.frozen);
+    const held = await s.go(['move', '--confirm', codeOf(q)]);
+    assert.equal(held.code, 1, held.text);
+    assert.match(held.text, /Workers Builds is building/);
+    assert.ok(held.text.includes(`${HOSTS[0]} has left Pages; last read: on neither`), held.text);
+  });
+
+  test('N12: when the read-back after a failed change fails too, the page says unknown, not the earlier read', async () => {
+    const s = await recorded();
+    const q = await s.go(['move']);
+    const put = 'PUT /accounts/:id/workers/domains';
+    s.w.hang = [{ key: put, applied: true }]; // the answer is lost, the change was made
+    s.w.onCall = (key) => { if (key === put) s.w.refuse['GET /accounts/:id/workers/domains'] = 500; }; // and the read-back fails
+    const bad = await s.go(['move', '--confirm', codeOf(q)], { requestMs: 150 });
+    assert.equal(bad.code, 1, bad.text);
+    assert.ok(bad.text.includes('it could not be read back'), bad.text);
+    assert.ok(new RegExp(`${dotted(HOSTS[0])}</td><td>unknown`).test(statusPage(s)), 'the page does not show the earlier read');
+  });
+});
+
+describe('review round 2: lists and counts', () => {
+  test('B23: a later page that comes back empty before the count is reached refuses, for deployments and for check runs', async () => {
+    const s = await recorded();
+    s.w.pagesDeployments = Array.from({ length: 30 }, () => deployment('built', { commit: s.site.frozen }));
+    s.w.depEmptyAfterFirst = true;
+    const d = await s.go(['move']);
+    assert.equal(d.code, 1, d.text);
+    assert.match(d.text, /came back empty at page 2/);
+    const g = await recorded();
+    g.w.checkRuns[g.site.frozen] = fillerRuns(g.site.frozen, 150);
+    g.w.ghEmptyAfterFirst = true;
+    const c = await g.go(['move']);
+    assert.equal(c.code, 1, c.text);
+    assert.match(c.text, /ended at 100 of 150/);
+  });
+
+  test('N14: a zone list that does not say how many pages it has refuses', async () => {
+    const s = scenario({ world: { extraZones: 1, zonesNoPageCount: true } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /how many pages/);
+  });
+
+  test('R11: Workers Builds counts as connected when any commit in the range has a run, not only the first', async () => {
+    const s = await recorded();
+    s.w.checkRuns[s.site.frozen] = withoutWorkersRun(s.site.frozen); // the frozen commit predates Workers Builds
+    const route = await moveAll(s);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = route;
+    git(s.site.work, 'commit', '-q', '--allow-empty', '-m', 'a later push');
+    const c2 = shipHead(s);
+    s.w.checkRuns[c2] = withoutWorkersRun(c2); // Workers Builds has not reported on the newest push yet
+    const q = await s.go(['undo']);
+    assert.equal(q.code, 1, q.text);
+    assert.match(q.text, /Workers Builds has not reported on/);
+  });
+
+  test('R9: a go-forward after an undo of a long passed move keeps its range base', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    for (let i = 0; i < 25; i++) git(s.site.work, 'commit', '-q', '--allow-empty', '-m', `ship ${i}`);
+    s.push(); // the platforms still serve the route commit: that is a commit the script knows
+    const uq = await s.go(['undo']);
+    assert.equal((await s.go(['undo', '--confirm', codeOf(uq)], frozenClock())).code, 0);
+    const mq = await s.go(['move']);
+    assert.equal(mq.code, 3, mq.text);
+    s.w.stale = { [HOSTS[0]]: 'pages' };
+    const c = mockClock();
+    const stalled = await s.go(['move', '--confirm', codeOf(mq)], shortRun(c));
+    assert.equal(stalled.code, 4, stalled.text);
+    delete s.w.stale;
+    const again = await s.go(['move', '--confirm', codeOf(mq)], frozenClock());
+    assert.equal(again.code, 0, again.text);
+  });
+
+  test('N11: an address that got no answer in the run that finishes a recording is asked again, not made a difference', async () => {
+    const s = scenario();
+    s.w.dropOnce = new Set(['/about']);
+    const texts = [];
+    let code;
+    for (let i = 0; i < 120; i++) {
+      const r = await s.go(['record']);
+      texts.push(r.text);
+      code = r.code;
+      if (code !== 4) break;
+      await wait(250);
+    }
+    assert.equal(code, 0, texts.at(-1));
+    assert.ok(texts.some((t) => /did not answer/.test(t)), 'one run said so and stopped with status 4');
+  });
+
+  test('N11: the same in after', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    s.w.dropOnce = new Set(['/about']);
+    const first = await pushAndAfter(s, route);
+    assert.equal(first.code, 4, first.text);
+    assert.match(first.text, /did not answer/);
+    const second = await s.go(['after']);
+    assert.equal(second.code, 0, second.text);
+  });
+});
+
+describe('review round 2: the route commit and which way after checks', () => {
+  test('B25: an ordinary edit to workers.jsonc shipped after the move blocks neither undo nor a go-forward', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    const file = path.join(s.site.work, 'workers.jsonc');
+    writeFileSync(file, readFileSync(file, 'utf8').replace('2026-01-01', '2026-02-02'));
+    git(s.site.work, 'commit', '-q', '-am', 'a newer compatibility date');
+    shipHead(s);
+    const q = await s.go(['undo']);
+    assert.equal(q.code, 3, q.text);
+    assert.equal((await s.go(['undo', '--confirm', codeOf(q)], frozenClock())).code, 0);
+    const f = await s.go(['move']); // the undo commit sits on top of the edit
+    assert.equal(f.code, 3, f.text);
+    assert.match(f.text, /Wrote the route commit/);
+  });
+
+  test('R12: a declined plain undo does not change which way after checks', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    const q = await s.go(['undo']); // asked, and the User said no
+    assert.equal(q.code, 3, q.text);
+    const again = await s.go(['after']);
+    assert.equal(again.code, 0, again.text);
+    assert.equal(s.state().route.kind, 'route');
+  });
+
+  test('N10: check in an open move points to after only when every host is where the move ends', async () => {
+    const { s } = await halfMoved(); // one host on the Worker, one still on Pages
+    const c = await s.go(['check']);
+    assert.equal(c.code, 0, c.text);
+    assert.ok(!statusPage(s).includes('node move-to-workers.mjs after'), 'a split move is finished first');
+    assert.ok(statusPage(s).includes('node move-to-workers.mjs move'));
+  });
+
+  test('N15: during an open undo the page says move goes forward, not that there is nothing to undo', async () => {
+    const s = await recorded();
+    await moveAll(s);
+    const uq = await s.go(['undo']);
+    const stopped = await s.go(['undo', '--confirm', codeOf(uq)], { reserveMs: 10 * 60_000 });
+    assert.equal(stopped.code, 4, stopped.text);
+    assert.ok(!statusPage(s).includes('There is nothing to undo yet'));
+    assert.match(statusPage(s), /move\s+goes forward/);
+  });
+});
+
+describe('review round 2: check and GitHub', () => {
+  test('N9: with gh missing, a private repository is reported as that, with where to get gh', async () => {
+    const s = scenario({ world: { githubPrivate: true } });
+    const noGh = (cmd, args, o) => runProgram(cmd === 'gh' ? 'croftweaver-no-such-gh' : cmd, args, o);
+    const r = await s.go(['check'], { useGh: true, run: noGh });
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /private/);
+    assert.match(r.text, /gh \(the GitHub command line\) is not installed/);
+    assert.match(r.text, /cli\.github\.com/);
   });
 });

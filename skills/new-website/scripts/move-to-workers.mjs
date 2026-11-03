@@ -22,7 +22,8 @@ const API_HOST = 'https://api.cloudflare.com';
 const API_PREFIX = '/client/v4';
 const RUN_MS = 55_000; // one deadline per run, as the setup script has
 const REQUEST_MS = 8_000;
-const HOST_RESERVE_MS = 40_000; // a host's five requests (change, read, change, change, read) at their longest
+const HOST_RESERVE_MS = 45_000; // a host's five requests (change, read, change, change, read) at their longest, 40 seconds, and 5 of slack
+const MAX_RETRIES = 3; // runs that ask again for addresses that got no answer
 const MAX_TOKEN_MS = 8 * 86_400_000; // the setup script's limit: the dashboard sets an end date, not a time
 const MIN_LEFT_MS = 3_600_000;
 const TARGET_MS = 15 * 60_000;
@@ -197,8 +198,13 @@ async function allPages(api, p, perPage = null, { totals = false } = {}) {
     const got = Array.isArray(r.body?.result) ? r.body.result : [];
     items.push(...got);
     const pages = r.body?.result_info?.total_pages;
+    const total = r.body?.result_info?.total_count;
     if (totals && got.length && !pages) throw new Stop(1, `Cloudflare's list at ${p.split('?')[0]} does not say how many pages it has; the script does not decide from part of a list.`);
-    if (!got.length || !pages || page >= pages) return { r, items };
+    if (!got.length) {
+      if ((pages && page < pages) || (Number.isInteger(total) && items.length < total)) throw new Stop(1, `Cloudflare's list at ${p.split('?')[0]} came back empty at page ${page} with ${items.length} of ${total ?? 'an unknown number of'} items; the script does not decide from part of a list.`);
+      return { r, items };
+    }
+    if (!pages || page >= pages) return { r, items };
   }
   throw new Stop(1, `Cloudflare's list at ${p.split('?')[0]} runs past 200 pages; the script does not decide from part of a list.`);
 }
@@ -210,9 +216,9 @@ export const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 
 // ---------------------------------------------------------------- the clock, programs, git
 
-function makeClock(ms) {
-  const end = Date.now() + ms;
-  return { left: () => end - Date.now() };
+function makeClock(ms, now = () => Date.now()) {
+  const end = now() + ms;
+  return { left: () => end - now() };
 }
 
 // The environment every program the script starts gets: the token removed, git told never to ask.
@@ -443,10 +449,11 @@ async function readWorkersConfig(git, sha) {
 // the commits no closer than 30 seconds to the last one; the time of the last one is in the state file.
 function makeGithub(io, ctx) {
   let gh; // undefined: not asked yet
+  let missing = false; // gh is not installed
   let last = 0;
   const get = async (p) => {
     if (io.useGh !== false && gh === undefined) {
-      const a = await ctx.run('gh', ['auth', 'status']).catch((e) => { if (e instanceof Deadline) throw e; return { code: 1 }; });
+      const a = await ctx.run('gh', ['auth', 'status']).catch((e) => { if (e instanceof Deadline) throw e; missing = e instanceof Stop && /is not installed/.test(e.message); return { code: 1 }; });
       gh = a.code === 0;
     }
     if (gh) {
@@ -460,18 +467,26 @@ function makeGithub(io, ctx) {
     try { body = JSON.parse(r.body.toString('utf8')); } catch { body = null; }
     return { status: r.status, body, rate: r.status === 429 || (r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0') };
   };
-  get.pass = async () => {
+  // `needMs`: the time the run still needs after the pause. A run that cannot wait and then have it stops at once.
+  get.pass = async (needMs = 0) => {
     const at = ctx.state?.ghPolledAt ?? last;
     const wait = at + (io.pollMs ?? POLL_MS) - ctx.now();
     if (at && wait > 0) {
-      if (wait >= ctx.clock.left()) throw new Stop(4, 'GitHub is read no more than every 30 seconds. Run the same command again in a minute. Status 4.');
+      if (wait + needMs >= ctx.clock.left()) throw new Stop(4, 'GitHub is read no more than every 30 seconds, and this run has not the time left to wait and then do its work. Run the same command again in 30 seconds. Status 4.');
       await ctx.sleep(wait);
+      ctx.ghWaited = true;
     }
     last = ctx.now();
     if (ctx.state) { ctx.state.ghPolledAt = last; saveState(ctx.stateDir, ctx.state); }
   };
+  get.missing = () => missing;
   return get;
 }
+
+// What to do about a repository GitHub does not show without a login.
+const loginHint = (ctx) => (ctx.github.missing()
+  ? 'gh (the GitHub command line) is not installed: get it from https://cli.github.com, run gh auth login, then run this again.'
+  : 'Log in with gh (gh auth login), then run this again.');
 
 // ---------------------------------------------------------------- what the run knows
 
@@ -479,8 +494,9 @@ function makeGithub(io, ctx) {
 // state file, the Worker's config, the Pages project and the hosts.
 async function prepare(opts, io, run) {
   const env = io.env ?? process.env;
-  const clock = makeClock(io.runMs ?? RUN_MS);
-  const ctx = { opts, io, clock, say: io.say, sleep: io.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))), now: io.now ?? (() => Date.now()) };
+  const now = io.now ?? (() => Date.now());
+  const clock = makeClock(io.runMs ?? RUN_MS, now);
+  const ctx = { opts, io, clock, say: io.say, sleep: io.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))), now };
   let cenv = childEnv(env, (env.CLOUDFLARE_API_TOKEN ?? '').trim() || null);
   ctx.run = (cmd, args, extra = {}) => (io.run ?? runProgram)(cmd, args, { cwd: extra.cwd ?? ctx.root ?? io.cwd, env: cenv, clock });
   const git = (...args) => ctx.run('git', args);
@@ -529,7 +545,7 @@ async function prepare(opts, io, run) {
   if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. A week at most: make one that ends within the week, and delete this one.`);
   ctx.tokenLeftMs = ends - ctx.now();
   if (ctx.tokenLeftMs <= 0) throw new Stop(1, 'This token has ended. Make a new one from the same link.');
-  const zones = await allPages(ctx.api, '/zones', 50);
+  const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
   if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). Make a new token from the link.`);
   if (zones.items.length !== 1) throw new Stop(1, `This token reaches ${zones.items.length} zones. Make one limited to the site's own zone (Zone Resources: your one domain). A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
   const zone = zones.items[0];
@@ -681,36 +697,41 @@ async function checkRunsOf(ctx, sha) {
   const all = [];
   for (let page = 1; page <= 50; page++) {
     const r = await ctx.github(`/repos/${ctx.repository}/commits/${sha}/check-runs?per_page=100&page=${page}`);
-    if (r.rate) throw new Stop(1, "GitHub's rate limit is used up. Log in with gh (gh auth login) and run this again.");
-    if (r.status === 404) throw new Stop(1, `GitHub does not show ${ctx.repository}'s check runs without a login: the repository is private. Log in with gh (gh auth login), then run this again.`);
+    if (r.rate) throw new Stop(1, `GitHub's rate limit is used up. ${loginHint(ctx)}`);
+    if (r.status === 404) throw new Stop(1, `GitHub does not show ${ctx.repository}'s check runs without a login: the repository is private. ${loginHint(ctx)}`);
     if (r.status !== 200 || !Array.isArray(r.body?.check_runs) || !Number.isInteger(r.body.total_count)) throw new Stop(1, `GitHub's check runs of ${short(sha)} could not be read (HTTP ${r.status}).`);
     all.push(...r.body.check_runs);
-    if (all.length >= r.body.total_count || !r.body.check_runs.length) return all;
+    if (all.length >= r.body.total_count) return all;
+    if (!r.body.check_runs.length) throw new Stop(1, `GitHub's check runs of ${short(sha)} ended at ${all.length} of ${r.body.total_count}; the script does not decide from part of a list.`);
   }
   throw new Stop(1, `${short(sha)} has more than 5000 check runs; the script does not decide from part of a list.`);
 }
 
 // The builds that would change what the Worker or the domains serve, still unfinished: a Pages
 // production deployment, or a Workers Builds check run on a commit from `from` to the tip. Where
-// `from` has a Workers Builds run, Builds is connected and a pushed branch tip (`tips`) without one
-// is unfinished; a commit that was never pushed has none, and is not waited for.
+// any of those commits has a Workers Builds run, Builds is connected and a pushed branch tip
+// (`tips`) without one is unfinished; a commit that was never pushed has none, and is not waited for.
 // After a passed move (`newest`) only the newest commits are asked about: older builds are done.
-async function unfinishedBuilds(ctx, from, tip, { newest = false, tips = [] } = {}) {
+// Answers { list, range }: what is unfinished, and the commits that were looked at.
+// Every page of deployments is read: no capture shows that the first page holds the newest.
+async function unfinishedBuilds(ctx, from, tip, { newest = false, tips = [], need = 0 } = {}) {
   const out = [];
-  await ctx.github.pass();
+  await ctx.github.pass(need);
   const dep = await allPages(ctx.api, `/accounts/${ctx.account.id}/pages/projects/${ctx.project.name}/deployments`, null, { totals: true });
   if (!dep.items) throw new Stop(1, `Cloudflare did not list the project's deployments: ${cfWords(dep.r)}.`);
   for (const d of dep.items) if (d.environment === 'production' && running(d)) out.push(`Pages is building ${short(d.deployment_trigger?.metadata?.commit_hash ?? '')}`);
   const since = tip === from ? [] : (await ctx.gitOut('rev-list', ...(newest ? ['-n', String(MAX_COMMITS)] : []), `${from}..${tip}`)).split('\n').filter(Boolean);
   if (!newest && since.length > MAX_COMMITS) throw new Stop(1, `${since.length} commits lie between the frozen commit and ${short(tip)}; the freeze was not kept. Stop and look.`);
-  let connected = false;
+  const runs = new Map(); // commit → its Workers Builds check runs
   for (const sha of [from, ...since]) {
-    const builds = (await checkRunsOf(ctx, sha)).filter((c) => c.app?.slug === 'cloudflare-workers-and-pages' && c.name === `Workers Builds: ${ctx.worker}`);
-    if (sha === from) connected = builds.length > 0;
-    else if (connected && tips.includes(sha) && !builds.length) out.push(`Workers Builds has not reported on ${short(sha)} yet`);
+    runs.set(sha, (await checkRunsOf(ctx, sha)).filter((c) => c.app?.slug === 'cloudflare-workers-and-pages' && c.name === `Workers Builds: ${ctx.worker}`));
+  }
+  const connected = [...runs.values()].some((b) => b.length > 0);
+  for (const [sha, builds] of runs) {
+    if (sha !== from && connected && tips.includes(sha) && !builds.length) out.push(`Workers Builds has not reported on ${short(sha)} yet`);
     for (const c of builds) if (c.status !== 'completed') out.push(`Workers Builds is building ${short(sha)}`);
   }
-  return out;
+  return { list: out, range: [from, ...since] };
 }
 
 // ---------------------------------------------------------------- the Worker's version
@@ -797,6 +818,15 @@ async function fetchEntry(ctx, base, p, names) {
   return e;
 }
 
+// Addresses that got no answer are asked for again in the next run, MAX_RETRIES times at most;
+// after that they count as differences. Answers how many are to be asked for again.
+function unanswered(bag, lists) {
+  const n = lists.reduce((a, l) => a + Object.values(l).filter((e) => e.s === 0).length, 0);
+  if (!n || (bag.retried ?? 0) >= MAX_RETRIES) return 0;
+  bag.retried = (bag.retried ?? 0) + 1;
+  return n;
+}
+
 async function fetchAll(ctx, base, paths, names, into, save) {
   const todo = paths.filter((p) => !into[p] || into[p].s === 0);
   let n = 0;
@@ -857,7 +887,13 @@ const redirectedAtZone = (rec, h) => {
   const e = Object.values(rec?.entries?.[h] ?? {});
   return e.length > 0 && e.every((x) => REDIRECTS.includes(x.s) && x.l);
 };
-const noQuery = (l) => (l === null || l === undefined ? null : String(l).split('?')[0]);
+// A Location without the probe's own `t` parameter: a zone rule may keep the request's query or add its own.
+const withoutProbe = (l) => {
+  if (l === null || l === undefined) return null;
+  const [base, query] = String(l).split('?');
+  const kept = (query ?? '').split('&').filter((x) => x && !/^t=/.test(x));
+  return kept.length ? `${base}?${kept.join('&')}` : base;
+};
 
 // Two good answers in a row from every host. A host the zone redirects is good when it answers its
 // recorded status and Location; any other from the wanted platform with a commit the script knows.
@@ -870,7 +906,7 @@ async function waitServing(ctx, hosts, wanted, commits, rec) {
       const r = await ctx.siteFetch(`https://${h}/build.txt?t=${ctx.now()}`, { headers: { 'cache-control': 'no-cache' } });
       const was = rec.entries[h]['/build.txt'];
       const good = redirectedAtZone(rec, h)
-        ? r.status === was.s && noQuery(r.headers.get('location')) === was.l
+        ? r.status === was.s && withoutProbe(r.headers.get('location')) === withoutProbe(was.l)
         : r.status === 200 && commits.includes(r.body.toString('utf8').split('\n')[0].trim()) && platformOf(r, r.body.toString('utf8')) === wanted;
       streak[h] = good ? streak[h] + 1 : 0;
     }
@@ -944,7 +980,7 @@ function note(run, ok_, text) { run.checks.push({ ok: ok_, text }); }
 async function cmdCheck(ctx, run) {
   const { say } = ctx;
   const gh = await ctx.github(`/repos/${ctx.repository}`); // first: a private repository or a missing gh explains the rest
-  if (gh.status === 404) throw new Stop(1, `GitHub does not show ${ctx.repository} without a login: the repository is private. Log in with gh (gh auth login), then run this again.`);
+  if (gh.status === 404) throw new Stop(1, `GitHub does not show ${ctx.repository} without a login: the repository is private. ${loginHint(ctx)}`);
   const live = await readLive(ctx);
   if (!ctx.open) await firstMoveRefusals(ctx, live);
   say(`Move check for ${ctx.hosts.join(', ')} (zone ${ctx.zone.name}, account ${ctx.account.name})`);
@@ -963,7 +999,13 @@ async function cmdCheck(ctx, run) {
   say(`The Worker's live version ${v.id.slice(0, 8)} serves ${r.status === 200 ? short(served) : `nothing at https://${v.host}/build.txt (${r.status || r.error})`}: ${served === ctx.tip ? 'the live branch\'s commit.' : 'not the live branch\'s commit; stage 1 of the move section is not finished.'}`);
   note(run, served === ctx.tip, `The Worker's live version serves ${r.status === 200 ? short(served) : 'nothing'}, GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
   say('Nothing was changed.');
-  run.next = ctx.open ? 'node move-to-workers.mjs after' : ctx.mainDiffers || served !== ctx.tip ? 'Finish stage 1 of the move section, then run check again.' : 'node move-to-workers.mjs record';
+  if (ctx.open) { // an open move waits for after only when every host is where the move ends
+    const target = ctx.state.direction === 'to-pages' ? 'pages' : 'worker';
+    const there = ctx.hosts.every((h) => { const hs = hostState(ctx, live, h); return hs.where === target && (target === 'worker' || hs.cname); });
+    run.next = there ? 'node move-to-workers.mjs after' : `node move-to-workers.mjs ${target === 'pages' ? 'undo' : 'move'}`;
+    return 0;
+  }
+  run.next = ctx.mainDiffers || served !== ctx.tip ? 'Finish stage 1 of the move section, then run check again.' : 'node move-to-workers.mjs record';
   return 0;
 }
 
@@ -1045,6 +1087,12 @@ async function cmdRecord(ctx, run) {
     st.recording.entries[key] ??= {};
     await fetchAll(ctx, base, paths, names, st.recording.entries[key], keep);
   }
+  const lost = unanswered(st.recording, targets.map(([key]) => st.recording.entries[key]));
+  if (lost) {
+    keep();
+    run.next = 'node move-to-workers.mjs record';
+    throw new Stop(4, `${lost} addresses did not answer; they are asked for again. Run the same command again. Status 4.`);
+  }
   // The domain's plain-http answer, for after.
   st.recording.http = {};
   for (const h of ctx.hosts) {
@@ -1100,7 +1148,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   const toWorker = dir === 'move';
   const st = await ensureOpenState(ctx, toWorker ? 'Run record first.' : 'An undo needs the state of the move it undoes.');
   st.track ??= { move: {}, undo: {} };
-  const first = toWorker ? !st.open : !Object.values(st.track.undo ?? {}).some((t) => t.leftAt); // an undo is first until a host has moved back
+  const first = !Object.values(st.track[dir] ?? {}).some((t) => t.leftAt); // first until a host has left its platform
   if (!toWorker && !st.open) throw new Stop(1, 'No move is open, so there is nothing to undo.');
   if (first && ctx.tokenLeftMs < MIN_LEFT_MS) throw new Stop(1, `The token has less than an hour left (${Math.round(ctx.tokenLeftMs / 60_000)} minutes), too little for a ${dir}. Make a new one from the same link.`);
   if (!first && ctx.tokenLeftMs < MIN_LEFT_MS) say(`Warning: the token has ${Math.round(ctx.tokenLeftMs / 60_000)} minutes left.`);
@@ -1122,35 +1170,39 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   // Both modes: the working tree, and HEAD's Workers config the frozen one but for its routes.
   await cleanTreeOrStop(ctx);
   const head = await ctx.gitOut('rev-parse', 'HEAD');
-  const noRoutes = (t) => { const c = parseJsonc(t); delete c.routes; return JSON.stringify(c); };
-  const sameButRoutes = noRoutes((await headConfig(ctx)).text) === noRoutes(await ctx.gitOut('show', `${st.frozen}:${ctx.configFile}`));
-  if (firstMove && head !== st.frozen) {
-    const parent = (await ctx.git('rev-parse', 'HEAD~1')).stdout.trim();
-    const changed = (await ctx.gitOut('diff', '--name-only', 'HEAD~1', 'HEAD')).split('\n').filter(Boolean);
-    if (parent !== st.frozen || changed.join() !== ctx.configFile || !sameButRoutes) throw new Stop(1, `HEAD is not the frozen commit ${short(st.frozen)} with one route commit on top. Check out the branch the site was frozen on.`);
-  } else if (!sameButRoutes) {
-    throw new Stop(1, `${ctx.configFile} at HEAD differs from the frozen commit's in more than its custom-domain routes, so HEAD is not the commit this script wrote. Check out the branch the site was frozen on; the script writes the ${toWorker ? 'route' : 'undo'} commit itself.`);
-  }
-  const unfinished = await unfinishedBuilds(ctx, st.passed?.commit ?? st.frozen, ctx.tip, { newest: Boolean(st.passed), tips: [ctx.tip, ctx.mainSha] });
-  if (unfinished.length) throw new Stop(1, `A build is unfinished (${unfinished.join('; ')}). Wait for it to end, then run this again: it could change what the Worker serves during the ${dir}.`);
-
-  // Plain: write the commit. With --confirm: it must already fit.
   const want = toWorker ? [...ctx.hosts] : [];
   const cfg = await headConfig(ctx);
   const fits = JSON.stringify(cfg.routes) === JSON.stringify([...want].sort());
+  if (firstMove && head !== st.frozen) { // the first route commit is HEAD itself: right on the frozen commit, touching nothing but the Workers config
+    const parent = (await ctx.git('rev-parse', 'HEAD~1')).stdout.trim();
+    const changed = (await ctx.gitOut('diff', '--name-only', 'HEAD~1', 'HEAD')).split('\n').filter(Boolean);
+    if (!fits || parent !== st.frozen || changed.join() !== ctx.configFile) throw new Stop(1, `HEAD is not the frozen commit ${short(st.frozen)} with one route commit on top. Check out the branch the site was frozen on.`);
+  }
+  if (fits && head !== st.frozen) { // a commit that already has the right routes: if it changed the routes, it changed nothing else
+    const was = await ctx.git('show', `HEAD~1:${ctx.configFile}`);
+    if (was.code === 0) {
+      const noRoutes = (c) => { const { routes, ...rest } = c; return JSON.stringify(rest); };
+      const before = parseJsonc(was.stdout);
+      if (JSON.stringify(before.routes ?? []) !== JSON.stringify(cfg.routes ?? []) && noRoutes(before) !== noRoutes(parseJsonc(cfg.text))) {
+        throw new Stop(1, `HEAD (${short(head)}) changes more in ${ctx.configFile} than the custom-domain routes, so it is not a commit this script wrote. Check out the commit before it and run ${dir} again: the script writes the ${toWorker ? 'route' : 'undo'} commit itself.`);
+      }
+    }
+  }
+  const fresh = hostsNow.some(([, hs]) => (toWorker ? hs.where === 'pages' : hs.where === 'worker'));
+  const { list: unfinished, range } = await unfinishedBuilds(ctx, st.base ?? st.frozen, ctx.tip, { newest: Boolean(st.base), tips: [ctx.tip, ctx.mainSha], need: ctx.opts.confirm !== null && fresh ? (ctx.io.reserveMs ?? HOST_RESERVE_MS) : 0 });
+  if (unfinished.length) throw new Stop(1, `A build is unfinished (${unfinished.join('; ')}). Wait for it to end, then run this again: it could change what the Worker serves during the ${dir}.`);
+
+  // Plain: write the commit. With --confirm: it must already fit.
   if (ctx.opts.confirm === null) {
     const c = await ensureRouteCommit(ctx, want, toWorker ? 'route' : 'undo');
-    st.route = { commit: c.commit, kind: toWorker ? 'route' : 'undo' };
+    st.asked = { commit: c.commit, kind: toWorker ? 'route' : 'undo' }; // not yet confirmed: after goes by st.route
     ctx.state = st;
     saveState(ctx.stateDir, st);
-    say(c.wrote ? `Wrote the ${st.route.kind} commit ${short(c.commit)} (${ctx.configFile}): ${toWorker ? 'the hosts as custom_domain routes' : 'no custom-domain routes'}. It is on your branch, not pushed, and nothing on Cloudflare has changed.` : `HEAD (${short(c.commit)}) already has the right routes; no commit was written.`);
+    say(c.wrote ? `Wrote the ${st.asked.kind} commit ${short(c.commit)} (${ctx.configFile}): ${toWorker ? 'the hosts as custom_domain routes' : 'no custom-domain routes'}. It is on your branch, not pushed, and nothing on Cloudflare has changed.` : `HEAD (${short(c.commit)}) already has the right routes; no commit was written.`);
   } else if (!fits) {
     throw new Stop(1, `${ctx.configFile} at HEAD does not ${toWorker ? 'list exactly the hosts' : 'list none of them'} as custom_domain routes: a build of HEAD would reverse this run. Run plain "${dir}" first (it writes the commit).`);
   }
   const commit = await ctx.gitOut('rev-parse', 'HEAD');
-  if (ctx.opts.confirm !== null && st.route?.commit !== commit) {
-    st.route = { commit, kind: toWorker ? 'route' : 'undo' };
-  }
   const lines = [];
   const todo = hostsNow.filter(([, hs]) => (toWorker ? hs.where !== 'worker' : hs.where !== 'pages' || !hs.cname));
   lines.push(toWorker
@@ -1172,14 +1224,23 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   run.switching = true;
   const tr = (st.track[dir] ??= {});
   st.route = { commit, kind: toWorker ? 'route' : 'undo' };
+  delete st.asked;
   st.commits = [...new Set([...(st.commits ?? []), commit])];
   ctx.state = st;
   saveState(ctx.stateDir, st);
   const A = `/accounts/${ctx.account.id}`;
+  // A host has left its platform once a change was made, or a read-back shows it gone.
+  const markLeft = (h) => {
+    if (!tr[h]?.leftAt) { tr[h] = { ...tr[h], leftAt: new Date(ctx.now()).toISOString() }; saveState(ctx.stateDir, st); }
+  };
+  const startedOn = {};
   const stopOn = async (h, what, r) => {
     live = await readLive(ctx).catch(() => null);
-    const where = live ? WHERE_WORDS[hostState(ctx, live, h).where] : 'unknown (it could not be read back)';
-    tr[h] = { ...tr[h], where: live ? hostState(ctx, live, h).where : 'unknown' };
+    const now = live ? hostState(ctx, live, h).where : null;
+    if (now && now !== startedOn[h]) markLeft(h);
+    if (!now && ctx.report?.where) ctx.report.where[h] = 'unknown';
+    const where = now ? WHERE_WORDS[now] : 'unknown (it could not be read back)';
+    tr[h] = { ...tr[h], where: now ?? 'unknown' };
     saveState(ctx.stateDir, st);
     throw new Stop(1, `${what} for ${h} failed: ${cfWords(r)}. ${h} is now ${where}. Run the same command again at once${toWorker ? ' (undo takes it back)' : ' (move goes forward)'}.`);
   };
@@ -1191,31 +1252,34 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     if (hs.where === 'both') throw new Stop(1, `${h} is on both the Pages project and the Worker. The script does not decide that: look at it in the dashboard.`);
     const fresh = toWorker ? hs.where === 'pages' : hs.where === 'worker';
     if (fresh && ctx.clock.left() < (ctx.io.reserveMs ?? HOST_RESERVE_MS)) {
-      throw new Stop(4, `Not enough of this run is left to move ${h} (it needs ${Math.round((ctx.io.reserveMs ?? HOST_RESERVE_MS) / 1000)} seconds), so it was not started. Run the same command again. Status 4.`);
+      throw new Stop(4, `Not enough of this run is left to move ${h} (it needs ${Math.round((ctx.io.reserveMs ?? HOST_RESERVE_MS) / 1000)} seconds), so it was not started. Run the same command again${ctx.ghWaited ? ' in 30 seconds' : ''}. Status 4.`);
     }
     if (hs.where === 'neither') say(`${h} is on neither platform right now: it is down until this run finishes it.`);
-    if (!tr[h]?.leftAt) tr[h] = { leftAt: new Date(ctx.now()).toISOString() };
-    saveState(ctx.stateDir, st);
+    startedOn[h] = hs.where;
     if (toWorker) {
       if (hs.pages) {
         const r = await ctx.api('DELETE', `${A}/pages/projects/${ctx.project.name}/domains/${h}`);
         if (!ok(r)) await stopOn(h, 'Taking it off the Pages project', r);
+        markLeft(h);
         say(`${h}: left the Pages project.`);
         live = await readLive(ctx); hs = hostState(ctx, live, h);
       }
       if (hs.cname) {
         const r = await ctx.api('DELETE', `/zones/${ctx.zone.id}/dns_records/${hs.cname.id}`);
         if (!ok(r)) await stopOn(h, "Deleting its CNAME", r);
+        markLeft(h);
         say(`${h}: CNAME deleted.`);
       }
       const r = await ctx.api('PUT', `${A}/workers/domains`, { json: { hostname: h, service: ctx.worker, zone_id: ctx.zone.id, environment: 'production' } });
       if (!ok(r)) await stopOn(h, 'Attaching it to the Worker', r);
+      markLeft(h);
       say(`${h}: attached to the Worker.`);
     } else {
       if (hs.worker) {
         const id = live.mineWd.find((d) => d.hostname === h).id;
         const r = await ctx.api('DELETE', `${A}/workers/domains/${id}`);
         if (!ok(r)) await stopOn(h, 'Taking it off the Worker', r);
+        markLeft(h);
         say(`${h}: left the Worker.`);
         live = await readLive(ctx); hs = hostState(ctx, live, h);
       }
@@ -1223,11 +1287,13 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
       if (!hs.pages) {
         const r = await ctx.api('POST', `${A}/pages/projects/${ctx.project.name}/domains`, { json: { name: h } });
         if (!ok(r)) await stopOn(h, 'Adding it to the Pages project', r);
+        markLeft(h);
         say(`${h}: added to the Pages project.`);
       }
       if (!hs.cname) {
         const r = await ctx.api('POST', `/zones/${ctx.zone.id}/dns_records`, { json: { type: 'CNAME', name: h, content: ctx.project.subdomain, proxied: true } });
         if (!ok(r)) await stopOn(h, 'Writing its CNAME', r);
+        markLeft(h);
         say(`${h}: CNAME written.`);
       }
     }
@@ -1238,7 +1304,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     if (after.where !== (toWorker ? 'worker' : 'pages')) throw new Stop(1, `${h} reads ${WHERE_WORDS[after.where]} after its changes, not ${toWorker ? 'on the Worker' : 'on Pages'}. Run the same command again, or the other one to go back.`);
   }
   // Wait for each to serve; the first time a host left its platform is kept.
-  const known = [...new Set([st.frozen, ...(st.commits ?? [])])];
+  const known = [...new Set([st.frozen, ...(st.commits ?? []), ...range])]; // the platforms also build what was shipped since
   const served = await waitServing(ctx, ctx.hosts, toWorker ? 'worker' : 'pages', known, st.recording);
   const oldest = Math.min(ctx.now(), ...ctx.hosts.map((h) => Date.parse(tr[h]?.leftAt)).filter(Number.isFinite));
   const ago = Math.round((ctx.now() - oldest) / 1000);
@@ -1265,6 +1331,18 @@ async function cmdAfter(ctx, run) {
   const { say } = ctx;
   const st = await ensureOpenState(ctx, 'Run record and move first.');
   if (!st.open || !st.route) throw new Stop(1, 'No move has been confirmed yet, so there is nothing to check.');
+  let live = await readLive(ctx);
+  // A plain run's commit was asked for, not confirmed. It counts only when every host already sits
+  // where it points (the steps were done by hand); otherwise the last confirmed direction stands.
+  if (st.asked && st.asked.commit !== st.route.commit) {
+    const there = st.asked.kind === 'route' ? 'worker' : 'pages';
+    if (ctx.hosts.every((h) => { const hs = hostState(ctx, live, h); return hs.where === there && (there === 'worker' || hs.cname); })) {
+      st.route = st.asked;
+      st.direction = st.asked.kind === 'route' ? 'to-worker' : 'to-pages';
+      delete st.asked;
+      saveState(ctx.stateDir, st);
+    }
+  }
   const toWorker = st.route.kind === 'route'; // the commit waited for says where the hosts belong
   const expect = st.route.commit;
   const branches = ctx.twoStage ? [ctx.prodBranch, 'main'] : [ctx.prodBranch];
@@ -1278,14 +1356,14 @@ async function cmdAfter(ctx, run) {
     throw new Stop(1, ...problems, 'Push the commit, then run after again.');
   }
   note(run, true, `GitHub's ${branches.join(' and ')} ${branches.length > 1 ? 'are' : 'is'} the ${st.route.kind} commit ${short(expect)}`);
-  const unfinished = await unfinishedBuilds(ctx, st.passed?.commit ?? st.frozen, tips[ctx.prodBranch], { newest: Boolean(st.passed), tips: Object.values(tips) });
+  const { list: unfinished } = await unfinishedBuilds(ctx, st.base ?? st.frozen, tips[ctx.prodBranch], { newest: Boolean(st.base), tips: Object.values(tips) });
   if (unfinished.length) {
     note(run, false, `Builds are unfinished: ${unfinished.join('; ')}`);
     run.next = 'node move-to-workers.mjs after';
     throw new Stop(4, `Builds are unfinished (${unfinished.join('; ')}). Run the same command again in a minute. Status 4.`);
   }
   note(run, true, 'No build is unfinished');
-  const live = await readLive(ctx);
+  live = await readLive(ctx);
   const rec = st.recording;
   const wantWhere = toWorker ? 'worker' : 'pages';
   for (const h of ctx.hosts) {
@@ -1310,6 +1388,14 @@ async function cmdAfter(ctx, run) {
   for (const h of ctx.hosts) {
     ap.entries[h] ??= {};
     await fetchAll(ctx, `https://${h}`, rec.paths, rec.names, ap.entries[h], keep);
+  }
+  const lost = unanswered(ap, ctx.hosts.map((h) => ap.entries[h]));
+  if (lost) {
+    keep();
+    run.next = 'node move-to-workers.mjs after';
+    throw new Stop(4, `${lost} addresses did not answer; they are asked for again. Run the same command again. Status 4.`);
+  }
+  for (const h of ctx.hosts) {
     const diffs = compare(rec.entries[h], ap.entries[h], { change: toWorker, onVersion: false, expect });
     run.diffs.push(...diffs.map((d) => ({ ...d, host: h })));
     unknown.push(...unknownOf(diffs).map((d) => ({ ...d, host: h })));
@@ -1333,6 +1419,7 @@ async function cmdAfter(ctx, run) {
     throw new Stop(1, `${unknown.length} unknown differences between the live site and the recording.`);
   }
   const when = new Date(ctx.now()).toISOString();
+  st.base = expect; // later builds are looked at from here on; it only moves forward
   if (toWorker) {
     st.passed = { at: when, commit: expect };
     saveState(ctx.stateDir, st);
@@ -1406,7 +1493,8 @@ function writeStatus(ctx0, run, io, code, st, errLines) {
     }),
     checks: run.checks, differences: run.diffs.filter((d) => !d.known).slice(0, 50),
     next: run.next,
-    undo: st?.open && st.direction === 'to-worker' ? 'Undo works until the Pages project is retired: node move-to-workers.mjs undo (then --confirm with its code).' : 'There is nothing to undo yet.',
+    undo: st?.open && st.direction === 'to-worker' ? 'Undo works until the Pages project is retired: node move-to-workers.mjs undo (then --confirm with its code).'
+      : st?.open ? 'An undo has started: node move-to-workers.mjs undo carries it on, and node move-to-workers.mjs move goes forward again from where it stopped.' : 'There is nothing to undo yet.',
   };
   try { writeFileSync(path.join(run.root, 'move-run', 'status.html'), renderStatus(template, m)); } catch { /* the page is a courtesy; the terminal has the report */ }
 }
@@ -1429,9 +1517,11 @@ export async function main(argv, io = {}) {
   // Hosts that have left their platform in a switch: a run that ends early says so first.
   const leftLines = () => {
     const st = ctxBox.ctx?.state;
-    if (!run.switching || !st) return [];
+    if (!st?.open) return [];
     const move = st.direction !== 'to-pages';
-    return Object.entries(st.track?.[move ? 'move' : 'undo'] ?? {}).filter(([, t]) => t.leftAt)
+    const tracks = st.track?.[move ? 'move' : 'undo'] ?? {};
+    if ((st.hosts ?? []).every((h) => tracks[h]?.where === (move ? 'worker' : 'pages'))) return []; // a finished switch has nothing to warn about
+    return Object.entries(tracks).filter(([, t]) => t.leftAt)
       .map(([h, t]) => `${h} has left ${move ? 'Pages' : 'the Worker'}; last read: ${WHERE_WORDS[t.where] ?? 'not read yet'}.`);
   };
   try {

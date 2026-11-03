@@ -82,7 +82,9 @@ function served(w, host, urlPath) {
   if (!platform) return new Response('', { status: 522 });
   const shown = w.stale?.[host] ?? platform; // a stale answer from the platform a host just left
   if (w.wwwRedirect && host === w.wwwRedirect.from) { // a zone Redirect Rule answers before either platform
-    return new Response('', { status: 301, headers: { location: `https://${w.wwwRedirect.to}${urlPath.split('?')[0]}`, nel: '{"max_age":0}', 'report-to': '{}', 'strict-transport-security': 'max-age=31536000' } });
+    const [bare, query] = urlPath.split('?'); // `query` is a rule that adds its own parameter; `keepQuery` one that keeps the request's
+    const kept = [w.wwwRedirect.query, w.wwwRedirect.keepQuery ? query : null].filter(Boolean).join('&');
+    return new Response('', { status: 301, headers: { location: `https://${w.wwwRedirect.to}${bare}${kept ? `?${kept}` : ''}`, nel: '{"max_age":0}', 'report-to': '{}', 'strict-transport-security': 'max-age=31536000' } });
   }
   const commit = shown === 'pages' ? w.pagesCommit : w.workerCommit;
   const headers = { 'content-type': 'text/html; charset=utf-8', 'x-frame-options': 'DENY' };
@@ -131,6 +133,7 @@ export function makeFetch(w) {
       await new Promise((_, rej) => init.signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'TimeoutError' }))));
     }
     if (w.slowHosts?.has(u.hostname)) await new Promise((r, rej) => { const t = setTimeout(r, 60_000); init.signal?.addEventListener('abort', () => { clearTimeout(t); rej(Object.assign(new Error('aborted'), { name: 'TimeoutError' })); }); });
+    if (w.dropOnce?.has(u.pathname)) { w.dropOnce.delete(u.pathname); throw new Error('MADE: connection reset'); } // one lost answer for an address
     return served(w, u.hostname, u.pathname + u.search);
   };
 }
@@ -143,6 +146,7 @@ function github(w, u) {
   const runs = w.checkRuns[m[3]] ?? captured(m[3]);
   const size = Math.min(100, Number(u.searchParams.get('per_page') ?? w.ghDefaultPage ?? 30)); // GitHub's default page is 30, its largest 100
   const at = (Number(u.searchParams.get('page') ?? 1) - 1) * size;
+  if (w.ghEmptyAfterFirst && at > 0) return json(200, { total_count: runs.length, check_runs: [] }); // a later page that comes back empty
   return json(200, { total_count: runs.length, check_runs: runs.slice(at, at + size) });
 }
 
@@ -163,6 +167,7 @@ function cloudflare(w, method, u, body) {
   const p = u.pathname.replace(/^\/client\/v4/, '');
   w.calls.push({ method, path: p, body });
   const key = keyOf(method, p);
+  w.onCall?.(key); // a test's hook: change the world, or the clock, when this call arrives
   if (w.refuse[key]) return cfFail(w.refuse[key], w.refuseMessage ?? 'MADE: refused by the test');
   const A = `/accounts/${ACCOUNT.id}`;
   const Z = `/zones/${ZONE.id}`;
@@ -170,6 +175,7 @@ function cloudflare(w, method, u, body) {
   if (method === 'GET' && p === '/user/tokens/verify') return cf({ id: 'c0ffee00000000000000000000000021', status: w.token.status, expires_on: w.token.expires_on });
   if (method === 'GET' && p === '/zones') {
     const extra = Array.from({ length: w.extraZones }, (_, i) => zone({ id: `c0ffee0000000000000000000000009${i}`, name: `extra${i}.example` }));
+    if (w.zonesNoPageCount) return cf([...w.zones, ...extra].slice(0, 1), { result_info: { page: 1, per_page: 50, count: 1 } }); // one zone a page, and no page count
     return page([...w.zones, ...extra]);
   }
   if (method === 'GET' && p === `${Z}/dns_records/export`) return new Response(w.dnsExport, { status: 200, headers: { 'content-type': 'text/plain' } });
@@ -187,7 +193,7 @@ function cloudflare(w, method, u, body) {
   if (method === 'GET' && p === `${A}/pages/projects/${REPO}/deployments`) {
     const size = Math.min(100, Number(u.searchParams.get('per_page') ?? w.depDefaultPage ?? 25));
     const n = Number(u.searchParams.get('page') ?? 1);
-    const items = copy(w.pagesDeployments).slice((n - 1) * size, n * size);
+    const items = w.depEmptyAfterFirst && n > 1 ? [] : copy(w.pagesDeployments).slice((n - 1) * size, n * size); // a later page may come back empty
     return cf(items, { result_info: { page: n, per_page: size, count: items.length, total_count: w.pagesDeployments.length, total_pages: Math.max(1, Math.ceil(w.pagesDeployments.length / size)) } });
   }
   if (method === 'POST' && p === `${A}/pages/projects/${REPO}/domains`) { w.project.domains.push(body.name); return cf({ name: body.name, status: 'initializing' }); }
