@@ -1,0 +1,1395 @@
+#!/usr/bin/env node
+// move-to-workers.mjs: move a live site's domain from its Cloudflare Pages project to its Worker,
+// check that nothing a visitor sees changed, and undo the move on request. Run it in the site's
+// folder; references/CLOUDFLARE_MOVE.md says when to run which command.
+//
+//   node move-to-workers.mjs check | record | after
+//   node move-to-workers.mjs move | undo [--confirm <code>]
+//
+// `move` and `undo` print their question and a code and end with 3; the same command with
+// --confirm <code> makes the changes. Needs Node 18 or newer and nothing from npm. Exit status: 0
+// finished, 1 failed or refused, 2 the command was wrong, 3 waiting for a yes, 4 run the same
+// command again.
+import { spawn } from 'node:child_process';
+import { createHash, randomBytes } from 'node:crypto';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { homedir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { githubRepo, running } from './cloudflare-setup.mjs';
+
+const API_HOST = 'https://api.cloudflare.com';
+const API_PREFIX = '/client/v4';
+const RUN_MS = 55_000; // one deadline per run, as the setup script has
+const REQUEST_MS = 8_000;
+const HOST_RESERVE_MS = 40_000; // a host's three changes and one read-back
+const MAX_TOKEN_MS = 8 * 86_400_000; // the setup script's limit: the dashboard sets an end date, not a time
+const MIN_LEFT_MS = 3_600_000;
+const TARGET_MS = 15 * 60_000;
+const POLL_MS = 30_000; // GitHub is read no more often than this
+const GOOD_GAP_MS = 2_000;
+const MAX_PATHS = 2000;
+const MAX_COMMITS = 20;
+const UA = 'croftweaver-move-to-workers/1';
+const NOT_THERE = '/croftweaver-move-check-no-such-page';
+const ZONE_HEADERS = ['nel', 'report-to', 'strict-transport-security'];
+const NEVER_COMPARED = ['date', 'age', 'cf-ray', 'cf-cache-status', 'server-timing', 'etag', 'cache-control'];
+const BUILD_FILES = ['/build.txt', '/build-state.txt'];
+const MARKER = '.move-run';
+
+export class UsageError extends Error {}
+export class Stop extends Error { // the run ends here with `code`; `lines` say why
+  constructor(code, ...lines) { super(lines[0]); this.code = code; this.lines = lines; }
+}
+class Deadline extends Error {}
+
+const USAGE = `Usage: node move-to-workers.mjs check|record|move|undo|after [--confirm <code>]
+
+Run it in the site's folder, with the token in CLOUDFLARE_API_TOKEN or in .dev.vars (a file git
+ignores). The order is check, record, move (twice: the question, then --confirm), push the route
+commit, after. undo is the way back.
+
+  check                  read-only: what the move would touch, and what is there now
+  record                 freeze the content and record what the live site serves
+  move                   attach the hosts to the Worker; with --confirm <code> it makes the changes
+  undo                   give the hosts back to the Pages project; with --confirm <code> likewise
+  after                  check the live site against the recording once the commit is pushed
+  --confirm <code>       the code of the question the owner said yes to
+  -h, --help             this text
+
+Exit status: 0 finished; 1 something failed or was refused (the report says what); 2 the command
+was wrong; 3 waiting for a yes; 4 run the same command again. After every run, move-run/status.html
+says where the move stands.
+`;
+
+export function parseArgs(argv) {
+  const opts = { cmd: null, confirm: null, help: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '-h' || a === '--help') opts.help = true;
+    else if (a === '--confirm') {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith('-')) throw new UsageError('--confirm needs a value');
+      opts.confirm = v;
+    } else if (a.startsWith('-')) throw new UsageError(`unknown option ${a}`);
+    else if (opts.cmd === null) opts.cmd = a;
+    else throw new UsageError(`unexpected "${a}": give one command`);
+  }
+  if (opts.help) return opts;
+  if (!['check', 'record', 'move', 'undo', 'after'].includes(opts.cmd)) throw new UsageError(opts.cmd ? `unknown command "${opts.cmd}"` : 'give the command: check, record, move, undo or after');
+  if (opts.confirm !== null && !['move', 'undo'].includes(opts.cmd)) throw new UsageError('--confirm belongs to move and undo');
+  if (opts.confirm !== null && !/^[0-9a-f]{16}$/.test(opts.confirm)) throw new UsageError('--confirm takes the 16-character code the question printed');
+  return opts;
+}
+
+// ---------------------------------------------------------------- the gate
+
+// Every request to api.cloudflare.com passes here and is checked before it is sent. `ctx` holds what
+// this run has learned: the account, zone, Pages project, Worker and hosts, and the ids a read in
+// this run showed (`cnames`, `workerDomainIds`).
+export function gate(method, url, body, ctx) {
+  const [route, query = ''] = url.split('?');
+  const refuse = (why) => { throw new Stop(1, `gate: refused ${method} ${route}${why ? ` (${why})` : ''}`); };
+  if (/\.\.|%|\\|\/\/|[^\x21-\x7e]/.test(url)) refuse('odd path');
+  const paged = /^(?:(?:page|per_page)=\d{1,4})?(?:&(?:page|per_page)=\d{1,4})*$/.test(query.replace(/^&/, ''));
+  const A = ctx.accountId ? `/accounts/${ctx.accountId}` : null;
+  const Z = ctx.zoneId ? `/zones/${ctx.zoneId}` : null;
+  const P = A && ctx.project ? `${A}/pages/projects/${ctx.project}` : null;
+  const W = A && ctx.worker ? `${A}/workers/scripts/${ctx.worker}` : null;
+  const hosts = ctx.hosts ?? new Set();
+  if (method === 'GET') {
+    if (route === '/user/tokens/verify' && !query) return;
+    if (route === '/zones' && paged) return;
+    if (Z && (route === Z || route === `${Z}/dns_records/export`) && !query) return;
+    if (Z && route === `${Z}/dns_records` && paged) return;
+    if (A && route === `${A}/pages/projects` && paged) return;
+    if (P && (route === P || route === `${P}/domains`) && !query) return;
+    if (P && route === `${P}/deployments` && paged) return;
+    if (W && route === `${W}/deployments` && !query) return;
+    if (A && route === `${A}/workers/subdomain` && !query) return;
+    if (A && route === `${A}/workers/domains` && (!query || query === `service=${ctx.worker}`)) return;
+    refuse();
+  }
+  if (P && route === `${P}/domains` && method === 'POST' && !query
+    && body && Object.keys(body).join() === 'name' && hosts.has(body.name)) return;
+  const pd = P && new RegExp(`^${P}/domains/([^/]+)$`).exec(route);
+  if (pd && method === 'DELETE' && !query && hosts.has(pd[1])) return;
+  if (Z && route === `${Z}/dns_records` && method === 'POST' && !query && body
+    && Object.keys(body).every((k) => ['type', 'name', 'content', 'proxied', 'ttl'].includes(k))
+    && body.type === 'CNAME' && hosts.has(body.name) && body.content === ctx.subdomain
+    && body.proxied === true && (body.ttl === undefined || body.ttl === 1)) return;
+  const dr = Z && new RegExp(`^${Z}/dns_records/([0-9a-f]{32})$`).exec(route);
+  if (dr && method === 'DELETE' && !query) {
+    const seen = ctx.cnames?.get(dr[1]);
+    if (seen && hosts.has(seen.name) && seen.content === ctx.subdomain) return;
+    refuse('not a CNAME to the project that a read in this run showed');
+  }
+  if (A && route === `${A}/workers/domains` && method === 'PUT' && !query && body
+    && Object.keys(body).every((k) => ['hostname', 'service', 'zone_id', 'zone_name', 'environment'].includes(k))
+    && hosts.has(body.hostname) && body.service === ctx.worker && body.zone_id === ctx.zoneId
+    && (body.zone_name === undefined || body.zone_name === ctx.zoneName) && body.environment === 'production') return;
+  const wd = A && new RegExp(`^${A}/workers/domains/([0-9A-Za-z-]{8,64})$`).exec(route);
+  if (wd && method === 'DELETE' && !query) {
+    const seen = ctx.workerDomainIds?.get(wd[1]);
+    if (seen && hosts.has(seen)) return;
+    refuse('not one of the hosts on this Worker, as a read in this run showed');
+  }
+  refuse();
+}
+
+// A call to Cloudflare's API, given only the time left. It answers { status, body, text }; an HTTP
+// status never rejects, and a connection that fails or times out answers status 0.
+export function makeApi(send, token, ctx, { clock = null, requestMs = REQUEST_MS } = {}) {
+  return async (method, p, { json } = {}) => {
+    const wire = json === undefined ? undefined : JSON.stringify(json);
+    gate(method, p, wire === undefined ? undefined : JSON.parse(wire), ctx); // the gate sees what is sent
+    const left = clock ? clock.left() : Infinity;
+    if (left <= 0) throw new Deadline();
+    const headers = { authorization: `Bearer ${token}`, accept: 'application/json', 'user-agent': UA };
+    if (wire !== undefined) headers['content-type'] = 'application/json';
+    try {
+      const r = await send(`${API_HOST}${API_PREFIX}${p}`, { method, headers, body: wire, signal: AbortSignal.timeout(Math.min(requestMs, left)) });
+      const text = await r.text();
+      let body = null;
+      try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+      return { status: r.status, body, text };
+    } catch (e) {
+      if (clock && clock.left() <= 0) throw new Deadline();
+      return { status: 0, body: null, text: '', error: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'timed out' : String(e?.message ?? e) };
+    }
+  };
+}
+
+// The site, the Worker's version URL and GitHub: every host but those is refused, and so is
+// api.cloudflare.com. Redirects are never followed.
+export function makeSiteFetch(send, allowed, { clock = null, requestMs = REQUEST_MS } = {}) {
+  return async (url, { method = 'GET', headers = {} } = {}) => {
+    const u = new URL(url);
+    if (u.hostname === 'api.cloudflare.com' || !allowed.has(u.hostname)) throw new Stop(1, `gate: refused fetch of ${u.hostname}`);
+    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && u.hostname !== 'api.github.com')) throw new Stop(1, `gate: refused ${u.protocol} fetch`);
+    const left = clock ? clock.left() : Infinity;
+    if (left <= 0) throw new Deadline();
+    try {
+      const r = await send(url, { method, headers: { 'user-agent': UA, ...headers }, redirect: 'manual', signal: AbortSignal.timeout(Math.min(requestMs, left)) });
+      return { status: r.status, headers: r.headers, body: Buffer.from(await r.arrayBuffer()) };
+    } catch (e) {
+      if (clock && clock.left() <= 0) throw new Deadline();
+      return { status: 0, headers: new Headers(), body: Buffer.alloc(0), error: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'timed out' : String(e?.message ?? e) };
+    }
+  };
+}
+
+const ok = (r) => r.status >= 200 && r.status < 300 && r.body?.success !== false;
+function cfWords(r) {
+  const all = [...(r.body?.errors ?? []), ...(r.body?.messages ?? [])].filter((e) => e && e.message)
+    .map((e) => (e.code ? `${e.message} (code ${e.code})` : e.message));
+  return all.length ? [...new Set(all)].join('; ') : (r.error ?? `HTTP ${r.status}`);
+}
+
+async function allPages(api, p, perPage = 50) {
+  const items = [];
+  for (let page = 1; page <= 200; page++) {
+    const r = await api('GET', `${p}${p.includes('?') ? '&' : '?'}per_page=${perPage}&page=${page}`);
+    if (!ok(r)) return { r, items: null };
+    const got = Array.isArray(r.body?.result) ? r.body.result : [];
+    items.push(...got);
+    const pages = r.body?.result_info?.total_pages;
+    if (!got.length || !pages || page >= pages) return { r, items };
+  }
+  throw new Stop(1, `Cloudflare's list at ${p.split('?')[0]} runs past 200 pages; the script does not decide from part of a list.`);
+}
+
+// ---------------------------------------------------------------- escaping
+
+// The one function every value passes on its way into the status page.
+export const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+// ---------------------------------------------------------------- the clock, programs, git
+
+function makeClock(ms) {
+  const end = Date.now() + ms;
+  return { left: () => end - Date.now() };
+}
+
+// The environment every program the script starts gets: the token removed, git told never to ask.
+function childEnv(env, token) {
+  const out = {};
+  for (const [k, v] of Object.entries(env)) {
+    if (k === 'CLOUDFLARE_API_TOKEN' || (token && v === token)) continue;
+    out[k] = v;
+  }
+  out.GIT_TERMINAL_PROMPT = '0';
+  return out;
+}
+
+// A program with its input closed, given only the time left; at the deadline its group is killed.
+export function runProgram(cmd, args, { cwd, env, clock }) {
+  return new Promise((resolve, reject) => {
+    const ms = clock.left();
+    if (ms <= 0) { reject(new Deadline()); return; }
+    const posix = process.platform !== 'win32';
+    let out = '';
+    let err = '';
+    let settled = false;
+    let child;
+    try {
+      child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: posix });
+    } catch (e) { reject(new Stop(1, `could not run ${cmd}: ${e.message}`)); return; }
+    const settle = (fn) => { if (settled) return; settled = true; clearTimeout(timer); fn(); };
+    const timer = setTimeout(() => {
+      try { if (posix) process.kill(-child.pid, 'SIGKILL'); else child.kill('SIGKILL'); } catch { /* it has ended */ }
+      child.stdout.destroy();
+      child.stderr.destroy();
+      settle(() => reject(new Deadline()));
+    }, ms);
+    child.stdout.on('data', (c) => { out += c; });
+    child.stderr.on('data', (c) => { err += c; });
+    child.on('error', (e) => settle(() => reject(new Stop(1, e.code === 'ENOENT' ? `${cmd} is not installed, or not on the PATH` : `could not run ${cmd}: ${e.message}`))));
+    child.on('close', (code) => settle(() => resolve({ code, stdout: out, stderr: err })));
+  });
+}
+
+const short = (sha) => String(sha).slice(0, 7);
+const sha256 = (buf) => createHash('sha256').update(buf).digest('hex').slice(0, 16);
+const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
+// ---------------------------------------------------------------- JSONC (the Workers config)
+
+// The text with comments and trailing commas blanked to spaces, so every offset is the original's.
+export function blankJsonc(text) {
+  let s = '';
+  for (let i = 0; i < text.length;) {
+    const c = text[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
+      s += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === '/' && text[i + 1] === '/') {
+      let j = i;
+      while (j < text.length && text[j] !== '\n') j++;
+      s += ' '.repeat(j - i);
+      i = j;
+    } else if (c === '/' && text[i + 1] === '*') {
+      const k = text.indexOf('*/', i + 2);
+      const end = k < 0 ? text.length : k + 2;
+      s += text.slice(i, end).replace(/[^\n]/g, ' ');
+      i = end;
+    } else { s += c; i++; }
+  }
+  let out = '';
+  for (let i = 0; i < s.length;) {
+    const c = s[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < s.length && s[j] !== '"') j += s[j] === '\\' ? 2 : 1;
+      out += s.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === ',') {
+      let j = i + 1;
+      while (j < s.length && /\s/.test(s[j])) j++;
+      out += s[j] === '}' || s[j] === ']' ? ' ' : ',';
+      i++;
+    } else { out += c; i++; }
+  }
+  return out;
+}
+export const parseJsonc = (text) => JSON.parse(blankJsonc(text));
+
+// Where the top-level key's value starts and ends in blanked text.
+function findTop(S, key) {
+  let depth = 0;
+  for (let i = 0; i < S.length; i++) {
+    const c = S[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < S.length && S[j] !== '"') j += S[j] === '\\' ? 2 : 1;
+      if (depth === 1) {
+        let m = j + 1;
+        while (/\s/.test(S[m] ?? 'x')) m++;
+        if (S[m] === ':' && JSON.parse(S.slice(i, j + 1)) === key) {
+          let v = m + 1;
+          while (/\s/.test(S[v])) v++;
+          let end = v;
+          if (S[v] === '[' || S[v] === '{') {
+            let d = 0;
+            for (end = v; end < S.length; end++) {
+              if (S[end] === '"') { end++; while (S[end] !== '"') end += S[end] === '\\' ? 2 : 1; } else if (S[end] === '[' || S[end] === '{') d++;
+              else if (S[end] === ']' || S[end] === '}') { d--; if (d === 0) { end++; break; } }
+            }
+          } else while (end < S.length && !/[,}\]\n]/.test(S[end])) end++;
+          return { valueStart: v, valueEnd: end };
+        }
+      }
+      i = j;
+    } else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') depth--;
+  }
+  return null;
+}
+
+// The config's text with its `routes` set to exactly these hosts as custom domains (none: an empty
+// list), comments and the rest untouched.
+export function setRoutes(text, patterns) {
+  const S = blankJsonc(text);
+  const value = patterns.length ? `[\n${patterns.map((p) => `    { "pattern": "${p}", "custom_domain": true }`).join(',\n')}\n  ]` : '[]';
+  const at = findTop(S, 'routes');
+  if (at) return text.slice(0, at.valueStart) + value + text.slice(at.valueEnd);
+  if (!patterns.length) return text;
+  const head = S.slice(0, S.lastIndexOf('}')).trimEnd();
+  const comma = head.endsWith('{') || head.endsWith(',') ? '' : ',';
+  return `${text.slice(0, head.length)}${comma}\n  "routes": ${value}${text.slice(head.length)}`;
+}
+
+// The hosts the config routes as custom domains; a route of any other kind stops the run.
+export function routesOf(cfg, file) {
+  const out = [];
+  for (const r of cfg.routes ?? []) {
+    if (typeof r !== 'object' || r === null || r.custom_domain !== true || typeof r.pattern !== 'string') {
+      throw new Stop(1, `${file} has a route that is not a custom domain. The script manages custom-domain routes only: take the other route out, or move this site by hand.`);
+    }
+    out.push(r.pattern);
+  }
+  return out.sort();
+}
+
+// ---------------------------------------------------------------- the state file and its lock
+
+const stateDir = (io, zone, repository) => path.join(io.home ?? homedir(), '.config', 'croftweaver', 'moves', zone, repository.replace('/', '-').toLowerCase());
+
+function loadState(dir) {
+  const f = path.join(dir, 'state.json');
+  if (!existsSync(f)) return null;
+  try { return JSON.parse(readFileSync(f, 'utf8')); } catch { throw new Stop(1, `${f} is not readable JSON. The script does not guess: move it away only if no move is open, and run record again.`); }
+}
+
+// Written to a temporary file and renamed, so a stop never leaves half a file.
+function saveState(dir, st) {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const f = path.join(dir, 'state.json');
+  const tmp = `${f}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(st, null, 2), { mode: 0o600 });
+  renameSync(tmp, f);
+}
+
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
+// Created exclusively; a run removes only the lock it created and never another run's.
+function takeLock(dir, run) {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const f = path.join(dir, 'lock');
+  const mine = `${process.pid}\n${randomBytes(8).toString('hex')}\n`;
+  let fd;
+  try { fd = openSync(f, 'wx'); } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+    const pid = Number(readFileSync(f, 'utf8').split('\n')[0]);
+    if (Number.isInteger(pid) && pid > 0 && alive(pid)) throw new Stop(1, `Another run (process ${pid}) holds ${f}. Wait for it to end, then run this again.`);
+    throw new Stop(1, `${f} was left by a run that no longer exists. Nothing else is wrong: delete that file, then run this again.`);
+  }
+  writeSync(fd, mine);
+  closeSync(fd);
+  run.release = () => {
+    try { if (readFileSync(f, 'utf8') === mine) rmSync(f); } catch { /* already gone */ }
+    run.release = null;
+  };
+}
+
+// ---------------------------------------------------------------- reading the site and GitHub
+
+async function readToken(root, git, env) {
+  const fromEnv = (env.CLOUDFLARE_API_TOKEN ?? '').trim();
+  if (fromEnv) return fromEnv;
+  const file = path.join(root, '.dev.vars');
+  if (!existsSync(file)) throw new Stop(1, 'No token: set CLOUDFLARE_API_TOKEN for this session, or put CLOUDFLARE_API_TOKEN=… in .dev.vars (a file git ignores). The move section says how to make it.');
+  if ((await git('ls-files', '--error-unmatch', '--', '.dev.vars')).code === 0) throw new Stop(1, 'git tracks .dev.vars, so a token in it would be committed. The file was not read. Stop tracking it (git rm --cached .dev.vars) and make a new token.');
+  if ((await git('check-ignore', '-q', '--', '.dev.vars')).code !== 0) throw new Stop(1, '.dev.vars is not ignored by git, so the next commit could take the token with it. The file was not read. Add .dev.vars to .gitignore, then run this again.');
+  const m = /^\s*CLOUDFLARE_API_TOKEN\s*=\s*["']?([^"'\s]+)["']?\s*$/m.exec(readFileSync(file, 'utf8'));
+  if (!m) throw new Stop(1, '.dev.vars has no line CLOUDFLARE_API_TOKEN=….');
+  return m[1];
+}
+
+// src/config.ts at a commit: PROD_BRANCH, and the analytics mode.
+async function readSiteConfig(git, sha) {
+  const r = await git('show', `${sha}:src/config.ts`);
+  if (r.code !== 0) throw new Stop(1, `src/config.ts is missing at ${short(sha)}: is this a site made with the kit?`);
+  const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(r.stdout)?.[1];
+  if (!prodBranch) throw new Stop(1, `src/config.ts at ${short(sha)} has no line "export const PROD_BRANCH = '…';".`);
+  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout) };
+}
+
+// The one Workers config at a commit: a .json or .jsonc file in the root with `assets` and no
+// `pages_build_output_dir` (D17).
+async function readWorkersConfig(git, sha) {
+  const tree = await git('ls-tree', '--name-only', sha);
+  if (tree.code !== 0) throw new Stop(1, `git could not list ${short(sha)}.`);
+  const found = [];
+  for (const f of tree.stdout.split('\n').filter((x) => /\.jsonc?$/.test(x) && x !== 'package.json' && x !== 'package-lock.json')) {
+    const t = await git('show', `${sha}:${f}`);
+    let cfg;
+    try { cfg = parseJsonc(t.stdout); } catch { continue; }
+    if (cfg && typeof cfg === 'object' && cfg.assets !== undefined && cfg.pages_build_output_dir === undefined) found.push({ file: f, cfg, text: t.stdout });
+  }
+  if (found.length > 1) throw new Stop(1, `${found.length} Workers configs at ${short(sha)} (${found.map((x) => x.file).join(', ')}): a build would deploy from the other. Keep one.`);
+  if (!found.length) throw new Stop(1, `No Workers config at ${short(sha)}: a .json or .jsonc file in the root with "assets" and no "pages_build_output_dir". Stage 1 of the move section is not done.`);
+  if (typeof found[0].cfg.name !== 'string') throw new Stop(1, `${found[0].file} names no Worker.`);
+  return found[0];
+}
+
+// GitHub's API: through `gh` when it is logged in, else without a token. `pass()` keeps a pass over
+// the commits no closer than 30 seconds to the last one.
+function makeGithub(io, ctx) {
+  let gh; // undefined: not asked yet
+  let last = 0;
+  const get = async (p) => {
+    if (io.useGh !== false && gh === undefined) {
+      const a = await ctx.run('gh', ['auth', 'status']).catch((e) => { if (e instanceof Deadline) throw e; return { code: 1 }; });
+      gh = a.code === 0;
+    }
+    if (gh) {
+      const r = await ctx.run('gh', ['api', p]);
+      if (r.code === 0) return { status: 200, body: JSON.parse(r.stdout) };
+      const status = Number(/HTTP (\d{3})/.exec(r.stderr)?.[1] ?? 0);
+      return { status, body: null, rate: /rate limit/i.test(r.stderr) };
+    }
+    const r = await ctx.siteFetch(`https://api.github.com${p}`, { headers: { accept: 'application/vnd.github+json' } });
+    let body = null;
+    try { body = JSON.parse(r.body.toString('utf8')); } catch { body = null; }
+    return { status: r.status, body, rate: r.status === 429 || (r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0') };
+  };
+  get.pass = async () => {
+    const wait = last + (io.pollMs ?? POLL_MS) - Date.now();
+    if (last && wait > 0) {
+      if (wait >= ctx.clock.left()) throw new Stop(4, 'GitHub is read no more than every 30 seconds. Run the same command again in a minute. Status 4.');
+      await ctx.sleep(wait);
+    }
+    last = Date.now();
+  };
+  return get;
+}
+
+// ---------------------------------------------------------------- what the run knows
+
+// Step 1 of every command: the repository, the token, the zone, the site's publish model, the
+// state file, the Worker's config, the Pages project and the hosts.
+async function prepare(opts, io, run) {
+  const env = io.env ?? process.env;
+  const clock = makeClock(io.runMs ?? RUN_MS);
+  const ctx = { opts, io, clock, say: io.say, sleep: io.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))), now: io.now ?? (() => Date.now()) };
+  let cenv = childEnv(env, (env.CLOUDFLARE_API_TOKEN ?? '').trim() || null);
+  ctx.run = (cmd, args, extra = {}) => (io.run ?? runProgram)(cmd, args, { cwd: extra.cwd ?? ctx.root ?? io.cwd, env: cenv, clock });
+  const git = (...args) => ctx.run('git', args);
+  ctx.git = git;
+  const gitOut = async (...args) => {
+    const r = await git(...args);
+    if (r.code !== 0) throw new Stop(1, `git ${args[0]} failed: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
+    return r.stdout.trim();
+  };
+  ctx.gitOut = gitOut;
+
+  const top = await ctx.run('git', ['rev-parse', '--show-toplevel'], { cwd: io.cwd });
+  if (top.code !== 0) throw new Stop(1, "This folder is not a git repository. Run the script in the site's folder.");
+  ctx.root = top.stdout.trim();
+  run.root = ctx.root;
+  const remote = await git('config', '--get', 'remote.origin.url');
+  const gh = remote.code === 0 ? githubRepo(remote.stdout) : null;
+  if (!gh) throw new Stop(1, 'The remote "origin" is not a repository on GitHub, so Cloudflare cannot build from it.');
+  ctx.repository = `${gh.owner}/${gh.repo}`;
+  ctx.gh = gh;
+
+  // The site's folder holds only the status page, in a folder git ignores. Written first.
+  const runDir = path.join(ctx.root, 'move-run');
+  mkdirSync(runDir, { recursive: true });
+  const ignore = path.join(runDir, '.gitignore');
+  if (!existsSync(ignore)) writeFileSync(ignore, '*\n');
+  if ((await gitOut('ls-files', '--', 'move-run'))) throw new Stop(1, 'git tracks a file in move-run/. Nothing there may be committed: run git rm --cached on it, then run this again.');
+  ctx.runDir = runDir;
+
+  const token = await readToken(ctx.root, git, env);
+  cenv = childEnv(env, token);
+  ctx.token = token;
+  ctx.gate = { hosts: new Set(), cnames: new Map(), workerDomainIds: new Map() };
+  const apiOpts = { clock, requestMs: io.requestMs ?? REQUEST_MS };
+  ctx.api = makeApi(io.apiFetch ?? globalThis.fetch, token, ctx.gate, apiOpts);
+  ctx.allowed = new Set(['api.github.com']);
+  ctx.siteFetch = makeSiteFetch(io.siteFetch ?? globalThis.fetch, ctx.allowed, apiOpts);
+  ctx.github = makeGithub(io, ctx);
+
+  // The token: verified, a week away at most, reaching one zone.
+  const verify = await ctx.api('GET', '/user/tokens/verify');
+  if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
+  const ends = Date.parse(verify.body.result.expires_on ?? '');
+  if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date a week out, and delete this one.');
+  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. A week at most: make one that ends within the week, and delete this one.`);
+  ctx.tokenLeftMs = ends - ctx.now();
+  if (ctx.tokenLeftMs <= 0) throw new Stop(1, 'This token has ended. Make a new one from the same link.');
+  const zones = await allPages(ctx.api, '/zones');
+  if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). Make a new token from the link.`);
+  if (zones.items.length !== 1) throw new Stop(1, `This token reaches ${zones.items.length} zones. Make one limited to the site's own zone (Zone Resources: your one domain). A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
+  const zone = zones.items[0];
+  if (zone.status !== 'active') throw new Stop(1, `The zone ${zone.name} is ${zone.status} on Cloudflare, not active.`);
+  if (!zone.account?.id) throw new Stop(1, 'Cloudflare did not say which account the zone belongs to.');
+  if (!/^[a-z0-9.-]+$/.test(zone.name)) throw new Stop(1, `The zone name "${zone.name}" is not one this script handles.`);
+  ctx.zone = zone;
+  ctx.account = { id: zone.account.id, name: zone.account.name ?? zone.account.id };
+  Object.assign(ctx.gate, { accountId: ctx.account.id, zoneId: zone.id, zoneName: zone.name });
+
+  // The branches on GitHub and the publish model, as the setup script reads them.
+  const lsAll = await git('ls-remote', '--heads', 'origin');
+  if (lsAll.code !== 0) throw new Stop(1, `git could not read the branches of ${ctx.repository} on GitHub. Check that this computer can reach it, then run again.`);
+  const heads = new Map(lsAll.stdout.split('\n').map((l) => l.split('\t')).filter((p) => p.length === 2).map(([s, r]) => [r.replace(/^refs\/heads\//, ''), s]));
+  const mainSha = heads.get('main');
+  if (!mainSha) throw new Stop(1, `${ctx.repository} has no branch main on GitHub.`);
+  ctx.haveCommit = async (sha, where) => {
+    if ((await git('cat-file', '-e', `${sha}^{commit}`)).code !== 0) throw new Stop(1, `The head of ${where} on GitHub (${short(sha)}) is not in this folder yet. Run git fetch origin, then run this again.`);
+  };
+  await ctx.haveCommit(mainSha, 'main');
+  const { prodBranch } = await readSiteConfig(git, mainSha);
+  if (prodBranch === 'main' && !heads.has('production')) ctx.twoStage = false;
+  else if (prodBranch === 'production' && heads.has('production')) ctx.twoStage = true;
+  else throw new Stop(1, `The two signs of the publish model disagree: src/config.ts says PROD_BRANCH is "${prodBranch}", and GitHub has ${heads.has('production') ? 'a' : 'no'} branch production.`);
+  ctx.prodBranch = prodBranch;
+  ctx.tip = heads.get(prodBranch);
+  ctx.mainSha = mainSha;
+  await ctx.haveCommit(ctx.tip, prodBranch);
+  if (ctx.twoStage && ctx.mainSha !== ctx.tip) ctx.mainDiffers = true;
+
+  // The state file: only the one for this zone and repository, and the same site.
+  ctx.stateDir = stateDir(io, zone.name, ctx.repository);
+  const st = loadState(ctx.stateDir);
+  ctx.state = st;
+  if (st && (st.zone?.id !== zone.id || st.repository !== ctx.repository)) {
+    throw new Stop(1, `${path.join(ctx.stateDir, 'state.json')} belongs to another site (zone ${st.zone?.name}, repository ${st.repository}). The script reads only the file for this one: look at it, and move it away if it is stale.`);
+  }
+  ctx.open = Boolean(st?.open);
+
+  // The Worker's config: at the frozen commit of an open move or a recorded one, else at the live tip.
+  ctx.sha = st && (st.open || st.recording?.status === 'done') && !['record', 'check'].includes(opts.cmd) ? st.frozen : ctx.tip;
+  if (ctx.sha !== ctx.tip) await ctx.haveCommit(ctx.sha, 'the frozen commit');
+  const wc = await readWorkersConfig(git, ctx.sha);
+  ctx.worker = wc.cfg.name;
+  ctx.configFile = wc.file;
+  ctx.workerConfig = wc;
+  ctx.gate.worker = ctx.worker;
+  if (wc.cfg.account_id && wc.cfg.account_id !== ctx.account.id) throw new Stop(1, `${wc.file} names account ${wc.cfg.account_id}, and the zone is in ${ctx.account.id}.`);
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(ctx.worker)) throw new Stop(1, `The Worker name "${ctx.worker}" is not one this script handles.`);
+
+  // The Pages project: the account's project whose source is this repository.
+  const projects = await allPages(ctx.api, `/accounts/${ctx.account.id}/pages/projects`);
+  if (!projects.items) throw new Stop(1, `Cloudflare refused to list the account's Pages projects: ${cfWords(projects.r)}. The token needs Cloudflare Pages Edit.`);
+  const mine = projects.items.filter((p) => p.source?.type === 'github'
+    && String(p.source.config?.owner).toLowerCase() === gh.owner.toLowerCase() && String(p.source.config?.repo_name).toLowerCase() === gh.repo.toLowerCase());
+  if (mine.length > 1) throw new Stop(1, `${mine.length} Pages projects are built from ${ctx.repository}: ${mine.map((p) => p.name).join(', ')}. The script moves a site with one.`);
+  if (!mine.length) {
+    const direct = projects.items.filter((p) => !p.source && p.domains?.some((d) => d === zone.name || d.endsWith(`.${zone.name}`)));
+    if (direct.length) throw new Stop(1, `The Pages project ${direct[0].name} serves this zone but is a Direct Upload project, not built from Git. The script moves Git-connected projects only: move this site by hand.`);
+    throw new Stop(1, `No Pages project is built from ${ctx.repository} in account ${ctx.account.name}. There is nothing for the script to move.`);
+  }
+  ctx.gate.project = mine[0].name;
+  const one = await ctx.api('GET', `/accounts/${ctx.account.id}/pages/projects/${mine[0].name}`);
+  if (!ok(one) || !one.body?.result || !Array.isArray(one.body.result.domains) || typeof one.body.result.subdomain !== 'string') {
+    throw new Stop(1, `Cloudflare did not return the Pages project ${mine[0].name} with its domains and address: ${cfWords(one)}.`);
+  }
+  ctx.project = one.body.result;
+  ctx.gate.subdomain = ctx.project.subdomain;
+  if (st && (st.pages?.name !== ctx.project.name || st.worker !== ctx.worker)) {
+    throw new Stop(1, `${path.join(ctx.stateDir, 'state.json')} is for the Pages project ${st.pages?.name} and the Worker ${st.worker}; this site's are ${ctx.project.name} and ${ctx.worker}. The script reads only the file for this site.`);
+  }
+
+  // The hosts: an open move keeps its own; else the project's custom domains in the zone.
+  const inZone = (d) => d === zone.name || d.endsWith(`.${zone.name}`);
+  ctx.hosts = ctx.open ? [...st.hosts] : ctx.project.domains.filter((d) => d !== ctx.project.subdomain && inZone(d)).sort();
+  for (const h of ctx.hosts) if (!HOSTNAME.test(h)) throw new Stop(1, `The host "${h}" is not a name this script handles.`);
+  for (const h of ctx.hosts) { ctx.gate.hosts.add(h); ctx.allowed.add(h); }
+  if (!ctx.hosts.length) throw new Stop(1, `The Pages project ${ctx.project.name} has no custom domain in ${zone.name}: there is nothing to move.`);
+  return ctx;
+}
+
+// What Cloudflare says now, for the hosts: the project's domains, the Worker's domains, the zone's
+// records. The ids a gated write may name are those of this read.
+async function readLive(ctx) {
+  const A = `/accounts/${ctx.account.id}`;
+  const [pr, wd, dns] = await Promise.all([
+    ctx.api('GET', `${A}/pages/projects/${ctx.project.name}`),
+    ctx.api('GET', `${A}/workers/domains`),
+    allPages(ctx.api, `/zones/${ctx.zone.id}/dns_records`, 100),
+  ]);
+  if (!ok(pr) || !Array.isArray(pr.body?.result?.domains)) throw new Stop(1, `Cloudflare did not return the Pages project: ${cfWords(pr)}.`);
+  if (!ok(wd) || !Array.isArray(wd.body?.result)) throw new Stop(1, `Cloudflare did not list the Worker domains: ${cfWords(wd)}. The token needs the Workers permission the move section names.`);
+  if (!dns.items) throw new Stop(1, `Cloudflare did not list the zone's records: ${cfWords(dns.r)}.`);
+  ctx.project = pr.body.result;
+  ctx.gate.cnames.clear();
+  ctx.gate.workerDomainIds.clear();
+  for (const r of dns.items) if (r.type === 'CNAME' && ctx.gate.hosts.has(r.name)) ctx.gate.cnames.set(r.id, { name: r.name, content: String(r.content).toLowerCase() });
+  const mineWd = wd.body.result.filter((d) => d.service === ctx.worker);
+  for (const d of mineWd) if (ctx.gate.hosts.has(d.hostname)) ctx.gate.workerDomainIds.set(d.id, d.hostname);
+  return { project: ctx.project, workerDomains: wd.body.result, mineWd, records: dns.items };
+}
+
+function hostState(ctx, live, h) {
+  const other = live.workerDomains.find((d) => d.hostname === h && d.service !== ctx.worker);
+  if (other) throw new Stop(1, `${h} is attached to another Worker (${other.service}). The script does not touch it.`);
+  const pages = live.project.domains.includes(h);
+  const worker = live.mineWd.some((d) => d.hostname === h);
+  const recs = live.records.filter((r) => r.name === h);
+  const cname = recs.find((r) => r.type === 'CNAME' && String(r.content).toLowerCase() === ctx.project.subdomain);
+  return { pages, worker, recs, cname, where: pages && worker ? 'both' : pages ? 'pages' : worker ? 'worker' : 'neither' };
+}
+
+const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on neither (down)', both: 'on both (inconsistent)' };
+
+// ---------------------------------------------------------------- the refusals of a first move
+
+async function firstMoveRefusals(ctx, live) {
+  const mineOnWorker = live.mineWd;
+  if (mineOnWorker.length) throw new Stop(1, `The Worker ${ctx.worker} already has a domain (${mineOnWorker.map((d) => d.hostname).join(', ')}). A first move needs a Worker with none: take it off by hand or finish the move it belongs to.`);
+  const sha = ctx.sha;
+  const files = (await ctx.gitOut('ls-tree', '-r', '--name-only', sha)).split('\n');
+  const fns = files.filter((f) => f.startsWith('functions/') && f !== 'functions/_middleware.ts');
+  if (fns.length) throw new Stop(1, `${short(sha)} holds ${fns.slice(0, 3).join(', ')}${fns.length > 3 ? ' and more' : ''} in functions/. The Worker would not run that code. Stage 1 of the move section takes functions/go/ out.`);
+  if (files.includes('public/_worker.js')) throw new Stop(1, `${short(sha)} holds public/_worker.js: code the Worker would not run.`);
+  if ((await readSiteConfig(ctx.git, sha)).serverMode) throw new Stop(1, 'This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
+}
+
+// ---------------------------------------------------------------- GitHub and builds
+
+async function tipOf(ctx, branch) {
+  const r = await ctx.git('ls-remote', 'origin', `refs/heads/${branch}`);
+  const sha = r.stdout.split('\t')[0].trim();
+  if (r.code !== 0 || !/^[0-9a-f]{40}$/.test(sha)) throw new Stop(1, `git could not read ${branch} on GitHub.`);
+  return sha;
+}
+
+// The builds that would change what the Worker or the domains serve, still unfinished: a Pages
+// production deployment, or a Workers Builds check run on a commit from the frozen one to the tip.
+async function unfinishedBuilds(ctx, frozen, tip) {
+  const out = [];
+  await ctx.github.pass();
+  const dep = await ctx.api('GET', `/accounts/${ctx.account.id}/pages/projects/${ctx.project.name}/deployments?page=1`);
+  if (!ok(dep)) throw new Stop(1, `Cloudflare did not list the project's deployments: ${cfWords(dep)}.`);
+  for (const d of dep.body.result ?? []) if (d.environment === 'production' && running(d)) out.push(`Pages is building ${short(d.deployment_trigger?.metadata?.commit_hash ?? '')}`);
+  const range = tip === frozen ? [] : (await ctx.gitOut('rev-list', `${frozen}..${tip}`)).split('\n').filter(Boolean);
+  if (range.length > MAX_COMMITS) throw new Stop(1, `${range.length} commits lie between the frozen commit and ${short(tip)}; the freeze was not kept. Stop and look.`);
+  for (const sha of [frozen, ...range]) {
+    const r = await ctx.github(`/repos/${ctx.repository}/commits/${sha}/check-runs`);
+    if (r.rate) throw new Stop(1, "GitHub's rate limit is used up. Log in with gh (gh auth login) and run this again.");
+    if (r.status === 404) throw new Stop(1, `GitHub does not show ${ctx.repository}'s check runs without a login: the repository is private. Log in with gh (gh auth login), then run this again.`);
+    if (r.status !== 200 || !Array.isArray(r.body?.check_runs)) throw new Stop(1, `GitHub's check runs of ${short(sha)} could not be read (HTTP ${r.status}).`);
+    for (const c of r.body.check_runs) {
+      if (c.app?.slug === 'cloudflare-workers-and-pages' && c.name === `Workers Builds: ${ctx.worker}` && c.status !== 'completed') out.push(`Workers Builds is building ${short(sha)}`);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- the Worker's version
+
+async function workerVersion(ctx) {
+  const A = `/accounts/${ctx.account.id}`;
+  const dep = await ctx.api('GET', `${A}/workers/scripts/${ctx.worker}/deployments`);
+  if (!ok(dep)) throw new Stop(1, `Cloudflare did not return the Worker's deployments: ${cfWords(dep)}. Is the Worker ${ctx.worker} deployed?`);
+  const latest = dep.body.result?.deployments?.[0];
+  const v = latest?.versions ?? [];
+  if (v.length !== 1 || v[0].percentage !== 100 || !/^[0-9a-f-]{36}$/.test(v[0].version_id)) throw new Stop(1, `The Worker ${ctx.worker}'s live deployment is not one version at 100%. The script reads only that.`);
+  const sub = await ctx.api('GET', `${A}/workers/subdomain`);
+  const subdomain = sub.body?.result?.subdomain;
+  if (!ok(sub) || !/^[a-z0-9-]+$/.test(subdomain ?? '')) throw new Stop(1, `Cloudflare did not return the account's workers.dev subdomain: ${cfWords(sub)}.`);
+  const host = `${v[0].version_id.slice(0, 8)}-${ctx.worker}.${subdomain}.workers.dev`;
+  ctx.allowed.add(host);
+  return { id: v[0].version_id, host };
+}
+
+// ---------------------------------------------------------------- fetching and comparing the site
+
+// Headers compared: those the site's _headers sets, x-robots-tag and strict-transport-security;
+// nel and report-to by presence only.
+export function headerNames(headersText) {
+  const names = new Set(['x-robots-tag', 'strict-transport-security', 'nel', 'report-to']);
+  for (const line of (headersText ?? '').split('\n')) {
+    const m = /^[ \t]+([A-Za-z0-9-]+)[ \t]*:/.exec(line);
+    if (m) names.add(m[1].toLowerCase());
+  }
+  for (const n of NEVER_COMPARED) names.delete(n);
+  return [...names].sort();
+}
+
+function walk(dir, base = '') {
+  const out = [];
+  for (const e of readdirSync(path.join(dir, base), { withFileTypes: true })) {
+    const rel = base ? `${base}/${e.name}` : e.name;
+    if (e.isDirectory()) out.push(...walk(dir, rel));
+    else out.push(rel);
+  }
+  return out;
+}
+
+// Every address the site answers, from the built dist/: each file, the other forms of each page,
+// the sources of the plain redirects, and one that does not exist.
+export function pathList(dist) {
+  const files = walk(dist);
+  const set = new Set([NOT_THERE]);
+  const enc = (p) => p.split('/').map(encodeURIComponent).join('/');
+  for (const f of files) {
+    if (['_headers', '_redirects', '_routes.json', '_worker.js', '.assetsignore'].includes(f)) continue;
+    const p = `/${enc(f)}`;
+    set.add(p);
+    if (f === 'index.html') { set.add('/'); } else if (f.endsWith('/index.html')) {
+      const dir = `/${enc(f.slice(0, -'/index.html'.length))}`;
+      set.add(dir); set.add(`${dir}/`);
+    } else if (f.endsWith('.html')) {
+      const bare = p.slice(0, -'.html'.length);
+      set.add(bare); set.add(`${bare}/`);
+    }
+  }
+  if (existsSync(path.join(dist, '_redirects'))) {
+    for (const line of readFileSync(path.join(dist, '_redirects'), 'utf8').split('\n')) {
+      const from = line.trim().split(/\s+/)[0];
+      if (from && !from.startsWith('#') && from.startsWith('/') && !/[*:]/.test(from)) set.add(from);
+    }
+  }
+  if (set.size > MAX_PATHS) throw new Stop(1, `The site answers ${set.size} addresses; the script records at most ${MAX_PATHS}.`);
+  return [...set].sort();
+}
+
+// One address, recorded: status, media type, redirect target, body hash and the compared headers.
+// build.txt and build-state.txt also keep their commit line.
+async function fetchEntry(ctx, base, p, names) {
+  const r = await ctx.siteFetch(`${base}${p}`);
+  if (r.status === 0) return { s: 0, err: r.error };
+  const hd = {};
+  for (const n of names) {
+    const v = r.headers.get(n);
+    hd[n] = n === 'nel' || n === 'report-to' ? (v === null ? null : 'present') : v;
+  }
+  const e = { s: r.status, t: (r.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase() || null, l: r.headers.get('location'), h: sha256(r.body), hd };
+  if (BUILD_FILES.includes(p)) e.c = r.body.toString('utf8').split('\n')[0].trim();
+  return e;
+}
+
+async function fetchAll(ctx, base, paths, names, into, save) {
+  const todo = paths.filter((p) => !into[p] || into[p].s === 0);
+  let n = 0;
+  const worker = async () => {
+    for (let p = todo.shift(); p !== undefined; p = todo.shift()) {
+      into[p] = await fetchEntry(ctx, base, p, names);
+      if (++n % 40 === 0) save();
+    }
+  };
+  try { await Promise.all(Array.from({ length: 6 }, worker)); } finally { save(); }
+}
+
+// The differences between what a platform answered when recorded (`was`) and now. `change` says the
+// platform changed (Pages to Worker); `onVersion` that `now` is the Worker's version URL, not a
+// domain. A known difference carries its reason; anything else is unknown.
+export function compare(was, now, { change, onVersion, expect }) {
+  const diffs = [];
+  const add = (p, field, a, b, known) => diffs.push({ path: p, field, expected: a, got: b, known: known ?? null });
+  for (const p of Object.keys(was)) {
+    const a = was[p];
+    const b = now[p];
+    if (!b || b.s === 0) { add(p, 'answer', 'an answer', b?.err ?? 'none'); continue; }
+    if (BUILD_FILES.includes(p)) {
+      if (b.c !== expect) add(p, 'commit line', expect, b.c);
+      if (b.s !== a.s) add(p, 'status', a.s, b.s);
+      continue;
+    }
+    if (a.s !== b.s) {
+      add(p, 'status', a.s, b.s, change && a.s === 308 && b.s === 307 && a.l === b.l ? '307 where Pages answers 308' : null);
+    }
+    if (a.l !== b.l) add(p, 'Location', a.l, b.l);
+    if (a.t !== b.t) add(p, 'media type', a.t, b.t, change && a.t === 'application/javascript' && b.t === 'text/javascript' ? 'text/javascript where Pages sends application/javascript' : null);
+    if (a.h !== b.h) add(p, 'body', a.h, b.h, change && p.endsWith('.avif') ? 'AVIF output differs by build machine' : null);
+    for (const n of Object.keys(a.hd ?? {})) {
+      const x = a.hd[n];
+      const y = b.hd?.[n] ?? null;
+      if (x === y) continue;
+      let known = null;
+      if (onVersion && ZONE_HEADERS.includes(n) && y === null) known = 'the version URL has no zone headers';
+      if (onVersion && n === 'x-robots-tag' && /noindex/i.test(y ?? '')) known = 'the version URL is noindex';
+      add(p, `header ${n}`, x, y, known);
+    }
+  }
+  return diffs;
+}
+
+const unknownOf = (diffs) => diffs.filter((d) => !d.known);
+
+// Where a host's build.txt says it is served from: the build's own platform line when it has one,
+// else Pages' access-control-allow-origin header.
+function platformOf(r, text) {
+  const line = /^platform=(\S+)/m.exec(text)?.[1];
+  if (line) return line === 'pages' ? 'pages' : 'worker';
+  return r.headers.get('access-control-allow-origin') !== null ? 'pages' : 'worker';
+}
+
+// Two good answers in a row from every host, from the wanted platform and a commit the script knows.
+async function waitServing(ctx, hosts, wanted, commits, run) {
+  const streak = Object.fromEntries(hosts.map((h) => [h, 0]));
+  const gap = ctx.io.goodGapMs ?? GOOD_GAP_MS;
+  for (;;) {
+    for (const h of hosts) {
+      if (streak[h] >= 2) continue;
+      const r = await ctx.siteFetch(`https://${h}/build.txt?t=${ctx.now()}`, { headers: { 'cache-control': 'no-cache' } });
+      const text = r.body.toString('utf8');
+      const good = r.status === 200 && commits.includes(text.split('\n')[0].trim()) && platformOf(r, text) === wanted;
+      streak[h] = good ? streak[h] + 1 : 0;
+    }
+    if (hosts.every((h) => streak[h] >= 2)) return true;
+    if (ctx.clock.left() < gap + 3_000) return false;
+    await ctx.sleep(gap);
+  }
+}
+
+// ---------------------------------------------------------------- snapshots
+
+async function snapshot(ctx, live, why) {
+  const exp = await ctx.api('GET', `/zones/${ctx.zone.id}/dns_records/export`);
+  if (exp.status !== 200 || !/^\S+\s+\d+\s+IN\s+SOA\s+\S+/m.test(exp.text)) throw new Stop(1, `The zone's DNS export has no SOA record (${exp.error ?? `HTTP ${exp.status}`}); not going on without a snapshot.`);
+  return {
+    at: new Date(ctx.now()).toISOString(), why, dnsExport: exp.text,
+    dnsRecords: live.records.filter((r) => ctx.gate.hosts.has(r.name)),
+    pagesDomains: live.project.domains, workerDomains: live.mineWd.map((d) => ({ id: d.id, hostname: d.hostname, service: d.service })),
+  };
+}
+
+// ---------------------------------------------------------------- the confirm code
+
+// Made from the end state a question names; a run with the same state accepts the same code.
+export function confirmCode(input) {
+  return createHash('sha256').update(JSON.stringify(input)).digest('hex').slice(0, 16);
+}
+
+function askOrGo(ctx, kind, input, lines, run) {
+  const code = confirmCode(input);
+  if (ctx.opts.confirm === code) return true;
+  if (ctx.opts.confirm) ctx.say('', `The code ${ctx.opts.confirm} does not fit this question: something it covered has changed. Nothing was changed. Here is the question as it stands now.`);
+  ctx.say('', 'Nothing has been changed yet. If you say yes, I will:');
+  lines.forEach((l, i) => ctx.say(`  ${i + 1}. ${l}`));
+  ctx.say('', `To go ahead, run the same command again with: --confirm ${code}`);
+  run.next = `node move-to-workers.mjs ${kind} --confirm ${code}`;
+  run.asking = true;
+  return false;
+}
+
+// ---------------------------------------------------------------- the route and undo commits
+
+async function cleanTreeOrStop(ctx) {
+  const st = await ctx.gitOut('status', '--porcelain');
+  if (st) throw new Stop(1, `The working tree has changes (${st.split('\n')[0].trim()}${st.includes('\n') ? ', …' : ''}). Commit them or put them away: the route and undo commits are written on a clean tree.`);
+}
+
+// HEAD's Workers config, and whether it lists exactly `want`.
+async function headConfig(ctx) {
+  const t = await ctx.gitOut('show', `HEAD:${ctx.configFile}`);
+  return { text: t, routes: routesOf(parseJsonc(t), ctx.configFile) };
+}
+
+// Writes the commit that sets the config's routes to `want`, on top of HEAD, unless HEAD's already do.
+async function ensureRouteCommit(ctx, want, kind) {
+  await cleanTreeOrStop(ctx);
+  const head = await headConfig(ctx);
+  if (JSON.stringify(head.routes) === JSON.stringify([...want].sort())) return { commit: await ctx.gitOut('rev-parse', 'HEAD'), wrote: false };
+  const file = path.join(ctx.root, ctx.configFile);
+  writeFileSync(file, setRoutes(readFileSync(file, 'utf8'), want));
+  await ctx.gitOut('add', '--', ctx.configFile);
+  const msg = want.length ? `Attach ${want.join(', ')} to the Worker ${ctx.worker}` : `Give ${ctx.hosts.join(', ')} back to Pages: take the custom-domain routes out of ${ctx.configFile}`;
+  await ctx.gitOut('commit', '-q', '-m', `${msg} (${kind} commit)`);
+  return { commit: await ctx.gitOut('rev-parse', 'HEAD'), wrote: true };
+}
+
+// ---------------------------------------------------------------- the commands
+
+function note(run, ok_, text) { run.checks.push({ ok: ok_, text }); }
+
+async function cmdCheck(ctx, run) {
+  const { say } = ctx;
+  const live = await readLive(ctx);
+  if (!ctx.open) await firstMoveRefusals(ctx, live);
+  say(`Move check for ${ctx.hosts.join(', ')} (zone ${ctx.zone.name}, account ${ctx.account.name})`);
+  say(`Repository ${ctx.repository}, ${ctx.twoStage ? 'two-stage: production is the live branch, main the preview' : 'single-stage: main is the live branch'}. Pages project ${ctx.project.name} (${ctx.project.subdomain}); Worker ${ctx.worker} (config ${ctx.configFile}).`);
+  for (const h of ctx.hosts) {
+    const hs = hostState(ctx, live, h);
+    say(`  ${h}: ${WHERE_WORDS[hs.where]}; DNS ${hs.recs.map((r) => `${r.type} ${r.content}${r.proxied ? ' (proxied)' : ''}`).join('; ') || 'no record'}`);
+    note(run, hs.where === 'pages' && Boolean(hs.cname), `${h} is ${WHERE_WORDS[hs.where]}, DNS ${hs.recs.map((r) => `${r.type} ${r.content}`).join('; ') || 'none'}`);
+  }
+  say(`The live branch ${ctx.prodBranch} on GitHub is ${short(ctx.tip)}${ctx.twoStage ? `; main is ${short(ctx.mainSha)}${ctx.mainDiffers ? ' (it differs: they must be the same before record)' : ''}` : ''}.`);
+  note(run, !ctx.mainDiffers, `GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
+  const v = await workerVersion(ctx);
+  const r = await ctx.siteFetch(`https://${v.host}/build.txt`);
+  const served = r.body.toString('utf8').split('\n')[0].trim();
+  say(`The Worker's live version ${v.id.slice(0, 8)} serves ${r.status === 200 ? short(served) : `nothing at https://${v.host}/build.txt (${r.status || r.error})`}: ${served === ctx.tip ? 'the live branch\'s commit.' : 'not the live branch\'s commit; stage 1 of the move section is not finished.'}`);
+  note(run, served === ctx.tip, `The Worker's live version serves ${r.status === 200 ? short(served) : 'nothing'}, GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
+  const gh = await ctx.github(`/repos/${ctx.repository}`);
+  if (gh.status === 404) throw new Stop(1, `GitHub does not show ${ctx.repository} without a login: the repository is private. Log in with gh (gh auth login), then run this again.`);
+  say('Nothing was changed.');
+  run.next = ctx.mainDiffers || served !== ctx.tip ? 'Finish stage 1 of the move section, then run check again.' : 'node move-to-workers.mjs record';
+  return 0;
+}
+
+// The build of the frozen commit, in a copy of its files under move-run/build/, started apart from
+// this run: it takes longer than 55 seconds. Returns 'running' or the dist/ folder.
+async function ensureBuild(ctx, sha, run) {
+  const dir = path.join(ctx.runDir, 'build', sha.slice(0, 12));
+  const dist = path.join(dir, 'src', 'dist');
+  const exit = path.join(dir, 'exit.txt');
+  if (existsSync(exit)) {
+    const code = readFileSync(exit, 'utf8').trim();
+    if (code !== '0') throw new Stop(1, `The build of ${short(sha)} failed (exit ${code}); its log is ${path.join(dir, 'build.log')}. Fix the site, or delete ${dir} to try again.`);
+    return dist;
+  }
+  const pidFile = path.join(dir, 'pid.txt');
+  if (existsSync(pidFile) && alive(Number(readFileSync(pidFile, 'utf8')))) return 'running';
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(path.join(dir, 'src'), { recursive: true });
+  const idx = path.join(dir, 'index');
+  const gitEnv = { ...childEnv(ctx.io.env ?? process.env, ctx.token), GIT_INDEX_FILE: idx };
+  const sh = (args) => (ctx.io.run ?? runProgram)('git', args, { cwd: ctx.root, env: gitEnv, clock: ctx.clock });
+  const rt = await sh(['read-tree', sha]);
+  const co = rt.code === 0 ? await sh(['checkout-index', '-a', '-f', `--prefix=${path.join(dir, 'src')}${path.sep}`]) : rt;
+  if (co.code !== 0) throw new Stop(1, `git could not copy ${short(sha)} to build it: ${(co.stderr || co.stdout).trim().split('\n')[0]}`);
+  const script = `const {spawnSync}=require('node:child_process');const fs=require('node:fs');const o=fs.openSync(${JSON.stringify(path.join(dir, 'build.log'))},'w');const sh=process.platform==='win32';const lock=fs.existsSync('package-lock.json');let r=spawnSync(lock?'npm ci':'npm install',{shell:true,stdio:['ignore',o,o]});if(r.status===0)r=spawnSync('npm run build',{shell:true,stdio:['ignore',o,o]});fs.writeFileSync(${JSON.stringify(exit)},String(r.status===null?1:r.status));`;
+  const env = { ...childEnv(ctx.io.env ?? process.env, ctx.token), CF_PAGES_COMMIT_SHA: sha, WORKERS_CI_COMMIT_SHA: sha, CI: 'true' };
+  const child = spawn(process.execPath, ['-e', script], { cwd: path.join(dir, 'src'), env, stdio: 'ignore', detached: true, windowsHide: true });
+  child.unref();
+  writeFileSync(pidFile, String(child.pid));
+  return 'running';
+}
+
+async function cmdRecord(ctx, run) {
+  const { say } = ctx;
+  if (ctx.open) throw new Stop(1, 'A move is open, so there is nothing to record: the recording belongs to the move. Finish it, or undo it and let after pass, then record again.');
+  const live = await readLive(ctx);
+  await firstMoveRefusals(ctx, live);
+  if (ctx.mainDiffers) throw new Stop(1, `main (${short(ctx.mainSha)}) and ${ctx.prodBranch} (${short(ctx.tip)}) are not the same commit. The freeze needs them the same (D18): publish main first.`);
+  for (const h of ctx.hosts) {
+    const hs = hostState(ctx, live, h);
+    if (hs.where !== 'pages' || !hs.cname) throw new Stop(1, `${h} is ${WHERE_WORDS[hs.where]}${hs.where === 'pages' ? ` without a CNAME to ${ctx.project.subdomain}` : ''}. A recording is made while every host is on Pages with its CNAME to the project.`);
+  }
+  const frozen = ctx.tip;
+  let st = ctx.state;
+  if (!st || st.frozen !== frozen || st.recording?.status === 'done' || st.recording?.hosts?.join() !== ctx.hosts.join()) {
+    st = {
+      version: 1, zone: { id: ctx.zone.id, name: ctx.zone.name }, repository: ctx.repository, pages: { name: ctx.project.name, subdomain: ctx.project.subdomain },
+      worker: ctx.worker, configFile: ctx.configFile, prodBranch: ctx.prodBranch, twoStage: ctx.twoStage, hosts: ctx.hosts, frozen,
+      open: false, direction: null, track: {}, route: null, snapshots: [], recording: { status: 'building', hosts: ctx.hosts, entries: {} },
+    };
+  }
+  takeLock(ctx.stateDir, run);
+  const keep = () => saveState(ctx.stateDir, st);
+  st.recording.at = new Date(ctx.now()).toISOString();
+  keep();
+  ctx.state = st;
+  say(`Freeze: ${ctx.prodBranch} on GitHub is ${short(frozen)}. Nothing is merged or shipped until after passes.`);
+
+  const v = await workerVersion(ctx);
+  st.recording.workerVersion = v.id;
+  const dist = await ensureBuild(ctx, frozen, run);
+  if (dist === 'running') {
+    keep();
+    say(`The build of ${short(frozen)} is running (its log: move-run/build/${frozen.slice(0, 12)}/build.log).`);
+    run.next = 'node move-to-workers.mjs record';
+    throw new Stop(4, 'The build is not finished. Run the same command again in a minute. Status 4.');
+  }
+  if (!existsSync(path.join(dist, 'build.txt'))) throw new Stop(1, `The build of ${short(frozen)} wrote no dist/build.txt.`);
+  const marker = readFileSync(path.join(dist, 'build.txt'), 'utf8').split('\n')[0].trim();
+  if (marker !== frozen) throw new Stop(1, `dist/build.txt names ${marker}, not the frozen commit ${frozen}: the site's build marker does not follow the commit it is built from.`);
+  note(run, true, `A build of ${short(frozen)} names that commit in build.txt`);
+  const paths = pathList(dist);
+  const names = headerNames(existsSync(path.join(dist, '_headers')) ? readFileSync(path.join(dist, '_headers'), 'utf8') : '');
+  st.recording.names = names;
+  st.recording.paths = paths;
+  const targets = [...ctx.hosts.map((h) => [h, `https://${h}`]), ['version', `https://${v.host}`]];
+  for (const [key, base] of targets) {
+    st.recording.entries[key] ??= {};
+    await fetchAll(ctx, base, paths, names, st.recording.entries[key], keep);
+  }
+  // The domain's plain-http answer, for after.
+  st.recording.http = {};
+  for (const h of ctx.hosts) {
+    const r = await ctx.siteFetch(`http://${h}/`);
+    st.recording.http[h] = { s: r.status, l: r.headers.get('location') };
+  }
+
+  // The domain (Pages) against the Worker's version URL, and each host's build.txt.
+  const unknown = [];
+  for (const h of ctx.hosts) {
+    const diffs = compare(st.recording.entries[h], st.recording.entries.version, { change: true, onVersion: true, expect: frozen });
+    run.diffs.push(...diffs.map((d) => ({ ...d, host: h })));
+    unknown.push(...unknownOf(diffs).map((d) => ({ ...d, host: h })));
+    const b = st.recording.entries[h]['/build.txt'];
+    if (b?.c !== frozen) unknown.push({ host: h, path: '/build.txt', field: 'commit line', expected: frozen, got: b?.c });
+  }
+  const checked = paths.length * (ctx.hosts.length + 1);
+  say(`Recorded ${paths.length} addresses on ${ctx.hosts.join(', ')} and on the Worker's version URL (${checked} answers); ${run.diffs.filter((d) => d.known).length} known differences, ${unknown.length} unknown.`);
+  if (unknown.length) {
+    st.recording.status = 'unknown';
+    st.recording.unknown = unknown.slice(0, 50);
+    keep();
+    note(run, false, `${unknown.length} differences the script does not know between the domain and the Worker's version`);
+    for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${d.expected} ≠ ${d.got}`);
+    throw new Stop(1, `${unknown.length} unknown differences: the Worker would not serve what the domain serves now. Fix the site (stage 1), then record again. Nothing was changed.`);
+  }
+  st.snapshots.push(await snapshot(ctx, live, 'record'));
+  st.recording.status = 'done';
+  delete st.recording.unknown;
+  keep();
+  note(run, true, `${paths.length} addresses recorded on each host; the Worker's version matches apart from the known differences`);
+  say('The recording is clean and kept. Next: node move-to-workers.mjs move');
+  run.next = 'node move-to-workers.mjs move';
+  return 0;
+}
+
+async function ensureOpenState(ctx, need) {
+  if (!ctx.state) throw new Stop(1, `There is no state file (${path.join(ctx.stateDir, 'state.json')}), so there is no recording to move on. ${need}`);
+  return ctx.state;
+}
+
+async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
+  const { say } = ctx;
+  const toWorker = dir === 'move';
+  const st = await ensureOpenState(ctx, toWorker ? 'Run record first.' : 'An undo needs the state of the move it undoes.');
+  const first = toWorker ? !st.open : !st.open || !st.undoStarted;
+  if (!toWorker && !st.open) throw new Stop(1, 'No move is open, so there is nothing to undo.');
+  if (first && ctx.tokenLeftMs < MIN_LEFT_MS) throw new Stop(1, `The token has less than an hour left (${Math.round(ctx.tokenLeftMs / 60_000)} minutes), too little for a ${dir}. Make a new one from the same link.`);
+  if (!first && ctx.tokenLeftMs < MIN_LEFT_MS) say(`Warning: the token has ${Math.round(ctx.tokenLeftMs / 60_000)} minutes left.`);
+  let live = await readLive(ctx);
+  const hostsNow = ctx.hosts.map((h) => [h, hostState(ctx, live, h)]);
+  const firstMove = toWorker && !st.open;
+  if (firstMove) {
+    if (st.recording?.status !== 'done') throw new Stop(1, 'There is no clean recording of the frozen commit. Run record first.');
+    await firstMoveRefusals(ctx, live);
+    if (JSON.stringify(st.hosts) !== JSON.stringify(ctx.hosts)) throw new Stop(1, `The Pages project's domains (${ctx.hosts.join(', ')}) are not the recorded hosts (${st.hosts.join(', ')}). Record again.`);
+    for (const [h, hs] of hostsNow) if (hs.where !== 'pages' || !hs.cname) throw new Stop(1, `${h} is ${WHERE_WORDS[hs.where]}, not on Pages with its CNAME: a first move starts with every host on Pages.`);
+    for (const b of ctx.twoStage ? [ctx.prodBranch, 'main'] : [ctx.prodBranch]) {
+      const tip = await tipOf(ctx, b);
+      if (tip !== st.frozen) throw new Stop(1, `${b} on GitHub is ${short(tip)}, not the frozen commit ${short(st.frozen)}. The freeze was broken: record again.`);
+    }
+    const v = await workerVersion(ctx);
+    if (v.id !== st.recording.workerVersion) throw new Stop(1, `The Worker's live version is ${v.id.slice(0, 8)}, not the recorded ${st.recording.workerVersion.slice(0, 8)}. Something deployed during the freeze: record again.`);
+  }
+  // Both modes: the working tree and its commits.
+  await cleanTreeOrStop(ctx);
+  const head = await ctx.gitOut('rev-parse', 'HEAD');
+  if (firstMove && head !== st.frozen) {
+    const parent = (await ctx.git('rev-parse', 'HEAD~1')).stdout.trim();
+    const changed = (await ctx.gitOut('diff', '--name-only', 'HEAD~1', 'HEAD')).split('\n').filter(Boolean);
+    if (parent !== st.frozen || changed.join() !== ctx.configFile) throw new Stop(1, `HEAD is not the frozen commit ${short(st.frozen)} with one route commit on top. Check out the branch the site was frozen on.`);
+  }
+  const unfinished = await unfinishedBuilds(ctx, st.frozen, ctx.tip);
+  if (unfinished.length) throw new Stop(1, `A build is unfinished (${unfinished.join('; ')}). Wait for it to end, then run this again: it could change what the Worker serves during the ${dir}.`);
+
+  // Plain: write the commit. With --confirm: it must already fit.
+  const want = toWorker ? [...ctx.hosts] : [];
+  const cfg = await headConfig(ctx);
+  const fits = JSON.stringify(cfg.routes) === JSON.stringify([...want].sort());
+  if (ctx.opts.confirm === null) {
+    const c = await ensureRouteCommit(ctx, want, toWorker ? 'route' : 'undo');
+    st.route = { commit: c.commit, kind: toWorker ? 'route' : 'undo' };
+    ctx.state = st;
+    saveState(ctx.stateDir, st);
+    say(c.wrote ? `Wrote the ${st.route.kind} commit ${short(c.commit)} (${ctx.configFile}): ${toWorker ? 'the hosts as custom_domain routes' : 'no custom-domain routes'}. It is not pushed.` : `HEAD (${short(c.commit)}) already has the right routes; no commit was written.`);
+  } else if (!fits) {
+    throw new Stop(1, `${ctx.configFile} at HEAD does not ${toWorker ? 'list exactly the hosts' : 'list none of them'} as custom_domain routes: a build of HEAD would reverse this run. Run plain "${dir}" first (it writes the commit).`);
+  }
+  const commit = await ctx.gitOut('rev-parse', 'HEAD');
+  if (ctx.opts.confirm !== null && st.route?.commit !== commit) {
+    st.route = { commit, kind: toWorker ? 'route' : 'undo' };
+  }
+  const lines = [];
+  const todo = hostsNow.filter(([, hs]) => (toWorker ? hs.where !== 'worker' : hs.where !== 'pages' || !hs.cname));
+  lines.push(toWorker
+    ? `Take ${ctx.hosts.join(', ')} off the Pages project ${ctx.project.name}, delete each host's CNAME to ${ctx.project.subdomain}, and attach each to the Worker ${ctx.worker} (account ${ctx.account.name}, zone ${ctx.zone.name}).`
+    : `Take ${ctx.hosts.join(', ')} off the Worker ${ctx.worker}, add each back to the Pages project ${ctx.project.name} with its CNAME to ${ctx.project.subdomain} (account ${ctx.account.name}, zone ${ctx.zone.name}).`);
+  lines.push('Each host is down from the moment it leaves its platform until the other one serves it: about a minute, 15 minutes at most.');
+  lines.push(`Push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production' : 'main'} afterwards (you do that, not the script); then run after.`);
+  const input = { kind: dir, account: ctx.account.id, zone: ctx.zone.id, repository: ctx.repository.toLowerCase(), project: ctx.project.name, worker: ctx.worker, hosts: [...ctx.hosts].sort(), commit, frozen: st.frozen };
+  if (!todo.length && ctx.opts.confirm === null) say(`Every host is already ${toWorker ? 'on the Worker' : 'back on Pages'}.`);
+  if (!askOrGo(ctx, dir, input, lines, run)) return 3;
+
+  // --- With the yes.
+  st.snapshots.push(await snapshot(ctx, live, dir));
+  if (toWorker) { st.open = true; st.direction = 'to-worker'; st.passed = null; } else { st.direction = 'to-pages'; st.undoStarted = true; st.passed = null; }
+  st.route = { commit, kind: toWorker ? 'route' : 'undo' };
+  st.commits = [...new Set([...(st.commits ?? []), commit])];
+  ctx.state = st;
+  saveState(ctx.stateDir, st);
+  const A = `/accounts/${ctx.account.id}`;
+  const stopOn = async (h, what, r) => {
+    live = await readLive(ctx).catch(() => null);
+    const where = live ? WHERE_WORDS[hostState(ctx, live, h).where] : 'unknown (it could not be read back)';
+    st.track[h] = { ...st.track[h], where: live ? hostState(ctx, live, h).where : 'unknown' };
+    saveState(ctx.stateDir, st);
+    throw new Stop(1, `${what} for ${h} failed: ${cfWords(r)}. ${h} is now ${where}. Run the same command again at once${toWorker ? ' (undo takes it back)' : ' (move goes forward)'}.`);
+  };
+  for (const h of ctx.hosts) {
+    live = await readLive(ctx);
+    let hs = hostState(ctx, live, h);
+    const done = toWorker ? hs.where === 'worker' : hs.where === 'pages' && hs.cname;
+    if (done) { say(`${h} is already ${toWorker ? 'on the Worker' : 'back on Pages'}; skipped.`); continue; }
+    if (hs.where === 'both') throw new Stop(1, `${h} is on both the Pages project and the Worker. The script does not decide that: look at it in the dashboard.`);
+    const fresh = toWorker ? hs.where === 'pages' : hs.where === 'worker';
+    if (fresh && ctx.clock.left() < (ctx.io.reserveMs ?? HOST_RESERVE_MS)) {
+      throw new Stop(4, `Not enough of this run is left to move ${h} (it needs ${Math.round((ctx.io.reserveMs ?? HOST_RESERVE_MS) / 1000)} seconds), so it was not started. Run the same command again. Status 4.`);
+    }
+    if (hs.where === 'neither') say(`${h} is on neither platform right now: it is down until this run finishes it.`);
+    st.track[h] ??= {};
+    if (!st.track[h].leftAt || st.track[h].dir !== dir) st.track[h] = { dir, leftAt: new Date(ctx.now()).toISOString() };
+    saveState(ctx.stateDir, st);
+    if (toWorker) {
+      if (hs.pages) {
+        const r = await ctx.api('DELETE', `${A}/pages/projects/${ctx.project.name}/domains/${h}`);
+        if (!ok(r)) await stopOn(h, 'Taking it off the Pages project', r);
+        say(`${h}: left the Pages project.`);
+        live = await readLive(ctx); hs = hostState(ctx, live, h);
+      }
+      if (hs.cname) {
+        const r = await ctx.api('DELETE', `/zones/${ctx.zone.id}/dns_records/${hs.cname.id}`);
+        if (!ok(r)) await stopOn(h, "Deleting its CNAME", r);
+        say(`${h}: CNAME deleted.`);
+      }
+      const r = await ctx.api('PUT', `${A}/workers/domains`, { json: { hostname: h, service: ctx.worker, zone_id: ctx.zone.id, environment: 'production' } });
+      if (!ok(r)) await stopOn(h, 'Attaching it to the Worker', r);
+      say(`${h}: attached to the Worker.`);
+    } else {
+      if (hs.worker) {
+        const id = live.mineWd.find((d) => d.hostname === h).id;
+        const r = await ctx.api('DELETE', `${A}/workers/domains/${id}`);
+        if (!ok(r)) await stopOn(h, 'Taking it off the Worker', r);
+        say(`${h}: left the Worker.`);
+        live = await readLive(ctx); hs = hostState(ctx, live, h);
+      }
+      if (hs.recs.length && !hs.cname) throw new Stop(1, `${h} still has a DNS record (${hs.recs.map((x) => `${x.type} ${x.content}`).join('; ')}) that is not a CNAME to ${ctx.project.subdomain}. The script touches no other record: delete it by hand, then run undo again.`);
+      if (!hs.pages) {
+        const r = await ctx.api('POST', `${A}/pages/projects/${ctx.project.name}/domains`, { json: { name: h } });
+        if (!ok(r)) await stopOn(h, 'Adding it to the Pages project', r);
+        say(`${h}: added to the Pages project.`);
+      }
+      if (!hs.cname) {
+        const r = await ctx.api('POST', `/zones/${ctx.zone.id}/dns_records`, { json: { type: 'CNAME', name: h, content: ctx.project.subdomain, proxied: true } });
+        if (!ok(r)) await stopOn(h, 'Writing its CNAME', r);
+        say(`${h}: CNAME written.`);
+      }
+    }
+    live = await readLive(ctx);
+    const after = hostState(ctx, live, h);
+    st.track[h].where = after.where;
+    saveState(ctx.stateDir, st);
+    if (after.where !== (toWorker ? 'worker' : 'pages')) throw new Stop(1, `${h} reads ${WHERE_WORDS[after.where]} after its changes, not ${toWorker ? 'on the Worker' : 'on Pages'}. Run the same command again, or the other one to go back.`);
+  }
+  // Wait for each to serve; the first time a host left its platform is kept.
+  const known = [...new Set([st.frozen, ...(st.commits ?? [])])];
+  const served = await waitServing(ctx, ctx.hosts, toWorker ? 'worker' : 'pages', known, run);
+  const oldest = Math.min(...ctx.hosts.map((h) => Date.parse(st.track[h]?.leftAt ?? new Date(ctx.now()).toISOString())));
+  const ago = Math.round((ctx.now() - oldest) / 1000);
+  for (const h of ctx.hosts) st.track[h].servedAt = served ? (st.track[h].servedAt ?? new Date(ctx.now()).toISOString()) : null;
+  saveState(ctx.stateDir, st);
+  if (!served) {
+    const over = ctx.now() - oldest > TARGET_MS;
+    note(run, false, `Not every host serves ${toWorker ? 'the Worker' : 'Pages'} yet (${ago} seconds since the first left its platform)`);
+    if (over) {
+      run.next = toWorker ? 'node move-to-workers.mjs undo' : 'node move-to-workers.mjs move';
+      throw new Stop(1, `${Math.round(ago / 60)} minutes after the first host left its platform, a host does not serve ${toWorker ? 'the Worker' : 'Pages'}. That is past the 15-minute target: ${toWorker ? 'undo' : 'go forward with move'}.`);
+    }
+    run.next = `node move-to-workers.mjs ${dir} --confirm ${ctx.opts.confirm}`;
+    throw new Stop(4, `${ago} seconds since the first host left its platform; not every host serves ${toWorker ? 'the Worker' : 'Pages'} yet. Run the same command again. Status 4.`);
+  }
+  note(run, true, `Both answers in a row: ${ctx.hosts.join(', ')} serve ${toWorker ? 'the Worker' : 'Pages'}, ${ago} seconds after the first left its platform`);
+  say(`Done: ${ctx.hosts.join(', ')} ${toWorker ? 'serve the Worker' : 'serve Pages again'} (${ago} seconds since the first host left its platform).`);
+  say(`Now push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production (git push origin HEAD:production HEAD:main)' : 'main'}${toWorker ? ', deploy it if the Worker has no Workers Builds,' : ''} and run: node move-to-workers.mjs after`);
+  run.next = 'node move-to-workers.mjs after';
+  return 0;
+}
+
+async function cmdAfter(ctx, run) {
+  const { say } = ctx;
+  const st = await ensureOpenState(ctx, 'Run record and move first.');
+  if (!st.open || !st.direction || !st.route) throw new Stop(1, 'No move has been confirmed yet, so there is nothing to check.');
+  const toWorker = st.direction === 'to-worker';
+  const expect = st.route.commit;
+  const branches = ctx.twoStage ? [ctx.prodBranch, 'main'] : [ctx.prodBranch];
+  const problems = [];
+  const tips = {};
+  for (const b of branches) tips[b] = await tipOf(ctx, b);
+  for (const b of branches) if (tips[b] !== expect) problems.push(`${b} on GitHub is ${short(tips[b])}, not the ${st.route.kind} commit ${short(expect)}: push it`);
+  if (problems.length) {
+    problems.forEach((p) => note(run, false, p));
+    run.next = `git push origin HEAD:${ctx.prodBranch}${ctx.twoStage ? ' HEAD:main' : ''}`;
+    throw new Stop(1, ...problems, 'Push the commit, then run after again.');
+  }
+  note(run, true, `GitHub's ${branches.join(' and ')} ${branches.length > 1 ? 'are' : 'is'} the ${st.route.kind} commit ${short(expect)}`);
+  const unfinished = await unfinishedBuilds(ctx, st.frozen, tips[ctx.prodBranch]);
+  if (unfinished.length) {
+    note(run, false, `Builds are unfinished: ${unfinished.join('; ')}`);
+    run.next = 'node move-to-workers.mjs after';
+    throw new Stop(4, `Builds are unfinished (${unfinished.join('; ')}). Run the same command again in a minute. Status 4.`);
+  }
+  note(run, true, 'No build is unfinished');
+  const live = await readLive(ctx);
+  for (const h of ctx.hosts) {
+    const hs = hostState(ctx, live, h);
+    const wantWhere = toWorker ? 'worker' : 'pages';
+    const good = hs.where === wantWhere && (toWorker || hs.cname);
+    note(run, good, `${h} is ${WHERE_WORDS[hs.where]}${good ? '' : `; it should be ${toWorker ? 'on the Worker' : 'on Pages with its CNAME'}`}`);
+    if (!good) problems.push(`${h} is ${WHERE_WORDS[hs.where]}`);
+  }
+  if (problems.length) {
+    run.next = toWorker ? 'node move-to-workers.mjs move --confirm <code>' : 'node move-to-workers.mjs undo --confirm <code>';
+    throw new Stop(1, ...problems, toWorker ? 'A build of the wrong commit may have put a host back (S9). Run move again to go forward, or undo.' : 'Run undo again.');
+  }
+  const rec = st.recording;
+  const unknown = [];
+  for (const h of ctx.hosts) {
+    const now = {};
+    await fetchAll(ctx, `https://${h}`, rec.paths, rec.names, now, () => {});
+    const diffs = compare(rec.entries[h], now, { change: toWorker, onVersion: false, expect });
+    run.diffs.push(...diffs.map((d) => ({ ...d, host: h })));
+    unknown.push(...unknownOf(diffs).map((d) => ({ ...d, host: h })));
+    const r = await ctx.siteFetch(`http://${h}/`);
+    const was = rec.http?.[h];
+    const httpOk = was && r.status === was.s && (r.headers.get('location') ?? null) === (was.l ?? null);
+    note(run, Boolean(httpOk), `http://${h}/ answers ${r.status}${r.headers.get('location') ? ` to ${r.headers.get('location')}` : ''}${httpOk ? ', as recorded' : ` (recorded: ${was?.s}${was?.l ? ` to ${was.l}` : ''})`}`);
+    if (!httpOk) unknown.push({ host: h, path: 'http://', field: 'redirect to https', expected: `${was?.s} ${was?.l ?? ''}`, got: `${r.status} ${r.headers.get('location') ?? ''}` });
+  }
+  const knownN = run.diffs.filter((d) => d.known).length;
+  note(run, !unknown.length, `${rec.paths.length} addresses on each host compared with the recording: ${knownN} known differences, ${unknown.length} unknown`);
+  if (unknown.length) {
+    for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${d.expected} ≠ ${d.got}`);
+    run.next = toWorker ? 'Read the differences; node move-to-workers.mjs undo if a visitor would notice.' : 'Read the differences.';
+    throw new Stop(1, `${unknown.length} unknown differences between the live site and the recording.`);
+  }
+  const when = new Date(ctx.now()).toISOString();
+  if (toWorker) {
+    st.passed = { at: when, commit: expect };
+    saveState(ctx.stateDir, st);
+    say(`After passed: ${ctx.hosts.join(', ')} serve the Worker and match the recording. The move stays open, so undo works until the Pages project is retired.`);
+    say('Delete the API token now: dash.cloudflare.com/profile/api-tokens.');
+    run.next = 'Nothing more for this script. Keep the Pages project 14 days, then retire it as the move section says.';
+    run.done = true;
+  } else {
+    st.open = false;
+    st.passed = { at: when, commit: expect };
+    saveState(ctx.stateDir, st);
+    renameSync(path.join(ctx.stateDir, 'state.json'), path.join(ctx.stateDir, `state-closed-${when.slice(0, 10)}-${randomBytes(3).toString('hex')}.json`));
+    say('After passed: both hosts are back on Pages and match the recording. The move is closed; the next one starts with record.');
+    say('Delete the API token now: dash.cloudflare.com/profile/api-tokens.');
+    run.next = 'The move is closed. To try again: node move-to-workers.mjs record';
+    run.closed = true;
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------- the status page
+
+const STAGE_NAMES = [
+  ['Prepare', 'The site and its Worker are ready: same pages, a Workers config, serving with no domain. Not this script.'],
+  ['Freeze and record', 'Nothing is merged while the move runs; what the live site serves is written down.'],
+  ['Switch', 'Each host leaves the Pages project and goes to the Worker. Undo is possible.'],
+  ['Check on the domain', 'The live site is compared with what was recorded.'],
+  ['Clean up', 'The token is deleted; the Pages project is retired after 14 days. Not this script.'],
+];
+
+function stageOf(st, run) {
+  if (run.closed) return 2;
+  if (!st) return run.recorded ? 2 : 1;
+  if (run.done || st.passed) return st.direction === 'to-worker' ? 4 : 2;
+  if (st.open) return 3;
+  return st.recording?.status === 'done' ? 2 : 2;
+}
+
+export function renderStatus(template, m) {
+  const items = m.stages.map(([name, line], i) => {
+    const cls = i + 1 === m.stage ? 'now' : i + 1 < m.stage ? 'past' : 'later';
+    return `<li class="${esc(cls)}"><strong>${esc(i + 1)}. ${esc(name)}</strong>${i + 1 === m.stage ? ' <span class="tag">you are here</span>' : ''}<br><span>${esc(line)}</span></li>`;
+  }).join('\n');
+  const hosts = m.hosts.length ? m.hosts.map((h) => `<tr><td>${esc(h.name)}</td><td>${esc(h.where)}</td><td>${esc(h.since ?? '–')}</td></tr>`).join('\n') : '<tr><td colspan="3">No host is known yet.</td></tr>';
+  const checks = m.checks.length ? m.checks.map((c) => `<li class="${c.ok ? 'ok' : 'bad'}">${c.ok ? 'OK' : 'Failed'}: ${esc(c.text)}</li>`).join('\n') : '<li>Nothing was checked in this run.</li>';
+  const diffs = m.differences.length
+    ? m.differences.map((d) => `<li><a href="https://${esc(d.host)}${esc(d.path)}" title="${esc(d.path)}">${esc(d.host)}${esc(d.path)}</a>: ${esc(d.field)}: ${esc(d.expected)} became ${esc(d.got)}</li>`).join('\n')
+    : '<li>None.</li>';
+  const fill = {
+    title: esc(m.site), updated: esc(m.updated), command: esc(m.command), result: esc(m.result), stages: items, hosts, checks,
+    differences: diffs, next: esc(m.next ?? 'Nothing.'), undo: esc(m.undo),
+  };
+  return template.replace(/\{\{(\w+)\}\}/g, (_, k) => (Object.hasOwn(fill, k) ? fill[k] : ''));
+}
+
+function writeStatus(ctx0, run, io, code, st, errLines) {
+  if (!run.root) return;
+  const here = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
+  let template;
+  try { template = readFileSync(path.join(here, 'move-status.html'), 'utf8'); } catch { return; }
+  const hostsList = st?.hosts ?? run.hosts ?? [];
+  const m = {
+    stages: STAGE_NAMES, stage: stageOf(st, run), site: st ? `${st.zone.name}: ${st.repository}` : (run.site ?? 'a Pages site'), updated: new Date(run.t0).toISOString(),
+    command: `node move-to-workers.mjs ${run.cmd}${run.opts?.confirm ? ' --confirm …' : ''}`,
+    result: code === 0 ? 'finished' : code === 3 ? 'waiting for your yes' : code === 4 ? 'stopped for time or a build: run the same command again' : `stopped: ${(errLines ?? [])[0] ?? 'see the terminal'}`,
+    hosts: hostsList.map((h) => ({ name: h, where: st?.track?.[h]?.where ? WHERE_WORDS[st.track[h].where] ?? st.track[h].where : (run.where?.[h] ?? 'not read in this run'), since: st?.track?.[h]?.leftAt ? `left its platform ${st.track[h].leftAt}` : null })),
+    checks: run.checks, differences: run.diffs.filter((d) => !d.known).slice(0, 50),
+    next: run.next,
+    undo: st?.open && st.direction === 'to-worker' && !st.closed ? 'Undo works until the Pages project is retired: node move-to-workers.mjs undo (then --confirm with its code).' : 'There is nothing to undo yet.',
+  };
+  try { writeFileSync(path.join(run.root, 'move-run', 'status.html'), renderStatus(template, m)); } catch { /* the page is a courtesy; the terminal has the report */ }
+}
+
+// ---------------------------------------------------------------- running it
+
+export async function main(argv, io = {}) {
+  const say = io.say ?? ((...l) => { for (const x of l) process.stdout.write(`${x}\n`); });
+  let opts;
+  try { opts = parseArgs(argv); } catch (e) {
+    if (!(e instanceof UsageError)) throw e;
+    process.stderr.write(`move-to-workers: ${e.message}\n\n${USAGE}`);
+    return 2;
+  }
+  if (opts.help) { say(USAGE); return 0; }
+  const run = { cmd: opts.cmd, opts, checks: [], diffs: [], next: null, t0: (io.now ?? (() => Date.now()))(), release: null, root: null };
+  const ctxBox = {};
+  let code;
+  let errLines = null;
+  try {
+    const ctx = await prepare(opts, io, run);
+    ctxBox.ctx = ctx;
+    run.site = `${ctx.zone.name}: ${ctx.repository}`;
+    run.hosts = ctx.hosts;
+    ctx.say = say;
+    if (opts.cmd !== 'check' && opts.cmd !== 'record') takeLock(ctx.stateDir, run);
+    if (opts.cmd === 'check') code = await cmdCheck(ctx, run);
+    else if (opts.cmd === 'record') code = await cmdRecord(ctx, run);
+    else if (opts.cmd === 'move') code = await switchCommand(ctx, run, 'move');
+    else if (opts.cmd === 'undo') code = await switchCommand(ctx, run, 'undo');
+    else code = await cmdAfter(ctx, run);
+    if (opts.cmd === 'record' && code === 0) run.recorded = true;
+  } catch (e) {
+    if (e instanceof UsageError) { process.stderr.write(`move-to-workers: ${e.message}\n`); code = 2; }
+    else if (e instanceof Deadline) {
+      errLines = ['This run reached its time limit (55 seconds) and stopped.'];
+      say('', `${errLines[0]} What it changed stands; the next run reads what is there and carries on. Run the same command again. Status 4.`);
+      run.next ??= `node move-to-workers.mjs ${opts.cmd}${opts.confirm ? ` --confirm ${opts.confirm}` : ''}`;
+      code = 4;
+    } else if (e instanceof Stop) {
+      errLines = e.lines;
+      say('', ...e.lines.map((l, i) => (i ? l : `Stopped: ${l}`)), `Status ${e.code}.`);
+      code = e.code;
+    } else throw e;
+  } finally {
+    run.release?.();
+  }
+  const ctx = ctxBox.ctx;
+  writeStatus(ctx, run, io, code, ctx?.state ?? null, errLines);
+  if (run.root && code !== 2) say(`Status page: ${path.join(run.root, 'move-run', 'status.html')}`);
+  return code;
+}
+
+const isMain = (() => {
+  try {
+    const argv1 = process.argv[1];
+    if (!argv1) return false;
+    return import.meta.url === pathToFileURL(realpathSync(argv1)).href || path.basename(argv1) === 'move-to-workers.mjs';
+  } catch { return false; }
+})();
+if (isMain) {
+  if (Number(process.versions.node.split('.')[0]) < 18) {
+    process.stderr.write(`move-to-workers needs Node 18 or newer; this is Node ${process.versions.node}.\n`);
+    process.exit(2);
+  }
+  process.exitCode = await main(process.argv.slice(2), {});
+}

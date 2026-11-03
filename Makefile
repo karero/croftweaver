@@ -68,7 +68,7 @@ test-launch-check: ## run the website-launch-check tests, the report-page script
 
 NODE ?= node
 test-cloudflare-check: ## run the tests of the Cloudflare check and of the Cloudflare setup script (Node 18+ and git, standard library only; stub sites, a stub of Cloudflare's API and a stub nameserver on 127.0.0.1, no real requests; one test waits out the setup script's 55-second deadline)
-	@$(NODE) --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs
+	@$(NODE) --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs skills/new-website/scripts/tests/move-to-workers.test.mjs
 
 test-create: ## run the create-croftweaver tests (the `npm create croftweaver` installer; needs node and a git checkout, and on macOS and Linux zip and tar for one test; a stub of the release download on 127.0.0.1, no real requests). Not part of check/package: the handoff zip does not hold packages/
 	@cd packages/create-croftweaver && $(NODE) --test

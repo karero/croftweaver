@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Move to Workers: {{title}}</title>
+<style>
+  :root { --bg: #fbfaf7; --fg: #1d1b16; --muted: #6a665c; --line: #ddd8cc; --ok: #1d6b3a; --bad: #a3271b; --now: #f1ead6; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #16150f; --fg: #f1eee4; --muted: #a09b8c; --line: #3a372c; --ok: #6fcf93; --bad: #ff8d80; --now: #2a2717; } }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 46rem; padding: 1.5rem 16px 3rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+  p, li, td, th { overflow-wrap: anywhere; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  ol, ul { padding-left: 1.2rem; }
+  li { margin: .35rem 0; }
+  li.now { background: var(--now); padding: .4rem .6rem; border-radius: 4px; list-style-position: inside; }
+  li.past span, li.later span { color: var(--muted); }
+  .tag { font-size: .8rem; border: 1px solid var(--line); border-radius: 3px; padding: 0 .3rem; }
+  li.ok { color: var(--ok); }
+  li.bad { color: var(--bad); }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border-bottom: 1px solid var(--line); padding: .35rem .5rem; text-align: left; }
+</style>
+</head>
+<body>
+<h1>Moving {{title}} to Workers</h1>
+<p class="muted">Updated {{updated}}. Last command: <code>{{command}}</code>. Result: {{result}}.</p>
+
+<h2>Where the move stands</h2>
+<ol>
+{{stages}}
+</ol>
+
+<h2>The hosts</h2>
+<table>
+<tr><th>Host</th><th>Now</th><th>Since</th></tr>
+{{hosts}}
+</table>
+
+<h2>What this run checked</h2>
+<ul>
+{{checks}}
+</ul>
+
+<h2>Differences nobody expected</h2>
+<ul>
+{{differences}}
+</ul>
+
+<h2>What to do next</h2>
+<p>{{next}}</p>
+
+<h2>Going back</h2>
+<p>{{undo}}</p>
+</body>
+</html>

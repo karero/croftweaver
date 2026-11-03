@@ -1,0 +1,52 @@
+{
+ "tool": "gh 2.103.3 (gh api repos/<owner>/<repo>/commits/<sha>/check-runs)",
+ "trimmed": "fields the script does not read are cut; ids, commit, account and names are made up",
+ "total_count": 3,
+ "check_runs": [
+  {
+   "id": 9000001,
+   "name": "Workers Builds: lenas-backstube-site",
+   "status": "completed",
+   "conclusion": "success",
+   "head_sha": "0000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "external_id": "e0000001-0000-4000-8000-000000000000",
+   "details_url": "https://dash.cloudflare.com/c0ffee00000000000000000000000023/workers/services/view/lenas-backstube-site/production/builds/e0000001-0000-4000-8000-000000000000",
+   "started_at": "2026-10-30T15:22:25Z",
+   "completed_at": "2026-10-30T15:22:25Z",
+   "app": {
+    "slug": "cloudflare-workers-and-pages",
+    "name": "Cloudflare Workers and Pages"
+   }
+  },
+  {
+   "id": 9000002,
+   "name": "Cloudflare Pages: lenas-bakery-extra",
+   "status": "completed",
+   "conclusion": "success",
+   "head_sha": "0000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "external_id": "e0000002-0000-4000-8000-000000000000",
+   "details_url": "https://dash.cloudflare.com/?to=/c0ffee00000000000000000000000023/pages/view/lenas-backstube/e0000002-0000-4000-8000-000000000000",
+   "started_at": "2026-10-30T15:22:03Z",
+   "completed_at": "2026-10-30T15:22:03Z",
+   "app": {
+    "slug": "cloudflare-workers-and-pages",
+    "name": "Cloudflare Workers and Pages"
+   }
+  },
+  {
+   "id": 9000003,
+   "name": "Cloudflare Pages: lenas-backstube",
+   "status": "completed",
+   "conclusion": "success",
+   "head_sha": "0000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "external_id": "e0000003-0000-4000-8000-000000000000",
+   "details_url": "https://dash.cloudflare.com/?to=/c0ffee00000000000000000000000023/pages/view/lenas-backstube/e0000003-0000-4000-8000-000000000000",
+   "started_at": "2026-10-30T15:21:29Z",
+   "completed_at": "2026-10-30T15:21:29Z",
+   "app": {
+    "slug": "cloudflare-workers-and-pages",
+    "name": "Cloudflare Workers and Pages"
+   }
+  }
+ ]
+}

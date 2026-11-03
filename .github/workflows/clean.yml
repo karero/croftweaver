@@ -467,7 +467,7 @@ jobs:
     # promise, 24 is the one the template pins and a site is built with; Windows runs the same
     # files, since the scripts are started by a path there too. The check's tests make their
     # own certificate with openssl, which bash on the Windows runner has; the setup script's
-    # tests make git repositories, and one of them waits out the script's 55-second deadline.
+    # tests make git repositories, and one of them waits out the script's 55-second deadline; the move script's tests also build a small site with npm.
     strategy:
       fail-fast: false
       matrix:
@@ -483,9 +483,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
-      - name: Run the Cloudflare check's and setup script's tests (stubs on 127.0.0.1, no real requests)
+      - name: Run the Cloudflare check's, setup script's and move script's tests (stubs on 127.0.0.1, no real requests)
         shell: bash
-        run: node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs
+        run: node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs skills/new-website/scripts/tests/move-to-workers.test.mjs
   create-croftweaver-tests:
     # The installer calls no other program, so that it runs in a Windows terminal, where the
     # shell installers need Git Bash or WSL. Only a run on Windows shows that, so it runs on
