@@ -146,9 +146,13 @@ Codex's effort for any run.
    the reviewers (command output, logs, measurements) goes in one file with `--evidence <file>`,
    which sends it as labelled data beside the artifact; never append it to a diff, and it is no
    reason for `--base none`. A read of a system no seat can reach (a GitHub setting, a dashboard,
-   a docs page) goes in that file as a READ: the exact command or URL, the time it ran, and its
-   output verbatim, with entries cut but none edited, never a field a claim rests on, and secrets
-   replaced with made-up values. Send the same file every round its claims are under review; a
+   a docs page, a client app's code in a repository the seats were not given)
+   goes in that file as a READ: the exact command or URL, the time it ran, and its output
+   verbatim, with entries cut but none edited, never a field a claim rests on, and secrets
+   replaced with made-up values. A READ of code quotes each function a claim rests on whole,
+   with its repository's commit, not a line range; a claim that no caller does something also
+   gives the search that found every caller, over every repository a caller can live in.
+   Send the same file every round its claims are under review; a
    quote in the PR text reaches no seat. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
    tracker's status row — after the last round: in a round its sentences draw findings that
