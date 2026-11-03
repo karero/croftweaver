@@ -151,7 +151,7 @@ Codex's effort for any run.
    verbatim, with entries cut but none edited, never a field a claim rests on, and secrets
    replaced with made-up values. A READ of code quotes each function a claim rests on whole,
    with its repository's commit, not a line range; a claim that no caller does something also
-   gives the search that found every caller.
+   gives the search that found every caller, over every repository a caller can live in.
    Send the same file every round its claims are under review; a
    quote in the PR text reaches no seat. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
