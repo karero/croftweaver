@@ -27,7 +27,8 @@
 # npm, curl, sleep and (for two cases) mktemp are stubbed, so it needs no network either. Its
 # case names (S2, S3, …) are the scenarios of the toolkit's plan for that mode
 # (docs/reviews/SKILL-PLAN-ship-from-worktree.md in the website-builder repo). Its P cases check
-# the last line for a *.pages.dev address and for a real domain, in both modes.
+# the last line for a *.pages.dev address and for a real domain, in both modes. Its L cases check
+# the list of commits that go live, before the push.
 #
 # A failing case prints the nested run's output behind "  | ": this file runs inside the
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
@@ -278,7 +279,7 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   if [ "$pushes" != 0 ] && [ "$skip_wording" = 0 ]; then
     local listed="Nothing new goes live"; [ -f "$dir/news" ] && listed="Going live, newest first"
     if ! grep -qF "$listed" "$log"; then
-      echo "✗ ship push gate [$name]: the owner was not told \"$listed\" before the push."; fail=1
+      echo "✗ ship push gate [$name]: the owner was not told \"$listed\"."; fail=1
     fi
   fi
   # Whatever the verdict, git's own words must reach the owner — they are the one
@@ -1485,6 +1486,12 @@ GATE
   want "the rest are counted, with the command that lists them" \
     has "    … and 3 more lines (git log --first-parent ${p0:0:12}..${m:0:12} lists them all)"
   want "no 'commits in all' line for a straight run" lacks "commits in all"
+
+  # --- L2b: one line over the twenty reads "1 more line" -----------------------------------
+  fixture l2b; p0="$(gh production)"; advance 21; m="$(gh main)"
+  run_ship l2b; exits 0
+  want "the one left over is counted in the singular" \
+    has "    … and 1 more line (git log --first-parent ${p0:0:12}..${m:0:12} lists them all)"
 
   # --- L3: production already has this commit ----------------------------------------------
   fixture l3; p0="$(gh production)"

@@ -79,7 +79,8 @@ goes, then what stays.
    - `live_n` over 20: after the 20, `    … and <live_n − 20> more lines (git log
      --first-parent <live_prod, 12 characters>..<id, 12 characters> lists them all)`. Fixed ids,
      not `origin/production`: once the publish lands, the name points at `$id` and the command
-     would list nothing (round 2, Codex).
+     would list nothing (round 2, Codex). With `live_n` 21 it says `1 more line` (build gate,
+     round 1; case L2b).
    - `live_all` differs from `live_n`: last, `    <live_all> commits in all: the merges in this
      range bring in the rest.` ("in this range", not "above": past 20 lines the merges may be among
      those cut.) The number in the header would be wrong for every merged pull request,

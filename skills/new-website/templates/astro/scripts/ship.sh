@@ -563,10 +563,11 @@ if ! git merge-base --is-ancestor origin/production "$id"; then
   exit 1
 fi
 
-# What goes live, listed before anything is made or pushed. production is read once, so the
-# three reads agree. --first-parent shows a merged pull request as one line; the control bytes
-# go, because a commit's subject is its author's and git prints it raw (LC_ALL=C: macOS's tr
-# refuses a byte that is not UTF-8). A failed read stops the run, as the other checks do.
+# What goes live, listed before the worktree is made or anything is pushed. production is read
+# once, so the three reads agree. --first-parent shows a merged pull request as one line; the
+# 7-bit control bytes go, because a commit's subject is its author's and git prints it raw
+# (LC_ALL=C: macOS's tr refuses a byte that is not UTF-8). A failed read stops the run, as the
+# other checks do.
 if live_prod="$(git rev-parse --verify 'origin/production^{commit}')" \
    && live_n="$(git rev-list --count --first-parent "$live_prod..$id")" \
    && live_all="$(git rev-list --count "$live_prod..$id")" \
@@ -590,7 +591,8 @@ else
   echo "Going live, newest first (a merge is one line):"
   while IFS= read -r live_line; do printf '    %s\n' "$live_line"; done <<<"$live_lines"
   if [ "$live_n" -gt 20 ]; then
-    echo "    … and $((live_n - 20)) more lines (git log --first-parent ${live_prod:0:12}..${id:0:12} lists them all)"
+    if [ "$live_n" = 21 ]; then live_word=line; else live_word=lines; fi
+    echo "    … and $((live_n - 20)) more $live_word (git log --first-parent ${live_prod:0:12}..${id:0:12} lists them all)"
   fi
   if [ "$live_all" != "$live_n" ]; then
     echo "    $live_all commits in all: the merges in this range bring in the rest."
