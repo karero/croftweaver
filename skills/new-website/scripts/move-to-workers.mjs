@@ -1347,8 +1347,8 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     run.next = `node move-to-workers.mjs ${dir}`;
     throw new Stop(1, `${drift} Nothing was changed: ${plainAgain}.`);
   }
-  if (drift && !hostsNow.some(([, hs]) => isFresh(hs))) say(`Warning: ${drift} No fresh host is left to change, so the run goes on; after reads the builds again before it compares.`);
   if (waiting && waiting[1].where === 'both') throw new Stop(1, bothWords(waiting[0]));
+  if (drift && !hostsNow.some(([, hs]) => isFresh(hs))) say(`Warning: ${drift} No fresh host is left to start; after reads the builds again before it compares.`);
   if (waiting && ctx.clock.left() < reserve) {
     const spent = Math.round(((ctx.io.runMs ?? RUN_MS) - ctx.clock.left()) / 1000);
     if (isFresh(waiting[1])) {
