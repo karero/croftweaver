@@ -66,7 +66,7 @@ never gives it to a program it starts (the build, `git`).
 | 1 | `check` | Reads only. Says what the move would touch and what is there now, and refuses a site that is not ready (below). |
 | 2 | `record` | Freezes the live branch's tip and builds it apart from your working folder, then records what the live site serves. |
 | 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. |
-| 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote: it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
+| 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote and nothing has changed since step 3 (below): it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
 | 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). If the Worker has no Workers Builds, deploy it as well. |
 | 6 | `after` | Compares the live site with the recording and reports what differs. |
 
@@ -95,19 +95,33 @@ question will not fit a later one: a wrong code asks again and changes nothing.
 | 1 | Something failed or was refused. | Read the report. It says what, and where each host is now. |
 | 2 | The command was wrong. | Fix the command. |
 | 3 | Waiting for a yes. | Ask the User the question in the report. Run `--confirm <code>` only after her yes. |
-| 4 | Not finished. | Run the same command again. At once after a switch that stopped part way; after a minute if the report names a build; in the seconds the report names if it names GitHub's pause (30 seconds at most). A run with too little time left for a host says "in N seconds" while that pause is still running, and "at once" when it is not. |
+| 4 | Not finished. | Run the same command again. At once after a switch that stopped part way, or left a host unstarted for lack of time; after a minute if the report names a build; in the seconds the report names if it names GitHub's pause (30 seconds at most). Only a plain `move`, `undo` or `after` meets that pause: a `--confirm` run reads no GitHub. |
 
-A run lasts at most about a minute. The switch is built for that: a host is started only
-with its changes' longest time left in the run (45 seconds for a zone of up to 100 DNS records; each
-further page of 100 records adds 16 seconds, and a zone whose host could never fit is refused
-before anything changes: move that one by hand). A host that is down comes first; a host that
-does not fit is left for the next run, which stops cleanly, says which hosts have already left their
-platform, and carries on. A run that still has a host to move never sits through GitHub's 30-second
-pause: it stops and names the seconds. The reads before the first host run several at a time. If a change fails, the run stops at once, reads the host back and says
-whether it is on Pages, on the Worker or on neither; **run the same command again at once**,
-because a host on neither is down. Each host is down from the moment it leaves its platform until
-the other serves it: about a minute. 15 minutes is the target, not a promise; past it the report
-says to go back.
+A run lasts at most about a minute. The switch is built for that.
+
+- **The plain `move` or `undo` reads everything once**: every page of the Pages deployments and the
+  check runs of the commits in range. It refuses on an unfinished build. When it passes, it keeps
+  in the state file what it saw: how many deployments there are, the newest one's id, the tips of
+  the branches on GitHub, and the time.
+- **`--confirm` checks that nothing changed since.** It reads page 1 of the deployments and the
+  branch tips (one `git ls-remote`), no check runs, and compares them with the plain run's record.
+  If the count, the newest deployment or a tip differs, or the plain run is more than 15 minutes
+  old, it changes nothing and says to run the plain command again, then confirm. A host that is on
+  neither platform is finished first however old the record is, and the run refuses after it.
+- **A host is started only with its longest time left in the run**: 45 seconds (five requests at
+  their slowest, and some slack). If the run's own reading leaves no room for one host that is
+  still on its platform, the run refuses before any host leaves and says how long the reading
+  took: do that move by hand in the Cloudflare dashboard. A host on neither platform that does not
+  fit ends the run with status 4 at once, and the next run starts it with its whole time; if that
+  repeats, finish it by hand. Any other host that does not fit is left for the next run.
+- **Records are asked for by host name**, one page each, whatever the zone holds. A host with more
+  than 100 records, or an answer holding another name, stops the run: that move is for the dashboard.
+- The reads before the first host run several at a time.
+
+If a change fails, the run stops at once, reads the host back and says whether it is on Pages, on
+the Worker or on neither; **run the same command again at once**, because a host on neither is
+down. Each host is down from the moment it leaves its platform until the other serves it: about a
+minute. 15 minutes is the target, not a promise; past it the report says to go back.
 
 ## After the push
 

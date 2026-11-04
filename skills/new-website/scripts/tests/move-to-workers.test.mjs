@@ -86,7 +86,7 @@ function scenario({ site = makeSite(), world = {}, tokenValue = TOKEN } = {}) {
     const fetchStub = makeFetch(w);
     const io = {
       cwd: site.work, env: { ...gitEnv, CLOUDFLARE_API_TOKEN: tokenValue }, home, apiFetch: fetchStub, siteFetch: fetchStub, useGh: false, pollMs: 0, goodGapMs: 1,
-      sleep: async () => {}, say: (...l) => { out.push(...l); }, ...extra,
+      sleep: yielding, say: (...l) => { out.push(...l); }, ...extra,
     };
     const code = await main(args, io);
     const text = out.join('\n');
@@ -101,6 +101,8 @@ function scenario({ site = makeSite(), world = {}, tokenValue = TOKEN } = {}) {
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// A simulated sleep that lets the event loop turn, so a test's timeout can fire while a run spins.
+const yielding = () => new Promise((r) => setImmediate(r));
 // record runs until the build, which takes longer than a run, has finished.
 async function recordDone(s) {
   for (let i = 0; i < 120; i++) {
@@ -974,8 +976,10 @@ describe('review: partial moves and undo', () => {
     const s = await recorded();
     await moveAll(s);
     const uq = await s.go(['undo']);
-    const stopped = await s.go(['undo', '--confirm', codeOf(uq)], { reserveMs: 10 * 60_000 });
-    assert.equal(stopped.code, 4, stopped.text);
+    s.w.refuse['DELETE /accounts/:id/workers/domains/:x'] = 500; // the first change fails: no host has moved back
+    const stopped = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.equal(stopped.code, 1, stopped.text);
+    delete s.w.refuse['DELETE /accounts/:id/workers/domains/:x'];
     s.w.token.expires_on = new Date(Date.now() + 30 * 60_000).toISOString().replace(/\.\d+Z$/, 'Z');
     const again = await s.go(['undo', '--confirm', codeOf(uq)]);
     assert.equal(again.code, 1, again.text);
@@ -1077,8 +1081,10 @@ describe('review: which way after checks, and what it waits for', () => {
     const s = await recorded();
     await moveAll(s);
     const uq = await s.go(['undo']);
-    const stopped = await s.go(['undo', '--confirm', codeOf(uq)], { reserveMs: 10 * 60_000 });
-    assert.equal(stopped.code, 4, stopped.text);
+    s.w.refuse['DELETE /accounts/:id/workers/domains/:x'] = 500; // the first change fails: every host is still on the Worker
+    const stopped = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.equal(stopped.code, 1, stopped.text);
+    delete s.w.refuse['DELETE /accounts/:id/workers/domains/:x'];
     const fwd = await s.go(['move']); // go forward: every host is still on the Worker
     assert.equal(fwd.code, 3, fwd.text);
     const done = await pushAndAfter(s, git(s.site.work, 'rev-parse', 'HEAD'));
@@ -1191,7 +1197,7 @@ describe('review: comparing', () => {
 // ---------------------------------------------------------------- round 2 of the DIFF review
 
 // A clock the test moves: `sleep` advances it, and nothing else does.
-const mockClock = () => { const c = { t: Date.now(), now: () => c.t, sleep: async (ms) => { c.t += ms; } }; return c; };
+const mockClock = () => { const c = { t: Date.now(), now: () => c.t, sleep: async (ms) => { await yielding(); c.t += ms; } }; return c; };
 // A run that ends in a few seconds of that clock when a host does not serve.
 const shortRun = (c) => ({ now: c.now, sleep: c.sleep, runMs: 4000, goodGapMs: 1000, reserveMs: 100 });
 const frozenClock = () => { const T = Date.now(); return { now: () => T }; };
@@ -1207,9 +1213,17 @@ function ship(s, n) {
   return shipHead(s);
 }
 const dotted = (h) => h.replace(/\./g, '\\.');
+// A confirm run whose first change takes 40 seconds of the run's 55: the host in hand is finished, and
+// the next has not the 20 seconds a host needs here. The hook stays on the stub until deleted.
+function slowFirstHost(s) {
+  let T = Date.now();
+  let jumped = false;
+  s.w.onCall = (key) => { if (!jumped && !key.startsWith('GET')) { jumped = true; T += 40_000; } };
+  return { now: () => T, reserveMs: 20_000 };
+}
 
 describe('review round 2: time', () => {
-  test('B19 and R15: a --confirm run that has a host to move never sits through the GitHub pause: it stops at once and names the seconds', async () => {
+  test('B19 and R15: a quick --confirm run does not meet GitHub\'s pause: it reads none, so it neither waits nor stops', async () => {
     const s = await recorded();
     const c = mockClock();
     const io = { pollMs: 30_000, now: c.now, sleep: c.sleep };
@@ -1218,19 +1232,8 @@ describe('review round 2: time', () => {
     c.t += 1_000; // a quick yes
     const t0 = c.t;
     const quick = await s.go(['move', '--confirm', codeOf(q)], io);
-    assert.equal(quick.code, 4, quick.text);
-    assert.match(quick.text, /again in 29 seconds/);
-    assert.equal(c.t, t0, 'it did not sit through the pause');
-    assert.ok(!s.w.calls.some((x) => x.method !== 'GET'), 'nothing on Cloudflare changed');
-    c.t += 24_000; // 25 seconds after the last read: a run that can still move a host does not sit through even 5 seconds (R15)
-    const t1 = c.t;
-    const short = await s.go(['move', '--confirm', codeOf(q)], io);
-    assert.equal(short.code, 4, short.text);
-    assert.match(short.text, /again in 5 seconds/);
-    assert.equal(c.t, t1, 'no sleeping in a confirm run');
-    c.t += 5_000;
-    const fits = await s.go(['move', '--confirm', codeOf(q)], io);
-    assert.equal(fits.code, 0, fits.text);
+    assert.equal(quick.code, 0, quick.text);
+    assert.ok(c.t - t0 < 5_000, `it waited ${(c.t - t0) / 1000} seconds`);
     assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS);
   });
 
@@ -1242,18 +1245,6 @@ describe('review round 2: time', () => {
     c.t += 30_000;
     const go = await s.go(['move', '--confirm', codeOf(q)], io);
     assert.equal(go.code, 0, go.text);
-  });
-
-  test('R13: a host starts only if its five requests at their longest and some slack fit in the time left', async () => {
-    const s = await recorded();
-    const c = mockClock();
-    const q = await s.go(['move'], { now: c.now });
-    const tight = await s.go(['move', '--confirm', codeOf(q)], { now: c.now, runMs: 44_000, reserveMs: 45_000 });
-    assert.equal(tight.code, 4, tight.text);
-    assert.match(tight.text, /needs 45 seconds/);
-    assert.equal(s.w.workerDomains.length, 0, 'no host was started');
-    const roomy = await s.go(['move', '--confirm', codeOf(q)], { now: c.now, runMs: 46_000, reserveMs: 45_000 });
-    assert.equal(roomy.code, 0, roomy.text);
   });
 });
 
@@ -1306,10 +1297,10 @@ describe('review round 2: serving, the way a host is counted, the tracks', () =>
     const bad = await s.go(['move', '--confirm', codeOf(q)]);
     assert.equal(bad.code, 1, bad.text);
     delete s.w.refuse['PUT /accounts/:id/workers/domains'];
-    s.w.checkRuns[s.site.frozen] = unfinishedWorkersRun(s.site.frozen);
+    writeFileSync(path.join(s.site.work, 'site', 'index.html'), '<h1>edited</h1>'); // a dirty tree stops the run before the switch
     const held = await s.go(['move', '--confirm', codeOf(q)]);
     assert.equal(held.code, 1, held.text);
-    assert.match(held.text, /Workers Builds is building/);
+    assert.match(held.text, /working tree has changes/);
     assert.ok(held.text.includes(`${HOSTS[0]} has left Pages; last read: on neither`), held.text);
   });
 
@@ -1450,8 +1441,9 @@ describe('review round 2: the route commit and which way after checks', () => {
     const s = await recorded();
     await moveAll(s);
     const uq = await s.go(['undo']);
-    const stopped = await s.go(['undo', '--confirm', codeOf(uq)], { reserveMs: 10 * 60_000 });
-    assert.equal(stopped.code, 4, stopped.text);
+    s.w.refuse['DELETE /accounts/:id/workers/domains/:x'] = 500;
+    const stopped = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.equal(stopped.code, 1, stopped.text);
     assert.ok(!statusPage(s).includes('There is nothing to undo yet'));
     assert.match(statusPage(s), /move\s+goes forward/);
   });
@@ -1471,26 +1463,29 @@ describe('review round 2: check and GitHub', () => {
 
 // ---------------------------------------------------------------- round 3 of the DIFF review
 
-// T1: the stub's clock moves with every request, so the run's 55 seconds are spent as they are on a
-// real network. A scenario must reach its end in a few runs, and no host may stay down for two runs.
-const LATENCY_MS = 600;
-function lagging(s, c) {
-  s.w.latency = { clock: c, ms: LATENCY_MS };
+// T2 (replaces T1): the stub's clock moves with every request, so the run's 55 seconds are spent as
+// they are on a real network. A scenario must reach its end in few runs, and no host may stay down
+// for two runs in a row.
+function lagging(s, c, ms) {
+  s.w.latency = { clock: c, ms };
   const lagRun = async (cmd, args, o) => { // a git command that goes to the network takes as long as a request
     if (cmd === 'git' && args[0] === 'ls-remote') await spend(s.w.latency);
     return runProgram(cmd, args, o);
   };
   return { now: c.now, sleep: c.sleep, pollMs: 30_000, run: lagRun };
 }
-const manyDeployments = (s, n) => { s.w.pagesDeployments = Array.from({ length: n }, () => deployment('built', { commit: s.site.frozen })); };
+const manyDeployments = (s, n) => { s.w.pagesDeployments = Array.from({ length: n }, (_, i) => ({ ...deployment('built', { commit: s.site.frozen }), id: `d${String(i).padStart(7, '0')}-0000-4000-8000-000000000000` })); };
 // Runs a command as a person would: again whenever it says so, after the wait it names.
-async function drive(s, c, args, max = 6) {
-  const io = lagging(s, c);
+async function drive(s, c, args, ms, max = 6) {
+  const io = lagging(s, c, ms);
   const runs = [];
   for (let i = 0; i < max; i++) {
     const t0 = c.t;
+    let firstChange = null;
+    s.w.onCall = (key) => { if (firstChange === null && !key.startsWith('GET')) firstChange = c.t - t0; };
     const r = await s.go(args, io);
-    runs.push({ code: r.code, took: c.t - t0, down: HOSTS.filter((h) => platformOf(s.w, h) === null), text: r.text });
+    delete s.w.onCall;
+    runs.push({ code: r.code, took: c.t - t0, setup: firstChange, down: HOSTS.filter((h) => platformOf(s.w, h) === null), text: r.text });
     if (r.code !== 4) return { runs, last: r };
     c.t += 1000 * Number(/in (\d+) seconds/.exec(r.text)?.[1] ?? 1);
   }
@@ -1506,74 +1501,51 @@ function finishes(d, atMost) {
   });
 }
 
-describe('review round 3: the run budget under a request latency', () => {
-  test('T1: a first move of apex and www finishes with 300 Pages deployments', async () => {
-    const s = await recorded();
-    manyDeployments(s, 300);
-    const c = mockClock();
-    const q = await s.go(['move'], lagging(s, c));
-    assert.equal(q.code, 3, q.text);
-    c.t += 40_000; // the person reads the question and answers
-    const d = await drive(s, c, ['move', '--confirm', codeOf(q)]);
-    finishes(d, 3);
-    assert.deepEqual(s.w.workerDomains.map((x) => x.hostname).sort(), HOSTS);
-  });
+for (const ms of [600, 1500]) {
+  describe(`review round 4: the run budget, ${ms} ms a request`, () => {
+    test('T2: a first move of apex and www takes at most one confirm run per host, with 300 Pages deployments', async () => {
+      const s = await recorded();
+      manyDeployments(s, 300);
+      const c = mockClock();
+      const q = await s.go(['move'], lagging(s, c, ms));
+      assert.equal(q.code, 3, q.text);
+      c.t += 40_000; // the person reads the question and answers
+      const d = await drive(s, c, ['move', '--confirm', codeOf(q)], ms);
+      finishes(d, 2);
+      assert.deepEqual(s.w.workerDomains.map((x) => x.hostname).sort(), HOSTS);
+    });
 
-  test('T1: a move resumed after a stopped host finishes with 300 Pages deployments', async () => {
-    const { s } = await halfMoved();
-    manyDeployments(s, 300);
-    const c = mockClock();
-    const q = await s.go(['move'], lagging(s, c));
-    assert.equal(q.code, 3, q.text);
-    c.t += 40_000;
-    const d = await drive(s, c, ['move', '--confirm', codeOf(q)]);
-    finishes(d, 2);
-    assert.deepEqual(s.w.workerDomains.map((x) => x.hostname).sort(), HOSTS);
-  });
+    test('T2: a move resumed after a stopped host takes one confirm run, with 300 Pages deployments', async () => {
+      const { s } = await halfMoved();
+      manyDeployments(s, 300);
+      const c = mockClock();
+      const q = await s.go(['move'], lagging(s, c, ms));
+      assert.equal(q.code, 3, q.text);
+      c.t += 40_000;
+      const d = await drive(s, c, ['move', '--confirm', codeOf(q)], ms);
+      finishes(d, 1);
+      assert.deepEqual(s.w.workerDomains.map((x) => x.hostname).sort(), HOSTS);
+    });
 
-  test('T1: an undo after a passed move and 20 shipped commits finishes with 300 Pages deployments', async () => {
-    const s = await recorded();
-    const route = await moveAll(s);
-    assert.equal((await pushAndAfter(s, route)).code, 0);
-    ship(s, 20);
-    manyDeployments(s, 300);
-    const c = mockClock();
-    const q = await s.go(['undo'], lagging(s, c));
-    assert.equal(q.code, 3, q.text);
-    c.t += 40_000;
-    const d = await drive(s, c, ['undo', '--confirm', codeOf(q)]);
-    finishes(d, 3);
-    assert.equal(s.w.workerDomains.length, 0);
+    test('T2: an undo after a passed move and 20 shipped commits takes at most one confirm run per host, with 300 Pages deployments', async () => {
+      const s = await recorded();
+      const route = await moveAll(s);
+      assert.equal((await pushAndAfter(s, route)).code, 0);
+      ship(s, 20);
+      manyDeployments(s, 300);
+      const c = mockClock();
+      const q = await s.go(['undo'], lagging(s, c, ms));
+      assert.equal(q.code, 3, q.text);
+      c.t += 40_000;
+      const d = await drive(s, c, ['undo', '--confirm', codeOf(q)], ms);
+      finishes(d, 2);
+      assert.equal(s.w.workerDomains.length, 0);
+    });
   });
-});
+}
 
 describe('review round 3: the reserve and the pause', () => {
-  const manyRecords = (s, n) => { for (let i = 0; i < n; i++) s.w.dns.push({ id: `b${String(i).padStart(31, '0')}`, type: 'TXT', name: `t${i}.${ZONE.name}`, content: 'v=x', ttl: 3600 }); };
-
-  test('R14: a zone whose record list takes two pages in every read-back cannot be moved in a run, and is refused before anything changes', async () => {
-    const s = await recorded();
-    manyRecords(s, 150);
-    const head = git(s.site.work, 'rev-parse', 'HEAD');
-    const r = await s.go(['move']);
-    assert.equal(r.code, 1, r.text);
-    assert.match(r.text, /2 pages/);
-    assert.match(r.text, /by hand/);
-    assert.ok(!s.w.calls.some((x) => x.method !== 'GET'), 'nothing on Cloudflare changed');
-    assert.equal(git(s.site.work, 'rev-parse', 'HEAD'), head, 'and no commit was written');
-    const one = await recorded();
-    manyRecords(one, 96); // 100 records: one page
-    assert.equal((await one.go(['move'])).code, 3);
-  });
-
-  test('R14: the reserve grows by a page of records for each read-back, so a run only just long enough for one page is refused for two', async () => {
-    const s = await recorded();
-    manyRecords(s, 150);
-    const T = Date.now();
-    assert.equal((await s.go(['move'], { now: () => T, runMs: 62_000 })).code, 1, 'the reserve is 61 seconds');
-    assert.equal((await s.go(['move'], { now: () => T, runMs: 70_000 })).code, 3);
-  });
-
-  test('R15: a plain run still sits through the pause; only a run that has a host to move does not', async () => {
+  test('R15: a plain run still sits through the pause', async () => {
     const s = await recorded();
     const c = mockClock();
     const io = { pollMs: 30_000, now: c.now, sleep: c.sleep };
@@ -1584,32 +1556,17 @@ describe('review round 3: the reserve and the pause', () => {
     assert.ok(c.t - t0 >= 28_000, 'the second plain run waited out the pause');
   });
 
-  test('N16: a run that lacks the time for a host says when the next run may start: in the seconds of GitHub\'s pause', async () => {
+  test('N16: a run that has no time left for the second host says "at once", and the very next run finishes it', async () => {
     const s = await recorded();
-    const c = mockClock();
-    const io = { pollMs: 30_000, now: c.now, sleep: c.sleep };
-    const q = await s.go(['move'], io);
-    c.t += 40_000;
-    const r = await s.go(['move', '--confirm', codeOf(q)], { ...io, reserveMs: 100_000 });
-    assert.equal(r.code, 4, r.text);
-    assert.match(r.text, /Run the same command again in 30 seconds/);
-    const quiet = await s.go(['move', '--confirm', codeOf(q)], { now: c.now, sleep: c.sleep, pollMs: 0, reserveMs: 100_000 });
-    assert.match(quiet.text, /Run the same command again at once/);
-  });
-
-  test('B27: a host on neither platform is finished before a fresh host that does not fit; the run then ends asking for another', async () => {
-    const { s } = await halfMoved(); // apex on the Worker, www on Pages
-    s.w.workerDomains = []; // put the apex back on Pages, and take www off both: it is down
-    s.w.project.domains = [HOSTS[0]];
-    s.w.dns = s.w.dns.filter((r) => !(r.type === 'CNAME' && r.name === HOSTS[1]));
-    s.w.dns.push({ id: 'a'.padEnd(32, '7'), type: 'CNAME', name: HOSTS[0], content: SUBDOMAIN, proxied: true, ttl: 1 });
     const q = await s.go(['move']);
-    assert.equal(q.code, 3, q.text);
-    const r = await s.go(['move', '--confirm', codeOf(q)], { reserveMs: 100_000 }); // no fresh host fits
+    const r = await s.go(['move', '--confirm', codeOf(q)], slowFirstHost(s));
     assert.equal(r.code, 4, r.text);
-    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname), [HOSTS[1]], 'the down host was attached');
-    assert.ok(s.w.project.domains.includes(HOSTS[0]), 'the fresh host was left alone');
-    assert.match(r.text, /Not enough of this run is left to move lenas-backstube\.example/);
+    assert.match(r.text, /Run the same command again at once/);
+    assert.equal(s.w.workerDomains.length, 1, 'one host moved');
+    delete s.w.onCall;
+    const next = await s.go(['move', '--confirm', codeOf(q)]);
+    assert.equal(next.code, 0, next.text);
+    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS);
   });
 });
 
@@ -1677,7 +1634,7 @@ describe('review round 3: what a stopped run says, and the probe', () => {
     live.w.workerDomains = live.w.workerDomains.filter((d) => d.hostname !== HOSTS[1]); // taken off by hand
     const a = await live.go(['after']);
     assert.equal(a.code, 1, a.text); // the commit is not pushed, but the run read the hosts first
-    assert.ok(a.text.includes(`${HOSTS[1]} is on neither platform`), a.text);
+    assert.ok(a.text.includes(`${HOSTS[1]} has left Pages; last read: on neither`), a.text);
     assert.ok(!new RegExp(`^${dotted(HOSTS[0])} is on neither`, 'm').test(a.text), a.text);
   });
 
@@ -1717,5 +1674,287 @@ describe('review round 3: what a stopped run says, and the probe', () => {
     s.w.wwwRedirect = { ...s.w.wwwRedirect, query: 't=7' }; // the recorded one again
     const again = await s.go(['move', '--confirm', codeOf(q)], shortRun(c));
     assert.equal(again.code, 0, again.text);
+  });
+});
+
+// ---------------------------------------------------------------- round 4 of the DIFF review
+
+const changes = (s) => s.w.calls.filter((x) => x.method !== 'GET');
+const dnsReads = (s) => s.w.calls.filter((x) => x.method === 'GET' && x.path.endsWith('/dns_records'));
+const someDeployments = (s, n = 3) => manyDeployments(s, n);
+const countLsRemote = (counter) => async (cmd, args, o) => { if (cmd === 'git' && args[0] === 'ls-remote') counter.n++; return runProgram(cmd, args, o); };
+// apex back on Pages, www on neither platform: down
+function wwwDown(s) {
+  s.w.workerDomains = [];
+  s.w.project.domains = [HOSTS[0]];
+  s.w.dns = s.w.dns.filter((r) => !(r.type === 'CNAME' && r.name === HOSTS[1]));
+  s.w.dns.push({ id: 'a'.padEnd(32, '7'), type: 'CNAME', name: HOSTS[0], content: SUBDOMAIN, proxied: true, ttl: 1 });
+}
+
+describe('review round 4: what a --confirm run reads, and what it compares (A1, A2)', () => {
+  test('A1: the plain run saves what it checked: the deployments\' total and newest, the branch tips, the time and the command', async () => {
+    const s = await recorded();
+    manyDeployments(s, 300);
+    const T = Date.now();
+    assert.equal((await s.go(['move'], { now: () => T })).code, 3);
+    const k = s.state().checked;
+    assert.equal(k.kind, 'move');
+    assert.equal(k.total, 300);
+    assert.equal(k.newest, 'd0000000-0000-4000-8000-000000000000');
+    assert.equal(k.tip, s.site.frozen);
+    assert.equal(k.main, s.site.frozen);
+    assert.equal(k.at, T);
+  });
+
+  test('A2: a --confirm run reads page 1 of the deployments and nothing else of GitHub or Pages history: one ls-remote, no check run, no second page', async () => {
+    const s = await recorded();
+    manyDeployments(s, 300);
+    const q = await s.go(['move']);
+    s.w.calls.length = 0;
+    s.w.siteCalls.length = 0;
+    const ls = { n: 0 };
+    const g = await s.go(['move', '--confirm', codeOf(q)], { run: countLsRemote(ls) });
+    assert.equal(g.code, 0, g.text);
+    const dep = s.w.calls.filter((x) => x.method === 'GET' && x.path.endsWith('/deployments') && x.path.includes('/pages/'));
+    assert.equal(dep.length, 1, 'one read of the deployments');
+    assert.equal(dep[0].query, '?page=1');
+    assert.equal(s.w.siteCalls.filter((u) => u.includes('api.github.com')).length, 0, 'no GitHub request');
+    assert.equal(ls.n, 1, 'one ls-remote');
+  });
+
+  const refused = async (s, q, io = {}) => {
+    const g = await s.go(['move', '--confirm', codeOf(q)], io);
+    assert.equal(g.code, 1, g.text);
+    assert.match(g.text, /run the plain command again/);
+    assert.equal(changes(s).length, 0, 'nothing on Cloudflare changed');
+    assert.ok(!s.state().open, 'and the move was not opened');
+    return g;
+  };
+
+  test('A2: a deployment that arrived since the plain run (the total differs) is refused', async () => {
+    const s = await recorded();
+    someDeployments(s);
+    const q = await s.go(['move']);
+    s.w.pagesDeployments.push(deployment('built', { commit: s.site.frozen }));
+    assert.match((await refused(s, q)).text, /deployments/);
+  });
+
+  test('A2: a deployment swapped for another (the newest id differs, the total does not) is refused', async () => {
+    const s = await recorded();
+    someDeployments(s);
+    const q = await s.go(['move']);
+    s.w.pagesDeployments[0].id = 'eeeeeeee-0000-4000-8000-000000000000';
+    assert.match((await refused(s, q)).text, /newest/);
+  });
+
+  test('A2: a push to the branch since the plain run (the tip differs) is refused', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    const q = await s.go(['undo']);
+    assert.equal(q.code, 3, q.text);
+    s.push(); // the undo commit goes up before the yes
+    s.w.calls.length = 0;
+    const g = await s.go(['undo', '--confirm', codeOf(q)]);
+    assert.equal(g.code, 1, g.text);
+    assert.match(g.text, /run the plain command again/);
+    assert.match(g.text, /branch/);
+    assert.equal(changes(s).length, 0, 'nothing on Cloudflare changed');
+  });
+
+  test('A2: a plain run more than 15 minutes old is refused', async () => {
+    const s = await recorded();
+    const c = mockClock();
+    const q = await s.go(['move'], { now: c.now });
+    c.t += 14 * 60_000;
+    const near = await s.go(['move', '--confirm', codeOf(q)], { now: c.now, runMs: 55_000 });
+    assert.equal(near.code, 0, near.text);
+    const s2 = await recorded();
+    const c2 = mockClock();
+    const q2 = await s2.go(['move'], { now: c2.now });
+    c2.t += 16 * 60_000;
+    assert.match((await refused(s2, q2, { now: c2.now })).text, /15 minutes/);
+  });
+
+  test('A2: a host on neither platform is finished first, however old the plain run is; the run refuses after it', async () => {
+    const { s } = await halfMoved();
+    wwwDown(s);
+    const c = mockClock();
+    const q = await s.go(['move'], { now: c.now });
+    assert.equal(q.code, 3, q.text);
+    c.t += 20 * 60_000;
+    const g = await s.go(['move', '--confirm', codeOf(q)], { now: c.now });
+    assert.equal(g.code, 1, g.text);
+    assert.match(g.text, /run the plain command again/);
+    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname), [HOSTS[1]], 'the down host was attached');
+    assert.ok(s.w.project.domains.includes(HOSTS[0]), 'the fresh host was left alone');
+  });
+});
+
+describe('review round 4: the time a host needs (A3, A4, A5)', () => {
+  test('A3: every read of a host\'s records asks for that host by name, so a long zone costs nothing', async () => {
+    const s = await recorded();
+    for (let i = 0; i < 150; i++) s.w.dns.push({ id: `b${String(i).padStart(31, '0')}`, type: 'TXT', name: `t${i}.${ZONE.name}`, content: 'v=x', ttl: 3600 });
+    const q = await s.go(['move']);
+    assert.equal(q.code, 3, q.text);
+    const g = await s.go(['move', '--confirm', codeOf(q)]);
+    assert.equal(g.code, 0, g.text);
+    const reads = dnsReads(s);
+    assert.ok(reads.length >= 4, 'the zone was read');
+    for (const r of reads) assert.match(r.query, /[?&]name=(lenas-backstube\.example|www\.lenas-backstube\.example)(&|$)/, `a zone-wide read: ${r.query}`);
+    assert.ok(reads.every((r) => !/page=2/.test(r.query)), 'one page each');
+  });
+
+  test('A3: an answer that holds records of other names is not trusted: the filter may be ignored, and the run stops', async () => {
+    const s = await recorded();
+    for (let i = 0; i < 150; i++) s.w.dns.push({ id: `b${String(i).padStart(31, '0')}`, type: 'TXT', name: `t${i}.${ZONE.name}`, content: 'v=x', ttl: 3600 });
+    s.w.dnsIgnoresName = true;
+    const r = await s.go(['move']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /name/);
+  });
+
+  test('A3: the gate lets a host\'s records be asked for by name, and nobody else\'s', () => {
+    const c = CTX();
+    assert.doesNotThrow(() => gate('GET', `${Z}/dns_records?name=${HOSTS[0]}&per_page=100&page=1`, undefined, c));
+    const nope = (p) => assert.throws(() => gate('GET', p, undefined, c), (e) => e instanceof Stop && /gate: refused/.test(e.message), p);
+    nope(`${Z}/dns_records?name=mail.${ZONE.name}&page=1`);
+    nope(`${Z}/dns_records?name=${HOSTS[0]}&type=TXT`);
+    nope(`${Z}/dns_records?name=${HOSTS[0]}&name=${HOSTS[1]}x`);
+  });
+
+  test('A4: a run whose own reading leaves no room for one host refuses before any host leaves, and says what took the time', async () => {
+    const s = await recorded();
+    someDeployments(s);
+    const q = await s.go(['move'], { runMs: 600_000 });
+    assert.equal(q.code, 3, q.text);
+    const c = mockClock();
+    const slow = { ...lagging(s, c, 6000), requestMs: 8000 }; // six reads, one after the other, at six seconds each
+    const r = await s.go(['move', '--confirm', codeOf(q)], slow);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /reading what the move needs took \d+ seconds of this run's 55/i);
+    assert.match(r.text, /a host needs 45 seconds/);
+    assert.match(r.text, /by hand/);
+    assert.equal(changes(s).length, 0, 'no host left');
+    assert.ok(!s.state().open, 'and the move was not opened');
+  });
+
+  test('A4: the same run with room for one host goes ahead', async () => {
+    const s = await recorded();
+    const T = Date.now();
+    const q = await s.go(['move'], { now: () => T });
+    const tight = await s.go(['move', '--confirm', codeOf(q)], { now: () => T, runMs: 44_000, reserveMs: 45_000 });
+    assert.equal(tight.code, 1, tight.text);
+    assert.equal(s.w.workerDomains.length, 0, 'no host was started');
+    const roomy = await s.go(['move', '--confirm', codeOf(q)], { now: () => T, runMs: 46_000, reserveMs: 45_000 });
+    assert.equal(roomy.code, 0, roomy.text);
+  });
+
+  test('A5: a host on neither platform that does not fit the time left ends the run at once with exit 4, naming what to do if it repeats', async () => {
+    const { s } = await halfMoved();
+    wwwDown(s);
+    const q = await s.go(['move']);
+    assert.equal(q.code, 3, q.text);
+    const r = await s.go(['move', '--confirm', codeOf(q)], { reserveMs: 100_000 });
+    assert.equal(r.code, 4, r.text);
+    assert.match(r.text, /Run the same command again at once/);
+    assert.match(r.text, /by hand/);
+    assert.equal(s.w.workerDomains.length, 0, 'nothing was attached: the next run starts it with its whole time');
+  });
+
+  test('A5 and B27: a host on neither platform is finished first; a fresh host that does not fit after it waits for the next run', async () => {
+    const { s } = await halfMoved();
+    wwwDown(s);
+    const q = await s.go(['move']);
+    let T = Date.now();
+    s.w.onCall = (key) => { if (key === 'PUT /accounts/:id/workers/domains') T += 40_000; }; // the down host's attach takes long
+    const r = await s.go(['move', '--confirm', codeOf(q)], { now: () => T, reserveMs: 20_000 });
+    assert.equal(r.code, 4, r.text);
+    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname), [HOSTS[1]], 'the down host was attached');
+    assert.ok(s.w.project.domains.includes(HOSTS[0]), 'the fresh host was left alone');
+    assert.match(r.text, /Not enough of this run is left to move lenas-backstube\.example/);
+  });
+
+  test('B33: a --confirm run whose only host to finish is on neither platform does not sit through GitHub\'s pause', async () => {
+    const { s } = await halfMoved(); // the apex is on the Worker
+    s.w.project.domains = [];
+    s.w.dns = s.w.dns.filter((r) => !(r.type === 'CNAME' && r.name === HOSTS[1])); // www is on neither
+    const c = mockClock();
+    const io = { pollMs: 30_000, now: c.now, sleep: c.sleep };
+    const q = await s.go(['move'], io);
+    assert.equal(q.code, 3, q.text);
+    c.t += 1_000;
+    const t0 = c.t;
+    const g = await s.go(['move', '--confirm', codeOf(q)], io);
+    assert.equal(g.code, 0, g.text);
+    assert.ok(c.t - t0 < 5_000, `the run waited ${(c.t - t0) / 1000} seconds`);
+    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS);
+  });
+});
+
+describe('review round 4: lists, stopped runs, the test clock and the stage', () => {
+  test('B36: a page that holds fewer items than it should, and is not empty, stops the run', async () => {
+    const s = await recorded();
+    manyDeployments(s, 100);
+    s.w.depShort = { page: 2, size: 10 };
+    const r = await s.go(['move']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /does not decide from part of a list/);
+    assert.equal(s.state().asked, undefined, 'and no question was asked');
+  });
+
+  test('B36: a list that grows while it is read stops the run', async () => {
+    const s = await recorded();
+    manyDeployments(s, 100);
+    let n = 0;
+    s.w.onCall = (key) => { if (key.includes('/pages/projects/') && key.endsWith('/deployments') && ++n === 2) s.w.pagesDeployments.unshift(deployment('built', { commit: s.site.frozen })); };
+    const r = await s.go(['move']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /does not decide from part of a list/);
+  });
+
+  test('B34: this run\'s read of a host on neither wins over an older saved "on Pages"', async () => {
+    const { s } = await halfMoved();
+    const st = s.state();
+    st.track.move[HOSTS[1]] = { leftAt: new Date().toISOString(), where: 'pages' }; // the older read
+    writeFileSync(s.stateFile(), JSON.stringify(st));
+    s.w.project.domains = [HOSTS[0]]; // www has since gone from Pages and is not on the Worker
+    s.w.dns = s.w.dns.filter((r) => !(r.type === 'CNAME' && r.name === HOSTS[1]));
+    writeFileSync(path.join(s.site.work, 'site', 'index.html'), '<h1>edited</h1>'); // a dirty tree stops the run after its read
+    const r = await s.go(['move']);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes(`${HOSTS[1]} has left Pages; last read: on neither`), r.text);
+    assert.ok(!r.text.includes('last read: on Pages'), r.text);
+    assert.match(statusPage(s), /on neither \(down\)/);
+  });
+
+  test('B35: a run that spins on a frozen clock lets a 20 ms timer fire', async () => {
+    const s = await recorded();
+    const T = Date.now();
+    const q = await s.go(['move'], { now: () => T });
+    const real = s.w.workerCommit;
+    s.w.workerCommit = 'f'.repeat(40); // the Worker never serves a commit the script knows
+    const timer = new Promise((r) => setTimeout(() => r('timer'), 20));
+    const run = s.go(['move', '--confirm', codeOf(q)], { now: () => T });
+    const first = await Promise.race([run, timer]);
+    s.w.workerCommit = real; // let the spinning run end
+    assert.equal(first, 'timer', 'the run came back before the timer could fire, or the timer never did');
+    assert.equal((await run).code, 0);
+  });
+
+  test('N20: a go-forward that writes no new route commit does not show "after passed"', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    assert.equal(nowStage(s), '5');
+    const T = Date.now();
+    const q = await s.go(['undo'], { now: () => T });
+    assert.equal((await s.go(['undo', '--confirm', codeOf(q)], { now: () => T })).code, 0);
+    git(s.site.work, 'reset', '-q', '--hard', route); // the route commit is HEAD again: no new commit is written
+    const m = await s.go(['move'], { now: () => T });
+    assert.equal(m.code, 3, m.text);
+    const g = await s.go(['move', '--confirm', codeOf(m)], { now: () => T });
+    assert.equal(g.code, 0, g.text);
+    assert.equal(nowStage(s), '3', 'the hosts moved again and have not been checked');
   });
 });

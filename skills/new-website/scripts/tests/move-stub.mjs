@@ -175,7 +175,7 @@ const keyOf = (method, p) => `${method} ${p.replace(/[0-9a-f]{32}/g, ':id').repl
 
 function cloudflare(w, method, u, body) {
   const p = u.pathname.replace(/^\/client\/v4/, '');
-  w.calls.push({ method, path: p, body });
+  w.calls.push({ method, path: p, body, query: u.search });
   const key = keyOf(method, p);
   w.onCall?.(key); // a test's hook: change the world, or the clock, when this call arrives
   if (w.refuse[key]) return cfFail(w.refuse[key], w.refuseMessage ?? 'MADE: refused by the test');
@@ -192,8 +192,10 @@ function cloudflare(w, method, u, body) {
   if (method === 'GET' && p === `${Z}/dns_records`) { // pages of `per_page` records, as Cloudflare's list has them
     const size = Math.min(100, Number(u.searchParams.get('per_page') ?? 100));
     const n = Number(u.searchParams.get('page') ?? 1);
-    const items = copy(w.dns).slice((n - 1) * size, n * size);
-    return cf(items, { result_info: { page: n, per_page: size, count: items.length, total_count: w.dns.length, total_pages: Math.max(1, Math.ceil(w.dns.length / size)) } });
+    const named = u.searchParams.get('name');
+    const all = named && !w.dnsIgnoresName ? w.dns.filter((r) => r.name === named) : w.dns; // `dnsIgnoresName`: a filter the API does not know
+    const items = copy(all).slice((n - 1) * size, n * size);
+    return cf(items, { result_info: { page: n, per_page: size, count: items.length, total_count: all.length, total_pages: Math.max(1, Math.ceil(all.length / size)) } });
   }
   if (method === 'POST' && p === `${Z}/dns_records`) {
     const r = { id: `f${String(100 + w.nextId++).padStart(31, '0')}`, ...body };
@@ -208,7 +210,8 @@ function cloudflare(w, method, u, body) {
   if (method === 'GET' && p === `${A}/pages/projects/${REPO}/deployments`) {
     const size = Math.min(100, Number(u.searchParams.get('per_page') ?? w.depDefaultPage ?? 25));
     const n = Number(u.searchParams.get('page') ?? 1);
-    const items = w.depEmptyAfterFirst && n > 1 ? [] : copy(w.pagesDeployments).slice((n - 1) * size, n * size); // a later page may come back empty
+    const cut = w.depShort && n === w.depShort.page ? w.depShort.size : size; // a page that holds fewer than it should, and is not empty
+    const items = w.depEmptyAfterFirst && n > 1 ? [] : copy(w.pagesDeployments).slice((n - 1) * size, (n - 1) * size + cut); // a later page may come back empty
     return cf(items, { result_info: { page: n, per_page: size, count: items.length, total_count: w.pagesDeployments.length, total_pages: Math.max(1, Math.ceil(w.pagesDeployments.length / size)) } });
   }
   if (method === 'POST' && p === `${A}/pages/projects/${REPO}/domains`) { w.project.domains.push(body.name); return cf({ name: body.name, status: 'initializing' }); }

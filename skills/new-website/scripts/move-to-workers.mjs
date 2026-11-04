@@ -94,6 +94,10 @@ export function gate(method, url, body, ctx) {
   const refuse = (why) => { throw new Stop(1, `gate: refused ${method} ${route}${why ? ` (${why})` : ''}`); };
   if (/\.\.|%|\\|\/\/|[^\x21-\x7e]/.test(url)) refuse('odd path');
   const paged = /^(?:(?:page|per_page)=\d{1,4})?(?:&(?:page|per_page)=\d{1,4})*$/.test(query.replace(/^&/, ''));
+  // A host's own records: name=<a host of this move>, with the page words and nothing else.
+  const pairs = query.split('&');
+  const byHost = pairs.some((q) => q.startsWith('name='))
+    && pairs.every((q) => /^(?:page|per_page)=\d{1,4}$/.test(q) || (q.startsWith('name=') && (ctx.hosts ?? new Set()).has(q.slice(5))));
   const A = ctx.accountId ? `/accounts/${ctx.accountId}` : null;
   const Z = ctx.zoneId ? `/zones/${ctx.zoneId}` : null;
   const P = A && ctx.project ? `${A}/pages/projects/${ctx.project}` : null;
@@ -103,7 +107,7 @@ export function gate(method, url, body, ctx) {
     if (route === '/user/tokens/verify' && !query) return;
     if (route === '/zones' && paged) return;
     if (Z && (route === Z || route === `${Z}/dns_records/export`) && !query) return;
-    if (Z && route === `${Z}/dns_records` && paged) return;
+    if (Z && route === `${Z}/dns_records` && (paged || byHost)) return;
     if (A && route === `${A}/pages/projects` && paged) return;
     if (P && (route === P || route === `${P}/domains`) && !query) return;
     if (P && route === `${P}/deployments` && paged) return;
@@ -207,16 +211,28 @@ async function pool(items, width, fn) {
 
 // `totals`: the lists whose every page matters refuse an answer that does not say how many pages.
 // `width` above 1 reads pages 2 to the last together, that many at a time, once page 1 has said
-// how many there are. Answers { r, items, requests }: the requests made, for the run's budget.
+// how many there are. Whatever pages were read, the items collected must equal the largest
+// total_count any page reported. Answers { r, items, requests, total }: the requests made, for the
+// run's budget, and that largest total (null when no page gave one).
 async function allPages(api, p, perPage = null, { totals = false, width = 1 } = {}) {
   const items = [];
   const at = (page) => api('GET', `${p}${p.includes('?') ? '&' : '?'}${perPage ? `per_page=${perPage}&` : ''}page=${page}`);
   const where = p.split('?')[0];
   let requests = 0;
+  let maxTotal = null;
+  const seen = (r) => {
+    const t = r.body?.result_info?.total_count;
+    if (Number.isInteger(t) && (maxTotal === null || t > maxTotal)) maxTotal = t;
+  };
+  const done = (r) => {
+    if (maxTotal !== null && items.length !== maxTotal) throw new Stop(1, `Cloudflare's list at ${where} gave ${items.length} items but said it holds ${maxTotal}; the script does not decide from part of a list.`);
+    return { r, items, requests, total: maxTotal };
+  };
   for (let page = 1; page <= 200; page++) {
     const r = await at(page);
     requests++;
-    if (!ok(r)) return { r, items: null, requests };
+    if (!ok(r)) return { r, items: null, requests, total: null };
+    seen(r);
     const got = Array.isArray(r.body?.result) ? r.body.result : [];
     items.push(...got);
     const pages = r.body?.result_info?.total_pages;
@@ -224,20 +240,21 @@ async function allPages(api, p, perPage = null, { totals = false, width = 1 } = 
     if (totals && got.length && !pages) throw new Stop(1, `Cloudflare's list at ${where} does not say how many pages it has; the script does not decide from part of a list.`);
     if (!got.length) {
       if ((pages && page < pages) || (Number.isInteger(total) && items.length < total)) throw new Stop(1, `Cloudflare's list at ${where} came back empty at page ${page} with ${items.length} of ${total ?? 'an unknown number of'} items; the script does not decide from part of a list.`);
-      return { r, items, requests };
+      return done(r);
     }
-    if (!pages || page >= pages) return { r, items, requests };
+    if (!pages || page >= pages) return done(r);
     if (width > 1 && page === 1) {
       if (pages > 200) throw new Stop(1, `Cloudflare's list at ${where} runs past 200 pages; the script does not decide from part of a list.`);
       const rest = await pool(Array.from({ length: pages - 1 }, (_, i) => i + 2), width, at);
       requests += rest.length;
       for (const [i, rr] of rest.entries()) {
-        if (!ok(rr)) return { r: rr, items: null, requests };
+        if (!ok(rr)) return { r: rr, items: null, requests, total: null };
+        seen(rr);
         const more = Array.isArray(rr.body?.result) ? rr.body.result : [];
         if (!more.length) throw new Stop(1, `Cloudflare's list at ${where} came back empty at page ${i + 2} with ${items.length} of ${total ?? 'an unknown number of'} items; the script does not decide from part of a list.`);
         items.push(...more);
       }
-      return { r, items, requests };
+      return done(r);
     }
   }
   throw new Stop(1, `Cloudflare's list at ${where} runs past 200 pages; the script does not decide from part of a list.`);
@@ -501,13 +518,12 @@ function makeGithub(io, ctx) {
     try { body = JSON.parse(r.body.toString('utf8')); } catch { body = null; }
     return { status: r.status, body, rate: r.status === 429 || (r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0') };
   };
-  // The pause: a run that can still move a host (`noWait`) never sits through it, nor does one without the time for it.
-  get.pass = async ({ noWait = false } = {}) => {
+  // The pause: a run waits it out, unless it has not the time left. A --confirm run reads no GitHub at all.
+  get.pass = async () => {
     const at = ctx.state?.ghPolledAt ?? last;
     const wait = at + (io.pollMs ?? POLL_MS) - ctx.now();
     if (at && wait > 0) {
       const secs = Math.ceil(wait / 1000);
-      if (noWait) throw new Stop(4, `GitHub is read no more than every 30 seconds, and a host is still to be moved, so this run does not sit through the pause. Run the same command again in ${secs} seconds.`);
       if (wait >= ctx.clock.left()) throw new Stop(4, `GitHub is read no more than every 30 seconds, and this run has not the time left to wait. Run the same command again in ${secs} seconds.`);
       await ctx.sleep(wait);
     }
@@ -572,6 +588,8 @@ async function prepare(opts, io, run) {
   ctx.github = makeGithub(io, ctx);
   ctx.report = run;
 
+  const lsStarted = git('ls-remote', '--heads', 'origin'); // beside the token check: neither needs the other
+  lsStarted.catch(() => {}); // awaited below; a stop before that must not leave it unhandled
   // The token: verified, a week away at most, reaching one zone.
   const verify = await ctx.api('GET', '/user/tokens/verify');
   if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
@@ -592,7 +610,7 @@ async function prepare(opts, io, run) {
   Object.assign(ctx.gate, { accountId: ctx.account.id, zoneId: zone.id, zoneName: zone.name });
 
   // The branches on GitHub and the publish model, as the setup script reads them.
-  const lsAll = await git('ls-remote', '--heads', 'origin');
+  const lsAll = await lsStarted;
   if (lsAll.code !== 0) throw new Stop(1, `git could not read the branches of ${ctx.repository} on GitHub. Check that this computer can reach it, then run again.`);
   const heads = new Map(lsAll.stdout.split('\n').map((l) => l.split('\t')).filter((p) => p.length === 2).map(([s, r]) => [r.replace(/^refs\/heads\//, ''), s]));
   const mainSha = heads.get('main');
@@ -666,33 +684,41 @@ async function prepare(opts, io, run) {
   return ctx;
 }
 
-// What Cloudflare says now, for the hosts: the project's domains, the Worker's domains, the zone's
-// records. The ids a gated write may name are those of this read.
+// What Cloudflare says now, for the hosts: the project's domains, the Worker's domains, and each
+// host's own records, asked for by name (one page, whatever the zone holds). The ids a gated write
+// may name are those of this read.
 async function readLive(ctx) {
   const A = `/accounts/${ctx.account.id}`;
-  const [pr, wd, dns] = await Promise.all([
+  const [pr, wd, ...dns] = await Promise.all([
     ctx.api('GET', `${A}/pages/projects/${ctx.project.name}`),
     ctx.api('GET', `${A}/workers/domains`),
-    allPages(ctx.api, `/zones/${ctx.zone.id}/dns_records`, 100),
+    ...ctx.hosts.map((h) => allPages(ctx.api, `/zones/${ctx.zone.id}/dns_records?name=${h}`, 100)),
   ]);
   if (!ok(pr) || !Array.isArray(pr.body?.result?.domains)) throw new Stop(1, `Cloudflare did not return the Pages project: ${cfWords(pr)}.`);
   if (!ok(wd) || !Array.isArray(wd.body?.result)) throw new Stop(1, `Cloudflare did not list the Worker domains: ${cfWords(wd)}. The token needs the Workers permission the move section names.`);
-  if (!dns.items) throw new Stop(1, `Cloudflare did not list the zone's records: ${cfWords(dns.r)}.`);
-  ctx.dnsPages = Math.max(ctx.dnsPages ?? 1, dns.requests); // the pages a read-back has to ask for
+  const records = [];
+  for (const [i, d] of dns.entries()) {
+    const h = ctx.hosts[i];
+    if (!d.items) throw new Stop(1, `Cloudflare did not list the records named ${h}: ${cfWords(d.r)}.`);
+    const stray = d.items.find((r) => String(r.name).toLowerCase() !== h);
+    if (stray) throw new Stop(1, `Cloudflare's list of the records named ${h} holds a record named ${stray.name}: the name filter was not applied, and the script does not decide from an answer it cannot trust. Nothing was changed.`);
+    if (d.requests > 1) throw new Stop(1, `${h} has more than 100 DNS records. The script reads one page of a host's records and does not decide from part of a list: do the move by hand in the Cloudflare dashboard.`);
+    records.push(...d.items);
+  }
   ctx.project = pr.body.result;
   ctx.gate.cnames.clear();
   ctx.gate.workerDomainIds.clear();
-  for (const r of dns.items) if (r.type === 'CNAME' && ctx.gate.hosts.has(r.name)) ctx.gate.cnames.set(r.id, { name: r.name, content: String(r.content).toLowerCase() });
+  for (const r of records) if (r.type === 'CNAME' && ctx.gate.hosts.has(r.name)) ctx.gate.cnames.set(r.id, { name: r.name, content: String(r.content).toLowerCase() });
   const mineWd = wd.body.result.filter((d) => d.service === ctx.worker);
   for (const d of mineWd) if (ctx.gate.hosts.has(d.hostname)) ctx.gate.workerDomainIds.set(d.id, d.hostname);
   if (ctx.report) { // what this run saw, for the status page
     ctx.report.where = Object.fromEntries(ctx.hosts.map((h) => {
       const pages = ctx.project.domains.includes(h);
       const worker = mineWd.some((d) => d.hostname === h);
-      return [h, WHERE_WORDS[pages && worker ? 'both' : pages ? 'pages' : worker ? 'worker' : 'neither']];
+      return [h, pages && worker ? 'both' : pages ? 'pages' : worker ? 'worker' : 'neither'];
     }));
   }
-  return { project: ctx.project, workerDomains: wd.body.result, mineWd, records: dns.items };
+  return { project: ctx.project, workerDomains: wd.body.result, mineWd, records };
 }
 
 function hostState(ctx, live, h) {
@@ -744,44 +770,58 @@ async function checkRunsOf(ctx, sha) {
   throw new Stop(1, `${short(sha)} has more than 5000 check runs; the script does not decide from part of a list.`);
 }
 
+// The commits from `from` to the tip, from the local clone. After a passed move (`newest`) only the
+// newest ones: older builds are done.
+async function rangeOf(ctx, from, tip, newest) {
+  const since = tip === from ? [] : (await ctx.gitOut('rev-list', ...(newest ? ['-n', String(MAX_COMMITS)] : []), `${from}..${tip}`)).split('\n').filter(Boolean);
+  if (!newest && since.length > MAX_COMMITS) throw new Stop(1, `${since.length} commits lie between the frozen commit and ${short(tip)}; the freeze was not kept. Stop and look.`);
+  return [from, ...since];
+}
+
 // The builds that would change what the Worker or the domains serve, still unfinished: a Pages
 // production deployment, or a Workers Builds check run on a commit from `from` to the tip. Where
 // any of those commits has a Workers Builds run, Builds is connected and a pushed branch tip
 // (`tips`) without one is unfinished; a commit that was never pushed has none, and is not waited for.
-// After a passed move (`newest`) only the newest commits are asked about: older builds are done.
-// Answers { list, range }: what is unfinished, and the commits that were looked at.
+// Answers { list, range, total, newest }: what is unfinished, the commits that were looked at, and
+// the deployments' count and newest id, which a plain run keeps for the confirm run to compare.
 // Every page of deployments is read, and every commit's check runs, several at a time: no capture
 // shows that the first page holds the newest, and one after another they would use the run up.
-async function unfinishedBuilds(ctx, from, tip, { newest = false, tips = [], noWait = false } = {}) {
+async function unfinishedBuilds(ctx, from, tip, { newest = false, tips = [] } = {}) {
   const out = [];
-  await ctx.github.pass({ noWait });
+  await ctx.github.pass();
   const dep = await allPages(ctx.api, `/accounts/${ctx.account.id}/pages/projects/${ctx.project.name}/deployments`, null, { totals: true, width: READ_WIDTH });
   if (!dep.items) throw new Stop(1, `Cloudflare did not list the project's deployments: ${cfWords(dep.r)}.`);
   for (const d of dep.items) if (d.environment === 'production' && running(d)) out.push(`Pages is building ${short(d.deployment_trigger?.metadata?.commit_hash ?? '')}`);
-  const since = tip === from ? [] : (await ctx.gitOut('rev-list', ...(newest ? ['-n', String(MAX_COMMITS)] : []), `${from}..${tip}`)).split('\n').filter(Boolean);
-  if (!newest && since.length > MAX_COMMITS) throw new Stop(1, `${since.length} commits lie between the frozen commit and ${short(tip)}; the freeze was not kept. Stop and look.`);
+  const range = await rangeOf(ctx, from, tip, newest);
   const runs = new Map(); // commit → its Workers Builds check runs
-  const shas = [from, ...since];
-  const all = await pool(shas, READ_WIDTH, (sha) => checkRunsOf(ctx, sha));
-  shas.forEach((sha, i) => runs.set(sha, all[i].filter((c) => c.app?.slug === 'cloudflare-workers-and-pages' && c.name === `Workers Builds: ${ctx.worker}`)));
+  const all = await pool(range, READ_WIDTH, (sha) => checkRunsOf(ctx, sha));
+  range.forEach((sha, i) => runs.set(sha, all[i].filter((c) => c.app?.slug === 'cloudflare-workers-and-pages' && c.name === `Workers Builds: ${ctx.worker}`)));
   const connected = [...runs.values()].some((b) => b.length > 0);
   for (const [sha, builds] of runs) {
     if (sha !== from && connected && tips.includes(sha) && !builds.length) out.push(`Workers Builds has not reported on ${short(sha)} yet`);
     for (const c of builds) if (c.status !== 'completed') out.push(`Workers Builds is building ${short(sha)}`);
   }
-  return { list: out, range: [from, ...since] };
+  return { list: out, range, total: dep.total, newest: dep.items[0]?.id ?? null };
+}
+
+// A --confirm run reads page 1 of the deployments only: their count and the newest id, to compare
+// with what the plain run saw. Answers { total, newest } or { problem }.
+async function lightDeployments(ctx) {
+  const r = await ctx.api('GET', `/accounts/${ctx.account.id}/pages/projects/${ctx.project.name}/deployments?page=1`);
+  if (!ok(r)) return { problem: `Cloudflare did not list the project's deployments: ${cfWords(r)}` };
+  if (!Array.isArray(r.body?.result) || !Number.isInteger(r.body?.result_info?.total_count)) return { problem: "Cloudflare's list of the project's deployments does not say how many there are" };
+  return { total: r.body.result_info.total_count, newest: r.body.result[0]?.id ?? null };
 }
 
 // ---------------------------------------------------------------- the Worker's version
 
 async function workerVersion(ctx) {
   const A = `/accounts/${ctx.account.id}`;
-  const dep = await ctx.api('GET', `${A}/workers/scripts/${ctx.worker}/deployments`);
+  const [dep, sub] = await Promise.all([ctx.api('GET', `${A}/workers/scripts/${ctx.worker}/deployments`), ctx.api('GET', `${A}/workers/subdomain`)]);
   if (!ok(dep)) throw new Stop(1, `Cloudflare did not return the Worker's deployments: ${cfWords(dep)}. Is the Worker ${ctx.worker} deployed?`);
   const latest = dep.body.result?.deployments?.[0];
   const v = latest?.versions ?? [];
   if (v.length !== 1 || v[0].percentage !== 100 || !/^[0-9a-f-]{36}$/.test(v[0].version_id)) throw new Stop(1, `The Worker ${ctx.worker}'s live deployment is not one version at 100%. The script reads only that.`);
-  const sub = await ctx.api('GET', `${A}/workers/subdomain`);
   const subdomain = sub.body?.result?.subdomain;
   if (!ok(sub) || !/^[a-z0-9-]+$/.test(subdomain ?? '')) throw new Stop(1, `Cloudflare did not return the account's workers.dev subdomain: ${cfWords(sub)}.`);
   const host = `${v[0].version_id.slice(0, 8)}-${ctx.worker}.${subdomain}.workers.dev`;
@@ -964,8 +1004,8 @@ async function waitServing(ctx, hosts, wanted, commits, rec) {
 
 // ---------------------------------------------------------------- snapshots
 
-async function snapshot(ctx, live, why) {
-  const exp = await ctx.api('GET', `/zones/${ctx.zone.id}/dns_records/export`);
+async function snapshot(ctx, live, why, started = null) {
+  const exp = await (started ?? ctx.api('GET', `/zones/${ctx.zone.id}/dns_records/export`));
   if (exp.status !== 200 || !/^\S+\s+\d+\s+IN\s+SOA\s+\S+/m.test(exp.text)) throw new Stop(1, `The zone's DNS export has no SOA record (${exp.error ?? `HTTP ${exp.status}`}); not going on without a snapshot.`);
   return {
     at: new Date(ctx.now()).toISOString(), why, dnsExport: exp.text,
@@ -1184,13 +1224,24 @@ async function cmdRecord(ctx, run) {
   return 0;
 }
 
-// A host's changes (three) and the two read-backs around them (each as long as the zone's record list
-// takes), every request at its longest, and some slack. A run starts a host only if that much is left.
-const MIN_SETUP_MS = 5_000;
-const hostReserve = (ctx) => ctx.io.reserveMs ?? (3 + 2 * (ctx.dnsPages ?? 1)) * (ctx.io.requestMs ?? REQUEST_MS) + 5_000;
-// Seconds until GitHub may be read again, as the next run will meet it.
-const pauseLeft = (ctx) => Math.max(0, Math.ceil(((ctx.state?.ghPolledAt ?? 0) + (ctx.io.pollMs ?? POLL_MS) - ctx.now()) / 1000));
-const again = (secs) => (secs > 0 ? `in ${secs} seconds` : 'at once');
+// A host's changes (three) and the two read-backs around them: five requests, each at its longest,
+// and some slack. A run starts a host only if that much is left.
+const hostReserve = (ctx) => ctx.io.reserveMs ?? 5 * (ctx.io.requestMs ?? REQUEST_MS) + 5_000;
+
+// Why the plain run's check no longer holds, or null. A --confirm run goes ahead only on a check that
+// is under 15 minutes old and still describes the deployments and the branch tips.
+const CHECK_MAX_MS = 15 * 60_000;
+function driftOf(ctx, st, dir, light) {
+  const c = st.checked;
+  if (!c || c.kind !== dir) return `No plain ${dir} has checked this since the last change of direction, so there is nothing to compare with.`;
+  if (ctx.now() - c.at > CHECK_MAX_MS) return `The plain ${dir} was run more than ${CHECK_MAX_MS / 60_000} minutes ago, and a --confirm run goes ahead only on a check no older than that.`;
+  if (light.problem) return `${light.problem}.`;
+  if (light.total !== c.total) return `The Pages project has ${light.total} deployments now; the plain ${dir} saw ${c.total}.`;
+  if (light.newest !== c.newest) return `The newest Pages deployment is not the one the plain ${dir} saw.`;
+  if (ctx.tip !== c.tip) return `The branch ${ctx.prodBranch} on GitHub is ${short(ctx.tip)} now; the plain ${dir} saw ${short(c.tip)}.`;
+  if (ctx.mainSha !== c.main) return `The branch main on GitHub is ${short(ctx.mainSha)} now; the plain ${dir} saw ${short(c.main)}.`;
+  return null;
+}
 
 async function ensureOpenState(ctx, need) {
   if (!ctx.state) throw new Stop(1, `There is no state file (${path.join(ctx.stateDir, 'state.json')}), so there is no recording to move on. ${need}`);
@@ -1206,25 +1257,26 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   if (!toWorker && !st.open) throw new Stop(1, 'No move is open, so there is nothing to undo.');
   if (first && ctx.tokenLeftMs < MIN_LEFT_MS) throw new Stop(1, `The token has less than an hour left (${Math.round(ctx.tokenLeftMs / 60_000)} minutes), too little for a ${dir}. Make a new one from the same link.`);
   if (!first && ctx.tokenLeftMs < MIN_LEFT_MS) say(`Warning: the token has ${Math.round(ctx.tokenLeftMs / 60_000)} minutes left.`);
-  let live = await readLive(ctx);
+  const confirming = ctx.opts.confirm !== null;
+  const firstMove = toWorker && !st.open;
+  if (firstMove && st.recording?.status !== 'done') throw new Stop(1, 'There is no clean recording of the frozen commit. Run record first.');
+  // The reads that do not wait for each other. A --confirm run reads page 1 of the deployments only,
+  // to compare with what the plain run saw, and asks for the DNS export while it reads the rest.
+  const exportStarted = confirming ? ctx.api('GET', `/zones/${ctx.zone.id}/dns_records/export`) : null;
+  exportStarted?.catch(() => {}); // awaited by the snapshot; a stop before that must not leave it unhandled
+  const [firstLive, version, light] = await Promise.all([readLive(ctx), firstMove ? workerVersion(ctx) : null, confirming ? lightDeployments(ctx) : null]);
+  let live = firstLive;
   const hostsNow = ctx.hosts.map((h) => [h, hostState(ctx, live, h)]);
   const todo = hostsNow.filter(([, hs]) => (toWorker ? hs.where !== 'worker' : hs.where !== 'pages' || !hs.cname));
   const reserve = hostReserve(ctx);
-  if (todo.length && !ctx.io.reserveMs && reserve > (ctx.io.runMs ?? RUN_MS) - MIN_SETUP_MS) {
-    throw new Stop(1, `The zone ${ctx.zone.name} has ${live.records.length} DNS records, ${ctx.dnsPages} pages of them. Reading them twice for a host, each page at its slowest, would take ${Math.round(reserve / 1000)} seconds, more than a ${Math.round((ctx.io.runMs ?? RUN_MS) / 1000)}-second run can hold beside its own reads, so no run could finish a host. Nothing was changed. This script does not move a zone this size: do the ${dir} by hand in the Cloudflare dashboard.`);
-  }
-  const firstMove = toWorker && !st.open;
   if (firstMove) {
-    if (st.recording?.status !== 'done') throw new Stop(1, 'There is no clean recording of the frozen commit. Run record first.');
     await firstMoveRefusals(ctx, live);
     if (JSON.stringify(st.hosts) !== JSON.stringify(ctx.hosts)) throw new Stop(1, `The Pages project's domains (${ctx.hosts.join(', ')}) are not the recorded hosts (${st.hosts.join(', ')}). Record again.`);
     for (const [h, hs] of hostsNow) if (hs.where !== 'pages' || !hs.cname) throw new Stop(1, `${h} is ${WHERE_WORDS[hs.where]}, not on Pages with its CNAME: a first move starts with every host on Pages.`);
-    for (const b of ctx.twoStage ? [ctx.prodBranch, 'main'] : [ctx.prodBranch]) {
-      const tip = await tipOf(ctx, b);
+    for (const [b, tip] of ctx.twoStage ? [[ctx.prodBranch, ctx.tip], ['main', ctx.mainSha]] : [[ctx.prodBranch, ctx.tip]]) { // read at the start of this run
       if (tip !== st.frozen) throw new Stop(1, `${b} on GitHub is ${short(tip)}, not the frozen commit ${short(st.frozen)}. The freeze was broken: record again.`);
     }
-    const v = await workerVersion(ctx);
-    if (v.id !== st.recording.workerVersion) throw new Stop(1, `The Worker's live version is ${v.id.slice(0, 8)}, not the recorded ${st.recording.workerVersion.slice(0, 8)}. Something deployed during the freeze: record again.`);
+    if (version.id !== st.recording.workerVersion) throw new Stop(1, `The Worker's live version is ${version.id.slice(0, 8)}, not the recorded ${st.recording.workerVersion.slice(0, 8)}. Something deployed during the freeze: record again.`);
   }
   // Both modes: the working tree, and HEAD's Workers config the frozen one but for its routes.
   await cleanTreeOrStop(ctx);
@@ -1249,9 +1301,18 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
       }
     }
   }
-  const fresh = hostsNow.some(([, hs]) => (toWorker ? hs.where === 'pages' : hs.where === 'worker'));
-  const { list: unfinished, range } = await unfinishedBuilds(ctx, st.base ?? st.frozen, ctx.tip, { newest: Boolean(st.base), tips: [ctx.tip, ctx.mainSha], noWait: ctx.opts.confirm !== null && fresh });
-  if (unfinished.length) throw new Stop(1, `A build is unfinished (${unfinished.join('; ')}). Wait for it to end, then run this again: it could change what the Worker serves during the ${dir}.`);
+  // The plain run reads everything and keeps what it found; a --confirm run compares page 1 and the
+  // branch tips with that, and does not read GitHub at all.
+  const base = st.base ?? st.frozen;
+  let range;
+  if (!confirming) {
+    const checked = await unfinishedBuilds(ctx, base, ctx.tip, { newest: Boolean(st.base), tips: [ctx.tip, ctx.mainSha] });
+    if (checked.list.length) throw new Stop(1, `A build is unfinished (${checked.list.join('; ')}). Wait for it to end, then run this again: it could change what the Worker serves during the ${dir}.`);
+    range = checked.range;
+    st.checked = { kind: dir, total: checked.total, newest: checked.newest, tip: ctx.tip, main: ctx.mainSha, at: ctx.now() };
+  } else range = await rangeOf(ctx, base, ctx.tip, Boolean(st.base));
+  const drift = confirming ? driftOf(ctx, st, dir, light) : null;
+  const plainAgain = `run the plain command again (node move-to-workers.mjs ${dir}), then confirm`;
 
   // Plain: write the commit. With --confirm: it must already fit.
   if (ctx.opts.confirm === null) {
@@ -1275,7 +1336,25 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   if (!askOrGo(ctx, dir, input, lines, run)) return 3;
 
   // --- With the yes.
-  st.snapshots.push(await snapshot(ctx, live, dir));
+  // Before anything is changed: a record that no longer fits, and a run too short for the next host.
+  const isFresh = (hs) => (toWorker ? hs.where === 'pages' : hs.where === 'worker');
+  const needsWork = (hs) => !(toWorker ? hs.where === 'worker' : hs.where === 'pages' && hs.cname);
+  const downNow = (h) => hostState(ctx, live, h).where === 'neither';
+  const order = [...ctx.hosts].sort((x, y) => Number(downNow(y)) - Number(downNow(x))); // a host on neither is down: first
+  const waiting = order.map((h) => [h, hostState(ctx, live, h)]).find(([, hs]) => needsWork(hs));
+  if (drift && hostsNow.some(([, hs]) => isFresh(hs)) && !hostsNow.some(([, hs]) => needsWork(hs) && !isFresh(hs))) {
+    run.next = `node move-to-workers.mjs ${dir}`;
+    throw new Stop(1, `${drift} Nothing was changed: ${plainAgain}.`);
+  }
+  if (waiting && ctx.clock.left() < reserve) {
+    const spent = Math.round(((ctx.io.runMs ?? RUN_MS) - ctx.clock.left()) / 1000);
+    if (isFresh(waiting[1])) {
+      throw new Stop(1, `Reading what the move needs took ${spent} seconds of this run's ${Math.round((ctx.io.runMs ?? RUN_MS) / 1000)}, and a host needs ${Math.round(reserve / 1000)} seconds beside that, so no run could move one from here. Nothing was changed. Do the ${dir} by hand in the Cloudflare dashboard.`);
+    }
+    run.next = `node move-to-workers.mjs ${dir} --confirm ${ctx.opts.confirm}`;
+    throw new Stop(4, `${waiting[0]} is down, and the ${spent} seconds of this run that reading took leave less than the ${Math.round(reserve / 1000)} a host needs, so nothing was started. Run the same command again at once: the next run starts with its whole time. If this repeats, finish ${waiting[0]} by hand in the Cloudflare dashboard; it stays down until then.`);
+  }
+  st.snapshots.push(await snapshot(ctx, live, dir, exportStarted));
   const prev = st.direction;
   if (toWorker) { // a go-forward after an undo starts both tracks again
     st.open = true; st.direction = 'to-worker'; st.track.undo = {};
@@ -1285,6 +1364,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   const tr = (st.track[dir] ??= {});
   st.route = { commit, kind: toWorker ? 'route' : 'undo' };
   delete st.asked;
+  delete st.passed;
   st.commits = [...new Set([...(st.commits ?? []), commit])];
   ctx.state = st;
   saveState(ctx.stateDir, st);
@@ -1307,19 +1387,21 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     saveState(ctx.stateDir, st);
     throw new Stop(1, `${what} for ${h} failed: ${cfWords(r)}. ${h} is now ${where}. Run the same command again at once${toWorker ? ' (undo takes it back)' : ' (move goes forward)'}.`);
   };
-  live = await readLive(ctx); // each host's own read-back below keeps it current
-  seen(live);
-  // A host that is on neither platform comes first: it is down until this run finishes it. A fresh
+  seen(live); // read moments ago in this run; each host's own read-back below keeps it current
+  // A host that is on neither platform comes first (above): it is down until this run finishes it. A
   // host that does not fit the time left is skipped, and the run ends asking for another.
-  const order = [...ctx.hosts].sort((x, y) => Number(hostState(ctx, live, y).where === 'neither') - Number(hostState(ctx, live, x).where === 'neither'));
   const skipped = [];
+  const finished = [];
   for (const h of order) {
     let hs = hostState(ctx, live, h);
     const done = toWorker ? hs.where === 'worker' : hs.where === 'pages' && hs.cname;
     if (done) { say(`${h} is already ${toWorker ? 'on the Worker' : 'back on Pages'}; skipped.`); continue; }
     if (hs.where === 'both') throw new Stop(1, `${h} is on both the Pages project and the Worker. The script does not decide that: look at it in the dashboard.`);
-    const fresh = toWorker ? hs.where === 'pages' : hs.where === 'worker';
-    if (fresh && ctx.clock.left() < reserve) {
+    if (isFresh(hs) && drift) { // the down hosts were finished above; nothing fresh starts on a check that no longer fits
+      run.next = `node move-to-workers.mjs ${dir}`;
+      throw new Stop(1, `${drift} ${finished.length ? `${finished.join(' and ')} ${finished.length > 1 ? 'were' : 'was'} finished first; no other host was started` : 'No further host was started'}: ${plainAgain}.`);
+    }
+    if (ctx.clock.left() < reserve) {
       skipped.push(h);
       continue;
     }
@@ -1370,10 +1452,11 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     seen(live);
     const after = hostState(ctx, live, h);
     if (after.where !== (toWorker ? 'worker' : 'pages')) throw new Stop(1, `${h} reads ${WHERE_WORDS[after.where]} after its changes, not ${toWorker ? 'on the Worker' : 'on Pages'}. Run the same command again, or the other one to go back.`);
+    finished.push(h);
   }
   if (skipped.length) {
     run.next = `node move-to-workers.mjs ${dir} --confirm ${ctx.opts.confirm}`;
-    throw new Stop(4, `Not enough of this run is left to move ${skipped.join(' and ')} (${skipped.length > 1 ? 'each needs' : 'it needs'} ${Math.round(reserve / 1000)} seconds), so ${skipped.length > 1 ? 'they were' : 'it was'} not started. Run the same command again ${again(pauseLeft(ctx))}.`);
+    throw new Stop(4, `Not enough of this run is left to move ${skipped.join(' and ')} (${skipped.length > 1 ? 'each needs' : 'it needs'} ${Math.round(reserve / 1000)} seconds), so ${skipped.length > 1 ? 'they were' : 'it was'} not started. Run the same command again at once.`);
   }
   // Wait for each to serve; the first time a host left its platform is kept.
   const known = [...new Set([st.frozen, ...(st.commits ?? []), ...range])]; // the platforms also build what was shipped since
@@ -1493,6 +1576,7 @@ async function cmdAfter(ctx, run) {
   const when = new Date(ctx.now()).toISOString();
   st.base = expect; // later builds are looked at from here on; it only moves forward
   if (toWorker) {
+    st.passed = expect; // the stage marker: cleared when a switch starts, so a go-forward onto the same commit is not "passed"
     saveState(ctx.stateDir, st);
     say(`After passed: ${ctx.hosts.join(', ')} serve the Worker and match the recording. The move stays open, so undo works until the Pages project is retired.`);
     say('Delete the API token now: dash.cloudflare.com/profile/api-tokens.');
@@ -1524,7 +1608,7 @@ function stageOf(st, run) {
   if (run.closed) return 4; // an undo that passed its check
   if (!st) return run.stateRead ? 1 : 0; // a run that stopped before the state was read knows no stage
   if (st.open) {
-    if (st.base === st.route?.commit && st.route?.kind === 'route') return 5; // after passed for the commit waited for
+    if (st.passed === st.route?.commit && st.route?.kind === 'route') return 5; // after passed for the commit waited for
     return run.cmd === 'after' ? 4 : 3;
   }
   return 2;
@@ -1559,7 +1643,7 @@ function writeStatus(ctx0, run, io, code, st, errLines) {
     result: code === 0 ? 'finished' : code === 3 ? 'waiting for your yes' : code === 4 ? 'stopped for time or a build: run the same command again' : `stopped: ${(errLines ?? [])[0] ?? 'see the terminal'}`,
     hosts: hostsList.map((h) => {
       const t = st?.track?.[st.direction === 'to-pages' ? 'undo' : 'move']?.[h]; // what this run read comes first
-      return { name: h, where: run.where?.[h] ?? (t?.where ? WHERE_WORDS[t.where] ?? t.where : 'not read in this run'), since: t?.leftAt ? `left its platform ${t.leftAt}` : null };
+      return { name: h, where: run.where?.[h] ? WHERE_WORDS[run.where[h]] ?? run.where[h] : t?.where ? WHERE_WORDS[t.where] ?? t.where : 'not read in this run', since: t?.leftAt ? `left its platform ${t.leftAt}` : null };
     }),
     checks: run.checks, differences: run.diffs.filter((d) => !d.known).slice(0, 50),
     next: run.next,
@@ -1592,13 +1676,14 @@ export async function main(argv, io = {}) {
     const move = st.direction !== 'to-pages';
     const tracks = st.track?.[move ? 'move' : 'undo'] ?? {};
     const lines = [];
-    if (!(st.hosts ?? []).every((h) => tracks[h]?.where === (move ? 'worker' : 'pages'))) { // a finished switch has nothing to warn about
-      for (const [h, t] of Object.entries(tracks)) if (t.leftAt) lines.push(`${h} has left ${move ? 'Pages' : 'the Worker'}; last read: ${WHERE_WORDS[t.where] ?? 'not read yet'}.`);
+    const placeOf = (h) => { const w = run.where?.[h]; return w && w !== 'unknown' ? w : tracks[h]?.where; }; // this run's read is the newer
+    if (!(st.hosts ?? []).every((h) => placeOf(h) === (move ? 'worker' : 'pages'))) { // a finished switch has nothing to warn about
+      for (const [h, t] of Object.entries(tracks)) if (t.leftAt) lines.push(`${h} has left ${move ? 'Pages' : 'the Worker'}; last read: ${WHERE_WORDS[placeOf(h)] ?? 'not read yet'}.`);
     }
     const down = new Set();
     for (const t of [st.track?.move, st.track?.undo]) for (const [h, x] of Object.entries(t ?? {})) if (x.where === 'neither') down.add(h);
     for (const [h, w] of Object.entries(run.where ?? {})) { // this run's own read is the newer
-      if (w === WHERE_WORDS.neither) down.add(h);
+      if (w === 'neither') down.add(h);
       else if (w !== 'unknown') down.delete(h);
     }
     for (const h of down) if (!lines.some((l) => l.startsWith(`${h} `))) lines.push(`${h} is on neither platform: it is down until a run finishes it.`);
