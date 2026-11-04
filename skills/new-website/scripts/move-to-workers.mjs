@@ -590,7 +590,7 @@ async function prepare(opts, io, run) {
 
   const lsStarted = git('ls-remote', '--heads', 'origin'); // beside the token check: neither needs the other
   lsStarted.catch(() => {}); // awaited below; a stop before that must not leave it unhandled
-  // The token: verified, a week away at most, reaching one zone.
+  // The token: verified, a week away at most, with DNS reach in one zone.
   const verify = await ctx.api('GET', '/user/tokens/verify');
   if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
   const ends = Date.parse(verify.body.result.expires_on ?? '');
@@ -600,8 +600,13 @@ async function prepare(opts, io, run) {
   if (ctx.tokenLeftMs <= 0) throw new Stop(1, 'This token has ended. Make a new one from the same link.');
   const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
   if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). Make a new token from the link.`);
-  if (zones.items.length !== 1) throw new Stop(1, `This token reaches ${zones.items.length} zones. Make one limited to the site's own zone (Zone Resources: your one domain). A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
-  const zone = zones.items[0];
+  // The Workers permission lists every zone of the account, so the zone count says nothing. The site's
+  // zone is the one whose `permissions` reach DNS or zone settings; it must be exactly one, with DNS Edit.
+  for (const z of zones.items) if (!Array.isArray(z.permissions)) throw new Stop(1, `Cloudflare did not say what this token may do in the zone ${z.name}. Make a new token from the link.`);
+  const reaching = zones.items.filter((z) => z.permissions.some((p) => /^#(dns_records|zone_settings):/.test(p)));
+  if (reaching.length > 1) throw new Stop(1, `This token can reach the DNS or settings of ${reaching.length} zones (${reaching.map((z) => z.name).join(', ')}). Make one limited to the site's own zone (Zone Resources: your one domain). A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
+  const zone = reaching[0];
+  if (!zone?.permissions.includes('#dns_records:edit')) throw new Stop(1, `This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.`);
   if (zone.status !== 'active') throw new Stop(1, `The zone ${zone.name} is ${zone.status} on Cloudflare, not active.`);
   if (!zone.account?.id) throw new Stop(1, 'Cloudflare did not say which account the zone belongs to.');
   if (!/^[a-z0-9.-]+$/.test(zone.name)) throw new Stop(1, `The zone name "${zone.name}" is not one this script handles.`);

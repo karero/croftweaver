@@ -71,7 +71,8 @@ export function makeWorld(over = {}) {
     refuse: {}, // "<METHOD> <route-pattern>" → status
     calls: [], // every Cloudflare call: { method, path, body }
     siteCalls: [], // every site and GitHub call: url
-    extraZones: 0,
+    extraZones: 0, // more zones whose permissions reach DNS, as a wider token would
+    accountOnlyZones: 0, // more zones listed only through the account's Workers permission (see fixtures/cloudflare-token)
     nextId: 1,
     ...over,
   };
@@ -195,7 +196,8 @@ function cloudflare(w, method, u, body) {
   if (method === 'GET' && p === '/zones') {
     const extra = Array.from({ length: w.extraZones }, (_, i) => zone({ id: `c0ffee0000000000000000000000009${i}`, name: `extra${i}.example` }));
     if (w.zonesNoPageCount) return cf([...w.zones, ...extra].slice(0, 1), { result_info: { page: 1, per_page: 50, count: 1 } }); // one zone a page, and no page count
-    return page([...w.zones, ...extra]);
+    const wide = Array.from({ length: w.accountOnlyZones }, (_, i) => zone({ id: `c0ffee0000000000000000000000008${i}`, name: `account${i}.example`, permissions: ['#worker:edit', '#worker:read', '#analytics:read', '#organization:edit', '#zone:read', '#organization:read'] }));
+    return page([...wide, ...w.zones, ...extra]);
   }
   if (method === 'GET' && p === `${Z}/dns_records/export`) return new Response(w.dnsExport, { status: 200, headers: { 'content-type': 'text/plain' } });
   if (method === 'GET' && p === `${Z}/dns_records`) { // pages of `per_page` records, as Cloudflare's list has them

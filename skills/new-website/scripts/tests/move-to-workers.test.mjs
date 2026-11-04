@@ -196,12 +196,66 @@ describe('1: the gate', () => {
 });
 
 describe('1: the token', () => {
-  test('a token that reaches two zones is refused', async () => {
+  test('a token whose DNS reaches two zones is refused, and names them', async () => {
     const s = scenario({ world: { extraZones: 1 } });
     const r = await s.go(['check']);
     assert.equal(r.code, 1);
-    assert.match(r.text, /reaches 2 zones/);
+    assert.match(r.text, /DNS or settings of 2 zones \(lenas-backstube\.example, extra0\.example\)/);
     assert.ok(!s.w.calls.some((c) => c.method !== 'GET'));
+  });
+
+  // The token CLOUDFLARE_MOVE.md tells a User to make is listed with every zone of the account, because
+  // the account-wide Workers permission shows them all; only the site's zone carries DNS permissions.
+  // The capture is Cloudflare's real answer (see its .md). Its site zone gets the stub's zone id by hand.
+  const TOKEN_ZONES = path.join(HERE, 'fixtures', 'cloudflare-token', 'cloudflare-api-zones-list-move-token-2026-11-04.json');
+  const tokenZones = () => {
+    const zones = JSON.parse(readFileSync(TOKEN_ZONES, 'utf8')).result;
+    const site = zones.find((z) => z.permissions.includes('#dns_records:edit'));
+    site.id = ZONE.id;
+    site.name = ZONE.name;
+    site.account = { ...ACCOUNT };
+    return { zones, site };
+  };
+  test('the token the recipe makes is accepted although the account lists three zones', async () => {
+    const { zones } = tokenZones();
+    assert.equal(zones.length, 3);
+    assert.equal(zones.filter((z) => z.permissions.includes('#dns_records:edit')).length, 1, 'by hand: one zone of the three has DNS Edit');
+    assert.notEqual(zones[0].name, ZONE.name, 'the site zone is not first in the list');
+    const s = scenario({ world: { zones } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(!s.w.calls.some((c) => c.method !== 'GET'));
+  });
+  test('a token listed with account-only zones in front of the site zone is accepted too', async () => {
+    const s = scenario({ world: { accountOnlyZones: 4 } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('a second zone with DNS Edit refuses, and so does one with only DNS Read or zone settings', async () => {
+    for (const extra of [['#dns_records:edit', '#dns_records:read', '#zone:read'], ['#dns_records:read'], ['#zone_settings:read', '#zone:read']]) {
+      const { zones } = tokenZones();
+      zones[0].permissions = [...zones[0].permissions, ...extra];
+      const r = await scenario({ world: { zones } }).go(['check']);
+      assert.equal(r.code, 1, `${extra}: ${r.text}`);
+      assert.match(r.text, /DNS or settings of 2 zones \(other-1\.example, lenas-backstube\.example\)/, extra.join());
+    }
+  });
+  test('a token with DNS Edit in no zone refuses and says what to make', async () => {
+    const { zones, site } = tokenZones();
+    site.permissions = site.permissions.filter((p) => p !== '#dns_records:edit');
+    const r = await scenario({ world: { zones } }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /cannot edit the DNS of any zone it lists.*Zone Read and DNS Edit/);
+    const none = tokenZones();
+    for (const z of none.zones) z.permissions = z.permissions.filter((p) => !/^#(dns_records|zone_settings):/.test(p));
+    assert.match((await scenario({ world: { zones: none.zones } }).go(['check'])).text, /cannot edit the DNS of any zone it lists/);
+  });
+  test('a zone that does not say what the token may do refuses', async () => {
+    const { zones } = tokenZones();
+    delete zones[0].permissions;
+    const r = await scenario({ world: { zones } }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /did not say what this token may do in the zone other-1\.example/);
   });
   test('a token that ends more than eight days out is refused; one with no end is too', async () => {
     const far = scenario({ world: { token: { status: 'active', expires_on: new Date(Date.now() + 10 * 86_400_000).toISOString() } } });
@@ -278,7 +332,7 @@ describe('2: real captures, expected values written by hand', () => {
 
   test('a captured list of one zone and a captured list of eight', async () => {
     const eight = scenario({ world: { zones: JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-api', 'T2-002-zones-list.json'), 'utf8')).response.result } });
-    assert.match((await eight.go(['check'])).text, /reaches 8 zones/);
+    assert.match((await eight.go(['check'])).text, /DNS or settings of 8 zones/);
   });
 
   test('the Worker-domain answers are made from the API reference, not captured', () => {

@@ -49,8 +49,10 @@ Say this plainly to the User: Pages Edit and the Workers permission reach every 
 account. The script keeps to her site: every request it sends is checked against her hosts, her
 Pages project and her Worker before it goes out, and anything else is refused.
 
-The script refuses a token that reaches more than one zone, one with no end date or an end date
-more than 8 days out, and one that is not active. A first `move` and a first `undo` also refuse
+The Workers permission makes every zone of the account show up in the token's zone list; that is
+expected. The script finds her zone as the one the token can change the DNS of, and refuses a token
+whose DNS reaches more than one zone or none, one with no end date or an end date more than 8 days
+out, and one that is not active. A first `move` and a first `undo` also refuse
 a token with less than an hour left; any other run only warns. If the token ends mid-move, make
 a new one the same way and run the same command again.
 
