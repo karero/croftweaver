@@ -938,14 +938,16 @@ export function compare(was, now, { change, onVersion, expect }) {
       add(p, 'status', a.s, b.s, change && a.s === 308 && b.s === 307 && a.l === b.l ? '307 where Pages answers 308' : null);
     }
     if (a.l !== b.l) add(p, 'Location', a.l, b.l);
-    if (a.t !== b.t) add(p, 'media type', a.t, b.t, change && a.t === 'application/javascript' && b.t === 'text/javascript' ? 'text/javascript where Pages sends application/javascript' : null);
-    if (!build && a.h !== b.h) add(p, 'body', a.h, b.h, change && p.endsWith('.avif') ? 'AVIF output differs by build machine' : null);
+    const sameRedirect = change && REDIRECTS.includes(a.s) && REDIRECTS.includes(b.s) && a.l === b.l; // the visitor never sees a redirect's body
+    if (a.t !== b.t) add(p, 'media type', a.t, b.t, change && a.t === 'application/javascript' && b.t === 'text/javascript' ? 'text/javascript where Pages sends application/javascript' : sameRedirect ? 'Pages sends a short text with a redirect; the Worker sends none' : null);
+    if (!build && a.h !== b.h) add(p, 'body', a.h, b.h, change && p.endsWith('.avif') ? 'AVIF output differs by build machine' : sameRedirect ? 'Pages sends a short text with a redirect; the Worker sends none' : null);
     for (const n of Object.keys(a.hd ?? {})) {
       const x = a.hd[n];
       const y = b.hd?.[n] ?? null;
       if (x === y) continue;
       let known = null;
       if (onVersion && ZONE_HEADERS.includes(n) && y === null) known = 'the version URL has no zone headers';
+      if (onVersion && (n === 'nel' || n === 'report-to') && x === null && y !== null) known = "Cloudflare's workers.dev zone adds NEL to the version URL; the domain's zone setting is checked by after";
       if (onVersion && n === 'x-robots-tag' && /noindex/i.test(y ?? '')) known = 'the version URL is noindex';
       if (change && n === 'access-control-allow-origin' && x !== null && y === null) known = 'Pages sends access-control-allow-origin; the Worker does not';
       add(p, `header ${n}`, x, y, known);

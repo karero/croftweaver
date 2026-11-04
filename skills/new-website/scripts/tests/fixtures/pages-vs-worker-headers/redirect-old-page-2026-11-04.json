@@ -1,0 +1,36 @@
+{
+  "about": "The answers for /old-page, a _redirects 301 to /privacy, from the kit throwaway, read 2026-11-04. See the .md next to this file for which half is a capture.",
+  "path": "/old-page",
+  "domain_on_pages": {
+    "status": 301,
+    "headers": {
+      "content-type": "text/plain;charset=UTF-8",
+      "content-length": "23",
+      "access-control-allow-origin": "*",
+      "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+      "permissions-policy": "geolocation=(), camera=(), microphone=()",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-robots-tag": "noindex",
+      "location": "/privacy"
+    },
+    "body": "Redirecting to /privacy"
+  },
+  "version_url_of_the_worker": {
+    "status": 301,
+    "headers": {
+      "content-length": "0",
+      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=MADE-UP\"}]}",
+      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+      "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+      "permissions-policy": "geolocation=(), camera=(), microphone=()",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-robots-tag": "noindex",
+      "location": "/privacy"
+    },
+    "body": ""
+  }
+}

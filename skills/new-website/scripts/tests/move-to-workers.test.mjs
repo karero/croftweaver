@@ -1276,6 +1276,74 @@ function slowFirstHost(s) {
   return { now: () => T, reserveMs: 20_000 };
 }
 
+describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\'s body)', () => {
+  const CAPTURE = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'pages-vs-worker-headers', 'redirect-old-page-2026-11-04.json'), 'utf8'));
+  const answer = (a) => ({ status: a.status, headers: a.headers, body: a.body });
+  const kit = (world = {}) => scenario({
+    site: makeSite({ files: { 'site/_redirects': `${CAPTURE.path} /privacy 301\n` } }),
+    world: { domainNoNel: true, captured: { pages: { [CAPTURE.path]: answer(CAPTURE.domain_on_pages) }, version: { [CAPTURE.path]: answer(CAPTURE.version_url_of_the_worker) } }, ...world },
+  });
+
+  test('record accepts the captured redirect: NEL only on the version URL, and a body only from Pages', async () => {
+    // By hand, from the capture: Pages sends text/plain and 23 bytes, the Worker none; only the version
+    // URL has nel and report-to; status 301 and Location /privacy on both.
+    assert.equal(CAPTURE.domain_on_pages.headers['content-type'], 'text/plain;charset=UTF-8');
+    assert.equal(CAPTURE.version_url_of_the_worker.headers['content-type'], undefined);
+    assert.ok(!('nel' in CAPTURE.domain_on_pages.headers) && 'nel' in CAPTURE.version_url_of_the_worker.headers);
+    const s = kit();
+    const r = await recordDone(s);
+    assert.equal(r.code, 0, r.text);
+    assert.match(r.text, /, 0 unknown\./);
+    assert.ok(!('unknown' in s.state().recording), 'nothing is left unknown in the state file');
+  });
+
+  test('a redirect whose Location differs on the Worker stays unknown, with its body and type', async () => {
+    const wrong = answer(CAPTURE.version_url_of_the_worker);
+    wrong.headers = { ...wrong.headers, location: '/somewhere-else' };
+    const s = kit({ captured: { pages: { [CAPTURE.path]: answer(CAPTURE.domain_on_pages) }, version: { [CAPTURE.path]: wrong } } });
+    const r = await recordDone(s);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /unknown: \S+\/old-page Location: \/privacy ≠ \/somewhere-else/);
+    assert.match(r.text, /unknown: \S+\/old-page body/);
+  });
+
+  test('compare: the rules are narrow', () => {
+    const redirect = (over = {}) => ({ s: 301, t: 'text/plain', l: '/privacy', h: 'aa', hd: { nel: null, 'report-to': null }, ...over });
+    const OPT = { change: true, onVersion: true, expect: 'c' };
+    const worker = redirect({ t: null, h: 'bb', hd: { nel: 'present', 'report-to': 'present' } });
+    const known = compare({ '/r': redirect() }, { '/r': worker }, OPT);
+    assert.deepEqual(known.map((d) => `${d.field} ${d.known ? 'known' : 'UNKNOWN'}`).sort(), ['body known', 'header nel known', 'header report-to known', 'media type known']);
+    // The platform did not change (after an undo): a redirect body is not excused.
+    assert.ok(compare({ '/r': redirect() }, { '/r': worker }, { ...OPT, change: false, onVersion: false }).every((d) => !d.known));
+    // On the domain NEL is a failure: after a move the zone's setting must still be what it was.
+    const onDomain = compare({ '/r': redirect() }, { '/r': redirect({ hd: { nel: 'present', 'report-to': null } }) }, { ...OPT, onVersion: false });
+    assert.deepEqual(onDomain.map((d) => [d.field, !!d.known]), [['header nel', false]]);
+    // A page with a body is not a redirect: its body and type differences stay unknown.
+    const page = (over = {}) => ({ s: 200, t: 'text/html', l: null, h: 'aa', hd: {}, ...over });
+    assert.deepEqual(compare({ '/p': page() }, { '/p': page({ t: 'text/plain', h: 'bb' }) }, OPT).map((d) => !!d.known), [false, false]);
+    // A redirect that became a page, or went to another place, is not excused.
+    assert.ok(compare({ '/r': redirect() }, { '/r': page({ t: null, h: 'bb' }) }, OPT).every((d) => !d.known));
+    assert.ok(compare({ '/r': redirect() }, { '/r': redirect({ t: null, h: 'bb', l: '/x' }) }, OPT).filter((d) => d.field !== 'Location').every((d) => !d.known));
+  });
+
+  test('after a move the redirect has no body and the zone sends no NEL, and after passes; a NEL that appeared is a failure', async () => {
+    const s = scenario({ world: { domainNoNel: true } });
+    assert.equal((await recordDone(s)).code, 0, s.text());
+    assert.ok(Object.values(s.state().recording.entries[HOSTS[0]]).some((e) => e.s === 301 && e.t === 'text/plain'), "the recording holds Pages' redirect with its text");
+    const q = await s.go(['move']);
+    assert.equal((await s.go(['move', '--confirm', codeOf(q)])).code, 0, s.text());
+    s.push();
+    const route = git(s.site.work, 'rev-parse', 'HEAD');
+    s.w.pagesCommit = s.w.workerCommit = route;
+    const ok = await s.go(['after']);
+    assert.equal(ok.code, 0, ok.text);
+    s.w.domainNoNel = false; // the zone starts to send NEL: nothing about the Worker excuses it
+    const bad = await s.go(['after']);
+    assert.equal(bad.code, 1, bad.text);
+    assert.match(bad.text, /unknown: \S+\/ header nel: null ≠ present/);
+  });
+});
+
 describe('review round 2: time', () => {
   test('B19 and R15: a quick --confirm run does not meet GitHub\'s pause: it reads none, so it neither waits nor stops', async () => {
     const s = await recorded();

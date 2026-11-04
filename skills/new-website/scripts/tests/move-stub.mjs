@@ -99,12 +99,21 @@ function served(w, host, urlPath) {
   const commit = shown === 'pages' ? w.pagesCommit : w.workerCommit;
   const headers = { 'content-type': 'text/html; charset=utf-8', 'x-frame-options': 'DENY' };
   if (shown === 'pages') headers['access-control-allow-origin'] = '*';
-  if (host.endsWith('.workers.dev') || w.noindexHosts?.has(host)) headers['x-robots-tag'] = 'noindex';
-  else { headers.nel = '{"max_age":0}'; headers['report-to'] = '{}'; headers['strict-transport-security'] = 'max-age=31536000'; }
+  const version = host.endsWith('.workers.dev');
+  if (version || w.noindexHosts?.has(host)) headers['x-robots-tag'] = 'noindex';
+  else headers['strict-transport-security'] = 'max-age=31536000';
+  // Cloudflare's workers.dev zone adds NEL; a domain's zone sends it only while its NEL setting is on.
+  if (version || (!w.noindexHosts?.has(host) && !w.domainNoNel)) { headers.nel = '{"max_age":0}'; headers['report-to'] = '{}'; }
   const p = urlPath.split('?')[0];
+  const real = w.captured?.[version ? 'version' : platform]?.[p]; // a test's captured answer replaces the made one
+  if (real) return new Response(real.body, { status: real.status, headers: real.headers });
   if (p === '/build.txt') return new Response(`${commit}\n`, { status: 200, headers: { ...headers, 'content-type': platform === 'worker' && w.buildTxtWorkerType ? w.buildTxtWorkerType : 'text/plain' } });
   if (p === '/build-state.txt') return new Response(`${commit}\nbuilt ${Math.random()}\n`, { status: 200, headers: { ...headers, 'content-type': 'text/plain' } });
-  if (p === '/old') return new Response('', { status: 301, headers: { ...headers, location: '/about/' } });
+  if (p === '/old') { // Pages sends a short text with a redirect; the Worker's assets send none
+    if (platform === 'pages') return new Response('Redirecting to /about/', { status: 301, headers: { ...headers, 'content-type': 'text/plain;charset=UTF-8', location: '/about/' } });
+    const { 'content-type': _type, ...bare } = headers;
+    return new Response('', { status: 301, headers: { ...bare, location: '/about/' } });
+  }
   if (p === '/about') return new Response('', { status: platform === 'pages' ? 308 : 307, headers: { ...headers, location: '/about/' } });
   const file = p === '/' ? 'index.html' : p.endsWith('/') ? `${p.slice(1)}index.html` : p.slice(1);
   if (file in SITE && !file.startsWith('_')) {
