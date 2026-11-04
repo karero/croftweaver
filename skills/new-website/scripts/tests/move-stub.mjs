@@ -41,6 +41,15 @@ const cf = (result, extra = {}) => json(200, { success: true, errors: [], messag
 const cfFail = (status, message) => json(status, { success: false, errors: [{ code: 10000, message }], messages: [], result: null });
 
 
+// Waits for the request's abort. The abort timer alone does not keep an older Node alive, so a pending
+// answer would end the test run early; this holds the event loop open until the abort.
+function untilAborted(signal) {
+  return new Promise((_, rej) => {
+    const keep = setTimeout(() => {}, 120_000);
+    signal?.addEventListener('abort', () => { clearTimeout(keep); rej(Object.assign(new Error('aborted'), { name: 'TimeoutError' })); });
+  });
+}
+
 export function makeWorld(over = {}) {
   const w = {
     token: { status: 'active', expires_on: new Date(Date.now() + 2 * 86_400_000).toISOString().replace(/\.\d+Z$/, 'Z') },
@@ -128,7 +137,7 @@ export function makeFetch(w) {
       if (!hang) return cloudflare(w, method, u, body);
       hang.done = true; // one answer is lost: the change is made first or not, as `applied` says
       const answer = hang.applied ? cloudflare(w, method, u, body) : null;
-      await new Promise((_, rej) => init.signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'TimeoutError' }))));
+      await untilAborted(init.signal);
       return answer;
     }
     w.siteCalls.push(url);
@@ -140,7 +149,7 @@ export function makeFetch(w) {
       return new Response('', { status: 301, headers: { location: `https://${to}${u.pathname}` } });
     }
     if (w.stallAfter !== undefined && w.stallAfter !== null && w.siteCalls.length > w.stallAfter) { // every later answer waits for the abort
-      await new Promise((_, rej) => init.signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'TimeoutError' }))));
+      await untilAborted(init.signal);
     }
     if (w.slowHosts?.has(u.hostname)) await new Promise((r, rej) => { const t = setTimeout(r, 60_000); init.signal?.addEventListener('abort', () => { clearTimeout(t); rej(Object.assign(new Error('aborted'), { name: 'TimeoutError' })); }); });
     if (w.dropOnce?.has(u.pathname)) { w.dropOnce.delete(u.pathname); throw new Error('MADE: connection reset'); } // one lost answer for an address
