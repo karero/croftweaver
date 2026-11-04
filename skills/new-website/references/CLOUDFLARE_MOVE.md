@@ -76,8 +76,8 @@ config; a `functions/` folder holding anything but `_middleware.ts`, or a `publi
 and a site in analytics server mode. These checks are for a first move; while a move is open
 they are lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
 GitHub has a branch `production`; `check` then also shows whether `main` is on the live branch's
-commit, and `record` refuses until it is. `check` reads GitHub's answer for the repository first and names a private repository (and, when
-`gh` is missing, says where to get it); while a move is open it says which commit `after` waits for
+commit, and `record` refuses until it is. `check` first verifies the token and reads the branches with `git ls-remote`; of its GitHub reads, the repository's answer
+comes first, and it names a private repository (and, when `gh` is missing, says where to get it); while a move is open it says which commit `after` waits for
 and, when a host is not where the move ends, the command that carries it on.
 
 **`record` takes minutes.** The build runs apart from the command. While it runs, `record`
@@ -95,11 +95,15 @@ question will not fit a later one: a wrong code asks again and changes nothing.
 | 1 | Something failed or was refused. | Read the report. It says what, and where each host is now. |
 | 2 | The command was wrong. | Fix the command. |
 | 3 | Waiting for a yes. | Ask the User the question in the report. Run `--confirm <code>` only after her yes. |
-| 4 | Not finished. | Run the same command again. At once after a switch that stopped part way; after a minute if the report names a build; in 30 seconds if it names GitHub's pause or too little time left in the run. |
+| 4 | Not finished. | Run the same command again. At once after a switch that stopped part way; after a minute if the report names a build; in the seconds the report names if it names GitHub's pause (30 seconds at most). A run with too little time left for a host says "in N seconds" while that pause is still running, and "at once" when it is not. |
 
 A run lasts at most about a minute. The switch is built for that: a host is started only
-with 45 seconds left in the run; if its changes cannot finish in the time left, the run stops
-cleanly, says which hosts have already left their platform, and the next run carries on. If a change fails, the run stops at once, reads the host back and says
+with its changes' longest time left in the run (45 seconds for a zone of up to 100 DNS records; each
+further page of 100 records adds 16 seconds, and a zone whose host could never fit is refused
+before anything changes: move that one by hand). A host that is down comes first; a host that
+does not fit is left for the next run, which stops cleanly, says which hosts have already left their
+platform, and carries on. A run that still has a host to move never sits through GitHub's 30-second
+pause: it stops and names the seconds. The reads before the first host run several at a time. If a change fails, the run stops at once, reads the host back and says
 whether it is on Pages, on the Worker or on neither; **run the same command again at once**,
 because a host on neither is down. Each host is down from the moment it leaves its platform until
 the other serves it: about a minute. 15 minutes is the target, not a promise; past it the report

@@ -105,10 +105,20 @@ function served(w, host, urlPath) {
   return new Response('not found', { status: 404, headers });
 }
 
+// A request that takes `ms` on the injected clock `clock` (an object with a settable `t`). Requests
+// begun together overlap: the clock moves to the latest end, not by the sum.
+export async function spend({ clock, ms }) {
+  const start = clock.t;
+  await new Promise((r) => setImmediate(r));
+  clock.t = Math.max(clock.t, start + ms);
+}
+
 // The stub of `fetch`. Cloudflare's API, GitHub's, and every other URL as a site host.
+// `w.latency = { clock, ms }` makes every request take that long on the test's clock.
 export function makeFetch(w) {
   return async (url, init = {}) => {
     const u = new URL(url);
+    if (w.latency) await spend(w.latency);
     const method = init.method ?? 'GET';
     if (u.hostname === 'api.cloudflare.com') {
       const body = init.body ? JSON.parse(init.body) : undefined;
@@ -179,7 +189,12 @@ function cloudflare(w, method, u, body) {
     return page([...w.zones, ...extra]);
   }
   if (method === 'GET' && p === `${Z}/dns_records/export`) return new Response(w.dnsExport, { status: 200, headers: { 'content-type': 'text/plain' } });
-  if (method === 'GET' && p === `${Z}/dns_records`) return page(copy(w.dns));
+  if (method === 'GET' && p === `${Z}/dns_records`) { // pages of `per_page` records, as Cloudflare's list has them
+    const size = Math.min(100, Number(u.searchParams.get('per_page') ?? 100));
+    const n = Number(u.searchParams.get('page') ?? 1);
+    const items = copy(w.dns).slice((n - 1) * size, n * size);
+    return cf(items, { result_info: { page: n, per_page: size, count: items.length, total_count: w.dns.length, total_pages: Math.max(1, Math.ceil(w.dns.length / size)) } });
+  }
   if (method === 'POST' && p === `${Z}/dns_records`) {
     const r = { id: `f${String(100 + w.nextId++).padStart(31, '0')}`, ...body };
     w.dns.push(r);
