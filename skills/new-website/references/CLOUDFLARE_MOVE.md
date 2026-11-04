@@ -107,7 +107,12 @@ A run lasts at most about a minute. The switch is built for that.
   branch tips (one `git ls-remote`), no check runs, and compares them with the plain run's record.
   If the count, the newest deployment or a tip differs, or the plain run is more than 15 minutes
   old, it changes nothing and says to run the plain command again, then confirm. A host that is on
-  neither platform is finished first however old the record is, and the run refuses after it.
+  neither platform is finished first however old the record is; if another host is still to change,
+  the run then refuses. When no host is left to change, the run finishes with the difference printed
+  as a warning: `after` reads the builds again before it compares.
+- **Between the plain command and its confirm, don't re-run a build or deploy by hand.** A re-run
+  changes none of the four values the confirm compares. `after` catches one that put a host back, or
+  one still building, but it should not have to.
 - **A host is started only with its longest time left in the run**: 45 seconds (five requests at
   their slowest, and some slack). If the run's own reading leaves no room for one host that is
   still on its platform, the run refuses before any host leaves and says how long the reading

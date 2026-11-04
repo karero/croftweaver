@@ -1892,6 +1892,27 @@ describe('review round 4: the time a host needs (A3, A4, A5)', () => {
   });
 });
 
+// A --confirm run whose Worker never serves the commit it waits for, on a clock that stands still, so
+// it only spins. A 20 ms timer starts with the first sleep. Resolves whether it fired while the run was
+// still spinning: the spin is let go when the timer fires, or after `cap` sleeps.
+async function timerFiresWhileSpinning(s, sleepFor, cap) {
+  const T = Date.now();
+  const q = await s.go(['move'], { now: () => T });
+  const real = s.w.workerCommit;
+  s.w.workerCommit = 'f'.repeat(40);
+  let fired = false;
+  let n = 0;
+  const sleep = () => {
+    if (n++ === 0) setTimeout(() => { fired = true; }, 20);
+    if (fired || n > cap) s.w.workerCommit = real;
+    return sleepFor();
+  };
+  const g = await s.go(['move', '--confirm', codeOf(q)], { now: () => T, sleep });
+  assert.equal(g.code, 0, g.text);
+  assert.ok(n > 0, 'the run never slept: it did not spin');
+  return fired;
+}
+
 describe('review round 4: lists, stopped runs, the test clock and the stage', () => {
   test('B36: a page that holds fewer items than it should, and is not empty, stops the run', async () => {
     const s = await recorded();
@@ -1930,16 +1951,12 @@ describe('review round 4: lists, stopped runs, the test clock and the stage', ()
 
   test('B35: a run that spins on a frozen clock lets a 20 ms timer fire', async () => {
     const s = await recorded();
-    const T = Date.now();
-    const q = await s.go(['move'], { now: () => T });
-    const real = s.w.workerCommit;
-    s.w.workerCommit = 'f'.repeat(40); // the Worker never serves a commit the script knows
-    const timer = new Promise((r) => setTimeout(() => r('timer'), 20));
-    const run = s.go(['move', '--confirm', codeOf(q)], { now: () => T });
-    const first = await Promise.race([run, timer]);
-    s.w.workerCommit = real; // let the spinning run end
-    assert.equal(first, 'timer', 'the run came back before the timer could fire, or the timer never did');
-    assert.equal((await run).code, 0);
+    assert.equal(await timerFiresWhileSpinning(s, yielding, 100_000), true);
+  });
+
+  test('N24: the same spin with a sleep that does not yield starves the timer, so the test above can fail', async () => {
+    const s = await recorded();
+    assert.equal(await timerFiresWhileSpinning(s, () => Promise.resolve(), 3_000), false);
   });
 
   test('N20: a go-forward that writes no new route commit does not show "after passed"', async () => {
@@ -1956,5 +1973,164 @@ describe('review round 4: lists, stopped runs, the test clock and the stage', ()
     const g = await s.go(['move', '--confirm', codeOf(m)], { now: () => T });
     assert.equal(g.code, 0, g.text);
     assert.equal(nowStage(s), '3', 'the hosts moved again and have not been checked');
+  });
+});
+
+describe('review round 5: stale confirms, re-runs of a build, and what a confirm reads (B38, R16, N22-N25)', () => {
+  // the apex is on the Worker, www on neither platform: the only host left to change is down
+  async function onlyDownHostLeft() {
+    const { s } = await halfMoved();
+    s.w.project.domains = [];
+    s.w.dns = s.w.dns.filter((r) => !(r.type === 'CNAME' && r.name === HOSTS[1]));
+    return s;
+  }
+
+  test('B38: a stale --confirm with no fresh host left finishes the down host, exits 0 and prints the drift as a warning', async () => {
+    const s = await onlyDownHostLeft();
+    const c = mockClock();
+    const q = await s.go(['move'], { now: c.now });
+    assert.equal(q.code, 3, q.text);
+    c.t += 20 * 60_000;
+    const g = await s.go(['move', '--confirm', codeOf(q)], { now: c.now });
+    assert.equal(g.code, 0, g.text);
+    assert.match(g.text, /Warning: .*more than 15 minutes/);
+    assert.match(g.text, /node move-to-workers\.mjs after/);
+    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS, 'the down host was attached');
+  });
+
+  test('B38: a stale --confirm with a fresh host left finishes the down host and then refuses (the A2 test above holds the host checks)', async () => {
+    const { s } = await halfMoved();
+    wwwDown(s); // the apex is fresh again, www is down
+    const c = mockClock();
+    const q = await s.go(['move'], { now: c.now });
+    c.t += 20 * 60_000;
+    const g = await s.go(['move', '--confirm', codeOf(q)], { now: c.now });
+    assert.equal(g.code, 1, g.text);
+    assert.ok(g.text.includes(`${HOSTS[1]} was finished first`), g.text);
+    assert.match(g.text, /run the plain command again/);
+  });
+
+  test('B38: a --confirm run on a check that still holds prints no warning', async () => {
+    const s = await onlyDownHostLeft();
+    const q = await s.go(['move']);
+    const g = await s.go(['move', '--confirm', codeOf(q)]);
+    assert.equal(g.code, 0, g.text);
+    assert.ok(!/Warning: /.test(g.text), g.text);
+  });
+
+  test('R16: after an undo, a Workers Builds re-run of the route commit that attaches the hosts to the Worker again makes after fail', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    assert.equal((await pushAndAfter(s, route)).code, 0);
+    const uq = await s.go(['undo']);
+    assert.equal((await s.go(['undo', '--confirm', codeOf(uq)], frozenClock())).code, 0);
+    const undo = git(s.site.work, 'rev-parse', 'HEAD');
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = undo;
+    // the re-run of the route commit's build puts both hosts back on the Worker
+    s.w.project.domains = [];
+    s.w.dns = s.w.dns.filter((r) => r.type !== 'CNAME' || !HOSTS.includes(r.name));
+    s.w.workerDomains = HOSTS.map((h, i) => ({ id: `0000009${i}-0000-4000-8000-000000000000`, hostname: h, service: WORKER, zone_id: ZONE.id, zone_name: ZONE.name, environment: 'production' }));
+    const a = await s.go(['after']);
+    assert.equal(a.code, 1, a.text);
+    assert.match(a.text, new RegExp(`${dotted(HOSTS[0])} is on the Worker`));
+    assert.match(a.text, /Run undo again/);
+    assert.ok(s.state().open, 'the move was not closed');
+  });
+
+  test('R16: a check run that starts after the confirm holds after back (exit 4) until it ends', async () => {
+    const s = await recorded();
+    const route = await moveAll(s);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = route;
+    s.w.checkRuns[route] = unfinishedWorkersRun(route); // a rebuild began once the confirm run was over
+    const waiting = await s.go(['after']);
+    assert.equal(waiting.code, 4, waiting.text);
+    assert.match(waiting.text, /Builds are unfinished/);
+    delete s.w.checkRuns[route];
+    const done = await s.go(['after']);
+    assert.equal(done.code, 0, done.text);
+  });
+
+  // N22: a standing test for every --confirm path. Each makes no request to GitHub's API.
+  const githubCalls = (s) => s.w.siteCalls.filter((u) => u.includes('api.github.com')).length;
+  async function confirmWithoutGithub(s, dir, q, io = {}) {
+    s.w.siteCalls.length = 0;
+    const g = await s.go([dir, '--confirm', codeOf(q)], io);
+    return { g, n: githubCalls(s) };
+  }
+  // an undo stopped after its first host: the run's time ran out
+  async function halfUndone() {
+    const s = await recorded();
+    await moveAll(s);
+    let T = Date.now();
+    const q = await s.go(['undo'], { now: () => T });
+    s.w.onCall = (key) => { if (key === 'POST /zones/:id/dns_records') T += 3000; };
+    const r = await s.go(['undo', '--confirm', codeOf(q)], { runMs: 5000, reserveMs: 3500, now: () => T });
+    assert.equal(r.code, 4, r.text);
+    delete s.w.onCall;
+    return s;
+  }
+
+  test('N22: a first move --confirm reads no GitHub (the plain run before it does, so the count can move)', async () => {
+    const s = await recorded();
+    s.w.siteCalls.length = 0;
+    const q = await s.go(['move']);
+    assert.ok(githubCalls(s) > 0, 'the plain run reads GitHub');
+    const { g, n } = await confirmWithoutGithub(s, 'move', q);
+    assert.equal(g.code, 0, g.text);
+    assert.equal(n, 0);
+  });
+
+  test('N22: a resumed move --confirm reads no GitHub', async () => {
+    const { s } = await halfMoved();
+    const q = await s.go(['move']);
+    const { g, n } = await confirmWithoutGithub(s, 'move', q);
+    assert.equal(g.code, 0, g.text);
+    assert.equal(n, 0);
+  });
+
+  test('N22: a first undo --confirm reads no GitHub', async () => {
+    const s = await recorded();
+    await moveAll(s);
+    const q = await s.go(['undo']);
+    const { g, n } = await confirmWithoutGithub(s, 'undo', q, frozenClock());
+    assert.equal(g.code, 0, g.text);
+    assert.equal(n, 0);
+  });
+
+  test('N22: a resumed undo --confirm reads no GitHub', async () => {
+    const s = await halfUndone();
+    const q = await s.go(['undo']);
+    const { g, n } = await confirmWithoutGithub(s, 'undo', q);
+    assert.equal(g.code, 0, g.text);
+    assert.equal(n, 0);
+  });
+
+  test('N23: a host on both platforms is named as that when the time is short, not called down', async () => {
+    const { s } = await halfMoved(); // the apex is on the Worker; www is still on Pages
+    s.w.workerDomains.push({ id: '00000099-0000-4000-8000-000000000000', hostname: HOSTS[1], service: WORKER, zone_id: ZONE.id, zone_name: ZONE.name, environment: 'production' });
+    const q = await s.go(['move']);
+    assert.equal(q.code, 3, q.text);
+    const g = await s.go(['move', '--confirm', codeOf(q)], { reserveMs: 100_000 });
+    assert.equal(g.code, 1, g.text);
+    assert.match(g.text, new RegExp(`${dotted(HOSTS[1])} is on both the Pages project and the Worker`));
+    assert.ok(!/is down/.test(g.text), g.text);
+  });
+
+  test('N25: an exit-4 stop before any host moved back, then a token with under an hour left, still refuses the undo', async () => {
+    const s = await recorded();
+    await moveAll(s);
+    const T = Date.now();
+    const q = await s.go(['undo'], { now: () => T });
+    s.w.workerDomains = s.w.workerDomains.filter((d) => d.hostname !== HOSTS[1]); // www is on neither platform: down
+    s.w.calls.length = 0;
+    const stopped = await s.go(['undo', '--confirm', codeOf(q)], { now: () => T, reserveMs: 100_000 });
+    assert.equal(stopped.code, 4, stopped.text);
+    assert.equal(changes(s).length, 0, 'no host had left its platform');
+    s.w.token.expires_on = new Date(Date.now() + 30 * 60_000).toISOString().replace(/\.\d+Z$/, 'Z');
+    const again = await s.go(['undo', '--confirm', codeOf(q)], { now: () => T });
+    assert.equal(again.code, 1, again.text);
+    assert.match(again.text, /less than an hour/);
   });
 });

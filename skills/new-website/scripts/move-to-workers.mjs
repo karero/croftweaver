@@ -1226,6 +1226,7 @@ async function cmdRecord(ctx, run) {
 
 // A host's changes (three) and the two read-backs around them: five requests, each at its longest,
 // and some slack. A run starts a host only if that much is left.
+const bothWords = (h) => `${h} is on both the Pages project and the Worker. The script does not decide that: look at it in the dashboard.`;
 const hostReserve = (ctx) => ctx.io.reserveMs ?? 5 * (ctx.io.requestMs ?? REQUEST_MS) + 5_000;
 
 // Why the plain run's check no longer holds, or null. A --confirm run goes ahead only on a check that
@@ -1346,6 +1347,8 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     run.next = `node move-to-workers.mjs ${dir}`;
     throw new Stop(1, `${drift} Nothing was changed: ${plainAgain}.`);
   }
+  if (drift && !hostsNow.some(([, hs]) => isFresh(hs))) say(`Warning: ${drift} No fresh host is left to change, so the run goes on; after reads the builds again before it compares.`);
+  if (waiting && waiting[1].where === 'both') throw new Stop(1, bothWords(waiting[0]));
   if (waiting && ctx.clock.left() < reserve) {
     const spent = Math.round(((ctx.io.runMs ?? RUN_MS) - ctx.clock.left()) / 1000);
     if (isFresh(waiting[1])) {
@@ -1396,7 +1399,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     let hs = hostState(ctx, live, h);
     const done = toWorker ? hs.where === 'worker' : hs.where === 'pages' && hs.cname;
     if (done) { say(`${h} is already ${toWorker ? 'on the Worker' : 'back on Pages'}; skipped.`); continue; }
-    if (hs.where === 'both') throw new Stop(1, `${h} is on both the Pages project and the Worker. The script does not decide that: look at it in the dashboard.`);
+    if (hs.where === 'both') throw new Stop(1, bothWords(h));
     if (isFresh(hs) && drift) { // the down hosts were finished above; nothing fresh starts on a check that no longer fits
       run.next = `node move-to-workers.mjs ${dir}`;
       throw new Stop(1, `${drift} ${finished.length ? `${finished.join(' and ')} ${finished.length > 1 ? 'were' : 'was'} finished first; no other host was started` : 'No further host was started'}: ${plainAgain}.`);
