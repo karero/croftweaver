@@ -708,6 +708,24 @@ describe('3: the state file, the lock and a second checkout', () => {
     }
   });
 
+  test('G1: runs that start at the same instant on a dead lock: exactly one takes it', async () => {
+    const mod = path.join(HERE, '..', 'move-to-workers.mjs');
+    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    // Each child waits for a shared start time, then takes the lock and stays alive, so a lock taken is a lock held.
+    const child = (dir, at) => new Promise((resolve) => {
+      const src = `import(${JSON.stringify(mod)}).then((m) => { while (Date.now() < ${at}); let got = false; try { m.takeLock(${JSON.stringify(dir)}, {}, () => {}); got = true; } catch {} console.log(got ? 'GOT' : 'NO'); setTimeout(() => {}, 1500); });`;
+      execFile(process.execPath, ['--input-type=module', '-e', src], (err, out) => resolve(out.trim()));
+    });
+    for (let round = 0; round < 4; round++) {
+      const dir = mkdtempSync(path.join(tmpdir(), 'move-lock-'));
+      writeFileSync(path.join(dir, 'lock'), `${dead}\nabc\n`);
+      const outs = await Promise.all(Array.from({ length: 6 }, () => child(dir, Date.now() + 1500)));
+      assert.equal(outs.filter((o) => o === 'GOT').length, 1, `round ${round}: ${outs.join(' ')}`);
+      assert.deepEqual(readdirSync(dir).filter((n) => n !== 'lock'), [], 'no stale file is left behind');
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("a run never removes a lock that another run put in its place", async () => {
     const s = await recorded();
     const lock = path.join(path.dirname(s.stateFile()), 'lock');

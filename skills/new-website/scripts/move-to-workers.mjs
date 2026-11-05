@@ -12,7 +12,7 @@
 // command again.
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { existsSync, linkSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -438,21 +438,38 @@ const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { 
 // Created exclusively; a run removes only the lock it created and never another run's. A lock
 // whose process has gone (a killed run) is taken over, because the host it left may be down and
 // the next run must start at once; a live process's lock is never touched.
-function takeLock(dir, run, say) {
+export function takeLock(dir, run, say) {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const f = path.join(dir, 'lock');
   const mine = `${process.pid}\n${randomBytes(8).toString('hex')}\n`;
-  let fd;
-  try { fd = openSync(f, 'wx'); } catch (e) {
-    if (e.code !== 'EEXIST') throw e;
-    const pid = Number(readFileSync(f, 'utf8').split('\n')[0]);
+  // The lock appears with its pid already in it (a hard link to a finished file), so no run sees it empty.
+  const create = () => {
+    const tmp = `${f}.new-${process.pid}-${randomBytes(4).toString('hex')}`;
+    writeFileSync(tmp, mine, { flag: 'wx', mode: 0o600 });
+    try { linkSync(tmp, f); return true; } catch (e) { if (e.code === 'EEXIST') return false; throw e; } finally { rmSync(tmp, { force: true }); }
+  };
+  let tookOver = null;
+  for (let tries = 0; ; tries++) {
+    if (create()) break;
+    if (tries === 3) throw new Stop(1, `${f} keeps changing under this run. Run this again.`);
+    let before;
+    try { before = readFileSync(f, 'utf8'); } catch (e) { if (e.code === 'ENOENT') continue; throw e; }
+    const pid = Number(before.split('\n')[0]);
     if (Number.isInteger(pid) && pid > 0 && alive(pid)) throw new Stop(1, `Another run (process ${pid}) holds ${f}. Wait for it to end, then run this again.`);
-    rmSync(f);
-    try { fd = openSync(f, 'wx'); } catch { throw new Stop(1, `${f} was taken by another run while this one took over a dead run's lock. Run this again.`); }
-    say(`Took over the lock of a run that no longer exists (${Number.isInteger(pid) && pid > 0 ? `process ${pid}` : 'no process named'}).`);
+    // Claim the dead lock by renaming it: one rename wins, so two runs cannot both recover it.
+    const stale = `${f}.stale-${process.pid}-${randomBytes(4).toString('hex')}`;
+    try { renameSync(f, stale); } catch (e) { if (e.code === 'ENOENT') continue; throw e; }
+    if (readFileSync(stale, 'utf8') !== before) { // not the lock read above: another run replaced it in between
+      try { linkSync(stale, f); } catch { /* a newer lock is already there */ }
+      rmSync(stale);
+      throw new Stop(1, `${f} changed while this run took it over. Run this again.`);
+    }
+    rmSync(stale);
+    tookOver = Number.isInteger(pid) && pid > 0 ? `process ${pid}` : 'no process named';
+    if (!create()) throw new Stop(1, `${f} was taken by another run while this one took over a dead run's lock. Run this again.`);
+    break;
   }
-  writeSync(fd, mine);
-  closeSync(fd);
+  if (tookOver) say(`Took over the lock of a run that no longer exists (${tookOver}).`);
   run.release = () => {
     try { if (readFileSync(f, 'utf8') === mine) rmSync(f); } catch { /* already gone */ }
     run.release = null;
