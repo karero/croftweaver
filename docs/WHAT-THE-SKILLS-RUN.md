@@ -33,9 +33,11 @@ and runs the commands; the skills cannot run anything by themselves.
   The full list is in [Writes outside your site's folder](#writes-outside-your-sites-folder).
 - **In Claude Code, routine build commands run without asking**, because each site made
   with Claude Code gets a permission list (see
-  [What runs without asking](#what-runs-without-asking); read from Claude Code's
-  documentation on permission rules, not tried in a live session). That list also lets `node`,
-  `npm run` and `git push` run without asking. It saves clicks; it is not a safety fence.
+  [What runs without asking](#what-runs-without-asking)). Since 2026-11 the git commands that
+  change branches or publish are allowed only in the exact forms the skills use, and a
+  commit, a new working branch, `node` scripts and the image tools ask first. `npm run …`
+  and a plain `git push` still run without asking. It saves clicks; it is not a safety
+  fence.
 - **Releases carry no signature of our own.** Since v0.32 a `SHA256SUMS` file sits beside
   the zip, the release cannot change once published, and GitHub signs a record of it;
   v0.31 and earlier have none of this, but GitHub shows a SHA-256 for each download. See
@@ -47,50 +49,94 @@ and runs the commands; the skills cannot run anything by themselves.
 ([template](../skills/new-website/templates/claude/settings.json)). The `website-permissions`
 skill installs the same file into an existing site. It has three parts. What each part
 does below is how Claude Code's
-[permission documentation](https://code.claude.com/docs/en/permissions) describes it; it
-was read, not tried in a live session.
+[permission documentation](https://code.claude.com/docs/en/permissions) describes it. A rule
+with no `*` matches that one command exactly; a rule ending in `:*` matches the command on
+its own or followed by a space and anything after it.
 
-- **Runs without asking:** `npm install`, `npm ci`, `npm run …`, `npm test …`, `npm exec …`,
-  `npx astro`, `npx keystatic`, `npx playwright`, `wrangler pages dev` and `wrangler whoami`
-  (each plain or with `npx`),
-  `astro`, `playwright`, `node …`, `bash scripts/check_external_links.sh`, most everyday git
-  commands (`status`, `diff`, `log`, `show`, `add`, `commit`, `branch`, `checkout`, `switch`,
-  `init`, `merge`, `restore`, `stash`, `remote`, `fetch`, `pull`, `rev-parse`, `push`),
-  `gh auth status`, `gh repo view`, `gh repo create`, `gh pr view`, `gh pr list`, the image
-  tools (`cwebp`, `dwebp`, `avifenc`, `magick`, `convert`, `oxipng`, `jpegoptim`, `svgo`,
-  `exiftool`), file commands (`ls`, `cat`, `head`, `tail`, `wc`, `tree`, `find`, `grep`,
-  `rg`, `mkdir`, `cp`, `mv`, `touch`, `echo`, `open`), and reading three documentation sites
-  (docs.astro.build, developers.cloudflare.com, keystatic.com).
+- **Runs without asking:**
+  - `npm install`, `npm ci`, `npm run …`, `npm test …`, `npx astro`, `npx keystatic`,
+    `npx playwright`, `wrangler pages dev` and `wrangler whoami` (each plain or with `npx`),
+    `astro`, `playwright`, `bash scripts/check_external_links.sh` and `node --version`.
+  - git: `status`, `diff`, `log`, `show`, `add` and `rev-parse` with anything after them,
+    and these exact commands only: `git init`, `git checkout main`,
+    `git checkout -b production`, `git checkout -- .gitignore`, `git switch main`,
+    `git switch -`, `git fetch`, `git fetch origin`, `git pull`, `git pull --ff-only`,
+    `git pull --no-rebase`, `git push`, `git push -u origin main`,
+    `git push -u origin production` and `git push --dry-run origin HEAD:main`.
+  - `gh auth status`, `gh repo view`, `gh repo create`, `gh pr view` and `gh pr list`.
+  - File commands: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `mkdir`, `cp`, `touch` and
+    `echo`.
+  - Reading three documentation sites (docs.astro.build, developers.cloudflare.com,
+    keystatic.com).
 - **Blocked:** `rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or
   a `+branch`, wherever it stands in the command), `git reset --hard`, `gh repo delete`,
-  `wrangler delete` and `wrangler pages delete` (with or without `npx`). The documentation
-  says a block rule prevents the command; it does not ask. You run such a command yourself
-  if you really mean it.
+  `wrangler delete` and `wrangler pages delete` (with or without `npx`), any git command
+  with a word starting `--output` (for `git log`, `diff` and `show`, writing to a file),
+  and `git add` reading its paths from a file (`--pathspec-from-file`). The documentation says a block rule prevents the command; it
+  does not ask. You run such a command yourself if you really mean it.
 - **Everything else asks first**, as long as Claude Code is in its normal mode. If you
   switch Claude Code to a mode that approves everything, nothing asks.
 
 What this list does and does not protect:
 
-- `node …`, `npm run …` and `npm exec …` can run any program. So the list is a way to stop
-  routine prompts, not a sandbox. Apart from the list, the site's `AGENTS.md` tells the
+- Most of the allowed build and git commands (`npm install`, `npm ci`, `npm run …`,
+  `npm test …`, `astro`, `playwright` and their `npx` forms, `wrangler pages dev`,
+  `bash scripts/check_external_links.sh`, `git push`, `git pull`) run the site's own
+  scripts, config files or git hooks; `git checkout`, `git switch` and `git pull` change
+  which version of those files is on disk, and can run git hooks the site carries. Anyone who can change those files can run code through them: a collaborator, a
+  pull from `origin`, or the assistant through an edit you approve. So the list is a way to
+  stop routine prompts, not a sandbox. Apart from the list, the site's `AGENTS.md` tells the
   assistant never to run `npm run ship` unasked and to merge a pull request only when you
   say so. Those are written rules for the assistant, not something Claude Code enforces.
 - `git push` and `gh repo create` are allowed on purpose. `SETUP.md` in each site says to
-  take them out of the list if you would rather confirm each push.
+  take them out of the list if you would rather confirm each push. A plain `git push` goes
+  where the branch's upstream and git's push settings send it: by default the current
+  branch to the branch it tracks.
 - The block rules match the command as written. Besides `git push --force` and
   `git push -f` at the start, three rules catch a force flag or a `+` later in a push, so
-  `git push origin main --force` and `git push origin +main` are blocked too.
-  `git push --delete` is allowed: tidying up merged branches needs it. Tested on
-  2026-10-14 with Claude Code 2.1.287, run headless with these settings in a throwaway
-  repository: all seven force-push forms tried were blocked, and `--delete`, a plain push
-  and `--follow-tags` ran. With the rules as they were before, five of the seven ran,
-  `git push --force-with-lease` at the start among them. A force flag bundled with others
-  still runs (`git push -uf origin main` and `git push origin main -vf`, tested the same
-  day): a rule broad enough to catch it would also block `--follow-tags` and branch names
-  with `-f` in them.
-- `find` with `-delete` or `-exec` should still ask: Claude Code's documentation says a
-  `find` rule cannot approve a `find` that deletes, writes or runs commands. (Read, not
-  tried in a live session.)
+  `git push origin main --force` and `git push origin +main` are blocked too. Tested on
+  2026-10-14 with Claude Code 2.1.287, run headless with the list as it then was, in a
+  throwaway repository: all seven force-push forms tried were blocked. Since the push rules
+  became exact commands, a push with any other options, a bundled force flag among them,
+  asks rather than runs.
+- The three `--output` and `--pathspec` block rules match the usual spelling only. Git
+  accepts other ways of writing some options, and a rule matches text.
+- A rule ending in `:*` allows whatever follows it. The `:*` rules left were not reviewed
+  option by option.
+
+**Now asks** (since 2026-11; before, these ran without asking):
+
+- `node` scripts: the Cloudflare check and setup (`CLOUDFLARE_CHECK.md` and
+  `CLOUDFLARE_FIRST_DEPLOY.md` in each site) and the `node -e` lines in `website-qa`.
+- `npm exec …`, `rg`, `find`, `tree`, `mv` and `open` (`geo-check` opens a report with
+  `open -e`).
+- The image tools (`cwebp`, `dwebp`, `avifenc`, `magick`, `convert`, `oxipng`, `jpegoptim`,
+  `svgo`, `exiftool`), which `website-brand-kit` and `image` use.
+- Every `git commit`. You see the message before it is made.
+- A new working branch (`git switch --no-track -c …` in `AGENTS.md` and
+  `website-team-setup`), its first push (`git push -u origin <branch>`), and
+  `git branch -D`. Only `production`, made once at launch, is created without asking;
+  only `main` and `production` get their first push without asking.
+- Pushes with other options: `git push --no-verify`, `git push --follow-tags` and
+  `git push --delete`.
+- `git restore`, `git merge`, `git stash`, `git remote`, and `git checkout` or `git switch`
+  to anything but the forms listed above.
+
+For a change made the way `AGENTS.md` describes, this means about three more questions
+than before: making the branch, the commit and the branch's first push.
+
+**Tested on 2026-11-05** with Claude Code 2.1.309, run headless with this list
+(`--settings`, normal mode) in a throwaway repository with a local `origin`: each of the
+16 exact commands it adds or narrows (`node --version`, `git init`, the three `checkout`,
+two `switch`, two `fetch`, three `pull` and four `push` forms) ran with no prompt, and each
+did what it should (a new commit on `origin`, a switched branch, a fetched commit).
+`npm ci` on an untouched copy of the starter ran with no prompt and pointed git's hooks at
+`scripts/hooks`, where the pre-push hook lives. Only allowed commands were tried.
+
+**Still open.** What the list refuses rests on Claude Code's documented matching; it was
+read, not tested. Claude Code refused reads and writes outside the site's folder for `cat`,
+`grep`, `cp` and `echo` in headless runs on 2026-11-04, with the list as it then was; those
+were not re-run.
 
 **Codex and Antigravity** do not read `.claude/settings.json`. They use their own approval
 settings, which Croftweaver does not change.
@@ -493,7 +539,8 @@ private vulnerability reporting, on the repository's Security tab.
 ## What was not checked
 
 - Whether Claude Code's block and allow rules behave as its documentation describes,
-  beyond the push test above; the rest was read, not tried. The test ran headless, where a
+  beyond the push test and the 2026-11-05 run of the allowed commands above; the rest was
+  read, not tried. The push test ran headless, where a
   command that is not allowed is refused without a question, so it shows that the force
   pushes did not run, not that a blocked command never asks.
 - Whether Codex and Antigravity ignore `.claude/settings.json`; this was read from the
