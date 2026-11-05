@@ -10,11 +10,12 @@
 import { describe, test as nodeTest } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { EMPTY_BODY, Stop, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
+import { EMPTY_BODY, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
 import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, platformOf, spend, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
@@ -22,6 +23,15 @@ import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, ma
 const test = (name, fn) => nodeTest(name, { timeout: 120_000 }, fn);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+// A pid that process.kill(pid, 0) confirms is dead now: the number of a finished child can be handed to a new process (Windows does it soon).
+function deadPid() {
+  for (let i = 0; i < 20; i++) {
+    const pid = spawnSync(process.execPath, ['-e', '']).pid;
+    try { process.kill(pid, 0); } catch (e) { if (e.code === 'ESRCH') return pid; }
+  }
+  throw new Error('could not find a pid that is dead');
+}
 const SCRIPTS = path.join(HERE, '..');
 const REMOTE = `https://github.com/${OWNER}/${REPO}.git`;
 
@@ -698,7 +708,7 @@ describe('3: the state file, the lock and a second checkout', () => {
   test('BUG B: the lock of a run that was killed is taken over, with one line, and the same command goes on', async () => {
     const s = await recorded();
     const lock = path.join(path.dirname(s.stateFile()), 'lock');
-    const dead = spawnSync(process.execPath, ['-e', '']).pid; // a process that has ended
+    const dead = deadPid(); // a process that has ended
     for (const body of [`${dead}\nabc\n`, '']) { // a killed run's lock, and one cut off before it wrote its pid
       writeFileSync(lock, body);
       const r = await s.go(['move']);
@@ -738,7 +748,7 @@ describe('3: the state file, the lock and a second checkout', () => {
   });
 
   test('G1: runs that start at the same instant on a dead lock: exactly one takes it, and the lock is never moved aside', async () => {
-    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    const dead = deadPid();
     // Each child waits for a shared start time, then takes the lock and stays alive until the parent has every answer,
     // so a lock taken is a lock held however slowly the others start.
     for (let round = 0; round < 4; round++) {
@@ -758,7 +768,7 @@ describe('3: the state file, the lock and a second checkout', () => {
   });
 
   test('a takeover claim left by a run that stopped refuses loudly; a live run\'s claim waits', () => {
-    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    const dead = deadPid();
     const dir = mkdtempSync(path.join(tmpdir(), 'move-lock-'));
     writeFileSync(path.join(dir, 'lock'), `${dead}\nabc\n`);
     writeFileSync(path.join(dir, 'lock.claim'), `${dead}\n`);
@@ -1457,8 +1467,25 @@ describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\
     assert.match(r.text, /unknown: \S+\/old-page body/);
   });
 
+  test('record: Pages sending an HTML body on a 301 is not the captured shape: its body and type stay unknown', async () => {
+    const html = answer(CAPTURE.domain_on_pages);
+    html.headers = { ...html.headers, 'content-type': 'text/html; charset=UTF-8', 'content-length': '20' };
+    html.body = '<html>moved</html>\n';
+    const s = kit({ captured: { pages: { [CAPTURE.path]: html }, version: { [CAPTURE.path]: answer(CAPTURE.version_url_of_the_worker) } } });
+    const r = await recordDone(s);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /unknown: \S+\/old-page body/);
+    assert.match(r.text, /unknown: \S+\/old-page media type/);
+  });
+
   test('compare: the rules are narrow', () => {
-    const redirect = (over = {}) => ({ s: 301, t: 'text/plain', l: '/privacy', h: 'aa', hd: { nel: null, 'report-to': null }, ...over });
+    // The excused Pages shape is the capture's, quoted: text/plain, "Redirecting to /privacy" (23 bytes) for Location /privacy.
+    const cap = CAPTURE.domain_on_pages;
+    assert.equal(cap.headers['content-type'], 'text/plain;charset=UTF-8');
+    assert.equal(cap.body, 'Redirecting to /privacy');
+    assert.equal(cap.headers['content-length'], '23');
+    assert.equal(pagesRedirectBody(cap.headers.location), createHash('sha256').update(cap.body).digest('hex').slice(0, 16));
+    const redirect = (over = {}) => ({ s: 301, t: 'text/plain', l: '/privacy', h: pagesRedirectBody('/privacy'), hd: { nel: null, 'report-to': null }, ...over });
     const OPT = { change: true, onVersion: true, expect: 'c' };
     const worker = redirect({ t: null, h: EMPTY_BODY, hd: { nel: 'present', 'report-to': 'present' } });
     const known = compare({ '/r': redirect() }, { '/r': worker }, OPT);
@@ -1483,6 +1510,13 @@ describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\
     assert.ok(withBody.length === 2 && withBody.every((d) => !d.known), 'a Worker body is not excused');
     const withType = compare({ '/r': redirect() }, { '/r': redirect({ t: 'text/html', h: EMPTY_BODY }) }, OPT);
     assert.deepEqual(withType.map((d) => `${d.field} ${d.known ? 'known' : 'UNKNOWN'}`).sort(), ['body known', 'media type UNKNOWN']);
+    // BUG (review round 2): any other Pages body or type that vanishes with its type stays unknown: an HTML page on a 301, or another text.
+    const htmlRedirect = compare({ '/r': redirect({ t: 'text/html', h: 'cc' }) }, { '/r': redirect({ t: null, h: EMPTY_BODY }) }, OPT).filter((d) => d.field === 'body' || d.field === 'media type');
+    assert.ok(htmlRedirect.length === 2 && htmlRedirect.every((d) => !d.known), 'a 301 with an HTML body is not the captured shape');
+    const otherText = compare({ '/r': redirect({ h: 'cc' }) }, { '/r': redirect({ t: null, h: EMPTY_BODY }) }, OPT).filter((d) => d.field === 'body' || d.field === 'media type');
+    assert.ok(otherText.length === 2 && otherText.every((d) => !d.known), 'text/plain with another body is not the captured shape');
+    const jsonRedirect = compare({ '/r': redirect({ t: 'application/json', h: pagesRedirectBody('/privacy') }) }, { '/r': redirect({ t: null, h: EMPTY_BODY }) }, OPT).filter((d) => d.field === 'media type');
+    assert.ok(jsonRedirect.length === 1 && !jsonRedirect[0].known, 'the captured body under another type is not excused');
     // Pages with an empty body too: there is no transition to excuse.
     assert.ok(compare({ '/r': redirect({ h: EMPTY_BODY }) }, { '/r': redirect({ t: null, h: 'bb' }) }, OPT).every((d) => !d.known));
   });
@@ -2551,11 +2585,24 @@ describe('review: the Pages domain list as Cloudflare sends it (BUG A, test 2)',
     s.w.pagesCommit = s.w.workerCommit = undoCommit;
     for (const state of ['initializing', 'pending']) {
       s.w.pagesDomainsAnswer = read(state);
+      const before = readFileSync(s.stateFile(), 'utf8');
       const r = await s.go(['after']);
       assert.equal(r.code, 4, `${state}: ${r.text}`);
+      // Review round 2, item 4: the wait comes before any address is fetched, so there is nothing more to keep; the one field the run sets, GitHub's poll time, is saved where it is set.
+      const keys = (txt) => JSON.stringify(Object.entries(JSON.parse(txt)).filter(([k]) => k !== 'ghPolledAt'));
+      assert.equal(keys(readFileSync(s.stateFile(), 'utf8')), keys(before), `${state}: the wait changes nothing but GitHub's poll time, which is saved when it is set`);
+      assert.match(r.text, /: a wait, not a failure/);
       assert.match(r.text, new RegExp(`Cloudflare shows the domain as ${state}`));
       assert.match(r.text, /Run the same command again in a minute/);
     }
+    // One host coming up, the other broken: exit 1 names the broken one as a failure and the coming-up one as a wait.
+    const mixed = read('pending');
+    mixed.result[1].status = 'error';
+    s.w.pagesDomainsAnswer = mixed;
+    const m = await s.go(['after']);
+    assert.equal(m.code, 1, m.text);
+    assert.match(m.text, /www\.lenas-backstube\.example is on Pages \(Cloudflare shows the domain as error\)(?!: a wait)/);
+    assert.match(m.text, /lenas-backstube\.example is on Pages \(Cloudflare shows the domain as pending\): a wait, not a failure/);
     s.w.pagesDomainsAnswer = CAPTURE; // both active
     assert.equal((await s.go(['after'])).code, 0);
   });
@@ -2588,6 +2635,34 @@ describe('review: the Pages domain list as Cloudflare sends it (BUG A, test 2)',
       }
       assert.ok(s.w.calls.every((c) => c.method === 'GET'), 'nothing was changed');
     }
+  });
+});
+
+describe('review round 2: a single-page domain list must agree with itself', () => {
+  const CAPTURE = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-pages', 'cloudflare-api-pages-domains-2026-11-05.json'), 'utf8'));
+  test('a list whose items, count and total_count disagree is refused, though it claims one page', async () => {
+    const one = CAPTURE.result.slice(0, 1);
+    const cases = [
+      { why: 'no items, count 2, total 2', result: [], info: { count: 2, total_count: 2 } },
+      { why: 'no items, count 0, total 2', result: [], info: { count: 0, total_count: 2 } },
+      { why: 'one item, count 2, total 1', result: one, info: { count: 2, total_count: 1 } },
+      { why: 'one item, count 1, total 2', result: one, info: { count: 1, total_count: 2 } },
+    ];
+    for (const c of cases) {
+      const s = scenario({ world: { pagesDomainsAnswer: { ...CAPTURE, result: c.result, result_info: { page: 1, per_page: 20, total_pages: 1, ...c.info } } } });
+      for (const cmd of ['check', 'record']) {
+        const r = await s.go([cmd]);
+        assert.equal(r.code, 1, `${c.why}, ${cmd}: ${r.text}`);
+        assert.match(r.text, /does not decide from a list that disagrees with itself/, c.why);
+      }
+      assert.ok(s.w.calls.every((x) => x.method === 'GET'), 'nothing was changed');
+    }
+  });
+
+  test('the real capture still passes the check', async () => {
+    const s = scenario({ world: { pagesDomainsAnswer: CAPTURE } });
+    const r = await s.go(['check']);
+    assert.doesNotMatch(r.text, /disagrees with itself/);
   });
 });
 

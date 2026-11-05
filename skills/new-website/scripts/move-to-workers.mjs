@@ -313,6 +313,8 @@ export function runProgram(cmd, args, { cwd, env, clock }) {
 const short = (sha) => String(sha).slice(0, 7);
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex').slice(0, 16);
 export const EMPTY_BODY = sha256(Buffer.alloc(0));
+// The body Pages sent with a _redirects 301 in the 2026-11-05 capture: "Redirecting to /privacy" for Location /privacy.
+export const pagesRedirectBody = (location) => sha256(Buffer.from(`Redirecting to ${location}`));
 const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 // ---------------------------------------------------------------- JSONC (the Workers config)
@@ -731,7 +733,10 @@ async function readLive(ctx) {
   if (!ok(pd) || !Array.isArray(pd.body?.result)) throw new Stop(1, `Cloudflare did not list the Pages project's domains: ${cfWords(pd)}.`);
   const info = pd.body.result_info; // the answer is paged (20 a page); the script reads page 1 only and does not decide from part of a list
   if (!info || !Number.isInteger(info.total_count) || !Number.isInteger(info.total_pages)) throw new Stop(1, "Cloudflare's list of the Pages project's domains did not say how many domains the project has. The script does not decide from a list it cannot size: do the move in the Cloudflare dashboard.");
-  if (info.total_pages > 1 || info.count < info.total_count) throw new Stop(1, `The Pages project has more than ${info.per_page ?? 20} domains. The script reads one page of them and does not decide from part of a list: do the move in the Cloudflare dashboard.`);
+  if (info.total_pages > 1) throw new Stop(1, `The Pages project has more than ${info.per_page ?? 20} domains. The script reads one page of them and does not decide from part of a list: do the move in the Cloudflare dashboard.`);
+  // One page: the list must hold every domain the answer counts, and its own count must match what it holds.
+  const held = pd.body.result.length;
+  if (held !== info.total_count || (info.count !== undefined && info.count !== held)) throw new Stop(1, `Cloudflare's list of the Pages project's domains holds ${held} domains but says it counts ${info.count ?? 'none'} on this page and ${info.total_count} in all. The script does not decide from a list that disagrees with itself: do the move in the Cloudflare dashboard.`);
   if (!ok(wd) || !Array.isArray(wd.body?.result)) throw new Stop(1, `Cloudflare did not list the Worker domains: ${cfWords(wd)}. The token needs the Workers permission the move section names.`);
   const records = [];
   for (const [i, d] of dns.entries()) {
@@ -987,8 +992,8 @@ export function compare(was, now, { change, onVersion, expect }) {
       add(p, 'status', a.s, b.s, change && a.s === 308 && b.s === 307 && a.l === b.l ? '307 where Pages answers 308' : null);
     }
     if (a.l !== b.l) add(p, 'Location', a.l, b.l);
-    // Seen once: Pages sends a short text with a redirect, the Worker an empty body and no media type. Nothing wider is excused.
-    const sameRedirect = change && REDIRECTS.includes(a.s) && REDIRECTS.includes(b.s) && Boolean(a.l) && a.l === b.l && a.h !== EMPTY_BODY && b.h === EMPTY_BODY;
+    // Seen once: Pages sends text/plain "Redirecting to <Location>" with a redirect, the Worker an empty body and no media type. Any other Pages body or type stays unknown.
+    const sameRedirect = change && REDIRECTS.includes(a.s) && REDIRECTS.includes(b.s) && Boolean(a.l) && a.l === b.l && a.t === 'text/plain' && a.h === pagesRedirectBody(a.l) && b.h === EMPTY_BODY;
     if (a.t !== b.t) add(p, 'media type', a.t, b.t, change && a.t === 'application/javascript' && b.t === 'text/javascript' ? 'text/javascript where Pages sends application/javascript' : sameRedirect && b.t === null ? 'Pages sends a short text with a redirect; the Worker sends none' : null);
     if (!build && a.h !== b.h) add(p, 'body', a.h, b.h, change && p.endsWith('.avif') ? 'AVIF output differs by build machine' : sameRedirect ? 'Pages sends a short text with a redirect; the Worker sends none' : null);
     for (const n of Object.keys(a.hd ?? {})) {
@@ -1591,7 +1596,7 @@ async function cmdAfter(ctx, run) {
     const good = settled(hs, toWorker);
     const state = `${WHERE_WORDS[hs.where]}${notActive(hs)}`;
     note(run, good, `${h} is ${state}${good ? '' : `; it should be ${toWorker ? 'on the Worker' : 'on Pages with its CNAME and an active domain'}`}`);
-    if (!good && !toWorker && hs.where === 'pages' && hs.cname && COMING_UP.includes(hs.pagesStatus)) { coming.push(`${h} is ${state}`); continue; } // not wrong: Cloudflare is still bringing the domain up
+    if (!good && !toWorker && hs.where === 'pages' && hs.cname && COMING_UP.includes(hs.pagesStatus)) { coming.push(`${h} is ${state}: a wait, not a failure`); continue; } // not wrong: Cloudflare is still bringing the domain up
     if (!good) { problems.push(`${h} is ${state}`); continue; }
     if (redirectedAtZone(rec, h)) { note(run, true, `${h} is redirected at the zone: only Cloudflare's lists say which platform has it`); continue; }
     const r = await ctx.siteFetch(`https://${h}/build.txt?${PROBE}=${ctx.now()}`, { headers: { 'cache-control': 'no-cache' } });
