@@ -1129,14 +1129,14 @@ looks_like_review() {
   #    Every match below reads the reply from a herestring, never `printf | grep -q`: under
   #    pipefail, grep -q's early exit on a reply past the pipe buffer (~64 KiB) fails the
   #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
-  #    The phrase counts only after I, we, the model or the reviewer in its clause, or at a clause start
-  #    (wrapped lines joined first): "hidden fairs cannot open a window" is about the code (B-REFUSAL-TEXT).
+  #    The phrase counts only after I or we in its clause, or at a clause start, with wrapped lines also
+  #    checked joined: "hidden fairs cannot open a window" is about the code (B-REFUSAL-TEXT).
   if [ "$finding_count" -le 1 ]; then
     local joined
     joined="$(awk '{ item = ($0 ~ /^[[:space:]]*([-*+>#]|[0-9]+[.)])/ || $0 ~ /^[[:space:]]*$/) }
-      NR > 1 { printf "%s", (item || blank) ? "\n" : " " }
-      { printf "%s", $0; blank = ($0 ~ /^[[:space:]]*$/) } END { print "" }' <<<"$1")" || return 1   # no joined text: reject, never wave through
-    grep -qiE "(\b(i|we|model|assistant|reviewer)\b([^.!?;:,]|[.!?;:,][^[:space:]])*|(^[[:space:]>]*([-*+]|[0-9]+[.)])?|[.!?:;,(]|—|–| -)[[:space:]*_>]*((but|so|sorry|sadly|unfortunately|regrettably|currently|still|however|also)[[:space:],]+){0,2})\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$joined" && return 1
+      NR > 1 { if (item || blank) printf "\n"; else { printf " "; sub(/^[[:space:]]+/, "") } }
+      { printf "%s", $0; blank = ($0 ~ /^[[:space:]]*$/) } END { print "" }' <<<"$1")" || return 1   # if the join fails, reject
+    grep -qiE "(\b(i|we)\b([^.!?;:,]|[.!?][^[:space:]])*|(^[[:space:]>]*([-*+]|[0-9]+[.)])?|[.!?:;,(]|—|–| -)[[:space:]*_>]*((sorry|sadly|unfortunately|regrettably|currently)[[:space:],]+(but[[:space:]]+)?)?)\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$1"$'\n'"$joined" && return 1
   fi
   # 2. structured findings (list/heading-anchored severity)
   [ "$finding_count" -gt 0 ] && return 0
