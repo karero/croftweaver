@@ -342,6 +342,39 @@ test('the two files website-permissions carries are new-website\'s, byte for byt
   }
 });
 
+test('the starter\'s permission list is exactly the reviewed one', () => {
+  // A drift check: any edit to the list fails here until this copy is edited on purpose.
+  // It cannot tell whether a new rule is safe; a change should also repeat the routine run
+  // in docs/WHAT-THE-SKILLS-RUN.md. Allow rules without `*` match one command exactly.
+  const { permissions } = JSON.parse(read('skills', 'new-website', 'templates', 'claude', 'settings.json'));
+  assert.deepEqual(Object.keys(permissions), ['allow', 'deny'], 'an ask list or another key was added');
+  assert.deepEqual(permissions.allow, [
+    'Bash(npm install)', 'Bash(npm ci)', 'Bash(npm run:*)', 'Bash(npm test:*)',
+    'Bash(npx astro:*)', 'Bash(npx keystatic:*)', 'Bash(npx playwright:*)',
+    'Bash(npx wrangler pages dev:*)', 'Bash(npx wrangler whoami:*)',
+    'Bash(wrangler pages dev:*)', 'Bash(wrangler whoami:*)', 'Bash(astro:*)', 'Bash(playwright:*)',
+    'Bash(bash scripts/check_external_links.sh:*)',
+    'Bash(git status:*)', 'Bash(git diff:*)', 'Bash(git log:*)', 'Bash(git show:*)', 'Bash(git add:*)',
+    'Bash(git checkout -b production)', 'Bash(git checkout main)', 'Bash(git checkout -- .gitignore)',
+    'Bash(git switch main)', 'Bash(git switch -)', 'Bash(git init)',
+    'Bash(git fetch)', 'Bash(git fetch origin)',
+    'Bash(git pull)', 'Bash(git pull --ff-only)', 'Bash(git pull --no-rebase)',
+    'Bash(git push)', 'Bash(git push -u origin main)', 'Bash(git push -u origin production)',
+    'Bash(git push --dry-run origin HEAD:main)', 'Bash(git rev-parse:*)', 'Bash(node --version)',
+    'Bash(gh auth status:*)', 'Bash(gh repo view:*)', 'Bash(gh repo create:*)', 'Bash(gh pr view:*)', 'Bash(gh pr list:*)',
+    'Bash(ls:*)', 'Bash(cat:*)', 'Bash(head:*)', 'Bash(tail:*)', 'Bash(wc:*)', 'Bash(grep:*)',
+    'Bash(mkdir:*)', 'Bash(cp:*)', 'Bash(touch:*)', 'Bash(echo:*)',
+    'WebFetch(domain:docs.astro.build)', 'WebFetch(domain:developers.cloudflare.com)', 'WebFetch(domain:keystatic.com)',
+  ]);
+  assert.deepEqual(permissions.deny, [
+    'Bash(rm -rf:*)', 'Bash(git push --force:*)', 'Bash(git push -f:*)', 'Bash(git push *--force*)',
+    'Bash(git push * -f*)', 'Bash(git push * +*)', 'Bash(git reset --hard:*)', 'Bash(gh repo delete:*)',
+    'Bash(npx wrangler pages delete:*)', 'Bash(npx wrangler delete:*)',
+    'Bash(wrangler pages delete:*)', 'Bash(wrangler delete:*)',
+    'Bash(git * --output*)', 'Bash(git add --pathspec*)', 'Bash(git add * --pathspec*)',
+  ]);
+});
+
 test('the release steps in the README take the tag\'s name from the plugin\'s number', () => {
   const line = read('README.md').split('\n').filter((l) => l.startsWith('v="v$(node -p '));
   assert.equal(line.length, 1);

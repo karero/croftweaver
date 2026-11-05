@@ -519,8 +519,8 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    owner named it) and `node`, stop and have the owner update Node (SETUP.md) before going on; a warning
    for another package is not this.
 2. **Permissions + working rules.** Copy the setup guide into the project (all tools), then — **Claude Code
-   only** — copy the allowlist so routine `npm`/`astro`/`playwright`/`git commit` calls don't
-   prompt (it blocks `rm -rf`, force pushes, `wrangler … delete`, `gh repo delete`: Claude Code
+   only** — copy the allowlist so routine `npm`/`astro`/`playwright`/`git status` calls don't
+   prompt (a commit still asks; it blocks `rm -rf`, force pushes, `wrangler … delete`, `gh repo delete`: Claude Code
    refuses them, and the owner runs one by hand if needed):
    ```bash
    cp "$SKILLS_ROOT"/new-website/templates/SETUP.md .          # all tools — receiving party can set up too
