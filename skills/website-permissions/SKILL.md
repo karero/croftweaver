@@ -4,8 +4,8 @@ description: >
   Cut the number of permission prompts on a new-website repo to near-zero for the
   routine build loop, while keeping destructive actions gated. Installs the bundled
   `.claude/settings.json` allowlist into the project, explains the allow/deny model
-  (npm / astro / playwright / git commit and push / gh read verbs and repo create /
-  image tools / the link script are pre-approved; `rm -rf`, the usual force pushes,
+  (npm / astro / playwright / git read verbs and the exact pull and push forms the
+  skills use / gh read verbs and repo create / the link script are pre-approved; `rm -rf`, the usual force pushes,
   `git reset --hard`, and any `wrangler/gh … delete` are blocked), and safely EXTENDS the allowlist from the
   commands you keep approving — narrowly, never with a blanket wildcard. The allowlist
   travels with the repo, so a handoff party also gets the quiet build loop. Trigger
@@ -17,7 +17,8 @@ description: >
 # Website permissions — fewer prompts, same guardrails
 
 A build is a tight loop of `npm`/`astro`/`playwright`/`git` calls. Approving each one
-by hand is friction with no safety benefit — those commands can't hurt you. This skill
+by hand is friction with little safety benefit for the exact commands the skills run
+every day. This skill
 gets the repo to "quiet for the safe stuff, blocked for the dangerous stuff", and
 keeps it that way as the project grows.
 
@@ -42,6 +43,14 @@ copy the script with them, or every session start reports a missing file. A repo
 `.claude/settings.json` already has its own rules: merge the template's `hooks` block in
 instead of overwriting the file.
 
+That merge also removes the broad rules older sites carry, which this list dropped in
+2026-11. Delete these from the site's `allow` if they are there: `Bash(node:*)`,
+`Bash(npm exec:*)`, `Bash(rg:*)`, `Bash(find:*)`, `Bash(tree:*)`, `Bash(mv:*)`,
+`Bash(open:*)`, the image tools (`cwebp`, `dwebp`, `avifenc`, `magick`, `convert`, `oxipng`,
+`jpegoptim`, `svgo`, `exiftool`, each `:*`), and `git commit`, `branch`, `checkout`,
+`switch`, `init`, `merge`, `restore`, `stash`, `remote`, `fetch`, `pull` and `push`, each
+`Bash(git <verb>:*)`. Then add the template's exact git rules and its three new `deny` rules.
+
 `.claude/settings.json` is **per-project** and committed, so it travels with the repo
 — the handoff party inherits the same quiet loop. Restart Claude Code (or reload the
 project) after editing so the new rules take effect.
@@ -49,21 +58,28 @@ project) after editing so the new rules take effect.
 ## 2. The model — what's pre-approved vs always gated
 
 **Pre-approved (`allow`)** — the build loop and read-only inspection:
-`npm install/ci/run/test/exec`, `astro`, `playwright`, `node`, the **git write subset**
-(`add`, `commit`, `branch`, `checkout`, `switch`, `merge`, `restore`, `stash`,
-`fetch`, `pull`, `push`), `gh` **read** verbs (`auth status`, `repo view`,
-`pr view/list`) plus one write, `gh repo create`, `wrangler pages dev` / `whoami`, the image tools (`cwebp`, `avifenc`,
-`magick`, `oxipng`, `svgo`, `exiftool`, …), file inspection (`ls`/`cat`/`grep`/`rg`/
-`find` …), and `bash scripts/check_external_links.sh` (the outgoing-link sweep).
+`npm install/ci/run/test`, `astro`, `playwright`, `node --version`, git's read verbs and
+`add` (`status`, `diff`, `log`, `show`, `rev-parse`, `add`), the **exact** git commands
+the skills give (`git init`, `git checkout main`, `git checkout -b production`,
+`git checkout -- .gitignore`, `git switch main`, `git switch -`, `git fetch`,
+`git fetch origin`, `git pull`, `git pull --ff-only`, `git pull --no-rebase`, `git push`,
+`git push -u origin main`, `git push -u origin production`,
+`git push --dry-run origin HEAD:main`), `gh` **read** verbs (`auth status`, `repo view`,
+`pr view/list`) plus one write, `gh repo create`, `wrangler pages dev` / `whoami`, file
+inspection (`ls`/`cat`/`head`/`tail`/`wc`/`grep`, plus `mkdir`/`cp`/`touch`/`echo`), and
+`bash scripts/check_external_links.sh` (the outgoing-link sweep). Everything else asks:
+`git commit`, a new branch and its first push, other `node` commands, and the image tools
+among them.
 
 **Blocked (`deny`)** — irreversible or destructive. Claude Code refuses these outright,
 it does not ask; the owner runs one by hand in a terminal if they really mean it:
 `rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or a `+branch`,
 wherever it stands in the command), `git reset --hard`, `gh repo delete`,
-`wrangler pages delete`, `wrangler delete`. **Do not move these to `allow`.** A rule only
-matches text: a force flag bundled with others (`git push -uf`) still runs, since a rule
-broad enough to catch it would also block `--follow-tags` and branch names with `-f` in
-them. Where `website-team-setup` could set GitHub's branch rules (§5-A: a public repo, or
+`wrangler pages delete`, `wrangler delete`, `git log`/`diff`/`show` writing a file
+(`--output`), and `git add` reading its paths from a file (`--pathspec-from-file`).
+**Do not move these to `allow`.** A rule only matches text, so these catch the usual
+spellings; a push with options the list does not name, a bundled force flag
+(`git push -uf`) among them, asks rather than runs. Where `website-team-setup` could set GitHub's branch rules (§5-A: a public repo, or
 a private one on a paid plan), its rule against force pushes (`non_fast_forward`) makes
 GitHub refuse a force push to `main` whatever the command looks like (GitHub's
 [Block force pushes](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#block-force-pushes)
@@ -74,9 +90,11 @@ rule; not tested by this kit). A free private repo gets only the local pre-push 
 
 When you keep approving the *same* command, add it — but narrowly:
 
-- **Scope every rule** to the binary + a `:*` arg glob, e.g. `Bash(turnstile:*)`,
-  not `Bash(*)` and never a bare `Bash`. A blanket grant defeats the point and the
-  harness's auto-approve classifier will reject broad widening anyway.
+- **Add the exact command** you keep approving, e.g. `Bash(git push -u origin content)`,
+  not `Bash(git push:*)`, not `Bash(*)` and never a bare `Bash`. A `:*` rule allows
+  whatever follows the command, options that write files or run programs included.
+- **Never re-add a rule the 2026-11 change removed** (the list in §1), however often its
+  command comes up.
 - **Let the built-in do the scan.** `/fewer-permission-prompts` reads your recent
   transcripts and proposes a prioritized allowlist from what you actually approved —
   run it, then keep only the rules that fit the rules above. Use `/update-config` (or

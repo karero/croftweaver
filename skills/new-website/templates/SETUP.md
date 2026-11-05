@@ -214,7 +214,9 @@ pushing `main:production` and GitHub PR merges are unaffected either way.
 ## 4. Stop Claude asking permission for every command
 
 **Claude Code only.** Copy the permission allowlist into the project so routine build
-commands (npm/astro/playwright/git read+commit, image tools) run without a prompt:
+commands (npm/astro/playwright, git's read verbs and `git add`, and the exact pull and push
+commands these docs use) run without a prompt. A commit, a new branch and the image tools
+still ask:
 ```bash
 mkdir -p .claude/hooks && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
 cp "$SKILLS_ROOT/new-website/templates/claude/hooks/git-stand.mjs" .claude/hooks/
@@ -229,8 +231,10 @@ changed on GitHub. It never pulls, merges or changes files.
 It blocks destructive/irreversible commands (`rm -rf`, the usual force pushes,
 `git reset --hard`, `wrangler … delete`, `gh repo delete`): Claude Code refuses them
 outright, with no question, so run one yourself in a terminal if you really mean it. A
-force flag bundled with others (`git push -uf`) is not caught: a rule only matches text. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
-remove them from `allow` if you'd rather confirm each push.
+push with options the list does not name, a bundled force flag (`git push -uf`) among them,
+asks. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
+remove the four `Bash(git push…)` rules and `gh repo create` from `allow` if you'd rather
+confirm each push.
 
 `settings.json` is committed (shared project policy). Personal/secret overrides go in
 `.claude/settings.local.json`, which the `.gitignore` keeps out of the repo. To extend the
