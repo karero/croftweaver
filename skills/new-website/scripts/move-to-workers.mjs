@@ -312,6 +312,7 @@ export function runProgram(cmd, args, { cwd, env, clock }) {
 
 const short = (sha) => String(sha).slice(0, 7);
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex').slice(0, 16);
+export const EMPTY_BODY = sha256(Buffer.alloc(0));
 const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 // ---------------------------------------------------------------- JSONC (the Workers config)
@@ -982,8 +983,9 @@ export function compare(was, now, { change, onVersion, expect }) {
       add(p, 'status', a.s, b.s, change && a.s === 308 && b.s === 307 && a.l === b.l ? '307 where Pages answers 308' : null);
     }
     if (a.l !== b.l) add(p, 'Location', a.l, b.l);
-    const sameRedirect = change && REDIRECTS.includes(a.s) && REDIRECTS.includes(b.s) && a.l === b.l; // the visitor never sees a redirect's body
-    if (a.t !== b.t) add(p, 'media type', a.t, b.t, change && a.t === 'application/javascript' && b.t === 'text/javascript' ? 'text/javascript where Pages sends application/javascript' : sameRedirect ? 'Pages sends a short text with a redirect; the Worker sends none' : null);
+    // Seen once: Pages sends a short text with a redirect, the Worker an empty body and no media type. Nothing wider is excused.
+    const sameRedirect = change && REDIRECTS.includes(a.s) && REDIRECTS.includes(b.s) && Boolean(a.l) && a.l === b.l && a.h !== EMPTY_BODY && b.h === EMPTY_BODY;
+    if (a.t !== b.t) add(p, 'media type', a.t, b.t, change && a.t === 'application/javascript' && b.t === 'text/javascript' ? 'text/javascript where Pages sends application/javascript' : sameRedirect && b.t === null ? 'Pages sends a short text with a redirect; the Worker sends none' : null);
     if (!build && a.h !== b.h) add(p, 'body', a.h, b.h, change && p.endsWith('.avif') ? 'AVIF output differs by build machine' : sameRedirect ? 'Pages sends a short text with a redirect; the Worker sends none' : null);
     for (const n of Object.keys(a.hd ?? {})) {
       const x = a.hd[n];

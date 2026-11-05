@@ -14,7 +14,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Stop, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
+import { EMPTY_BODY, Stop, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
 import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, platformOf, spend, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
@@ -1381,7 +1381,7 @@ describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\
   test('compare: the rules are narrow', () => {
     const redirect = (over = {}) => ({ s: 301, t: 'text/plain', l: '/privacy', h: 'aa', hd: { nel: null, 'report-to': null }, ...over });
     const OPT = { change: true, onVersion: true, expect: 'c' };
-    const worker = redirect({ t: null, h: 'bb', hd: { nel: 'present', 'report-to': 'present' } });
+    const worker = redirect({ t: null, h: EMPTY_BODY, hd: { nel: 'present', 'report-to': 'present' } });
     const known = compare({ '/r': redirect() }, { '/r': worker }, OPT);
     assert.deepEqual(known.map((d) => `${d.field} ${d.known ? 'known' : 'UNKNOWN'}`).sort(), ['body known', 'header nel known', 'header report-to known', 'media type known']);
     // The platform did not change (after an undo): a redirect body is not excused.
@@ -1394,7 +1394,18 @@ describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\
     assert.deepEqual(compare({ '/p': page() }, { '/p': page({ t: 'text/plain', h: 'bb' }) }, OPT).map((d) => !!d.known), [false, false]);
     // A redirect that became a page, or went to another place, is not excused.
     assert.ok(compare({ '/r': redirect() }, { '/r': page({ t: null, h: 'bb' }) }, OPT).every((d) => !d.known));
-    assert.ok(compare({ '/r': redirect() }, { '/r': redirect({ t: null, h: 'bb', l: '/x' }) }, OPT).filter((d) => d.field !== 'Location').every((d) => !d.known));
+    assert.ok(compare({ '/r': redirect() }, { '/r': redirect({ t: null, h: EMPTY_BODY, l: '/x' }) }, OPT).filter((d) => d.field !== 'Location').every((d) => !d.known));
+    // C1: no Location on either side is not "the same redirect", whatever the bodies are.
+    const bare = (over = {}) => redirect({ l: null, ...over });
+    assert.ok(compare({ '/r': bare() }, { '/r': bare({ t: null, h: EMPTY_BODY }) }, OPT).filter((d) => d.field === 'body' || d.field === 'media type').length === 2);
+    assert.ok(compare({ '/r': bare() }, { '/r': bare({ t: null, h: EMPTY_BODY }) }, OPT).every((d) => !d.known), 'no Location: nothing is excused');
+    // The excuse is the transition seen: the Worker side has an empty body and no media type. A body, or a type, on the Worker side is unknown.
+    const withBody = compare({ '/r': redirect() }, { '/r': redirect({ t: null, h: 'bb' }) }, OPT).filter((d) => d.field === 'body' || d.field === 'media type');
+    assert.ok(withBody.length === 2 && withBody.every((d) => !d.known), 'a Worker body is not excused');
+    const withType = compare({ '/r': redirect() }, { '/r': redirect({ t: 'text/html', h: EMPTY_BODY }) }, OPT);
+    assert.deepEqual(withType.map((d) => `${d.field} ${d.known ? 'known' : 'UNKNOWN'}`).sort(), ['body known', 'media type UNKNOWN']);
+    // Pages with an empty body too: there is no transition to excuse.
+    assert.ok(compare({ '/r': redirect({ h: EMPTY_BODY }) }, { '/r': redirect({ t: null, h: 'bb' }) }, OPT).every((d) => !d.known));
   });
 
   test('after a move the redirect has no body and the zone sends no NEL, and after passes; a NEL that appeared is a failure', async () => {
