@@ -38,7 +38,7 @@ const copy = (o) => JSON.parse(JSON.stringify(o));
 const captured = (sha) => copy(GH_CHECKS.check_runs).map((c) => ({ ...c, head_sha: sha, name: c.name.replace('croftweaver-trial', WORKER) }));
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const cf = (result, extra = {}) => json(200, { success: true, errors: [], messages: [], result, ...extra });
-const cfFail = (status, message) => json(status, { success: false, errors: [{ code: 10000, message }], messages: [], result: null });
+const cfFail = (status, message, code = 10000) => json(status, { success: false, errors: [{ code, message }], messages: [], result: null });
 
 
 // Waits for the request's abort. The abort timer alone does not keep an older Node alive, so a pending
@@ -226,7 +226,14 @@ function cloudflare(w, method, u, body) {
   let m = tail(`${Z}/dns_records/`, /^([0-9a-f]{32})$/);
   if (m && method === 'DELETE') { w.dns = w.dns.filter((r) => r.id !== m[1]); return cf({ id: m[1] }); }
   if (method === 'GET' && p === `${A}/pages/projects`) return page([copy(w.project)]);
-  if (method === 'GET' && p === `${A}/pages/projects/${REPO}`) return cf(copy(w.project));
+  if (method === 'GET' && p === `${A}/pages/projects/${REPO}`) {
+    // projectLag: a domain just added is in /domains at once but joins the project's own list only after that many reads
+    for (const [name, x] of w.pagesPending ?? []) if (--x.left <= 0) { w.project.domains.push(name); w.pagesPending.delete(name); }
+    return cf(copy(w.project));
+  }
+  if (method === 'GET' && p === `${A}/pages/projects/${REPO}/domains`) { // the shape follows the manager's description of the real answer: name and status; not checked against a capture
+    return cf([...w.project.domains.filter((d) => d !== SUBDOMAIN).map((name) => ({ name, status: w.pagesStatus?.[name] ?? 'active' })), ...[...(w.pagesPending ?? [])].map(([name]) => ({ name, status: 'pending' }))]);
+  }
   if (method === 'GET' && p === `${A}/pages/projects/${REPO}/deployments`) {
     const size = Math.min(100, Number(u.searchParams.get('per_page') ?? w.depDefaultPage ?? 25));
     const n = Number(u.searchParams.get('page') ?? 1);
@@ -234,9 +241,15 @@ function cloudflare(w, method, u, body) {
     const items = w.depEmptyAfterFirst && n > 1 ? [] : copy(w.pagesDeployments).slice((n - 1) * size, (n - 1) * size + cut); // a later page may come back empty
     return cf(items, { result_info: { page: n, per_page: size, count: items.length, total_count: w.pagesDeployments.length, total_pages: Math.max(1, Math.ceil(w.pagesDeployments.length / size)) } });
   }
-  if (method === 'POST' && p === `${A}/pages/projects/${REPO}/domains`) { w.project.domains.push(body.name); return cf({ name: body.name, status: 'initializing' }); }
+  if (method === 'POST' && p === `${A}/pages/projects/${REPO}/domains`) {
+    if (w.addAlwaysAlready) { if (!w.project.domains.includes(body.name)) w.project.domains.push(body.name); return cfFail(409, 'You have already added this custom domain', 8000018); } // an earlier run added it
+    if (w.project.domains.includes(body.name) || w.pagesPending?.has(body.name)) return cfFail(409, 'You have already added this custom domain', 8000018);
+    if (w.projectLag > 0) (w.pagesPending ??= new Map()).set(body.name, { left: w.projectLag });
+    else w.project.domains.push(body.name);
+    return cf({ name: body.name, status: 'initializing' });
+  }
   m = tail(`${A}/pages/projects/${REPO}/domains/`, /^([^/]+)$/);
-  if (m && method === 'DELETE') { w.project.domains = w.project.domains.filter((d) => d !== m[1]); return cf(null); }
+  if (m && method === 'DELETE') { w.project.domains = w.project.domains.filter((d) => d !== m[1]); w.pagesPending?.delete(m[1]); return cf(null); }
   if (method === 'GET' && p === `${A}/workers/domains`) return cf(copy(w.workerDomains));
   if (method === 'PUT' && p === `${A}/workers/domains`) {
     const d = { id: `${String(w.nextId++).padStart(8, '0')}-0000-4000-8000-000000000000`, hostname: body.hostname, service: body.service, zone_id: body.zone_id, zone_name: ZONE.name, environment: body.environment };

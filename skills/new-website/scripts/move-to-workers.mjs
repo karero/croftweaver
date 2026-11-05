@@ -694,12 +694,14 @@ async function prepare(opts, io, run) {
 // may name are those of this read.
 async function readLive(ctx) {
   const A = `/accounts/${ctx.account.id}`;
-  const [pr, wd, ...dns] = await Promise.all([
+  const [pr, pd, wd, ...dns] = await Promise.all([
     ctx.api('GET', `${A}/pages/projects/${ctx.project.name}`),
+    ctx.api('GET', `${A}/pages/projects/${ctx.project.name}/domains`),
     ctx.api('GET', `${A}/workers/domains`),
     ...ctx.hosts.map((h) => allPages(ctx.api, `/zones/${ctx.zone.id}/dns_records?name=${h}`, 100)),
   ]);
   if (!ok(pr) || !Array.isArray(pr.body?.result?.domains)) throw new Stop(1, `Cloudflare did not return the Pages project: ${cfWords(pr)}.`);
+  if (!ok(pd) || !Array.isArray(pd.body?.result)) throw new Stop(1, `Cloudflare did not list the Pages project's domains: ${cfWords(pd)}.`);
   if (!ok(wd) || !Array.isArray(wd.body?.result)) throw new Stop(1, `Cloudflare did not list the Worker domains: ${cfWords(wd)}. The token needs the Workers permission the move section names.`);
   const records = [];
   for (const [i, d] of dns.entries()) {
@@ -711,6 +713,8 @@ async function readLive(ctx) {
     records.push(...d.items);
   }
   ctx.project = pr.body.result;
+  // The project's own `domains` can leave out a domain that was just added for minutes; its domain list shows it at once, with a status.
+  const pagesDomains = new Map(pd.body.result.map((d) => [String(d.name).toLowerCase(), String(d.status)]));
   ctx.gate.cnames.clear();
   ctx.gate.workerDomainIds.clear();
   for (const r of records) if (r.type === 'CNAME' && ctx.gate.hosts.has(r.name)) ctx.gate.cnames.set(r.id, { name: r.name, content: String(r.content).toLowerCase() });
@@ -718,23 +722,30 @@ async function readLive(ctx) {
   for (const d of mineWd) if (ctx.gate.hosts.has(d.hostname)) ctx.gate.workerDomainIds.set(d.id, d.hostname);
   if (ctx.report) { // what this run saw, for the status page
     ctx.report.where = Object.fromEntries(ctx.hosts.map((h) => {
-      const pages = ctx.project.domains.includes(h);
+      const pages = pagesDomains.has(h);
       const worker = mineWd.some((d) => d.hostname === h);
       return [h, pages && worker ? 'both' : pages ? 'pages' : worker ? 'worker' : 'neither'];
     }));
   }
-  return { project: ctx.project, workerDomains: wd.body.result, mineWd, records };
+  return { project: ctx.project, pagesDomains, workerDomains: wd.body.result, mineWd, records };
 }
 
 function hostState(ctx, live, h) {
   const other = live.workerDomains.find((d) => d.hostname === h && d.service !== ctx.worker);
   if (other) throw new Stop(1, `${h} is attached to another Worker (${other.service}). The script does not touch it.`);
-  const pages = live.project.domains.includes(h);
+  const pages = live.pagesDomains.has(h);
+  const pagesStatus = live.pagesDomains.get(h) ?? null;
   const worker = live.mineWd.some((d) => d.hostname === h);
   const recs = live.records.filter((r) => r.name === h && ADDRESS_TYPES.includes(r.type));
   const cname = recs.find((r) => r.type === 'CNAME' && String(r.content).toLowerCase() === ctx.project.subdomain);
-  return { pages, worker, recs, cname, where: pages && worker ? 'both' : pages ? 'pages' : worker ? 'worker' : 'neither' };
+  return { pages, pagesStatus, pagesActive: pagesStatus === 'active', worker, recs, cname, where: pages && worker ? 'both' : pages ? 'pages' : worker ? 'worker' : 'neither' };
 }
+
+// Where the move ends: on the Worker, or on Pages with its CNAME and an active domain.
+const settled = (hs, toWorker) => (toWorker ? hs.where === 'worker' : hs.where === 'pages' && Boolean(hs.cname) && hs.pagesActive);
+
+// Cloudflare's answer to adding a Pages domain that the project already holds.
+const ALREADY_ADDED = 8000018;
 
 const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on neither (down)', both: 'on both (inconsistent)' };
 
@@ -1094,7 +1105,7 @@ async function cmdCheck(ctx, run) {
   say('Nothing was changed.');
   if (ctx.open) { // an open move waits for after only when every host is where the move ends
     const target = ctx.state.direction === 'to-pages' ? 'pages' : 'worker';
-    const there = ctx.hosts.every((h) => { const hs = hostState(ctx, live, h); return hs.where === target && (target === 'worker' || hs.cname); });
+    const there = ctx.hosts.every((h) => { const hs = hostState(ctx, live, h); return settled(hs, target === 'worker'); });
     run.next = there ? 'node move-to-workers.mjs after' : `node move-to-workers.mjs ${target === 'pages' ? 'undo' : 'move'}`;
     return 0;
   }
@@ -1404,7 +1415,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   const finished = [];
   for (const h of order) {
     let hs = hostState(ctx, live, h);
-    const done = toWorker ? hs.where === 'worker' : hs.where === 'pages' && hs.cname;
+    const done = settled(hs, toWorker);
     if (done) { say(`${h} is already ${toWorker ? 'on the Worker' : 'back on Pages'}; skipped.`); continue; }
     if (hs.where === 'both') throw new Stop(1, bothWords(h));
     if (isFresh(hs) && drift) { // the down hosts were finished above; nothing fresh starts on a check that no longer fits
@@ -1447,9 +1458,10 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
       if (hs.recs.length && !hs.cname) throw new Stop(1, `${h} still has a DNS record (${hs.recs.map((x) => `${x.type} ${x.content}`).join('; ')}) that is not a CNAME to ${ctx.project.subdomain}. The script touches no other record: delete it by hand, then run undo again.`);
       if (!hs.pages) {
         const r = await ctx.api('POST', `${A}/pages/projects/${ctx.project.name}/domains`, { json: { name: h } });
-        if (!ok(r)) await stopOn(h, 'Adding it to the Pages project', r);
+        const already = !ok(r) && r.body?.errors?.some?.((e) => e.code === ALREADY_ADDED); // an earlier run added it; the read-back below shows its status
+        if (!ok(r) && !already) await stopOn(h, 'Adding it to the Pages project', r);
         markLeft(h);
-        say(`${h}: added to the Pages project.`);
+        say(already ? `${h}: already on the Pages project.` : `${h}: added to the Pages project.`);
       }
       if (!hs.cname) {
         const r = await ctx.api('POST', `/zones/${ctx.zone.id}/dns_records`, { json: { type: 'CNAME', name: h, content: ctx.project.subdomain, proxied: true } });
@@ -1462,6 +1474,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     seen(live);
     const after = hostState(ctx, live, h);
     if (after.where !== (toWorker ? 'worker' : 'pages')) throw new Stop(1, `${h} reads ${WHERE_WORDS[after.where]} after its changes, not ${toWorker ? 'on the Worker' : 'on Pages'}. Run the same command again, or the other one to go back.`);
+    if (!toWorker && !after.pagesActive) say(`${h}: Cloudflare shows its Pages domain as ${after.pagesStatus}; the run waits for it to serve.`);
     finished.push(h);
   }
   if (skipped.length) {
@@ -1502,7 +1515,7 @@ async function cmdAfter(ctx, run) {
   // where it points (the steps were done by hand); otherwise the last confirmed direction stands.
   if (st.asked && st.asked.commit !== st.route.commit) {
     const there = st.asked.kind === 'route' ? 'worker' : 'pages';
-    if (ctx.hosts.every((h) => { const hs = hostState(ctx, live, h); return hs.where === there && (there === 'worker' || hs.cname); })) {
+    if (ctx.hosts.every((h) => { const hs = hostState(ctx, live, h); return settled(hs, there === 'worker'); })) {
       st.route = st.asked;
       st.direction = st.asked.kind === 'route' ? 'to-worker' : 'to-pages';
       delete st.asked;
@@ -1534,9 +1547,10 @@ async function cmdAfter(ctx, run) {
   const wantWhere = toWorker ? 'worker' : 'pages';
   for (const h of ctx.hosts) {
     const hs = hostState(ctx, live, h);
-    const good = hs.where === wantWhere && (toWorker || hs.cname);
-    note(run, good, `${h} is ${WHERE_WORDS[hs.where]}${good ? '' : `; it should be ${toWorker ? 'on the Worker' : 'on Pages with its CNAME'}`}`);
-    if (!good) { problems.push(`${h} is ${WHERE_WORDS[hs.where]}`); continue; }
+    const good = settled(hs, toWorker);
+    const state = `${WHERE_WORDS[hs.where]}${hs.where === 'pages' && !hs.pagesActive ? ` (Cloudflare shows the domain as ${hs.pagesStatus})` : ''}`;
+    note(run, good, `${h} is ${state}${good ? '' : `; it should be ${toWorker ? 'on the Worker' : 'on Pages with its CNAME and an active domain'}`}`);
+    if (!good) { problems.push(`${h} is ${state}`); continue; }
     if (redirectedAtZone(rec, h)) { note(run, true, `${h} is redirected at the zone: only Cloudflare's lists say which platform has it`); continue; }
     const r = await ctx.siteFetch(`https://${h}/build.txt?${PROBE}=${ctx.now()}`, { headers: { 'cache-control': 'no-cache' } });
     const answers = r.status === 200 ? platformOf(r, r.body.toString('utf8')) : null;

@@ -2301,3 +2301,67 @@ describe('review round 5: stale confirms, re-runs of a build, and what a confirm
     assert.match(again.text, /less than an hour/);
   });
 });
+
+// ---------------------------------------------------------------- the Pages domain list (kit undo test, 2026-11-05)
+
+// A move done and pushed, ready for an undo: every host is on the Worker and after has passed.
+async function movedAndPassed(s) {
+  const rec = await recordDone(s);
+  assert.equal(rec.code, 0, rec.text);
+  const q = await s.go(['move']);
+  const route = git(s.site.work, 'rev-parse', 'HEAD');
+  assert.equal((await s.go(['move', '--confirm', codeOf(q)])).code, 0);
+  s.push();
+  s.w.pagesCommit = s.w.workerCommit = route;
+  assert.equal((await s.go(['after'])).code, 0);
+}
+
+describe('review: Pages membership comes from the project\'s domain list (BUG A)', () => {
+  test('an undo whose added domain is missing from the project\'s own list for a while finishes without adding it twice', async () => {
+    const s = scenario();
+    await movedAndPassed(s);
+    const uq = await s.go(['undo']);
+    const undoCommit = git(s.site.work, 'rev-parse', 'HEAD');
+    s.w.projectLag = 4; // the project's own list shows a new domain only after four reads; /domains shows it at once
+    s.w.calls.length = 0;
+    let r;
+    for (let i = 0; i < 12; i++) {
+      r = await s.go(['undo', '--confirm', codeOf(uq)]);
+      if (r.code === 0) break;
+      assert.equal(r.code, 4, `run ${i + 1} ended with ${r.code}, not asking for another run:\n${r.text}`);
+    }
+    assert.equal(r.code, 0, r.text);
+    const adds = s.w.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/pages/projects/' + REPO + '/domains'));
+    assert.equal(adds.length, HOSTS.length, 'each host was added to Pages once, never again');
+    assert.ok(!r.text.includes('on neither'), 'the host was never called down while Pages held it');
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = undoCommit;
+    assert.equal((await s.go(['after'])).code, 0);
+  });
+
+  test('"already added" (8000018) on the add is taken as "already there", not as a failure', async () => {
+    const s = scenario();
+    await movedAndPassed(s);
+    const uq = await s.go(['undo']);
+    s.w.addAlwaysAlready = true;
+    const r = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.equal(r.code, 0, r.text);
+    assert.match(r.text, /already on the Pages project/);
+  });
+
+  test('a Pages domain that is not active yet is not "on Pages" for after', async () => {
+    const s = scenario();
+    await movedAndPassed(s);
+    const uq = await s.go(['undo']);
+    const undoCommit = git(s.site.work, 'rev-parse', 'HEAD');
+    assert.equal((await s.go(['undo', '--confirm', codeOf(uq)])).code, 0);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = undoCommit;
+    s.w.pagesStatus = { [HOSTS[0]]: 'pending' };
+    const pending = await s.go(['after']);
+    assert.equal(pending.code, 1);
+    assert.match(pending.text, /Cloudflare shows the domain as pending/);
+    s.w.pagesStatus = {};
+    assert.equal((await s.go(['after'])).code, 0);
+  });
+});
