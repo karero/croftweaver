@@ -2418,3 +2418,20 @@ describe('review: the Pages domain list as Cloudflare sends it (BUG A, test 2)',
     }
   });
 });
+
+describe('review: the undo says to deploy as well (kit undo test, 2026-11-05)', () => {
+  test('move --confirm and undo --confirm both tell her to deploy the commit where the Worker has no Workers Builds', async () => {
+    const s = scenario();
+    assert.equal((await recordDone(s)).code, 0);
+    const q = await s.go(['move']);
+    const route = git(s.site.work, 'rev-parse', 'HEAD');
+    const go = await s.go(['move', '--confirm', codeOf(q)]);
+    assert.match(go.text, /Now push commit [0-9a-f]+ to .*, deploy it if the Worker has no Workers Builds, and run: node move-to-workers\.mjs after/);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = route;
+    assert.equal((await s.go(['after'])).code, 0);
+    const uq = await s.go(['undo']);
+    const back = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.match(back.text, /Now push commit [0-9a-f]+ to .*, deploy it if the Worker has no Workers Builds, and run: node move-to-workers\.mjs after/);
+  });
+});

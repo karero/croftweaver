@@ -1510,7 +1510,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   const verb = (one, many) => (ctx.hosts.length > 1 ? many : one); // the host list's verb: "serves" for one host, "serve" for several
   note(run, true, `Both answers in a row: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages'}, ${ago} seconds after the first left its platform`);
   say(`Done: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages again'} (${ago} seconds since the first host left its platform).`);
-  say(`Now push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production (git push origin HEAD:production HEAD:main)' : 'main'}${toWorker ? ', deploy it if the Worker has no Workers Builds,' : ''} and run: node move-to-workers.mjs after`);
+  say(`Now push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production (git push origin HEAD:production HEAD:main)' : 'main'}, deploy it if the Worker has no Workers Builds, and run: node move-to-workers.mjs after`);
   run.next = 'node move-to-workers.mjs after';
   return 0;
 }

@@ -70,7 +70,7 @@ never gives it to a program it starts (the build, `git`).
 | 2 | `record` | Freezes the live branch's tip and builds it apart from your working folder, then records what the live site serves. |
 | 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. |
 | 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote and nothing has changed since step 3 (below): it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
-| 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). If the Worker has no Workers Builds, deploy it as well. |
+| 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). If the Worker has no Workers Builds, deploy it as well. After an `undo`, the same with the undo commit. |
 | 6 | `after` | Compares the live site with the recording and reports what differs. |
 
 **`check` refuses** (and each refusal says what to do): a Pages project made by direct upload, or
@@ -160,7 +160,9 @@ which platform has it.
 `undo` is the same shape as `move`: `undo` writes the undo commit on your branch (local, not
 pushed) and asks; `undo --confirm <code>` changes only Cloudflare and refuses unless HEAD holds
 that commit: each host leaves the Worker and goes back to the Pages project with its CNAME. Push
-the commit, then run `after`; it closes the move when the hosts serve from Pages again. A move that
+the commit as in step 5 of the table (to `main` too on a two-stage site), and where the Worker has
+no Workers Builds, deploy it as well: otherwise the Worker keeps serving the old commit and `check`
+says so. Then run `after`; it closes the move when the hosts serve from Pages again. A move that
 stopped can be undone the same way, by hand if need be: `after` follows the commit, so it closes
 either. If an undo stops part way, `move` goes forward again from where it stopped. Ordinary commits
 shipped meanwhile, a changed compatibility date among them, do not stand in the way: the commit the
