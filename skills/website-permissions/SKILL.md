@@ -69,16 +69,16 @@ the skills give (`git init`, `git checkout main`, `git checkout -b production`,
 `pr view/list`) plus one write, `gh repo create`, `wrangler pages dev` / `whoami`, file
 inspection (`ls`/`cat`/`head`/`tail`/`wc`/`grep`, plus `mkdir`/`cp`/`touch`/`echo`), and
 `bash scripts/check_external_links.sh` (the outgoing-link sweep). Everything else asks:
-`git commit`, a new working branch and its first push (only `production` is made, and only
-`main` and `production` are first pushed, without asking), other `node` commands, and the
+`git commit`, a new working branch and its first push (only `production` is made without asking,
+and only `main` and `production` get their first push without asking), other `node` commands, and the
 image tools among them.
 
 **Blocked (`deny`)** — irreversible or destructive. Claude Code refuses these outright,
 it does not ask; the owner runs one by hand in a terminal if they really mean it:
 `rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or a `+branch`,
 wherever it stands in the command), `git reset --hard`, `gh repo delete`,
-`wrangler pages delete`, `wrangler delete`, any git command given `--output`
-(`git log`/`diff`/`show` writing a file), and `git add` reading its paths from a file
+`wrangler pages delete`, `wrangler delete`, any git command with a word starting
+`--output` (`git log`/`diff`/`show` writing a file), and `git add` reading its paths from a file
 (`--pathspec-from-file`).
 **Do not move these to `allow`.** A rule only matches text, so these catch the usual
 spellings; a push with options the list does not name, a bundled force flag

@@ -215,9 +215,10 @@ pushing `main:production` and GitHub PR merges are unaffected either way.
 
 **Claude Code only.** Copy the permission allowlist into the project so routine build
 commands (npm/astro/playwright, git's read verbs and `git add`, the exact fetch and pull
-commands these docs use, and the four exact push commands for `main` and `production`) run
-without a prompt. A commit, a new working branch and its first push, the image tools and
-the emergency publish in `PUBLISHING.md` still ask:
+commands these docs use, and the four exact push commands for `main` and `production`, among them a plain
+`git push`, which pushes the current branch to the one it tracks) run without a prompt. A
+commit, a new working branch and its first push, `node` commands other than
+`node --version`, the image tools and the emergency publish in `PUBLISHING.md` still ask:
 ```bash
 mkdir -p .claude/hooks && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
 cp "$SKILLS_ROOT/new-website/templates/claude/hooks/git-stand.mjs" .claude/hooks/

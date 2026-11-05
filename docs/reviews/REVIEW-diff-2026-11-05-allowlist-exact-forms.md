@@ -39,3 +39,19 @@ Round 2 (head 85c2531c; artifact `git diff 56a9a87a..85c2531c`, `--verify` round
 | N14 | NIT | fresh | 2 | the `--output` rule covers every git command, the docs say three | fixed | "any git command given `--output`" |
 | N15 | NIT | fresh | 2 | §1: "that merge also removes" — the hooks merge removes nothing | fixed | "When merging, also delete" |
 | N16 | NIT | fresh | 2 | "The test ran headless" is ambiguous now that two runs are named | fixed | "The push test" |
+
+Round 3 (head 37776ab0; artifact `git diff 85c2531c..37776ab0`, `--verify` rounds 1-2, the same evidence): Codex 124 s, 63,948, no findings; melious glm-5.3 283 s, 32,891, 3 NIT; fresh-eyes (Opus) 180 s, 104,908, 4 NIT. 0 BUG, 0 RISK, 6 NIT after dedup.
+
+| id | Sev | Source | Round | Finding — one line | Status | Evidence |
+|---|---|---|---|---|---|---|
+| N17 | NIT | fresh | 3 | SETUP.md ties all four push forms to `main` and `production`, but a plain `git push` follows the branch's upstream | fixed, closing edit | names the plain push and where it goes |
+| N18 | NIT | fresh | 3 | website-permissions §2's "without asking" hangs off two clauses | fixed, closing edit | the wording WHAT-THE-SKILLS-RUN uses |
+| N19 | NIT | fresh, melious | 3 | `git switch` also changes the files on disk, and checkout or switch can run a site's hooks | fixed, closing edit | "`git checkout`, `git switch` and `git pull` … can run git hooks the site carries" |
+| N20 | NIT | fresh | 3 | the `--output` deny rule matches any later word starting `--output`, a commit message included | fixed, closing edit | "with a word starting `--output`"; it refuses, never runs |
+| N21 | NIT | melious | 3 | SETUP.md's lists leave out `node` | fixed, closing edit | "`node` commands other than `node --version`" |
+| N22 | NIT | melious | 3 | the `:*` sentence omits the docs' "only wildcard" caveat | refuted | every allow rule in the file has at most one `*`, at its end |
+
+Verdict: CLEAN. Stop condition: High; round 3 found no BUG and no RISK. Its NIT fixes are closing edits, checked locally (`make check`, the plugin tests), not reviewed again.
+Totals: 3 rounds; 17, 12 and 6 findings after dedup (6 BUG in all, none open). Seat runs logged 253,111 tokens; fresh-eyes 381,712 more.
+Not run: no test of what the list refuses, by the owner's decision; the docs say so.
+Follow-ups: the docs/BUGLOG.md row for the release notes.

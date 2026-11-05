@@ -71,8 +71,8 @@ its own or followed by a space and anything after it.
 - **Blocked:** `rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or
   a `+branch`, wherever it stands in the command), `git reset --hard`, `gh repo delete`,
   `wrangler delete` and `wrangler pages delete` (with or without `npx`), any git command
-  given `--output` (for `git log`, `diff` and `show`, writing to a file), and `git add`
-  reading its paths from a file (`--pathspec-from-file`). The documentation says a block rule prevents the command; it
+  with a word starting `--output` (for `git log`, `diff` and `show`, writing to a file),
+  and `git add` reading its paths from a file (`--pathspec-from-file`). The documentation says a block rule prevents the command; it
   does not ask. You run such a command yourself if you really mean it.
 - **Everything else asks first**, as long as Claude Code is in its normal mode. If you
   switch Claude Code to a mode that approves everything, nothing asks.
@@ -82,8 +82,8 @@ What this list does and does not protect:
 - Most of the allowed build and git commands (`npm install`, `npm ci`, `npm run …`,
   `npm test …`, `astro`, `playwright` and their `npx` forms, `wrangler pages dev`,
   `bash scripts/check_external_links.sh`, `git push`, `git pull`) run the site's own
-  scripts, config files or git hooks, and `git checkout` and `git pull` change which version
-  of those files is on disk. Anyone who can change those files can run code through them: a collaborator, a
+  scripts, config files or git hooks; `git checkout`, `git switch` and `git pull` change
+  which version of those files is on disk, and can run git hooks the site carries. Anyone who can change those files can run code through them: a collaborator, a
   pull from `origin`, or the assistant through an edit you approve. So the list is a way to
   stop routine prompts, not a sandbox. Apart from the list, the site's `AGENTS.md` tells the
   assistant never to run `npm run ship` unasked and to merge a pull request only when you
