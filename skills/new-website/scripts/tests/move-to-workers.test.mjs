@@ -2384,3 +2384,37 @@ describe('review: status 4 is said once', () => {
     assert.ok(await recordDone(s).then((x) => x.code === 0), 'the record still finishes');
   });
 });
+
+describe('review: the Pages domain list as Cloudflare sends it (BUG A, test 2)', () => {
+  const CAPTURE = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-pages', 'cloudflare-api-pages-domains-2026-11-05.json'), 'utf8'));
+
+  test('the captured answer: both hosts are on Pages, read from each entry\'s own status', async () => {
+    const s = scenario({ world: { pagesDomainsAnswer: CAPTURE } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    // Written by hand from the capture: two entries, both "active"; the DNS CNAMEs are the stub's.
+    assert.match(r.text, /^ {2}lenas-backstube\.example: on Pages; DNS CNAME /m);
+    assert.match(r.text, /^ {2}www\.lenas-backstube\.example: on Pages; DNS CNAME /m);
+    assert.doesNotMatch(r.text, /Cloudflare shows the domain as/);
+    // The same answer with the top-level status of one entry changed: the script reads that field,
+    // not the nested verification_data.status or validation_data.status, which stay "active".
+    const pending = JSON.parse(JSON.stringify(CAPTURE));
+    pending.result[1].status = 'pending';
+    s.w.pagesDomainsAnswer = pending;
+    const p = await s.go(['check']);
+    assert.match(p.text, /^ {2}www\.lenas-backstube\.example: on Pages \(Cloudflare shows the domain as pending\); DNS /m);
+    assert.match(p.text, /^ {2}lenas-backstube\.example: on Pages; DNS /m, 'the entry that stayed active is unchanged');
+  });
+
+  test('an answer with more than one page is refused, before anything is decided from it', async () => {
+    for (const info of [{ page: 1, per_page: 20, count: 20, total_count: 41, total_pages: 3 }, { page: 1, per_page: 20, count: 2, total_count: 2, total_pages: 2 }]) {
+      const s = scenario({ world: { pagesDomainsAnswer: { ...CAPTURE, result_info: info } } });
+      for (const cmd of ['check', 'record']) {
+        const r = await s.go([cmd]);
+        assert.equal(r.code, 1, `${cmd}: ${r.text}`);
+        assert.match(r.text, /more than 20 domains.*do the move in the Cloudflare dashboard/s);
+      }
+      assert.ok(s.w.calls.every((c) => c.method === 'GET'), 'nothing was changed');
+    }
+  });
+});

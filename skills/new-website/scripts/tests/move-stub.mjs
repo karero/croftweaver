@@ -4,7 +4,8 @@
 // Cloudflare's lists, the zone, the project and the DNS records have the shapes of the captures in
 // fixtures/cloudflare-api/ (through cloudflare-stub.mjs). The Worker domains, the Worker's
 // deployments and its workers.dev subdomain have no capture (they need a live token): those answers
-// are MADE from Cloudflare's API reference, and test 5, the throwaway run, settles them.
+// are MADE from Cloudflare's API reference, and test 5, the throwaway run, settles them. The Pages
+// project's domain list has a capture (fixtures/cloudflare-pages/); a domain that is not active yet is MADE.
 // GitHub's check runs are the capture in fixtures/github-api/ (gh 2.103.3, a public repository's real
 // Workers Builds and Pages runs); the Worker's name in it is replaced by this site's, and an unfinished
 // run is MADE.
@@ -231,8 +232,10 @@ function cloudflare(w, method, u, body) {
     for (const [name, x] of w.pagesPending ?? []) if (--x.left <= 0) { w.project.domains.push(name); w.pagesPending.delete(name); }
     return cf(copy(w.project));
   }
-  if (method === 'GET' && p === `${A}/pages/projects/${REPO}/domains`) { // the shape follows the manager's description of the real answer: name and status; not checked against a capture
-    return cf([...w.project.domains.filter((d) => d !== SUBDOMAIN).map((name) => ({ name, status: w.pagesStatus?.[name] ?? 'active' })), ...[...(w.pagesPending ?? [])].map(([name]) => ({ name, status: 'pending' }))]);
+  if (method === 'GET' && p === `${A}/pages/projects/${REPO}/domains`) { 
+    if (w.pagesDomainsAnswer) return json(200, copy(w.pagesDomainsAnswer)); // a captured answer, as Cloudflare sent it
+    const list = [...w.project.domains.filter((d) => d !== SUBDOMAIN).map((name) => ({ name, status: w.pagesStatus?.[name] ?? 'active' })), ...[...(w.pagesPending ?? [])].map(([name]) => ({ name, status: 'pending' }))];
+    return cf(list, { result_info: { page: 1, per_page: 20, count: list.length, total_count: list.length, total_pages: 1 } });
   }
   if (method === 'GET' && p === `${A}/pages/projects/${REPO}/deployments`) {
     const size = Math.min(100, Number(u.searchParams.get('per_page') ?? w.depDefaultPage ?? 25));

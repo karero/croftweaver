@@ -706,6 +706,8 @@ async function readLive(ctx) {
   ]);
   if (!ok(pr) || !Array.isArray(pr.body?.result?.domains)) throw new Stop(1, `Cloudflare did not return the Pages project: ${cfWords(pr)}.`);
   if (!ok(pd) || !Array.isArray(pd.body?.result)) throw new Stop(1, `Cloudflare did not list the Pages project's domains: ${cfWords(pd)}.`);
+  const info = pd.body.result_info; // the answer is paged (20 a page); the script reads page 1 only and does not decide from part of a list
+  if (info && (info.total_pages > 1 || info.count < info.total_count)) throw new Stop(1, `The Pages project has more than ${info.per_page ?? 20} domains. The script reads one page of them and does not decide from part of a list: do the move in the Cloudflare dashboard.`);
   if (!ok(wd) || !Array.isArray(wd.body?.result)) throw new Stop(1, `Cloudflare did not list the Worker domains: ${cfWords(wd)}. The token needs the Workers permission the move section names.`);
   const records = [];
   for (const [i, d] of dns.entries()) {
@@ -750,6 +752,9 @@ const settled = (hs, toWorker) => (toWorker ? hs.where === 'worker' : hs.where =
 
 // Cloudflare's answer to adding a Pages domain that the project already holds.
 const ALREADY_ADDED = 8000018;
+
+// A Pages domain that is listed but not active yet says so next to where it is.
+const notActive = (hs) => (hs.where === 'pages' && !hs.pagesActive ? ` (Cloudflare shows the domain as ${hs.pagesStatus})` : '');
 
 const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on neither (down)', both: 'on both (inconsistent)' };
 
@@ -1096,8 +1101,8 @@ async function cmdCheck(ctx, run) {
   if (ctx.open && ctx.state.route) say(`A move is open. It expects the ${ctx.state.route.kind} commit ${short(ctx.state.route.commit)} on ${ctx.twoStage ? `${ctx.prodBranch} and main` : ctx.prodBranch}; after checks the hosts ${ctx.state.route.kind === 'route' ? 'on the Worker' : 'back on Pages'}.`);
   for (const h of ctx.hosts) {
     const hs = hostState(ctx, live, h);
-    say(`  ${h}: ${WHERE_WORDS[hs.where]}; DNS ${hs.recs.map((r) => `${r.type} ${r.content}${r.proxied ? ' (proxied)' : ''}`).join('; ') || 'no record'}`);
-    note(run, hs.where === 'pages' && Boolean(hs.cname), `${h} is ${WHERE_WORDS[hs.where]}, DNS ${hs.recs.map((r) => `${r.type} ${r.content}`).join('; ') || 'none'}`);
+    say(`  ${h}: ${WHERE_WORDS[hs.where]}${notActive(hs)}; DNS ${hs.recs.map((r) => `${r.type} ${r.content}${r.proxied ? ' (proxied)' : ''}`).join('; ') || 'no record'}`);
+    note(run, settled(hs, false), `${h} is ${WHERE_WORDS[hs.where]}${notActive(hs)}, DNS ${hs.recs.map((r) => `${r.type} ${r.content}`).join('; ') || 'none'}`);
   }
   say(`The live branch ${ctx.prodBranch} on GitHub is ${short(ctx.tip)}${ctx.twoStage ? `; main is ${short(ctx.mainSha)}${ctx.mainDiffers ? ' (it differs: they must be the same before record)' : ''}` : ''}.`);
   note(run, !ctx.mainDiffers, `GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
@@ -1552,7 +1557,7 @@ async function cmdAfter(ctx, run) {
   for (const h of ctx.hosts) {
     const hs = hostState(ctx, live, h);
     const good = settled(hs, toWorker);
-    const state = `${WHERE_WORDS[hs.where]}${hs.where === 'pages' && !hs.pagesActive ? ` (Cloudflare shows the domain as ${hs.pagesStatus})` : ''}`;
+    const state = `${WHERE_WORDS[hs.where]}${notActive(hs)}`;
     note(run, good, `${h} is ${state}${good ? '' : `; it should be ${toWorker ? 'on the Worker' : 'on Pages with its CNAME and an active domain'}`}`);
     if (!good) { problems.push(`${h} is ${state}`); continue; }
     if (redirectedAtZone(rec, h)) { note(run, true, `${h} is redirected at the zone: only Cloudflare's lists say which platform has it`); continue; }

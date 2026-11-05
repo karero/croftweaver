@@ -1,0 +1,46 @@
+{
+  "result": [
+    {
+      "id": "11111111-2222-4333-8444-555555555555",
+      "domain_id": "11111111-2222-4333-8444-555555555555",
+      "name": "lenas-backstube.example",
+      "status": "active",
+      "verification_data": {
+        "status": "active"
+      },
+      "validation_data": {
+        "status": "active",
+        "method": "http"
+      },
+      "certificate_authority": "google",
+      "zone_tag": "0123456789abcdef0123456789abcdef",
+      "created_on": "2026-11-04T10:57:38.68825Z"
+    },
+    {
+      "id": "66666666-7777-4888-9999-aaaaaaaaaaaa",
+      "domain_id": "66666666-7777-4888-9999-aaaaaaaaaaaa",
+      "name": "www.lenas-backstube.example",
+      "status": "active",
+      "verification_data": {
+        "status": "active"
+      },
+      "validation_data": {
+        "status": "active",
+        "method": "http"
+      },
+      "certificate_authority": "google",
+      "zone_tag": "0123456789abcdef0123456789abcdef",
+      "created_on": "2026-11-04T10:57:42.316569Z"
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result_info": {
+    "page": 1,
+    "per_page": 20,
+    "count": 2,
+    "total_count": 2,
+    "total_pages": 1
+  }
+}
