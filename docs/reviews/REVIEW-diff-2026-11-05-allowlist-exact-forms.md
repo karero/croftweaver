@@ -24,3 +24,18 @@ Base `01a9fc5b` · depth: High (permissions) · authority used: WORKTREE-WRITE, 
 | N7 | NIT | fresh | 1 | the "runs the site's own code" list is short | fixed | widened |
 | N8 | NIT | fresh | 1 | "What was not checked" ignores the 2026-11-05 run | fixed | |
 | N9 | NIT | codex, melious | 1 | evidence READ 9 says 57 allow | fixed in evidence | a note gives 54, the file in the diff |
+
+Round 2 (head 85c2531c; artifact `git diff 56a9a87a..85c2531c`, `--verify` round 1, the same evidence plus READ D4-D5): Codex 107 s, 43,858; melious glm-5.3 244 s, 28,008; fresh-eyes (Opus) 339 s, 129,459. 2 BUG, 1 RISK, 9 NIT after dedup. Every round 1 fix was confirmed except the parts below.
+
+| id | Sev | Source | Round | Finding — one line | Status | Evidence |
+|---|---|---|---|---|---|---|
+| R2-1 | BUG | codex | 2 | SETUP.md's "push commands for `main` and `production`" takes in the emergency publish, which asks | fixed | "the four exact push commands"; the emergency publish is named as asking |
+| R2-2 | BUG | melious | 2 | "Only `production` is created and pushed without asking" ignores `git push -u origin main` | fixed | creation and first push are now two clauses; website-permissions §2 says the same |
+| R2-3 | RISK | melious | 2 | "`:*` matches the command on its own" contradicts the docs | refuted | READ D6: the docs say a trailing space-star also matches the bare command |
+| N10 | NIT | melious | 2 | the pull and fetch forms are not main/production-specific | fixed | SETUP.md splits fetch/pull from push |
+| N11 | NIT | melious | 2 | `git checkout` runs no site script | fixed | "change which version of those files is on disk" |
+| N12 | NIT | fresh | 2 | the paragraph after the "Now asks" list renders inside its last bullet | fixed | blank line restored |
+| N13 | NIT | fresh | 2 | summary: "`node`" too broad, and "so" links the image tools to git | fixed | "`node` scripts"; "and" |
+| N14 | NIT | fresh | 2 | the `--output` rule covers every git command, the docs say three | fixed | "any git command given `--output`" |
+| N15 | NIT | fresh | 2 | §1: "that merge also removes" — the hooks merge removes nothing | fixed | "When merging, also delete" |
+| N16 | NIT | fresh | 2 | "The test ran headless" is ambiguous now that two runs are named | fixed | "The push test" |

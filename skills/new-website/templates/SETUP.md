@@ -214,9 +214,10 @@ pushing `main:production` and GitHub PR merges are unaffected either way.
 ## 4. Stop Claude asking permission for every command
 
 **Claude Code only.** Copy the permission allowlist into the project so routine build
-commands (npm/astro/playwright, git's read verbs and `git add`, and the exact pull and push
-commands these docs use for `main` and `production`) run without a prompt. A commit, a new
-working branch and its first push, and the image tools still ask:
+commands (npm/astro/playwright, git's read verbs and `git add`, the exact fetch and pull
+commands these docs use, and the four exact push commands for `main` and `production`) run
+without a prompt. A commit, a new working branch and its first push, the image tools and
+the emergency publish in `PUBLISHING.md` still ask:
 ```bash
 mkdir -p .claude/hooks && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
 cp "$SKILLS_ROOT/new-website/templates/claude/hooks/git-stand.mjs" .claude/hooks/

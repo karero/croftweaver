@@ -43,7 +43,7 @@ copy the script with them, or every session start reports a missing file. A repo
 `.claude/settings.json` already has its own rules: merge the template's `hooks` block in
 instead of overwriting the file.
 
-That merge also removes the broad rules older sites carry, which this list dropped in
+When merging, also delete the broad rules older sites carry, which this list dropped in
 2026-11. Delete these from the site's `allow` if they are there: `Bash(node:*)`,
 `Bash(npm exec:*)`, `Bash(rg:*)`, `Bash(find:*)`, `Bash(tree:*)`, `Bash(mv:*)`,
 `Bash(open:*)`, the image tools (`cwebp`, `dwebp`, `avifenc`, `magick`, `convert`, `oxipng`,
@@ -69,15 +69,17 @@ the skills give (`git init`, `git checkout main`, `git checkout -b production`,
 `pr view/list`) plus one write, `gh repo create`, `wrangler pages dev` / `whoami`, file
 inspection (`ls`/`cat`/`head`/`tail`/`wc`/`grep`, plus `mkdir`/`cp`/`touch`/`echo`), and
 `bash scripts/check_external_links.sh` (the outgoing-link sweep). Everything else asks:
-`git commit`, a working branch other than `production` and its first push, other `node`
-commands, and the image tools among them.
+`git commit`, a new working branch and its first push (only `production` is made, and only
+`main` and `production` are first pushed, without asking), other `node` commands, and the
+image tools among them.
 
 **Blocked (`deny`)** — irreversible or destructive. Claude Code refuses these outright,
 it does not ask; the owner runs one by hand in a terminal if they really mean it:
 `rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or a `+branch`,
 wherever it stands in the command), `git reset --hard`, `gh repo delete`,
-`wrangler pages delete`, `wrangler delete`, `git log`/`diff`/`show` writing a file
-(`--output`), and `git add` reading its paths from a file (`--pathspec-from-file`).
+`wrangler pages delete`, `wrangler delete`, any git command given `--output`
+(`git log`/`diff`/`show` writing a file), and `git add` reading its paths from a file
+(`--pathspec-from-file`).
 **Do not move these to `allow`.** A rule only matches text, so these catch the usual
 spellings; a push with options the list does not name, a bundled force flag
 (`git push -uf`) among them, asks rather than runs. Where `website-team-setup` could set GitHub's branch rules (§5-A: a public repo, or

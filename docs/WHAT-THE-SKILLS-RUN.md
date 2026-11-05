@@ -34,9 +34,10 @@ and runs the commands; the skills cannot run anything by themselves.
 - **In Claude Code, routine build commands run without asking**, because each site made
   with Claude Code gets a permission list (see
   [What runs without asking](#what-runs-without-asking)). Since 2026-11 the git commands that
-  change branches or publish are allowed only in the exact forms the skills use, so a commit,
-  a new working branch, `node` and the image tools ask first. `npm run …` and a plain `git push` still run without asking. It saves clicks; it
-  is not a safety fence.
+  change branches or publish are allowed only in the exact forms the skills use, and a
+  commit, a new working branch, `node` scripts and the image tools ask first. `npm run …`
+  and a plain `git push` still run without asking. It saves clicks; it is not a safety
+  fence.
 - **Releases carry no signature of our own.** Since v0.32 a `SHA256SUMS` file sits beside
   the zip, the release cannot change once published, and GitHub signs a record of it;
   v0.31 and earlier have none of this, but GitHub shows a SHA-256 for each download. See
@@ -69,9 +70,9 @@ its own or followed by a space and anything after it.
     keystatic.com).
 - **Blocked:** `rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or
   a `+branch`, wherever it stands in the command), `git reset --hard`, `gh repo delete`,
-  `wrangler delete` and `wrangler pages delete` (with or without `npx`), `git log`, `diff`
-  or `show` writing to a file (`--output`), and `git add` reading its paths from a file
-  (`--pathspec-from-file`). The documentation says a block rule prevents the command; it
+  `wrangler delete` and `wrangler pages delete` (with or without `npx`), any git command
+  given `--output` (for `git log`, `diff` and `show`, writing to a file), and `git add`
+  reading its paths from a file (`--pathspec-from-file`). The documentation says a block rule prevents the command; it
   does not ask. You run such a command yourself if you really mean it.
 - **Everything else asks first**, as long as Claude Code is in its normal mode. If you
   switch Claude Code to a mode that approves everything, nothing asks.
@@ -80,8 +81,9 @@ What this list does and does not protect:
 
 - Most of the allowed build and git commands (`npm install`, `npm ci`, `npm run …`,
   `npm test …`, `astro`, `playwright` and their `npx` forms, `wrangler pages dev`,
-  `bash scripts/check_external_links.sh`, `git push`, `git pull`, `git checkout`) run the
-  site's own scripts, config files or git hooks. Anyone who can change those files can run code through them: a collaborator, a
+  `bash scripts/check_external_links.sh`, `git push`, `git pull`) run the site's own
+  scripts, config files or git hooks, and `git checkout` and `git pull` change which version
+  of those files is on disk. Anyone who can change those files can run code through them: a collaborator, a
   pull from `origin`, or the assistant through an edit you approve. So the list is a way to
   stop routine prompts, not a sandbox. Apart from the list, the site's `AGENTS.md` tells the
   assistant never to run `npm run ship` unasked and to merge a pull request only when you
@@ -113,12 +115,13 @@ What this list does and does not protect:
 - Every `git commit`. You see the message before it is made.
 - A new working branch (`git switch --no-track -c …` in `AGENTS.md` and
   `website-team-setup`), its first push (`git push -u origin <branch>`), and
-  `git branch -D`. Only `production`, made once at launch, is created and pushed without
-  asking.
+  `git branch -D`. Only `production`, made once at launch, is created without asking;
+  only `main` and `production` get their first push without asking.
 - Pushes with other options: `git push --no-verify`, `git push --follow-tags` and
   `git push --delete`.
 - `git restore`, `git merge`, `git stash`, `git remote`, and `git checkout` or `git switch`
   to anything but the forms listed above.
+
 For a change made the way `AGENTS.md` describes, this means about three more questions
 than before: making the branch, the commit and the branch's first push.
 
@@ -537,7 +540,7 @@ private vulnerability reporting, on the repository's Security tab.
 
 - Whether Claude Code's block and allow rules behave as its documentation describes,
   beyond the push test and the 2026-11-05 run of the allowed commands above; the rest was
-  read, not tried. The test ran headless, where a
+  read, not tried. The push test ran headless, where a
   command that is not allowed is refused without a question, so it shows that the force
   pushes did not run, not that a blocked command never asks.
 - Whether Codex and Antigravity ignore `.claude/settings.json`; this was read from the
