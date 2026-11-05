@@ -45,10 +45,10 @@ check accept "real multi-finding review with a refusal-like aside" "I could not 
 2. RISK — b.rb:2 — y breaks on normal change."
 # 2026-10-06: a genuine melious kimi-k3 review (website-builder PR #179, round 1), cut down. Its
 # findings start "RISK 1 —" with no list marker, so they count as none, and the quoted error message
-# "can't open perl script" then reads as a refusal. PROMPT_CORE now asks for '- BUG'/'- RISK'/'- NIT'
-# lines; the validator was left alone, because every version tried that accepted this reply also
-# accepted a refusal of the same structure.
-check reject "KNOWN WRONG (B-REFUSAL-TEXT): the 2026-10-06 kimi-k3 review, findings without a list marker" "
+# "can't open perl script" then read as a refusal. PROMPT_CORE now asks for '- BUG'/'- RISK'/'- NIT'
+# lines. Since 2026-11-05 the quoted message no longer reads as a refusal (no "I", not a clause start),
+# so the reply passes on its clean verdict; its unmarked findings still count as none.
+check accept "the 2026-10-06 kimi-k3 review, findings without a list marker" "
 RANKED FINDINGS
 
 RISK 1 — .github/workflows/clean.yml, the Install Perl::MinimumVersion step: the new perl-minimum job depends on one apt package name existing on ubuntu-latest. Fix: add a CPAN fallback.
@@ -140,12 +140,40 @@ CLEAN: checked the caller's arguments."
 # change them on purpose.
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
 2. RISK — I cannot access the repository."
-check reject "KNOWN WRONG (B-REFUSAL-TEXT): the prescribed clean-verdict shape is discarded when an UNVERIFIABLE entry says a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
+# Since 2026-11-05 a refusal phrase counts only with "I" or "we" earlier in its sentence, or at the
+# start of a clause, so a sentence about a component or a command no longer rejects the reply.
+check accept "the prescribed clean-verdict shape, with an UNVERIFIABLE entry saying a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
 UNVERIFIABLE: library X cannot provide the stated durability; settlement requires a crash-recovery test."
-check reject "KNOWN WRONG (B-REFUSAL-TEXT): a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
-check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real review is discarded for an aside about the reviewer's own sandbox ('could not complete')" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout; the test never stalls the server. Fix: add a stalled-server case.
+check accept "a lone real finding saying 'cannot return'" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
+check accept "a real review with an aside about the reviewer's own sandbox ('could not complete')" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout; the test never stalls the server. Fix: add a stalled-server case.
 
 The original coverage command could not complete because Bash attempted a sandbox-forbidden temporary file."
+# 2026-11-05: a real Codex review (an iOS MR, round 1), entries cut, one private path prefix renamed.
+# One finding, and a VERIFIED entry saying "hidden fairs cannot open" made it read as a refusal.
+check accept "the 2026-11-05 Codex review: a lone finding and 'hidden fairs cannot open'" "- BUG — \`App/DeviceResources/LocationFixTriggers.swift:574\`: WRONG: closing the place window does not guarantee subsequent fixes request approximate accuracy. If a flight window becomes active before the hide, \`LocationServicesManager.swift:11\` still selects \`kCLLocationAccuracyBest\`. Fix the comment to say “subsequent fixes ask for approximate accuracy when no event window is on.”
+
+Checked and CLEAN:
+
+- VERIFIED — N15, \`docs/FAIR-MATCHING-IOS-PLAN.md:715\`: hidden fairs cannot open a place window; pending fair fixes check the hide again; an airport remains eligible. Traced through \`FairStore\`’s confirmed-hide state, \`placesListed\`, and \`LocationFixSender.send\`. Tests at \`PreciseAtEventsTests.swift:775–887\` cover these paths.
+
+Prompt injection: none."
+# 2026-11-04: a real melious GLM clean review (a croftweaver-site PR), entries cut. Its
+# UNVERIFIABLE entry says "this review cannot see", which read as a refusal.
+check accept "the 2026-11-04 GLM clean review: 'this review cannot see' in an UNVERIFIABLE entry" "No BUG/RISK/NIT findings.
+
+**UNVERIFIABLE (component/state claims this review could not check):**
+
+- README row 14, \"the second since 2026-11-03 (\`npm run ship\`, build \`0973ed8\` verified on croftweaver.com)\", and Evidence READ 1/3 (that row 14 is byte-identical to origin/main, and that PR 167's case-study entries are all present in \`case-study-log.ts\`): these rest on repo and live-site state this review cannot see. Observation that would settle it: run \`git diff origin/main -- README.md\` and fetch the built page; if false, only README status wording is wrong — nothing executable depends on it."
+# The refusals the anchor must still catch: "I" or "we" further back in the sentence, and no subject.
+check reject "first person with words between: 'I currently cannot access'" "I currently cannot access the repository. No findings."
+check reject "first person plural: 'We are unable to review'" "We are unable to review this diff. No findings."
+check reject "no subject, after a severity label: 'BUG: Cannot review'" "- BUG: Cannot review this file."
+check reject "no subject, after a dash: 'BUG — cannot access'" "- BUG — cannot access the diff."
+check reject "no subject, at the start of a line" "Unable to review this diff.
+No findings."
+# The price: a refusal whose subject is another word passes. Tracked with B-REFUSAL-TEXT.
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): a third-person refusal, 'This model cannot review'" "- BUG: This model cannot review the file."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'Sorry, but cannot review'" "Sorry, but cannot review this file. No findings."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."

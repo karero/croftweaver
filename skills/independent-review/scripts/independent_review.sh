@@ -1129,8 +1129,10 @@ looks_like_review() {
   #    Every match below reads the reply from a herestring, never `printf | grep -q`: under
   #    pipefail, grep -q's early exit on a reply past the pipe buffer (~64 KiB) fails the
   #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
+  #    The phrase counts only with "I" or "we" earlier in its sentence, or at the start of a clause:
+  #    "hidden fairs cannot open a window" is about the code, not the reviewer (B-REFUSAL-TEXT).
   if [ "$finding_count" -le 1 ]; then
-    grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$1" && return 1
+    grep -qiE "(\b(i|we)\b([^.!?]|[.!?][^[:space:]])*|(^[[:space:]]*([-*]|[0-9]+\.)?|[.!?:;,(]|—|–| -)[[:space:]]*)\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$1" && return 1
   fi
   # 2. structured findings (list/heading-anchored severity)
   [ "$finding_count" -gt 0 ] && return 0
