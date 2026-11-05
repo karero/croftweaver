@@ -1123,7 +1123,7 @@ async function ensureRouteCommit(ctx, want, kind) {
 
 // ---------------------------------------------------------------- the commands
 
-function note(run, ok_, text) { run.checks.push({ ok: ok_, text }); }
+function note(run, ok_, text) { run.checks.push({ ok: ok_, text }); } // ok_: true, false, or 'wait' (not wrong, not finished)
 
 async function cmdCheck(ctx, run) {
   const { say } = ctx;
@@ -1595,8 +1595,9 @@ async function cmdAfter(ctx, run) {
     const hs = hostState(ctx, live, h);
     const good = settled(hs, toWorker);
     const state = `${WHERE_WORDS[hs.where]}${notActive(hs)}`;
-    note(run, good, `${h} is ${state}${good ? '' : `; it should be ${toWorker ? 'on the Worker' : 'on Pages with its CNAME and an active domain'}`}`);
-    if (!good && !toWorker && hs.where === 'pages' && hs.cname && COMING_UP.includes(hs.pagesStatus)) { coming.push(`${h} is ${state}: a wait, not a failure`); continue; } // not wrong: Cloudflare is still bringing the domain up
+    const waiting = !good && !toWorker && hs.where === 'pages' && hs.cname && COMING_UP.includes(hs.pagesStatus); // not wrong: Cloudflare is still bringing the domain up
+    note(run, good ? true : waiting ? 'wait' : false, `${h} is ${state}${good ? '' : waiting ? ': a wait, not a failure' : `; it should be ${toWorker ? 'on the Worker' : 'on Pages with its CNAME and an active domain'}`}`);
+    if (waiting) { coming.push(`${h} is ${state}: a wait, not a failure`); continue; }
     if (!good) { problems.push(`${h} is ${state}`); continue; }
     if (redirectedAtZone(rec, h)) { note(run, true, `${h} is redirected at the zone: only Cloudflare's lists say which platform has it`); continue; }
     const r = await ctx.siteFetch(`https://${h}/build.txt?${PROBE}=${ctx.now()}`, { headers: { 'cache-control': 'no-cache' } });
@@ -1698,7 +1699,7 @@ export function renderStatus(template, m) {
     return `<li class="${esc(cls)}"><strong>${esc(i + 1)}. ${esc(name)}</strong>${i + 1 === m.stage ? ' <span class="tag">you are here</span>' : ''}<br><span>${esc(line)}</span></li>`;
   }).join('\n');
   const hosts = m.hosts.length ? m.hosts.map((h) => `<tr><td>${esc(h.name)}</td><td>${esc(h.where)}</td><td>${esc(h.since ?? '–')}</td></tr>`).join('\n') : '<tr><td colspan="3">No host is known yet.</td></tr>';
-  const checks = m.checks.length ? m.checks.map((c) => `<li class="${c.ok ? 'ok' : 'bad'}">${c.ok ? 'OK' : 'Failed'}: ${esc(c.text)}</li>`).join('\n') : '<li>Nothing was checked in this run.</li>';
+  const checks = m.checks.length ? m.checks.map((c) => `<li class="${c.ok === 'wait' ? 'wait' : c.ok ? 'ok' : 'bad'}">${c.ok === 'wait' ? 'Waiting' : c.ok ? 'OK' : 'Failed'}: ${esc(c.text)}</li>`).join('\n') : '<li>Nothing was checked in this run.</li>';
   const diffs = m.differences.length
     ? m.differences.map((d) => `<li><a href="${d.path === 'http://' ? `http://${esc(d.host)}/` : `https://${esc(d.host)}${esc(d.path)}`}" title="${esc(d.path)}">${d.path === 'http://' ? `http://${esc(d.host)}/` : `${esc(d.host)}${esc(d.path)}`}</a>: ${esc(d.field)}: ${esc(d.expected)} became ${esc(d.got)}</li>`).join('\n')
     : '<li>None.</li>';

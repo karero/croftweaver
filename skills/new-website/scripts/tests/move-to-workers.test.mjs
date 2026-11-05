@@ -748,10 +748,10 @@ describe('3: the state file, the lock and a second checkout', () => {
   });
 
   test('G1: runs that start at the same instant on a dead lock: exactly one takes it, and the lock is never moved aside', async () => {
-    const dead = deadPid();
     // Each child waits for a shared start time, then takes the lock and stays alive until the parent has every answer,
     // so a lock taken is a lock held however slowly the others start.
     for (let round = 0; round < 4; round++) {
+      const dead = deadPid(); // fresh each round: a pid that was dead earlier can have been handed to a new process since
       const dir = mkdtempSync(path.join(tmpdir(), 'move-lock-'));
       const stop = path.join(dir, 'stop');
       writeFileSync(path.join(dir, 'lock'), `${dead}\nabc\n`);
@@ -2588,10 +2588,14 @@ describe('review: the Pages domain list as Cloudflare sends it (BUG A, test 2)',
       const before = readFileSync(s.stateFile(), 'utf8');
       const r = await s.go(['after']);
       assert.equal(r.code, 4, `${state}: ${r.text}`);
-      // Review round 2, item 4: the wait comes before any address is fetched, so there is nothing more to keep; the one field the run sets, GitHub's poll time, is saved where it is set.
+      // Review round 2, item 6: the wait comes before any address is fetched, so a saved state would hold nothing more. The comparison ignores GitHub's poll time, which the GitHub read saves itself.
       const keys = (txt) => JSON.stringify(Object.entries(JSON.parse(txt)).filter(([k]) => k !== 'ghPolledAt'));
       assert.equal(keys(readFileSync(s.stateFile(), 'utf8')), keys(before), `${state}: the wait changes nothing but GitHub's poll time, which is saved when it is set`);
       assert.match(r.text, /: a wait, not a failure/);
+      // Through cmdAfter to renderStatus: the status page says Waiting for these hosts, not Failed.
+      const page = statusPage(s);
+      assert.match(page, /<li class="wait">Waiting: \S+ is on Pages \(Cloudflare shows the domain as \w+\): a wait, not a failure/);
+      assert.doesNotMatch(page, /Failed: \S+ is on Pages \(Cloudflare shows the domain as (initializing|pending)\)/);
       assert.match(r.text, new RegExp(`Cloudflare shows the domain as ${state}`));
       assert.match(r.text, /Run the same command again in a minute/);
     }
@@ -2603,6 +2607,8 @@ describe('review: the Pages domain list as Cloudflare sends it (BUG A, test 2)',
     assert.equal(m.code, 1, m.text);
     assert.match(m.text, /www\.lenas-backstube\.example is on Pages \(Cloudflare shows the domain as error\)(?!: a wait)/);
     assert.match(m.text, /lenas-backstube\.example is on Pages \(Cloudflare shows the domain as pending\): a wait, not a failure/);
+    assert.match(statusPage(s), /<li class="bad">Failed: www\.lenas-backstube\.example is on Pages \(Cloudflare shows the domain as error\)/);
+    assert.match(statusPage(s), /<li class="wait">Waiting: lenas-backstube\.example is on Pages \(Cloudflare shows the domain as pending\)/);
     s.w.pagesDomainsAnswer = CAPTURE; // both active
     assert.equal((await s.go(['after'])).code, 0);
   });

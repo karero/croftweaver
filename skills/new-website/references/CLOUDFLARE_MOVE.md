@@ -25,10 +25,10 @@ computer, and a second computer would not know the move had begun.
 
 1. **Prepare (not this script).** The Worker must already serve the live commit, with no domain
    yet. That means: the site's shared files are current; `functions/go/` is gone; the privacy
-   text is true on both platforms (it names Cloudflare, not Pages); and the site has exactly one Workers config (a `.json` or `.jsonc` that
-   holds `assets` and no `pages_build_output_dir`) with `workers_dev: false`,
-   `preview_urls: true`, `not_found_handling: "404-page"` and no domain routes. All of it is
-   merged to the live branch.
+   text is true on both platforms (it names Cloudflare, not Pages); and the site has exactly one
+   Workers config (a `.json` or `.jsonc` that holds `assets` and no `pages_build_output_dir`) with
+   `workers_dev: false`, `preview_urls: true`, `not_found_handling: "404-page"` and no domain
+   routes. All of it is merged to the live branch.
 2. **Freeze and record.** `check`, then `record`. Nothing is merged or shipped from here until
    `after` passes, except the commit the script writes.
 3. **Switch.** `move`, and `undo` if you want to go back.
