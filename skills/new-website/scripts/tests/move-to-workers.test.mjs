@@ -708,6 +708,21 @@ describe('3: the state file, the lock and a second checkout', () => {
     }
   });
 
+  test('G1: a lock is never visible without its pid, so a second run cannot take a live lock for a dead one', async () => {
+    const mod = path.join(HERE, '..', 'move-to-workers.mjs');
+    const dir = mkdtempSync(path.join(tmpdir(), 'move-lock-'));
+    const file = path.join(dir, 'lock');
+    const run = (src) => new Promise((resolve) => execFile(process.execPath, ['--input-type=module', '-e', src], (err, out) => resolve(out.trim())));
+    // One process takes and drops the lock over and over; another reads the file as fast as it can and counts empty reads.
+    const taker = run(`import(${JSON.stringify(mod)}).then(async (m) => { const run = {}; for (let i = 0; i < 1500; i++) { m.takeLock(${JSON.stringify(dir)}, run, () => {}); run.release(); } console.log('end'); });`);
+    const reader = run(`import { readFileSync } from 'node:fs'; let empty = 0, seen = 0; const until = Date.now() + 4000; while (Date.now() < until) { try { if (readFileSync(${JSON.stringify(file)}, 'utf8') === '') empty++; else seen++; } catch {} } console.log(empty + ' ' + seen);`);
+    const [, counts] = await Promise.all([taker, reader]);
+    rmSync(dir, { recursive: true, force: true });
+    const [empty, seen] = counts.split(' ').map(Number);
+    assert.ok(seen > 0, 'the reader never saw the lock: the test proves nothing');
+    assert.equal(empty, 0, `the lock was read empty ${empty} times`);
+  });
+
   test('G1: runs that start at the same instant on a dead lock: exactly one takes it', async () => {
     const mod = path.join(HERE, '..', 'move-to-workers.mjs');
     const dead = spawnSync(process.execPath, ['-e', '']).pid;
