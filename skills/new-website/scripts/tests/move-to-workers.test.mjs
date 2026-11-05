@@ -2373,3 +2373,14 @@ describe('review: Pages membership comes from the project\'s domain list (BUG A)
     assert.equal((await s.go(['after'])).code, 0);
   });
 });
+
+describe('review: status 4 is said once', () => {
+  test('a run that asks for another run prints "Status 4." once', async () => {
+    const s = scenario();
+    const r = await s.go(['record']); // the build takes longer than one run
+    assert.equal(r.code, 4, r.text);
+    assert.match(r.text, /The build is not finished\. Run the same command again in a minute\./);
+    assert.equal(r.text.match(/Status 4\./g).length, 1, r.text);
+    assert.ok(await recordDone(s).then((x) => x.code === 0), 'the record still finishes');
+  });
+});

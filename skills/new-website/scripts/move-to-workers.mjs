@@ -1180,7 +1180,7 @@ async function cmdRecord(ctx, run) {
     keep();
     say(`The build of ${short(frozen)} is running (its log: move-run/build/${frozen.slice(0, 12)}/build.log).`);
     run.next = 'node move-to-workers.mjs record';
-    throw new Stop(4, 'The build is not finished. Run the same command again in a minute. Status 4.');
+    throw new Stop(4, 'The build is not finished. Run the same command again in a minute.');
   }
   if (!existsSync(path.join(dist, 'build.txt'))) throw new Stop(1, `The build of ${short(frozen)} wrote no dist/build.txt.`);
   const marker = readFileSync(path.join(dist, 'build.txt'), 'utf8').split('\n')[0].trim();
@@ -1199,7 +1199,7 @@ async function cmdRecord(ctx, run) {
   if (lost) {
     keep();
     run.next = 'node move-to-workers.mjs record';
-    throw new Stop(4, `${lost} addresses did not answer; they are asked for again. Run the same command again. Status 4.`);
+    throw new Stop(4, `${lost} addresses did not answer; they are asked for again. Run the same command again.`);
   }
   // The domain's plain-http answer, for after.
   st.recording.http = {};
@@ -1500,7 +1500,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
       throw new Stop(1, `${Math.round(ago / 60)} minutes after the first host left its platform, a host does not serve ${toWorker ? 'the Worker' : 'Pages'}. That is past the ${TARGET_MS / 60_000}-minute target: ${toWorker ? 'undo' : 'go forward with move'}.`);
     }
     run.next = `node move-to-workers.mjs ${dir} --confirm ${ctx.opts.confirm}`;
-    throw new Stop(4, `${ago} seconds since the first host left its platform; not every host serves ${toWorker ? 'the Worker' : 'Pages'} yet. Run the same command again. Status 4.`);
+    throw new Stop(4, `${ago} seconds since the first host left its platform; not every host serves ${toWorker ? 'the Worker' : 'Pages'} yet. Run the same command again.`);
   }
   const verb = (one, many) => (ctx.hosts.length > 1 ? many : one); // the host list's verb: "serves" for one host, "serve" for several
   note(run, true, `Both answers in a row: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages'}, ${ago} seconds after the first left its platform`);
@@ -1543,7 +1543,7 @@ async function cmdAfter(ctx, run) {
   if (unfinished.length) {
     note(run, false, `Builds are unfinished: ${unfinished.join('; ')}`);
     run.next = 'node move-to-workers.mjs after';
-    throw new Stop(4, `Builds are unfinished (${unfinished.join('; ')}). Run the same command again in a minute. Status 4.`);
+    throw new Stop(4, `Builds are unfinished (${unfinished.join('; ')}). Run the same command again in a minute.`);
   }
   note(run, true, 'No build is unfinished');
   live = await readLive(ctx);
@@ -1577,7 +1577,7 @@ async function cmdAfter(ctx, run) {
   if (lost) {
     keep();
     run.next = 'node move-to-workers.mjs after';
-    throw new Stop(4, `${lost} addresses did not answer; they are asked for again. Run the same command again. Status 4.`);
+    throw new Stop(4, `${lost} addresses did not answer; they are asked for again. Run the same command again.`);
   }
   for (const h of ctx.hosts) {
     const diffs = compare(rec.entries[h], ap.entries[h], { change: toWorker, onVersion: false, expect });
