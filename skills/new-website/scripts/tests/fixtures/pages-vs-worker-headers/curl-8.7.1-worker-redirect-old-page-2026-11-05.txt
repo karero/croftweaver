@@ -1,0 +1,37 @@
+# curl 8.7.1, 2026-11-05 12:21 UTC: GET /old-page, headers as received (CR removed), body length.
+# Hosts, the version prefix, cf-ray and the NEL report URL signature are replaced; nothing else is edited.
+
+## https://lenas-backstube.example/old-page  (domain, served by the Worker)
+HTTP/2 301 
+date: Thu, 05 Nov 2026 12:21:06 GMT
+content-length: 0
+location: /privacy
+content-security-policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+permissions-policy: geolocation=(), camera=(), microphone=()
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-robots-tag: noindex
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+body bytes: 0
+
+## https://0a1b2c3d-lenas-site.example-sub.workers.dev/old-page  (the Worker version URL)
+HTTP/2 301 
+date: Thu, 05 Nov 2026 12:21:07 GMT
+content-length: 0
+location: /privacy
+content-security-policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+permissions-policy: geolocation=(), camera=(), microphone=()
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-robots-tag: noindex
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=REDACTED"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+body bytes: 0
+

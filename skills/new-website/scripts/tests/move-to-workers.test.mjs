@@ -1363,12 +1363,20 @@ function slowFirstHost(s) {
 }
 
 describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\'s body)', () => {
-  const CAPTURE = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'pages-vs-worker-headers', 'redirect-old-page-2026-11-04.json'), 'utf8'));
+  const CAPTURE = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'pages-vs-worker-headers', 'redirect-old-page-2026-11-05.json'), 'utf8'));
   const answer = (a) => ({ status: a.status, headers: a.headers, body: a.body });
   const kit = (world = {}) => scenario({
     site: makeSite({ files: { 'site/_redirects': `${CAPTURE.path} /privacy 301\n` } }),
-    world: { domainNoNel: true, captured: { pages: { [CAPTURE.path]: answer(CAPTURE.domain_on_pages) }, version: { [CAPTURE.path]: answer(CAPTURE.version_url_of_the_worker) } }, ...world },
+    world: { domainNoNel: true, captured: { pages: { [CAPTURE.path]: answer(CAPTURE.domain_on_pages) }, version: { [CAPTURE.path]: answer(CAPTURE.version_url_of_the_worker) }, worker: { [CAPTURE.path]: answer(CAPTURE.domain_on_the_worker) } }, ...world },
   });
+  // record, move, push the route commit, let both platforms serve it, then run `after`
+  async function moved(s) {
+    assert.equal((await recordDone(s)).code, 0, s.text());
+    const q = await s.go(['move']);
+    assert.equal((await s.go(['move', '--confirm', codeOf(q)])).code, 0, s.text());
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = git(s.site.work, 'rev-parse', 'HEAD');
+  }
 
   test('record accepts the captured redirect: NEL only on the version URL, and a body only from Pages', async () => {
     // By hand, from the capture: Pages sends text/plain and 23 bytes, the Worker none; only the version
@@ -1381,6 +1389,34 @@ describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\
     assert.equal(r.code, 0, r.text);
     assert.match(r.text, /, 0 unknown\./);
     assert.ok(!('unknown' in s.state().recording), 'nothing is left unknown in the state file');
+  });
+
+  test('after accepts the Worker\'s captured redirect on the domain: no body, no type, same Location, noindex on both', async () => {
+    // By hand, from the capture: on the domain the Worker sends the same 301 and Location as Pages, with
+    // content-length 0 and no content-type (Pages: text/plain, 23 bytes), and no NEL; x-robots-tag
+    // noindex is on Pages' answer too, so it is no change.
+    const dom = CAPTURE.domain_on_the_worker;
+    assert.equal(dom.status, CAPTURE.domain_on_pages.status);
+    assert.equal(dom.headers.location, '/privacy');
+    assert.equal(dom.headers['content-length'], '0');
+    assert.ok(!('content-type' in dom.headers) && !('nel' in dom.headers));
+    assert.equal(dom.headers['x-robots-tag'], 'noindex');
+    assert.equal(CAPTURE.domain_on_pages.headers['x-robots-tag'], 'noindex');
+    const s = kit();
+    await moved(s);
+    const r = await s.go(['after']);
+    assert.equal(r.code, 0, r.text);
+    assert.doesNotMatch(r.text, /unknown:/);
+  });
+
+  test('after: the same captured redirect with another Location on the domain is a failure', async () => {
+    const wrong = answer(CAPTURE.domain_on_the_worker);
+    wrong.headers = { ...wrong.headers, location: '/somewhere-else' };
+    const s = kit({ captured: { pages: { [CAPTURE.path]: answer(CAPTURE.domain_on_pages) }, version: { [CAPTURE.path]: answer(CAPTURE.version_url_of_the_worker) }, worker: { [CAPTURE.path]: wrong } } });
+    await moved(s);
+    const r = await s.go(['after']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /unknown: \S+\/old-page Location: \/privacy ≠ \/somewhere-else/);
   });
 
   test('a redirect whose Location differs on the Worker stays unknown, with its body and type', async () => {

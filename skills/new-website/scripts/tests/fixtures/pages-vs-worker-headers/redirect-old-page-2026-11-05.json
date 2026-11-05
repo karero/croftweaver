@@ -1,5 +1,5 @@
 {
-  "about": "The answers for /old-page, a _redirects 301 to /privacy, from the kit throwaway, read 2026-11-04. See the .md next to this file for which half is a capture.",
+  "about": "The answers for /old-page, a _redirects 301 to /privacy, from the kit throwaway. domain_on_pages was read on 2026-11-04, the two Worker answers on 2026-11-05. See the .md next to this file.",
   "path": "/old-page",
   "domain_on_pages": {
     "status": 301,
@@ -17,19 +17,33 @@
     },
     "body": "Redirecting to /privacy"
   },
+  "domain_on_the_worker": {
+    "status": 301,
+    "headers": {
+      "content-length": "0",
+      "location": "/privacy",
+      "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+      "permissions-policy": "geolocation=(), camera=(), microphone=()",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-robots-tag": "noindex"
+    },
+    "body": ""
+  },
   "version_url_of_the_worker": {
     "status": 301,
     "headers": {
       "content-length": "0",
-      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=MADE-UP\"}]}",
-      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+      "location": "/privacy",
       "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
       "permissions-policy": "geolocation=(), camera=(), microphone=()",
       "referrer-policy": "strict-origin-when-cross-origin",
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",
       "x-robots-tag": "noindex",
-      "location": "/privacy"
+      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
+      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}"
     },
     "body": ""
   }
