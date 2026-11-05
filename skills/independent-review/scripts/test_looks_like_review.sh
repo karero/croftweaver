@@ -189,6 +189,16 @@ check reject "a line opening with the phrase after a verdict line with no full s
 Unable to review this diff."
 check reject "a line opening with the phrase after a line with no full stop" "I tried but the files are missing
 Unable to review this diff"
+check reject "a refusal under a heading" "# Unable to review this diff.
+No findings."
+check reject "a refusal wrapped after a markdown hard break" "I am unable to  
+review this diff.
+No findings."
+# A line that does not open with a capital continues the one before it.
+check accept "a real finding wrapped just before 'unable to read'" "- BUG — a.rb:3 — The handler is
+unable to read the response on 429. Fix: retry."
+check accept "a real finding wrapped just before 'cannot read'" "1. BUG — f.py:3 — the client, on 429, retries but
+cannot read the response body. Fix: back off."
 # First person in an earlier clause of the sentence no longer counts.
 check accept "first person in an earlier clause: 'I traced the caller; the handler cannot return'" "- RISK — a.rb:3 — I traced the caller; the handler cannot return nil. Fix: guard it."
 check accept "first person in an earlier clause: 'we assume x; the handler cannot return'" "- RISK — a.rb:3 — we assume x; the handler cannot return nil. Fix: guard it."
@@ -201,6 +211,10 @@ check accept "'but' after a comma in a real finding" "1. BUG — f.py:3 — The 
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): a refusal with another subject, 'This environment cannot open'" "- BUG: This environment cannot open the files."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): the model as subject, 'This model cannot review'" "- BUG: This model cannot review the file."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): the reviewer as subject, 'The reviewer is unable to access'" "- BUG: The reviewer is unable to access the repo."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): a word outside the apology list, 'Sorry, still cannot review'" "Sorry, still cannot review this diff. No findings."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): a refusal wrapped before a capital, 'Review this diff'" "I am unable to
+Review this diff.
+No findings."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): first person in a clause joined by 'and'" "- RISK — a.rb:3 — I traced the caller and the handler cannot return nil. Fix: guard it."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding whose clause opens with the phrase" "- BUG — foo.rb:3 — When flag is off, cannot read the cache. Fix: guard."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a clean verdict with 'reports: cannot open'" "No BUG/RISK/NIT findings.
