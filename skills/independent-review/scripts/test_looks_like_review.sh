@@ -140,8 +140,8 @@ CLEAN: checked the caller's arguments."
 # change them on purpose.
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
 2. RISK — I cannot access the repository."
-# Since 2026-11-05 a refusal phrase counts only with "I" or "we" earlier in its sentence, or at the
-# start of a clause, so a sentence about a component or a command no longer rejects the reply.
+# Since 2026-11-05 a refusal phrase counts only after I, we, the model or the reviewer in its clause,
+# or at a clause start, so these sentences no longer reject the reply. One opening a clause still does.
 check accept "the prescribed clean-verdict shape, with an UNVERIFIABLE entry saying a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
 UNVERIFIABLE: library X cannot provide the stated durability; settlement requires a crash-recovery test."
 check accept "a lone real finding saying 'cannot return'" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
@@ -164,16 +164,35 @@ check accept "the 2026-11-04 GLM clean review: 'this review cannot see' in an UN
 **UNVERIFIABLE (component/state claims this review could not check):**
 
 - README row 14, \"the second since 2026-11-03 (\`npm run ship\`, build \`0973ed8\` verified on croftweaver.com)\", and Evidence READ 1/3 (that row 14 is byte-identical to origin/main, and that PR 167's case-study entries are all present in \`case-study-log.ts\`): these rest on repo and live-site state this review cannot see. Observation that would settle it: run \`git diff origin/main -- README.md\` and fetch the built page; if false, only README status wording is wrong — nothing executable depends on it."
-# The refusals the anchor must still catch: "I" or "we" further back in the sentence, and no subject.
+# The refusals the anchor must still catch: first person further back in the clause, and no subject.
 check reject "first person with words between: 'I currently cannot access'" "I currently cannot access the repository. No findings."
 check reject "first person plural: 'We are unable to review'" "We are unable to review this diff. No findings."
 check reject "no subject, after a severity label: 'BUG: Cannot review'" "- BUG: Cannot review this file."
 check reject "no subject, after a dash: 'BUG — cannot access'" "- BUG — cannot access the diff."
 check reject "no subject, at the start of a line" "Unable to review this diff.
 No findings."
-# The price: a refusal whose subject is another word passes. Tracked with B-REFUSAL-TEXT.
-check accept "KNOWN WRONG (B-REFUSAL-TEXT): a third-person refusal, 'This model cannot review'" "- BUG: This model cannot review the file."
-check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'Sorry, but cannot review'" "Sorry, but cannot review this file. No findings."
+check reject "the model as subject: 'This model cannot review'" "- BUG: This model cannot review the file."
+check reject "the reviewer as subject: 'The reviewer is unable to access'" "- BUG: The reviewer is unable to access the repo."
+check reject "a leading word: 'Sorry, but cannot review'" "Sorry, but cannot review this file. No findings."
+check reject "a leading word: 'Unfortunately unable to review'" "Unfortunately unable to review the diff. No findings."
+check reject "bold before the phrase: 'Error:** unable to read'" "**Error:** unable to read the diff. No findings."
+check reject "bold severity label: '- **BUG:** Cannot review'" "- **BUG:** Cannot review this file."
+check reject "bold phrase at a line start" "**Unable to review** the diff. None."
+check reject "a blockquote" "> Unable to review this diff.
+No findings."
+check reject "a '1)' list marker" "1) cannot review. No findings"
+check reject "a refusal wrapped across lines" "I currently
+am unable to review this diff.
+No findings."
+# First person in an earlier clause of the sentence no longer counts.
+check accept "first person in an earlier clause: 'I traced the caller; the handler cannot return'" "- RISK — a.rb:3 — I traced the caller; the handler cannot return nil. Fix: guard it."
+check accept "first person in an earlier clause: 'we assume x; the handler cannot return'" "- RISK — a.rb:3 — we assume x; the handler cannot return nil. Fix: guard it."
+# The price, tracked with B-REFUSAL-TEXT: a refusal whose subject is another word passes, and a
+# phrase that opens a clause still rejects a real reply.
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): a refusal with another subject, 'This environment cannot open'" "- BUG: This environment cannot open the files."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding whose clause opens with the phrase" "- BUG — foo.rb:3 — When flag is off, cannot read the cache. Fix: guard."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a clean verdict with 'reports: cannot open'" "No BUG/RISK/NIT findings.
+UNVERIFIABLE: tool X reports: cannot open the input."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."
