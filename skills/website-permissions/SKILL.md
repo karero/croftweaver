@@ -49,7 +49,8 @@ That merge also removes the broad rules older sites carry, which this list dropp
 `Bash(open:*)`, the image tools (`cwebp`, `dwebp`, `avifenc`, `magick`, `convert`, `oxipng`,
 `jpegoptim`, `svgo`, `exiftool`, each `:*`), and `git commit`, `branch`, `checkout`,
 `switch`, `init`, `merge`, `restore`, `stash`, `remote`, `fetch`, `pull` and `push`, each
-`Bash(git <verb>:*)`. Then add the template's exact git rules and its three new `deny` rules.
+`Bash(git <verb>:*)`. Then add the template's exact git rules, `Bash(node --version)` and its three new `deny`
+rules.
 
 `.claude/settings.json` is **per-project** and committed, so it travels with the repo
 — the handoff party inherits the same quiet loop. Restart Claude Code (or reload the
@@ -68,8 +69,8 @@ the skills give (`git init`, `git checkout main`, `git checkout -b production`,
 `pr view/list`) plus one write, `gh repo create`, `wrangler pages dev` / `whoami`, file
 inspection (`ls`/`cat`/`head`/`tail`/`wc`/`grep`, plus `mkdir`/`cp`/`touch`/`echo`), and
 `bash scripts/check_external_links.sh` (the outgoing-link sweep). Everything else asks:
-`git commit`, a new branch and its first push, other `node` commands, and the image tools
-among them.
+`git commit`, a working branch other than `production` and its first push, other `node`
+commands, and the image tools among them.
 
 **Blocked (`deny`)** — irreversible or destructive. Claude Code refuses these outright,
 it does not ask; the owner runs one by hand in a terminal if they really mean it:
@@ -90,14 +91,16 @@ rule; not tested by this kit). A free private repo gets only the local pre-push 
 
 When you keep approving the *same* command, add it — but narrowly:
 
-- **Add the exact command** you keep approving, e.g. `Bash(git push -u origin content)`,
-  not `Bash(git push:*)`, not `Bash(*)` and never a bare `Bash`. A `:*` rule allows
-  whatever follows the command, options that write files or run programs included.
+- **Add the exact command** you keep approving, e.g. `Bash(git remote -v)`, not
+  `Bash(git remote:*)`, not `Bash(*)` and never a bare `Bash`. A `:*` rule allows
+  whatever follows the command, options that write files or run programs included. A
+  command whose words change each time, such as the first push of a new branch, cannot be
+  approved ahead this way: approve it when it comes up.
 - **Never re-add a rule the 2026-11 change removed** (the list in §1), however often its
   command comes up.
 - **Let the built-in do the scan.** `/fewer-permission-prompts` reads your recent
   transcripts and proposes a prioritized allowlist from what you actually approved —
-  run it, then keep only the rules that fit the rules above. Use `/update-config` (or
+  run it, then keep only the exact rules that fit the rules above. Use `/update-config` (or
   hand-edit `.claude/settings.json`) to apply changes.
 - **Never add `Bash(curl:*)` or other broad network/exec wildcards** to the project
   allowlist. The link sweep already runs `curl` *inside* its allowed script, so no

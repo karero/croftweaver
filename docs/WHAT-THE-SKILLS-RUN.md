@@ -33,9 +33,9 @@ and runs the commands; the skills cannot run anything by themselves.
   The full list is in [Writes outside your site's folder](#writes-outside-your-sites-folder).
 - **In Claude Code, routine build commands run without asking**, because each site made
   with Claude Code gets a permission list (see
-  [What runs without asking](#what-runs-without-asking)). Since 2026-11 the list holds only
-  the exact git commands the skills use, so a commit, a new branch, `node` and the image tools
-  ask first. `npm run …` and a plain `git push` still run without asking. It saves clicks; it
+  [What runs without asking](#what-runs-without-asking)). Since 2026-11 the git commands that
+  change branches or publish are allowed only in the exact forms the skills use, so a commit,
+  a new working branch, `node` and the image tools ask first. `npm run …` and a plain `git push` still run without asking. It saves clicks; it
   is not a safety fence.
 - **Releases carry no signature of our own.** Since v0.32 a `SHA256SUMS` file sits beside
   the zip, the release cannot change once published, and GitHub signs a record of it;
@@ -49,8 +49,8 @@ and runs the commands; the skills cannot run anything by themselves.
 skill installs the same file into an existing site. It has three parts. What each part
 does below is how Claude Code's
 [permission documentation](https://code.claude.com/docs/en/permissions) describes it. A rule
-with no `*` matches that one command exactly; a rule ending in `:*` matches the command with
-anything after it.
+with no `*` matches that one command exactly; a rule ending in `:*` matches the command on
+its own or followed by a space and anything after it.
 
 - **Runs without asking:**
   - `npm install`, `npm ci`, `npm run …`, `npm test …`, `npx astro`, `npx keystatic`,
@@ -78,9 +78,10 @@ anything after it.
 
 What this list does and does not protect:
 
-- `npm install`, `npm ci`, `npm run …`, `npx astro` and `npx playwright`,
-  `bash scripts/check_external_links.sh` and `git push` run the site's own scripts and git
-  hooks. Anyone who can change those files can run code through them: a collaborator, a
+- Most of the allowed build and git commands (`npm install`, `npm ci`, `npm run …`,
+  `npm test …`, `astro`, `playwright` and their `npx` forms, `wrangler pages dev`,
+  `bash scripts/check_external_links.sh`, `git push`, `git pull`, `git checkout`) run the
+  site's own scripts, config files or git hooks. Anyone who can change those files can run code through them: a collaborator, a
   pull from `origin`, or the assistant through an edit you approve. So the list is a way to
   stop routine prompts, not a sandbox. Apart from the list, the site's `AGENTS.md` tells the
   assistant never to run `npm run ship` unasked and to merge a pull request only when you
@@ -96,7 +97,7 @@ What this list does and does not protect:
   throwaway repository: all seven force-push forms tried were blocked. Since the push rules
   became exact commands, a push with any other options, a bundled force flag among them,
   asks rather than runs.
-- The two `--output` and `--pathspec` block rules match the usual spelling only. Git
+- The three `--output` and `--pathspec` block rules match the usual spelling only. Git
   accepts other ways of writing some options, and a rule matches text.
 - A rule ending in `:*` allows whatever follows it. The `:*` rules left were not reviewed
   option by option.
@@ -110,24 +111,24 @@ What this list does and does not protect:
 - The image tools (`cwebp`, `dwebp`, `avifenc`, `magick`, `convert`, `oxipng`, `jpegoptim`,
   `svgo`, `exiftool`), which `website-brand-kit` and `image` use.
 - Every `git commit`. You see the message before it is made.
-- A new branch (`git switch --no-track -c …` in `AGENTS.md` and `website-team-setup`), its
-  first push (`git push -u origin <branch>`), and `git branch -D`.
+- A new working branch (`git switch --no-track -c …` in `AGENTS.md` and
+  `website-team-setup`), its first push (`git push -u origin <branch>`), and
+  `git branch -D`. Only `production`, made once at launch, is created and pushed without
+  asking.
 - Pushes with other options: `git push --no-verify`, `git push --follow-tags` and
   `git push --delete`.
 - `git restore`, `git merge`, `git stash`, `git remote`, and `git checkout` or `git switch`
   to anything but the forms listed above.
-- The by-hand publish command in `PUBLISHING.md`, for when `npm run ship` is broken.
-
-For a published change this means about two more questions than before: the commit and the
-push of a new branch.
+For a change made the way `AGENTS.md` describes, this means about three more questions
+than before: making the branch, the commit and the branch's first push.
 
 **Tested on 2026-11-05** with Claude Code 2.1.309, run headless with this list
 (`--settings`, normal mode) in a throwaway repository with a local `origin`: each of the
 16 exact commands it adds or narrows (`node --version`, `git init`, the three `checkout`,
 two `switch`, two `fetch`, three `pull` and four `push` forms) ran with no prompt, and each
 did what it should (a new commit on `origin`, a switched branch, a fetched commit).
-`npm ci` on an untouched copy of the starter ran with no prompt and turned on the pre-push
-hook. Only allowed commands were tried.
+`npm ci` on an untouched copy of the starter ran with no prompt and pointed git's hooks at
+`scripts/hooks`, where the pre-push hook lives. Only allowed commands were tried.
 
 **Still open.** What the list refuses rests on Claude Code's documented matching; it was
 read, not tested. Claude Code refused reads and writes outside the site's folder for `cat`,
@@ -535,7 +536,8 @@ private vulnerability reporting, on the repository's Security tab.
 ## What was not checked
 
 - Whether Claude Code's block and allow rules behave as its documentation describes,
-  beyond the push test above; the rest was read, not tried. The test ran headless, where a
+  beyond the push test and the 2026-11-05 run of the allowed commands above; the rest was
+  read, not tried. The test ran headless, where a
   command that is not allowed is refused without a question, so it shows that the force
   pushes did not run, not that a blocked command never asks.
 - Whether Codex and Antigravity ignore `.claude/settings.json`; this was read from the

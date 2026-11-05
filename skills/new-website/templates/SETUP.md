@@ -215,8 +215,8 @@ pushing `main:production` and GitHub PR merges are unaffected either way.
 
 **Claude Code only.** Copy the permission allowlist into the project so routine build
 commands (npm/astro/playwright, git's read verbs and `git add`, and the exact pull and push
-commands these docs use) run without a prompt. A commit, a new branch and the image tools
-still ask:
+commands these docs use for `main` and `production`) run without a prompt. A commit, a new
+working branch and its first push, and the image tools still ask:
 ```bash
 mkdir -p .claude/hooks && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
 cp "$SKILLS_ROOT/new-website/templates/claude/hooks/git-stand.mjs" .claude/hooks/
@@ -238,4 +238,6 @@ confirm each push.
 
 `settings.json` is committed (shared project policy). Personal/secret overrides go in
 `.claude/settings.local.json`, which the `.gitignore` keeps out of the repo. To extend the
-list later, run `/fewer-permission-prompts`.
+list later, run `/fewer-permission-prompts`, and keep only exact commands from what it
+proposes: never re-add a rule `website-permissions` §1 lists as removed (`Bash(git commit:*)`
+among them).
