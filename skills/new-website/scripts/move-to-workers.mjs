@@ -585,6 +585,7 @@ async function prepare(opts, io, run) {
   cenv = childEnv(env, token);
   ctx.token = token;
   ctx.gate = { hosts: new Set(), cnames: new Map(), workerDomainIds: new Map() };
+  ctx.assumedPages = new Set();
   const apiOpts = { clock, requestMs: io.requestMs ?? REQUEST_MS };
   ctx.api = makeApi(io.apiFetch ?? globalThis.fetch, token, ctx.gate, apiOpts);
   ctx.allowed = new Set(['api.github.com']);
@@ -707,7 +708,8 @@ async function readLive(ctx) {
   if (!ok(pr) || !Array.isArray(pr.body?.result?.domains)) throw new Stop(1, `Cloudflare did not return the Pages project: ${cfWords(pr)}.`);
   if (!ok(pd) || !Array.isArray(pd.body?.result)) throw new Stop(1, `Cloudflare did not list the Pages project's domains: ${cfWords(pd)}.`);
   const info = pd.body.result_info; // the answer is paged (20 a page); the script reads page 1 only and does not decide from part of a list
-  if (info && (info.total_pages > 1 || info.count < info.total_count)) throw new Stop(1, `The Pages project has more than ${info.per_page ?? 20} domains. The script reads one page of them and does not decide from part of a list: do the move in the Cloudflare dashboard.`);
+  if (!info || !Number.isInteger(info.total_count) || !Number.isInteger(info.total_pages)) throw new Stop(1, "Cloudflare's list of the Pages project's domains did not say how many domains the project has. The script does not decide from a list it cannot size: do the move in the Cloudflare dashboard.");
+  if (info.total_pages > 1 || info.count < info.total_count) throw new Stop(1, `The Pages project has more than ${info.per_page ?? 20} domains. The script reads one page of them and does not decide from part of a list: do the move in the Cloudflare dashboard.`);
   if (!ok(wd) || !Array.isArray(wd.body?.result)) throw new Stop(1, `Cloudflare did not list the Worker domains: ${cfWords(wd)}. The token needs the Workers permission the move section names.`);
   const records = [];
   for (const [i, d] of dns.entries()) {
@@ -720,7 +722,7 @@ async function readLive(ctx) {
   }
   ctx.project = pr.body.result;
   // The project's own `domains` can leave out a domain that was just added for minutes; its domain list shows it at once, with a status.
-  const pagesDomains = new Map(pd.body.result.map((d) => [String(d.name).toLowerCase(), String(d.status)]));
+  const pagesDomains = new Map(pd.body.result.map((d) => [String(d.name).toLowerCase(), String(d.status ?? 'unknown')]));
   ctx.gate.cnames.clear();
   ctx.gate.workerDomainIds.clear();
   for (const r of records) if (r.type === 'CNAME' && ctx.gate.hosts.has(r.name)) ctx.gate.cnames.set(r.id, { name: r.name, content: String(r.content).toLowerCase() });
@@ -728,7 +730,7 @@ async function readLive(ctx) {
   for (const d of mineWd) if (ctx.gate.hosts.has(d.hostname)) ctx.gate.workerDomainIds.set(d.id, d.hostname);
   if (ctx.report) { // what this run saw, for the status page
     ctx.report.where = Object.fromEntries(ctx.hosts.map((h) => {
-      const pages = pagesDomains.has(h);
+      const pages = pagesDomains.has(h) || ctx.assumedPages.has(h);
       const worker = mineWd.some((d) => d.hostname === h);
       return [h, pages && worker ? 'both' : pages ? 'pages' : worker ? 'worker' : 'neither'];
     }));
@@ -739,8 +741,10 @@ async function readLive(ctx) {
 function hostState(ctx, live, h) {
   const other = live.workerDomains.find((d) => d.hostname === h && d.service !== ctx.worker);
   if (other) throw new Stop(1, `${h} is attached to another Worker (${other.service}). The script does not touch it.`);
-  const pages = live.pagesDomains.has(h);
-  const pagesStatus = live.pagesDomains.get(h) ?? null;
+  // Cloudflare said "already added" this run: the domain is on Pages whichever list lags.
+  const assumed = !live.pagesDomains.has(h) && ctx.assumedPages.has(h);
+  const pages = live.pagesDomains.has(h) || assumed;
+  const pagesStatus = live.pagesDomains.get(h) ?? (assumed ? 'unknown' : null);
   const worker = live.mineWd.some((d) => d.hostname === h);
   const recs = live.records.filter((r) => r.name === h && ADDRESS_TYPES.includes(r.type));
   const cname = recs.find((r) => r.type === 'CNAME' && String(r.content).toLowerCase() === ctx.project.subdomain);
@@ -754,6 +758,9 @@ const settled = (hs, toWorker) => (toWorker ? hs.where === 'worker' : hs.where =
 const ALREADY_ADDED = 8000018;
 
 // A Pages domain that is listed but not active yet says so next to where it is.
+// Statuses Cloudflare shows while it brings a Pages domain up; any other that is not active (blocked, error, deactivated) is a failure.
+const COMING_UP = ['initializing', 'pending'];
+
 const notActive = (hs) => (hs.where === 'pages' && !hs.pagesActive ? ` (Cloudflare shows the domain as ${hs.pagesStatus})` : '');
 
 const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on neither (down)', both: 'on both (inconsistent)' };
@@ -1469,6 +1476,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
         const r = await ctx.api('POST', `${A}/pages/projects/${ctx.project.name}/domains`, { json: { name: h } });
         const already = !ok(r) && r.body?.errors?.some?.((e) => e.code === ALREADY_ADDED); // an earlier run added it; the read-back below shows its status
         if (!ok(r) && !already) await stopOn(h, 'Adding it to the Pages project', r);
+        if (already) ctx.assumedPages.add(h);
         markLeft(h);
         say(already ? `${h}: already on the Pages project.` : `${h}: added to the Pages project.`);
       }
@@ -1554,11 +1562,13 @@ async function cmdAfter(ctx, run) {
   live = await readLive(ctx);
   const rec = st.recording;
   const wantWhere = toWorker ? 'worker' : 'pages';
+  const coming = [];
   for (const h of ctx.hosts) {
     const hs = hostState(ctx, live, h);
     const good = settled(hs, toWorker);
     const state = `${WHERE_WORDS[hs.where]}${notActive(hs)}`;
     note(run, good, `${h} is ${state}${good ? '' : `; it should be ${toWorker ? 'on the Worker' : 'on Pages with its CNAME and an active domain'}`}`);
+    if (!good && !toWorker && hs.where === 'pages' && hs.cname && COMING_UP.includes(hs.pagesStatus)) { coming.push(`${h} is ${state}`); continue; } // not wrong: Cloudflare is still bringing the domain up
     if (!good) { problems.push(`${h} is ${state}`); continue; }
     if (redirectedAtZone(rec, h)) { note(run, true, `${h} is redirected at the zone: only Cloudflare's lists say which platform has it`); continue; }
     const r = await ctx.siteFetch(`https://${h}/build.txt?${PROBE}=${ctx.now()}`, { headers: { 'cache-control': 'no-cache' } });
@@ -1566,9 +1576,13 @@ async function cmdAfter(ctx, run) {
     note(run, answers === wantWhere, `${h} /build.txt is answered by ${answers === 'pages' ? 'Pages' : answers === 'worker' ? 'the Worker' : `nothing (${r.status || r.error})`}`);
     if (answers !== wantWhere) problems.push(answers ? `${h} is ${toWorker ? 'on the Worker' : 'on Pages'} in Cloudflare's lists but is still answered by ${answers === 'pages' ? 'Pages' : 'the Worker'}` : `${h} answers /build.txt with ${r.status || r.error}`);
   }
+  if (!problems.length && coming.length) {
+    run.next = 'node move-to-workers.mjs after';
+    throw new Stop(4, ...coming, 'Cloudflare is still bringing the Pages domain up. Run the same command again in a minute.');
+  }
   if (problems.length) {
     run.next = toWorker ? 'node move-to-workers.mjs move --confirm <code>' : 'node move-to-workers.mjs undo --confirm <code>';
-    throw new Stop(1, ...problems, toWorker ? 'A build of the wrong commit may have put a host back (S9). Run move again to go forward, or undo.' : 'Run undo again.');
+    throw new Stop(1, ...problems, ...coming, toWorker ? 'A build of the wrong commit may have put a host back (S9). Run move again to go forward, or undo.' : 'Run undo again.');
   }
   const unknown = [];
   const keep = () => saveState(ctx.stateDir, st);

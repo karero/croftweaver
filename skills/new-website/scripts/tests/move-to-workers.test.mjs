@@ -2357,6 +2357,18 @@ describe('review: Pages membership comes from the project\'s domain list (BUG A)
     assert.match(r.text, /already on the Pages project/);
   });
 
+  test('"already added" with neither list showing the domain (C2): the host counts as on Pages, the run is not stopped "on neither"', async () => {
+    const s = scenario();
+    await movedAndPassed(s);
+    const uq = await s.go(['undo']);
+    s.w.addAlreadyUnseen = true; // Cloudflare says "already added"; the project's list and /domains both lag
+    const r = await s.go(['undo', '--confirm', codeOf(uq)]);
+    assert.doesNotMatch(r.text, /on neither/, r.text);
+    assert.doesNotMatch(r.text, /reads .* after its changes/, r.text);
+    assert.match(r.text, /already on the Pages project/);
+    assert.match(r.text, /CNAME written/, 'the run went on to the host\'s CNAME');
+  });
+
   test('a Pages domain that is not active yet is not "on Pages" for after', async () => {
     const s = scenario();
     await movedAndPassed(s);
@@ -2367,8 +2379,13 @@ describe('review: Pages membership comes from the project\'s domain list (BUG A)
     s.w.pagesCommit = s.w.workerCommit = undoCommit;
     s.w.pagesStatus = { [HOSTS[0]]: 'pending' };
     const pending = await s.go(['after']);
-    assert.equal(pending.code, 1);
+    assert.equal(pending.code, 4, pending.text); // G4: coming up is "run again", not a failure
     assert.match(pending.text, /Cloudflare shows the domain as pending/);
+    assert.match(pending.text, /Run the same command again in a minute/);
+    s.w.pagesStatus = { [HOSTS[0]]: 'blocked' };
+    const blocked = await s.go(['after']);
+    assert.equal(blocked.code, 1, 'a status that is not on its way up is a failure');
+    assert.match(blocked.text, /Cloudflare shows the domain as blocked/);
     s.w.pagesStatus = {};
     assert.equal((await s.go(['after'])).code, 0);
   });
@@ -2404,6 +2421,24 @@ describe('review: the Pages domain list as Cloudflare sends it (BUG A, test 2)',
     const p = await s.go(['check']);
     assert.match(p.text, /^ {2}www\.lenas-backstube\.example: on Pages \(Cloudflare shows the domain as pending\); DNS /m);
     assert.match(p.text, /^ {2}lenas-backstube\.example: on Pages; DNS /m, 'the entry that stayed active is unchanged');
+  });
+
+  test('an answer that does not say how many domains there are is refused (G5)', async () => {
+    const { result_info: _gone, ...noInfo } = CAPTURE;
+    const s = scenario({ world: { pagesDomainsAnswer: noInfo } });
+    for (const cmd of ['check', 'record']) {
+      const r = await s.go([cmd]);
+      assert.equal(r.code, 1, `${cmd}: ${r.text}`);
+      assert.match(r.text, /did not say how many domains the project has/);
+    }
+  });
+
+  test('an entry with no status reads as "unknown", not as active (N2)', async () => {
+    const odd = JSON.parse(JSON.stringify(CAPTURE));
+    delete odd.result[0].status;
+    const s = scenario({ world: { pagesDomainsAnswer: odd } });
+    const r = await s.go(['check']);
+    assert.match(r.text, /^ {2}lenas-backstube\.example: on Pages \(Cloudflare shows the domain as unknown\); DNS /m, r.text);
   });
 
   test('an answer with more than one page is refused, before anything is decided from it', async () => {

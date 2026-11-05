@@ -15,6 +15,8 @@ import { fileURLToPath } from 'node:url';
 import { ACCOUNT, OWNER, REPO, ZONE, fixture, project, zone } from './cloudflare-stub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+// What Cloudflare answers when a Pages project is asked to add a domain it already holds: HTTP 400.
+const ADD_AGAIN = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-pages', 'cloudflare-api-pages-domain-add-again-2026-11-05.json'), 'utf8'));
 export const GH_CHECKS = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'github-api', 'gh-2.103.3-workers-builds-trial-check-runs.json'), 'utf8'));
 export const WORKER = 'lenas-backstube-site';
 export const HOSTS = ['lenas-backstube.example', 'www.lenas-backstube.example'];
@@ -232,7 +234,7 @@ function cloudflare(w, method, u, body) {
     for (const [name, x] of w.pagesPending ?? []) if (--x.left <= 0) { w.project.domains.push(name); w.pagesPending.delete(name); }
     return cf(copy(w.project));
   }
-  if (method === 'GET' && p === `${A}/pages/projects/${REPO}/domains`) { 
+  if (method === 'GET' && p === `${A}/pages/projects/${REPO}/domains`) {
     if (w.pagesDomainsAnswer) return json(200, copy(w.pagesDomainsAnswer)); // a captured answer, as Cloudflare sent it
     const list = [...w.project.domains.filter((d) => d !== SUBDOMAIN).map((name) => ({ name, status: w.pagesStatus?.[name] ?? 'active' })), ...[...(w.pagesPending ?? [])].map(([name]) => ({ name, status: 'pending' }))];
     return cf(list, { result_info: { page: 1, per_page: 20, count: list.length, total_count: list.length, total_pages: 1 } });
@@ -245,8 +247,9 @@ function cloudflare(w, method, u, body) {
     return cf(items, { result_info: { page: n, per_page: size, count: items.length, total_count: w.pagesDeployments.length, total_pages: Math.max(1, Math.ceil(w.pagesDeployments.length / size)) } });
   }
   if (method === 'POST' && p === `${A}/pages/projects/${REPO}/domains`) {
-    if (w.addAlwaysAlready) { if (!w.project.domains.includes(body.name)) w.project.domains.push(body.name); return cfFail(409, 'You have already added this custom domain', 8000018); } // an earlier run added it
-    if (w.project.domains.includes(body.name) || w.pagesPending?.has(body.name)) return cfFail(409, 'You have already added this custom domain', 8000018);
+    if (w.addAlreadyUnseen) return json(400, ADD_AGAIN); // "already added", yet neither list shows the domain (both lag)
+    if (w.addAlwaysAlready) { if (!w.project.domains.includes(body.name)) w.project.domains.push(body.name); return json(400, ADD_AGAIN); } // an earlier run added it
+    if (w.project.domains.includes(body.name) || w.pagesPending?.has(body.name)) return json(400, ADD_AGAIN);
     if (w.projectLag > 0) (w.pagesPending ??= new Map()).set(body.name, { left: w.projectLag });
     else w.project.domains.push(body.name);
     return cf({ name: body.name, status: 'initializing' });

@@ -1,0 +1,11 @@
+{
+  "result": null,
+  "success": false,
+  "errors": [
+    {
+      "code": 8000018,
+      "message": "You have already added this custom domain. Select another custom domain or check your project configuration."
+    }
+  ],
+  "messages": []
+}
