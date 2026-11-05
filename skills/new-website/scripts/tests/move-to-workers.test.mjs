@@ -9,7 +9,7 @@
 // repository's own git config sends to a local folder, against the stub in move-stub.mjs.
 import { describe, test as nodeTest } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -682,7 +682,7 @@ describe('3: the state file, the lock and a second checkout', () => {
     }
   });
 
-  test('a lock held by a live run refuses every command and stays; a stale one is reported, not removed', async () => {
+  test('a lock held by a live run refuses every command and stays', async () => {
     const s = await recorded();
     const lock = path.join(path.dirname(s.stateFile()), 'lock');
     writeFileSync(lock, `${process.pid}\nabc\n`);
@@ -692,12 +692,20 @@ describe('3: the state file, the lock and a second checkout', () => {
       assert.match(r.text, /Another run \(process \d+\) holds/);
       assert.ok(existsSync(lock), 'the other run\'s lock was removed');
     }
-    writeFileSync(lock, '2147483646\nabc\n');
-    const stale = await s.go(['move']);
-    assert.match(stale.text, /was left by a run that no longer exists/);
-    assert.ok(existsSync(lock));
-    rmSync(lock);
-    assert.equal((await s.go(['move'])).code, 3, 'it goes on once the file is deleted');
+    assert.equal(readFileSync(lock, 'utf8'), `${process.pid}\nabc\n`, 'the live run\'s lock is untouched');
+  });
+
+  test('BUG B: the lock of a run that was killed is taken over, with one line, and the same command goes on', async () => {
+    const s = await recorded();
+    const lock = path.join(path.dirname(s.stateFile()), 'lock');
+    const dead = spawnSync(process.execPath, ['-e', '']).pid; // a process that has ended
+    for (const body of [`${dead}\nabc\n`, '']) { // a killed run's lock, and one cut off before it wrote its pid
+      writeFileSync(lock, body);
+      const r = await s.go(['move']);
+      assert.equal(r.code, 3, r.text);
+      assert.equal(r.out.filter((l) => /^Took over the lock of a run that no longer exists/.test(l)).length, 1);
+      assert.ok(!existsSync(lock), 'the run released the lock it took');
+    }
   });
 
   test("a run never removes a lock that another run put in its place", async () => {

@@ -435,8 +435,10 @@ function saveState(dir, st) {
 
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 
-// Created exclusively; a run removes only the lock it created and never another run's.
-function takeLock(dir, run) {
+// Created exclusively; a run removes only the lock it created and never another run's. A lock
+// whose process has gone (a killed run) is taken over, because the host it left may be down and
+// the next run must start at once; a live process's lock is never touched.
+function takeLock(dir, run, say) {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const f = path.join(dir, 'lock');
   const mine = `${process.pid}\n${randomBytes(8).toString('hex')}\n`;
@@ -445,7 +447,9 @@ function takeLock(dir, run) {
     if (e.code !== 'EEXIST') throw e;
     const pid = Number(readFileSync(f, 'utf8').split('\n')[0]);
     if (Number.isInteger(pid) && pid > 0 && alive(pid)) throw new Stop(1, `Another run (process ${pid}) holds ${f}. Wait for it to end, then run this again.`);
-    throw new Stop(1, `${f} was left by a run that no longer exists. Nothing else is wrong: delete that file, then run this again.`);
+    rmSync(f);
+    try { fd = openSync(f, 'wx'); } catch { throw new Stop(1, `${f} was taken by another run while this one took over a dead run's lock. Run this again.`); }
+    say(`Took over the lock of a run that no longer exists (${Number.isInteger(pid) && pid > 0 ? `process ${pid}` : 'no process named'}).`);
   }
   writeSync(fd, mine);
   closeSync(fd);
@@ -636,7 +640,7 @@ async function prepare(opts, io, run) {
 
   // The state file: only the one for this zone and repository, and the same site.
   ctx.stateDir = stateDir(io, zone.name, ctx.repository);
-  if (opts.cmd !== 'check') takeLock(ctx.stateDir, run); // before the state is read: every decision below depends on it
+  if (opts.cmd !== 'check') takeLock(ctx.stateDir, run, io.say); // before the state is read: every decision below depends on it
   const st = loadState(ctx.stateDir);
   run.stateRead = true;
   run.state = st; // a stop later in prepare still knows the state
@@ -1684,6 +1688,7 @@ function writeStatus(ctx0, run, io, code, st, errLines) {
 
 export async function main(argv, io = {}) {
   const say = io.say ?? ((...l) => { for (const x of l) process.stdout.write(`${x}\n`); });
+  io = { ...io, say };
   let opts;
   try { opts = parseArgs(argv); } catch (e) {
     if (!(e instanceof UsageError)) throw e;
