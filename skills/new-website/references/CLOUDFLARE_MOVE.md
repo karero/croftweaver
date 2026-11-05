@@ -33,7 +33,8 @@ computer, and a second computer would not know the move had begun.
    `after` passes, except the commit the script writes.
 3. **Switch.** `move`, and `undo` if you want to go back.
 4. **Check on the domain.** `after`.
-5. **Clean up (later, not this script).** Delete the token. Keep the Pages project 14 days in
+5. **Clean up (later, not this script).** Delete the token if you will not undo soon; an undo
+   later needs a new one, made the same way. Keep the Pages project 14 days in
    case you want `undo`, then retire it as a step of its own. Only then do
    `functions/_middleware.ts` and the Pages config go.
 
@@ -181,6 +182,8 @@ network, and `move-run/` is ignored by git. Tell the User where it is.
 
 ## Afterwards, by hand
 
-- Delete the token once `after` passes: https://dash.cloudflare.com/profile/api-tokens.
+- Once `after` passes, delete the token if you will not undo soon: https://dash.cloudflare.com/profile/api-tokens.
+  The move stays open for `undo` while the Pages project is kept, and an undo later needs a new
+  token, made the same way. After an `undo` that `after` has closed, delete the token.
 - Look at the live site once in a browser.
 - Wait 14 days before retiring the Pages project; that is a step of its own, not this script.

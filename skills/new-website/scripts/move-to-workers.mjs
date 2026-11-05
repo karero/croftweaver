@@ -1485,8 +1485,9 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     run.next = `node move-to-workers.mjs ${dir} --confirm ${ctx.opts.confirm}`;
     throw new Stop(4, `${ago} seconds since the first host left its platform; not every host serves ${toWorker ? 'the Worker' : 'Pages'} yet. Run the same command again. Status 4.`);
   }
-  note(run, true, `Both answers in a row: ${ctx.hosts.join(', ')} serve ${toWorker ? 'the Worker' : 'Pages'}, ${ago} seconds after the first left its platform`);
-  say(`Done: ${ctx.hosts.join(', ')} ${toWorker ? 'serve the Worker' : 'serve Pages again'} (${ago} seconds since the first host left its platform).`);
+  const verb = (one, many) => (ctx.hosts.length > 1 ? many : one); // the host list's verb: "serves" for one host, "serve" for several
+  note(run, true, `Both answers in a row: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages'}, ${ago} seconds after the first left its platform`);
+  say(`Done: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages again'} (${ago} seconds since the first host left its platform).`);
   say(`Now push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production (git push origin HEAD:production HEAD:main)' : 'main'}${toWorker ? ', deploy it if the Worker has no Workers Builds,' : ''} and run: node move-to-workers.mjs after`);
   run.next = 'node move-to-workers.mjs after';
   return 0;
@@ -1588,16 +1589,18 @@ async function cmdAfter(ctx, run) {
   if (toWorker) {
     st.passed = expect; // the stage marker: cleared when a switch starts, so a go-forward onto the same commit is not "passed"
     saveState(ctx.stateDir, st);
-    say(`After passed: ${ctx.hosts.join(', ')} serve the Worker and match the recording. The move stays open, so undo works until the Pages project is retired.`);
-    say('Delete the API token now: dash.cloudflare.com/profile/api-tokens.');
-    run.next = 'Nothing more for this script. Keep the Pages project 14 days, then retire it as the move section says.';
+    const many = ctx.hosts.length > 1;
+    say(`After passed: ${ctx.hosts.join(', ')} ${many ? 'serve' : 'serves'} the Worker and ${many ? 'match' : 'matches'} the recording. The move stays open, so undo works until the Pages project is retired.`);
+    say('If you will not undo soon, delete the API token now: https://dash.cloudflare.com/profile/api-tokens. An undo later needs a new token, made the same way.');
+    run.next = 'Nothing more for this script. Delete the API token now if you will not undo soon (an undo later needs a new one). Keep the Pages project 14 days, then retire it as the move section says.';
     run.done = true;
   } else {
     st.open = false;
     saveState(ctx.stateDir, st);
     renameSync(path.join(ctx.stateDir, 'state.json'), path.join(ctx.stateDir, `state-closed-${when.slice(0, 10)}-${randomBytes(3).toString('hex')}.json`));
-    say('After passed: both hosts are back on Pages and match the recording. The move is closed; the next one starts with record.');
-    say('Delete the API token now: dash.cloudflare.com/profile/api-tokens.');
+    const many = ctx.hosts.length > 1;
+    say(`After passed: ${ctx.hosts.join(', ')} ${many ? 'are' : 'is'} back on Pages and ${many ? 'match' : 'matches'} the recording. The move is closed; the next one starts with record.`);
+    say('Delete the API token now: https://dash.cloudflare.com/profile/api-tokens.');
     run.next = 'The move is closed. To try again: node move-to-workers.mjs record';
     run.closed = true;
   }

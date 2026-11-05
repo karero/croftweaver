@@ -498,6 +498,51 @@ describe('3: move, after and undo', () => {
     }
   });
 
+  // The host list takes a singular or a plural verb. Every message that joins hosts to a verb is read
+  // for one host and for two, on the way there and the way back.
+  for (const [label, hosts] of [['one host', [HOSTS[0]]], ['two hosts', HOSTS]]) {
+    test(`the host list's verbs agree with the number of hosts: ${label}`, async () => {
+      const s = scenario();
+      s.w.project.domains = s.w.project.domains.filter((d) => d === SUBDOMAIN || hosts.includes(d));
+      s.w.dns = s.w.dns.filter((r) => !HOSTS.includes(r.name) || hosts.includes(r.name));
+      const rec = await recordDone(s);
+      assert.equal(rec.code, 0, rec.text);
+      const list = hosts.join(', ');
+      const [serve, match, isAre] = hosts.length > 1 ? ['serve', 'match', 'are'] : ['serves', 'matches', 'is'];
+      const wrong = hosts.length > 1 ? /\b(serves|matches) /: /\bserve |\bmatch |\bare back\b|\bboth hosts\b/;
+
+      const q = await s.go(['move']);
+      assert.equal(q.code, 3, q.text);
+      const route = git(s.site.work, 'rev-parse', 'HEAD');
+      const go = await s.go(['move', '--confirm', codeOf(q)]);
+      assert.equal(go.code, 0, go.text);
+      assert.match(go.text, new RegExp(`Done: ${list.replace(/\./g, '\\.')} ${serve} the Worker \\(`));
+      assert.doesNotMatch(go.text.split('\n').find((l) => l.startsWith('Done:')), wrong);
+      s.push();
+      s.w.pagesCommit = s.w.workerCommit = route;
+      const ok = await s.go(['after']);
+      assert.equal(ok.code, 0, ok.text);
+      const passed = ok.text.split('\n').find((l) => l.startsWith('After passed:'));
+      assert.equal(passed, `After passed: ${list} ${serve} the Worker and ${match} the recording. The move stays open, so undo works until the Pages project is retired.`);
+      // The move stays open, so the token line must not tell her to delete it without a word about undo.
+      assert.match(ok.text, /If you will not undo soon, delete the API token now: https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\. An undo later needs a new token, made the same way\./);
+
+      const uq = await s.go(['undo']);
+      assert.equal(uq.code, 3, uq.text);
+      const undoCommit = git(s.site.work, 'rev-parse', 'HEAD');
+      const ug = await s.go(['undo', '--confirm', codeOf(uq)]);
+      assert.equal(ug.code, 0, ug.text);
+      const done = ug.text.split('\n').find((l) => l.startsWith('Done:'));
+      assert.equal(done.replace(/ \(\d+ seconds.*$/, ''), `Done: ${list} ${serve} Pages again`);
+      s.push();
+      s.w.pagesCommit = s.w.workerCommit = undoCommit;
+      const closed = await s.go(['after']);
+      assert.equal(closed.code, 0, closed.text);
+      assert.match(closed.text, new RegExp(`After passed: ${list.replace(/\./g, '\\.')} ${isAre} back on Pages and ${match} the recording\\. The move is closed`));
+      assert.match(closed.text, /Delete the API token now: https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\./);
+    });
+  }
+
   test('an unfinished Workers Builds run, or a Pages build in progress, holds move back', async () => {
     const s = await recorded();
     s.w.checkRuns[s.site.frozen] = unfinishedWorkersRun(s.site.frozen);
