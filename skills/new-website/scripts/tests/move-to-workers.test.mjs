@@ -9,12 +9,12 @@
 // repository's own git config sends to a local folder, against the stub in move-stub.mjs.
 import { describe, test as nodeTest } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { EMPTY_BODY, Stop, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { EMPTY_BODY, Stop, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
 import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, platformOf, spend, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
@@ -708,37 +708,65 @@ describe('3: the state file, the lock and a second checkout', () => {
     }
   });
 
+  // A node process that imports the script (by file URL: a Windows drive path is not importable) and runs `body`.
+  const node = (body) => {
+    const mod = pathToFileURL(path.join(HERE, '..', 'move-to-workers.mjs')).href;
+    return spawn(process.execPath, ['--input-type=module', '-e', `const m = await import(${JSON.stringify(mod)});\n${body}`], { stdio: ['ignore', 'pipe', 'pipe'] });
+  };
+  const outcome = (child) => new Promise((resolve) => {
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { err += d; });
+    child.on('close', () => resolve({ out: out.trim(), err: err.trim() }));
+  });
+
   test('G1: a lock is never visible without its pid, so a second run cannot take a live lock for a dead one', async () => {
-    const mod = path.join(HERE, '..', 'move-to-workers.mjs');
     const dir = mkdtempSync(path.join(tmpdir(), 'move-lock-'));
     const file = path.join(dir, 'lock');
-    const run = (src) => new Promise((resolve) => execFile(process.execPath, ['--input-type=module', '-e', src], (err, out) => resolve(out.trim())));
-    // One process takes and drops the lock over and over; another reads the file as fast as it can and counts empty reads.
-    const taker = run(`import(${JSON.stringify(mod)}).then(async (m) => { const run = {}; for (let i = 0; i < 1500; i++) { m.takeLock(${JSON.stringify(dir)}, run, () => {}); run.release(); } console.log('end'); });`);
-    const reader = run(`import { readFileSync } from 'node:fs'; let empty = 0, seen = 0; const until = Date.now() + 4000; while (Date.now() < until) { try { if (readFileSync(${JSON.stringify(file)}, 'utf8') === '') empty++; else seen++; } catch {} } console.log(empty + ' ' + seen);`);
-    const [, counts] = await Promise.all([taker, reader]);
+    const ready = path.join(dir, 'reader-ready');
+    const done = path.join(dir, 'taker-done');
+    // The reader says it is running, then reads the lock as fast as it can and counts empty reads until the
+    // taker is done; the taker starts only once the reader is running, so a slow start cannot miss the lock.
+    const reader = outcome(node(`import { readFileSync, writeFileSync, existsSync } from 'node:fs'; writeFileSync(${JSON.stringify(ready)}, ''); let empty = 0, seen = 0; const until = Date.now() + 60000; while (!existsSync(${JSON.stringify(done)}) && Date.now() < until) { try { if (readFileSync(${JSON.stringify(file)}, 'utf8') === '') empty++; else seen++; } catch {} } console.log(empty + ' ' + seen);`));
+    const taker = outcome(node(`import { existsSync, writeFileSync } from 'node:fs'; const until = Date.now() + 60000; while (!existsSync(${JSON.stringify(ready)}) && Date.now() < until); const run = {}; for (let i = 0; i < 1500; i++) { m.takeLock(${JSON.stringify(dir)}, run, () => {}); run.release(); } writeFileSync(${JSON.stringify(done)}, '');`));
+    const [t, r] = await Promise.all([taker, reader]);
     rmSync(dir, { recursive: true, force: true });
-    const [empty, seen] = counts.split(' ').map(Number);
-    assert.ok(seen > 0, 'the reader never saw the lock: the test proves nothing');
+    const [empty, seen] = r.out.split(' ').map(Number);
+    assert.ok(seen > 0, `the reader never saw the lock: the test proves nothing. taker: ${t.err}; reader: ${r.err}`);
     assert.equal(empty, 0, `the lock was read empty ${empty} times`);
   });
 
-  test('G1: runs that start at the same instant on a dead lock: exactly one takes it', async () => {
-    const mod = path.join(HERE, '..', 'move-to-workers.mjs');
+  test('G1: runs that start at the same instant on a dead lock: exactly one takes it, and the lock is never moved aside', async () => {
     const dead = spawnSync(process.execPath, ['-e', '']).pid;
-    // Each child waits for a shared start time, then takes the lock and stays alive, so a lock taken is a lock held.
-    const child = (dir, at) => new Promise((resolve) => {
-      const src = `import(${JSON.stringify(mod)}).then((m) => { while (Date.now() < ${at}); let got = false; try { m.takeLock(${JSON.stringify(dir)}, {}, () => {}); got = true; } catch {} console.log(got ? 'GOT' : 'NO'); setTimeout(() => {}, 1500); });`;
-      execFile(process.execPath, ['--input-type=module', '-e', src], (err, out) => resolve(out.trim()));
-    });
+    // Each child waits for a shared start time, then takes the lock and stays alive until the parent has every answer,
+    // so a lock taken is a lock held however slowly the others start.
     for (let round = 0; round < 4; round++) {
       const dir = mkdtempSync(path.join(tmpdir(), 'move-lock-'));
+      const stop = path.join(dir, 'stop');
       writeFileSync(path.join(dir, 'lock'), `${dead}\nabc\n`);
-      const outs = await Promise.all(Array.from({ length: 6 }, () => child(dir, Date.now() + 1500)));
-      assert.equal(outs.filter((o) => o === 'GOT').length, 1, `round ${round}: ${outs.join(' ')}`);
-      assert.deepEqual(readdirSync(dir).filter((n) => n !== 'lock'), [], 'no stale file is left behind');
+      const at = Date.now() + 3000;
+      const kids = Array.from({ length: 6 }, () => node(`import { existsSync } from 'node:fs'; while (Date.now() < ${at}); let got = false; try { m.takeLock(${JSON.stringify(dir)}, {}, () => {}); got = true; } catch {} console.log(got ? 'GOT' : 'NO'); const until = Date.now() + 60000; while (!existsSync(${JSON.stringify(stop)}) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));`));
+      const results = kids.map((k) => outcome(k));
+      const first = await Promise.all(kids.map((k) => new Promise((resolve) => k.stdout.once('data', (d) => resolve(String(d).trim())))));
+      writeFileSync(stop, '');
+      const all = await Promise.all(results);
+      assert.equal(first.filter((o) => o === 'GOT').length, 1, `round ${round}: ${first.join(' ')} ${all.map((a) => a.err).join(' ')}`);
+      assert.deepEqual(readdirSync(dir).filter((n) => !['lock', 'stop'].includes(n)), [], 'no stale file is left behind');
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  test('a takeover claim left by a run that stopped refuses loudly; a live run\'s claim waits', () => {
+    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    const dir = mkdtempSync(path.join(tmpdir(), 'move-lock-'));
+    writeFileSync(path.join(dir, 'lock'), `${dead}\nabc\n`);
+    writeFileSync(path.join(dir, 'lock.claim'), `${dead}\n`);
+    assert.throws(() => takeLock(dir, {}, () => {}), /was left by a run \(process \d+\) that stopped while taking over the lock\. Delete that file/);
+    writeFileSync(path.join(dir, 'lock.claim'), `${process.pid}\n`);
+    assert.throws(() => takeLock(dir, {}, () => {}), /Another run is taking over/);
+    assert.equal(readFileSync(path.join(dir, 'lock'), 'utf8'), `${dead}\nabc\n`, 'the dead lock was not touched while a claim stood');
+    rmSync(dir, { recursive: true, force: true });
   });
 
   test("a run never removes a lock that another run put in its place", async () => {
@@ -1188,12 +1216,12 @@ describe('review: undo and the way a host is counted', () => {
     s.push();
     s.w.pagesCommit = s.w.workerCommit = route;
     s.w.siteCalls = [];
-    s.w.stallAfter = 14;
-    const a = await s.go(['after'], { runMs: 1500, requestMs: 5000 });
+    // The run's clock is injected: it passes the deadline once 14 calls have been made, whatever the machine's speed.
+    const T0 = Date.now();
+    const a = await s.go(['after'], { runMs: 5000, now: () => T0 + (s.w.siteCalls.length > 14 ? 6000 : 0) });
     assert.equal(a.code, 4, a.text);
     const kept = Object.values(s.state().after.entries).reduce((n, e) => n + Object.keys(e).length, 0);
     assert.ok(kept >= 1, 'nothing was kept');
-    s.w.stallAfter = null;
     s.w.siteCalls = [];
     const b = await s.go(['after']);
     assert.equal(b.code, 0, b.text);
