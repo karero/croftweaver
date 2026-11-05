@@ -739,7 +739,7 @@ async function readLive(ctx) {
     records.push(...d.items);
   }
   ctx.project = pr.body.result;
-  // The project's own `domains` can leave out a domain that was just added for minutes; its domain list shows it at once, with a status.
+  // The project's own `domains` holds a domain only once it is active, minutes after the add; its domain list shows it at once, as initializing, then pending, then active.
   const pagesDomains = new Map(pd.body.result.map((d) => [String(d.name).toLowerCase(), String(d.status ?? 'unknown')]));
   ctx.gate.cnames.clear();
   ctx.gate.workerDomainIds.clear();

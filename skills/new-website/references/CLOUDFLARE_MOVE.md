@@ -139,8 +139,16 @@ commit means on the Worker, the undo commit means back on Pages). The commit of 
 `undo` that nobody confirmed counts only when every host already sits where it points, as when the
 steps were done by hand. No build of Pages or Workers Builds may be unfinished. Where Workers
 Builds is connected (any commit since the last pass has one of its check runs), a pushed branch tip
-it has not reported on yet counts as unfinished too. Not checked yet: whether Workers Builds posts
-its check run before it deploys; the trial move settles it. `after` then reads where Cloudflare puts each host (a Pages domain counts once the project's domain list shows it active; while it shows initializing or pending, `after` exits 4: run it again in a minute) and which platform
+it has not reported on yet counts as unfinished too. A Workers Builds check run was seen in progress
+while its build ran; when it first appears after a push is not known. Once a run is completed it
+counts as finished whatever its conclusion: `after` does not read the conclusion; what it does compare is the
+commit line in `/build.txt` with the expected commit. GitHub's `started_at` of a run equals its
+`completed_at`, so the script does not use it. `after` then reads where Cloudflare puts each host (a
+Pages domain counts once the project's domain list shows it `active`: the list shows a new domain at
+once as `initializing`, later `pending`; while it shows either, `after` exits 4: run it again in a
+minute. That wait has not been seen live: in the one live undo both domains were active by the first
+`after`. A host serves Pages while its domain is still `pending`, so the serving wait of `move` and
+`undo` can pass first) and which platform
 answers it (`/build.txt`); a host that Cloudflare lists on the Worker but Pages still answers
 fails. The serving wait (two good answers in a row) belongs to `move` and `undo`, not to `after`.
 `after` compares the live site with the recording. Differences the platforms are known to make are

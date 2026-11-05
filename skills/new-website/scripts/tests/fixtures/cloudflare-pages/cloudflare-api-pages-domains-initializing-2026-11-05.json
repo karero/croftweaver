@@ -1,0 +1,47 @@
+{
+  "result": [
+    {
+      "id": "00000002-0000-4000-8000-000000000002",
+      "domain_id": "00000002-0000-4000-8000-000000000002",
+      "name": "lenas-backstube.example",
+      "status": "initializing",
+      "verification_data": {
+        "status": "pending",
+        "error_message": "CNAME record not set"
+      },
+      "validation_data": {
+        "status": "initializing",
+        "method": "http"
+      },
+      "certificate_authority": "google",
+      "zone_tag": "0123456789abcdef0123456789abcdef",
+      "created_on": "2026-11-05T12:36:42.951262Z"
+    },
+    {
+      "id": "00000001-0000-4000-8000-000000000001",
+      "domain_id": "00000001-0000-4000-8000-000000000001",
+      "name": "www.lenas-backstube.example",
+      "status": "initializing",
+      "verification_data": {
+        "status": "pending"
+      },
+      "validation_data": {
+        "status": "initializing",
+        "method": "http"
+      },
+      "certificate_authority": "google",
+      "zone_tag": "0123456789abcdef0123456789abcdef",
+      "created_on": "2026-11-05T12:36:47.214977Z"
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result_info": {
+    "page": 1,
+    "per_page": 20,
+    "count": 2,
+    "total_count": 2,
+    "total_pages": 1
+  }
+}

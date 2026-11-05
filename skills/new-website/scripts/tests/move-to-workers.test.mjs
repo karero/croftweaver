@@ -2503,6 +2503,35 @@ describe('review: the Pages domain list as Cloudflare sends it (BUG A, test 2)',
     assert.match(p.text, /^ {2}lenas-backstube\.example: on Pages; DNS /m, 'the entry that stayed active is unchanged');
   });
 
+  test('the captured initializing and pending answers: check names the status, and after waits (exit 4) until both hosts are active', async () => {
+    const read = (state) => JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-pages', `cloudflare-api-pages-domains-${state}-2026-11-05.json`), 'utf8'));
+    // Written by hand from the captures: both entries carry the top-level status named, and
+    // initializing and pending are the only two states seen on the way to active.
+    for (const state of ['initializing', 'pending']) {
+      const answer = read(state);
+      assert.deepEqual(answer.result.map((d) => d.status), [state, state]);
+      const c = await scenario({ world: { pagesDomainsAnswer: answer } }).go(['check']);
+      assert.match(c.text, new RegExp(`^ {2}lenas-backstube\\.example: on Pages \\(Cloudflare shows the domain as ${state}\\); DNS `, 'm'), c.text);
+      assert.match(c.text, new RegExp(`^ {2}www\\.lenas-backstube\\.example: on Pages \\(Cloudflare shows the domain as ${state}\\); DNS `, 'm'), c.text);
+    }
+    const s = scenario();
+    await movedAndPassed(s);
+    const uq = await s.go(['undo']);
+    const undoCommit = git(s.site.work, 'rev-parse', 'HEAD');
+    assert.equal((await s.go(['undo', '--confirm', codeOf(uq)])).code, 0);
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = undoCommit;
+    for (const state of ['initializing', 'pending']) {
+      s.w.pagesDomainsAnswer = read(state);
+      const r = await s.go(['after']);
+      assert.equal(r.code, 4, `${state}: ${r.text}`);
+      assert.match(r.text, new RegExp(`Cloudflare shows the domain as ${state}`));
+      assert.match(r.text, /Run the same command again in a minute/);
+    }
+    s.w.pagesDomainsAnswer = CAPTURE; // both active
+    assert.equal((await s.go(['after'])).code, 0);
+  });
+
   test('an answer that does not say how many domains there are is refused (G5)', async () => {
     const { result_info: _gone, ...noInfo } = CAPTURE;
     const s = scenario({ world: { pagesDomainsAnswer: noInfo } });
