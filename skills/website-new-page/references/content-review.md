@@ -56,7 +56,11 @@ lists it for the owner to accept or reject in the go (SKILL.md, steps 4 and 5).
 > that is missing from the claims table; a graphic the page needs and the brief does not plan;
 > an outbound link to a commercial site with no owner sign-off; no research file, so thinness
 > cannot be judged; a claim the page itself calls its own reading, or says no source states,
-> with nothing the reader can check it against. Hedging a claim does not support it. Say it is a
+> with nothing the reader can check it against; a statement of what happened, why, or how much,
+> introduced by a belief marker ("we think", "we believe", "our sense is") and backed by no source.
+> A position, intent, expectation, recommendation or first-hand experience ("in our experience") is
+> not a statement of that kind, so this rule does not catch it (the own-reading rule above still
+> applies to it). Hedging a claim does not support it. Say it is a
 > claim to check, for the owner to keep or cut, not that it is wrong.
 > NIT: wording, order, small gaps in a section.
 > Then list what you checked that was CLEAN (silence is not coverage). If nothing rises to a
