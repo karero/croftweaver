@@ -39,9 +39,8 @@ link, unless the owner reclassifies it after you have read the source itself.
 **2. Research.** Read the top results for the main query and ask an AI the same question. Save
 what they cover and what they miss in a research file (`docs/pages/<slug>-research.md`), with the
 address of every source you read. Read each source at the source, not through a summary. Where
-the site has Search Console data and the `search-console-insights` skill is installed, it shows
-what the page's neighbours already rank for; a new site does not get that skill, so without it
-skip this.
+the site has Search Console data and the `search-console-insights` skill is installed, that skill
+shows what the page's neighbours already rank for; otherwise skip this.
 
 **3. Write the page document.** The brief fills its fields in plain words: the page type (an
 article that answers a question, a home page, a product or service page, a contact or legal
