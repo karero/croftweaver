@@ -178,15 +178,19 @@ def ld_text(value):
     if not isinstance(value, str):
         raise ValueError("FAQ name or answer text is not a string")
     p = _SchemaText()
-    p.feed(value)
-    p.close()
-    return fold("".join(p.parts))
+    try:
+        p.feed(value)
+        p.close()
+    except NotImplementedError:             # Python 3.9's parser gives up on a bogus <![...]>
+        raise ValueError("FAQ text holds markup the parser cannot read") from None
+    return fold("".join(p.parts))       # the parser has decoded entities: decoding again would be wrong
 
 
 def faq_from_ld(scripts):
     """(question, answer) pairs of every FAQPage in the page's JSON-LD, folded. A block that is
-    not JSON, or a FAQPage whose mainEntity is not a question object or a list of them, or whose
-    answer is not one object, counts in the second value: the script cannot read it."""
+    not JSON, or a FAQPage whose mainEntity is neither a question object nor a list of them, or
+    whose acceptedAnswer is not one object, counts in the second value: the script cannot read it.
+    A missing or null mainEntity, acceptedAnswer, name or text is empty, not unreadable."""
     found, bad = [], 0
 
     def walk(node):
@@ -356,7 +360,7 @@ def main(argv):
             page = Page({t.strip() for t in args.skip.split(",") if t.strip()})
             page.feed(f.read())
             page.close()
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, NotImplementedError) as e:   # the last: Python 3.9's parser on a bogus <![...]>
         print(f"check_page_text: {e}", file=sys.stderr)
         return 2
     if page.title is None or page.description is None:
