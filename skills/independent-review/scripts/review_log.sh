@@ -5,7 +5,7 @@
 # than impressions. The log is LOCAL — it never goes in a repo, so it adds no paperwork.
 #
 #   review_log.sh add --seat <name> [--model M] [--effort E] [--seconds S] [--tokens T]
-#                     [--gate plan|diff] [--depth light|normal|high] [--round N] [--outcome O]
+#                     [--gate plan|diff|content] [--depth light|normal|high] [--round N] [--outcome O]
 #                     [--earned-by KIND] [--cut TEXT]
 #       Append one line. independent_review.sh calls this for codex, ollama, melious and agy; the host
 #       calls it for the seats it runs itself (fresh-eyes, code-review, double-knuth, owner).
