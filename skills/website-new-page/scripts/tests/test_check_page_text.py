@@ -245,10 +245,12 @@ class ReviewRound1(Base):
 
     def test_markup_python_3_9_cannot_parse_never_ends_in_a_traceback(self):
         # Why: Python 3.9's HTMLParser raises NotImplementedError on a bogus <![...]>; the CI leg
-        # on 3.9 is where this fails if the conversion goes. Any exit code is fine, a raise is not.
+        # on 3.9 is where this fails if the conversion goes. run_check calls main() in this process,
+        # so a raise fails the test; any exit code is fine.
         page = self.changed_page("Pour off the grey liquid", "Pour off the <![bogus]> grey liquid")
         self.assertIn(self.run_check(DRAFT, page)[0], (0, 1, 2))
         html = read(PAGE).replace("<main", "<![bogus]><main", 1)
+        self.assertIn("<![bogus]>", html)
         self.assertIn(self.run_check(DRAFT, self.write("p.html", html))[0], (0, 1, 2))
 
     def test_faq_shapes_the_script_cannot_read_exit_2(self):
