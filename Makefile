@@ -70,8 +70,8 @@ test-new-page: ## run the website-new-page tests, the script that checks a build
 	@$(PYTHON) -m unittest discover -s skills/website-new-page/scripts/tests
 
 NODE ?= node
-test-cloudflare-check: ## run the tests of the Cloudflare check and of the Cloudflare setup script (Node 18+ and git, standard library only; stub sites, a stub of Cloudflare's API and a stub nameserver on 127.0.0.1, no real requests; one test waits out the setup script's 55-second deadline)
-	@$(NODE) --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs
+test-cloudflare-check: ## run the tests of the Cloudflare check, of the Cloudflare setup script and of the Pages-to-Workers move script (Node 18+ and git, standard library only; stub sites, a stub of Cloudflare's API and a stub nameserver on 127.0.0.1, no real requests; one test waits out the setup script's 55-second deadline; the move tests' record step runs npm install and npm run build in a throwaway copy of a stub site, so npm must be on the PATH and no package is downloaded)
+	@$(NODE) --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs skills/new-website/scripts/tests/move-to-workers.test.mjs
 
 test-create: ## run the create-croftweaver tests (the `npm create croftweaver` installer; needs node and a git checkout, and on macOS and Linux zip and tar for one test; a stub of the release download on 127.0.0.1, no real requests). Not part of check/package: the handoff zip does not hold packages/
 	@cd packages/create-croftweaver && $(NODE) --test

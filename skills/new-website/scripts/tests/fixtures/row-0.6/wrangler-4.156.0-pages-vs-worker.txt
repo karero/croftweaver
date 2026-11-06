@@ -1,0 +1,11 @@
+# Excerpt of a real Pages-versus-Worker file comparison. Tool: wrangler 4.156.0 (the comparison was made by the rehearsal script, not by move-to-workers.mjs).
+# Rows are cut, not edited; asset names are replaced by made-up ones, the commit by a made-up one.
+SAME /_astro/bread-counter.BliTCe4I_1TIUuh.webp worker=200 image/webp 8b3f6ed03615a7b6 pages=200 image/webp 8b3f6ed03615a7b6
+KNOWN /_astro/bread-counter.BliTCe4I_2hHVpn.avif worker=200 image/avif 5176f9bc80a81c34 pages=200 image/avif 152151ea2baa935e (AVIF encoder output differs by build machine)
+KNOWN /_astro/bread-counter.BliTCe4I_Z1JD8Vd.avif worker=200 image/avif 2b7945cdf8b7311f pages=200 image/avif 21778a3491f9a63a (AVIF encoder output differs by build machine)
+KNOWN /404 worker=200 text/html 3f0a8c6b973edae7 pages=200 text/html; charset=utf-8 3f0a8c6b973edae7 (content-type parameters differ)
+KNOWN /build-state.txt worker=200 text/plain 861edefccd1165c0 pages=200 text/plain; charset=utf-8 55ed47c56a3efff8 (build time differs)
+KNOWN /build.txt worker=200 text/plain c524c0c73634bd45 pages=200 text/plain; charset=utf-8 c524c0c73634bd45 (content-type parameters differ)
+KNOWN /css/reveal.css worker=200 text/css fe1f74210f75dc3e pages=200 text/css; charset=utf-8 fe1f74210f75dc3e (content-type parameters differ)
+SAME /favicon.ico worker=200 image/vnd.microsoft.icon cdc8c3018d9c74b6 pages=200 image/vnd.microsoft.icon cdc8c3018d9c74b6
+SAME /404 worker=200 - pages=200 -
