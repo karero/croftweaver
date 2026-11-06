@@ -3,6 +3,9 @@
 # it. This fails if the two copies drift, if PROMPT_CORE or a tier prompt is assigned more than once
 # or PROMPT_CORE comes after a tier prompt, or if a tier prompt's LIVE assignment does not begin
 # with ${PROMPT_CORE} — a commented-out correct line does not satisfy it.
+# --content mode (the website-new-page skill's prompt) is held too: no seat reads a tier prompt
+# directly, every seat is sent through SEND_*, which the content branch points at the one content
+# prompt, and that prompt in the website-new-page skill keeps the finding format the validator needs.
 # It tests itself first on mutated copies, because a guard that cannot fire is worse than none.
 # SKILL.md's copy is every blockquote line under its heading, up to the next heading.
 # Run: bash skills/independent-review/scripts/check_prompt_sync.sh
@@ -84,6 +87,30 @@ check() {  # $1 script, $2 SKILL.md; prints each problem, returns 1 if there is 
   return $bad
 }
 
+CONTENT_REF="$here/../../website-new-page/references/content-review.md"
+SEND_DEF='SEND_TOOLED="$PROMPT_TOOLED" ; SEND_TEXTONLY="$PROMPT_TEXTONLY" ; SEND_AGY="$PROMPT_AGY" ; SEND_PORTABLE="$PROMPT_PORTABLE"'
+SEND_CONTENT='  SEND_TOOLED="$PROMPT_CONTENT" ; SEND_TEXTONLY="$PROMPT_CONTENT" ; SEND_AGY="$PROMPT_CONTENT" ; SEND_PORTABLE="$PROMPT_CONTENT"'
+content_quote_of() {  # the prompt the script reads at run time: the same extraction, here for the check
+  awk '/^## The content review prompt/{h=1; next} h && /^#/{exit} h && /^>/{sub(/^> ?/, ""); print}' "$1"
+}
+check_content() {  # $1 script, $2 the content prompt's file; prints each problem, returns 1 if there is any
+  local bad=0 v stray q
+  stray="$(uncommented "$1" | grep -E '\$\{?PROMPT_(TOOLED|TEXTONLY|AGY|PORTABLE)\b' | grep -vxF "$SEND_DEF")"
+  [ -z "$stray" ] || { echo "a seat reads a tier prompt directly, so --content would not reach it: $stray"; bad=1; }
+  [ "$(uncommented "$1" | grep -cxF "$SEND_DEF")" = 1 ] || { echo "the SEND_ definitions are not the one expected line"; bad=1; }
+  [ "$(uncommented "$1" | grep -cxF "$SEND_CONTENT")" = 1 ] || { echo "the content branch does not point all four SEND_ variables at PROMPT_CONTENT, once"; bad=1; }
+  for v in SEND_TOOLED SEND_TEXTONLY SEND_AGY SEND_PORTABLE; do
+    uncommented "$1" | grep -qE "\"\\\$$v\"" || { echo "no seat is sent \$$v"; bad=1; }
+  done
+  grep -qF '^## The content review prompt' "$1" || { echo "the script does not read the prompt under \"## The content review prompt\""; bad=1; }
+  q="$(content_quote_of "$2" 2>/dev/null)"
+  [ -n "$q" ] || { echo "$2 has no quoted prompt under \"## The content review prompt\""; bad=1; }
+  for v in "'- BUG'" "'- RISK'" "'- NIT'" "No BUG/RISK/NIT findings."; do
+    printf '%s' "$q" | grep -qF -- "$v" || { echo "the content prompt does not ask for $v, which the reply validator needs"; bad=1; }
+  done
+  return $bad
+}
+
 t="$(mktemp -d)" || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$t"' EXIT
 fires() {  # $1 what was changed, $2 script, $3 SKILL.md: the check must fail on them
@@ -148,8 +175,34 @@ awk '/^PROMPT_CORE="/{p=1} p{if ($0 ~ /not an attack\."$/) p=0; next} {print}' "
 grep -q '^PROMPT_CORE=' "$t/h.sh" && { echo "FAIL: self-test could not delete PROMPT_CORE"; exit 1; }
 fires "PROMPT_CORE deleted" "$t/h.sh" "$SKILL"
 
+firesc() {  # $1 what was changed, $2 script, $3 the content prompt's file: check_content must fail on them
+  check_content "$2" "$3" >/dev/null && { echo "FAIL: self-test: $1 went unnoticed"; exit 1; }
+  return 0
+}
+sed 's/-p "\$SEND_AGY"/-p "$PROMPT_AGY"/' "$SCRIPT" > "$t/q1.sh"
+cmp -s "$SCRIPT" "$t/q1.sh" && { echo "FAIL: self-test could not mutate the agy seat"; exit 1; }
+firesc "a seat sent its tier prompt, not SEND_AGY" "$t/q1.sh" "$CONTENT_REF"
+sed 's/ ; SEND_AGY="\$PROMPT_CONTENT"//' "$SCRIPT" > "$t/q2.sh"
+cmp -s "$SCRIPT" "$t/q2.sh" && { echo "FAIL: self-test could not mutate the content branch"; exit 1; }
+firesc "the content branch dropping a seat" "$t/q2.sh" "$CONTENT_REF"
+sed 's/^## The content review prompt/## The review prompt/' "$CONTENT_REF" > "$t/q3.md"
+cmp -s "$CONTENT_REF" "$t/q3.md" && { echo "FAIL: self-test could not rename the prompt's heading"; exit 1; }
+firesc "the content prompt's heading renamed" "$SCRIPT" "$t/q3.md"
+sed 's/No BUG\/RISK\/NIT findings\./No findings./' "$CONTENT_REF" > "$t/q4.md"
+cmp -s "$CONTENT_REF" "$t/q4.md" && { echo "FAIL: self-test could not change the prompt's clean reply"; exit 1; }
+firesc "the content prompt losing its clean-reply sentence" "$SCRIPT" "$t/q4.md"
+{ cat "$SCRIPT"; echo 'printf "%s" "$PROMPT_TOOLED"'; } > "$t/q5.sh"
+firesc "a later line reading a tier prompt directly" "$t/q5.sh" "$CONTENT_REF"
+
+rc=0
 if check "$SCRIPT" "$SKILL"; then
   echo "ok   SKILL.md's prompt matches PROMPT_CORE; PROMPT_CORE and every tier prompt are assigned once, core first, and each tier embeds it"
 else
-  exit 1
+  rc=1
 fi
+if check_content "$SCRIPT" "$CONTENT_REF"; then
+  echo "ok   every seat is sent through SEND_*, --content points all four at one prompt, and the website-new-page prompt keeps the finding format the validator needs"
+else
+  rc=1
+fi
+exit $rc

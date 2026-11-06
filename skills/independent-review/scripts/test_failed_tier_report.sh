@@ -2057,5 +2057,44 @@ check "T14: ... with what to trim" has t14b.out "or split the artifact or trim t
 check "T13: the real list beside the script reads cleanly" not_in "$T/noround.err" "seat_limits.txt holds"
 check "T13: its Melious line names the id melious_models.txt allows" grep -q "^melious $MELIOUS_OK refuses " "$HERE/seat_limits.txt"
 
+# 26. --content: a page document judged as content (CONTENT MODE in the script's header). The
+#     fixtures are made up; the sentences checked below were picked by hand from
+#     the prompt file, not read back from what the script printed.
+PAGE="$HERE/fixtures/website-new-page_page-document_made-up.md"
+RESEARCH="$HERE/fixtures/website-new-page_research-file_made-up.md"
+run content WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$PAGE" --content --evidence "$RESEARCH"
+check "content: exit 0, both seats counted" sh -c 'grep -qx 0 "$1" && grep -qF "reviewers: codex OK, ollama-cloud OK" "$2"' _ "$T/content.rc" "$T/content.out"
+for tier in codex ollama agy; do
+  f="$T/content.marks/$tier-prompt"
+  check "content, $tier: the content prompt comes first" sh -c 'head -c 41 "$1" | grep -qF "You are an adversarial content reviewer."' _ "$f"
+  check "content, $tier: it holds the reader lens" has content.marks/$tier-prompt "Is a picture the faster way to explain something"
+  check "content, $tier: the page document is between the content markers" sh -c 'sed -n "/^--- BEGIN content ---/,/^--- END content ---/p" "$1" | grep -qF "A home baker whose first starter smells like nail polish."' _ "$f"
+  check "content, $tier: the research file is between the EVIDENCE markers" sh -c 'sed -n "/^--- BEGIN EVIDENCE ---/,/^--- END EVIDENCE ---/p" "$1" | grep -qF "None gives a"' _ "$f"
+  check "content, $tier: the correctness prompt is not sent" lacks content.marks/$tier-prompt "Adversarial independent reviewer of the"
+  check "content, $tier: no seat is told it has the tools or files of another" sh -c '! grep -qE "Read-only sandbox|You have NO tools|MODE: INSPECTED" "$1"' _ "$f"
+  check "content, $tier: no plan or diff paragraph" lacks content.marks/$tier-prompt "GUARDS THE PLAN PROPOSES"
+done
+run contentverify bash "$SCRIPT" "$PAGE" --content --verify "$RESEARCH" --depth normal --round 2
+check "content, verification round: the round's scope reaches the prompt" has contentverify.marks/codex-prompt "VERIFICATION ROUND. An earlier round reviewed this content"
+# It never combines with another type or the wording pass, and nothing runs when refused.
+for flags in "--plan" "--diff" "--wording-pass" "--base HEAD"; do
+  run contentbad bash "$SCRIPT" "$PAGE" --content $flags
+  check "content with $flags: refused, exit 2" rc_is contentbad 2
+  check "content with $flags: no seat ran" sh -c '[ ! -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/contentbad.marks"
+done
+run contentbad2 bash "$SCRIPT" --plan "$PAGE" --content
+check "content after --plan: refused, exit 2" rc_is contentbad2 2
+# Prompt file missing, or with no quoted prompt: refused before anything is sent.
+mkdir -p "$T/tree/skills/independent-review" "$T/tree/skills/website-new-page/references"
+cp -R "$HERE" "$T/tree/skills/independent-review/scripts"
+run contentmissing bash "$T/tree/skills/independent-review/scripts/independent_review.sh" "$PAGE" --content
+check "content, prompt file missing: exit 2" rc_is contentmissing 2
+check "content, prompt file missing: says where it looked" has contentmissing.err "references/content-review.md"
+printf '# The content review prompt\n\n## The content review prompt\n\nno quote here\n' >"$T/tree/skills/website-new-page/references/content-review.md"
+run contentempty bash "$T/tree/skills/independent-review/scripts/independent_review.sh" "$PAGE" --content
+check "content, no quoted prompt: exit 2" rc_is contentempty 2
+check "content, no quoted prompt: says so" has contentempty.err "has no quoted prompt"
+check "content, refusals: no seat ran" sh -c '[ ! -e "$1/codex-ran" ] && [ ! -e "$2/codex-ran" ]' _ "$T/contentmissing.marks" "$T/contentempty.marks"
+
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
