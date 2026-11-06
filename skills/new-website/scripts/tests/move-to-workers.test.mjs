@@ -2754,4 +2754,12 @@ describe('test 6 (a fresh assistant on the guide): a hung GitHub, a timed-out to
     assert.match(r.text, new RegExp(`unknown: \\S+/build\\.txt commit line: the Worker's version URL serves ${'a'.repeat(40)}; ${s.site.frozen} is expected`));
     assert.doesNotMatch(r.text, /the site serves/);
   });
+
+  test('6.4: record names the domain as the side that serves a commit that is not the frozen one', async () => {
+    const s = scenario();
+    s.w.pagesCommit = 'b'.repeat(40);
+    const r = await recordDone(s);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, new RegExp(`unknown: \\S+/build\\.txt commit line: the domain serves ${'b'.repeat(40)}; ${s.site.frozen} is expected`));
+  });
 });
