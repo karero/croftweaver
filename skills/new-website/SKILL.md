@@ -548,7 +548,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
    skills: agents read it, and its Language rule has them reply in the person's
    language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
-3. **Skills travel with the repo** — copy the twenty-eight always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-nine always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -569,7 +569,8 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    `website-scorecard` (optional public scorecard — same rule: copied, never runs
    unasked), `website-brand-kit` (optional colours and logo — same rule: copied, never
    runs unasked; asked about once at §2b), `website-tagline` (optional line under the logo — same rule: copied,
-   never runs unasked), `website-launch-check` (the launch check: run at steps 5a, 10c and 12a, and
+   never runs unasked), `website-new-page` (adding or rewriting a page — same rule: copied, never
+   runs unasked; it runs when the owner asks for a new page, an article or a rewrite), `website-launch-check` (the launch check: run at steps 5a, 10c and 12a, and
    whenever the owner asks), and `website-team-setup` (copied so the day a second person joins, the session that
    sets up the team finds it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
@@ -604,6 +605,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
          "$SKILLS_ROOT"/website-scorecard \
          "$SKILLS_ROOT"/website-brand-kit \
          "$SKILLS_ROOT"/website-tagline \
+         "$SKILLS_ROOT"/website-new-page \
          "$SKILLS_ROOT"/website-launch-check \
          "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
