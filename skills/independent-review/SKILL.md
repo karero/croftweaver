@@ -132,7 +132,10 @@ Codex's effort for any run.
    `--round`). Type is
    auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
-   on stdin. A DIFF artifact is the change without the trail:
+   on stdin. A page document (the `website-new-page` skill) is neither: pass `--content`, which
+   sends that skill's own content prompt in place of the correctness prompt; the research file
+   goes in `--evidence`, and the script refuses it beside `--plan`, `--diff`, `--wording-pass`
+   or an Antigravity seat. A DIFF artifact is the change without the trail:
    `git diff <base>...HEAD -- . ':(exclude)docs/reviews/'` (the trail still ships in the PR;
    reviewers auditing it cost rounds). Run from the repository the diff came from: before
    anything is sent, the script checks the diff against git (BASE CHECK in its header). With no

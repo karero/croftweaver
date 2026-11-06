@@ -520,6 +520,9 @@ skills/            the suite skills (canonical)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
+  website-new-page (adding or rewriting a page: one page document with the brief and the full
+                   draft, a content review for the reader, search and originality, the
+                   owner's go on the exact sentences, then a check that the build kept the text)
   independent-review, double-knuth, seo-reposition   (review gates + SEO
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass

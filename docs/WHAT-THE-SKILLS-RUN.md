@@ -288,6 +288,12 @@ an "Email Tap" event there, as a click on an email address does.
   names). It draws the icons with the site's own `sharp` package, without a browser. It
   makes no network call of its own and needs no key; the site's build and tests it runs are the site's own, and whatever they fetch is not covered here. In Claude Code, `python3` is not on the
   allowlist, so starting it asks; the commands it runs from there are not asked one by one.
+- **`website-new-page`** (only when you add or rewrite a page) writes a page document in
+  your site's folder and has a fresh pair of eyes read it: a subagent or a new conversation of
+  your own assistant, or, if you chose it, the outside reviewers of `independent-review`. It
+  then runs `check_page_text.py`, which reads the page document and the built page in your
+  folder and prints the differences. It makes no network call and needs no key. The research
+  step has the assistant read the top search results for your page's topic.
 - **`website-permissions`** copies `.claude/settings.json` and the sync hook script it
   registers (`git-stand.mjs`, which runs `git fetch`) into the site (see
   [What runs without asking](#what-runs-without-asking)).
@@ -295,7 +301,9 @@ an "Email Tap" event there, as a click on an email address does.
   Search Console data) and may offer `independent-review`.
 - **`independent-review`** is for people who change the toolkit or their site's code. It
   sends a plan or a code change to outside AI reviewers (see the next section). The skill
-  asks before a repository's content goes to each service for the first time.
+  asks before a repository's content goes to each service for the first time. With
+  `--content` it sends a page document and its research file instead of a plan or a diff, and
+  only when you chose outside reviewers for `website-new-page`.
   `seo-reposition` and `website-review` offer it only with your OK. It is not copied into
   new sites.
 

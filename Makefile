@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test test-facts test-agy-release test-brand-kit test-wordpress-inventory test-launch-check test-cloudflare-check test-create test-plugin test-codex-plugin smoke whats-new refresh push-denylist
+.PHONY: install install-codex package check test test-facts test-agy-release test-brand-kit test-wordpress-inventory test-launch-check test-new-page test-cloudflare-check test-create test-plugin test-codex-plugin smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -65,6 +65,9 @@ test-wordpress-inventory: ## run the wordpress-inspector tests, the count and th
 
 test-launch-check: ## run the website-launch-check tests, the report-page script (standard library only; no network)
 	@LAUNCH_CHECK_REQUIRE_STARTER=1 $(PYTHON) -m unittest discover -s skills/website-launch-check/scripts/tests
+
+test-new-page: ## run the website-new-page tests, the script that checks a build kept the approved page text (standard library only; no network)
+	@$(PYTHON) -m unittest discover -s skills/website-new-page/scripts/tests
 
 NODE ?= node
 test-cloudflare-check: ## run the tests of the Cloudflare check, of the Cloudflare setup script and of the Pages-to-Workers move script (Node 18+ and git, standard library only; stub sites, a stub of Cloudflare's API and a stub nameserver on 127.0.0.1, no real requests; one test waits out the setup script's 55-second deadline; the move tests' record step runs npm install and npm run build in a throwaway copy of a stub site, so npm must be on the PATH and no package is downloaded)
