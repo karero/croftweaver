@@ -134,9 +134,9 @@
 # the seats with the prompt in that skill's references/content-review.md in place of the
 # correctness prompt: one text-only prompt for every seat, read from that file at run time, so
 # there is no second copy to drift. --evidence carries the research file. It never combines with
-# --plan, --diff, --wording-pass or an Antigravity seat (its headless run ends on any tool call,
-# and the content prompt does not tell it otherwise), and the file missing or empty refuses the
-# run (exit 2).
+# --plan, --diff, --wording-pass or an Antigravity seat (PROMPT_AGY tells it not to call a tool,
+# because a refused call ends its headless run; the content prompt does not), and the file
+# missing or empty refuses the run (exit 2).
 # check_prompt_sync.sh holds the wiring: every seat is sent through SEND_*, which is that prompt in
 # this mode.
 # EVIDENCE. --evidence <file> sends one file to every seat in its own labelled block, after the

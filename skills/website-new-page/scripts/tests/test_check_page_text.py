@@ -236,6 +236,13 @@ class ReviewRound1(Base):
         self.assertEqual(code, 1, out)
         self.assertIn("FAQ schema", out)
 
+    def test_a_comment_or_a_quoted_greater_than_in_a_faq_answer_is_not_text(self):
+        # Why: markup in the schema's answer is not words; a quoted ">" must not cut a tag short.
+        page = self.changed_page("Pour off the grey liquid",
+                                 "Pour off the <b title='1 > 0'>grey</b><!-- note --> liquid")
+        code, out, err = self.run_check(DRAFT, page)
+        self.assertEqual((code, err), (0, ""), out)
+
     def test_faq_shapes_the_script_cannot_read_exit_2(self):
         # Why: a FAQPage the script cannot read must not look like a page with no FAQ, and must
         # not crash with a traceback.
@@ -243,6 +250,10 @@ class ReviewRound1(Base):
         for old, new in (('"mainEntity":[{"@type":"Question","name":"How often',
                           '"mainEntity":[null,{"@type":"Question","name":"How often'),
                          ('"name":"How often should I feed my starter?"', '"name":7'),
+                         ('"mainEntity":[{"@type":"Question","name":"How often',
+                          '"mainEntity":false,"x":[{"@type":"Question","name":"How often'),
+                         ('"acceptedAnswer":{"@type":"Answer","text":"Once a day',
+                          '"acceptedAnswer":[],"y":{"@type":"Answer","text":"Once a day'),
                          ('"acceptedAnswer":{"@type":"Answer","text":"Once a day',
                           '"acceptedAnswer":[{"@type":"Answer","text":"Once a day')):
             self.assertIn(old, html)

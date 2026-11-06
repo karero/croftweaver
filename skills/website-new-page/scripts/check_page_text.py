@@ -146,24 +146,47 @@ class Page(HTMLParser):
         return self._main_blocks if self._has_main else self.blocks
 
 
-def _tag_to_text(m):
-    """An inline tag leaves no gap in the words around it; any other tag is a break."""
-    return "" if m.group(2).lower() in INLINE else " "
+class _SchemaText(HTMLParser):
+    """The text of an HTML string as the reader sees it: tags and comments dropped, entities
+    decoded, an inline tag leaving no gap in the words around it and any other tag a break."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+
+    def _break(self, tag):
+        if tag not in INLINE:
+            self.parts.append(" ")
+
+    def handle_starttag(self, tag, attrs):
+        self._break(tag)
+
+    def handle_startendtag(self, tag, attrs):
+        self._break(tag)
+
+    def handle_endtag(self, tag):
+        self._break(tag)
+
+    def handle_data(self, data):
+        self.parts.append(data)
 
 
 def ld_text(value):
-    """A schema string as the reader sees it: tags dropped, then entities unescaped, then folded."""
+    """A schema string as the reader sees it, folded. Only a missing value (None) is empty."""
     if value is None:
         return ""
     if not isinstance(value, str):
         raise ValueError("FAQ name or answer text is not a string")
-    return fold(re.sub(r"<(/?)([A-Za-z][A-Za-z0-9]*)[^>]*>", _tag_to_text, value), True)
+    p = _SchemaText()
+    p.feed(value)
+    p.close()
+    return fold("".join(p.parts))
 
 
 def faq_from_ld(scripts):
     """(question, answer) pairs of every FAQPage in the page's JSON-LD, folded. A block that is
-    not JSON, or a FAQPage shaped other than a list of questions with one answer each, counts in
-    the second value: the script cannot read it."""
+    not JSON, or a FAQPage whose mainEntity is not a question object or a list of them, or whose
+    answer is not one object, counts in the second value: the script cannot read it."""
     found, bad = [], 0
 
     def walk(node):
@@ -174,7 +197,9 @@ def faq_from_ld(scripts):
             kind = node.get("@type")
             kinds = kind if isinstance(kind, list) else [kind]
             if "FAQPage" in kinds:
-                entities = node.get("mainEntity") or []
+                entities = node.get("mainEntity")
+                if entities is None:
+                    entities = []
                 if isinstance(entities, dict):
                     entities = [entities]
                 if not isinstance(entities, list):
@@ -182,7 +207,9 @@ def faq_from_ld(scripts):
                 for q in entities:
                     if not isinstance(q, dict):
                         raise ValueError("FAQPage question is not an object")
-                    accepted = q.get("acceptedAnswer") or {}
+                    accepted = q.get("acceptedAnswer")
+                    if accepted is None:
+                        accepted = {}
                     if not isinstance(accepted, dict):
                         raise ValueError("acceptedAnswer is not an object")
                     found.append((ld_text(q.get("name")), ld_text(accepted.get("text"))))
@@ -274,7 +301,7 @@ def draft_of(doc):
             if faq_level is not None and level <= faq_level:
                 end_question()
                 faq_level = None
-            if faq_level is not None:
+            if faq_level is not None:           # inside the FAQ section every heading is a question
                 end_question()
                 question = text
             elif re.fullmatch(r"(?i)faq|frequently asked questions", text):
