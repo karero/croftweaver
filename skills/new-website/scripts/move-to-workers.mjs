@@ -194,8 +194,8 @@ function cfWords(r) {
   return all.length ? [...new Set(all)].join('; ') : (r.error ?? `HTTP ${r.status}`);
 }
 
-// A difference in words. A commit line says which side is which; the rest keep "expected ≠ got".
-const diffWords = (d) => (d.field === 'commit line' ? `the site serves ${d.got}; ${d.expected} is expected` : `${d.expected} ≠ ${d.got}`);
+// A difference in words. A commit line names who serves what (d.who, "the site" after the move) and what is expected; the rest keep "expected ≠ got".
+const diffWords = (d) => (d.field === 'commit line' ? `${d.who ?? 'the site'} serves ${d.got ?? 'no commit line'}; ${d.expected} is expected` : `${d.expected} ≠ ${d.got}`);
 
 // A bounded number of calls at a time; the first failure ends the pool and is thrown.
 async function pool(items, width, fn) {
@@ -1276,10 +1276,10 @@ async function cmdRecord(ctx, run) {
       continue;
     }
     const diffs = compare(st.recording.entries[h], st.recording.entries.version, { change: true, onVersion: true, expect: frozen });
-    run.diffs.push(...diffs.map((d) => ({ ...d, host: h })));
-    unknown.push(...unknownOf(diffs).map((d) => ({ ...d, host: h })));
+    run.diffs.push(...diffs.map((d) => ({ ...d, host: h, who: "the Worker's version URL" })));
+    unknown.push(...unknownOf(diffs).map((d) => ({ ...d, host: h, who: "the Worker's version URL" })));
     const b = st.recording.entries[h]['/build.txt'];
-    if (b?.c !== frozen) unknown.push({ host: h, path: '/build.txt', field: 'commit line', expected: frozen, got: b?.c });
+    if (b?.c !== frozen) unknown.push({ host: h, path: '/build.txt', field: 'commit line', expected: frozen, got: b?.c, who: 'the domain' });
   }
   const checked = paths.length * (ctx.hosts.length + 1);
   say(`Recorded ${paths.length} addresses on ${ctx.hosts.join(', ')} and on the Worker's version URL (${checked} answers); ${run.diffs.filter((d) => d.known).length} known differences, ${unknown.length} unknown.`);
