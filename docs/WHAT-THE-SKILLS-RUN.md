@@ -206,7 +206,7 @@ an "Email Tap" event there, as a click on an email address does.
 ### Skills that run scripts
 
 - **`new-website`** creates the site folder (in the folder you confirm), runs `git init`,
-  `npm create astro@latest`, copies the templates and 28 skills into the site, and runs the
+  `npm create astro@latest`, copies the templates and 29 skills into the site, and runs the
   build and tests. For Cloudflare it uses `npx wrangler pages project create` and
   `npx wrangler pages deploy` with a token you make, or `npx wrangler login`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
@@ -523,7 +523,7 @@ Snyk. Checked on 2026-10-14:
   `website-tagline`, `website-team-setup` and `wordpress-inspector` were missing, and
   `skills.sh/karero/croftweaver` did not exist. Later that day, after one install under the
   new name, the listing moved to
-  [karero/croftweaver](https://www.skills.sh/karero/croftweaver) with all 37 skills, and the
+  [karero/croftweaver](https://www.skills.sh/karero/croftweaver) with all 37 skills it had that day, and the
   old address forwards there (the README's install section says the same).
 - The audits are from 6 July to 6 September 2026, so they describe older versions.
 - **Socket:** pass on all 29.

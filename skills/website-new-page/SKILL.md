@@ -39,8 +39,8 @@ link, unless the owner reclassifies it after you have read the source itself.
 **2. Research.** Read the top results for the main query and ask an AI the same question. Save
 what they cover and what they miss in a research file (`docs/pages/<slug>-research.md`), with the
 address of every source you read. Read each source at the source, not through a summary. Where
-the site has Search Console data, `search-console-insights` shows what the page's neighbours
-already rank for.
+the site has Search Console data and the `search-console-insights` skill is installed, that skill
+shows what the page's neighbours already rank for; otherwise skip this.
 
 **3. Write the page document.** The brief fills its fields in plain words: the page type (an
 article that answers a question, a home page, a product or service page, a contact or legal
@@ -61,7 +61,7 @@ Call the other skills for their own questions, and do not restate their rules he
 | Will an AI answer quote this page? | `ai-seo` |
 | Does the page match the search intent? | `seo-audit` |
 | Is the copy clear and in the owner's voice? | `copywriting` |
-| What does the site already rank for? | `search-console-insights` |
+| What does the site already rank for? | `search-console-insights`, where it is installed |
 
 **4. Content review.** One reviewer reads the page document and the research file with the prompt
 in `${CLAUDE_SKILL_DIR}/references/content-review.md`. It asks three things: does the page answer

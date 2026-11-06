@@ -522,7 +522,8 @@ skills/            the suite skills (canonical)
                    copied to every site, runs only when a second person joins)
   website-new-page (adding or rewriting a page: one page document with the brief and the full
                    draft, a content review for the reader, search and originality, the
-                   owner's go on the exact sentences, then a check that the build kept the text)
+                   owner's go on the exact sentences, then a check that the build kept the text;
+                   copied to every site, never runs unasked)
   independent-review, double-knuth, seo-reposition   (review gates + SEO
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
@@ -628,12 +629,13 @@ none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
-Six more skills are optional in a different way: `website-motion`, `website-story`,
-`website-brand-kit`, `website-scorecard`, `website-tagline` and `website-positioning-check`
+Seven more skills are optional in a different way: `website-motion`, `website-story`,
+`website-brand-kit`, `website-scorecard`, `website-tagline`, `website-new-page` and
+`website-positioning-check`
 are **copied into every site** so the recipient can use them later, but **never run unless
 asked** (`website-story` is offered once, after positioning, with a plain-language explanation;
 `website-brand-kit` is asked about once, right after it, with one plain question; the
-other four only on request).
+other five only on request).
 
 ### Use it locally
 
