@@ -70,7 +70,7 @@ never gives it to a program it starts (the build, `git`).
 | 2 | `record` | Freezes the live branch's tip and builds it apart from your working folder, then records what the live site serves. |
 | 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. |
 | 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote and nothing has changed since step 3 (below): it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
-| 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). If the Worker has no Workers Builds, deploy it as well. After an `undo`, the same with the undo commit. |
+| 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). The push runs the site's own tests first (about 2 minutes on the kit), so it can look hung. If the Worker has no Workers Builds, deploy it as well, as stage 1 did; the move token cannot. On a kit site, from the pushed commit, on the User's own Cloudflare login: `npm run build`, then `npx wrangler deploy`. `after` fails until the Worker serves the new commit. After an `undo`, the same with the undo commit, never the route commit. |
 | 6 | `after` | Compares the live site with the recording and reports what differs. |
 
 **`check` refuses** (and each refusal says what to do): a Pages project made by direct upload, or
@@ -95,7 +95,7 @@ question will not fit a later one: a wrong code asks again and changes nothing.
 | Status | Means | What to do |
 |---|---|---|
 | 0 | Finished. | Go to the next step. |
-| 1 | Something failed or was refused. | Read the report. It says what, and where each host is now. |
+| 1 | Something failed or was refused. | Read the report. It says what, and where each host is now. Two cases need no change from you: a `--confirm` run more than 15 minutes after its plain run changes nothing and refuses; run the plain command again, then `--confirm` with the code it prints. And "GitHub could not be reached": git got no answer in 15 seconds and nothing was changed; check the connection, or try again later. |
 | 2 | The command was wrong. | Fix the command. |
 | 3 | Waiting for a yes. | Ask the User the question in the report. Run `--confirm <code>` only after her yes. |
 | 4 | Not finished. | Run the same command again. At once after a switch that stopped part way, or left a host unstarted for lack of time; after a minute if the report names a build; in the seconds the report names if it names GitHub's pause (30 seconds at most). Only a plain `move`, `undo` or `after` meets that pause: a `--confirm` run reads no GitHub. |
@@ -142,7 +142,8 @@ Builds is connected (any commit since the last pass has one of its check runs), 
 it has not reported on yet counts as unfinished too. A Workers Builds check run was seen in progress
 while its build ran; when it first appears after a push is not known. Once a run is completed it
 counts as finished whatever its conclusion: `after` does not read the conclusion; what it does compare is the
-commit line in `/build.txt` with the expected commit. GitHub's `started_at` of a run equals its
+commit line in `/build.txt` with the expected commit; a difference reads "the site serves A; B is
+expected". GitHub's `started_at` of a run equals its
 `completed_at`, so the script does not use it. `after` then reads where Cloudflare puts each host (a
 Pages domain counts once the project's domain list shows it `active`: the list shows a new domain at
 once as `initializing`, later `pending`; while it shows either, `after` exits 4: run it again in a
@@ -169,8 +170,8 @@ which platform has it.
 pushed) and asks; `undo --confirm <code>` changes only Cloudflare and refuses unless HEAD holds
 that commit: each host leaves the Worker and goes back to the Pages project with its CNAME. Push
 the commit as in step 5 of the table (to `main` too on a two-stage site), and where the Worker has
-no Workers Builds, deploy it as well: otherwise the Worker keeps serving the old commit and `check`
-says so. Then run `after`; it closes the move when the hosts serve from Pages again. A move that
+no Workers Builds, deploy it as well, from the undo commit and the same way as in step 5: otherwise
+the Worker keeps serving the old commit and `check` says so. Then run `after`; it closes the move when the hosts serve from Pages again. A move that
 stopped can be undone the same way, by hand if need be: `after` follows the commit, so it closes
 either. If an undo stops part way, `move` goes forward again from where it stopped. Ordinary commits
 shipped meanwhile, a changed compatibility date among them, do not stand in the way: the commit the

@@ -22,6 +22,7 @@ const API_HOST = 'https://api.cloudflare.com';
 const API_PREFIX = '/client/v4';
 const RUN_MS = 55_000; // one deadline per run, as the setup script has
 const REQUEST_MS = 8_000;
+const GIT_NET_MS = 15_000; // a git read of GitHub gets this long, not the whole run
 const MAX_RETRIES = 3; // runs that ask again for addresses that got no answer
 const MAX_TOKEN_MS = 8 * 86_400_000; // the setup script's limit: the dashboard sets an end date, not a time
 const MIN_LEFT_MS = 3_600_000;
@@ -192,6 +193,9 @@ function cfWords(r) {
     .map((e) => (e.code ? `${e.message} (code ${e.code})` : e.message));
   return all.length ? [...new Set(all)].join('; ') : (r.error ?? `HTTP ${r.status}`);
 }
+
+// A difference in words. A commit line says which side is which; the rest keep "expected ≠ got".
+const diffWords = (d) => (d.field === 'commit line' ? `the site serves ${d.got}; ${d.expected} is expected` : `${d.expected} ≠ ${d.got}`);
 
 // A bounded number of calls at a time; the first failure ends the pool and is thrown.
 async function pool(items, width, fn) {
@@ -580,6 +584,16 @@ async function prepare(opts, io, run) {
   ctx.run = (cmd, args, extra = {}) => (io.run ?? runProgram)(cmd, args, { cwd: extra.cwd ?? ctx.root ?? io.cwd, env: cenv, clock });
   const git = (...args) => ctx.run('git', args);
   ctx.git = git;
+  // A git read of GitHub, with its own short limit: a connection that hangs (SSH to GitHub does) ends here with a plain
+  // message, not at the run's deadline. The run's own deadline still wins when it comes first.
+  ctx.gitNet = async (...args) => {
+    const cap = io.gitNetMs ?? GIT_NET_MS;
+    const sub = { left: () => Math.min(clock.left(), cap) };
+    try { return await (io.run ?? runProgram)('git', args, { cwd: ctx.root ?? io.cwd, env: cenv, clock: sub }); } catch (e) {
+      if (e instanceof Deadline && clock.left() > 0) throw new Stop(1, `GitHub could not be reached: git got no answer from ${ctx.repository ?? 'it'} in ${Math.round(cap / 1000)} s. Nothing was changed. Check this computer's connection to GitHub, or try again later.`);
+      throw e;
+    }
+  };
   const gitOut = async (...args) => {
     const r = await git(...args);
     if (r.code !== 0) throw new Stop(1, `git ${args[0]} failed: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
@@ -617,10 +631,11 @@ async function prepare(opts, io, run) {
   ctx.github = makeGithub(io, ctx);
   ctx.report = run;
 
-  const lsStarted = git('ls-remote', '--heads', 'origin'); // beside the token check: neither needs the other
+  const lsStarted = ctx.gitNet('ls-remote', '--heads', 'origin'); // beside the token check: neither needs the other
   lsStarted.catch(() => {}); // awaited below; a stop before that must not leave it unhandled
   // The token: verified, a week away at most, with DNS reach in one zone.
   const verify = await ctx.api('GET', '/user/tokens/verify');
+  if (verify.status === 0) throw new Stop(1, `Cloudflare did not answer the token check (${verify.error ?? 'no answer'}). That is the connection, not the token: check this computer's connection, then run this again.`);
   if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
   const ends = Date.parse(verify.body.result.expires_on ?? '');
   if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date a week out, and delete this one.');
@@ -808,7 +823,7 @@ async function firstMoveRefusals(ctx, live) {
 // ---------------------------------------------------------------- GitHub and builds
 
 async function tipOf(ctx, branch) {
-  const r = await ctx.git('ls-remote', 'origin', `refs/heads/${branch}`);
+  const r = await ctx.gitNet('ls-remote', 'origin', `refs/heads/${branch}`);
   const sha = r.stdout.split('\t')[0].trim();
   if (r.code !== 0 || !/^[0-9a-f]{40}$/.test(sha)) throw new Stop(1, `git could not read ${branch} on GitHub.`);
   return sha;
@@ -1273,7 +1288,7 @@ async function cmdRecord(ctx, run) {
     st.recording.unknown = unknown.slice(0, 50);
     keep();
     note(run, false, `${unknown.length} differences the script does not know between the domain and the Worker's version`);
-    for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${d.expected} ≠ ${d.got}`);
+    for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${diffWords(d)}`);
     throw new Stop(1, `${unknown.length} unknown differences: the Worker would not serve what the domain serves now. Fix the site (stage 1), then record again. Nothing was changed.`);
   }
   st.snapshots.push(await snapshot(ctx, live, 'record'));
@@ -1646,7 +1661,7 @@ async function cmdAfter(ctx, run) {
   const knownN = run.diffs.filter((d) => d.known).length;
   note(run, !unknown.length, `${rec.paths.length} addresses on each host compared with the recording: ${knownN} known differences, ${unknown.length} unknown`);
   if (unknown.length) {
-    for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${d.expected} ≠ ${d.got}`);
+    for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${diffWords(d)}`);
     run.next = toWorker ? 'Read the differences; node move-to-workers.mjs undo if a visitor would notice.' : 'Read the differences.';
     throw new Stop(1, `${unknown.length} unknown differences between the live site and the recording.`);
   }
@@ -1701,7 +1716,7 @@ export function renderStatus(template, m) {
   const hosts = m.hosts.length ? m.hosts.map((h) => `<tr><td>${esc(h.name)}</td><td>${esc(h.where)}</td><td>${esc(h.since ?? '–')}</td></tr>`).join('\n') : '<tr><td colspan="3">No host is known yet.</td></tr>';
   const checks = m.checks.length ? m.checks.map((c) => `<li class="${c.ok === 'wait' ? 'wait' : c.ok ? 'ok' : 'bad'}">${c.ok === 'wait' ? 'Waiting' : c.ok ? 'OK' : 'Failed'}: ${esc(c.text)}</li>`).join('\n') : '<li>Nothing was checked in this run.</li>';
   const diffs = m.differences.length
-    ? m.differences.map((d) => `<li><a href="${d.path === 'http://' ? `http://${esc(d.host)}/` : `https://${esc(d.host)}${esc(d.path)}`}" title="${esc(d.path)}">${d.path === 'http://' ? `http://${esc(d.host)}/` : `${esc(d.host)}${esc(d.path)}`}</a>: ${esc(d.field)}: ${esc(d.expected)} became ${esc(d.got)}</li>`).join('\n')
+    ? m.differences.map((d) => `<li><a href="${d.path === 'http://' ? `http://${esc(d.host)}/` : `https://${esc(d.host)}${esc(d.path)}`}" title="${esc(d.path)}">${d.path === 'http://' ? `http://${esc(d.host)}/` : `${esc(d.host)}${esc(d.path)}`}</a>: ${esc(d.field)}: ${d.field === 'commit line' ? esc(diffWords(d)) : `${esc(d.expected)} became ${esc(d.got)}`}</li>`).join('\n')
     : '<li>None.</li>';
   const fill = {
     title: esc(m.site), updated: esc(m.updated), command: esc(m.command), result: esc(m.result), stages: items, hosts, checks,

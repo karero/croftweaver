@@ -2688,3 +2688,61 @@ describe('review: the undo says to deploy as well (kit undo test, 2026-11-05)', 
     assert.match(back.text, /Now push commit [0-9a-f]+ to .*, deploy it if the Worker has no Workers Builds, and run: node move-to-workers\.mjs after/);
   });
 });
+
+describe('test 6 (a fresh assistant on the guide): a hung GitHub, a timed-out token check, which side a commit line is', () => {
+  const HANG = ['-e', 'setInterval(() => {}, 1000)']; // a real child that never answers, killed by the limit the script passes
+  const hangWhen = (match) => (cmd, args, o) => (match(args) ? runProgram(process.execPath, HANG, o) : runProgram(cmd, args, o));
+
+  test('6.2: a git read of GitHub that hangs ends at its own limit with a plain message, not at the run\'s 55 seconds', async () => {
+    const s = scenario();
+    const t0 = Date.now();
+    const r = await s.go(['check'], { run: hangWhen((a) => a[0] === 'ls-remote'), gitNetMs: 700 });
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /GitHub could not be reached: git got no answer from lena-example\/lenas-backstube in 1 s\. Nothing was changed\./);
+    assert.doesNotMatch(r.text, /time limit/);
+    assert.ok(Date.now() - t0 < 15_000, 'it did not wait for the run\'s deadline');
+    assert.ok(s.w.calls.every((c) => c.method === 'GET'), 'nothing was changed');
+  });
+
+  test('6.2: the later read of a branch tip (after) has the same limit', async () => {
+    const s = scenario();
+    await movedAndPassed(s);
+    const r = await s.go(['after'], { run: hangWhen((a) => a[0] === 'ls-remote' && a[1] === 'origin' && String(a[2]).startsWith('refs/heads/')), gitNetMs: 700 });
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /GitHub could not be reached/);
+  });
+
+  test('6.2: when the run\'s own time is shorter than the git limit, the run\'s deadline still ends it (status 4)', async () => {
+    const s = scenario();
+    const r = await s.go(['check'], { run: hangWhen((a) => a[0] === 'ls-remote'), gitNetMs: 60_000, runMs: 1500 });
+    assert.equal(r.code, 4, r.text);
+    assert.match(r.text, /time limit/);
+  });
+
+  test('6.3: a token check that times out says it is the connection, not the token; a refusal still says the token', async () => {
+    const real = makeFetch(scenario().w);
+    const timedOut = (url, init) => (String(url).endsWith('/user/tokens/verify') ? Promise.reject(Object.assign(new Error('aborted'), { name: 'TimeoutError' })) : real(url, init));
+    const r = await scenario().go(['check'], { apiFetch: timedOut });
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /Cloudflare did not answer the token check \(timed out\)\. That is the connection, not the token/);
+    assert.doesNotMatch(r.text, /did not accept the token|revoked/);
+    const s = scenario();
+    s.w.refuse['GET /user/tokens/verify'] = 401;
+    const refused = await s.go(['check']);
+    assert.match(refused.text, /Cloudflare did not accept the token/);
+  });
+
+  test('6.4: after names which side serves a commit and which is expected', async () => {
+    const s = scenario();
+    assert.equal((await recordDone(s)).code, 0, s.text());
+    const q = await s.go(['move']);
+    assert.equal((await s.go(['move', '--confirm', codeOf(q)])).code, 0, s.text());
+    s.push();
+    const route = git(s.site.work, 'rev-parse', 'HEAD');
+    s.w.pagesCommit = s.w.workerCommit = s.site.frozen; // the Worker was never deployed: it still serves the old commit
+    const r = await s.go(['after']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, new RegExp(`unknown: \\S+/build\\.txt commit line: the site serves ${s.site.frozen}; ${route} is expected`));
+    assert.match(statusPage(s), new RegExp(`commit line: the site serves ${s.site.frozen}; ${route} is expected`));
+  });
+});
