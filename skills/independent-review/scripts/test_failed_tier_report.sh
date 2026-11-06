@@ -2062,9 +2062,9 @@ check "T13: its Melious line names the id melious_models.txt allows" grep -q "^m
 #     the prompt file, not read back from what the script printed.
 PAGE="$HERE/fixtures/website-new-page_page-document_made-up.md"
 RESEARCH="$HERE/fixtures/website-new-page_research-file_made-up.md"
-run content WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$PAGE" --content --evidence "$RESEARCH"
+run content bash "$SCRIPT" "$PAGE" --content --evidence "$RESEARCH"
 check "content: exit 0, both seats counted" sh -c 'grep -qx 0 "$1" && grep -qF "reviewers: codex OK, ollama-cloud OK" "$2"' _ "$T/content.rc" "$T/content.out"
-for tier in codex ollama agy; do
+for tier in codex ollama; do
   f="$T/content.marks/$tier-prompt"
   check "content, $tier: the content prompt comes first" sh -c 'head -c 41 "$1" | grep -qF "You are an adversarial content reviewer."' _ "$f"
   check "content, $tier: it holds the reader lens" has content.marks/$tier-prompt "Is a picture the faster way to explain something"
@@ -2084,6 +2084,14 @@ for flags in "--plan" "--diff" "--wording-pass" "--base HEAD"; do
 done
 run contentbad2 bash "$SCRIPT" --plan "$PAGE" --content
 check "content after --plan: refused, exit 2" rc_is contentbad2 2
+# Antigravity is refused: its prompt carries the no-tool instruction this one lacks.
+run contentagy1 bash "$SCRIPT" "$PAGE" --content --with-antigravity
+run contentagy2 bash "$SCRIPT" "$PAGE" --content --seat agy
+run contentagy3 WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$PAGE" --content
+for n in contentagy1 contentagy2 contentagy3; do
+  check "content on Antigravity ($n): refused, exit 2" rc_is $n 2
+  check "content on Antigravity ($n): says so, and no seat ran" sh -c 'grep -qF "does not run on Antigravity" "$1.err" && [ ! -e "$2/codex-ran" ] && [ ! -e "$2/agy-ran" ]' _ "$T/$n" "$T/$n.marks"
+done
 # Prompt file missing, or with no quoted prompt: refused before anything is sent.
 mkdir -p "$T/tree/skills/independent-review" "$T/tree/skills/website-new-page/references"
 cp -R "$HERE" "$T/tree/skills/independent-review/scripts"

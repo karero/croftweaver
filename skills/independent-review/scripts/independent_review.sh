@@ -134,7 +134,9 @@
 # the seats with the prompt in that skill's references/content-review.md in place of the
 # correctness prompt: one text-only prompt for every seat, read from that file at run time, so
 # there is no second copy to drift. --evidence carries the research file. It never combines with
-# --plan, --diff or --wording-pass, and the file missing or empty refuses the run (exit 2).
+# --plan, --diff, --wording-pass or an Antigravity seat (its headless run ends on any tool call,
+# and the content prompt does not tell it otherwise), and the file missing or empty refuses the
+# run (exit 2).
 # check_prompt_sync.sh holds the wiring: every seat is sent through SEND_*, which is that prompt in
 # this mode.
 # EVIDENCE. --evidence <file> sends one file to every seat in its own labelled block, after the
@@ -302,6 +304,9 @@ CONTENT_PROMPT_TEXT=""
 if [ "$CONTENT_MODE" = 1 ]; then
   if [ -n "$TYPE" ] || [ "$WORDING_PASS" = 1 ]; then
     echo "--content reviews a page document as content: drop --plan, --diff and --wording-pass" >&2; exit 2
+  fi
+  if [ "$WITH_ANTIGRAVITY" = 1 ] || [ "$SEAT" = agy ]; then
+    echo "--content does not run on Antigravity: drop --with-antigravity (or WITH_ANTIGRAVITY=1) and --seat agy" >&2; exit 2
   fi
   TYPE="content"
   [ -r "$CONTENT_PROMPT_FILE" ] || { echo "--content needs the website-new-page skill's references/content-review.md beside this skill: not found at $CONTENT_PROMPT_FILE" >&2; exit 2; }
@@ -836,8 +841,9 @@ unset PROMPT 2>/dev/null || true
 # it never performed (a hypothesis, not measured).
 #
 # The unsupported-claim paragraph is in PROMPT_CORE, which PROMPT_TOOLED, PROMPT_TEXTONLY,
-# PROMPT_AGY and PROMPT_PORTABLE each embed — checked by check_prompt_sync.sh. That every reviewer
-# call below passes one of those four is not checked; it holds by reading the calls. An evidence gap is an
+# PROMPT_AGY and PROMPT_PORTABLE each embed — checked by check_prompt_sync.sh, which also checks
+# that every reviewer call is sent through SEND_*, from the script's text: what a run sends is
+# tested in test_failed_tier_report.sh (section 26 for --content). An evidence gap is an
 # UNVERIFIABLE entry, not a finding, so the tool-less tier carries no RISK floor for claims it
 # could never check. The clean verdict is dictated word for word because looks_like_review()
 # matches phrases, not meaning: "Nothing rises to a finding" is discarded where "No BUG/RISK/NIT

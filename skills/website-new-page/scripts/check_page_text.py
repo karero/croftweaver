@@ -3,14 +3,14 @@
 
 Compares a page document's draft (markdown, the part under "## Draft") with the page as built
 (an HTML file): the title, the description, the FAQ schema and every sentence of the visible text.
-Both sides are folded first: whitespace, HTML entities and typographic quotes. Nothing else is
-folded, so a changed dash or word shows up.
+Both sides are folded first: whitespace (non-breaking spaces too), HTML entities, Unicode
+composition (NFC) and typographic quotes. Nothing else is folded, so a changed dash or word shows up.
 
   python3 check_page_text.py PAGE-DOCUMENT.md BUILT.html [--title-suffix " | Site"] [--skip nav,footer,.byline]
 
 Exit 0: the build kept the text. Exit 1: it differs, and every changed sentence is listed.
 Exit 2: the input could not be read or is not shaped as this script expects (said on stderr).
-Standard library only.
+Standard library only; Python 3.9 or newer.
 """
 import argparse
 import html
@@ -65,6 +65,7 @@ class Page(HTMLParser):
         self._ld_script = False
         self._ld_text = []
         self._main = 0
+        self._has_main = False
         self._main_blocks = []
 
     def _flush(self):
@@ -101,6 +102,7 @@ class Page(HTMLParser):
         self._skipped += skipped
         if tag == "main":
             self._main += 1
+            self._has_main = True
 
     def handle_endtag(self, tag):
         if tag in VOID or all(t != tag for t, _, _ in self._stack):
@@ -140,12 +142,28 @@ class Page(HTMLParser):
         self._flush()
 
     def body_blocks(self):
-        """The blocks inside <main> if the page has one, else all visible blocks."""
-        return self._main_blocks if self._main_blocks else self.blocks
+        """The blocks inside <main> if the page has one (even an empty one), else all visible blocks."""
+        return self._main_blocks if self._has_main else self.blocks
+
+
+def _tag_to_text(m):
+    """An inline tag leaves no gap in the words around it; any other tag is a break."""
+    return "" if m.group(2).lower() in INLINE else " "
+
+
+def ld_text(value):
+    """A schema string as the reader sees it: tags dropped, then entities unescaped, then folded."""
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError("FAQ name or answer text is not a string")
+    return fold(re.sub(r"<(/?)([A-Za-z][A-Za-z0-9]*)[^>]*>", _tag_to_text, value), True)
 
 
 def faq_from_ld(scripts):
-    """(question, answer) pairs of every FAQPage in the page's JSON-LD, folded."""
+    """(question, answer) pairs of every FAQPage in the page's JSON-LD, folded. A block that is
+    not JSON, or a FAQPage shaped other than a list of questions with one answer each, counts in
+    the second value: the script cannot read it."""
     found, bad = [], 0
 
     def walk(node):
@@ -156,9 +174,18 @@ def faq_from_ld(scripts):
             kind = node.get("@type")
             kinds = kind if isinstance(kind, list) else [kind]
             if "FAQPage" in kinds:
-                for q in node.get("mainEntity") or []:
-                    ans = (q.get("acceptedAnswer") or {}).get("text") or ""
-                    found.append((fold(q.get("name") or ""), fold(re.sub(r"<[^>]+>", " ", ans))))
+                entities = node.get("mainEntity") or []
+                if isinstance(entities, dict):
+                    entities = [entities]
+                if not isinstance(entities, list):
+                    raise ValueError("FAQPage mainEntity is not a list")
+                for q in entities:
+                    if not isinstance(q, dict):
+                        raise ValueError("FAQPage question is not an object")
+                    accepted = q.get("acceptedAnswer") or {}
+                    if not isinstance(accepted, dict):
+                        raise ValueError("acceptedAnswer is not an object")
+                    found.append((ld_text(q.get("name")), ld_text(accepted.get("text"))))
             for v in node.values():
                 walk(v)
 
@@ -211,11 +238,14 @@ def draft_of(doc):
     para, fence = [], False
     faq_level, question, answer = None, None, []
 
+    def add_block(text):
+        blocks.append(text)
+        if question is not None:
+            answer.append(text)
+
     def end_para():
         if para:
-            blocks.append(fold(inline_md(" ".join(para)), True))
-            if question is not None:
-                answer.append(blocks[-1])
+            add_block(fold(inline_md(" ".join(para)), True))
         para.clear()
 
     def end_question():
@@ -232,12 +262,12 @@ def draft_of(doc):
             continue
         if fence:
             if line.strip():
-                blocks.append(fold(line, True))
+                add_block(fold(line, True))
             continue
         if not line.strip():
             end_para()
             continue
-        h = re.match(r"(#{1,6})[ \t]+(.*?)[ \t#]*$", line)
+        h = re.match(r"(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$", line)
         if h:
             end_para()
             level, text = len(h.group(1)), fold(inline_md(h.group(2)), True)
@@ -260,7 +290,7 @@ def draft_of(doc):
             if not re.fullmatch(r"[\s|:\-]+", line):
                 for cell in line.strip().strip("|").split("|"):
                     if cell.strip():
-                        blocks.append(fold(inline_md(cell), True))
+                        add_block(fold(inline_md(cell), True))
             continue
         para.append(re.sub(r"^\s*>[ \t]?", "", line).strip())
     end_para()
@@ -307,7 +337,7 @@ def main(argv):
         return 2
     b_faq, bad_ld = faq_from_ld(page.ld)
     if bad_ld:
-        print(f"check_page_text: {bad_ld} JSON-LD block(s) in the built page could not be parsed", file=sys.stderr)
+        print(f"check_page_text: {bad_ld} JSON-LD block(s) in the built page could not be read (not JSON, or a FAQPage in a shape this script does not read)", file=sys.stderr)
         return 2
 
     diffs = []

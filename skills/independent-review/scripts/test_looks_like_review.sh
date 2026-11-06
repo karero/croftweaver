@@ -169,6 +169,19 @@ check accept "KNOWN WRONG (B-VERDICT-TEXT): 'no further risk analysis possible'"
 check accept "KNOWN WRONG (B-VERDICT-TEXT): 'No further bug reports can be generated'" "No further bug reports can be generated: usage limit reached."
 # Why the passive voice cannot simply be rejected: a genuine verdict takes the same shape.
 check accept "clean verdict: passive 'could be found'" "No confirmed bugs could be found in this diff."
+# Replies to the --content prompt (website-new-page): findings about a page, an UNVERIFIABLE heading
+# that talks about the claim, and a lone entry that talks about the reviewer's access instead.
+check accept "content reply: ranked findings, CLEAN list and UNVERIFIABLE entries" "Page type: article.
+
+- BUG — title \"Our approach\": the main query is missing from the title and H1. Fix: lead with it.
+- RISK — Section \"How it works\": thin next to the pages the research file lists. Fix: add worked examples.
+- NIT — FAQ order.
+
+CLEAN: reader, proof points.
+
+UNVERIFIABLE: whether the outbound link in the second paragraph still resolves."
+check reject "content reply: a lone finding about the reviewer's own access" "- RISK — I cannot open the research file, so I cannot judge whether the page is thin."
+check accept "content reply: the clean verdict the prompt dictates" "Page type: home page. No BUG/RISK/NIT findings."
 big_cases ""
 if command -v perl >/dev/null 2>&1; then
   perl -e '$SIG{PIPE}="IGNORE"; exec @ARGV' bash "$0" --big-cases " (SIGPIPE ignored)" || fail=1

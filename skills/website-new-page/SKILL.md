@@ -92,7 +92,7 @@ not pin all of the body copy: the next step watches it.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_page_text.py" docs/pages/<slug>.md dist/<slug>.html \
-  --title-suffix " | Site name" --skip nav,footer,aside
+  --title-suffix " | Site name" --skip nav,footer,aside,.byline
 ```
 
 It compares the draft with the built page's title, description, FAQ schema and every sentence in

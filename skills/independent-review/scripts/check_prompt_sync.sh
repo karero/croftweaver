@@ -3,9 +3,10 @@
 # it. This fails if the two copies drift, if PROMPT_CORE or a tier prompt is assigned more than once
 # or PROMPT_CORE comes after a tier prompt, or if a tier prompt's LIVE assignment does not begin
 # with ${PROMPT_CORE} — a commented-out correct line does not satisfy it.
-# --content mode (the website-new-page skill's prompt) is held too: no seat reads a tier prompt
-# directly, every seat is sent through SEND_*, which the content branch points at the one content
-# prompt, and that prompt in the website-new-page skill keeps the finding format the validator needs.
+# --content mode (the website-new-page skill's prompt) is held too, from the script's text: no
+# seat reads a tier prompt directly, every seat is sent through SEND_*, which the content branch
+# points at the one content prompt, and that prompt keeps the finding format the validator needs.
+# What a run really sends is tested in test_failed_tier_report.sh (section 26).
 # It tests itself first on mutated copies, because a guard that cannot fire is worse than none.
 # SKILL.md's copy is every blockquote line under its heading, up to the next heading.
 # Run: bash skills/independent-review/scripts/check_prompt_sync.sh

@@ -205,5 +205,69 @@ class RefusesWhatItCannotRead(Base):
         self.assertIn("JSON-LD", err)
 
 
+class ReviewRound1(Base):
+    """Cases found by the DIFF review's first round; each fails on the script as first built."""
+
+    PAGE_HEAD = ('<html><head><title>T</title><meta name="description" content="D"></head><body>')
+    DOC = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nHello there.\n"
+
+    def test_an_empty_main_is_still_the_page_body(self):
+        # Why: text outside <main> is site chrome. An empty <main> must not make the check read the
+        # whole body, or a build that lost all the copy would pass on the chrome's own sentences.
+        page = self.write("p.html", self.PAGE_HEAD + "<main></main><p>Hello there.</p></body></html>")
+        code, out, _ = self.run_check(self.write("d.md", self.DOC), page, [])
+        self.assertEqual(code, 1, out)
+        self.assertIn('CHANGED (in the draft, not in the page): "Hello there."', out)
+
+    def test_faq_schema_text_is_folded_like_the_page(self):
+        # Why: a build may write the answer as HTML text: &#39; for an apostrophe and inline tags
+        # around words. The reader sees the same words, so the check must not report a change.
+        page = self.changed_page("A starter that's fed on time",
+                                 "A <b>starter</b> that&#39;s fed on time")
+        code, out, err = self.run_check(DRAFT, page)
+        self.assertEqual((code, err), (0, ""), out)
+
+    def test_inline_tags_join_words_and_block_tags_split_them_in_a_faq_answer(self):
+        # Why: <b> inside a word shows the reader one word; <p> inside it shows two.
+        page = self.changed_page("Pour off the grey liquid", "Pour off the gr<b>ey</b> liquid")
+        self.assertEqual(self.run_check(DRAFT, page)[0], 0)
+        page = self.changed_page("Pour off the grey liquid", "Pour off the gr<p>ey liquid")
+        code, out, _ = self.run_check(DRAFT, page)
+        self.assertEqual(code, 1, out)
+        self.assertIn("FAQ schema", out)
+
+    def test_faq_shapes_the_script_cannot_read_exit_2(self):
+        # Why: a FAQPage the script cannot read must not look like a page with no FAQ, and must
+        # not crash with a traceback.
+        html = read(PAGE)
+        for old, new in (('"mainEntity":[{"@type":"Question","name":"How often',
+                          '"mainEntity":[null,{"@type":"Question","name":"How often'),
+                         ('"name":"How often should I feed my starter?"', '"name":7'),
+                         ('"acceptedAnswer":{"@type":"Answer","text":"Once a day',
+                          '"acceptedAnswer":[{"@type":"Answer","text":"Once a day')):
+            self.assertIn(old, html)
+            page = self.write("p.html", html.replace(old, new, 1))
+            code, _, err = self.run_check(DRAFT, page)
+            self.assertEqual(code, 2, (new, err))
+            self.assertIn("JSON-LD", err)
+
+    def test_a_single_question_object_is_one_question(self):
+        found, bad = cpt.faq_from_ld(
+            ['{"@type":"FAQPage","mainEntity":{"@type":"Question","name":"Q?",'
+             '"acceptedAnswer":{"text":"A."}}}'])
+        self.assertEqual((found, bad), ([("Q?", "A.")], 0))
+
+    def test_table_cells_and_code_lines_in_a_faq_answer_belong_to_the_answer(self):
+        doc = ("## Draft\n\nTitle: T\nDescription: D\n\n## FAQ\n\n### Q?\n\nFirst part.\n\n"
+               "| Cell A | Cell B |\n|---|---|\n\n```\ncode line\n```\n")
+        _, _, _, faq = cpt.draft_of(doc)
+        self.assertEqual(faq, [("Q?", "First part. Cell A Cell B code line")])
+
+    def test_a_closing_hash_run_goes_but_a_hash_in_the_words_stays(self):
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n## Learn C# ##\n\n## Why C#\n"
+        _, _, blocks, _ = cpt.draft_of(doc)
+        self.assertEqual(blocks, ["Learn C#", "Why C#"])
+
+
 if __name__ == "__main__":
     unittest.main()
