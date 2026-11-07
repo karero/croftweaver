@@ -3,7 +3,7 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-07 | this file |
-| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–3 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
+| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–4 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ⬜ | — |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ⬜ | — |
 
@@ -33,35 +33,48 @@ Running today's `melious_stream.pl` on each `melious.resp` gives a section byte-
 run's `melious.out`, so the fault is reproduced and is in the reader, not the model's transport.
 
 **Fix.** A marker counts as having findings after it only when a line after it is one the review
-check counts as a finding: a line that, after any whitespace, starts with `#`, `*`, `-` or a
-number and a dot, and names BUG, RISK or NIT, any case. That is `finding_count` in
-`looks_like_review` (`independent_review.sh:1102`), grep
-`'^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b'` with `-i`. The clean verdict "No BUG/RISK/NIT
-findings" still counts anywhere, as now. Line 112 becomes, exactly:
+check would also count as a finding. That check is `finding_count` in `looks_like_review`
+(`independent_review.sh:1102`): grep `'^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b'` with
+`-i`. The reader does not copy that pattern, because it matches the DECODED reply, where Perl's
+whitespace, word and case rules are Unicode's and grep's are not: rounds 2–4 found three ways the
+copy counted a line the grep does not (form feed, NEL, `RIſK` / the Kelvin sign), each making a
+marker usable whose section the check then rejects. So line 112 becomes a strict rule that counts a
+line only in a shape the grep surely counts too:
 
-`my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)(?i:.*\b(?:BUG|RISK|NIT)\b)|No BUG\/RISK\/NIT findings/m;`
+`my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?aai:BUG|RISK|NIT)(?![A-Za-z0-9_\x{80}-\x{10FFFF}])|No BUG\/RISK\/NIT findings/m;`
 
-The leading class is ASCII whitespace only, on purpose. The reader matches the decoded reply, where
-Perl's `\s` also takes NEL and U+2028, which the review check's grep does not; so a footer led by
-NEL would make a marker usable that the check then rejects (round 3, Codex). The grep takes a few
-non-ASCII spaces (no-break space, U+3000) that this class does not, which only goes the loud way:
-the marker is not usable, and the reply is kept whole with the no-marker warning. On the decoded
-text of every `codex.out`, `melious.out`, `ollama.out` and `melious.full` under `$TMPDIR`
-(1,774 files), this regex and that grep pick the same lines, with no file differing; no line in
-them starts with a non-ASCII space. So the cut keeps a section the review check can count findings in, and a summary
-line that does not start like a finding ("(Findings above: …", "The findings above …", "BUG: 1,
-RISK: 5") cannot make a marker usable. The walk from the last marker, the quote skips and the
-notes stay as they are. On both captures, with only that line changed, the reader keeps
+In words: ASCII whitespace, then `#`, `*`, `-` or a number and a dot, then printable ASCII only, up
+to the label BUG, RISK or NIT in ASCII letters, any case, with no ASCII word character before it
+and neither a word character nor any non-ASCII character after it. Each piece is ASCII and is
+inside what the grep takes, so the reader never counts a line the check does not. The clean
+verdict "No BUG/RISK/NIT findings" still counts anywhere, as now.
+
+What the strict rule does not count, the grep may: a finding-shaped line with a non-ASCII character
+before its label ("1. Dash guard — codex BUG …"). On the decoded text of every `codex.out`,
+`melious.out`, `ollama.out` and `melious.full` under `$TMPDIR` (1,786 files), the rule counts no
+line the grep does not, and misses 970 lines the grep counts, in 609 files; the ones sampled are
+prose that names a label after a dash or a curly quote. That costs nothing in practice: replaying
+every real `melious.resp` there through the reader with its run's own marker (525 runs), the
+section is byte-identical to round 3's regex in every run; the 19 runs whose prompt holds more
+than one marker give the same section under each of them (42 run and marker pairs). Had it mattered, the
+loss goes the loud way: the walk tries the earlier markers, and only when none qualifies is the
+reply kept whole with the no-marker warning.
+
+So a summary line that does not start like a finding ("(Findings above: …", "The findings above
+…", "BUG: 1, RISK: 5") cannot make a marker usable. The walk from the last marker, the quote skips
+and the notes stay as they are. On both captures, with only that line changed, the reader keeps
 everything after the first marker (9,973 and 7,174 bytes: a lead-in line and the findings in
 ctiPcY, the findings at once in hsNCTK) and `looks_like_review` accepts it. The second marker and
 the summary stay at the end of the section; nothing strips them. With that line changed in this
 worktree, `test_failed_tier_report.sh` passed all 696 checks, the same count as on `origin/main`
 (`2275e756`).
 
-**What it gives up.** A reply whose findings are in no line the review check counts (a table, a
-bare `RISK 1 — …`, a `> - NIT` quote) no longer makes its marker usable. It is then kept whole
-with the no-marker warning, as any reply without a usable marker is today, and the review check
-decides; for such a reply the check finds no structured finding either way. **Still wrong after
+
+**What it gives up.** A reply whose findings are in no line the strict rule counts (a table, a
+bare `RISK 1 — …`, a `> - NIT` quote, a label after a non-ASCII character) no longer makes its
+marker usable. The walk then tries the earlier markers; when none qualifies, the reply is kept
+whole with the no-marker warning, as any reply without a usable marker is today, and the review
+check decides. **Still wrong after
 the fix:** a summary after the second marker that does start like a finding ("- Totals: 1 BUG, 5
 RISK") makes that marker usable again. The section is then the reader's note ("the marker came 2
 times …, so check that the section starts with the review") and the summary, and the review check
@@ -138,8 +151,10 @@ capture keeps the quoted line at 317 and the footer pair. Expected values are wr
 | T10 | the trimmed r3 `codex.err` | `codex_tokens` | prints 72315 |
 | T11 | the same with the footer removed | `codex_tokens` | prints nothing |
 | T12 | a real `codex.err` whose footer is followed by the rollout ERROR line | `codex_tokens` | prints that footer's number, written by hand |
+| T13 | `independent_review.sh` | a check in `test_round_checks.sh` lists every `outcome="` assignment | each one but `OK` holds " (", so no outcome can reach `log_seat` without a reason; a new branch without one fails the suite |
+| T14 | two real findings, a second marker, then a footer led by NEL, by a no-break space, or naming `RIſK` or `RIS` + Kelvin sign, each served by the curl stub with the run's own marker | `independent_review.sh` with the melious seat | `melious OK`; both findings in the section, every case |
 
-Mutation check (the `mutation-check` skill): revert the regex and T1–T3 must fail; drop
+Mutation check (the `mutation-check` skill): revert the regex and T1–T3 must fail; put back round 3's regex (`(?i:.*\b(?:BUG|RISK|NIT)\b)` after the ASCII class) and T14's `RIſK` and Kelvin cases must fail; drop
 `--reason` from `log_seat` and T6–T7 must fail; restore the first-match read in `codex_tokens` and
 T10 must fail.
 

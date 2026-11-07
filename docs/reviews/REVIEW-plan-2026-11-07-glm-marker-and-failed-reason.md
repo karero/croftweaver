@@ -12,6 +12,7 @@ private captures, so it stays out of this public repo).
 | 1 | `708d2ca5` | full plan; evidence E1–E9 (13,748 bytes) | Codex gpt-6.1-sol; melious glm-5.3; fresh-eyes Sonnet | Codex 203 s, 55,137 · melious 213 s, 31,446 · fresh-eyes 116 s, 110,012 | 2 / 6 / 8 before dedup (Codex 2/1/0, melious 0/3/4, fresh-eyes 0/4/2); 11 after |
 | 2 | `10385968` | verify: full plan, PRIOR round 1, evidence E1–E13 (18,123 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 159 s, 54,161 · melious 333 s, 47,617 | 2 / 0 / 4 (Codex 2/0/0, melious 0/0/4); 6 after dedup |
 | 3 | `6d389c87` | verify: full plan, PRIOR round 2, evidence E1–E14 (20,186 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 158 s, 54,161 · melious 355 s, 45,530 | 1 / 1 / 3 (Codex 1/0/0, melious 0/1/3); 5 after dedup |
+| 4 | `c30648cc` | verify, `--earned-by finding-regex`: full plan, PRIOR round 3, evidence E1–E15 (23,025 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 186 s, 54,161 · melious 327 s, 44,410 | 2 / 2 / 1 (Codex 2/0/0, melious 0/2/1); 4 after dedup |
 
 ## Round 1 findings
 
@@ -78,3 +79,24 @@ substantive BUG in the reader's finding test, so round 4 runs with `--earned-by 
 earned no earlier round (rounds 2 and 3 were owed), so no cut is due; the fix is a strict rule
 anyway: ASCII whitespace only. C2 is wording (the outcomes already had their parentheses; the fix
 adds a test, not a change), so it earns nothing.
+
+## Round 4 findings
+
+Both seats confirmed C2–C5 as landed; C1 only for its NEL case.
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| D1 | BUG | Codex, melious (RISK) | the finding test still counts lines the grep does not, now through Unicode case folding: `- RIſK: footer` and the Kelvin sign match Perl's `/i` on decoded text, not grep; the second marker wins and the check rejects | fixed by a cut: line 112 no longer copies the grep. It is a strict rule, every piece ASCII and inside what the grep takes (ASCII spaces, marker, printable ASCII, an ASCII label with `/aa`, no word or non-ASCII character after it), so it can count only lines the grep counts. On 1,786 decoded replies it counts no extra line and misses 970 grep lines (prose after a dash or curly quote); replaying all 525 real melious replies, and the 19 multi-marker ones under each of 42 markers, every section is byte-identical to round 3's regex. `RIſK` and Kelvin probes keep both findings (E16); T14 pins them, and putting back round 3's regex must fail it |
+| D2 | BUG | Codex | "kept whole with the no-marker warning" was wrong where an earlier marker stays usable: the walk cuts there | fixed: §1 says the walk tries the earlier markers, and only when none qualifies keeps the whole reply with the warning |
+| D3 | RISK | melious | the reason extraction rests on every outcome keeping its parentheses, which nothing enforces; a new branch without them would log `-` | fixed: T13 lists every `outcome="` assignment and fails on one without " (" (today: all but `OK`, lines 1689–1733) |
+| D4 | NIT | melious | no committed test tells the ASCII class from round 2's `[^\S\n]`; only a hand replay did | fixed: T14 includes the NEL-led footer |
+
+Host checks of round 4's UNVERIFIABLE entries (E16): `$findings` is used only at
+`melious_stream.pl:113` and `:118`; `review_log.sh` reads no `NF` and no column past `$16`
+(lines 61–306). Codex's entries again ask for the private corpus and log, which stay in the notes
+folder.
+
+Round 5 is earned: D1 is a substantive BUG of the kind `finding-regex`, which earned round 4 too, so
+round 5 runs with `--earned-by finding-regex --cut "line 112's copy of the review check's grep
+replaced by a strict ASCII-only rule that counts only lines the grep counts"`. D3 is a RISK whose
+fix adds a check and changes nothing that runs, so it earns nothing.
