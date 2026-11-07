@@ -2144,7 +2144,8 @@ for c in a b; do
   eval "cap=\$CAP_$(printf %s "$c" | tr a-z A-Z)"
   run glm$c SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fixture STUB_REPLY_FILE="$cap" bash "$SCRIPT" "$T/change.diff" --base none
   check "T3 ($c): the pair's summary reads melious OK" has glm$c.out "reviewers: codex OK, melious OK"
-  check "T3 ($c): ... the section holds the first finding line" sh -c 'grep -qE "^- (NIT — Script-identity|BUG — \"The change\", item 1)" "$1"' _ "$T/glm$c.out"
+  case "$c" in a) first='^- NIT — Script-identity' ;; b) first='^- BUG — "The change", item 1' ;; esac
+  check "T3 ($c): ... the section holds the first finding line" grep -qE "$first" "$T/glm$c.out"
   check "T3 ($c): ... and no note of the reader's" no_notes glm$c
 done
 # T4, KNOWN WRONG: a summary after the second marker that starts like a finding makes that marker usable again.
@@ -2155,6 +2156,14 @@ check "T4 KNOWN WRONG: the section is the reader's note and the summary" \
   sh -c 'grep -qF "the marker came 2 times with findings after it, so check that the section starts with the review" "$1" && grep -qF -- "- Totals: 1 BUG, 1 RISK" "$1"' _ "$T/known.out"
 check "T4 KNOWN WRONG: ... neither finding line is in it" \
   sh -c '! grep -qF "first finding line" "$1" && ! grep -qF "second finding line" "$1"' _ "$T/known.out"
+# T15 (added in review): a clean verdict after the marker is findings-shaped, so the marker is usable (the second branch of $findings).
+printf '%s\n' 'Reasoning line.' '=== FINAL REVIEW 0123abcd ===' 'No BUG/RISK/NIT findings.' >"$T/clean.reply"
+reader clean "$T/clean.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T15: exit 0" rc_is clean 0
+check "T15: the section is the clean verdict" has clean.out "No BUG/RISK/NIT findings."
+check "T15: ... the reasoning before the marker is cut, and no note of the reader's is needed" \
+  sh -c '! grep -qF "Reasoning line." "$1" && ! grep -qF "no usable final-review marker" "$1"' _ "$T/clean.out"
+# No T5, T9 or T13 here: T5 is the suite's existing marker cases, unchanged; T9 and T13 live in test_round_checks.sh.
 # T14: footers that look like findings to Perl but not to the review check's grep, and the other way round
 # (bytes as octal escapes). The seat must stay OK and keep both findings.
 dm() {   # dm <name> <printf format of the footer line>

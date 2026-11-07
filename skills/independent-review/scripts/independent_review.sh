@@ -1767,7 +1767,8 @@ report_tier() {
 }
 # Codex's own token count: it ends a run with a "tokens used" line alone on stderr and the number
 # alone on the next line. The last such pair counts; a quoted "tokens used: N" never does. Best
-# effort — empty when absent, never guessed.
+# effort: empty when no pair exists. A quoted bare pair after the footer, or in a run with no
+# footer, still counts (the plan names this).
 codex_tokens() {
   awk '/^[[:space:]]*tokens used[[:space:]]*$/ { if ((getline nxt) > 0 && nxt ~ /^[[:space:]]*[0-9][0-9,]*[[:space:]]*$/) { gsub(/[^0-9]/, "", nxt); last = nxt } } END { if (last != "") print last }' "$RAW_DIR/codex.err" 2>/dev/null
 }

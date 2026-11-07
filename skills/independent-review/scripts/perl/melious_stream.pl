@@ -109,6 +109,8 @@ my $note = "";
 my $thinknote = $cut ? "(think block text dropped, " . ($cut < 1024 ? "under 1 KB" : "about " . int($cut / 1024 + 0.5) . " KB") . ($saved ? "; the full reply is in melious.full" : "") . ")\n" : "";
 my $wrap = qr/[ \t>*_#\x60]*/;
 my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, [$-[0], $+[0]] }
+# $findings may count only lines the review check's grep (looks_like_review) also counts: ASCII
+# only, no /i, no NUL in the lookahead. Loosening it lets a footer win the last-marker walk (T14).
 my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?=[\t\r\x20-\x2F\x3A-\x40\x5B-\x5E\x60\x7B-\x7E]|$)|No BUG\/RISK\/NIT findings/m;
 my $usable = grep { substr($c, $_->[1]) =~ $findings } @at;
 my $kept_whole = 1;

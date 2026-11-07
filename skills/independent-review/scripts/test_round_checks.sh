@@ -390,7 +390,7 @@ out_off="$(cd "$T/e2e" && HOME="$T/home2" REVIEW_LOG=off REVIEW_RAW_DIR="$T/raw"
 #     left without parentheses would log reason "-"; one built another way gets past this check.
 outs="$(grep -E '(^|[^A-Za-z_])outcome="' "$SCRIPT")"
 n_out="$(printf '%s\n' "$outs" | grep -c .)"
-n_bare="$(printf '%s\n' "$outs" | grep -v 'outcome="OK"' | grep -vc 'outcome="[A-Z ]* (')"
+n_bare="$(printf '%s\n' "$outs" | grep -v 'outcome="OK"' | grep -vc 'outcome="[^"]* (')"
 if [ "$n_out" -gt 1 ] && [ "$n_bare" -eq 0 ] && [ "$(printf '%s\n' "$outs" | grep -c 'outcome="OK"')" -eq 1 ]; then
   ok "every outcome assignment but OK carries a parenthesised reason ($n_out assignments)"
 else fail "outcome assignments without a parenthesised reason: $n_bare of $n_out: $outs"; fi
